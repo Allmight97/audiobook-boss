@@ -92,19 +92,12 @@ pub(super) fn build_ffmpeg_args(
 }
 
 fn build_input_decoder_args(selection: Option<&DecoderSelection>) -> Vec<OsString> {
-    let Some(decoder_name) = external_input_decoder_name(selection) else {
+    let Some(decoder_name) = crate::audio::toolchain::forced_external_input_decoder(selection)
+    else {
         return Vec::new();
     };
 
     vec![OsString::from("-c:a"), OsString::from(decoder_name)]
-}
-
-pub(super) fn external_input_decoder_name(selection: Option<&DecoderSelection>) -> Option<&str> {
-    match selection.map(|value| value.decoder_id.as_str()) {
-        Some("aac_at") => Some("aac_at"),
-        Some("libfdk_aac") => Some("libfdk_aac"),
-        _ => None,
-    }
 }
 
 fn build_concat_filter(input_count: usize) -> String {

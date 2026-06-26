@@ -1,4 +1,4 @@
-use crate::audio::toolchain::ValidatedExternalToolchain;
+use crate::audio::toolchain::{last_nonempty_stderr_line, ValidatedExternalToolchain};
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::{ProcessingContext, ProgressEmitter};
@@ -132,7 +132,8 @@ fn log_external_inputs(files: &[AudioFile], selected_decoders: &[Option<DecoderS
                 .as_ref()
                 .map(|value| value.decoder_label.as_str())
                 .unwrap_or_else(|| file.selected_decoder.as_deref().unwrap_or("unknown")),
-            super::args::external_input_decoder_name(selection.as_ref()).unwrap_or("auto"),
+            crate::audio::toolchain::forced_external_input_decoder(selection.as_ref())
+                .unwrap_or("auto"),
         );
     }
 }
@@ -263,14 +264,6 @@ fn ensure_external_success(status: std::process::ExitStatus, stderr_output: &str
     let details =
         last_nonempty_stderr_line(stderr_output).unwrap_or("External ffmpeg process failed.");
     Err(AppError::ProcessTermination(details.to_string()))
-}
-
-fn last_nonempty_stderr_line(stderr_output: &str) -> Option<&str> {
-    stderr_output
-        .lines()
-        .rev()
-        .map(str::trim)
-        .find(|value| !value.is_empty())
 }
 
 #[derive(Default)]
@@ -434,7 +427,8 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
                 .as_ref()
                 .map(|value| value.decoder_label.as_str())
                 .unwrap_or_else(|| file.selected_decoder.as_deref().unwrap_or("unknown")),
-            super::args::external_input_decoder_name(selection.as_ref()).unwrap_or("auto"),
+            crate::audio::toolchain::forced_external_input_decoder(selection.as_ref())
+                .unwrap_or("auto"),
         );
     }
     let _ = writeln!(

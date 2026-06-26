@@ -4,6 +4,7 @@ use crate::errors::sanitize_path_for_display;
 use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -160,14 +161,14 @@ fn path_to_string(path: &Path) -> Option<String> {
 
 fn auto_candidates() -> Vec<PathBuf> {
     ordered_auto_candidate_paths(
-        command_stdout_known(&["brew", "/opt/homebrew/bin/brew"], &["--prefix", "ffmpeg"])
+        first_successful_stdout(&["brew", "/opt/homebrew/bin/brew"], &["--prefix", "ffmpeg"])
             .as_deref(),
-        command_stdout_known(
+        first_successful_stdout(
             &["pkg-config", "/opt/homebrew/bin/pkg-config"],
             &["--variable=prefix", "libavcodec"],
         )
         .as_deref(),
-        command_stdout_known(&["which", "/usr/bin/which"], &["ffmpeg"]).as_deref(),
+        first_successful_stdout(&["which", "/usr/bin/which"], &["ffmpeg"]).as_deref(),
     )
 }
 
@@ -241,42 +242,29 @@ fn validate_candidate(
         ));
     }
 
-    let version = Command::new(candidate)
-        .args(["-hide_banner", "-loglevel", "error", "-version"])
-        .output()
-        .map_err(|error| {
-            format!(
-                "Failed to run FFmpeg '{}': {}",
-                sanitize_path_for_display(candidate),
-                error
+    probe_stdout(
+        candidate,
+        ["-hide_banner", "-loglevel", "error", "-version"],
+    )
+    .map_err(|fail| {
+        ffmpeg_probe_message(
+            candidate,
+            fail,
+            "Failed to run FFmpeg",
+            "could not start cleanly.",
+        )
+    })?;
+
+    let encoders_stdout =
+        probe_stdout(candidate, ["-hide_banner", "-encoders"]).map_err(|fail| {
+            ffmpeg_probe_message(
+                candidate,
+                fail,
+                "Failed to inspect encoders from",
+                "did not return encoder information.",
             )
         })?;
-    if !version.status.success() {
-        return Err(format!(
-            "FFmpeg executable '{}' could not start cleanly.",
-            sanitize_path_for_display(candidate)
-        ));
-    }
-
-    let encoders = Command::new(candidate)
-        .args(["-hide_banner", "-encoders"])
-        .output()
-        .map_err(|error| {
-            format!(
-                "Failed to inspect encoders from '{}': {}",
-                sanitize_path_for_display(candidate),
-                error
-            )
-        })?;
-    if !encoders.status.success() {
-        return Err(format!(
-            "FFmpeg executable '{}' did not return encoder information.",
-            sanitize_path_for_display(candidate)
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&encoders.stdout);
-    if !stdout.contains("libfdk_aac") {
+    if !ffmpeg_list_contains_codec(&encoders_stdout, "libfdk_aac") {
         return Err(format!(
             "FFmpeg executable '{}' does not expose libfdk_aac.",
             sanitize_path_for_display(candidate)
@@ -293,24 +281,14 @@ fn validate_candidate(
 }
 
 fn inspect_decoder_capabilities(candidate: &Path) -> Result<ExternalDecoderCapabilities, String> {
-    let decoders = Command::new(candidate)
-        .args(["-hide_banner", "-decoders"])
-        .output()
-        .map_err(|error| {
-            format!(
-                "Failed to inspect decoders from '{}': {}",
-                sanitize_path_for_display(candidate),
-                error
-            )
-        })?;
-    if !decoders.status.success() {
-        return Err(format!(
-            "FFmpeg executable '{}' did not return decoder information.",
-            sanitize_path_for_display(candidate)
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&decoders.stdout);
+    let stdout = probe_stdout(candidate, ["-hide_banner", "-decoders"]).map_err(|fail| {
+        ffmpeg_probe_message(
+            candidate,
+            fail,
+            "Failed to inspect decoders from",
+            "did not return decoder information.",
+        )
+    })?;
     Ok(ExternalDecoderCapabilities {
         aac_at: ffmpeg_list_contains_codec(&stdout, "aac_at"),
         libfdk_aac: ffmpeg_list_contains_codec(&stdout, "libfdk_aac"),
@@ -325,7 +303,13 @@ fn ffmpeg_list_contains_codec(stdout: &str, codec_name: &str) -> bool {
     })
 }
 
-fn required_external_input_decoder(selection: Option<&DecoderSelection>) -> Option<&str> {
+/// The external input decoder ffmpeg must be forced to use for a selection, if
+/// any. Single owner for both toolchain validation (the decoder-capability
+/// gate) and the external_fdk argv builder + logging, so validation and
+/// execution cannot drift out of lockstep.
+pub(in crate::audio) fn forced_external_input_decoder(
+    selection: Option<&DecoderSelection>,
+) -> Option<&str> {
     match selection.map(|value| value.decoder_id.as_str()) {
         Some("aac_at") => Some("aac_at"),
         Some("libfdk_aac") => Some("libfdk_aac"),
@@ -352,7 +336,7 @@ pub fn validate_external_input_decoders(
         let Some(selection) = selection.as_ref() else {
             continue;
         };
-        let Some(required_decoder) = required_external_input_decoder(Some(selection)) else {
+        let Some(required_decoder) = forced_external_input_decoder(Some(selection)) else {
             continue;
         };
 
@@ -376,27 +360,19 @@ pub fn validate_external_input_decoders(
 }
 
 fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
-    let lipo = Command::new("lipo").arg("-archs").arg(candidate).output();
-    if let Ok(output) = lipo {
-        if output.status.success() {
-            let arches = String::from_utf8_lossy(&output.stdout);
-            return arches
-                .split_whitespace()
-                .any(matches_supported_apple_silicon_arch);
-        }
+    if let Ok(arches) = probe_stdout("lipo", [OsStr::new("-archs"), candidate.as_os_str()]) {
+        return arches
+            .split_whitespace()
+            .any(matches_supported_apple_silicon_arch);
     }
 
-    let file = Command::new("file").arg("-b").arg(candidate).output();
-    if let Ok(output) = file {
-        if output.status.success() {
-            let description = String::from_utf8_lossy(&output.stdout);
-            if description.contains("script") || description.contains("text executable") {
-                return true;
-            }
-            return APPLE_SILICON_FFMPEG_ARCHES
-                .iter()
-                .any(|expected| description.contains(expected));
+    if let Ok(description) = probe_stdout("file", [OsStr::new("-b"), candidate.as_os_str()]) {
+        if description.contains("script") || description.contains("text executable") {
+            return true;
         }
+        return APPLE_SILICON_FFMPEG_ARCHES
+            .iter()
+            .any(|expected| description.contains(expected));
     }
 
     false
@@ -410,20 +386,74 @@ fn is_supported_auto_detect_prefix(prefix: &str) -> bool {
     prefix == "/opt/homebrew" || prefix.starts_with("/opt/homebrew/")
 }
 
-fn command_stdout_known(commands: &[&str], args: &[&str]) -> Option<String> {
-    for command in commands {
-        let Ok(output) = Command::new(command).args(args).output() else {
-            continue;
-        };
-        if !output.status.success() {
-            continue;
-        }
-        let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !value.is_empty() {
-            return Some(value);
+/// Failure from a one-shot CLI probe: the process could not be spawned, or it
+/// exited unsuccessfully (carrying the most useful stderr line, if any).
+enum ProbeFail {
+    Spawn(std::io::Error),
+    Exit { detail: Option<String> },
+}
+
+/// Spawn `program args`, require a successful exit, and return its raw
+/// (untrimmed) lossy stdout. The spawn -> status -> decode ritual lives once
+/// here; callers attach their own diagnostic wording to `ProbeFail`.
+fn probe_stdout<I, S>(program: impl AsRef<OsStr>, args: I) -> Result<String, ProbeFail>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let output = Command::new(program)
+        .args(args)
+        .output()
+        .map_err(ProbeFail::Spawn)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ProbeFail::Exit {
+            detail: last_nonempty_stderr_line(&stderr).map(str::to_string),
+        });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// First command whose probe yields a successful, non-empty trimmed stdout.
+fn first_successful_stdout(commands: &[&str], args: &[&str]) -> Option<String> {
+    commands.iter().find_map(|command| {
+        let value = probe_stdout(command, args.iter().copied()).ok()?;
+        let trimmed = value.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    })
+}
+
+/// Most useful (last non-empty) line of a process's stderr, trimmed. Shared by
+/// the sync tool probes here and the async external encode in
+/// `processor::external_fdk` so failed-process diagnostics have one owner.
+pub(in crate::audio) fn last_nonempty_stderr_line(stderr_output: &str) -> Option<&str> {
+    stderr_output
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|value| !value.is_empty())
+}
+
+/// Render a probe failure for an ffmpeg `candidate` into a sanitized String
+/// error. `spawn_action` prefixes a launch failure; `exit_reason` describes a
+/// non-zero exit, enriched with the captured stderr detail when present.
+fn ffmpeg_probe_message(
+    candidate: &Path,
+    fail: ProbeFail,
+    spawn_action: &str,
+    exit_reason: &str,
+) -> String {
+    let path = sanitize_path_for_display(candidate);
+    match fail {
+        ProbeFail::Spawn(error) => format!("{spawn_action} '{path}': {error}"),
+        ProbeFail::Exit { detail } => {
+            let base = format!("FFmpeg executable '{path}' {exit_reason}");
+            match detail {
+                Some(detail) => format!("{base} ({detail})"),
+                None => base,
+            }
         }
     }
-    None
 }
 
 #[cfg(test)]
@@ -537,6 +567,20 @@ mod tests {
     }
 
     #[test]
+    fn encoder_gate_rejects_libfdk_aac_substring_decoy() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let ffmpeg_path = write_fake_ffmpeg_decoy_encoder(temp_dir.path());
+
+        let err = validate_candidate(&ffmpeg_path, EncoderCapabilitySource::Detected)
+            .expect_err("a libfdk_aac substring in a description column must not satisfy the gate");
+
+        assert!(
+            err.contains("does not expose libfdk_aac"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
     fn external_decoder_contract_rejects_unsupported_named_decoder() {
         let toolchain = ValidatedExternalToolchain {
             ffmpeg_path: PathBuf::from("/tmp/fake-ffmpeg"),
@@ -581,8 +625,6 @@ mod tests {
         include_fdk_decoder: bool,
         include_aac_at_decoder: bool,
     ) -> PathBuf {
-        std::fs::create_dir_all(root).expect("create fake ffmpeg root");
-        let script_path = root.join("fake-ffmpeg");
         let encoder_line = if include_fdk_encoder {
             "echo ' V..... libfdk_aac'"
         } else {
@@ -594,6 +636,23 @@ mod tests {
             (false, true) => "echo ' V..... aac_at'",
             (false, false) => "echo ' V..... aac'",
         };
+        write_fake_ffmpeg_script(root, encoder_line, decoder_lines)
+    }
+
+    /// Fake whose `-encoders` listing mentions `libfdk_aac` only inside the
+    /// description column; the codec **name** field is `someaac`. A loose
+    /// substring gate false-positives on this; a name-field gate rejects it.
+    fn write_fake_ffmpeg_decoy_encoder(root: &Path) -> PathBuf {
+        write_fake_ffmpeg_script(
+            root,
+            "echo ' V..... someaac          AAC (libfdk_aac wrapper)'",
+            "echo ' V..... aac'",
+        )
+    }
+
+    fn write_fake_ffmpeg_script(root: &Path, encoder_line: &str, decoder_lines: &str) -> PathBuf {
+        std::fs::create_dir_all(root).expect("create fake ffmpeg root");
+        let script_path = root.join("fake-ffmpeg");
         let script = format!(
             "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-version\" ]; then\n    echo 'ffmpeg version fake'\n    exit 0\n  fi\n  if [ \"$arg\" = \"-encoders\" ]; then\n    {encoder_line}\n    exit 0\n  fi\n  if [ \"$arg\" = \"-decoders\" ]; then\n    {decoder_lines}\n    exit 0\n  fi\ndone\nlast=\"\"\nfor arg in \"$@\"; do\n  last=\"$arg\"\ndone\n: > \"$last\"\necho 'out_time_ms=5000'\nexit 0\n"
         );
