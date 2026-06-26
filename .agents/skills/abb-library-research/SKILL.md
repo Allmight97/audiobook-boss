@@ -32,11 +32,15 @@ could not be proven.
 
 1. Nearest `AGENTS.md`, code/tests, manifests, lockfiles, generated bindings, installed dependencies
 2. `references/<library>.md` route card
-3. Context7 (one path: CLI or MCP)
+3. Context7 through the active MCP tool; if unavailable, use the shared local
+   launcher `/Users/jstar/.agents/bin/context7-mcp` through client MCP config.
 4. `repos/*` only when the answer needs implementation source, upstream tests,
    codegen behavior, runtime internals, or Context7/doc version mismatch checks
 
-Context7: known library ID + one query. No broad surveys unless asked.
+Context7: known library ID + one query through the active MCP tool or shared
+launcher. Do not add per-agent Context7 plugins, run `ctx7 setup`, or create
+separate API-key routing when the shared launcher is available. No broad
+surveys unless asked.
 
 | Need | ID |
 | --- | --- |
