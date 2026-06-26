@@ -298,6 +298,7 @@ describe('StatusPanel lifecycle', () => {
 		controller.reconcileProcessResult({
 			jobType: 'merge',
 			summary: { total: 1, succeeded: 0, skipped: 1, cancelled: 0, failed: 0 },
+			terminalClass: 'skipped',
 			results: [
 				{
 					status: 'skipped',
@@ -390,6 +391,7 @@ describe('StatusPanel lifecycle', () => {
 		controller.reconcileProcessResult({
 			jobType: 'batch',
 			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 1, failed: 0 },
+			terminalClass: 'mixed',
 			results: [
 				{
 					inputIndex: 0,

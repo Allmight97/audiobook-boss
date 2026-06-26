@@ -334,6 +334,7 @@ describe('statusPanel state machine', () => {
 			{
 				jobType: 'merge',
 				summary: { total: 1, succeeded: 0, skipped: 1, cancelled: 0, failed: 0 },
+				terminalClass: 'skipped',
 				results: [
 					{
 						status: 'skipped',
@@ -437,6 +438,7 @@ describe('statusPanel state machine', () => {
 		const reconcile: ProcessCommandResult = {
 			jobType: 'batch',
 			summary: { total: 3, succeeded: 0, skipped: 1, cancelled: 1, failed: 1 },
+			terminalClass: 'mixed',
 			results: [
 				{
 					status: 'skipped',

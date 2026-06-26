@@ -576,6 +576,11 @@ export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | 
 export type ProcessCommandResult = {
 	jobType: JobType,
 	summary: OperationResultSummary,
+	/**
+	 *  Backend-owned terminal classification of the run. The UI renders this
+	 *  instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
+	 */
+	terminalClass: RunTerminalClass,
 	results: ProcessResultEntry[],
 };
 
@@ -770,6 +775,8 @@ export type RemoteTitleAvailability = {
 export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
+
+export type RunTerminalClass = "empty" | "success" | "skipped" | "cancelled" | "failed" | "mixed";
 
 export type RuntimeSettingsCapabilities = {
 	encoder: EncoderSettingsCapabilities,

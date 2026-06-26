@@ -87,6 +87,9 @@ pub struct ProcessResultEntry {
 pub struct ProcessCommandResult {
     pub job_type: JobType,
     pub summary: ProcessResultSummary,
+    /// Backend-owned terminal classification of the run. The UI renders this
+    /// instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
+    pub terminal_class: abb_processing_core::RunTerminalClass,
     pub results: Vec<ProcessResultEntry>,
 }
 
@@ -95,10 +98,12 @@ impl ProcessCommandResult {
         let summary = abb_processing_core::summarize_result_statuses(
             results.iter().map(|result| result.status),
         );
+        let terminal_class = abb_processing_core::classify_run_terminal(&summary);
 
         Self {
             job_type,
             summary,
+            terminal_class,
             results,
         }
     }

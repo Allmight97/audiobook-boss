@@ -232,6 +232,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 						cancelled: 0,
 						failed: 0,
 					},
+					terminalClass: 'success',
 					results: [
 						{
 							inputIndex: 0,

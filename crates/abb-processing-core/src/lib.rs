@@ -55,7 +55,8 @@ pub enum ProcessResultStatus {
     Failed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum RunTerminalClass {
     Empty,
     Success,

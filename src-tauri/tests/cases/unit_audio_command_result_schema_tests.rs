@@ -1,6 +1,7 @@
 use audiobook_boss_lib::commands::{
     JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
 };
+use audiobook_boss_lib::processing::RunTerminalClass;
 use audiobook_boss_lib::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 
 #[test]
@@ -52,6 +53,8 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
     assert_eq!(response.summary.succeeded, 1);
     assert_eq!(response.summary.cancelled, 1);
     assert_eq!(response.summary.failed, 1);
+    // success + cancelled + failed observed → backend classifies the run as Mixed.
+    assert_eq!(response.terminal_class, RunTerminalClass::Mixed);
     assert_eq!(response.results, results);
 }
 
@@ -74,6 +77,7 @@ fn process_command_result_merge_has_single_success_entry() {
     assert_eq!(response.summary.succeeded, 1);
     assert_eq!(response.summary.cancelled, 0);
     assert_eq!(response.summary.failed, 0);
+    assert_eq!(response.terminal_class, RunTerminalClass::Success);
     assert_eq!(response.results, vec![entry]);
 }
 
