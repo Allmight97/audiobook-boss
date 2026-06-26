@@ -253,7 +253,6 @@ fn emit_metadata_save_queue(window: &tauri::Window, items: &[MetadataSaveRequest
 
 fn emit_metadata_save_progress(window: &tauri::Window, progress: MetadataSaveProgress) {
     let event = ProgressEvent {
-        operation_id: None,
         operation_kind: OperationKind::MetadataSave,
         stage: progress.stage,
         percentage: progress.percentage,

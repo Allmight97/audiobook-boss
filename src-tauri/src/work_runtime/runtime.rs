@@ -108,7 +108,6 @@ impl WorkRuntime {
                 request.metadata,
                 request.preview_seconds,
                 ProcessingRunOptions {
-                    operation_id: Some(operation_id_for_task.0.clone()),
                     operation_cancel: Some(cancel_flag),
                     progress_listener,
                 },

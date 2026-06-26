@@ -72,7 +72,6 @@ fn late_progress_does_not_overwrite_pending_cancellation() {
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Converting,
                 percentage: 60.0,
@@ -158,7 +157,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Converting,
                 percentage: 25.0,
@@ -184,7 +182,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Completed,
                 percentage: 100.0,
@@ -222,7 +219,6 @@ fn apply_single_child_progress_stages_operation_stage_without_terminaling_operat
         .apply_progress_event(
             &single,
             &ProgressEvent {
-                operation_id: Some(single.0.clone()),
                 operation_kind: OperationKind::ProcessingMerge,
                 stage: EventStage::Completed,
                 percentage: 100.0,
@@ -250,7 +246,6 @@ fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Failed,
                 percentage: 0.0,
@@ -280,7 +275,6 @@ fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
         .apply_progress_event(
             &single,
             &ProgressEvent {
-                operation_id: Some(single.0.clone()),
                 operation_kind: OperationKind::ProcessingMerge,
                 stage: EventStage::Failed,
                 percentage: 0.0,

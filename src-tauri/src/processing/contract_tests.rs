@@ -15,7 +15,6 @@ fn processing_contract_lifecycle_kinds_are_distinct() {
 #[test]
 fn processing_contract_progress_event_shape_matches_frontend_contract() {
     let event = ProgressEvent {
-        operation_id: None,
         operation_kind: OperationKind::ProcessingBatch,
         stage: EventStage::Converting,
         percentage: 42.5,

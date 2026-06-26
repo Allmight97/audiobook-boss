@@ -629,8 +629,6 @@ export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Deserialize = {
-	// WorkRuntime operation identifier when this event belongs to accepted work
-	operation_id: string | null,
 	// Backend operation family that emitted this event
 	operation_kind: OperationKind,
 	// Current processing stage
@@ -651,8 +649,6 @@ export type ProgressEvent_Deserialize = {
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Serialize = {
-	// WorkRuntime operation identifier when this event belongs to accepted work
-	operation_id?: string | null,
 	// Backend operation family that emitted this event
 	operation_kind: OperationKind,
 	// Current processing stage
@@ -685,19 +681,7 @@ export type ProgressSnapshot = {
 export type ProviderId = "audible";
 
 // Batch queue snapshot for frontend communication
-export type QueueEvent = QueueEvent_Serialize | QueueEvent_Deserialize;
-
-// Batch queue snapshot for frontend communication
-export type QueueEvent_Deserialize = {
-	operation_id: string | null,
-	operation_kind: OperationKind,
-	items: QueueItem[],
-	max_concurrent: number,
-};
-
-// Batch queue snapshot for frontend communication
-export type QueueEvent_Serialize = {
-	operation_id?: string | null,
+export type QueueEvent = {
 	operation_kind: OperationKind,
 	items: QueueItem[],
 	max_concurrent: number,

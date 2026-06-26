@@ -89,9 +89,6 @@ impl From<ProcessingStage> for EventStage {
 /// Progress event structure for frontend communication
 #[derive(Clone, Serialize, specta::Type)]
 pub struct ProgressEvent {
-    /// WorkRuntime operation identifier when this event belongs to accepted work
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub operation_id: Option<String>,
     /// Backend operation family that emitted this event
     pub operation_kind: OperationKind,
     /// Current processing stage
@@ -115,8 +112,6 @@ pub struct ProgressEvent {
 /// Batch queue snapshot for frontend communication
 #[derive(Clone, Serialize, specta::Type)]
 pub struct QueueEvent {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub operation_id: Option<String>,
     pub operation_kind: OperationKind,
     pub items: Vec<QueueItem>,
     pub max_concurrent: usize,
@@ -144,16 +139,10 @@ impl QueueEvent {
         max_concurrent: usize,
     ) -> Self {
         Self {
-            operation_id: None,
             operation_kind,
             items,
             max_concurrent,
         }
-    }
-
-    pub fn with_operation_id(mut self, operation_id: Option<String>) -> Self {
-        self.operation_id = operation_id;
-        self
     }
 }
 
@@ -212,5 +201,5 @@ pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: 
 // Re-exports
 // ============================================================================
 
-pub use emitter::ProgressEmitter;
+pub use emitter::{EmitContext, ProgressEmitter};
 pub use state::ProgressReporter;

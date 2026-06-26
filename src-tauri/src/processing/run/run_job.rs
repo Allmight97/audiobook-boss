@@ -29,7 +29,6 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) sample_rate: audio::SampleRateConfig,
     pub(crate) input_index: Option<usize>,
     pub(crate) operation_kind: OperationKind,
-    pub(crate) operation_id: Option<String>,
     pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
@@ -60,7 +59,6 @@ pub(crate) async fn run_processing_job(
         sample_rate: request.sample_rate,
         input_index: request.input_index,
         operation_kind: request.operation_kind,
-        operation_id: request.operation_id.clone(),
         progress_listener: request.progress_listener,
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
@@ -196,7 +194,6 @@ struct ProcessingContextRequest {
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
-    operation_id: Option<String>,
     progress_listener: Option<ProgressEventListener>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
@@ -217,7 +214,6 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     context.job_id = Some(request.job_id.to_string());
     context.input_index = request.input_index;
     context.operation_kind = request.operation_kind;
-    context.operation_id = request.operation_id;
     context.progress_listener = request.progress_listener;
 
     let preview_seconds_resolved = request.preview_seconds;

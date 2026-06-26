@@ -102,8 +102,6 @@ pub struct ProcessingContext {
     pub preview: Option<PreviewConfig>,
     /// Optional job identifier for parallel batch processing
     pub job_id: Option<String>,
-    /// Optional WorkRuntime operation identifier
-    pub operation_id: Option<String>,
     /// Optional index of the input file in the original request
     pub input_index: Option<usize>,
     /// Backend operation family for lifecycle events emitted by this context
@@ -122,7 +120,6 @@ impl std::fmt::Debug for ProcessingContext {
             .field("workspace_root", &self.workspace_root)
             .field("preview", &self.preview)
             .field("job_id", &self.job_id)
-            .field("operation_id", &self.operation_id)
             .field("input_index", &self.input_index)
             .field("operation_kind", &self.operation_kind)
             .field("progress_listener", &self.progress_listener.is_some())
@@ -166,7 +163,6 @@ impl ProcessingContext {
             workspace_root,
             preview: None,
             job_id: None,
-            operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
@@ -205,7 +201,6 @@ impl ProcessingContext {
             workspace_root,
             preview: None,
             job_id: None,
-            operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
@@ -283,10 +278,11 @@ impl ProcessingContext {
         };
         crate::processing::progress::ProgressEmitter::with_context(
             window,
-            self.operation_kind,
-            self.operation_id.clone(),
-            self.job_id.clone(),
-            self.input_index,
+            crate::processing::progress::EmitContext {
+                operation_kind: self.operation_kind,
+                job_id: self.job_id.clone(),
+                input_index: self.input_index,
+            },
         )
         .with_progress_listener(self.progress_listener.clone())
     }
@@ -320,7 +316,6 @@ pub struct ProcessingContextBuilder {
     output: Option<OutputConfig>,
     preview: Option<PreviewConfig>,
     job_id: Option<String>,
-    operation_id: Option<String>,
     input_index: Option<usize>,
     operation_kind: OperationKind,
     workspace_root: Option<PathBuf>,
@@ -372,12 +367,6 @@ impl ProcessingContextBuilder {
     /// Sets the job ID
     pub fn job_id(mut self, job_id: String) -> Self {
         self.job_id = Some(job_id);
-        self
-    }
-
-    /// Sets the WorkRuntime operation ID
-    pub fn operation_id(mut self, operation_id: String) -> Self {
-        self.operation_id = Some(operation_id);
         self
     }
 
@@ -451,7 +440,6 @@ impl ProcessingContextBuilder {
             workspace_root,
             preview: self.preview,
             job_id: self.job_id,
-            operation_id: self.operation_id,
             input_index: self.input_index,
             operation_kind: self.operation_kind,
             progress_listener: self.progress_listener,

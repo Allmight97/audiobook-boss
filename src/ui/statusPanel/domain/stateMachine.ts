@@ -82,10 +82,6 @@ export function applyQueueSnapshot(
 	event: ProcessingQueueEvent,
 	now: number,
 ): StatusPanelReducerResult {
-	if (event.operation_id) {
-		return { model, intents: [] };
-	}
-
 	const queueSnapshot = buildQueueSnapshotState(event.items, now);
 	const next: StatusPanelModel = {
 		jobProgress: new Map(queueSnapshot.jobProgress),
@@ -109,10 +105,6 @@ export function applyProgress(
 	now: number,
 	options?: { label?: string },
 ): StatusPanelReducerResult {
-	if (event.operation_id) {
-		return { model, intents: [] };
-	}
-
 	const jobKey = buildJobKey(
 		typeof event.input_index === 'number' ? event.input_index : undefined,
 		event.job_id,
