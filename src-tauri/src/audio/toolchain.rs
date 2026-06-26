@@ -242,18 +242,28 @@ fn validate_candidate(
         ));
     }
 
-    probe_stdout(candidate, ["-hide_banner", "-loglevel", "error", "-version"]).map_err(|fail| {
-        ffmpeg_probe_message(candidate, fail, "Failed to run FFmpeg", "could not start cleanly.")
-    })?;
-
-    let encoders_stdout = probe_stdout(candidate, ["-hide_banner", "-encoders"]).map_err(|fail| {
+    probe_stdout(
+        candidate,
+        ["-hide_banner", "-loglevel", "error", "-version"],
+    )
+    .map_err(|fail| {
         ffmpeg_probe_message(
             candidate,
             fail,
-            "Failed to inspect encoders from",
-            "did not return encoder information.",
+            "Failed to run FFmpeg",
+            "could not start cleanly.",
         )
     })?;
+
+    let encoders_stdout =
+        probe_stdout(candidate, ["-hide_banner", "-encoders"]).map_err(|fail| {
+            ffmpeg_probe_message(
+                candidate,
+                fail,
+                "Failed to inspect encoders from",
+                "did not return encoder information.",
+            )
+        })?;
     if !ffmpeg_list_contains_codec(&encoders_stdout, "libfdk_aac") {
         return Err(format!(
             "FFmpeg executable '{}' does not expose libfdk_aac.",

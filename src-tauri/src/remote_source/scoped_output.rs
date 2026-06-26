@@ -301,7 +301,10 @@ mod tests {
                 if message == "Staged partial output is missing before commit."),
             "unexpected error: {error:?}"
         );
-        assert!(!final_path.exists(), "no final file may appear on a failed commit");
+        assert!(
+            !final_path.exists(),
+            "no final file may appear on a failed commit"
+        );
     }
 
     #[tokio::test]
@@ -327,7 +330,10 @@ mod tests {
                 if message == "Staged partial and final paths must share the same parent directory."),
             "unexpected error: {error:?}"
         );
-        assert!(!final_path.exists(), "no final file may appear on a rejected commit");
+        assert!(
+            !final_path.exists(),
+            "no final file may appear on a rejected commit"
+        );
     }
 
     #[test]

@@ -92,8 +92,7 @@ pub(super) fn build_ffmpeg_args(
 }
 
 fn build_input_decoder_args(selection: Option<&DecoderSelection>) -> Vec<OsString> {
-    let Some(decoder_name) =
-        crate::audio::toolchain::forced_external_input_decoder(selection)
+    let Some(decoder_name) = crate::audio::toolchain::forced_external_input_decoder(selection)
     else {
         return Vec::new();
     };

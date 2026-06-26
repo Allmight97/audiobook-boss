@@ -166,7 +166,10 @@ mod tests {
         // A failed purge must not block or alter the decrypted M4B path...
         assert_eq!(returned, materialized);
         // ...and the purge must have targeted the encrypted source.
-        assert_eq!(purged_path.into_inner().as_deref(), Some(downloaded.as_path()));
+        assert_eq!(
+            purged_path.into_inner().as_deref(),
+            Some(downloaded.as_path())
+        );
     }
 
     #[test]
