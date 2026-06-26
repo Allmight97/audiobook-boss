@@ -9,7 +9,7 @@ pub(in crate::processing) fn emit_terminal_failed_event(
     message: &str,
 ) {
     let emitter = ProgressEmitter::with_context(
-        window.clone(),
+        Some(window.clone()),
         operation_kind,
         operation_id.map(|value| value.to_string()),
         job_id.map(|value| value.to_string()),
@@ -27,7 +27,7 @@ pub(in crate::processing) fn emit_terminal_skipped_event(
     message: &str,
 ) {
     let emitter = ProgressEmitter::with_context(
-        window.clone(),
+        Some(window.clone()),
         operation_kind,
         operation_id.map(|value| value.to_string()),
         job_id.map(|value| value.to_string()),

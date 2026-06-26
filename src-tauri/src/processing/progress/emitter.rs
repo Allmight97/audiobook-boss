@@ -57,9 +57,13 @@ impl ProgressEmitter {
         }
     }
 
-    /// Creates a progress emitter with job tracking and input index context
+    /// Creates a progress emitter with job tracking and input index context.
+    ///
+    /// `window` is optional: background (WorkRuntime) operations pass `None` and
+    /// report exclusively through the progress listener (snapshots), so they do not
+    /// also emit `processing-progress` to the window.
     pub fn with_context(
-        window: Window,
+        window: Option<Window>,
         operation_kind: OperationKind,
         operation_id: Option<String>,
         job_id: Option<String>,
@@ -67,7 +71,7 @@ impl ProgressEmitter {
     ) -> Self {
         Self {
             operation_kind,
-            window: Some(window),
+            window,
             operation_id,
             job_id,
             input_index,

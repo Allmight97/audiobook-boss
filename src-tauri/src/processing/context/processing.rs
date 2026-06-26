@@ -267,20 +267,28 @@ impl ProcessingContext {
         ))
     }
 
-    /// Creates a progress emitter scoped to this processing context
+    /// Creates a progress emitter scoped to this processing context.
+    ///
+    /// Background (WorkRuntime) operations carry a `progress_listener` and report
+    /// through snapshots; they must NOT also emit `processing-progress`/`-queue` to
+    /// the window, or every progress fact is emitted twice (the snapshot AND a
+    /// foreground event the Status Panel drops). So when a listener is present the
+    /// emitter is built windowless. Foreground operations have no listener and emit
+    /// to the window.
     pub fn new_emitter(&self) -> crate::processing::progress::ProgressEmitter {
-        let emitter = match &self.window {
-            Some(window) => crate::processing::progress::ProgressEmitter::with_context(
-                window.clone(),
-                self.operation_kind,
-                self.operation_id.clone(),
-                self.job_id.clone(),
-                self.input_index,
-            ),
-            None => crate::processing::progress::ProgressEmitter::headless_for(self.operation_kind),
+        let window = if self.progress_listener.is_some() {
+            None
+        } else {
+            self.window.clone()
         };
-
-        emitter.with_progress_listener(self.progress_listener.clone())
+        crate::processing::progress::ProgressEmitter::with_context(
+            window,
+            self.operation_kind,
+            self.operation_id.clone(),
+            self.job_id.clone(),
+            self.input_index,
+        )
+        .with_progress_listener(self.progress_listener.clone())
     }
 
     pub(crate) fn processing_workspace_root(&self) -> &Path {
