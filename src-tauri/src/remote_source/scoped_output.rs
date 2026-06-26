@@ -281,6 +281,55 @@ mod tests {
         assert!(!partial_path.exists());
     }
 
+    #[tokio::test]
+    async fn rename_and_commit_errors_when_partial_missing_before_commit() {
+        let root = TempDir::new().expect("temp root");
+        let final_path = root.path().join("book.m4b");
+        let mut staged = StagedTempFile::new(&final_path);
+        staged.prepare().expect("prepare");
+        // The staged write existed after prepare(), then vanished before commit.
+        std::fs::write(staged.partial_path(), b"payload").expect("write partial");
+        std::fs::remove_file(staged.partial_path()).expect("remove partial");
+
+        let error = staged
+            .rename_and_commit(|| false)
+            .await
+            .expect_err("a missing partial must fail the commit");
+
+        assert!(
+            matches!(&error, AppError::General(message)
+                if message == "Staged partial output is missing before commit."),
+            "unexpected error: {error:?}"
+        );
+        assert!(!final_path.exists(), "no final file may appear on a failed commit");
+    }
+
+    #[tokio::test]
+    async fn rename_and_commit_rejects_cross_parent_partial_and_final() {
+        let root = TempDir::new().expect("temp root");
+        let final_dir = root.path().join("final");
+        let partial_dir = root.path().join("staging");
+        std::fs::create_dir_all(&final_dir).expect("final dir");
+        std::fs::create_dir_all(&partial_dir).expect("partial dir");
+        let final_path = final_dir.join("book.m4b");
+        let partial_path = partial_dir.join("book.m4b.partial");
+
+        // The same-parent guard runs before the existence check, so no partial
+        // is written: a cross-device rename fallback must never be attempted.
+        let staged = StagedTempFile::with_partial(&final_path, &partial_path);
+        let error = staged
+            .rename_and_commit(|| false)
+            .await
+            .expect_err("a cross-parent staged write must be rejected");
+
+        assert!(
+            matches!(&error, AppError::General(message)
+                if message == "Staged partial and final paths must share the same parent directory."),
+            "unexpected error: {error:?}"
+        );
+        assert!(!final_path.exists(), "no final file may appear on a rejected commit");
+    }
+
     #[test]
     fn provisional_committed_file_drops_unless_permanent() {
         let root = TempDir::new().expect("temp root");
