@@ -539,7 +539,7 @@ describe('tauriClient nullish adapters', () => {
 
 		const { tauriClient } = await import('./tauri/client');
 
-		await expect(tauriClient.cancelProcessing('mock-job-1')).rejects.toMatchObject({
+		await expect(tauriClient.cancelWorkOperation('mock-operation-1')).rejects.toMatchObject({
 			code: 'cancelled',
 			category: 'cancellation',
 			message: 'Processing was cancelled.',

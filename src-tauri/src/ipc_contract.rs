@@ -42,7 +42,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::get_max_concurrent_jobs,
             crate::commands::set_max_concurrent_jobs,
             crate::commands::process_audiobook_files,
-            crate::commands::cancel_processing,
             crate::commands::submit_processing_operation,
             crate::commands::list_work_operations,
             crate::commands::get_work_operation,

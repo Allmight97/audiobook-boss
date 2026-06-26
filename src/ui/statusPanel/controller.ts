@@ -17,12 +17,6 @@ import {
 } from './services/fileLookup';
 import { createProgressSubscription } from './services/progressSubscription';
 import {
-	enterCancelAllCancellationWorkflow,
-	liveProcessingCancellationWorkflowServices,
-	ProcessingCancellationWorkflowLive,
-	runProcessingCancellationWorkflow,
-} from './processingCancellationWorkflow';
-import {
 	applyCancellation,
 	applyProgress,
 	applyQueueSnapshot,
@@ -159,25 +153,17 @@ export class StatusPanelRuntime {
 		this.scheduleRender(isTerminalProgressStage(event.stage));
 	}
 
-	public async requestCancelAll(): Promise<void> {
-		const jobIds = this.cancellableForegroundJobIds();
-		if (jobIds.length === 0) {
+	public requestCancelAll(): void {
+		// Foreground/direct cancellation is operation-scoped only at the backend
+		// (Work Center → cancel_work_operation). The retained foreground lane is
+		// preview rendering, which has no backend cancel command. The cancel-all
+		// button stays in the UI; with an in-flight foreground job it settles the
+		// local render. The backend preview, if any, completes and auto-opens
+		// normally. See docs/DECISIONS.md (preview ephemeral lane) and #376.
+		if (this.cancellableForegroundJobIds().length === 0) {
 			return;
 		}
-		const preparedCancelAll = enterCancelAllCancellationWorkflow(
-			liveProcessingCancellationWorkflowServices,
-			jobIds,
-		);
-		await runProcessingCancellationWorkflow(
-			{
-				type: 'cancelAll',
-				jobIds,
-				getCurrentStatus: () => this.model.currentStatus,
-				updateStatus: (status) => this.updateStatus(status),
-			},
-			ProcessingCancellationWorkflowLive,
-			preparedCancelAll,
-		);
+		this.handleProcessingCancellation();
 	}
 
 	public handleProcessingCancellation(): void {
@@ -400,11 +386,12 @@ export class StatusPanelRuntime {
 		}
 	}
 
-	private async cancelJob(jobId: string): Promise<void> {
-		await runProcessingCancellationWorkflow(
-			{ type: 'cancelJob', jobId },
-			ProcessingCancellationWorkflowLive,
-		);
+	private cancelJob(_jobId: string): void {
+		// Per-row cancel: the foreground/direct lane has no backend cancel command
+		// (operation-scoped cancel lives in the Work Center). Settle the local
+		// foreground render; any in-flight preview completes and auto-opens
+		// normally. See docs/DECISIONS.md (preview ephemeral lane) and #376.
+		this.handleProcessingCancellation();
 	}
 
 	private scheduleRender(immediate: boolean): void {

@@ -11,9 +11,10 @@ WorkRuntime consumer for background operations.
   `completeMetadataSaveInStatusPanel` / `failMetadataSaveInStatusPanel`.
   Emits progress/queue events with `operation_kind: metadataSave` and
   `operation_id: None`.
-- **Direct cancellation**: `cancel_processing` targets only foreground/direct
-  job IDs. Background operations are cancelled through
-  `cancel_work_operation` (Work Center / WorkRuntime).
+- **Cancellation**: operation-scoped only, through `cancel_work_operation`
+  (Work Center / WorkRuntime). The retained foreground/direct lane has **no**
+  backend cancel command; the Status Panel cancel button settles the local
+  render only and never reaches the backend.
 
 Status Panel **ignores** operation-scoped events (`operation_id: Some(...)`)
 in `applyQueueSnapshot` and `applyProgress` (see

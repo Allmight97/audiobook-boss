@@ -317,8 +317,6 @@ export const commandSpecs = {
 			generatedCommands.cancelWorkOperation(args.operationId),
 			normalizeOperationSnapshot,
 		),
-	cancel_processing: (args?: { job_id?: string | null }) =>
-		runGeneratedCommand(generatedCommands.cancelProcessing(args?.job_id ?? null)),
 } as const;
 
 export type TauriCommand = keyof typeof commandSpecs;

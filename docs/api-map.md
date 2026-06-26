@@ -46,9 +46,10 @@ owns:
   `beginMetadataSaveInStatusPanel` / `completeMetadataSaveInStatusPanel` /
   `failMetadataSaveInStatusPanel` public API, emitting progress/queue events
   with `operation_kind: metadataSave` and `operation_id: None`.
-- **Direct cancellation**: Status Panel cancellation (`cancel_processing`) targets
-  only its own foreground/direct job IDs. It does **not** cancel WorkRuntime
-  background operations.
+- **Cancellation**: operation-scoped only — `cancel_work_operation` per
+  `OperationId` (Work Center / WorkRuntime). The retained foreground/direct lane
+  (preview rendering) has **no** backend cancel command; the Status Panel cancel
+  button settles the local render only and does not reach the backend.
 
 ### Event Scoping
 
@@ -172,13 +173,13 @@ All `processing-progress` and `processing-queue` events carry
 
 ### Audio Processing — Retained Direct Execution
 
-- `process_audiobook_files`, `cancel_processing`, `preview_output_path`
+- `process_audiobook_files`, `preview_output_path`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Classification: **retained direct / foreground**.
     - `process_audiobook_files` is used for **preview** execution only (with `previewSeconds`). Final
       processing goes through `submit_processing_operation` (WorkRuntime).
-    - `cancel_processing` cancels only foreground/direct jobs. It does not cancel
-      WorkRuntime background operations (use `cancel_work_operation` for that).
+    - Cancellation is operation-scoped only (`cancel_work_operation`). There is no
+      foreground/direct cancel command; the preview lane has none.
   - Frontend: `src/ui/statusPanel/` through `src/lib/tauri/client.ts`
 
 ### Metadata

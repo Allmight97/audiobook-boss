@@ -118,11 +118,6 @@ export const commands = {
 	 *  Multiple invocations can run concurrently up to the configured limit.
 	 */
 	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
-	/**
-	 *  Cancels all active audio processing operations
-	 *  Sets the global cancellation flag in the job registry
-	 */
-	cancelProcessing: (jobId: string | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("cancel_processing", { jobId })),
 	submitProcessingOperation: (request: SubmitProcessingOperationRequest) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	getWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("get_work_operation", { operationId })),

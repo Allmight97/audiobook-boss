@@ -359,21 +359,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					fieldErrors: [],
 				} satisfies MetadataIntentValidationResult);
 			}
-			case 'cancel_processing': {
-				const args = _args as { jobId?: string | null } | undefined;
-				emitTestEvent('processing-progress', {
-					operation_kind: 'processingBatch',
-					stage: 'cancelled',
-					percentage: 0,
-					message: 'Cancelled by user',
-					current_file: '',
-					eta_seconds: 0,
-					job_id: args?.jobId ?? null,
-					input_index: null,
-				});
-				// Generated type for cancelProcessing returns string; no narrower shape exists for satisfies.
-				return Promise.resolve('cancel requested');
-			}
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}
