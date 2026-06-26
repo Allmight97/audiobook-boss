@@ -70,16 +70,13 @@ pub(super) async fn materialize_protected_download(
         .await;
 
     match result {
-        Ok(path) => {
-            if let Err(error) = remove_if_present(downloaded_path) {
-                log::warn!(
-                    "remote_source audible stage=materialization_staged_cleanup_failed job_id={} title_ref={} error={error}",
-                    job_id,
-                    title_ref(title_id),
-                );
-            }
-            Ok(path)
-        }
+        Ok(path) => Ok(finalize_materialized_source(
+            path,
+            downloaded_path,
+            job_id,
+            title_id,
+            remove_if_present,
+        )),
         Err(error) => {
             let _ = remove_if_present(downloaded_path);
             if matches!(error, AppError::Cancellation(_)) {
@@ -94,6 +91,28 @@ pub(super) async fn materialize_protected_download(
             Err(error)
         }
     }
+}
+
+/// Purge the now-redundant encrypted source after a successful materialization
+/// and return the decrypted output `materialized` unchanged. A failed purge is
+/// logged and swallowed so it can never block the decrypted M4B — the #393
+/// deferred-decision behavior. `remove` is injected so this policy is provable
+/// without running the real decrypt subprocess.
+fn finalize_materialized_source(
+    materialized: PathBuf,
+    downloaded_path: &Path,
+    job_id: &str,
+    title_id: &str,
+    remove: impl Fn(&Path) -> std::io::Result<()>,
+) -> PathBuf {
+    if let Err(error) = remove(downloaded_path) {
+        log::warn!(
+            "remote_source audible stage=materialization_staged_cleanup_failed job_id={} title_ref={} error={error}",
+            job_id,
+            title_ref(title_id),
+        );
+    }
+    materialized
 }
 
 pub(super) fn helper_material_from_audible_material(
@@ -115,5 +134,57 @@ pub(super) fn helper_material_from_audible_material(
                 iv_hex: iv_hex.clone(),
             },
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use tempfile::TempDir;
+
+    #[test]
+    fn finalize_returns_path_and_does_not_block_when_purge_fails() {
+        let materialized = PathBuf::from("/library/Book.m4b");
+        let downloaded = PathBuf::from("/staging/Book.aaxc");
+        let purged_path = RefCell::new(None);
+
+        let returned = finalize_materialized_source(
+            materialized.clone(),
+            &downloaded,
+            "job-1",
+            "B0TITLE",
+            |path| {
+                *purged_path.borrow_mut() = Some(path.to_path_buf());
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "purge denied",
+                ))
+            },
+        );
+
+        // A failed purge must not block or alter the decrypted M4B path...
+        assert_eq!(returned, materialized);
+        // ...and the purge must have targeted the encrypted source.
+        assert_eq!(purged_path.into_inner().as_deref(), Some(downloaded.as_path()));
+    }
+
+    #[test]
+    fn finalize_removes_encrypted_source_when_purge_succeeds() {
+        let root = TempDir::new().expect("temp root");
+        let downloaded = root.path().join("Book.aaxc");
+        std::fs::write(&downloaded, b"encrypted").expect("write source");
+        let materialized = root.path().join("Book.m4b");
+
+        let returned = finalize_materialized_source(
+            materialized.clone(),
+            &downloaded,
+            "job-1",
+            "B0TITLE",
+            remove_if_present,
+        );
+
+        assert_eq!(returned, materialized);
+        assert!(!downloaded.exists(), "encrypted source must be purged");
     }
 }
