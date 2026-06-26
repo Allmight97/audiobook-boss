@@ -276,7 +276,7 @@ fn validate_candidate(
     }
 
     let stdout = String::from_utf8_lossy(&encoders.stdout);
-    if !stdout.contains("libfdk_aac") {
+    if !ffmpeg_list_contains_codec(&stdout, "libfdk_aac") {
         return Err(format!(
             "FFmpeg executable '{}' does not expose libfdk_aac.",
             sanitize_path_for_display(candidate)
@@ -537,6 +537,20 @@ mod tests {
     }
 
     #[test]
+    fn encoder_gate_rejects_libfdk_aac_substring_decoy() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let ffmpeg_path = write_fake_ffmpeg_decoy_encoder(temp_dir.path());
+
+        let err = validate_candidate(&ffmpeg_path, EncoderCapabilitySource::Detected)
+            .expect_err("a libfdk_aac substring in a description column must not satisfy the gate");
+
+        assert!(
+            err.contains("does not expose libfdk_aac"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
     fn external_decoder_contract_rejects_unsupported_named_decoder() {
         let toolchain = ValidatedExternalToolchain {
             ffmpeg_path: PathBuf::from("/tmp/fake-ffmpeg"),
@@ -581,8 +595,6 @@ mod tests {
         include_fdk_decoder: bool,
         include_aac_at_decoder: bool,
     ) -> PathBuf {
-        std::fs::create_dir_all(root).expect("create fake ffmpeg root");
-        let script_path = root.join("fake-ffmpeg");
         let encoder_line = if include_fdk_encoder {
             "echo ' V..... libfdk_aac'"
         } else {
@@ -594,6 +606,23 @@ mod tests {
             (false, true) => "echo ' V..... aac_at'",
             (false, false) => "echo ' V..... aac'",
         };
+        write_fake_ffmpeg_script(root, encoder_line, decoder_lines)
+    }
+
+    /// Fake whose `-encoders` listing mentions `libfdk_aac` only inside the
+    /// description column; the codec **name** field is `someaac`. A loose
+    /// substring gate false-positives on this; a name-field gate rejects it.
+    fn write_fake_ffmpeg_decoy_encoder(root: &Path) -> PathBuf {
+        write_fake_ffmpeg_script(
+            root,
+            "echo ' V..... someaac          AAC (libfdk_aac wrapper)'",
+            "echo ' V..... aac'",
+        )
+    }
+
+    fn write_fake_ffmpeg_script(root: &Path, encoder_line: &str, decoder_lines: &str) -> PathBuf {
+        std::fs::create_dir_all(root).expect("create fake ffmpeg root");
+        let script_path = root.join("fake-ffmpeg");
         let script = format!(
             "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-version\" ]; then\n    echo 'ffmpeg version fake'\n    exit 0\n  fi\n  if [ \"$arg\" = \"-encoders\" ]; then\n    {encoder_line}\n    exit 0\n  fi\n  if [ \"$arg\" = \"-decoders\" ]; then\n    {decoder_lines}\n    exit 0\n  fi\ndone\nlast=\"\"\nfor arg in \"$@\"; do\n  last=\"$arg\"\ndone\n: > \"$last\"\necho 'out_time_ms=5000'\nexit 0\n"
         );
