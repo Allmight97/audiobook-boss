@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_to_ffmpeg_dict_includes_core_audiobook_fields() {
+    fn metadata_to_ffmpeg_dict_writes_literal_audiobook_fields() {
         let metadata = AudiobookMetadata {
             title: Some("Test Audiobook".to_string()),
             artist: Some("Test Author".to_string()),
@@ -312,18 +312,39 @@ mod tests {
             genre: Some("Audiobook".to_string()),
             date: Some("2025".to_string()),
             description: Some("A test audiobook for metadata integration".to_string()),
-            cover_art: Some(vec![0xFF, 0xD8, 0xFF, 0xE0]),
+            series: Some("Primary".to_string()),
+            series_part: Some("7".to_string()),
+            subseries: Some("Sub".to_string()),
+            subseries_part: Some("2".to_string()),
+            track: Some((4, Some(32))),
+            disk: Some((1, Some(3))),
             ..Default::default()
         };
 
         let dict = metadata_to_ffmpeg_dict(&metadata).expect("metadata conversion should succeed");
 
-        assert!(dict.get("title").is_some(), "Title should be present");
-        assert!(dict.get("artist").is_some(), "Artist should be present");
-        assert!(
-            dict.get("media_type").is_some(),
-            "Media type should be set for audiobooks"
+        assert_eq!(dict.get("title"), Some("Test Audiobook"));
+        assert_eq!(dict.get("artist"), Some("Test Author"));
+        assert_eq!(dict.get("album_artist"), Some("Test Author"));
+        assert_eq!(dict.get("album"), Some("Test Series"));
+        assert_eq!(dict.get("composer"), Some("Test Narrator"));
+        assert_eq!(dict.get("genre"), Some("Audiobook"));
+        assert_eq!(dict.get("date"), Some("2025"));
+        assert_eq!(dict.get("year"), Some("2025"));
+        assert_eq!(
+            dict.get("description"),
+            Some("A test audiobook for metadata integration")
         );
+        assert_eq!(dict.get("series"), Some("Primary; Sub"));
+        assert_eq!(
+            dict.get("----:com.apple.iTunes:SERIES"),
+            Some("Primary; Sub")
+        );
+        assert_eq!(dict.get("series-part"), Some("7; 2"));
+        assert_eq!(dict.get("----:com.apple.iTunes:SERIES-PART"), Some("7; 2"));
+        assert_eq!(dict.get("track"), Some("4/32"));
+        assert_eq!(dict.get("disc"), Some("1/3"));
+        assert_eq!(dict.get("media_type"), Some("2"));
     }
 
     #[test]
@@ -390,9 +411,9 @@ mod tests {
 
         let warnings = validate_metadata_compatibility(&metadata);
 
-        assert!(warnings.iter().any(|warning| {
-            warning == "Cover art exceeds recommended size limit (10MB)"
-        }));
+        assert!(warnings
+            .iter()
+            .any(|warning| { warning == "Cover art exceeds recommended size limit (10MB)" }));
     }
 
     #[test]

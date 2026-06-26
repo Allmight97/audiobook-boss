@@ -24,16 +24,15 @@ pub(super) async fn validate_materialized_audio(
     } = ctx;
     let title_id = title_id.to_string();
     let materialized_path = materialized_path.to_path_buf();
-    let validation_result =
-        tokio::task::spawn_blocking(move || {
-            materialized_file_from_path(&title_id, &materialized_path)
-        })
-        .await
-        .map_err(|error| {
-            AppError::General(format!(
-                "Materialized audio validation task failed: {error}"
-            ))
-        })?;
+    let validation_result = tokio::task::spawn_blocking(move || {
+        materialized_file_from_path(&title_id, &materialized_path)
+    })
+    .await
+    .map_err(|error| {
+        AppError::General(format!(
+            "Materialized audio validation task failed: {error}"
+        ))
+    })?;
 
     let file = match validation_result {
         Ok(file) => file,
