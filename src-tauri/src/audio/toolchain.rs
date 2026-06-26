@@ -293,7 +293,13 @@ fn ffmpeg_list_contains_codec(stdout: &str, codec_name: &str) -> bool {
     })
 }
 
-fn required_external_input_decoder(selection: Option<&DecoderSelection>) -> Option<&str> {
+/// The external input decoder ffmpeg must be forced to use for a selection, if
+/// any. Single owner for both toolchain validation (the decoder-capability
+/// gate) and the external_fdk argv builder + logging, so validation and
+/// execution cannot drift out of lockstep.
+pub(in crate::audio) fn forced_external_input_decoder(
+    selection: Option<&DecoderSelection>,
+) -> Option<&str> {
     match selection.map(|value| value.decoder_id.as_str()) {
         Some("aac_at") => Some("aac_at"),
         Some("libfdk_aac") => Some("libfdk_aac"),
@@ -320,7 +326,7 @@ pub fn validate_external_input_decoders(
         let Some(selection) = selection.as_ref() else {
             continue;
         };
-        let Some(required_decoder) = required_external_input_decoder(Some(selection)) else {
+        let Some(required_decoder) = forced_external_input_decoder(Some(selection)) else {
             continue;
         };
 

@@ -132,7 +132,8 @@ fn log_external_inputs(files: &[AudioFile], selected_decoders: &[Option<DecoderS
                 .as_ref()
                 .map(|value| value.decoder_label.as_str())
                 .unwrap_or_else(|| file.selected_decoder.as_deref().unwrap_or("unknown")),
-            super::args::external_input_decoder_name(selection.as_ref()).unwrap_or("auto"),
+            crate::audio::toolchain::forced_external_input_decoder(selection.as_ref())
+                .unwrap_or("auto"),
         );
     }
 }
@@ -426,7 +427,8 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
                 .as_ref()
                 .map(|value| value.decoder_label.as_str())
                 .unwrap_or_else(|| file.selected_decoder.as_deref().unwrap_or("unknown")),
-            super::args::external_input_decoder_name(selection.as_ref()).unwrap_or("auto"),
+            crate::audio::toolchain::forced_external_input_decoder(selection.as_ref())
+                .unwrap_or("auto"),
         );
     }
     let _ = writeln!(
