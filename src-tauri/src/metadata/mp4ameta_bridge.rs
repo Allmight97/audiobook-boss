@@ -7,7 +7,7 @@ use crate::metadata::{
     normalize_publication_date, split_series_list, AlbumSortWriteAction, AudiobookMetadata,
     MetadataWritePlan,
 };
-use mp4ameta::{FreeformIdent, Img, ImgFmt, Tag, WriteConfig};
+use mp4ameta::{FreeformIdent, Img, Tag, WriteConfig};
 use std::path::Path;
 
 pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
@@ -208,9 +208,5 @@ fn cover_art_to_img(bytes: &[u8]) -> Result<Option<Img<Vec<u8>>>> {
         return Ok(None);
     };
 
-    let img = match format {
-        crate::metadata::CoverFormat::Jpeg => Img::new(ImgFmt::Jpeg, bytes.to_vec()),
-        crate::metadata::CoverFormat::Png => Img::new(ImgFmt::Png, bytes.to_vec()),
-    };
-    Ok(Some(img))
+    Ok(Some(Img::new(format.img_fmt(), bytes.to_vec())))
 }

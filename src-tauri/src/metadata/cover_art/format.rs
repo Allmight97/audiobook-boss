@@ -1,7 +1,44 @@
+use ffmpeg_next as ff;
+use mp4ameta::ImgFmt;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CoverFormat {
     Jpeg,
     Png,
+}
+
+impl CoverFormat {
+    /// FFmpeg encoder/codec id used to embed this cover image.
+    pub(crate) fn codec_id(self) -> ff::codec::Id {
+        match self {
+            CoverFormat::Jpeg => ff::codec::Id::MJPEG,
+            CoverFormat::Png => ff::codec::Id::PNG,
+        }
+    }
+
+    /// FFmpeg pixel format for the cover-art encoder context.
+    pub(crate) fn pixel_format(self) -> ff::format::Pixel {
+        match self {
+            CoverFormat::Jpeg => ff::format::Pixel::YUVJ420P, // Common JPEG pixel format
+            CoverFormat::Png => ff::format::Pixel::RGBA,      // PNG with alpha
+        }
+    }
+
+    /// mp4ameta image format variant for MP4 artwork atoms.
+    pub(crate) fn img_fmt(self) -> ImgFmt {
+        match self {
+            CoverFormat::Jpeg => ImgFmt::Jpeg,
+            CoverFormat::Png => ImgFmt::Png,
+        }
+    }
+
+    /// Human-readable format name for diagnostics and warnings.
+    pub(crate) fn display_name(self) -> &'static str {
+        match self {
+            CoverFormat::Jpeg => "JPEG",
+            CoverFormat::Png => "PNG",
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -189,5 +226,30 @@ mod tests {
             classify_cover_art_format(&[0, 1, 2, 3, 4, 5, 6, 7]),
             CoverArtFormatClassification::Unrecognized
         );
+    }
+
+    #[test]
+    fn cover_format_accessors_map_each_downstream_fact() {
+        for (format, codec, pixel, img, name) in [
+            (
+                CoverFormat::Jpeg,
+                ff::codec::Id::MJPEG,
+                ff::format::Pixel::YUVJ420P,
+                ImgFmt::Jpeg,
+                "JPEG",
+            ),
+            (
+                CoverFormat::Png,
+                ff::codec::Id::PNG,
+                ff::format::Pixel::RGBA,
+                ImgFmt::Png,
+                "PNG",
+            ),
+        ] {
+            assert_eq!(format.codec_id(), codec, "codec_id for {format:?}");
+            assert_eq!(format.pixel_format(), pixel, "pixel_format for {format:?}");
+            assert_eq!(format.img_fmt(), img, "img_fmt for {format:?}");
+            assert_eq!(format.display_name(), name, "display_name for {format:?}");
+        }
     }
 }

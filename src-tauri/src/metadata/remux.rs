@@ -7,6 +7,7 @@ use std::time::Instant;
 use super::cover_art::embedding::{
     add_cover_art_stream_pre_header, write_cover_art_packet_post_header,
 };
+use super::cover_art::ResolvedCover;
 use super::ffi::set_stream_disposition_and_clear_codec_tag;
 
 /// Rewrite metadata and optional passthrough state using ffmpeg-next via remux/stream-copy.
@@ -54,18 +55,14 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     copy_chapters(&ictx, &mut octx, passthrough)?;
     copy_container_metadata(&ictx, &mut octx, metadata)?;
 
-    let cover = select_cover_art(metadata_value, passthrough);
+    let cover = ResolvedCover::select(metadata_value, passthrough);
     let cover_stream_info = if let Some(selection) = cover {
         match add_cover_art_stream_pre_header(&mut octx, selection.bytes()) {
             Ok(stream_info) => stream_info,
-            Err(error) if selection.is_passthrough() => {
-                log::warn!(
-                    "Could not preserve passthrough cover art during metadata remux: {}",
-                    error
-                );
+            Err(error) => {
+                selection.handle_embed_failure(error, "cover art")?;
                 None
             }
-            Err(error) => return Err(error),
         }
     } else {
         None
@@ -76,14 +73,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         if let Err(error) =
             write_cover_art_packet_post_header(&mut octx, stream_index, selection.bytes(), format)
         {
-            if selection.is_passthrough() {
-                log::warn!(
-                    "Could not preserve passthrough cover art packet during metadata remux: {}",
-                    error
-                );
-            } else {
-                return Err(error);
-            }
+            selection.handle_embed_failure(error, "cover art packet")?;
         }
     }
 
@@ -226,39 +216,6 @@ fn copy_container_metadata(
     }
 
     Ok(())
-}
-
-#[derive(Debug, Clone, Copy)]
-enum CoverArtSelection<'a> {
-    Explicit(&'a Vec<u8>),
-    Passthrough(&'a Vec<u8>),
-}
-
-impl<'a> CoverArtSelection<'a> {
-    fn bytes(self) -> &'a Vec<u8> {
-        match self {
-            Self::Explicit(bytes) | Self::Passthrough(bytes) => bytes,
-        }
-    }
-
-    fn is_passthrough(self) -> bool {
-        matches!(self, Self::Passthrough(_))
-    }
-}
-
-fn select_cover_art<'a>(
-    metadata: Option<&'a AudiobookMetadata>,
-    passthrough: Option<&'a PassthroughMetadata>,
-) -> Option<CoverArtSelection<'a>> {
-    metadata
-        .and_then(|value| value.cover_art.as_ref())
-        .map(CoverArtSelection::Explicit)
-        .or_else(|| {
-            passthrough
-                .and_then(|value| value.cover_art.as_ref())
-                .map(CoverArtSelection::Passthrough)
-        })
-        .filter(|selection| !selection.bytes().is_empty())
 }
 
 fn stream_copy_packets(
