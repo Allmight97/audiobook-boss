@@ -126,3 +126,53 @@ export function unwrapGeneratedResult<T>(value: unknown): T {
 export function isAppErrorCategory(error: unknown, category: AppErrorCategory): boolean {
 	return normalizeAppError(error).category === category;
 }
+
+/**
+ * Derive a user-facing message from any thrown cause. Centralizes the
+ * `normalizeAppError(...).message` derivation the UI islands re-implement.
+ * With `suppressUnknown`, an unclassified (`unknown_error`) cause collapses to
+ * `fallback` instead of surfacing a raw/internal message.
+ */
+export function toUserMessage(
+	cause: unknown,
+	options: { fallback?: string; suppressUnknown?: boolean } = {},
+): string {
+	const fallback = options.fallback ?? 'Unknown error';
+	const normalized = normalizeAppError(cause, fallback);
+	if (options.suppressUnknown && normalized.code === 'unknown_error') {
+		return fallback;
+	}
+	return normalized.message || fallback;
+}
+
+/**
+ * True when a cause represents a cancellation. Prefers the typed
+ * `category: 'cancellation'`, and keeps a message fallback because cancellations
+ * can still arrive un-enveloped (a raw error normalizes to category `unknown`).
+ * Proving cancellations are always typed is owned by the lifecycle-truth work
+ * (#376); until then this is the single owner of that dual check.
+ */
+export function isCancellation(cause: unknown): boolean {
+	const normalized = normalizeAppError(cause);
+	return (
+		normalized.category === 'cancellation' || normalized.message.toLowerCase().includes('cancelled')
+	);
+}
+
+/**
+ * Log a normalized error with a consistent `code=/category=` shape. Defaults to
+ * `console.error`; pass `level: 'warn'` for non-fatal diagnostics.
+ */
+export function logAppError(
+	scope: string,
+	cause: unknown,
+	level: 'error' | 'warn' = 'error',
+): void {
+	const error = normalizeAppError(cause);
+	const line = `${scope} code=${error.code} category=${error.category}`;
+	if (level === 'warn') {
+		console.warn(line);
+	} else {
+		console.error(line);
+	}
+}

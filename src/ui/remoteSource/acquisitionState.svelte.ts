@@ -1,5 +1,5 @@
 import type { ProviderId, RemoteSourceAccountState, RemoteTitle } from '../../types/remoteSource';
-import { normalizeAppError } from '../../lib/tauri/appError';
+import { logAppError, toUserMessage } from '../../lib/tauri/appError';
 import type { AcquisitionJobWithProgress } from './remoteSourceAcquireDialogHelpers';
 
 export const remoteSourceProviderId: ProviderId = 'audible';
@@ -44,7 +44,6 @@ export function createInitialAcquisitionState(): AcquisitionState {
 }
 
 export function setAcquisitionError(s: AcquisitionState, cause: unknown, fallback: string): void {
-	const error = normalizeAppError(cause, fallback);
-	console.error(`${fallback} code=${error.code} category=${error.category}`);
-	s.statusMessage = error.code === 'unknown_error' ? fallback : error.message;
+	logAppError(fallback, cause);
+	s.statusMessage = toUserMessage(cause, { fallback, suppressUnknown: true });
 }

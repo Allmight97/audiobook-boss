@@ -6,7 +6,7 @@ import type {
 } from '../../types/audio';
 import type { WorkSubmissionAccepted } from '../../types/workRuntime';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { isAppErrorCategory, normalizeAppError } from '../../lib/tauri/appError';
+import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import {
 	Data,
 	Effect,
@@ -161,7 +161,7 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 						}
 					}
 					if (entry.error != null) {
-						const errorMessage = normalizeAppError(entry.error, '').message;
+						const errorMessage = toUserMessage(entry.error, { fallback: '' });
 						if (errorMessage.length > 0) {
 							return errorMessage;
 						}
@@ -191,9 +191,8 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 }
 
 function workflowFailure(message: string, cause: unknown): ProcessingWorkflowFailed {
-	const normalized = normalizeAppError(cause, message);
 	return new ProcessingWorkflowFailed({
-		message: normalized.message || message,
+		message: toUserMessage(cause, { fallback: message }),
 		cause,
 	});
 }
@@ -206,20 +205,11 @@ function workflowPromise<A>(
 }
 
 function toProcessingWorkflowError(cause: unknown): ProcessingWorkflowError {
-	const normalized = normalizeAppError(cause);
-	const wasCancelled =
-		isAppErrorCategory(cause, 'cancellation') ||
-		normalized.message.toLowerCase().includes('cancelled');
-	if (wasCancelled) {
-		return new ProcessingWorkflowCancelled({
-			message: normalized.message,
-			cause,
-		});
+	const message = toUserMessage(cause);
+	if (isCancellation(cause)) {
+		return new ProcessingWorkflowCancelled({ message, cause });
 	}
-	return new ProcessingWorkflowFailed({
-		message: normalized.message,
-		cause,
-	});
+	return new ProcessingWorkflowFailed({ message, cause });
 }
 
 function processingCommand(

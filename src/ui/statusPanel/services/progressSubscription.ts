@@ -1,5 +1,9 @@
 import { listenForProgressEvents, listenForQueueEvents } from '../events';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
+import {
+	createSubscriptionGroup,
+	type SubscriptionGroup,
+} from '../../../lib/tauri/subscriptionGroup';
 
 type Unlisten = () => void;
 type ProgressListenerRegistration = (
@@ -39,21 +43,14 @@ export function createProgressSubscription({
 	listenForQueueEvents: subscribeToQueue = listenForQueueEvents,
 	eventTarget = getDefaultEventTarget(),
 }: CreateProgressSubscriptionOptions): ProgressSubscriptionOwner {
-	let progressUnlisten: Unlisten | undefined;
-	let queueUnlisten: Unlisten | undefined;
+	// One subscription group per start cycle. Its `disposed` flag is the
+	// stale-start guard (a stop/dispose between a `listen` call and its resolution
+	// unlistens the late arrival), replacing the previous hand-rolled token.
+	let currentGroup: SubscriptionGroup | null = null;
+	let subscribed = false;
 	let beforeUnloadAttached = false;
 	let disposed = false;
-	let subscriptionToken = 0;
 	let startPromise: Promise<void> | null = null;
-
-	const detachActiveListeners = () => {
-		const progressListener = progressUnlisten;
-		const queueListener = queueUnlisten;
-		progressUnlisten = undefined;
-		queueUnlisten = undefined;
-		progressListener?.();
-		queueListener?.();
-	};
 
 	const attachBeforeUnload = () => {
 		if (!eventTarget || beforeUnloadAttached) {
@@ -74,9 +71,10 @@ export function createProgressSubscription({
 	};
 
 	const teardown = () => {
-		subscriptionToken += 1;
+		currentGroup?.dispose();
+		currentGroup = null;
+		subscribed = false;
 		startPromise = null;
-		detachActiveListeners();
 		detachBeforeUnload();
 	};
 
@@ -89,7 +87,7 @@ export function createProgressSubscription({
 			throw new Error('Progress subscription has been disposed.');
 		}
 
-		if (progressUnlisten && queueUnlisten) {
+		if (subscribed) {
 			return;
 		}
 
@@ -97,34 +95,24 @@ export function createProgressSubscription({
 			return startPromise;
 		}
 
-		const token = ++subscriptionToken;
+		const group = createSubscriptionGroup();
+		currentGroup = group;
 		attachBeforeUnload();
 
 		let pendingStart: Promise<void> | null = null;
 		pendingStart = (async () => {
-			let nextProgressUnlisten: Unlisten | undefined;
-			let nextQueueUnlisten: Unlisten | undefined;
-
 			try {
-				nextProgressUnlisten = await subscribeToProgress(onProgress);
-				if (token !== subscriptionToken || disposed) {
-					nextProgressUnlisten();
+				await group.add(subscribeToProgress(onProgress));
+				await group.add(subscribeToQueue(onQueue));
+				// A stop/dispose during startup disposed this group and already
+				// unlistened any late arrivals; do not mark the cycle subscribed.
+				if (group.disposed) {
 					return;
 				}
-
-				nextQueueUnlisten = await subscribeToQueue(onQueue);
-				if (token !== subscriptionToken || disposed) {
-					nextProgressUnlisten();
-					nextQueueUnlisten();
-					return;
-				}
-
-				progressUnlisten = nextProgressUnlisten;
-				queueUnlisten = nextQueueUnlisten;
+				subscribed = true;
 			} catch (error) {
-				nextProgressUnlisten?.();
-				nextQueueUnlisten?.();
-				if (token === subscriptionToken) {
+				group.dispose();
+				if (currentGroup === group) {
 					detachBeforeUnload();
 				}
 				throw error;
