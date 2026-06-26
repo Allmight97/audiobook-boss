@@ -171,7 +171,7 @@ fn validate_supported_cover_art_format(
 ) {
     log::debug!(
         "Cover art format validation: {} detected and supported",
-        cover_art_format_name(format)
+        format.display_name()
     );
     check_cover_art_dimensions(format, cover_data, warnings);
     check_cover_art_codec(format, warnings);
@@ -194,31 +194,17 @@ fn check_cover_art_dimensions(format: CoverFormat, cover_data: &[u8], warnings: 
         // Suppress dimension warning for tiny (<100B) placeholder images.
         warnings.push(format!(
             "Could not detect {} dimensions - file may be corrupted",
-            cover_art_format_name(format)
+            format.display_name()
         ));
     }
 }
 
 fn check_cover_art_codec(format: CoverFormat, warnings: &mut Vec<String>) {
-    if ff::encoder::find(cover_art_codec_id(format)).is_none() {
+    if ff::encoder::find(format.codec_id()).is_none() {
         warnings.push(format!(
             "FFmpeg codec for {:?} format not available in this build - cover art will be skipped",
             format
         ));
-    }
-}
-
-fn cover_art_codec_id(format: CoverFormat) -> ff::codec::Id {
-    match format {
-        CoverFormat::Jpeg => ff::codec::Id::MJPEG,
-        CoverFormat::Png => ff::codec::Id::PNG,
-    }
-}
-
-fn cover_art_format_name(format: CoverFormat) -> &'static str {
-    match format {
-        CoverFormat::Jpeg => "JPEG",
-        CoverFormat::Png => "PNG",
     }
 }
 

@@ -21,10 +21,7 @@ pub fn add_cover_art_stream_pre_header(
         ));
     };
 
-    let codec_id = match format {
-        CoverFormat::Jpeg => ff::codec::Id::MJPEG,
-        CoverFormat::Png => ff::codec::Id::PNG,
-    };
+    let codec_id = format.codec_id();
     let Some(codec) = ff::encoder::find(codec_id) else {
         return Err(AppError::General(format!(
             "Cover art codec {:?} missing in ffmpeg build",
@@ -100,10 +97,7 @@ fn configure_cover_art_stream_parameters(
     use crate::errors::AppError;
 
     // Create a codec context for the cover art
-    let codec_id = match format {
-        CoverFormat::Jpeg => ff::codec::Id::MJPEG,
-        CoverFormat::Png => ff::codec::Id::PNG,
-    };
+    let codec_id = format.codec_id();
 
     let codec = ff::encoder::find(codec_id)
         .ok_or_else(|| AppError::General(format!("Codec {:?} not found", codec_id)))?;
@@ -128,11 +122,7 @@ fn configure_cover_art_stream_parameters(
     ctx.set_height(height as u32);
 
     // Set pixel format for the codec
-    let pixel_format = match format {
-        CoverFormat::Jpeg => ff::format::Pixel::YUVJ420P, // Common JPEG pixel format
-        CoverFormat::Png => ff::format::Pixel::RGBA,      // PNG with alpha
-    };
-    ctx.set_format(pixel_format);
+    ctx.set_format(format.pixel_format());
 
     // Set time base for single frame
     ctx.set_time_base(ff::Rational(1, 1));
