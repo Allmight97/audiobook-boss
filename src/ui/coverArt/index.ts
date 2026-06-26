@@ -1,6 +1,6 @@
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import { tauriClient } from '../../lib/tauri/client';
-import { normalizeAppError } from '../../lib/tauri/appError';
+import { toUserMessage } from '../../lib/tauri/appError';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { getJobType } from '../jobControls';
 import { getCurrentFileList, getSelectedFiles } from '../fileList';
@@ -229,7 +229,7 @@ export async function applyCoverArtDrop(paths: string[]): Promise<boolean> {
 }
 
 function formatCoverArtError(error: unknown, fallback: string): string {
-	const raw = normalizeAppError(error, fallback).message;
+	const raw = toUserMessage(error, { fallback });
 	if (/status 403/i.test(raw) || /403 Forbidden/i.test(raw)) {
 		return 'That URL blocked the image request (Error 403) - download the image and Load Cover Art from file.';
 	}

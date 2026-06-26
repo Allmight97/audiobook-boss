@@ -44,6 +44,8 @@ vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		listen: vi.fn((event: string, cb: TauriListener) => {
 			listeners[event] = cb;
+			// Honor the real `tauriClient.listen` contract: resolve to an UnlistenFn.
+			return Promise.resolve(() => {});
 		}),
 		getSupportedAudioImportMetadata: getSupportedAudioImportMetadataMock,
 		discoverAudioImportPaths: discoverAudioImportPathsMock,

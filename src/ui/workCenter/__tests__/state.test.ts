@@ -13,6 +13,15 @@ vi.mock('../../remoteSource/sessionAssets.svelte', () => ({
 }));
 
 import { applyOperationSnapshot, disposeWorkCenter, initializeWorkCenter } from '../state.svelte';
+import { workCenterState } from '../state.svelte';
+
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+}
 
 function completedMergeOperation(operationId: string): OperationSnapshot {
 	return {
@@ -131,5 +140,30 @@ describe('Work Center state', () => {
 		expect(releaseMock).toHaveBeenCalledTimes(1);
 		expect(purgeMock).toHaveBeenCalledTimes(1);
 		resolvePurge();
+	});
+
+	it('does not mark initialized or retain listeners when disposed mid-initialization', async () => {
+		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		const snapshotUnlisten = vi.fn();
+		const listUnlisten = vi.fn();
+		const listDeferred = createDeferred<{ operations: never[] }>();
+		vi.spyOn(tauriClient, 'listen')
+			.mockResolvedValueOnce(snapshotUnlisten)
+			.mockResolvedValueOnce(listUnlisten);
+		vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValueOnce(
+			listDeferred.promise as ReturnType<typeof tauriClient.listWorkOperations>,
+		);
+
+		const initPromise = initializeWorkCenter();
+		// Flush microtasks so both listeners register and init parks on listWorkOperations.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		disposeWorkCenter();
+		listDeferred.resolve({ operations: [] });
+		await initPromise.catch(() => {});
+
+		// Dispose won the race: listeners torn down, state not marked initialized.
+		expect(snapshotUnlisten).toHaveBeenCalledTimes(1);
+		expect(listUnlisten).toHaveBeenCalledTimes(1);
+		expect(workCenterState.initialized).toBe(false);
 	});
 });

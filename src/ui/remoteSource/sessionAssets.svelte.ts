@@ -1,5 +1,5 @@
 import type { AudioFile, FileListInfo, SupplementalProcessingAsset } from '../../types/audio';
-import { normalizeAppError } from '../../lib/tauri/appError';
+import { logAppError } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource';
 
@@ -220,10 +220,7 @@ export async function purgeRemoteSourceSessionsForInputIds(
 		try {
 			await tauriClient.purgeRemoteSourceSession(jobId);
 		} catch (cause) {
-			const error = normalizeAppError(cause, 'Failed to purge remote source session.');
-			console.warn(
-				`Failed to purge remote source session: ${jobId} code=${error.code} category=${error.category}`,
-			);
+			logAppError(`Failed to purge remote source session: ${jobId}`, cause, 'warn');
 		}
 	}
 	removeRemoteSourceSupplementalAssets(purgeableIds);

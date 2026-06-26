@@ -115,8 +115,7 @@ describe('progress subscription owner', () => {
 
 		const startPromise = owner.start();
 		progressDeferred.resolve(progressUnlisten);
-		await Promise.resolve();
-		expect(listenForQueueEvents).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(listenForQueueEvents).toHaveBeenCalledTimes(1));
 
 		owner.stop();
 		queueDeferred.resolve(queueUnlisten);

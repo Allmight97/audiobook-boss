@@ -11,8 +11,8 @@ import {
 	upsertOperation,
 	type WorkCenterModel,
 } from './model';
-
-type Unlisten = () => void;
+import { toUserMessage } from '../../lib/tauri/appError';
+import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 
 interface WorkCenterState extends WorkCenterModel {
 	initialized: boolean;
@@ -28,7 +28,7 @@ export const workCenterState = $state<WorkCenterState>({
 });
 
 let initializationPromise: Promise<void> | null = null;
-let unlisteners: Unlisten[] = [];
+let subscriptions: SubscriptionGroup | null = null;
 const purgedOperationIds = new Set<string>();
 
 export function initializeWorkCenter(): Promise<void> {
@@ -39,39 +39,39 @@ export function initializeWorkCenter(): Promise<void> {
 		return Promise.resolve();
 	}
 
+	const group = createSubscriptionGroup();
+	subscriptions = group;
 	initializationPromise = (async () => {
-		const nextUnlisteners: Unlisten[] = [];
-		try {
-			nextUnlisteners.push(
-				await tauriClient.listen(EVENTS.WORK_OPERATION_SNAPSHOT, ({ payload }) => {
-					applyOperationSnapshot(payload.snapshot);
-				}),
-			);
-			nextUnlisteners.push(
-				await tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
-					const model = replaceOperations(workCenterState, { operations: payload.operations });
-					workCenterState.operations = model.operations;
-					for (const operation of workCenterState.operations) {
-						void purgeRemoteSessionsForTerminalOperation(operation);
-					}
-				}),
-			);
-			unlisteners = nextUnlisteners;
+		await group.add(
+			tauriClient.listen(EVENTS.WORK_OPERATION_SNAPSHOT, ({ payload }) => {
+				applyOperationSnapshot(payload.snapshot);
+			}),
+		);
+		await group.add(
+			tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
+				const model = replaceOperations(workCenterState, { operations: payload.operations });
+				workCenterState.operations = model.operations;
+				for (const operation of workCenterState.operations) {
+					void purgeRemoteSessionsForTerminalOperation(operation);
+				}
+			}),
+		);
 
-			const list = await tauriClient.listWorkOperations();
-			const model = replaceOperations(workCenterState, list);
-			workCenterState.operations = model.operations;
-			workCenterState.initialized = true;
-			workCenterState.errorMessage = null;
-		} catch (error) {
-			disposeUnlisteners(nextUnlisteners);
-			if (unlisteners === nextUnlisteners) {
-				unlisteners = [];
-			}
-			throw error;
+		const list = await tauriClient.listWorkOperations();
+		// A dispose during initialization wins: do not mark initialized or apply state.
+		if (group.disposed) {
+			return;
 		}
+		const model = replaceOperations(workCenterState, list);
+		workCenterState.operations = model.operations;
+		workCenterState.initialized = true;
+		workCenterState.errorMessage = null;
 	})().catch((error) => {
-		workCenterState.errorMessage = `Failed to initialize Work Center: ${String(error)}`;
+		group.dispose();
+		if (subscriptions === group) {
+			subscriptions = null;
+		}
+		workCenterState.errorMessage = `Failed to initialize Work Center: ${toUserMessage(error)}`;
 		initializationPromise = null;
 		throw error;
 	});
@@ -88,8 +88,8 @@ function isTauriRuntimeAvailable(): boolean {
 }
 
 export function disposeWorkCenter(): void {
-	disposeUnlisteners(unlisteners);
-	unlisteners = [];
+	subscriptions?.dispose();
+	subscriptions = null;
 	initializationPromise = null;
 	workCenterState.initialized = false;
 }
@@ -109,7 +109,7 @@ export async function cancelWorkOperation(operationId: OperationId): Promise<voi
 		const snapshot = await tauriClient.cancelWorkOperation(operationId);
 		applyOperationSnapshot(snapshot);
 	} catch (error) {
-		workCenterState.errorMessage = `Failed to cancel operation: ${String(error)}`;
+		workCenterState.errorMessage = `Failed to cancel operation: ${toUserMessage(error)}`;
 	} finally {
 		const next = { ...workCenterState.cancelPendingByOperationId };
 		delete next[operationId];
@@ -149,10 +149,4 @@ async function purgeRemoteSessionsForTerminalOperation(
 	}
 
 	await purgeRemoteSourceSessionsForInputIds(purgeInputIds);
-}
-
-function disposeUnlisteners(listeners: Unlisten[]): void {
-	for (const unlisten of listeners.splice(0)) {
-		unlisten();
-	}
 }
