@@ -103,6 +103,7 @@ export function cloneModel(model: StatusPanelModel): StatusPanelModel {
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
 		terminalFeedback: model.terminalFeedback,
+		cancellationLatched: model.cancellationLatched,
 	};
 }
 

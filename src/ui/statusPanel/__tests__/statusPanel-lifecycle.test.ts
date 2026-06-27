@@ -141,6 +141,47 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toBe('Processing was cancelled.');
 	});
 
+	it('keeps the cancellation verdict when an uncancellable preview result reconciles after cancel', () => {
+		// Regression (audit): the foreground/preview lane is uncancellable at the
+		// backend, so after a local cancel the preview still completes and reconciles.
+		// The user's cancellation must win — a success/mixed result arriving late must
+		// NOT overwrite the cancellation verdict into a "success" toast after cancel.
+		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
+
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-0',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting',
+		});
+
+		controller.requestCancelAll();
+		expect(controller.getCurrentStatus().stage).toBe('cancelled');
+
+		// The uncancellable preview returns success and reconciles after the cancel.
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+			terminalClass: 'success',
+			results: [{ inputIndex: 0, status: 'success', message: 'done' }],
+		});
+
+		vi.advanceTimersByTime(2000);
+
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
+		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
+		expect(getStepText()).toBe('Processing was cancelled.');
+	});
+
 	it.each([
 		{
 			name: 'all completed',

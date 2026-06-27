@@ -213,6 +213,27 @@ impl WorkRuntime {
         Ok(snapshot)
     }
 
+    /// Cancel-terminalize a metadata-save operation that aborted via cancellation
+    /// (e.g. the operation cancel flag flipped during the permit wait, before the
+    /// save loop). Mirrors the processing path's `AppError::Cancellation =>
+    /// state.cancel` so a cancelled metadata save resolves to `Cancelled`, not
+    /// `Failed`.
+    pub fn cancel_metadata_save_operation(
+        &self,
+        window: &tauri::Window,
+        operation_id: &OperationId,
+        message: String,
+    ) -> Result<OperationSnapshot> {
+        let snapshot = {
+            let mut state = lock_state(&self.inner.state)?;
+            state.cancel(operation_id, message, now_ms())?
+        };
+        self.emit_snapshot(window, &snapshot);
+        self.emit_list(window);
+        self.remove_cancel_flag(operation_id);
+        Ok(snapshot)
+    }
+
     fn apply_progress_and_emit(
         &self,
         window: &tauri::Window,

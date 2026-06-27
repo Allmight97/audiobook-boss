@@ -104,7 +104,11 @@ pub async fn save_metadata_batch(
     {
         Ok(registration) => registration,
         Err(error) => {
-            runtime.fail_metadata_save_operation(&window, &operation_id, error.to_string())?;
+            // The operation is already Running + cancellable when the permit wait
+            // begins, so a cancel during that wait surfaces here as
+            // `AppError::Cancellation`. Terminalize it as Cancelled (not Failed),
+            // mirroring the processing path's cancellation handling.
+            terminalize_metadata_save_abort(&runtime, &window, &operation_id, &error)?;
             return Err(error.into());
         }
     };
@@ -142,10 +146,29 @@ pub async fn save_metadata_batch(
             Ok(batch)
         }
         Err(error) => {
-            runtime.fail_metadata_save_operation(&window, &operation_id, error.to_string())?;
+            terminalize_metadata_save_abort(&runtime, &window, &operation_id, &error)?;
             Err(error.into())
         }
     }
+}
+
+/// Terminalizes a metadata-save operation that aborted before producing a result.
+/// A cancellation (e.g. cancel during the permit wait) resolves to `Cancelled`;
+/// any other abort resolves to `Failed`. Keeps cancel-vs-failure terminal truth
+/// symmetric with the processing path.
+fn terminalize_metadata_save_abort(
+    runtime: &crate::work_runtime::WorkRuntime,
+    window: &tauri::Window,
+    operation_id: &crate::work_runtime::OperationId,
+    error: &AppError,
+) -> Result<()> {
+    let message = error.to_string();
+    if matches!(error, AppError::Cancellation(_)) {
+        runtime.cancel_metadata_save_operation(window, operation_id, message)?;
+    } else {
+        runtime.fail_metadata_save_operation(window, operation_id, message)?;
+    }
+    Ok(())
 }
 
 async fn save_metadata_batch_impl<F>(

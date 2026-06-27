@@ -432,3 +432,24 @@ fn complete_from_summary_terminalizes_metadata_save_children_by_index() {
     assert!(!snapshot.cancellable);
     assert_eq!(snapshot.finished_at_ms, Some(300));
 }
+
+#[test]
+fn cancel_terminalizes_metadata_save_operation_as_cancelled_not_failed() {
+    // A metadata save cancelled before its loop (e.g. the operation cancel flag
+    // flips during the permit wait) must resolve to Cancelled, mirroring the
+    // processing path â `cancel_metadata_save_operation` routes through `cancel`.
+    let (mut state, operation_id) = metadata_save_state();
+    state.mark_running(&operation_id, 150).expect("running");
+
+    let snapshot = state
+        .cancel(&operation_id, "Metadata save cancelled.".to_string(), 300)
+        .expect("cancel");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Cancelled);
+    assert!(snapshot
+        .children
+        .iter()
+        .all(|child| child.status == ChildJobStatus::Cancelled));
+    assert!(!snapshot.cancellable);
+    assert_eq!(snapshot.finished_at_ms, Some(300));
+}

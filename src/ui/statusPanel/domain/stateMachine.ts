@@ -56,6 +56,7 @@ export function createStatusPanelModel(): StatusPanelModel {
 		latestProgressEvent: null,
 		batchCompletionMessageOverride: null,
 		terminalFeedback: null,
+		cancellationLatched: false,
 	};
 }
 
@@ -96,6 +97,7 @@ export function applyQueueSnapshot(
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
 		terminalFeedback: null,
+		cancellationLatched: false,
 	};
 
 	const updated = recomputeStatus(next);
@@ -213,9 +215,15 @@ export function reconcileProcessResult(
 	const next = cloneModel(model);
 	// The backend owns the terminal verdict (`classify_run_terminal` →
 	// `RunTerminalClass`); carry it so the completion toast renders backend truth
-	// instead of re-deriving precedence from per-job statuses. Set unconditionally
-	// — an all-success run repairs no rows below but still needs its verdict.
-	next.terminalFeedback = feedbackFromResult(result);
+	// instead of re-deriving precedence from per-job statuses. Set even when an
+	// all-success run repairs no rows below — it still needs its verdict.
+	// EXCEPT after a user-initiated local cancellation: the foreground/preview lane
+	// is uncancellable at the backend, so its result still arrives and reconciles;
+	// the user's cancellation verdict must win for the ephemeral preview lane rather
+	// than be overwritten by a late backend success/mixed verdict.
+	if (!next.cancellationLatched) {
+		next.terminalFeedback = feedbackFromResult(result);
+	}
 	let didUpdate = false;
 	for (const entry of result.results) {
 		if (entry.status === 'success') {
@@ -263,6 +271,9 @@ export function reconcileProcessResult(
 
 export function applyCancellation(model: StatusPanelModel, now: number): StatusPanelReducerResult {
 	const next = cloneModel(model);
+	// Latch the user-initiated cancellation so a late foreground/preview result
+	// cannot overwrite the cancellation verdict in `reconcileProcessResult`.
+	next.cancellationLatched = true;
 	let didUpdate = false;
 
 	for (const [jobKey, job] of next.jobProgress.entries()) {
