@@ -24,8 +24,8 @@ prefer local prose or delete it.
 | **Remote Source Acquisition** | Provider-shaped ingress that materializes remote titles into ABB-owned staged files before normal local import handoff. | auto-processing |
 | **Media Contract** | Backend-neutral media facts, progress, error, and provenance vocabulary that does not expose FFmpeg, AAXClean, provider payloads, or metadata-tool internals. | provider response shape |
 | **Supplemental Asset** | Non-audio sidecar acquired with a remote title, currently Supplemental PDF. It never enters audio processing. | audio input |
-| **Backend Lifecycle** | Processing sub-owner for operation identity, queue/progress vocabulary, cancellation checks, and terminal-summary truth. | status UI owner |
-| **Work Operation** | A WorkRuntime-owned background processing submission with a stable id, immutable accepted inputs, an operation snapshot, and operation-scoped cancellation. | UI job row |
+| **Backend Lifecycle** | Processing sub-owner for `OperationKind`, queue/progress vocabulary, job cancellation checks, and terminal-summary truth. | status UI owner |
+| **Work Operation** | A WorkRuntime-owned accepted background operation with a stable id, immutable accepted inputs, an operation snapshot, and operation-scoped cancellation. | UI job row |
 | **Work Center** | The UI surface (`src/ui/workCenter/`) that renders backend-authored Work Operation snapshots. It expresses operation truth; it does not invent terminal status. | status panel clone |
 | **Operation Kind** | Backend-declared operation identity on lifecycle events, currently `processingMerge`, `processingBatch`, or `metadataSave`. | UI-only mode |
 | **Operation Result Summary** | Terminal counts for backend operations: total, succeeded, skipped, cancelled, and failed. | UI completion guess |
@@ -52,7 +52,7 @@ prefer local prose or delete it.
 | **Public API Strip** | The symbols callers may use from an owned module. Everything else is private even if technically importable. | everything pub |
 | **Private Cluster** | Implementation files behind a Public API Strip. | helper grab bag |
 | **Module Owner** | The single module responsible for a product rule or invariant. | shared responsibility |
-| **Eight Public APIs** | Current owned API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime. | generic modules |
+| **Public API Set** | Current owned API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, WorkRuntime, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime. | generic modules |
 | **Reach-Through** | Import or dependency crossing into another module's Private Cluster. Treat as a bug, ownership smear, or contract gap. | shortcut |
 | **Contract Test** | Test that pins behavior visible through a Public API Strip. | helper existence test |
 

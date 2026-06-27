@@ -10,10 +10,10 @@
 - Route media execution through the `crate::audio` Audio Engine Deep Module
   public API; callers outside audio must not choose processor adapters or
   import private audio engine files directly.
-- Route backend operation lifecycle vocabulary, queue/progress events, and
-  terminal summaries through the `crate::processing` lifecycle/progress public
-  API. Audio and metadata may report lifecycle truth there without owning the
-  lifecycle model.
+- Route shared processing lifecycle vocabulary, queue/progress event shapes,
+  and terminal summaries through `crate::processing`; route accepted background
+  operation identity, snapshots, and operation-scoped cancellation through
+  `crate::work_runtime`.
 - Route durable app preference schema, defaults, merge, validation, and JSON
   storage through `crate::app_settings`; commands and UI code must not invent a
   parallel settings store.
@@ -26,7 +26,9 @@
 - Use `JobRegistry` as the central active-job and cancellation surface.
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
-- Use `process_audiobook_files` for full processing flows; use dedicated auxiliary commands for non-processing tasks.
+- Run final batch/merge processing through `submit_processing_operation`
+  (WorkRuntime); `process_audiobook_files` is preview-only. Use dedicated
+  auxiliary commands for non-processing tasks.
 - Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion. Run command and workspace lint posture: `scripts/AGENTS.md` and root `Cargo.toml` `[workspace.lints]`.
 - Consult `docs/unsafe-code-register.md` before changing production Rust `unsafe`
   and update it when unsafe scope, purpose, or blast radius changes.
