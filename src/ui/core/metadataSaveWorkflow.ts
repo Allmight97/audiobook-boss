@@ -19,9 +19,6 @@ import { resetDirtyState } from '../metadataForm';
 import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
 import { metadataSaveInProgressStore } from '../metadataSaveState';
 import {
-	beginMetadataSaveInStatusPanel,
-	completeMetadataSaveInStatusPanel,
-	failMetadataSaveInStatusPanel,
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
@@ -39,9 +36,6 @@ export interface MetadataSaveWorkflowServices {
 	saveMetadataBatch: typeof tauriClient.saveMetadataBatch;
 	clearPendingMetadataForFile: typeof clearPendingMetadataForFile;
 	resetDirtyState: typeof resetDirtyState;
-	beginMetadataSaveInStatusPanel: typeof beginMetadataSaveInStatusPanel;
-	completeMetadataSaveInStatusPanel: typeof completeMetadataSaveInStatusPanel;
-	failMetadataSaveInStatusPanel: typeof failMetadataSaveInStatusPanel;
 	console: Pick<Console, 'error' | 'log'>;
 }
 
@@ -73,9 +67,6 @@ const liveMetadataSaveWorkflowServices = {
 	saveMetadataBatch: tauriClient.saveMetadataBatch,
 	clearPendingMetadataForFile,
 	resetDirtyState,
-	beginMetadataSaveInStatusPanel,
-	completeMetadataSaveInStatusPanel,
-	failMetadataSaveInStatusPanel,
 	console,
 } satisfies MetadataSaveWorkflowServices;
 
@@ -177,7 +168,9 @@ function handleMetadataSaveResult(
 	services.console.log(
 		`Metadata save complete: success=${result.summary.succeeded}, failed=${result.summary.failed}, cancelled=${result.summary.cancelled}`,
 	);
-	services.completeMetadataSaveInStatusPanel(result);
+	// Progress + terminal truth render in the Work Center (the save runs as a
+	// WorkRuntime MetadataSave operation); the synchronous result drives only the
+	// per-file pending-draft clearing above.
 }
 
 function reportWorkflowFailure(
@@ -186,7 +179,6 @@ function reportWorkflowFailure(
 ): AppEffect<void> {
 	return Effect.sync(() => {
 		services.console.error(`Failed to save metadata: ${error.message}`, error.cause);
-		services.failMetadataSaveInStatusPanel('Save failed - see console');
 		services.pushStatusPanelTransientStatus('Save failed - see console', { ttlMs: 3_000 });
 	});
 }
@@ -301,10 +293,6 @@ function metadataSaveWorkflowBody(
 			return;
 		}
 
-		yield* workflowPromise(
-			() => services.beginMetadataSaveInStatusPanel(),
-			'Failed to begin metadata save status.',
-		);
 		const result = yield* workflowPromise(
 			() => services.saveMetadataBatch(saveRequestsFromPendingEntries(pendingEntries)),
 			'Failed to save metadata.',

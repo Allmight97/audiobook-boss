@@ -31,6 +31,7 @@ pub(crate) fn new_processing_snapshot(
             input_files.first().cloned(),
             None,
             None,
+            ResourceLane::EncodeCpu,
             total_items,
         )],
         _ => input_files
@@ -46,6 +47,7 @@ pub(crate) fn new_processing_snapshot(
                     input_ids
                         .and_then(|ids| ids.get(index))
                         .and_then(|value| value.clone()),
+                    ResourceLane::EncodeCpu,
                     total_items,
                 )
             })
@@ -77,6 +79,57 @@ pub(crate) fn new_processing_snapshot(
     }
 }
 
+/// Builds a metadata-save operation snapshot: one child per file, matched by
+/// `input_index` (no per-file `job_id` — progress is piped by index to avoid the
+/// shared-`job_id` cross-match in `apply_progress_event`), on the
+/// `MetadataWrite` lane rather than the processing encode lanes.
+pub(crate) fn new_metadata_save_snapshot(
+    operation_id: OperationId,
+    sequence: u64,
+    title: String,
+    input_files: &[String],
+    now_ms: i64,
+) -> OperationSnapshot {
+    let total_items = Some(input_files.len());
+    let children = input_files
+        .iter()
+        .enumerate()
+        .map(|(index, path)| {
+            new_child(
+                &operation_id,
+                format!("metadata-{index}"),
+                basename(path),
+                Some(path.clone()),
+                Some(index),
+                None,
+                ResourceLane::MetadataWrite,
+                total_items,
+            )
+        })
+        .collect();
+
+    OperationSnapshot {
+        operation_id,
+        sequence,
+        kind: OperationKind::MetadataSave,
+        status: WorkOperationStatus::Accepted,
+        title,
+        created_at_ms: now_ms,
+        started_at_ms: None,
+        finished_at_ms: None,
+        cancellable: true,
+        cancel_requested: false,
+        lanes: vec![ResourceLane::MetadataWrite],
+        source_input_ids: Vec::new(),
+        progress: ProgressSnapshot::pending("Queued for metadata save.", total_items),
+        children,
+        terminal_summary: None,
+        warnings: Vec::new(),
+        errors: Vec::new(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn new_child(
     operation_id: &OperationId,
     child_job_id: String,
@@ -84,6 +137,7 @@ fn new_child(
     source_path: Option<String>,
     input_index: Option<usize>,
     input_id: Option<String>,
+    lane: ResourceLane,
     total_items: Option<usize>,
 ) -> ChildJobSnapshot {
     ChildJobSnapshot {
@@ -91,7 +145,7 @@ fn new_child(
         operation_id: operation_id.clone(),
         label,
         status: super::ChildJobStatus::Queued,
-        lane: ResourceLane::EncodeCpu,
+        lane,
         progress: ProgressSnapshot::pending("Queued.", total_items),
         source_path,
         input_index,

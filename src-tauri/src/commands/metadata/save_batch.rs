@@ -3,8 +3,8 @@ use crate::commands::CommandResult;
 use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
 use crate::metadata::{plan_metadata_write, MetadataIntentPatch};
 use crate::processing::{
-    emit_progress_event, emit_queue_event, CancellationChecker, EventStage, JobId, OperationKind,
-    OperationResultSummary, ProgressEvent, QueueEvent, QueueItem,
+    CancellationChecker, EventStage, OperationKind, OperationResultSummary, ProcessResultStatus,
+    ProgressEvent,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -50,7 +50,6 @@ struct MetadataSaveProgress {
     stage: EventStage,
     percentage: f32,
     message: String,
-    job_id: Option<String>,
 }
 
 impl MetadataSaveBatchResult {
@@ -81,6 +80,7 @@ impl MetadataSaveBatchResult {
 #[specta::specta]
 pub async fn save_metadata_batch(
     window: tauri::Window,
+    runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     items: Vec<MetadataSaveRequest>,
 ) -> CommandResult<MetadataSaveBatchResult> {
@@ -88,15 +88,40 @@ pub async fn save_metadata_batch(
         return Err(AppError::InvalidInput("No metadata changes to save".to_string()).into());
     }
 
-    if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
-        registry.reset_global_cancel();
-    }
+    // Metadata save is a WorkRuntime operation rendered in the Work Center.
+    // The command still awaits and returns the per-file `MetadataSaveBatchResult`
+    // (the frontend clears drafts only for files that succeeded), while progress
+    // and terminal truth flow through the operation snapshot. Cancellation is
+    // operation-scoped (`cancel_work_operation`); it does not honor the legacy
+    // global-cancel flag.
+    let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
+    let (operation_id, cancel_flag) =
+        runtime.begin_metadata_save_operation(&window, &file_paths)?;
 
-    let (job_id, _permit) = registry.register_job().await?;
-    let cancellation = registry.cancellation_checker(job_id).await;
-    emit_metadata_save_queue(&window, &items);
-    let result = save_metadata_batch_impl(items, job_id, cancellation, |progress| {
-        emit_metadata_save_progress(&window, progress);
+    let (job_id, _permit) = match registry
+        .register_job_with_external_cancel(Some(cancel_flag.clone()))
+        .await
+    {
+        Ok(registration) => registration,
+        Err(error) => {
+            runtime.fail_metadata_save_operation(&window, &operation_id, error.to_string())?;
+            return Err(error.into());
+        }
+    };
+    let cancellation = registry
+        .cancellation_checker(job_id)
+        .await
+        .with_operation_flag(Some(cancel_flag));
+
+    let progress_runtime = (*runtime).clone();
+    let progress_window = window.clone();
+    let progress_operation_id = operation_id.clone();
+    let result = save_metadata_batch_impl(items, cancellation, |progress| {
+        progress_runtime.record_metadata_save_progress(
+            &progress_window,
+            &progress_operation_id,
+            &metadata_save_progress_event(progress),
+        );
     })
     .await;
 
@@ -105,12 +130,26 @@ pub async fn save_metadata_batch(
         Err(error) => registry.fail_job(job_id, error.to_string()).await,
     }
 
-    Ok(result?)
+    match result {
+        Ok(batch) => {
+            let child_terminals = metadata_save_child_terminals(&batch);
+            runtime.finish_metadata_save_operation(
+                &window,
+                &operation_id,
+                &batch.summary,
+                &child_terminals,
+            )?;
+            Ok(batch)
+        }
+        Err(error) => {
+            runtime.fail_metadata_save_operation(&window, &operation_id, error.to_string())?;
+            Err(error.into())
+        }
+    }
 }
 
 async fn save_metadata_batch_impl<F>(
     items: Vec<MetadataSaveRequest>,
-    job_id: JobId,
     cancellation: CancellationChecker,
     mut emit_progress: F,
 ) -> Result<MetadataSaveBatchResult>
@@ -119,18 +158,10 @@ where
 {
     let total = items.len();
     let mut results = Vec::with_capacity(total);
-    let job_id_string = job_id.to_string();
 
     for (index, item) in items.into_iter().enumerate() {
         if cancellation.is_cancelled() {
-            push_cancelled_entries(
-                index,
-                item,
-                total,
-                &job_id_string,
-                &mut results,
-                &mut emit_progress,
-            );
+            push_cancelled_entries(index, item, total, &mut results, &mut emit_progress);
             continue;
         }
 
@@ -141,7 +172,6 @@ where
             stage: EventStage::Writing,
             percentage: 0.0,
             message: format!("Saving metadata {}/{}: {}", index + 1, total, display_name),
-            job_id: Some(job_id_string.clone()),
         });
 
         let file_path = item.file_path;
@@ -162,7 +192,6 @@ where
                     stage: EventStage::Completed,
                     percentage: 100.0,
                     message: message.clone(),
-                    job_id: Some(job_id_string.clone()),
                 });
                 results.push(MetadataSaveResultEntry {
                     input_index: index,
@@ -182,7 +211,6 @@ where
                     stage: EventStage::Failed,
                     percentage: 100.0,
                     message: envelope.message.clone(),
-                    job_id: Some(job_id_string.clone()),
                 });
                 results.push(MetadataSaveResultEntry {
                     input_index: index,
@@ -202,7 +230,6 @@ fn push_cancelled_entries<F>(
     index: usize,
     item: MetadataSaveRequest,
     total: usize,
-    job_id: &str,
     results: &mut Vec<MetadataSaveResultEntry>,
     emit_progress: &mut F,
 ) where
@@ -215,7 +242,6 @@ fn push_cancelled_entries<F>(
         stage: EventStage::Cancelled,
         percentage: 0.0,
         message: format!("{} {}/{}", message, index + 1, total),
-        job_id: Some(job_id.to_string()),
     });
     results.push(MetadataSaveResultEntry {
         input_index: index,
@@ -238,31 +264,40 @@ fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> R
     Ok(())
 }
 
-fn emit_metadata_save_queue(window: &tauri::Window, items: &[MetadataSaveRequest]) {
-    let queue_items = items
-        .iter()
-        .enumerate()
-        .map(|(index, item)| QueueItem {
-            input_index: index,
-            file_path: item.file_path.clone(),
-        })
-        .collect();
-    let queue_event = QueueEvent::new(OperationKind::MetadataSave, queue_items, 1);
-    emit_queue_event(window, &queue_event);
-}
-
-fn emit_metadata_save_progress(window: &tauri::Window, progress: MetadataSaveProgress) {
-    let event = ProgressEvent {
+/// Builds the progress event fed to the metadata-save operation. `job_id` is
+/// `None` on purpose: the operation matches progress to children by
+/// `input_index`, and a shared `job_id` would cross-match in
+/// `WorkRuntimeState::apply_progress_event`.
+fn metadata_save_progress_event(progress: MetadataSaveProgress) -> ProgressEvent {
+    ProgressEvent {
         operation_kind: OperationKind::MetadataSave,
         stage: progress.stage,
         percentage: progress.percentage,
         message: progress.message,
         current_file: Some(progress.file_path),
         eta_seconds: None,
-        job_id: progress.job_id,
+        job_id: None,
         input_index: Some(progress.input_index),
-    };
-    emit_progress_event(window, &event);
+    }
+}
+
+/// Maps the per-file batch result to the `(input_index, status, message)` child
+/// terminals the WorkRuntime uses to authoritatively terminalize each child.
+fn metadata_save_child_terminals(
+    batch: &MetadataSaveBatchResult,
+) -> Vec<(usize, ProcessResultStatus, String)> {
+    batch
+        .results
+        .iter()
+        .map(|entry| {
+            let status = match entry.status {
+                MetadataSaveResultStatus::Success => ProcessResultStatus::Success,
+                MetadataSaveResultStatus::Cancelled => ProcessResultStatus::Cancelled,
+                MetadataSaveResultStatus::Failed => ProcessResultStatus::Failed,
+            };
+            (entry.input_index, status, entry.message.clone())
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -295,10 +330,9 @@ mod tests {
         let (job_id, _permit) = registry.register_job().await.expect("register job");
         let cancellation = registry.cancellation_checker(job_id).await;
 
-        let result =
-            save_metadata_batch_impl(items, job_id, cancellation, |event| progress.push(event))
-                .await
-                .expect("batch should report per-file failures");
+        let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
+            .await
+            .expect("batch should report per-file failures");
 
         assert_eq!(result.summary.total, 2);
         assert_eq!(result.summary.succeeded, 0);
@@ -332,10 +366,9 @@ mod tests {
         registry.cancel_all();
         let mut progress = Vec::new();
 
-        let result =
-            save_metadata_batch_impl(items, job_id, cancellation, |event| progress.push(event))
-                .await
-                .expect("cancelled batch should return terminal item results");
+        let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
+            .await
+            .expect("cancelled batch should return terminal item results");
 
         assert_eq!(result.summary.total, 2);
         assert_eq!(result.summary.succeeded, 0);

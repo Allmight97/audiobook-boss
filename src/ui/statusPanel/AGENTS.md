@@ -7,10 +7,10 @@ WorkRuntime consumer for background operations.
 
 - **Preview execution**: direct `process_audiobook_files` with `previewSeconds`.
   Does not enter WorkRuntime.
-- **Metadata batch save**: runs through `beginMetadataSaveInStatusPanel` /
-  `completeMetadataSaveInStatusPanel` / `failMetadataSaveInStatusPanel`.
-  Emits progress/queue events with `operation_kind: metadataSave` and
-  `operation_id: None`.
+- **Metadata batch save**: **not** handled by the Status Panel. `save_metadata_batch`
+  runs as a WorkRuntime `MetadataSave` operation (rendered by the Work Center); the
+  command still returns the per-file `MetadataSaveBatchResult` so the metadata-save
+  workflow can clear pending drafts only for files that succeeded.
 - **Cancellation**: operation-scoped only, through `cancel_work_operation`
   (Work Center / WorkRuntime). The retained foreground/direct lane has **no**
   backend cancel command; the Status Panel cancel button settles the local
@@ -28,7 +28,7 @@ foreground/direct-scoped events (`operation_id: None`).
   truth instead of a hand-listed export set here.
 
 ## Private Cluster
-- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `metadataSaveFeedback.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `processingCancellationWorkflow.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
+- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
 - The cluster consumes backend `OperationKind`, progress events, queue snapshots,
   cancellation facts, and terminal results as a read model. It owns visible
   status derivation, status feedback, controls, and processing request

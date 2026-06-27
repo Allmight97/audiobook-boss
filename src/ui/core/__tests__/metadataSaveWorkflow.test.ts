@@ -99,9 +99,6 @@ function makeHarness(options?: {
 	);
 	const clearPendingMetadataForFile = vi.fn();
 	const resetDirtyState = vi.fn();
-	const beginMetadataSaveInStatusPanel = vi.fn(async () => undefined);
-	const completeMetadataSaveInStatusPanel = vi.fn();
-	const failMetadataSaveInStatusPanel = vi.fn();
 	const consoleLog = vi.fn();
 	const consoleError = vi.fn();
 
@@ -117,9 +114,6 @@ function makeHarness(options?: {
 		saveMetadataBatch,
 		clearPendingMetadataForFile,
 		resetDirtyState,
-		beginMetadataSaveInStatusPanel,
-		completeMetadataSaveInStatusPanel,
-		failMetadataSaveInStatusPanel,
 		console: {
 			log: consoleLog,
 			error: consoleError,
@@ -140,9 +134,6 @@ function makeHarness(options?: {
 			saveMetadataBatch,
 			clearPendingMetadataForFile,
 			resetDirtyState,
-			beginMetadataSaveInStatusPanel,
-			completeMetadataSaveInStatusPanel,
-			failMetadataSaveInStatusPanel,
 			consoleLog,
 			consoleError,
 		},
@@ -224,7 +215,6 @@ describe('MetadataSaveWorkflow', () => {
 			'No pending metadata changes',
 			{ ttlMs: 2_000 },
 		);
-		expect(harness.mocks.beginMetadataSaveInStatusPanel).not.toHaveBeenCalled();
 		expect(harness.mocks.saveMetadataBatch).not.toHaveBeenCalled();
 		expect(harness.mocks.resetDirtyState).not.toHaveBeenCalled();
 		expect(harness.getSaveInProgress()).toBe(false);
@@ -241,7 +231,6 @@ describe('MetadataSaveWorkflow', () => {
 
 		await runMetadataSaveWorkflow(harness.layer);
 
-		expect(harness.mocks.beginMetadataSaveInStatusPanel).toHaveBeenCalledTimes(1);
 		expect(harness.mocks.saveMetadataBatch).toHaveBeenCalledWith([
 			{ filePath: '/books/a.m4b', metadataPatch: titlePatch('A') },
 			{ filePath: '/books/b.m4b', metadataPatch: titlePatch('B') },
@@ -250,7 +239,6 @@ describe('MetadataSaveWorkflow', () => {
 		expect(harness.mocks.clearPendingMetadataForFile).toHaveBeenCalledWith('/books/a.m4b');
 		expect(harness.mocks.clearPendingMetadataForFile).toHaveBeenCalledWith('/books/b.m4b');
 		expect(harness.mocks.resetDirtyState).toHaveBeenCalledTimes(1);
-		expect(harness.mocks.completeMetadataSaveInStatusPanel).toHaveBeenCalledTimes(1);
 		expect(harness.getSaveInProgress()).toBe(false);
 	});
 
@@ -306,7 +294,6 @@ describe('MetadataSaveWorkflow', () => {
 			'failed metadata save',
 		);
 		expect(harness.mocks.resetDirtyState).toHaveBeenCalledTimes(1);
-		expect(harness.mocks.completeMetadataSaveInStatusPanel).toHaveBeenCalledWith(result);
 		expect(harness.getSaveInProgress()).toBe(false);
 	});
 
@@ -320,14 +307,11 @@ describe('MetadataSaveWorkflow', () => {
 
 		await runMetadataSaveWorkflow(harness.layer);
 
-		expect(harness.mocks.failMetadataSaveInStatusPanel).toHaveBeenCalledWith(
-			'Save failed - see console',
-		);
 		expect(harness.mocks.pushStatusPanelTransientStatus).toHaveBeenCalledWith(
 			'Save failed - see console',
 			{ ttlMs: 3_000 },
 		);
-		expect(harness.mocks.completeMetadataSaveInStatusPanel).not.toHaveBeenCalled();
+		expect(harness.mocks.clearPendingMetadataForFile).not.toHaveBeenCalled();
 		expect(harness.getSaveInProgress()).toBe(false);
 	});
 

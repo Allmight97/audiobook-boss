@@ -6,9 +6,6 @@ import * as statusPanel from '..';
 
 const EXPECTED_STATUS_PANEL_EXPORTS = [
 	'StatusPanelIsland',
-	'beginMetadataSaveInStatusPanel',
-	'completeMetadataSaveInStatusPanel',
-	'failMetadataSaveInStatusPanel',
 	'initStatusPanel',
 	'isStatusPanelProcessing',
 	'pushStatusPanelTransientStatus',

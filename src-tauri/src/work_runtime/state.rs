@@ -1,16 +1,18 @@
 use super::types::{
-    ChildJobStatus, OperationId, OperationListSnapshot, OperationSnapshot, WorkOperationStatus,
-    WorkProgressStage,
+    ChildJobStatus, OperationId, OperationListSnapshot, OperationSnapshot,
+    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
 };
 use crate::errors::{AppError, Result};
 use crate::processing::ProgressEvent;
-use crate::processing::{EventStage, OperationResultSummary, ProcessCommandResult};
+use crate::processing::{
+    EventStage, OperationResultSummary, ProcessCommandResult, ProcessResultStatus,
+};
 use std::collections::BTreeMap;
 
 use super::terminal::{
     child_status_from_result_status, is_terminal, operation_terminal_summary,
     stage_from_child_status, stage_from_status, terminal_summary_from_process_result,
-    work_status_from_process_result,
+    terminal_summary_from_summary, work_status_from_process_result, work_status_from_summary,
 };
 
 const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
@@ -160,14 +162,12 @@ impl WorkRuntimeState {
         now_ms: i64,
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
-        let summary = terminal_summary_from_process_result(result);
-        snapshot.status = work_status_from_process_result(result);
-        snapshot.finished_at_ms = Some(now_ms);
-        snapshot.cancellable = false;
-        snapshot.progress.stage = stage_from_status(snapshot.status);
-        snapshot.progress.percentage = 100.0;
-        snapshot.progress.message = summary.message.clone();
-        snapshot.terminal_summary = Some(summary);
+        apply_operation_terminal(
+            snapshot,
+            work_status_from_process_result(result),
+            terminal_summary_from_process_result(result),
+            now_ms,
+        );
 
         for entry in &result.results {
             let target_index = entry.input_index.unwrap_or(0);
@@ -183,6 +183,44 @@ impl WorkRuntimeState {
                 child.job_id = entry.job_id.clone();
                 child.cancellable = false;
                 child.message = Some(entry.message.clone());
+            }
+        }
+
+        Ok(snapshot.clone())
+    }
+
+    /// Terminalize a command-driven inline operation (metadata save) from its
+    /// raw result summary plus per-child terminal facts. Operation status maps
+    /// through the same canonical classifier as the processing path; children
+    /// match by `input_index` (inline operations carry no per-child `job_id`).
+    pub(crate) fn complete_from_summary(
+        &mut self,
+        operation_id: &OperationId,
+        summary: &OperationResultSummary,
+        child_terminals: &[(usize, ProcessResultStatus, String)],
+        now_ms: i64,
+    ) -> Result<OperationSnapshot> {
+        let snapshot = self.snapshot_mut(operation_id)?;
+        apply_operation_terminal(
+            snapshot,
+            work_status_from_summary(summary),
+            terminal_summary_from_summary(summary),
+            now_ms,
+        );
+
+        for (input_index, status, message) in child_terminals {
+            if let Some(child) = snapshot
+                .children
+                .iter_mut()
+                .find(|child| child.input_index == Some(*input_index))
+            {
+                child.status = child_status_from_result_status(*status);
+                child.progress.stage = stage_from_child_status(child.status);
+                child.progress.percentage = 100.0;
+                child.progress.message = message.clone();
+                child.cancellable = false;
+                child.cancel_requested = false;
+                child.message = Some(message.clone());
             }
         }
 
@@ -251,6 +289,24 @@ impl WorkRuntimeState {
             .get_mut(operation_id.as_str())
             .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
     }
+}
+
+/// Shared operation-level terminalization for both the processing path
+/// (`complete_from_process_result`) and command-driven inline operations
+/// (`complete_from_summary`). Child terminalization stays caller-specific.
+fn apply_operation_terminal(
+    snapshot: &mut OperationSnapshot,
+    status: WorkOperationStatus,
+    terminal_summary: OperationTerminalSummary,
+    now_ms: i64,
+) {
+    snapshot.status = status;
+    snapshot.finished_at_ms = Some(now_ms);
+    snapshot.cancellable = false;
+    snapshot.progress.stage = stage_from_status(status);
+    snapshot.progress.percentage = 100.0;
+    snapshot.progress.message = terminal_summary.message.clone();
+    snapshot.terminal_summary = Some(terminal_summary);
 }
 
 fn progress_matches_child(
