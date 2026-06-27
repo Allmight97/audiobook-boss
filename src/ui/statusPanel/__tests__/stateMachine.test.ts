@@ -279,6 +279,40 @@ describe('statusPanel state machine', () => {
 		});
 	});
 
+	it('uses the reconciled backend terminal verdict for single completion feedback', () => {
+		const progress = applyProgress(
+			createStatusPanelModel(),
+			{
+				operation_kind: 'processingBatch',
+				job_id: 'job-single',
+				stage: 'completed',
+				percentage: 100,
+				message: 'Done',
+			},
+			5_000,
+		);
+		const reconciled = reconcileProcessResult(
+			progress.model,
+			{
+				jobType: 'batch',
+				summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+				terminalClass: 'failed',
+				results: [{ status: 'success', message: 'ok', jobId: 'job-single' }],
+			},
+			5_100,
+		);
+
+		const completed = completeSingleCompletionHold(reconciled.model, 'job:job-single', {
+			terminalStage: 'completed',
+			message: 'Done',
+		});
+
+		expect(completed.feedback).toEqual({
+			kind: 'error',
+			message: 'One or more files failed to process.',
+		});
+	});
+
 	it('emits a batch completion hold intent with final feedback classification', () => {
 		const snapshot: ProcessingQueueEvent = {
 			operation_kind: 'processingBatch',
@@ -410,6 +444,40 @@ describe('statusPanel state machine', () => {
 		expect(cancelled.model.jobProgress.get('idx:0')?.status).toBe('cancelled');
 		expect(cancelled.model.jobProgress.get('idx:1')?.status).toBe('cancelled');
 		expect(cancelled.model.jobProgress.get('idx:2')?.status).toBe('cancelled');
+	});
+
+	it('ignores late progress after local cancellation is latched', () => {
+		let result = applyProgress(
+			createStatusPanelModel(),
+			{
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				job_id: 'job-0',
+				stage: 'converting',
+				percentage: 25,
+				message: 'Converting',
+			},
+			1_000,
+		);
+		result = applyCancellation(result.model, 1_100);
+
+		const lateProgress = applyProgress(
+			result.model,
+			{
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				job_id: 'job-0',
+				stage: 'completed',
+				percentage: 100,
+				message: 'Done',
+			},
+			1_200,
+		);
+
+		expect(lateProgress.model).toBe(result.model);
+		expect(lateProgress.intents).toEqual([]);
+		expect(lateProgress.model.currentStatus.stage).toBe('cancelled');
+		expect(lateProgress.model.jobProgress.get('idx:0')?.status).toBe('cancelled');
 	});
 
 	it('repairs rows from command results for skipped, cancelled, and failed terminal statuses', () => {

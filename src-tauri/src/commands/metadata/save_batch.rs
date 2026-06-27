@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub type MetadataSaveSummary = OperationResultSummary;
+const METADATA_SAVE_CANCELLED_MESSAGE: &str = "Metadata save cancelled.";
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -107,8 +108,13 @@ pub async fn save_metadata_batch(
             // The operation is already Running + cancellable when the permit wait
             // begins, so a cancel during that wait surfaces here as
             // `AppError::Cancellation`. Terminalize it as Cancelled (not Failed),
-            // mirroring the processing path's cancellation handling.
+            // mirroring the processing path's cancellation handling. The command
+            // still returns per-file results so the frontend can preserve pending
+            // drafts without surfacing an intentional cancel as a save failure.
             terminalize_metadata_save_abort(&runtime, &window, &operation_id, &error)?;
+            if matches!(error, AppError::Cancellation(_)) {
+                return Ok(cancelled_metadata_save_batch(items));
+            }
             return Err(error.into());
         }
     };
@@ -169,6 +175,22 @@ fn terminalize_metadata_save_abort(
         runtime.fail_metadata_save_operation(window, operation_id, message)?;
     }
     Ok(())
+}
+
+fn cancelled_metadata_save_batch(items: Vec<MetadataSaveRequest>) -> MetadataSaveBatchResult {
+    MetadataSaveBatchResult::new(
+        items
+            .into_iter()
+            .enumerate()
+            .map(|(input_index, item)| MetadataSaveResultEntry {
+                input_index,
+                file_path: item.file_path,
+                status: MetadataSaveResultStatus::Cancelled,
+                message: METADATA_SAVE_CANCELLED_MESSAGE.to_string(),
+                error: None,
+            })
+            .collect(),
+    )
 }
 
 async fn save_metadata_batch_impl<F>(
@@ -258,7 +280,7 @@ fn push_cancelled_entries<F>(
 ) where
     F: FnMut(MetadataSaveProgress),
 {
-    let message = "Metadata save cancelled.".to_string();
+    let message = METADATA_SAVE_CANCELLED_MESSAGE.to_string();
     emit_progress(MetadataSaveProgress {
         input_index: index,
         file_path: item.file_path.clone(),
@@ -404,5 +426,33 @@ mod tests {
         assert!(progress
             .iter()
             .all(|event| event.stage == EventStage::Cancelled));
+    }
+
+    #[test]
+    fn cancelled_metadata_save_batch_returns_per_file_cancelled_results() {
+        let result = cancelled_metadata_save_batch(vec![
+            MetadataSaveRequest {
+                file_path: "/books/a.m4b".to_string(),
+                metadata_patch: title_patch("A"),
+            },
+            MetadataSaveRequest {
+                file_path: "/books/b.m4b".to_string(),
+                metadata_patch: title_patch("B"),
+            },
+        ]);
+
+        assert_eq!(result.summary.total, 2);
+        assert_eq!(result.summary.succeeded, 0);
+        assert_eq!(result.summary.failed, 0);
+        assert_eq!(result.summary.cancelled, 2);
+        assert_eq!(result.results[0].input_index, 0);
+        assert_eq!(result.results[0].file_path, "/books/a.m4b");
+        assert_eq!(result.results[1].input_index, 1);
+        assert_eq!(result.results[1].file_path, "/books/b.m4b");
+        assert!(result.results.iter().all(|entry| {
+            entry.status == MetadataSaveResultStatus::Cancelled
+                && entry.message == METADATA_SAVE_CANCELLED_MESSAGE
+                && entry.error.is_none()
+        }));
     }
 }

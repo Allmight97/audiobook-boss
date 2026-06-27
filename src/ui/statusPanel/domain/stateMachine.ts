@@ -110,6 +110,10 @@ export function applyProgress(
 	now: number,
 	options?: { label?: string },
 ): StatusPanelReducerResult {
+	if (model.cancellationLatched) {
+		return { model, intents: [] };
+	}
+
 	const jobKey = buildJobKey(
 		typeof event.input_index === 'number' ? event.input_index : undefined,
 		event.job_id,
@@ -342,7 +346,7 @@ export function completeSingleCompletionHold(
 	if (next.jobProgress.size === 0) {
 		return {
 			model: createStatusPanelModel(),
-			feedback: buildSingleCompletionFeedback(event),
+			feedback: model.terminalFeedback ?? buildSingleCompletionFeedback(event),
 		};
 	}
 

@@ -182,6 +182,47 @@ describe('StatusPanel lifecycle', () => {
 		expect(getStepText()).toBe('Processing was cancelled.');
 	});
 
+	it('keeps the cancelled foreground view when late preview progress arrives after cancel', () => {
+		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
+
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-0',
+			stage: STAGES.converting,
+			percentage: 25,
+			message: 'Converting',
+		});
+		controller.requestCancelAll();
+
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-0',
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'Done',
+		});
+
+		expect(controller.getCurrentStatus().stage).toBe('cancelled');
+		expect(getJobRows()).toHaveLength(1);
+		expect(getJobRows()[0]).toContain('Cancelled');
+		expect(getJobRows()[0]).not.toContain('Complete');
+
+		vi.advanceTimersByTime(2000);
+
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
+		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
+		expect(getStepText()).toBe('Processing was cancelled.');
+	});
+
 	it.each([
 		{
 			name: 'all completed',
