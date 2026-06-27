@@ -145,26 +145,40 @@ describe('StatusPanel lifecycle', () => {
 		{
 			name: 'all completed',
 			terminalStages: [STAGES.completed, STAGES.completed] as const,
+			terminalClass: 'success' as const,
+			summary: { total: 2, succeeded: 2, skipped: 0, cancelled: 0, failed: 0 },
+			resultStatuses: ['success', 'success'] as const,
 			expectedMethod: 'showSuccess' as const,
 			expectedMessage: 'Audiobook created successfully!',
 			expectedStepText: 'Audiobook created successfully!',
 		},
 		{
-			name: 'cancelled present',
+			// Backend classifies success+cancelled as `mixed` (not cancelled); the
+			// panel renders that backend verdict instead of re-deriving "cancelled".
+			name: 'success and cancelled (backend mixed)',
 			terminalStages: [STAGES.cancelled, STAGES.completed] as const,
+			terminalClass: 'mixed' as const,
+			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 1, failed: 0 },
+			resultStatuses: ['cancelled', 'success'] as const,
 			expectedMethod: 'showInfo' as const,
-			expectedMessage: 'Processing was cancelled.',
-			expectedStepText: 'Processing was cancelled.',
+			expectedMessage: 'Some files were not processed.',
+			expectedStepText: 'Some files were not processed.',
 		},
 		{
-			name: 'failed present',
+			name: 'failed present (backend mixed)',
 			terminalStages: [STAGES.cancelled, STAGES.failed] as const,
+			terminalClass: 'mixed' as const,
+			summary: { total: 2, succeeded: 0, skipped: 0, cancelled: 1, failed: 1 },
+			resultStatuses: ['cancelled', 'failed'] as const,
 			expectedMethod: 'showError' as const,
 			expectedMessage: 'One or more files failed to process.',
 			expectedStepText: 'Error: One or more files failed to process.',
 		},
 	])('applies batch terminal lifecycle reset after 2s when %s', ({
 		terminalStages,
+		terminalClass,
+		summary,
+		resultStatuses,
 		expectedMethod,
 		expectedMessage,
 		expectedStepText,
@@ -198,6 +212,19 @@ describe('StatusPanel lifecycle', () => {
 			stage: terminalStages[1],
 			percentage: 100,
 			message: 'terminal-1',
+		});
+
+		// The terminal verdict is backend-owned: reconcile the run result so the
+		// completion toast renders `terminalClass`, not a TS re-classification.
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary,
+			terminalClass,
+			results: resultStatuses.map((status, index) => ({
+				inputIndex: index,
+				status,
+				message: `terminal-${index}`,
+			})),
 		});
 
 		expect(controller.isCurrentlyProcessing).toBe(true);
@@ -281,7 +308,6 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		const showErrorSpy = vi.spyOn(viewState, 'showError');
-		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		controller.applyQueueSnapshot({
 			operation_kind: 'processingBatch',
@@ -306,6 +332,19 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 100,
 			message: 'terminal-1',
 		});
+
+		// Backend verdict (mixed with a failure → error); the override supplies the
+		// failure-detail message rendered with the backend-owned severity.
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 0, failed: 1 },
+			terminalClass: 'mixed',
+			results: [
+				{ inputIndex: 0, status: 'success', message: 'terminal-0' },
+				{ inputIndex: 1, status: 'failed', message: 'terminal-1' },
+			],
+		});
+		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		vi.advanceTimersByTime(2000);
 
@@ -584,6 +623,15 @@ describe('StatusPanel lifecycle', () => {
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'terminal-1',
+		});
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 2, skipped: 0, cancelled: 0, failed: 0 },
+			terminalClass: 'success',
+			results: [
+				{ inputIndex: 0, status: 'success', message: 'terminal-0' },
+				{ inputIndex: 1, status: 'success', message: 'terminal-1' },
+			],
 		});
 
 		vi.advanceTimersByTime(2000);

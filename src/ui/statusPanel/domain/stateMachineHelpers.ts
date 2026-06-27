@@ -10,46 +10,51 @@ import type {
 	StatusPanelModel,
 } from './stateMachineTypes';
 
+/**
+ * Maps the backend-owned `RunTerminalClass` (carried on `ProcessCommandResult`)
+ * to the Status Panel's terminal verdict. The backend is the sole owner of
+ * terminal precedence (`classify_run_terminal`); the UI never re-classifies from
+ * per-job statuses. `mixed` severity reads the backend `summary.failed` count
+ * (backend data, not a re-classification) so partial-failure runs still surface
+ * as errors while success+skipped/cancelled mixes stay informational. Note: the
+ * backend classifies `success + skipped` as `mixed` (not `success`) — rendering
+ * that as a non-success verdict is intentional backend-truth alignment.
+ */
+export function feedbackFromResult(result: ProcessCommandResult): StatusPanelCompletionFeedback {
+	switch (result.terminalClass) {
+		case 'success':
+			return { kind: 'success', message: 'Audiobook created successfully!' };
+		case 'failed':
+			return { kind: 'error', message: 'One or more files failed to process.' };
+		case 'mixed':
+			return result.summary.failed > 0
+				? { kind: 'error', message: 'One or more files failed to process.' }
+				: { kind: 'info', message: 'Some files were not processed.' };
+		case 'cancelled':
+			return { kind: 'info', message: 'Processing was cancelled.' };
+		default:
+			// 'skipped' | 'empty'
+			return { kind: 'info', message: 'No files were processed.' };
+	}
+}
+
+/**
+ * Renders the terminal completion toast. The verdict KIND comes from the backend
+ * (`model.terminalFeedback`, set at reconcile from `RunTerminalClass`); the
+ * MESSAGE prefers the failure-detail override (`summarizeBatchOutcome`) when
+ * present, falling back to the backend default. `null` terminalFeedback means no
+ * result was reconciled — a purely local foreground cancellation.
+ */
 export function buildBatchCompletionFeedback(
 	model: StatusPanelModel,
 ): StatusPanelCompletionFeedback {
-	const statuses = Array.from(model.jobProgress.values()).map((job) => job.status);
-	const hasFailed = statuses.includes('failed');
-	const hasCancelled = statuses.includes('cancelled');
-	const hasCompleted = statuses.includes('completed');
-	const hasSkipped = statuses.includes('skipped');
-
-	if (model.batchCompletionMessageOverride !== null) {
-		return {
-			kind: hasFailed ? 'error' : hasCancelled ? 'info' : hasCompleted ? 'success' : 'info',
-			message: model.batchCompletionMessageOverride,
-		};
-	}
-
-	if (hasFailed) {
-		return {
-			kind: 'error',
-			message: 'One or more files failed to process.',
-		};
-	}
-
-	if (hasCancelled) {
-		return {
-			kind: 'info',
-			message: 'Processing was cancelled.',
-		};
-	}
-
-	if (!hasCompleted && hasSkipped) {
-		return {
-			kind: 'info',
-			message: 'No files were processed.',
-		};
-	}
-
+	const verdict = model.terminalFeedback ?? {
+		kind: 'info',
+		message: 'Processing was cancelled.',
+	};
 	return {
-		kind: 'success',
-		message: 'Audiobook created successfully!',
+		kind: verdict.kind,
+		message: model.batchCompletionMessageOverride ?? verdict.message,
 	};
 }
 
@@ -97,6 +102,7 @@ export function cloneModel(model: StatusPanelModel): StatusPanelModel {
 		currentWorkKind: model.currentWorkKind,
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
+		terminalFeedback: model.terminalFeedback,
 	};
 }
 

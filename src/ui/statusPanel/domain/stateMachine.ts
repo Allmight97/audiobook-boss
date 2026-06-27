@@ -11,6 +11,7 @@ import {
 	buildBatchCompletionFeedback,
 	buildSingleCompletionFeedback,
 	cloneModel,
+	feedbackFromResult,
 	isTerminalJobStatus,
 	isTerminalProgressStage,
 	recomputeStatus,
@@ -54,6 +55,7 @@ export function createStatusPanelModel(): StatusPanelModel {
 		currentWorkKind: null,
 		latestProgressEvent: null,
 		batchCompletionMessageOverride: null,
+		terminalFeedback: null,
 	};
 }
 
@@ -93,6 +95,7 @@ export function applyQueueSnapshot(
 		currentWorkKind: workKindFromOperationKind(event.operation_kind),
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
+		terminalFeedback: null,
 	};
 
 	const updated = recomputeStatus(next);
@@ -208,6 +211,11 @@ export function reconcileProcessResult(
 	}
 
 	const next = cloneModel(model);
+	// The backend owns the terminal verdict (`classify_run_terminal` →
+	// `RunTerminalClass`); carry it so the completion toast renders backend truth
+	// instead of re-deriving precedence from per-job statuses. Set unconditionally
+	// — an all-success run repairs no rows below but still needs its verdict.
+	next.terminalFeedback = feedbackFromResult(result);
 	let didUpdate = false;
 	for (const entry of result.results) {
 		if (entry.status === 'success') {
@@ -234,7 +242,7 @@ export function reconcileProcessResult(
 	}
 
 	if (!didUpdate) {
-		return { model, intents: [] };
+		return { model: next, intents: [] };
 	}
 
 	const updated = recomputeStatus(next);

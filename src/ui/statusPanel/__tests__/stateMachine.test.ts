@@ -475,4 +475,49 @@ describe('statusPanel state machine', () => {
 		expect(toCounts(repaired.model).queued ?? 0).toBe(0);
 		expect(repaired.model.currentStatus.stage).toBe('failed');
 	});
+
+	it('renders the backend terminal verdict, not a TS re-classification (success+skipped is mixed)', () => {
+		// Backend `classify_run_terminal` treats success+skipped as `mixed`; the
+		// retired TS precedence rendered the same rows as success. The panel now
+		// follows backend truth — intentional alignment, not a regression.
+		const result = reconcileProcessResult(
+			createStatusPanelModel(),
+			{
+				jobType: 'batch',
+				summary: { total: 2, succeeded: 1, skipped: 1, cancelled: 0, failed: 0 },
+				terminalClass: 'mixed',
+				results: [
+					{ inputIndex: 0, status: 'success', message: 'ok' },
+					{ inputIndex: 1, status: 'skipped', message: 'skipped existing' },
+				],
+			},
+			1_000,
+		);
+
+		expect(buildBatchCompletionFeedback(result.model)).toEqual({
+			kind: 'info',
+			message: 'Some files were not processed.',
+		});
+	});
+
+	it('follows backend terminalClass over per-row statuses (counterexample: no row re-derivation)', () => {
+		// Adversarial counterexample: every row reads `success`, but the backend
+		// verdict is `failed`. The panel must render the backend verdict, proving it
+		// does not recompute terminal precedence from per-job rows.
+		const result = reconcileProcessResult(
+			createStatusPanelModel(),
+			{
+				jobType: 'batch',
+				summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+				terminalClass: 'failed',
+				results: [{ inputIndex: 0, status: 'success', message: 'ok' }],
+			},
+			1_000,
+		);
+
+		expect(buildBatchCompletionFeedback(result.model)).toEqual({
+			kind: 'error',
+			message: 'One or more files failed to process.',
+		});
+	});
 });

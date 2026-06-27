@@ -37,33 +37,32 @@ where `previewSeconds` is `None` / not set.
 
 The Status Panel (`src/ui/statusPanel/`) is **retained** as a foreground/direct
 adapter. It is **not** a WorkRuntime consumer for background operations. It
-owns:
+owns the **preview lane only**:
 
 - **Preview execution**: preview runs use `processAudiobookFiles` (Tauri command
   `process_audiobook_files`) with `previewSeconds` set. These are direct
-  execution — they do not enter WorkRuntime.
-- **Metadata batch save**: metadata save runs through Status Panel's
-  `beginMetadataSaveInStatusPanel` / `completeMetadataSaveInStatusPanel` /
-  `failMetadataSaveInStatusPanel` public API, emitting progress/queue events
-  with `operation_kind: metadataSave` and `operation_id: None`.
+  execution — they do not enter WorkRuntime. The Status Panel renders in-flight
+  preview progress and the terminal verdict, consuming the backend-owned
+  `RunTerminalClass` on `ProcessCommandResult` (it does not re-classify terminal
+  precedence from per-job rows). `openGeneratedPreviewIfSingle` opens the result.
+- **Metadata batch save**: **not** owned by the Status Panel. `save_metadata_batch`
+  runs as a WorkRuntime `MetadataSave` operation rendered by the Work Center; the
+  command returns the per-file `MetadataSaveBatchResult` for draft clearing.
 - **Cancellation**: operation-scoped only — `cancel_work_operation` per
-  `OperationId` (Work Center / WorkRuntime). The retained foreground/direct lane
-  (preview rendering) has **no** backend cancel command; the Status Panel cancel
-  button settles the local render only and does not reach the backend.
+  `OperationId` (Work Center / WorkRuntime). The retained preview lane has **no**
+  backend cancel command; the Status Panel cancel button settles the local render
+  only and does not reach the backend.
 
 ### Event Scoping
 
-All `processing-progress` and `processing-queue` events carry
-`operation_id: Option<String>`:
-
-- **Background scoped** (`operation_id: Some(...)`): emitted by WorkRuntime
-  processing. Work Center ignores these in favor of `work-operation-*` snapshot
-  events. Status Panel ignores these (checked in `applyProgress` and
-  `applyQueueSnapshot`) to prevent background progress from leaking into the
-  foreground display.
-- **Foreground / direct** (`operation_id: None`): emitted by direct
-  `process_audiobook_files` execution and metadata save. These are consumed
-  exclusively by Status Panel.
+`processing-progress` and `processing-queue` events are **foreground/direct
+only**. Background WorkRuntime operations (batch/merge processing, metadata save)
+do not emit these window events — they emit `work-operation-snapshot` /
+`work-operation-list-snapshot`, which the Work Center consumes. There is no
+`operation_id` discriminator: the Status Panel consumes every
+`processing-progress`/`processing-queue` event it receives (all foreground
+preview), and the two event channels (window progress vs. work-operation
+snapshots) are the only scoping.
 
 ## Source Of Truth
 
@@ -187,10 +186,12 @@ All `processing-progress` and `processing-queue` events carry
 - `read_audio_metadata`, `validate_metadata_intent_patch`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
   - Rust: `src-tauri/src/commands/metadata.rs`
   - Core helpers: `src-tauri/src/metadata/`, `src-tauri/src/audio/path_validation.rs`
-  - Classification: `save_metadata_batch` is a **retained foreground/direct adapter**. It runs
-    through Status Panel (`beginMetadataSaveInStatusPanel` / `completeMetadataSaveInStatusPanel`),
-    emits processing-owned queue/progress events with `operation_kind: metadataSave` and
-    `operation_id: None`, and is not a WorkRuntime operation.
+  - Classification: `save_metadata_batch` is a **WorkRuntime `MetadataSave` operation**
+    rendered by the Work Center. The command still returns `MetadataSaveBatchResult`
+    synchronously (the frontend clears pending drafts only for files that succeeded),
+    while progress + terminal counts flow through the operation snapshot. Cancellation
+    is operation-scoped (`cancel_work_operation`). The Status Panel no longer handles
+    metadata save.
   - Note: metadata validation/normalization is Rust-owned. Frontend code compiles explicit intent patches and asks this command for field errors/normalized intent instead of owning publication-date or series-sequence rule tables. Metadata writes use intent patches at the boundary, not raw ad hoc object mutation; `track`/`disk` stay read-compatible only
 
 - `search_online_metadata`
@@ -216,13 +217,13 @@ Source: `src-tauri/src/work_runtime/` (types in `types.rs`, emission in
 
 ### Foreground / Direct Progress Events (Status Panel)
 
-- `processing-progress`: per-job stage/percentage/message updates. Carries
-  `operation_id: Option<String>` and `operation_kind` for scoping.
-  Background-scoped events (`operation_id: Some(...)`) are ignored by
-  Status Panel. Foreground-scoped events (`operation_id: None`) drive
-  Status Panel job progress display.
-- `processing-queue`: batch queue snapshots with ordered item list. Same
-  scoping rules as `processing-progress`.
+- `processing-progress`: per-job stage/percentage/message updates, carrying
+  `operation_kind`. Emitted only by direct/foreground `process_audiobook_files`
+  (preview) execution — background WorkRuntime operations emit no window progress
+  events. There is no `operation_id` discriminator; the Status Panel consumes
+  every `processing-progress` event (all preview).
+- `processing-queue`: preview queue snapshots with ordered item list. Same
+  foreground-only emission as `processing-progress`.
 
 Source: `src-tauri/src/processing/progress/` (types in `mod.rs`, emission via
 `ProgressEmitter` in `emitter.rs`). Consumer: `src/ui/statusPanel/events.ts`
