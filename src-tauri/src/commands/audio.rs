@@ -12,7 +12,6 @@ use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::{
     build_output_path_preview, derive_output_artifact_path, OutputKind, OutputNamingConfig,
 };
-use crate::processing::job_registry::JobId;
 use crate::processing::run;
 use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 pub use crate::processing::{
@@ -220,24 +219,4 @@ pub async fn process_audiobook_files(
         preview_seconds,
     )
     .await?)
-}
-
-/// Cancels all active audio processing operations
-/// Sets the global cancellation flag in the job registry
-#[tauri::command]
-#[specta::specta]
-pub async fn cancel_processing(
-    registry: tauri::State<'_, crate::ManagedJobRegistry>,
-    job_id: Option<String>,
-) -> CommandResult<String> {
-    if let Some(id) = job_id {
-        let parsed = JobId::parse(&id)?;
-        registry.cancel_job(parsed).await?;
-        Ok(format!("Cancellation requested for job {}", id))
-    } else {
-        // Cancel all jobs in the registry
-        registry.cancel_all();
-
-        Ok("All processing jobs cancellation requested".to_string())
-    }
 }

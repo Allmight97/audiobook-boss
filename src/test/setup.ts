@@ -41,28 +41,33 @@ function emitTestEvent(event: string, payload: unknown): void {
 
 function mockOperationSnapshot(
 	operationId: string,
-	kind: 'processingBatch' | 'processingMerge',
+	kind: 'processingBatch' | 'processingMerge' | 'metadataSave',
 	inputFiles: string[],
 ): OperationSnapshot {
+	const isMetadataSave = kind === 'metadataSave';
+	const title = isMetadataSave
+		? `Metadata save (${inputFiles.length} files)`
+		: kind === 'processingMerge'
+			? `Merge encode (${inputFiles.length} files)`
+			: `Batch encode (${inputFiles.length} files)`;
+	const lanes = (
+		isMetadataSave ? ['metadataWrite'] : ['analysis', 'encodeCpu', 'outputCommit']
+	) as OperationSnapshot['lanes'];
+	const childLane = (
+		isMetadataSave ? 'metadataWrite' : 'encodeCpu'
+	) as OperationSnapshot['lanes'][number];
 	return {
 		operationId,
 		sequence: mockJobCounter,
 		kind,
 		status: 'accepted' as const,
-		title:
-			kind === 'processingMerge'
-				? `Merge encode (${inputFiles.length} files)`
-				: `Batch encode (${inputFiles.length} files)`,
+		title,
 		createdAtMs: Date.now(),
 		startedAtMs: null,
 		finishedAtMs: null,
 		cancellable: true,
 		cancelRequested: false,
-		lanes: ['analysis', 'encodeCpu', 'outputCommit'] as (
-			| 'analysis'
-			| 'encodeCpu'
-			| 'outputCommit'
-		)[],
+		lanes,
 		sourceInputIds: [],
 		progress: {
 			stage: 'pending' as const,
@@ -75,11 +80,11 @@ function mockOperationSnapshot(
 			etaSeconds: null,
 		},
 		children: inputFiles.map((path, index) => ({
-			childJobId: `input-${index}`,
+			childJobId: isMetadataSave ? `metadata-${index}` : `input-${index}`,
 			operationId,
 			label: pathBasename(path, { fallback: 'path' }),
 			status: 'queued' as const,
-			lane: 'encodeCpu' as const,
+			lane: childLane,
 			progress: {
 				stage: 'pending' as const,
 				percentage: 0,
@@ -232,6 +237,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 						cancelled: 0,
 						failed: 0,
 					},
+					terminalClass: 'success',
 					results: [
 						{
 							inputIndex: 0,
@@ -288,7 +294,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 			}
 			case 'save_metadata_batch': {
 				mockJobCounter += 1;
-				const jobId = `mock-metadata-save-${mockJobCounter}`;
+				const operationId = `mock-metadata-operation-${mockJobCounter}`;
 				const args = _args as
 					| {
 							items?: Array<{
@@ -298,37 +304,44 @@ vi.mock('@tauri-apps/api/core', () => ({
 					  }
 					| undefined;
 				const items = args?.items ?? [];
-				emitTestEvent('processing-queue', {
-					operation_kind: 'metadataSave',
-					items: items.map((item, index) => ({
-						input_index: index,
-						file_path: item.filePath,
-						job_id: jobId,
-					})),
-					max_concurrent: 1,
+				const filePaths = items.map((item) => item.filePath);
+				// Metadata save is a WorkRuntime MetadataSave operation: the Work
+				// Center renders its snapshots while the command returns the
+				// per-file result. Mirror that — emit running + terminal snapshots,
+				// then resolve the synchronous result.
+				const baseSnapshot = mockOperationSnapshot(operationId, 'metadataSave', filePaths);
+				emitTestEvent('work-operation-snapshot', {
+					snapshot: { ...baseSnapshot, status: 'running' as const, startedAtMs: Date.now() },
 				});
-				for (const [index, item] of items.entries()) {
-					emitTestEvent('processing-progress', {
-						operation_kind: 'metadataSave',
-						stage: 'writing',
-						percentage: 0,
-						message: `Saving metadata ${index + 1}/${items.length}`,
-						current_file: item.filePath,
-						eta_seconds: null,
-						job_id: jobId,
-						input_index: index,
-					});
-					emitTestEvent('processing-progress', {
-						operation_kind: 'metadataSave',
-						stage: 'completed',
+				const terminalSnapshot: OperationSnapshot = {
+					...baseSnapshot,
+					status: 'completed' as const,
+					startedAtMs: Date.now(),
+					finishedAtMs: Date.now(),
+					cancellable: false,
+					progress: {
+						...baseSnapshot.progress,
+						stage: 'complete' as const,
 						percentage: 100,
-						message: `Saved metadata ${index + 1}/${items.length}`,
-						current_file: item.filePath,
-						eta_seconds: 0,
-						job_id: jobId,
-						input_index: index,
-					});
-				}
+						message: `Completed ${items.length} item(s).`,
+					},
+					children: baseSnapshot.children.map((child) => ({
+						...child,
+						status: 'completed' as const,
+						progress: { ...child.progress, stage: 'complete' as const, percentage: 100 },
+						message: 'Metadata saved',
+					})),
+					terminalSummary: {
+						total: items.length,
+						succeeded: items.length,
+						skipped: 0,
+						cancelled: 0,
+						failed: 0,
+						message: `Completed ${items.length} item(s).`,
+					},
+				};
+				emitTestEvent('work-operation-snapshot', { snapshot: terminalSnapshot });
+				emitTestEvent('work-operation-list-snapshot', { operations: [terminalSnapshot] });
 				return Promise.resolve({
 					summary: {
 						total: items.length,
@@ -357,21 +370,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					metadataPatch: args?.metadataPatch ?? {},
 					fieldErrors: [],
 				} satisfies MetadataIntentValidationResult);
-			}
-			case 'cancel_processing': {
-				const args = _args as { jobId?: string | null } | undefined;
-				emitTestEvent('processing-progress', {
-					operation_kind: 'processingBatch',
-					stage: 'cancelled',
-					percentage: 0,
-					message: 'Cancelled by user',
-					current_file: '',
-					eta_seconds: 0,
-					job_id: args?.jobId ?? null,
-					input_index: null,
-				});
-				// Generated type for cancelProcessing returns string; no narrower shape exists for satisfies.
-				return Promise.resolve('cancel requested');
 			}
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);

@@ -7,18 +7,24 @@ WorkRuntime consumer for background operations.
 
 - **Preview execution**: direct `process_audiobook_files` with `previewSeconds`.
   Does not enter WorkRuntime.
-- **Metadata batch save**: runs through `beginMetadataSaveInStatusPanel` /
-  `completeMetadataSaveInStatusPanel` / `failMetadataSaveInStatusPanel`.
-  Emits progress/queue events with `operation_kind: metadataSave` and
-  `operation_id: None`.
-- **Direct cancellation**: `cancel_processing` targets only foreground/direct
-  job IDs. Background operations are cancelled through
-  `cancel_work_operation` (Work Center / WorkRuntime).
+- **Metadata batch save**: **not** handled by the Status Panel. `save_metadata_batch`
+  runs as a WorkRuntime `MetadataSave` operation (rendered by the Work Center); the
+  command still returns the per-file `MetadataSaveBatchResult` so the metadata-save
+  workflow can clear pending drafts only for files that succeeded.
+- **Cancellation**: operation-scoped only, through `cancel_work_operation`
+  (Work Center / WorkRuntime). The retained foreground/direct lane has **no**
+  backend cancel command; the Status Panel cancel button settles the local
+  render only and never reaches the backend.
 
-Status Panel **ignores** operation-scoped events (`operation_id: Some(...)`)
-in `applyQueueSnapshot` and `applyProgress` (see
-`src/ui/statusPanel/domain/stateMachine.ts`). It only processes
-foreground/direct-scoped events (`operation_id: None`).
+There is no `operation_id` discriminator. Background WorkRuntime operations emit
+no `processing-progress`/`processing-queue` window events, so every such event the
+Status Panel receives is foreground preview. The Status Panel renders the in-flight
+preview bar and the **backend-owned terminal verdict** (`RunTerminalClass` on
+`ProcessCommandResult`, mapped in `domain/stateMachineHelpers.ts::feedbackFromResult`);
+it does **not** re-derive terminal precedence from per-job rows. Failure-detail text
+(`summarizeBatchOutcome`) and the preview reducer state (`jobProgress`/`queueOrder`/
+`latestProgressEvent`) remain — they render backend-sourced state, they do not
+re-classify the terminal outcome.
 
 ## Public API Strip
 - Import status runtime symbols from `src/ui/statusPanel` unless a local exception is documented.
@@ -27,7 +33,7 @@ foreground/direct-scoped events (`operation_id: None`).
   truth instead of a hand-listed export set here.
 
 ## Private Cluster
-- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `metadataSaveFeedback.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `processingCancellationWorkflow.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
+- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
 - The cluster consumes backend `OperationKind`, progress events, queue snapshots,
   cancellation facts, and terminal results as a read model. It owns visible
   status derivation, status feedback, controls, and processing request
@@ -42,9 +48,11 @@ foreground/direct-scoped events (`operation_id: None`).
 - Test visible status outcomes rather than private reducer shape when behavior is user-facing.
 - Keep direct view-state/controller/runtimeApi imports inside this cluster or tests.
 - Build `ProcessingRequestConfig` through `processingConfig.ts`; do not import encoder or output panel private state to assemble process payloads.
-- Use backend `operation_kind` from queue/progress events to classify merge,
-  batch, and metadata-save status behavior; do not infer operation identity only
-  from caller choreography.
+- Consume the backend-owned terminal verdict (`RunTerminalClass` on
+  `ProcessCommandResult`) for the preview completion outcome; do not re-derive
+  terminal precedence from per-job rows. Backend `operation_kind` on
+  progress/queue events classifies the in-flight preview kind, not operation
+  identity.
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip export.

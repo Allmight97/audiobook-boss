@@ -109,7 +109,8 @@ nested ownership rules, narrow boundary checks, and contract tests.
 | Processing Plan | Preflight and execution planning before jobs run. |
 | Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
 | Metadata Outcome Plan | Metadata intent validation/normalization, metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
-| Status Panel Runtime | Backend progress/results rendered as truthful user-visible status and controls. |
+| WorkRuntime | Accepted background operation identity, immutable accepted inputs, operation snapshots, operation-scoped cancellation, and Work Center event truth. |
+| Status Panel Runtime | Processing launch controls plus foreground preview progress/results rendered as truthful user-visible status. |
 | Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
 | App Settings | Durable preference schema, defaults, validation, JSON storage under Tauri app config, and settings IPC commands. |
 | RemoteSourceRuntime | Provider registry/capabilities, backend-only account auth, secret vault access, library scan, acquisition jobs, staged materialized source files, Supplemental Assets, and remote-source cleanup/purge behavior. |
@@ -123,7 +124,7 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | Output Panel | `src/ui/outputPanel` | Output directory, naming presets, path preview, estimated-size display reads, and `OutputPanelIsland`. |
 | File List | `src/ui/fileList` | Pre-processing file list session, mutations, metadata staging hooks, `readCombinedSizeText()`, and `FileListIsland` rendering. |
 | File Import | `src/ui/fileImport` | Drag/drop, picker, and import-analysis workflow; composes `FileListIsland`. |
-| Status Panel | `src/ui/statusPanel` | Processing controls, concurrency display, and backend progress rendering. |
+| Status Panel | `src/ui/statusPanel` | Processing launch controls, concurrency display, and foreground preview progress rendering. |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
 | App Settings | `src/ui/appSettings` | Settings hydration and durable preference coordination. |
 | Remote Source | `src/ui/remoteSource` | Session-asset coordination for imported remote-source inputs; public strip is session-assets only. |
@@ -138,10 +139,10 @@ remains the runtime shell for IPC, filesystem, keychain, FFmpeg/audio execution,
 generated bindings, and cross-boundary verification.
 
 Backend Lifecycle is a named sub-owner inside `processing`, not its own
-Grey-Box Public API. It provides operation identity, progress/queue event
-vocabulary, cancellation checks, and shared terminal-summary vocabulary for
-processing, metadata save, audio progress reporting, and Status Panel
-consumption.
+Grey-Box Public API. It provides `OperationKind`, progress/queue event
+vocabulary, job cancellation checks, and shared terminal-summary vocabulary.
+WorkRuntime owns accepted background operation identity, snapshots, and
+operation-scoped cancellation for Work Center operations.
 
 ## Core Invariants
 

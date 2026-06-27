@@ -376,9 +376,6 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
         entry.total_duration_seconds
     );
     let _ = writeln!(output, "session_id={}", entry.context.session.id());
-    if let Some(operation_id) = entry.context.operation_id.as_deref() {
-        let _ = writeln!(output, "operation_id={operation_id}");
-    }
     if let Some(job_id) = entry.context.job_id.as_deref() {
         let _ = writeln!(output, "job_id={job_id}");
     }

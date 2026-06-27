@@ -87,6 +87,7 @@ function successResult(jobType: ProcessCommandResult['jobType'] = 'merge'): Proc
 	return {
 		jobType,
 		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+		terminalClass: 'success',
 		results: [
 			{
 				inputIndex: 0,

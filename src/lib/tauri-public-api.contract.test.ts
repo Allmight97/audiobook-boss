@@ -4,7 +4,6 @@ import { tauriClient, TAURI_APP_EVENT_NAMES, TAURI_COMMAND_NAMES } from './tauri
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
 	'analyzeAudioFiles',
-	'cancelProcessing',
 	'cancelRemoteSourceAcquisition',
 	'cancelWorkOperation',
 	'completeRemoteSourceAuth',

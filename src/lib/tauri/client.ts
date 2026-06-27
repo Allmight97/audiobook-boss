@@ -289,10 +289,6 @@ export const tauriClient = {
 		commandSpecs.get_work_operation({ operationId }),
 	cancelWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
 		commandSpecs.cancel_work_operation({ operationId }),
-	cancelProcessing: (jobId?: string | null): Promise<CommandResult<'cancel_processing'>> =>
-		jobId === undefined
-			? commandSpecs.cancel_processing()
-			: commandSpecs.cancel_processing({ job_id: jobId }),
 	listen,
 	open: openDialog,
 	openFile,

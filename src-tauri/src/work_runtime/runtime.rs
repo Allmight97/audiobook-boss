@@ -1,4 +1,4 @@
-use super::snapshot::new_processing_snapshot;
+use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::types::{
     OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
@@ -10,7 +10,7 @@ use crate::processing::run::{
     preflight_payload, process_payload_with_options, ProcessingRunOptions,
 };
 use crate::processing::JobType;
-use crate::processing::ProgressEvent;
+use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -108,7 +108,6 @@ impl WorkRuntime {
                 request.metadata,
                 request.preview_seconds,
                 ProcessingRunOptions {
-                    operation_id: Some(operation_id_for_task.0.clone()),
                     operation_cancel: Some(cancel_flag),
                     progress_listener,
                 },
@@ -122,6 +121,117 @@ impl WorkRuntime {
             operation_id,
             snapshot,
         })
+    }
+
+    /// Begin a command-driven inline metadata-save operation: register the
+    /// snapshot + operation cancel flag, emit it, and mark it running. The
+    /// command then drives the save loop and terminalizes via
+    /// `record_metadata_save_progress` + `finish_metadata_save_operation`.
+    /// Returns the operation id and its cancel flag (wire into the registry
+    /// cancellation checker so `cancel_work_operation` reaches the save loop).
+    pub fn begin_metadata_save_operation(
+        &self,
+        window: &tauri::Window,
+        input_files: &[String],
+    ) -> Result<(OperationId, Arc<AtomicBool>)> {
+        let operation_id = OperationId::new();
+        let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
+        let title = processing_operation_title(
+            crate::processing::OperationKind::MetadataSave,
+            input_files.len(),
+        );
+        let snapshot = new_metadata_save_snapshot(
+            operation_id.clone(),
+            sequence,
+            title,
+            input_files,
+            now_ms(),
+        );
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+
+        {
+            let mut state = lock_state(&self.inner.state)?;
+            state.insert_operation(snapshot.clone());
+        }
+        {
+            let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
+            flags.insert(operation_id.0.clone(), cancel_flag.clone());
+        }
+
+        self.emit_snapshot(window, &snapshot);
+        self.emit_list(window);
+        self.mark_running_and_emit(window, &operation_id);
+
+        Ok((operation_id, cancel_flag))
+    }
+
+    /// Apply a metadata-save progress event to its operation (Work Center
+    /// renders the live snapshot). Events are piped by `input_index`.
+    pub fn record_metadata_save_progress(
+        &self,
+        window: &tauri::Window,
+        operation_id: &OperationId,
+        event: &ProgressEvent,
+    ) {
+        self.apply_progress_and_emit(window, operation_id, event);
+    }
+
+    /// Terminalize a metadata-save operation from its result summary plus
+    /// per-child terminal facts, then emit and drop its cancel flag.
+    pub fn finish_metadata_save_operation(
+        &self,
+        window: &tauri::Window,
+        operation_id: &OperationId,
+        summary: &OperationResultSummary,
+        child_terminals: &[(usize, ProcessResultStatus, String)],
+    ) -> Result<OperationSnapshot> {
+        let snapshot = {
+            let mut state = lock_state(&self.inner.state)?;
+            state.complete_from_summary(operation_id, summary, child_terminals, now_ms())?
+        };
+        self.emit_snapshot(window, &snapshot);
+        self.emit_list(window);
+        self.remove_cancel_flag(operation_id);
+        Ok(snapshot)
+    }
+
+    /// Fail a metadata-save operation when its run aborts before producing a
+    /// result (e.g. an infrastructure error), then emit and drop its cancel flag.
+    pub fn fail_metadata_save_operation(
+        &self,
+        window: &tauri::Window,
+        operation_id: &OperationId,
+        message: String,
+    ) -> Result<OperationSnapshot> {
+        let snapshot = {
+            let mut state = lock_state(&self.inner.state)?;
+            state.fail(operation_id, message, now_ms())?
+        };
+        self.emit_snapshot(window, &snapshot);
+        self.emit_list(window);
+        self.remove_cancel_flag(operation_id);
+        Ok(snapshot)
+    }
+
+    /// Cancel-terminalize a metadata-save operation that aborted via cancellation
+    /// (e.g. the operation cancel flag flipped during the permit wait, before the
+    /// save loop). Mirrors the processing path's `AppError::Cancellation =>
+    /// state.cancel` so a cancelled metadata save resolves to `Cancelled`, not
+    /// `Failed`.
+    pub fn cancel_metadata_save_operation(
+        &self,
+        window: &tauri::Window,
+        operation_id: &OperationId,
+        message: String,
+    ) -> Result<OperationSnapshot> {
+        let snapshot = {
+            let mut state = lock_state(&self.inner.state)?;
+            state.cancel(operation_id, message, now_ms())?
+        };
+        self.emit_snapshot(window, &snapshot);
+        self.emit_list(window);
+        self.remove_cancel_flag(operation_id);
+        Ok(snapshot)
     }
 
     fn apply_progress_and_emit(

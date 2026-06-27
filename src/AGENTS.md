@@ -24,7 +24,9 @@
 - Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.
 - Route UI done evidence through targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
-- When touching metadata save/load behavior, open `src/lib/tauri/AGENTS.md` first.
+- When touching metadata save/load IPC, patch intent, or boundary
+  normalization, open `src/lib/tauri/AGENTS.md` first; when touching
+  metadata-save lifecycle display, also open `src/ui/workCenter/AGENTS.md`.
 - When touching Effect workflow owners or the AppEffect kernel, open
   `src/lib/effect/AGENTS.md` first.
 - Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.

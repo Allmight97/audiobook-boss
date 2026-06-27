@@ -29,7 +29,8 @@
 
 - Wire-stage authority is the Rust `EventStage` enum in `progress/mod.rs` (specta-generated into
   `src/lib/generated/tauri.ts`); event payload is `ProgressEvent` (same file). Emitters:
-  `progress/emitter.rs` (`emit_event`, `emit_cancelled`) and `run.rs` (`emit_terminal_failed_event`).
+  `progress/emitter.rs` (`emit_event`, `emit_cancelled`) and
+  `run/run_dispatch.rs` (`emit_terminal_failed_event`).
   Frontend re-exports `EventStage` and the `STAGES` helper from `src/types/events.ts`.
 - To evolve stages: update the Rust `EventStage` enum + its `From<&ProcessingStage>` impl, run
   `bun run bindings:generate`, then adjust frontend consumers. `EventStage` is the flat wire-shaped
@@ -45,8 +46,10 @@
 - Keep runner responsibilities to encoder request validation, job registration,
   scheduler dispatch, audio execution requests through `crate::audio`, and
   handoff to terminal outcome helpers. Toolchain selection stays audio-owned.
-- Keep metadata save reporting lifecycle truth through this strip while leaving
-  metadata write policy inside metadata-owned APIs.
+- Metadata-save operation truth belongs to `crate::work_runtime`; metadata save
+  may reuse this strip's `OperationKind`, `ProgressEvent`, and
+  `OperationResultSummary` vocabulary while metadata write policy stays inside
+  metadata-owned APIs.
 
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip symbol.

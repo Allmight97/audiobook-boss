@@ -1,9 +1,9 @@
-use super::snapshot::new_processing_snapshot;
+use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
-use super::{ChildJobStatus, OperationId, WorkOperationStatus, WorkProgressStage};
+use super::{ChildJobStatus, OperationId, ResourceLane, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
-    EventStage, JobType, OperationKind, ProcessCommandResult, ProcessResultEntry,
-    ProcessResultStatus, ProgressEvent,
+    EventStage, JobType, OperationKind, OperationResultSummary, ProcessCommandResult,
+    ProcessResultEntry, ProcessResultStatus, ProgressEvent,
 };
 
 fn accepted_state() -> (WorkRuntimeState, OperationId) {
@@ -72,7 +72,6 @@ fn late_progress_does_not_overwrite_pending_cancellation() {
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Converting,
                 percentage: 60.0,
@@ -158,7 +157,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Converting,
                 percentage: 25.0,
@@ -184,7 +182,6 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Completed,
                 percentage: 100.0,
@@ -222,7 +219,6 @@ fn apply_single_child_progress_stages_operation_stage_without_terminaling_operat
         .apply_progress_event(
             &single,
             &ProgressEvent {
-                operation_id: Some(single.0.clone()),
                 operation_kind: OperationKind::ProcessingMerge,
                 stage: EventStage::Completed,
                 percentage: 100.0,
@@ -250,7 +246,6 @@ fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
         .apply_progress_event(
             &operation_id,
             &ProgressEvent {
-                operation_id: Some(operation_id.0.clone()),
                 operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Failed,
                 percentage: 0.0,
@@ -280,7 +275,6 @@ fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
         .apply_progress_event(
             &single,
             &ProgressEvent {
-                operation_id: Some(single.0.clone()),
                 operation_kind: OperationKind::ProcessingMerge,
                 stage: EventStage::Failed,
                 percentage: 0.0,
@@ -361,4 +355,101 @@ fn skipped_only_resolves_to_completed() {
         .expect("complete");
 
     assert_eq!(snapshot.status, WorkOperationStatus::Completed);
+}
+
+fn metadata_save_state() -> (WorkRuntimeState, OperationId) {
+    let mut state = WorkRuntimeState::default();
+    let operation_id = OperationId("op-meta".to_string());
+    state.insert_operation(new_metadata_save_snapshot(
+        operation_id.clone(),
+        1,
+        "Metadata save (2 files)".to_string(),
+        &["/tmp/a.m4b".to_string(), "/tmp/b.m4b".to_string()],
+        100,
+    ));
+    (state, operation_id)
+}
+
+#[test]
+fn metadata_save_snapshot_uses_metadata_write_lane() {
+    let (state, operation_id) = metadata_save_state();
+    let snapshot = state.get(&operation_id).expect("snapshot");
+
+    assert_eq!(snapshot.kind, OperationKind::MetadataSave);
+    assert_eq!(snapshot.lanes, [ResourceLane::MetadataWrite]);
+    assert_eq!(snapshot.children.len(), 2);
+    assert!(snapshot
+        .children
+        .iter()
+        .all(|child| child.lane == ResourceLane::MetadataWrite));
+    assert_eq!(snapshot.children[0].input_index, Some(0));
+    assert_eq!(snapshot.children[0].label, "a.m4b");
+    // Inline operations carry no per-child job_id; progress matches by index.
+    assert!(snapshot.children.iter().all(|child| child.job_id.is_none()));
+}
+
+#[test]
+fn complete_from_summary_terminalizes_metadata_save_children_by_index() {
+    let (mut state, operation_id) = metadata_save_state();
+    state.mark_running(&operation_id, 150).expect("running");
+
+    // One success, one failure → canonical classifier resolves the run to Mixed,
+    // and each child terminalizes from its (input_index, status, message) fact.
+    let summary = OperationResultSummary {
+        total: 2,
+        succeeded: 1,
+        skipped: 0,
+        cancelled: 0,
+        failed: 1,
+    };
+    let child_terminals = vec![
+        (
+            0usize,
+            ProcessResultStatus::Success,
+            "Saved metadata".to_string(),
+        ),
+        (
+            1usize,
+            ProcessResultStatus::Failed,
+            "Failed metadata save".to_string(),
+        ),
+    ];
+
+    let snapshot = state
+        .complete_from_summary(&operation_id, &summary, &child_terminals, 300)
+        .expect("complete");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Mixed);
+    let terminal = snapshot.terminal_summary.as_ref().expect("summary");
+    assert_eq!(terminal.succeeded, 1);
+    assert_eq!(terminal.failed, 1);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
+    assert_eq!(
+        snapshot.children[0].message.as_deref(),
+        Some("Saved metadata")
+    );
+    assert_eq!(snapshot.children[1].status, ChildJobStatus::Failed);
+    assert!(!snapshot.cancellable);
+    assert_eq!(snapshot.finished_at_ms, Some(300));
+}
+
+#[test]
+fn cancel_terminalizes_metadata_save_operation_as_cancelled_not_failed() {
+    // A metadata save cancelled before its loop (e.g. the operation cancel flag
+    // flips during the permit wait) must resolve to Cancelled, mirroring the
+    // processing path â `cancel_metadata_save_operation` routes through `cancel`.
+    let (mut state, operation_id) = metadata_save_state();
+    state.mark_running(&operation_id, 150).expect("running");
+
+    let snapshot = state
+        .cancel(&operation_id, "Metadata save cancelled.".to_string(), 300)
+        .expect("cancel");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Cancelled);
+    assert!(snapshot
+        .children
+        .iter()
+        .all(|child| child.status == ChildJobStatus::Cancelled));
+    assert!(!snapshot.cancellable);
+    assert_eq!(snapshot.finished_at_ms, Some(300));
 }

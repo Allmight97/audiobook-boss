@@ -1,5 +1,33 @@
 # Decisions
 
+## 2026-06-26 - Backend Is the Single Source of Processing Lifecycle Truth (PR-4 / #376)
+
+- Outcome: the backend owns processing progress, terminal outcome, and cancellation
+  truth for every processing-shaped operation; the UI renders it and never
+  re-derives, re-classifies, or multiplexes. Closed in one PR: removed the
+  `operation_id` foreground/background discriminator + the background double-emit
+  (background ops emit WorkRuntime snapshots only); exported `RunTerminalClass`
+  (`abb-processing-core`) onto `ProcessCommandResult`; retired foreground
+  `cancel_processing` (cancellation is operation-scoped via `cancel_work_operation`);
+  moved `save_metadata_batch` to a WorkRuntime `MetadataSave` operation (Work Center
+  renders it) while keeping its synchronous `MetadataSaveBatchResult`; replaced the
+  Status Panel's TS terminal-precedence re-derivation with `RunTerminalClass`.
+- Evidence: `src-tauri/src/work_runtime/`, `commands/metadata/save_batch.rs`,
+  `crates/abb-processing-core/src/lib.rs` (`classify_run_terminal`),
+  `src/ui/statusPanel/domain/stateMachineHelpers.ts` (`feedbackFromResult`).
+  Reinforces the 2026-06-07 terminal-truth decision (single `classify_run_terminal`).
+- Intentional alignment: the backend classifies `success + skipped` as `mixed` (not
+  `success`); the preview toast now follows that verdict. Named here so it is read as
+  backend-truth alignment, not a UI regression.
+- Scoping note: step 6 narrowed the roadmap's deletion bar to terminal
+  **re-classification** only — preview reducer state (`jobProgress`/`queueOrder`/
+  `latestProgressEvent`) and failure-detail text (`summarizeBatchOutcome`) remain
+  where they render backend-sourced state rather than re-deciding the outcome.
+- Guardrail: preview stays an **ephemeral render lane** (Inspect/Decide-stage,
+  throwaway, no artifact truth). Do not model preview as a Work Center row — that
+  would overload the Work Operation invariant; and do not reintroduce a second UI
+  terminal classifier.
+
 ## 2026-06-24 - Skills vs AGENTS: Location-Bound Knowledge Consolidated
 
 - Discriminator: location-bound knowledge (needed whenever editing a directory) belongs in that

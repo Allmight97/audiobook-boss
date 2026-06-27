@@ -11,7 +11,6 @@ import {
 
 const EXPECTED_COMMAND_NAMES = [
 	'analyze_audio_files',
-	'cancel_processing',
 	'cancel_remote_source_acquisition',
 	'cancel_work_operation',
 	'complete_remote_source_auth',
@@ -140,9 +139,6 @@ describe('behavior-first IPC smoke', () => {
 			previewSeconds: null,
 		});
 
-		await sleep(250);
-		await tauriClient.cancelProcessing('mock-job-1');
-
 		await waitFor(
 			() =>
 				progressEvents.some((e) => e.stage === STAGES.completed || e.stage === STAGES.cancelled),
@@ -170,19 +166,5 @@ describe('behavior-first IPC smoke', () => {
 
 		unlistenProgress();
 		unlistenQueue();
-	});
-
-	it('preserves cancellation terminal event behavior', async () => {
-		const progressEvents: ProcessingProgressEvent[] = [];
-		const unlisten = await tauriClient.listen(EVENTS.PROGRESS, (event) => {
-			progressEvents.push(event.payload);
-		});
-
-		await tauriClient.cancelProcessing('mock-job-1');
-
-		await waitFor(() => progressEvents.some((event) => event.stage === STAGES.cancelled), 2_000);
-
-		expect(progressEvents.some((event) => event.stage === STAGES.cancelled)).toBe(true);
-		unlisten();
 	});
 });

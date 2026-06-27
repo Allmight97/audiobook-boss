@@ -3,14 +3,16 @@ use super::run_validation::resolve_sample_rate;
 use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
+use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
+use crate::processing::progress::EmitContext;
 use crate::processing::terminal_outcomes::{
     build_all_skipped_batch_result, collect_batch_results, emit_terminal_failed_event,
     emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::{
-    emit_queue_event, JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
-    QueueEvent, QueueItem,
+    emit_queue_event, JobType, OperationKind, ProcessCommandResult, ProcessPayload,
+    ProcessResultEntry, QueueEvent, QueueItem,
 };
 use std::future::Future;
 use std::path::PathBuf;
@@ -86,8 +88,7 @@ async fn dispatch_merge_plan(
         encoder_settings: payload.settings.clone(),
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
-        operation_kind: crate::processing::OperationKind::ProcessingMerge,
-        operation_id: options.operation_id.clone(),
+        operation_kind: OperationKind::ProcessingMerge,
         operation_cancel: options.operation_cancel.clone(),
         output_plan: planned_job.output,
         file_info,
@@ -120,12 +121,11 @@ async fn dispatch_batch_plan(
         return Ok(result);
     }
 
-    emit_batch_queue_event(
-        &window,
-        &registry,
-        &payload.input_files,
-        options.operation_id.as_deref(),
-    );
+    // Foreground (preview) runs drive the Status Panel from queue events; background
+    // operations render from WorkRuntime snapshots, so they emit no queue event.
+    if options.progress_listener.is_none() {
+        emit_batch_queue_event(&window, &registry, &payload.input_files);
+    }
 
     let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
         Vec::new();
@@ -137,10 +137,12 @@ async fn dispatch_batch_plan(
         {
             emit_terminal_skipped_event(
                 &window,
-                crate::processing::OperationKind::ProcessingBatch,
-                options.operation_id.as_deref(),
-                skipped_entry.input_index,
-                skipped_entry.job_id.as_deref(),
+                options.progress_listener.as_ref(),
+                EmitContext {
+                    operation_kind: OperationKind::ProcessingBatch,
+                    job_id: skipped_entry.job_id.clone(),
+                    input_index: skipped_entry.input_index,
+                },
                 &skipped_entry.message,
             );
             scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
@@ -155,7 +157,6 @@ async fn dispatch_batch_plan(
         let cover_art_passthrough = planned_job.cover_art_passthrough;
         let preview_cloned = preview_seconds;
         let workspace_root_cloned = workspace_root.clone();
-        let operation_id = options.operation_id.clone();
         let operation_cancel = options.operation_cancel.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
@@ -180,8 +181,7 @@ async fn dispatch_batch_plan(
                 encoder_settings: settings_cloned,
                 sample_rate: sr_cloned,
                 input_index,
-                operation_kind: crate::processing::OperationKind::ProcessingBatch,
-                operation_id,
+                operation_kind: OperationKind::ProcessingBatch,
                 operation_cancel,
                 output_plan: output,
                 file_info,
@@ -196,8 +196,12 @@ async fn dispatch_batch_plan(
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
-    let finalized_results =
-        finalize_batch_results(&window, payload, outcomes, options.operation_id.as_deref())?;
+    let finalized_results = finalize_batch_results(
+        &window,
+        payload,
+        outcomes,
+        options.progress_listener.as_ref(),
+    )?;
 
     Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
 }
@@ -206,7 +210,6 @@ fn emit_batch_queue_event(
     window: &tauri::Window,
     registry: &crate::ManagedJobRegistry,
     input_files: &[String],
-    operation_id: Option<&str>,
 ) {
     let queue_items: Vec<QueueItem> = input_files
         .iter()
@@ -217,11 +220,10 @@ fn emit_batch_queue_event(
         })
         .collect();
     let queue_event = QueueEvent::new(
-        crate::processing::OperationKind::ProcessingBatch,
+        OperationKind::ProcessingBatch,
         queue_items,
         registry.max_concurrent(),
-    )
-    .with_operation_id(operation_id.map(|value| value.to_string()));
+    );
     emit_queue_event(window, &queue_event);
 }
 
@@ -229,7 +231,7 @@ fn finalize_batch_results(
     window: &tauri::Window,
     payload: &ProcessPayload,
     outcomes: Vec<Result<ProcessResultEntry>>,
-    operation_id: Option<&str>,
+    progress_listener: Option<&ProgressEventListener>,
 ) -> Result<Vec<ProcessResultEntry>> {
     let finalized = collect_batch_results(payload.input_files.len(), outcomes)?;
     log::debug!(
@@ -239,10 +241,12 @@ fn finalize_batch_results(
     for event in finalized.failure_events {
         emit_terminal_failed_event(
             window,
-            crate::processing::OperationKind::ProcessingBatch,
-            operation_id,
-            event.input_index,
-            event.job_id.as_deref(),
+            progress_listener,
+            EmitContext {
+                operation_kind: OperationKind::ProcessingBatch,
+                job_id: event.job_id.clone(),
+                input_index: event.input_index,
+            },
             &event.message,
         );
     }

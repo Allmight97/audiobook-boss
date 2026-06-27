@@ -12,14 +12,22 @@ use tauri::Window;
 
 type ProgressListener = Arc<dyn Fn(&ProgressEvent) + Send + Sync>;
 
+/// Non-window emit context shared by progress and terminal events: the operation
+/// family, and (for batch items) the job id and input index. Bundled so callers
+/// pass one value instead of a positional tuple.
+#[derive(Clone)]
+pub struct EmitContext {
+    pub operation_kind: OperationKind,
+    pub job_id: Option<String>,
+    pub input_index: Option<usize>,
+}
+
 /// Centralized progress event emitter
 pub struct ProgressEmitter {
     /// Backend operation family this emitter reports for
     operation_kind: OperationKind,
-    /// Optional Tauri window for event emission (None in headless/test runs)
+    /// Optional Tauri window for event emission (None for background ops / tests)
     window: Option<Window>,
-    /// Optional WorkRuntime operation identifier
-    operation_id: Option<String>,
     /// Optional job identifier for parallel batch processing
     job_id: Option<String>,
     /// Optional input index for batch processing
@@ -28,66 +36,18 @@ pub struct ProgressEmitter {
 }
 
 impl ProgressEmitter {
-    /// Creates a new progress emitter without job tracking (single-job mode)
-    pub fn new(window: Window) -> Self {
-        Self::for_operation(window, OperationKind::ProcessingBatch)
-    }
-
-    /// Creates a new progress emitter scoped to an operation kind.
-    pub fn for_operation(window: Window, operation_kind: OperationKind) -> Self {
+    /// Creates a progress emitter for the given emit context.
+    ///
+    /// `window` is optional: background (WorkRuntime) operations pass `None` and
+    /// report exclusively through the progress listener (snapshots), so they do not
+    /// also emit `processing-progress` to the window. Foreground operations pass a
+    /// window and no listener.
+    pub fn with_context(window: Option<Window>, context: EmitContext) -> Self {
         Self {
-            operation_kind,
-            window: Some(window),
-            operation_id: None,
-            job_id: None,
-            input_index: None,
-            progress_listener: None,
-        }
-    }
-
-    /// Creates a progress emitter with job tracking for parallel processing
-    pub fn with_job_id(window: Window, job_id: String) -> Self {
-        Self {
-            operation_kind: OperationKind::ProcessingBatch,
-            window: Some(window),
-            operation_id: None,
-            job_id: Some(job_id),
-            input_index: None,
-            progress_listener: None,
-        }
-    }
-
-    /// Creates a progress emitter with job tracking and input index context
-    pub fn with_context(
-        window: Window,
-        operation_kind: OperationKind,
-        operation_id: Option<String>,
-        job_id: Option<String>,
-        input_index: Option<usize>,
-    ) -> Self {
-        Self {
-            operation_kind,
-            window: Some(window),
-            operation_id,
-            job_id,
-            input_index,
-            progress_listener: None,
-        }
-    }
-
-    /// Creates a headless emitter (no UI events emitted).
-    pub fn headless() -> Self {
-        Self::headless_for(OperationKind::ProcessingBatch)
-    }
-
-    /// Creates a headless emitter for a specific operation kind.
-    pub fn headless_for(operation_kind: OperationKind) -> Self {
-        Self {
-            operation_kind,
-            window: None,
-            operation_id: None,
-            job_id: None,
-            input_index: None,
+            operation_kind: context.operation_kind,
+            window,
+            job_id: context.job_id,
+            input_index: context.input_index,
             progress_listener: None,
         }
     }
@@ -107,7 +67,6 @@ impl ProgressEmitter {
 
     fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
         ProgressEvent {
-            operation_id: self.operation_id.clone(),
             operation_kind: self.operation_kind,
             stage,
             percentage: if stage == EventStage::Skipped {
@@ -267,7 +226,6 @@ impl ProgressEmitter {
         eta_seconds: Option<f64>,
     ) {
         let event = ProgressEvent {
-            operation_id: self.operation_id.clone(),
             operation_kind: self.operation_kind,
             stage: EventStage::from(&stage),
             percentage,
@@ -301,7 +259,6 @@ mod tests {
         let emitter = ProgressEmitter {
             operation_kind: OperationKind::ProcessingBatch,
             window: None,
-            operation_id: Some("op-123".to_string()),
             job_id: Some("job-123".to_string()),
             input_index: Some(7),
             progress_listener: None,
@@ -317,9 +274,6 @@ mod tests {
         assert_eq!(failed.operation_kind, OperationKind::ProcessingBatch);
         assert_eq!(cancelled.operation_kind, OperationKind::ProcessingBatch);
         assert_eq!(skipped.operation_kind, OperationKind::ProcessingBatch);
-        assert_eq!(failed.operation_id, Some("op-123".to_string()));
-        assert_eq!(cancelled.operation_id, Some("op-123".to_string()));
-        assert_eq!(skipped.operation_id, Some("op-123".to_string()));
         assert_eq!(failed.percentage, 0.0);
         assert_eq!(cancelled.percentage, 0.0);
         assert_eq!(skipped.percentage, 100.0);

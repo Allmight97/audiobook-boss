@@ -11,6 +11,7 @@ import {
 	buildBatchCompletionFeedback,
 	buildSingleCompletionFeedback,
 	cloneModel,
+	feedbackFromResult,
 	isTerminalJobStatus,
 	isTerminalProgressStage,
 	recomputeStatus,
@@ -54,6 +55,8 @@ export function createStatusPanelModel(): StatusPanelModel {
 		currentWorkKind: null,
 		latestProgressEvent: null,
 		batchCompletionMessageOverride: null,
+		terminalFeedback: null,
+		cancellationLatched: false,
 	};
 }
 
@@ -82,10 +85,6 @@ export function applyQueueSnapshot(
 	event: ProcessingQueueEvent,
 	now: number,
 ): StatusPanelReducerResult {
-	if (event.operation_id) {
-		return { model, intents: [] };
-	}
-
 	const queueSnapshot = buildQueueSnapshotState(event.items, now);
 	const next: StatusPanelModel = {
 		jobProgress: new Map(queueSnapshot.jobProgress),
@@ -97,6 +96,8 @@ export function applyQueueSnapshot(
 		currentWorkKind: workKindFromOperationKind(event.operation_kind),
 		latestProgressEvent: model.latestProgressEvent,
 		batchCompletionMessageOverride: model.batchCompletionMessageOverride,
+		terminalFeedback: null,
+		cancellationLatched: false,
 	};
 
 	const updated = recomputeStatus(next);
@@ -109,7 +110,7 @@ export function applyProgress(
 	now: number,
 	options?: { label?: string },
 ): StatusPanelReducerResult {
-	if (event.operation_id) {
+	if (model.cancellationLatched) {
 		return { model, intents: [] };
 	}
 
@@ -216,6 +217,17 @@ export function reconcileProcessResult(
 	}
 
 	const next = cloneModel(model);
+	// The backend owns the terminal verdict (`classify_run_terminal` →
+	// `RunTerminalClass`); carry it so the completion toast renders backend truth
+	// instead of re-deriving precedence from per-job statuses. Set even when an
+	// all-success run repairs no rows below — it still needs its verdict.
+	// EXCEPT after a user-initiated local cancellation: the foreground/preview lane
+	// is uncancellable at the backend, so its result still arrives and reconciles;
+	// the user's cancellation verdict must win for the ephemeral preview lane rather
+	// than be overwritten by a late backend success/mixed verdict.
+	if (!next.cancellationLatched) {
+		next.terminalFeedback = feedbackFromResult(result);
+	}
 	let didUpdate = false;
 	for (const entry of result.results) {
 		if (entry.status === 'success') {
@@ -242,7 +254,7 @@ export function reconcileProcessResult(
 	}
 
 	if (!didUpdate) {
-		return { model, intents: [] };
+		return { model: next, intents: [] };
 	}
 
 	const updated = recomputeStatus(next);
@@ -263,6 +275,9 @@ export function reconcileProcessResult(
 
 export function applyCancellation(model: StatusPanelModel, now: number): StatusPanelReducerResult {
 	const next = cloneModel(model);
+	// Latch the user-initiated cancellation so a late foreground/preview result
+	// cannot overwrite the cancellation verdict in `reconcileProcessResult`.
+	next.cancellationLatched = true;
 	let didUpdate = false;
 
 	for (const [jobKey, job] of next.jobProgress.entries()) {
@@ -331,7 +346,7 @@ export function completeSingleCompletionHold(
 	if (next.jobProgress.size === 0) {
 		return {
 			model: createStatusPanelModel(),
-			feedback: buildSingleCompletionFeedback(event),
+			feedback: model.terminalFeedback ?? buildSingleCompletionFeedback(event),
 		};
 	}
 

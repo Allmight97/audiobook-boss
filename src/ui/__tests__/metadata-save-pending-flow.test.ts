@@ -11,9 +11,6 @@ const context = vi.hoisted(() => ({
 	getPendingIntentEntriesMock: vi.fn(() => [] as Array<[string, Record<string, unknown>]>),
 	clearPendingMock: vi.fn(),
 	resetDirtyStateMock: vi.fn(),
-	beginMetadataSaveMock: vi.fn(async () => undefined),
-	completeMetadataSaveMock: vi.fn(),
-	failMetadataSaveMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(() => ({
 		files: [
 			{ path: '/books/a.m4b', isValid: true },
@@ -60,9 +57,6 @@ vi.mock('../jobControls', () => ({
 	getMaxConcurrentStatus: vi.fn(() => ({ effective: 2, selection: 'auto' })),
 }));
 vi.mock('../statusPanel/index', () => ({
-	beginMetadataSaveInStatusPanel: context.beginMetadataSaveMock,
-	completeMetadataSaveInStatusPanel: context.completeMetadataSaveMock,
-	failMetadataSaveInStatusPanel: context.failMetadataSaveMock,
 	initStatusPanel: vi.fn(),
 	isStatusPanelProcessing: () => context.statusPanelProcessing,
 	pushStatusPanelTransientStatus: (message: string) => {
@@ -142,9 +136,6 @@ describe('metadata save pending flow', () => {
 		context.persistPendingDraftsMock.mockReset();
 		context.clearPendingMock.mockReset();
 		context.resetDirtyStateMock.mockReset();
-		context.beginMetadataSaveMock.mockClear();
-		context.completeMetadataSaveMock.mockClear();
-		context.failMetadataSaveMock.mockClear();
 		context.getPendingIntentEntriesMock.mockReset();
 		context.metadataSaveInProgress = false;
 		context.statusPanelProcessing = false;
@@ -187,7 +178,6 @@ describe('metadata save pending flow', () => {
 		await vi.waitFor(() => {
 			expect(context.saveMetadataBatchMock).toHaveBeenCalledTimes(1);
 		});
-		expect(context.beginMetadataSaveMock).toHaveBeenCalledTimes(1);
 		expect(context.saveMetadataBatchMock).toHaveBeenCalledWith([
 			{
 				filePath: '/books/a.m4b',
@@ -203,7 +193,6 @@ describe('metadata save pending flow', () => {
 		expect(context.clearPendingMock).toHaveBeenCalledWith('/books/a.m4b');
 		expect(context.clearPendingMock).toHaveBeenCalledWith('/books/b.m4b');
 		expect(context.resetDirtyStateMock).toHaveBeenCalledTimes(1);
-		expect(context.completeMetadataSaveMock).toHaveBeenCalledTimes(1);
 	});
 
 	it('blocks repeat save attempts synchronously while a save is in progress', async () => {
@@ -278,7 +267,6 @@ describe('metadata save pending flow', () => {
 		});
 		expect(context.clearPendingMock).toHaveBeenCalledTimes(1);
 		expect(context.clearPendingMock).toHaveBeenCalledWith('/books/a.m4b');
-		expect(context.completeMetadataSaveMock).toHaveBeenCalledTimes(1);
 	});
 
 	it('retains cancelled files in pending state', async () => {
@@ -312,7 +300,6 @@ describe('metadata save pending flow', () => {
 		});
 		expect(context.clearPendingMock).toHaveBeenCalledTimes(1);
 		expect(context.clearPendingMock).toHaveBeenCalledWith('/books/a.m4b');
-		expect(context.completeMetadataSaveMock).toHaveBeenCalledTimes(1);
 	});
 
 	it('shows explicit status when there are no pending metadata changes', async () => {

@@ -67,4 +67,14 @@ export interface StatusPanelModel {
 	currentWorkKind: StatusPanelWorkKind | null;
 	latestProgressEvent: ProcessingProgressEvent | null;
 	batchCompletionMessageOverride: string | null;
+	// Backend-owned terminal verdict for the reconciled run (kind + default
+	// message), mapped once from `RunTerminalClass`. The UI renders this rather
+	// than re-deriving terminal precedence from per-job statuses. `null` until a
+	// result is reconciled (e.g. a purely local foreground cancellation).
+	terminalFeedback: StatusPanelCompletionFeedback | null;
+	// True once a user-initiated local cancellation has settled this run. The
+	// foreground/preview lane is uncancellable at the backend, so its result still
+	// arrives and reconciles; this latch keeps the user's cancellation verdict from
+	// being overwritten by that late backend verdict (a success toast after cancel).
+	cancellationLatched: boolean;
 }

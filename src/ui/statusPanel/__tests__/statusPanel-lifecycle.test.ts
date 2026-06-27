@@ -106,117 +106,161 @@ describe('StatusPanel lifecycle', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('disables cancel-all while cancel request is in flight and restores on success', async () => {
+	it('settles the foreground view locally on cancel-all with no backend cancel command', () => {
 		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
 
-		let resolveCancel!: (value: string) => void;
-		const inFlightCancel = new Promise<string>((resolve) => {
-			resolveCancel = resolve;
-		});
-		const cancelSpy = vi
-			.spyOn(tauriClient, 'cancelProcessing')
-			.mockImplementation(() => inFlightCancel);
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+
 		controller.applyProgress({
 			operation_kind: 'processingBatch',
-			job_id: 'job-1',
+			input_index: 0,
+			job_id: 'job-0',
 			stage: STAGES.converting,
 			percentage: 25,
-			message: 'Converting...',
+			message: 'Converting alpha',
 		});
 
-		const cancelRequest = controller.requestCancelAll();
-		expect(cancelSpy).toHaveBeenCalledWith('job-1');
-		expect(statusPanelViewState.cancelAllPending).toBe(true);
+		// Foreground/direct cancellation has no backend command (operation-scoped
+		// cancel lives in the Work Center). requestCancelAll settles the local
+		// render straight to cancelled — no 'Cancellation requested…' transient and
+		// no tauriClient round-trip — then resets after the 2s hold.
+		controller.requestCancelAll();
+		expect(controller.getCurrentStatus().stage).toBe('cancelled');
+		expect(controller.isCurrentlyProcessing).toBe(true);
 
-		resolveCancel('cancel requested');
-		await cancelRequest;
+		vi.advanceTimersByTime(2000);
 
-		expect(statusPanelViewState.cancelAllPending).toBe(false);
-		expect(controller.getCurrentStatus().message).toBe('Cancellation requested…');
-		expect(getStepText()).toContain('Cancellation requested…');
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
+		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
+		expect(controller.isCurrentlyProcessing).toBe(false);
+		expect(getStepText()).toBe('Processing was cancelled.');
 	});
 
-	it('preserves latest progress when cancel-all resolves after progress advances', async () => {
+	it('keeps the cancellation verdict when an uncancellable preview result reconciles after cancel', () => {
+		// Regression (audit): the foreground/preview lane is uncancellable at the
+		// backend, so after a local cancel the preview still completes and reconciles.
+		// The user's cancellation must win — a success/mixed result arriving late must
+		// NOT overwrite the cancellation verdict into a "success" toast after cancel.
 		const controller = new StatusPanelRuntime();
+		seedDisabledControls();
 
-		let resolveCancel!: (value: string) => void;
-		const inFlightCancel = new Promise<string>((resolve) => {
-			resolveCancel = resolve;
-		});
-		vi.spyOn(tauriClient, 'cancelProcessing').mockImplementation(() => inFlightCancel);
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+
 		controller.applyProgress({
 			operation_kind: 'processingBatch',
-			job_id: 'job-1',
+			input_index: 0,
+			job_id: 'job-0',
 			stage: STAGES.converting,
 			percentage: 25,
-			message: 'Converting...',
+			message: 'Converting',
 		});
 
-		const cancelRequest = controller.requestCancelAll();
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			job_id: 'job-1',
-			stage: STAGES.writing,
-			percentage: 68,
-			message: 'Writing metadata',
+		controller.requestCancelAll();
+		expect(controller.getCurrentStatus().stage).toBe('cancelled');
+
+		// The uncancellable preview returns success and reconciles after the cancel.
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+			terminalClass: 'success',
+			results: [{ inputIndex: 0, status: 'success', message: 'done' }],
 		});
 
-		resolveCancel('cancel requested');
-		await cancelRequest;
+		vi.advanceTimersByTime(2000);
 
-		expect(controller.getCurrentStatus()).toMatchObject({
-			stage: STAGES.writing,
-			percentage: 68,
-			message: 'Cancellation requested…',
-		});
-		expect(getStepText()).toContain('Cancellation requested…');
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
+		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
+		expect(getStepText()).toBe('Processing was cancelled.');
 	});
 
-	it('restores cancel-all enabled state and surfaces explicit error on cancel failure', async () => {
+	it('keeps the cancelled foreground view when late preview progress arrives after cancel', () => {
 		const controller = new StatusPanelRuntime();
-		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-		vi.spyOn(tauriClient, 'cancelProcessing').mockRejectedValue(
-			new Error('tauriClient cancellation failed'),
-		);
+		seedDisabledControls();
+
+		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+		const showErrorSpy = vi.spyOn(viewState, 'showError');
+		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+
 		controller.applyProgress({
 			operation_kind: 'processingBatch',
-			job_id: 'job-1',
+			input_index: 0,
+			job_id: 'job-0',
 			stage: STAGES.converting,
 			percentage: 25,
-			message: 'Converting...',
+			message: 'Converting',
+		});
+		controller.requestCancelAll();
+
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-0',
+			stage: STAGES.completed,
+			percentage: 100,
+			message: 'Done',
 		});
 
-		await controller.requestCancelAll();
+		expect(controller.getCurrentStatus().stage).toBe('cancelled');
+		expect(getJobRows()).toHaveLength(1);
+		expect(getJobRows()[0]).toContain('Cancelled');
+		expect(getJobRows()[0]).not.toContain('Complete');
 
-		expect(statusPanelViewState.cancelAllPending).toBe(false);
-		expect(getStepText()).toBe('Error: Failed to cancel processing. Please try again.');
-		expect(consoleErrorSpy).toHaveBeenCalled();
+		vi.advanceTimersByTime(2000);
+
+		expect(showSuccessSpy).not.toHaveBeenCalled();
+		expect(showErrorSpy).not.toHaveBeenCalled();
+		expect(showInfoSpy).toHaveBeenCalledTimes(1);
+		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
+		expect(getStepText()).toBe('Processing was cancelled.');
 	});
 
 	it.each([
 		{
 			name: 'all completed',
 			terminalStages: [STAGES.completed, STAGES.completed] as const,
+			terminalClass: 'success' as const,
+			summary: { total: 2, succeeded: 2, skipped: 0, cancelled: 0, failed: 0 },
+			resultStatuses: ['success', 'success'] as const,
 			expectedMethod: 'showSuccess' as const,
 			expectedMessage: 'Audiobook created successfully!',
 			expectedStepText: 'Audiobook created successfully!',
 		},
 		{
-			name: 'cancelled present',
+			// Backend classifies success+cancelled as `mixed` (not cancelled); the
+			// panel renders that backend verdict instead of re-deriving "cancelled".
+			name: 'success and cancelled (backend mixed)',
 			terminalStages: [STAGES.cancelled, STAGES.completed] as const,
+			terminalClass: 'mixed' as const,
+			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 1, failed: 0 },
+			resultStatuses: ['cancelled', 'success'] as const,
 			expectedMethod: 'showInfo' as const,
-			expectedMessage: 'Processing was cancelled.',
-			expectedStepText: 'Processing was cancelled.',
+			expectedMessage: 'Some files were not processed.',
+			expectedStepText: 'Some files were not processed.',
 		},
 		{
-			name: 'failed present',
+			name: 'failed present (backend mixed)',
 			terminalStages: [STAGES.cancelled, STAGES.failed] as const,
+			terminalClass: 'mixed' as const,
+			summary: { total: 2, succeeded: 0, skipped: 0, cancelled: 1, failed: 1 },
+			resultStatuses: ['cancelled', 'failed'] as const,
 			expectedMethod: 'showError' as const,
 			expectedMessage: 'One or more files failed to process.',
 			expectedStepText: 'Error: One or more files failed to process.',
 		},
 	])('applies batch terminal lifecycle reset after 2s when %s', ({
 		terminalStages,
+		terminalClass,
+		summary,
+		resultStatuses,
 		expectedMethod,
 		expectedMessage,
 		expectedStepText,
@@ -250,6 +294,19 @@ describe('StatusPanel lifecycle', () => {
 			stage: terminalStages[1],
 			percentage: 100,
 			message: 'terminal-1',
+		});
+
+		// The terminal verdict is backend-owned: reconcile the run result so the
+		// completion toast renders `terminalClass`, not a TS re-classification.
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary,
+			terminalClass,
+			results: resultStatuses.map((status, index) => ({
+				inputIndex: index,
+				status,
+				message: `terminal-${index}`,
+			})),
 		});
 
 		expect(controller.isCurrentlyProcessing).toBe(true);
@@ -298,6 +355,7 @@ describe('StatusPanel lifecycle', () => {
 		controller.reconcileProcessResult({
 			jobType: 'merge',
 			summary: { total: 1, succeeded: 0, skipped: 1, cancelled: 0, failed: 0 },
+			terminalClass: 'skipped',
 			results: [
 				{
 					status: 'skipped',
@@ -332,7 +390,6 @@ describe('StatusPanel lifecycle', () => {
 		seedDisabledControls();
 
 		const showErrorSpy = vi.spyOn(viewState, 'showError');
-		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		controller.applyQueueSnapshot({
 			operation_kind: 'processingBatch',
@@ -357,6 +414,19 @@ describe('StatusPanel lifecycle', () => {
 			percentage: 100,
 			message: 'terminal-1',
 		});
+
+		// Backend verdict (mixed with a failure → error); the override supplies the
+		// failure-detail message rendered with the backend-owned severity.
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 0, failed: 1 },
+			terminalClass: 'mixed',
+			results: [
+				{ inputIndex: 0, status: 'success', message: 'terminal-0' },
+				{ inputIndex: 1, status: 'failed', message: 'terminal-1' },
+			],
+		});
+		controller.setBatchCompletionMessage('Processed 1/2. Failed: beta.m4b');
 
 		vi.advanceTimersByTime(2000);
 
@@ -390,6 +460,7 @@ describe('StatusPanel lifecycle', () => {
 		controller.reconcileProcessResult({
 			jobType: 'batch',
 			summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 1, failed: 0 },
+			terminalClass: 'mixed',
 			results: [
 				{
 					inputIndex: 0,
@@ -578,68 +649,6 @@ describe('StatusPanel lifecycle', () => {
 		expect(controller.getCurrentStatus().stage).toBe('idle');
 	});
 
-	it('shows cancellation requested before final cancelled summary in batch flow', async () => {
-		const controller = new StatusPanelRuntime();
-		seedDisabledControls();
-
-		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
-		const showErrorSpy = vi.spyOn(viewState, 'showError');
-		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
-		vi.spyOn(tauriClient, 'cancelProcessing').mockResolvedValue('cancel requested');
-
-		controller.applyQueueSnapshot({
-			operation_kind: 'processingBatch',
-			items: [
-				{ input_index: 0, file_path: '/books/alpha.m4b' },
-				{ input_index: 1, file_path: '/books/beta.m4b' },
-			],
-			max_concurrent: 2,
-		});
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 0,
-			job_id: 'job-0',
-			stage: STAGES.converting,
-			percentage: 25,
-			message: 'Converting alpha',
-		});
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 1,
-			job_id: 'job-1',
-			stage: STAGES.converting,
-			percentage: 25,
-			message: 'Converting beta',
-		});
-
-		await controller.requestCancelAll();
-		expect(getStepText()).toContain('Cancellation requested…');
-		expect(controller.getCurrentStatus().message).toBe('Cancellation requested…');
-
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 0,
-			stage: STAGES.cancelled,
-			percentage: 100,
-			message: 'cancelled-0',
-		});
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 1,
-			stage: STAGES.cancelled,
-			percentage: 100,
-			message: 'cancelled-1',
-		});
-
-		vi.advanceTimersByTime(2000);
-
-		expect(showSuccessSpy).not.toHaveBeenCalled();
-		expect(showErrorSpy).not.toHaveBeenCalled();
-		expect(showInfoSpy).toHaveBeenCalledTimes(1);
-		expect(showInfoSpy).toHaveBeenCalledWith('Processing was cancelled.');
-		expect(getStepText()).toBe('Processing was cancelled.');
-	});
-
 	it('synthesizes cancelled completion when command rejection arrives before terminal events', () => {
 		const controller = new StatusPanelRuntime();
 		seedDisabledControls();
@@ -696,6 +705,15 @@ describe('StatusPanel lifecycle', () => {
 			stage: STAGES.completed,
 			percentage: 100,
 			message: 'terminal-1',
+		});
+		controller.reconcileProcessResult({
+			jobType: 'batch',
+			summary: { total: 2, succeeded: 2, skipped: 0, cancelled: 0, failed: 0 },
+			terminalClass: 'success',
+			results: [
+				{ inputIndex: 0, status: 'success', message: 'terminal-0' },
+				{ inputIndex: 1, status: 'success', message: 'terminal-1' },
+			],
 		});
 
 		vi.advanceTimersByTime(2000);

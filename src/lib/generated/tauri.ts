@@ -118,11 +118,6 @@ export const commands = {
 	 *  Multiple invocations can run concurrently up to the configured limit.
 	 */
 	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
-	/**
-	 *  Cancels all active audio processing operations
-	 *  Sets the global cancellation flag in the job registry
-	 */
-	cancelProcessing: (jobId: string | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("cancel_processing", { jobId })),
 	submitProcessingOperation: (request: SubmitProcessingOperationRequest) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	getWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("get_work_operation", { operationId })),
@@ -576,6 +571,11 @@ export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | 
 export type ProcessCommandResult = {
 	jobType: JobType,
 	summary: OperationResultSummary,
+	/**
+	 *  Backend-owned terminal classification of the run. The UI renders this
+	 *  instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
+	 */
+	terminalClass: RunTerminalClass,
 	results: ProcessResultEntry[],
 };
 
@@ -629,8 +629,6 @@ export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Deserialize = {
-	// WorkRuntime operation identifier when this event belongs to accepted work
-	operation_id: string | null,
 	// Backend operation family that emitted this event
 	operation_kind: OperationKind,
 	// Current processing stage
@@ -651,8 +649,6 @@ export type ProgressEvent_Deserialize = {
 
 // Progress event structure for frontend communication
 export type ProgressEvent_Serialize = {
-	// WorkRuntime operation identifier when this event belongs to accepted work
-	operation_id?: string | null,
 	// Backend operation family that emitted this event
 	operation_kind: OperationKind,
 	// Current processing stage
@@ -685,19 +681,7 @@ export type ProgressSnapshot = {
 export type ProviderId = "audible";
 
 // Batch queue snapshot for frontend communication
-export type QueueEvent = QueueEvent_Serialize | QueueEvent_Deserialize;
-
-// Batch queue snapshot for frontend communication
-export type QueueEvent_Deserialize = {
-	operation_id: string | null,
-	operation_kind: OperationKind,
-	items: QueueItem[],
-	max_concurrent: number,
-};
-
-// Batch queue snapshot for frontend communication
-export type QueueEvent_Serialize = {
-	operation_id?: string | null,
+export type QueueEvent = {
 	operation_kind: OperationKind,
 	items: QueueItem[],
 	max_concurrent: number,
@@ -786,6 +770,8 @@ export type RemoteTitleAvailability = {
 export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
+
+export type RunTerminalClass = "empty" | "success" | "skipped" | "cancelled" | "failed" | "mixed";
 
 export type RuntimeSettingsCapabilities = {
 	encoder: EncoderSettingsCapabilities,

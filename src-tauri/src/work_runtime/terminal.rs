@@ -23,13 +23,27 @@ pub(crate) fn operation_terminal_summary(
 pub(crate) fn terminal_summary_from_process_result(
     result: &ProcessCommandResult,
 ) -> OperationTerminalSummary {
-    operation_terminal_summary(&result.summary, terminal_message(&result.summary))
+    terminal_summary_from_summary(&result.summary)
 }
 
 pub(crate) fn work_status_from_process_result(
     result: &ProcessCommandResult,
 ) -> WorkOperationStatus {
-    work_status_from_terminal_class(classify_run_terminal(&result.summary))
+    work_status_from_summary(&result.summary)
+}
+
+/// Terminal status from a raw result summary via the canonical classifier.
+/// Shared by the processing path and command-driven inline operations
+/// (metadata save) so both map `RunTerminalClass → WorkOperationStatus`
+/// identically. Do not reintroduce a parallel rule from snapshot counts.
+pub(crate) fn work_status_from_summary(summary: &OperationResultSummary) -> WorkOperationStatus {
+    work_status_from_terminal_class(classify_run_terminal(summary))
+}
+
+pub(crate) fn terminal_summary_from_summary(
+    summary: &OperationResultSummary,
+) -> OperationTerminalSummary {
+    operation_terminal_summary(summary, terminal_message(summary))
 }
 
 fn work_status_from_terminal_class(class: RunTerminalClass) -> WorkOperationStatus {

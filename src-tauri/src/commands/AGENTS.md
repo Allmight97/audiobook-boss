@@ -12,7 +12,7 @@
   the owning backend module, and return `CommandResult<T>`.
 - Route product behavior through the owning Public API Strip:
   `crate::audio`, `crate::metadata`, `crate::processing`,
-  `crate::output_artifact`, `crate::app_settings`, or a future grey-box module.
+  `crate::work_runtime`, `crate::output_artifact`, or `crate::app_settings`.
 - Register command and event changes in `src-tauri/src/ipc_contract.rs` and keep
   generated TypeScript bindings in sync.
 - Use `tokio::task::spawn_blocking` for synchronous file/media work reached from
@@ -32,10 +32,10 @@
   errors to `AppError` without leaking sensitive absolute paths to the UI.
 - Return `AppError`/`AppErrorEnvelope` through `CommandResult<T>`; do not expose
   ad hoc string error contracts to the frontend.
-- Do not bypass `JobRegistry` for long-running processing lifecycle or
-  cancellation behavior.
-- Do not encode metadata intent, output artifact truth, or processing lifecycle
-  rules directly in command functions.
+- Do not bypass `JobRegistry` or `WorkRuntime` for long-running operation
+  lifecycle, snapshots, or cancellation behavior.
+- Do not encode metadata intent, output artifact truth, processing lifecycle
+  vocabulary, or WorkRuntime operation truth directly in command functions.
 
 ## Done Criteria
 
