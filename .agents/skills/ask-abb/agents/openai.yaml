@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ask ABB"
+  short_description: "Which ABB flow or skill fits this situation?"
+  default_prompt: "Use $ask-abb to route this Audiobook Boss work to the right flow or skill."
