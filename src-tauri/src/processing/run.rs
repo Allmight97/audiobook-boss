@@ -42,35 +42,6 @@ pub(crate) async fn process_payload_with_options(
     preview_seconds: Option<f64>,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
-    run_execute(
-        window,
-        registry,
-        workspace_root,
-        payload,
-        metadata,
-        preview_seconds,
-        options,
-    )
-    .await
-}
-
-pub(crate) fn preflight_payload(
-    payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-) -> Result<ProcessingPreflightPlan> {
-    run_preflight(payload, metadata, preview_seconds)
-}
-
-async fn run_execute(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
     validate_encoder_settings(&payload.settings)?;
     validate_external_processing_contract(&payload)?;
     log_encoder_summary(&payload);
@@ -104,7 +75,7 @@ async fn run_execute(
     }
 }
 
-fn run_preflight(
+pub(crate) fn preflight_payload(
     payload: ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,

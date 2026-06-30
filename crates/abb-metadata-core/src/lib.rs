@@ -16,7 +16,7 @@ pub enum MetadataCoreError {
 
 pub type Result<T> = std::result::Result<T, MetadataCoreError>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct AudiobookMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -37,31 +37,11 @@ pub struct AudiobookMetadata {
 }
 
 impl AudiobookMetadata {
+    /// Empty metadata with every field unset; alias for [`Default::default`].
+    /// Kept as a constructor so build-then-populate call sites avoid
+    /// `clippy::field_reassign_with_default`.
     pub fn new() -> Self {
-        Self {
-            title: None,
-            artist: None,
-            album: None,
-            composer: None,
-            genre: None,
-            date: None,
-            track: None,
-            disk: None,
-            comment: None,
-            description: None,
-            series: None,
-            series_part: None,
-            subseries: None,
-            subseries_part: None,
-            album_sort: None,
-            cover_art: None,
-        }
-    }
-}
-
-impl Default for AudiobookMetadata {
-    fn default() -> Self {
-        Self::new()
+        Self::default()
     }
 }
 
@@ -280,10 +260,6 @@ impl MetadataIntentPatch {
             metadata,
             album_sort,
         })
-    }
-
-    pub fn to_write_metadata(&self) -> Result<AudiobookMetadata> {
-        Ok(self.to_write_plan()?.metadata)
     }
 }
 
@@ -685,8 +661,9 @@ mod tests {
         };
 
         let metadata = patch
-            .to_write_metadata()
-            .expect("patch conversion should succeed");
+            .to_write_plan()
+            .expect("patch conversion should succeed")
+            .metadata;
 
         assert_eq!(metadata.title.as_deref(), Some("Project Hail Mary"));
         assert_eq!(metadata.artist.as_deref(), Some(""));
@@ -752,7 +729,7 @@ mod tests {
         };
 
         let err = patch
-            .to_write_metadata()
+            .to_write_plan()
             .expect_err("invalid year should be rejected");
 
         assert!(err.to_string().contains("YYYY"), "unexpected error: {err}");
@@ -766,7 +743,7 @@ mod tests {
         };
 
         let err = patch
-            .to_write_metadata()
+            .to_write_plan()
             .expect_err("series part with slash should be rejected");
 
         assert!(
@@ -810,8 +787,9 @@ mod tests {
         });
 
         let resolved = patch
-            .to_write_metadata()
-            .expect("write metadata should still compile without read-compatible fields");
+            .to_write_plan()
+            .expect("write metadata should still compile without read-compatible fields")
+            .metadata;
 
         assert_eq!(resolved.title.as_deref(), Some("Read Compatible"));
         assert_eq!(resolved.track, None);

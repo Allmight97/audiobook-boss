@@ -101,7 +101,7 @@ mod tests {
         plan_metadata_write, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
         PatchOp,
     };
-    use crate::output_artifact::naming::build_output_path;
+    use crate::output_artifact::naming::build_output_path_preview;
     use crate::output_artifact::OutputNamingConfig;
     use std::path::Path;
 
@@ -193,7 +193,7 @@ mod tests {
         let effective = patch
             .apply_to_metadata(base)
             .expect("metadata should resolve");
-        let output_path = build_output_path(
+        let output_path = build_output_path_preview(
             Path::new("/tmp"),
             Some(&crate::metadata::NamingMetadata::from_metadata(&effective)),
             OutputNamingConfig::default(),
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(naming.subseries(), Some("Subseries"));
         assert_eq!(naming.subseries_part(), None);
 
-        let output_path = build_output_path(
+        let output_path = build_output_path_preview(
             Path::new("/tmp"),
             Some(&naming),
             OutputNamingConfig::default(),
@@ -275,7 +275,7 @@ mod tests {
         )
         .expect("naming metadata should exist");
 
-        let err = build_output_path(
+        let err = build_output_path_preview(
             Path::new("/tmp"),
             Some(&naming),
             OutputNamingConfig::default(),

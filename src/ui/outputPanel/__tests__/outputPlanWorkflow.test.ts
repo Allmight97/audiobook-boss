@@ -8,8 +8,8 @@ import {
 import type { MetadataIntentPatch } from '../../../types/metadataIntent';
 import {
 	makeOutputPlanWorkflowServicesLayer,
-	outputPathPreviewWorkflowExecution,
-	outputPlanReviewWorkflowExecution,
+	outputPathPreviewBody,
+	outputPlanReviewBody,
 	type OutputPlanWorkflowServices,
 } from '../outputPlanWorkflow';
 
@@ -105,7 +105,7 @@ describe('OutputPlanWorkflow', () => {
 		const harness = makeHarness();
 
 		await runAppEffect(
-			outputPathPreviewWorkflowExecution('final').pipe(Effect.provide(harness.layer)),
+			outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)),
 		);
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalledWith(
@@ -123,7 +123,7 @@ describe('OutputPlanWorkflow', () => {
 		harness.state.outputDirectory = '';
 
 		await runAppEffect(
-			outputPathPreviewWorkflowExecution('final').pipe(Effect.provide(harness.layer)),
+			outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)),
 		);
 
 		expect(harness.services.previewOutputPath).not.toHaveBeenCalled();
@@ -137,7 +137,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		await runAppEffect(
-			outputPathPreviewWorkflowExecution('preview').pipe(Effect.provide(harness.layer)),
+			outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)),
 		);
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalled();
@@ -153,7 +153,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		await runAppEffect(
-			outputPathPreviewWorkflowExecution('preview').pipe(Effect.provide(harness.layer)),
+			outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)),
 		);
 
 		expect(harness.services.console.error).toHaveBeenCalledWith(
@@ -176,7 +176,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		await runAppEffect(
-			outputPathPreviewWorkflowExecution('final').pipe(Effect.provide(harness.layer)),
+			outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)),
 		);
 
 		expect(harness.state.previewText).toBe(
@@ -194,7 +194,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({
+			outputPlanReviewBody({
 				payload: payload(),
 				metadataIntentByPath: null,
 				previewSeconds: null,
@@ -235,7 +235,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntentByPath: null }).pipe(
+			outputPlanReviewBody({ payload: payload(), metadataIntentByPath: null }).pipe(
 				Effect.provide(harness.layer),
 			),
 		);
@@ -269,7 +269,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntentByPath: null }).pipe(
+			outputPlanReviewBody({ payload: payload(), metadataIntentByPath: null }).pipe(
 				Effect.provide(harness.layer),
 			),
 		);
@@ -312,7 +312,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({
+			outputPlanReviewBody({
 				payload: processPayload,
 				metadataIntentByPath,
 				previewSeconds: 30,

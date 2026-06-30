@@ -2,8 +2,7 @@ use super::types::{
     ChildJobStatus, OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
 };
 use crate::processing::{
-    classify_run_terminal, OperationResultSummary, ProcessCommandResult, ProcessResultStatus,
-    RunTerminalClass,
+    classify_run_terminal, OperationResultSummary, ProcessResultStatus, RunTerminalClass,
 };
 
 pub(crate) fn operation_terminal_summary(
@@ -18,18 +17,6 @@ pub(crate) fn operation_terminal_summary(
         failed: summary.failed,
         message,
     }
-}
-
-pub(crate) fn terminal_summary_from_process_result(
-    result: &ProcessCommandResult,
-) -> OperationTerminalSummary {
-    terminal_summary_from_summary(&result.summary)
-}
-
-pub(crate) fn work_status_from_process_result(
-    result: &ProcessCommandResult,
-) -> WorkOperationStatus {
-    work_status_from_summary(&result.summary)
 }
 
 /// Terminal status from a raw result summary via the canonical classifier.
