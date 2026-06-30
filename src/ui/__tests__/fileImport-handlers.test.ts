@@ -81,7 +81,6 @@ describe('file import handlers', () => {
 		context.onOrderLockChangeMock.mockReturnValue(() => undefined);
 		fileImportUiState.errorMessage = '';
 		fileImportUiState.isDragOver = false;
-		fileImportUiState.hasFiles = false;
 	});
 
 	it('aborts importing when metadata staging fails', async () => {

@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 const fsPromisesSpecifier = 'node:fs/promises';
-const { readFile } = (await import(fsPromisesSpecifier)) as {
+const { readFile, readdir } = (await import(fsPromisesSpecifier)) as {
 	readFile(path: URL, encoding: 'utf8'): Promise<string>;
+	readdir(
+		path: URL,
+		options: { withFileTypes: true },
+	): Promise<
+		Array<{
+			name: string;
+			isDirectory(): boolean;
+			isFile(): boolean;
+		}>
+	>;
 };
 const nodeUrlSpecifier = 'node:url';
 const { pathToFileURL } = (await import(nodeUrlSpecifier)) as {
@@ -15,28 +25,32 @@ if (!processRef) {
 
 const repoRootUrl = pathToFileURL(`${processRef.cwd()}/`);
 
-const productionSvelteFiles = [
-	'src/App.svelte',
-	'src/ui/collisionDialog/CollisionDialogIsland.svelte',
-	'src/ui/coverArt/CoverArtIsland.svelte',
-	'src/ui/encodingWorkbench/EncodingWorkbenchIsland.svelte',
-	'src/ui/encoderPanel/EncoderWorkbenchIsland.svelte',
-	'src/ui/fileImport/FileImportIsland.svelte',
-	'src/ui/leftColumn/FileInspectorPanel.svelte',
-	'src/ui/leftColumn/InputWorkflowPanel.svelte',
-	'src/ui/leftColumn/LeftColumnIsland.svelte',
-	'src/ui/metadataForm/MetadataFormFieldsIsland.svelte',
-	'src/ui/metadataManager/MetadataManagerIsland.svelte',
-	'src/ui/metadataLookup/MetadataLookupIsland.svelte',
-	'src/ui/outputPanel/OutputPanelIsland.svelte',
-	'src/ui/previewAudio/PreviewAudioControls.svelte',
-	'src/ui/statusPanel/StatusPanelIsland.svelte',
-	'src/ui/tagPreview/TagPreviewIsland.svelte',
-] as const;
+async function discoverSvelteFiles(
+	directoryUrl: URL,
+	relativeDirectory: string,
+): Promise<string[]> {
+	const entries = await readdir(directoryUrl, { withFileTypes: true });
+	const files: string[] = [];
+
+	for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+		const relativePath = `${relativeDirectory}${entry.name}`;
+		if (entry.isDirectory()) {
+			files.push(
+				...(await discoverSvelteFiles(new URL(`${entry.name}/`, directoryUrl), `${relativePath}/`)),
+			);
+		} else if (entry.isFile() && entry.name.endsWith('.svelte')) {
+			files.push(relativePath);
+		}
+	}
+
+	return files;
+}
 
 describe('Svelte 5 event attributes', () => {
 	it('keeps production components free of deprecated on: event directives', async () => {
 		const offenders: string[] = [];
+		const productionSvelteFiles = await discoverSvelteFiles(new URL('src/', repoRootUrl), 'src/');
+		expect(productionSvelteFiles).toContain('src/App.svelte');
 
 		for (const file of productionSvelteFiles) {
 			const source = await readFile(new URL(file, repoRootUrl), 'utf8');
