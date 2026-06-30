@@ -1,7 +1,6 @@
 //! Processing context structures and builders.
 
 use crate::audio::{EncoderSettings, SampleRateConfig};
-use crate::errors::sanitize_path_str_for_display;
 use crate::errors::Result;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::processing::lifecycle::OperationKind;
@@ -115,24 +114,6 @@ impl std::fmt::Debug for ProcessingContext {
 }
 
 impl ProcessingContext {
-    /// Creates a new ProcessingContext with the given components
-    pub fn new(
-        window: Window,
-        session: Arc<ProcessingSession>,
-        encoder_settings: EncoderSettings,
-        sample_rate: SampleRateConfig,
-        output: OutputConfig,
-    ) -> Self {
-        Self::new_with_workspace_root(
-            window,
-            session,
-            encoder_settings,
-            sample_rate,
-            output,
-            default_processing_workspace_root(),
-        )
-    }
-
     pub fn new_with_workspace_root(
         window: Window,
         session: Arc<ProcessingSession>,
@@ -217,36 +198,6 @@ impl ProcessingContext {
     /// Checks if the current processing has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.session.is_cancelled()
-    }
-
-    /// Creates an error with session context
-    pub fn create_error(&self, operation: &str, reason: &str) -> crate::errors::AppError {
-        crate::errors::AppError::General(format!(
-            "Failed to {operation} for session {}: {reason}",
-            self.session.id()
-        ))
-    }
-
-    /// Creates a file validation error with session and file context
-    pub fn create_file_error(
-        &self,
-        operation: &str,
-        file_path: &str,
-        reason: &str,
-    ) -> crate::errors::AppError {
-        crate::errors::AppError::FileValidation(format!(
-            "Failed to {operation} file '{}' in session {}: {reason}",
-            sanitize_path_str_for_display(file_path),
-            self.session.id()
-        ))
-    }
-
-    /// Creates an input validation error with session context
-    pub fn create_input_error(&self, field: &str, reason: &str) -> crate::errors::AppError {
-        crate::errors::AppError::InvalidInput(format!(
-            "Failed to validate {field} for session {}: {reason}",
-            self.session.id()
-        ))
     }
 
     /// Creates a progress emitter scoped to this processing context.
