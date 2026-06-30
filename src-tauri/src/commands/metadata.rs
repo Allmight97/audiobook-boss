@@ -189,7 +189,7 @@ fn cover_art_http_client() -> Result<&'static reqwest::Client> {
 }
 
 fn build_cover_art_http_client() -> std::result::Result<reqwest::Client, String> {
-    let resolver = Arc::new(BogonFilteringResolver::new());
+    let resolver = Arc::new(BogonFilteringResolver);
     reqwest::Client::builder()
         .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
         .dns_resolver(resolver)
@@ -312,14 +312,8 @@ fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
     Ok(parsed)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct BogonFilteringResolver;
-
-impl BogonFilteringResolver {
-    fn new() -> Self {
-        Self
-    }
-}
 
 impl Resolve for BogonFilteringResolver {
     fn resolve(&self, name: Name) -> Resolving {

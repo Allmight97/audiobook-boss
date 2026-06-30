@@ -28,14 +28,14 @@ pub(crate) fn execute_processing(
 ) -> Result<PathBuf> {
     log::info!(
         "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
-        workflow.total_duration(),
+        workflow.total_duration,
         context.effective_bitrate_kbps()
     );
 
     let merged_output = merge_audio_files_with_context(
         &workflow.temp_dir,
         context,
-        workflow.total_duration(),
+        workflow.total_duration,
         files,
         metadata,
         passthrough,

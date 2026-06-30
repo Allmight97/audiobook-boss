@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings } from '../../../types/audio';
 import type { ProcessingStatus } from '../state';
-import { startProcessing } from '../processing';
+import { startProcessing } from '../processingWorkflow';
 import * as viewState from '../viewState.svelte';
 
 const context = vi.hoisted(() => ({

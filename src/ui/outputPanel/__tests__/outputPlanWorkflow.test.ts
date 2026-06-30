@@ -104,9 +104,7 @@ describe('OutputPlanWorkflow', () => {
 	it('updates output preview from the output artifact boundary', async () => {
 		const harness = makeHarness();
 
-		await runAppEffect(
-			outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -122,9 +120,7 @@ describe('OutputPlanWorkflow', () => {
 		const harness = makeHarness();
 		harness.state.outputDirectory = '';
 
-		await runAppEffect(
-			outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.previewOutputPath).not.toHaveBeenCalled();
 		expect(harness.state.previewText).toBe('Select output directory...');
@@ -136,9 +132,7 @@ describe('OutputPlanWorkflow', () => {
 			isLatestOutputPreviewRequest: vi.fn(() => false),
 		});
 
-		await runAppEffect(
-			outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalled();
 		expect(harness.services.setOutputPreview).not.toHaveBeenCalled();
@@ -152,9 +146,7 @@ describe('OutputPlanWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.console.error).toHaveBeenCalledWith(
 			'Metadata preview validation failed:',
@@ -175,9 +167,7 @@ describe('OutputPlanWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.state.previewText).toBe(
 			'Output preview unavailable. Fix metadata/template and retry.',

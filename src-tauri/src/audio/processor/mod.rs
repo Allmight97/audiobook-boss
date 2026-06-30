@@ -144,11 +144,6 @@ impl ProcessingWorkflow {
             total_duration,
         }
     }
-
-    /// Accessor helpers (kept small / inline for clarity).
-    pub(crate) fn total_duration(&self) -> f64 {
-        self.total_duration
-    }
 }
 
 /// Main audiobook processing entrypoint.

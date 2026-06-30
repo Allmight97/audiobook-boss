@@ -26,7 +26,6 @@ import {
 	mapResultToMetadata,
 	persistQueueMetadata,
 	resetResults,
-	restoreCoverArtForFile,
 	selectedSources,
 	updateApplyModeOptions,
 	updateQueueContext,
@@ -205,7 +204,7 @@ async function advanceQueue(
 	if (queue.length === 0) return;
 
 	if (index >= queue.length - 1) {
-		restoreCoverArtForFile(services, queue[index]?.file ?? null);
+		services.refreshCoverArtDisplay();
 		setStatus(
 			services,
 			options.coverArtFailed ? 'Queue complete, but cover art failed to load.' : 'Queue complete.',

@@ -124,8 +124,6 @@ type MetadataFormState = {
 	subseriesPartWarning: MetadataWarningState;
 };
 
-export const MIXED_PLACEHOLDER = 'Mixed values';
-
 function createEmptyFieldState(
 	definition: MetadataFieldDefinition,
 ): [MetadataFieldId, MetadataFieldState] {
@@ -172,10 +170,6 @@ export function getMetadataFieldDefinitionByActionId(
 	return METADATA_FIELD_DEFINITIONS.find((definition) => definition.actionId === actionId);
 }
 
-export function getMetadataFieldState(inputId: MetadataFieldId): MetadataFieldState {
-	return metadataFormState.fields[inputId];
-}
-
 export function setMetadataFormFieldValue(inputId: MetadataFieldId, value: string): void {
 	metadataFormState.fields[inputId].value = value;
 }
@@ -193,12 +187,6 @@ export function setMetadataFormFieldDirty(inputId: MetadataFieldId, dirty: boole
 
 export function setMetadataFormFieldMixed(inputId: MetadataFieldId, mixed: boolean): void {
 	metadataFormState.fields[inputId].mixed = mixed;
-}
-
-export function resetMetadataFormField(inputId: MetadataFieldId): void {
-	const definition = getMetadataFieldDefinitionByInputId(inputId);
-	if (!definition) return;
-	metadataFormState.fields[inputId] = createEmptyFieldState(definition)[1];
 }
 
 export function setMetadataFormModeState(mode: MetadataFormMode, selectionCount: number = 0): void {

@@ -167,7 +167,7 @@ export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | 
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
-export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required" | "semaphore_closed";
+export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required";
 
 export type AppErrorEnvelope = {
 	code: AppErrorCode,

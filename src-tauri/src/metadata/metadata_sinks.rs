@@ -8,14 +8,6 @@ use crate::metadata::AudiobookMetadata;
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, MediaType, Tag};
 
-pub trait MetadataFieldSink {
-    fn set_string(&mut self, field: TagField, value: &str);
-    fn clear_field(&mut self, field: TagField);
-    fn set_track(&mut self, number: u32, total: Option<u32>);
-    fn set_disk(&mut self, number: u32, total: Option<u32>);
-    fn set_media_type_audiobook(&mut self);
-}
-
 pub struct Mp4ametaSink<'a> {
     tag: &'a mut Tag,
 }
@@ -26,7 +18,7 @@ impl<'a> Mp4ametaSink<'a> {
     }
 }
 
-impl MetadataFieldSink for Mp4ametaSink<'_> {
+impl Mp4ametaSink<'_> {
     fn set_string(&mut self, field: TagField, value: &str) {
         match field {
             TagField::Title => self.tag.set_title(value),
@@ -102,12 +94,12 @@ impl MetadataFieldSink for Mp4ametaSink<'_> {
         }
     }
 
-    fn set_media_type_audiobook(&mut self) {
+    pub fn set_media_type_audiobook(&mut self) {
         self.tag.set_media_type(MediaType::AudioBook);
     }
 }
 
-pub fn apply_metadata_ops<S: MetadataFieldSink>(sink: &mut S, ops: &[MetadataOp]) {
+pub fn apply_metadata_ops(sink: &mut Mp4ametaSink<'_>, ops: &[MetadataOp]) {
     for op in ops {
         match op {
             MetadataOp::SetString { field, value } => sink.set_string(*field, value),

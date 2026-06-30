@@ -56,18 +56,16 @@ pub(in crate::commands::metadata_lookup) async fn fetch_openlibrary_search(
     limit: u8,
 ) -> Result<Vec<OnlineMetadataResult>> {
     let fields = "key,title,author_name,cover_i,first_publish_year,description";
-    let url = format!(
-        "{}/search.json?q={}&fields={}&limit={}",
-        OPENLIBRARY_BASE_URL,
-        urlencoding::encode(query),
-        fields,
-        limit
-    );
-
-    let response = client.get(&url).send().await.map_err(|e| {
-        log::warn!("OpenLibrary request failed: {}", e);
-        AppError::General("OpenLibrary request failed".to_string())
-    })?;
+    let limit = limit.to_string();
+    let response = client
+        .get(format!("{OPENLIBRARY_BASE_URL}/search.json"))
+        .query(&[("q", query), ("fields", fields), ("limit", limit.as_str())])
+        .send()
+        .await
+        .map_err(|e| {
+            log::warn!("OpenLibrary request failed: {}", e);
+            AppError::General("OpenLibrary request failed".to_string())
+        })?;
 
     if !response.status().is_success() {
         log::warn!("OpenLibrary returned status: {}", response.status());

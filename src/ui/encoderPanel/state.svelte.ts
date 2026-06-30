@@ -121,7 +121,6 @@ export function readEncoderSettingsFromState(): EncoderSettingsState {
 			encoderPanelState.bitrateModeSelection === 'vbr'
 				? { mode: 'vbr', value: encoderPanelState.qualityValue }
 				: { mode: encoderPanelState.bitrateModeSelection },
-		vbr: { enabled: true, level: encoderPanelState.qualityValue },
 		fdkAfterburner: encoderPanelState.fdkAfterburner,
 		twoloop: encoderPanelState.nativeTwoloop,
 	};

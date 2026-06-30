@@ -56,8 +56,6 @@ export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataD
 	};
 }
 
-export const getCurrentMetadata = readOutputPathPreviewMetadataDraft;
-
 function updateSeriesPartWarning(
 	metadata: AudiobookMetadata,
 	validationResult: MetadataIntentValidationResult,

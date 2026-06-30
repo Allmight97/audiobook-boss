@@ -34,7 +34,7 @@ impl OutputPlanLedger {
             source_paths,
             &mut self.collision_cache,
         )?;
-        if action_requires_output_write(plan.action) {
+        if abb_output_artifact_core::action_requires_output_write(plan.action) {
             self.claimed.insert(plan.resolved_path.clone());
         }
         Ok(plan)
@@ -44,14 +44,6 @@ impl OutputPlanLedger {
     fn claimed_paths(&self) -> &HashSet<PathBuf> {
         &self.claimed
     }
-}
-
-pub(crate) fn action_requires_output_write(action: PlannedOutputAction) -> bool {
-    abb_output_artifact_core::action_requires_output_write(action)
-}
-
-pub(crate) fn plan_is_hard_block(plan: &ResolvedOutputPlan) -> bool {
-    abb_output_artifact_core::plan_is_hard_block(plan)
 }
 
 #[cfg(test)]

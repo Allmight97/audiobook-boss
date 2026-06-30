@@ -8,14 +8,6 @@ pub enum ProviderId {
     Audible,
 }
 
-impl ProviderId {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Audible => "audible",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountRef {

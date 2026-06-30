@@ -1,4 +1,3 @@
-use super::plan::plan_is_hard_block;
 use super::types::{CollisionPolicy, OutputCollisionKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
@@ -47,7 +46,7 @@ pub(crate) fn enforce_output_plan_review<'a>(
     if let Some(output) = outputs
         .iter()
         .copied()
-        .find(|output| plan_is_hard_block(output))
+        .find(|output| abb_output_artifact_core::plan_is_hard_block(output))
     {
         return Err(AppError::FileValidation(output_plan_review_message(output)));
     }

@@ -19,31 +19,16 @@ import type {
 import { defaultEncoderSettings } from './audio';
 
 export type EncoderFlavor = EncoderType;
-export interface VbrSetting {
-	enabled: boolean;
-	level?: number; // Reserved; disabled now
-}
 
 export interface EncoderSettingsState {
 	flavor: EncoderFlavor;
 	bitrateKbps: BitrateKbps;
 	bitrateMode?: BitrateMode;
 	channels?: EncoderChannelConfig;
-	vbr?: VbrSetting;
 	fdkAfterburner?: boolean;
 	threads?: ThreadSetting;
 	twoloop?: boolean;
 }
-
-export const defaultEncoderSettingsState = (_isMac: boolean): EncoderSettingsState => ({
-	flavor: 'auto',
-	bitrateKbps: 64,
-	bitrateMode: { mode: 'vbr', value: 3 },
-	channels: 'auto',
-	vbr: { enabled: true, level: 3 },
-	fdkAfterburner: true,
-	twoloop: true,
-});
 
 export type EncoderSettingsLike =
 	| Partial<EncoderSettingsState>
