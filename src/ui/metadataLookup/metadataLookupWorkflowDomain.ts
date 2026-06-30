@@ -111,13 +111,6 @@ export function persistQueueMetadata(
 	});
 }
 
-export function restoreCoverArtForFile(
-	services: MetadataLookupWorkflowServices,
-	_file: AudioFile | null,
-): void {
-	services.refreshCoverArtDisplay();
-}
-
 export function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMetadata> {
 	const metadata: Partial<AudiobookMetadata> = {
 		title: result.title,

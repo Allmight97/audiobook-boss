@@ -5,11 +5,9 @@ import {
 	makeWorkflowLayer,
 	makeWorkflowServiceTag,
 	runAppEffect,
-	tryAppPromise,
 	workflowTryPromise,
 	workflowTrySync,
 } from './appEffect';
-import type { UnexpectedWorkflowError } from './appEffect';
 
 class HarnessWorkflowFailed extends Data.TaggedError('HarnessWorkflowFailed')<{
 	readonly message: string;
@@ -35,21 +33,6 @@ describe('AppEffect kernel', () => {
 		);
 
 		expect(result).toBe(42);
-	});
-
-	it('maps rejected promises into typed workflow errors', async () => {
-		const error = await runAppEffect(
-			tryAppPromise(
-				() => Promise.reject(new Error('dependency failed')),
-				'Workflow dependency failed.',
-			).pipe(Effect.flip),
-		);
-
-		expect(error).toMatchObject({
-			_tag: 'UnexpectedWorkflowError',
-			message: 'Workflow dependency failed.',
-			cause: expect.any(Error),
-		} satisfies Partial<UnexpectedWorkflowError>);
 	});
 
 	it('maps rejected promises into owner-specific workflow errors via workflowTryPromise', async () => {

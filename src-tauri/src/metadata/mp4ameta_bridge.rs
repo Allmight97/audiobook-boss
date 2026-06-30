@@ -1,7 +1,7 @@
 use crate::errors::{AppError, Result};
 use crate::metadata::cover_art::detect_cover_art_format;
 use crate::metadata::metadata_ops::plan_metadata_field_ops;
-use crate::metadata::metadata_sinks::{apply_metadata_ops, MetadataFieldSink, Mp4ametaSink};
+use crate::metadata::metadata_sinks::{apply_metadata_ops, Mp4ametaSink};
 use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
 use crate::metadata::{
     normalize_publication_date, split_series_list, AlbumSortWriteAction, AudiobookMetadata,

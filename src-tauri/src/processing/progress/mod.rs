@@ -1,7 +1,6 @@
 //! Progress module: shared types, utilities, and submodule re-exports
 
 mod emitter;
-mod state;
 
 use crate::processing::lifecycle::OperationKind;
 use crate::processing::ProcessingStage;
@@ -160,33 +159,6 @@ pub fn emit_queue_event(window: &tauri::Window, event: &QueueEvent) {
 // Pure Math Utilities
 // ============================================================================
 
-/// Formats estimated time remaining into a human-readable string
-pub fn format_eta(seconds: f64) -> String {
-    if seconds < SECONDS_PER_MINUTE {
-        format!("{seconds:.0}s")
-    } else {
-        let minutes = (seconds / SECONDS_PER_MINUTE) as u32;
-        let remaining_seconds = seconds % SECONDS_PER_MINUTE;
-        format!("{minutes}m {remaining_seconds:.0}s")
-    }
-}
-
-/// Calculates progress percentage within a stage range
-pub fn calculate_stage_progress(
-    current: f64,
-    total: f64,
-    start_percentage: f32,
-    end_percentage: f32,
-) -> f32 {
-    if total <= 0.0 {
-        return start_percentage;
-    }
-
-    let progress_ratio = (current / total) as f32;
-    let range = end_percentage - start_percentage;
-    start_percentage + (progress_ratio * range)
-}
-
 /// Converts seconds to converting-stage UI percentage
 pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: f64) -> f32 {
     if total_duration <= 0.0 {
@@ -202,4 +174,3 @@ pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: 
 // ============================================================================
 
 pub use emitter::{EmitContext, ProgressEmitter};
-pub use state::ProgressReporter;

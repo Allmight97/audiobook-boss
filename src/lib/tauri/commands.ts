@@ -134,8 +134,6 @@ function compileMetadataSaveRequests(items: MetadataSaveRequest[]): MetadataSave
 }
 
 export const commandSpecs = {
-	ping: (_args?: undefined) => runGeneratedCommand(generatedCommands.ping()),
-	echo: (args: { input: string }) => runGeneratedCommand(generatedCommands.echo(args.input)),
 	get_app_settings: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getAppSettings(), (settings) =>
 			normalizeNullish(settings),
@@ -218,11 +216,6 @@ export const commandSpecs = {
 	load_remote_source_library: (args: { providerId: ProviderId }) =>
 		runGeneratedCommand(
 			generatedCommands.loadRemoteSourceLibrary(args.providerId),
-			normalizeNullish,
-		),
-	refresh_remote_source_library: (args: { providerId: ProviderId }) =>
-		runGeneratedCommand(
-			generatedCommands.refreshRemoteSourceLibrary(args.providerId),
 			normalizeNullish,
 		),
 	start_remote_source_acquisition: (args: { plan: AcquisitionPlan }) =>

@@ -27,7 +27,6 @@ pub enum AppErrorCode {
     ImageProcessingError,
     ProcessingCancelled,
     ToolchainRequired,
-    SemaphoreClosed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -200,13 +199,6 @@ pub fn sanitize_path_for_display(path: &Path) -> String {
 /// Sanitizes string paths for user-facing messages.
 pub fn sanitize_path_str_for_display(path: &str) -> String {
     sanitize_path_for_display(Path::new(path))
-}
-
-/// Convert AppError to string for Tauri command results
-impl From<AppError> for String {
-    fn from(error: AppError) -> Self {
-        error.to_string()
-    }
 }
 
 /// Convert AppError to Tauri InvokeError for command integration

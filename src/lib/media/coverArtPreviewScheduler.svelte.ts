@@ -14,8 +14,6 @@ export type CoverArtPreviewLoader = (url: string) => Promise<number[]>;
 
 type CoverArtPreviewSchedulerOptions = {
 	failureLogMessage: string;
-	maxConcurrency?: number;
-	maxCacheEntries?: number;
 };
 
 export type CoverArtPreviewScheduler = {
@@ -35,8 +33,6 @@ export function createCoverArtPreviewScheduler(
 	previewByUrl: Record<string, CoverArtPreviewState>,
 	options: CoverArtPreviewSchedulerOptions,
 ): CoverArtPreviewScheduler {
-	const maxConcurrency = options.maxConcurrency ?? DEFAULT_COVER_ART_PREVIEW_CONCURRENCY;
-	const maxCacheEntries = options.maxCacheEntries ?? DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES;
 	const inflightByUrl = new Map<string, Promise<number[]>>();
 	const activePreviewTasks = new Set<number>();
 	const cacheOrder: string[] = [];
@@ -183,7 +179,10 @@ export function createCoverArtPreviewScheduler(
 		if (!activeLoader || generation !== previewScheduleGeneration) {
 			return;
 		}
-		while (activePreviewTasks.size < maxConcurrency && queuedCoverUrls.length > 0) {
+		while (
+			activePreviewTasks.size < DEFAULT_COVER_ART_PREVIEW_CONCURRENCY &&
+			queuedCoverUrls.length > 0
+		) {
 			const coverUrl = queuedCoverUrls.shift();
 			if (!coverUrl || !visibleCoverUrls.has(coverUrl)) {
 				continue;
@@ -265,7 +264,7 @@ export function createCoverArtPreviewScheduler(
 
 	function prunePreviewCache(): void {
 		let remainingCandidates = cacheOrder.length;
-		while (cacheOrder.length > maxCacheEntries && remainingCandidates > 0) {
+		while (cacheOrder.length > DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES && remainingCandidates > 0) {
 			const coverUrl = cacheOrder.shift();
 			remainingCandidates -= 1;
 			if (!coverUrl) {

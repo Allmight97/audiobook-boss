@@ -142,15 +142,8 @@ pub fn summarize_result_statuses(
     summary
 }
 
-pub fn classify_terminal_statuses(
-    statuses: impl IntoIterator<Item = ProcessResultStatus>,
-) -> RunTerminalClass {
-    classify_run_terminal(&summarize_result_statuses(statuses))
-}
-
-/// Classifies a run from its aggregate counts, sharing the exact rule used by
-/// `classify_terminal_statuses` so the status-iterator and count-summary paths
-/// can never diverge.
+/// Classifies a run from its aggregate counts. Callers starting from a status
+/// iterator summarize first via `summarize_result_statuses`.
 pub fn classify_run_terminal(summary: &OperationResultSummary) -> RunTerminalClass {
     let mut classifier = RunTerminalClassifier::default();
     if summary.succeeded > 0 {
@@ -196,49 +189,26 @@ mod tests {
 
     #[test]
     fn terminal_classification_preserves_empty_single_and_mixed_classes() {
-        assert_eq!(classify_terminal_statuses([]), RunTerminalClass::Empty);
         assert_eq!(
-            classify_terminal_statuses([ProcessResultStatus::Success]),
+            classify_run_terminal(&summarize_result_statuses([])),
+            RunTerminalClass::Empty
+        );
+        assert_eq!(
+            classify_run_terminal(&summarize_result_statuses([ProcessResultStatus::Success])),
             RunTerminalClass::Success
         );
         assert_eq!(
-            classify_terminal_statuses([ProcessResultStatus::Cancelled]),
+            classify_run_terminal(&summarize_result_statuses([ProcessResultStatus::Cancelled])),
             RunTerminalClass::Cancelled
         );
         assert_eq!(
-            classify_terminal_statuses([
+            classify_run_terminal(&summarize_result_statuses([
                 ProcessResultStatus::Success,
                 ProcessResultStatus::Failed,
                 ProcessResultStatus::Skipped,
-            ]),
+            ])),
             RunTerminalClass::Mixed
         );
-    }
-
-    #[test]
-    fn classify_run_terminal_agrees_with_status_path() {
-        let cases = [
-            vec![],
-            vec![ProcessResultStatus::Success],
-            vec![ProcessResultStatus::Skipped],
-            vec![ProcessResultStatus::Cancelled],
-            vec![ProcessResultStatus::Failed],
-            vec![ProcessResultStatus::Success, ProcessResultStatus::Skipped],
-            vec![ProcessResultStatus::Success, ProcessResultStatus::Failed],
-            vec![
-                ProcessResultStatus::Skipped,
-                ProcessResultStatus::Cancelled,
-                ProcessResultStatus::Failed,
-            ],
-        ];
-
-        for case in cases {
-            let summary = summarize_result_statuses(case.clone());
-            assert_eq!(
-                classify_run_terminal(&summary),
-                classify_terminal_statuses(case),
-            );
-        }
     }
 
     #[test]

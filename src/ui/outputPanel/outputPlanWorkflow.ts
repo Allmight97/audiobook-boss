@@ -128,7 +128,7 @@ function approvePayload(payload: ProcessPayload, plan: ProcessingPreflightPlan):
 	};
 }
 
-function outputPathPreviewBody(
+export function outputPathPreviewBody(
 	outputKind: Parameters<OutputPlanWorkflowServices['previewOutputPath']>[0]['outputKind'],
 	reservedRequestId?: number,
 ): AppEffect<void, OutputPlanWorkflowFailed, OutputPlanWorkflowServicesId> {
@@ -189,7 +189,7 @@ function outputPathPreviewBody(
 	});
 }
 
-function outputPlanReviewBody(
+export function outputPlanReviewBody(
 	request: OutputPlanReviewRequest,
 ): AppEffect<OutputPlanReviewResult, OutputPlanWorkflowFailed, OutputPlanWorkflowServicesId> {
 	return Effect.gen(function* () {
@@ -254,19 +254,6 @@ function outputPlanReviewBody(
 			plan: reviewedPlan,
 		};
 	});
-}
-
-export function outputPathPreviewWorkflowExecution(
-	outputKind: Parameters<OutputPlanWorkflowServices['previewOutputPath']>[0]['outputKind'],
-	reservedRequestId?: number,
-): AppEffect<void, OutputPlanWorkflowFailed, OutputPlanWorkflowServicesId> {
-	return outputPathPreviewBody(outputKind, reservedRequestId);
-}
-
-export function outputPlanReviewWorkflowExecution(
-	request: OutputPlanReviewRequest,
-): AppEffect<OutputPlanReviewResult, OutputPlanWorkflowFailed, OutputPlanWorkflowServicesId> {
-	return outputPlanReviewBody(request);
 }
 
 export async function runOutputPathPreviewWorkflow(

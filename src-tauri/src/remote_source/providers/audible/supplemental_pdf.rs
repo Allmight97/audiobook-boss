@@ -27,11 +27,12 @@ impl SupplementalPdfFailure {
 }
 
 fn companion_file_url(title_id: &str) -> std::result::Result<reqwest::Url, SupplementalPdfFailure> {
-    let encoded_title_id = urlencoding::encode(title_id);
-    reqwest::Url::parse(&format!(
-        "https://www.audible.{DOMAIN}/companion-file/{encoded_title_id}"
-    ))
-    .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))
+    let mut url = reqwest::Url::parse(&format!("https://www.audible.{DOMAIN}/"))
+        .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?;
+    url.path_segments_mut()
+        .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?
+        .extend(["companion-file", title_id]);
+    Ok(url)
 }
 
 fn supplemental_pdf_cookie_header(

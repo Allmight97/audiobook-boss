@@ -1,14 +1,4 @@
-import {
-	existsSync,
-	lstatSync,
-	mkdtempSync,
-	mkdirSync,
-	readlinkSync,
-	rmSync,
-	symlinkSync,
-	unlinkSync,
-	writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import type { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,7 +13,6 @@ import {
 	findUnsupportedMacOsArchitectures,
 	installLocalApplicationBundle,
 	pruneLocalInstallArtifacts,
-	refreshApplicationsLink,
 	resolveRequestedBundles,
 	resolveMacOsBundlePaths,
 	verifyDmgBundle,
@@ -86,7 +75,6 @@ describe('resolveMacOsBundlePaths', () => {
 			),
 		);
 		expect(paths.applicationsAppPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
-		expect(paths.applicationsLinkPath).toBe(path.join(applicationsDir, 'AudioBook Boss.app'));
 		expect(paths.dmgDir).toBe(path.join(repoRoot, 'target/release/bundle/dmg'));
 	});
 });
@@ -398,98 +386,6 @@ describe('verifyDmgBundle', () => {
 
 		expect(() => verifyDmgBundle(paths)).toThrow(
 			`Expected at least one dmg artifact under ${paths.dmgDir}`,
-		);
-	});
-});
-
-describe('refreshApplicationsLink', () => {
-	it('creates a canonical /Applications symlink for the built bundle', () => {
-		const { applicationsDir, repoRoot } = createRepoFixture();
-		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
-		mkdirSync(paths.canonicalAppPath, { recursive: true });
-
-		expect(refreshApplicationsLink(paths)).toBe('created');
-		expect(lstatSync(paths.applicationsLinkPath).isSymbolicLink()).toBe(true);
-		expect(readlinkSync(paths.applicationsLinkPath)).toBe(paths.canonicalAppPath);
-	});
-
-	it('updates an outdated symlink target', () => {
-		const { applicationsDir, repoRoot } = createRepoFixture();
-		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
-		mkdirSync(paths.canonicalAppPath, { recursive: true });
-		symlinkSync(
-			path.join(repoRoot, 'target/release/bundle/macos/Old.app'),
-			paths.applicationsLinkPath,
-			'dir',
-		);
-
-		expect(refreshApplicationsLink(paths)).toBe('updated');
-		expect(readlinkSync(paths.applicationsLinkPath)).toBe(paths.canonicalAppPath);
-	});
-
-	it('skips when the symlink already points to canonical app', () => {
-		const { applicationsDir, repoRoot } = createRepoFixture();
-		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
-		mkdirSync(paths.canonicalAppPath, { recursive: true });
-		symlinkSync(paths.canonicalAppPath, paths.applicationsLinkPath, 'dir');
-
-		expect(refreshApplicationsLink(paths)).toBe('skipped');
-		expect(readlinkSync(paths.applicationsLinkPath)).toBe(paths.canonicalAppPath);
-	});
-
-	it('skips when existing /Applications path is not a symlink', () => {
-		const { applicationsDir, repoRoot } = createRepoFixture();
-		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
-		mkdirSync(paths.canonicalAppPath, { recursive: true });
-		mkdirSync(paths.applicationsLinkPath, { recursive: true });
-
-		expect(refreshApplicationsLink(paths)).toBe('skipped');
-		expect(lstatSync(paths.applicationsLinkPath).isSymbolicLink()).toBe(false);
-	});
-
-	it('returns skipped when lstat is permission denied', () => {
-		const { applicationsDir, repoRoot } = createRepoFixture();
-		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
-		mkdirSync(paths.canonicalAppPath, { recursive: true });
-
-		const outcome = refreshApplicationsLink(paths, {
-			lstatSync: () => {
-				const error = new Error('permission denied') as NodeJS.ErrnoException;
-				error.code = 'EACCES';
-				throw error;
-			},
-			mkdirSync,
-			readlinkSync,
-			symlinkSync,
-			unlinkSync,
-		});
-		expect(outcome).toBe('skipped');
-	});
-
-	it('returns skipped when replacing symlink is permission denied', () => {
-		const { applicationsDir, repoRoot } = createRepoFixture();
-		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
-		mkdirSync(paths.canonicalAppPath, { recursive: true });
-		symlinkSync(
-			path.join(repoRoot, 'target/release/bundle/macos/Old.app'),
-			paths.applicationsLinkPath,
-			'dir',
-		);
-
-		const outcome = refreshApplicationsLink(paths, {
-			lstatSync,
-			mkdirSync,
-			readlinkSync,
-			symlinkSync,
-			unlinkSync: () => {
-				const error = new Error('operation not permitted') as NodeJS.ErrnoException;
-				error.code = 'EPERM';
-				throw error;
-			},
-		});
-		expect(outcome).toBe('skipped');
-		expect(readlinkSync(paths.applicationsLinkPath)).toBe(
-			path.join(repoRoot, 'target/release/bundle/macos/Old.app'),
 		);
 	});
 });

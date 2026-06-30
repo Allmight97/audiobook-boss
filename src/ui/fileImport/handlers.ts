@@ -115,7 +115,7 @@ export async function handleClickToSelect(existingFiles: AudioFile[] = []): Prom
 	if (!preparedEntry) {
 		return;
 	}
-	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
+	await runImportAnalysisWorkflow(preparedEntry, ImportAnalysisWorkflowLive);
 }
 
 export async function handleClickToSelectFolder(existingFiles: AudioFile[] = []): Promise<void> {
@@ -126,7 +126,7 @@ export async function handleClickToSelectFolder(existingFiles: AudioFile[] = [])
 	if (!preparedEntry) {
 		return;
 	}
-	await runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
+	await runImportAnalysisWorkflow(preparedEntry, ImportAnalysisWorkflowLive);
 }
 
 export async function handleImportedAudioPaths(
@@ -146,7 +146,7 @@ export async function handleImportedAudioPaths(
 	if (!preparedEntry) {
 		return { status: 'blocked', message: genericImportBlockedMessage };
 	}
-	return runImportAnalysisWorkflow(action, ImportAnalysisWorkflowLive, preparedEntry);
+	return runImportAnalysisWorkflow(preparedEntry, ImportAnalysisWorkflowLive);
 }
 
 async function handleFileDrop(paths: string[], existingFiles: AudioFile[]): Promise<void> {

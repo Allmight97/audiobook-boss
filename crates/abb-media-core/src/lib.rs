@@ -27,44 +27,6 @@ pub enum MediaProtectionKind {
     UnknownProtected,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum MediaSourceKind {
-    LocalFile,
-    RemoteProvider,
-    RemoteProviderProtected,
-    SupplementalAsset,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum MediaErrorKind {
-    UnsupportedContainer,
-    ProtectedContent,
-    MissingDownloadUrl,
-    MissingDecryptionFacts,
-    ProviderProtocolFailed,
-    MaterializationFailed,
-    ValidationFailed,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MediaFileFacts {
-    pub container: MediaContainerKind,
-    pub protection: MediaProtectionKind,
-    pub source: MediaSourceKind,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MediaProgress {
-    pub operation: String,
-    pub percentage: f32,
-    pub bytes_done: Option<u64>,
-    pub bytes_total: Option<u64>,
-}
-
 pub fn classify_media_container_path(path: &Path) -> MediaContainerKind {
     match path
         .extension()
@@ -108,17 +70,6 @@ pub fn protection_for_container(
 
 pub fn container_is_import_ready_audio(container: MediaContainerKind) -> bool {
     matches!(container, MediaContainerKind::M4b | MediaContainerKind::M4a)
-}
-
-pub fn protection_requires_materializer(protection: MediaProtectionKind) -> bool {
-    matches!(
-        protection,
-        MediaProtectionKind::AudibleAax
-            | MediaProtectionKind::AudibleAaxc
-            | MediaProtectionKind::AudibleDash
-            | MediaProtectionKind::Widevine
-            | MediaProtectionKind::UnknownProtected
-    )
 }
 
 /// Maximum accepted size for a Supplemental PDF asset (100 MiB). This is the
@@ -251,20 +202,6 @@ mod tests {
         assert!(!container_is_import_ready_audio(MediaContainerKind::Aax));
         assert!(!container_is_import_ready_audio(MediaContainerKind::Aaxc));
         assert!(!container_is_import_ready_audio(MediaContainerKind::Dash));
-    }
-
-    #[test]
-    fn protected_media_requires_materializer() {
-        assert!(protection_requires_materializer(
-            MediaProtectionKind::AudibleAax
-        ));
-        assert!(protection_requires_materializer(
-            MediaProtectionKind::AudibleAaxc
-        ));
-        assert!(protection_requires_materializer(
-            MediaProtectionKind::AudibleDash
-        ));
-        assert!(!protection_requires_materializer(MediaProtectionKind::None));
     }
 
     #[cfg(unix)]

@@ -113,7 +113,7 @@ sanitize(name):
 The output path generation is in `src-tauri/src/output_artifact/naming.rs`:
 
 ```rust
-// build_output_path()
+// build_output_path_preview()
 // Structure (ABS-compatible): output_dir / author / series (optional) / Book # - Title / Book # - Title.m4b
 ```
 
@@ -125,7 +125,7 @@ Current behavior:
 - Author folder preserves commas; other components replace commas with ` - `.
 - Year appears only when explicitly enabled and metadata date is present.
 
-To modify folder structure behavior, edit `build_output_path()` in `src-tauri/src/output_artifact/naming.rs`.
+To modify folder structure behavior, edit `build_output_path_preview()` in `src-tauri/src/output_artifact/naming.rs` and its core implementation in `crates/abb-output-artifact-core/src/lib.rs`.
 
 ---
 

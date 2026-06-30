@@ -80,13 +80,6 @@ snapshots) are the only scoping.
 
 ## Tauri Commands
 
-### System
-
-- `ping`, `echo`
-  - Rust: `src-tauri/src/commands/system.rs`
-  - Frontend: `src/lib/tauri/client.ts`
-  - Use: smoke/debug wiring
-
 ### App Settings
 
 - `get_app_settings`, `update_app_settings`, `reset_app_settings`
@@ -120,9 +113,9 @@ snapshots) are the only scoping.
   - Frontend: `src/ui/remoteSource/` through `src/lib/tauri/client.ts`
   - Use: provider-neutral source availability and backend-owned auth/account lifecycle. Frontend state must not hold provider credentials, tokens, cookies, license blobs, or raw provider responses.
 
-- `load_remote_source_library`, `refresh_remote_source_library`,
-  `start_remote_source_acquisition`, `get_remote_source_acquisition_status`,
-  `cancel_remote_source_acquisition`, `purge_remote_source_session`
+- `load_remote_source_library`, `start_remote_source_acquisition`,
+  `get_remote_source_acquisition_status`, `cancel_remote_source_acquisition`,
+  `purge_remote_source_session`
   - Rust: `src-tauri/src/commands/remote_source.rs`
   - Core owner: `src-tauri/src/remote_source/`
   - Private provider cluster: `src-tauri/src/remote_source/providers/audible/`

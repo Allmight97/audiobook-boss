@@ -2,7 +2,7 @@ import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/
 import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
-import { startProcessing as startProcessingAction } from './processing';
+import { startProcessing as startProcessingAction } from './processingWorkflow';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
 import type { AggregateProgress, ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';

@@ -8,8 +8,8 @@ import {
 import type { MetadataIntentPatch } from '../../../types/metadataIntent';
 import {
 	makeOutputPlanWorkflowServicesLayer,
-	outputPathPreviewWorkflowExecution,
-	outputPlanReviewWorkflowExecution,
+	outputPathPreviewBody,
+	outputPlanReviewBody,
 	type OutputPlanWorkflowServices,
 } from '../outputPlanWorkflow';
 
@@ -104,9 +104,7 @@ describe('OutputPlanWorkflow', () => {
 	it('updates output preview from the output artifact boundary', async () => {
 		const harness = makeHarness();
 
-		await runAppEffect(
-			outputPathPreviewWorkflowExecution('final').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -122,9 +120,7 @@ describe('OutputPlanWorkflow', () => {
 		const harness = makeHarness();
 		harness.state.outputDirectory = '';
 
-		await runAppEffect(
-			outputPathPreviewWorkflowExecution('final').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.previewOutputPath).not.toHaveBeenCalled();
 		expect(harness.state.previewText).toBe('Select output directory...');
@@ -136,9 +132,7 @@ describe('OutputPlanWorkflow', () => {
 			isLatestOutputPreviewRequest: vi.fn(() => false),
 		});
 
-		await runAppEffect(
-			outputPathPreviewWorkflowExecution('preview').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalled();
 		expect(harness.services.setOutputPreview).not.toHaveBeenCalled();
@@ -152,9 +146,7 @@ describe('OutputPlanWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			outputPathPreviewWorkflowExecution('preview').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.services.console.error).toHaveBeenCalledWith(
 			'Metadata preview validation failed:',
@@ -175,9 +167,7 @@ describe('OutputPlanWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			outputPathPreviewWorkflowExecution('final').pipe(Effect.provide(harness.layer)),
-		);
+		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
 
 		expect(harness.state.previewText).toBe(
 			'Output preview unavailable. Fix metadata/template and retry.',
@@ -194,7 +184,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({
+			outputPlanReviewBody({
 				payload: payload(),
 				metadataIntentByPath: null,
 				previewSeconds: null,
@@ -235,7 +225,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntentByPath: null }).pipe(
+			outputPlanReviewBody({ payload: payload(), metadataIntentByPath: null }).pipe(
 				Effect.provide(harness.layer),
 			),
 		);
@@ -269,7 +259,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({ payload: payload(), metadataIntentByPath: null }).pipe(
+			outputPlanReviewBody({ payload: payload(), metadataIntentByPath: null }).pipe(
 				Effect.provide(harness.layer),
 			),
 		);
@@ -312,7 +302,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 
 		const result = await runAppEffect(
-			outputPlanReviewWorkflowExecution({
+			outputPlanReviewBody({
 				payload: processPayload,
 				metadataIntentByPath,
 				previewSeconds: 30,

@@ -60,7 +60,7 @@ async fn complete_staged_output_commits_from_local_workspace_without_destination
     cleanup_guard.add_path(&session_dir);
     cleanup_guard.add_path(&staged_output);
 
-    complete_staged_output(&context, staged_output, &mut cleanup_guard, None)
+    complete_staged_output(&context, staged_output, &mut cleanup_guard)
         .expect("commit should succeed");
 
     assert_eq!(std::fs::read(&final_output).expect("read final"), b"audio");
@@ -98,7 +98,7 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
     cleanup_guard.add_path(&session_dir);
     cleanup_guard.add_path(&staged_output);
 
-    let error = complete_staged_output(&context, staged_output, &mut cleanup_guard, None)
+    let error = complete_staged_output(&context, staged_output, &mut cleanup_guard)
         .expect_err("existing destination should fail write action");
     drop(cleanup_guard);
 
@@ -146,7 +146,7 @@ async fn complete_staged_output_cleans_without_committing_when_cancelled_before_
     cleanup_guard.add_path(&session_dir);
     cleanup_guard.add_path(&staged_output);
 
-    let error = complete_staged_output(&context, staged_output.clone(), &mut cleanup_guard, None)
+    let error = complete_staged_output(&context, staged_output.clone(), &mut cleanup_guard)
         .expect_err("cancelled job should not commit staged output");
 
     assert!(

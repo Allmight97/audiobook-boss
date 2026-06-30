@@ -39,7 +39,7 @@ export const metadataFormPreviewState = $state<MetadataFormPreviewState>({
 	...EMPTY_METADATA_FORM_PREVIEW_STATE,
 });
 
-export function setMetadataFormPreviewValue(key: MetadataFormPreviewKey, value: string): void {
+function setMetadataFormPreviewValue(key: MetadataFormPreviewKey, value: string): void {
 	metadataFormPreviewState[key] = value.trim();
 }
 

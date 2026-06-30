@@ -5,16 +5,6 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	/**
-	 *  Simple ping command that returns "pong"
-	 *  Used for testing basic Tauri command functionality
-	 */
-	ping: () => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("ping")),
-	/**
-	 *  Echo command that returns the input string
-	 *  Demonstrates parameter passing in Tauri commands
-	 */
-	echo: (input: string) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("echo", { input })),
 	getAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings")),
 	updateAppSettings: (patch: AppSettingsPatch) => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("update_app_settings", { patch })),
 	resetAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("reset_app_settings")),
@@ -74,7 +64,6 @@ export const commands = {
 	completeRemoteSourceAuth: (request: RemoteAuthCompletionRequest) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("complete_remote_source_auth", { request })),
 	logoutRemoteSourceAccount: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("logout_remote_source_account", { providerId })),
 	loadRemoteSourceLibrary: (providerId: ProviderId) => typedError<RemoteLibraryResponse, AppErrorEnvelope>(__TAURI_INVOKE("load_remote_source_library", { providerId })),
-	refreshRemoteSourceLibrary: (providerId: ProviderId) => typedError<RemoteLibraryResponse, AppErrorEnvelope>(__TAURI_INVOKE("refresh_remote_source_library", { providerId })),
 	startRemoteSourceAcquisition: (plan: AcquisitionPlan) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_acquisition", { plan })),
 	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
 	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
@@ -178,7 +167,7 @@ export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | 
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
-export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required" | "semaphore_closed";
+export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required";
 
 export type AppErrorEnvelope = {
 	code: AppErrorCode,

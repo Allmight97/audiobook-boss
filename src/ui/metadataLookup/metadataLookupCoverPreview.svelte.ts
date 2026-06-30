@@ -1,11 +1,9 @@
 import {
 	createCoverArtPreviewScheduler,
 	DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES,
-	DEFAULT_COVER_ART_PREVIEW_CONCURRENCY,
 	type CoverArtPreviewState,
 } from '../../lib/media/coverArtPreviewScheduler.svelte';
 
-export const MAX_METADATA_LOOKUP_PREVIEW_CONCURRENCY = DEFAULT_COVER_ART_PREVIEW_CONCURRENCY;
 export const MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES = DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES;
 
 export type MetadataLookupCoverPreviewState = CoverArtPreviewState;
@@ -31,10 +29,6 @@ export function getMetadataLookupCoverPreviewState(
 	coverUrl: string | null | undefined,
 ): MetadataLookupCoverPreviewState {
 	return metadataLookupCoverPreviewScheduler.getState(coverUrl);
-}
-
-export function getCachedMetadataLookupCoverBytes(coverUrl: string): number[] | null {
-	return metadataLookupCoverPreviewScheduler.getCachedBytes(coverUrl);
 }
 
 export function scheduleMetadataLookupCoverPreviews(

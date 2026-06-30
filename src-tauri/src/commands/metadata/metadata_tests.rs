@@ -68,7 +68,7 @@ fn validate_cover_art_url_allows_public_ip() {
 
 #[tokio::test]
 async fn resolver_rejects_localhost() {
-    let resolver = BogonFilteringResolver::new();
+    let resolver = BogonFilteringResolver;
     let name: Name = "localhost".parse().expect("valid DNS name");
     let result = resolver.resolve(name).await;
     assert!(result.is_err());
@@ -76,7 +76,7 @@ async fn resolver_rejects_localhost() {
 
 #[tokio::test]
 async fn resolver_allows_public_ip_literal() {
-    let resolver = BogonFilteringResolver::new();
+    let resolver = BogonFilteringResolver;
     let name: Name = "8.8.8.8".parse().expect("valid IP literal");
     let result = resolver.resolve(name).await;
     assert!(result.is_ok());

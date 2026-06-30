@@ -1,4 +1,3 @@
-use super::plan::action_requires_output_write;
 use super::types::ResolvedOutputPlan;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::io::ErrorKind;
@@ -84,7 +83,7 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
     let mut cleanup = OutputParentDirCleanup::new(output_root);
 
     for output in outputs {
-        if !action_requires_output_write(output.action) {
+        if !abb_output_artifact_core::action_requires_output_write(output.action) {
             continue;
         }
         if let Some(parent) = output.resolved_path.parent() {

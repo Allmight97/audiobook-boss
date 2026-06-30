@@ -20,23 +20,11 @@ export const fileListSessionState = $state<FileListSessionState>({
 
 const orderLockListeners = new Set<OrderLockListener>();
 
-function createSelectedIndexSet(indices: Set<number> | number[]): Set<number> {
-	const next = new Set<number>();
-	for (const index of Array.isArray(indices) ? indices : Array.from(indices)) {
-		next.add(index);
-	}
-	return next;
-}
-
 export function setCurrentFileList(fileList: FileListInfo | null): void {
 	fileListSessionState.currentFileList = fileList;
 
 	fileListSessionState.selectedFileIndex = -1;
 	fileListSessionState.selectedFileIndices = new Set<number>();
-
-	if (!fileList) {
-		return;
-	}
 }
 
 export function setSelectedIndex(index: number): void {
@@ -66,7 +54,7 @@ export function getSelectedFiles(): AudioFile[] {
 }
 
 export function setSelectedFileIndices(indices: Set<number> | number[]): void {
-	fileListSessionState.selectedFileIndices = createSelectedIndexSet(indices);
+	fileListSessionState.selectedFileIndices = new Set(indices);
 }
 
 export function addToSelectedIndices(index: number): void {

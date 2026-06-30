@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 pub struct CleanupGuard {
     paths: HashSet<PathBuf>,
     session_id: String,
-    enabled: bool,
 }
 
 impl CleanupGuard {
@@ -21,7 +20,6 @@ impl CleanupGuard {
         Self {
             paths: HashSet::new(),
             session_id,
-            enabled: true,
         }
     }
 
@@ -57,14 +55,6 @@ impl CleanupGuard {
 
     /// Performs immediate cleanup of all tracked paths
     pub fn cleanup_now(&mut self) -> Result<()> {
-        if !self.enabled {
-            debug!(
-                "Session {}: Cleanup disabled, skipping immediate cleanup",
-                self.session_id
-            );
-            return Ok(());
-        }
-
         debug!(
             "Session {}: Performing immediate cleanup of {} paths",
             self.session_id,
@@ -78,14 +68,6 @@ impl CleanupGuard {
 
 impl Drop for CleanupGuard {
     fn drop(&mut self) {
-        if !self.enabled {
-            debug!(
-                "Session {}: Cleanup disabled, skipping drop cleanup",
-                self.session_id
-            );
-            return;
-        }
-
         if self.paths.is_empty() {
             debug!("Session {}: No paths to clean up", self.session_id);
             return;

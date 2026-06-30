@@ -23,15 +23,7 @@ pub fn rewrite_metadata_with_ffmpeg(
     passthrough: Option<&PassthroughMetadata>,
 ) -> Result<()> {
     let metadata_plan = metadata.cloned().map(MetadataWritePlan::from_metadata);
-    rewrite_metadata_with_ffmpeg_plan(input_path, metadata_plan.as_ref(), passthrough)
-}
-
-pub(crate) fn rewrite_metadata_with_ffmpeg_plan(
-    input_path: &std::path::Path,
-    metadata: Option<&MetadataWritePlan>,
-    passthrough: Option<&PassthroughMetadata>,
-) -> Result<()> {
-    rewrite_metadata_with_ffmpeg_plan_as(input_path, metadata, passthrough, None)
+    rewrite_metadata_with_ffmpeg_plan_as(input_path, metadata_plan.as_ref(), passthrough, None)
 }
 
 pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(

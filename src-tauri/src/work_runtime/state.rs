@@ -11,8 +11,8 @@ use std::collections::BTreeMap;
 
 use super::terminal::{
     child_status_from_result_status, is_terminal, operation_terminal_summary,
-    stage_from_child_status, stage_from_status, terminal_summary_from_process_result,
-    terminal_summary_from_summary, work_status_from_process_result, work_status_from_summary,
+    stage_from_child_status, stage_from_status, terminal_summary_from_summary,
+    work_status_from_summary,
 };
 
 const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
@@ -164,8 +164,8 @@ impl WorkRuntimeState {
         let snapshot = self.snapshot_mut(operation_id)?;
         apply_operation_terminal(
             snapshot,
-            work_status_from_process_result(result),
-            terminal_summary_from_process_result(result),
+            work_status_from_summary(&result.summary),
+            terminal_summary_from_summary(&result.summary),
             now_ms,
         );
 
