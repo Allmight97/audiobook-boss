@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::processing::{PreviewConfig, ProcessingContext, ProcessingStage, ProgressReporter};
+use crate::processing::{PreviewConfig, ProcessingContext};
 use uuid::Uuid;
 
 use super::ProcessingWorkflow;
@@ -45,14 +45,11 @@ pub(crate) fn create_temp_directory_with_session(
     crate::audio::processor::staging::create_processing_workspace_dir(session_id, workspace_root)
 }
 
-/// Emits initial progress + validates inputs with cancellation awareness.
+/// Validates inputs with cancellation awareness.
 pub(crate) fn validate_inputs_with_progress(
     context: &ProcessingContext,
     files: &[AudioFile],
 ) -> Result<()> {
-    let mut emitter = ProgressReporter::new(1);
-    emitter.set_stage(ProcessingStage::Analyzing);
-
     validate_processing_inputs(context, files)?;
 
     if context.is_cancelled() {
@@ -66,9 +63,6 @@ pub(crate) fn prepare_workspace(
     context: &ProcessingContext,
     files: &[AudioFile],
 ) -> Result<ProcessingWorkflow> {
-    let mut emitter = ProgressReporter::new(1);
-    emitter.set_stage(ProcessingStage::Analyzing);
-
     let temp_dir = create_temp_directory_with_session(
         context.session.uuid(),
         context.processing_workspace_root(),

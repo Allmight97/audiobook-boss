@@ -1,15 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import {
-	existsSync,
-	lstatSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	readlinkSync,
-	rmSync,
-	symlinkSync,
-	unlinkSync,
-} from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -33,33 +23,15 @@ interface BundlePaths {
 	executablePath: string;
 	helperExecutablePath: string;
 	applicationsAppPath: string;
-	applicationsLinkPath: string;
 	dmgDir: string;
 }
 
-type ApplicationsLinkOutcome = 'created' | 'updated' | 'skipped';
 type RequestedBundle = 'app' | 'dmg';
 
 interface BuildTauriAppOptions {
 	commandRunner?: typeof spawnSync;
 	nonInteractiveDmg?: boolean;
 }
-
-interface LinkFsOps {
-	lstatSync: typeof lstatSync;
-	mkdirSync: typeof mkdirSync;
-	readlinkSync: typeof readlinkSync;
-	symlinkSync: typeof symlinkSync;
-	unlinkSync: typeof unlinkSync;
-}
-
-const defaultLinkFsOps: LinkFsOps = {
-	lstatSync,
-	mkdirSync,
-	readlinkSync,
-	symlinkSync,
-	unlinkSync,
-};
 
 const aaxcleanHelperExternalBin = `binaries/${aaxcleanHelperBaseName}`;
 
@@ -152,7 +124,6 @@ export function resolveMacOsBundlePaths(
 		executablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', packageJson.name),
 		helperExecutablePath: path.join(canonicalAppPath, 'Contents', 'MacOS', aaxcleanHelperBaseName),
 		applicationsAppPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
-		applicationsLinkPath: path.join(applicationsDir, `${tauriConfig.productName}.app`),
 		dmgDir: path.join(repoRoot, 'target/release/bundle/dmg'),
 	};
 }
@@ -326,64 +297,6 @@ export function findUnsupportedMacOsArchitectures(lipoOutput: string): string[] 
 		.filter((arch) => arch !== 'arm64' && arch !== 'arm64e');
 }
 
-export function refreshApplicationsLink(
-	paths: BundlePaths,
-	fsOps: LinkFsOps = defaultLinkFsOps,
-): ApplicationsLinkOutcome {
-	try {
-		fsOps.mkdirSync(path.dirname(paths.applicationsLinkPath), { recursive: true });
-	} catch (error) {
-		if (isPermissionDeniedError(error)) {
-			return 'skipped';
-		}
-		throw error;
-	}
-
-	if (!existsSync(paths.canonicalAppPath)) {
-		throw new Error(`Expected canonical app bundle at ${paths.canonicalAppPath}`);
-	}
-
-	const existingLinkStats = readLinkStats(paths.applicationsLinkPath, fsOps.lstatSync);
-	if (existingLinkStats === 'permission-denied') {
-		return 'skipped';
-	}
-	if (existingLinkStats === null) {
-		try {
-			fsOps.symlinkSync(paths.canonicalAppPath, paths.applicationsLinkPath, 'dir');
-		} catch (error) {
-			if (isPermissionDeniedError(error)) {
-				return 'skipped';
-			}
-			throw error;
-		}
-		return 'created';
-	}
-
-	if (!existingLinkStats.isSymbolicLink()) {
-		return 'skipped';
-	}
-
-	const currentTarget = path.resolve(
-		path.dirname(paths.applicationsLinkPath),
-		fsOps.readlinkSync(paths.applicationsLinkPath),
-	);
-	if (currentTarget === paths.canonicalAppPath) {
-		return 'skipped';
-	}
-
-	try {
-		fsOps.unlinkSync(paths.applicationsLinkPath);
-		fsOps.symlinkSync(paths.canonicalAppPath, paths.applicationsLinkPath, 'dir');
-	} catch (error) {
-		if (isPermissionDeniedError(error)) {
-			return 'skipped';
-		}
-		throw error;
-	}
-
-	return 'updated';
-}
-
 export function installLocalApplicationBundle(
 	paths: BundlePaths,
 	commandRunner: typeof spawnSync = spawnSync,
@@ -450,29 +363,6 @@ function launchServicesRegisterPath(): string {
 		'/System/Library/Frameworks/CoreServices.framework',
 		'Frameworks/LaunchServices.framework/Support/lsregister',
 	].join('/');
-}
-
-function readLinkStats(
-	linkPath: string,
-	lstat: typeof lstatSync,
-): ReturnType<typeof lstatSync> | null | 'permission-denied' {
-	try {
-		return lstat(linkPath);
-	} catch (error) {
-		const code = (error as NodeJS.ErrnoException).code;
-		if (code === 'ENOENT') {
-			return null;
-		}
-		if (code === 'EACCES' || code === 'EPERM') {
-			return 'permission-denied';
-		}
-		throw error;
-	}
-}
-
-function isPermissionDeniedError(error: unknown): boolean {
-	const code = (error as NodeJS.ErrnoException).code;
-	return code === 'EACCES' || code === 'EPERM';
 }
 
 function main(): void {

@@ -106,11 +106,6 @@ export type PreparedImportAnalysisWorkflowEntry =
 				ImportAnalysisWorkflowServices['discoverAudioImportPaths']
 			>;
 			readonly existingFiles: AudioFile[];
-	  }
-	| {
-			readonly type: 'analyzeFiles';
-			readonly fileListInfo: ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>;
-			readonly existingFiles: AudioFile[];
 	  };
 
 export type ImportAnalysisWorkflowResult =
@@ -299,47 +294,6 @@ function discoverAndProcessPaths(
 	});
 }
 
-function processPreparedFileList(
-	fileListInfoPromise: ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
-	existingFiles: AudioFile[],
-): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
-	return processAnalyzedFileList(() => fileListInfoPromise, existingFiles);
-}
-
-function clickToSelect(
-	existingFiles: AudioFile[],
-): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
-	return Effect.gen(function* () {
-		const services = yield* ImportAnalysisWorkflowServicesTag;
-		if (services.isOrderLocked()) {
-			const message = importOrderLockedMessage();
-			services.setFileImportError(message);
-			return blockedResult(message);
-		}
-
-		return yield* processSelectedFiles(
-			services,
-			() => openSupportedAudioFiles(services),
-			existingFiles,
-		);
-	});
-}
-
-function clickToSelectFolder(
-	existingFiles: AudioFile[],
-): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
-	return Effect.gen(function* () {
-		const services = yield* ImportAnalysisWorkflowServicesTag;
-		if (services.isOrderLocked()) {
-			const message = importOrderLockedMessage();
-			services.setFileImportError(message);
-			return blockedResult(message);
-		}
-
-		return yield* processSelectedFolder(services, () => services.openDirectory(), existingFiles);
-	});
-}
-
 function openSupportedAudioFiles(
 	services: ImportAnalysisWorkflowServices,
 ): ReturnType<ImportAnalysisWorkflowServices['openFiles']> {
@@ -453,29 +407,15 @@ function importPathsFromPrepared(
 }
 
 function importAnalysisWorkflowBody(
-	action: ImportAnalysisWorkflowAction,
-	preparedEntry?: PreparedImportAnalysisWorkflowEntry,
+	preparedEntry: PreparedImportAnalysisWorkflowEntry,
 ): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
-	if (preparedEntry?.type === 'openFiles') {
-		return clickToSelectFromPrepared(preparedEntry);
-	}
-	if (preparedEntry?.type === 'openDirectory') {
-		return clickToSelectFolderFromPrepared(preparedEntry);
-	}
-	if (preparedEntry?.type === 'discoverPaths') {
-		return importPathsFromPrepared(preparedEntry);
-	}
-	if (preparedEntry?.type === 'analyzeFiles') {
-		return processPreparedFileList(preparedEntry.fileListInfo, preparedEntry.existingFiles);
-	}
-
-	switch (action.type) {
-		case 'clickToSelect':
-			return clickToSelect(action.existingFiles);
-		case 'clickToSelectFolder':
-			return clickToSelectFolder(action.existingFiles);
-		case 'importPaths':
-			return discoverAndProcessPaths(action.paths, action.existingFiles);
+	switch (preparedEntry.type) {
+		case 'openFiles':
+			return clickToSelectFromPrepared(preparedEntry);
+		case 'openDirectory':
+			return clickToSelectFolderFromPrepared(preparedEntry);
+		case 'discoverPaths':
+			return importPathsFromPrepared(preparedEntry);
 	}
 }
 
@@ -526,19 +466,9 @@ export function enterImportAnalysisWorkflow(
 	}
 }
 
-export function importAnalysisWorkflowExecution(
-	action: ImportAnalysisWorkflowAction,
-): AppEffect<ImportAnalysisWorkflowResult, never, ImportAnalysisWorkflowServicesId> {
-	return importAnalysisWorkflowBody(action);
-}
-
 export async function runImportAnalysisWorkflow(
-	action: ImportAnalysisWorkflowAction,
-	layer?: ImportAnalysisWorkflowLayer,
-	preparedEntry?: PreparedImportAnalysisWorkflowEntry,
+	preparedEntry: PreparedImportAnalysisWorkflowEntry,
+	layer: ImportAnalysisWorkflowLayer = ImportAnalysisWorkflowLive,
 ): Promise<ImportAnalysisWorkflowResult> {
-	const workflowLayer = layer ?? ImportAnalysisWorkflowLive;
-	return runAppEffect(
-		importAnalysisWorkflowBody(action, preparedEntry).pipe(Effect.provide(workflowLayer)),
-	);
+	return runAppEffect(importAnalysisWorkflowBody(preparedEntry).pipe(Effect.provide(layer)));
 }

@@ -101,7 +101,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
         ui.emit_finalizing("Finalizing metadata...");
     }
 
-    super::finalize::complete_staged_output(&context, temp_output, &mut cleanup_guard, None)
+    super::finalize::complete_staged_output(&context, temp_output, &mut cleanup_guard)
 }
 
 fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../../types/audio';
 import type { FileListAppendResult } from '../../fileList/appendResult';
 import {
-	importAnalysisWorkflowExecution,
+	enterImportAnalysisWorkflow,
+	type ImportAnalysisWorkflowAction,
 	makeImportAnalysisWorkflowServicesLayer,
 	runImportAnalysisWorkflow,
 	type ImportAnalysisWorkflowServices,
@@ -89,16 +89,27 @@ function makeHarness(overrides: Partial<ImportAnalysisWorkflowServices> = {}) {
 	};
 }
 
+// Drives the production entry path: enter (order-lock check + eager dialog/discovery
+// capture) -> run the prepared entry, exactly as handlers.ts does. There is no
+// separate test-only execution path.
+async function runWorkflow(
+	harness: ReturnType<typeof makeHarness>,
+	action: ImportAnalysisWorkflowAction,
+): Promise<void> {
+	const preparedEntry = enterImportAnalysisWorkflow(harness.services, action);
+	if (preparedEntry) {
+		await runImportAnalysisWorkflow(preparedEntry, harness.layer);
+	}
+}
+
 describe('ImportAnalysisWorkflow', () => {
 	it('blocks import while file order is locked', async () => {
 		const harness = makeHarness({ isOrderLocked: vi.fn(() => true) });
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelect',
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelect',
+			existingFiles: [],
+		});
 
 		expect(harness.services.openFiles).not.toHaveBeenCalled();
 		expect(harness.services.discoverAudioImportPaths).not.toHaveBeenCalled();
@@ -110,12 +121,10 @@ describe('ImportAnalysisWorkflow', () => {
 	it('does nothing when file picker is cancelled', async () => {
 		const harness = makeHarness({ openFiles: vi.fn(async () => null) });
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelect',
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelect',
+			existingFiles: [],
+		});
 
 		expect(harness.services.analyzeAudioFiles).not.toHaveBeenCalled();
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
@@ -126,13 +135,11 @@ describe('ImportAnalysisWorkflow', () => {
 			discoverAudioImportPaths: vi.fn(async () => []),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'importPaths',
-				paths: ['/tmp/notes.txt', '/tmp/image.png'],
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'importPaths',
+			paths: ['/tmp/notes.txt', '/tmp/image.png'],
+			existingFiles: [],
+		});
 
 		expect(harness.services.discoverAudioImportPaths).toHaveBeenCalledWith([
 			'/tmp/notes.txt',
@@ -149,13 +156,11 @@ describe('ImportAnalysisWorkflow', () => {
 			discoverAudioImportPaths: vi.fn(async () => ['/tmp/a.wav', '/tmp/c.M4B']),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'importPaths',
-				paths: ['/tmp/a.wav', '/tmp/b.txt', '/tmp/c.M4B'],
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'importPaths',
+			paths: ['/tmp/a.wav', '/tmp/b.txt', '/tmp/c.M4B'],
+			existingFiles: [],
+		});
 
 		expect(harness.services.discoverAudioImportPaths).toHaveBeenCalledWith([
 			'/tmp/a.wav',
@@ -171,12 +176,10 @@ describe('ImportAnalysisWorkflow', () => {
 			discoverAudioImportPaths: vi.fn(async () => ['/books/author/Book 1.m4b']),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelectFolder',
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelectFolder',
+			existingFiles: [],
+		});
 
 		expect(harness.services.openDirectory).toHaveBeenCalledTimes(1);
 		expect(harness.services.discoverAudioImportPaths).toHaveBeenCalledWith(['/books/author']);
@@ -191,13 +194,11 @@ describe('ImportAnalysisWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'importPaths',
-				paths: ['/tmp/a.m4b'],
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'importPaths',
+			paths: ['/tmp/a.m4b'],
+			existingFiles: [],
+		});
 
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
 		expect(harness.services.console.error).toHaveBeenCalledWith('Failed to analyze files:', cause);
@@ -214,12 +215,10 @@ describe('ImportAnalysisWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelect',
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelect',
+			existingFiles: [],
+		});
 
 		expect(harness.services.analyzeAudioFiles).not.toHaveBeenCalled();
 		expect(harness.services.console.error).toHaveBeenCalledWith(
@@ -236,12 +235,10 @@ describe('ImportAnalysisWorkflow', () => {
 			persistPendingMetadataDraftsForCurrentSelection: vi.fn(async () => false),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelect',
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelect',
+			existingFiles: [],
+		});
 
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
 		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
@@ -257,12 +254,10 @@ describe('ImportAnalysisWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelect',
-				existingFiles: [],
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelect',
+			existingFiles: [],
+		});
 
 		expect(harness.services.appendFileList).not.toHaveBeenCalled();
 		expect(harness.services.console.error).toHaveBeenCalledWith(
@@ -281,12 +276,10 @@ describe('ImportAnalysisWorkflow', () => {
 			analyzeAudioFiles: vi.fn(async () => analyzed),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'clickToSelect',
-				existingFiles,
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'clickToSelect',
+			existingFiles,
+		});
 
 		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
 			existingFiles,
@@ -303,13 +296,11 @@ describe('ImportAnalysisWorkflow', () => {
 			appendFileList: vi.fn(() => appendResult('duplicateOnly', analyzed.files)),
 		});
 
-		await runAppEffect(
-			importAnalysisWorkflowExecution({
-				type: 'importPaths',
-				paths: ['/books/existing.m4b'],
-				existingFiles,
-			}).pipe(Effect.provide(harness.layer)),
-		);
+		await runWorkflow(harness, {
+			type: 'importPaths',
+			paths: ['/books/existing.m4b'],
+			existingFiles,
+		});
 
 		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
 			existingFiles,
@@ -323,84 +314,5 @@ describe('ImportAnalysisWorkflow', () => {
 			'No new files added. All analyzed files were already in the list.',
 		);
 		expect(harness.services.clearFileImportError).not.toHaveBeenCalled();
-	});
-
-	it('appends prepared analyzed file lists through the same staging path', async () => {
-		const existingFiles = [audioFile('/books/existing.m4b')];
-		const analyzed = fileListInfo([audioFile('/books/new.m4b')]);
-		const harness = makeHarness();
-
-		await runImportAnalysisWorkflow(
-			{ type: 'importPaths', paths: [], existingFiles: [] },
-			harness.layer,
-			{
-				type: 'analyzeFiles',
-				fileListInfo: Promise.resolve(analyzed),
-				existingFiles,
-			},
-		);
-
-		expect(harness.services.persistPendingMetadataDraftsForCurrentSelection).toHaveBeenCalledTimes(
-			1,
-		);
-		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
-			existingFiles,
-			showDuplicateStatus: false,
-		});
-		expect(harness.services.clearFileImportError).toHaveBeenCalledTimes(1);
-	});
-
-	it('preserves duplicate-only feedback for prepared analyzed file lists', async () => {
-		const existingFiles = [audioFile('/books/existing.m4b')];
-		const analyzed = fileListInfo([audioFile('/books/existing.m4b')]);
-		const harness = makeHarness({
-			appendFileList: vi.fn(() => appendResult('duplicateOnly', analyzed.files)),
-		});
-
-		await runImportAnalysisWorkflow(
-			{ type: 'importPaths', paths: [], existingFiles: [] },
-			harness.layer,
-			{
-				type: 'analyzeFiles',
-				fileListInfo: Promise.resolve(analyzed),
-				existingFiles,
-			},
-		);
-
-		expect(harness.services.appendFileList).toHaveBeenCalledWith(analyzed, {
-			existingFiles,
-			showDuplicateStatus: false,
-		});
-		expect(harness.services.pushStatusPanelTransientStatus).toHaveBeenCalledWith(
-			'No new files added. All analyzed files were already in the list.',
-			{ ttlMs: 2000 },
-		);
-		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
-			'No new files added. All analyzed files were already in the list.',
-		);
-		expect(harness.services.clearFileImportError).not.toHaveBeenCalled();
-	});
-
-	it('reports rejected prepared analysis without appending files', async () => {
-		const cause = new Error('prepared analysis failed');
-		const harness = makeHarness();
-
-		await runImportAnalysisWorkflow(
-			{ type: 'importPaths', paths: [], existingFiles: [] },
-			harness.layer,
-			{
-				type: 'analyzeFiles',
-				fileListInfo: new Promise<FileListInfo>((_, reject) => {
-					setTimeout(() => reject(cause), 0);
-				}),
-				existingFiles: [],
-			},
-		);
-
-		expect(harness.services.appendFileList).not.toHaveBeenCalled();
-		expect(harness.services.console.error).toHaveBeenCalledWith('Failed to analyze files:', cause);
-		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
-			'Failed to analyze files. Please try again.',
-		);
 	});
 });

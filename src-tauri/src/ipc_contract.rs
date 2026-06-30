@@ -6,8 +6,6 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
-            crate::commands::ping,
-            crate::commands::echo,
             crate::commands::get_app_settings,
             crate::commands::update_app_settings,
             crate::commands::reset_app_settings,
@@ -30,7 +28,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::complete_remote_source_auth,
             crate::commands::logout_remote_source_account,
             crate::commands::load_remote_source_library,
-            crate::commands::refresh_remote_source_library,
             crate::commands::start_remote_source_acquisition,
             crate::commands::get_remote_source_acquisition_status,
             crate::commands::cancel_remote_source_acquisition,

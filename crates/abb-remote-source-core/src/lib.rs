@@ -37,16 +37,6 @@ pub enum MaterializedSourceKind {
     Unsupported,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-pub enum RemoteSourceDiagnosticKind {
-    ProviderAuthRequired,
-    ProviderProtocolGap,
-    ProtectedContentUnsupported,
-    MaterializedFileRejected,
-    CleanupIncomplete,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LicenseFacts {
     pub content_url: Option<String>,
@@ -81,13 +71,6 @@ pub struct AcquisitionProgress {
     pub current_item_index: Option<u32>,
     pub total_items: Option<u32>,
     pub terminal: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SanitizedProviderDiagnostic {
-    pub stage: AcquisitionStage,
-    pub kind: RemoteSourceDiagnosticKind,
-    pub message: String,
 }
 
 pub fn classify_materialized_source_path(path: &Path) -> MaterializedSourceKind {
@@ -229,26 +212,6 @@ pub fn acquisition_progress_for_current_title(
     progress
 }
 
-pub fn sanitized_provider_diagnostic(
-    stage: AcquisitionStage,
-    kind: RemoteSourceDiagnosticKind,
-    raw_message: &str,
-) -> SanitizedProviderDiagnostic {
-    SanitizedProviderDiagnostic {
-        stage,
-        kind,
-        message: redact_provider_detail(raw_message),
-    }
-}
-
-pub fn redact_provider_detail(raw_message: &str) -> String {
-    raw_message
-        .split_whitespace()
-        .map(redact_token)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 fn classify_media_container_url(url: &str) -> MediaContainerKind {
     let without_query = url.split('?').next().unwrap_or(url);
     abb_media_core::classify_media_container_path(Path::new(without_query))
@@ -307,33 +270,6 @@ fn find_first_non_empty_object_for_keys(value: &Value, keys: &[&str]) -> bool {
             .any(|entry| find_first_non_empty_object_for_keys(entry, keys)),
         _ => false,
     }
-}
-
-fn redact_token(token: &str) -> String {
-    let lowercase = token.to_ascii_lowercase();
-    if lowercase.contains("http://") || lowercase.contains("https://") {
-        return "[redacted-url]".to_string();
-    }
-    if lowercase.contains('{') || lowercase.contains('}') {
-        return "[redacted-provider-data]".to_string();
-    }
-    if [
-        "token",
-        "signature",
-        "license",
-        "voucher",
-        "authorization",
-        "bearer",
-        "cookie",
-        "payload",
-        "secret",
-    ]
-    .iter()
-    .any(|sensitive| lowercase.contains(sensitive))
-    {
-        return "[redacted-provider-field]".to_string();
-    }
-    token.to_string()
 }
 
 #[cfg(test)]
@@ -504,23 +440,6 @@ mod tests {
             choose_acquisition_strategy(&facts),
             AcquisitionStrategy::DownloadThenDecryptDash
         );
-    }
-
-    #[test]
-    fn diagnostics_redact_provider_private_material() {
-        let diagnostic = sanitized_provider_diagnostic(
-            AcquisitionStage::Download,
-            RemoteSourceDiagnosticKind::ProviderProtocolGap,
-            "GET https://cdn.example.test/book.aax?Signature=fake-secret token=fake-token license=fake-license raw={\"payload\":\"secret\"} returned 403",
-        );
-
-        assert_eq!(diagnostic.stage, AcquisitionStage::Download);
-        assert!(diagnostic.message.contains("403"));
-        assert!(!diagnostic.message.contains("https://cdn.example.test"));
-        assert!(!diagnostic.message.contains("fake-secret"));
-        assert!(!diagnostic.message.contains("fake-token"));
-        assert!(!diagnostic.message.contains("fake-license"));
-        assert!(!diagnostic.message.contains("payload"));
     }
 
     #[test]

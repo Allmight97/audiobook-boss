@@ -21,7 +21,7 @@ use crate::metadata::{
     extract_passthrough_metadata, merge_passthrough_cover_art, AudiobookMetadata,
     CoverArtPassthroughPolicy, PassthroughSource,
 };
-use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
+use crate::processing::ProcessingContext;
 use std::time::Duration;
 
 // Submodules
@@ -163,11 +163,9 @@ fn process_audiobook_with_context(
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
 ) -> Result<String> {
-    let mut reporter = ProgressReporter::new(files.len());
     let mut metrics = ProcessingMetrics::new();
 
     // Stage 1: Validate + Prepare (from prepare module)
-    reporter.set_stage(ProcessingStage::Analyzing);
     let workflow = prepare::validate_and_prepare(&context, &files)?;
     let workflow_temp_dir = workflow.temp_dir.clone();
     let mut workflow_cleanup = CleanupGuard::new(context.session.id());
@@ -198,17 +196,11 @@ fn process_audiobook_with_context(
         &files,
         effective_metadata.as_ref(),
         passthrough_metadata.as_ref(),
-        &mut reporter,
     )?;
 
     // Stage 3: Finalize
-    let result = finalize::finalize_processing(
-        &context,
-        workflow,
-        merged_output,
-        effective_metadata,
-        &mut reporter,
-    )?;
+    let result =
+        finalize::finalize_processing(&context, workflow, merged_output, effective_metadata)?;
     let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead

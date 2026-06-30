@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use crate::audio::constants::TEMP_MERGED_FILENAME;
 use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
-use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
+use crate::processing::ProcessingContext;
 
 use super::engine::FfmpegNextProcessor;
 use super::plan::MediaProcessingPlan;
@@ -25,10 +25,7 @@ pub(crate) fn execute_processing(
     files: &[AudioFile],
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
-    reporter: &mut ProgressReporter,
 ) -> Result<PathBuf> {
-    reporter.set_stage(ProcessingStage::Converting);
-
     log::info!(
         "Starting FFmpeg merge - Total duration: {:.2}s, Bitrate: {}k",
         workflow.total_duration(),

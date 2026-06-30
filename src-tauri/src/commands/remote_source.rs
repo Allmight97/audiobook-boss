@@ -60,15 +60,6 @@ pub async fn load_remote_source_library(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn refresh_remote_source_library(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
-    provider_id: ProviderId,
-) -> CommandResult<RemoteLibraryResponse> {
-    Ok(runtime.load_library(provider_id).await?)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn start_remote_source_acquisition(
     runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
     plan: AcquisitionPlan,

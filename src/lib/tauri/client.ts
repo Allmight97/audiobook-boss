@@ -180,8 +180,6 @@ function openDirectory(options?: DialogOptions): Promise<string | null> {
 }
 
 export const tauriClient = {
-	ping: (): Promise<CommandResult<'ping'>> => commandSpecs.ping(),
-	echo: (input: string): Promise<CommandResult<'echo'>> => commandSpecs.echo({ input }),
 	getAppSettings: (): Promise<AppSettings> => commandSpecs.get_app_settings(),
 	updateAppSettings: (patch: AppSettingsPatch): Promise<AppSettings> =>
 		commandSpecs.update_app_settings({ patch }),
@@ -240,8 +238,6 @@ export const tauriClient = {
 		commandSpecs.logout_remote_source_account({ providerId }),
 	loadRemoteSourceLibrary: (providerId: ProviderId): Promise<RemoteLibraryResponse> =>
 		commandSpecs.load_remote_source_library({ providerId }),
-	refreshRemoteSourceLibrary: (providerId: ProviderId): Promise<RemoteLibraryResponse> =>
-		commandSpecs.refresh_remote_source_library({ providerId }),
 	startRemoteSourceAcquisition: (plan: AcquisitionPlan): Promise<AcquisitionJob> =>
 		commandSpecs.start_remote_source_acquisition({ plan }),
 	getRemoteSourceAcquisitionStatus: (jobId: string): Promise<AcquisitionJob> =>

@@ -15,7 +15,7 @@ use crate::metadata::AudiobookMetadata;
 use crate::output_artifact::{
     commit_output_artifact, finalized_output_success, OutputCommitRequest,
 };
-use crate::processing::{ProcessingContext, ProcessingStage, ProgressReporter};
+use crate::processing::ProcessingContext;
 
 use super::ProcessingWorkflow;
 
@@ -26,7 +26,6 @@ pub(crate) fn write_metadata_stage(
     _context: &ProcessingContext,
     merged_output: &Path,
     metadata: Option<AudiobookMetadata>,
-    reporter: &mut ProgressReporter,
 ) -> Result<()> {
     let Some(metadata) = metadata else {
         log::debug!("Finalize metadata stage skipped; no metadata provided");
@@ -39,7 +38,6 @@ pub(crate) fn write_metadata_stage(
     }
 
     let ui = _context.new_emitter();
-    reporter.set_stage(ProcessingStage::WritingMetadata);
     ui.emit_metadata_start("Writing metadata...");
     let started = Instant::now();
     crate::metadata::write_finalized_metadata(merged_output, &metadata)?;
@@ -67,7 +65,6 @@ pub(super) fn complete_staged_output(
     context: &ProcessingContext,
     staged_output: PathBuf,
     cleanup_guard: &mut CleanupGuard,
-    reporter: Option<&mut ProgressReporter>,
 ) -> Result<String> {
     log::info!("🚀 Starting staged output completion");
     log::info!(
@@ -95,9 +92,6 @@ pub(super) fn complete_staged_output(
         "✓ File moved successfully to: {}",
         sanitize_path_for_display(&outcome.final_output)
     );
-    if let Some(reporter) = reporter {
-        reporter.complete();
-    }
     let success = finalized_output_success(
         context.output.output_kind(),
         &outcome.final_output,
@@ -113,13 +107,12 @@ pub(crate) fn complete_processing(
     context: &ProcessingContext,
     workflow: ProcessingWorkflow,
     merged_output: PathBuf,
-    reporter: &mut ProgressReporter,
 ) -> Result<String> {
     let mut cleanup_guard = CleanupGuard::new(context.session.id());
     cleanup_guard.add_path(workflow.temp_dir);
     cleanup_guard.add_path(&merged_output);
 
-    complete_staged_output(context, merged_output, &mut cleanup_guard, Some(reporter))
+    complete_staged_output(context, merged_output, &mut cleanup_guard)
 }
 
 /// Finalize pipeline: metadata + completion
@@ -128,11 +121,10 @@ pub(crate) fn finalize_processing(
     workflow: ProcessingWorkflow,
     merged_output: PathBuf,
     metadata: Option<AudiobookMetadata>,
-    reporter: &mut ProgressReporter,
 ) -> Result<String> {
-    write_metadata_stage(context, &merged_output, metadata, reporter)?;
+    write_metadata_stage(context, &merged_output, metadata)?;
 
-    complete_processing(context, workflow, merged_output, reporter)
+    complete_processing(context, workflow, merged_output)
 }
 
 #[cfg(test)]
