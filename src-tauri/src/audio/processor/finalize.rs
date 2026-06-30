@@ -81,10 +81,8 @@ pub(super) fn complete_staged_output(
     let ui = context.new_emitter();
     ui.emit_cleanup("Cleaning up...");
 
-    let commit_request = OutputCommitRequest::new(
-        context.output.final_path(),
-        context.output.commit_action(),
-    );
+    let commit_request =
+        OutputCommitRequest::new(context.output.final_path(), context.output.commit_action());
     let outcome = commit_output_artifact(commit_request, staged_output, cleanup_guard, || {
         context.is_cancelled()
     })?;
