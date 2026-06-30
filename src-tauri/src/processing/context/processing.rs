@@ -53,10 +53,6 @@ impl OutputConfig {
         &self.final_path
     }
 
-    pub fn artifact_path(&self) -> &Path {
-        &self.final_path
-    }
-
     pub fn output_kind(&self) -> OutputKind {
         self.kind
     }

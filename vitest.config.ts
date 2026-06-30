@@ -18,11 +18,7 @@ export default defineConfig({
 		globals: true,
 	},
 
-	// Resolve aliases to match the main vite config if needed
 	resolve: {
 		conditions: ['browser'],
-		alias: {
-			// Add any path aliases here if needed
-		},
 	},
 });

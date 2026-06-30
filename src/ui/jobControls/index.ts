@@ -70,16 +70,6 @@ export async function applyMaxConcurrentPreference(
 	await pushMaxConcurrentToBackend(selection, false, previousSelection);
 }
 
-export function readMaxConcurrentPreferenceFromState(): ConcurrencyPreference {
-	const effective = jobControlsState.effectiveMaxConcurrent;
-	if (jobControlsState.maxConcurrentSelection === 'auto') {
-		return { mode: 'auto' };
-	}
-
-	const parsed = parseInt(jobControlsState.maxConcurrentSelection, 10);
-	return { mode: 'fixed', value: effective ?? parsed };
-}
-
 export function setJobControlsEnabled(enabled: boolean): void {
 	flushSync(() => {
 		jobControlsState.controlsEnabled = enabled;
