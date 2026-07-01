@@ -3,15 +3,11 @@ import type { MetadataSaveBatchResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { get } from 'svelte/store';
 import {
-	Data,
 	Effect,
 	type AppLayer,
 	type AppEffect,
-	makeWorkflowLayer,
-	makeWorkflowServiceTag,
+	makeWorkflowKit,
 	runAppEffect,
-	workflowTryPromise,
-	workflowTrySync,
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
@@ -42,15 +38,19 @@ export interface MetadataSaveWorkflowServices {
 export type MetadataSaveWorkflowServicesId = 'Core/MetadataSaveWorkflowServices';
 export type MetadataSaveWorkflowLayer = AppLayer<MetadataSaveWorkflowServicesId>;
 
-export const MetadataSaveWorkflowServicesTag = makeWorkflowServiceTag<
-	MetadataSaveWorkflowServicesId,
-	MetadataSaveWorkflowServices
->('Core/MetadataSaveWorkflowServices');
+// #389 spike: the tag/layer/failure/try-wrapper trio comes from one kit while
+// the owner keeps its distinct failure identity for catchTag discrimination.
+const kit = makeWorkflowKit(
+	'Core/MetadataSaveWorkflowServices',
+	'MetadataSaveWorkflowFailed',
+)<MetadataSaveWorkflowServices>();
+
+export const MetadataSaveWorkflowServicesTag = kit.Tag;
 
 export function makeMetadataSaveWorkflowServicesLayer(
 	services: MetadataSaveWorkflowServices,
 ): MetadataSaveWorkflowLayer {
-	return makeWorkflowLayer(MetadataSaveWorkflowServicesTag, services);
+	return kit.makeLive(services);
 }
 
 const liveMetadataSaveWorkflowServices = {
@@ -97,10 +97,8 @@ export const liveMetadataSaveWorkflowEntryServices = {
 	console,
 } satisfies MetadataSaveWorkflowEntryServices;
 
-export class MetadataSaveWorkflowFailed extends Data.TaggedError('MetadataSaveWorkflowFailed')<{
-	readonly message: string;
-	readonly cause: unknown;
-}> {}
+export const MetadataSaveWorkflowFailed = kit.Failed;
+export type MetadataSaveWorkflowFailed = InstanceType<typeof kit.Failed>;
 
 interface MetadataSaveRunState {
 	enteredSave: boolean;
@@ -110,23 +108,8 @@ export interface PreparedMetadataSaveWorkflowEntry {
 	readonly fileList: FileListInfo;
 }
 
-function workflowFailure(message: string, cause: unknown): MetadataSaveWorkflowFailed {
-	return new MetadataSaveWorkflowFailed({ message, cause });
-}
-
-function workflowSync<A>(
-	evaluate: () => A,
-	message: string,
-): AppEffect<A, MetadataSaveWorkflowFailed> {
-	return workflowTrySync(evaluate, message, workflowFailure);
-}
-
-function workflowPromise<A>(
-	evaluate: () => PromiseLike<A>,
-	message: string,
-): AppEffect<A, MetadataSaveWorkflowFailed> {
-	return workflowTryPromise(evaluate, message, workflowFailure);
-}
+const workflowSync = kit.trySync;
+const workflowPromise = kit.tryPromise;
 
 function validFilePathSet(fileList: FileListInfo): Set<string> {
 	return new Set(fileList.files.filter((file) => file.isValid).map((file) => file.path));

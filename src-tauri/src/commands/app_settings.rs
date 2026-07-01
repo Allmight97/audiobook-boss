@@ -47,7 +47,16 @@ async fn update_app_settings_from_config_dir(
     }
 
     match app_settings::update_app_settings(config_dir, patch) {
-        Ok(settings) => Ok(settings),
+        Ok(settings) => {
+            crate::audio::set_user_external_ffmpeg_path(
+                settings
+                    .toolchain
+                    .external_ffmpeg_path
+                    .clone()
+                    .map(Into::into),
+            );
+            Ok(settings)
+        }
         Err(error) => {
             if let Some(previous_effective) = rollback_concurrency {
                 if let Err(rollback_error) =
@@ -82,7 +91,16 @@ async fn reset_app_settings_from_config_dir(
     registry.reset_to_auto().await?;
 
     match app_settings::reset_app_settings(config_dir) {
-        Ok(settings) => Ok(settings),
+        Ok(settings) => {
+            crate::audio::set_user_external_ffmpeg_path(
+                settings
+                    .toolchain
+                    .external_ffmpeg_path
+                    .clone()
+                    .map(Into::into),
+            );
+            Ok(settings)
+        }
         Err(error) => {
             if let Err(rollback_error) = registry.update_max_concurrent(rollback_concurrency).await
             {

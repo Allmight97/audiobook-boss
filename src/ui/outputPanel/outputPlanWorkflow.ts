@@ -1,12 +1,9 @@
 import {
-	Data,
 	Effect,
-	type AppLayer,
 	type AppEffect,
-	makeWorkflowLayer,
-	makeWorkflowServiceTag,
+	type AppLayer,
+	makeWorkflowKit,
 	runAppEffect,
-	workflowTryPromise,
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import type {
@@ -68,15 +65,17 @@ export type OutputPlanWorkflowAction =
 export type OutputPlanWorkflowServicesId = 'OutputPanel/OutputPlanWorkflowServices';
 export type OutputPlanWorkflowLayer = AppLayer<OutputPlanWorkflowServicesId>;
 
-export const OutputPlanWorkflowServicesTag = makeWorkflowServiceTag<
-	OutputPlanWorkflowServicesId,
-	OutputPlanWorkflowServices
->('OutputPanel/OutputPlanWorkflowServices');
+const kit = makeWorkflowKit(
+	'OutputPanel/OutputPlanWorkflowServices',
+	'OutputPlanWorkflowFailed',
+)<OutputPlanWorkflowServices>();
+
+export const OutputPlanWorkflowServicesTag = kit.Tag;
 
 export function makeOutputPlanWorkflowServicesLayer(
 	services: OutputPlanWorkflowServices,
 ): OutputPlanWorkflowLayer {
-	return makeWorkflowLayer(OutputPlanWorkflowServicesTag, services);
+	return kit.makeLive(services);
 }
 
 const liveOutputPlanWorkflowServices = {
@@ -99,21 +98,10 @@ export const OutputPlanWorkflowLive = makeOutputPlanWorkflowServicesLayer(
 	liveOutputPlanWorkflowServices,
 );
 
-export class OutputPlanWorkflowFailed extends Data.TaggedError('OutputPlanWorkflowFailed')<{
-	readonly message: string;
-	readonly cause: unknown;
-}> {}
+export const OutputPlanWorkflowFailed = kit.Failed;
+export type OutputPlanWorkflowFailed = InstanceType<typeof kit.Failed>;
 
-function workflowFailure(message: string, cause: unknown): OutputPlanWorkflowFailed {
-	return new OutputPlanWorkflowFailed({ message, cause });
-}
-
-function workflowPromise<A>(
-	evaluate: () => PromiseLike<A>,
-	message: string,
-): AppEffect<A, OutputPlanWorkflowFailed> {
-	return workflowTryPromise(evaluate, message, workflowFailure);
-}
+const workflowPromise = kit.tryPromise;
 
 function getBlockingReviewMessage(plan: ProcessingPreflightPlan): string | null {
 	const blocked = plan.outputs.find((output) => output.review?.canProceed === false);

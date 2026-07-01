@@ -145,6 +145,26 @@ pub fn run() {
             remote_runtime.cleanup_abandoned_sessions()?;
             app.manage(remote_runtime);
 
+            // Hydrate the durable user FFmpeg path into the audio toolchain
+            // ingress so capability detection sees it from first use.
+            match app
+                .path()
+                .app_config_dir()
+                .map_err(|error| {
+                    errors::AppError::General(format!(
+                        "Failed to resolve app config directory: {error}"
+                    ))
+                })
+                .and_then(|config_dir| app_settings::get_app_settings(&config_dir))
+            {
+                Ok(settings) => audio::set_user_external_ffmpeg_path(
+                    settings.toolchain.external_ffmpeg_path.map(Into::into),
+                ),
+                Err(error) => log::warn!(
+                    "Startup app settings hydration failed; using detected toolchain only: {error}"
+                ),
+            }
+
             if let Some(main_window) = app.get_webview_window("main") {
                 if let Err(error) = configure_startup_window(&main_window) {
                     log::warn!(

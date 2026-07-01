@@ -12,8 +12,7 @@ import {
 	Effect,
 	type AppLayer,
 	type AppEffect,
-	makeWorkflowLayer,
-	makeWorkflowServiceTag,
+	makeWorkflowKit,
 	runAppEffect,
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
@@ -86,15 +85,17 @@ export interface ProcessingWorkflowServices {
 export type ProcessingWorkflowServicesId = 'StatusPanel/ProcessingWorkflowServices';
 export type ProcessingWorkflowLayer = AppLayer<ProcessingWorkflowServicesId>;
 
-export const ProcessingWorkflowServicesTag = makeWorkflowServiceTag<
-	ProcessingWorkflowServicesId,
-	ProcessingWorkflowServices
->('StatusPanel/ProcessingWorkflowServices');
+const kit = makeWorkflowKit(
+	'StatusPanel/ProcessingWorkflowServices',
+	'ProcessingWorkflowFailed',
+)<ProcessingWorkflowServices>();
+
+export const ProcessingWorkflowServicesTag = kit.Tag;
 
 export function makeProcessingWorkflowServicesLayer(
 	services: ProcessingWorkflowServices,
 ): ProcessingWorkflowLayer {
-	return makeWorkflowLayer(ProcessingWorkflowServicesTag, services);
+	return kit.makeLive(services);
 }
 
 export interface ProcessingWorkflowContext {
@@ -109,11 +110,12 @@ export interface ProcessingWorkflowContext {
 	resetToIdle: () => void;
 }
 
-export class ProcessingWorkflowFailed extends Data.TaggedError('ProcessingWorkflowFailed')<{
-	readonly message: string;
-	readonly cause: unknown;
-}> {}
+export const ProcessingWorkflowFailed = kit.Failed;
+export type ProcessingWorkflowFailed = InstanceType<typeof kit.Failed>;
 
+// Documented escape hatch (#389): this owner alone forks a cancellation error
+// and normalizes AppError into the failure message, so the Cancelled class and
+// the failure factory below stay hand-written.
 export class ProcessingWorkflowCancelled extends Data.TaggedError('ProcessingWorkflowCancelled')<{
 	readonly message: string;
 	readonly cause: unknown;

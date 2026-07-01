@@ -11,6 +11,8 @@ pub struct AppSettings {
     pub max_concurrent_jobs: ConcurrencyPreference,
     pub encoder_defaults: EncoderDefaults,
     pub output_defaults: OutputDefaults,
+    #[serde(default)]
+    pub toolchain: ToolchainPreferences,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -19,6 +21,18 @@ pub struct AppSettingsPatch {
     pub max_concurrent_jobs: Option<ConcurrencyPreference>,
     pub encoder_defaults: Option<EncoderDefaults>,
     pub output_defaults: Option<OutputDefaults>,
+    pub toolchain: Option<ToolchainPreferences>,
+}
+
+/// Durable toolchain preferences. Preference data only: the audio toolchain
+/// owner probes and validates the path before any runtime use.
+#[derive(
+    Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolchainPreferences {
+    /// User-selected external FFmpeg binary expected to expose `libfdk_aac`.
+    pub external_ffmpeg_path: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -50,6 +64,7 @@ impl Default for AppSettings {
             max_concurrent_jobs: ConcurrencyPreference::Auto,
             encoder_defaults: EncoderDefaults::default(),
             output_defaults: OutputDefaults::default(),
+            toolchain: ToolchainPreferences::default(),
         }
     }
 }
@@ -82,6 +97,9 @@ impl AppSettings {
         if let Some(output_defaults) = patch.output_defaults {
             self.output_defaults = output_defaults;
         }
+        if let Some(toolchain) = patch.toolchain {
+            self.toolchain = toolchain;
+        }
         self.validate()?;
         Ok(self)
     }
@@ -90,6 +108,7 @@ impl AppSettings {
         self.max_concurrent_jobs.validate()?;
         self.encoder_defaults.validate()?;
         self.output_defaults.normalize();
+        self.toolchain.normalize();
         Ok(())
     }
 }
@@ -134,6 +153,16 @@ impl OutputDefaults {
     fn normalize(&mut self) {
         self.output_directory = self
             .output_directory
+            .take()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+}
+
+impl ToolchainPreferences {
+    fn normalize(&mut self) {
+        self.external_ffmpeg_path = self
+            .external_ffmpeg_path
             .take()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());

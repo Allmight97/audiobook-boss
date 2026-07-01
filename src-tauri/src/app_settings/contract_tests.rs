@@ -229,3 +229,63 @@ fn save_failure_removes_temp_file() {
         .count();
     assert_eq!(leaked_temp_files, 0);
 }
+
+#[test]
+fn toolchain_preference_persists_and_blank_path_normalizes_to_unset() {
+    let temp = TempDir::new().expect("temp dir");
+
+    let updated = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            toolchain: Some(ToolchainPreferences {
+                external_ffmpeg_path: Some("  /opt/user/ffmpeg  ".to_string()),
+            }),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("update settings");
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+
+    assert_eq!(
+        updated.toolchain.external_ffmpeg_path.as_deref(),
+        Some("/opt/user/ffmpeg"),
+        "path preference is trimmed and persisted"
+    );
+    assert_eq!(reloaded.toolchain, updated.toolchain);
+
+    let cleared = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            toolchain: Some(ToolchainPreferences {
+                external_ffmpeg_path: Some("   ".to_string()),
+            }),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("clear settings");
+
+    assert_eq!(
+        cleared.toolchain.external_ffmpeg_path, None,
+        "blank path normalizes to unset"
+    );
+}
+
+#[test]
+fn settings_file_without_toolchain_field_loads_with_default() {
+    let temp = TempDir::new().expect("temp dir");
+    // A pre-toolchain settings file must keep loading (serde default).
+    let legacy = serde_json::json!({
+        "maxConcurrentJobs": {"mode": "auto"},
+        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
+        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
+    });
+    std::fs::write(
+        temp.path().join("app-settings.json"),
+        serde_json::to_string_pretty(&legacy).expect("legacy json"),
+    )
+    .expect("write legacy settings");
+
+    let settings = get_app_settings(temp.path()).expect("load legacy settings");
+
+    assert_eq!(settings.toolchain, ToolchainPreferences::default());
+}

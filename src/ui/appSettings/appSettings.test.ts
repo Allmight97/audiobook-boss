@@ -56,6 +56,7 @@ const settingsFixture = (): AppSettings => ({
 			customTemplate: '{author}/{title}',
 		},
 	},
+	toolchain: {},
 });
 
 describe('app settings control plane', () => {

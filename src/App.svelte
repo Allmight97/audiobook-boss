@@ -9,12 +9,20 @@
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
 	import RemoteSourceAcquireDialog from './ui/remoteSource/RemoteSourceAcquireDialog.svelte';
 	import { saveMetadataFromUI } from './ui/core/actions';
-	import { initializeAppSettingsControlPlane } from './ui/appSettings';
+	import {
+		AppSettingsDialogIsland,
+		initializeAppSettingsControlPlane,
+		openAppSettingsDialog,
+	} from './ui/appSettings';
 
 	function handleGlobalKeyDown(event: KeyboardEvent): void {
 		if ((event.metaKey || event.ctrlKey) && event.key === 's') {
 			event.preventDefault();
 			void saveMetadataFromUI();
+		}
+		if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+			event.preventDefault();
+			void openAppSettingsDialog();
 		}
 	}
 
@@ -44,3 +52,4 @@
 <MetadataLookupIsland />
 <RemoteSourceAcquireDialog />
 <CollisionDialogIsland />
+<AppSettingsDialogIsland />

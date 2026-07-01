@@ -31,16 +31,30 @@ Keep Effect private to workflow owners:
 
 ## Workflow Harness Helpers
 
-Workflow owners map infrastructure failures into owner-specific tagged errors
-through the shared kernel helpers:
+Workflow owners get their service tag, live-layer factory, tagged failure
+class, failure factory, and try-wrappers from one kernel kit (#389):
 
-- `workflowTryPromise` for async service calls
-- `workflowTrySync` for synchronous service calls
+```ts
+const kit = makeWorkflowKit(
+	'Owner/WorkflowServices',
+	'OwnerWorkflowFailed',
+)<OwnerWorkflowServices>();
+```
 
-Each owner keeps its own `*WorkflowFailed` tagged error and `workflowFailure`
-factory. Do not reintroduce local `Effect.tryPromise` / `Effect.try` blocks in
-owner files unless the failure mapping is genuinely unique (for example
-`ProcessingWorkflow` normalizes `AppError` before constructing its failure).
+- Re-export `kit.Failed` as the owner's `*WorkflowFailed` (const + type alias)
+  so call sites and tests keep the owner-named class.
+- Use `kit.trySync` / `kit.tryPromise` for service calls; do not reintroduce
+  local `Effect.tryPromise` / `Effect.try` blocks or hand-copied
+  `Data.TaggedError` trios.
+- The failure tag stays a per-owner string literal, so `Effect.catchTag`
+  discriminates owners exactly like hand-written classes (pinned by the kit
+  spike tests in `appEffect.test.ts`).
+- Escape hatch: an owner with genuinely unique failure mapping keeps its own
+  factory built on `kit.Failed` (for example `ProcessingWorkflow` normalizes
+  `AppError` into the message and forks a hand-written
+  `ProcessingWorkflowCancelled`).
+- `workflowTryPromise` / `workflowTrySync` remain exported for the escape-hatch
+  path; kit wrappers are the default.
 
 ## Fake-Layer Harness Shape
 

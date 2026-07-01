@@ -4,11 +4,13 @@ import type {
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
+	ToolchainPreferences as GeneratedToolchainPreferences,
 } from '../lib/generated/tauri';
 import type { EncoderSettings, OutputNamingConfig } from './audio';
 import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
+export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;
 };
@@ -27,4 +29,5 @@ export type AppSettingsPatch = Partial<{
 	outputDefaults:
 		| (Omit<OutputDefaults, 'outputNaming'> & { outputNaming: OutputNamingConfig })
 		| null;
+	toolchain: ToolchainPreferences | null;
 }>;

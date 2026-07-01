@@ -16,6 +16,27 @@ pub enum EncoderCapabilitySource {
     None,
     Bundled,
     Detected,
+    /// Validated from the user-configured FFmpeg path in App Settings.
+    UserConfigured,
+}
+
+/// Process-wide user-configured external FFmpeg path (durable storage is
+/// App Settings; validation stays here). Set at startup hydration and on
+/// every settings update so all resolution sites see one capability truth.
+static USER_EXTERNAL_FFMPEG_PATH: std::sync::RwLock<Option<PathBuf>> = std::sync::RwLock::new(None);
+
+pub fn set_user_external_ffmpeg_path(path: Option<PathBuf>) {
+    match USER_EXTERNAL_FFMPEG_PATH.write() {
+        Ok(mut slot) => *slot = path,
+        Err(poisoned) => *poisoned.into_inner() = path,
+    }
+}
+
+fn user_external_ffmpeg_path() -> Option<PathBuf> {
+    match USER_EXTERNAL_FFMPEG_PATH.read() {
+        Ok(slot) => slot.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -93,13 +114,38 @@ pub(crate) fn detect_encoder_availability_with_resolution(
 }
 
 pub(crate) fn resolve_external_toolchain() -> ToolchainResolution {
-    resolve_external_toolchain_with_auto_candidates(auto_candidates())
+    resolve_external_toolchain_with_candidates(user_external_ffmpeg_path(), auto_candidates())
 }
 
-fn resolve_external_toolchain_with_auto_candidates(
+/// User-configured path wins when it validates. When it fails validation the
+/// resolution degrades to auto-detection, but never silently: the returned
+/// status message names the rejected user path first (#331).
+fn resolve_external_toolchain_with_candidates(
+    user_path: Option<PathBuf>,
     auto_candidates: Vec<PathBuf>,
 ) -> ToolchainResolution {
-    resolve_detected_toolchain(&auto_candidates)
+    let Some(user_path) = user_path else {
+        return resolve_detected_toolchain(&auto_candidates);
+    };
+    match validate_candidate(&user_path, EncoderCapabilitySource::UserConfigured) {
+        Ok(validated) => {
+            let detected_toolchain_path = path_to_string(&validated.ffmpeg_path);
+            ToolchainResolution {
+                validated: Some(validated),
+                detected_toolchain_path,
+                fdk_source: EncoderCapabilitySource::UserConfigured,
+                status_message: "FDK AAC ready (user-configured FFmpeg).".to_string(),
+            }
+        }
+        Err(user_error) => {
+            let mut resolution = resolve_detected_toolchain(&auto_candidates);
+            resolution.status_message = format!(
+                "Configured FFmpeg was rejected: {user_error} Falling back to auto-detection: {}",
+                resolution.status_message
+            );
+            resolution
+        }
+    }
 }
 
 fn resolve_detected_toolchain(auto_candidates: &[PathBuf]) -> ToolchainResolution {
@@ -508,7 +554,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("temp dir");
         let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), true);
 
-        let resolution = resolve_external_toolchain_with_auto_candidates(vec![ffmpeg_path]);
+        let resolution = resolve_external_toolchain_with_candidates(None, vec![ffmpeg_path]);
 
         let validated = resolution.validated.expect("validated toolchain");
         assert_eq!(validated.source, EncoderCapabilitySource::Detected);
@@ -518,6 +564,82 @@ mod tests {
             resolution.detected_toolchain_path.as_deref(),
             Some(validated.ffmpeg_path.to_string_lossy().as_ref())
         );
+    }
+
+    #[test]
+    fn user_configured_path_wins_over_auto_detection() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let user_dir = temp_dir.path().join("user");
+        let auto_dir = temp_dir.path().join("auto");
+        std::fs::create_dir_all(&user_dir).expect("user dir");
+        std::fs::create_dir_all(&auto_dir).expect("auto dir");
+        let user_ffmpeg = write_fake_ffmpeg(&user_dir, true);
+        let auto_ffmpeg = write_fake_ffmpeg(&auto_dir, true);
+
+        let resolution = resolve_external_toolchain_with_candidates(
+            Some(user_ffmpeg.clone()),
+            vec![auto_ffmpeg],
+        );
+
+        let validated = resolution.validated.expect("validated toolchain");
+        assert_eq!(validated.source, EncoderCapabilitySource::UserConfigured);
+        assert_eq!(validated.ffmpeg_path, user_ffmpeg);
+        assert_eq!(
+            resolution.fdk_source,
+            EncoderCapabilitySource::UserConfigured
+        );
+        assert_eq!(
+            resolution.status_message,
+            "FDK AAC ready (user-configured FFmpeg)."
+        );
+    }
+
+    #[test]
+    fn rejected_user_path_degrades_to_detection_with_explicit_status() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let auto_ffmpeg = write_fake_ffmpeg(temp_dir.path(), true);
+        let missing_user_path = temp_dir.path().join("missing-ffmpeg");
+
+        let resolution = resolve_external_toolchain_with_candidates(
+            Some(missing_user_path),
+            vec![auto_ffmpeg.clone()],
+        );
+
+        // Degradation is explicit, never silent: the detected toolchain still
+        // powers FDK, but the status names the rejected user path first.
+        let validated = resolution.validated.expect("validated toolchain");
+        assert_eq!(validated.source, EncoderCapabilitySource::Detected);
+        assert_eq!(resolution.fdk_source, EncoderCapabilitySource::Detected);
+        assert!(
+            resolution
+                .status_message
+                .starts_with("Configured FFmpeg was rejected:"),
+            "status must lead with the user-path rejection: {}",
+            resolution.status_message
+        );
+        assert!(
+            resolution.status_message.contains("Falling back"),
+            "status must state the fallback: {}",
+            resolution.status_message
+        );
+    }
+
+    #[test]
+    fn rejected_user_path_without_detection_reports_both_failures() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let missing_user_path = temp_dir.path().join("missing-ffmpeg");
+
+        let resolution =
+            resolve_external_toolchain_with_candidates(Some(missing_user_path), Vec::new());
+
+        assert!(resolution.validated.is_none());
+        assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);
+        assert!(resolution
+            .status_message
+            .starts_with("Configured FFmpeg was rejected:"));
+        assert!(resolution
+            .status_message
+            .contains("No external FFmpeg toolchain with libfdk_aac was detected."));
     }
 
     #[cfg(unix)]
@@ -536,7 +658,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("temp dir");
         let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), false);
 
-        let resolution = resolve_external_toolchain_with_auto_candidates(vec![ffmpeg_path]);
+        let resolution = resolve_external_toolchain_with_candidates(None, vec![ffmpeg_path]);
 
         assert!(resolution.validated.is_none());
         assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);

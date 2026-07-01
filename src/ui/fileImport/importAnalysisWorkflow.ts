@@ -1,12 +1,9 @@
 import {
-	Data,
 	Effect,
-	type AppLayer,
 	type AppEffect,
-	makeWorkflowLayer,
-	makeWorkflowServiceTag,
+	type AppLayer,
+	makeWorkflowKit,
 	runAppEffect,
-	workflowTryPromise,
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile, FileListInfo } from '../../types/audio';
@@ -52,15 +49,17 @@ export type ImportAnalysisWorkflowAction =
 export type ImportAnalysisWorkflowServicesId = 'FileImport/ImportAnalysisWorkflowServices';
 export type ImportAnalysisWorkflowLayer = AppLayer<ImportAnalysisWorkflowServicesId>;
 
-export const ImportAnalysisWorkflowServicesTag = makeWorkflowServiceTag<
-	ImportAnalysisWorkflowServicesId,
-	ImportAnalysisWorkflowServices
->('FileImport/ImportAnalysisWorkflowServices');
+const kit = makeWorkflowKit(
+	'FileImport/ImportAnalysisWorkflowServices',
+	'ImportAnalysisWorkflowFailed',
+)<ImportAnalysisWorkflowServices>();
+
+export const ImportAnalysisWorkflowServicesTag = kit.Tag;
 
 export function makeImportAnalysisWorkflowServicesLayer(
 	services: ImportAnalysisWorkflowServices,
 ): ImportAnalysisWorkflowLayer {
-	return makeWorkflowLayer(ImportAnalysisWorkflowServicesTag, services);
+	return kit.makeLive(services);
 }
 
 export const liveImportAnalysisWorkflowServices = {
@@ -84,10 +83,8 @@ export const ImportAnalysisWorkflowLive = makeImportAnalysisWorkflowServicesLaye
 
 export { importOrderLockedMessage } from './importAnalysisWorkflowFeedback';
 
-export class ImportAnalysisWorkflowFailed extends Data.TaggedError('ImportAnalysisWorkflowFailed')<{
-	readonly message: string;
-	readonly cause: unknown;
-}> {}
+export const ImportAnalysisWorkflowFailed = kit.Failed;
+export type ImportAnalysisWorkflowFailed = InstanceType<typeof kit.Failed>;
 
 export type PreparedImportAnalysisWorkflowEntry =
 	| {
@@ -120,16 +117,7 @@ function blockedResult(message: string): ImportAnalysisWorkflowResult {
 	return { status: 'blocked', message };
 }
 
-function workflowFailure(message: string, cause: unknown): ImportAnalysisWorkflowFailed {
-	return new ImportAnalysisWorkflowFailed({ message, cause });
-}
-
-function workflowPromise<A>(
-	evaluate: () => PromiseLike<A>,
-	message: string,
-): AppEffect<A, ImportAnalysisWorkflowFailed> {
-	return workflowTryPromise(evaluate, message, workflowFailure);
-}
+const workflowPromise = kit.tryPromise;
 
 function appendAnalyzedFiles(
 	services: ImportAnalysisWorkflowServices,

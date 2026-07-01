@@ -108,6 +108,9 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 			? toGeneratedEncoderDefaults(patch.encoderDefaults)
 			: null,
 		outputDefaults: patch.outputDefaults ? toGeneratedOutputDefaults(patch.outputDefaults) : null,
+		toolchain: patch.toolchain
+			? { externalFfmpegPath: patch.toolchain.externalFfmpegPath ?? null }
+			: null,
 	};
 }
 

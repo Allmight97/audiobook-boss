@@ -2,15 +2,11 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import type { AudiobookMetadata } from '../../types/metadata';
 import {
-	Data,
 	Effect,
 	type AppLayer,
 	type AppEffect,
-	makeWorkflowLayer,
-	makeWorkflowServiceTag,
+	makeWorkflowKit,
 	runAppEffect,
-	workflowTryPromise,
-	workflowTrySync,
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import { clearCoverArt, refreshCoverArtDisplay, setCoverArt, setCustomCoverArt } from '../coverArt';
@@ -74,15 +70,17 @@ export interface MetadataLookupWorkflowServices {
 export type MetadataLookupWorkflowServicesId = 'MetadataLookup/WorkflowServices';
 export type MetadataLookupWorkflowLayer = AppLayer<MetadataLookupWorkflowServicesId>;
 
-export const MetadataLookupWorkflowServicesTag = makeWorkflowServiceTag<
-	MetadataLookupWorkflowServicesId,
-	MetadataLookupWorkflowServices
->('MetadataLookup/WorkflowServices');
+const kit = makeWorkflowKit(
+	'MetadataLookup/WorkflowServices',
+	'MetadataLookupWorkflowFailed',
+)<MetadataLookupWorkflowServices>();
+
+export const MetadataLookupWorkflowServicesTag = kit.Tag;
 
 export function makeMetadataLookupWorkflowServicesLayer(
 	services: MetadataLookupWorkflowServices,
 ): MetadataLookupWorkflowLayer {
-	return makeWorkflowLayer(MetadataLookupWorkflowServicesTag, services);
+	return kit.makeLive(services);
 }
 
 const liveMetadataLookupWorkflowServices = {
@@ -149,28 +147,11 @@ export type MetadataLookupWorkflowAction =
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
 
-export class MetadataLookupWorkflowFailed extends Data.TaggedError('MetadataLookupWorkflowFailed')<{
-	readonly message: string;
-	readonly cause: unknown;
-}> {}
+export const MetadataLookupWorkflowFailed = kit.Failed;
+export type MetadataLookupWorkflowFailed = InstanceType<typeof kit.Failed>;
 
-function workflowFailure(message: string, cause: unknown): MetadataLookupWorkflowFailed {
-	return new MetadataLookupWorkflowFailed({ message, cause });
-}
-
-function workflowSync<A>(
-	evaluate: () => A,
-	message: string,
-): AppEffect<A, MetadataLookupWorkflowFailed> {
-	return workflowTrySync(evaluate, message, workflowFailure);
-}
-
-function workflowPromise<A>(
-	evaluate: () => PromiseLike<A>,
-	message: string,
-): AppEffect<A, MetadataLookupWorkflowFailed> {
-	return workflowTryPromise(evaluate, message, workflowFailure);
-}
+const workflowSync = kit.trySync;
+const workflowPromise = kit.tryPromise;
 
 function refreshOutputForMetadataChange(services: MetadataLookupWorkflowServices): void {
 	services.updateOutputPath('final');

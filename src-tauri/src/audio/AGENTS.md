@@ -32,7 +32,9 @@
   `resolve_encoder_type`, `resolve_encoder_name`,
   `detect_encoder_availability`, `detect_aac_decoder_availability`,
   `preferred_aac_decoder_order_labels`, `execute_audio_engine`,
-  `validate_audio_engine_inputs`.
+  `validate_audio_engine_inputs`, `set_user_external_ffmpeg_path` (settings
+  hydration/update ingress for the durable user FFmpeg path; validation stays
+  toolchain-owned).
 - Execution request type: `AudioExecutionRequest`.
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.

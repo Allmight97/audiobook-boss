@@ -180,12 +180,14 @@ export type AppSettings = {
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
+	toolchain?: ToolchainPreferences,
 };
 
 export type AppSettingsPatch = {
 	maxConcurrentJobs: ConcurrencyPreference | null,
 	encoderDefaults: EncoderDefaults | null,
 	outputDefaults: OutputDefaults | null,
+	toolchain: ToolchainPreferences | null,
 };
 
 // Represents an audio file with metadata
@@ -290,7 +292,9 @@ export type EncoderBitrateModeCapability = {
 	defaultMode: BitrateMode,
 };
 
-export type EncoderCapabilitySource = "none" | "bundled" | "detected";
+export type EncoderCapabilitySource = "none" | "bundled" | "detected" |
+// Validated from the user-configured FFmpeg path in App Settings.
+"user_configured";
 
 export type EncoderDefaults = {
 	settings: EncoderSettings,
@@ -827,6 +831,15 @@ export type ThreadSetting =
 { mode: "off" } |
 // Fixed number of threads
 { mode: "fixed"; value: number };
+
+/**
+ *  Durable toolchain preferences. Preference data only: the audio toolchain
+ *  owner probes and validates the path before any runtime use.
+ */
+export type ToolchainPreferences = {
+	// User-selected external FFmpeg binary expected to expose `libfdk_aac`.
+	externalFfmpegPath: string | null,
+};
 
 export type WorkOperationListSnapshotEvent = {
 	operations: OperationSnapshot[],

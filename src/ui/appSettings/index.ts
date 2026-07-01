@@ -5,3 +5,5 @@ export {
 	persistEncoderDefaults,
 	persistOutputDefaults,
 } from './persistence';
+export { default as AppSettingsDialogIsland } from './AppSettingsDialogIsland.svelte';
+export { closeAppSettingsDialog, openAppSettingsDialog } from './settingsDialog.svelte';

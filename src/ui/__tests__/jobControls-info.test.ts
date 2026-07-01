@@ -109,6 +109,7 @@ function appSettingsFixture() {
 			},
 			outputDirectory: undefined,
 		},
+		toolchain: {},
 	};
 }
 
