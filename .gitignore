@@ -76,7 +76,6 @@ __pycache__/
 
 # Local AI/editor settings
 .cursor/
-opencode.json
 .btca/
 .learnings/
 
