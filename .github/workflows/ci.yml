@@ -1,0 +1,63 @@
+name: tripwire
+
+# Narrow app-correctness tripwire (issue #341 / roadmap #407 Slice 1).
+# Deliberately NOT a broad app gate: typecheck + clean-install svelte-check,
+# generated-binding drift, and core-crate Nextest only. Widen only with
+# repo-owner sign-off recorded in docs/DECISIONS.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tripwire-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Typecheck + svelte-check (clean install)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run check:svelte
+
+  rust-core:
+    name: Core-crate Nextest
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: >-
+          cargo nextest run
+          -p abb-audible-core
+          -p abb-media-core
+          -p abb-metadata-core
+          -p abb-output-artifact-core
+          -p abb-processing-core
+          -p abb-remote-source-core
+
+  bindings:
+    name: Generated-binding drift
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
+      - uses: Swatinem/rust-cache@v2
+      - run: bash scripts/check-generated-bindings.sh --mode verify
