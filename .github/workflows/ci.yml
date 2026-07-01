@@ -60,4 +60,6 @@ jobs:
         with:
           toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
+      # ffmpeg-sys-next links the system FFmpeg libs (libavutil etc.)
+      - run: brew install ffmpeg pkg-config
       - run: bash scripts/check-generated-bindings.sh --mode verify
