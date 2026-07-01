@@ -206,7 +206,21 @@ where
 
     for (index, item) in items.into_iter().enumerate() {
         if cancellation.is_cancelled() {
-            push_cancelled_entries(index, item, total, &mut results, &mut emit_progress);
+            let message = METADATA_SAVE_CANCELLED_MESSAGE.to_string();
+            emit_progress(MetadataSaveProgress {
+                input_index: index,
+                file_path: item.file_path.clone(),
+                stage: EventStage::Cancelled,
+                percentage: 0.0,
+                message: format!("{} {}/{}", message, index + 1, total),
+            });
+            results.push(MetadataSaveResultEntry {
+                input_index: index,
+                file_path: item.file_path,
+                status: MetadataSaveResultStatus::Cancelled,
+                message,
+                error: None,
+            });
             continue;
         }
 
@@ -269,32 +283,6 @@ where
     }
 
     Ok(MetadataSaveBatchResult::new(results))
-}
-
-fn push_cancelled_entries<F>(
-    index: usize,
-    item: MetadataSaveRequest,
-    total: usize,
-    results: &mut Vec<MetadataSaveResultEntry>,
-    emit_progress: &mut F,
-) where
-    F: FnMut(MetadataSaveProgress),
-{
-    let message = METADATA_SAVE_CANCELLED_MESSAGE.to_string();
-    emit_progress(MetadataSaveProgress {
-        input_index: index,
-        file_path: item.file_path.clone(),
-        stage: EventStage::Cancelled,
-        percentage: 0.0,
-        message: format!("{} {}/{}", message, index + 1, total),
-    });
-    results.push(MetadataSaveResultEntry {
-        input_index: index,
-        file_path: item.file_path,
-        status: MetadataSaveResultStatus::Cancelled,
-        message,
-        error: None,
-    });
 }
 
 fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> Result<()> {

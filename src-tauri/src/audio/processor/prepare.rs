@@ -2,12 +2,9 @@
 //!
 //! Functions are private to the audio processor cluster.
 
-use std::path::{Path, PathBuf};
-
 use crate::audio::AudioFile;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::{PreviewConfig, ProcessingContext};
-use uuid::Uuid;
 
 use super::ProcessingWorkflow;
 
@@ -37,33 +34,12 @@ pub(crate) fn validate_processing_inputs(
     Ok(())
 }
 
-/// Creates a session-specific local processing workspace.
-pub(crate) fn create_temp_directory_with_session(
-    session_id: Uuid,
-    workspace_root: &Path,
-) -> Result<PathBuf> {
-    crate::audio::processor::staging::create_processing_workspace_dir(session_id, workspace_root)
-}
-
-/// Validates inputs with cancellation awareness.
-pub(crate) fn validate_inputs_with_progress(
-    context: &ProcessingContext,
-    files: &[AudioFile],
-) -> Result<()> {
-    validate_processing_inputs(context, files)?;
-
-    if context.is_cancelled() {
-        return Err(AppError::cancelled());
-    }
-    Ok(())
-}
-
 /// Prepares workspace (temp dir + concat file + total duration aggregation).
 pub(crate) fn prepare_workspace(
     context: &ProcessingContext,
     files: &[AudioFile],
 ) -> Result<ProcessingWorkflow> {
-    let temp_dir = create_temp_directory_with_session(
+    let temp_dir = crate::audio::processor::staging::create_processing_workspace_dir(
         context.session.uuid(),
         context.processing_workspace_root(),
     )?;
@@ -97,13 +73,17 @@ pub(crate) fn validate_and_prepare(
     context: &ProcessingContext,
     files: &[AudioFile],
 ) -> Result<ProcessingWorkflow> {
-    validate_inputs_with_progress(context, files)?;
+    validate_processing_inputs(context, files)?;
+    if context.is_cancelled() {
+        return Err(AppError::cancelled());
+    }
     prepare_workspace(context, files)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn audio_file(name: &str, duration: Option<f64>, is_valid: bool) -> AudioFile {
         AudioFile {
