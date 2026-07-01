@@ -13,6 +13,20 @@ fn collision_state_changed_error(final_path: &Path) -> AppError {
     ))
 }
 
+/// User-facing wording for the destination filesystem refusing the final
+/// commit (#299 Branch A): distinguishes "the destination said no" from
+/// generic processing failure and names the realistic causes. The existing
+/// destination file, if any, is never touched by a refused commit.
+fn destination_refused_commit_error(final_path: &Path, error: impl std::fmt::Display) -> AppError {
+    AppError::FileValidation(format!(
+        "The destination refused the final file commit for '{}': {error}. \
+         If the output folder is a network share, external drive, or \
+         cloud-synced folder, check write permissions and free space, or \
+         retry with a local output folder.",
+        sanitize_path_for_display(final_path),
+    ))
+}
+
 fn remove_copied_temp_output_with<H, R>(
     temp_output: &Path,
     final_path: &Path,
@@ -60,26 +74,13 @@ fn copy_staged_output_to_new_file(temp_output: &Path, destination_path: &Path) -
             if error.kind() == ErrorKind::AlreadyExists {
                 return collision_state_changed_error(destination_path);
             }
-            AppError::FileValidation(format!(
-                "Cannot create final output '{}': {}",
-                sanitize_path_for_display(destination_path),
-                error
-            ))
+            destination_refused_commit_error(destination_path, error)
         })?;
-    std::io::copy(&mut source, &mut destination).map_err(|error| {
-        AppError::FileValidation(format!(
-            "Cannot copy file to final location '{}': {}",
-            sanitize_path_for_display(destination_path),
-            error
-        ))
-    })?;
-    destination.sync_all().map_err(|error| {
-        AppError::FileValidation(format!(
-            "Failed to flush final output '{}': {}",
-            sanitize_path_for_display(destination_path),
-            error
-        ))
-    })?;
+    std::io::copy(&mut source, &mut destination)
+        .map_err(|error| destination_refused_commit_error(destination_path, error))?;
+    destination
+        .sync_all()
+        .map_err(|error| destination_refused_commit_error(destination_path, error))?;
     drop(source);
     Ok(())
 }
@@ -145,27 +146,14 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
                 if error.kind() == ErrorKind::AlreadyExists {
                     return collision_state_changed_error(final_path);
                 }
-                AppError::FileValidation(format!(
-                    "Cannot create final output '{}': {}",
-                    sanitize_path_for_display(final_path),
-                    error
-                ))
+                destination_refused_commit_error(final_path, error)
             })?;
         created_destination = true;
-        std::io::copy(&mut source, &mut destination).map_err(|error| {
-            AppError::FileValidation(format!(
-                "Cannot copy file to final location '{}': {}",
-                sanitize_path_for_display(final_path),
-                error
-            ))
-        })?;
-        destination.sync_all().map_err(|error| {
-            AppError::FileValidation(format!(
-                "Failed to flush final output '{}': {}",
-                sanitize_path_for_display(final_path),
-                error
-            ))
-        })?;
+        std::io::copy(&mut source, &mut destination)
+            .map_err(|error| destination_refused_commit_error(final_path, error))?;
+        destination
+            .sync_all()
+            .map_err(|error| destination_refused_commit_error(final_path, error))?;
         remove_copied_temp_output(temp_output, final_path, source)?;
         Ok(())
     })();
@@ -185,6 +173,8 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
     Ok(final_path.to_path_buf())
 }
 
+const REPLACEMENT_TEMP_PREFIX: &str = ".abb_replace_install_";
+
 fn destination_replacement_temp_path(final_path: &Path) -> Result<PathBuf> {
     let parent = final_path.parent().ok_or_else(|| {
         AppError::FileValidation(format!(
@@ -199,10 +189,54 @@ fn destination_replacement_temp_path(final_path: &Path) -> Result<PathBuf> {
         ))
     })?;
     Ok(parent.join(format!(
-        ".abb_replace_install_{}_{}",
+        "{REPLACEMENT_TEMP_PREFIX}{}_{}",
         uuid::Uuid::new_v4(),
         file_name.to_string_lossy()
     )))
+}
+
+/// Removes stale `.abb_replace_install_<uuid>_<final name>` files left in the
+/// destination directory by a hard crash mid replace-commit (#391 residual).
+/// Error paths already clean these; only process death between the copy and
+/// the atomic replace can strand one. ABB cannot sweep user-chosen output
+/// directories at startup, so the sweep runs when ABB is about to commit the
+/// same final artifact again — it matches ABB's own temp naming for exactly
+/// this file name, touches regular files only, and never blocks the commit.
+fn remove_stale_replacement_temps(final_path: &Path) {
+    let (Some(parent), Some(file_name)) = (final_path.parent(), final_path.file_name()) else {
+        return;
+    };
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return;
+    };
+    let suffix = format!("_{}", file_name.to_string_lossy());
+    for entry in entries.flatten() {
+        let entry_name = entry.file_name();
+        let Some(entry_name) = entry_name.to_str() else {
+            continue;
+        };
+        if !entry_name.starts_with(REPLACEMENT_TEMP_PREFIX) || !entry_name.ends_with(&suffix) {
+            continue;
+        }
+        // DirEntry::file_type does not follow symlinks: links and directories
+        // that merely imitate the temp naming are preserved.
+        if !entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        match std::fs::remove_file(entry.path()) {
+            Ok(()) => log::info!(
+                "finalize_move stale_replacement_temp=removed name={entry_name} dest_dir={}",
+                sanitize_path_for_display(parent)
+            ),
+            Err(error) => log::warn!(
+                "finalize_move stale_replacement_temp=remove_failed name={entry_name} err={error}"
+            ),
+        }
+    }
 }
 
 fn replace_existing_from_staged_output_with<R>(
@@ -236,11 +270,7 @@ where
                 final_path.display(),
                 rename_err
             );
-            return Err(AppError::FileValidation(format!(
-                "Cannot replace final output '{}' with staged output: {}",
-                sanitize_path_for_display(final_path),
-                rename_err
-            )));
+            return Err(destination_refused_commit_error(final_path, rename_err));
         }
     }
 
@@ -268,11 +298,7 @@ where
         }
         Err(error) => {
             let _ = std::fs::remove_file(&destination_temp);
-            Err(AppError::FileValidation(format!(
-                "Cannot replace final output '{}' with staged output: {}",
-                sanitize_path_for_display(final_path),
-                error
-            )))
+            Err(destination_refused_commit_error(final_path, error))
         }
     }
 }
@@ -296,6 +322,7 @@ fn commit_temp_output_to_artifact(
             ))
         })?;
     }
+    remove_stale_replacement_temps(final_path);
     match action {
         PlannedOutputAction::Write | PlannedOutputAction::RenameNew => {
             return install_without_replacing(&temp_output, final_path);

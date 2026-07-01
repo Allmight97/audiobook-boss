@@ -243,22 +243,24 @@ async fn acquire_one(
         None,
         None,
     ));
-    let materialized_path = if lane.strategy == AcquisitionStrategy::DownloadImportReady {
-        downloaded_path
-    } else {
-        materialize_protected_download(
-            materializer,
-            &downloaded_path,
-            title_name,
-            &lane,
-            ctx,
-            progress,
-            is_cancelled,
-        )
-        .await
-        .map_err(AudibleAcquisitionError::materialization)?
-    };
-    finalize_acquired_title(
+    let (materialized_path, purge_diagnostic) =
+        if lane.strategy == AcquisitionStrategy::DownloadImportReady {
+            (downloaded_path, None)
+        } else {
+            let materialized = materialize_protected_download(
+                materializer,
+                &downloaded_path,
+                title_name,
+                &lane,
+                ctx,
+                progress,
+                is_cancelled,
+            )
+            .await
+            .map_err(AudibleAcquisitionError::materialization)?;
+            (materialized.path, materialized.purge_diagnostic)
+        };
+    let mut title = finalize_acquired_title(
         FinalizeAcquisitionRequest {
             auth,
             materialized_path,
@@ -270,7 +272,11 @@ async fn acquire_one(
         progress,
         is_cancelled,
     )
-    .await
+    .await?;
+    // Purge failure is housekeeping, not acquisition failure: the title stays
+    // import-ready and the diagnostic rides along non-blocking (#393).
+    title.diagnostics.extend(purge_diagnostic);
+    Ok(title)
 }
 
 async fn finalize_acquired_title(

@@ -147,6 +147,10 @@ pub enum RemoteAcquisitionFailureKind {
     ProtectedUnsupported,
     DownloadFailed,
     MaterializationFailed,
+    /// Decryption succeeded and the title is import-ready, but the encrypted
+    /// staging source could not be purged. Non-blocking: the startup session
+    /// sweep removes it on next launch.
+    ProtectedSourcePurgeFailed,
     ValidationFailed,
     SupplementalPdfFailed,
     Cancelled,

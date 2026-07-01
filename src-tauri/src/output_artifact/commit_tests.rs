@@ -193,7 +193,9 @@ fn replace_existing_cross_device_fallback_preserves_source_and_destination_on_in
         .expect_err("install failure should fail");
 
     assert!(
-        error.to_string().contains("Cannot replace final output"),
+        error
+            .to_string()
+            .contains("destination refused the final file commit"),
         "unexpected error: {error}"
     );
     assert_eq!(
@@ -250,7 +252,9 @@ fn commit_temp_output_preserves_outputs_when_replace_rename_fails() {
     )
     .expect_err("rename into occupied directory should fail");
 
-    assert!(err.to_string().contains("Cannot replace final output"));
+    assert!(err
+        .to_string()
+        .contains("destination refused the final file commit"));
     assert!(final_output.is_dir(), "existing destination should remain");
     assert_eq!(
         std::fs::read(&temp_output).expect("read temp output"),
@@ -285,4 +289,78 @@ fn commit_temp_output_rejects_dangling_symlink_destination_for_write_action() {
         std::fs::read(&temp_output).expect("read temp output"),
         b"new"
     );
+}
+
+#[test]
+fn commit_removes_stale_replacement_temp_for_same_final_artifact() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::fs::write(&temp_output, b"new").expect("write temp output");
+    // Simulate a hard crash mid replace-commit: full-size copy stranded
+    // beside the destination.
+    let stale_temp = root
+        .path()
+        .join(".abb_replace_install_0000-crashed_book.m4b");
+    std::fs::write(&stale_temp, b"stranded copy").expect("write stale temp");
+
+    let committed =
+        commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
+            .expect("commit succeeds");
+
+    assert_eq!(committed, final_output);
+    assert!(!stale_temp.exists(), "stale ABB replacement temp is swept");
+    assert!(final_output.exists(), "new artifact committed");
+}
+
+#[test]
+fn commit_preserves_unrelated_and_imitation_entries_in_destination() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::fs::write(&temp_output, b"new").expect("write temp output");
+
+    // Same ABB prefix, different final artifact: not ours to sweep here.
+    let other_artifact_temp = root
+        .path()
+        .join(".abb_replace_install_0000-crashed_other.m4b");
+    std::fs::write(&other_artifact_temp, b"other").expect("write other temp");
+    // User dotfile without ABB naming.
+    let user_dotfile = root.path().join(".book.m4b");
+    std::fs::write(&user_dotfile, b"user").expect("write user dotfile");
+    // Directory imitating the temp naming: regular files only.
+    let imitation_dir = root.path().join(".abb_replace_install_dir_book.m4b");
+    std::fs::create_dir(&imitation_dir).expect("create imitation dir");
+
+    commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
+        .expect("commit succeeds");
+
+    assert!(
+        other_artifact_temp.exists(),
+        "temps for other artifacts are preserved"
+    );
+    assert!(user_dotfile.exists(), "non-ABB dotfiles are preserved");
+    assert!(
+        imitation_dir.exists(),
+        "directories imitating temp naming are preserved"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn commit_preserves_symlink_imitating_replacement_temp() {
+    let root = TempDir::new().expect("temp root");
+    let temp_output = root.path().join("temp-output.m4b");
+    let final_output = root.path().join("book.m4b");
+    std::fs::write(&temp_output, b"new").expect("write temp output");
+    let target = root.path().join("target.m4b");
+    std::fs::write(&target, b"target").expect("write target");
+    let link = root.path().join(".abb_replace_install_link_book.m4b");
+    std::os::unix::fs::symlink(&target, &link).expect("create symlink");
+
+    commit_temp_output_to_artifact(temp_output, &final_output, PlannedOutputAction::Write)
+        .expect("commit succeeds");
+
+    assert!(link.exists(), "symlink imitating temp naming is preserved");
+    assert!(target.exists(), "symlink target is preserved");
 }
