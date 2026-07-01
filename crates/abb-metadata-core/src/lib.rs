@@ -138,6 +138,14 @@ pub struct MetadataIntentPatch {
     pub album_sort: AlbumSortPatchOp,
     #[serde(default)]
     pub cover_art: PatchOp<Vec<u8>>,
+    // Compatibility/provenance artifact fields (#281): preserved on normal
+    // saves, editable/clearable only through explicit intent.
+    #[serde(default)]
+    pub comment: PatchOp<String>,
+    #[serde(default)]
+    pub track: PatchOp<(u32, Option<u32>)>,
+    #[serde(default)]
+    pub disk: PatchOp<(u32, Option<u32>)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -296,6 +304,12 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
             None => AlbumSortPatchOp::Noop,
         };
 
+        let to_position_patch = |value: Option<(u32, Option<u32>)>| match value {
+            Some((0, _)) => PatchOp::Clear,
+            Some(position) => PatchOp::Set(position),
+            None => PatchOp::Noop,
+        };
+
         Self {
             title: to_string_patch(metadata.title),
             artist: to_string_patch(metadata.artist),
@@ -310,6 +324,9 @@ impl From<AudiobookMetadata> for MetadataIntentPatch {
             subseries_part: to_string_patch(metadata.subseries_part),
             album_sort,
             cover_art,
+            comment: to_string_patch(metadata.comment),
+            track: to_position_patch(metadata.track),
+            disk: to_position_patch(metadata.disk),
         }
     }
 }
@@ -573,6 +590,22 @@ fn apply_shared_metadata_patch_fields(
         (PatchOp::Noop, _) => {}
     }
 
+    apply_string(&patch.comment, &mut metadata.comment);
+
+    // Write-plan clear sentinel for positions is number 0, matching the
+    // runtime field-op planner (`push_position_op` clears on number == 0).
+    for (op, slot) in [
+        (&patch.track, &mut metadata.track),
+        (&patch.disk, &mut metadata.disk),
+    ] {
+        match (op, semantics) {
+            (PatchOp::Set(position), _) => *slot = Some(*position),
+            (PatchOp::Clear, PatchFieldSemantics::Processing) => *slot = None,
+            (PatchOp::Clear, PatchFieldSemantics::WritePlan) => *slot = Some((0, None)),
+            (PatchOp::Noop, _) => {}
+        }
+    }
+
     if let Some(series_part) = metadata.series_part.as_deref() {
         let trimmed = series_part.trim();
         if !trimmed.is_empty() {
@@ -777,7 +810,11 @@ mod tests {
     }
 
     #[test]
-    fn metadata_intent_patch_write_contract_keeps_read_compatible_fields_out_of_write_intent() {
+    fn metadata_intent_patch_write_contract_carries_explicit_artifact_intent_only() {
+        // #281 posture: artifact fields (comment/track/disk) enter write
+        // intent only when the caller states them; From<AudiobookMetadata>
+        // carries present values as explicit Set intent, and a default patch
+        // (see artifact_noop_intents_preserve_values) leaves them untouched.
         let patch = MetadataIntentPatch::from(AudiobookMetadata {
             title: Some("Read Compatible".to_string()),
             track: Some((3, Some(12))),
@@ -788,13 +825,13 @@ mod tests {
 
         let resolved = patch
             .to_write_plan()
-            .expect("write metadata should still compile without read-compatible fields")
+            .expect("write metadata compiles with explicit artifact intent")
             .metadata;
 
         assert_eq!(resolved.title.as_deref(), Some("Read Compatible"));
-        assert_eq!(resolved.track, None);
-        assert_eq!(resolved.disk, None);
-        assert_eq!(resolved.comment, None);
+        assert_eq!(resolved.track, Some((3, Some(12))));
+        assert_eq!(resolved.disk, Some((1, Some(2))));
+        assert_eq!(resolved.comment.as_deref(), Some("Reader note"));
     }
 
     #[test]
@@ -909,5 +946,92 @@ mod tests {
         assert_eq!(naming.series_part(), None);
         assert_eq!(naming.subseries(), Some("Subseries"));
         assert_eq!(naming.subseries_part(), None);
+    }
+
+    #[test]
+    fn artifact_clear_intents_reach_write_plan_sentinels() {
+        let patch = MetadataIntentPatch {
+            comment: PatchOp::Clear,
+            track: PatchOp::Clear,
+            disk: PatchOp::Clear,
+            ..Default::default()
+        };
+
+        let plan = patch.to_write_plan().expect("write plan");
+
+        assert_eq!(
+            plan.metadata.comment,
+            Some(String::new()),
+            "comment clear uses the empty-string sentinel the op planner clears on"
+        );
+        assert_eq!(
+            plan.metadata.track,
+            Some((0, None)),
+            "track clear uses the zero-position sentinel the op planner clears on"
+        );
+        assert_eq!(plan.metadata.disk, Some((0, None)));
+    }
+
+    #[test]
+    fn artifact_clear_intents_remove_values_in_processing_semantics() {
+        let base = AudiobookMetadata {
+            comment: Some("provenance note".to_string()),
+            track: Some((3, Some(12))),
+            disk: Some((1, Some(2))),
+            ..AudiobookMetadata::new()
+        };
+        let patch = MetadataIntentPatch {
+            comment: PatchOp::Clear,
+            track: PatchOp::Clear,
+            disk: PatchOp::Clear,
+            ..Default::default()
+        };
+
+        let merged = patch.apply_to_metadata(base).expect("patch applies");
+
+        assert_eq!(merged.comment, None);
+        assert_eq!(merged.track, None);
+        assert_eq!(merged.disk, None);
+    }
+
+    #[test]
+    fn artifact_noop_intents_preserve_values() {
+        let base = AudiobookMetadata {
+            comment: Some("keep me".to_string()),
+            track: Some((3, Some(12))),
+            disk: Some((1, Some(2))),
+            ..AudiobookMetadata::new()
+        };
+
+        let merged = MetadataIntentPatch::default()
+            .apply_to_metadata(base)
+            .expect("noop patch applies");
+
+        assert_eq!(merged.comment.as_deref(), Some("keep me"));
+        assert_eq!(merged.track, Some((3, Some(12))));
+        assert_eq!(merged.disk, Some((1, Some(2))));
+
+        let plan = MetadataIntentPatch::default()
+            .to_write_plan()
+            .expect("write plan");
+        assert_eq!(plan.metadata.comment, None, "noop must not clear at write");
+        assert_eq!(plan.metadata.track, None);
+        assert_eq!(plan.metadata.disk, None);
+    }
+
+    #[test]
+    fn metadata_to_patch_round_trips_artifact_fields() {
+        let metadata = AudiobookMetadata {
+            comment: Some("note".to_string()),
+            track: Some((7, Some(42))),
+            disk: Some((0, Some(5))),
+            ..AudiobookMetadata::new()
+        };
+
+        let patch = MetadataIntentPatch::from(metadata);
+
+        assert_eq!(patch.comment, PatchOp::Set("note".to_string()));
+        assert_eq!(patch.track, PatchOp::Set((7, Some(42))));
+        assert_eq!(patch.disk, PatchOp::Clear, "zero position means clear");
     }
 }

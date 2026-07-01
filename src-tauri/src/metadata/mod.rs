@@ -56,6 +56,14 @@ pub use passthrough::{
 };
 pub use remux::rewrite_metadata_with_ffmpeg;
 
+/// Applies an explicit metadata intent patch to a real file: validate/plan,
+/// then container-adapted write. The single save entry for command ingress
+/// and integration round-trip proof (media-execution lane).
+pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {
+    let plan = plan_metadata_write(patch)?;
+    save_metadata_with_plan(path, &plan)
+}
+
 pub(crate) fn save_metadata_with_plan(
     path: &std::path::Path,
     plan: &MetadataWritePlan,

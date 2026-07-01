@@ -19,7 +19,10 @@ use audiobook_boss_lib::audio::{
 };
 use audiobook_boss_lib::processing::job_registry::{JobId, JobRegistry};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
-use audiobook_boss_lib::{read_metadata, AppError, AudiobookMetadata, CoverArtPassthroughPolicy};
+use audiobook_boss_lib::{
+    read_metadata, save_metadata_intent, AlbumSortPatchOp, AppError, AudiobookMetadata,
+    CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -216,5 +219,70 @@ async fn cancellation_yields_terminal_error_without_artifact_or_staging_residue(
     assert!(
         lane.residual_workspace_dirs().is_empty(),
         "cancelled run leaves no staging residue in the workspace root"
+    );
+}
+
+/// #281 artifact round-trip on a real committed artifact: normal saves
+/// preserve artifact fields; explicit clear intent removes exactly the
+/// cleared fields.
+#[tokio::test]
+async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent() {
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let mut metadata = AudiobookMetadata::new();
+    metadata.title = Some("Artifact Book".to_string());
+    metadata.album_sort = Some("Lane Series 01 - Artifact Book".to_string());
+    metadata.comment = Some("Provenance note".to_string());
+    metadata.track = Some((7, Some(42)));
+    metadata.disk = Some((1, Some(2)));
+
+    execute_audio_engine(lane.execution_request(ProcessingSession::new(), Some(metadata)))
+        .await
+        .expect("processing with artifact metadata succeeds");
+    let output = lane.output_path();
+
+    let written = read_metadata(&output).expect("artifact metadata written");
+    assert_eq!(
+        written.album_sort.as_deref(),
+        Some("Lane Series 01 - Artifact Book")
+    );
+    assert_eq!(written.comment.as_deref(), Some("Provenance note"));
+    assert_eq!(written.track, Some((7, Some(42))));
+    assert_eq!(written.disk, Some((1, Some(2))));
+
+    // A normal save that only touches a primary field preserves artifacts.
+    let title_only = MetadataIntentPatch {
+        title: PatchOp::Set("Renamed Artifact Book".to_string()),
+        ..Default::default()
+    };
+    save_metadata_intent(&output, &title_only).expect("title-only save");
+    let preserved = read_metadata(&output).expect("re-read after title-only save");
+    assert_eq!(preserved.title.as_deref(), Some("Renamed Artifact Book"));
+    assert_eq!(
+        preserved.album_sort.as_deref(),
+        Some("Lane Series 01 - Artifact Book"),
+        "normal saves must preserve album_sort"
+    );
+    assert_eq!(preserved.comment.as_deref(), Some("Provenance note"));
+    assert_eq!(preserved.track, Some((7, Some(42))));
+    assert_eq!(preserved.disk, Some((1, Some(2))));
+
+    // Explicit clear intent removes exactly the cleared artifact fields.
+    let clear_artifacts = MetadataIntentPatch {
+        album_sort: AlbumSortPatchOp::Clear,
+        comment: PatchOp::Clear,
+        track: PatchOp::Clear,
+        disk: PatchOp::Clear,
+        ..Default::default()
+    };
+    save_metadata_intent(&output, &clear_artifacts).expect("artifact clear save");
+    let cleared = read_metadata(&output).expect("re-read after artifact clear");
+    assert_eq!(cleared.album_sort, None, "album_sort cleared");
+    assert_eq!(cleared.comment, None, "comment cleared");
+    assert_eq!(cleared.track, None, "track cleared");
+    assert_eq!(cleared.disk, None, "disk cleared");
+    assert_eq!(
+        cleared.title.as_deref(),
+        Some("Renamed Artifact Book"),
+        "primary fields untouched by artifact clears"
     );
 }

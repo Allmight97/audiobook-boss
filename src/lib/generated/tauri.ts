@@ -406,6 +406,9 @@ export type MetadataIntentPatch = {
 	subseries_part?: PatchOp<string>,
 	album_sort?: AlbumSortPatchOp,
 	cover_art?: PatchOp<number[]>,
+	comment?: PatchOp<string>,
+	track?: PatchOp<[number, number | null]>,
+	disk?: PatchOp<[number, number | null]>,
 };
 
 export type MetadataIntentValidationCode = "publication_date_syntax" | "series_part_contains_slash" | "subseries_part_contains_slash";

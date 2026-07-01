@@ -9,8 +9,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   `plan_metadata_write`.
-- Read symbols: `read_metadata` (also re-exported at the crate root for
-  external integration tests, e.g. the media-execution lane).
+- Read/write symbols: `read_metadata`, `save_metadata_intent` (both also
+  re-exported at the crate root for external integration tests, e.g. the
+  media-execution lane's tag round-trip proof).
 - Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`,
   `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
   `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`

@@ -20,11 +20,22 @@ export const METADATA_INTENT_FIELDS = [
 	'subseries_part',
 	'album_sort',
 	'cover_art',
+	// Compatibility/provenance artifact fields (#281). Kept out of
+	// METADATA_DRAFT_FIELDS: normal form saves preserve them; only explicit
+	// artifact intent (inspect/clear UX) touches them.
+	'comment',
+	'track',
+	'disk',
 ] as const;
 
 export type MetadataIntentField = (typeof METADATA_INTENT_FIELDS)[number];
 export type MetadataIntentValueMap = Pick<AudiobookMetadata, MetadataIntentField>;
-type MetadataIntentValue<K extends MetadataIntentField> = NonNullable<MetadataIntentValueMap[K]>;
+/** Track/disk positions cross IPC as `[number, total|null]`; the deep
+ * null-to-optional mapping degrades tuples to arrays, so pin them here. */
+export type MetadataPositionValue = [number, number | null];
+type MetadataIntentValue<K extends MetadataIntentField> = K extends 'track' | 'disk'
+	? MetadataPositionValue
+	: NonNullable<MetadataIntentValueMap[K]>;
 
 type MetadataSetClearNoopIntent<K extends MetadataIntentField> =
 	| {
@@ -74,6 +85,10 @@ function normalizeStringInput(value: string): string {
 
 function isNumberArray(value: unknown): value is number[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
+}
+
+function isPositionValue(value: unknown): value is [number, number | null | undefined] {
+	return Array.isArray(value) && value.length >= 1 && typeof value[0] === 'number';
 }
 
 export function hasActionableMetadataIntentPatch(
@@ -179,6 +194,18 @@ export function buildMetadataIntentPatchFromMetadata(
 				patch,
 				key,
 				value.length === 0 ? { op: 'clear' } : { op: 'set', value: [...value] },
+			);
+			continue;
+		}
+		if (key === 'track' || key === 'disk') {
+			if (!isPositionValue(value)) {
+				continue;
+			}
+			// Zero position is the backend clear sentinel (#281).
+			setMetadataIntent(
+				patch,
+				key,
+				value[0] === 0 ? { op: 'clear' } : { op: 'set', value: [value[0], value[1] ?? null] },
 			);
 			continue;
 		}

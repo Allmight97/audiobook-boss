@@ -156,7 +156,7 @@ describe('metadata intent patch helpers', () => {
 		});
 	});
 
-	it('ignores read-only track, disk, and comment fields when building write intent', () => {
+	it('carries artifact track, disk, and comment fields as explicit intent (#281)', () => {
 		const patch = buildMetadataIntentPatchFromMetadata({
 			title: 'Writable',
 			track: [3, 12],
@@ -166,6 +166,9 @@ describe('metadata intent patch helpers', () => {
 
 		expect(patch).toEqual({
 			title: { op: 'set', value: 'Writable' },
+			track: { op: 'set', value: [3, 12] },
+			disk: { op: 'set', value: [1, 2] },
+			comment: { op: 'set', value: 'Reader note' },
 		});
 	});
 });
