@@ -1,5 +1,28 @@
 # Decisions
 
+## 2026-07-01 - Media Execution Lane Added; Narrow Tripwire CI (#341 / #407)
+
+- Outcome: media-execution route decided as `add`. The smallest maintained
+  real-media lane lives in
+  `src-tauri/tests/cases/integration_media_execution_tests.rs`: WAV fixtures
+  synthesized at test time (no committed media), native in-process ffmpeg-next
+  path, headless `ProcessingContext`. Proves import→process→valid M4B +
+  truthful duration, metadata save→re-read from the artifact, and
+  cancellation→typed terminal error with no artifact/staging residue. It runs
+  in the normal `audiobook-boss --test all_tests` suite (~1s).
+- Evidence: the lane's first run caught a real user-facing bug — WAV inputs
+  failed native processing ("Resample failed: Input changed") because
+  layout-less PCM containers open with an unspecified channel layout; fixed at
+  the owning boundary in `src-tauri/src/audio/processor/streams.rs`.
+- CI posture: one narrow tripwire workflow (`.github/workflows/ci.yml`) on
+  push to `main` — typecheck + clean-install svelte-check, generated-binding
+  drift, core-crate Nextest. Deliberately not a broad app gate; local checks
+  remain the default evidence trail. The opencode reviewer workflow was
+  removed (no API key, zero successful runs).
+- Guardrail: never commit media fixtures; keep the lane's runtime budget ~1s
+  by shrinking fixtures, not by weakening assertions. Widen CI only with a
+  recorded owner decision.
+
 ## 2026-06-26 - Backend Is the Single Source of Processing Lifecycle Truth (PR-4 / #376)
 
 - Outcome: the backend owns processing progress, terminal outcome, and cancellation

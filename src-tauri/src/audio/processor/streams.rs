@@ -543,7 +543,7 @@ pub(crate) fn setup_decoder_and_resampler(
 
     let OpenedAudioInput {
         input: ictx,
-        decoder,
+        mut decoder,
         stream_index,
         selected_decoder,
         codec_label: _codec_label,
@@ -555,7 +555,20 @@ pub(crate) fn setup_decoder_and_resampler(
     );
 
     log::info!("Creating resampler...");
-    let in_layout = decoder.channel_layout();
+    // Containers without channel-layout semantics (e.g. WAV/PCM) open with an
+    // unspecified layout while their decoded frames carry the default layout
+    // for the channel count; swresample then rejects every frame with
+    // "Input changed". Normalize to the default layout up front so the
+    // decoder, its frames, and the resampler agree.
+    let mut in_layout = decoder.channel_layout();
+    if in_layout.is_empty() && decoder.channels() > 0 {
+        in_layout = ff::ChannelLayout::default(i32::from(decoder.channels()));
+        decoder.set_channel_layout(in_layout);
+        log::info!(
+            "Input declared no channel layout; defaulting for {} channel(s)",
+            decoder.channels()
+        );
+    }
     let in_rate = decoder.rate();
     let in_format = decoder.format();
     log::info!(

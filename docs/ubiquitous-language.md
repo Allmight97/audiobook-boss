@@ -61,7 +61,7 @@ prefer local prose or delete it.
 | Term | Definition | Avoid |
 | --- | --- | --- |
 | **Core Crate Test** | Focused Rust command selecting an `abb-*-core` package for pure domain logic. | filtered broad-crate test |
-| **Media Execution Test** | Currently absent FFmpeg/audio/container lane pending issue #341 reassessment. | default review |
+| **Media Execution Test** | Real-media workflow lane in `src-tauri/tests/cases/integration_media_execution_tests.rs`: test-time synthesized WAV fixtures through the native engine (#341 route: add). | committed media fixtures |
 | **UI Workflow Smoke Test** | Deterministic app-level test for one high-value user path with mocked Tauri boundaries and visible state assertions. | screenshot-only check |
 | **Active Spec** | Temporary `docs/specs/<task>.md` work packet for substantial multi-session planning or implementation. Delete or distill when done. | permanent feature doc |
 | **Minimal Churn** | Fewer correction loops and less avoidable rework, not automatically the smallest diff. | smallest patch |

@@ -22,8 +22,8 @@ pub use metadata::{
     CoverFormat as FfmpegCoverFormat,
 };
 pub use metadata::{
-    AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
-    NamingMetadata, PatchOp,
+    read_metadata, AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy,
+    MetadataIntentPatch, NamingMetadata, PatchOp,
 };
 
 pub mod audio;

@@ -22,9 +22,14 @@ commands over invoking internals directly.
 - Avoid broad workspace and multi-package Nextest routes; they can discover or
   list unrelated binaries such as `export_bindings` and
   `verify_aac_decoder_contract`.
-- Media execution tests remain absent pending issue #341 reassessment. Do not
-  add FFmpeg/audio/container tests back until behavior, fixtures, runtime cost,
-  and owner boundary are redesigned explicitly.
+- Media execution lane (issue #341 closeout: route `add`): real-media workflow
+  tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
+  and run inside the normal runtime suite. Fixtures are WAVs synthesized at
+  test time — never commit media files. Focused command:
+  `cargo nextest run -p audiobook-boss --test all_tests -E 'test(media_execution)'`
+  (runtime budget ~1s; shrink fixtures before widening it). Do not add broad
+  media gates or committed fixtures beyond this lane without a new owner
+  decision.
 
 ## Command Menu
 

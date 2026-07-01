@@ -1,3 +1,5 @@
+#[path = "cases/integration_media_execution_tests.rs"]
+mod integration_media_execution_tests;
 #[path = "cases/integration_reqwest_resolver_tests.rs"]
 mod integration_reqwest_resolver_tests;
 #[path = "cases/unit_audio_command_result_schema_tests.rs"]
