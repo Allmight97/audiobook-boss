@@ -1,5 +1,23 @@
 # Decisions
 
+## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
+
+- Outcome: distribution posture — unsigned local/DMG distribution stands until
+  public distribution work begins; signing, notarization, and the
+  `keychain-access-groups` entitlement are decided then. #396 (Data Protection
+  Keychain migration) is post-launch deferred behind that trigger; no keychain
+  code changes until the posture is explicit.
+- Dependency/supply-chain cadence (#326): manual-first, run around releases;
+  the tripwire CI lane is the future automation home only if dependency drift
+  becomes recurring friction. `bunfig.toml` `minimumReleaseAge` remains the
+  standing supply-chain guard.
+- Effect workflow kit (#389): spike accepted, rolled out to all five workflow
+  owners (`makeWorkflowKit`); convention recorded in `src/lib/effect/AGENTS.md`.
+- #180 perf attribution stays open as the sole post-launch research issue;
+  measurement-first, no perf refactors without attribution evidence.
+- Guardrail: opencode reviewer workflow removed (no key, zero successful
+  runs); restore from git history only with a working OpenCode API key.
+
 ## 2026-07-01 - Media Execution Lane Added; Narrow Tripwire CI (#341 / #407)
 
 - Outcome: media-execution route decided as `add`. The smallest maintained
