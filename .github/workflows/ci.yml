@@ -62,4 +62,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # ffmpeg-sys-next links the system FFmpeg libs (libavutil etc.)
       - run: brew install ffmpeg pkg-config
+      # tauri-build requires the AAXClean sidecar resource to exist; binding
+      # generation never executes it, so a stub keeps .NET out of this lane.
+      - run: |
+          mkdir -p src-tauri/binaries
+          touch src-tauri/binaries/abb-aaxclean-helper-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/abb-aaxclean-helper-aarch64-apple-darwin
       - run: bash scripts/check-generated-bindings.sh --mode verify
