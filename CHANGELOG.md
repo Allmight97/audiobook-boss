@@ -4,6 +4,48 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-02
+
+### Added
+
+- App Settings panel (Cmd+,) with a durable, validated path to your own
+  FFmpeg build with `libfdk_aac` — a working user path unlocks the FDK HE-AAC
+  encoder and wins over auto-detection; a rejected path falls back to
+  auto-detection with the rejection reason shown, never silently.
+- Pinned launch defaults: pin your current encoder, output, and max-jobs
+  settings as startup defaults and choose whether launch restores those
+  defaults or your last-used settings (the previous behavior, still the
+  default). In-flight tweaks stay session-only when pinned mode is on.
+- Embedded artifacts drawer under the metadata form: inspect and clear
+  Album sort (TSOA), Comment, Track number, and Disc number on the selected
+  file. Clears apply on the next metadata save; normal saves keep preserving
+  these fields untouched.
+
+### Changed
+
+- If the encrypted Audible source can't be removed after a successful
+  decryption, the app now retries briefly and then shows a non-blocking
+  notice on the acquisition instead of only logging — the decrypted book
+  stays import-ready either way, and leftover files are cleaned on next
+  launch.
+- When an output destination (network share, external drive, cloud-synced
+  folder) refuses the final file commit, the error now says so directly and
+  suggests checking write permissions/space or retrying to a local folder,
+  instead of reading like a generic processing failure.
+- Crash-leftover temporary files beside a destination file are now swept
+  automatically the next time the same audiobook is written there.
+- The automated test suite now proves real media behavior end-to-end — WAV,
+  M4B, and MP3 inputs, cover-art round-trips, chapter preservation, and
+  metadata integrity on real artifacts — with all fixtures synthesized at
+  test time. A narrow CI tripwire (typecheck, binding drift, core tests) now
+  runs on every push to main.
+
+### Fixed
+
+- WAV files failed native processing with "Resample failed: Input changed" —
+  containers without channel-layout metadata (WAV/PCM) now normalize to the
+  correct layout before resampling, so WAV imports process correctly.
+
 ## [1.2.0] - 2026-06-24
 
 ### Added
