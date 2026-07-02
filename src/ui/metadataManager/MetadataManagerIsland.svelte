@@ -12,7 +12,6 @@
 	} from '../metadataForm';
 	import MetadataFormFieldsIsland from '../metadataForm/MetadataFormFieldsIsland.svelte';
 	import { metadataFormState } from '../metadataForm/state.svelte';
-	import { MetadataArtifactsIsland } from '../metadataArtifacts';
 </script>
 
 <section class="metadata-manager" data-testid="metadata-manager" aria-label="Metadata Manager">
@@ -43,7 +42,6 @@
 						void saveMetadataFromUI();
 					}}
 				/>
-				<MetadataArtifactsIsland />
 			</div>
 		</div>
 	</div>

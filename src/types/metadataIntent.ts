@@ -22,7 +22,8 @@ export const METADATA_INTENT_FIELDS = [
 	'cover_art',
 	// Compatibility/provenance artifact fields (#281). Kept out of
 	// METADATA_DRAFT_FIELDS: normal form saves preserve them; only explicit
-	// artifact intent (inspect/clear UX) touches them.
+	// artifact clear intent touches them (the inspect/clear UI surface was
+	// removed pending re-ideation; the backend clear path stays contractual).
 	'comment',
 	'track',
 	'disk',

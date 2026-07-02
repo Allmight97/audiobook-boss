@@ -22,30 +22,32 @@ function isTrackLikeTitle(value: string): boolean {
 	return /^(chapter|track|disc|disk|episode)\s*\d+/i.test(value.trim());
 }
 
-export function deriveQueryFromFile(
+/** Title criterion from the file's stored metadata: title (album when the
+ * title is track-like), falling back to a cleaned filename. */
+export function deriveTitleQueryFromFile(
 	services: MetadataLookupWorkflowServices,
 	file: AudioFile,
 ): string {
 	const stored = services.getMetadataForFile(file.path) ?? {};
 	const title = stored.title?.trim();
 	const album = stored.album?.trim();
-	const artist = stored.artist?.trim();
-	const composer = stored.composer?.trim();
 
 	const queryTitle = album && (!title || isTrackLikeTitle(title)) ? album : (title ?? album);
-
-	const parts: string[] = [];
-	if (queryTitle) parts.push(queryTitle);
-	if (artist) {
-		parts.push(artist);
-	} else if (composer) {
-		parts.push(composer);
-	}
-	if (parts.length > 0) return parts.join(' ');
+	if (queryTitle) return queryTitle;
 
 	const rawName = formatFileName(file.path).replace(/\.[^.]+$/, '');
 	const cleaned = rawName.replace(/[._-]+/g, ' ').trim();
 	return cleaned.replace(/^\d+\s*/, '').trim();
+}
+
+/** Author criterion from the file's stored metadata: artist, falling back to
+ * composer (narrator). Empty when the file carries neither. */
+export function deriveAuthorQueryFromFile(
+	services: MetadataLookupWorkflowServices,
+	file: AudioFile,
+): string {
+	const stored = services.getMetadataForFile(file.path) ?? {};
+	return stored.artist?.trim() || stored.composer?.trim() || '';
 }
 
 export function updateQueueContext(services: MetadataLookupWorkflowServices): void {

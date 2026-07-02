@@ -1,5 +1,20 @@
 # Decisions
 
+## 2026-07-02 - Artifact Drawer Removed; Clear Path Stays Contractual
+
+- Outcome: the "Embedded artifacts" inspect/clear drawer (1.3.0, #281) was
+  removed from the Metadata Manager as UX load without clear value in that
+  form; re-ideation captured in #411. The backend artifact clear path,
+  `stageMetadataIntentPatch` explicit clears, the draft-field exclusion, and
+  the media-execution round-trip proof are all retained and pinned by the
+  Metadata Session contract test.
+- Evidence: `src/ui/metadataSession/__tests__/runtime-api-contract.test.ts`
+  (artifact preservation + explicit clears); `src/ui/metadataArtifacts/`
+  deleted.
+- Guardrail: artifact fields never enter `METADATA_DRAFT_FIELDS`; any future
+  artifact surface reuses the Metadata Session clear path rather than new
+  staging mechanics.
+
 ## 2026-07-02 - Toolchain Platform-Probe Seam
 
 - Outcome: FFmpeg candidate enumeration and binary-arch acceptance are

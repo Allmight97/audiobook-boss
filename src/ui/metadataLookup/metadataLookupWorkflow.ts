@@ -17,7 +17,8 @@ import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
 import {
 	buildQueueMetadataPatch,
-	deriveQueryFromFile,
+	deriveAuthorQueryFromFile,
+	deriveTitleQueryFromFile,
 	getApplyMode,
 	mapResultToMetadata,
 	persistQueueMetadata,
@@ -207,7 +208,9 @@ async function advanceQueue(
 		);
 		services.setMetadataLookupQueueIndex(nextIndex);
 		updateQueueContext(services);
-		services.getLookupState().query = deriveQueryFromFile(services, nextItem.file);
+		const state = services.getLookupState();
+		state.titleQuery = deriveTitleQueryFromFile(services, nextItem.file);
+		state.authorQuery = deriveAuthorQueryFromFile(services, nextItem.file);
 	}
 
 	resetResults(services);
@@ -304,7 +307,11 @@ async function runSearch(
 	options: SearchStatusOptions = {},
 ): Promise<void> {
 	const state = services.getLookupState();
-	const query = state.query.trim();
+	// Criteria stay separate in the UI; the request joins them because the
+	// lookup contract carries one query string (ASIN pastes still pass through).
+	const query = [state.titleQuery.trim(), state.authorQuery.trim()]
+		.filter((part) => part.length > 0)
+		.join(' ');
 	if (!query) {
 		setStatus(services, 'Enter a title, author, or ASIN to search.', 'error');
 		return;
@@ -356,10 +363,13 @@ async function openWorkflow(services: MetadataLookupWorkflowServices): Promise<v
 
 	const state = services.getLookupState();
 	if (services.getQueueState().queue.length === 0) {
-		state.query = '';
+		state.titleQuery = '';
+		state.authorQuery = '';
 		setStatus(services, 'Select a valid file to search metadata.', 'error');
 	} else {
-		state.query = deriveQueryFromFile(services, services.getQueueState().queue[0].file);
+		const firstFile = services.getQueueState().queue[0].file;
+		state.titleQuery = deriveTitleQueryFromFile(services, firstFile);
+		state.authorQuery = deriveAuthorQueryFromFile(services, firstFile);
 		setStatus(services, '', 'info');
 	}
 

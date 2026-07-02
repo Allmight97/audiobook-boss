@@ -29,19 +29,14 @@ vi.mock('../../lib/tauri/client', () => ({
 }));
 
 describe('MetadataManagerIsland composition', () => {
-	it('arranges cover art, metadata form, and embedded artifacts zones', () => {
+	it('arranges cover art and metadata form zones without the removed artifacts drawer', () => {
 		render(MetadataManagerIsland);
 
 		const manager = screen.getByTestId('metadata-manager');
-		const artifacts = screen.getByTestId('metadata-artifacts');
-
-		expect(manager.contains(artifacts)).toBe(true);
-		// The artifacts drawer lives in the fields cell, below the form, and is
-		// collapsed by default so primary fields stay the visual focus.
-		expect(artifacts.closest('.metadata-fields-cell')).not.toBeNull();
-		expect(screen.getByTestId('metadata-artifacts-toggle')).toHaveAttribute(
-			'aria-expanded',
-			'false',
-		);
+		expect(manager.querySelector('.metadata-cover-cell')).not.toBeNull();
+		expect(manager.querySelector('.metadata-fields-cell')).not.toBeNull();
+		// The embedded-artifacts drawer was removed pending re-ideation; its
+		// backend clear path stays contractual in metadataSession.
+		expect(screen.queryByTestId('metadata-artifacts')).toBeNull();
 	});
 });
