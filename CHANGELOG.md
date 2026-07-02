@@ -6,11 +6,32 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Find Metadata Online now shows separate Title and Author search fields,
+  auto-filled from the selected file (title/album into Title, author into
+  Author), so you can see and adjust each criterion before searching. ASIN
+  pastes into the Title field keep working.
+- Frontend metadata truth (per-file cache, pending drafts, validation, and
+  batch save) is consolidated under one owned Metadata Session module with a
+  contract-pinned surface and an end-to-end edit→save / lookup→save smoke
+  test. No user-visible behavior change; re-applying values identical to the
+  file now truthfully reports "no pending metadata changes" instead of
+  re-writing them.
+- FFmpeg toolchain probing is now per-platform behind one seam: macOS
+  behavior unchanged; Linux (Mint-class) probe rules ship unit-tested ahead
+  of the Linux port. Error messages about Apple AAC availability are
+  platform-truthful.
 - The media test lane now proves the Apple AAC (AudioToolbox) encoder route
   end-to-end alongside Native AAC — real processing to a valid M4B with
   truthful duration and tag re-read. External FDK real-execution proof stays
   manual or env-gated because it requires a user-supplied `libfdk_aac`
   FFmpeg build.
+
+### Removed
+
+- The "Embedded artifacts" inspect/clear drawer under the metadata form
+  (added in 1.3.0). Normal saves still preserve Album sort (TSOA), Comment,
+  Track, and Disc untouched — only the inspect/clear surface is gone while
+  its purpose is re-evaluated (#411).
 
 ## [1.3.0] - 2026-07-02
 
