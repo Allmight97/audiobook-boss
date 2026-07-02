@@ -30,7 +30,10 @@ commands over invoking internals directly.
 - Media execution lane (issue #341 closeout: route `add`): real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
-  cover art, chapters, metadata round-trips, and cancellation. All fixtures
+  the Native AAC and Apple AAC encoder routes (external FDK is excluded: it
+  needs a user-supplied libfdk_aac FFmpeg, so real-execution proof for it is
+  manual or env-gated only), cover art, chapters, metadata round-trips, and
+  cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via libmp3lame, M4B from the
   engine's own output) — never commit media files. Focused command:
   `cargo nextest run -p audiobook-boss --test all_tests -E 'test(media_execution)'`

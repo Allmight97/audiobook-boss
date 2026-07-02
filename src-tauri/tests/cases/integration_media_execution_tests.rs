@@ -9,6 +9,9 @@
 //! These tests prove workflow behavior structural tests cannot:
 //! - import → configure → process → decodable M4B with truthful duration
 //! - real input formats: WAV, M4B (AAC decode→encode), and MP3
+//! - encoder routes: Native AAC and Apple AAC (AudioToolbox). External FDK
+//!   is deliberately absent from the normal suite — it needs a user-supplied
+//!   libfdk_aac FFmpeg, which is environment-dependent by definition.
 //! - metadata save → re-read tags from the real output artifact
 //! - cover art: explicit save round-trips byte-identical; source-cover
 //!   passthrough survives reprocessing
@@ -78,6 +81,7 @@ fn native_encoder_settings() -> EncoderSettings {
 struct MediaLane {
     tmp: TempDir,
     inputs: Vec<PathBuf>,
+    encoder_settings: EncoderSettings,
 }
 
 impl MediaLane {
@@ -92,14 +96,28 @@ impl MediaLane {
                 path
             })
             .collect();
-        Self { tmp, inputs }
+        Self {
+            tmp,
+            inputs,
+            encoder_settings: native_encoder_settings(),
+        }
     }
 
     /// A lane whose inputs are pre-built media files (e.g. a committed M4B
     /// from an earlier engine pass, or a synthesized MP3) instead of WAVs.
     fn for_inputs(inputs: Vec<PathBuf>) -> Self {
         let tmp = TempDir::new().expect("create media lane tempdir");
-        Self { tmp, inputs }
+        Self {
+            tmp,
+            inputs,
+            encoder_settings: native_encoder_settings(),
+        }
+    }
+
+    /// Same lane, different encoder route (e.g. Apple AAC via AudioToolbox).
+    fn with_encoder(mut self, encoder_settings: EncoderSettings) -> Self {
+        self.encoder_settings = encoder_settings;
+        self
     }
 
     fn output_path(&self) -> PathBuf {
@@ -115,7 +133,7 @@ impl MediaLane {
         fs::create_dir_all(output_dir.parent().expect("output parent")).expect("create output dir");
         ProcessingContext::new_headless_with_workspace_root(
             Arc::new(session),
-            native_encoder_settings(),
+            self.encoder_settings.clone(),
             SampleRateConfig::Auto,
             OutputConfig::new(self.output_path()),
             self.workspace_root(),
@@ -137,7 +155,7 @@ impl MediaLane {
             file_info,
             metadata,
             CoverArtPassthroughPolicy::Preserve,
-            native_encoder_settings(),
+            self.encoder_settings.clone(),
         )
     }
 
@@ -470,15 +488,15 @@ fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     assert!(frame_size > 0, "libmp3lame reports a fixed frame size");
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as usize;
     let mut written = 0usize;
-    let receive_packets =
-        |encoder: &mut ff::codec::encoder::Audio, octx: &mut ff::format::context::Output| {
-            let mut packet = ff::Packet::empty();
-            while encoder.receive_packet(&mut packet).is_ok() {
-                packet.set_stream(0);
-                packet.rescale_ts(ff::Rational(1, SAMPLE_RATE as i32), out_time_base);
-                packet.write_interleaved(octx).expect("write mp3 packet");
-            }
-        };
+    let receive_packets = |encoder: &mut ff::codec::encoder::Audio,
+                           octx: &mut ff::format::context::Output| {
+        let mut packet = ff::Packet::empty();
+        while encoder.receive_packet(&mut packet).is_ok() {
+            packet.set_stream(0);
+            packet.rescale_ts(ff::Rational(1, SAMPLE_RATE as i32), out_time_base);
+            packet.write_interleaved(octx).expect("write mp3 packet");
+        }
+    };
 
     while written < total_samples {
         let count = frame_size.min(total_samples - written);
@@ -532,4 +550,37 @@ async fn mp3_input_processes_with_metadata_intact() {
     let reread = read_metadata(&output).expect("re-read tags from artifact");
     assert_eq!(reread.title.as_deref(), Some("MP3 Origin"));
     assert_eq!(reread.artist.as_deref(), Some("Lane Narrator"));
+}
+
+/// Apple AAC (AudioToolbox) is the second in-process encoder route and is
+/// present on every macOS machine, so it earns a deterministic lane test.
+/// External FDK stays out of the normal suite: it needs a user-supplied
+/// libfdk_aac FFmpeg, which is environment-dependent by definition.
+#[tokio::test]
+async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
+    let lane = MediaLane::with_fixtures(&[1.5]).with_encoder(EncoderSettings {
+        encoder_type: EncoderType::AacAt,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cvbr,
+        channels: ChannelConfig::Mono,
+        afterburner: false,
+        threads: ThreadSetting::Auto,
+        twoloop: true,
+    });
+    let mut metadata = AudiobookMetadata::new();
+    metadata.title = Some("Apple AAC Route".to_string());
+
+    let output = lane.process(Some(metadata)).await;
+
+    let probe = get_file_list_info(&[&output]).expect("re-probe aac_at output");
+    assert_eq!(probe.valid_count, 1, "aac_at output probes as valid audio");
+    let drift = (probe.total_duration - 1.5).abs();
+    assert!(
+        drift < 0.5,
+        "aac_at duration {} drifted from source 1.5 by {drift}",
+        probe.total_duration
+    );
+
+    let reread = read_metadata(&output).expect("re-read tags from aac_at artifact");
+    assert_eq!(reread.title.as_deref(), Some("Apple AAC Route"));
 }
