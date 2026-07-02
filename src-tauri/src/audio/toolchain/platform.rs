@@ -106,10 +106,26 @@ pub(super) fn unsupported_binary_rejection_clause() -> &'static str {
 
 // ---------------------------------------------------------------------------
 // Pure per-platform rules — compiled unconditionally, unit-tested on any host.
+//
+// Filesystem canonicalization is INJECTED so the ordering/dedupe rules stay
+// genuinely pure: production passes `fs_canonicalize` (collapses symlinked
+// candidates like Homebrew's opt/ links); tests pass a no-op so the proof is
+// host-independent instead of depending on which paths exist locally.
 // ---------------------------------------------------------------------------
 
-fn push_candidate(candidates: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>, candidate: PathBuf) {
-    if let Ok(canonical) = candidate.canonicalize() {
+type Canonicalize<'a> = &'a dyn Fn(&Path) -> Option<PathBuf>;
+
+fn fs_canonicalize(path: &Path) -> Option<PathBuf> {
+    path.canonicalize().ok()
+}
+
+fn push_candidate(
+    candidates: &mut Vec<PathBuf>,
+    seen: &mut HashSet<PathBuf>,
+    candidate: PathBuf,
+    canonicalize: Canonicalize,
+) {
+    if let Some(canonical) = canonicalize(&candidate) {
         if seen.insert(canonical.clone()) {
             candidates.push(canonical);
         }
@@ -126,6 +142,20 @@ pub(super) fn ordered_macos_auto_candidate_paths(
     pkg_config_prefix: Option<&str>,
     path_ffmpeg: Option<&str>,
 ) -> Vec<PathBuf> {
+    ordered_macos_auto_candidate_paths_with(
+        brew_prefix,
+        pkg_config_prefix,
+        path_ffmpeg,
+        &fs_canonicalize,
+    )
+}
+
+fn ordered_macos_auto_candidate_paths_with(
+    brew_prefix: Option<&str>,
+    pkg_config_prefix: Option<&str>,
+    path_ffmpeg: Option<&str>,
+    canonicalize: Canonicalize,
+) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
 
@@ -135,6 +165,7 @@ pub(super) fn ordered_macos_auto_candidate_paths(
             &mut candidates,
             &mut seen,
             Path::new(prefix).join("bin/ffmpeg"),
+            canonicalize,
         );
     }
 
@@ -145,18 +176,29 @@ pub(super) fn ordered_macos_auto_candidate_paths(
             &mut candidates,
             &mut seen,
             Path::new(prefix).join("bin/ffmpeg"),
+            canonicalize,
         );
     }
 
     if let Some(path) = path_ffmpeg {
-        push_candidate(&mut candidates, &mut seen, PathBuf::from(path));
+        push_candidate(
+            &mut candidates,
+            &mut seen,
+            PathBuf::from(path),
+            canonicalize,
+        );
     }
 
     for path in [
         "/opt/homebrew/opt/ffmpeg/bin/ffmpeg",
         "/opt/homebrew/bin/ffmpeg",
     ] {
-        push_candidate(&mut candidates, &mut seen, PathBuf::from(path));
+        push_candidate(
+            &mut candidates,
+            &mut seen,
+            PathBuf::from(path),
+            canonicalize,
+        );
     }
 
     candidates
@@ -169,6 +211,14 @@ pub(super) fn ordered_linux_auto_candidate_paths(
     pkg_config_prefix: Option<&str>,
     which_ffmpeg: Option<&str>,
 ) -> Vec<PathBuf> {
+    ordered_linux_auto_candidate_paths_with(pkg_config_prefix, which_ffmpeg, &fs_canonicalize)
+}
+
+fn ordered_linux_auto_candidate_paths_with(
+    pkg_config_prefix: Option<&str>,
+    which_ffmpeg: Option<&str>,
+    canonicalize: Canonicalize,
+) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
 
@@ -179,15 +229,26 @@ pub(super) fn ordered_linux_auto_candidate_paths(
             &mut candidates,
             &mut seen,
             Path::new(prefix).join("bin/ffmpeg"),
+            canonicalize,
         );
     }
 
     if let Some(path) = which_ffmpeg {
-        push_candidate(&mut candidates, &mut seen, PathBuf::from(path));
+        push_candidate(
+            &mut candidates,
+            &mut seen,
+            PathBuf::from(path),
+            canonicalize,
+        );
     }
 
     for path in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"] {
-        push_candidate(&mut candidates, &mut seen, PathBuf::from(path));
+        push_candidate(
+            &mut candidates,
+            &mut seen,
+            PathBuf::from(path),
+            canonicalize,
+        );
     }
 
     candidates
@@ -238,24 +299,36 @@ pub(super) fn is_supported_linux_file_description(description: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Tests inject a no-op canonicalizer so ordering/dedupe proof does not
+    /// depend on which paths exist (or are symlinked) on the test host.
+    fn no_canonicalize(_: &Path) -> Option<PathBuf> {
+        None
+    }
+
     #[test]
     fn linux_candidates_order_pkg_config_then_which_then_heuristics() {
-        let candidates =
-            ordered_linux_auto_candidate_paths(Some("/usr"), Some("/tmp/abb-which-linux-ffmpeg"));
+        let candidates = ordered_linux_auto_candidate_paths_with(
+            Some("/usr"),
+            Some("/tmp/abb-which-linux-ffmpeg"),
+            &no_canonicalize,
+        );
 
-        assert_eq!(candidates[0], PathBuf::from("/usr/bin/ffmpeg"));
-        assert_eq!(candidates[1], PathBuf::from("/tmp/abb-which-linux-ffmpeg"));
-        // /usr/bin/ffmpeg heuristic dedupes against the pkg-config candidate;
-        // only /usr/local/bin/ffmpeg remains from the hardcoded tail.
-        assert!(candidates
-            .iter()
-            .any(|candidate| candidate == &PathBuf::from("/usr/local/bin/ffmpeg")));
-        assert_eq!(candidates.len(), 3);
+        // pkg-config prefix first, then which, then the one heuristic the
+        // literal dedupe leaves (/usr/bin/ffmpeg already emitted).
+        assert_eq!(
+            candidates,
+            vec![
+                PathBuf::from("/usr/bin/ffmpeg"),
+                PathBuf::from("/tmp/abb-which-linux-ffmpeg"),
+                PathBuf::from("/usr/local/bin/ffmpeg"),
+            ]
+        );
     }
 
     #[test]
     fn linux_candidates_reject_unsupported_prefixes() {
-        let candidates = ordered_linux_auto_candidate_paths(Some("/opt/homebrew"), None);
+        let candidates =
+            ordered_linux_auto_candidate_paths_with(Some("/opt/homebrew"), None, &no_canonicalize);
 
         assert!(
             candidates
@@ -313,14 +386,23 @@ mod tests {
 
     #[test]
     fn macos_rules_keep_current_behavior_after_extraction() {
-        // Pins that the seam extraction changed nothing on macOS.
-        let candidates = ordered_macos_auto_candidate_paths(
+        // Pins that the seam extraction changed nothing on macOS. Ordering is
+        // asserted with canonicalization stubbed out: brew prefix, then
+        // pkg-config prefix, then which; the hardcoded tail dedupes away.
+        let candidates = ordered_macos_auto_candidate_paths_with(
             Some("/opt/homebrew/opt/ffmpeg"),
             Some("/opt/homebrew"),
             Some("/tmp/abb-which-ffmpeg"),
+            &no_canonicalize,
         );
-        assert!(candidates[0].to_string_lossy().contains("/opt/homebrew/"));
-        assert_eq!(candidates.len(), 2);
+        assert_eq!(
+            candidates,
+            vec![
+                PathBuf::from("/opt/homebrew/opt/ffmpeg/bin/ffmpeg"),
+                PathBuf::from("/opt/homebrew/bin/ffmpeg"),
+                PathBuf::from("/tmp/abb-which-ffmpeg"),
+            ]
+        );
 
         assert!(is_supported_macos_auto_detect_prefix("/opt/homebrew"));
         assert!(!is_supported_macos_auto_detect_prefix("/usr/local"));
