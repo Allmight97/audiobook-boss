@@ -489,6 +489,14 @@ textarea:hover:not(:focus) {
 	margin-bottom: 0.25rem;
 }
 
+/* Tightly stacked sub-fields sharing one grid cell (e.g. Title over Author
+   in the metadata lookup controls). */
+.app-modal-field-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+}
+
 .app-modal-field-button,
 .app-modal-field-toggle {
 	display: flex;
