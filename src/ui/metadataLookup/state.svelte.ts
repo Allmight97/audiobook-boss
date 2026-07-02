@@ -16,7 +16,10 @@ export type MetadataLookupQueueState = {
 
 export type MetadataLookupState = {
 	isOpen: boolean;
-	query: string;
+	/** Search criteria stay separated so users can see and fix each part;
+	 * they are joined only when the search request is built. */
+	titleQuery: string;
+	authorQuery: string;
 	source: MetadataLookupSource;
 	applyMode: MetadataLookupApplyMode;
 	replaceCoverArt: boolean;
@@ -38,7 +41,8 @@ function createMetadataLookupQueueState(): MetadataLookupQueueState {
 
 export const metadataLookupState = $state<MetadataLookupState>({
 	isOpen: false,
-	query: '',
+	titleQuery: '',
+	authorQuery: '',
 	source: 'auto',
 	applyMode: 'current',
 	replaceCoverArt: false,

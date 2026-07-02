@@ -114,7 +114,7 @@ function getContextText(): string {
 }
 
 function getQueryValue(): string {
-	return (document.getElementById('metadata-lookup-query') as HTMLInputElement).value;
+	return (document.getElementById('metadata-lookup-title-query') as HTMLInputElement).value;
 }
 
 async function flushAsync(): Promise<void> {

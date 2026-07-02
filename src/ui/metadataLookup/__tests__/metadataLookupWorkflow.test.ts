@@ -100,7 +100,8 @@ async function flushAsync(): Promise<void> {
 function defaultLookupState(overrides: Partial<MetadataLookupState> = {}): MetadataLookupState {
 	return {
 		isOpen: false,
-		query: '',
+		titleQuery: '',
+		authorQuery: '',
 		source: 'auto',
 		applyMode: 'current',
 		replaceCoverArt: false,
@@ -328,7 +329,7 @@ describe('MetadataLookupWorkflow', () => {
 		await runMetadataLookupWorkflow(harness.layer, { type: 'open' });
 
 		expect(harness.queueState.queue).toEqual([]);
-		expect(harness.lookupState.query).toBe('');
+		expect(harness.lookupState.titleQuery).toBe('');
 		expect(harness.lookupState.statusMessage).toBe('Select a valid file to search metadata.');
 		expect(harness.lookupState.statusVariant).toBe('error');
 		expect(harness.lookupState.isOpen).toBe(true);
@@ -344,7 +345,7 @@ describe('MetadataLookupWorkflow', () => {
 			'/books/alpha.m4b',
 			'/books/beta.m4b',
 		]);
-		expect(harness.lookupState.query).toBe('Alpha Existing');
+		expect(harness.lookupState.titleQuery).toBe('Alpha Existing');
 		expect(harness.lookupState.queueContext).toBe('1 of 2 • alpha.m4b');
 		expect(harness.lookupState.applyMode).toBe('queue');
 		expect(harness.lookupState.skipEnabled).toBe(true);
@@ -358,7 +359,7 @@ describe('MetadataLookupWorkflow', () => {
 	});
 
 	it('rejects empty searches without calling the backend', async () => {
-		const harness = makeHarness({ lookupState: { query: '   ' } });
+		const harness = makeHarness({ lookupState: { titleQuery: '   ', authorQuery: '  ' } });
 
 		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
 
@@ -370,7 +371,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('stores search results and sends explicit source selection to Tauri', async () => {
 		const result = lookupResult({ title: 'Found Title' });
 		const harness = makeHarness({
-			lookupState: { query: 'alpha', source: 'auto' },
+			lookupState: { titleQuery: 'alpha', source: 'auto' },
 			searchOnlineMetadata: async () => lookupResponse([result]),
 		});
 
@@ -389,7 +390,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('surfaces degraded lookup diagnostics while keeping available results', async () => {
 		const result = lookupResult({ title: 'Partial Title' });
 		const harness = makeHarness({
-			lookupState: { query: 'alpha', source: 'auto' },
+			lookupState: { titleQuery: 'alpha', source: 'auto' },
 			searchOnlineMetadata: async () =>
 				lookupResponse([result], {
 					diagnostics: [
@@ -415,7 +416,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('surfaces search failures without treating them as no-result matches', async () => {
 		const cause = new Error('all sources failed');
 		const harness = makeHarness({
-			lookupState: { query: 'alpha', results: [lookupResult()], hasSearched: true },
+			lookupState: { titleQuery: 'alpha', results: [lookupResult()], hasSearched: true },
 			searchOnlineMetadata: async () => {
 				throw cause;
 			},
@@ -477,7 +478,7 @@ describe('MetadataLookupWorkflow', () => {
 			}),
 		);
 		expect(harness.queueState.index).toBe(1);
-		expect(harness.lookupState.query).toBe('Beta Existing');
+		expect(harness.lookupState.titleQuery).toBe('Beta Existing');
 		expect(harness.lookupState.queueContext).toBe('2 of 2 • beta.m4b');
 		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
 			query: 'Beta Existing',

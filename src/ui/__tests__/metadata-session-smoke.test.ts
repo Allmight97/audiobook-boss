@@ -201,7 +201,8 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 		};
 		const lookupState = {
 			isOpen: true,
-			query: 'looked up',
+			titleQuery: 'looked up',
+			authorQuery: '',
 			source: 'auto' as const,
 			applyMode: 'queue' as const,
 			replaceCoverArt: false,
