@@ -126,7 +126,8 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | File Import | `src/ui/fileImport` | Drag/drop, picker, and import-analysis workflow; composes `FileListIsland`. |
 | Status Panel | `src/ui/statusPanel` | Processing launch controls, concurrency display, and foreground preview progress rendering. |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
-| App Settings | `src/ui/appSettings` | Settings hydration and durable preference coordination. |
+| App Settings | `src/ui/appSettings` | Settings hydration, durable preference coordination, and the settings dialog (FFmpeg/FDK path, startup behavior, pinned defaults). |
+| Metadata Artifacts | `src/ui/metadataArtifacts` | Inspect/clear UX for artifact fields (`album_sort`, `comment`, `track`, `disk`) via explicit intent. |
 | Remote Source | `src/ui/remoteSource` | Session-asset coordination for imported remote-source inputs; public strip is session-assets only. |
 
 Exact export lists live in each strip's nearest `AGENTS.md`.

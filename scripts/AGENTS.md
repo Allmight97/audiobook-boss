@@ -7,6 +7,11 @@ commands over invoking internals directly.
 ## Public Entrypoints
 
 - Convenience commands: `package.json` scripts.
+- CI tripwire (`.github/workflows/ci.yml`) runs on push to `main` only:
+  clean-install typecheck + `check:svelte`, generated-binding drift, and
+  core-crate Nextest. It is a narrow post-push alarm, not a gate; local
+  commands below remain the default evidence trail. Widening it requires a
+  repo-owner decision (see `docs/DECISIONS.md` 2026-07-01).
 - There is no repo-owned verification runner and no default broad review route.
   Run native commands directly, one at a time, only for the touched owner or
   explicit risk surface. Report the command, elapsed time when meaningful, exit

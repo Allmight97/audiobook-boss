@@ -2,17 +2,37 @@
 
 ## Public API Strip
 
-- Import app settings hydration and persistence helpers from `src/ui/appSettings`.
+- Import app settings hydration, persistence, and dialog entrypoints from
+  `src/ui/appSettings`.
 - Exports: `hydrateAppSettings`, `initializeAppSettingsControlPlane`,
   `persistAppSettingsPatch`, `persistConcurrencyPreference`,
-  `persistEncoderDefaults`, `persistOutputDefaults`.
+  `persistEncoderDefaults`, `persistOutputDefaults`,
+  `AppSettingsDialogIsland`, `openAppSettingsDialog`,
+  `closeAppSettingsDialog`.
 
 ## Private Cluster
 
-- Files: `hydration.ts`, `persistence.ts`, `appSettings.test.ts`, `AGENTS.md`.
+- Files: `hydration.ts`, `persistence.ts`, `settingsDialog.svelte.ts`,
+  `AppSettingsDialogIsland.svelte`, `appSettings.test.ts`,
+  `settingsDialog.test.ts`, `AGENTS.md`.
 - The cluster coordinates durable preference hydration/persistence through
   `tauriClient` while leaving runtime request ownership in the job controls,
   encoder panel, and output panel Public API Strips.
+- The settings dialog (Cmd+, via `App.svelte`) owns the user FFmpeg/FDK path
+  preference, startup-behavior toggle, pin-current-as-defaults capture, and
+  reset-all.
+
+## Startup / Pinned-Defaults Semantics
+
+- The panels auto-persist every change into the top-level (last-used) settings
+  values; there is no separate session state. Capture ("Use current settings
+  as defaults") is therefore a pure settings copy: top-level values →
+  `pinnedDefaults`. Do not read panel internals to capture.
+- `hydrateOnce` restores from `pinnedDefaults` only when
+  `startupBehavior === 'pinnedDefaults'` AND a pin exists; otherwise it
+  restores top-level values (today's remember-last behavior). Hydration must
+  never persist — the panel appliers do not write, only the user-action
+  handlers do.
 
 ## Allowed Agent Edits Without Escalation
 
@@ -29,3 +49,5 @@
   coordinator instead of using the owning panel Public API Strips.
 - Making App Settings apply runtime behavior directly instead of asking the
   owning runtime/control module to accept the change first.
+- Changing startup-source selection or capture semantics above without updating
+  the hydration and dialog tests that pin them.

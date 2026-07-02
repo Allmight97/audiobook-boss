@@ -16,8 +16,8 @@ Rules for all three:
 
 - Compose existing public UI islands only. Do not import private
   `state.svelte.ts`, logic modules, or event handlers from the owners they
-  arrange (encoder, output, tag preview, cover-art, metadata form/lookup/save,
-  file management).
+  arrange (encoder, output, tag preview, cover-art, metadata
+  form/lookup/save/artifacts, file management).
 - Do not move owner truth into a shell: processing-request, Status Panel, Work
   Center, file-management, metadata, and cover-art truth stay in their owners.
 - Preserve `leftColumn` height behavior: the input workflow flexes, the

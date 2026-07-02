@@ -72,6 +72,9 @@ default broad review route.
   generated bindings or Tauri runtime boundaries directly.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review path.
+- CI: a narrow tripwire workflow runs on push to `main` (clean-install
+  typecheck/svelte-check, binding drift, core-crate Nextest). It is an alarm,
+  not a gate; local commands above are the evidence trail.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a validated tooling
   decision changes that.
