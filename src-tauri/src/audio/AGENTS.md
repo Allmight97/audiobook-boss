@@ -49,7 +49,11 @@
 - Files: `buffer.rs`, `cleanup/`, `extensions.rs`,
   `constants.rs`, `file_list.rs`, `imports.rs`, `imports_tests.rs`, `metrics.rs`,
   `path_validation.rs`, `processor/`, `settings.rs`, `settings_capabilities.rs`,
-  `settings_encoder.rs`, and `toolchain.rs`.
+  `settings_encoder.rs`, and `toolchain/` (`mod.rs` = platform-neutral
+  resolution/validation; `platform.rs` = the per-OS probe seam — candidate
+  enumeration, binary-arch acceptance, and platform paths live ONLY there,
+  cfg-dispatched per the `remote_source/vault.rs` pattern with pure rules
+  unit-testable on any host).
 - The cluster owns local audio import metadata/discovery, decoder/toolchain
   selection, media inspection, decode/resample/encode/mux internals, staging,
   cleanup, and media execution facts. Processing owns lifecycle orchestration

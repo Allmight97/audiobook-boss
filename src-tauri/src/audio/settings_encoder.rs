@@ -304,7 +304,15 @@ pub fn validate_requested_encoder_available(
                 "FDK AAC requires a validated external FFmpeg toolchain.",
             ));
         }
-        EncoderType::AacAt => "Apple AAC is unavailable in this build.".to_string(),
+        // Platform-truthful: on macOS the encoder exists but this build lacks
+        // it; elsewhere AudioToolbox does not exist at all.
+        EncoderType::AacAt => {
+            if cfg!(target_os = "macos") {
+                "Apple AAC is unavailable in this build.".to_string()
+            } else {
+                "Apple AAC (aac_at) is only available on macOS.".to_string()
+            }
+        }
         EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),
     };
 
@@ -319,5 +327,46 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
         EncoderType::NativeAac => "aac",
         EncoderType::FdkHeAac => "libfdk_aac",
         EncoderType::AacAt => "aac_at",
+    }
+}
+
+#[cfg(test)]
+mod aac_at_message_tests {
+    use super::*;
+    use crate::audio::toolchain::{EncoderAvailability, EncoderCapabilitySource};
+
+    fn availability_without_aac_at() -> EncoderAvailability {
+        EncoderAvailability {
+            fdk_available: false,
+            fdk_source: EncoderCapabilitySource::None,
+            aac_at_available: false,
+            native_aac_available: true,
+            auto_encoder: EncoderType::NativeAac,
+            detected_toolchain_path: None,
+            status_message: String::new(),
+        }
+    }
+
+    /// Per-OS assertion pattern from `processor/streams.rs`: the rejection
+    /// message must be truthful about WHY Apple AAC is unavailable.
+    #[test]
+    fn aac_at_unavailable_message_is_platform_truthful() {
+        let err = validate_requested_encoder_available(
+            EncoderType::AacAt,
+            &availability_without_aac_at(),
+        )
+        .expect_err("aac_at must be rejected when unavailable");
+        let message = err.to_string();
+
+        #[cfg(target_os = "macos")]
+        assert!(
+            message.contains("Apple AAC is unavailable in this build."),
+            "unexpected message: {message}"
+        );
+        #[cfg(not(target_os = "macos"))]
+        assert!(
+            message.contains("Apple AAC (aac_at) is only available on macOS."),
+            "unexpected message: {message}"
+        );
     }
 }
