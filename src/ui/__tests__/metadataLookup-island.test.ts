@@ -118,7 +118,7 @@ describe('MetadataLookup island mount', () => {
 
 		await tick();
 
-		const coverAreas = document.querySelectorAll('.metadata-lookup-cover');
+		const coverAreas = document.querySelectorAll('.app-cover-thumb');
 		expect(coverAreas.length).toBe(2);
 
 		await waitFor(() => {

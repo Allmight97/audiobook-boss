@@ -31,6 +31,27 @@
   `src/lib/effect/AGENTS.md` first.
 - Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.
 
+## Design-System Primitives
+
+- Design tokens are named values in `@theme`/`:root`; primitives are reusable
+  styling behaviors/classes in `src/styles.css`; design-system work means
+  changing that shared layer intentionally.
+- Promote component styling to a primitive only when the deletion test passes:
+  deleting the class would make the same layout or visual rules reappear across
+  at least two UI owners. Keep one-owner styling local.
+- For broad UI redesign work, decide or update tokens and the primitive kit
+  first, then rebuild owner islands on top of that kit. Do not deepen around
+  today's duplicated styles before the redesign unless the primitive already
+  has stable multi-owner use.
+- The design lab (`lab.html` + `src/lab/`, dev-only: served by the Vite dev
+  server, not part of the app build) renders every token and primitive with a
+  density switcher. When adding or changing a token or `src/styles.css`
+  primitive, add/update its lab rendering in the same change — the lab is the
+  visual-review surface for design-system work (screenshot it for evidence).
+- Density is a user preference: read `--density-*` tokens instead of
+  hardcoding row heights/padding; `[data-density='compact']` on `<html>`
+  flips them.
+
 ## Hard Invariants
 
 - Runtime modules do not call command/event invokers directly from `src/lib/generated/tauri.ts`.

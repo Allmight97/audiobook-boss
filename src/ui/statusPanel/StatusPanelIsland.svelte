@@ -102,10 +102,10 @@
         >
         <span id="status-text" class="text-xs font-semibold">{statusPanelViewState.statusText}</span>
       </div>
-      <div class="progress-bar-bg">
+      <div class="app-progress-track">
         <div
           id="progress-bar"
-          class="progress-bar-fg"
+          class="app-progress-fill progress-bar-fg"
           style={`width: ${statusPanelViewState.progressPercentage}%`}
         ></div>
       </div>
@@ -237,14 +237,6 @@
 		display: flex;
 		flex-shrink: 0;
 		gap: 0.5rem;
-	}
-
-	.progress-bar-bg {
-		position: relative;
-		overflow: hidden;
-		height: 6px;
-		border-radius: 9999px;
-		background-color: var(--progress-bg);
 	}
 
 	.progress-bar-fg {
