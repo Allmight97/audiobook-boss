@@ -1,17 +1,22 @@
 //! Media-execution lane (issue #341, closeout route: add now).
 //!
-//! Smallest maintained real-media lane: fixtures are WAV files synthesized at
-//! test time (no committed media, no licensing exposure), executed through the
-//! in-process ffmpeg-next native path with a headless `ProcessingContext`.
+//! Smallest maintained real-media lane: every fixture is synthesized at test
+//! time (no committed media, no licensing exposure) — WAVs in pure Rust, MP3s
+//! via the linked FFmpeg's libmp3lame, M4Bs by reusing the engine's own
+//! committed output as a second-pass input. Execution runs the in-process
+//! ffmpeg-next native path with a headless `ProcessingContext`.
 //!
 //! These tests prove workflow behavior structural tests cannot:
 //! - import → configure → process → decodable M4B with truthful duration
+//! - real input formats: WAV, M4B (AAC decode→encode), and MP3
 //! - metadata save → re-read tags from the real output artifact
+//! - cover art: explicit save round-trips byte-identical; source-cover
+//!   passthrough survives reprocessing
+//! - chapters: synthesized per source on merge, preserved on reprocess
 //! - cancellation → terminal error with no artifact and no staging residue
 //!
-//! Runtime budget: a few seconds of mono sine audio; the whole module must
-//! stay under ~10s. If it grows past that, shrink fixtures before widening
-//! the budget.
+//! Runtime budget: the module must stay under ~10s wall clock (currently ~1s).
+//! If it grows past that, shrink fixtures before widening the budget.
 
 use audiobook_boss_lib::audio::{
     execute_audio_engine, get_file_list_info, AudioExecutionRequest, BitrateMode, ChannelConfig,
@@ -20,8 +25,8 @@ use audiobook_boss_lib::audio::{
 use audiobook_boss_lib::processing::job_registry::{JobId, JobRegistry};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use audiobook_boss_lib::{
-    read_metadata, save_metadata_intent, AlbumSortPatchOp, AppError, AudiobookMetadata,
-    CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
+    extract_passthrough_metadata, read_metadata, save_metadata_intent, AlbumSortPatchOp, AppError,
+    AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PassthroughSource, PatchOp,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -90,6 +95,13 @@ impl MediaLane {
         Self { tmp, inputs }
     }
 
+    /// A lane whose inputs are pre-built media files (e.g. a committed M4B
+    /// from an earlier engine pass, or a synthesized MP3) instead of WAVs.
+    fn for_inputs(inputs: Vec<PathBuf>) -> Self {
+        let tmp = TempDir::new().expect("create media lane tempdir");
+        Self { tmp, inputs }
+    }
+
     fn output_path(&self) -> PathBuf {
         self.tmp.path().join("out").join("lane-output.m4b")
     }
@@ -127,6 +139,14 @@ impl MediaLane {
             CoverArtPassthroughPolicy::Preserve,
             native_encoder_settings(),
         )
+    }
+
+    /// Runs the engine on this lane's inputs and returns the committed path.
+    async fn process(&self, metadata: Option<AudiobookMetadata>) -> PathBuf {
+        execute_audio_engine(self.execution_request(ProcessingSession::new(), metadata))
+            .await
+            .expect("native processing succeeds");
+        self.output_path()
     }
 
     /// Directories left under the private workspace root after a run.
@@ -285,4 +305,231 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
         Some("Renamed Artifact Book"),
         "primary fields untouched by artifact clears"
     );
+}
+
+fn minimal_jpg_bytes() -> Vec<u8> {
+    fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/support/minimal.jpg"
+    ))
+    .expect("read minimal.jpg support fixture")
+}
+
+fn chapters_of(path: &Path) -> Vec<(Option<String>, i64, i64)> {
+    let passthrough = extract_passthrough_metadata(&[PassthroughSource {
+        path: path.to_path_buf(),
+        duration: None,
+        is_valid: true,
+    }]);
+    passthrough
+        .chapters
+        .into_iter()
+        .map(|chapter| (chapter.title, chapter.start_ms, chapter.end_ms))
+        .collect()
+}
+
+/// The user's dominant real input is M4B, not WAV. Two-pass: the engine's own
+/// committed output becomes the single input for a second run — exercising
+/// AAC decode → encode and the MP4 tag read path with no committed media.
+#[tokio::test]
+async fn m4b_input_processes_with_metadata_intact_and_cover_passthrough() {
+    let wav_lane = MediaLane::with_fixtures(&[1.5]);
+    let mut first_pass = AudiobookMetadata::new();
+    first_pass.title = Some("First Pass".to_string());
+    first_pass.artist = Some("Lane Narrator".to_string());
+    first_pass.cover_art = Some(minimal_jpg_bytes());
+    let m4b_input = wav_lane.process(Some(first_pass)).await;
+
+    let m4b_lane = MediaLane::for_inputs(vec![m4b_input]);
+    let mut second_pass = AudiobookMetadata::new();
+    second_pass.title = Some("Second Pass".to_string());
+    // No cover art in pass B: with the Preserve policy the source M4B's
+    // embedded cover must pass through to the new artifact.
+    let output = m4b_lane.process(Some(second_pass)).await;
+
+    let probe = get_file_list_info(&[&output]).expect("re-probe reprocessed M4B");
+    assert_eq!(
+        probe.valid_count, 1,
+        "reprocessed M4B probes as valid audio"
+    );
+    let drift = (probe.total_duration - 1.5).abs();
+    assert!(
+        drift < 0.5,
+        "reprocessed duration {} drifted from source 1.5 by {drift}",
+        probe.total_duration
+    );
+
+    let reread = read_metadata(&output).expect("re-read tags from reprocessed artifact");
+    assert_eq!(reread.title.as_deref(), Some("Second Pass"));
+    let cover = reread
+        .cover_art
+        .expect("source M4B cover art passes through to the reprocessed artifact");
+    assert!(!cover.is_empty(), "passed-through cover art has bytes");
+}
+
+/// Cover art supplied with the save must land in the committed artifact and
+/// read back through the same public metadata reader the app uses.
+#[tokio::test]
+async fn cover_art_saved_during_processing_rereads_from_output_artifact() {
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let jpg = minimal_jpg_bytes();
+    let mut metadata = AudiobookMetadata::new();
+    metadata.title = Some("Covered Book".to_string());
+    metadata.cover_art = Some(jpg.clone());
+
+    let output = lane.process(Some(metadata)).await;
+
+    let reread = read_metadata(&output).expect("re-read committed artifact");
+    let cover = reread.cover_art.expect("cover art embedded in output");
+    assert_eq!(
+        cover, jpg,
+        "cover art bytes round-trip unchanged through processing"
+    );
+}
+
+/// Chapter truth across the two behaviors the pipeline owns: multi-file
+/// merges synthesize one chapter per source, and reprocessing a chaptered
+/// M4B as a single input preserves the embedded chapters (#341 residual).
+#[tokio::test]
+async fn chapters_synthesize_on_merge_and_survive_reprocessing() {
+    let merge_lane = MediaLane::with_fixtures(&[1.5, 1.0]);
+    let merged = merge_lane.process(None).await;
+
+    let synthesized = chapters_of(&merged);
+    assert_eq!(
+        synthesized.len(),
+        2,
+        "merge without source chapters synthesizes one chapter per input"
+    );
+    assert_eq!(synthesized[0].1, 0, "first chapter starts at zero");
+    let boundary = synthesized[1].1;
+    assert!(
+        (boundary - 1_500).abs() < 500,
+        "second chapter boundary {boundary}ms should sit near the first fixture's 1500ms"
+    );
+
+    let reprocess_lane = MediaLane::for_inputs(vec![merged]);
+    let reprocessed = reprocess_lane.process(None).await;
+
+    let preserved = chapters_of(&reprocessed);
+    assert_eq!(
+        preserved.len(),
+        2,
+        "embedded chapters survive single-input reprocessing"
+    );
+    assert_eq!(
+        preserved.iter().map(|c| c.0.clone()).collect::<Vec<_>>(),
+        synthesized.iter().map(|c| c.0.clone()).collect::<Vec<_>>(),
+        "chapter titles are preserved"
+    );
+    let preserved_boundary = preserved[1].1;
+    assert!(
+        (preserved_boundary - boundary).abs() < 200,
+        "preserved chapter boundary {preserved_boundary}ms should match the source's {boundary}ms"
+    );
+}
+
+/// Synthesizes a mono sine MP3 at test time via the linked FFmpeg's
+/// `libmp3lame` encoder. MP3 cannot be fabricated by remuxing PCM, so this is
+/// the smallest honest fixture path. Panics loudly if `libmp3lame` is absent:
+/// both supported environments (local brew FFmpeg and the CI runner's brew
+/// FFmpeg) ship it, and a silent skip would be false green.
+fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
+    use ffmpeg_next as ff;
+
+    ff::init().expect("ffmpeg init");
+    let codec = ff::encoder::find_by_name("libmp3lame")
+        .expect("libmp3lame encoder must be available in the linked FFmpeg (brew ffmpeg ships it)")
+        .audio()
+        .expect("libmp3lame is an audio codec");
+
+    let mut octx = ff::format::output(&path).expect("create mp3 output context");
+    let mut stream = octx.add_stream(codec).expect("add mp3 stream");
+    let context = ff::codec::context::Context::from_parameters(stream.parameters())
+        .expect("encoder context from stream parameters");
+    let mut encoder = context.encoder().audio().expect("audio encoder");
+
+    let channel_layout = codec
+        .channel_layouts()
+        .map(|layouts| layouts.best(1))
+        .unwrap_or(ff::ChannelLayout::MONO);
+    let sample_format = ff::format::Sample::I16(ff::format::sample::Type::Planar);
+    encoder.set_rate(SAMPLE_RATE as i32);
+    encoder.set_channel_layout(channel_layout);
+    encoder.set_format(sample_format);
+    encoder.set_bit_rate(64_000);
+    encoder.set_time_base((1, SAMPLE_RATE as i32));
+    stream.set_time_base((1, SAMPLE_RATE as i32));
+
+    let mut encoder = encoder.open_as(codec).expect("open libmp3lame encoder");
+    stream.set_parameters(&encoder);
+    octx.write_header().expect("write mp3 header");
+    let out_time_base = octx.stream(0).expect("mp3 stream").time_base();
+
+    let frame_size = encoder.frame_size() as usize;
+    assert!(frame_size > 0, "libmp3lame reports a fixed frame size");
+    let total_samples = (seconds * f64::from(SAMPLE_RATE)) as usize;
+    let mut written = 0usize;
+    let receive_packets =
+        |encoder: &mut ff::codec::encoder::Audio, octx: &mut ff::format::context::Output| {
+            let mut packet = ff::Packet::empty();
+            while encoder.receive_packet(&mut packet).is_ok() {
+                packet.set_stream(0);
+                packet.rescale_ts(ff::Rational(1, SAMPLE_RATE as i32), out_time_base);
+                packet.write_interleaved(octx).expect("write mp3 packet");
+            }
+        };
+
+    while written < total_samples {
+        let count = frame_size.min(total_samples - written);
+        let mut frame = ff::frame::Audio::new(sample_format, count, channel_layout);
+        frame.set_rate(SAMPLE_RATE);
+        frame.set_pts(Some(written as i64));
+        {
+            let plane = frame.plane_mut::<i16>(0);
+            for (offset, sample) in plane.iter_mut().enumerate().take(count) {
+                let t = (written + offset) as f64 / f64::from(SAMPLE_RATE);
+                *sample = (0.3
+                    * (2.0 * std::f64::consts::PI * freq_hz * t).sin()
+                    * f64::from(i16::MAX)) as i16;
+            }
+        }
+        encoder.send_frame(&frame).expect("send mp3 frame");
+        receive_packets(&mut encoder, &mut octx);
+        written += count;
+    }
+
+    encoder.send_eof().expect("flush mp3 encoder");
+    receive_packets(&mut encoder, &mut octx);
+    octx.write_trailer().expect("write mp3 trailer");
+}
+
+/// MP3 is the other common real input. The fixture is a genuine lame-encoded
+/// MP3 synthesized at test time; the assertions mirror the M4B-input test:
+/// decodable output, truthful duration, and tags re-read from the artifact.
+#[tokio::test]
+async fn mp3_input_processes_with_metadata_intact() {
+    let tmp = TempDir::new().expect("mp3 fixture tempdir");
+    let mp3_path = tmp.path().join("fixture.mp3");
+    write_sine_mp3(&mp3_path, 1.5, 440.0);
+
+    let lane = MediaLane::for_inputs(vec![mp3_path]);
+    let mut metadata = AudiobookMetadata::new();
+    metadata.title = Some("MP3 Origin".to_string());
+    metadata.artist = Some("Lane Narrator".to_string());
+
+    let output = lane.process(Some(metadata)).await;
+
+    let probe = get_file_list_info(&[&output]).expect("re-probe M4B produced from MP3");
+    assert_eq!(probe.valid_count, 1, "output probes as valid audio");
+    let drift = (probe.total_duration - 1.5).abs();
+    assert!(
+        drift < 0.5,
+        "duration {} drifted from MP3 source 1.5 by {drift}",
+        probe.total_duration
+    );
+
+    let reread = read_metadata(&output).expect("re-read tags from artifact");
+    assert_eq!(reread.title.as_deref(), Some("MP3 Origin"));
+    assert_eq!(reread.artist.as_deref(), Some("Lane Narrator"));
 }

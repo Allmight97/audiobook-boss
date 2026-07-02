@@ -11,7 +11,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `plan_metadata_write`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent` (both also
   re-exported at the crate root for external integration tests, e.g. the
-  media-execution lane's tag round-trip proof).
+  media-execution lane's tag round-trip proof; the lane also uses the
+  crate-root re-exports of `extract_passthrough_metadata` +
+  `PassthroughSource` to assert chapter truth on real artifacts).
 - Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`,
   `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
   `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`

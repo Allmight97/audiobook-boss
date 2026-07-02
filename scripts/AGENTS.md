@@ -29,12 +29,14 @@ commands over invoking internals directly.
   `verify_aac_decoder_contract`.
 - Media execution lane (issue #341 closeout: route `add`): real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
-  and run inside the normal runtime suite. Fixtures are WAVs synthesized at
-  test time — never commit media files. Focused command:
+  and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
+  cover art, chapters, metadata round-trips, and cancellation. All fixtures
+  are synthesized at test time (WAV in Rust, MP3 via libmp3lame, M4B from the
+  engine's own output) — never commit media files. Focused command:
   `cargo nextest run -p audiobook-boss --test all_tests -E 'test(media_execution)'`
-  (runtime budget ~1s; shrink fixtures before widening it). Do not add broad
-  media gates or committed fixtures beyond this lane without a new owner
-  decision.
+  (runtime budget ~1s wall clock; shrink fixtures before widening it). Do not
+  add broad media gates or committed fixtures beyond this lane without a new
+  owner decision.
 
 ## Command Menu
 

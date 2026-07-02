@@ -85,6 +85,9 @@ bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
 tempfile = "3.27.0"
 tauri = { version = "2.11.2", features = ["test"] }
 base64 = "0.22.1"
+# Media-lane fixture synthesis (e.g. MP3 via libmp3lame). Same version as the
+# main dependency, so this adds zero extra compilation.
+ffmpeg-next = "8.1.0"
 
 [lints]
 workspace = true
