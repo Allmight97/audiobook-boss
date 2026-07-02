@@ -13,6 +13,12 @@ react to rendered things instead of prose.
   B2 mission control, B3 stage + drawer), each with a live
   Comfortable ⇄ Compact density switch and pinnable disclosure. Outcome:
   converge on a B1×B2 hybrid; synthesis captured in the roadmap issue.
+- `ui-directions-v3.html` — round 3 (#412 slice 2): the B1×B2 hybrid as one
+  window, honoring the locked synthesis (no Library tab, cover-in-row table,
+  combined transport/ops bar, pinnable expandable operations, density
+  switch). The open forks are live toggles above the window: edit surface
+  (rail vs popover) and single vs multi-file selection (batch metadata with
+  mixed-value handling). Awaiting owner reaction to settle the forks.
 
 Superseded mocks stay here for lineage until the redesign ships, then this
 directory gets pruned to the surviving reference set.
