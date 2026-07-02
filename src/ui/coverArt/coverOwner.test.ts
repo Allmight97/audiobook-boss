@@ -12,7 +12,7 @@ const metadataStateMocks = vi.hoisted(() => ({
 	getMetadataIntentPatchForFile: vi.fn(),
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../metadataSession', () => ({
 	getMetadataForFile: metadataStateMocks.getMetadataForFile,
 	getMetadataIntentPatchForFile: metadataStateMocks.getMetadataIntentPatchForFile,
 }));

@@ -9,11 +9,11 @@ import { clearCoverArt, getHasCustomCoverArt, refreshCoverArtDisplay } from '../
 import { effectiveCoverForFile } from '../coverArt/coverOwner';
 import { getJobType } from '../jobControls';
 import {
+	cacheMetadataForFile,
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
 	isUsableMetadataCache,
-	setMetadataForFile,
-} from '../metadataState';
+} from '../metadataSession';
 import {
 	populateMetadataFormMulti,
 	populateMetadataFormSingle,
@@ -118,7 +118,7 @@ async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMe
 
 	try {
 		const metadata = await tauriClient.readAudioMetadata(file.path);
-		setMetadataForFile(file.path, metadata);
+		cacheMetadataForFile(file.path, metadata);
 		return metadata;
 	} catch (error) {
 		console.warn('Failed to load metadata:', error);
@@ -347,7 +347,7 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 		}
 
 		const existing = getMetadataForFile(targetPath) ?? {};
-		setMetadataForFile(targetPath, {
+		cacheMetadataForFile(targetPath, {
 			...metadata,
 			...existing,
 			cover_art: metadata.cover_art || existing.cover_art,

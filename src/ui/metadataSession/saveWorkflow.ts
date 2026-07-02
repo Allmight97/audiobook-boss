@@ -53,20 +53,27 @@ export function makeMetadataSaveWorkflowServicesLayer(
 	return kit.makeLive(services);
 }
 
+// Cross-owner functions are wrapped so the import binding is read at CALL
+// time, not at module init: this file sits on two static cycles
+// (fileList -> metadataStaging -> metadataSession -> here -> fileList, and the
+// statusPanel equivalent), and a value capture mid-cycle would freeze
+// `undefined` into the live layer.
 const liveMetadataSaveWorkflowServices = {
-	getCurrentFileList,
-	initStatusPanel,
-	isStatusPanelProcessing,
-	pushStatusPanelTransientStatus,
+	getCurrentFileList: () => getCurrentFileList(),
+	initStatusPanel: () => initStatusPanel(),
+	isStatusPanelProcessing: () => isStatusPanelProcessing(),
+	pushStatusPanelTransientStatus: (message, options) =>
+		pushStatusPanelTransientStatus(message, options),
 	isMetadataSaveInProgress: () => get(metadataSaveInProgressStore),
 	setMetadataSaveInProgress: (isInProgress) => {
 		metadataSaveInProgressStore.set(isInProgress);
 	},
-	persistPendingMetadataDraftsForCurrentSelection,
+	persistPendingMetadataDraftsForCurrentSelection: (options) =>
+		persistPendingMetadataDraftsForCurrentSelection(options),
 	getPendingMetadataIntentEntries,
-	saveMetadataBatch: tauriClient.saveMetadataBatch,
+	saveMetadataBatch: (requests) => tauriClient.saveMetadataBatch(requests),
 	clearPendingMetadataForFile,
-	resetDirtyState,
+	resetDirtyState: () => resetDirtyState(),
 	console,
 } satisfies MetadataSaveWorkflowServices;
 
@@ -86,10 +93,11 @@ export type MetadataSaveWorkflowEntryServices = Pick<
 >;
 
 export const liveMetadataSaveWorkflowEntryServices = {
-	getCurrentFileList,
-	initStatusPanel,
-	isStatusPanelProcessing,
-	pushStatusPanelTransientStatus,
+	getCurrentFileList: () => getCurrentFileList(),
+	initStatusPanel: () => initStatusPanel(),
+	isStatusPanelProcessing: () => isStatusPanelProcessing(),
+	pushStatusPanelTransientStatus: (message, options) =>
+		pushStatusPanelTransientStatus(message, options),
 	isMetadataSaveInProgress: () => get(metadataSaveInProgressStore),
 	setMetadataSaveInProgress: (isInProgress) => {
 		metadataSaveInProgressStore.set(isInProgress);

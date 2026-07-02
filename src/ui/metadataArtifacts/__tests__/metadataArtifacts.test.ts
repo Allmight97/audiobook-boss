@@ -12,11 +12,11 @@ vi.mock('../../fileList', () => ({
 }));
 
 import {
-	clearMetadataState,
+	cacheMetadataForFile,
+	clearMetadataSession,
+	collectActionableMetadataIntent,
 	getMetadataIntentPatchForFile,
-	getPendingMetadataIntentEntries,
-	setMetadataForFile,
-} from '../../metadataState';
+} from '../../metadataSession';
 import {
 	metadataArtifactsState,
 	refreshMetadataArtifacts,
@@ -39,13 +39,13 @@ function fileListWithOneValidFile(): FileListInfo {
 describe('metadata artifacts inspect/clear', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		clearMetadataState();
+		clearMetadataSession();
 		context.getCurrentFileListMock.mockReturnValue(fileListWithOneValidFile());
 		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
 	});
 
 	it('shows artifact values for the selected file, distinct from primary fields', () => {
-		setMetadataForFile(FILE_PATH, {
+		cacheMetadataForFile(FILE_PATH, {
 			title: 'Feedback',
 			album_sort: 'test series 01 - Feedback',
 			comment: 'Provenance note',
@@ -68,7 +68,7 @@ describe('metadata artifacts inspect/clear', () => {
 	});
 
 	it('stages an explicit clear intent per artifact field via the pending-save mechanism', () => {
-		setMetadataForFile(FILE_PATH, {
+		cacheMetadataForFile(FILE_PATH, {
 			album_sort: 'test series 01 - Feedback',
 			comment: 'Provenance note',
 		});
@@ -79,14 +79,13 @@ describe('metadata artifacts inspect/clear', () => {
 		const patch = getMetadataIntentPatchForFile(FILE_PATH);
 		expect(patch?.album_sort).toEqual({ op: 'clear' });
 		expect(patch?.comment).toBeUndefined();
-		const pending = getPendingMetadataIntentEntries();
-		expect(pending.map(([path]) => path)).toContain(FILE_PATH);
+		expect(collectActionableMetadataIntent([FILE_PATH])).not.toBeNull();
 		const row = metadataArtifactsState.rows.find((entry) => entry.field === 'album_sort');
 		expect(row?.clearPending).toBe(true);
 	});
 
 	it('stages track and disk clears with the same explicit intent shape', () => {
-		setMetadataForFile(FILE_PATH, { track: [3, 12], disk: [1, 2] });
+		cacheMetadataForFile(FILE_PATH, { track: [3, 12], disk: [1, 2] });
 		refreshMetadataArtifacts();
 
 		stageMetadataArtifactClear('track');
@@ -98,7 +97,7 @@ describe('metadata artifacts inspect/clear', () => {
 	});
 
 	it('leaves untouched artifacts out of the pending intent entirely', () => {
-		setMetadataForFile(FILE_PATH, {
+		cacheMetadataForFile(FILE_PATH, {
 			comment: 'Keep me',
 			track: [3, 12],
 		});
@@ -124,7 +123,7 @@ describe('metadata artifacts inspect/clear', () => {
 	});
 
 	it('treats zero track positions as already absent', () => {
-		setMetadataForFile(FILE_PATH, { track: [0, 5] });
+		cacheMetadataForFile(FILE_PATH, { track: [0, 5] });
 
 		refreshMetadataArtifacts();
 

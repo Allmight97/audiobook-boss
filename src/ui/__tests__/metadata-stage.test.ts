@@ -5,35 +5,33 @@ import {
 } from '../fileList/metadataStaging';
 import { setCurrentFileList, setSelectedFileIndices } from '../fileList/state.svelte';
 import {
-	clearMetadataState,
+	cacheMetadataForFile,
+	clearMetadataSession,
+	collectActionableMetadataIntent,
 	getMetadataForFile,
-	getPendingMetadataEntries,
-	setMetadataForFile,
-} from '../metadataState';
+} from '../metadataSession';
 import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 
 const context = vi.hoisted(() => ({
-	validationErrorMock: vi.fn<() => string | null>(() => null),
-	validateMetadataDraftIntentMock: vi.fn(async (metadata: Partial<AudiobookMetadata>) => ({
-		intentPatch: Object.fromEntries(
-			Object.entries(metadata).map(([key, value]) => [
-				key,
-				value === '' || value === undefined ? { op: 'clear' } : { op: 'set', value },
-			]),
-		),
-		result: {
-			isValid: true,
-			metadataPatch: {},
-			fieldErrors: [],
-		},
-	})),
+	// Boundary mock: echoes the compiled patch back as the normalized patch and
+	// reports whatever field errors the test arms.
+	fieldErrorsMock: vi.fn<() => Array<{ field: string; code: string; message: string }>>(() => []),
+	validateMetadataIntentPatchMock: vi.fn(),
 	selectedFilesMock: vi.fn(() => [
 		{ path: '/a.mp3', isValid: true },
 		{ path: '/b.mp3', isValid: true },
 	]),
 	readMetadataFormMock: vi.fn<() => Partial<AudiobookMetadata>>(() => ({ series: 'Series X' })),
 	hasDirtyMetadataFieldsMock: vi.fn(() => false),
+}));
+
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
+		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
+		saveMetadataBatch: vi.fn(),
+		listen: vi.fn(async () => () => {}),
+	},
 }));
 
 vi.mock('../fileList/metadataPanel', () => ({
@@ -46,9 +44,10 @@ vi.mock('../outputPanel', () => ({
 	updateOutputPath: vi.fn(),
 }));
 
-vi.mock('../metadataValidation', () => ({
-	firstMetadataIntentValidationError: context.validationErrorMock,
-	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
+vi.mock('../statusPanel', () => ({
+	initStatusPanel: vi.fn(),
+	isStatusPanelProcessing: vi.fn(() => false),
+	pushStatusPanelTransientStatus: vi.fn(),
 }));
 
 vi.mock('../metadataForm', () => ({
@@ -60,13 +59,21 @@ vi.mock('../metadataForm', () => ({
 describe('stageMetadataToSelection', () => {
 	beforeEach(() => {
 		document.body.innerHTML = '';
-		clearMetadataState();
-		context.validationErrorMock.mockReset();
-		context.validateMetadataDraftIntentMock.mockClear();
+		clearMetadataSession();
+		context.fieldErrorsMock.mockReset();
+		context.fieldErrorsMock.mockReturnValue([]);
+		context.validateMetadataIntentPatchMock.mockReset();
+		context.validateMetadataIntentPatchMock.mockImplementation(async (patch: unknown) => {
+			const fieldErrors = context.fieldErrorsMock();
+			return {
+				isValid: fieldErrors.length === 0,
+				metadataPatch: patch,
+				fieldErrors,
+			};
+		});
 		context.selectedFilesMock.mockReset();
 		context.readMetadataFormMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();
-		context.validationErrorMock.mockReturnValue(null);
 		context.selectedFilesMock.mockReturnValue([
 			{ path: '/a.mp3', isValid: true },
 			{ path: '/b.mp3', isValid: true },
@@ -109,32 +116,38 @@ describe('stageMetadataToSelection', () => {
 		expect(didStage).toBe(true);
 		expect(getMetadataForFile('/a.mp3')).toMatchObject({ series: 'Series X' });
 		expect(getMetadataForFile('/b.mp3')).toMatchObject({ series: 'Series X' });
-		expect(getPendingMetadataEntries()).toEqual([
-			['/a.mp3', { series: 'Series X' }],
-			['/b.mp3', { series: 'Series X' }],
-		]);
+		expect(collectActionableMetadataIntent(['/a.mp3', '/b.mp3'])).toEqual({
+			'/a.mp3': { series: { op: 'set', value: 'Series X' } },
+			'/b.mp3': { series: { op: 'set', value: 'Series X' } },
+		});
 	});
 
 	it('skips pending writes when staged metadata is nullish-equivalent to existing drafts', async () => {
-		setMetadataForFile('/a.mp3', { series: 'Series X' });
-		setMetadataForFile('/b.mp3', { series: 'Series X' });
+		cacheMetadataForFile('/a.mp3', { series: 'Series X' });
+		cacheMetadataForFile('/b.mp3', { series: 'Series X' });
 
 		const didStage = await stageMetadataToSelection({ showStatus: false });
 
 		expect(didStage).toBe(true);
 		expect(getMetadataForFile('/a.mp3')).toMatchObject({ series: 'Series X' });
 		expect(getMetadataForFile('/b.mp3')).toMatchObject({ series: 'Series X' });
-		expect(getPendingMetadataEntries()).toEqual([]);
+		expect(collectActionableMetadataIntent(['/a.mp3', '/b.mp3'])).toBeNull();
 	});
 
 	it('surfaces validation errors instead of staging invalid metadata', async () => {
-		context.validationErrorMock.mockReturnValue('Series part must be a number');
+		context.fieldErrorsMock.mockReturnValue([
+			{
+				field: 'series_part',
+				code: 'series_part_contains_slash',
+				message: 'Series part must be a number',
+			},
+		]);
 
 		const didStage = await stageMetadataToSelection({ showStatus: false });
 
 		expect(didStage).toBe(false);
 		expect(getMetadataForFile('/a.mp3')).toBeUndefined();
-		expect(getPendingMetadataEntries()).toEqual([]);
+		expect(collectActionableMetadataIntent(['/a.mp3', '/b.mp3'])).toBeNull();
 	});
 
 	it('treats one valid selected file as single-selection pending metadata', async () => {

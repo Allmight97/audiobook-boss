@@ -22,10 +22,9 @@ import {
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
 	getMetadataForFileMock: vi.fn(),
-	setMetadataForFileMock: vi.fn(),
-	clearMetadataStateMock: vi.fn(),
+	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
+	clearMetadataSessionMock: vi.fn(),
 	removeMetadataForFileMock: vi.fn(),
-	metadataEqualsNullishMock: vi.fn(() => false),
 	populateMetadataFormSingleMock: vi.fn(),
 	populateMetadataFormMultiMock: vi.fn(),
 	hasDirtyMetadataFieldsMock: vi.fn(() => false),
@@ -42,12 +41,7 @@ const context = vi.hoisted(() => ({
 	renderAutoResolutionHintsMock: vi.fn(),
 	resetAutoResolutionHintsMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
-	validateMetadataDraftIntentMock: vi.fn(async (metadata: Record<string, unknown>) => ({
-		intentPatch: Object.fromEntries(
-			Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
-		),
-		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
-	})),
+	validateMetadataDraftMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -56,17 +50,21 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../metadataState', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../../metadataState')>();
-	return {
-		...actual,
-		clearMetadataState: context.clearMetadataStateMock,
-		getMetadataForFile: context.getMetadataForFileMock,
-		metadataEqualsNullish: context.metadataEqualsNullishMock,
-		removeMetadataForFile: context.removeMetadataForFileMock,
-		setMetadataForFile: context.setMetadataForFileMock,
-	};
-});
+vi.mock('../../metadataSession', () => ({
+	clearMetadataSession: context.clearMetadataSessionMock,
+	getMetadataForFile: context.getMetadataForFileMock,
+	cacheMetadataForFile: vi.fn(),
+	getMetadataIntentPatchForFile: vi.fn(() => undefined),
+	isUsableMetadataCache: (metadata: Record<string, unknown> | undefined) =>
+		Boolean(
+			metadata &&
+				Object.entries(metadata).some(([key, value]) => value !== undefined && key !== 'cover_art'),
+		),
+	removeMetadataForFile: context.removeMetadataForFileMock,
+	stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
+	validateMetadataDraft: context.validateMetadataDraftMock,
+	metadataSaveInProgress: { subscribe: vi.fn() },
+}));
 
 vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
@@ -93,12 +91,9 @@ vi.mock('../../coverArt', () => ({
 }));
 
 vi.mock('../../statusPanel', () => ({
+	initStatusPanel: vi.fn(),
+	isStatusPanelProcessing: vi.fn(() => false),
 	pushStatusPanelTransientStatus: context.pushStatusPanelTransientStatusMock,
-}));
-
-vi.mock('../../metadataValidation', () => ({
-	firstMetadataIntentValidationError: context.validationErrorMock,
-	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
 vi.mock('../../encoderPanel/autoResolutionHints', () => ({
@@ -131,12 +126,11 @@ describe('file list reorder behavior', () => {
 		context.readAudioMetadataMock.mockReset();
 		context.readAudioMetadataMock.mockResolvedValue({ cover_art: null });
 		context.getMetadataForFileMock.mockReset();
-		context.setMetadataForFileMock.mockReset();
-		context.clearMetadataStateMock.mockReset();
+		context.stageMetadataIntentPatchMock.mockReset();
+		context.stageMetadataIntentPatchMock.mockReturnValue('staged');
+		context.clearMetadataSessionMock.mockReset();
 		context.removeMetadataForFileMock.mockReset();
-		context.metadataEqualsNullishMock.mockReset();
-		context.metadataEqualsNullishMock.mockReturnValue(false);
-		context.populateMetadataFormSingleMock.mockReset();
+						context.populateMetadataFormSingleMock.mockReset();
 		context.populateMetadataFormMultiMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
@@ -146,7 +140,18 @@ describe('file list reorder behavior', () => {
 		context.updateEstimatedSizeMock.mockReset();
 		context.updateOutputPathMock.mockReset();
 		context.updateTagPreviewMock.mockReset();
-		context.validateMetadataDraftIntentMock.mockClear();
+		context.validateMetadataDraftMock.mockReset();
+		context.validateMetadataDraftMock.mockImplementation(async (metadata: Record<string, unknown>) => {
+			const first = context.validationErrorMock();
+			return {
+				intentPatch: Object.fromEntries(
+					Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
+				),
+				ok: first == null,
+				errors: { first, byField: {} },
+				result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
+			};
+		});
 		context.clearCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReturnValue(false);
@@ -275,14 +280,9 @@ describe('file list reorder behavior', () => {
 
 		appendFileList(makeFileList(beta));
 
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
-			'/books/alpha.m4b',
-			{ title: 'Draft Title' },
-			{
-				markPending: true,
-				intentPatch: { title: { op: 'set', value: 'Draft Title' } },
-			},
-		);
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/alpha.m4b', {
+			title: { op: 'set', value: 'Draft Title' },
+		});
 		expect(getSelectedFileIndex()).toBe(0);
 		expect(inspectorState.contextText).toBe('alpha.m4b');
 	});
@@ -313,16 +313,12 @@ describe('file list reorder behavior', () => {
 
 		await toggleFileSort();
 
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
-			'/books/a-alpha.m4b',
-			{ series: 'Sorted Series' },
-			expect.objectContaining({ markPending: true }),
-		);
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
-			'/books/b-beta.m4b',
-			{ series: 'Sorted Series' },
-			expect.objectContaining({ markPending: true }),
-		);
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a-alpha.m4b', {
+			series: { op: 'set', value: 'Sorted Series' },
+		});
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/b-beta.m4b', {
+			series: { op: 'set', value: 'Sorted Series' },
+		});
 		expect(getSelectedFileIndex()).toBe(-1);
 		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
 			'/books/b-beta.m4b',
@@ -343,7 +339,7 @@ describe('file list reorder behavior', () => {
 
 		await toggleFileSort();
 
-		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
 		expect(context.pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
 			'Fix metadata validation errors before sorting files.',
 			expect.objectContaining({ ttlMs: 2500 }),

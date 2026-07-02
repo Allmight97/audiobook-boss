@@ -9,11 +9,11 @@ import {
 import { getJobType, setJobControlsEnabled } from '../jobControls';
 import { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import {
-	getAllMetadataIntentPatches,
+	cacheMetadataForFile,
+	collectActionableMetadataIntent,
 	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	setMetadataForFile,
-} from '../metadataState';
+	stageMetadataIntentPatch,
+} from '../metadataSession';
 import { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
 import {
 	makeProcessingWorkflowServicesLayer,
@@ -32,10 +32,10 @@ const liveProcessingWorkflowServices = {
 	getJobType,
 	hasDirtyMetadataFields,
 	readMetadataForm,
-	getAllMetadataIntentPatches,
+	collectActionableMetadataIntent,
 	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	setMetadataForFile,
+	cacheMetadataForFile,
+	stageMetadataIntentPatch,
 	stageMetadataToSelection,
 	setJobControlsEnabled,
 	setFileOrderLocked,

@@ -6,12 +6,7 @@ import type {
 	ProcessingRequestConfig,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { applyMetadataDraftIntent, hasActionableMetadataDraftIntent } from '../metadataDraft';
-import {
-	firstMetadataIntentValidationError,
-	validateMetadataDraftIntent,
-} from '../metadataValidation';
-import { isUsableMetadataCache } from '../metadataState';
+import { isUsableMetadataCache, validateMetadataDraft } from '../metadataSession';
 import type { OutputPlanReviewResult } from '../outputPanel';
 import type { ProcessingWorkflowFailed } from './processingWorkflow';
 import type { ProcessingWorkflowServices } from './processingWorkflow';
@@ -78,19 +73,6 @@ function stageMultiSelectionMetadata(
 	});
 }
 
-function stageMetadataIntentForFile(
-	services: ProcessingWorkflowServices,
-	filePath: string,
-	intentPatch: MetadataIntentPatch,
-): void {
-	const existing = services.getMetadataForFile(filePath) ?? {};
-	const currentMetadata = applyMetadataDraftIntent(existing, intentPatch);
-	services.setMetadataForFile(filePath, currentMetadata, {
-		markPending: true,
-		intentPatch,
-	});
-}
-
 function ensureMergeCoverIntentOnMergeKey(
 	services: ProcessingWorkflowServices,
 	fileList: FileListInfo,
@@ -110,7 +92,7 @@ function ensureMergeCoverIntentOnMergeKey(
 		return;
 	}
 
-	stageMetadataIntentForFile(services, mergeKey, { cover_art: coverIntent });
+	services.stageMetadataIntentPatch(mergeKey, { cover_art: coverIntent });
 }
 
 function stageSingleSelectionMetadata(
@@ -127,11 +109,11 @@ function stageSingleSelectionMetadata(
 		const selectedFileIndex = services.getSelectedFileIndex();
 		const formMetadata = services.readMetadataForm({ mode: 'single' });
 		const validation = yield* workflowPromise(
-			() => validateMetadataDraftIntent(formMetadata, services.validateMetadataIntentPatch),
+			() => validateMetadataDraft(formMetadata, services.validateMetadataIntentPatch),
 			'Failed to validate metadata intent for processing.',
 		);
-		const validationError = firstMetadataIntentValidationError(validation.result);
-		if (validationError) {
+		if (!validation.ok) {
+			const validationError = validation.errors.first ?? 'Metadata validation failed.';
 			yield* Effect.sync(() => services.feedback.showError(validationError));
 			return false;
 		}
@@ -141,8 +123,10 @@ function stageSingleSelectionMetadata(
 			selectedFileIndex >= 0
 				? fileList.files[selectedFileIndex]
 				: fileList.files.find((file) => file.isValid);
-		if (activeFile?.isValid && hasActionableMetadataDraftIntent(intentPatch)) {
-			stageMetadataIntentForFile(services, activeFile.path, intentPatch);
+		if (
+			activeFile?.isValid &&
+			services.stageMetadataIntentPatch(activeFile.path, intentPatch) !== 'noop'
+		) {
 			ensureMergeCoverIntentOnMergeKey(services, fileList, intentPatch, activeFile.path);
 		}
 
@@ -193,7 +177,7 @@ export function ensureBatchMetadataLoaded(
 					missingMetadata.map(async (filePath) => {
 						try {
 							const metadata = await services.readAudioMetadata(filePath);
-							services.setMetadataForFile(filePath, metadata);
+							services.cacheMetadataForFile(filePath, metadata);
 						} catch (error) {
 							services.console.warn('Failed to load metadata for batch file:', filePath, error);
 						}
@@ -210,30 +194,10 @@ export function buildMetadataIntentByPath(
 ): MetadataIntentByPath | null {
 	if (processPayload.jobType === 'merge') {
 		const mergeKey = processPayload.inputFiles[0];
-		const mergeIntentPatch = mergeKey
-			? services.getMetadataIntentPatchForFile(mergeKey)
-			: undefined;
-		if (
-			mergeKey &&
-			processPayload.inputFiles.length > 0 &&
-			hasActionableMetadataDraftIntent(mergeIntentPatch)
-		) {
-			return {
-				[mergeKey]: mergeIntentPatch,
-			};
-		}
-		return null;
+		return mergeKey ? services.collectActionableMetadataIntent([mergeKey]) : null;
 	}
 
-	const storedMetadataIntentByPath = services.getAllMetadataIntentPatches();
-	const activeInputFiles = new Set(processPayload.inputFiles);
-	const filteredMetadataIntentByPath = Object.fromEntries(
-		Object.entries(storedMetadataIntentByPath).filter(
-			([filePath, value]) =>
-				activeInputFiles.has(filePath) && hasActionableMetadataDraftIntent(value),
-		),
-	);
-	return Object.keys(filteredMetadataIntentByPath).length > 0 ? filteredMetadataIntentByPath : null;
+	return services.collectActionableMetadataIntent(processPayload.inputFiles);
 }
 
 export function reviewOutputPlan(

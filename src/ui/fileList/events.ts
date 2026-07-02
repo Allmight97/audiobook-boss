@@ -6,7 +6,7 @@ import {
 	getSelectedFileIndices,
 	isOrderLocked,
 } from './state.svelte';
-import { metadataSaveInProgressStore } from '../metadataSaveState';
+import { metadataSaveInProgress } from '../metadataSession';
 import {
 	fileListNavigationCommandFromKey,
 	resolveFileListNavigationTarget,
@@ -45,7 +45,7 @@ export function createFileListDragHandlers(
 
 	return {
 		onDragStart(index: number, event: DragEvent) {
-			if (get(metadataSaveInProgressStore) || isOrderLocked()) return;
+			if (get(metadataSaveInProgress) || isOrderLocked()) return;
 			if (!event.dataTransfer || !hasValidIndex(index)) return;
 
 			const item = event.currentTarget as HTMLElement | null;
@@ -57,7 +57,7 @@ export function createFileListDragHandlers(
 			setDragState({ draggedIndex: index, hoveredIndex: null });
 		},
 		onDragOver(index: number, event: DragEvent) {
-			if (get(metadataSaveInProgressStore)) return;
+			if (get(metadataSaveInProgress)) return;
 			if (isOrderLocked()) return;
 			event.preventDefault();
 			if (!event.dataTransfer) return;
@@ -71,7 +71,7 @@ export function createFileListDragHandlers(
 			});
 		},
 		onDrop(index: number, event: DragEvent) {
-			if (get(metadataSaveInProgressStore)) return;
+			if (get(metadataSaveInProgress)) return;
 			if (isOrderLocked()) return;
 			event.preventDefault();
 			event.stopPropagation();
@@ -100,7 +100,7 @@ function hasValidIndex(index: number): boolean {
 }
 
 export function onFileListClick(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgressStore)) return;
+	if (get(metadataSaveInProgress)) return;
 	if (!hasValidIndex(index)) return;
 
 	const multi = event.ctrlKey || event.metaKey;
@@ -113,7 +113,7 @@ export function onFileListClick(index: number, event: MouseEvent): void {
 }
 
 export function onFileListMoveUp(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgressStore) || isOrderLocked()) return;
+	if (get(metadataSaveInProgress) || isOrderLocked()) return;
 	if (index <= 0 || !hasValidIndex(index)) return;
 
 	stopInteraction(event);
@@ -121,7 +121,7 @@ export function onFileListMoveUp(index: number, event: MouseEvent): void {
 }
 
 export function onFileListMoveDown(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgressStore) || isOrderLocked()) return;
+	if (get(metadataSaveInProgress) || isOrderLocked()) return;
 	if (!hasValidIndex(index)) return;
 	const fileList = getCurrentFileList();
 	if (!fileList || index >= fileList.files.length - 1) return;
@@ -131,7 +131,7 @@ export function onFileListMoveDown(index: number, event: MouseEvent): void {
 }
 
 export function onFileListRemove(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgressStore) || isOrderLocked()) return;
+	if (get(metadataSaveInProgress) || isOrderLocked()) return;
 	if (!hasValidIndex(index)) return;
 
 	stopInteraction(event);
@@ -172,7 +172,7 @@ function handleKeyboardNavigation(event: KeyboardEvent): boolean {
 }
 
 export function onFileListKeyDown(e: KeyboardEvent): void {
-	if (get(metadataSaveInProgressStore)) return;
+	if (get(metadataSaveInProgress)) return;
 	if (!getCurrentFileList()) return;
 	if (isTextInputTarget(e.target)) return;
 

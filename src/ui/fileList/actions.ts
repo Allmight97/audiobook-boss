@@ -2,7 +2,7 @@ import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
-import { clearMetadataState, removeMetadataForFile } from '../metadataState';
+import { clearMetadataSession, removeMetadataForFile } from '../metadataSession';
 import {
 	fileListSessionState,
 	getCurrentFileList,
@@ -77,7 +77,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	const previousInputIds = getCurrentFileList()?.files.map((file) => file.inputId) ?? [];
 	const normalizedFileListInfo = normalizeFileListInfo(fileListInfo);
 
-	clearMetadataState();
+	clearMetadataSession();
 	setCurrentFileList(normalizedFileListInfo);
 	clearSelectionPanels();
 
@@ -317,7 +317,7 @@ export function clearAllFiles(): void {
 	if (!fileList) return;
 	const inputIds = fileList.files.map((file) => file.inputId);
 
-	clearMetadataState();
+	clearMetadataSession();
 	fileListSessionState.currentFileList = {
 		...fileList,
 		files: [],
