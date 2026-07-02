@@ -4,6 +4,16 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Design-system foundations ahead of the UI evolution (#412): a full token
+  scale (spacing, type, radius, motion) with a user-preference density switch
+  (`data-density`), a shared primitive kit (cover thumbnail, modal
+  status/empty, progress track), and a dev-only design lab at `/lab.html`
+  rendering every token and primitive for visual review. Progress bars across
+  Status Panel, Work Center, and Remote Source now share one chosen height.
+  Interactive UI direction mockups stored under `docs/design/`.
+
 ### Changed
 
 - Find Metadata Online now shows separate Title and Author search fields,
