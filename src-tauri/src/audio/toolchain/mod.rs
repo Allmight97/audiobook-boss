@@ -3,12 +3,11 @@ use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::sanitize_path_for_display;
 use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const APPLE_SILICON_FFMPEG_ARCHES: &[&str] = &["arm64", "arm64e"];
+mod platform;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -114,7 +113,10 @@ pub(crate) fn detect_encoder_availability_with_resolution(
 }
 
 pub(crate) fn resolve_external_toolchain() -> ToolchainResolution {
-    resolve_external_toolchain_with_candidates(user_external_ffmpeg_path(), auto_candidates())
+    resolve_external_toolchain_with_candidates(
+        user_external_ffmpeg_path(),
+        platform::auto_candidates(),
+    )
 }
 
 /// User-configured path wins when it validates. When it fails validation the
@@ -205,71 +207,6 @@ fn path_to_string(path: &Path) -> Option<String> {
     path.to_str().map(str::to_owned)
 }
 
-fn auto_candidates() -> Vec<PathBuf> {
-    ordered_auto_candidate_paths(
-        first_successful_stdout(&["brew", "/opt/homebrew/bin/brew"], &["--prefix", "ffmpeg"])
-            .as_deref(),
-        first_successful_stdout(
-            &["pkg-config", "/opt/homebrew/bin/pkg-config"],
-            &["--variable=prefix", "libavcodec"],
-        )
-        .as_deref(),
-        first_successful_stdout(&["which", "/usr/bin/which"], &["ffmpeg"]).as_deref(),
-    )
-}
-
-fn push_candidate(candidates: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>, candidate: PathBuf) {
-    if let Ok(canonical) = candidate.canonicalize() {
-        if seen.insert(canonical.clone()) {
-            candidates.push(canonical);
-        }
-        return;
-    }
-
-    if seen.insert(candidate.clone()) {
-        candidates.push(candidate);
-    }
-}
-
-fn ordered_auto_candidate_paths(
-    brew_prefix: Option<&str>,
-    pkg_config_prefix: Option<&str>,
-    path_ffmpeg: Option<&str>,
-) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    let mut seen = HashSet::new();
-
-    if let Some(prefix) = brew_prefix.filter(|prefix| is_supported_auto_detect_prefix(prefix)) {
-        push_candidate(
-            &mut candidates,
-            &mut seen,
-            Path::new(prefix).join("bin/ffmpeg"),
-        );
-    }
-
-    if let Some(prefix) = pkg_config_prefix.filter(|prefix| is_supported_auto_detect_prefix(prefix))
-    {
-        push_candidate(
-            &mut candidates,
-            &mut seen,
-            Path::new(prefix).join("bin/ffmpeg"),
-        );
-    }
-
-    if let Some(path) = path_ffmpeg {
-        push_candidate(&mut candidates, &mut seen, PathBuf::from(path));
-    }
-
-    for path in [
-        "/opt/homebrew/opt/ffmpeg/bin/ffmpeg",
-        "/opt/homebrew/bin/ffmpeg",
-    ] {
-        push_candidate(&mut candidates, &mut seen, PathBuf::from(path));
-    }
-
-    candidates
-}
-
 fn validate_candidate(
     candidate: &Path,
     source: EncoderCapabilitySource,
@@ -281,10 +218,11 @@ fn validate_candidate(
         ));
     }
 
-    if !is_supported_apple_silicon_ffmpeg(candidate) {
+    if !platform::is_supported_ffmpeg_binary(candidate) {
         return Err(format!(
-            "FFmpeg executable '{}' is not an Apple Silicon binary (expected arm64 or arm64e).",
+            "FFmpeg executable '{}' {}.",
             sanitize_path_for_display(candidate),
+            platform::unsupported_binary_rejection_clause(),
         ));
     }
 
@@ -403,33 +341,6 @@ pub fn validate_external_input_decoders(
     }
 
     Ok(())
-}
-
-fn is_supported_apple_silicon_ffmpeg(candidate: &Path) -> bool {
-    if let Ok(arches) = probe_stdout("lipo", [OsStr::new("-archs"), candidate.as_os_str()]) {
-        return arches
-            .split_whitespace()
-            .any(matches_supported_apple_silicon_arch);
-    }
-
-    if let Ok(description) = probe_stdout("file", [OsStr::new("-b"), candidate.as_os_str()]) {
-        if description.contains("script") || description.contains("text executable") {
-            return true;
-        }
-        return APPLE_SILICON_FFMPEG_ARCHES
-            .iter()
-            .any(|expected| description.contains(expected));
-    }
-
-    false
-}
-
-fn matches_supported_apple_silicon_arch(candidate_arch: &str) -> bool {
-    candidate_arch == "arm64" || candidate_arch.starts_with("arm64e")
-}
-
-fn is_supported_auto_detect_prefix(prefix: &str) -> bool {
-    prefix == "/opt/homebrew" || prefix.starts_with("/opt/homebrew/")
 }
 
 /// Failure from a one-shot CLI probe: the process could not be spawned, or it

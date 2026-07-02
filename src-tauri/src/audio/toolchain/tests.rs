@@ -5,45 +5,6 @@ use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
 #[test]
-fn ordered_auto_candidates_prioritize_live_sources_before_heuristics() {
-    let candidates = ordered_auto_candidate_paths(
-        Some("/opt/homebrew/opt/ffmpeg"),
-        Some("/opt/homebrew"),
-        Some("/tmp/abb-which-ffmpeg"),
-    );
-
-    assert_eq!(
-        candidates[0].file_name().and_then(|name| name.to_str()),
-        Some("ffmpeg")
-    );
-    assert_eq!(
-        candidates[1].file_name().and_then(|name| name.to_str()),
-        Some("abb-which-ffmpeg")
-    );
-    assert!(
-        candidates[0].to_string_lossy().contains("/opt/homebrew/"),
-        "expected Apple Silicon Homebrew candidate first, got {}",
-        candidates[0].display()
-    );
-    assert_eq!(candidates.len(), 2);
-}
-
-#[test]
-fn ordered_auto_candidates_ignore_non_opt_homebrew_prefixes() {
-    let candidates =
-        ordered_auto_candidate_paths(Some("/usr/local/opt/ffmpeg"), Some("/usr/local"), None);
-
-    assert_eq!(candidates.len(), 1);
-    assert!(
-        candidates
-            .iter()
-            .all(|candidate| candidate.to_string_lossy().contains("/opt/homebrew/")),
-        "expected only Apple Silicon Homebrew candidates, got {:?}",
-        candidates
-    );
-}
-
-#[test]
 fn auto_detection_finds_fdk_toolchain() {
     let temp_dir = TempDir::new().expect("temp dir");
     let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), true);
@@ -70,10 +31,8 @@ fn user_configured_path_wins_over_auto_detection() {
     let user_ffmpeg = write_fake_ffmpeg(&user_dir, true);
     let auto_ffmpeg = write_fake_ffmpeg(&auto_dir, true);
 
-    let resolution = resolve_external_toolchain_with_candidates(
-        Some(user_ffmpeg.clone()),
-        vec![auto_ffmpeg],
-    );
+    let resolution =
+        resolve_external_toolchain_with_candidates(Some(user_ffmpeg.clone()), vec![auto_ffmpeg]);
 
     let validated = resolution.validated.expect("validated toolchain");
     assert_eq!(validated.source, EncoderCapabilitySource::UserConfigured);
@@ -160,14 +119,6 @@ fn no_fdk_found_returns_none_with_status_message() {
         resolution.status_message,
         "FFmpeg executable 'fake-ffmpeg' does not expose libfdk_aac."
     );
-}
-
-#[test]
-fn apple_silicon_arch_labels_match_supported_ffmpeg_binaries() {
-    assert!(matches_supported_apple_silicon_arch("arm64"));
-    assert!(matches_supported_apple_silicon_arch("arm64e"));
-    assert!(!matches_supported_apple_silicon_arch("aarch64"));
-    assert!(!matches_supported_apple_silicon_arch("x86_64"));
 }
 
 #[test]

@@ -1,5 +1,21 @@
 # Decisions
 
+## 2026-07-02 - Toolchain Platform-Probe Seam
+
+- Outcome: FFmpeg candidate enumeration and binary-arch acceptance are
+  per-platform cfg-dispatched functions in
+  `src-tauri/src/audio/toolchain/platform.rs` (vault.rs pattern: per-OS fn +
+  explicit unsupported fallback). macOS (Homebrew prefixes, arm64/arm64e) and
+  Linux (Mint-class `/usr` prefixes, ELF x86-64) probes exist; Windows is
+  deliberately absent until that port. The `crate::audio` Public API Strip is
+  unchanged; platform rules are pure functions unit-tested on any host.
+- Evidence: `src-tauri/src/audio/toolchain/platform.rs` (rules + tests);
+  real-Linux runtime proof (actual `file`/`pkg-config`/apt ffmpeg) is
+  deferred to the Linux port — this slice proves the rules, not the runtime.
+- Guardrail: platform-specific paths, prefixes, and arch rules live only in
+  `platform.rs`; resolution and codec validation stay platform-neutral in
+  `toolchain/mod.rs`.
+
 ## 2026-07-02 - metadataSession Owner Strip
 
 - Outcome: frontend metadata cache/pending-intent/validation/save truth
