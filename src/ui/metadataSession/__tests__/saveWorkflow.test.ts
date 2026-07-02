@@ -10,7 +10,7 @@ import {
 	metadataSaveWorkflowExecution,
 	runMetadataSaveWorkflow,
 	type MetadataSaveWorkflowServices,
-} from '../metadataSaveWorkflow';
+} from '../saveWorkflow';
 
 type PendingEntry = [string, MetadataIntentPatch];
 type SaveBatchItems = Parameters<MetadataSaveWorkflowServices['saveMetadataBatch']>[0];

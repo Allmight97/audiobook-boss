@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { get, writable, type Writable } from 'svelte/store';
+import { get, type Writable } from 'svelte/store';
 
-import type { MetadataSaveBatchResult } from '../../types/metadata';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import type { MetadataSaveBatchResult } from '../../../types/metadata';
+import { runtimeSettingsCapabilitiesFixture } from '../../../test/fixtures/runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	saveMetadataBatchMock: vi.fn(),
@@ -21,7 +21,7 @@ const context = vi.hoisted(() => ({
 	statusPanelProcessing: false,
 }));
 
-vi.mock('../../lib/tauri/client', () => ({
+vi.mock('../../../lib/tauri/client', () => ({
 	tauriClient: {
 		saveMetadataBatch: context.saveMetadataBatchMock,
 		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
@@ -44,19 +44,19 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../coverArt', () => ({
+vi.mock('../../coverArt', () => ({
 	getCurrentCoverArt: vi.fn(() => null),
 	onLoadCoverArtFromFilePicker: vi.fn(),
 	onLoadCoverArtFromInput: vi.fn(),
 	onClearCoverArt: vi.fn(),
 }));
-vi.mock('../jobControls', () => ({
+vi.mock('../../jobControls', () => ({
 	initJobControls: vi.fn(),
 	handleMergeModeChange: vi.fn(),
 	handleMaxConcurrentSelectionChange: vi.fn(),
 	getMaxConcurrentStatus: vi.fn(() => ({ effective: 2, selection: 'auto' })),
 }));
-vi.mock('../statusPanel/index', () => ({
+vi.mock('../../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(),
 	isStatusPanelProcessing: () => context.statusPanelProcessing,
 	pushStatusPanelTransientStatus: (message: string) => {
@@ -67,7 +67,18 @@ vi.mock('../statusPanel/index', () => ({
 	},
 }));
 
-vi.mock('../metadataForm', () => ({
+vi.mock('../../metadataForm', () => ({
+	readMetadataFormPreviewValues: vi.fn(() => ({
+		title: '',
+		author: '',
+		narrator: '',
+		series: '',
+		seriesPart: '',
+		subseries: '',
+		subseriesPart: '',
+		year: '',
+		genre: '',
+	})),
 	initMetadataFormEvents: vi.fn(),
 	readMetadataForm: vi.fn(() => ({})),
 	resetDirtyState: context.resetDirtyStateMock,
@@ -75,7 +86,7 @@ vi.mock('../metadataForm', () => ({
 	onMetadataFormActionSelectChange: vi.fn(),
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),
@@ -83,21 +94,18 @@ vi.mock('../fileList/state.svelte', () => ({
 	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
-vi.mock('../fileList/actions', () => ({
+vi.mock('../../fileList/actions', () => ({
 	appendFileList: vi.fn(),
 }));
 
-vi.mock('../fileList/metadataStaging', () => ({
+vi.mock('../../fileList/metadataStaging', () => ({
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../state', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../state')>()),
 	getPendingMetadataIntentEntries: () => context.getPendingIntentEntriesMock(),
 	clearPendingMetadataForFile: context.clearPendingMock,
-}));
-
-vi.mock('../metadataSaveState', () => ({
-	metadataSaveInProgressStore: writable(false),
 }));
 
 function getStatusText(): HTMLElement {
@@ -109,7 +117,7 @@ function getStatusText(): HTMLElement {
 }
 
 describe('metadata save pending flow', () => {
-	let saveMetadataFromUI: typeof import('../core/actions').saveMetadataFromUI;
+	let saveMetadataFromUI: typeof import('../saveWorkflow').saveMetadataFromUI;
 	let metadataSaveInProgressStore: Writable<boolean>;
 
 	beforeAll(async () => {
@@ -122,9 +130,9 @@ describe('metadata save pending flow', () => {
 			runtimeSettingsCapabilitiesFixture(),
 		);
 
-		await import('../../main');
-		({ saveMetadataFromUI } = await import('../core/actions'));
-		({ metadataSaveInProgressStore } = await import('../metadataSaveState'));
+		await import('../../../main');
+		({ saveMetadataFromUI } = await import('../saveWorkflow'));
+		({ metadataSaveInProgressStore } = await import('../saveState'));
 	});
 
 	beforeEach(() => {

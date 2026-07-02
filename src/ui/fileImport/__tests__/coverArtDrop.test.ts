@@ -6,7 +6,7 @@ import FileImportIsland from '../FileImportIsland.svelte';
 import { clearFileImportError } from '../state.svelte';
 import { displayFileList } from '../../fileList/actions';
 import { getCurrentFileList } from '../../fileList';
-import { clearMetadataState } from '../../metadataState';
+import { clearMetadataSession } from '../../metadataSession';
 import {
 	registerRemoteSourceSupplementalAssets,
 	removeRemoteSourceSupplementalAssets,
@@ -168,7 +168,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		readAudioMetadataMock.mockResolvedValue({});
 		takeOpenedAudioFilesMock.mockReset();
 		takeOpenedAudioFilesMock.mockResolvedValue([]);
-		clearMetadataState();
+		clearMetadataSession();
 		clearFileImportError();
 		removeRemoteSourceSupplementalAssets(['current-input-1']);
 		document.body.innerHTML = `

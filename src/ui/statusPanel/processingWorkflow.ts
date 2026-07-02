@@ -27,11 +27,11 @@ import type {
 import type { getJobType, setJobControlsEnabled } from '../jobControls';
 import type { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
 import type {
-	getAllMetadataIntentPatches,
+	cacheMetadataForFile,
+	collectActionableMetadataIntent,
 	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	setMetadataForFile,
-} from '../metadataState';
+	stageMetadataIntentPatch,
+} from '../metadataSession';
 import type { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
 import {
 	buildMetadataIntentByPath,
@@ -65,10 +65,10 @@ export interface ProcessingWorkflowServices {
 	getJobType: typeof getJobType;
 	hasDirtyMetadataFields: typeof hasDirtyMetadataFields;
 	readMetadataForm: typeof readMetadataForm;
-	getAllMetadataIntentPatches: typeof getAllMetadataIntentPatches;
+	collectActionableMetadataIntent: typeof collectActionableMetadataIntent;
 	getMetadataForFile: typeof getMetadataForFile;
-	getMetadataIntentPatchForFile: typeof getMetadataIntentPatchForFile;
-	setMetadataForFile: typeof setMetadataForFile;
+	cacheMetadataForFile: typeof cacheMetadataForFile;
+	stageMetadataIntentPatch: typeof stageMetadataIntentPatch;
 	stageMetadataToSelection: typeof stageMetadataToSelection;
 	setJobControlsEnabled: typeof setJobControlsEnabled;
 	setFileOrderLocked: typeof setFileOrderLocked;

@@ -14,10 +14,10 @@ import {
 	setSelectedIndex,
 } from '../fileList/state.svelte';
 import {
-	clearMetadataState,
+	cacheMetadataForFile,
+	clearMetadataSession,
 	getMetadataIntentPatchForFile,
-	setMetadataForFile,
-} from '../metadataState';
+} from '../metadataSession';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -41,7 +41,7 @@ function makeFileList(files: AudioFile[]): FileListInfo {
 
 describe('coverArt owner integration', () => {
 	beforeEach(() => {
-		clearMetadataState();
+		clearMetadataSession();
 		jobControlsState.jobType = 'batch';
 		setCurrentFileList(makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]));
 		setSelectedFileIndices([0]);
@@ -107,8 +107,8 @@ describe('coverArt owner integration', () => {
 	});
 
 	it('refreshes batch preview when cycling selected files', () => {
-		setMetadataForFile('/books/a.m4b', { cover_art: [1] });
-		setMetadataForFile('/books/b.m4b', { cover_art: [2] });
+		cacheMetadataForFile('/books/a.m4b', { cover_art: [1] });
+		cacheMetadataForFile('/books/b.m4b', { cover_art: [2] });
 
 		setSelectedFileIndices([0]);
 		setSelectedIndex(0);

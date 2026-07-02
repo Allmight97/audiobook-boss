@@ -5,10 +5,10 @@
 	import { MetadataManagerIsland } from './ui/metadataManager';
 	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
 	import { WorkCenterIsland } from './ui/workCenter';
-	import MetadataLookupIsland from './ui/metadataLookup/MetadataLookupIsland.svelte';
+	import { MetadataLookupIsland } from './ui/metadataLookup';
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
 	import RemoteSourceAcquireDialog from './ui/remoteSource/RemoteSourceAcquireDialog.svelte';
-	import { saveMetadataFromUI } from './ui/core/actions';
+	import { saveMetadataFromUI } from './ui/metadataSession';
 	import {
 		AppSettingsDialogIsland,
 		initializeAppSettingsControlPlane,

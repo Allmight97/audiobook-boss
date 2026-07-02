@@ -1,11 +1,11 @@
-import type { AudiobookMetadata } from '../types/metadata';
-import type { MetadataIntentPatch } from '../types/metadataIntent';
+import type { AudiobookMetadata } from '../../types/metadata';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
 	applyMetadataIntentPatch,
 	buildMetadataIntentPatchFromMetadata,
 	hasActionableMetadataIntentPatch,
 	mergeMetadataIntentPatches,
-} from '../types/metadataIntent';
+} from '../../types/metadataIntent';
 
 export const METADATA_DRAFT_FIELDS = [
 	'title',

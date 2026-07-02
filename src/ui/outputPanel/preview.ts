@@ -16,13 +16,8 @@ import {
 	setOutputNamingUiState,
 } from './state.svelte';
 import { readEncodingRequestConfig } from '../encoderPanel';
-import {
-	getSeriesPartValidationError,
-	getSubseriesPartValidationError,
-	validateMetadataDraftIntent,
-} from '../metadataValidation';
+import { validateMetadataDraft } from '../metadataSession';
 import type { OutputKind } from '../../types/audio';
-import type { MetadataIntentValidationResult } from '../../types/metadataIntent';
 import { runOutputPathPreviewWorkflow } from './outputPlanWorkflow';
 
 export type OutputPathPreviewMetadataDraft = AudiobookMetadata;
@@ -56,15 +51,11 @@ export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataD
 	};
 }
 
-function updateSeriesPartWarning(
-	metadata: AudiobookMetadata,
-	validationResult: MetadataIntentValidationResult,
-): void {
+function updateSeriesPartWarning(metadata: AudiobookMetadata, seriesPartError: string | null): void {
 	const seriesValue = metadata.series?.trim() ?? '';
 	const seriesPartValue = metadata.series_part?.trim() ?? '';
 	const subseriesValue = metadata.subseries?.trim() ?? '';
 	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
-	const seriesPartError = getSeriesPartValidationError(validationResult);
 
 	if (seriesPartError) {
 		setSeriesPartWarning(seriesPartError, true);
@@ -92,11 +83,10 @@ function updateSeriesPartWarning(
 
 function updateSubseriesPartWarning(
 	metadata: AudiobookMetadata,
-	validationResult: MetadataIntentValidationResult,
+	subseriesPartError: string | null,
 ): void {
 	const subseriesValue = metadata.subseries?.trim() ?? '';
 	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
-	const subseriesPartError = getSubseriesPartValidationError(validationResult);
 
 	if (subseriesPartError) {
 		setSubseriesPartWarning(subseriesPartError, true);
@@ -109,12 +99,9 @@ function updateSubseriesPartWarning(
 }
 
 export async function updateMetadataIntentWarnings(metadata: AudiobookMetadata): Promise<void> {
-	const validation = await validateMetadataDraftIntent(
-		metadata,
-		tauriClient.validateMetadataIntentPatch,
-	);
-	updateSeriesPartWarning(metadata, validation.result);
-	updateSubseriesPartWarning(metadata, validation.result);
+	const validation = await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
+	updateSeriesPartWarning(metadata, validation.errors.byField.series_part ?? null);
+	updateSubseriesPartWarning(metadata, validation.errors.byField.subseries_part ?? null);
 }
 
 export function updateOutputPath(outputKind: OutputKind): void {

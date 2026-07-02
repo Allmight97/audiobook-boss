@@ -12,13 +12,13 @@ import {
 import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList, persistPendingMetadataDraftsForCurrentSelection } from '../fileList';
 import { resetDirtyState } from '../metadataForm';
-import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from '../metadataState';
-import { metadataSaveInProgressStore } from '../metadataSaveState';
 import {
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
 } from '../statusPanel';
+import { clearPendingMetadataForFile, getPendingMetadataIntentEntries } from './state';
+import { metadataSaveInProgressStore } from './saveState';
 
 export interface MetadataSaveWorkflowServices {
 	getCurrentFileList: typeof getCurrentFileList;
@@ -35,13 +35,13 @@ export interface MetadataSaveWorkflowServices {
 	console: Pick<Console, 'error' | 'log'>;
 }
 
-export type MetadataSaveWorkflowServicesId = 'Core/MetadataSaveWorkflowServices';
+export type MetadataSaveWorkflowServicesId = 'MetadataSession/SaveWorkflowServices';
 export type MetadataSaveWorkflowLayer = AppLayer<MetadataSaveWorkflowServicesId>;
 
 // #389 spike: the tag/layer/failure/try-wrapper trio comes from one kit while
 // the owner keeps its distinct failure identity for catchTag discrimination.
 const kit = makeWorkflowKit(
-	'Core/MetadataSaveWorkflowServices',
+	'MetadataSession/SaveWorkflowServices',
 	'MetadataSaveWorkflowFailed',
 )<MetadataSaveWorkflowServices>();
 
@@ -53,20 +53,27 @@ export function makeMetadataSaveWorkflowServicesLayer(
 	return kit.makeLive(services);
 }
 
+// Cross-owner functions are wrapped so the import binding is read at CALL
+// time, not at module init: this file sits on two static cycles
+// (fileList -> metadataStaging -> metadataSession -> here -> fileList, and the
+// statusPanel equivalent), and a value capture mid-cycle would freeze
+// `undefined` into the live layer.
 const liveMetadataSaveWorkflowServices = {
-	getCurrentFileList,
-	initStatusPanel,
-	isStatusPanelProcessing,
-	pushStatusPanelTransientStatus,
+	getCurrentFileList: () => getCurrentFileList(),
+	initStatusPanel: () => initStatusPanel(),
+	isStatusPanelProcessing: () => isStatusPanelProcessing(),
+	pushStatusPanelTransientStatus: (message, options) =>
+		pushStatusPanelTransientStatus(message, options),
 	isMetadataSaveInProgress: () => get(metadataSaveInProgressStore),
 	setMetadataSaveInProgress: (isInProgress) => {
 		metadataSaveInProgressStore.set(isInProgress);
 	},
-	persistPendingMetadataDraftsForCurrentSelection,
+	persistPendingMetadataDraftsForCurrentSelection: (options) =>
+		persistPendingMetadataDraftsForCurrentSelection(options),
 	getPendingMetadataIntentEntries,
-	saveMetadataBatch: tauriClient.saveMetadataBatch,
+	saveMetadataBatch: (requests) => tauriClient.saveMetadataBatch(requests),
 	clearPendingMetadataForFile,
-	resetDirtyState,
+	resetDirtyState: () => resetDirtyState(),
 	console,
 } satisfies MetadataSaveWorkflowServices;
 
@@ -86,10 +93,11 @@ export type MetadataSaveWorkflowEntryServices = Pick<
 >;
 
 export const liveMetadataSaveWorkflowEntryServices = {
-	getCurrentFileList,
-	initStatusPanel,
-	isStatusPanelProcessing,
-	pushStatusPanelTransientStatus,
+	getCurrentFileList: () => getCurrentFileList(),
+	initStatusPanel: () => initStatusPanel(),
+	isStatusPanelProcessing: () => isStatusPanelProcessing(),
+	pushStatusPanelTransientStatus: (message, options) =>
+		pushStatusPanelTransientStatus(message, options),
 	isMetadataSaveInProgress: () => get(metadataSaveInProgressStore),
 	setMetadataSaveInProgress: (isInProgress) => {
 		metadataSaveInProgressStore.set(isInProgress);
@@ -316,4 +324,22 @@ export function runMetadataSaveWorkflow(
 	preparedEntry?: PreparedMetadataSaveWorkflowEntry,
 ): Promise<void> {
 	return runAppEffect(metadataSaveWorkflowProgram(preparedEntry).pipe(Effect.provide(layer)));
+}
+
+/**
+ * The one public entry: gate synchronously (so double-invokes are blocked
+ * before any await), then run the save workflow on the live layer.
+ */
+export async function saveMetadataFromUI(): Promise<void> {
+	const preparedEntry = enterMetadataSaveWorkflow(liveMetadataSaveWorkflowEntryServices);
+	if (!preparedEntry) {
+		return;
+	}
+
+	try {
+		await runMetadataSaveWorkflow(MetadataSaveWorkflowLive, preparedEntry);
+	} catch (error) {
+		liveMetadataSaveWorkflowEntryServices.setMetadataSaveInProgress(false);
+		throw error;
+	}
 }

@@ -1,9 +1,9 @@
-import type { MetadataLookupWorkflowAction } from './metadataLookup/metadataLookupWorkflow';
-import { clearMetadataLookupQueue, metadataLookupState } from './metadataLookup/state.svelte';
+import type { MetadataLookupWorkflowAction } from './metadataLookupWorkflow';
+import { clearMetadataLookupQueue, metadataLookupState } from './state.svelte';
 
 async function runLookupWorkflow(action: MetadataLookupWorkflowAction): Promise<void> {
 	const { MetadataLookupWorkflowLive, runMetadataLookupWorkflow } = await import(
-		'./metadataLookup/metadataLookupWorkflow'
+		'./metadataLookupWorkflow'
 	);
 	return runMetadataLookupWorkflow(MetadataLookupWorkflowLive, action);
 }

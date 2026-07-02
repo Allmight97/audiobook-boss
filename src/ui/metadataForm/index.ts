@@ -9,6 +9,8 @@ import {
 	resetMetadataFormPreviewState,
 	setMetadataFormPreviewValueByInputId,
 } from './previewState.svelte';
+// Explicit cross-strip read surface: tag preview renders from these values.
+export { readMetadataFormPreviewValues } from './previewState.svelte';
 import {
 	getMetadataFieldDefinitionByActionId,
 	getMetadataFieldDefinitionByInputId,

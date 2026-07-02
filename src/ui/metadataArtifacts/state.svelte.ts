@@ -4,8 +4,8 @@ import { getCurrentFileList, getSelectedFileIndices } from '../fileList';
 import {
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
-	setMetadataForFile,
-} from '../metadataState';
+	stageMetadataIntentPatch,
+} from '../metadataSession';
 
 /** Artifact fields ABB preserves on normal saves and exposes for explicit
  * inspect/clear only (#281). Distinct from primary audiobook form fields. */
@@ -116,12 +116,6 @@ export function stageMetadataArtifactClear(field: MetadataArtifactField): void {
 	if (!filePath) {
 		return;
 	}
-	const current = getMetadataForFile(filePath) ?? {};
-	const updated: Partial<AudiobookMetadata> = { ...current };
-	delete updated[field];
-	setMetadataForFile(filePath, updated, {
-		markPending: true,
-		intentPatch: { [field]: { op: 'clear' } },
-	});
+	stageMetadataIntentPatch(filePath, { [field]: { op: 'clear' } });
 	refreshMetadataArtifacts();
 }

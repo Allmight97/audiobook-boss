@@ -4,8 +4,7 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { getJobType } from '../jobControls';
 import { getCurrentFileList, getSelectedFiles } from '../fileList';
-import { applyMetadataDraftIntent } from '../metadataDraft';
-import { getMetadataForFile, setMetadataForFile } from '../metadataState';
+import { stageMetadataIntentPatch } from '../metadataSession';
 import {
 	effectiveCoverForFile,
 	resolveCoverDisplayPath,
@@ -60,12 +59,7 @@ function commitCoverArtToOwners(coverArtBytes: number[] | null, markRemoval: boo
 
 	const intentPatch = buildCoverArtIntentPatch(coverArtBytes, markRemoval);
 	for (const filePath of ownerPaths) {
-		const existing = getMetadataForFile(filePath) ?? {};
-		const merged = applyMetadataDraftIntent(existing, intentPatch);
-		setMetadataForFile(filePath, merged, {
-			markPending: true,
-			intentPatch,
-		});
+		stageMetadataIntentPatch(filePath, intentPatch);
 	}
 	return true;
 }

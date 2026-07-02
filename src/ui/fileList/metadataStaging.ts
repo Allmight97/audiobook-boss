@@ -1,12 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile } from '../../types/audio';
-import { applyMetadataDraftIntent, hasActionableMetadataDraftIntent } from '../metadataDraft';
-import {
-	firstMetadataIntentValidationError,
-	validateMetadataDraftIntent,
-} from '../metadataValidation';
 import { hasDirtyMetadataFields, readMetadataForm, resetDirtyState } from '../metadataForm';
-import { getMetadataForFile, metadataEqualsNullish, setMetadataForFile } from '../metadataState';
+import { stageMetadataIntentPatch, validateMetadataDraft } from '../metadataSession';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { ensureMetadataForFiles, getSelectedFiles } from './metadataPanel';
@@ -30,30 +25,18 @@ export async function persistSingleSelectionMetadata(file: AudioFile | null): Pr
 	if (!hasDirtyMetadataFields()) return true;
 
 	const metadata = readMetadataForm({ mode: 'single' });
-	const validation = await validateMetadataDraftIntent(
+	const validation = await validateMetadataDraft(
 		metadata,
 		tauriClient.validateMetadataIntentPatch,
 	);
-	const validationError = firstMetadataIntentValidationError(validation.result);
-	if (validationError) {
-		setStatusMessage(validationError);
+	if (!validation.ok) {
+		setStatusMessage(validation.errors.first ?? 'Metadata validation failed.');
 		return false;
 	}
 
-	const existing = getMetadataForFile(file.path) ?? {};
-	const intentPatch = validation.intentPatch;
-	if (!hasActionableMetadataDraftIntent(intentPatch)) {
+	if (stageMetadataIntentPatch(file.path, validation.intentPatch) !== 'staged') {
 		return true;
 	}
-	const merged = applyMetadataDraftIntent(existing, intentPatch);
-	if (metadataEqualsNullish(existing, merged)) {
-		return true;
-	}
-
-	setMetadataForFile(file.path, merged, {
-		markPending: true,
-		intentPatch,
-	});
 	resetDirtyState();
 	refreshOutputForMetadataChange();
 	return true;
@@ -78,34 +61,23 @@ export async function stageMetadataToSelection(options?: {
 		return true;
 	}
 
-	const validation = await validateMetadataDraftIntent(
-		changes,
-		tauriClient.validateMetadataIntentPatch,
-	);
-	const validationError = firstMetadataIntentValidationError(validation.result);
-	if (validationError) {
+	const validation = await validateMetadataDraft(changes, tauriClient.validateMetadataIntentPatch);
+	if (!validation.ok) {
 		if (options?.showStatus) {
-			setStatusMessage(validationError);
+			setStatusMessage(validation.errors.first ?? 'Metadata validation failed.');
 		}
 		return false;
 	}
 
 	await ensureMetadataForFiles(selectedFiles);
-	const intentPatch = validation.intentPatch;
-	if (!hasActionableMetadataDraftIntent(intentPatch)) {
+	const stageResults = selectedFiles.map((file) =>
+		stageMetadataIntentPatch(file.path, validation.intentPatch),
+	);
+	// 'noop' is patch-level: the normalized patch carried no actionable ops,
+	// so nothing was staged anywhere — keep the form dirty state untouched.
+	if (stageResults[0] === 'noop') {
 		return true;
 	}
-
-	selectedFiles.forEach((file) => {
-		const existing = getMetadataForFile(file.path) ?? {};
-		const merged = applyMetadataDraftIntent(existing, intentPatch);
-		if (!metadataEqualsNullish(existing, merged)) {
-			setMetadataForFile(file.path, merged, {
-				markPending: true,
-				intentPatch,
-			});
-		}
-	});
 
 	resetDirtyState();
 	refreshOutputForMetadataChange();

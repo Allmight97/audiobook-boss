@@ -7,14 +7,14 @@ import {
 	resolveCoverOwnerPaths,
 } from './coverOwner';
 
-const metadataStateMocks = vi.hoisted(() => ({
+const metadataSessionMocks = vi.hoisted(() => ({
 	getMetadataForFile: vi.fn(),
 	getMetadataIntentPatchForFile: vi.fn(),
 }));
 
-vi.mock('../metadataState', () => ({
-	getMetadataForFile: metadataStateMocks.getMetadataForFile,
-	getMetadataIntentPatchForFile: metadataStateMocks.getMetadataIntentPatchForFile,
+vi.mock('../metadataSession', () => ({
+	getMetadataForFile: metadataSessionMocks.getMetadataForFile,
+	getMetadataIntentPatchForFile: metadataSessionMocks.getMetadataIntentPatchForFile,
 }));
 
 function makeFile(path: string, isValid = true): AudioFile {
@@ -37,8 +37,8 @@ function makeFileList(files: AudioFile[]): FileListInfo {
 
 describe('coverOwner', () => {
 	beforeEach(() => {
-		metadataStateMocks.getMetadataForFile.mockReset();
-		metadataStateMocks.getMetadataIntentPatchForFile.mockReset();
+		metadataSessionMocks.getMetadataForFile.mockReset();
+		metadataSessionMocks.getMetadataIntentPatchForFile.mockReset();
 	});
 
 	it('resolves merge owner to the first valid input file', () => {
@@ -76,32 +76,32 @@ describe('coverOwner', () => {
 	});
 
 	it('prefers intent patch cover art over stored metadata', () => {
-		metadataStateMocks.getMetadataIntentPatchForFile.mockReturnValue({
+		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
 			cover_art: { op: 'set', value: [9, 9, 9] },
 		});
-		metadataStateMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
+		metadataSessionMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
 
 		expect(effectiveCoverForFile('/books/a.m4b')).toEqual([9, 9, 9]);
 	});
 
 	it('treats intent clear as no cover art', () => {
-		metadataStateMocks.getMetadataIntentPatchForFile.mockReturnValue({
+		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
 			cover_art: { op: 'clear' },
 		});
-		metadataStateMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
+		metadataSessionMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
 
 		expect(effectiveCoverForFile('/books/a.m4b')).toBeNull();
 	});
 
 	it('returns null display path when batch multi-select covers differ', () => {
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
-		metadataStateMocks.getMetadataIntentPatchForFile.mockImplementation((path: string) => {
+		metadataSessionMocks.getMetadataIntentPatchForFile.mockImplementation((path: string) => {
 			if (path === '/books/a.m4b') {
 				return { cover_art: { op: 'set', value: [1] } };
 			}
 			return { cover_art: { op: 'set', value: [2] } };
 		});
-		metadataStateMocks.getMetadataForFile.mockReturnValue({});
+		metadataSessionMocks.getMetadataForFile.mockReturnValue({});
 
 		expect(
 			resolveCoverDisplayPath('batch', fileList, [
@@ -113,10 +113,10 @@ describe('coverOwner', () => {
 
 	it('returns first selected path when batch multi-select covers match', () => {
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
-		metadataStateMocks.getMetadataIntentPatchForFile.mockReturnValue({
+		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
 			cover_art: { op: 'set', value: [1, 2, 3] },
 		});
-		metadataStateMocks.getMetadataForFile.mockReturnValue({});
+		metadataSessionMocks.getMetadataForFile.mockReturnValue({});
 
 		expect(
 			resolveCoverDisplayPath('batch', fileList, [

@@ -19,8 +19,11 @@ const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('../encoderPanel/logic', () => encoderLogicMocks);
-vi.mock('../core/actions', () => ({
-	startPreviewAudio: startPreviewAudioMock,
+vi.mock('../statusPanel', () => ({
+	triggerProcessFromStatusPanel: startPreviewAudioMock,
+	initStatusPanel: vi.fn(),
+	isStatusPanelProcessing: vi.fn(() => false),
+	pushStatusPanelTransientStatus: vi.fn(),
 }));
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -89,6 +92,6 @@ describe('EncodingWorkbenchIsland', () => {
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Preview Audio' }));
 
-		expect(startPreviewAudioMock).toHaveBeenCalledWith(30);
+		expect(startPreviewAudioMock).toHaveBeenCalledWith({ previewSeconds: 30 });
 	});
 });

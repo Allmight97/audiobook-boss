@@ -44,12 +44,12 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../metadataState', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../metadataState')>();
+vi.mock('../metadataSession', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../metadataSession')>();
 	return {
 		...actual,
 		getMetadataForFile: context.getMetadataForFileMock,
-		setMetadataForFile: context.setMetadataForFileMock,
+		cacheMetadataForFile: context.setMetadataForFileMock,
 		getMetadataIntentPatchForFile: context.getMetadataIntentPatchForFileMock,
 	};
 });

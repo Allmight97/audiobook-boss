@@ -1,6 +1,6 @@
 import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { getMetadataForFile, getMetadataIntentPatchForFile } from '../metadataState';
+import { getMetadataForFile, getMetadataIntentPatchForFile } from '../metadataSession';
 
 export function firstValidFilePath(fileList: FileListInfo | null): string | null {
 	if (!fileList?.files.length) {

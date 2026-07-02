@@ -4,14 +4,14 @@
  * Calculates TSOA (sort key) and updates the tag preview grid
  * based on metadata form preview state.
  */
-import { metadataFormPreviewState } from './metadataForm/previewState.svelte';
+import { readMetadataFormPreviewValues } from '../metadataForm';
 import {
 	TAG_FIELDS,
 	createEmptyTagPreviewValues,
 	setTagPreviewValues,
 	type TagField,
 	type TagPreviewValues,
-} from './tagPreview/state.svelte';
+} from './state.svelte';
 
 /**
  * Pads a part number to 2 digits for proper sorting
@@ -38,32 +38,30 @@ export function calculateTSOA(series: string, part: string, title: string): stri
 }
 
 /**
- * Tag field mappings from metadata form preview state to tag preview fields.
+ * Tag field mappings from metadata form preview values to tag preview fields.
  */
-const TAG_FIELD_MAPPINGS: Record<TagField, () => string> = {
-	title: () => metadataFormPreviewState.title,
-	album: () => metadataFormPreviewState.title,
-	artist: () => metadataFormPreviewState.author,
-	albumArtist: () => metadataFormPreviewState.author,
-	composer: () => metadataFormPreviewState.narrator,
-	series: () => metadataFormPreviewState.series,
-	part: () => metadataFormPreviewState.seriesPart,
-	subseries: () => metadataFormPreviewState.subseries,
-	subpart: () => metadataFormPreviewState.subseriesPart,
-	year: () => metadataFormPreviewState.year,
-	genre: () => metadataFormPreviewState.genre,
-	tsoa: () =>
-		calculateTSOA(
-			metadataFormPreviewState.series,
-			metadataFormPreviewState.seriesPart,
-			metadataFormPreviewState.title,
-		),
+type MetadataFormPreviewValues = ReturnType<typeof readMetadataFormPreviewValues>;
+
+const TAG_FIELD_MAPPINGS: Record<TagField, (preview: MetadataFormPreviewValues) => string> = {
+	title: (preview) => preview.title,
+	album: (preview) => preview.title,
+	artist: (preview) => preview.author,
+	albumArtist: (preview) => preview.author,
+	composer: (preview) => preview.narrator,
+	series: (preview) => preview.series,
+	part: (preview) => preview.seriesPart,
+	subseries: (preview) => preview.subseries,
+	subpart: (preview) => preview.subseriesPart,
+	year: (preview) => preview.year,
+	genre: (preview) => preview.genre,
+	tsoa: (preview) => calculateTSOA(preview.series, preview.seriesPart, preview.title),
 };
 
 function getTagPreviewValues(): TagPreviewValues {
+	const preview = readMetadataFormPreviewValues();
 	const values = createEmptyTagPreviewValues();
 	for (const field of TAG_FIELDS) {
-		values[field] = TAG_FIELD_MAPPINGS[field]();
+		values[field] = TAG_FIELD_MAPPINGS[field](preview);
 	}
 	return values;
 }
@@ -81,4 +79,4 @@ export function updateTagPreview(): void {
 export function initTagPreview(): void {
 	updateTagPreview();
 }
-export { default as TagPreviewIsland } from './tagPreview/TagPreviewIsland.svelte';
+export { default as TagPreviewIsland } from './TagPreviewIsland.svelte';

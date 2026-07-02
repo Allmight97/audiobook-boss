@@ -1,5 +1,23 @@
 # Decisions
 
+## 2026-07-02 - metadataSession Owner Strip
+
+- Outcome: frontend metadata cache/pending-intent/validation/save truth
+  consolidated under `src/ui/metadataSession` (absorbs the six `src/ui` root
+  loose files + `src/ui/core/`); outcome-shaped strip (30 scattered exports →
+  12) pinned by `__tests__/runtime-api-contract.test.ts`. `tagPreview.ts` and
+  `metadataLookup.ts` folded into their own owners' `index.ts` ("three
+  destinies"); tagPreview's reach into metadataForm private preview state
+  replaced by the public `readMetadataFormPreviewValues()` accessor.
+- Evidence: `src/ui/metadataSession/index.ts`,
+  `src/ui/__tests__/metadata-session-smoke.test.ts` (edit→save and
+  lookup-apply→save through real session state).
+- Guardrail: pending markers are created only via `stageMetadataIntentPatch`
+  (save workflow clears on success; lifecycle clears via
+  `removeMetadataForFile`/`clearMetadataSession`); no caller-side
+  merge/equality staging logic returns. Live workflow services on the
+  fileList/statusPanel cycles capture imports lazily, never by value.
+
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
 
 - Outcome: distribution posture — unsigned local/DMG distribution stands until

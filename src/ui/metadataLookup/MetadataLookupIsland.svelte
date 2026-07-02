@@ -8,7 +8,7 @@
 		searchMetadataLookup,
 		skipMetadataLookupQueueItem,
 		useManualMetadataEntryFromLookup,
-	} from '../metadataLookup';
+	} from './actions';
 	import {
 		cancelMetadataLookupCoverPreviewSchedule,
 		getMetadataLookupCoverPreviewState,

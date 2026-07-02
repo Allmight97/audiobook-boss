@@ -4,7 +4,7 @@ import { createFileListDragHandlers } from '../events';
 const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 	isOrderLockedMock: vi.fn(() => false),
-	metadataSaveInProgressStore: { subscribe: vi.fn() },
+	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
 vi.mock('svelte/store', () => ({
@@ -16,8 +16,8 @@ vi.mock('../state.svelte', () => ({
 	isOrderLocked: context.isOrderLockedMock,
 }));
 
-vi.mock('../../metadataSaveState', () => ({
-	metadataSaveInProgressStore: context.metadataSaveInProgressStore,
+vi.mock('../../metadataSession', () => ({
+	metadataSaveInProgress: context.metadataSaveInProgress,
 }));
 
 vi.mock('../actions', () => ({

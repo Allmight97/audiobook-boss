@@ -4,7 +4,7 @@ import { setCurrentFileList, setSelectedIndex } from '../state.svelte';
 
 const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
-	setMetadataForFileMock: vi.fn(),
+	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
 	getSelectedFilesMock: vi.fn(),
 	handleSelectionMock: vi.fn(() => ({ changed: true })),
 	selectAllFilesMock: vi.fn(() => true),
@@ -12,12 +12,7 @@ const context = vi.hoisted(() => ({
 	showSingleSelectionMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
-	validateMetadataDraftIntentMock: vi.fn(async (metadata: Record<string, unknown>) => ({
-		intentPatch: Object.fromEntries(
-			Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
-		),
-		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
-	})),
+	validateMetadataDraftMock: vi.fn(),
 	clearSelectionMock: vi.fn(() => true),
 }));
 
@@ -27,22 +22,19 @@ vi.mock('../../metadataForm', () => ({
 	resetDirtyState: vi.fn(),
 }));
 
-vi.mock('../../metadataState', () => ({
-	clearMetadataState: vi.fn(),
+vi.mock('../../metadataSession', () => ({
+	clearMetadataSession: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
-	metadataEqualsNullish: vi.fn(() => false),
+	cacheMetadataForFile: vi.fn(),
 	removeMetadataForFile: vi.fn(),
-	setMetadataForFile: context.setMetadataForFileMock,
+	stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
+	validateMetadataDraft: context.validateMetadataDraftMock,
+	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
 vi.mock('../../outputPanel', () => ({
 	updateEstimatedSize: vi.fn(),
 	updateOutputPath: vi.fn(),
-}));
-
-vi.mock('../../metadataValidation', () => ({
-	firstMetadataIntentValidationError: context.validationErrorMock,
-	validateMetadataDraftIntent: context.validateMetadataDraftIntentMock,
 }));
 
 vi.mock('../events', () => ({
@@ -114,14 +106,25 @@ describe('selectFile transition options', () => {
 		setSelectedIndex(0);
 
 		context.readMetadataFormMock.mockClear();
-		context.setMetadataForFileMock.mockClear();
+		context.stageMetadataIntentPatchMock.mockClear();
 		context.handleSelectionMock.mockClear();
 		context.selectAllFilesMock.mockClear();
 		context.showMultiSelectionMock.mockClear();
 		context.showSingleSelectionMock.mockClear();
 		context.pushStatusPanelTransientStatusMock.mockClear();
 		context.validationErrorMock.mockReset();
-		context.validateMetadataDraftIntentMock.mockClear();
+		context.validateMetadataDraftMock.mockReset();
+		context.validateMetadataDraftMock.mockImplementation(async (metadata: Record<string, unknown>) => {
+			const first = context.validationErrorMock();
+			return {
+				intentPatch: Object.fromEntries(
+					Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
+				),
+				ok: first == null,
+				errors: { first, byField: {} },
+				result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
+			};
+		});
 		context.validationErrorMock.mockReturnValue(null);
 		context.clearSelectionMock.mockClear();
 		context.getSelectedFilesMock.mockReset();
@@ -138,7 +141,7 @@ describe('selectFile transition options', () => {
 		await selectFile(1, { multi: false, range: false }, { skipPersistPrevious: true });
 
 		expect(context.readMetadataFormMock).not.toHaveBeenCalled();
-		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
 	});
 
 	it('preserves default autosave behavior when transition option is omitted', async () => {
@@ -146,11 +149,9 @@ describe('selectFile transition options', () => {
 		await selectFile(1, { multi: false, range: false });
 
 		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
-			'/books/alpha.m4b',
-			{ title: 'Persisted Title' },
-			expect.objectContaining({ markPending: true }),
-		);
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/alpha.m4b', {
+			title: { op: 'set', value: 'Persisted Title' },
+		});
 	});
 
 	it('keeps the current selection when staging validation fails', async () => {
@@ -198,16 +199,12 @@ describe('selectFile transition options', () => {
 			mode: 'multi',
 			onlyDirty: true,
 		});
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
-			'/books/alpha.m4b',
-			{ series: 'Draft Series' },
-			expect.objectContaining({ markPending: true }),
-		);
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
-			'/books/beta.m4b',
-			{ series: 'Draft Series' },
-			expect.objectContaining({ markPending: true }),
-		);
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/alpha.m4b', {
+			series: { op: 'set', value: 'Draft Series' },
+		});
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/beta.m4b', {
+			series: { op: 'set', value: 'Draft Series' },
+		});
 		expect(context.selectAllFilesMock).toHaveBeenCalledTimes(1);
 		expect(context.showMultiSelectionMock).toHaveBeenCalledTimes(1);
 	});
