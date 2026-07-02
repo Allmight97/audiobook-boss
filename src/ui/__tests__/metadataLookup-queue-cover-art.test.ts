@@ -25,7 +25,7 @@ const context = vi.hoisted(() => ({
 		],
 	} as { files: Array<{ path: string; isValid: boolean }> },
 	metadataByFile: new Map<string, StoredMetadata>(),
-	setMetadataForFileMock: vi.fn(),
+	stageMetadataIntentPatchMock: vi.fn(),
 	activeIndex: 0,
 }));
 
@@ -72,9 +72,15 @@ vi.mock('../coverArt', () => ({
 	setCustomCoverArt: context.setCustomCoverArtMock,
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../metadataSession', () => ({
 	getMetadataForFile: (filePath: string) => context.metadataByFile.get(filePath),
-	setMetadataForFile: context.setMetadataForFileMock,
+	stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
+	buildMetadataDraftIntent: (metadata: Record<string, unknown>) =>
+		Object.fromEntries(
+			Object.entries(metadata)
+				.filter(([, value]) => value !== undefined)
+				.map(([key, value]) => [key, { op: 'set', value }]),
+		),
 }));
 
 vi.mock('../outputPanel', () => ({
@@ -160,10 +166,22 @@ describe('metadata lookup queue cover art isolation', () => {
 			['/books/alpha.m4b', { title: 'Alpha Existing', cover_art: [1, 1, 1] }],
 			['/books/beta.m4b', { title: 'Beta Existing', cover_art: [2, 2, 2] }],
 		]);
-		context.setMetadataForFileMock.mockReset();
-		context.setMetadataForFileMock.mockImplementation(
-			(filePath: string, metadata: StoredMetadata) => {
-				context.metadataByFile.set(filePath, metadata);
+		context.stageMetadataIntentPatchMock.mockReset();
+		context.stageMetadataIntentPatchMock.mockImplementation(
+			(filePath: string, intentPatch: Record<string, { op: string; value?: unknown }>) => {
+				const next: StoredMetadata = { ...(context.metadataByFile.get(filePath) ?? {}) };
+				for (const [key, intent] of Object.entries(intentPatch)) {
+					if (!intent || intent.op === 'noop') continue;
+					if (intent.op === 'clear') {
+						delete (next as Record<string, unknown>)[key];
+						continue;
+					}
+					if (intent.op === 'set') {
+						(next as Record<string, unknown>)[key] = intent.value;
+					}
+				}
+				context.metadataByFile.set(filePath, next);
+				return 'staged' as const;
 			},
 		);
 		context.activeIndex = 0;
@@ -219,14 +237,20 @@ describe('metadata lookup queue cover art isolation', () => {
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
 		expect(getQueryValue()).toBe('Beta Existing');
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
+			expect.objectContaining({
+				title: { op: 'set', value: 'Alpha Patched' },
+				album: { op: 'set', value: 'Alpha Patched' },
+				cover_art: { op: 'set', value: [9, 9, 9] },
+			}),
+		);
+		expect(context.metadataByFile.get('/books/alpha.m4b')).toEqual(
 			expect.objectContaining({
 				title: 'Alpha Patched',
 				album: 'Alpha Patched',
 				cover_art: [9, 9, 9],
 			}),
-			expect.objectContaining({ markPending: true }),
 		);
 		expect(context.updateTagPreviewMock).toHaveBeenCalledTimes(1);
 
@@ -248,10 +272,13 @@ describe('metadata lookup queue cover art isolation', () => {
 		await waitForStatus('Metadata applied. Found 1 results.');
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledWith('https://example.com/cover.jpg');
 		expect(context.setCustomCoverArtMock).not.toHaveBeenCalled();
-		expect(context.setMetadataForFileMock).toHaveBeenCalledWith(
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
+			expect.not.objectContaining({ cover_art: expect.anything() }),
+		);
+		// Existing cover art survives untouched in the session cache.
+		expect(context.metadataByFile.get('/books/alpha.m4b')).toEqual(
 			expect.objectContaining({ cover_art: [1, 1, 1] }),
-			expect.objectContaining({ markPending: true }),
 		);
 	});
 
@@ -269,15 +296,10 @@ describe('metadata lookup queue cover art isolation', () => {
 		await runSearchAndApply();
 		await waitForStatus('Queue complete.');
 
-		const writesByPath = new Map<string, StoredMetadata>();
-		context.setMetadataForFileMock.mock.calls.forEach(([filePath, metadata]) => {
-			writesByPath.set(filePath as string, metadata as StoredMetadata);
-		});
-
-		expect(writesByPath.get('/books/alpha.m4b')).toEqual(
+		expect(context.metadataByFile.get('/books/alpha.m4b')).toEqual(
 			expect.objectContaining({ cover_art: [9, 9, 9] }),
 		);
-		expect(writesByPath.get('/books/beta.m4b')).toEqual(
+		expect(context.metadataByFile.get('/books/beta.m4b')).toEqual(
 			expect.objectContaining({ cover_art: [2, 2, 2] }),
 		);
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(2);
@@ -290,7 +312,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		click('metadata-lookup-skip-btn');
 		await waitForStatus('Skipped. Found 1 results.');
 
-		expect(context.setMetadataForFileMock).not.toHaveBeenCalled();
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
 		expect(context.selectFileMock).toHaveBeenCalledWith(
 			1,

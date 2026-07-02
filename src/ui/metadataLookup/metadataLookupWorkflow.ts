@@ -12,7 +12,7 @@ import { tauriClient } from '../../lib/tauri/client';
 import { clearCoverArt, refreshCoverArtDisplay, setCoverArt, setCustomCoverArt } from '../coverArt';
 import { getCurrentFileList, getSelectedFileIndices, selectFile } from '../fileList';
 import { applyMetadataToForm, readMetadataForm } from '../metadataForm';
-import { getMetadataForFile, setMetadataForFile } from '../metadataState';
+import { getMetadataForFile, stageMetadataIntentPatch } from '../metadataSession';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { updateTagPreview } from '../tagPreview';
 import {
@@ -49,7 +49,7 @@ export interface MetadataLookupWorkflowServices {
 	getSelectedFileIndices: () => Set<number>;
 	getCurrentFileList: () => FileListInfo | null;
 	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
-	setMetadataForFile: typeof setMetadataForFile;
+	stageMetadataIntentPatch: typeof stageMetadataIntentPatch;
 	selectFile: typeof selectFile;
 	applyMetadataToForm: typeof applyMetadataToForm;
 	readMetadataForm: typeof readMetadataForm;
@@ -92,7 +92,7 @@ const liveMetadataLookupWorkflowServices = {
 	getSelectedFileIndices,
 	getCurrentFileList,
 	getMetadataForFile,
-	setMetadataForFile,
+	stageMetadataIntentPatch,
 	selectFile,
 	applyMetadataToForm,
 	readMetadataForm,

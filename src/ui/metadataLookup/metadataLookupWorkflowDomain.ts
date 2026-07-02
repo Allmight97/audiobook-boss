@@ -2,7 +2,7 @@ import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { applyMetadataDraftIntent, buildMetadataDraftIntent } from '../metadataDraft';
+import { buildMetadataDraftIntent } from '../metadataSession';
 import { clearMetadataLookupCoverPreviewCache } from './metadataLookupCoverPreview.svelte';
 import type { MetadataLookupWorkflowServices } from './metadataLookupWorkflow';
 
@@ -94,21 +94,12 @@ export function persistQueueMetadata(
 	state: QueueItemState,
 ): void {
 	if (!file.isValid) return;
-	const existing = services.getMetadataForFile(file.path) ?? {};
-	const merged: Partial<AudiobookMetadata> = applyMetadataDraftIntent(
-		existing,
-		state.metadataPatch,
-	);
 	const intentPatch: MetadataIntentPatch = { ...state.metadataPatch };
 	if (state.cover.intent === 'replace') {
-		merged.cover_art = state.cover.bytes;
 		intentPatch.cover_art = { op: 'set', value: state.cover.bytes };
 	}
 
-	services.setMetadataForFile(file.path, merged, {
-		markPending: true,
-		intentPatch,
-	});
+	services.stageMetadataIntentPatch(file.path, intentPatch);
 }
 
 export function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMetadata> {
