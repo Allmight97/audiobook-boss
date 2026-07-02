@@ -5,7 +5,7 @@ import {
 	buildMetadataDraftIntent,
 	hasActionableMetadataDraftIntent,
 	toMetadataDraft,
-} from '../metadataDraft';
+} from '../draft';
 
 describe('metadata draft intent', () => {
 	it('keeps normal UI drafts inside the supported write surface', () => {

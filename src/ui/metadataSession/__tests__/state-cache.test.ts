@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearMetadataState, isUsableMetadataCache, setMetadataForFile } from '../metadataState';
+import {
+	cacheMetadataForFile,
+	clearMetadataSession,
+	getMetadataForFile,
+	isUsableMetadataCache,
+} from '../state';
 
-describe('metadataState cache usability', () => {
+describe('metadataSession cache usability', () => {
 	beforeEach(() => {
-		clearMetadataState();
+		clearMetadataSession();
 	});
 
 	it('treats undefined and empty objects as unusable cache entries', () => {
@@ -21,7 +26,7 @@ describe('metadataState cache usability', () => {
 	});
 
 	it('stores and returns usable metadata through getMetadataForFile', () => {
-		setMetadataForFile('/books/alpha.m4b', { title: 'Alpha' });
-		expect(isUsableMetadataCache({ title: 'Alpha' })).toBe(true);
+		cacheMetadataForFile('/books/alpha.m4b', { title: 'Alpha' });
+		expect(isUsableMetadataCache(getMetadataForFile('/books/alpha.m4b'))).toBe(true);
 	});
 });
