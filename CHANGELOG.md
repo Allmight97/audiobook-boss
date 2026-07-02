@@ -4,6 +4,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The media test lane now proves the Apple AAC (AudioToolbox) encoder route
+  end-to-end alongside Native AAC — real processing to a valid M4B with
+  truthful duration and tag re-read. External FDK real-execution proof stays
+  manual or env-gated because it requires a user-supplied `libfdk_aac`
+  FFmpeg build.
+
 ## [1.3.0] - 2026-07-02
 
 ### Added
