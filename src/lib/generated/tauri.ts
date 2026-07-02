@@ -181,6 +181,8 @@ export type AppSettings = {
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
 	toolchain?: ToolchainPreferences,
+	startupBehavior?: StartupBehavior,
+	pinnedDefaults?: PinnedDefaults | null,
 };
 
 export type AppSettingsPatch = {
@@ -188,6 +190,12 @@ export type AppSettingsPatch = {
 	encoderDefaults: EncoderDefaults | null,
 	outputDefaults: OutputDefaults | null,
 	toolchain: ToolchainPreferences | null,
+	startupBehavior: StartupBehavior | null,
+	/**
+	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
+	 *  back to `RememberLastState`, never unpinning.
+	 */
+	pinnedDefaults: PinnedDefaults | null,
 };
 
 // Represents an audio file with metadata
@@ -550,6 +558,13 @@ export type OutputReviewRequirement = {
 
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" };
 
+// A deliberately captured snapshot of the panel-owned durable preferences.
+export type PinnedDefaults = {
+	maxConcurrentJobs: ConcurrencyPreference,
+	encoderDefaults: EncoderDefaults,
+	outputDefaults: OutputDefaults,
+};
+
 export type PlannedOutput = {
 	inputIndex: number | null,
 	inputPath: string | null,
@@ -786,6 +801,20 @@ export type SampleRateConfig =
 "auto" |
 // Explicit sample rate in Hz
 { explicit: number };
+
+/**
+ *  What launch hydration restores into the panels. The panels always keep
+ *  auto-persisting the top-level (last-used) values; this only chooses the
+ *  hydration source.
+ */
+export type StartupBehavior =
+// Today's behavior: reopen with whatever the panels last persisted.
+"rememberLastState" |
+/**
+ *  Reopen with the user-pinned defaults; in-flight panel tweaks are
+ *  ephemeral across restarts.
+ */
+"pinnedDefaults";
 
 export type SubmitProcessingOperationRequest = {
 	payload: ProcessPayload,

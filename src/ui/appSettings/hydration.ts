@@ -24,21 +24,29 @@ async function hydrateOnce(): Promise<void> {
 
 	const capabilities = await loadRuntimeSettingsCapabilities();
 
+	// Startup source selection: the panels always persist their last-used
+	// values at the top level; the pinned snapshot only wins when the user
+	// chose "use my pinned defaults" AND has actually pinned one.
+	const source =
+		settings.startupBehavior === 'pinnedDefaults' && settings.pinnedDefaults
+			? settings.pinnedDefaults
+			: settings;
+
 	try {
-		await applyEncodingDefaults(settings.encoderDefaults, capabilities?.encoder ?? null);
+		await applyEncodingDefaults(source.encoderDefaults, capabilities?.encoder ?? null);
 	} catch (error) {
 		console.warn('Failed to hydrate encoding defaults:', error);
 	}
 
 	try {
-		applyOutputDefaultsFromSettings(settings.outputDefaults);
+		applyOutputDefaultsFromSettings(source.outputDefaults);
 	} catch (error) {
 		console.warn('Failed to hydrate output defaults:', error);
 	}
 
 	try {
 		await applyMaxConcurrentPreference(
-			settings.maxConcurrentJobs,
+			source.maxConcurrentJobs,
 			capabilities?.maxConcurrentJobs ?? null,
 		);
 	} catch (error) {

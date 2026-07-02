@@ -13,6 +13,10 @@ pub struct AppSettings {
     pub output_defaults: OutputDefaults,
     #[serde(default)]
     pub toolchain: ToolchainPreferences,
+    #[serde(default)]
+    pub startup_behavior: StartupBehavior,
+    #[serde(default)]
+    pub pinned_defaults: Option<PinnedDefaults>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -22,6 +26,35 @@ pub struct AppSettingsPatch {
     pub encoder_defaults: Option<EncoderDefaults>,
     pub output_defaults: Option<OutputDefaults>,
     pub toolchain: Option<ToolchainPreferences>,
+    pub startup_behavior: Option<StartupBehavior>,
+    /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
+    /// back to `RememberLastState`, never unpinning.
+    pub pinned_defaults: Option<PinnedDefaults>,
+}
+
+/// What launch hydration restores into the panels. The panels always keep
+/// auto-persisting the top-level (last-used) values; this only chooses the
+/// hydration source.
+#[derive(
+    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum StartupBehavior {
+    /// Today's behavior: reopen with whatever the panels last persisted.
+    #[default]
+    RememberLastState,
+    /// Reopen with the user-pinned defaults; in-flight panel tweaks are
+    /// ephemeral across restarts.
+    PinnedDefaults,
+}
+
+/// A deliberately captured snapshot of the panel-owned durable preferences.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PinnedDefaults {
+    pub max_concurrent_jobs: ConcurrencyPreference,
+    pub encoder_defaults: EncoderDefaults,
+    pub output_defaults: OutputDefaults,
 }
 
 /// Durable toolchain preferences. Preference data only: the audio toolchain
@@ -65,6 +98,8 @@ impl Default for AppSettings {
             encoder_defaults: EncoderDefaults::default(),
             output_defaults: OutputDefaults::default(),
             toolchain: ToolchainPreferences::default(),
+            startup_behavior: StartupBehavior::default(),
+            pinned_defaults: None,
         }
     }
 }
@@ -100,6 +135,12 @@ impl AppSettings {
         if let Some(toolchain) = patch.toolchain {
             self.toolchain = toolchain;
         }
+        if let Some(startup_behavior) = patch.startup_behavior {
+            self.startup_behavior = startup_behavior;
+        }
+        if let Some(pinned_defaults) = patch.pinned_defaults {
+            self.pinned_defaults = Some(pinned_defaults);
+        }
         self.validate()?;
         Ok(self)
     }
@@ -109,6 +150,13 @@ impl AppSettings {
         self.encoder_defaults.validate()?;
         self.output_defaults.normalize();
         self.toolchain.normalize();
+        if let Some(pinned) = self.pinned_defaults.as_mut() {
+            // Same validators as the live values: a stale or hand-edited
+            // pinned snapshot must never brick launch hydration.
+            pinned.max_concurrent_jobs.validate()?;
+            pinned.encoder_defaults.validate()?;
+            pinned.output_defaults.normalize();
+        }
         Ok(())
     }
 }

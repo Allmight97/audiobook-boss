@@ -1,12 +1,14 @@
 <script lang="ts">
-	import type { AppSettings } from '../../types/appSettings';
+	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
 	import {
 		appSettingsDialogState,
 		browseForFfmpegBinary,
 		clearFfmpegPathDraft,
 		closeAppSettingsDialog,
 		resetAllAppSettings,
+		saveCurrentSettingsAsPinnedDefaults,
 		saveToolchainPreference,
+		setStartupBehavior,
 	} from './settingsDialog.svelte';
 
 	function handleBackdropClick(event: MouseEvent): void {
@@ -15,12 +17,12 @@
 		}
 	}
 
-	function formatConcurrency(settings: AppSettings): string {
+	function formatConcurrency(settings: Pick<AppSettings, 'maxConcurrentJobs'>): string {
 		const preference = settings.maxConcurrentJobs;
 		return preference.mode === 'fixed' ? `Fixed (${preference.value})` : 'Auto';
 	}
 
-	function formatEncoderDefaults(settings: AppSettings): string {
+	function formatEncoderDefaults(settings: Pick<AppSettings, 'encoderDefaults'>): string {
 		const encoder = settings.encoderDefaults.settings;
 		const mode =
 			encoder.bitrateMode.mode === 'vbr'
@@ -28,6 +30,13 @@
 				: encoder.bitrateMode.mode.toUpperCase();
 		return `${formatEncoderType(encoder.encoderType)} • ${encoder.bitrateKbps} kbps • ${mode}`;
 	}
+
+	const pinnedDefaults = $derived<PinnedDefaults | undefined>(
+		appSettingsDialogState.settings?.pinnedDefaults,
+	);
+	const startupBehavior = $derived(
+		appSettingsDialogState.settings?.startupBehavior ?? 'rememberLastState',
+	);
 
 	function formatEncoderType(encoderType: string): string {
 		switch (encoderType) {
@@ -44,7 +53,7 @@
 		}
 	}
 
-	function formatOutputDefaults(settings: AppSettings): string {
+	function formatOutputDefaults(settings: Pick<AppSettings, 'outputDefaults'>): string {
 		return settings.outputDefaults.outputDirectory ?? 'Not set';
 	}
 
@@ -151,18 +160,70 @@
 
 				{#if appSettingsDialogState.settings}
 					<section class="app-settings-section">
-						<h4 class="app-settings-section-title">Durable defaults</h4>
+						<h4 class="app-settings-section-title">Startup settings</h4>
 						<p class="text-xs muted-text">
-							Saved automatically as you change the encoder, output, and job controls
-							in the main window; applied on every launch.
+							The encoder, output, and job controls save as you change them. This
+							chooses what the app restores on launch.
 						</p>
+						<div class="app-settings-startup-options" role="radiogroup" aria-label="On launch">
+							<label class="app-settings-radio">
+								<input
+									type="radio"
+									name="app-settings-startup-behavior"
+									value="rememberLastState"
+									data-testid="app-settings-startup-last"
+									checked={startupBehavior === 'rememberLastState'}
+									onchange={() => void setStartupBehavior('rememberLastState')}
+								/>
+								Remember my last settings
+							</label>
+							<label class="app-settings-radio">
+								<input
+									type="radio"
+									name="app-settings-startup-behavior"
+									value="pinnedDefaults"
+									data-testid="app-settings-startup-pinned"
+									checked={startupBehavior === 'pinnedDefaults'}
+									disabled={!pinnedDefaults}
+									onchange={() => void setStartupBehavior('pinnedDefaults')}
+								/>
+								Use my pinned defaults
+								{#if !pinnedDefaults}
+									<span class="text-xs muted-text">(pin defaults first)</span>
+								{/if}
+							</label>
+						</div>
+						<div class="app-settings-path-row">
+							<button
+								class="btn-pill btn-pill-secondary"
+								data-testid="app-settings-pin-defaults"
+								type="button"
+								disabled={appSettingsDialogState.startupSaveState === 'saving'}
+								onclick={() => void saveCurrentSettingsAsPinnedDefaults()}
+							>
+								Use current settings as defaults
+							</button>
+						</div>
+						{#if appSettingsDialogState.startupSaveState === 'error'}
+							<p
+								class="app-settings-status app-settings-status-error"
+								data-testid="app-settings-startup-error"
+							>
+								{appSettingsDialogState.startupSaveError}
+							</p>
+						{/if}
 						<dl class="app-settings-summary" data-testid="app-settings-summary">
-							<dt>Max concurrent jobs</dt>
-							<dd>{formatConcurrency(appSettingsDialogState.settings)}</dd>
-							<dt>Encoder defaults</dt>
-							<dd>{formatEncoderDefaults(appSettingsDialogState.settings)}</dd>
-							<dt>Output folder</dt>
-							<dd>{formatOutputDefaults(appSettingsDialogState.settings)}</dd>
+							{#if pinnedDefaults}
+								<dt>Pinned max jobs</dt>
+								<dd>{formatConcurrency(pinnedDefaults)}</dd>
+								<dt>Pinned encoder</dt>
+								<dd>{formatEncoderDefaults(pinnedDefaults)}</dd>
+								<dt>Pinned output folder</dt>
+								<dd>{formatOutputDefaults(pinnedDefaults)}</dd>
+							{:else}
+								<dt>Pinned defaults</dt>
+								<dd data-testid="app-settings-no-pin">Not pinned yet</dd>
+							{/if}
 						</dl>
 					</section>
 
@@ -224,6 +285,22 @@
 
 	.app-settings-status-error {
 		color: var(--danger, #e5484d);
+	}
+
+	.app-settings-startup-options {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		margin-top: 0.5rem;
+		font-size: 0.78rem;
+		color: var(--text-primary);
+	}
+
+	.app-settings-radio {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		cursor: pointer;
 	}
 
 	.app-settings-summary {

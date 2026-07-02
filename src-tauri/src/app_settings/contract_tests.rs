@@ -288,4 +288,84 @@ fn settings_file_without_toolchain_field_loads_with_default() {
     let settings = get_app_settings(temp.path()).expect("load legacy settings");
 
     assert_eq!(settings.toolchain, ToolchainPreferences::default());
+    // Pre-pinned-defaults files load with today's behavior and no pin.
+    assert_eq!(
+        settings.startup_behavior,
+        StartupBehavior::RememberLastState
+    );
+    assert_eq!(settings.pinned_defaults, None);
+}
+
+#[test]
+fn pinned_defaults_and_startup_behavior_persist_and_round_trip() {
+    let temp = TempDir::new().expect("temp dir");
+    let pinned = PinnedDefaults {
+        max_concurrent_jobs: ConcurrencyPreference::Fixed(2),
+        encoder_defaults: EncoderDefaults::default(),
+        output_defaults: OutputDefaults {
+            output_directory: Some("/books/out".to_string()),
+            ..OutputDefaults::default()
+        },
+    };
+
+    let updated = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            pinned_defaults: Some(pinned.clone()),
+            startup_behavior: Some(StartupBehavior::PinnedDefaults),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("update settings");
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+
+    assert_eq!(updated.startup_behavior, StartupBehavior::PinnedDefaults);
+    assert_eq!(updated.pinned_defaults, Some(pinned));
+    assert_eq!(reloaded.startup_behavior, updated.startup_behavior);
+    assert_eq!(reloaded.pinned_defaults, updated.pinned_defaults);
+
+    // Switching back to remember-last must not unpin.
+    let reverted = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            startup_behavior: Some(StartupBehavior::RememberLastState),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("revert startup behavior");
+    assert_eq!(
+        reverted.startup_behavior,
+        StartupBehavior::RememberLastState
+    );
+    assert!(
+        reverted.pinned_defaults.is_some(),
+        "pin survives the toggle"
+    );
+}
+
+#[test]
+fn invalid_pinned_defaults_are_rejected_by_shared_validators() {
+    let temp = TempDir::new().expect("temp dir");
+    let mut encoder_defaults = EncoderDefaults::default();
+    // NativeAac with VBR is the same invalid combination the live-value test
+    // uses; the pinned snapshot must hit the identical validator.
+    encoder_defaults.settings.encoder_type = EncoderType::NativeAac;
+    encoder_defaults.settings.bitrate_mode = BitrateMode::Vbr(3);
+
+    let error = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            pinned_defaults: Some(PinnedDefaults {
+                max_concurrent_jobs: ConcurrencyPreference::Auto,
+                encoder_defaults,
+                output_defaults: OutputDefaults::default(),
+            }),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect_err("invalid pinned encoder defaults must be rejected");
+
+    assert!(error.to_string().contains("not supported"));
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+    assert_eq!(reloaded.pinned_defaults, None, "rejected pin is not stored");
 }

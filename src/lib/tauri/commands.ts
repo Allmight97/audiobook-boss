@@ -111,6 +111,14 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 		toolchain: patch.toolchain
 			? { externalFfmpegPath: patch.toolchain.externalFfmpegPath ?? null }
 			: null,
+		startupBehavior: patch.startupBehavior ?? null,
+		pinnedDefaults: patch.pinnedDefaults
+			? {
+					maxConcurrentJobs: patch.pinnedDefaults.maxConcurrentJobs,
+					encoderDefaults: toGeneratedEncoderDefaults(patch.pinnedDefaults.encoderDefaults),
+					outputDefaults: toGeneratedOutputDefaults(patch.pinnedDefaults.outputDefaults),
+				}
+			: null,
 	};
 }
 

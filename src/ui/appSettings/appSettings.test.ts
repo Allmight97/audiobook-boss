@@ -57,6 +57,30 @@ const settingsFixture = (): AppSettings => ({
 		},
 	},
 	toolchain: {},
+	startupBehavior: 'rememberLastState',
+});
+
+const pinnedDefaultsFixture = (): NonNullable<AppSettings['pinnedDefaults']> => ({
+	maxConcurrentJobs: { mode: 'fixed', value: 1 },
+	encoderDefaults: {
+		settings: {
+			encoderType: 'native_aac',
+			bitrateKbps: 96,
+			bitrateMode: { mode: 'cbr' },
+			channels: 'stereo',
+			afterburner: false,
+			threads: { mode: 'auto' },
+			twoloop: true,
+		},
+		sampleRate: 'auto',
+	},
+	outputDefaults: {
+		outputDirectory: '/books/pinned',
+		outputNaming: {
+			preset: 'absDefault',
+			includeYear: true,
+		},
+	},
 });
 
 describe('app settings control plane', () => {
@@ -90,6 +114,68 @@ describe('app settings control plane', () => {
 		expect(context.applyMaxConcurrentPreferenceMock).toHaveBeenCalledWith(
 			settings.maxConcurrentJobs,
 			capabilities.maxConcurrentJobs,
+		);
+	});
+
+	it('hydrates from the pinned defaults slot in pinnedDefaults startup mode', async () => {
+		const pinned = pinnedDefaultsFixture();
+		const settings = {
+			...settingsFixture(),
+			startupBehavior: 'pinnedDefaults' as const,
+			pinnedDefaults: pinned,
+		};
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(
+			pinned.encoderDefaults,
+			expect.anything(),
+		);
+		expect(context.applyOutputDefaultsFromSettingsMock).toHaveBeenCalledWith(pinned.outputDefaults);
+		expect(context.applyMaxConcurrentPreferenceMock).toHaveBeenCalledWith(
+			pinned.maxConcurrentJobs,
+			expect.anything(),
+		);
+	});
+
+	it('falls back to last-used values when pinned mode is set but nothing is pinned', async () => {
+		const settings = {
+			...settingsFixture(),
+			startupBehavior: 'pinnedDefaults' as const,
+		};
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(
+			settings.encoderDefaults,
+			expect.anything(),
+		);
+		expect(context.applyMaxConcurrentPreferenceMock).toHaveBeenCalledWith(
+			settings.maxConcurrentJobs,
+			expect.anything(),
+		);
+	});
+
+	it('ignores a pinned slot while startup behavior is rememberLastState', async () => {
+		const settings = {
+			...settingsFixture(),
+			pinnedDefaults: pinnedDefaultsFixture(),
+		};
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		expect(context.applyEncodingDefaultsMock).toHaveBeenCalledWith(
+			settings.encoderDefaults,
+			expect.anything(),
+		);
+		expect(context.applyOutputDefaultsFromSettingsMock).toHaveBeenCalledWith(
+			settings.outputDefaults,
 		);
 	});
 

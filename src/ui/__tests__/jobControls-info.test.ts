@@ -110,6 +110,7 @@ function appSettingsFixture() {
 			outputDirectory: undefined,
 		},
 		toolchain: {},
+		startupBehavior: 'rememberLastState' as const,
 	};
 }
 

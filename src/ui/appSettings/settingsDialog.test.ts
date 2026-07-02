@@ -49,6 +49,7 @@ const settingsFixture = (externalFfmpegPath?: string): AppSettings => ({
 		},
 	},
 	toolchain: externalFfmpegPath ? { externalFfmpegPath } : {},
+	startupBehavior: 'rememberLastState',
 });
 
 async function loadDialogModule() {
@@ -147,5 +148,58 @@ describe('app settings dialog', () => {
 		context.openFileMock.mockResolvedValueOnce('/picked/ffmpeg');
 		await dialog.browseForFfmpegBinary();
 		expect(dialog.appSettingsDialogState.ffmpegPathDraft).toBe('/picked/ffmpeg');
+	});
+
+	it('pins the current last-used settings values as pinned defaults', async () => {
+		const current = settingsFixture();
+		current.maxConcurrentJobs = { mode: 'fixed', value: 2 };
+		current.outputDefaults.outputDirectory = '/books/out';
+		const pinned = {
+			maxConcurrentJobs: current.maxConcurrentJobs,
+			encoderDefaults: current.encoderDefaults,
+			outputDefaults: current.outputDefaults,
+		};
+		const dialog = await loadDialogModule();
+		await dialog.openAppSettingsDialog();
+		context.getAppSettingsMock.mockResolvedValueOnce(current);
+		context.updateAppSettingsMock.mockResolvedValueOnce({
+			...current,
+			pinnedDefaults: pinned,
+		});
+
+		await dialog.saveCurrentSettingsAsPinnedDefaults();
+
+		// Capture is a pure settings copy: current top-level values → pinned slot.
+		expect(context.updateAppSettingsMock).toHaveBeenCalledWith({ pinnedDefaults: pinned });
+		expect(dialog.appSettingsDialogState.startupSaveState).toBe('saved');
+		expect(dialog.appSettingsDialogState.settings?.pinnedDefaults).toEqual(pinned);
+	});
+
+	it('persists the startup behavior toggle', async () => {
+		const dialog = await loadDialogModule();
+		await dialog.openAppSettingsDialog();
+		context.updateAppSettingsMock.mockResolvedValueOnce({
+			...settingsFixture(),
+			startupBehavior: 'pinnedDefaults',
+		});
+
+		await dialog.setStartupBehavior('pinnedDefaults');
+
+		expect(context.updateAppSettingsMock).toHaveBeenCalledWith({
+			startupBehavior: 'pinnedDefaults',
+		});
+		expect(dialog.appSettingsDialogState.settings?.startupBehavior).toBe('pinnedDefaults');
+	});
+
+	it('surfaces pin failures without closing the dialog', async () => {
+		const dialog = await loadDialogModule();
+		await dialog.openAppSettingsDialog();
+		context.updateAppSettingsMock.mockRejectedValueOnce(new Error('disk full'));
+
+		await dialog.saveCurrentSettingsAsPinnedDefaults();
+
+		expect(dialog.appSettingsDialogState.startupSaveState).toBe('error');
+		expect(dialog.appSettingsDialogState.startupSaveError).toContain('disk full');
+		expect(dialog.appSettingsDialogState.isOpen).toBe(true);
 	});
 });

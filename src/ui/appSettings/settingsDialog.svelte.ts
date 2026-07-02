@@ -1,6 +1,6 @@
 import { toUserMessage } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
-import type { AppSettings } from '../../types/appSettings';
+import type { AppSettings, StartupBehavior } from '../../types/appSettings';
 import type { EncoderAvailability } from '../../types/audio';
 import { refreshRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 import { hydrateAppSettings } from './hydration';
@@ -15,6 +15,8 @@ type AppSettingsDialogState = {
 	saveState: SettingsSaveState;
 	saveError: string;
 	encoderAvailability: EncoderAvailability | null;
+	startupSaveState: SettingsSaveState;
+	startupSaveError: string;
 };
 
 function createInitialState(): AppSettingsDialogState {
@@ -26,6 +28,8 @@ function createInitialState(): AppSettingsDialogState {
 		saveState: 'idle',
 		saveError: '',
 		encoderAvailability: null,
+		startupSaveState: 'idle',
+		startupSaveError: '',
 	};
 }
 
@@ -35,6 +39,8 @@ export async function openAppSettingsDialog(): Promise<void> {
 	appSettingsDialogState.isOpen = true;
 	appSettingsDialogState.saveState = 'idle';
 	appSettingsDialogState.saveError = '';
+	appSettingsDialogState.startupSaveState = 'idle';
+	appSettingsDialogState.startupSaveError = '';
 	await reloadDialogData();
 }
 
@@ -94,6 +100,46 @@ export async function saveToolchainPreference(): Promise<void> {
 		appSettingsDialogState.saveError = describeError(error);
 	}
 	await refreshEncoderAvailability();
+}
+
+/// Pins the CURRENT panel state as the launch defaults. The panels auto-persist
+/// every change into the top-level (last-used) settings values, so those values
+/// ARE the current panel state — capture is a pure settings copy with no panel
+/// internals touched. (Only the output naming template debounces 150ms before
+/// persisting; a capture inside that window misses the very last keystrokes.)
+export async function saveCurrentSettingsAsPinnedDefaults(): Promise<void> {
+	appSettingsDialogState.startupSaveState = 'saving';
+	appSettingsDialogState.startupSaveError = '';
+	try {
+		const current = await tauriClient.getAppSettings();
+		const settings = await tauriClient.updateAppSettings({
+			pinnedDefaults: {
+				maxConcurrentJobs: current.maxConcurrentJobs,
+				encoderDefaults: current.encoderDefaults,
+				outputDefaults: current.outputDefaults,
+			},
+		});
+		appSettingsDialogState.settings = settings;
+		appSettingsDialogState.startupSaveState = 'saved';
+	} catch (error) {
+		appSettingsDialogState.startupSaveState = 'error';
+		appSettingsDialogState.startupSaveError = describeError(error);
+	}
+}
+
+/// Persists which slot launch hydration restores: last-used (today's behavior)
+/// or the pinned defaults snapshot.
+export async function setStartupBehavior(behavior: StartupBehavior): Promise<void> {
+	appSettingsDialogState.startupSaveState = 'saving';
+	appSettingsDialogState.startupSaveError = '';
+	try {
+		const settings = await tauriClient.updateAppSettings({ startupBehavior: behavior });
+		appSettingsDialogState.settings = settings;
+		appSettingsDialogState.startupSaveState = 'saved';
+	} catch (error) {
+		appSettingsDialogState.startupSaveState = 'error';
+		appSettingsDialogState.startupSaveError = describeError(error);
+	}
 }
 
 /// Resets every durable preference to defaults, then re-hydrates the owning
