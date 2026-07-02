@@ -8,7 +8,10 @@
   explicit unsupported fallback). macOS (Homebrew prefixes, arm64/arm64e) and
   Linux (Mint-class `/usr` prefixes, ELF x86-64) probes exist; Windows is
   deliberately absent until that port. The `crate::audio` Public API Strip is
-  unchanged; platform rules are pure functions unit-tested on any host.
+  unchanged; platform ordering/acceptance rules are pure functions with
+  filesystem canonicalization injected, so their unit-test proof is
+  host-independent (tests stub the canonicalizer; production collapses
+  symlinked candidates).
 - Evidence: `src-tauri/src/audio/toolchain/platform.rs` (rules + tests);
   real-Linux runtime proof (actual `file`/`pkg-config`/apt ffmpeg) is
   deferred to the Linux port — this slice proves the rules, not the runtime.
