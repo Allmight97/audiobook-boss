@@ -5,7 +5,7 @@
 		onLoadCoverArtFromInput,
 	} from '../coverArt';
 	import CoverArtIsland from '../coverArt/CoverArtIsland.svelte';
-	import { saveMetadataFromUI } from '../core/actions';
+	import { saveMetadataFromUI } from '../metadataSession';
 	import {
 		onMetadataFormActionSelectChange,
 		onMetadataFormFieldInput,

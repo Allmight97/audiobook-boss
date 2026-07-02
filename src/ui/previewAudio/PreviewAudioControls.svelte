@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { startPreviewAudio } from '../core/actions';
+	import { triggerProcessFromStatusPanel } from '../statusPanel';
 
 	let { variant = 'default' }: { variant?: 'default' | 'compact' } = $props();
 
@@ -9,7 +9,7 @@
 	let previewDropdownToggleElement = $state<HTMLButtonElement | null>(null);
 
 	function handlePreviewButtonClick(): void {
-		startPreviewAudio(previewDuration);
+		triggerProcessFromStatusPanel({ previewSeconds: previewDuration });
 	}
 
 	function handlePreviewDropdownToggle(event: MouseEvent): void {
@@ -20,7 +20,7 @@
 	function handlePreviewDurationSelect(duration: number): void {
 		previewDuration = duration;
 		previewDropdownOpen = false;
-		startPreviewAudio(duration);
+		triggerProcessFromStatusPanel({ previewSeconds: duration });
 	}
 
 	function handleWindowClick(event: MouseEvent): void {

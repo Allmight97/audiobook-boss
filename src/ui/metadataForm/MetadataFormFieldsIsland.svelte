@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { initMetadataFormEvents } from '../metadataForm';
 	import { openMetadataLookup } from '../metadataLookup';
-	import { metadataSaveInProgressStore } from '../metadataSaveState';
+	import { metadataSaveInProgress } from '../metadataSession';
 	import { metadataFormState } from './state.svelte';
 
 	type MetadataFieldHandler = (id: string) => void;
@@ -342,7 +342,7 @@
     id="metadata-save-btn"
     class="btn-pill btn-pill-primary"
     data-testid="metadata-save-btn"
-    disabled={$metadataSaveInProgressStore}
+    disabled={$metadataSaveInProgress}
     onclick={onSaveMetadata}
   >
     Save All Changes

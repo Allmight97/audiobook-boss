@@ -49,6 +49,12 @@ export function setMetadataFormPreviewValueByInputId(inputId: string, value: str
 	setMetadataFormPreviewValue(key, value);
 }
 
+/** Read accessor for cross-strip consumers (tag preview): a snapshot of the
+ * current preview values without exposing the mutable `$state` object. */
+export function readMetadataFormPreviewValues(): Readonly<MetadataFormPreviewState> {
+	return { ...metadataFormPreviewState };
+}
+
 export function resetMetadataFormPreviewState(): void {
 	for (const [key, value] of Object.entries(EMPTY_METADATA_FORM_PREVIEW_STATE)) {
 		metadataFormPreviewState[key as MetadataFormPreviewKey] = value;

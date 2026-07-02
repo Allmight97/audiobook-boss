@@ -56,8 +56,8 @@ describe('Metadata Session runtime public API contract', () => {
 			title: 'Old Title',
 			album_sort: 'Keep Me',
 			comment: 'Keep Comment',
-			track: 3,
-			disk: 1,
+			track: [3, 12],
+			disk: [1, null],
 		});
 
 		// Normal draft staging: draft intent building filters artifact fields out,
@@ -75,8 +75,8 @@ describe('Metadata Session runtime public API contract', () => {
 		expect(cached?.title).toBe('New Title');
 		expect(cached?.album_sort).toBe('Keep Me');
 		expect(cached?.comment).toBe('Keep Comment');
-		expect(cached?.track).toBe(3);
-		expect(cached?.disk).toBe(1);
+		expect(cached?.track).toEqual([3, 12]);
+		expect(cached?.disk).toEqual([1, null]);
 
 		// Explicit artifact clears flow through the same staging seam as clear ops.
 		expect(

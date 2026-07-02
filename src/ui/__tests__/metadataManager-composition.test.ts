@@ -8,8 +8,9 @@ vi.mock('../coverArt', () => ({
 	onLoadCoverArtFromInput: vi.fn(),
 }));
 
-vi.mock('../core/actions', () => ({
+vi.mock('../metadataSession', () => ({
 	saveMetadataFromUI: vi.fn(),
+	metadataSaveInProgress: { subscribe: vi.fn(() => () => {}) },
 }));
 
 vi.mock('../metadataForm', () => ({

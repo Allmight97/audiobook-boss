@@ -16,15 +16,16 @@
 ## Hard Invariants
 
 - Artifact fields are cleared ONLY through explicit per-field intent staged via
-  `setMetadataForFile(..., { markPending: true, intentPatch })`; they must never
-  enter `METADATA_DRAFT_FIELDS` (`src/ui/metadataDraft.ts`) — that exclusion is
-  what makes normal form saves preserve them.
+  `stageMetadataIntentPatch(filePath, { [field]: { op: 'clear' } })`; they must
+  never enter `METADATA_DRAFT_FIELDS` (`src/ui/metadataSession/draft.ts`,
+  private) — that exclusion is what makes normal form saves preserve them
+  (pinned by the metadataSession contract test).
 - Clears ride the normal pending-save mechanism (Cmd+S applies); this island
   never writes files directly.
 - `refreshMetadataArtifacts()` is called from the FileList selection
   presentation flow (`src/ui/fileList/metadataPanel.ts`, alongside
-  `updateTagPreview()`) and after staging a clear. Metadata caches in
-  `metadataState` are not reactive; do not read them from `$derived` without a
+  `updateTagPreview()`) and after staging a clear. Metadata caches in the
+  Metadata Session are not reactive; do not read them from `$derived` without a
   refresh trigger.
 
 ## Done Criteria

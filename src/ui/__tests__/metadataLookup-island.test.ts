@@ -47,9 +47,10 @@ vi.mock('../coverArt', () => ({
 		`data:image/jpeg;base64,${btoa(String.fromCharCode(...bytes))}`,
 }));
 
-vi.mock('../metadataState', () => ({
+vi.mock('../metadataSession', () => ({
 	getMetadataForFile: vi.fn(() => ({})),
-	setMetadataForFile: vi.fn(),
+	stageMetadataIntentPatch: vi.fn(() => 'staged'),
+	buildMetadataDraftIntent: vi.fn(() => ({})),
 }));
 
 import { tick } from 'svelte';

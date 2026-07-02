@@ -68,6 +68,17 @@ vi.mock('../../statusPanel/index', () => ({
 }));
 
 vi.mock('../../metadataForm', () => ({
+	readMetadataFormPreviewValues: vi.fn(() => ({
+		title: '',
+		author: '',
+		narrator: '',
+		series: '',
+		seriesPart: '',
+		subseries: '',
+		subseriesPart: '',
+		year: '',
+		genre: '',
+	})),
 	initMetadataFormEvents: vi.fn(),
 	readMetadataForm: vi.fn(() => ({})),
 	resetDirtyState: context.resetDirtyStateMock,

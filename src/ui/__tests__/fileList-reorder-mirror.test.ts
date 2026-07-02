@@ -14,25 +14,26 @@ vi.mock('../metadataForm', () => ({
 	resetDirtyState: vi.fn(),
 }));
 
-vi.mock('../metadataState', () => ({
-	clearMetadataState: vi.fn(),
+vi.mock('../metadataSession', () => ({
+	clearMetadataSession: vi.fn(),
 	getMetadataForFile: vi.fn(),
-	metadataEqualsNullish: vi.fn(),
+	cacheMetadataForFile: vi.fn(),
+	getMetadataIntentPatchForFile: vi.fn(() => undefined),
+	isUsableMetadataCache: vi.fn(() => true),
 	removeMetadataForFile: vi.fn(),
-	setMetadataForFile: vi.fn(),
+	stageMetadataIntentPatch: vi.fn(() => 'noop'),
+	validateMetadataDraft: vi.fn(async () => ({
+		intentPatch: {},
+		ok: true,
+		errors: { first: null, byField: {} },
+		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+	})),
+	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
 vi.mock('../outputPanel', () => ({
 	updateEstimatedSize: vi.fn(),
 	updateOutputPath: vi.fn(),
-}));
-
-vi.mock('../metadataValidation', () => ({
-	firstMetadataIntentValidationError: vi.fn(() => null),
-	validateMetadataDraftIntent: vi.fn(async () => ({
-		intentPatch: {},
-		result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
-	})),
 }));
 
 vi.mock('../fileList/events', () => ({

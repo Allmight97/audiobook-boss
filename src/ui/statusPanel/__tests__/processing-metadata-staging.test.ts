@@ -25,7 +25,7 @@ const context = vi.hoisted(() => ({
 	hasDirtyMetadataFieldsMock: vi.fn(),
 	// Session-strip fakes: stored patches live here; the collect fake applies
 	// the real actionable/path filter so payload-level pins stay meaningful.
-	storedIntentPatches: {} as Record<string, Record<string, { op: string }>>,
+	storedIntentPatches: {} as Record<string, Record<string, { op: string; value?: unknown }>>,
 	getMetadataForFileMock: vi.fn(),
 	cacheMetadataForFileMock: vi.fn(),
 	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
