@@ -105,27 +105,29 @@
 		</div>
 		<div class="app-modal-body">
 			<div class="app-modal-controls">
-				<div class="app-modal-field">
-					<label for="metadata-lookup-title-query">Title</label>
-					<input
-						id="metadata-lookup-title-query"
-						type="text"
-						placeholder="Book title or ASIN (e.g., B01234ABCD)"
-						data-testid="metadata-lookup-title-query"
-						bind:value={metadataLookupState.titleQuery}
-						onkeydown={handleQueryKeyDown}
-					/>
-				</div>
-				<div class="app-modal-field">
-					<label for="metadata-lookup-author-query">Author</label>
-					<input
-						id="metadata-lookup-author-query"
-						type="text"
-						placeholder="Author"
-						data-testid="metadata-lookup-author-query"
-						bind:value={metadataLookupState.authorQuery}
-						onkeydown={handleQueryKeyDown}
-					/>
+				<div class="app-modal-field app-modal-field-stack">
+					<div class="app-modal-field">
+						<label for="metadata-lookup-title-query">Title</label>
+						<input
+							id="metadata-lookup-title-query"
+							type="text"
+							placeholder="Book title or ASIN (e.g., B01234ABCD)"
+							data-testid="metadata-lookup-title-query"
+							bind:value={metadataLookupState.titleQuery}
+							onkeydown={handleQueryKeyDown}
+						/>
+					</div>
+					<div class="app-modal-field">
+						<label for="metadata-lookup-author-query">Author</label>
+						<input
+							id="metadata-lookup-author-query"
+							type="text"
+							placeholder="Author"
+							data-testid="metadata-lookup-author-query"
+							bind:value={metadataLookupState.authorQuery}
+							onkeydown={handleQueryKeyDown}
+						/>
+					</div>
 				</div>
 				<div class="app-modal-field">
 					<label for="metadata-lookup-source">Source</label>
