@@ -89,9 +89,9 @@
 					</div>
 
 					<div class="work-progress-row">
-						<div class="work-progress-track">
+						<div class="app-progress-track work-progress-track">
 							<div
-								class="work-progress-fill"
+								class="app-progress-fill"
 								style={`width: ${Math.min(100, Math.max(0, operation.progress.percentage))}%`}
 							></div>
 						</div>
@@ -283,19 +283,7 @@
 	}
 
 	.work-progress-track {
-		position: relative;
-		height: 0.375rem;
 		flex: 1 1 auto;
-		overflow: hidden;
-		border-radius: 9999px;
-		background: var(--progress-bg);
-	}
-
-	.work-progress-fill {
-		height: 100%;
-		border-radius: inherit;
-		background: var(--progress-fg);
-		transition: width 0.2s ease;
 	}
 
 	.work-progress-value {

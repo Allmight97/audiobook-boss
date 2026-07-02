@@ -211,7 +211,7 @@
 			</div>
 
 			{#if acquisition.statusMessage}
-				<div class="remote-source-status text-xs" aria-live="polite">{acquisition.statusMessage}</div>
+				<div class="remote-source-status app-modal-status text-xs" aria-live="polite">{acquisition.statusMessage}</div>
 			{/if}
 
 			{#if acquisition.accountState?.status === 'connected'}
@@ -233,14 +233,14 @@
 			{#if acquisition.activeJob?.progress}
 				<div class="remote-progress" role="status" aria-live="polite">
 					<div
-						class="remote-progress-bar"
+						class="app-progress-track"
 						role="progressbar"
 						aria-label="Acquisition progress"
 						aria-valuemin="0"
 						aria-valuemax="100"
 						aria-valuenow={Math.round(progressPercent(acquisition.activeJob))}
 					>
-						<span style={`width: ${progressPercent(acquisition.activeJob)}%;`}></span>
+						<span class="app-progress-fill" style={`width: ${progressPercent(acquisition.activeJob)}%;`}></span>
 					</div>
 					<div class="remote-progress-copy">
 						<span>{progressTitleLabel(acquisition.activeJob.progress, acquisition.titles)}</span>
@@ -278,7 +278,7 @@
 							aria-disabled={!isTitleAcquirable(title)}
 						>
 							<div
-								class="remote-title-cover"
+								class="app-cover-thumb remote-title-cover"
 								role="presentation"
 								data-testid="remote-title-cover"
 							>
@@ -350,11 +350,6 @@
 		grid-column: span 2;
 	}
 
-	.remote-source-status {
-		min-height: 1rem;
-		color: var(--text-secondary);
-	}
-
 	.remote-selection-summary {
 		display: flex;
 		align-items: center;
@@ -384,21 +379,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
-	}
-
-	.remote-progress-bar {
-		height: 0.45rem;
-		overflow: hidden;
-		border-radius: 999px;
-		background-color: var(--bg-primary);
-	}
-
-	.remote-progress-bar span {
-		display: block;
-		height: 100%;
-		border-radius: inherit;
-		background-color: var(--accent-primary);
-		transition: width 120ms ease-out;
 	}
 
 	.remote-progress-copy {
@@ -445,26 +425,8 @@
 	}
 
 	.remote-title-cover {
-		display: flex;
-		width: 4rem;
-		height: 4rem;
-		flex: 0 0 4rem;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
+		flex: 0 0 var(--cover-thumb-size);
 		margin-left: 0.75rem;
-		border: 1px solid var(--border-secondary);
-		border-radius: 0.375rem;
-		background: var(--bg-drag-area);
-		color: var(--text-muted);
-		font-size: 0.7rem;
-		text-align: center;
-	}
-
-	.remote-title-cover img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
 	}
 
 	.remote-title-button {

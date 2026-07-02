@@ -199,7 +199,7 @@
 			</div>
 			<div
 				id="metadata-lookup-status"
-				class="metadata-lookup-status text-xs"
+				class="metadata-lookup-status app-modal-status text-xs"
 				class:is-error={metadataLookupState.statusVariant === 'error'}
 				class:is-success={metadataLookupState.statusVariant === 'success'}
 			>
@@ -210,7 +210,7 @@
 				class="app-modal-results"
 				>
 					{#if metadataLookupState.hasSearched && metadataLookupState.results.length === 0}
-						<div class="metadata-lookup-empty muted-text">
+						<div class="app-modal-empty muted-text">
 							<p>No online matches found across Audnexus and OpenLibrary.</p>
 							<p class="text-xs" style="margin-top: 0.5rem;">
 								Older CD-era or rare audiobook editions may not be indexed. Use manual entry to finish metadata for this file.
@@ -229,7 +229,7 @@
 				{#each metadataLookupState.results as result, index}
 					<div class="app-modal-result">
 						<div
-							class="metadata-lookup-cover"
+							class="app-cover-thumb"
 							role="presentation"
 						>
 							{#if result.coverUrl}
@@ -298,27 +298,6 @@
 </div>
 
 <style>
-	.metadata-lookup-cover {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 4rem;
-		height: 4rem;
-		overflow: hidden;
-		border: 1px solid var(--border-secondary);
-		border-radius: 0.375rem;
-		background: var(--bg-drag-area);
-		color: var(--text-muted);
-		font-size: 0.7rem;
-		text-align: center;
-	}
-
-	.metadata-lookup-cover img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-
 	.metadata-lookup-details {
 		min-width: 0;
 	}
@@ -354,25 +333,9 @@
 		align-items: flex-start;
 	}
 
-	.metadata-lookup-empty {
-		padding: 0.75rem;
-		border: 1px dashed var(--border-secondary);
-		border-radius: 0.375rem;
-		color: var(--text-muted);
-		text-align: center;
-	}
-
 	.metadata-lookup-context,
 	.metadata-lookup-status {
 		min-height: 1rem;
-	}
-
-	.metadata-lookup-status.is-error {
-		color: var(--text-error, #ef4444);
-	}
-
-	.metadata-lookup-status.is-success {
-		color: var(--text-success, #10b981);
 	}
 
 	@media (max-width: 720px) {

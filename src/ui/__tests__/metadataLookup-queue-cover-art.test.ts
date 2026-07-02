@@ -326,12 +326,12 @@ describe('metadata lookup queue cover art isolation', () => {
 		await initLookup();
 
 		await waitFor(() => {
-			expect(document.querySelector('.metadata-lookup-empty')?.textContent ?? '').toContain(
+			expect(document.querySelector('.app-modal-empty')?.textContent ?? '').toContain(
 				'Older CD-era or rare audiobook editions may not be indexed.',
 			);
 		});
 
-		const emptyState = document.querySelector('.metadata-lookup-empty');
+		const emptyState = document.querySelector('.app-modal-empty');
 		expect(emptyState?.textContent ?? '').toContain(
 			'Older CD-era or rare audiobook editions may not be indexed.',
 		);
@@ -355,7 +355,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 		await waitForStatus('Search failed. Check your query and try again.');
 
-		expect(document.querySelector('.metadata-lookup-empty')).toBeNull();
+		expect(document.querySelector('.app-modal-empty')).toBeNull();
 		expect(document.getElementById('metadata-lookup-manual-entry-btn')).toBeNull();
 		expect(document.querySelector("#metadata-lookup-results button[data-index='0']")).toBeNull();
 	});
