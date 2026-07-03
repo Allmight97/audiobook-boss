@@ -58,6 +58,27 @@
 - Owned import/export surface changes update the nearest `AGENTS.md` and its contract test.
 - Release/version/changelog/tag/DMG work uses the `release` skill.
 
+## UI Redesign In Flight (ephemeral — delete this section when #412 ships)
+
+- Roadmap, locked direction synthesis, and resume procedure live in issue #412
+  (the agent handoff comment there is the canonical resume doc). Do not start
+  island rebuilds (Slice 3) before the owner settles v3's open forks.
+- The Vite dev server (`bun run dev`, port 1420) exposes three distinct
+  surfaces; do not conflate them:
+  - `/` — the current app UI, unchanged until Slice 3.
+  - `/lab.html` — the design lab: renders every token and `src/styles.css`
+    primitive with a density switch. It is ingredients, not screens, and not
+    the new design — it wears whatever values `styles.css` currently holds.
+    The locked direction gets encoded here first (tokens/primitive skins)
+    before any island rebuild. Contract: `src/AGENTS.md` → Design-System
+    Primitives. Dev-only; not in the app build.
+  - `/docs/design/ui-directions-v3.html` — standalone interactive mock of the
+    target direction (B1×B2 hybrid) with live open-fork toggles. Reference
+    artifact for owner reaction, not code to import. Lineage:
+    `docs/design/README.md`.
+- Redesign sequencing is lab-first: token/primitive values change and are
+  screenshot-verified in the lab before islands are rebuilt on top of them.
+
 ## Planning And Capture
 
 - **Default durable capture:** GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
