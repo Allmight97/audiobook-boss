@@ -64,7 +64,9 @@
   (the agent handoff comment there is the canonical resume doc). Do not start
   island rebuilds (Slice 3) before the owner settles v3's open forks.
 - The Vite dev server (`bun run dev`, port 1420) exposes three distinct
-  surfaces; do not conflate them:
+  surfaces; do not conflate them. Each has one alignment obligation: the lab
+  tracks `src/styles.css` in the same change (contract below); the v3 mock
+  tracks direction decisions banked in #412; the app changes only in Slice 3:
   - `/` — the current app UI, unchanged until Slice 3.
   - `/lab.html` — the design lab: renders every token and `src/styles.css`
     primitive with a density switch. It is ingredients, not screens, and not
