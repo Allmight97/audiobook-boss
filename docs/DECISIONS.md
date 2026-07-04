@@ -297,3 +297,15 @@
   (ABB readback + external `ffprobe` proof).
 - Guardrail: an encoder path may not write MP4-family artifact tag truth through
   the FFmpeg dictionary alone.
+
+## 2026-07-04 - Series Edits Validate Effective Round-Trip Shape
+
+- Series/subseries writes preserve representable partials (`Series; Subseries`
+  without parts), but reject touched orphan shapes that cannot round-trip
+  (`series-part` without `series`, or `subseries-part` without the complete
+  primary series + primary part + subseries chain).
+- Evidence: `abb-metadata-core` source-aware write-plan tests and
+  `metadata_ops` partial-subseries field-op proof.
+- Guardrail: inherited odd tags from external files do not block unrelated
+  saves or processing; strict shape validation applies when intent touches the
+  series family.

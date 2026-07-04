@@ -7,6 +7,10 @@ const SERIES_PART_INVALID_MESSAGE: &str =
     "Series sequence (#) cannot include '/'. Use a plain number like 24.";
 const SUBSERIES_PART_INVALID_MESSAGE: &str =
     "Sub-series sequence (#) cannot include '/'. Use a plain number like 24.";
+const SERIES_PART_REQUIRES_SERIES_MESSAGE: &str = "Series sequence (#) requires a Series value.";
+const SUBSERIES_REQUIRES_SERIES_MESSAGE: &str = "Sub-series requires a Series value.";
+const SUBSERIES_PART_REQUIRES_COMPLETE_SERIES_MESSAGE: &str =
+    "Sub-series sequence (#) requires Series, Series sequence (#), and Sub-series values.";
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MetadataCoreError {
@@ -226,6 +230,13 @@ impl MetadataIntentPatch {
         matches!(self.cover_art, PatchOp::Clear)
     }
 
+    pub fn touches_series_family(&self) -> bool {
+        !matches!(self.series, PatchOp::Noop)
+            || !matches!(self.series_part, PatchOp::Noop)
+            || !matches!(self.subseries, PatchOp::Noop)
+            || !matches!(self.subseries_part, PatchOp::Noop)
+    }
+
     pub fn validate_and_normalize(&self) -> MetadataIntentValidationResult {
         validate_metadata_intent_patch(self)
     }
@@ -237,6 +248,7 @@ impl MetadataIntentPatch {
     pub fn apply_to_metadata(&self, mut base: AudiobookMetadata) -> Result<AudiobookMetadata> {
         let patch = self.normalized_or_error()?;
         apply_shared_metadata_patch_fields(&patch, &mut base, PatchFieldSemantics::Processing)?;
+        validate_series_family_if_touched(&base, patch.touches_series_family())?;
         apply_album_sort_patch(&patch.album_sort, &mut base);
         Ok(base)
     }
@@ -246,9 +258,34 @@ impl MetadataIntentPatch {
     }
 
     pub fn to_write_plan(&self) -> Result<MetadataWritePlan> {
+        self.to_write_plan_with_optional_source(None)
+    }
+
+    pub fn to_write_plan_with_source(
+        &self,
+        source_metadata: AudiobookMetadata,
+    ) -> Result<MetadataWritePlan> {
+        self.to_write_plan_with_optional_source(Some(source_metadata))
+    }
+
+    fn to_write_plan_with_optional_source(
+        &self,
+        source_metadata: Option<AudiobookMetadata>,
+    ) -> Result<MetadataWritePlan> {
         let patch = self.normalized_or_error()?;
         let mut metadata = AudiobookMetadata::new();
         apply_shared_metadata_patch_fields(&patch, &mut metadata, PatchFieldSemantics::WritePlan)?;
+
+        if patch.touches_series_family() {
+            let mut effective_metadata = source_metadata.unwrap_or_default();
+            apply_shared_metadata_patch_fields(
+                &patch,
+                &mut effective_metadata,
+                PatchFieldSemantics::Processing,
+            )?;
+            validate_series_family_if_touched(&effective_metadata, true)?;
+            apply_effective_series_family_to_write_plan(&patch, &effective_metadata, &mut metadata);
+        }
 
         let album_sort = match &patch.album_sort {
             AlbumSortPatchOp::Set(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
@@ -463,19 +500,83 @@ pub fn build_series_list(
     let secondary_series = normalize(subseries);
     let secondary_part = normalize(subseries_part);
 
-    if let (Some(series), Some(part), Some(subseries), Some(subpart)) = (
-        primary_series.as_deref(),
-        primary_part.as_deref(),
-        secondary_series.as_deref(),
-        secondary_part.as_deref(),
-    ) {
-        return (
-            Some(format!("{}; {}", series, subseries)),
-            Some(format!("{}; {}", part, subpart)),
-        );
+    let series_value = match (primary_series.as_deref(), secondary_series.as_deref()) {
+        (Some(series), Some(subseries)) => Some(format!("{}; {}", series, subseries)),
+        (Some(series), None) => Some(series.to_string()),
+        _ => None,
+    };
+
+    let series_part_value = match (primary_part.as_deref(), secondary_part.as_deref()) {
+        (Some(part), Some(subpart)) => Some(format!("{}; {}", part, subpart)),
+        (Some(part), None) => Some(part.to_string()),
+        _ => None,
+    };
+
+    (series_value, series_part_value)
+}
+
+fn has_metadata_text(value: Option<&str>) -> bool {
+    value.map(str::trim).is_some_and(|text| !text.is_empty())
+}
+
+fn validate_series_family_if_touched(metadata: &AudiobookMetadata, touched: bool) -> Result<()> {
+    if !touched {
+        return Ok(());
     }
 
-    (primary_series, primary_part)
+    let has_series = has_metadata_text(metadata.series.as_deref());
+    let has_series_part = has_metadata_text(metadata.series_part.as_deref());
+    let has_subseries = has_metadata_text(metadata.subseries.as_deref());
+    let has_subseries_part = has_metadata_text(metadata.subseries_part.as_deref());
+
+    if has_series_part && !has_series {
+        return Err(MetadataCoreError::InvalidInput(
+            SERIES_PART_REQUIRES_SERIES_MESSAGE.to_string(),
+        ));
+    }
+    if has_series_part {
+        validate_series_part(metadata.series_part.as_deref().unwrap_or_default())?;
+    }
+
+    if has_subseries && !has_series {
+        return Err(MetadataCoreError::InvalidInput(
+            SUBSERIES_REQUIRES_SERIES_MESSAGE.to_string(),
+        ));
+    }
+
+    if has_subseries_part && !(has_series && has_series_part && has_subseries) {
+        return Err(MetadataCoreError::InvalidInput(
+            SUBSERIES_PART_REQUIRES_COMPLETE_SERIES_MESSAGE.to_string(),
+        ));
+    }
+    if has_subseries_part {
+        validate_series_part(metadata.subseries_part.as_deref().unwrap_or_default())?;
+    }
+
+    Ok(())
+}
+
+fn touched_patch(patch: &PatchOp<String>) -> bool {
+    !matches!(patch, PatchOp::Noop)
+}
+
+fn apply_effective_series_family_to_write_plan(
+    patch: &MetadataIntentPatch,
+    effective: &AudiobookMetadata,
+    metadata: &mut AudiobookMetadata,
+) {
+    let touches_names = touched_patch(&patch.series) || touched_patch(&patch.subseries);
+    let touches_parts = touched_patch(&patch.series_part) || touched_patch(&patch.subseries_part);
+
+    if touches_names {
+        metadata.series = Some(effective.series.clone().unwrap_or_default());
+        metadata.subseries = effective.subseries.clone();
+    }
+
+    if touches_parts {
+        metadata.series_part = Some(effective.series_part.clone().unwrap_or_default());
+        metadata.subseries_part = effective.subseries_part.clone();
+    }
 }
 
 pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
@@ -603,20 +704,6 @@ fn apply_shared_metadata_patch_fields(
             (PatchOp::Clear, PatchFieldSemantics::Processing) => *slot = None,
             (PatchOp::Clear, PatchFieldSemantics::WritePlan) => *slot = Some((0, None)),
             (PatchOp::Noop, _) => {}
-        }
-    }
-
-    if let Some(series_part) = metadata.series_part.as_deref() {
-        let trimmed = series_part.trim();
-        if !trimmed.is_empty() {
-            validate_series_part(trimmed)?;
-        }
-    }
-
-    if let Some(subseries_part) = metadata.subseries_part.as_deref() {
-        let trimmed = subseries_part.trim();
-        if !trimmed.is_empty() {
-            validate_series_part(trimmed)?;
         }
     }
 
@@ -883,6 +970,101 @@ mod tests {
         assert!(compute_album_sort("Series", Some("abc"), "Title").is_none());
         assert!(compute_album_sort("Series", Some("0"), "Title").is_none());
         assert!(compute_album_sort("Series", Some("1/5"), "Title").is_none());
+    }
+
+    #[test]
+    fn build_series_list_folds_representable_partial_subseries() {
+        assert_eq!(
+            build_series_list(Some("Primary"), None, Some("Sub"), None),
+            (Some("Primary; Sub".to_string()), None)
+        );
+        assert_eq!(
+            build_series_list(Some("Primary"), Some("1"), Some("Sub"), None),
+            (Some("Primary; Sub".to_string()), Some("1".to_string()))
+        );
+        assert_eq!(
+            build_series_list(Some("Primary"), Some("1"), Some("Sub"), Some("2")),
+            (Some("Primary; Sub".to_string()), Some("1; 2".to_string()))
+        );
+    }
+
+    #[test]
+    fn series_family_validation_rejects_touched_orphan_shapes() {
+        let subseries_only = MetadataIntentPatch {
+            subseries: PatchOp::Set("Sub".to_string()),
+            ..Default::default()
+        };
+        assert!(subseries_only
+            .to_processing_overlay()
+            .expect_err("orphan subseries should fail")
+            .to_string()
+            .contains("Sub-series requires a Series"));
+
+        let part_only = MetadataIntentPatch {
+            series_part: PatchOp::Set("1".to_string()),
+            ..Default::default()
+        };
+        assert!(part_only
+            .to_processing_overlay()
+            .expect_err("orphan series part should fail")
+            .to_string()
+            .contains("requires a Series"));
+
+        let subseries_part_without_primary_part = MetadataIntentPatch {
+            series: PatchOp::Set("Primary".to_string()),
+            subseries: PatchOp::Set("Sub".to_string()),
+            subseries_part: PatchOp::Set("2".to_string()),
+            ..Default::default()
+        };
+        assert!(subseries_part_without_primary_part
+            .to_processing_overlay()
+            .expect_err("subseries part without primary part should fail")
+            .to_string()
+            .contains("requires Series, Series sequence"));
+    }
+
+    #[test]
+    fn source_aware_write_plan_preserves_valid_partial_subseries() {
+        let source = AudiobookMetadata {
+            series: Some("Primary".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch {
+            subseries: PatchOp::Set("Sub".to_string()),
+            ..Default::default()
+        };
+
+        let plan = patch
+            .to_write_plan_with_source(source)
+            .expect("primary series allows subseries name");
+
+        assert_eq!(plan.metadata.series.as_deref(), Some("Primary"));
+        assert_eq!(plan.metadata.subseries.as_deref(), Some("Sub"));
+        assert_eq!(plan.metadata.series_part, None);
+        assert_eq!(plan.metadata.subseries_part, None);
+    }
+
+    #[test]
+    fn unrelated_edits_do_not_reject_inherited_orphan_series_tags() {
+        let source = AudiobookMetadata {
+            series_part: Some("7".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Retitled".to_string()),
+            ..Default::default()
+        };
+
+        let merged = patch
+            .apply_to_metadata(source.clone())
+            .expect("non-series intent preserves inherited orphan");
+        assert_eq!(merged.series_part.as_deref(), Some("7"));
+
+        let plan = patch
+            .to_write_plan_with_source(source)
+            .expect("non-series write intent should not validate inherited orphan");
+        assert_eq!(plan.metadata.title.as_deref(), Some("Retitled"));
+        assert_eq!(plan.metadata.series_part, None);
     }
 
     #[test]

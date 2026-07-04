@@ -347,6 +347,30 @@ describe('startProcessing metadata staging', () => {
 		expect(viewState.showError).toHaveBeenCalledWith('Series part must be a number');
 	});
 
+	it('aborts non-merge processing instead of retargeting dirty edits from an invalid row', async () => {
+		context.getJobTypeMock.mockReturnValue('batch');
+		context.getCurrentFileListMock.mockReturnValue({
+			files: [
+				{ path: '/books/invalid.m4b', isValid: false },
+				{ path: '/books/valid.m4b', isValid: true },
+			],
+			validCount: 1,
+		});
+		context.getSelectedFileIndexMock.mockReturnValue(0);
+		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ title: 'Should Not Retarget' });
+		vi.mocked(viewState.showError).mockClear();
+
+		await startProcessing(processingContext());
+
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
+		expect(viewState.showError).toHaveBeenCalledWith(
+			'Select a valid input file before processing metadata edits.',
+		);
+	});
+
 	it('stages clear intent for dirty-but-empty metadata in merge payload', async () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ title: '   ' });

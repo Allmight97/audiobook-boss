@@ -8,7 +8,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `MetadataIntentValidationResult`, `validate_metadata_intent_patch`.
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
-  `plan_metadata_write`.
+  plus the test-only write-plan contract helper `plan_metadata_write`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
   `finalize_artifact_metadata` (all also re-exported at the crate root for
   external integration tests, e.g. the media-execution lane's tag round-trip
@@ -28,6 +28,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Pure intent, validation, naming, and write-plan facts are packaged in
   `abb-metadata-core`; `src-tauri/src/metadata` owns container adapters and
   runtime file behavior.
+- Series-family validation is effective-metadata aware: inherited odd tags from
+  external files do not block unrelated intent, but touched series/subseries
+  intent must produce a round-trippable shape before save or processing.
+  Real file saves route through `save_metadata_intent`, not raw write-plan
+  construction, so this validation can see source metadata.
 
 ## Private Cluster
 - Files: `intent_plan.rs`, `contract_tests.rs`, `field_schema.rs`, `metadata_ops.rs`,

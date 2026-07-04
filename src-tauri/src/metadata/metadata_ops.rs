@@ -219,6 +219,27 @@ mod tests {
     }
 
     #[test]
+    fn partial_subseries_name_writes_combined_series_without_part_clear() {
+        let metadata = AudiobookMetadata {
+            series: Some("Primary".to_string()),
+            subseries: Some("Sub".to_string()),
+            ..Default::default()
+        };
+
+        let ops = plan_metadata_field_ops(&metadata);
+
+        assert!(ops.contains(&MetadataOp::SetString {
+            field: TagField::Series,
+            value: "Primary; Sub".to_string(),
+        }));
+        assert!(
+            !ops.iter()
+                .any(|op| matches!(op, MetadataOp::Clear(TagField::SeriesPart))),
+            "a representable subseries name must not clear series-part"
+        );
+    }
+
+    #[test]
     fn album_sort_is_not_planned() {
         let metadata = AudiobookMetadata {
             album_sort: Some("Custom Sort".to_string()),

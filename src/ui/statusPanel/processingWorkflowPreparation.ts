@@ -89,7 +89,7 @@ function metadataIntentTargetPath(
 		}
 	}
 
-	return fileList.files.find((file) => file.isValid)?.path;
+	return undefined;
 }
 
 function stageSingleSelectionMetadata(
@@ -117,9 +117,13 @@ function stageSingleSelectionMetadata(
 
 		const intentPatch = validation.intentPatch;
 		const targetPath = metadataIntentTargetPath(services, fileList, selectedFileIndex);
-		if (targetPath) {
-			services.stageMetadataIntentPatch(targetPath, intentPatch);
+		if (!targetPath) {
+			yield* Effect.sync(() =>
+				services.feedback.showError('Select a valid input file before processing metadata edits.'),
+			);
+			return false;
 		}
+		services.stageMetadataIntentPatch(targetPath, intentPatch);
 
 		return true;
 	});

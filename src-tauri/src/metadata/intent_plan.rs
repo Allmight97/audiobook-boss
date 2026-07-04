@@ -61,8 +61,17 @@ pub(crate) fn plan_metadata_outcome(
     })
 }
 
+#[cfg(test)]
 pub(crate) fn plan_metadata_write(patch: &MetadataIntentPatch) -> Result<MetadataWritePlan> {
     Ok(patch.to_write_plan()?)
+}
+
+pub(crate) fn plan_metadata_write_for_path(
+    input_path: &Path,
+    patch: &MetadataIntentPatch,
+) -> Result<MetadataWritePlan> {
+    let source_metadata = crate::metadata::read_metadata(input_path)?;
+    Ok(patch.to_write_plan_with_source(source_metadata)?)
 }
 
 fn resolve_effective_processing_metadata(
@@ -87,7 +96,8 @@ fn resolve_naming_metadata(
 ) -> Option<NamingMetadata> {
     let mut naming_metadata = resolved_metadata.map(NamingMetadata::from_metadata)?;
 
-    if input_path.is_some() && patch.is_none() {
+    let series_family_touched = patch.is_some_and(MetadataIntentPatch::touches_series_family);
+    if input_path.is_some() && !series_family_touched {
         naming_metadata.scrub_legacy_source_series_parts_for_naming();
     }
 
@@ -256,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn naming_metadata_keeps_patch_validation_strict() {
+    fn naming_metadata_scrubs_legacy_series_parts_for_non_series_patch() {
         let metadata = AudiobookMetadata {
             title: Some("Patched Source".to_string()),
             series: Some("Series".to_string()),
@@ -275,13 +285,50 @@ mod tests {
         )
         .expect("naming metadata should exist");
 
+        assert_eq!(naming.title(), Some("Patched Source"));
+        assert_eq!(naming.series_part(), None);
+
+        let output_path = build_output_path_preview(
+            Path::new("/tmp"),
+            Some(&naming),
+            OutputNamingConfig::default(),
+            Some(Path::new("/tmp/source.m4b")),
+        )
+        .expect("non-series patch should not fail on inherited legacy part");
+
+        assert!(
+            output_path.to_string_lossy().contains("Patched Source"),
+            "output naming should still use source metadata"
+        );
+    }
+
+    #[test]
+    fn naming_metadata_keeps_series_patch_validation_strict() {
+        let metadata = AudiobookMetadata {
+            title: Some("Patched Source".to_string()),
+            series: Some("Series".to_string()),
+            series_part: Some("7/8".to_string()),
+            ..Default::default()
+        };
+        let patch = MetadataIntentPatch {
+            series: PatchOp::Set("Renamed Series".to_string()),
+            ..Default::default()
+        };
+
+        let naming = super::resolve_naming_metadata(
+            Some(&metadata),
+            Some(Path::new("/tmp/source.m4b")),
+            Some(&patch),
+        )
+        .expect("naming metadata should exist");
+
         let err = build_output_path_preview(
             Path::new("/tmp"),
             Some(&naming),
             OutputNamingConfig::default(),
             Some(Path::new("/tmp/source.m4b")),
         )
-        .expect_err("patched legacy series part should remain a hard failure");
+        .expect_err("series patch should keep inherited invalid part visible");
 
         assert!(
             err.to_string().contains("Series sequence"),
