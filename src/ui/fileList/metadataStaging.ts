@@ -25,10 +25,7 @@ export async function persistSingleSelectionMetadata(file: AudioFile | null): Pr
 	if (!hasDirtyMetadataFields()) return true;
 
 	const metadata = readMetadataForm({ mode: 'single' });
-	const validation = await validateMetadataDraft(
-		metadata,
-		tauriClient.validateMetadataIntentPatch,
-	);
+	const validation = await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
 	if (!validation.ok) {
 		setStatusMessage(validation.errors.first ?? 'Metadata validation failed.');
 		return false;

@@ -79,9 +79,9 @@ describe('Metadata Session runtime public API contract', () => {
 		expect(cached?.disk).toEqual([1, null]);
 
 		// Explicit artifact clears flow through the same staging seam as clear ops.
-		expect(
-			metadataSession.stageMetadataIntentPatch(path, { album_sort: { op: 'clear' } }),
-		).toBe('staged');
+		expect(metadataSession.stageMetadataIntentPatch(path, { album_sort: { op: 'clear' } })).toBe(
+			'staged',
+		);
 		expect(metadataSession.getMetadataForFile(path)?.album_sort).toBeUndefined();
 		expect(metadataSession.collectActionableMetadataIntent([path])?.[path]).toMatchObject({
 			album_sort: { op: 'clear' },

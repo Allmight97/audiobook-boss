@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
-import {
-	applyMetadataIntentPatch,
-	type MetadataIntentPatch,
-} from '../../../types/metadataIntent';
+import { applyMetadataIntentPatch, type MetadataIntentPatch } from '../../../types/metadataIntent';
 import type {
 	AudiobookMetadata,
 	MetadataLookupResponse,

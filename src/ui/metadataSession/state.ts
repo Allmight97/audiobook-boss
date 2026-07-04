@@ -61,10 +61,7 @@ function metadataEqualsNullish(
  * Caches metadata truth from a backend read. Carries no pending-save
  * semantics; staging intent goes through `stageMetadataIntentPatch`.
  */
-export function cacheMetadataForFile(
-	filePath: string,
-	metadata: Partial<AudiobookMetadata>,
-): void {
+export function cacheMetadataForFile(filePath: string, metadata: Partial<AudiobookMetadata>): void {
 	metadataByFile.set(filePath, metadata);
 }
 

@@ -114,17 +114,19 @@ describe('selectFile transition options', () => {
 		context.pushStatusPanelTransientStatusMock.mockClear();
 		context.validationErrorMock.mockReset();
 		context.validateMetadataDraftMock.mockReset();
-		context.validateMetadataDraftMock.mockImplementation(async (metadata: Record<string, unknown>) => {
-			const first = context.validationErrorMock();
-			return {
-				intentPatch: Object.fromEntries(
-					Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
-				),
-				ok: first == null,
-				errors: { first, byField: {} },
-				result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
-			};
-		});
+		context.validateMetadataDraftMock.mockImplementation(
+			async (metadata: Record<string, unknown>) => {
+				const first = context.validationErrorMock();
+				return {
+					intentPatch: Object.fromEntries(
+						Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
+					),
+					ok: first == null,
+					errors: { first, byField: {} },
+					result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
+				};
+			},
+		);
 		context.validationErrorMock.mockReturnValue(null);
 		context.clearSelectionMock.mockClear();
 		context.getSelectedFilesMock.mockReset();
