@@ -13,6 +13,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   rendering every token and primitive for visual review. Progress bars across
   Status Panel, Work Center, and Remote Source now share one chosen height.
   Interactive UI direction mockups stored under `docs/design/`.
+- Codex agent environment setup script for ABB worktrees/cloud sessions:
+  installs the Linux/Tauri media-lane prerequisites, builds the pinned FFmpeg
+  major with `libmp3lame`, creates the gitignored AAXClean sidecar stub, and
+  documents the Linux-vs-macOS proof boundary for encoder-path testing.
 
 ### Changed
 
