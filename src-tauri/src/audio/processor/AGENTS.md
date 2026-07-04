@@ -28,11 +28,11 @@
 - Finalization reports success only after the output artifact boundary returns final artifact truth.
 - Processor code must not directly perform final artifact `rename`, `copy`, or
   `hard_link`; final artifact commit truth lives in `output_artifact`.
-- External FDK and native engine paths must use the shared finalization handoff;
-  adapter-specific code may stage media locally, but final artifact commit and
-  success wording remain centralized, and post-encode artifact metadata writes
-  route through `crate::metadata::finalize_artifact_metadata` (container-aware)
-  rather than a bare remux — the mov muxer silently drops non-native tag keys.
+- External FDK and native engine paths must use the shared final artifact commit
+  handoff. Adapter-specific code may stage media locally, but final artifact
+  commit and success wording remain centralized. MP4-family tag truth must route
+  through the mp4ameta metadata writer, not a bare remux — the mov muxer
+  silently drops non-native tag keys.
 - Preview artifacts intentionally omit chapter passthrough/preview chapters
   unless a future product decision wires real chapter emission and proves it
   against actual artifact metadata.

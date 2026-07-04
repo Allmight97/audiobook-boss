@@ -14,12 +14,12 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   external integration tests, e.g. the media-execution lane's tag round-trip
   and artifact-finalize proofs; the lane also uses the crate-root re-exports
   of `extract_passthrough_metadata` + `PassthroughSource` to assert chapter
-  truth on real artifacts). `finalize_artifact_metadata` is the single
-  container-aware owner for post-encode artifact finalize: remux carries
-  chapters/cover, then MP4-family tag truth is rewritten via mp4ameta. The
-  FFmpeg mov muxer silently drops dict keys outside its known-atom table
-  (series, series-part, freeform mirrors, sort_album), so encoder adapters
-  must not finalize MP4 tags with a bare remux.
+  truth on real artifacts). `finalize_artifact_metadata` is the
+  container-aware external-adapter handoff: remux carries chapters/cover, then
+  MP4-family tag truth is rewritten via mp4ameta. The FFmpeg mov muxer
+  silently drops dict keys outside its known-atom table (series, series-part,
+  freeform mirrors, sort_album), so MP4-family tag truth must not depend on a
+  bare remux.
 - Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`,
   `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
   `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`

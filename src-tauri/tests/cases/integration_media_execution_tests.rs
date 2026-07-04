@@ -444,6 +444,11 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
         Some("3"),
         "series-part must be externally visible; full tags: {tags:?}"
     );
+    assert_eq!(
+        ffprobe_tag_ci(&tags, "sort_album").as_deref(),
+        Some("Finalize Series 03 - Finalized Title"),
+        "album-sort must be externally visible; full tags: {tags:?}"
+    );
 
     // Chapters written during finalize survive the MP4 tag rewrite.
     let artifact_chapters = extract_passthrough_metadata(&[PassthroughSource {
