@@ -284,3 +284,18 @@
 - Guardrail: any new resample site must either reuse this pipeline or both size
   output buffers from swr delay and flush its own swr delay before reporting a
   file complete.
+
+## 2026-07-04 - Artifact Metadata Finalize Is Container-Aware, Not Remux-Only
+
+- `metadata::finalize_artifact_metadata` is the single owner for post-encode
+  artifact metadata: a remux carries chapters and cover art, then MP4-family
+  tag truth is rewritten through mp4ameta chosen by real container
+  classification. Encoder adapters call it instead of the bare remux.
+- Evidence: the FFmpeg mov muxer drops dict keys outside its known-atom table
+  (`series`, `series-part`, iTunes freeform mirrors, `sort_album`), so the
+  external FDK adapter's remux-only finalize lost those tags; pinned by
+  `artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route`
+  (ABB readback + external `ffprobe` proof).
+- Guardrail: an encoder path may not write MP4-family artifact tags through
+  the FFmpeg dictionary alone; route through the metadata boundary's finalize
+  owner.

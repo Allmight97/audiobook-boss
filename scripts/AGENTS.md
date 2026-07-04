@@ -119,10 +119,12 @@ commands over invoking internals directly.
 - The runtime suite links FFmpeg at the pinned major (see
   `vendor/ffmpeg-sys-next-*`, which clones `release/<major>.<minor>`). On a
   Linux agent, build that FFmpeg branch from source and export
-  `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig` and `LD_LIBRARY_PATH=<prefix>/lib`
-  before `cargo test`. Distro FFmpeg 6.x fails the media lane with
-  swresample "Input changed" errors on WAV inputs — that is an FFmpeg-version
-  artifact, not a code regression.
+  `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig`, `LD_LIBRARY_PATH=<prefix>/lib`,
+  and `PATH="<prefix>/bin:$PATH"` before `cargo test`. Distro FFmpeg 6.x fails
+  the media lane with swresample "Input changed" errors on WAV inputs — that
+  is an FFmpeg-version artifact, not a code regression.
+- External-reader tag proofs in the media lane spawn `ffprobe` from PATH
+  (override with `ABB_FFPROBE=<path>`); the built FFmpeg prefix provides it.
 - Tauri test builds need `libgtk-3-dev`/`libwebkit2gtk-4.1-dev` and an
   executable stub at `binaries/abb-aaxclean-helper-<host-triple>`
   (gitignored; any `exit 0` script satisfies the resource check).

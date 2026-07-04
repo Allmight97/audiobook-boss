@@ -54,7 +54,6 @@ pub(crate) use passthrough::merge_passthrough_cover_art;
 pub use passthrough::{
     add_chapters_to_output, extract_passthrough_metadata, PassthroughMetadata, PassthroughSource,
 };
-pub use remux::rewrite_metadata_with_ffmpeg;
 
 /// Applies an explicit metadata intent patch to a real file: validate/plan,
 /// then container-adapted write. The single save entry for command ingress
@@ -79,6 +78,33 @@ pub(crate) fn save_metadata_with_plan(
             route.remux_output_format(),
         ),
     }
+}
+
+/// Finalizes a freshly produced artifact's metadata in one container-aware
+/// owner: a remux pass carries chapters and cover art, then MP4-family tag
+/// truth is rewritten through the mp4ameta adapter chosen by actual container
+/// classification. The FFmpeg mov muxer silently drops dictionary keys outside
+/// its known-atom table (series, series-part, the iTunes freeform mirrors,
+/// sort_album), so MP4-family artifacts must not rely on the remux for tag
+/// truth. Re-exported at the crate root for the media-execution lane's
+/// artifact-finalize proof.
+pub fn finalize_artifact_metadata(
+    path: &std::path::Path,
+    metadata: Option<&AudiobookMetadata>,
+    passthrough: Option<&PassthroughMetadata>,
+) -> Result<()> {
+    if metadata.is_none() && passthrough.is_none() {
+        return Ok(());
+    }
+
+    remux::rewrite_metadata_with_ffmpeg(path, metadata, passthrough)?;
+
+    if let Some(metadata) = metadata {
+        if should_write_finalized_metadata(path)? {
+            write_finalized_metadata(path, metadata)?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn write_cover_art_to_file(path: &std::path::Path, cover_data: Vec<u8>) -> Result<()> {

@@ -66,6 +66,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   milliseconds of end-of-file audio per input file — and upsampled inputs
   stream converted audio steadily instead of buffering it until end of file
   (#413).
+- Audiobooks encoded with the FDK HE-AAC (external FFmpeg) encoder no longer
+  lose series, series number, and album-sort tags on the finished file:
+  artifact metadata finalize now writes MP4 tag truth through the same
+  container-aware writer the other encoder paths use, proven against an
+  external reader (`ffprobe`), with chapters preserved.
 
 ## [1.3.0] - 2026-07-02
 
