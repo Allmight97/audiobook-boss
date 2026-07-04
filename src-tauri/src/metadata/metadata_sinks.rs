@@ -3,7 +3,9 @@
 use crate::metadata::field_schema::TagField;
 use crate::metadata::metadata_ops::MetadataOp;
 use crate::metadata::publication_year_from_date;
-use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
+use crate::metadata::tag_registry::{
+    ITUNES_MEAN, SERIES, SERIES_FREEFORM_NAME, SERIES_PART, SERIES_PART_FREEFORM_NAME,
+};
 use crate::metadata::AudiobookMetadata;
 use ffmpeg_next as ff;
 use mp4ameta::{Data, FreeformIdent, MediaType, Tag};
@@ -33,17 +35,25 @@ impl Mp4ametaSink<'_> {
             TagField::Comment => self.tag.set_comment(value),
             TagField::Description => self.tag.set_description(value),
             TagField::Series => {
+                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES);
                 let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
+                self.tag.remove_data_of(&canonical_ident);
                 self.tag.remove_data_of(&ident);
                 self.tag.remove_tv_show_name();
                 self.tag.remove_tv_show_name_sort_order();
+                self.tag
+                    .set_data(canonical_ident, Data::Utf8(value.to_string()));
                 self.tag.set_data(ident, Data::Utf8(value.to_string()));
             }
             TagField::SeriesPart => {
+                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART);
                 let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
+                self.tag.remove_data_of(&canonical_ident);
                 self.tag.remove_data_of(&ident);
                 self.tag.remove_tv_episode();
                 self.tag.remove_tv_episode_name();
+                self.tag
+                    .set_data(canonical_ident, Data::Utf8(value.to_string()));
                 self.tag.set_data(ident, Data::Utf8(value.to_string()));
             }
             TagField::Track | TagField::Disk => {}
@@ -64,13 +74,17 @@ impl Mp4ametaSink<'_> {
             TagField::Comment => self.tag.remove_comments(),
             TagField::Description => self.tag.remove_descriptions(),
             TagField::Series => {
+                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES);
                 let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
+                self.tag.remove_data_of(&canonical_ident);
                 self.tag.remove_data_of(&ident);
                 self.tag.remove_tv_show_name();
                 self.tag.remove_tv_show_name_sort_order();
             }
             TagField::SeriesPart => {
+                let canonical_ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART);
                 let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
+                self.tag.remove_data_of(&canonical_ident);
                 self.tag.remove_data_of(&ident);
                 self.tag.remove_tv_episode();
                 self.tag.remove_tv_episode_name();
@@ -219,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn mp4ameta_sink_writes_series_and_subseries_to_itunes_freeform_atoms() {
+    fn mp4ameta_sink_writes_series_and_subseries_to_canonical_and_itunes_freeform_atoms() {
         let tag = apply_real_sink(&AudiobookMetadata {
             series: Some("Primary".to_string()),
             series_part: Some("1".to_string()),
@@ -228,10 +242,17 @@ mod tests {
             ..Default::default()
         });
 
-        let series = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
-        let series_part = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
-        assert_eq!(tag.strings_of(&series).next(), Some("Primary; Sub"));
-        assert_eq!(tag.strings_of(&series_part).next(), Some("1; 2"));
+        let canonical_series = FreeformIdent::new_static("com.apple.iTunes", "series");
+        let canonical_series_part = FreeformIdent::new_static("com.apple.iTunes", "series-part");
+        let itunes_series = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+        let itunes_series_part = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+        assert_eq!(
+            tag.strings_of(&canonical_series).next(),
+            Some("Primary; Sub")
+        );
+        assert_eq!(tag.strings_of(&canonical_series_part).next(), Some("1; 2"));
+        assert_eq!(tag.strings_of(&itunes_series).next(), Some("Primary; Sub"));
+        assert_eq!(tag.strings_of(&itunes_series_part).next(), Some("1; 2"));
 
         // Legacy tv-show/tv-episode compatibility atoms must not be emitted.
         assert_eq!(tag.tv_show_name(), None);
@@ -243,15 +264,30 @@ mod tests {
         let mut tag = apply_real_sink(&AudiobookMetadata {
             title: Some("Temp Title".to_string()),
             artist: Some("Temp Artist".to_string()),
+            series: Some("Temp Series".to_string()),
+            series_part: Some("9".to_string()),
             ..Default::default()
         });
         assert_eq!(tag.title(), Some("Temp Title"));
         assert_eq!(tag.album_artist(), Some("Temp Artist"));
+        let canonical_series = FreeformIdent::new_static("com.apple.iTunes", "series");
+        let canonical_series_part = FreeformIdent::new_static("com.apple.iTunes", "series-part");
+        let itunes_series = FreeformIdent::new_static("com.apple.iTunes", "SERIES");
+        let itunes_series_part = FreeformIdent::new_static("com.apple.iTunes", "SERIES-PART");
+        assert_eq!(
+            tag.strings_of(&canonical_series).next(),
+            Some("Temp Series")
+        );
+        assert_eq!(tag.strings_of(&canonical_series_part).next(), Some("9"));
+        assert_eq!(tag.strings_of(&itunes_series).next(), Some("Temp Series"));
+        assert_eq!(tag.strings_of(&itunes_series_part).next(), Some("9"));
 
         // Empty-string intent flows through the planner as a Clear op.
         let clear_ops = plan_metadata_field_ops(&AudiobookMetadata {
             title: Some("   ".to_string()),
             artist: Some(String::new()),
+            series: Some(String::new()),
+            series_part: Some(String::new()),
             ..Default::default()
         });
         {
@@ -263,6 +299,10 @@ mod tests {
         assert_eq!(tag.title(), None);
         assert_eq!(tag.artist(), None);
         assert_eq!(tag.album_artist(), None);
+        assert_eq!(tag.strings_of(&canonical_series).next(), None);
+        assert_eq!(tag.strings_of(&canonical_series_part).next(), None);
+        assert_eq!(tag.strings_of(&itunes_series).next(), None);
+        assert_eq!(tag.strings_of(&itunes_series_part).next(), None);
     }
 
     #[test]

@@ -2,7 +2,9 @@ use crate::errors::{AppError, Result};
 use crate::metadata::cover_art::detect_cover_art_format;
 use crate::metadata::metadata_ops::plan_metadata_field_ops;
 use crate::metadata::metadata_sinks::{apply_metadata_ops, Mp4ametaSink};
-use crate::metadata::tag_registry::{ITUNES_MEAN, SERIES_FREEFORM_NAME, SERIES_PART_FREEFORM_NAME};
+use crate::metadata::tag_registry::{
+    ITUNES_MEAN, SERIES, SERIES_FREEFORM_NAME, SERIES_PART, SERIES_PART_FREEFORM_NAME,
+};
 use crate::metadata::{
     normalize_publication_date, split_series_list, AlbumSortWriteAction, AudiobookMetadata,
     MetadataWritePlan,
@@ -185,21 +187,21 @@ fn apply_album_sort(
 }
 
 fn read_series_raw(tag: &Tag) -> Option<String> {
-    let series = {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_FREEFORM_NAME);
-        let value = tag.strings_of(&ident).next().map(str::to_string);
-        value
-    };
+    let series = read_freeform_string(tag, SERIES)
+        .or_else(|| read_freeform_string(tag, SERIES_FREEFORM_NAME));
     series.or_else(|| tag.tv_show_name().map(str::to_string))
 }
 
 fn read_series_part_raw(tag: &Tag) -> Option<String> {
-    let series_part = {
-        let ident = FreeformIdent::new_static(ITUNES_MEAN, SERIES_PART_FREEFORM_NAME);
-        let value = tag.strings_of(&ident).next().map(str::to_string);
-        value
-    };
+    let series_part = read_freeform_string(tag, SERIES_PART)
+        .or_else(|| read_freeform_string(tag, SERIES_PART_FREEFORM_NAME));
     series_part.or_else(|| tag.tv_episode().map(|episode| episode.to_string()))
+}
+
+fn read_freeform_string(tag: &Tag, name: &'static str) -> Option<String> {
+    let ident = FreeformIdent::new_static(ITUNES_MEAN, name);
+    let value = tag.strings_of(&ident).next().map(str::to_string);
+    value
 }
 
 fn cover_art_to_img(bytes: &[u8]) -> Result<Option<Img<Vec<u8>>>> {

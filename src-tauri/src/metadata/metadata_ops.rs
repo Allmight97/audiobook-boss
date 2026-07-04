@@ -93,11 +93,11 @@ fn push_series_ops(metadata: &AudiobookMetadata, ops: &mut Vec<MetadataOp>) {
         metadata.subseries_part.as_deref(),
     );
 
-    if metadata.series.is_some() {
+    if metadata.series.is_some() || metadata.subseries.is_some() {
         push_built_series_op(ops, series_value, TagField::Series);
     }
 
-    if metadata.series_part.is_some() {
+    if metadata.series_part.is_some() || metadata.subseries_part.is_some() {
         push_built_series_op(ops, series_part_value, TagField::SeriesPart);
     }
 }
@@ -194,6 +194,28 @@ mod tests {
         assert!(ops
             .iter()
             .any(|op| matches!(op, MetadataOp::SetMediaTypeAudiobook)));
+    }
+
+    #[test]
+    fn subseries_intent_forces_series_write_ops() {
+        let metadata = AudiobookMetadata {
+            series: Some("Primary".to_string()),
+            series_part: Some("1".to_string()),
+            subseries: Some("Sub".to_string()),
+            subseries_part: Some("2".to_string()),
+            ..Default::default()
+        };
+
+        let ops = plan_metadata_field_ops(&metadata);
+
+        assert!(ops.contains(&MetadataOp::SetString {
+            field: TagField::Series,
+            value: "Primary; Sub".to_string(),
+        }));
+        assert!(ops.contains(&MetadataOp::SetString {
+            field: TagField::SeriesPart,
+            value: "1; 2".to_string(),
+        }));
     }
 
     #[test]
