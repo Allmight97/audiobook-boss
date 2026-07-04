@@ -1,6 +1,6 @@
 use crate::audio::{
     validate_encoder_settings, validate_sample_rate_config, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
+    EncoderSettings, EncoderType, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
@@ -113,8 +113,6 @@ impl Default for EncoderDefaults {
                 bitrate_mode: BitrateMode::Vbr(3),
                 channels: ChannelConfig::Auto,
                 afterburner: true,
-                threads: ThreadSetting::Auto,
-                twoloop: true,
             },
             sample_rate: SampleRateConfig::Auto,
         }

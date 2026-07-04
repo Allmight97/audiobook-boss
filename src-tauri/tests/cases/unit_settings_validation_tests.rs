@@ -6,7 +6,6 @@
 use audiobook_boss_lib::audio::{
     validate_encoder_settings, validate_output_path, validate_sample_rate_config, BitrateMode,
     ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
-    ThreadSetting,
 };
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -18,8 +17,6 @@ fn baseline_encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: EncoderChannelConfig::Mono,
         afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
     }
 }
 

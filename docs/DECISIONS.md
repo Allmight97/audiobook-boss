@@ -261,3 +261,24 @@
 - Runtime settings capability is one Tauri boundary adapter.
 - UI controls do not own independent encoder/concurrency accept/reject tables.
 - App Settings stores preferences; Audio owns encoder validity; JobRegistry owns concurrency bounds.
+
+## 2026-07-04 - Encoder Settings Carry No Inert Knobs
+
+- `EncoderSettings` has no `threads` or `twoloop` field: AAC encoders (native
+  `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, and FFmpeg's native
+  coder default is already twoloop — both knobs were end-to-end no-ops.
+- The in-process engine refuses `FdkHeAac` with a typed error; FDK is owned
+  exclusively by the external FFmpeg adapter (evidence: adapter routing in
+  `processor/adapter.rs`, encoder guard in `processor/encoder/context.rs`).
+- Guardrail: reintroducing an encoder knob requires evidence it changes output
+  for at least one shipped encoder path.
+
+## 2026-07-04 - Resampler Tail Is Flushed At File Boundaries
+
+- The frame pipeline drains libswresample's held-back filter tail after each
+  file's decoder drain (`frame_pipeline.rs::flush_resampler_tail`); with rate
+  conversion active, skipping the flush silently drops end-of-file audio.
+- Evidence: inline swr-tail test in `frame_pipeline.rs` plus the
+  rate-converted media-lane test.
+- Guardrail: any new resample site must either reuse this pipeline or flush
+  its own swr delay before reporting a file complete.

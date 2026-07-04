@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::audio::{
     supported_audio_import_metadata, validate_encoder_settings, validate_input_audio_path,
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting,
+    BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
 };
 
 #[test]
@@ -40,8 +40,6 @@ fn audio_contract_rejects_invalid_encoder_bitrate() {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Mono,
         afterburner: true,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
     };
 
     let err = validate_encoder_settings(&settings).expect_err("invalid bitrate should fail");

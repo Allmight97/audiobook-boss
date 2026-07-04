@@ -68,7 +68,6 @@ describe('encoder panel behavior controls', () => {
 		const defaults = defaultEncoderSettings();
 
 		expect(defaults.afterburner).toBe(true);
-		expect(defaults.twoloop).toBe(true);
 	});
 
 	it('shows afterburner for effective FDK and keeps it visible under Auto', async () => {
@@ -238,7 +237,7 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('shows effective encoder behavior controls and hides all behavior controls for Apple AAC', async () => {
+	it('shows the FDK afterburner control and hides the option row for Native and Apple AAC', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -264,11 +263,10 @@ describe('encoder panel behavior controls', () => {
 		changeSelectValue(select, 'native_aac');
 
 		await vi.waitFor(() => {
-			expect(document.getElementById('native-options')?.classList.contains('hidden')).toBe(false);
-			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
 			expect(
-				(document.getElementById('adv-native-twoloop') as HTMLInputElement | null)?.checked,
+				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
 			).toBe(true);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
 		});
 
 		changeSelectValue(select, 'aac_at');
@@ -278,14 +276,12 @@ describe('encoder panel behavior controls', () => {
 				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
 			).toBe(true);
 			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
-			expect(document.getElementById('native-options')?.classList.contains('hidden')).toBe(true);
 		});
 	});
 
-	it('retains session opt-outs for afterburner and twoloop across re-init', async () => {
-		encoderPanelState.flavor = 'native_aac';
+	it('retains the session afterburner opt-out across re-init', async () => {
+		encoderPanelState.flavor = 'fdk_he_aac';
 		encoderPanelState.fdkAfterburner = false;
-		encoderPanelState.nativeTwoloop = false;
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -304,15 +300,13 @@ describe('encoder panel behavior controls', () => {
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
-			expect(document.getElementById('native-options')?.classList.contains('hidden')).toBe(false);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(false);
 			expect(encoderPanelState.fdkAfterburner).toBe(false);
-			expect(encoderPanelState.nativeTwoloop).toBe(false);
 		});
 
 		initializeEncoderPanelLogic();
 		await vi.waitFor(() => {
 			expect(encoderPanelState.fdkAfterburner).toBe(false);
-			expect(encoderPanelState.nativeTwoloop).toBe(false);
 		});
 	});
 

@@ -1,7 +1,6 @@
 use super::complete_staged_output;
 use crate::audio::{
     BitrateMode, ChannelConfig, CleanupGuard, EncoderSettings, EncoderType, SampleRateConfig,
-    ThreadSetting,
 };
 use crate::processing::{JobRegistry, OutputConfig, ProcessingContext, ProcessingSession};
 use std::fs;
@@ -16,8 +15,6 @@ fn encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Auto,
         afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
     }
 }
 

@@ -2,13 +2,12 @@
 //!
 //! This module configures the in-process (ffmpeg-next) AAC encoders: Apple AAC
 //! (aac_at) and native FFmpeg AAC. FDK HE-AAC routes through the external
-//! FFmpeg adapter (`processor/external_fdk/`), not this module; the FDK arms
-//! here are unreachable in production and exist only until that seam is
-//! removed.
+//! FFmpeg adapter (`processor/external_fdk/`), never this module; encoder
+//! creation refuses it with a typed error.
 //!
 //! ## Module Structure
 //! - `context`: Encoder creation and output stream setup
-//! - `options`: Encoder-specific option builders (FDK, Apple, Native)
+//! - `options`: Encoder-specific option builders (Apple, Native)
 //! - `common`: Shared helpers for audio parameter resolution
 //! - `write`: Frame encoding and packet writing utilities
 

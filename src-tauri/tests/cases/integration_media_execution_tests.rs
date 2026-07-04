@@ -23,7 +23,7 @@
 
 use audiobook_boss_lib::audio::{
     execute_audio_engine, get_file_list_info, AudioExecutionRequest, BitrateMode, ChannelConfig,
-    EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
+    EncoderSettings, EncoderType, SampleRateConfig,
 };
 use audiobook_boss_lib::processing::job_registry::{JobId, JobRegistry};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
@@ -71,8 +71,6 @@ fn native_encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Mono,
         afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
     }
 }
 
@@ -82,6 +80,7 @@ struct MediaLane {
     tmp: TempDir,
     inputs: Vec<PathBuf>,
     encoder_settings: EncoderSettings,
+    sample_rate: SampleRateConfig,
 }
 
 impl MediaLane {
@@ -100,6 +99,7 @@ impl MediaLane {
             tmp,
             inputs,
             encoder_settings: native_encoder_settings(),
+            sample_rate: SampleRateConfig::Auto,
         }
     }
 
@@ -111,12 +111,19 @@ impl MediaLane {
             tmp,
             inputs,
             encoder_settings: native_encoder_settings(),
+            sample_rate: SampleRateConfig::Auto,
         }
     }
 
     /// Same lane, different encoder route (e.g. Apple AAC via AudioToolbox).
     fn with_encoder(mut self, encoder_settings: EncoderSettings) -> Self {
         self.encoder_settings = encoder_settings;
+        self
+    }
+
+    /// Same lane, explicit output sample rate (exercises the resample path).
+    fn with_sample_rate(mut self, sample_rate: SampleRateConfig) -> Self {
+        self.sample_rate = sample_rate;
         self
     }
 
@@ -134,7 +141,7 @@ impl MediaLane {
         ProcessingContext::new_headless_with_workspace_root(
             Arc::new(session),
             self.encoder_settings.clone(),
-            SampleRateConfig::Auto,
+            self.sample_rate.clone(),
             OutputConfig::new(self.output_path()),
             self.workspace_root(),
         )
@@ -554,8 +561,11 @@ async fn mp3_input_processes_with_metadata_intact() {
 
 /// Apple AAC (AudioToolbox) is the second in-process encoder route and is
 /// present on every macOS machine, so it earns a deterministic lane test.
+/// macOS-only: `aac_at` does not exist elsewhere, so the lane skips it on
+/// Linux/Windows agents rather than failing.
 /// External FDK stays out of the normal suite: it needs a user-supplied
 /// libfdk_aac FFmpeg, which is environment-dependent by definition.
+#[cfg(target_os = "macos")]
 #[tokio::test]
 async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
     let lane = MediaLane::with_fixtures(&[1.5]).with_encoder(EncoderSettings {
@@ -564,8 +574,6 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         bitrate_mode: BitrateMode::Cvbr,
         channels: ChannelConfig::Mono,
         afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());
@@ -583,4 +591,160 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
 
     let reread = read_metadata(&output).expect("re-read tags from aac_at artifact");
     assert_eq!(reread.title.as_deref(), Some("Apple AAC Route"));
+}
+
+/// Writes a stereo 16-bit PCM WAV with a distinct sine per channel.
+fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64) {
+    let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
+    let data_len = total_samples * 4;
+    let mut bytes = Vec::with_capacity(44 + data_len as usize);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    bytes.extend_from_slice(&2u16.to_le_bytes()); // stereo
+    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
+    bytes.extend_from_slice(&(SAMPLE_RATE * 4).to_le_bytes()); // byte rate
+    bytes.extend_from_slice(&4u16.to_le_bytes()); // block align
+    bytes.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_len.to_le_bytes());
+    for n in 0..total_samples {
+        let t = f64::from(n) / f64::from(SAMPLE_RATE);
+        for freq in [left_hz, right_hz] {
+            let sample =
+                (0.3 * (2.0 * std::f64::consts::PI * freq * t).sin() * f64::from(i16::MAX)) as i16;
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+    }
+    fs::write(path, bytes).expect("write stereo WAV fixture");
+}
+
+/// Decodes an artifact and returns per-channel RMS over the whole stream.
+/// Used to prove real, non-silent audio reaches every output channel.
+fn per_channel_rms(path: &Path) -> Vec<f64> {
+    use ffmpeg_next as ff;
+
+    ff::init().expect("ffmpeg init");
+    let mut ictx = ff::format::input(path).expect("open artifact for RMS probe");
+    let stream = ictx
+        .streams()
+        .best(ff::media::Type::Audio)
+        .expect("artifact has an audio stream");
+    let stream_index = stream.index();
+    let mut decoder = ff::codec::context::Context::from_parameters(stream.parameters())
+        .expect("decoder context from artifact params")
+        .decoder()
+        .audio()
+        .expect("open artifact audio decoder");
+
+    let channels = decoder.channels() as usize;
+    let mut sum_squares = vec![0f64; channels];
+    let mut sample_counts = vec![0u64; channels];
+    let drain = |decoder: &mut ff::codec::decoder::Audio,
+                 sum_squares: &mut Vec<f64>,
+                 sample_counts: &mut Vec<u64>| {
+        let mut frame = ff::frame::Audio::empty();
+        while decoder.receive_frame(&mut frame).is_ok() {
+            assert_eq!(
+                frame.format(),
+                ff::format::Sample::F32(ff::format::sample::Type::Planar),
+                "RMS probe expects planar f32 decoder output"
+            );
+            for ch in 0..channels.min(frame.planes()) {
+                let plane = frame.plane::<f32>(ch);
+                for &v in &plane[..frame.samples()] {
+                    sum_squares[ch] += f64::from(v) * f64::from(v);
+                }
+                sample_counts[ch] += frame.samples() as u64;
+            }
+        }
+    };
+
+    for (si, packet) in ictx.packets() {
+        if si.index() != stream_index {
+            continue;
+        }
+        decoder.send_packet(&packet).expect("send artifact packet");
+        drain(&mut decoder, &mut sum_squares, &mut sample_counts);
+    }
+    let _ = decoder.send_eof();
+    drain(&mut decoder, &mut sum_squares, &mut sample_counts);
+
+    sum_squares
+        .iter()
+        .zip(sample_counts.iter())
+        .map(|(sq, count)| {
+            if *count == 0 {
+                0.0
+            } else {
+                (sq / *count as f64).sqrt()
+            }
+        })
+        .collect()
+}
+
+/// Rate-converted merge: the resample path (44.1kHz WAV → 22.05kHz output)
+/// must keep truthful duration and the requested output rate. Guards the
+/// resampler + tail-flush boundary the same-rate lane never exercises.
+#[tokio::test]
+async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
+    let lane =
+        MediaLane::with_fixtures(&[1.5, 1.0]).with_sample_rate(SampleRateConfig::Explicit(22_050));
+    let expected_duration = 2.5;
+
+    execute_audio_engine(lane.execution_request(ProcessingSession::new(), None))
+        .await
+        .expect("rate-converted native processing succeeds");
+
+    let output = lane.output_path();
+    let probe = get_file_list_info(&[&output]).expect("re-probe rate-converted M4B");
+    assert_eq!(probe.valid_count, 1, "output M4B probes as valid audio");
+    assert_eq!(
+        probe.files[0].sample_rate,
+        Some(22_050),
+        "output carries the requested explicit sample rate"
+    );
+    let drift = (probe.total_duration - expected_duration).abs();
+    assert!(
+        drift < 0.2,
+        "rate-converted duration {} differs from source total {expected_duration} by {drift}",
+        probe.total_duration
+    );
+}
+
+/// Stereo channel preservation: both output channels must carry real audio
+/// (RMS well above silence) after decode → resample → encode. Pins the
+/// "missing or silent output channels" trap from the audio directives.
+#[tokio::test]
+async fn stereo_merge_preserves_audio_in_both_channels() {
+    let lane = MediaLane::for_inputs(Vec::new());
+    let input = lane.tmp.path().join("stereo-fixture.wav");
+    write_stereo_sine_wav(&input, 1.5, 440.0, 660.0);
+    let lane = MediaLane {
+        inputs: vec![input],
+        ..lane
+    }
+    .with_encoder(EncoderSettings {
+        encoder_type: EncoderType::NativeAac,
+        bitrate_kbps: 64,
+        bitrate_mode: BitrateMode::Cbr,
+        channels: ChannelConfig::Stereo,
+        afterburner: false,
+    });
+
+    let output = lane.process(None).await;
+
+    let probe = get_file_list_info(&[&output]).expect("re-probe stereo M4B");
+    assert_eq!(probe.files[0].channels, Some(2), "output stays stereo");
+
+    let rms = per_channel_rms(&output);
+    assert_eq!(rms.len(), 2, "RMS probe sees two channels");
+    for (ch, value) in rms.iter().enumerate() {
+        assert!(
+            *value > 0.05,
+            "channel {ch} RMS {value} indicates missing or silent audio (expected ~0.21 for a 0.3-amplitude sine)"
+        );
+    }
 }

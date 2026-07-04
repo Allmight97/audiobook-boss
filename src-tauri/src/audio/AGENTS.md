@@ -21,13 +21,12 @@
 - Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
-  `ChannelConfig`, `ThreadSetting`, `EncoderAvailability`,
-  `EncoderCapabilitySource`.
+  `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
 - Functions: `get_file_list_info`, `validate_input_audio_path`,
   `validate_input_image_path`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
-  `validate_requested_encoder_available`, `validate_threads`,
+  `validate_requested_encoder_available`,
   `encoder_settings_capabilities`,
   `resolve_encoder_type`, `resolve_encoder_name`,
   `detect_encoder_availability`, `detect_aac_decoder_availability`,
@@ -38,7 +37,7 @@
 - Execution request type: `AudioExecutionRequest`.
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
-- Constants: `VALID_ENCODER_BITRATES`, `VALID_THREAD_COUNT_RANGE`.
+- Constants: `VALID_ENCODER_BITRATES`.
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event

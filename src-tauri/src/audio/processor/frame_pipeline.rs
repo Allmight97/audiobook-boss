@@ -158,6 +158,66 @@ fn process_and_encode_frame(
     Ok(PreviewAction::Continue)
 }
 
+const RESAMPLER_FLUSH_CHUNK_SAMPLES: usize = 1024;
+
+/// Collects the resampler's buffered tail as frames of at most `chunk` samples.
+///
+/// With sample-rate conversion active, libswresample legitimately holds back
+/// filter-delay samples that `run()` never emits on its own; the pipeline must
+/// flush them at end of file or that audio is silently dropped. For
+/// format-only conversion the delay is zero and this returns no frames.
+fn drain_resampler_frames(
+    resampler: &mut ff::software::resampling::Context,
+    chunk: usize,
+) -> std::result::Result<Vec<ff::frame::Audio>, ff::Error> {
+    let mut frames = Vec::new();
+    loop {
+        let out_def = *resampler.output();
+        let mut out = ff::frame::Audio::empty();
+        out.set_format(out_def.format);
+        out.set_channel_layout(out_def.channel_layout);
+        out.set_rate(out_def.rate);
+        out.set_samples(chunk);
+        unsafe {
+            out.alloc(out_def.format, chunk, out_def.channel_layout);
+        }
+        let remaining = resampler.flush(&mut out)?;
+        if out.samples() == 0 {
+            break;
+        }
+        frames.push(out);
+        if remaining.is_none() {
+            break;
+        }
+    }
+    Ok(frames)
+}
+
+/// Encodes the resampler's held-back tail after the decoder is fully drained.
+fn flush_resampler_tail(
+    resampler: &mut ff::software::resampling::Context,
+    encoder: &mut ff::codec::encoder::audio::Encoder,
+    output_context: &mut ff::format::context::Output,
+    ctx: &mut FramePipelineCtx,
+    accumulator: &mut crate::audio::buffer::SampleAccumulator,
+) -> Result<()> {
+    use crate::errors::AppError;
+
+    let frames = drain_resampler_frames(resampler, RESAMPLER_FLUSH_CHUNK_SAMPLES)
+        .map_err(|e| AppError::General(format!("Resampler flush failed: {e}")))?;
+    for out in &frames {
+        process_and_encode_frame(out, encoder, output_context, ctx, accumulator)?;
+    }
+    if !frames.is_empty() {
+        log::debug!(
+            "Flushed resampler tail: {} frame(s), {} sample(s)",
+            frames.len(),
+            frames.iter().map(|f| f.samples()).sum::<usize>()
+        );
+    }
+    Ok(())
+}
+
 fn should_drain_decoder_after_input(ctx: &FramePipelineCtx, action: PreviewAction) -> bool {
     if action != PreviewAction::Continue {
         return false;
@@ -364,6 +424,10 @@ pub(crate) fn process_input_packets(
         )?;
         if drain_action != PreviewAction::Continue {
             final_action = drain_action;
+        } else if !*ctx.early_stop {
+            // End of this file's real audio: recover the resampler's
+            // held-back tail before moving to the next input.
+            flush_resampler_tail(resampler, encoder, output_context, ctx, accumulator)?;
         }
     } else {
         log::debug!("Skipping decoder drain after preview boundary");
@@ -433,5 +497,70 @@ fn process_packet_frames(
             );
             Err(e)
         }
+    }
+}
+
+// EXCEPTION: inline test pins the swresample tail invariant this pipeline
+// depends on; it needs no decoder/encoder scaffolding.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// With sample-rate conversion active, swresample withholds a filter tail
+    /// that `run()` alone never emits — the audio the pipeline used to drop at
+    /// every file boundary. `drain_resampler_frames` must recover it so that
+    /// run + flush accounts for the full converted duration.
+    #[test]
+    fn rate_converting_resampler_tail_is_recovered_by_drain() {
+        ff::init().expect("ffmpeg init");
+        let layout = ff::ChannelLayout::default(1);
+        let fmt = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+        let mut resampler =
+            ff::software::resampling::Context::get(fmt, layout, 44_100, fmt, layout, 22_050)
+                .expect("build 44.1k->22.05k resampler");
+
+        let input_samples = 4096usize;
+        let mut input = ff::frame::Audio::empty();
+        input.set_format(fmt);
+        input.set_channel_layout(layout);
+        input.set_rate(44_100);
+        input.set_samples(input_samples);
+        unsafe {
+            input.alloc(fmt, input_samples, layout);
+        }
+        for v in input.plane_mut::<f32>(0) {
+            *v = 0.25;
+        }
+
+        // Mirror the pipeline's run() usage: pre-allocated output frame.
+        let mut out = ff::frame::Audio::empty();
+        out.set_format(fmt);
+        out.set_channel_layout(layout);
+        out.set_rate(22_050);
+        out.set_samples(input_samples);
+        unsafe {
+            out.alloc(fmt, input_samples, layout);
+        }
+        resampler.run(&input, &mut out).expect("resample run");
+        let converted = out.samples();
+
+        let expected_total = input_samples / 2;
+        assert!(
+            converted < expected_total,
+            "precondition: swr withholds a tail under rate conversion (run emitted {converted} of {expected_total})"
+        );
+
+        let tail: usize = drain_resampler_frames(&mut resampler, 1024)
+            .expect("drain resampler")
+            .iter()
+            .map(|frame| frame.samples())
+            .sum();
+        assert!(tail > 0, "drain must recover the held-back tail");
+
+        let total = converted + tail;
+        assert!(
+            (total as i64 - expected_total as i64).abs() <= 32,
+            "run + drain must account for the full converted duration (got {total}, want ~{expected_total})"
+        );
     }
 }

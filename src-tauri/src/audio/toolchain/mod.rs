@@ -13,7 +13,6 @@ mod platform;
 #[serde(rename_all = "snake_case")]
 pub enum EncoderCapabilitySource {
     None,
-    Bundled,
     Detected,
     /// Validated from the user-configured FFmpeg path in App Settings.
     UserConfigured,

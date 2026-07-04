@@ -96,8 +96,6 @@ function appSettingsFixture() {
 				bitrateMode: { mode: 'vbr' as const, value: 3 },
 				channels: 'auto' as const,
 				afterburner: true,
-				threads: { mode: 'auto' as const },
-				twoloop: true,
 			},
 			sampleRate: 'auto' as const,
 		},

@@ -102,7 +102,7 @@ fn resolve_processor_adapter_from_parts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::settings_encoder::{BitrateMode, ChannelConfig, ThreadSetting};
+    use crate::audio::settings_encoder::{BitrateMode, ChannelConfig};
     use crate::audio::toolchain::{
         EncoderCapabilitySource, ExternalDecoderCapabilities, ValidatedExternalToolchain,
     };
@@ -217,8 +217,6 @@ mod tests {
             bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Auto,
             afterburner: false,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         }
     }
 

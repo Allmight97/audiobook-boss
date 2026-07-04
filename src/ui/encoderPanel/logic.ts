@@ -197,9 +197,7 @@ const updateQualityVisibility = (): void => {
 
 const updateInlineOptions = (effectiveEncoder: EncoderFlavor): void => {
 	encoderPanelState.showFdkOptions = effectiveEncoder === 'fdk_he_aac';
-	encoderPanelState.showNativeOptions = effectiveEncoder === 'native_aac';
-	encoderPanelState.showInlineOptionRow =
-		encoderPanelState.showFdkOptions || encoderPanelState.showNativeOptions;
+	encoderPanelState.showInlineOptionRow = encoderPanelState.showFdkOptions;
 };
 
 const updateEstimatedBitrate = (): void => {
@@ -361,13 +359,6 @@ export const handleBitrateValueChange = (event: Event): void => {
 export const handleFdkAfterburnerChange = (event: Event): void => {
 	const target = inputTarget(event);
 	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
-	syncAfterStateChange();
-	persistCurrentEncoderDefaults();
-};
-
-export const handleNativeTwoloopChange = (event: Event): void => {
-	const target = inputTarget(event);
-	encoderPanelState.nativeTwoloop = Boolean(target?.checked);
 	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };

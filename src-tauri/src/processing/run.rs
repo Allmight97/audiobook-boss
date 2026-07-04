@@ -91,7 +91,7 @@ mod tests {
     use super::run_job::{
         commit_supplemental_assets, register_job_and_validate_output, supplemental_assets_for_input,
     };
-    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
+    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
     use crate::output_artifact::OutputKind;
     use crate::processing::terminal_outcomes::{
         classify_processing_error, ProcessingJobTerminalOutcome,
@@ -107,8 +107,6 @@ mod tests {
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
             afterburner: true,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         }
     }
 

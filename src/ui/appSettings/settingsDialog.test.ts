@@ -37,8 +37,6 @@ const settingsFixture = (externalFfmpegPath?: string): AppSettings => ({
 			bitrateMode: { mode: 'vbr', value: 3 },
 			channels: 'auto',
 			afterburner: true,
-			threads: { mode: 'auto' },
-			twoloop: true,
 		},
 		sampleRate: 'auto',
 	},

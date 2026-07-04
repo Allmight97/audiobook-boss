@@ -27,7 +27,6 @@ const createDefaultState = () => ({
 	qualityValue: 3 as VbrLevel,
 	bitrateValue: 64 as EncoderSettingsState['bitrateKbps'],
 	fdkAfterburner: true,
-	nativeTwoloop: true,
 	availability: null as EncoderAvailability | null,
 	autoOptionLabel: 'Auto',
 	availabilityHint: DEFAULT_AVAILABILITY_HINT,
@@ -46,7 +45,6 @@ const createDefaultState = () => ({
 	showQuality: true,
 	showInlineOptionRow: false,
 	showFdkOptions: false,
-	showNativeOptions: false,
 	bitrateModeAvailability: {
 		vbr: true,
 		cvbr: false,
@@ -122,7 +120,6 @@ export function readEncoderSettingsFromState(): EncoderSettingsState {
 				? { mode: 'vbr', value: encoderPanelState.qualityValue }
 				: { mode: encoderPanelState.bitrateModeSelection },
 		fdkAfterburner: encoderPanelState.fdkAfterburner,
-		twoloop: encoderPanelState.nativeTwoloop,
 	};
 }
 
@@ -181,7 +178,6 @@ export function applyEncoderDefaults(defaults: EncoderDefaults): void {
 	encoderPanelState.bitrateValue = settings.bitrateKbps as typeof encoderPanelState.bitrateValue;
 	encoderPanelState.channelsSelection = settings.channels;
 	encoderPanelState.fdkAfterburner = settings.afterburner;
-	encoderPanelState.nativeTwoloop = settings.twoloop ?? true;
 	encoderPanelState.sampleRateSelection = sampleRateSelectionFromConfig(
 		defaults.sampleRate,
 		encoderPanelState.capabilities,
