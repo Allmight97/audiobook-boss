@@ -8,8 +8,16 @@
  *      pending store that saveMetadataFromUI drains into saveMetadataBatch.
  *   2. lookup-apply→same path: a lookup queue apply stages through the same
  *      seam and drains through the same save.
+ *   3. staged intent→output review→WorkRuntime submission: processing drains
+ *      the same pending store into both the output-plan review and final
+ *      retained processing payload.
  */
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defaultEncoderSettings, type FileListInfo } from '../../types/audio';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import type { WorkSubmissionAccepted } from '../../types/workRuntime';
+import type { ProcessingWorkflowServices } from '../statusPanel/processingWorkflow';
+import type { ProcessingStatus } from '../statusPanel/state';
 
 const context = vi.hoisted(() => ({
 	saveMetadataBatchMock: vi.fn(),
@@ -109,6 +117,79 @@ vi.mock('../fileList', async () => {
 const FILE_A = { path: '/books/edited.m4b', isValid: true };
 const FILE_B = { path: '/books/looked-up.m4b', isValid: true };
 
+function smokeFileList(): FileListInfo {
+	return {
+		files: [
+			{
+				inputId: 'input-smoke',
+				path: FILE_A.path,
+				size: 1024,
+				duration: 60,
+				format: 'm4b',
+				bitrate: 64,
+				sampleRate: 44100,
+				channels: 1,
+				codecLabel: 'AAC',
+				selectedDecoder: undefined,
+				isValid: true,
+				error: undefined,
+			},
+		],
+		selectedDecoders: [null],
+		totalDuration: 60,
+		totalSize: 1024,
+		validCount: 1,
+		invalidCount: 0,
+	};
+}
+
+function processingContext() {
+	return {
+		updateStatus: vi.fn((_status: ProcessingStatus) => undefined),
+		setProcessingState: vi.fn(),
+		updateArtThumbnail: vi.fn(async () => undefined),
+		startProgressListener: vi.fn(async () => undefined),
+		setCurrentWorkKind: vi.fn(),
+		setBatchCompletionMessage: vi.fn(),
+		handleCancellation: vi.fn(),
+		resetToIdle: vi.fn(),
+	};
+}
+
+function acceptedProcessingSubmission(): WorkSubmissionAccepted {
+	return {
+		operationId: 'operation-smoke',
+		snapshot: {
+			operationId: 'operation-smoke',
+			sequence: 1,
+			kind: 'processingMerge',
+			status: 'accepted',
+			title: 'Merge encode (1 file)',
+			createdAtMs: 1,
+			startedAtMs: undefined,
+			finishedAtMs: undefined,
+			cancellable: true,
+			cancelRequested: false,
+			lanes: ['analysis', 'encodeCpu', 'outputCommit'],
+			sourceInputIds: ['input-smoke'],
+			progress: {
+				stage: 'pending',
+				percentage: 0,
+				message: 'Accepted.',
+				currentItemIndex: undefined,
+				totalItems: 1,
+				bytesDownloaded: undefined,
+				bytesTotal: undefined,
+				etaSeconds: undefined,
+			},
+			children: [],
+			terminalSummary: undefined,
+			warnings: [],
+			errors: [],
+		},
+	};
+}
+
 describe('metadata session smoke (edit→save and lookup→save through one seam)', () => {
 	let metadataSession: typeof import('../metadataSession');
 
@@ -140,9 +221,7 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 		context.readMetadataFormMock.mockReturnValue({ title: 'Edited Title' });
 		context.saveMetadataBatchMock.mockResolvedValue({
 			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
-			results: [
-				{ inputIndex: 0, filePath: FILE_A.path, status: 'success', message: 'saved' },
-			],
+			results: [{ inputIndex: 0, filePath: FILE_A.path, status: 'success', message: 'saved' }],
 		});
 		metadataSession.cacheMetadataForFile(FILE_A.path, {
 			title: 'Old Title',
@@ -177,9 +256,7 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 		context.getSelectedFilesMock.mockReturnValue([]);
 		context.saveMetadataBatchMock.mockResolvedValue({
 			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
-			results: [
-				{ inputIndex: 0, filePath: FILE_B.path, status: 'success', message: 'saved' },
-			],
+			results: [{ inputIndex: 0, filePath: FILE_B.path, status: 'success', message: 'saved' }],
 		});
 
 		const { makeMetadataLookupWorkflowServicesLayer, runMetadataLookupWorkflow } = await import(
@@ -251,7 +328,9 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 		await runMetadataLookupWorkflow(layer, { type: 'applyResult', index: 0 });
 
 		// The lookup apply landed in the SAME pending store the primary path uses.
-		expect(metadataSession.collectActionableMetadataIntent([FILE_B.path])?.[FILE_B.path]).toMatchObject({
+		expect(
+			metadataSession.collectActionableMetadataIntent([FILE_B.path])?.[FILE_B.path],
+		).toMatchObject({
 			title: { op: 'set', value: 'Looked Up Title' },
 			artist: { op: 'set', value: 'Author Person' },
 		});
@@ -268,5 +347,102 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 			title: { op: 'set', value: 'Looked Up Title' },
 		});
 		expect(metadataSession.collectActionableMetadataIntent([FILE_B.path])).toBeNull();
+	});
+
+	it('drains staged metadata into output review and retained processing submission', async () => {
+		const stagedIntent: MetadataIntentPatch = {
+			title: { op: 'set', value: 'Submitted Title' },
+			series: { op: 'set', value: 'Submitted Series' },
+			series_part: { op: 'set', value: '3' },
+		};
+		expect(metadataSession.stageMetadataIntentPatch(FILE_A.path, stagedIntent)).toBe('staged');
+		const expectedIntent = {
+			[FILE_A.path]: stagedIntent,
+		};
+
+		const { makeProcessingWorkflowServicesLayer, startProcessing } = await import(
+			'../statusPanel/processingWorkflow'
+		);
+		const reviewOutputPlan: ProcessingWorkflowServices['runOutputPlanReviewWorkflow'] = vi.fn(
+			async ({ payload, metadataIntentByPath, previewSeconds }) => ({
+				status: 'approved' as const,
+				payload: { ...payload, preflightSignature: 'smoke-preflight' },
+				plan: {
+					jobType: payload.jobType ?? 'merge',
+					previewSeconds: previewSeconds ?? null,
+					collisionPolicy: payload.collisionPolicy ?? 'fail',
+					planSignature: metadataIntentByPath ? 'smoke-preflight' : 'missing-intent',
+					outputs: [
+						{
+							inputIndex: 0,
+							inputPath: FILE_A.path,
+							kind: 'final' as const,
+							requestedPath: '/tmp/out/Submitted Title.m4b',
+							resolvedPath: '/tmp/out/Submitted Title.m4b',
+							renameCandidate: undefined,
+							collision: undefined,
+							action: 'write' as const,
+						},
+					],
+				},
+			}),
+		);
+		const submitProcessingOperation: ProcessingWorkflowServices['submitProcessingOperation'] =
+			vi.fn(async () => acceptedProcessingSubmission());
+
+		const layer = makeProcessingWorkflowServicesLayer({
+			updateOutputPath: vi.fn(),
+			getCurrentFileList: () => smokeFileList(),
+			getSelectedFileIndex: () => 0,
+			getSelectedFileIndices: () => new Set([0]),
+			readProcessingRequestConfig: () => ({
+				encoderSettings: defaultEncoderSettings(),
+				sampleRate: 'auto',
+				outputDirectory: '/tmp/out',
+				outputNaming: {
+					preset: 'absDefault',
+					includeYear: false,
+					customTemplate: undefined,
+				},
+			}),
+			getJobType: () => 'merge',
+			hasDirtyMetadataFields: () => false,
+			readMetadataForm: vi.fn(() => ({})),
+			collectActionableMetadataIntent: metadataSession.collectActionableMetadataIntent,
+			getMetadataForFile: metadataSession.getMetadataForFile,
+			cacheMetadataForFile: metadataSession.cacheMetadataForFile,
+			stageMetadataIntentPatch: metadataSession.stageMetadataIntentPatch,
+			stageMetadataToSelection: vi.fn(async () => true),
+			setJobControlsEnabled: vi.fn(),
+			setFileOrderLocked: vi.fn(),
+			validateMetadataIntentPatch: vi.fn(async (metadataPatch) => ({
+				isValid: true,
+				metadataPatch,
+				fieldErrors: [],
+			})),
+			readAudioMetadata: vi.fn(async () => ({})),
+			processAudiobookFiles: vi.fn(),
+			submitProcessingOperation,
+			runOutputPlanReviewWorkflow: reviewOutputPlan,
+			openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
+			feedback: { showError: vi.fn() },
+			console: { error: vi.fn(), log: vi.fn(), warn: vi.fn() },
+		});
+
+		await startProcessing(processingContext(), undefined, layer);
+
+		expect(reviewOutputPlan).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadataIntentByPath: expectedIntent,
+			}),
+		);
+		expect(submitProcessingOperation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({
+					preflightSignature: 'smoke-preflight',
+				}),
+				metadataIntent: expectedIntent,
+			}),
+		);
 	});
 });

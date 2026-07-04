@@ -68,9 +68,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   (#413).
 - Audiobooks encoded with the FDK HE-AAC (external FFmpeg) encoder no longer
   lose series, series number, and album-sort tags on the finished file:
-  artifact metadata finalize now writes MP4 tag truth through the same
-  container-aware writer the other encoder paths use, proven against an
-  external reader (`ffprobe`), with chapters preserved.
+  artifact metadata finalize now rewrites MP4 tag truth through mp4ameta after
+  the remux that carries chapters/cover, proven against an external reader
+  (`ffprobe`), with chapters preserved.
+- Metadata Manager subseries edits no longer disappear unless the full
+  series/subseries quadruple is present: representable partials are written to
+  artifact tags, while touched orphan shapes fail before processing or save
+  instead of silently clearing series tags (#415).
+- Merge processing now stages dirty Metadata Manager edits onto the merge
+  artifact owner instead of dropping edits made while a non-first input is
+  selected; non-merge processing blocks dirty edits on an invalid selection
+  instead of retargeting them to another file (#415).
 
 ## [1.3.0] - 2026-07-02
 

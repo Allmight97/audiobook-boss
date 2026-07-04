@@ -31,9 +31,12 @@ pub use abb_metadata_core::{
     PatchOp,
 };
 pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
+#[cfg(test)]
+pub(crate) use intent_plan::plan_metadata_write;
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
-    plan_metadata_outcome, plan_metadata_write, MetadataOutcomePlan, MetadataOutcomeRequest,
+    plan_metadata_outcome, plan_metadata_write_for_path, MetadataOutcomePlan,
+    MetadataOutcomeRequest,
 };
 
 impl From<MetadataCoreError> for AppError {
@@ -59,7 +62,7 @@ pub use passthrough::{
 /// then container-adapted write. The single save entry for command ingress
 /// and integration round-trip proof (media-execution lane).
 pub fn save_metadata_intent(path: &std::path::Path, patch: &MetadataIntentPatch) -> Result<()> {
-    let plan = plan_metadata_write(patch)?;
+    let plan = plan_metadata_write_for_path(path, patch)?;
     save_metadata_with_plan(path, &plan)
 }
 

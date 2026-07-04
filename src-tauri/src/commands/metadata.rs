@@ -2,8 +2,7 @@ use crate::audio::{validate_input_audio_path, validate_input_image_path};
 use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
 use crate::metadata::{
-    plan_metadata_write, read_metadata, AudiobookMetadata, MetadataIntentPatch,
-    MetadataIntentValidationResult,
+    read_metadata, AudiobookMetadata, MetadataIntentPatch, MetadataIntentValidationResult,
 };
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
@@ -50,9 +49,8 @@ pub async fn save_metadata_to_file(
     let result: Result<()> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
-        let write_plan = plan_metadata_write(&metadata_patch)?;
 
-        crate::metadata::save_metadata_with_plan(&validated_path, &write_plan)?;
+        crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
 
         log::info!("Metadata saved to: {}", validated_path.display());
         Ok(())

@@ -51,7 +51,10 @@ export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataD
 	};
 }
 
-function updateSeriesPartWarning(metadata: AudiobookMetadata, seriesPartError: string | null): void {
+function updateSeriesPartWarning(
+	metadata: AudiobookMetadata,
+	seriesPartError: string | null,
+): void {
 	const seriesValue = metadata.series?.trim() ?? '';
 	const seriesPartValue = metadata.series_part?.trim() ?? '';
 	const subseriesValue = metadata.subseries?.trim() ?? '';

@@ -73,26 +73,23 @@ function stageMultiSelectionMetadata(
 	});
 }
 
-function ensureMergeCoverIntentOnMergeKey(
+function metadataIntentTargetPath(
 	services: ProcessingWorkflowServices,
 	fileList: FileListInfo,
-	intentPatch: MetadataIntentPatch,
-	activeFilePath: string | undefined,
-): void {
-	if (services.getJobType() !== 'merge') {
-		return;
-	}
-	const coverIntent = intentPatch.cover_art;
-	if (!coverIntent || coverIntent.op === 'noop') {
-		return;
+	selectedFileIndex: number,
+): string | undefined {
+	if (services.getJobType() === 'merge') {
+		return validInputFilePaths(fileList)[0];
 	}
 
-	const mergeKey = validInputFilePaths(fileList)[0];
-	if (!mergeKey || activeFilePath === mergeKey) {
-		return;
+	if (selectedFileIndex >= 0) {
+		const selectedFile = fileList.files[selectedFileIndex];
+		if (selectedFile?.isValid) {
+			return selectedFile.path;
+		}
 	}
 
-	services.stageMetadataIntentPatch(mergeKey, { cover_art: coverIntent });
+	return undefined;
 }
 
 function stageSingleSelectionMetadata(
@@ -119,16 +116,14 @@ function stageSingleSelectionMetadata(
 		}
 
 		const intentPatch = validation.intentPatch;
-		const activeFile =
-			selectedFileIndex >= 0
-				? fileList.files[selectedFileIndex]
-				: fileList.files.find((file) => file.isValid);
-		if (
-			activeFile?.isValid &&
-			services.stageMetadataIntentPatch(activeFile.path, intentPatch) !== 'noop'
-		) {
-			ensureMergeCoverIntentOnMergeKey(services, fileList, intentPatch, activeFile.path);
+		const targetPath = metadataIntentTargetPath(services, fileList, selectedFileIndex);
+		if (!targetPath) {
+			yield* Effect.sync(() =>
+				services.feedback.showError('Select a valid input file before processing metadata edits.'),
+			);
+			return false;
 		}
+		services.stageMetadataIntentPatch(targetPath, intentPatch);
 
 		return true;
 	});

@@ -76,6 +76,19 @@ fn ffprobe_tag_ci(tags: &serde_json::Map<String, serde_json::Value>, key: &str) 
         .and_then(|(_, value)| value.as_str().map(str::to_string))
 }
 
+fn assert_ffprobe_tag(
+    tags: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    expected: &str,
+) {
+    let actual = ffprobe_tag_ci(tags, key);
+    assert_eq!(
+        actual.as_deref(),
+        Some(expected),
+        "ffprobe tag `{key}` should be `{expected}`; full tags: {tags:?}"
+    );
+}
+
 const SAMPLE_RATE: u32 = 44_100;
 
 /// Writes a mono 16-bit PCM WAV of `seconds` of sine at `freq_hz`.
@@ -462,6 +475,48 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
         2,
         "finalized artifact keeps both passthrough chapters"
     );
+}
+
+#[tokio::test]
+async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let output = lane.process(None).await;
+
+    let patch = MetadataIntentPatch {
+        title: PatchOp::Set("External Probe Title".to_string()),
+        artist: PatchOp::Set("External Probe Author".to_string()),
+        album: PatchOp::Set("External Probe Album".to_string()),
+        composer: PatchOp::Set("External Probe Composer".to_string()),
+        genre: PatchOp::Set("Audiobook".to_string()),
+        date: PatchOp::Set("2024-05-06".to_string()),
+        description: PatchOp::Set("External reader proof".to_string()),
+        series: PatchOp::Set("Probe Series".to_string()),
+        series_part: PatchOp::Set("2".to_string()),
+        subseries: PatchOp::Set("Probe Subseries".to_string()),
+        subseries_part: PatchOp::Set("7".to_string()),
+        comment: PatchOp::Set("Probe Comment".to_string()),
+        track: PatchOp::Set((3, Some(9))),
+        disk: PatchOp::Set((1, Some(2))),
+        ..Default::default()
+    };
+    save_metadata_intent(&output, &patch).expect("metadata save through mp4ameta path");
+
+    let tags = ffprobe_format_tags(&output);
+    assert_ffprobe_tag(&tags, "title", "External Probe Title");
+    assert_ffprobe_tag(&tags, "artist", "External Probe Author");
+    assert_ffprobe_tag(&tags, "album_artist", "External Probe Author");
+    assert_ffprobe_tag(&tags, "album", "External Probe Album");
+    assert_ffprobe_tag(&tags, "composer", "External Probe Composer");
+    assert_ffprobe_tag(&tags, "genre", "Audiobook");
+    assert_ffprobe_tag(&tags, "date", "2024-05");
+    assert_ffprobe_tag(&tags, "description", "External reader proof");
+    assert_ffprobe_tag(&tags, "comment", "Probe Comment");
+    // mp4ameta writes iTunes freeform series atoms; ffprobe exposes those
+    // atoms by freeform name, not as an exhaustive atom inventory.
+    assert_ffprobe_tag(&tags, "SERIES", "Probe Series; Probe Subseries");
+    assert_ffprobe_tag(&tags, "SERIES-PART", "2; 7");
+    assert_ffprobe_tag(&tags, "track", "3/9");
+    assert_ffprobe_tag(&tags, "disc", "1/2");
 }
 
 fn minimal_jpg_bytes() -> Vec<u8> {

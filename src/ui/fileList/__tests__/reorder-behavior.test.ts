@@ -130,7 +130,7 @@ describe('file list reorder behavior', () => {
 		context.stageMetadataIntentPatchMock.mockReturnValue('staged');
 		context.clearMetadataSessionMock.mockReset();
 		context.removeMetadataForFileMock.mockReset();
-						context.populateMetadataFormSingleMock.mockReset();
+		context.populateMetadataFormSingleMock.mockReset();
 		context.populateMetadataFormMultiMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
@@ -141,17 +141,19 @@ describe('file list reorder behavior', () => {
 		context.updateOutputPathMock.mockReset();
 		context.updateTagPreviewMock.mockReset();
 		context.validateMetadataDraftMock.mockReset();
-		context.validateMetadataDraftMock.mockImplementation(async (metadata: Record<string, unknown>) => {
-			const first = context.validationErrorMock();
-			return {
-				intentPatch: Object.fromEntries(
-					Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
-				),
-				ok: first == null,
-				errors: { first, byField: {} },
-				result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
-			};
-		});
+		context.validateMetadataDraftMock.mockImplementation(
+			async (metadata: Record<string, unknown>) => {
+				const first = context.validationErrorMock();
+				return {
+					intentPatch: Object.fromEntries(
+						Object.entries(metadata).map(([key, value]) => [key, { op: 'set', value }]),
+					),
+					ok: first == null,
+					errors: { first, byField: {} },
+					result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
+				};
+			},
+		);
 		context.clearCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReset();
 		context.getHasCustomCoverArtMock.mockReturnValue(false);

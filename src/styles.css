@@ -111,7 +111,7 @@
 	--cover-thumb-size: 4rem;
 }
 
-:root[data-density='compact'] {
+:root[data-density="compact"] {
 	--density-row-h: 1.875rem;
 	--density-pad: var(--space-2);
 	--density-text: var(--text-sm);

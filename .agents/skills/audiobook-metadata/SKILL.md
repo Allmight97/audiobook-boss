@@ -11,12 +11,15 @@ External compatibility with ABS/Plex/Apple Books is required. Compatibility
 claims must match current code and product decisions.
 
 ABB does not read or write Apple movement tags (`MVNM`/`MVIN`). Series uses
-ffprobe-visible tags plus mirrored freeform atoms.
+ffprobe-visible tags plus mirrored mp4ameta freeform atoms.
 
 ## Series Tag Strategy
 
 For series metadata, write both:
-- ffprobe-visible tags: `series`, `series-part`, plus mirrored freeform atoms `----:com.apple.iTunes:SERIES` and `----:com.apple.iTunes:SERIES-PART`
+- ffprobe-visible tags: `series`, `series-part`
+- mp4ameta freeforms: canonical `----:com.apple.iTunes:series` /
+  `----:com.apple.iTunes:series-part` plus uppercase iTunes mirrors
+  `----:com.apple.iTunes:SERIES` / `----:com.apple.iTunes:SERIES-PART`
 
 Intent semantics (`set | clear | noop`), the Outcome Plan, and naming-to-artifact
 flow are owned by `src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
