@@ -28,6 +28,10 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
+    // FFmpeg's default aac_coder is already twoloop (FFmpeg 8.1
+    // libavcodec/aacenc.c), so disabling the toggle must select the `fast`
+    // coder explicitly; omitting aac_coder would silently keep twoloop and
+    // make the UI toggle a no-op.
     if settings.twoloop && !disable_twoloop {
         // twoloop provides better psychoacoustic analysis
         opts.set("aac_coder", "twoloop");
@@ -36,8 +40,9 @@ pub(in crate::audio::processor::encoder) fn build_native_options(
             settings.bitrate_kbps
         );
     } else {
+        opts.set("aac_coder", "fast");
         log::info!(
-            "Native AAC encoder: bitrate={}k aac_is=0 aac_pns=0 (twoloop disabled)",
+            "Native AAC encoder: bitrate={}k coder=fast aac_is=0 aac_pns=0 (twoloop disabled)",
             settings.bitrate_kbps
         );
     }
@@ -74,10 +79,11 @@ mod tests {
         assert_eq!(opts.get("aac_is"), Some("0"));
         assert_eq!(opts.get("aac_pns"), Some("0"));
 
-        // UI off -> no twoloop even if env allows
+        // UI off -> fast coder selected explicitly (FFmpeg's default coder is
+        // already twoloop, so omitting aac_coder would keep twoloop silently)
         s.twoloop = false;
         let opts = build_native_options(&mut ctx, &s);
-        assert!(opts.get("aac_coder").is_none());
+        assert_eq!(opts.get("aac_coder"), Some("fast"));
         assert_eq!(opts.get("aac_is"), Some("0"));
         assert_eq!(opts.get("aac_pns"), Some("0"));
 
@@ -85,7 +91,7 @@ mod tests {
         s.twoloop = true;
         std::env::set_var("ABB_DISABLE_TWOLOOP", "1");
         let opts = build_native_options(&mut ctx, &s);
-        assert!(opts.get("aac_coder").is_none());
+        assert_eq!(opts.get("aac_coder"), Some("fast"));
         assert_eq!(opts.get("aac_is"), Some("0"));
         assert_eq!(opts.get("aac_pns"), Some("0"));
         std::env::remove_var("ABB_DISABLE_TWOLOOP");
