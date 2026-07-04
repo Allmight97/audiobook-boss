@@ -110,6 +110,9 @@
 - Byte `linesize` is not per-channel audio truth for planar frames. A zero byte linesize on channel index `> 0` must not be interpreted as a missing channel without typed-plane or raw-plane confirmation.
 - Silence padding is allowed only for a deliberate short-frame/tail policy or a verified missing-plane condition, and the behavior must have regression coverage.
 - Sample sanitization may repair NaN/Inf or clamp out-of-range floats before encoding, but it must not mask channel-layout, frame-size, or format mismatches.
+- Resampler output buffers must account for pending swr delay plus input samples
+  scaled to the output rate; EOF drains must stream flushed frames through the
+  accumulator/encoder instead of collecting the whole drain.
 - Encoder option changes must include evidence for the affected encoder path: targeted tests, real-file `ffprobe`/`ffmpeg` diagnostics, or documented external encoder behavior.
 
 ## Audio Integrity Traps

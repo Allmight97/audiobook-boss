@@ -273,12 +273,14 @@
 - Guardrail: reintroducing an encoder knob requires evidence it changes output
   for at least one shipped encoder path.
 
-## 2026-07-04 - Resampler Tail Is Flushed At File Boundaries
+## 2026-07-04 - Resampler Tail Is Bounded And Flushed At File Boundaries
 
-- The frame pipeline drains libswresample's held-back filter tail after each
-  file's decoder drain (`frame_pipeline.rs::flush_resampler_tail`); with rate
-  conversion active, skipping the flush silently drops end-of-file audio.
-- Evidence: inline swr-tail test in `frame_pipeline.rs` plus the
-  rate-converted media-lane test.
-- Guardrail: any new resample site must either reuse this pipeline or flush
-  its own swr delay before reporting a file complete.
+- The frame pipeline sizes resampler output frames from current swr delay plus
+  input samples scaled to the output rate, then streams EOF flush frames through
+  the accumulator/encoder; with rate conversion active, skipping the flush
+  silently drops end-of-file audio.
+- Evidence: inline swr-tail and upsample backlog tests in
+  `frame_pipeline.rs` plus the rate-converted media-lane test.
+- Guardrail: any new resample site must either reuse this pipeline or both size
+  output buffers from swr delay and flush its own swr delay before reporting a
+  file complete.
