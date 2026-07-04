@@ -109,6 +109,13 @@ commands over invoking internals directly.
 
 ## Linux Agent Environment (media lane)
 
+- Codex Cloud setup command: `bash scripts/setup-codex-agent-env.sh`. If the
+  Codex environment UI supports package-version pins, set Rust to `1.95` and
+  Bun to the `package.json` `packageManager` version before running the script.
+  The script installs Ubuntu/Tauri build packages, builds pinned FFmpeg with
+  `libmp3lame`, makes FFmpeg discoverable after the setup shell exits, creates
+  the gitignored AAXClean sidecar stub for the host triple, and runs
+  `bun install --frozen-lockfile`.
 - The runtime suite links FFmpeg at the pinned major (see
   `vendor/ffmpeg-sys-next-*`, which clones `release/<major>.<minor>`). On a
   Linux agent, build that FFmpeg branch from source and export
@@ -119,5 +126,7 @@ commands over invoking internals directly.
 - Tauri test builds need `libgtk-3-dev`/`libwebkit2gtk-4.1-dev` and an
   executable stub at `binaries/abb-aaxclean-helper-<host-triple>`
   (gitignored; any `exit 0` script satisfies the resource check).
-- Apple AAC lane tests are macOS-gated and skip cleanly elsewhere; external
-  FDK remains manual/env-gated by design.
+- Linux proves the Native AAC/media lane, metadata round-trips, and frontend
+  checks; it cannot prove Apple AAC/AudioToolbox behavior. Use a real macOS
+  runner or this repo's local macOS checkout for Apple AAC proof. External FDK
+  remains manual/env-gated by design.
