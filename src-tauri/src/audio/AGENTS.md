@@ -21,13 +21,12 @@
 - Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
-  `ChannelConfig`, `ThreadSetting`, `EncoderAvailability`,
-  `EncoderCapabilitySource`.
+  `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
 - Functions: `get_file_list_info`, `validate_input_audio_path`,
   `validate_input_image_path`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
-  `validate_requested_encoder_available`, `validate_threads`,
+  `validate_requested_encoder_available`,
   `encoder_settings_capabilities`,
   `resolve_encoder_type`, `resolve_encoder_name`,
   `detect_encoder_availability`, `detect_aac_decoder_availability`,
@@ -38,7 +37,7 @@
 - Execution request type: `AudioExecutionRequest`.
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
-- Constants: `VALID_ENCODER_BITRATES`, `VALID_THREAD_COUNT_RANGE`.
+- Constants: `VALID_ENCODER_BITRATES`.
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event
@@ -111,6 +110,9 @@
 - Byte `linesize` is not per-channel audio truth for planar frames. A zero byte linesize on channel index `> 0` must not be interpreted as a missing channel without typed-plane or raw-plane confirmation.
 - Silence padding is allowed only for a deliberate short-frame/tail policy or a verified missing-plane condition, and the behavior must have regression coverage.
 - Sample sanitization may repair NaN/Inf or clamp out-of-range floats before encoding, but it must not mask channel-layout, frame-size, or format mismatches.
+- Resampler output buffers must account for pending swr delay plus input samples
+  scaled to the output rate; EOF drains must stream flushed frames through the
+  accumulator/encoder instead of collecting the whole drain.
 - Encoder option changes must include evidence for the affected encoder path: targeted tests, real-file `ffprobe`/`ffmpeg` diagnostics, or documented external encoder behavior.
 
 ## Audio Integrity Traps

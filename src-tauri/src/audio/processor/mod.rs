@@ -146,7 +146,8 @@ impl ProcessingWorkflow {
     }
 }
 
-/// Main audiobook processing entrypoint.
+/// Native (in-process ffmpeg-next) processing entrypoint; the external FDK
+/// adapter bypasses this and owns its own staging/finalize handoff.
 ///
 /// Coordinates the three-stage processing pipeline:
 /// 1. Validate & Prepare

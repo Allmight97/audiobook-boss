@@ -317,7 +317,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(args).toEqual({ settings: defaultEncoderSettings() });
 	});
 
-	it('preserves a boundary encoder payload with omitted twoloop through validate_encoder_settings', async () => {
+	it('preserves a native boundary encoder payload through validate_encoder_settings', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
@@ -328,7 +328,6 @@ describe('tauriClient nullish adapters', () => {
 			bitrateMode: { mode: 'cbr' },
 			channels: 'stereo',
 			afterburner: false,
-			threads: { mode: 'auto' },
 		} satisfies EncoderSettings;
 
 		const { tauriClient } = await import('./tauri/client');
@@ -343,7 +342,6 @@ describe('tauriClient nullish adapters', () => {
 		];
 		expect(commandName).toBe('validate_encoder_settings');
 		expect(args.settings).toEqual(boundarySettings);
-		expect('twoloop' in args.settings).toBe(false);
 	});
 
 	it('loads runtime settings capabilities without external toolchain input', async () => {
@@ -645,8 +643,6 @@ describe('tauriClient nullish adapters', () => {
 				vbrLevelMin: 1,
 				vbrLevelMax: 5,
 				vbrLevelDefault: 3,
-				threadFixedMin: 1,
-				threadFixedMax: 1024,
 				sampleRateAuto: true,
 				explicitSampleRates: [44100],
 				channelOptions: ['auto', 'mono', 'stereo'],

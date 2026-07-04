@@ -127,7 +127,7 @@ fn expected_duration_seconds(
 mod tests {
     use super::*;
     use crate::audio::{
-        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
+        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
     };
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
     use std::sync::Arc;
@@ -140,8 +140,6 @@ mod tests {
             bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Auto,
             afterburner: false,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         }
     }
 

@@ -10,7 +10,6 @@
 import type {
 	EncoderSettings,
 	EncoderType,
-	ThreadSetting,
 	BitrateKbps,
 	BitrateMode,
 	EncoderChannelConfig,
@@ -26,8 +25,6 @@ export interface EncoderSettingsState {
 	bitrateMode?: BitrateMode;
 	channels?: EncoderChannelConfig;
 	fdkAfterburner?: boolean;
-	threads?: ThreadSetting;
-	twoloop?: boolean;
 }
 
 export type EncoderSettingsLike =
@@ -67,20 +64,6 @@ const isBitrateMode = (value: unknown): value is BitrateMode => {
 	return typeof candidate.value === 'number';
 };
 
-const isThreadSetting = (value: unknown): value is ThreadSetting => {
-	if (!value || typeof value !== 'object') {
-		return false;
-	}
-	const candidate = value as Record<string, unknown>;
-	if (candidate.mode === 'auto' || candidate.mode === 'off') {
-		return true;
-	}
-	if (candidate.mode !== 'fixed') {
-		return false;
-	}
-	return typeof candidate.value === 'number';
-};
-
 const isBoundaryEncoderType = (
 	value: unknown,
 	capabilities: EncoderCapabilities,
@@ -104,9 +87,7 @@ const isBoundaryEncoderSettings = (
 		typeof channels === 'string' &&
 		(!capabilities || capabilities.channelOptions.includes(channels as EncoderChannelConfig)) &&
 		typeof candidate.afterburner === 'boolean' &&
-		isThreadSetting(candidate.threads) &&
-		isBitrateMode(bitrateMode) &&
-		(candidate.twoloop === undefined || typeof candidate.twoloop === 'boolean')
+		isBitrateMode(bitrateMode)
 	);
 };
 
@@ -165,34 +146,6 @@ const sanitizeBitrateMode = (
 	return fallback ?? defaultBitrateModeFor(encoderType, capabilities, fallback);
 };
 
-const sanitizeThreads = (
-	value: unknown,
-	fallback: ThreadSetting,
-	capabilities: EncoderCapabilities,
-): ThreadSetting => {
-	if (!isThreadSetting(value)) {
-		return fallback;
-	}
-	switch (value.mode) {
-		case 'auto':
-		case 'off':
-			return value;
-		case 'fixed': {
-			const numeric = Number(value.value);
-			if (!Number.isFinite(numeric)) {
-				return fallback;
-			}
-			const rounded = Math.round(numeric);
-			const clamped = capabilities
-				? Math.max(capabilities.threadFixedMin, Math.min(capabilities.threadFixedMax, rounded))
-				: rounded;
-			return { mode: 'fixed', value: clamped };
-		}
-		default:
-			return fallback;
-	}
-};
-
 const resolveEncoderType = (
 	flavor: EncoderFlavor | undefined,
 	fallback: EncoderType,
@@ -213,7 +166,6 @@ const normalizeBoundary = (
 		capabilities,
 	);
 	const channels = sanitizeChannels(candidate.channels, base.channels, capabilities);
-	const threads = sanitizeThreads(candidate.threads, base.threads, capabilities);
 	const afterburner =
 		encoderType === 'fdk_he_aac' || encoderType === 'auto'
 			? typeof candidate.afterburner === 'boolean'
@@ -227,8 +179,6 @@ const normalizeBoundary = (
 		bitrateMode,
 		channels,
 		afterburner,
-		threads,
-		...(candidate.twoloop === undefined ? {} : { twoloop: candidate.twoloop }),
 	};
 };
 
@@ -253,7 +203,6 @@ export const toBoundaryEncoderSettings = (
 		capabilities,
 	);
 	const channels = sanitizeChannels(ui.channels, base.channels, capabilities);
-	const threads = sanitizeThreads(ui.threads ?? base.threads, base.threads, capabilities);
 	const afterburner =
 		encoderType === 'fdk_he_aac' || encoderType === 'auto'
 			? (ui.fdkAfterburner ?? base.afterburner)
@@ -265,7 +214,5 @@ export const toBoundaryEncoderSettings = (
 		bitrateMode,
 		channels,
 		afterburner,
-		threads,
-		twoloop: ui.twoloop ?? true,
 	};
 };

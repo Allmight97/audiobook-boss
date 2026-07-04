@@ -80,43 +80,26 @@ impl ChannelConfig {
     }
 }
 
-/// Threading configuration for encoder
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(tag = "mode", content = "value", rename_all = "snake_case")]
-pub enum ThreadSetting {
-    /// Let FFmpeg decide (maps to threads=0)
-    Auto,
-    /// Disable threading (maps to threads=1)
-    Off,
-    /// Fixed number of threads
-    Fixed(u16),
-}
-
 /// Advanced encoder settings payload
+///
+/// AAC encoders (native `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, so
+/// there is deliberately no thread setting here; encoding always uses the
+/// encoder's single-threaded path.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
     pub encoder_type: EncoderType,
-    /// Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps)
+    /// Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps).
+    /// Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
     pub bitrate_kbps: u16,
     pub bitrate_mode: BitrateMode,
     pub channels: ChannelConfig,
     /// Applies to FDK encoder only
     pub afterburner: bool,
-    pub threads: ThreadSetting,
-    #[serde(default = "default_twoloop")]
-    pub twoloop: bool,
-}
-
-fn default_twoloop() -> bool {
-    true
 }
 
 /// Whitelist of supported encoder bitrates for speech-oriented output
 pub const VALID_ENCODER_BITRATES: &[u16] = &[48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128];
-
-/// Valid range for thread count when using Fixed thread setting
-pub const VALID_THREAD_COUNT_RANGE: std::ops::RangeInclusive<u16> = 1..=1024;
 
 /// Valid VBR level range for encoders that support VBR.
 pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u8> = 1..=5;
@@ -168,7 +151,6 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     validate_bitrate(settings.bitrate_kbps)?;
     validate_bitrate_mode(settings.bitrate_mode)?;
     validate_encoder_mode_combo(settings.encoder_type, settings.bitrate_mode)?;
-    validate_threads(settings.threads)?;
 
     Ok(())
 }
@@ -205,21 +187,6 @@ fn validate_encoder_mode_combo(encoder_type: EncoderType, mode: BitrateMode) -> 
             "Bitrate mode {:?} is not supported for encoder {:?}",
             mode, encoder_type
         )))
-    }
-}
-
-/// Validates thread setting is within allowed range.
-/// Exposed as pub(crate) for external unit testing.
-pub fn validate_threads(setting: ThreadSetting) -> Result<()> {
-    match setting {
-        ThreadSetting::Auto | ThreadSetting::Off => Ok(()),
-        ThreadSetting::Fixed(n) if VALID_THREAD_COUNT_RANGE.contains(&n) => Ok(()),
-        ThreadSetting::Fixed(n) => Err(AppError::InvalidInput(format!(
-            "Invalid threads value: {} (allowed {}..={})",
-            n,
-            VALID_THREAD_COUNT_RANGE.start(),
-            VALID_THREAD_COUNT_RANGE.end()
-        ))),
     }
 }
 

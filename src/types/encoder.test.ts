@@ -26,20 +26,18 @@ describe('toBoundaryEncoderSettings', () => {
 		expect(toBoundaryEncoderSettings(boundary, undefined, encoderCapabilities())).toEqual(boundary);
 	});
 
-	it('preserves a valid boundary encoder payload when twoloop is omitted', () => {
+	it('preserves a valid native boundary encoder payload unchanged', () => {
 		const boundary = {
 			encoderType: 'native_aac',
 			bitrateKbps: 96,
 			bitrateMode: { mode: 'cbr' },
 			channels: 'stereo',
 			afterburner: false,
-			threads: { mode: 'auto' },
 		} satisfies EncoderSettings;
 
 		const normalized = toBoundaryEncoderSettings(boundary, undefined, encoderCapabilities());
 
 		expect(normalized).toEqual(boundary);
-		expect('twoloop' in normalized).toBe(false);
 	});
 
 	it('rejects malformed boundary encoder settings before they cross the Tauri boundary', () => {
@@ -48,16 +46,12 @@ describe('toBoundaryEncoderSettings', () => {
 			...defaults,
 			encoderType: 'bogus',
 			afterburner: undefined,
-			threads: undefined,
-			twoloop: undefined,
 		} as unknown as EncoderSettings;
 
 		const normalized = toBoundaryEncoderSettings(malformed, defaults, encoderCapabilities());
 
 		expect(normalized.encoderType).toBe(defaults.encoderType);
 		expect(normalized.afterburner).toBe(defaults.afterburner);
-		expect(normalized.threads).toEqual(defaults.threads);
-		expect(normalized.twoloop).toBe(defaults.twoloop);
 	});
 
 	it('falls back to the default encoder when persisted UI flavor is invalid', () => {
@@ -97,17 +91,5 @@ describe('toBoundaryEncoderSettings', () => {
 
 		expect(normalized.encoderType).toBe('native_aac');
 		expect(normalized.bitrateMode).toEqual({ mode: 'cbr' });
-	});
-
-	it('uses backend capabilities to clamp fixed thread values', () => {
-		const normalized = toBoundaryEncoderSettings(
-			{
-				threads: { mode: 'fixed', value: 4096 },
-			},
-			undefined,
-			encoderCapabilities(),
-		);
-
-		expect(normalized.threads).toEqual({ mode: 'fixed', value: 1024 });
 	});
 });

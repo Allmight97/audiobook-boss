@@ -84,8 +84,6 @@ export function runtimeSettingsCapabilitiesFixture(
 			vbrLevelMin: 1,
 			vbrLevelMax: 5,
 			vbrLevelDefault: 3,
-			threadFixedMin: 1,
-			threadFixedMax: 1024,
 			sampleRateAuto: true,
 			explicitSampleRates: [22050, 32000, 44100, 48000],
 			channelOptions: ['auto' as const, 'mono' as const, 'stereo' as const],

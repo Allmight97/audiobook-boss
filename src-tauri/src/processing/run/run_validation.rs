@@ -7,14 +7,13 @@ use crate::audio::FileListInfo;
 
 pub(crate) fn log_encoder_summary(payload: &ProcessPayload) {
     log::info!(
-        "encoder summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
+        "encoder summary: encoder={:?} bitrate={}k bitrate_mode={:?} channels={:?} sample_rate={:?} afterburner={}",
         payload.settings.encoder_type,
         payload.settings.bitrate_kbps,
         payload.settings.bitrate_mode,
         payload.settings.channels,
         payload.sample_rate,
-        payload.settings.afterburner,
-        payload.settings.threads
+        payload.settings.afterburner
     );
 }
 

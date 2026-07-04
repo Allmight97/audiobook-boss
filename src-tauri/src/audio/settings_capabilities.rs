@@ -4,7 +4,7 @@ use super::settings::supported_sample_rates;
 use super::settings_encoder::{
     all_encoder_types, allowed_bitrate_mode_kinds_for, auto_encoder_resolution_order,
     default_bitrate_mode_for, BitrateMode, BitrateModeKind, ChannelConfig, EncoderType,
-    VALID_ENCODER_BITRATES, VALID_THREAD_COUNT_RANGE, VALID_VBR_LEVEL_RANGE,
+    VALID_ENCODER_BITRATES, VALID_VBR_LEVEL_RANGE,
 };
 use super::toolchain::{detect_encoder_availability, EncoderAvailability};
 use serde::{Deserialize, Serialize};
@@ -28,8 +28,6 @@ pub struct EncoderSettingsCapabilities {
     pub vbr_level_min: u8,
     pub vbr_level_max: u8,
     pub vbr_level_default: u8,
-    pub thread_fixed_min: u16,
-    pub thread_fixed_max: u16,
     pub sample_rate_auto: bool,
     pub explicit_sample_rates: Vec<u32>,
     pub channel_options: Vec<ChannelConfig>,
@@ -52,8 +50,6 @@ pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
         vbr_level_min: *VALID_VBR_LEVEL_RANGE.start(),
         vbr_level_max: *VALID_VBR_LEVEL_RANGE.end(),
         vbr_level_default: super::settings_encoder::DEFAULT_VBR_LEVEL,
-        thread_fixed_min: *VALID_THREAD_COUNT_RANGE.start(),
-        thread_fixed_max: *VALID_THREAD_COUNT_RANGE.end(),
         sample_rate_auto: true,
         explicit_sample_rates: supported_sample_rates().to_vec(),
         channel_options: vec![

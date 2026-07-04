@@ -16,8 +16,8 @@
 - The cluster owns audio encoder UI state, resolved encoder availability,
   sample-rate/channel state, and encoding request configuration truth.
   Selectable validity facts for encoder options, bitrate modes, bitrates, VBR
-  levels, threads, sample rates, and channels come from the backend Runtime
-  Settings Capabilities contract.
+  levels, sample rates, and channels come from the backend Runtime Settings
+  Capabilities contract.
 
 ## Allowed Agent Edits Without Escalation
 - Change internals when focused encoder panel tests stay green; run targeted

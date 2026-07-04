@@ -300,7 +300,7 @@ export type EncoderBitrateModeCapability = {
 	defaultMode: BitrateMode,
 };
 
-export type EncoderCapabilitySource = "none" | "bundled" | "detected" |
+export type EncoderCapabilitySource = "none" | "detected" |
 // Validated from the user-configured FFmpeg path in App Settings.
 "user_configured";
 
@@ -309,17 +309,24 @@ export type EncoderDefaults = {
 	sampleRate: SampleRateConfig,
 };
 
-// Advanced encoder settings payload
+/**
+ *  Advanced encoder settings payload
+ *
+ *  AAC encoders (native `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, so
+ *  there is deliberately no thread setting here; encoding always uses the
+ *  encoder's single-threaded path.
+ */
 export type EncoderSettings = {
 	encoderType: EncoderType,
-	// Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps)
+	/**
+	 *  Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps).
+	 *  Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
+	 */
 	bitrateKbps: number,
 	bitrateMode: BitrateMode,
 	channels: ChannelConfig,
 	// Applies to FDK encoder only
 	afterburner: boolean,
-	threads: ThreadSetting,
-	twoloop?: boolean,
 };
 
 export type EncoderSettingsCapabilities = {
@@ -331,8 +338,6 @@ export type EncoderSettingsCapabilities = {
 	vbrLevelMin: number,
 	vbrLevelMax: number,
 	vbrLevelDefault: number,
-	threadFixedMin: number,
-	threadFixedMax: number,
 	sampleRateAuto: boolean,
 	explicitSampleRates: number[],
 	channelOptions: ChannelConfig[],
@@ -854,15 +859,6 @@ export type SupportedAudioImportMetadata = {
 	formatsText: string,
 	supportText: string,
 };
-
-// Threading configuration for encoder
-export type ThreadSetting =
-// Let FFmpeg decide (maps to threads=0)
-{ mode: "auto" } |
-// Disable threading (maps to threads=1)
-{ mode: "off" } |
-// Fixed number of threads
-{ mode: "fixed"; value: number };
 
 /**
  *  Durable toolchain preferences. Preference data only: the audio toolchain

@@ -5,10 +5,10 @@ use crate::errors::Result;
 use ffmpeg_next as ff;
 
 use super::common::{
-    configure_threads, encoder_log, find_encoder_by_name, resolve_plan_encoder_settings,
+    encoder_log, find_encoder_by_name, resolve_plan_encoder_settings,
     try_configure_variable_frame_size, EncoderFramePlan,
 };
-use super::options::{build_apple_options, build_fdk_options, build_native_options};
+use super::options::{build_apple_options, build_native_options};
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
@@ -21,6 +21,15 @@ pub(crate) fn create_audio_encoder(
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     use crate::errors::AppError;
 
+    // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
+    // engine must refuse it rather than silently opening a different encoder.
+    if matches!(resolved_encoder, EncoderType::FdkHeAac) {
+        return Err(AppError::InvalidInput(
+            "FDK HE-AAC routes through the external FFmpeg adapter; the native engine cannot encode it."
+                .to_string(),
+        ));
+    }
+
     let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
     let codec = if codec_name == "aac" {
         ff::encoder::find(ff::codec::Id::AAC)
@@ -31,9 +40,7 @@ pub(crate) fn create_audio_encoder(
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
     let sample_format = match resolved_encoder {
-        EncoderType::FdkHeAac | EncoderType::AacAt => {
-            ff::format::Sample::I16(ff::format::sample::Type::Packed)
-        }
+        EncoderType::AacAt => ff::format::Sample::I16(ff::format::sample::Type::Packed),
         _ => ff::format::Sample::F32(ff::format::sample::Type::Planar),
     };
     let time_base = ff::Rational(1, target_sample_rate as i32);
@@ -48,30 +55,22 @@ pub(crate) fn create_audio_encoder(
     opened.set_format(sample_format);
     opened.set_time_base(time_base);
 
-    if matches!(
-        resolved_encoder,
-        EncoderType::FdkHeAac | EncoderType::AacAt | EncoderType::NativeAac
-    ) {
-        if let Err(e) = try_configure_variable_frame_size(&mut opened) {
-            log::warn!(
-                "Could not configure variable frame sizes ({}), may have frame size issues",
-                e
-            );
-        }
+    if let Err(e) = try_configure_variable_frame_size(&mut opened) {
+        log::warn!(
+            "Could not configure variable frame sizes ({}), may have frame size issues",
+            e
+        );
     }
 
     // Build encoder-specific options Dictionary
     // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
     let opts = match resolved_encoder {
-        EncoderType::FdkHeAac => build_fdk_options(encoder_settings)?,
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
-        EncoderType::Auto => {
-            unreachable!("create_audio_encoder requires a resolved encoder type")
+        EncoderType::FdkHeAac | EncoderType::Auto => {
+            unreachable!("create_audio_encoder requires a resolved in-process encoder type")
         }
     };
-
-    configure_threads(&mut opened, encoder_settings.threads);
 
     let raw_bit_rate = unsafe { (*opened.as_mut_ptr()).bit_rate };
     encoder_log(&format!(

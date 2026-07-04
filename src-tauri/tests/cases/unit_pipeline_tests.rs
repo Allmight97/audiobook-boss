@@ -4,7 +4,7 @@
 
 use audiobook_boss_lib::audio::{
     AudioFile, BitrateMode, ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType,
-    SampleRateConfig, ThreadSetting,
+    SampleRateConfig,
 };
 use std::path::PathBuf;
 
@@ -16,8 +16,6 @@ fn test_public_encoder_settings_and_sample_rate_compile() {
         bitrate_mode: BitrateMode::Cbr,
         channels: EncoderChannelConfig::Stereo,
         afterburner: false,
-        threads: ThreadSetting::Auto,
-        twoloop: true,
     };
     let sample_rate = SampleRateConfig::Explicit(44100);
 

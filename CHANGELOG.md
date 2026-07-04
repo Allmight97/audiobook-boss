@@ -35,6 +35,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   truthful duration and tag re-read. External FDK real-execution proof stays
   manual or env-gated because it requires a user-supplied `libfdk_aac`
   FFmpeg build.
+- Native AAC always uses FFmpeg's best coder (twoloop) — previously a
+  "Twoloop" checkbox appeared to control this but had no effect either way.
+  Apple AAC now pins its wrapper quality option explicitly at the best value
+  (the scale is inverted: 0 is best), guarding against accidental
+  degradation (#413).
+- The media test lane also covers sample-rate-converted merges and stereo
+  channel preservation (per-channel RMS on the decoded artifact), and its
+  Apple AAC tests skip cleanly on non-macOS agents (#413).
 
 ### Removed
 
@@ -42,6 +50,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   (added in 1.3.0). Normal saves still preserve Album sort (TSOA), Comment,
   Track, and Disc untouched — only the inspect/clear surface is gone while
   its purpose is re-evaluated (#411).
+- The Native AAC "Twoloop" checkbox and the internal encoder threads
+  setting: both were end-to-end no-ops (FFmpeg's coder default is already
+  twoloop; AAC encoders do not frame-thread). Saved settings containing the
+  old fields load cleanly (#413).
+
+### Fixed
+
+- Rate-converted encodes (output sample rate different from the source) no
+  longer drop the resampler's held-back tail at each file boundary — a few
+  milliseconds of end-of-file audio per input file — and upsampled inputs
+  stream converted audio steadily instead of buffering it until end of file
+  (#413).
 
 ## [1.3.0] - 2026-07-02
 

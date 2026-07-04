@@ -44,8 +44,6 @@ pub(crate) fn prepare_workspace(
         context.processing_workspace_root(),
     )?;
 
-    // Single engine: no concat file needed
-
     let total_duration = progress_total_duration(files, context.preview.as_ref());
 
     if context.is_cancelled() {

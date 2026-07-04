@@ -31,7 +31,6 @@ import type {
 	SampleRateConfig as GeneratedSampleRateConfig,
 	SupplementalProcessingAsset as GeneratedSupplementalProcessingAsset,
 	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
-	ThreadSetting as GeneratedThreadSetting,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
@@ -66,7 +65,6 @@ export type BitrateMode = GeneratedBitrateMode;
 export type BitrateModeKind = GeneratedBitrateModeKind;
 export type EncoderChannelConfig = GeneratedChannelConfig;
 export type EncoderType = GeneratedEncoderType;
-export type ThreadSetting = GeneratedThreadSetting;
 export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
@@ -130,8 +128,6 @@ export const defaultEncoderSettings = (): EncoderSettings => ({
 	bitrateMode: { mode: 'vbr', value: 3 },
 	channels: 'auto',
 	afterburner: true,
-	threads: { mode: 'auto' },
-	twoloop: true,
 });
 
 // Utility functions

@@ -1,4 +1,4 @@
-use crate::audio::settings_encoder::{BitrateMode, EncoderSettings, ThreadSetting};
+use crate::audio::settings_encoder::{BitrateMode, EncoderSettings};
 use crate::audio::{AudioFile, DecoderSelection};
 use std::ffi::OsString;
 use std::path::Path;
@@ -75,18 +75,6 @@ pub(super) fn build_ffmpeg_args(
         args.push(OsString::from(rate.to_string()));
     }
 
-    match settings.threads {
-        ThreadSetting::Auto => {}
-        ThreadSetting::Off => {
-            args.push(OsString::from("-threads"));
-            args.push(OsString::from("1"));
-        }
-        ThreadSetting::Fixed(value) => {
-            args.push(OsString::from("-threads"));
-            args.push(OsString::from(value.to_string()));
-        }
-    }
-
     args.push(temp_output.as_os_str().to_owned());
     args
 }
@@ -121,8 +109,6 @@ mod tests {
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
             afterburner: true,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         }
     }
 

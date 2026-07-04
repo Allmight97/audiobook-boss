@@ -42,7 +42,7 @@ fn debug_validate_frame_contract(
 /// Encodes frame and writes packets to output.
 ///
 /// Note: F32 sample sanitization (NaN/Inf → 0, clamp to [-1,1]) is handled upstream
-/// in `buffer.rs` `drain_one_f32_planar()`. FDK/AAC-AT use I16 format which doesn't
+/// in `buffer.rs` `drain_one_f32_planar()`. AAC-AT uses I16 format which doesn't
 /// need float sanitization.
 pub(crate) fn encode_and_write_frame(
     encoder: &mut ff::codec::encoder::audio::Encoder,
@@ -92,20 +92,4 @@ pub(crate) fn finalize_encoding(
         .write_trailer()
         .map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
     Ok(())
-}
-
-/// Flushes the encoder and writes trailer, used when preview early-stop is engaged
-pub(crate) fn finalize_encoding_after_preview(
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
-    output_stream_index: usize,
-    output_time_base: ff::Rational,
-) -> Result<()> {
-    // Currently identical to finalize_encoding; separated for clarity if preview finalization diverges.
-    finalize_encoding(
-        encoder,
-        output_context,
-        output_stream_index,
-        output_time_base,
-    )
 }

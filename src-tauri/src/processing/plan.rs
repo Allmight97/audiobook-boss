@@ -406,7 +406,7 @@ impl ResolvedProcessingPlan {
 #[cfg(test)]
 mod tests {
     use super::resolve_preflight_plan;
-    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType, ThreadSetting};
+    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
     use crate::processing::{JobType, ProcessPayload};
     use tempfile::TempDir;
 
@@ -417,8 +417,6 @@ mod tests {
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
             afterburner: true,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         }
     }
 

@@ -10,7 +10,6 @@ const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
 		handleChannelsSelectionChange: vi.fn(),
 		handleFlavorChange: vi.fn(),
 		handleFdkAfterburnerChange: vi.fn(),
-		handleNativeTwoloopChange: vi.fn(),
 		handleQualityValueChange: vi.fn(),
 		handleSampleRateSelectionChange: vi.fn(),
 		initializeEncoderPanelLogic: vi.fn(),

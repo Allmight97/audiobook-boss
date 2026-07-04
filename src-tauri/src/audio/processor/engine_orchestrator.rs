@@ -82,56 +82,55 @@ pub(crate) fn process_input_files(
         plan.input_file_paths.len()
     );
 
-    tokio::task::block_in_place(|| -> Result<()> {
-        for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
-            let file_label = in_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown");
-            ctx.current_file_name = file_label.to_string();
-            let path = sanitize_path_for_display(in_path);
-            log::info!("Processing input file {}/{}: {}", idx + 1, file_count, path);
-            let action = FfmpegNextProcessor::process_input_file(
-                in_path,
-                io.enc_ctx,
-                io.octx,
-                idx,
-                &mut ctx,
-                &mut accumulator,
-            )?;
-            log::info!(
-                "✓ Completed processing input file {}/{}",
-                idx + 1,
-                file_count
-            );
+    // This runs on the adapter's `spawn_blocking` thread (adapter.rs), so no
+    // additional `block_in_place` layer is needed here.
+    for (idx, in_path) in plan.input_file_paths.iter().enumerate() {
+        let file_label = in_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+        ctx.current_file_name = file_label.to_string();
+        let path = sanitize_path_for_display(in_path);
+        log::info!("Processing input file {}/{}: {}", idx + 1, file_count, path);
+        let action = FfmpegNextProcessor::process_input_file(
+            in_path,
+            io.enc_ctx,
+            io.octx,
+            idx,
+            &mut ctx,
+            &mut accumulator,
+        )?;
+        log::info!(
+            "✓ Completed processing input file {}/{}",
+            idx + 1,
+            file_count
+        );
 
-            if *ctx.early_stop {
+        if *ctx.early_stop {
+            log::info!(
+                "Preview boundary reached after file {}; stopping further input processing",
+                idx + 1
+            );
+            break;
+        }
+
+        match action {
+            PreviewAction::StopAll => {
                 log::info!(
-                    "Preview boundary reached after file {}; stopping further input processing",
+                    "Adaptive preview complete after file {}; stopping further input processing",
                     idx + 1
                 );
                 break;
             }
-
-            match action {
-                PreviewAction::StopAll => {
-                    log::info!(
-                        "Adaptive preview complete after file {}; stopping further input processing",
-                        idx + 1
-                    );
-                    break;
-                }
-                PreviewAction::NextFile => {
-                    log::info!(
-                        "Adaptive preview: file {} excerpt complete, continuing to next file",
-                        idx + 1
-                    );
-                }
-                PreviewAction::Continue => {}
+            PreviewAction::NextFile => {
+                log::info!(
+                    "Adaptive preview: file {} excerpt complete, continuing to next file",
+                    idx + 1
+                );
             }
+            PreviewAction::Continue => {}
         }
-        Ok(())
-    })?;
+    }
 
     log::info!("✓ All input files processed successfully");
     flush_accumulator_tail(io.enc_ctx, io.octx, &mut ctx, &mut accumulator)

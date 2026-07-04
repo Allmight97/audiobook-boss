@@ -1,6 +1,6 @@
 //! Common encoder helpers and utilities.
 
-use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType, ThreadSetting};
+use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType};
 use crate::audio::toolchain::EncoderAvailability;
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
@@ -99,11 +99,11 @@ impl EncoderFramePlan {
         }
 
         match resolved_encoder {
-            EncoderType::FdkHeAac | EncoderType::AacAt | EncoderType::NativeAac => Ok(Self {
+            EncoderType::AacAt | EncoderType::NativeAac => Ok(Self {
                 samples_per_frame: AAC_FRAME_QUANTUM_SAMPLES,
             }),
-            EncoderType::Auto => Err(AppError::General(
-                "Encoder frame plan requires a resolved encoder type.".to_string(),
+            EncoderType::FdkHeAac | EncoderType::Auto => Err(AppError::General(
+                "Encoder frame plan requires a resolved in-process encoder type.".to_string(),
             )),
         }
     }
@@ -170,27 +170,6 @@ pub(super) fn try_configure_variable_frame_size(
 
 // Target audio params now resolved via engine::resolve_target_audio_params
 
-pub(super) fn configure_threads(ctx: &mut ff::codec::context::Context, threads: ThreadSetting) {
-    let threads_value = match threads {
-        ThreadSetting::Auto => 0,
-        ThreadSetting::Off => 1,
-        ThreadSetting::Fixed(n) => n as i32,
-    };
-    if threads_value > 0 {
-        unsafe {
-            use std::ffi::CString;
-            let av_ctx = ctx.as_mut_ptr();
-            let key = CString::new("threads").expect("threads key should be valid");
-            let _ = ffmpeg_next::sys::av_opt_set_int(
-                av_ctx as *mut std::ffi::c_void,
-                key.as_ptr(),
-                threads_value as i64,
-                0,
-            );
-        }
-    }
-}
-
 #[cfg(test)]
 // EXCEPTION: tiny private frame-plan invariant tests; keeping them inline avoids widening the production API for test access.
 mod tests {
@@ -206,11 +185,7 @@ mod tests {
 
     #[test]
     fn frame_plan_uses_aac_quantum_for_variable_frame_encoders() {
-        for encoder in [
-            EncoderType::NativeAac,
-            EncoderType::AacAt,
-            EncoderType::FdkHeAac,
-        ] {
+        for encoder in [EncoderType::NativeAac, EncoderType::AacAt] {
             let plan = EncoderFramePlan::from_raw_frame_size(0, encoder)
                 .expect("resolved AAC encoder should have an explicit frame quantum");
 
@@ -219,11 +194,13 @@ mod tests {
     }
 
     #[test]
-    fn frame_plan_rejects_unresolved_auto_encoder() {
-        let err = EncoderFramePlan::from_raw_frame_size(0, EncoderType::Auto)
-            .expect_err("auto must be resolved before frame planning");
+    fn frame_plan_rejects_non_in_process_encoders() {
+        for encoder in [EncoderType::Auto, EncoderType::FdkHeAac] {
+            let err = EncoderFramePlan::from_raw_frame_size(0, encoder)
+                .expect_err("only resolved in-process encoders get a frame plan");
 
-        assert!(err.to_string().contains("resolved encoder type"));
+            assert!(err.to_string().contains("in-process encoder type"));
+        }
     }
 
     #[test]

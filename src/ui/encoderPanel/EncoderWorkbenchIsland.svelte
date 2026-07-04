@@ -7,7 +7,6 @@
 		handleChannelsSelectionChange,
 		handleFlavorChange,
 		handleFdkAfterburnerChange,
-		handleNativeTwoloopChange,
 		handleQualityValueChange,
 		handleSampleRateSelectionChange,
 		initializeEncoderPanelLogic,
@@ -154,28 +153,6 @@
 						onchange={handleFdkAfterburnerChange}
 					/>
 					<span class="option-label">Afterburner</span>
-				</label>
-			</div>
-
-			<div
-				id="native-options"
-				class="encoder-option-group"
-				class:hidden={!encoderPanelState.showNativeOptions}
-				data-testid="native-options"
-			>
-				<label
-					class="checkbox-label encoder-inline-toggle"
-					data-testid="twoloop-toggle"
-					title="Enable Twoloop (High Quality)"
-				>
-					<input
-						type="checkbox"
-						id="adv-native-twoloop"
-						data-testid="twoloop-checkbox"
-						checked={encoderPanelState.nativeTwoloop}
-						onchange={handleNativeTwoloopChange}
-					/>
-					<span class="option-label">Twoloop</span>
 				</label>
 			</div>
 		</div>

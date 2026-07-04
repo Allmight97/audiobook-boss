@@ -390,14 +390,13 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     );
     let _ = writeln!(
         output,
-        "encoder_settings encoder_type={:?} bitrate_mode={:?} bitrate_kbps={} channels={:?} sample_rate={:?} afterburner={} threads={:?}",
+        "encoder_settings encoder_type={:?} bitrate_mode={:?} bitrate_kbps={} channels={:?} sample_rate={:?} afterburner={}",
         entry.context.encoder_settings.encoder_type,
         entry.context.encoder_settings.bitrate_mode,
         entry.context.encoder_settings.bitrate_kbps,
         entry.context.encoder_settings.channels,
         entry.context.sample_rate,
-        entry.context.encoder_settings.afterburner,
-        entry.context.encoder_settings.threads
+        entry.context.encoder_settings.afterburner
     );
     let _ = writeln!(
         output,
@@ -500,7 +499,7 @@ mod tests {
     use super::*;
     use crate::audio::toolchain::{EncoderCapabilitySource, ExternalDecoderCapabilities};
     use crate::audio::{
-        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
+        BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
     };
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
     use std::path::PathBuf;
@@ -513,8 +512,6 @@ mod tests {
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
             afterburner: true,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         }
     }
 

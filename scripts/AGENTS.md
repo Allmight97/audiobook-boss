@@ -32,8 +32,9 @@ commands over invoking internals directly.
   and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
   the Native AAC and Apple AAC encoder routes (external FDK is excluded: it
   needs a user-supplied libfdk_aac FFmpeg, so real-execution proof for it is
-  manual or env-gated only), cover art, chapters, metadata round-trips, and
-  cancellation. All fixtures
+  manual or env-gated only; Apple AAC is macOS-gated and skips elsewhere),
+  sample-rate-converted merges, stereo channel preservation (per-channel RMS),
+  cover art, chapters, metadata round-trips, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via libmp3lame, M4B from the
   engine's own output) — never commit media files. Focused command:
   `cargo nextest run -p audiobook-boss --test all_tests -E 'test(media_execution)'`
@@ -105,3 +106,18 @@ commands over invoking internals directly.
   domain logic through filtered broad-crate tests when a core crate can own it.
 - Do not recreate custom runner aliases without explicit repo-owner approval.
 - New scripts need an obvious public command, package script, or usage header.
+
+## Linux Agent Environment (media lane)
+
+- The runtime suite links FFmpeg at the pinned major (see
+  `vendor/ffmpeg-sys-next-*`, which clones `release/<major>.<minor>`). On a
+  Linux agent, build that FFmpeg branch from source and export
+  `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig` and `LD_LIBRARY_PATH=<prefix>/lib`
+  before `cargo test`. Distro FFmpeg 6.x fails the media lane with
+  swresample "Input changed" errors on WAV inputs — that is an FFmpeg-version
+  artifact, not a code regression.
+- Tauri test builds need `libgtk-3-dev`/`libwebkit2gtk-4.1-dev` and an
+  executable stub at `binaries/abb-aaxclean-helper-<host-triple>`
+  (gitignored; any `exit 0` script satisfies the resource check).
+- Apple AAC lane tests are macOS-gated and skip cleanly elsewhere; external
+  FDK remains manual/env-gated by design.

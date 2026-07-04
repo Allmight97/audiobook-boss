@@ -6,7 +6,7 @@
 
 use audiobook_boss_lib::audio::{
     encoder_settings_capabilities, validate_encoder_settings, validate_sample_rate_config,
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig, ThreadSetting,
+    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
 
 #[test]
@@ -29,8 +29,6 @@ fn exposed_encoder_capabilities_match_validators() {
             bitrate_mode: BitrateMode::Vbr(capabilities.vbr_level_default),
             channels: ChannelConfig::Auto,
             afterburner: true,
-            threads: ThreadSetting::Auto,
-            twoloop: true,
         };
         validate_encoder_settings(&settings).expect("exposed bitrate should validate for FDK VBR");
     }
@@ -52,8 +50,6 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
             bitrate_mode: entry.default_mode,
             channels: ChannelConfig::Auto,
             afterburner: true,
-            threads: ThreadSetting::Fixed(capabilities.thread_fixed_min),
-            twoloop: true,
         };
 
         validate_encoder_settings(&settings)
