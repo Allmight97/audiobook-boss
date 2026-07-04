@@ -67,24 +67,29 @@ vi.mock('../../statusPanel/index', () => ({
 	},
 }));
 
-vi.mock('../../metadataForm', () => ({
-	readMetadataFormPreviewValues: vi.fn(() => ({
-		title: '',
-		author: '',
-		narrator: '',
-		series: '',
-		seriesPart: '',
-		subseries: '',
-		subseriesPart: '',
-		year: '',
-		genre: '',
-	})),
-	initMetadataFormEvents: vi.fn(),
-	readMetadataForm: vi.fn(() => ({})),
-	resetDirtyState: context.resetDirtyStateMock,
-	onMetadataFormFieldInput: vi.fn(),
-	onMetadataFormActionSelectChange: vi.fn(),
-}));
+vi.mock('../../metadataForm', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../metadataForm')>();
+	return {
+		...actual,
+		readMetadataFormPreviewValues: vi.fn(() => ({
+			title: '',
+			author: '',
+			narrator: '',
+			series: '',
+			seriesPart: '',
+			subseries: '',
+			subseriesPart: '',
+			year: '',
+			genre: '',
+		})),
+		initMetadataFormEvents: vi.fn(),
+		readMetadataForm: vi.fn(() => ({})),
+		readMetadataFormViewSnapshot: vi.fn(() => ({ mode: 'single', selectionCount: 0 })),
+		resetDirtyState: context.resetDirtyStateMock,
+		onMetadataFormFieldInput: vi.fn(),
+		onMetadataFormActionSelectChange: vi.fn(),
+	};
+});
 
 vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,

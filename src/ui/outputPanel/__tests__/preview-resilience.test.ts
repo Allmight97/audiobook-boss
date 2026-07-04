@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
 import OutputPanelIsland from '../OutputPanelIsland.svelte';
 import { setJobTypeSelection } from '../../jobControls';
-import { populateMetadataFormMulti, populateMetadataFormSingle } from '../../metadataForm';
-import { metadataFormState } from '../../metadataForm/state.svelte';
+import {
+	MetadataFormFieldsIsland,
+	populateMetadataFormMulti,
+	populateMetadataFormSingle,
+} from '../../metadataForm';
 import { updateOutputPath } from '../preview';
 import {
 	outputPanelState,
@@ -32,6 +35,11 @@ describe('output panel preview resilience', () => {
 		updateOutputDirectory('');
 		setOutputPreview('Select output directory...', 'No directory selected');
 		render(OutputPanelIsland);
+		render(MetadataFormFieldsIsland, {
+			onFieldInput: vi.fn(),
+			onActionChange: vi.fn(),
+			onSaveMetadata: vi.fn(),
+		});
 		await Promise.resolve();
 		populateMetadataFormSingle({
 			title: 'Ghosts',
@@ -130,6 +138,6 @@ describe('output panel preview resilience', () => {
 			expect(outputPanelState.previewText).toContain('Dune');
 		});
 		expect(outputPanelState.previewText).not.toContain('Unknown Author');
-		expect(metadataFormState.seriesPartWarning.visible).toBe(true);
+		expect(document.getElementById('meta-series-part-warning')?.hidden).toBe(false);
 	});
 });

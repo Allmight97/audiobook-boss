@@ -7,11 +7,13 @@
 	import CoverArtIsland from '../coverArt/CoverArtIsland.svelte';
 	import { saveMetadataFromUI } from '../metadataSession';
 	import {
+		MetadataFormFieldsIsland,
 		onMetadataFormActionSelectChange,
 		onMetadataFormFieldInput,
+		readMetadataFormViewSnapshot,
 	} from '../metadataForm';
-	import MetadataFormFieldsIsland from '../metadataForm/MetadataFormFieldsIsland.svelte';
-	import { metadataFormState } from '../metadataForm/state.svelte';
+
+	const metadataFormSnapshot = $derived(readMetadataFormViewSnapshot());
 </script>
 
 <section class="metadata-manager" data-testid="metadata-manager" aria-label="Metadata Manager">
@@ -21,11 +23,11 @@
 	<div
 		id="metadata-selection-count"
 		class="text-xs muted-text mb-2"
-		hidden={metadataFormState.mode !== 'multi' || metadataFormState.selectionCount <= 1}
+		hidden={metadataFormSnapshot.mode !== 'multi' || metadataFormSnapshot.selectionCount <= 1}
 	>
-		{metadataFormState.selectionCount} files selected
+		{metadataFormSnapshot.selectionCount} files selected
 	</div>
-	<div id="metadata-form" data-multi-select={metadataFormState.mode === 'multi'}>
+	<div id="metadata-form" data-multi-select={metadataFormSnapshot.mode === 'multi'}>
 		<div class="metadata-manager-layout">
 			<div class="metadata-cover-cell">
 				<CoverArtIsland

@@ -22,12 +22,23 @@ import {
 	setMetadataFormFieldValue,
 	setMetadataFormModeState,
 	resetMetadataFormWarnings,
+	setSeriesPartWarning,
+	setSubseriesPartWarning,
 	type MetadataActionId,
 	type MetadataFieldId,
 	type MetadataFieldAction,
 	type MetadataFormMode,
 } from './state.svelte';
 import { updateTagPreview } from '../tagPreview';
+
+export { default as MetadataFormFieldsIsland } from './MetadataFormFieldsIsland.svelte';
+
+export type MetadataFormValidationWarnings = {
+	byField?: {
+		series_part?: string;
+		subseries_part?: string;
+	};
+};
 
 function readFieldValue(inputId: MetadataFieldId): string {
 	return metadataFormState.fields[inputId].value;
@@ -47,6 +58,16 @@ function isDirty(inputId: MetadataFieldId): boolean {
 
 export function setMetadataFormMode(mode: MetadataFormMode, selectionCount?: number): void {
 	setMetadataFormModeState(mode, selectionCount);
+}
+
+export function readMetadataFormViewSnapshot(): {
+	mode: MetadataFormMode;
+	selectionCount: number;
+} {
+	return {
+		mode: metadataFormState.mode,
+		selectionCount: metadataFormState.selectionCount,
+	};
 }
 
 export function initMetadataFormEvents(): void {
@@ -214,6 +235,64 @@ export function applyMetadataToForm(
 	}
 
 	updateTagPreview();
+}
+
+function updateSeriesPartWarning(
+	metadata: Partial<AudiobookMetadata>,
+	seriesPartError: string | null,
+): void {
+	const seriesValue = metadata.series?.trim() ?? '';
+	const seriesPartValue = metadata.series_part?.trim() ?? '';
+	const subseriesValue = metadata.subseries?.trim() ?? '';
+	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
+
+	if (seriesPartError) {
+		setSeriesPartWarning(seriesPartError, true);
+		return;
+	}
+
+	const shouldShowDuplicate =
+		seriesValue.length > 0 &&
+		subseriesValue.length > 0 &&
+		seriesPartValue.length > 0 &&
+		subseriesPartValue.length > 0 &&
+		seriesPartValue === subseriesPartValue;
+
+	if (shouldShowDuplicate) {
+		const message =
+			'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.';
+		setSeriesPartWarning(message, true);
+		return;
+	}
+
+	const message = 'Series detected - add Book # (series sequence) for ABS ordering.';
+	const visible = seriesValue.length > 0 && seriesPartValue.length === 0;
+	setSeriesPartWarning(message, visible);
+}
+
+function updateSubseriesPartWarning(
+	metadata: Partial<AudiobookMetadata>,
+	subseriesPartError: string | null,
+): void {
+	const subseriesValue = metadata.subseries?.trim() ?? '';
+	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
+
+	if (subseriesPartError) {
+		setSubseriesPartWarning(subseriesPartError, true);
+		return;
+	}
+
+	const message = 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.';
+	const visible = subseriesValue.length > 0 && subseriesPartValue.length === 0;
+	setSubseriesPartWarning(message, visible);
+}
+
+export function applyMetadataFormValidationWarnings(
+	metadata: Partial<AudiobookMetadata>,
+	errors: MetadataFormValidationWarnings,
+): void {
+	updateSeriesPartWarning(metadata, errors.byField?.series_part ?? null);
+	updateSubseriesPartWarning(metadata, errors.byField?.subseries_part ?? null);
 }
 
 export function readMetadataForm(options?: {

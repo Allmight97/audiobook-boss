@@ -1,5 +1,18 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import {
+		MetadataFormFieldsIsland,
+		onMetadataFormActionSelectChange,
+		onMetadataFormFieldInput,
+	} from '../ui/metadataForm';
+	import {
+		applyMetadataFormLabPreset,
+		metadataFormLabPresets,
+		type MetadataFormLabPresetId,
+	} from '../ui/metadataForm/labFixtures';
+
 	let density = $state<'comfortable' | 'compact'>('comfortable');
+	let activeMetadataPreset = $state<MetadataFormLabPresetId>('single-clean-populated');
 
 	function setDensity(next: 'comfortable' | 'compact'): void {
 		density = next;
@@ -9,6 +22,15 @@
 			delete document.documentElement.dataset.density;
 		}
 	}
+
+	function setMetadataPreset(next: MetadataFormLabPresetId): void {
+		activeMetadataPreset = next;
+		applyMetadataFormLabPreset(next);
+	}
+
+	onMount(() => {
+		applyMetadataFormLabPreset(activeMetadataPreset);
+	});
 
 	const colorTokens = [
 		'--bg-main',
@@ -34,6 +56,77 @@
 	const typeTokens = ['--text-xs', '--text-sm', '--text-md', '--text-lg', '--text-xl'];
 	const radiusTokens = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-pill'];
 	const progressStops = [0, 37, 64, 100];
+	const stateFixtures = [
+		{
+			id: 'empty',
+			label: 'Empty',
+			body: 'Drop audiobook files to begin.',
+			meta: 'No selection',
+			tone: 'neutral',
+			progress: 0,
+		},
+		{
+			id: 'loading',
+			label: 'Loading',
+			body: 'Reading metadata from selected files.',
+			meta: 'Pending',
+			tone: 'neutral',
+			progress: 12,
+		},
+		{
+			id: 'progress',
+			label: 'Progress',
+			body: 'Encoding chapter 02 of 06.',
+			meta: '42%',
+			tone: 'active',
+			progress: 42,
+		},
+		{
+			id: 'error',
+			label: 'Error',
+			body: 'Chapter 03 could not be decoded.',
+			meta: 'Action needed',
+			tone: 'error',
+			progress: 64,
+		},
+		{
+			id: 'success',
+			label: 'Terminal success',
+			body: 'Output committed to the selected folder.',
+			meta: 'Complete',
+			tone: 'success',
+			progress: 100,
+		},
+		{
+			id: 'failure',
+			label: 'Terminal failure',
+			body: 'No output was written for this operation.',
+			meta: 'Failed',
+			tone: 'error',
+			progress: 100,
+		},
+		{
+			id: 'selected',
+			label: 'Selected row',
+			body: '01 - Opening Moves.m4b',
+			meta: '1 selected',
+			tone: 'selected',
+			progress: 0,
+		},
+		{
+			id: 'multi-selected',
+			label: 'Multi-selected rows',
+			body: '03 selected files share pending metadata edits.',
+			meta: '3 selected',
+			tone: 'selected',
+			progress: 0,
+		},
+	] as const;
+
+	const activeMetadataPresetDetails = $derived(
+		metadataFormLabPresets.find((preset) => preset.id === activeMetadataPreset) ??
+			metadataFormLabPresets[0],
+	);
 </script>
 
 <div class="lab">
@@ -183,6 +276,62 @@
 			</p>
 		</div>
 	</section>
+
+	<section class="panel lab-section" data-testid="state-fixtures-section">
+		<h3>State fixtures</h3>
+		<div class="lab-state-grid">
+			{#each stateFixtures as fixture}
+				<article
+					class="lab-state-card"
+					class:is-active={fixture.tone === 'active'}
+					class:is-error={fixture.tone === 'error'}
+					class:is-success={fixture.tone === 'success'}
+					class:is-selected={fixture.tone === 'selected'}
+					data-testid={`lab-state-${fixture.id}`}
+				>
+					<div class="lab-state-card-head">
+						<strong>{fixture.label}</strong>
+						<span class="text-xs muted-text">{fixture.meta}</span>
+					</div>
+					<p class="text-xs">{fixture.body}</p>
+					<div class="app-progress-track" aria-label={`${fixture.label} progress`}>
+						<div class="app-progress-fill" style={`width: ${fixture.progress}%`}></div>
+					</div>
+				</article>
+			{/each}
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="metadata-form-fixtures-section">
+		<div class="lab-section-head">
+			<div>
+				<h3>Metadata form presets</h3>
+				<p class="text-xs muted-text">{activeMetadataPresetDetails?.summary}</p>
+			</div>
+			<div class="lab-preset-controls" role="group" aria-label="Metadata form presets">
+				{#each metadataFormLabPresets as preset}
+					<button
+						class="btn-pill"
+						class:btn-pill-primary={activeMetadataPreset === preset.id}
+						class:btn-pill-secondary={activeMetadataPreset !== preset.id}
+						type="button"
+						data-testid={`metadata-preset-${preset.id}`}
+						aria-pressed={activeMetadataPreset === preset.id}
+						onclick={() => setMetadataPreset(preset.id)}
+					>
+						{preset.label}
+					</button>
+				{/each}
+			</div>
+		</div>
+		<div class="lab-metadata-fixture" data-testid={`metadata-fixture-${activeMetadataPreset}`}>
+			<MetadataFormFieldsIsland
+				onFieldInput={onMetadataFormFieldInput}
+				onActionChange={onMetadataFormActionSelectChange}
+				onSaveMetadata={() => {}}
+			/>
+		</div>
+	</section>
 </div>
 
 <style>
@@ -212,6 +361,18 @@
 
 	.lab-section h3 {
 		margin-bottom: var(--space-3);
+	}
+
+	.lab-section-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-bottom: var(--space-3);
+	}
+
+	.lab-section-head h3 {
+		margin-bottom: var(--space-1);
 	}
 
 	.lab-swatches {
@@ -314,5 +475,60 @@
 	.lab-mono {
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
+	}
+
+	.lab-state-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		gap: var(--space-2);
+	}
+
+	.lab-state-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		min-height: 7rem;
+		padding: var(--space-3);
+		border: 1px solid var(--border-primary);
+		border-radius: var(--radius-md);
+		background: var(--bg-input);
+	}
+
+	.lab-state-card-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+
+	.lab-state-card.is-active {
+		border-color: var(--accent-primary);
+	}
+
+	.lab-state-card.is-error {
+		border-color: var(--text-error);
+	}
+
+	.lab-state-card.is-success {
+		border-color: var(--text-success);
+	}
+
+	.lab-state-card.is-selected {
+		border-color: var(--border-focus);
+		background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-input));
+	}
+
+	.lab-preset-controls {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: var(--space-2);
+	}
+
+	.lab-metadata-fixture {
+		padding: var(--space-3);
+		border: 1px solid var(--border-secondary);
+		border-radius: var(--radius-md);
+		background: var(--bg-panel);
 	}
 </style>
