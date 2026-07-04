@@ -28,9 +28,11 @@
 - Finalization reports success only after the output artifact boundary returns final artifact truth.
 - Processor code must not directly perform final artifact `rename`, `copy`, or
   `hard_link`; final artifact commit truth lives in `output_artifact`.
-- External FDK and native engine paths must use the shared finalization handoff;
-  adapter-specific code may stage media locally and write metadata, but final artifact
-  commit and success wording remain centralized.
+- External FDK and native engine paths must use the shared final artifact commit
+  handoff. Adapter-specific code may stage media locally, but final artifact
+  commit and success wording remain centralized. MP4-family tag truth must route
+  through the mp4ameta metadata writer, not a bare remux — the mov muxer
+  silently drops non-native tag keys.
 - Preview artifacts intentionally omit chapter passthrough/preview chapters
   unless a future product decision wires real chapter emission and proves it
   against actual artifact metadata.

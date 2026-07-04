@@ -10,7 +10,7 @@ use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::merge_passthrough_cover_art;
-use crate::metadata::{rewrite_metadata_with_ffmpeg, AudiobookMetadata, CoverArtPassthroughPolicy};
+use crate::metadata::{finalize_artifact_metadata, AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -89,13 +89,13 @@ pub(super) async fn process_audiobook_with_external_fdk(
     if effective_metadata.is_some() || passthrough.is_some() {
         ui.emit_metadata_start("Re-applying metadata and cover art...");
         let metadata_started = Instant::now();
-        rewrite_metadata_with_ffmpeg(
+        finalize_artifact_metadata(
             &temp_output,
             effective_metadata.as_ref(),
             passthrough.as_ref(),
         )?;
         log::info!(
-            "external_fdk_metadata_rewrite status=ok elapsed_ms={}",
+            "external_fdk_metadata_finalize status=ok elapsed_ms={}",
             metadata_started.elapsed().as_millis()
         );
         ui.emit_finalizing("Finalizing metadata...");

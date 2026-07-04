@@ -284,3 +284,16 @@
 - Guardrail: any new resample site must either reuse this pipeline or both size
   output buffers from swr delay and flush its own swr delay before reporting a
   file complete.
+
+## 2026-07-04 - MP4 Artifact Tags Must Not Depend On Bare Remux
+
+- External FDK finalization remuxes for chapters/cover, then rewrites
+  MP4-family tag truth through mp4ameta. Native finalization already muxes
+  chapters/cover in-process and keeps its direct mp4ameta metadata write.
+- Evidence: the FFmpeg mov muxer drops dict keys outside its known-atom table
+  (`series`, `series-part`, iTunes freeform mirrors, `sort_album`), so the
+  external FDK adapter's remux-only finalize lost those tags; pinned by
+  `artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route`
+  (ABB readback + external `ffprobe` proof).
+- Guardrail: an encoder path may not write MP4-family artifact tag truth through
+  the FFmpeg dictionary alone.

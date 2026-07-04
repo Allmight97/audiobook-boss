@@ -128,6 +128,8 @@ persist_linux_ffmpeg_paths() {
 	{
 		printf 'export PKG_CONFIG_PATH="%s${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"\n' "${ffmpeg_prefix}/lib/pkgconfig"
 		printf 'export LD_LIBRARY_PATH="%s${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n' "${ffmpeg_prefix}/lib"
+		# Media-lane external-reader proofs spawn ffprobe from PATH.
+		printf 'export PATH="%s/bin:$PATH"\n' "${ffmpeg_prefix}"
 	} > "${local_env_file}"
 
 	touch "${HOME}/.bashrc"

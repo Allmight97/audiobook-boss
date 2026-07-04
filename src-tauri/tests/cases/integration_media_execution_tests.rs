@@ -28,13 +28,53 @@ use audiobook_boss_lib::audio::{
 use audiobook_boss_lib::processing::job_registry::{JobId, JobRegistry};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use audiobook_boss_lib::{
-    extract_passthrough_metadata, read_metadata, save_metadata_intent, AlbumSortPatchOp, AppError,
-    AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PassthroughSource, PatchOp,
+    extract_passthrough_metadata, finalize_artifact_metadata, read_metadata, save_metadata_intent,
+    AlbumSortPatchOp, AppError, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
+    PassthroughSource, PatchOp,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
 use tempfile::TempDir;
+
+/// External-reader tag truth: ffprobe's view of the container's format tags.
+/// Requires an `ffprobe` binary on PATH (or via `ABB_FFPROBE`); the media lane
+/// environments provide one (`scripts/AGENTS.md`).
+fn ffprobe_format_tags(path: &Path) -> serde_json::Map<String, serde_json::Value> {
+    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
+    let output = Command::new(&binary)
+        .args(["-v", "quiet", "-print_format", "json", "-show_format"])
+        .arg(path)
+        .output()
+        .unwrap_or_else(|error| {
+            panic!("ffprobe (FFmpeg CLI) must be on PATH or set via ABB_FFPROBE for external-reader tag proof; spawning `{binary}` failed: {error}")
+        });
+    assert!(
+        output.status.success(),
+        "ffprobe failed for {}: {}",
+        path.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse ffprobe JSON");
+    parsed
+        .get("format")
+        .and_then(|format| format.get("tags"))
+        .and_then(serde_json::Value::as_object)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Case-insensitive tag lookup: MP4 freeform atom families differing only in
+/// name case collapse into one ffprobe dict entry whose case follows atom
+/// order, so exact-case assertions would be brittle.
+fn ffprobe_tag_ci(tags: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<String> {
+    tags.iter()
+        .find(|(tag_key, _)| tag_key.eq_ignore_ascii_case(key))
+        .and_then(|(_, value)| value.as_str().map(str::to_string))
+}
 
 const SAMPLE_RATE: u32 = 44_100;
 
@@ -329,6 +369,98 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
         cleared.title.as_deref(),
         Some("Renamed Artifact Book"),
         "primary fields untouched by artifact clears"
+    );
+}
+
+/// The external FDK adapter finalizes a freshly encoded M4B by re-applying
+/// effective metadata and chapter/cover passthrough onto the artifact. This
+/// pins the container-aware finalize owner: series-family tags and album_sort
+/// must land as real MP4 atoms (the FFmpeg mov muxer silently drops dict keys
+/// outside its known-atom table), and the chapters written by the remux must
+/// survive the MP4 tag rewrite. Proven against ABB readback AND ffprobe.
+#[tokio::test]
+async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
+    let durations = [1.0, 1.5];
+    let lane = MediaLane::with_fixtures(&durations);
+    let output = lane.process(None).await;
+
+    let sources: Vec<PassthroughSource> = lane
+        .inputs
+        .iter()
+        .zip(durations)
+        .map(|(path, duration)| PassthroughSource {
+            path: path.clone(),
+            duration: Some(duration),
+            is_valid: true,
+        })
+        .collect();
+    let passthrough = extract_passthrough_metadata(&sources);
+    assert_eq!(
+        passthrough.chapters.len(),
+        2,
+        "chapterless multi-file sources synthesize one chapter per file"
+    );
+
+    let metadata = AudiobookMetadata {
+        title: Some("Finalized Title".to_string()),
+        artist: Some("Finalized Author".to_string()),
+        series: Some("Finalize Series".to_string()),
+        series_part: Some("3".to_string()),
+        album_sort: Some("Finalize Series 03 - Finalized Title".to_string()),
+        ..Default::default()
+    };
+
+    finalize_artifact_metadata(&output, Some(&metadata), Some(&passthrough))
+        .expect("artifact metadata finalize");
+
+    // ABB readback: the same reader the app uses after import.
+    let read_back = read_metadata(&output).expect("read finalized artifact");
+    assert_eq!(read_back.title.as_deref(), Some("Finalized Title"));
+    assert_eq!(
+        read_back.series.as_deref(),
+        Some("Finalize Series"),
+        "series must survive artifact finalize on the MP4 route"
+    );
+    assert_eq!(read_back.series_part.as_deref(), Some("3"));
+    assert_eq!(
+        read_back.album_sort.as_deref(),
+        Some("Finalize Series 03 - Finalized Title"),
+        "album_sort must survive artifact finalize on the MP4 route"
+    );
+
+    // External-reader truth, not just ABB readback.
+    let tags = ffprobe_format_tags(&output);
+    assert_eq!(
+        ffprobe_tag_ci(&tags, "title").as_deref(),
+        Some("Finalized Title")
+    );
+    assert_eq!(
+        ffprobe_tag_ci(&tags, "series").as_deref(),
+        Some("Finalize Series"),
+        "series must be externally visible; full tags: {tags:?}"
+    );
+    assert_eq!(
+        ffprobe_tag_ci(&tags, "series-part").as_deref(),
+        Some("3"),
+        "series-part must be externally visible; full tags: {tags:?}"
+    );
+    assert_eq!(
+        ffprobe_tag_ci(&tags, "sort_album").as_deref(),
+        Some("Finalize Series 03 - Finalized Title"),
+        "album-sort must be externally visible; full tags: {tags:?}"
+    );
+
+    // Chapters written during finalize survive the MP4 tag rewrite.
+    let artifact_chapters = extract_passthrough_metadata(&[PassthroughSource {
+        path: output.clone(),
+        duration: None,
+        is_valid: true,
+    }])
+    .chapters;
+    assert_eq!(
+        artifact_chapters.len(),
+        2,
+        "finalized artifact keeps both passthrough chapters"
     );
 }
 
