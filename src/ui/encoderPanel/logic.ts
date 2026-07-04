@@ -1,6 +1,7 @@
 import { updateEstimatedSize } from '../outputPanel';
 import {
 	applyEncoderDefaults,
+	bitrateModeSelectionFromKind,
 	encoderPanelState,
 	readEncoderDefaultsFromState,
 	setEncoderSettingsCapabilities,
@@ -161,10 +162,6 @@ const updateAvailabilityHint = (): void => {
 const updateProfileDisplay = (encoder: EncoderFlavor): void => {
 	encoderPanelState.profileDisplay = ENCODER_PROFILES[encoder] ?? 'AAC-LC';
 };
-
-function bitrateModeSelectionFromKind(kind: string): BitrateModeSelection {
-	return kind === 'cvbr' || kind === 'cbr' ? kind : 'vbr';
-}
 
 function bitrateModeSelectionFromMode(mode: { mode: string }): BitrateModeSelection {
 	return bitrateModeSelectionFromKind(mode.mode);

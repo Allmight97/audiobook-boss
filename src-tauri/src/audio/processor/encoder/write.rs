@@ -93,19 +93,3 @@ pub(crate) fn finalize_encoding(
         .map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
     Ok(())
 }
-
-/// Flushes the encoder and writes trailer, used when preview early-stop is engaged
-pub(crate) fn finalize_encoding_after_preview(
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
-    output_stream_index: usize,
-    output_time_base: ff::Rational,
-) -> Result<()> {
-    // Currently identical to finalize_encoding; separated for clarity if preview finalization diverges.
-    finalize_encoding(
-        encoder,
-        output_context,
-        output_stream_index,
-        output_time_base,
-    )
-}

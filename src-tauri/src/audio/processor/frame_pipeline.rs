@@ -97,12 +97,13 @@ fn check_per_file_preview_stop(ctx: &mut FramePipelineCtx) -> PreviewAction {
     PreviewAction::Continue
 }
 
-/// Single-file preview early-stop check (used when preview_state is None)
+/// Single-file preview early-stop check (used when preview_state is None).
+/// Communicates purely through the `ctx.early_stop` side effect.
 #[inline]
-fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) -> bool {
+fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) {
     // Skip if adaptive preview is active (handled by check_per_file_preview_stop)
     if ctx.preview_state.is_some() {
-        return false;
+        return;
     }
 
     if let Some(preview) = ctx.context.preview.as_ref() {
@@ -116,10 +117,8 @@ fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) -> bool {
                 );
             }
             *ctx.early_stop = true;
-            return true;
         }
     }
-    false
 }
 
 fn process_and_encode_frame(

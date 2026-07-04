@@ -144,7 +144,7 @@ impl FfmpegNextProcessor {
 
         // Finalize encoding (same path for full encode or preview early-stop)
         log::info!("🏁 Starting encoding finalization...");
-        crate::audio::processor::encoder::finalize_encoding_after_preview(
+        crate::audio::processor::encoder::finalize_encoding(
             &mut enc_ctx,
             &mut octx,
             ost_index,

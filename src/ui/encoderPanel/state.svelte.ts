@@ -196,7 +196,7 @@ function rangeOptions(min: number, max: number): number[] {
 	return values;
 }
 
-function bitrateModeSelectionFromKind(kind: string): BitrateModeSelection {
+export function bitrateModeSelectionFromKind(kind: string): BitrateModeSelection {
 	return kind === 'cvbr' || kind === 'cbr' ? kind : 'vbr';
 }
 
