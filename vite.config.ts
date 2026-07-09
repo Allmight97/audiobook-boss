@@ -20,7 +20,6 @@ function removeCrossoriginPlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-	appType: 'mpa',
 	plugins: [tailwindcss(), svelte(), removeCrossoriginPlugin()],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

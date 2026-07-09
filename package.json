@@ -13,7 +13,7 @@
 		"fmt:check": "bunx @biomejs/biome format --no-errors-on-unmatched . && bunx prettier --check \"src/**/*.svelte\"",
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",
 		"lint:check": "bunx @biomejs/biome lint --no-errors-on-unmatched .",
-		"check:svelte": "svelte-check --tsconfig ./tsconfig.json",
+		"check:svelte": "svelte-check --tsconfig ./src/tsconfig.svelte-check.json",
 		"audit": "cargo audit -D warnings",
 		"preview": "vite preview",
 		"tauri": "tauri",

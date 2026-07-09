@@ -1,4 +1,4 @@
-# Direction v3 interactive shell
+# UI redesign prototype shell
 
 Browser-only living prototype for the **new** UI direction (#412). This is the
 reaction surface for owner review — not production code, not the current app.
@@ -17,7 +17,7 @@ Open **http://localhost:1420/prototype.html**
 | --- | --- | --- |
 | Current app | `/` | Production islands (unchanged until Slice 3) |
 | Design lab | `/lab.html` | Token + primitive catalog (ingredients) |
-| **Direction shell** | `/prototype.html` | **Full v3 window mock** — layout from `docs/design/ui-directions-v3.html`, styled with `src/styles.css` tokens and primitives |
+| **Direction shell** | `/prototype.html` | **Full v3 window mock** on branch `ui/redesign-prototype` |
 | Static mock | `docs/design/ui-directions-v3.html` | Lineage reference; open in any browser |
 
 ## What is real vs mocked
