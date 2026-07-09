@@ -163,7 +163,7 @@
 	<section class="panel lab-section">
 		<h3>Color tokens</h3>
 		<div class="lab-swatches">
-			{#each colorTokens as token}
+			{#each colorTokens as token (token)}
 				<div class="lab-swatch">
 					<div class="lab-swatch-chip" style={`background: var(${token})`}></div>
 					<code class="text-xs">{token}</code>
@@ -177,7 +177,7 @@
 		<div class="lab-scale-grid">
 			<div>
 				<h4 class="text-xs muted-text">Spacing</h4>
-				{#each spaceTokens as token}
+				{#each spaceTokens as token (token)}
 					<div class="lab-space-row">
 						<code class="text-xs">{token}</code>
 						<div class="lab-space-bar" style={`width: var(${token})`}></div>
@@ -186,7 +186,7 @@
 			</div>
 			<div>
 				<h4 class="text-xs muted-text">Type</h4>
-				{#each typeTokens as token}
+				{#each typeTokens as token (token)}
 					<div style={`font-size: var(${token})`}>
 						Aa — the quick brown fox <code class="text-xs">{token}</code>
 					</div>
@@ -195,7 +195,7 @@
 			<div>
 				<h4 class="text-xs muted-text">Radius</h4>
 				<div class="lab-radius-row">
-					{#each radiusTokens as token}
+					{#each radiusTokens as token (token)}
 						<div class="lab-radius-chip" style={`border-radius: var(${token})`}>
 							<code class="text-xs">{token.replace('--radius-', '')}</code>
 						</div>
@@ -225,7 +225,7 @@
 	<section class="panel lab-section">
 		<h3>Progress (app-progress-track / app-progress-fill)</h3>
 		<div class="lab-stack">
-			{#each progressStops as stop}
+			{#each progressStops as stop (stop)}
 				<div class="lab-progress-row">
 					<code class="text-xs lab-progress-label">{stop}%</code>
 					<div class="app-progress-track" style="flex: 1">
@@ -265,7 +265,7 @@
 	<section class="panel lab-section">
 		<h3>Density-driven rows</h3>
 		<div class="lab-stack">
-			{#each ['01 - Prologue.m4b', '02 - The First Step.m4b', '03 - Into the Unknown.m4b'] as name, i}
+			{#each ['01 - Prologue.m4b', '02 - The First Step.m4b', '03 - Into the Unknown.m4b'] as name, i (name)}
 				<div class="lab-density-row" class:lab-density-row-sel={i === 1}>
 					<span>{name}</span>
 					<span class="muted-text lab-mono">00:{18 + i}:45</span>
@@ -280,7 +280,7 @@
 	<section class="panel lab-section" data-testid="state-fixtures-section">
 		<h3>State fixtures</h3>
 		<div class="lab-state-grid">
-			{#each stateFixtures as fixture}
+			{#each stateFixtures as fixture (fixture.id)}
 				<article
 					class="lab-state-card"
 					class:is-active={fixture.tone === 'active'}
@@ -309,7 +309,7 @@
 				<p class="text-xs muted-text">{activeMetadataPresetDetails?.summary}</p>
 			</div>
 			<div class="lab-preset-controls" role="group" aria-label="Metadata form presets">
-				{#each metadataFormLabPresets as preset}
+				{#each metadataFormLabPresets as preset (preset.id)}
 					<button
 						class="btn-pill"
 						class:btn-pill-primary={activeMetadataPreset === preset.id}

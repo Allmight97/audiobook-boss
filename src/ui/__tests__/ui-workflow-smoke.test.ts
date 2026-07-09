@@ -11,11 +11,7 @@ import {
 } from '../../types/audio';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import type { WorkSubmissionAccepted } from '../../types/workRuntime';
-import {
-	applyMetadataToForm,
-	populateMetadataFormSingle,
-	readMetadataForm,
-} from '../metadataForm';
+import { applyMetadataToForm, populateMetadataFormSingle, readMetadataForm } from '../metadataForm';
 import {
 	cacheMetadataForFile,
 	clearMetadataSession,
@@ -28,10 +24,7 @@ import {
 	runMetadataLookupWorkflow,
 	type MetadataLookupWorkflowServices,
 } from '../metadataLookup/metadataLookupWorkflow';
-import type {
-	MetadataLookupQueueState,
-	MetadataLookupState,
-} from '../metadataLookup/state.svelte';
+import type { MetadataLookupQueueState, MetadataLookupState } from '../metadataLookup/state.svelte';
 import {
 	makeProcessingWorkflowServicesLayer,
 	startProcessing,
@@ -242,10 +235,10 @@ describe('UI workflow smoke', () => {
 			},
 		};
 
-		await runMetadataLookupWorkflow(
-			makeMetadataLookupWorkflowServicesLayer(lookupServices),
-			{ type: 'applyResult', index: 0 },
-		);
+		await runMetadataLookupWorkflow(makeMetadataLookupWorkflowServicesLayer(lookupServices), {
+			type: 'applyResult',
+			index: 0,
+		});
 
 		expect(collectActionableMetadataIntent([file.path])?.[file.path]).toMatchObject({
 			title: { op: 'set', value: 'Looked Up Title' },

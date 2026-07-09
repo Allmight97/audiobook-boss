@@ -55,6 +55,8 @@ describe('LabIsland design fixtures', () => {
 		expect(revisedTitleInput).toHaveAttribute('data-dirty', 'true');
 		expect(authorInput).toHaveAttribute('data-mixed', 'true');
 		expect(screen.getByTestId('meta-title-action')).toBeInTheDocument();
-		expect(screen.getByText('Series detected - add Book # (series sequence) for ABS ordering.')).toBeVisible();
+		expect(
+			screen.getByText('Series detected - add Book # (series sequence) for ABS ordering.'),
+		).toBeVisible();
 	});
 });
