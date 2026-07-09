@@ -63,10 +63,11 @@
 - Roadmap, locked direction synthesis, and resume procedure live in issue #412
   (the agent handoff comment there is the canonical resume doc). Do not start
   island rebuilds (Slice 3) before the owner settles v3's open forks.
-- The Vite dev server (`bun run dev`, port 1420) exposes three distinct
+- The Vite dev server (`bun run dev`, port 1420) exposes four distinct
   surfaces; do not conflate them. Each has one alignment obligation: the lab
-  tracks `src/styles.css` in the same change (contract below); the v3 mock
-  tracks direction decisions banked in #412; the app changes only in Slice 3:
+  tracks `src/styles.css` in the same change (contract below); the prototype
+  shell tracks the locked v3 direction; the static v3 mock tracks #412
+  lineage; the app changes only in Slice 3:
   - `/` — the current app UI, unchanged until Slice 3.
   - `/lab.html` — the design lab: renders every token and `src/styles.css`
     primitive with a density switch. It is ingredients, not screens, and not
@@ -74,10 +75,15 @@
     The locked direction gets encoded here first (tokens/primitive skins)
     before any island rebuild. Contract: `src/AGENTS.md` → Design-System
     Primitives. Dev-only; not in the app build.
-  - `/docs/design/ui-directions-v3.html` — standalone interactive mock of the
+  - `/prototype.html` — the direction v3 interactive shell (`src/prototype/`):
+    full B1×B2 window mock built from `styles.css` tokens and primitives,
+    with live open-fork toggles (rail vs popover, selection demo, ops pin).
+    Owner reaction surface for #412; dev-only; not in the app build. Contract:
+    `src/prototype/README.md`.
+  - `/docs/design/ui-directions-v3.html` — standalone static mock of the
     target direction (B1×B2 hybrid) with live open-fork toggles. Reference
-    artifact for owner reaction, not code to import. Lineage:
-    `docs/design/README.md`.
+    artifact for lineage, not code to import. Living interactive shell is
+    `/prototype.html`. Lineage: `docs/design/README.md`.
 - Redesign sequencing is lab-first: token/primitive values change and are
   screenshot-verified in the lab before islands are rebuilt on top of them.
 

@@ -18,7 +18,9 @@ react to rendered things instead of prose.
   combined transport/ops bar, pinnable expandable operations, density
   switch). The open forks are live toggles above the window: edit surface
   (rail vs popover) and single vs multi-file selection (batch metadata with
-  mixed-value handling). Awaiting owner reaction to settle the forks.
+  mixed-value handling). Awaiting owner reaction to settle the forks. The
+  living interactive shell is `/prototype.html` on branch `ui/direction-v3-shell`
+  (`bun run dev` → open that URL); this HTML file remains lineage reference.
 
 Superseded mocks stay here for lineage until the redesign ships, then this
 directory gets pruned to the surviving reference set.
