@@ -393,7 +393,7 @@ fn format_work_operation_record(
         "work_operation event={} operation_id={} kind={} status={} total={} succeeded={} skipped={} cancelled={} failed={}",
         work_operation_event_label(event),
         snapshot.operation_id,
-        operation_kind_label(snapshot.kind),
+        crate::processing::operation_kind_log_label(snapshot.kind),
         work_operation_status_label(snapshot.status),
         counts.total,
         counts.succeeded,
@@ -436,15 +436,6 @@ fn work_operation_event_label(event: WorkOperationLogEvent) -> &'static str {
         WorkOperationLogEvent::Running => "running",
         WorkOperationLogEvent::CancelRequested => "cancel_requested",
         WorkOperationLogEvent::Terminal => "terminal",
-    }
-}
-
-fn operation_kind_label(kind: crate::processing::OperationKind) -> &'static str {
-    match kind {
-        crate::processing::OperationKind::ProcessingMerge => "processing_merge",
-        crate::processing::OperationKind::ProcessingBatch => "processing_batch",
-        crate::processing::OperationKind::RemoteAcquisition => "remote_acquisition",
-        crate::processing::OperationKind::MetadataSave => "metadata_save",
     }
 }
 
@@ -551,21 +542,8 @@ mod tests {
 
     #[test]
     fn work_operation_record_labels_pin_all_contract_variants() {
-        assert_eq!(
-            [
-                OperationKind::ProcessingMerge,
-                OperationKind::ProcessingBatch,
-                OperationKind::RemoteAcquisition,
-                OperationKind::MetadataSave,
-            ]
-            .map(operation_kind_label),
-            [
-                "processing_merge",
-                "processing_batch",
-                "remote_acquisition",
-                "metadata_save",
-            ]
-        );
+        // Operation-kind labels are pinned by the owning processing contract
+        // test (`processing_contract_operation_kind_log_labels_are_stable`).
         assert_eq!(
             [
                 WorkOperationStatus::Accepted,

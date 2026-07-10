@@ -1,6 +1,6 @@
 use crate::audio;
 use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
-use crate::errors::{AppErrorCategory, AppErrorCode, AppErrorEnvelope, Result};
+use crate::errors::{AppErrorEnvelope, Result};
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
@@ -308,7 +308,7 @@ fn format_processing_job_record(
         operation_id,
         identity.job_id,
         input_index,
-        operation_kind_label(identity.operation_kind),
+        crate::processing::operation_kind_log_label(identity.operation_kind),
         processing_job_status_label(status),
     );
     if let Some(elapsed_ms) = elapsed_ms {
@@ -317,8 +317,8 @@ fn format_processing_job_record(
     if let ProcessingJobLogStatus::Failed(failure) = status {
         record.push_str(&format!(
             " code={} category={}",
-            app_error_code_label(failure.code),
-            app_error_category_label(failure.category),
+            failure.code.log_label(),
+            failure.category.log_label(),
         ));
     }
     record
@@ -331,49 +331,12 @@ fn processing_job_event_label(event: ProcessingJobLogEvent) -> &'static str {
     }
 }
 
-fn operation_kind_label(kind: OperationKind) -> &'static str {
-    match kind {
-        OperationKind::ProcessingMerge => "processing_merge",
-        OperationKind::ProcessingBatch => "processing_batch",
-        OperationKind::RemoteAcquisition => "remote_acquisition",
-        OperationKind::MetadataSave => "metadata_save",
-    }
-}
-
 fn processing_job_status_label(status: ProcessingJobLogStatus<'_>) -> &'static str {
     match status {
         ProcessingJobLogStatus::Running => "running",
         ProcessingJobLogStatus::Success => "success",
         ProcessingJobLogStatus::Cancelled => "cancelled",
         ProcessingJobLogStatus::Failed(_) => "failed",
-    }
-}
-
-fn app_error_code_label(code: AppErrorCode) -> &'static str {
-    match code {
-        AppErrorCode::FileValidationFailed => "file_validation_failed",
-        AppErrorCode::InvalidInput => "invalid_input",
-        AppErrorCode::IoError => "io_error",
-        AppErrorCode::FfmpegError => "ffmpeg_error",
-        AppErrorCode::ProcessTerminationFailed => "process_termination_failed",
-        AppErrorCode::TempDirectoryCreationFailed => "temp_directory_creation_failed",
-        AppErrorCode::ResourceCleanupFailed => "resource_cleanup_failed",
-        AppErrorCode::InternalError => "internal_error",
-        AppErrorCode::ImageProcessingError => "image_processing_error",
-        AppErrorCode::ProcessingCancelled => "processing_cancelled",
-        AppErrorCode::ToolchainRequired => "toolchain_required",
-    }
-}
-
-fn app_error_category_label(category: AppErrorCategory) -> &'static str {
-    match category {
-        AppErrorCategory::Validation => "validation",
-        AppErrorCategory::Cancellation => "cancellation",
-        AppErrorCategory::Toolchain => "toolchain",
-        AppErrorCategory::Processing => "processing",
-        AppErrorCategory::Resource => "resource",
-        AppErrorCategory::Io => "io",
-        AppErrorCategory::Internal => "internal",
     }
 }
 
@@ -397,6 +360,7 @@ async fn execute_processing_job(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{AppErrorCategory, AppErrorCode};
 
     fn log_identity(
         operation_id: Option<&str>,
