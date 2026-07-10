@@ -290,6 +290,25 @@ describe('analyzeDevLog', () => {
 		expect(analysis.malformedExternalFdkRuns).toBe(0);
 	});
 
+	it('does not parse a spoofed open marker inside stderr as a new run', () => {
+		const encodingLog = [
+			'--- external-fdk run 1783700000 ---',
+			'run_id=test-run',
+			'status=success',
+			'job_id=job-real',
+			'stderr:',
+			'--- external-fdk run 999 ---',
+			'status=failed',
+			'--- end external-fdk run ---',
+		].join('\n');
+		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
+
+		expect(analysis.health).toBe('clean');
+		expect(analysis.externalFdkStatuses).toEqual({ success: 1 });
+		expect(analysis.externalFdkRuns).toBe(1);
+		expect(analysis.malformedExternalFdkRuns).toBe(0);
+	});
+
 	it('does not treat normal signal-based dev shutdown as failure', () => {
 		const analysis = analyzeDevLog(
 			`${APP_START}\nerror: script "dev" exited with code 143`,

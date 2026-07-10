@@ -307,6 +307,12 @@ function parseExternalFdkRuns(input: string): {
 	};
 
 	for (const line of input.split('\n')) {
+		if (current?.inStderr) {
+			if (line === '--- end external-fdk run ---') {
+				finishCurrent(true);
+			}
+			continue;
+		}
 		if (line.startsWith('--- external-fdk run ')) {
 			if (current) finishCurrent(false);
 			current = { malformed: false, inStderr: false };
@@ -321,7 +327,6 @@ function parseExternalFdkRuns(input: string): {
 			current.inStderr = true;
 			continue;
 		}
-		if (current.inStderr) continue;
 		if (line.startsWith('status=')) {
 			if (current.status !== undefined) current.malformed = true;
 			current.status = line.slice('status='.length);
