@@ -47,6 +47,16 @@ bun run app:dev:log
 Run targeted validation from the script guide for the owner or risk surface you
 touched.
 
+### Install a local build
+
+Build the current branch and replace `/Applications/AudioBook Boss.app` in
+place. macOS (Apple Silicon) only; the replace is silent and unprompted.
+
+```bash
+bun run app:install-local            # build, verify, install, prune artifacts
+bun run app:install-local:existing   # install an already-built bundle (--skip-build)
+```
+
 ## Script Guide
 
 Human index for common commands. `package.json` owns shortcuts and
