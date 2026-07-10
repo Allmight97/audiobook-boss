@@ -44,21 +44,25 @@ pub(crate) struct ProcessingJobRequest {
 pub(crate) async fn run_processing_job(
     request: ProcessingJobRequest,
 ) -> Result<ProcessResultEntry> {
-    let (job_id, _permit, cancellation_checker) = register_job_and_validate_output(
+    let operation_id = request.operation_id.clone();
+    let RegisteredProcessingJob {
+        job_id,
+        permit: _permit,
+        cancellation_checker,
+        lifecycle_log,
+    } = register_job_and_validate_output(
         &request.registry,
         &request.output_plan.resolved_path,
         request.operation_cancel.clone(),
+        ProcessingJobLogContext {
+            operation_id: operation_id.clone(),
+            input_index: request.input_index,
+            operation_kind: request.operation_kind,
+        },
     )
     .await?;
     let cancellation_checker =
         cancellation_checker.with_operation_flag(request.operation_cancel.clone());
-    let operation_id = request.operation_id.clone();
-    let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
-        operation_id: operation_id.clone(),
-        job_id: job_id.to_string(),
-        input_index: request.input_index,
-        operation_kind: request.operation_kind,
-    });
 
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
         window: request.window,
@@ -173,22 +177,50 @@ pub(crate) fn commit_supplemental_assets(
     commit_supplemental_output_assets_for_output(request)
 }
 
+/// Job identity known before registration, used for lifecycle records.
+pub(crate) struct ProcessingJobLogContext {
+    pub(crate) operation_id: Option<String>,
+    pub(crate) input_index: Option<usize>,
+    pub(crate) operation_kind: OperationKind,
+}
+
+pub(crate) struct RegisteredProcessingJob {
+    pub(crate) job_id: JobId,
+    pub(crate) permit: OwnedSemaphorePermit,
+    pub(crate) cancellation_checker: CancellationChecker,
+    pub(crate) lifecycle_log: ProcessingJobLifecycleLog,
+}
+
 pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
     operation_cancel: Option<Arc<AtomicBool>>,
-) -> Result<(JobId, OwnedSemaphorePermit, CancellationChecker)> {
+    log_context: ProcessingJobLogContext,
+) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
         .register_job_with_external_cancel(operation_cancel)
         .await?;
     let cancellation_checker = registry.cancellation_checker(job_id).await;
+    let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
+        operation_id: log_context.operation_id,
+        job_id: job_id.to_string(),
+        input_index: log_context.input_index,
+        operation_kind: log_context.operation_kind,
+    });
 
     if let Err(error) = crate::audio::validate_output_path(output_path) {
+        let envelope = AppErrorEnvelope::from(&error);
+        lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
         registry.fail_job(job_id, error.to_string()).await;
         return Err(error);
     }
 
-    Ok((job_id, permit, cancellation_checker))
+    Ok(RegisteredProcessingJob {
+        job_id,
+        permit,
+        cancellation_checker,
+        lifecycle_log,
+    })
 }
 
 struct ProcessingContextRequest {
@@ -232,14 +264,14 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     (context, preview_seconds_resolved)
 }
 
-struct ProcessingJobLogIdentity {
+pub(crate) struct ProcessingJobLogIdentity {
     operation_id: Option<String>,
     job_id: String,
     input_index: Option<usize>,
     operation_kind: OperationKind,
 }
 
-struct ProcessingJobLifecycleLog {
+pub(crate) struct ProcessingJobLifecycleLog {
     identity: ProcessingJobLogIdentity,
     started_at: Instant,
 }
