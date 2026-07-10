@@ -64,8 +64,10 @@ commands over invoking internals directly.
   `cargo nextest run -p audiobook-boss --lib` or
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Manual Tauri dev with captured logs:
-  `bun run app:dev:log`; inspect `.logs/tauri-dev.log` before asking for pasted
-  terminal output. The file is overwritten on each fresh run.
+  `bun run app:dev:log`; inspect `.logs/tauri-dev-summary.md` for the semantic
+  session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
+  pasted terminal output. These are latest-run entrypoints; the five newest
+  run-scoped artifacts remain under `.logs/runs/<run-id>/`.
 - Frontend owner: `bun run test -- <owner test files>`.
 - Frontend type validation: `bun run typecheck`.
 - IPC/generated binding changes:
@@ -88,6 +90,8 @@ commands over invoking internals directly.
 
 ## Script Families
 
+- `dev-tauri-log.sh` + `dev-log-analysis.ts`: captured Tauri dev sessions,
+  bounded run history, lifecycle closure, and semantic session verdicts.
 - `check-generated-bindings.sh`: IPC binding drift detection.
 - `check-tauri-runtime-boundary.ts`: generated command/event import boundary
   plus raw Tauri invoke bypass protection.

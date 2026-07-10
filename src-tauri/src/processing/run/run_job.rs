@@ -1,6 +1,6 @@
 use crate::audio;
 use crate::audio::{AudioExecutionRequest, EncoderSettings, FileListInfo};
-use crate::errors::Result;
+use crate::errors::{AppErrorCategory, AppErrorCode, AppErrorEnvelope, Result};
 use crate::metadata::CoverArtPassthroughPolicy;
 use crate::output_artifact::{
     commit_supplemental_output_assets_for_output, OutputKind, ResolvedOutputPlan,
@@ -15,6 +15,7 @@ use crate::processing::{
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::processing::terminal_outcomes::{
@@ -29,6 +30,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) sample_rate: audio::SampleRateConfig,
     pub(crate) input_index: Option<usize>,
     pub(crate) operation_kind: OperationKind,
+    pub(crate) operation_id: Option<String>,
     pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
@@ -50,6 +52,13 @@ pub(crate) async fn run_processing_job(
     .await?;
     let cancellation_checker =
         cancellation_checker.with_operation_flag(request.operation_cancel.clone());
+    let operation_id = request.operation_id.clone();
+    let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
+        operation_id: operation_id.clone(),
+        job_id: job_id.to_string(),
+        input_index: request.input_index,
+        operation_kind: request.operation_kind,
+    });
 
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
         window: request.window,
@@ -59,6 +68,7 @@ pub(crate) async fn run_processing_job(
         sample_rate: request.sample_rate,
         input_index: request.input_index,
         operation_kind: request.operation_kind,
+        operation_id,
         progress_listener: request.progress_listener,
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
@@ -97,7 +107,7 @@ pub(crate) async fn run_processing_job(
             preview_actual_seconds,
         } => {
             request.registry.complete_job(job_id).await;
-            log::info!("Job {} completed successfully", job_id);
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
             Ok(ProcessResultEntry {
                 input_index: request.input_index,
                 status: ProcessResultStatus::Success,
@@ -110,7 +120,7 @@ pub(crate) async fn run_processing_job(
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
             request.registry.complete_job(job_id).await;
-            log::warn!("Job {} cancelled: {}", job_id, error);
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Cancelled);
             Err(error)
         }
         ProcessingJobTerminalOutcome::Failed(envelope) => {
@@ -118,7 +128,7 @@ pub(crate) async fn run_processing_job(
                 .registry
                 .fail_job(job_id, envelope.message.clone())
                 .await;
-            log::error!("Job {} failed: {}", job_id, envelope.message);
+            lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
             Ok(terminal_failure_result(
                 request.input_index,
                 Some(job_id.to_string()),
@@ -171,11 +181,6 @@ pub(crate) async fn register_job_and_validate_output(
     let (job_id, permit) = registry
         .register_job_with_external_cancel(operation_cancel)
         .await?;
-    log::info!(
-        "Job {} started for output: {}",
-        job_id,
-        output_path.display()
-    );
     let cancellation_checker = registry.cancellation_checker(job_id).await;
 
     if let Err(error) = crate::audio::validate_output_path(output_path) {
@@ -194,6 +199,7 @@ struct ProcessingContextRequest {
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
+    operation_id: Option<String>,
     progress_listener: Option<ProgressEventListener>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
@@ -212,6 +218,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
         request.workspace_root,
     );
     context.job_id = Some(request.job_id.to_string());
+    context.operation_id = request.operation_id;
     context.input_index = request.input_index;
     context.operation_kind = request.operation_kind;
     context.progress_listener = request.progress_listener;
@@ -223,6 +230,151 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     }
 
     (context, preview_seconds_resolved)
+}
+
+struct ProcessingJobLogIdentity {
+    operation_id: Option<String>,
+    job_id: String,
+    input_index: Option<usize>,
+    operation_kind: OperationKind,
+}
+
+struct ProcessingJobLifecycleLog {
+    identity: ProcessingJobLogIdentity,
+    started_at: Instant,
+}
+
+impl ProcessingJobLifecycleLog {
+    fn start(identity: ProcessingJobLogIdentity) -> Self {
+        log::info!(
+            "{}",
+            format_processing_job_record(
+                &identity,
+                ProcessingJobLogEvent::Started,
+                ProcessingJobLogStatus::Running,
+                None,
+            )
+        );
+        Self {
+            identity,
+            started_at: Instant::now(),
+        }
+    }
+
+    fn log_terminal(&self, status: ProcessingJobLogStatus<'_>) {
+        let record = format_processing_job_record(
+            &self.identity,
+            ProcessingJobLogEvent::Terminal,
+            status,
+            Some(self.started_at.elapsed().as_millis()),
+        );
+        match status {
+            ProcessingJobLogStatus::Running | ProcessingJobLogStatus::Success => {
+                log::info!("{record}");
+            }
+            ProcessingJobLogStatus::Cancelled => log::warn!("{record}"),
+            ProcessingJobLogStatus::Failed(_) => log::error!("{record}"),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ProcessingJobLogEvent {
+    Started,
+    Terminal,
+}
+
+#[derive(Clone, Copy)]
+enum ProcessingJobLogStatus<'a> {
+    Running,
+    Success,
+    Cancelled,
+    Failed(&'a AppErrorEnvelope),
+}
+
+fn format_processing_job_record(
+    identity: &ProcessingJobLogIdentity,
+    event: ProcessingJobLogEvent,
+    status: ProcessingJobLogStatus<'_>,
+    elapsed_ms: Option<u128>,
+) -> String {
+    let operation_id = identity.operation_id.as_deref().unwrap_or("foreground");
+    let input_index = identity
+        .input_index
+        .map_or_else(|| "none".to_string(), |index| index.to_string());
+    let mut record = format!(
+        "processing_job event={} operation_id={} job_id={} input_index={} kind={} status={}",
+        processing_job_event_label(event),
+        operation_id,
+        identity.job_id,
+        input_index,
+        operation_kind_label(identity.operation_kind),
+        processing_job_status_label(status),
+    );
+    if let Some(elapsed_ms) = elapsed_ms {
+        record.push_str(&format!(" elapsed_ms={elapsed_ms}"));
+    }
+    if let ProcessingJobLogStatus::Failed(failure) = status {
+        record.push_str(&format!(
+            " code={} category={}",
+            app_error_code_label(failure.code),
+            app_error_category_label(failure.category),
+        ));
+    }
+    record
+}
+
+fn processing_job_event_label(event: ProcessingJobLogEvent) -> &'static str {
+    match event {
+        ProcessingJobLogEvent::Started => "started",
+        ProcessingJobLogEvent::Terminal => "terminal",
+    }
+}
+
+fn operation_kind_label(kind: OperationKind) -> &'static str {
+    match kind {
+        OperationKind::ProcessingMerge => "processing_merge",
+        OperationKind::ProcessingBatch => "processing_batch",
+        OperationKind::RemoteAcquisition => "remote_acquisition",
+        OperationKind::MetadataSave => "metadata_save",
+    }
+}
+
+fn processing_job_status_label(status: ProcessingJobLogStatus<'_>) -> &'static str {
+    match status {
+        ProcessingJobLogStatus::Running => "running",
+        ProcessingJobLogStatus::Success => "success",
+        ProcessingJobLogStatus::Cancelled => "cancelled",
+        ProcessingJobLogStatus::Failed(_) => "failed",
+    }
+}
+
+fn app_error_code_label(code: AppErrorCode) -> &'static str {
+    match code {
+        AppErrorCode::FileValidationFailed => "file_validation_failed",
+        AppErrorCode::InvalidInput => "invalid_input",
+        AppErrorCode::IoError => "io_error",
+        AppErrorCode::FfmpegError => "ffmpeg_error",
+        AppErrorCode::ProcessTerminationFailed => "process_termination_failed",
+        AppErrorCode::TempDirectoryCreationFailed => "temp_directory_creation_failed",
+        AppErrorCode::ResourceCleanupFailed => "resource_cleanup_failed",
+        AppErrorCode::InternalError => "internal_error",
+        AppErrorCode::ImageProcessingError => "image_processing_error",
+        AppErrorCode::ProcessingCancelled => "processing_cancelled",
+        AppErrorCode::ToolchainRequired => "toolchain_required",
+    }
+}
+
+fn app_error_category_label(category: AppErrorCategory) -> &'static str {
+    match category {
+        AppErrorCategory::Validation => "validation",
+        AppErrorCategory::Cancellation => "cancellation",
+        AppErrorCategory::Toolchain => "toolchain",
+        AppErrorCategory::Processing => "processing",
+        AppErrorCategory::Resource => "resource",
+        AppErrorCategory::Io => "io",
+        AppErrorCategory::Internal => "internal",
+    }
 }
 
 async fn execute_processing_job(
@@ -240,4 +392,94 @@ async fn execute_processing_job(
         encoder_settings,
     ))
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn log_identity(
+        operation_id: Option<&str>,
+        job_id: &str,
+        input_index: Option<usize>,
+        operation_kind: OperationKind,
+    ) -> ProcessingJobLogIdentity {
+        ProcessingJobLogIdentity {
+            operation_id: operation_id.map(str::to_string),
+            job_id: job_id.to_string(),
+            input_index,
+            operation_kind,
+        }
+    }
+
+    #[test]
+    fn processing_job_record_format_pins_started_and_terminal_contracts() {
+        assert_eq!(
+            format_processing_job_record(
+                &log_identity(None, "job-123", None, OperationKind::ProcessingMerge),
+                ProcessingJobLogEvent::Started,
+                ProcessingJobLogStatus::Running,
+                None,
+            ),
+            "processing_job event=started operation_id=foreground job_id=job-123 input_index=none kind=processing_merge status=running"
+        );
+
+        assert_eq!(
+            format_processing_job_record(
+                &log_identity(
+                    Some("operation-123"),
+                    "job-456",
+                    Some(4),
+                    OperationKind::ProcessingBatch,
+                ),
+                ProcessingJobLogEvent::Terminal,
+                ProcessingJobLogStatus::Success,
+                Some(321),
+            ),
+            "processing_job event=terminal operation_id=operation-123 job_id=job-456 input_index=4 kind=processing_batch status=success elapsed_ms=321"
+        );
+
+        assert_eq!(
+            format_processing_job_record(
+                &log_identity(
+                    Some("operation-123"),
+                    "job-789",
+                    Some(5),
+                    OperationKind::ProcessingBatch,
+                ),
+                ProcessingJobLogEvent::Terminal,
+                ProcessingJobLogStatus::Cancelled,
+                Some(654),
+            ),
+            "processing_job event=terminal operation_id=operation-123 job_id=job-789 input_index=5 kind=processing_batch status=cancelled elapsed_ms=654"
+        );
+    }
+
+    #[test]
+    fn failed_processing_job_record_includes_stable_typed_error_fields() {
+        let failure = AppErrorEnvelope::new(
+            AppErrorCode::FfmpegError,
+            AppErrorCategory::Toolchain,
+            "path-free failure",
+            None,
+        );
+
+        let record = format_processing_job_record(
+            &log_identity(
+                Some("operation-123"),
+                "job-456",
+                Some(2),
+                OperationKind::ProcessingBatch,
+            ),
+            ProcessingJobLogEvent::Terminal,
+            ProcessingJobLogStatus::Failed(&failure),
+            Some(987),
+        );
+
+        assert_eq!(
+            record,
+            "processing_job event=terminal operation_id=operation-123 job_id=job-456 input_index=2 kind=processing_batch status=failed elapsed_ms=987 code=ffmpeg_error category=toolchain"
+        );
+        assert!(!record.contains(&failure.message));
+    }
 }

@@ -89,6 +89,7 @@ async fn dispatch_merge_plan(
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
         operation_kind: OperationKind::ProcessingMerge,
+        operation_id: options.operation_id,
         operation_cancel: options.operation_cancel.clone(),
         output_plan: planned_job.output,
         file_info,
@@ -158,6 +159,7 @@ async fn dispatch_batch_plan(
         let preview_cloned = preview_seconds;
         let workspace_root_cloned = workspace_root.clone();
         let operation_cancel = options.operation_cancel.clone();
+        let operation_id = options.operation_id.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
         let path = planned_job.input_path.clone().ok_or_else(|| {
@@ -182,6 +184,7 @@ async fn dispatch_batch_plan(
                 sample_rate: sr_cloned,
                 input_index,
                 operation_kind: OperationKind::ProcessingBatch,
+                operation_id,
                 operation_cancel,
                 output_plan: output,
                 file_info,
