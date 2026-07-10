@@ -18,6 +18,10 @@ start_epoch="$(date +%s)"
 start_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 summary_written="false"
 rust_log_source="unset"
+tee_drain_failed="false"
+tee_pid=""
+orig_stdout_fd=""
+orig_stderr_fd=""
 declare -a port_notes=()
 
 timestamp_utc() {
@@ -188,7 +192,11 @@ write_summary() {
 		print_process_snapshot
 		printf '```\n'
 		printf '\n'
-		if ! bun "$repo_root/scripts/dev-log-analysis.ts" \
+		if [[ "$tee_drain_failed" == "true" ]]; then
+			printf '## Session Verdict\n\n'
+			printf -- '- Health: `indeterminate`\n'
+			printf -- '- Log capture did not drain cleanly; inspect the raw run log.\n'
+		elif ! bun "$repo_root/scripts/dev-log-analysis.ts" \
 			--main-log "$log_file" \
 			--encoding-log "$encoding_log" \
 			--exit-status "$status"; then
@@ -204,6 +212,22 @@ write_summary() {
 finish_run() {
 	local status="$?"
 	set +e
+	if [[ -n "${tee_pid:-}" ]]; then
+		exec >&"$orig_stdout_fd" 2>&"$orig_stderr_fd"
+		# Bounded drain: an orphaned child still holding the pipe write end
+		# must degrade the verdict, not hang the exit trap.
+		for _ in {1..100}; do
+			kill -0 "$tee_pid" 2>/dev/null || break
+			sleep 0.1
+		done
+		# A vanished tee has flushed and exited: later process substitutions
+		# make the pid unwaitable in bash, so liveness is the drain signal.
+		if kill -0 "$tee_pid" 2>/dev/null; then
+			tee_drain_failed="true"
+		else
+			wait "$tee_pid" 2>/dev/null || true
+		fi
+	fi
 	if [[ "$summary_written" != "true" ]]; then
 		write_summary "$status"
 	fi
@@ -339,19 +363,40 @@ reclaim_dev_port() {
 }
 
 archive_legacy_latest_run() {
-	local existing_run_id legacy_run_dir source target
+	local existing_run_id legacy_run_dir fallback_dir source target
+	local has_regular="false"
+	local -a entrypoints=("$latest_log_file" "$latest_summary_file" "$latest_encoding_log")
 
-	[[ -f "$latest_log_file" && ! -L "$latest_log_file" ]] || return 0
-	existing_run_id="$(sed -n 's/^Run ID: //p' "$latest_log_file" | head -n 1)"
-	[[ "$existing_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]] || return 0
-	[[ "$existing_run_id" != "$run_id" ]] || return 0
+	for source in "${entrypoints[@]}"; do
+		if [[ -f "$source" && ! -L "$source" ]]; then
+			has_regular="true"
+			break
+		fi
+	done
+	[[ "$has_regular" == "true" ]] || return 0
 
-	legacy_run_dir="$runs_dir/$existing_run_id"
-	mkdir -p "$legacy_run_dir"
-	for source in "$latest_log_file" "$latest_summary_file" "$latest_encoding_log"; do
+	if [[ -f "$latest_log_file" && ! -L "$latest_log_file" ]]; then
+		existing_run_id="$(sed -n 's/^Run ID: //p' "$latest_log_file" | head -n 1)"
+	else
+		existing_run_id=""
+	fi
+
+	if [[ "$existing_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ && "$existing_run_id" != "$run_id" ]]; then
+		legacy_run_dir="$runs_dir/$existing_run_id"
+		mkdir -p "$legacy_run_dir"
+		for source in "${entrypoints[@]}"; do
+			[[ -f "$source" && ! -L "$source" ]] || continue
+			target="$legacy_run_dir/$(basename "$source")"
+			[[ -e "$target" ]] || cp -p "$source" "$target"
+		done
+		return 0
+	fi
+
+	fallback_dir="$runs_dir/legacy-${start_epoch}-$$"
+	mkdir -p "$fallback_dir"
+	for source in "${entrypoints[@]}"; do
 		[[ -f "$source" && ! -L "$source" ]] || continue
-		target="$legacy_run_dir/$(basename "$source")"
-		[[ -e "$target" ]] || cp -p "$source" "$target"
+		mv "$source" "$fallback_dir/$(basename "$source")"
 	done
 }
 
@@ -397,7 +442,9 @@ main_log=$log_file
 
 EOF
 
+exec {orig_stdout_fd}>&1 {orig_stderr_fd}>&2
 exec > >(tee -a "$log_file") 2>&1
+tee_pid=$!
 trap finish_run EXIT
 
 cd "$repo_root"
