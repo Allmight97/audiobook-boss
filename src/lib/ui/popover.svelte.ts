@@ -67,12 +67,14 @@ export class PopoverController {
 		this.#options.onOpenChange?.(true);
 	}
 
-	close(): void {
+	close(options: { restoreFocus?: boolean } = {}): void {
 		if (!this.isOpen) return;
 		this.isOpen = false;
 		this.#options.onOpenChange?.(false);
-		const anchor = this.#anchor;
-		queueMicrotask(() => anchor?.focus());
+		if (options.restoreFocus ?? true) {
+			const anchor = this.#anchor;
+			queueMicrotask(() => anchor?.focus());
+		}
 	}
 
 	toggle(): void {

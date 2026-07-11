@@ -55,7 +55,7 @@ vi.mock('../metadataPanel', () => ({
 	clearSelectionPanels: vi.fn(),
 	ensureMetadataForFiles: vi.fn(async () => undefined),
 	getSelectedFiles: vi.fn(() => []),
-	refreshSelectionPresentation: vi.fn(),
+	coordinateMetadataSurfacePresentationRefresh: vi.fn(),
 	showMultiSelection: vi.fn(async () => undefined),
 	showSingleSelection: vi.fn(async () => undefined),
 }));

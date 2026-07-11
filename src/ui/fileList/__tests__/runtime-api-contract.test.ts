@@ -7,6 +7,7 @@ const EXPECTED_FILE_LIST_EXPORTS = [
 	'FileListIsland',
 	'appendFileList',
 	'applySelectionIntent',
+	'coordinateMetadataSurfacePresentationRefresh',
 	'getCurrentFileList',
 	'getSelectedFileIndex',
 	'getSelectedFileIndices',

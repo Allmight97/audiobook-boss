@@ -15,7 +15,10 @@ vi.mock('../metadataSession', () => ({
 }));
 vi.mock('../metadataLookup', () => ({ openMetadataLookup: vi.fn() }));
 vi.mock('../fileList', () => ({
-	readInspectorFacts: () => [{ label: 'Codec', value: 'AAC-LC', title: 'AAC-LC' }],
+	readInspectorFacts: () => [
+		{ label: 'Codec', value: 'AAC-LC', title: 'AAC-LC' },
+		{ label: 'Position', value: 'Unsupported container', title: 'Unsupported container' },
+	],
 	readActiveFileChapters: () => [{ title: 'Opening', startMs: 0, endMs: 65_000 }],
 }));
 vi.mock('../outputPanel', () => ({
@@ -68,6 +71,7 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 
 		await fireEvent.click(screen.getByRole('tab', { name: 'Facts' }));
 		expect(screen.getByText('AAC-LC')).toBeInTheDocument();
+		expect(screen.getByText('Unsupported container')).toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('tab', { name: 'Chapters' }));
 		expect(screen.getByText('Opening')).toBeInTheDocument();
 		expect(screen.getByText('0:00 – 1:05')).toBeInTheDocument();

@@ -18,7 +18,7 @@ vi.mock('../metadataPanel', () => ({
 	clearSelectionPanels: vi.fn(),
 	autoUpdateCoverArtFromFirstValidFile: vi.fn(),
 	ensureMetadataForFiles: vi.fn(),
-	refreshSelectionPresentation: vi.fn(),
+	coordinateMetadataSurfacePresentationRefresh: vi.fn(),
 }));
 vi.mock('../selection', () => ({
 	applySelectionIntent: context.applySelectionIntent,

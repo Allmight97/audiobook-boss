@@ -1,8 +1,6 @@
-import { getMaxConcurrentStatus } from '../jobControls';
 import { formatStatusDisplayText } from './formatting';
-import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
+import type { JobProgress, ProcessingStatus } from './state';
 import {
-	setStatusPanelConcurrencyText,
 	setStatusPanelIsProcessing,
 	setStatusPanelJobItems,
 	setStatusPanelProgressPercentage,
@@ -18,31 +16,6 @@ export function renderStatus(status: ProcessingStatus, isProcessing: boolean): v
 	setStatusPanelStepText(`Current Step: ${status.message}`);
 	setStatusPanelStepColor('var(--text-primary)');
 	setStatusPanelIsProcessing(isProcessing);
-}
-
-export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
-	const { effective, selection } = getMaxConcurrentStatus();
-	const suffix = selection === 'auto' ? ' (Auto)' : '';
-
-	if (effective === null) {
-		setStatusPanelConcurrencyText('Max jobs: —');
-		return;
-	}
-
-	if (
-		aggregate &&
-		(aggregate.activeJobs > 0 || aggregate.completedJobs > 0 || aggregate.queuedJobs > 0)
-	) {
-		const queuedSuffix = aggregate.queuedJobs > 0 ? ` • Queued ${aggregate.queuedJobs}` : '';
-		const completedSuffix =
-			aggregate.completedJobs > 0 ? ` • Completed ${aggregate.completedJobs}` : '';
-		setStatusPanelConcurrencyText(
-			`Running ${aggregate.activeJobs} / Max ${effective}${suffix}${queuedSuffix}${completedSuffix}`,
-		);
-		return;
-	}
-
-	setStatusPanelConcurrencyText(`Max jobs: ${effective}${suffix}`);
 }
 
 function formatJobStatusText(

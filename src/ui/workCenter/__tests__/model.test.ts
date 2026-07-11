@@ -119,6 +119,19 @@ describe('Work Center model', () => {
 		});
 	});
 
+	it('keeps a skipped child distinct from completed work', () => {
+		const snapshot = operation('batch', 1);
+		snapshot.children[0] = {
+			...snapshot.children[0]!,
+			status: 'skipped',
+			inputId: 'input-skipped',
+		};
+
+		expect(deriveWorkActivityByInputId([snapshot]).get('input-skipped')).toMatchObject({
+			status: 'skipped',
+		});
+	});
+
 	it('projects a terminal merge operation state onto every source input id when children have no input ids', () => {
 		const snapshot = operation('merge', 2);
 		snapshot.status = 'mixed';

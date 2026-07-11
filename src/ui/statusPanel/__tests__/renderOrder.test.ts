@@ -6,7 +6,6 @@ import * as viewState from '../viewState.svelte';
 vi.mock('../viewState.svelte', () => ({
 	pushTransientStatusMessage: vi.fn(),
 	setStatusPanelCancelAllPending: vi.fn(),
-	setStatusPanelConcurrencyText: vi.fn(),
 	setStatusPanelCoverArtDataUrl: vi.fn(),
 	setStatusPanelIsProcessing: vi.fn(),
 	setStatusPanelJobItems: vi.fn(),

@@ -78,4 +78,15 @@ describe('app shell composition', () => {
 		expect(appShellSource.match(/class="app-popover/g)).toHaveLength(2);
 		expect(appShellSource).toContain('{@render overlay?.()}');
 	});
+
+	it('marks every selection-mutating toolbar control for metadata click-away coordination', () => {
+		const removeButtonIndex = appShellSource.indexOf('onclick={() => void removeSelectedFiles()}');
+		const markerIndex = appShellSource.lastIndexOf(
+			'data-metadata-selection-intent',
+			removeButtonIndex,
+		);
+
+		expect(markerIndex).toBeGreaterThan(-1);
+		expect(markerIndex).toBeLessThan(removeButtonIndex);
+	});
 });

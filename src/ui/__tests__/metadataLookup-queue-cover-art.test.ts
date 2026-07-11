@@ -317,7 +317,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
 		expect(context.selectFileMock).toHaveBeenCalledWith(
 			1,
-			{ multi: false, range: false },
+			{ multi: false },
 			{ skipPersistPrevious: true },
 		);
 	});

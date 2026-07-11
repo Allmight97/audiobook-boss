@@ -90,4 +90,18 @@ describe('PopoverController', () => {
 
 		expect(document.activeElement).toBe(anchor);
 	});
+
+	it('preserves click-away focus when closed without restoration', async () => {
+		const anchor = document.createElement('button');
+		const target = document.createElement('button');
+		document.body.append(anchor, target);
+		const popover = new PopoverController();
+		popover.setElements({ anchor });
+		popover.open();
+		target.focus();
+		popover.close({ restoreFocus: false });
+		await flushMicrotasks();
+
+		expect(document.activeElement).toBe(target);
+	});
 });

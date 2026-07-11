@@ -56,10 +56,10 @@ let { children, overlay }: Props = $props();
 		const target = event.target;
 		if (!(target instanceof Node)) return;
 		if (encoderPopover.isOpen && !encoderAnchor?.contains(target) && !encoderPanel?.contains(target)) {
-			encoderPopover.close();
+			encoderPopover.close({ restoreFocus: false });
 		}
 		if (namingPopover.isOpen && !namingAnchor?.contains(target) && !namingPanel?.contains(target)) {
-			namingPopover.close();
+			namingPopover.close({ restoreFocus: false });
 		}
 	}
 </script>
@@ -151,6 +151,7 @@ let { children, overlay }: Props = $props();
 				type="button"
 				class="btn-pill btn-pill-secondary"
 				disabled={selectedFileCount === 0}
+				data-metadata-selection-intent
 				onclick={() => void removeSelectedFiles()}
 			>
 				Remove

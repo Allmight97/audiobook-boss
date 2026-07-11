@@ -13,13 +13,13 @@ import {
 } from './state.svelte';
 
 type FileWorkActivity = {
-	status: 'queued' | 'running' | 'done' | 'cancelled' | 'failed';
+	status: 'queued' | 'running' | 'done' | 'skipped' | 'cancelled' | 'failed';
 };
 
 export type ReadWorkActivityByInputId = () => ReadonlyMap<string, FileWorkActivity>;
 
 export type FileListStatusBadge = {
-	label: 'Ready' | 'Queued' | 'Running' | 'Done' | 'Cancelled' | 'Failed' | 'Error';
+	label: 'Ready' | 'Queued' | 'Running' | 'Done' | 'Skipped' | 'Cancelled' | 'Failed' | 'Error';
 	variant: 'ok' | 'info' | 'muted' | 'warn';
 	isError: boolean;
 };
@@ -85,6 +85,8 @@ export function readFileListStatusBadge(
 			return { label: 'Running', variant: 'info', isError: false };
 		case 'done':
 			return { label: 'Done', variant: 'ok', isError: false };
+		case 'skipped':
+			return { label: 'Skipped', variant: 'muted', isError: false };
 		case 'cancelled':
 			return { label: 'Cancelled', variant: 'muted', isError: false };
 		case 'failed':

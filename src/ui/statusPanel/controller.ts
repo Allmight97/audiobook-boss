@@ -3,10 +3,9 @@ import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './processingWorkflow';
-import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
-import type { AggregateProgress, ProcessingStatus } from './state';
+import { renderJobList, renderStatus } from './render';
+import type { ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
-import { calculateAggregateProgressAndStage } from './domain/aggregate';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
 import { createCoverArtTracker } from './services/coverArtTracker';
 import {
@@ -48,7 +47,6 @@ export class StatusPanelRuntime {
 	constructor() {
 		this.model = createStatusPanelModel();
 		this.renderModel();
-		this.updateConcurrencyIndicator();
 		this.coverArt.reset();
 	}
 
@@ -157,7 +155,6 @@ export class StatusPanelRuntime {
 		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
 
 		this.updateStatus(this.model.currentStatus);
-		this.updateConcurrencyIndicator();
 
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
@@ -300,22 +297,9 @@ export class StatusPanelRuntime {
 		}
 	}
 
-	private calculateAggregateProgressAndStage(): {
-		aggregate: AggregateProgress;
-		stage: ProcessingStatus['stage'];
-	} {
-		return calculateAggregateProgressAndStage(this.model.jobProgress);
-	}
-
 	private renderModel(): void {
 		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
-		const { aggregate } = this.calculateAggregateProgressAndStage();
-		this.updateConcurrencyIndicator(aggregate);
 		this.updateStatus(this.model.currentStatus);
-	}
-
-	private updateConcurrencyIndicator(aggregate?: AggregateProgress): void {
-		renderConcurrencyStatus(aggregate);
 	}
 
 	private updateStatus(status: ProcessingStatus): void {
@@ -333,7 +317,6 @@ export class StatusPanelRuntime {
 		this.pendingRender = false;
 		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
 		this.updateStatus(this.model.currentStatus);
-		this.updateConcurrencyIndicator();
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
 		this.coverArt.reset();
@@ -370,8 +353,6 @@ export class StatusPanelRuntime {
 		this.pendingRender = false;
 
 		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
-		const { aggregate } = this.calculateAggregateProgressAndStage();
-		this.updateConcurrencyIndicator(aggregate);
 		this.updateStatus(this.model.currentStatus);
 
 		if (this.model.currentWorkKind === 'batch' && this.model.latestProgressEvent) {

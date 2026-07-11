@@ -37,6 +37,14 @@ describe('Status Transport island mount', () => {
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
 	});
 
+	it('renders a non-empty backend step message', async () => {
+		render(StatusTransportIsland);
+		statusPanelViewState.stepText = 'Current Step: Writing chapter metadata';
+		await tick();
+
+		expect(document.body.textContent).toContain('Current Step: Writing chapter metadata');
+	});
+
 	it('wires Cancel All to the retained local-settle action', async () => {
 		render(StatusTransportIsland);
 		statusPanelViewState.isProcessing = true;

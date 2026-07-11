@@ -71,15 +71,28 @@
 		}
 	});
 
-	function handleRowActivation(index: number, anchor: HTMLElement): void {
+	function selectionIntentForRow(index: number, event: MouseEvent) {
+		if (event.shiftKey) {
+			const anchorIndex = getSelectedFileIndex();
+			return anchorIndex >= 0
+				? { type: 'range' as const, anchorIndex, index }
+				: { type: 'selectOnly' as const, index };
+		}
+		if (event.metaKey || event.ctrlKey) return { type: 'toggle' as const, index };
+		return { type: 'selectOnly' as const, index };
+	}
+
+	function handleRowActivation(index: number, anchor: HTMLElement, event: MouseEvent): void {
+		const intent = selectionIntentForRow(index, event);
 		void applySelectionIntent(
-			{ type: 'selectOnly', index },
-			{ openMetadataSurface: true, anchor },
+			intent,
+			intent.type === 'selectOnly' ? { openMetadataSurface: true, anchor } : undefined,
 		);
 	}
 
-	function toggleRow(index: number): void {
-		void applySelectionIntent({ type: 'toggle', index });
+	function toggleRow(index: number, event: MouseEvent): void {
+		event.stopPropagation();
+		void applySelectionIntent(selectionIntentForRow(index, event));
 	}
 
 	function toggleSelectAll(checked: boolean): void {
@@ -166,11 +179,11 @@
 		<p class="text-xs muted-text mt-1">{supportText}</p>
 	</div>
 
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 	<div
 		class="file-list-content"
-		role="listbox"
+		role="group"
 		aria-label="Audio files"
-		aria-multiselectable="true"
 		tabindex="0"
 		onkeydown={onFileListKeyDown}
 	>
@@ -223,8 +236,7 @@
 								aria-label={`Select ${getFileTitle(file)}`}
 								data-metadata-selection-intent
 								checked={selected}
-								onclick={(event) => event.stopPropagation()}
-								onchange={() => toggleRow(index)}
+								onclick={(event) => toggleRow(index, event)}
 							/>
 						</td>
 						<td class="file-list-cover-cell">
@@ -244,7 +256,7 @@
 								aria-label={`Edit metadata for ${getFileTitle(file)}`}
 								id={`file-list-row-activate-${index}`}
 								data-metadata-selection-intent
-								onclick={(event) => handleRowActivation(index, event.currentTarget)}
+								onclick={(event) => handleRowActivation(index, event.currentTarget, event)}
 							>
 								{getFileTitle(file)}
 							</button>
@@ -259,7 +271,7 @@
 						</td>
 						<td class="file-list-comfortable-only">{file.format ?? '—'}</td>
 						<td>
-							<span class:file-work-badge-error={badge.isError} class={`app-badge app-badge-${badge.variant}`}>
+							<span title={file.isValid ? undefined : file.error} class:file-work-badge-error={badge.isError} class={`app-badge app-badge-${badge.variant}`}>
 								{badge.label}
 							</span>
 						</td>

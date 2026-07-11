@@ -299,4 +299,97 @@ describe('metadata surface transition coordinator', () => {
 		expect(persistOldDrafts).toHaveBeenCalledWith({ showStatus: true });
 		expect(closeWithoutStaging).toHaveBeenCalledOnce();
 	});
+
+	it('persists dirty multi-selection drafts before repopulating and does not reopen an open surface', async () => {
+		const row = document.createElement('button');
+		let visibleFormValues = { title: 'Shared title' };
+		let persistedDraft = { title: '' };
+		const persistOldDrafts = vi.fn(async () => {
+			persistedDraft = { ...visibleFormValues };
+			return true;
+		});
+		const populateSelection = vi.fn(async () => {
+			visibleFormValues = { ...persistedDraft };
+		});
+		const open = vi.fn();
+		const coordinator = makeMetadataSurfaceTransitionCoordinator({
+			persistOldDrafts,
+			getSelectedFiles: () => [
+				{ path: '/books/one.m4b', isValid: true },
+				{ path: '/books/two.m4b', isValid: true },
+			],
+			populateSelection,
+			closeWithoutStaging: vi.fn(),
+			open,
+			isOpen: () => true,
+			getActiveRowControl: () => row,
+		});
+
+		await expect(coordinator.openMulti()).resolves.toBe(true);
+
+		expect(persistOldDrafts).toHaveBeenCalledExactlyOnceWith({ showStatus: false });
+		expect(populateSelection).toHaveBeenCalledOnce();
+		expect(visibleFormValues).toEqual({ title: 'Shared title' });
+		expect(open).not.toHaveBeenCalled();
+	});
+
+	it('does not stage or mutate selection while metadata save is in progress', async () => {
+		const persistOldDrafts = vi.fn(async () => true);
+		const mutate = vi.fn(() => ({ changed: true }));
+		const coordinator = makeMetadataSurfaceTransitionCoordinator({
+			persistOldDrafts,
+			getSelectedFiles: () => [],
+			populateSelection: vi.fn(),
+			closeWithoutStaging: vi.fn(),
+			open: vi.fn(),
+			getActiveRowControl: () => null,
+			isSaveInProgress: () => true,
+		});
+
+		await expect(coordinator.selection({ type: 'selectOnly', index: 1 }, mutate)).resolves.toBe(
+			false,
+		);
+
+		expect(persistOldDrafts).not.toHaveBeenCalled();
+		expect(mutate).not.toHaveBeenCalled();
+	});
+
+	it('serializes a refresh behind an in-flight selection transition', async () => {
+		const calls: string[] = [];
+		let releaseSelection: (() => void) | undefined;
+		const coordinator = makeMetadataSurfaceTransitionCoordinator({
+			persistOldDrafts: async () => true,
+			getSelectedFiles: () => [{ path: '/books/current.m4b', isValid: true }],
+			populateSelection: async () => {
+				calls.push('populate');
+				if (calls.length === 1) await new Promise<void>((resolve) => (releaseSelection = resolve));
+			},
+			closeWithoutStaging: vi.fn(),
+			open: vi.fn(),
+			getActiveRowControl: () => null,
+		});
+
+		const selection = coordinator.selection({ type: 'selectOnly', index: 0 }, () => ({
+			changed: true,
+		}));
+		const refresh = coordinator.refresh();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(calls).toEqual(['populate']);
+		releaseSelection?.();
+		await Promise.all([selection, refresh]);
+
+		expect(calls).toEqual(['populate', 'populate']);
+	});
+
+	it('clears stale form values and exposes the import error for an invalid active file', async () => {
+		const file = makeFile({ isValid: false, error: 'Unsupported container' });
+		setCurrentFileList(makeFileList(file));
+		setSelectedIndex(0);
+
+		await showSingleSelection(file);
+
+		expect(context.populateMetadataFormSingleMock).toHaveBeenCalledWith({});
+		expect(readInspectorFacts().some((fact) => fact.value === 'Unsupported container')).toBe(true);
+	});
 });

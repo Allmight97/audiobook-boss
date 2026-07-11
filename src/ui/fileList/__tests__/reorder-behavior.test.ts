@@ -184,6 +184,8 @@ describe('file list reorder behavior', () => {
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		moveFileUp(1);
+		await Promise.resolve();
+		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(0);
 		expect(inspectorState.contextText).toBe('beta.m4b');
@@ -205,6 +207,8 @@ describe('file list reorder behavior', () => {
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		moveFileDown(1);
+		await Promise.resolve();
+		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(2);
 		expect(inspectorState.contextText).toBe('beta.m4b');
@@ -226,6 +230,8 @@ describe('file list reorder behavior', () => {
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		reorderFiles(0, 2);
+		await Promise.resolve();
+		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(2);
 		expect(inspectorState.contextText).toBe('alpha.m4b');

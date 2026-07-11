@@ -1,4 +1,5 @@
 import { pathBasename } from '../../lib/path/basename';
+import { get } from 'svelte/store';
 import { type AudioFile, formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
@@ -12,6 +13,7 @@ import {
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
 	isUsableMetadataCache,
+	metadataSaveInProgress,
 } from '../metadataSession';
 import {
 	populateMetadataFormMulti,
@@ -40,7 +42,8 @@ import type { SelectionIntent } from './selection';
 
 export type MetadataSurfacePresentation = {
 	open: (anchor: HTMLElement) => void;
-	closeWithoutStaging: () => void;
+	closeWithoutStaging: (options?: { restoreFocus?: boolean }) => void;
+	isOpen: () => boolean;
 };
 
 let metadataSurfacePresentation: MetadataSurfacePresentation | null = null;
@@ -64,8 +67,10 @@ export type MetadataSurfaceCoordinatorServices = {
 	persistOldDrafts: (options: { showStatus: boolean }) => Promise<boolean>;
 	getSelectedFiles: () => AudioFile[];
 	populateSelection: (files: AudioFile[]) => Promise<void>;
-	closeWithoutStaging: () => void;
+	closeWithoutStaging: (options?: { restoreFocus?: boolean }) => void;
 	open: (anchor: HTMLElement) => void;
+	isOpen?: () => boolean;
+	isSaveInProgress?: () => boolean;
 	getActiveRowControl: () => HTMLElement | null;
 };
 
@@ -93,6 +98,7 @@ export function makeMetadataSurfaceTransitionCoordinator(
 			},
 		): Promise<boolean> {
 			return enqueue(async () => {
+				if (services.isSaveInProgress?.()) return false;
 				if (
 					!options?.skipPersistPrevious &&
 					!(await services.persistOldDrafts({ showStatus: false }))
@@ -109,22 +115,31 @@ export function makeMetadataSurfaceTransitionCoordinator(
 				return true;
 			});
 		},
-		dismiss(): Promise<boolean> {
+		dismiss(options?: { restoreFocus?: boolean }): Promise<boolean> {
 			return enqueue(async () => {
+				if (services.isSaveInProgress?.()) return false;
 				if (!(await services.persistOldDrafts({ showStatus: true }))) return false;
-				services.closeWithoutStaging();
+				services.closeWithoutStaging(options);
 				return true;
 			});
 		},
 		openMulti(): Promise<boolean> {
 			return enqueue(async () => {
+				if (services.isSaveInProgress?.()) return false;
+				if (!(await services.persistOldDrafts({ showStatus: false }))) return false;
 				const files = services.getSelectedFiles();
 				if (files.length < 2) return false;
 				await services.populateSelection(files);
+				if (services.isOpen?.()) return true;
 				const anchor = services.getActiveRowControl();
 				if (!anchor) return false;
 				services.open(anchor);
 				return true;
+			});
+		},
+		refresh(): Promise<void> {
+			return enqueue(async () => {
+				await services.populateSelection(services.getSelectedFiles());
 			});
 		},
 	};
@@ -140,8 +155,10 @@ const metadataSurfaceCoordinator = makeMetadataSurfaceTransitionCoordinator({
 	persistOldDrafts: (options) => persistPendingMetadataDraftsForCurrentSelection(options),
 	getSelectedFiles,
 	populateSelection: populateCurrentSelection,
-	closeWithoutStaging: () => metadataSurfacePresentation?.closeWithoutStaging(),
+	closeWithoutStaging: (options) => metadataSurfacePresentation?.closeWithoutStaging(options),
 	open: (anchor) => metadataSurfacePresentation?.open(anchor),
+	isOpen: () => metadataSurfacePresentation?.isOpen() ?? false,
+	isSaveInProgress: () => get(metadataSaveInProgress),
 	getActiveRowControl: activeRowControl,
 });
 
@@ -159,12 +176,19 @@ export function coordinateMetadataSurfaceSelectionTransition(
 }
 
 /** Non-selection dismissals stage once and close only after success. */
-export function requestMetadataSurfaceDismissal(): Promise<boolean> {
-	return metadataSurfaceCoordinator.dismiss();
+export function requestMetadataSurfaceDismissal(options?: {
+	restoreFocus?: boolean;
+}): Promise<boolean> {
+	return metadataSurfaceCoordinator.dismiss(options);
 }
 
 export function openMetadataSurfaceForCurrentSelection(): Promise<boolean> {
 	return metadataSurfaceCoordinator.openMulti();
+}
+
+/** Serializes non-selection presentation refreshes behind selection transitions. */
+export function coordinateMetadataSurfacePresentationRefresh(): Promise<void> {
+	return metadataSurfaceCoordinator.refresh();
 }
 
 let latestSingleSelectionRequestId = 0;
@@ -188,7 +212,9 @@ function updatePropertiesContextSingle(file: AudioFile, index: number): void {
 	setInspectorContext({
 		text: fileName,
 		variant: 'single',
-		detail: `${index + 1} of ${fileList.files.length}`,
+		detail: file.isValid
+			? `${index + 1} of ${fileList.files.length}`
+			: (file.error ?? 'Invalid file'),
 	});
 }
 
@@ -349,6 +375,10 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 	updateFileProperties(file);
 	refreshOutputForMetadataChange();
 	updateTagPreview();
+	if (!file.isValid) {
+		populateMetadataFormSingle({});
+		return;
+	}
 
 	const stored = getMetadataForFile(file.path);
 	if (isUsableMetadataCache(stored)) {
@@ -398,23 +428,6 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 	refreshOutputForMetadataChange();
 	updateTagPreview();
 	refreshCoverArtDisplay();
-}
-
-export function refreshSelectionPresentation(selectedFiles: AudioFile[]): void {
-	latestSingleSelectionRequestId += 1;
-	renderAutoResolutionHints(selectedFiles);
-
-	if (selectedFiles.length === 1 && selectedFiles[0]) {
-		updateFileProperties(selectedFiles[0]);
-	} else if (selectedFiles.length > 1) {
-		updateMultiSelectionProperties(selectedFiles);
-	} else {
-		clearSelectionPanels();
-		return;
-	}
-
-	refreshOutputForMetadataChange();
-	updateTagPreview();
 }
 
 export function clearSelectionPanels(): void {

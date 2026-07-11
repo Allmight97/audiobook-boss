@@ -76,6 +76,16 @@ describe('file list selection', () => {
 		expect(getSelectedFileIndex()).toBe(-1);
 	});
 
+	it('selects an inclusive range and makes the clicked file active', () => {
+		applySelectionIntent({ type: 'selectOnly', index: 1 });
+
+		const result = applySelectionIntent({ type: 'range', anchorIndex: 1, index: 4 });
+
+		expect(result.changed).toBe(true);
+		expect(selectedIndices()).toEqual([1, 2, 3, 4]);
+		expect(getSelectedFileIndex()).toBe(4);
+	});
+
 	it('reindexes selection after removal', () => {
 		setSelectedFileIndices([1, 3, 4]);
 		setSelectedIndex(4);

@@ -33,15 +33,10 @@ vi.mock('../../lib/tauri/client', () => ({
 
 const mockedDependencies = vi.hoisted(() => ({
 	updateOutputPathMock: vi.fn(),
-	updateStatusPanelConcurrencyStatusMock: vi.fn(),
 }));
 
 vi.mock('../outputPanel', () => ({
 	updateOutputPath: mockedDependencies.updateOutputPathMock,
-}));
-
-vi.mock('../statusPanel', () => ({
-	updateStatusPanelConcurrencyStatus: mockedDependencies.updateStatusPanelConcurrencyStatusMock,
 }));
 
 const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
@@ -123,7 +118,6 @@ describe('Job controls merge toggle', () => {
 		getMaxConcurrentJobsMock.mockReset();
 		getMaxConcurrentJobsMock.mockResolvedValue(4);
 		mockedDependencies.updateOutputPathMock.mockReset();
-		mockedDependencies.updateStatusPanelConcurrencyStatusMock.mockReset();
 		setJobTypeSelection('batch');
 		setJobControlsEnabled(true);
 		jobControlsState.maxConcurrentSelection = 'auto';
@@ -186,7 +180,7 @@ describe('Job controls merge toggle', () => {
 		});
 	});
 
-	it('applies a hydrated fixed max concurrency preference and updates indicator + status text', async () => {
+	it('applies a hydrated fixed max concurrency preference and updates the toolbar indicator', async () => {
 		setMaxConcurrentJobsMock.mockResolvedValueOnce(3);
 
 		await applyMaxConcurrentPreference(
@@ -198,9 +192,6 @@ describe('Job controls merge toggle', () => {
 		expect(getMaxConcurrentSelect().value).toBe('3');
 		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Max 3');
-		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
-			'Max jobs: 3',
-		);
 	});
 
 	it('keeps the in-memory selection and pushes the new auto payload', async () => {
@@ -223,9 +214,6 @@ describe('Job controls merge toggle', () => {
 		});
 		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
 		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 6');
-		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
-			'Max jobs: 6 (Auto)',
-		);
 	});
 
 	it('rolls back the visible concurrency selection when backend acceptance fails', async () => {

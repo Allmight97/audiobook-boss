@@ -12,6 +12,7 @@ import {
 export type SelectionIntent =
 	| { type: 'selectOnly'; index: number }
 	| { type: 'toggle'; index: number }
+	| { type: 'range'; anchorIndex: number; index: number }
 	| { type: 'selectAll' }
 	| { type: 'clear' };
 
@@ -69,6 +70,26 @@ export function applySelectionIntent(intent: SelectionIntent): SelectionResult {
 				addToSelectedIndices(intent.index);
 				setSelectedIndex(intent.index);
 			}
+			return { changed: true };
+		}
+		case 'range': {
+			if (
+				intent.anchorIndex < 0 ||
+				intent.anchorIndex >= totalFiles ||
+				intent.index < 0 ||
+				intent.index >= totalFiles
+			) {
+				return { changed: false };
+			}
+			const start = Math.min(intent.anchorIndex, intent.index);
+			const end = Math.max(intent.anchorIndex, intent.index);
+			const next = Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
+			const selected = getSelectedFileIndices();
+			const isSameSelection =
+				selected.size === next.length && next.every((index) => selected.has(index));
+			if (isSameSelection && getSelectedFileIndex() === intent.index) return { changed: false };
+			setSelectedFileIndices(next);
+			setSelectedIndex(intent.index);
 			return { changed: true };
 		}
 		case 'selectAll': {

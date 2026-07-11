@@ -32,6 +32,7 @@ export {
 export {
 	openMetadataSurfaceForCurrentSelection,
 	requestMetadataSurfaceDismissal,
+	coordinateMetadataSurfacePresentationRefresh,
 	setMetadataSurfacePresentation,
 } from './metadataPanel';
 export type { MetadataSurfacePresentation } from './metadataPanel';

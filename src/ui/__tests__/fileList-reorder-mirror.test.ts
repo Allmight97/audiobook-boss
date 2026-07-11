@@ -60,7 +60,7 @@ vi.mock('../fileList/metadataPanel', async () => {
 				.map((index) => fileList.files[index])
 				.filter((file): file is AudioFile => Boolean(file));
 		},
-		refreshSelectionPresentation: vi.fn(),
+		coordinateMetadataSurfacePresentationRefresh: vi.fn(),
 		showMultiSelection: vi.fn(async () => undefined),
 		showSingleSelection: vi.fn(async () => undefined),
 	};

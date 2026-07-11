@@ -20,11 +20,12 @@
 	type TabId = 'metadata' | 'facts' | 'chapters' | 'output';
 	type Presentation = {
 		open: (anchor: HTMLElement) => void;
-		closeWithoutStaging: () => void;
+		closeWithoutStaging: (options?: { restoreFocus?: boolean }) => void;
+		isOpen: () => boolean;
 	};
 
 	interface Props {
-		onDismiss?: () => Promise<boolean>;
+	onDismiss?: (options?: { restoreFocus?: boolean }) => Promise<boolean>;
 		onPresentationReady?: (presentation: Presentation | null) => void;
 	}
 
@@ -59,15 +60,15 @@
 		popover.open();
 	}
 
-	function closeWithoutStaging(): void {
-		popover.close();
+	function closeWithoutStaging(options?: { restoreFocus?: boolean }): void {
+		popover.close(options);
 	}
 
-	async function requestDismissal(): Promise<void> {
+	async function requestDismissal(options?: { restoreFocus?: boolean }): Promise<void> {
 		if (dismissing || !popover.isOpen) return;
 		dismissing = true;
 		try {
-			await onDismiss();
+			await onDismiss(options);
 		} finally {
 			dismissing = false;
 		}
@@ -100,7 +101,7 @@
 
 	onMount(() => {
 		container = host?.closest<HTMLElement>('.app-shell') ?? document.body;
-		onPresentationReady?.({ open, closeWithoutStaging });
+		onPresentationReady?.({ open, closeWithoutStaging, isOpen: () => popover.isOpen });
 		return () => onPresentationReady?.(null);
 	});
 </script>
@@ -115,7 +116,7 @@
 			!panel?.contains(target) &&
 			!anchor?.contains(target)
 		) {
-			void requestDismissal();
+			void requestDismissal({ restoreFocus: false });
 		}
 	}}
 />

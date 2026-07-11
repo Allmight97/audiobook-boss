@@ -28,7 +28,7 @@ import {
 	clearSelectionPanels,
 	getSelectedFiles,
 	coordinateMetadataSurfaceSelectionTransition,
-	refreshSelectionPresentation,
+	coordinateMetadataSurfacePresentationRefresh,
 	showMultiSelection,
 	showSingleSelection,
 } from './metadataPanel';
@@ -119,7 +119,7 @@ export function appendFileList(
 
 export async function selectFile(
 	index: number,
-	modifiers?: { multi: boolean; range: boolean },
+	modifiers?: { multi: boolean },
 	options?: { skipPersistPrevious?: boolean },
 ): Promise<void> {
 	return applySelectionIntent(
@@ -230,7 +230,7 @@ export function moveFileUp(index: number): void {
 
 	refreshOutputForFileListChange();
 
-	refreshSelectionPresentation(getSelectedFiles());
+	void coordinateMetadataSurfacePresentationRefresh();
 }
 
 export function moveFileDown(index: number): void {
@@ -250,7 +250,7 @@ export function moveFileDown(index: number): void {
 
 	refreshOutputForFileListChange();
 
-	refreshSelectionPresentation(getSelectedFiles());
+	void coordinateMetadataSurfacePresentationRefresh();
 }
 
 export async function toggleFileSort(): Promise<void> {
@@ -328,5 +328,5 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 
 	refreshOutputForFileListChange();
 
-	refreshSelectionPresentation(getSelectedFiles());
+	void coordinateMetadataSurfacePresentationRefresh();
 }

@@ -107,7 +107,16 @@ describe('v3 book table', () => {
 		await waitFor(() => {
 			expect(screen.getByText('Running')).toBeInTheDocument();
 		});
-		expect(screen.getByText('Error')).toBeInTheDocument();
+		expect(screen.getByText('Error')).toHaveAttribute('title', 'Unreadable audio');
+	});
+
+	it('renders skipped work as skipped rather than done', async () => {
+		const snapshot = batchSnapshot('ready');
+		snapshot.children[0] = { ...snapshot.children[0]!, status: 'skipped' };
+		applyOperationSnapshot(snapshot);
+		const screen = render(FileListIsland, { props: { readWorkActivityByInputId } });
+
+		await waitFor(() => expect(screen.getByText('Skipped')).toBeInTheDocument());
 	});
 
 	it('marks select-all indeterminate for a partial selection', async () => {
@@ -120,6 +129,18 @@ describe('v3 book table', () => {
 			'indeterminate',
 			true,
 		);
+	});
+
+	it('uses a group for keyboard navigation and exposes selection on row checkboxes', async () => {
+		const screen = render(FileListIsland);
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+		await tick();
+
+		expect(screen.getByRole('group', { name: 'Audio files' })).not.toHaveAttribute(
+			'aria-multiselectable',
+		);
+		expect(screen.getByRole('checkbox', { name: 'Select ready.m4b' })).toBeChecked();
 	});
 
 	it('hides comfortable-only columns at compact density', async () => {
@@ -136,6 +157,29 @@ describe('v3 book table', () => {
 
 		await waitFor(() => {
 			expect(screen.getAllByRole('checkbox', { name: /Select / })).toHaveLength(3);
+		});
+	});
+
+	it('shift-clicking a row title selects the active-to-clicked range', async () => {
+		setCurrentFileList(
+			fileList(
+				file('/books/one.m4b', 'one'),
+				file('/books/two.m4b', 'two'),
+				file('/books/three.m4b', 'three'),
+			),
+		);
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+		const screen = render(FileListIsland);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Edit metadata for three.m4b' }), {
+			shiftKey: true,
+		});
+
+		await waitFor(() => {
+			expect(screen.getByRole('checkbox', { name: 'Select one.m4b' })).toBeChecked();
+			expect(screen.getByRole('checkbox', { name: 'Select two.m4b' })).toBeChecked();
+			expect(screen.getByRole('checkbox', { name: 'Select three.m4b' })).toBeChecked();
 		});
 	});
 });

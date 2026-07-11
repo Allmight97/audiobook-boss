@@ -11,13 +11,11 @@ const EXPECTED_STATUS_PANEL_EXPORTS = [
 	'pushStatusPanelTransientStatus',
 	'triggerCancelAllFromStatusPanel',
 	'triggerProcessFromStatusPanel',
-	'updateStatusPanelConcurrencyStatus',
 ] as const;
 
 describe('Status Panel Runtime public API contract', () => {
 	beforeEach(() => {
 		document.body.innerHTML = '';
-		statusPanel.updateStatusPanelConcurrencyStatus('');
 	});
 
 	it('pins the status panel public export strip', () => {
@@ -26,8 +24,6 @@ describe('Status Panel Runtime public API contract', () => {
 
 	it('renders the foreground transport through the public runtime API', async () => {
 		const { container } = render(statusPanel.StatusTransportIsland);
-
-		statusPanel.updateStatusPanelConcurrencyStatus('Max jobs: 4');
 		await tick();
 
 		expect(container.querySelector('[aria-label="Preview transport"]')).toBeTruthy();

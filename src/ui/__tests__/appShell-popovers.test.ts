@@ -50,16 +50,19 @@ describe.each([
 		expect(document.activeElement).toBe(trigger);
 	});
 
-	it('closes on click-away and restores focus to its pill', async () => {
+	it('closes on click-away without stealing focus from the clicked target', async () => {
 		render(AppShellIsland, { children: emptyChildren });
 		const trigger = screen.getByTestId(`${kind}-popover-trigger`);
+		const clickAwayTarget = document.createElement('button');
+		document.body.append(clickAwayTarget);
 
 		await fireEvent.click(trigger);
 		expect(screen.getByRole('dialog', { name: dialogName })).toBeTruthy();
-		await fireEvent.click(document.body);
+		clickAwayTarget.focus();
+		await fireEvent.click(clickAwayTarget);
 		await tick();
 
 		expect(screen.queryByRole('dialog', { name: dialogName })).toBeNull();
-		expect(document.activeElement).toBe(trigger);
+		expect(document.activeElement).toBe(clickAwayTarget);
 	});
 });

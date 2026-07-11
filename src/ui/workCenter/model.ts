@@ -10,7 +10,7 @@ export interface WorkCenterModel {
 	operations: OperationSnapshot[];
 }
 
-export type WorkActivityStatus = 'queued' | 'running' | 'done' | 'cancelled' | 'failed';
+export type WorkActivityStatus = 'queued' | 'running' | 'done' | 'skipped' | 'cancelled' | 'failed';
 
 export type WorkActivity = {
 	status: WorkActivityStatus;
@@ -65,7 +65,8 @@ function workActivityStatusFromChild(status: ChildJobStatus): WorkActivityStatus
 	if (status === 'queued') return 'queued';
 	if (status === 'running') return 'running';
 	if (status === 'cancelled') return 'cancelled';
-	return status === 'completed' || status === 'skipped' ? 'done' : 'failed';
+	if (status === 'skipped') return 'skipped';
+	return status === 'completed' ? 'done' : 'failed';
 }
 
 /**

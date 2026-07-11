@@ -30,6 +30,9 @@
 	<div class="status-transport-copy">
 		<span class="status-transport-label">{previewLabel} · {statusPanelViewState.progressPercentage.toFixed(0)}%</span>
 		<span class="status-transport-status">{statusPanelViewState.statusText}</span>
+		{#if statusPanelViewState.stepText}
+			<span class="status-transport-step" style:color={statusPanelViewState.stepColor}>{statusPanelViewState.stepText}</span>
+		{/if}
 	</div>
 	<button
 		type="button"
@@ -73,7 +76,8 @@
 	}
 
 	.status-transport-label,
-	.status-transport-status {
+	.status-transport-status,
+	.status-transport-step {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -85,6 +89,10 @@
 
 	.status-transport-status {
 		color: var(--text-muted);
+		font-size: var(--text-xs);
+	}
+
+	.status-transport-step {
 		font-size: var(--text-xs);
 	}
 </style>
