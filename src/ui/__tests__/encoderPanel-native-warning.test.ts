@@ -57,10 +57,6 @@ describe('encoder panel native AAC warning', () => {
 			const hint = document.getElementById('encoder-availability-hint');
 			expect(hint?.textContent).toContain('Auto will use Native AAC (FFmpeg).');
 			expect(hint?.textContent).toContain('Native AAC (FFmpeg) may sound degraded');
-			expect(
-				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
-			).toBe(true);
-			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (FFmpeg))');
 		});

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
+	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
 	import {
 		appSettingsDialogState,
 		browseForFfmpegBinary,
@@ -10,6 +11,11 @@
 		saveToolchainPreference,
 		setStartupBehavior,
 	} from './settingsDialog.svelte';
+
+	function handleAfterburnerChange(event: Event): void {
+		const target = (event.currentTarget ?? event.target) as HTMLInputElement | null;
+		void setFdkAfterburner(Boolean(target?.checked));
+	}
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -156,6 +162,20 @@
 							{/if}
 						</p>
 					{/if}
+					<label class="checkbox-label" data-testid="app-settings-afterburner-toggle">
+						<input
+							type="checkbox"
+							id="app-settings-afterburner"
+							data-testid="app-settings-afterburner-checkbox"
+							checked={readFdkAfterburner()}
+							onchange={handleAfterburnerChange}
+						/>
+						<span class="option-label">FDK Afterburner</span>
+					</label>
+					<p class="text-xs muted-text">
+						Extra encoding effort for slightly higher quality on the FDK encoder.
+						Leave on unless encode speed matters more than quality.
+					</p>
 				</section>
 
 				{#if appSettingsDialogState.settings}

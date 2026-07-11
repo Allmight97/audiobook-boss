@@ -10,4 +10,13 @@ export async function applyEncodingDefaults(
 	logic.applyEncodingDefaults(defaults);
 }
 
-export { readEncoderDefaultsFromState, readEncodingRequestConfig } from './state.svelte';
+export async function setFdkAfterburner(enabled: boolean): Promise<void> {
+	const logic = await import('./logic');
+	logic.setFdkAfterburner(enabled);
+}
+
+export {
+	readEncoderDefaultsFromState,
+	readEncodingRequestConfig,
+	readFdkAfterburner,
+} from './state.svelte';
