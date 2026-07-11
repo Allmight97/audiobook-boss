@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { PopoverController } from '../lib/ui/popover.svelte';
 	import {
 		MetadataFormFieldsIsland,
 		onMetadataFormActionSelectChange,
@@ -13,6 +14,18 @@
 
 	let density = $state<'comfortable' | 'compact'>('comfortable');
 	let activeMetadataPreset = $state<MetadataFormLabPresetId>('single-clean-populated');
+	let popoverAnchor = $state<HTMLElement | null>(null);
+	let popoverContainer = $state<HTMLElement | null>(null);
+	let popoverPanel = $state<HTMLElement | null>(null);
+	const popover = new PopoverController();
+
+	$effect(() => {
+		popover.setElements({
+			anchor: popoverAnchor,
+			container: popoverContainer,
+			panel: popoverPanel,
+		});
+	});
 
 	function setDensity(next: 'comfortable' | 'compact'): void {
 		density = next;
@@ -44,6 +57,7 @@
 		'--text-placeholder',
 		'--text-error',
 		'--text-success',
+		'--text-warning',
 		'--border-primary',
 		'--border-secondary',
 		'--border-focus',
@@ -219,6 +233,57 @@
 			<select style="max-width: 200px">
 				<option>Select option</option>
 			</select>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="badge-primitives-section">
+		<h3>Badges (app-badge)</h3>
+		<div class="lab-row">
+			<span class="app-badge app-badge-ok">Done</span>
+			<span class="app-badge app-badge-info">Running</span>
+			<span class="app-badge app-badge-warn">Warning</span>
+			<span class="app-badge app-badge-muted">Queued</span>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="pill-size-primitives-section">
+		<h3>Pill sizes (btn-pill-sm / btn-pill-xs)</h3>
+		<div class="lab-row">
+			<button class="btn-pill btn-pill-secondary" type="button">Default</button>
+			<button class="btn-pill btn-pill-secondary btn-pill-sm" type="button">Small</button>
+			<button class="btn-pill btn-pill-secondary btn-pill-xs" type="button">Extra small</button>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="popover-primitive-section">
+		<h3>Popover (app-popover)</h3>
+		<div class="lab-popover-stage" bind:this={popoverContainer}>
+			<button
+				bind:this={popoverAnchor}
+				class="btn-pill btn-pill-secondary btn-pill-sm"
+				type="button"
+				aria-expanded={popover.isOpen}
+				onclick={() => popover.toggle()}
+			>
+				Popover demo
+			</button>
+			{#if popover.isOpen}
+				<div
+					bind:this={popoverPanel}
+					class="app-popover lab-popover"
+					role="dialog"
+					aria-label="Popover primitive demo"
+					tabindex="-1"
+					style={`left: ${popover.position.left}px; top: ${popover.position.top}px`}
+					onkeydown={(event) => popover.handleKeydown(event)}
+				>
+					<strong>Measured and container-clamped</strong>
+					<p class="text-xs muted-text">Escape closes and returns focus to the trigger.</p>
+					<button class="btn-pill btn-pill-primary btn-pill-xs" type="button" onclick={() => popover.close()}>
+						Close
+					</button>
+				</div>
+			{/if}
 		</div>
 	</section>
 
@@ -437,6 +502,24 @@
 		align-items: center;
 		gap: var(--space-3);
 		flex-wrap: wrap;
+	}
+
+	.lab-popover-stage {
+		position: relative;
+		min-height: calc(9rem + var(--density-row-h));
+		padding: var(--density-pad);
+		border: 1px dashed var(--border-secondary);
+		border-radius: var(--radius-md);
+	}
+
+	.lab-popover {
+		width: 18rem;
+		padding: var(--density-pad);
+		font-size: var(--density-text);
+	}
+
+	.lab-popover p {
+		margin: var(--space-2) 0;
 	}
 
 	.lab-stack {

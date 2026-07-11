@@ -11,6 +11,33 @@ vi.mock('../ui/metadataSession', () => ({
 }));
 
 describe('LabIsland design fixtures', () => {
+	it('renders the promoted badge and pill-size primitives', () => {
+		render(LabIsland);
+
+		expect(screen.getByTestId('badge-primitives-section')).toBeInTheDocument();
+		expect(screen.getByText('Done')).toHaveClass('app-badge', 'app-badge-ok');
+		expect(screen.getByText('Running')).toHaveClass('app-badge-info');
+		expect(screen.getByText('Warning')).toHaveClass('app-badge-warn');
+		expect(screen.getByText('Queued')).toHaveClass('app-badge-muted');
+		expect(screen.getByTestId('pill-size-primitives-section')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Small' })).toHaveClass('btn-pill-sm');
+		expect(screen.getByRole('button', { name: 'Extra small' })).toHaveClass('btn-pill-xs');
+	});
+
+	it('opens and closes the popover demo through the shared helper', async () => {
+		render(LabIsland);
+		const trigger = screen.getByRole('button', { name: 'Popover demo' });
+
+		await fireEvent.click(trigger);
+		const popover = screen.getByRole('dialog', { name: 'Popover primitive demo' });
+		expect(popover).toHaveClass('app-popover');
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus());
+
+		await fireEvent.keyDown(popover, { key: 'Escape' });
+		expect(screen.queryByRole('dialog', { name: 'Popover primitive demo' })).toBeNull();
+		await waitFor(() => expect(trigger).toHaveFocus());
+	});
+
 	it('renders state fixture cards for expected UI states', () => {
 		render(LabIsland);
 

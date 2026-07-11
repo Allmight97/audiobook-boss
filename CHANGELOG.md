@@ -47,6 +47,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - The media test lane also covers sample-rate-converted merges and stereo
   channel preservation (per-channel RMS on the decoded artifact), and its
   Apple AAC tests skip cleanly on non-macOS agents (#413).
+- The FDK HE-AAC afterburner control moved from the encoder workbench into
+  the App Settings dialog. It stays default-on (Fraunhofer guidance); the
+  setting exists for users who knowingly trade quality for encode speed.
+  Encode payloads and the IPC contract are unchanged.
 
 ### Removed
 
@@ -79,6 +83,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   artifact owner instead of dropping edits made while a non-first input is
   selected; non-merge processing blocks dirty edits on an invalid selection
   instead of retargeting them to another file (#415).
+- Captured dev-log encoding sessions now report terminal truth end-to-end:
+  foreground/preview failures and validation-rejected requests always leave
+  a typed terminal record, FDK parameter-acceptance warnings are no longer
+  muzzled out of the per-run log, and the session-verdict analyzer treats
+  ambiguous or truncated FDK run markers, dying tee pipes, and adversarial
+  encoder stderr as indeterminate instead of fabricating a clean or failed
+  verdict. Legacy logs without a parseable Run ID are archived rather than
+  destroyed.
 
 ## [1.3.0] - 2026-07-02
 
