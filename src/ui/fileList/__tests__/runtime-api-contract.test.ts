@@ -13,13 +13,18 @@ const EXPECTED_FILE_LIST_EXPORTS = [
 	'getSelectedFiles',
 	'isOrderLocked',
 	'onOrderLockChange',
+	'openMetadataSurfaceForCurrentSelection',
 	'persistPendingMetadataDraftsForCurrentSelection',
+	'readActiveFileChapters',
 	'readCombinedDurationText',
 	'readCombinedSizeText',
 	'readFileListCount',
+	'readInspectorFacts',
 	'removeSelectedFiles',
+	'requestMetadataSurfaceDismissal',
 	'selectFile',
 	'setFileOrderLocked',
+	'setMetadataSurfacePresentation',
 	'stageMetadataToSelection',
 ] as const;
 

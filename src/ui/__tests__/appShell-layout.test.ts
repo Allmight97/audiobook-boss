@@ -2,20 +2,21 @@ import { describe, expect, it } from 'vitest';
 import appSource from '../../App.svelte?raw';
 import appShellSource from '../appShell/AppShellIsland.svelte?raw';
 import fileImportSource from '../fileImport/FileImportIsland.svelte?raw';
-import inputWorkflowSource from '../leftColumn/InputWorkflowPanel.svelte?raw';
 import operationsBarSource from '../operationsBar/OperationsBarIsland.svelte?raw';
 
 describe('app shell composition', () => {
-	it('wraps the unchanged application grid in app chrome', () => {
+	it('uses the full-width file area as final v3 geometry', () => {
 		const shellIndex = appSource.indexOf('<AppShellIsland>');
-		const mainIndex = appSource.indexOf('<div class="main-container">');
+		const fileAreaIndex = appSource.indexOf('data-testid="file-area"');
 
 		expect(shellIndex).toBeGreaterThan(-1);
-		expect(mainIndex).toBeGreaterThan(shellIndex);
-		expect(appSource).toContain('<LeftColumnIsland {readWorkActivityByInputId} />');
-		expect(appSource).toContain('<MetadataManagerIsland />');
-		expect(appSource).not.toContain('EncodingWorkbenchIsland');
-		expect(appSource.match(/<MetadataManagerIsland \/>/g)).toHaveLength(1);
+		expect(fileAreaIndex).toBeGreaterThan(shellIndex);
+		expect(appSource).toContain('<FileImportIsland>');
+		expect(appSource).toContain('<FileListIsland {...dropTarget} {readWorkActivityByInputId} />');
+		expect(appSource).toContain('<MetadataSurfaceIsland');
+		expect(appSource).not.toContain('LeftColumnIsland');
+		expect(appSource).not.toContain('MetadataManagerIsland');
+		expect(appSource).not.toContain('main-container');
 		expect(appSource).not.toContain('StatusPanelIsland');
 		expect(appSource).not.toContain('WorkCenterIsland');
 	});
@@ -46,11 +47,15 @@ describe('app shell composition', () => {
 			expect(appShellSource).toContain(ownerSurface);
 		}
 
-		for (const ownerSurface of ['getSelectedFileIndices', 'removeSelectedFiles', 'openMetadataLookup']) {
+		for (const ownerSurface of [
+			'getSelectedFileIndices',
+			'removeSelectedFiles',
+			'openMetadataLookup',
+			'openMetadataSurfaceForCurrentSelection',
+		]) {
 			expect(appShellSource).toContain(ownerSurface);
 		}
 
-		expect(inputWorkflowSource).not.toContain('<JobControlsIsland');
 		expect(fileImportSource).not.toContain('add-folder-btn');
 		expect(fileImportSource).not.toContain('acquire-audiobooks-btn');
 		expect(operationsBarSource).toContain('<StatusTransportIsland');
@@ -71,5 +76,6 @@ describe('app shell composition', () => {
 		expect(appShellSource).toContain('<OutputPanelIsland variant="workbench"');
 		expect(appShellSource).toContain('<TagPreviewIsland variant="workbench"');
 		expect(appShellSource.match(/class="app-popover/g)).toHaveLength(2);
+		expect(appShellSource).toContain('{@render overlay?.()}');
 	});
 });

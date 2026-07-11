@@ -27,6 +27,7 @@ import {
 	autoUpdateCoverArtFromFirstValidFile,
 	clearSelectionPanels,
 	getSelectedFiles,
+	coordinateMetadataSurfaceSelectionTransition,
 	refreshSelectionPresentation,
 	showMultiSelection,
 	showSingleSelection,
@@ -129,27 +130,13 @@ export async function selectFile(
 
 export async function applySelectionIntent(
 	intent: SelectionIntent,
-	options?: { skipPersistPrevious?: boolean },
+	options?: { skipPersistPrevious?: boolean; openMetadataSurface?: boolean; anchor?: HTMLElement | null },
 ): Promise<void> {
-	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
-			skipSingleSelection: options?.skipPersistPrevious,
-			validationFailureMessage: 'Fix metadata validation errors before changing selection.',
-		}))
-	) {
-		return;
-	}
-
-	const selectionResult = applySelectionIntentToState(intent);
-	if (!selectionResult.changed) return;
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length === 0) {
-		clearSelectionPanels();
-	} else if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	} else {
-		void showMultiSelection(selectedFiles);
-	}
+	await coordinateMetadataSurfaceSelectionTransition(intent, applySelectionIntentToState, {
+		skipPersistPrevious: options?.skipPersistPrevious,
+		openAfterPopulate: options?.openMetadataSurface,
+		anchor: options?.anchor,
+	});
 }
 
 export async function selectAll(): Promise<void> {

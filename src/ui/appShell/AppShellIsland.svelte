@@ -3,7 +3,11 @@
 	import { PopoverController } from '../../lib/ui/popover.svelte';
 	import { openAppSettingsDialog } from '../appSettings';
 	import { handleClickToSelect, handleClickToSelectFolder } from '../fileImport';
-	import { getSelectedFileIndices, removeSelectedFiles } from '../fileList';
+	import {
+		getSelectedFileIndices,
+		openMetadataSurfaceForCurrentSelection,
+		removeSelectedFiles,
+	} from '../fileList';
 	import {
 		handleMaxConcurrentSelectionChange,
 		handleMergeModeChange,
@@ -19,11 +23,12 @@
 	import { TagPreviewIsland } from '../tagPreview';
 	import { densityState, setDensityFromUser } from './density.svelte';
 
-	interface Props {
-		children: Snippet;
-	}
+interface Props {
+	children: Snippet;
+	overlay?: Snippet;
+}
 
-	let { children }: Props = $props();
+let { children, overlay }: Props = $props();
 	const selectedFileCount = $derived(getSelectedFileIndices().size);
 	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
 	const namingSummaryLabel = $derived(readOutputNamingSummaryLabel());
@@ -136,6 +141,15 @@
 			<button
 				type="button"
 				class="btn-pill btn-pill-secondary"
+				disabled={selectedFileCount < 2}
+				data-metadata-selection-intent
+				onclick={() => void openMetadataSurfaceForCurrentSelection()}
+			>
+				Edit shared fields ({selectedFileCount})
+			</button>
+			<button
+				type="button"
+				class="btn-pill btn-pill-secondary"
 				disabled={selectedFileCount === 0}
 				onclick={() => void removeSelectedFiles()}
 			>
@@ -211,6 +225,7 @@
 	<main class="app-shell-main" data-testid="app-shell-main">
 		{@render children()}
 	</main>
+	{@render overlay?.()}
 
 	<div class="app-shell-operations" data-testid="app-shell-operations">
 		<OperationsBarIsland />
@@ -297,7 +312,9 @@
 
 	.app-shell-toolbar {
 		justify-content: space-between;
-		gap: var(--space-3);
+		/* The primary action must never clip out of view at narrow widths. */
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-3);
 		min-height: var(--density-row-h);
 		padding: var(--space-2) var(--density-pad);
 		border-bottom: 1px solid var(--border-primary);

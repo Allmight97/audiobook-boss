@@ -72,13 +72,11 @@
 		}
 	});
 
-	function focusFileListContent(): void {
-		fileListContent?.focus({ preventScroll: true });
-	}
-
-	function handleRowActivation(index: number): void {
-		focusFileListContent();
-		void applySelectionIntent({ type: 'selectOnly', index });
+	function handleRowActivation(index: number, anchor: HTMLElement): void {
+		void applySelectionIntent(
+			{ type: 'selectOnly', index },
+			{ openMetadataSurface: true, anchor },
+		);
 	}
 
 	function toggleRow(index: number): void {
@@ -186,6 +184,7 @@
 							bind:this={selectAllEl}
 							type="checkbox"
 							aria-label="Select all files"
+							data-metadata-selection-intent
 							checked={allSelected}
 							disabled={files.length === 0}
 							onchange={(event) => toggleSelectAll(event.currentTarget.checked)}
@@ -224,6 +223,7 @@
 							<input
 								type="checkbox"
 								aria-label={`Select ${getFileTitle(file)}`}
+								data-metadata-selection-intent
 								checked={selected}
 								onclick={(event) => event.stopPropagation()}
 								onchange={() => toggleRow(index)}
@@ -244,7 +244,9 @@
 								class="file-list-activate"
 								aria-pressed={active ?? false}
 								aria-label={`Edit metadata for ${getFileTitle(file)}`}
-								onclick={() => handleRowActivation(index)}
+								id={`file-list-row-activate-${index}`}
+								data-metadata-selection-intent
+								onclick={(event) => handleRowActivation(index, event.currentTarget)}
 							>
 								{getFileTitle(file)}
 							</button>

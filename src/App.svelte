@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { LeftColumnIsland } from './ui/leftColumn';
-	import { MetadataManagerIsland } from './ui/metadataManager';
+	import { FileListIsland, requestMetadataSurfaceDismissal, setMetadataSurfacePresentation } from './ui/fileList';
+	import FileImportIsland from './ui/fileImport/FileImportIsland.svelte';
+	import { MetadataSurfaceIsland } from './ui/metadataSurface';
 	import { readWorkActivityByInputId } from './ui/workCenter';
 	import { MetadataLookupIsland } from './ui/metadataLookup';
 	import { AppShellIsland } from './ui/appShell';
@@ -33,17 +34,33 @@
 <svelte:window onkeydown={handleGlobalKeyDown} />
 
 <AppShellIsland>
-	<div class="main-container">
-		<LeftColumnIsland {readWorkActivityByInputId} />
-
-		<div class="right-column-wrapper">
-			<div class="panel right-column-panel metadata-manager-panel">
-				<MetadataManagerIsland />
-			</div>
-		</div>
+	{#snippet overlay()}
+		<MetadataSurfaceIsland
+			onDismiss={requestMetadataSurfaceDismissal}
+			onPresentationReady={setMetadataSurfacePresentation}
+		/>
+	{/snippet}
+	<div class="file-area" data-testid="file-area">
+		<FileImportIsland>
+			{#snippet children(dropTarget)}
+				<FileListIsland {...dropTarget} {readWorkActivityByInputId} />
+			{/snippet}
+		</FileImportIsland>
 	</div>
 </AppShellIsland>
 <MetadataLookupIsland />
 <RemoteSourceAcquireDialog />
 <CollisionDialogIsland />
 <AppSettingsDialogIsland />
+
+<style>
+	.file-area {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		padding: var(--density-pad);
+		overflow: hidden;
+	}
+</style>

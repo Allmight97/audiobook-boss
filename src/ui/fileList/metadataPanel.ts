@@ -35,6 +35,126 @@ import {
 	getSelectedFileIndex,
 	getSelectedFiles,
 } from './state.svelte';
+import { persistPendingMetadataDraftsForCurrentSelection } from './metadataStaging';
+import type { SelectionIntent } from './selection';
+
+export type MetadataSurfacePresentation = {
+	open: (anchor: HTMLElement) => void;
+	closeWithoutStaging: () => void;
+};
+
+let metadataSurfacePresentation: MetadataSurfacePresentation | null = null;
+
+/**
+ * App composition registers the surface adapter here. FileList keeps the
+ * selection protocol while the surface keeps its PopoverController private.
+ */
+export function setMetadataSurfacePresentation(
+	presentation: MetadataSurfacePresentation | null,
+): void {
+	metadataSurfacePresentation = presentation;
+}
+
+function activeRowControl(): HTMLElement | null {
+	const index = getSelectedFileIndex();
+	return index >= 0 ? document.getElementById(`file-list-row-activate-${index}`) : null;
+}
+
+export type MetadataSurfaceCoordinatorServices = {
+	persistOldDrafts: (options: { showStatus: boolean }) => Promise<boolean>;
+	getSelectedFiles: () => AudioFile[];
+	populateSelection: (files: AudioFile[]) => Promise<void>;
+	closeWithoutStaging: () => void;
+	open: (anchor: HTMLElement) => void;
+	getActiveRowControl: () => HTMLElement | null;
+};
+
+export function makeMetadataSurfaceTransitionCoordinator(
+	services: MetadataSurfaceCoordinatorServices,
+) {
+	let queue = Promise.resolve();
+	function enqueue<T>(work: () => Promise<T>): Promise<T> {
+		const next = queue.then(work, work);
+		queue = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		return next;
+	}
+
+	return {
+		selection(
+			intent: SelectionIntent,
+			mutateSelection: (intent: SelectionIntent) => { changed: boolean },
+			options?: { openAfterPopulate?: boolean; anchor?: HTMLElement | null; skipPersistPrevious?: boolean },
+		): Promise<boolean> {
+			return enqueue(async () => {
+				if (!options?.skipPersistPrevious && !(await services.persistOldDrafts({ showStatus: false }))) {
+					return false;
+				}
+				services.closeWithoutStaging();
+				const result = mutateSelection(intent);
+				if (result.changed) await services.populateSelection(services.getSelectedFiles());
+				if (options?.openAfterPopulate) {
+					const anchor = options.anchor ?? services.getActiveRowControl();
+					if (anchor) services.open(anchor);
+				}
+				return true;
+			});
+		},
+		dismiss(): Promise<boolean> {
+			return enqueue(async () => {
+				if (!(await services.persistOldDrafts({ showStatus: true }))) return false;
+				services.closeWithoutStaging();
+				return true;
+			});
+		},
+		openMulti(): Promise<boolean> {
+			return enqueue(async () => {
+				const files = services.getSelectedFiles();
+				if (files.length < 2) return false;
+				await services.populateSelection(files);
+				const anchor = services.getActiveRowControl();
+				if (!anchor) return false;
+				services.open(anchor);
+				return true;
+			});
+		},
+	};
+}
+
+async function populateCurrentSelection(files: AudioFile[]): Promise<void> {
+	if (files.length === 0) clearSelectionPanels();
+	else if (files.length === 1 && files[0]) await showSingleSelection(files[0]);
+	else await showMultiSelection(files);
+}
+
+const metadataSurfaceCoordinator = makeMetadataSurfaceTransitionCoordinator({
+	persistOldDrafts: (options) => persistPendingMetadataDraftsForCurrentSelection(options),
+	getSelectedFiles,
+	populateSelection: populateCurrentSelection,
+	closeWithoutStaging: () => metadataSurfacePresentation?.closeWithoutStaging(),
+	open: (anchor) => metadataSurfacePresentation?.open(anchor),
+	getActiveRowControl: activeRowControl,
+});
+
+/** The sole selection/popover coordinator: stage → close → mutate → populate. */
+export function coordinateMetadataSurfaceSelectionTransition(
+	intent: SelectionIntent,
+	mutateSelection: (intent: SelectionIntent) => { changed: boolean },
+	options?: { openAfterPopulate?: boolean; anchor?: HTMLElement | null; skipPersistPrevious?: boolean },
+): Promise<boolean> {
+	return metadataSurfaceCoordinator.selection(intent, mutateSelection, options);
+}
+
+/** Non-selection dismissals stage once and close only after success. */
+export function requestMetadataSurfaceDismissal(): Promise<boolean> {
+	return metadataSurfaceCoordinator.dismiss();
+}
+
+export function openMetadataSurfaceForCurrentSelection(): Promise<boolean> {
+	return metadataSurfaceCoordinator.openMulti();
+}
 
 let latestSingleSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;

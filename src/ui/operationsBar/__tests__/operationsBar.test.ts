@@ -158,4 +158,21 @@ describe('OperationsBarIsland', () => {
 		});
 		expect(screen.getByText('The Way of Kings — batch encode')).toBeInTheDocument();
 	});
+
+	it('renders a metadata batch-save snapshot through the Work Center seam', async () => {
+		const metadataSave = {
+			...operation('completed'),
+			operationId: 'metadata-save-1',
+			kind: 'metadataSave' as const,
+			title: 'Save metadata (3 files)',
+			sourceInputIds: [],
+			children: [],
+		};
+		render(OperationsBarIsland);
+		applyOperationListSnapshot(operationList(metadataSave));
+
+		await waitFor(() => {
+			expect(screen.getByText('Save metadata (3 files)')).toBeInTheDocument();
+		});
+	});
 });

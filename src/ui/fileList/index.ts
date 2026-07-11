@@ -12,8 +12,15 @@ export {
 	stageMetadataToSelection,
 } from './metadataStaging';
 
-export { readCombinedDurationText, readCombinedSizeText, readFileListCount } from './viewState.svelte';
+export {
+	readActiveFileChapters,
+	readCombinedDurationText,
+	readCombinedSizeText,
+	readFileListCount,
+} from './viewState.svelte';
 export type { ReadWorkActivityByInputId } from './viewState.svelte';
+export { readInspectorFacts } from './inspectorState.svelte';
+export type { InspectorFact } from './inspectorState.svelte';
 
 export {
 	appendFileList,
@@ -22,6 +29,12 @@ export {
 	selectFile,
 	setFileOrderLocked,
 } from './actions';
+export {
+	openMetadataSurfaceForCurrentSelection,
+	requestMetadataSurfaceDismissal,
+	setMetadataSurfacePresentation,
+} from './metadataPanel';
+export type { MetadataSurfacePresentation } from './metadataPanel';
 
 /**
  * File list module — pre-processing workbench file list state, actions, and rendering.

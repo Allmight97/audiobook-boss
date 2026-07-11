@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import appShellSource from '../appShell/AppShellIsland.svelte?raw';
 import fileListIslandSource from '../fileList/FileListIsland.svelte?raw';
 import importIslandSource from '../fileImport/FileImportIsland.svelte?raw';
-import inputWorkflowSource from '../leftColumn/InputWorkflowPanel.svelte?raw';
+import appSource from '../../App.svelte?raw';
 
 const fsPromisesSpecifier = 'node:fs/promises';
 const { readFile } = (await import(fsPromisesSpecifier)) as {
@@ -28,16 +28,11 @@ function cssRule(source: string, selector: string): string {
 }
 
 describe('file import layout', () => {
-	it('constrains the input file list to the scrollable work area', () => {
-		expect(inputWorkflowSource).toContain(
-			'class="left-column-panel input-workflow input-workflow-panel flex flex-col gap-2 mb-2"',
-		);
-		expect(cssRule(globalCss, '.input-panel')).toContain('overflow: hidden;');
-		expect(cssRule(globalCss, '.left-column-wrapper')).toContain('overflow: hidden;');
-		const inputWorkflowRule = cssRule(globalCss, '.input-workflow-panel');
-		expect(inputWorkflowRule).toContain('flex: 1 1 auto;');
-		expect(inputWorkflowRule).toContain('min-height: 0;');
-		expect(inputWorkflowRule).toContain('overflow: hidden;');
+	it('keeps the full-width file area scrollable without the retired column shell', () => {
+		expect(appSource).toContain('class="file-area"');
+		expect(appSource).not.toContain('leftColumn');
+		expect(globalCss).not.toContain('.main-container');
+		expect(globalCss).not.toContain('.right-column-wrapper');
 		expect(cssRule(fileListIslandSource, '.file-list-content')).toContain('overflow-y: auto;');
 	});
 

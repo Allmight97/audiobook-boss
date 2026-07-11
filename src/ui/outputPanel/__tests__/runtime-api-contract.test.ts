@@ -7,6 +7,7 @@ const EXPECTED_OUTPUT_PANEL_EXPORTS = [
 	'applyOutputDefaultsFromSettings',
 	'initOutputPanel',
 	'readEstimatedSizeText',
+	'readOutputDisplaySnapshot',
 	'readOutputNamingSummaryLabel',
 	'readOutputDefaultsFromState',
 	'readOutputRequestConfig',

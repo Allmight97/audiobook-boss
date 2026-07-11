@@ -10,6 +10,7 @@ vi.mock('../fileImport', () => ({
 }));
 vi.mock('../fileList', () => ({
 	getSelectedFileIndices: () => new Set<number>(),
+	openMetadataSurfaceForCurrentSelection: vi.fn(),
 	removeSelectedFiles: vi.fn(),
 }));
 vi.mock('../jobControls', () => ({

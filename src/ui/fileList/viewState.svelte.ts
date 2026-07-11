@@ -1,6 +1,7 @@
-import { formatDuration, formatFileSize, type AudioFile } from '../../types/audio';
+import { formatDuration, formatFileSize, type AudioChapter, type AudioFile } from '../../types/audio';
 import {
 	getCurrentFileList,
+	getSelectedFileIndex,
 	getSelectedFileIndices,
 	getSortAscending,
 	isOrderLocked,
@@ -98,6 +99,13 @@ export function readCombinedSizeText(): string {
 
 export function readFileListCount(): number {
 	return getCurrentFileList()?.files.length ?? 0;
+}
+
+/** Read-only active-file chapter facts for the metadata-surface Chapters tab. */
+export function readActiveFileChapters(): readonly AudioChapter[] {
+	const fileList = getCurrentFileList();
+	const selectedIndex = getSelectedFileIndex();
+	return fileList?.files[selectedIndex]?.chapters ?? [];
 }
 
 export function readCombinedDurationText(): string {
