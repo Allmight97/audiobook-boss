@@ -1,6 +1,6 @@
 //! File list management and validation
 
-use super::{AudioFile, DecoderSelection};
+use super::{AudioChapter, AudioFile, DecoderSelection};
 use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::fs;
@@ -70,6 +70,7 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
             audio_file.sample_rate = properties.sample_rate;
             audio_file.channels = properties.channels;
             audio_file.codec_label = properties.codec_label;
+            audio_file.chapters = properties.chapters;
             audio_file.selected_decoder = properties
                 .selected_decoder
                 .as_ref()
@@ -100,6 +101,7 @@ struct AudioProperties {
     sample_rate: Option<u32>,
     channels: Option<u32>,
     codec_label: Option<String>,
+    chapters: Vec<AudioChapter>,
     selected_decoder: Option<DecoderSelection>,
 }
 
@@ -109,14 +111,14 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     // First check if we support the file extension
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
-    let duration = {
+    let (duration, chapters) = {
         let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
         let audio_stream = ictx
             .streams()
             .best(ff::media::Type::Audio)
             .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
         let container = ictx.duration();
-        if container > 0 {
+        let duration = if container > 0 {
             container as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
         } else {
             let stream_dur = audio_stream.duration();
@@ -126,7 +128,24 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
             } else {
                 0.0
             }
-        }
+        };
+        let chapters = ictx
+            .chapters()
+            .map(|chapter| AudioChapter {
+                title: chapter.metadata().get("title").map(str::to_string),
+                start_ms: ff::Rescale::rescale(
+                    &chapter.start(),
+                    chapter.time_base(),
+                    ff::Rational(1, 1_000),
+                ),
+                end_ms: ff::Rescale::rescale(
+                    &chapter.end(),
+                    chapter.time_base(),
+                    ff::Rational(1, 1_000),
+                ),
+            })
+            .collect();
+        (duration, chapters)
     };
 
     // Validate that we got a reasonable duration
@@ -156,6 +175,7 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
         sample_rate,
         channels,
         codec_label: inspection.codec_label,
+        chapters,
         selected_decoder: Some(selected_decoder),
     })
 }

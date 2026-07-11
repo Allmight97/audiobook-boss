@@ -95,6 +95,7 @@ mod tests {
             channels: Some(2),
             codec_label: Some("AAC".to_string()),
             selected_decoder: Some("Native AAC (FFmpeg)".to_string()),
+            chapters: Vec::new(),
             is_valid,
             error: None,
         }

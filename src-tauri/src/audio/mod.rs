@@ -45,10 +45,25 @@ pub struct AudioFile {
     pub codec_label: Option<String>,
     /// Friendly selected decoder label for display only (None if unavailable)
     pub selected_decoder: Option<String>,
+    /// Chapters embedded in this individual source file, normalized to milliseconds.
+    #[serde(default)]
+    pub chapters: Vec<AudioChapter>,
     /// Validation status
     pub is_valid: bool,
     /// Error message if validation failed
     pub error: Option<String>,
+}
+
+/// Read-only chapter facts discovered while analyzing one audio file.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioChapter {
+    /// Embedded chapter title, when present in the source container.
+    pub title: Option<String>,
+    /// Chapter start in milliseconds from the beginning of this file.
+    pub start_ms: i64,
+    /// Chapter end in milliseconds from the beginning of this file.
+    pub end_ms: i64,
 }
 
 /// Machine-readable decoder identity paired with the friendly display label.
@@ -81,6 +96,7 @@ impl AudioFile {
             channels: None,
             codec_label: None,
             selected_decoder: None,
+            chapters: Vec::new(),
             is_valid: false,
             error: None,
         }

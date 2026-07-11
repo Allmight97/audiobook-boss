@@ -273,6 +273,20 @@ async fn import_configure_process_produces_decodable_m4b_with_truthful_duration(
     );
 }
 
+/// Analysis exposes the real chapters already embedded in one M4B; the fixture
+/// is a normal engine-produced two-source artifact, not a serialized stand-in.
+#[tokio::test]
+async fn analysis_exposes_embedded_chapters_from_real_m4b() {
+    let lane = MediaLane::with_fixtures(&[1.0, 1.5]);
+    let output = lane.process(None).await;
+
+    let probe = get_file_list_info(&[&output]).expect("analyze chaptered M4B");
+    let chapters = &probe.files[0].chapters;
+    assert_eq!(chapters.len(), 2, "analysis returns both embedded chapters");
+    assert_eq!(chapters[0].title.as_deref(), Some("fixture-0"));
+    assert_eq!(chapters[1].title.as_deref(), Some("fixture-1"));
+}
+
 #[tokio::test]
 async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     let lane = MediaLane::with_fixtures(&[1.0]);

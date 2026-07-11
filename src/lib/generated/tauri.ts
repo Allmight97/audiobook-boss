@@ -200,6 +200,16 @@ export type AppSettingsPatch = {
 	pinnedDefaults: PinnedDefaults | null,
 };
 
+// Read-only chapter facts discovered while analyzing one audio file.
+export type AudioChapter = {
+	// Embedded chapter title, when present in the source container.
+	title: string | null,
+	// Chapter start in milliseconds from the beginning of this file.
+	startMs: number,
+	// Chapter end in milliseconds from the beginning of this file.
+	endMs: number,
+};
+
 // Represents an audio file with metadata
 export type AudioFile = {
 	// Stable workbench/session identity for joins that must survive reorder/remove operations.
@@ -222,6 +232,8 @@ export type AudioFile = {
 	codecLabel: string | null,
 	// Friendly selected decoder label for display only (None if unavailable)
 	selectedDecoder: string | null,
+	// Chapters embedded in this individual source file, normalized to milliseconds.
+	chapters?: AudioChapter[],
 	// Validation status
 	isValid: boolean,
 	// Error message if validation failed
