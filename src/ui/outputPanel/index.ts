@@ -23,6 +23,7 @@ export function applyOutputDefaultsFromSettings(defaults: OutputDefaults): void 
 
 export {
 	readEstimatedSizeText,
+	readOutputNamingSummaryLabel,
 	readOutputDefaultsFromState,
 	readOutputRequestConfig,
 } from './state.svelte';

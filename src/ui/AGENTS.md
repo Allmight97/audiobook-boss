@@ -9,10 +9,9 @@ only the rules shared by the thin composition shells that have none.
 These directories arrange existing public islands and own no business state:
 
 - `leftColumn/` — arranges the input workflow and selected-file inspector zones.
-- `encodingWorkbench/` — right-column encoder/output/tags composition.
 - `metadataManager/` — right-column metadata composition.
 
-Rules for all three:
+Rules for both:
 
 - Compose existing public UI islands only. Do not import private
   `state.svelte.ts`, logic modules, or event handlers from the owners they

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { PopoverController } from '../../lib/ui/popover.svelte';
 	import { openAppSettingsDialog } from '../appSettings';
 	import { handleClickToSelect, handleClickToSelectFolder } from '../fileImport';
 	import { getSelectedFileIndices, removeSelectedFiles } from '../fileList';
@@ -12,6 +13,10 @@
 	import { triggerProcessFromStatusPanel } from '../statusPanel';
 	import { openMetadataLookup } from '../metadataLookup';
 	import { OperationsBarIsland } from '../operationsBar';
+	import { readEncoderSummaryLabel } from '../encoderPanel';
+	import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
+	import { OutputPanelIsland, readOutputNamingSummaryLabel } from '../outputPanel';
+	import { TagPreviewIsland } from '../tagPreview';
 	import { densityState, setDensityFromUser } from './density.svelte';
 
 	interface Props {
@@ -20,9 +25,43 @@
 
 	let { children }: Props = $props();
 	const selectedFileCount = $derived(getSelectedFileIndices().size);
+	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
+	const namingSummaryLabel = $derived(readOutputNamingSummaryLabel());
+	let popoverContainer = $state<HTMLElement | null>(null);
+	let encoderAnchor = $state<HTMLElement | null>(null);
+	let encoderPanel = $state<HTMLElement | null>(null);
+	let namingAnchor = $state<HTMLElement | null>(null);
+	let namingPanel = $state<HTMLElement | null>(null);
+	const encoderPopover = new PopoverController();
+	const namingPopover = new PopoverController();
+
+	$effect(() => {
+		encoderPopover.setElements({ anchor: encoderAnchor, container: popoverContainer, panel: encoderPanel });
+		namingPopover.setElements({ anchor: namingAnchor, container: popoverContainer, panel: namingPanel });
+	});
+
+	function togglePopover(kind: 'encoder' | 'naming'): void {
+		const active = kind === 'encoder' ? encoderPopover : namingPopover;
+		const other = kind === 'encoder' ? namingPopover : encoderPopover;
+		other.close();
+		active.toggle();
+	}
+
+	function handleWindowClick(event: MouseEvent): void {
+		const target = event.target;
+		if (!(target instanceof Node)) return;
+		if (encoderPopover.isOpen && !encoderAnchor?.contains(target) && !encoderPanel?.contains(target)) {
+			encoderPopover.close();
+		}
+		if (namingPopover.isOpen && !namingAnchor?.contains(target) && !namingPanel?.contains(target)) {
+			namingPopover.close();
+		}
+	}
 </script>
 
-<div class="app-shell">
+<svelte:window onclick={handleWindowClick} />
+
+<div class="app-shell" bind:this={popoverContainer}>
 	<header class="app-shell-appbar" data-testid="app-shell-appbar">
 		<span class="app-shell-title">Audiobook Boss</span>
 		<span class="app-shell-current-view" aria-current="page">Process</span>
@@ -105,6 +144,28 @@
 		</div>
 		<div class="app-shell-toolbar-end">
 			<button
+				bind:this={encoderAnchor}
+				type="button"
+				class="btn-pill btn-pill-secondary"
+				data-testid="encoder-popover-trigger"
+				aria-haspopup="dialog"
+				aria-expanded={encoderPopover.isOpen}
+				onclick={() => togglePopover('encoder')}
+			>
+				{encoderSummaryLabel}
+			</button>
+			<button
+				bind:this={namingAnchor}
+				type="button"
+				class="btn-pill btn-pill-secondary"
+				data-testid="naming-popover-trigger"
+				aria-haspopup="dialog"
+				aria-expanded={namingPopover.isOpen}
+				onclick={() => togglePopover('naming')}
+			>
+				{namingSummaryLabel}
+			</button>
+			<button
 				id="process-button"
 				type="button"
 				class="btn-pill btn-pill-primary"
@@ -114,6 +175,38 @@
 			</button>
 		</div>
 	</div>
+
+	{#if encoderPopover.isOpen}
+		<div
+			bind:this={encoderPanel}
+			class="app-popover app-shell-popover app-shell-encoder-popover"
+			role="dialog"
+			aria-label="Encoder settings"
+			tabindex="-1"
+			style={`left: ${encoderPopover.position.left}px; top: ${encoderPopover.position.top}px`}
+			onkeydown={(event) => encoderPopover.handleKeydown(event)}
+		>
+			<EncoderWorkbenchIsland />
+		</div>
+	{/if}
+
+	{#if namingPopover.isOpen}
+		<div
+			bind:this={namingPanel}
+			class="app-popover app-shell-popover app-shell-naming-popover"
+			role="dialog"
+			aria-label="Output naming and tag preview"
+			tabindex="-1"
+			style={`left: ${namingPopover.position.left}px; top: ${namingPopover.position.top}px`}
+			onkeydown={(event) => namingPopover.handleKeydown(event)}
+		>
+			<OutputPanelIsland variant="workbench" />
+			<div class="app-shell-tag-preview">
+				<h3>Tags Preview</h3>
+				<TagPreviewIsland variant="workbench" />
+			</div>
+		</div>
+	{/if}
 
 	<main class="app-shell-main" data-testid="app-shell-main">
 		{@render children()}
@@ -126,6 +219,7 @@
 
 <style>
 	.app-shell {
+		position: relative;
 		display: flex;
 		flex: 1 1 auto;
 		flex-direction: column;
@@ -231,5 +325,27 @@
 		flex: 1 1 auto;
 		min-height: 0;
 		overflow: hidden;
+	}
+
+	.app-shell-popover {
+		width: min(34rem, calc(100% - (2 * var(--space-3))));
+		max-height: calc(100% - (2 * var(--space-3)));
+		padding: var(--space-3);
+		overflow: auto;
+	}
+
+	.app-shell-naming-popover {
+		width: min(42rem, calc(100% - (2 * var(--space-3))));
+	}
+
+	.app-shell-tag-preview {
+		margin-top: var(--space-3);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--border-primary);
+	}
+
+	.app-shell-tag-preview h3 {
+		margin: 0 0 var(--space-2);
+		font-size: var(--text-md);
 	}
 </style>

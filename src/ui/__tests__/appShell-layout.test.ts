@@ -14,7 +14,8 @@ describe('app shell composition', () => {
 		expect(mainIndex).toBeGreaterThan(shellIndex);
 		expect(appSource).toContain('<LeftColumnIsland {readWorkActivityByInputId} />');
 		expect(appSource).toContain('<MetadataManagerIsland />');
-		expect(appSource).toContain('<EncodingWorkbenchIsland />');
+		expect(appSource).not.toContain('EncodingWorkbenchIsland');
+		expect(appSource.match(/<MetadataManagerIsland \/>/g)).toHaveLength(1);
 		expect(appSource).not.toContain('StatusPanelIsland');
 		expect(appSource).not.toContain('WorkCenterIsland');
 	});
@@ -54,5 +55,21 @@ describe('app shell composition', () => {
 		expect(fileImportSource).not.toContain('acquire-audiobooks-btn');
 		expect(operationsBarSource).toContain('<StatusTransportIsland');
 		expect(operationsBarSource).toContain('<WorkCenterIsland');
+	});
+
+	it('composes encoder and naming popovers before Process through owner strips', () => {
+		const encoderIndex = appShellSource.indexOf('data-testid="encoder-popover-trigger"');
+		const namingIndex = appShellSource.indexOf('data-testid="naming-popover-trigger"');
+		const processIndex = appShellSource.indexOf('id="process-button"');
+
+		expect(encoderIndex).toBeGreaterThan(-1);
+		expect(namingIndex).toBeGreaterThan(encoderIndex);
+		expect(processIndex).toBeGreaterThan(namingIndex);
+		expect(appShellSource).toContain('readEncoderSummaryLabel');
+		expect(appShellSource).toContain('readOutputNamingSummaryLabel');
+		expect(appShellSource).toContain('<EncoderWorkbenchIsland');
+		expect(appShellSource).toContain('<OutputPanelIsland variant="workbench"');
+		expect(appShellSource).toContain('<TagPreviewIsland variant="workbench"');
+		expect(appShellSource.match(/class="app-popover/g)).toHaveLength(2);
 	});
 });

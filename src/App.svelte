@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { EncodingWorkbenchIsland } from './ui/encodingWorkbench';
 	import { LeftColumnIsland } from './ui/leftColumn';
 	import { MetadataManagerIsland } from './ui/metadataManager';
 	import { readWorkActivityByInputId } from './ui/workCenter';
@@ -41,11 +40,6 @@
 			<div class="panel right-column-panel metadata-manager-panel">
 				<MetadataManagerIsland />
 			</div>
-
-			<div class="panel right-column-panel encoding-workbench-panel">
-				<EncodingWorkbenchIsland />
-			</div>
-
 		</div>
 	</div>
 </AppShellIsland>

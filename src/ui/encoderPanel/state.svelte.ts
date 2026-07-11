@@ -170,6 +170,29 @@ export function readEncoderDefaultsFromState(): EncoderDefaults {
 	};
 }
 
+export function readEncoderSummaryLabel(): string {
+	const encoder = (() => {
+		switch (encoderPanelState.flavor) {
+			case 'fdk_he_aac':
+				return 'FDK';
+			case 'aac_at':
+				return 'Apple';
+			case 'native_aac':
+				return 'Native';
+			default:
+				return encoderPanelState.autoOptionLabel;
+		}
+	})();
+	const profile = encoderPanelState.profileDisplay.replace(/ v\d+$/i, '');
+	const mode = encoderPanelState.bitrateModeSelection.toUpperCase();
+	const modeValue =
+		encoderPanelState.bitrateModeSelection === 'vbr'
+			? String(encoderPanelState.qualityValue)
+			: `${encoderPanelState.bitrateValue} kbps`;
+
+	return `${encoder} ${profile} · ${mode} ${modeValue}`;
+}
+
 export function applyEncoderDefaults(defaults: EncoderDefaults): void {
 	const settings = toBoundaryEncoderSettings(
 		defaults.settings,

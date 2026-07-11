@@ -17,6 +17,7 @@ export async function setFdkAfterburner(enabled: boolean): Promise<void> {
 
 export {
 	readEncoderDefaultsFromState,
+	readEncoderSummaryLabel,
 	readEncodingRequestConfig,
 	readFdkAfterburner,
 } from './state.svelte';
