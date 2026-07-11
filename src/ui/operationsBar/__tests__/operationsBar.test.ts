@@ -125,11 +125,15 @@ describe('OperationsBarIsland', () => {
 		await waitFor(() => {
 			expect(screen.getByText('The Way of Kings — batch encode')).toBeInTheDocument();
 		});
-		await fireEvent.click(screen.getByRole('button', { name: 'Expand The Way of Kings — batch encode' }));
+		await fireEvent.click(
+			screen.getByRole('button', { name: 'Expand The Way of Kings — batch encode' }),
+		);
 		expect(screen.getByTestId('operation-lane-encodeCpu')).toHaveTextContent('Encode');
 		expect(screen.getByText('The Way of Kings.m4b')).toBeInTheDocument();
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Cancel The Way of Kings — batch encode' }));
+		await fireEvent.click(
+			screen.getByRole('button', { name: 'Cancel The Way of Kings — batch encode' }),
+		);
 		expect(cancelSpy).toHaveBeenCalledWith('operation-1');
 	});
 
@@ -151,7 +155,7 @@ describe('OperationsBarIsland', () => {
 			current_file: '/books/foreground-preview.m4b',
 			percentage: 23,
 			message: 'Previewing',
-			eta_seconds: null,
+			eta_seconds: undefined,
 		});
 		await waitFor(() => {
 			expect(transportFill).toHaveStyle({ width: '23%' });

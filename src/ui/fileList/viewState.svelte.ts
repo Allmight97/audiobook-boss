@@ -1,4 +1,9 @@
-import { formatDuration, formatFileSize, type AudioChapter, type AudioFile } from '../../types/audio';
+import {
+	formatDuration,
+	formatFileSize,
+	type AudioChapter,
+	type AudioFile,
+} from '../../types/audio';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,

@@ -85,14 +85,26 @@ export function resetInspectorState(): void {
 export function readInspectorFacts(): InspectorFact[] {
 	return [
 		{ label: 'File', value: inspectorState.contextText, title: inspectorState.contextText },
-		{ label: 'Position', value: inspectorState.contextDetail || '—', title: inspectorState.contextDetail },
+		{
+			label: 'Position',
+			value: inspectorState.contextDetail || '—',
+			title: inspectorState.contextDetail,
+		},
 		{ label: 'Bitrate', value: inspectorState.bitrateText, title: inspectorState.bitrateText },
-		{ label: 'Sample rate', value: inspectorState.sampleRateText, title: inspectorState.sampleRateText },
+		{
+			label: 'Sample rate',
+			value: inspectorState.sampleRateText,
+			title: inspectorState.sampleRateText,
+		},
 		{ label: 'Channels', value: inspectorState.channelsText, title: inspectorState.channelsText },
 		{ label: 'Codec', value: inspectorState.codecText, title: inspectorState.codecText },
 		{ label: 'Decoder', value: inspectorState.decoderText, title: inspectorState.decoderText },
 		{ label: 'File size', value: inspectorState.fileSizeText, title: inspectorState.fileSizeText },
-		{ label: 'Supplemental', value: inspectorState.companionsText, title: inspectorState.companionsTitle },
+		{
+			label: 'Supplemental',
+			value: inspectorState.companionsText,
+			title: inspectorState.companionsTitle,
+		},
 		{ label: 'Combined size', value: readCombinedSizeText(), title: readCombinedSizeText() },
 	];
 }

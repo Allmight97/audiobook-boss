@@ -89,7 +89,9 @@ function batchSnapshot(inputId: string): OperationSnapshot {
 
 describe('v3 book table', () => {
 	beforeEach(() => {
-		setCurrentFileList(fileList(file('/books/ready.m4b', 'ready'), file('/books/bad.m4b', 'bad', false)));
+		setCurrentFileList(
+			fileList(file('/books/ready.m4b', 'ready'), file('/books/bad.m4b', 'bad', false)),
+		);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
 	});

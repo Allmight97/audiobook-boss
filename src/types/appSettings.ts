@@ -26,11 +26,10 @@ export type PinnedDefaults = {
 };
 export type AppSettings = Omit<
 	NullToOptionalDeep<GeneratedAppSettings>,
-	'encoderDefaults' | 'outputDefaults' | 'pinnedDefaults' | 'density'
+	'encoderDefaults' | 'outputDefaults' | 'pinnedDefaults'
 > & {
 	encoderDefaults: EncoderDefaults;
 	outputDefaults: OutputDefaults;
-	density: DensityPreference;
 	pinnedDefaults?: PinnedDefaults;
 };
 

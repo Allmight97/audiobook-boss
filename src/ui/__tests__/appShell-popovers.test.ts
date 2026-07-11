@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { tick } from 'svelte';
+import { createRawSnippet, tick } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import AppShellIsland from '../appShell/AppShellIsland.svelte';
 
@@ -30,12 +30,14 @@ vi.mock('../outputPanel', () => ({
 }));
 vi.mock('../tagPreview', () => ({ TagPreviewIsland: vi.fn() }));
 
+const emptyChildren = createRawSnippet(() => ({ render: () => '<span></span>' }));
+
 describe.each([
 	['encoder', 'Encoder settings'],
 	['naming', 'Output naming and tag preview'],
 ] as const)('%s toolbar popover', (kind, dialogName) => {
 	it('opens, closes on Escape, and restores focus to its pill', async () => {
-		render(AppShellIsland, { children: () => undefined });
+		render(AppShellIsland, { children: emptyChildren });
 		const trigger = screen.getByTestId(`${kind}-popover-trigger`);
 
 		await fireEvent.click(trigger);
@@ -49,7 +51,7 @@ describe.each([
 	});
 
 	it('closes on click-away and restores focus to its pill', async () => {
-		render(AppShellIsland, { children: () => undefined });
+		render(AppShellIsland, { children: emptyChildren });
 		const trigger = screen.getByTestId(`${kind}-popover-trigger`);
 
 		await fireEvent.click(trigger);

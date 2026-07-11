@@ -19,7 +19,10 @@ vi.mock('../fileList', () => ({
 	readActiveFileChapters: () => [{ title: 'Opening', startMs: 0, endMs: 65_000 }],
 }));
 vi.mock('../outputPanel', () => ({
-	readOutputDisplaySnapshot: () => ({ previewText: 'Example.m4b', previewTitle: '/tmp/Example.m4b' }),
+	readOutputDisplaySnapshot: () => ({
+		previewText: 'Example.m4b',
+		previewTitle: '/tmp/Example.m4b',
+	}),
 }));
 
 describe('MetadataSurfaceIsland lifecycle', () => {

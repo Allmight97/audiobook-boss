@@ -25,7 +25,7 @@ async function hydrateOnce(): Promise<void> {
 
 	// Density is global user intent, not a panel default. It always comes from
 	// the top-level value even when panel hydration uses pinned defaults.
-	applyDensityPreference(settings.density);
+	applyDensityPreference(settings.density ?? 'comfortable');
 
 	const capabilities = await loadRuntimeSettingsCapabilities();
 

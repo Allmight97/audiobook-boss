@@ -50,13 +50,15 @@ vi.mock('../../coverArt', () => ({
 	onLoadCoverArtFromInput: vi.fn(),
 	onClearCoverArt: vi.fn(),
 }));
-vi.mock('../../jobControls', () => ({
+vi.mock('../../jobControls', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../jobControls')>()),
 	initJobControls: vi.fn(),
 	handleMergeModeChange: vi.fn(),
 	handleMaxConcurrentSelectionChange: vi.fn(),
 	getMaxConcurrentStatus: vi.fn(() => ({ effective: 2, selection: 'auto' })),
 }));
-vi.mock('../../statusPanel/index', () => ({
+vi.mock('../../statusPanel/index', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../statusPanel/index')>()),
 	initStatusPanel: vi.fn(),
 	isStatusPanelProcessing: () => context.statusPanelProcessing,
 	pushStatusPanelTransientStatus: (message: string) => {
@@ -91,7 +93,8 @@ vi.mock('../../metadataForm', async (importOriginal) => {
 	};
 });
 
-vi.mock('../../fileList/state.svelte', () => ({
+vi.mock('../../fileList/state.svelte', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../fileList/state.svelte')>()),
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),
@@ -99,7 +102,8 @@ vi.mock('../../fileList/state.svelte', () => ({
 	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
-vi.mock('../../fileList/actions', () => ({
+vi.mock('../../fileList/actions', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../fileList/actions')>()),
 	appendFileList: vi.fn(),
 }));
 
@@ -135,8 +139,8 @@ describe('metadata save pending flow', () => {
 			runtimeSettingsCapabilitiesFixture(),
 		);
 
-		await import('../../../main');
 		({ saveMetadataFromUI } = await import('../saveWorkflow'));
+		await import('../../../main');
 		({ metadataSaveInProgressStore } = await import('../saveState'));
 	});
 

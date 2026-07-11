@@ -96,7 +96,10 @@ export function deriveWorkActivityByInputId(
 			});
 		}
 
-		if (operation.children.some((child) => child.inputId == null) || operation.children.length === 0) {
+		if (
+			operation.children.some((child) => child.inputId == null) ||
+			operation.children.length === 0
+		) {
 			for (const inputId of operation.sourceInputIds) {
 				setIfLatest(inputId, {
 					status: workActivityStatusFromOperation(operation.status),

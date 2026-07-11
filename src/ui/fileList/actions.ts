@@ -130,7 +130,11 @@ export async function selectFile(
 
 export async function applySelectionIntent(
 	intent: SelectionIntent,
-	options?: { skipPersistPrevious?: boolean; openMetadataSurface?: boolean; anchor?: HTMLElement | null },
+	options?: {
+		skipPersistPrevious?: boolean;
+		openMetadataSurface?: boolean;
+		anchor?: HTMLElement | null;
+	},
 ): Promise<void> {
 	await coordinateMetadataSurfaceSelectionTransition(intent, applySelectionIntentToState, {
 		skipPersistPrevious: options?.skipPersistPrevious,

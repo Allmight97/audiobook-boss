@@ -1,6 +1,10 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
-import type { OperationId, OperationListSnapshot, OperationSnapshot } from '../../types/workRuntime';
+import type {
+	OperationId,
+	OperationListSnapshot,
+	OperationSnapshot,
+} from '../../types/workRuntime';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,

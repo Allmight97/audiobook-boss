@@ -123,7 +123,7 @@ describe('Work Center model', () => {
 		const snapshot = operation('merge', 2);
 		snapshot.status = 'mixed';
 		snapshot.sourceInputIds = ['input-a', 'input-b'];
-		snapshot.children = snapshot.children.map((child) => ({ ...child, inputId: null }));
+		snapshot.children = snapshot.children.map((child) => ({ ...child, inputId: undefined }));
 
 		const activity = deriveWorkActivityByInputId([snapshot]);
 		expect(activity.get('input-a')).toMatchObject({ status: 'failed', sequence: 2 });
@@ -134,7 +134,7 @@ describe('Work Center model', () => {
 		const snapshot = operation('metadata', 3);
 		snapshot.kind = 'metadataSave';
 		snapshot.sourceInputIds = [];
-		snapshot.children = snapshot.children.map((child) => ({ ...child, inputId: null }));
+		snapshot.children = snapshot.children.map((child) => ({ ...child, inputId: undefined }));
 
 		expect(deriveWorkActivityByInputId([snapshot]).size).toBe(0);
 	});
@@ -145,7 +145,7 @@ describe('Work Center model', () => {
 		const merge = operation('merge-cancel', 2);
 		merge.status = 'cancelled';
 		merge.sourceInputIds = ['input-d'];
-		merge.children = merge.children.map((child) => ({ ...child, inputId: null }));
+		merge.children = merge.children.map((child) => ({ ...child, inputId: undefined }));
 
 		const activity = deriveWorkActivityByInputId([batch, merge]);
 		expect(activity.get('input-c')).toMatchObject({ status: 'cancelled' });

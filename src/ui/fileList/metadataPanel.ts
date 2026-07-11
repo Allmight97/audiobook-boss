@@ -86,10 +86,17 @@ export function makeMetadataSurfaceTransitionCoordinator(
 		selection(
 			intent: SelectionIntent,
 			mutateSelection: (intent: SelectionIntent) => { changed: boolean },
-			options?: { openAfterPopulate?: boolean; anchor?: HTMLElement | null; skipPersistPrevious?: boolean },
+			options?: {
+				openAfterPopulate?: boolean;
+				anchor?: HTMLElement | null;
+				skipPersistPrevious?: boolean;
+			},
 		): Promise<boolean> {
 			return enqueue(async () => {
-				if (!options?.skipPersistPrevious && !(await services.persistOldDrafts({ showStatus: false }))) {
+				if (
+					!options?.skipPersistPrevious &&
+					!(await services.persistOldDrafts({ showStatus: false }))
+				) {
 					return false;
 				}
 				services.closeWithoutStaging();
@@ -142,7 +149,11 @@ const metadataSurfaceCoordinator = makeMetadataSurfaceTransitionCoordinator({
 export function coordinateMetadataSurfaceSelectionTransition(
 	intent: SelectionIntent,
 	mutateSelection: (intent: SelectionIntent) => { changed: boolean },
-	options?: { openAfterPopulate?: boolean; anchor?: HTMLElement | null; skipPersistPrevious?: boolean },
+	options?: {
+		openAfterPopulate?: boolean;
+		anchor?: HTMLElement | null;
+		skipPersistPrevious?: boolean;
+	},
 ): Promise<boolean> {
 	return metadataSurfaceCoordinator.selection(intent, mutateSelection, options);
 }

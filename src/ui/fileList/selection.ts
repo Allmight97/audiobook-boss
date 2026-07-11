@@ -48,7 +48,11 @@ export function applySelectionIntent(intent: SelectionIntent): SelectionResult {
 		case 'selectOnly': {
 			if (intent.index < 0 || intent.index >= totalFiles) return { changed: false };
 			const selected = getSelectedFileIndices();
-			if (selected.size === 1 && selected.has(intent.index) && getSelectedFileIndex() === intent.index) {
+			if (
+				selected.size === 1 &&
+				selected.has(intent.index) &&
+				getSelectedFileIndex() === intent.index
+			) {
 				return { changed: false };
 			}
 			setSelectedFileIndices([intent.index]);

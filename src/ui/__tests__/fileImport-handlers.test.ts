@@ -35,7 +35,8 @@ vi.mock('../fileList/metadataStaging', () => ({
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state.svelte', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../fileList/state.svelte')>()),
 	getCurrentFileList: vi.fn(() => null),
 	isOrderLocked: context.isOrderLockedMock,
 	onOrderLockChange: context.onOrderLockChangeMock,

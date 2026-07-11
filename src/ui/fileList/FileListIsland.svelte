@@ -41,7 +41,6 @@
 		readWorkActivityByInputId,
 	}: Props = $props();
 
-	let fileListContent: HTMLDivElement | null = null;
 	let fileManagementContainer: HTMLDivElement | null = null;
 	let selectAllEl: HTMLInputElement | null = null;
 	let draggedIndex = $state<number | null>(null);
@@ -168,7 +167,6 @@
 	</div>
 
 	<div
-		bind:this={fileListContent}
 		class="file-list-content"
 		role="listbox"
 		aria-label="Audio files"
