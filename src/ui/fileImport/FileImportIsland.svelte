@@ -2,13 +2,8 @@
 	import { onMount } from 'svelte';
 	import { FileListIsland, getCurrentFileList } from '../fileList';
 	import type { DragDropContext } from './handlers';
-	import {
-		attachTauriDragHandlers,
-		handleClickToSelect,
-		handleClickToSelectFolder,
-	} from './handlers';
+	import { attachTauriDragHandlers, handleClickToSelect } from './handlers';
 	import { fileImportUiState } from './state.svelte';
-	import RemoteSourceAcquireIsland from '../remoteSource/RemoteSourceAcquireIsland.svelte';
 
 	let fileManagementContainer = $state<HTMLDivElement | null>(null);
 
@@ -28,10 +23,6 @@
 		void handleClickToSelect(getCurrentFileList()?.files ?? []);
 	}
 
-	function handleFolderClick(): void {
-		void handleClickToSelectFolder(getCurrentFileList()?.files ?? []);
-	}
-
 	function handleHeaderKeydown(event: KeyboardEvent): void {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
@@ -39,17 +30,6 @@
 		}
 	}
 </script>
-
-<div class="flex items-center justify-end gap-2 mb-2">
-	<button
-		id="add-folder-btn"
-		class="btn-pill btn-pill-secondary"
-		onclick={handleFolderClick}
-	>
-		Add Folder
-	</button>
-	<RemoteSourceAcquireIsland />
-</div>
 
 <div
 	id="file-import-error"

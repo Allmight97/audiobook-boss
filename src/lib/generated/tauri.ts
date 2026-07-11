@@ -182,6 +182,7 @@ export type AppSettings = {
 	outputDefaults: OutputDefaults,
 	toolchain?: ToolchainPreferences,
 	startupBehavior?: StartupBehavior,
+	density?: DensityPreference,
 	pinnedDefaults?: PinnedDefaults | null,
 };
 
@@ -191,6 +192,7 @@ export type AppSettingsPatch = {
 	outputDefaults: OutputDefaults | null,
 	toolchain: ToolchainPreferences | null,
 	startupBehavior: StartupBehavior | null,
+	density: DensityPreference | null,
 	/**
 	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
 	 *  back to `RememberLastState`, never unpinning.
@@ -283,6 +285,12 @@ export type DecoderSelection = {
 	// Friendly decoder label used for display only.
 	decoderLabel: string,
 };
+
+/**
+ *  The global UI layout density. Comfortable preserves the existing default;
+ *  compact reduces rows and padding for high-information workflows.
+ */
+export type DensityPreference = "comfortable" | "compact";
 
 export type EncoderAvailability = {
 	fdkAvailable: boolean,

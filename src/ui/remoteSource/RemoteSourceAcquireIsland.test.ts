@@ -4,7 +4,7 @@ import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob, RemoteSourceAccountState } from '../../types/remoteSource';
 import RemoteSourceAcquireDialog from './RemoteSourceAcquireDialog.svelte';
-import RemoteSourceAcquireIsland from './RemoteSourceAcquireIsland.svelte';
+import { openRemoteSourceAcquire } from '.';
 import { clearRemoteSourceCoverPreviewCache } from './remoteSourceCoverPreview.svelte';
 import { remoteSourceAcquireState } from './state.svelte';
 
@@ -83,7 +83,7 @@ function acquisitionJob(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob
 	} as AcquisitionJob;
 }
 
-describe('RemoteSourceAcquireIsland progress', () => {
+describe('remote source acquisition dialog', () => {
 	beforeEach(() => {
 		remoteSourceAcquireState.isOpen = false;
 		clearRemoteSourceCoverPreviewCache();
@@ -169,11 +169,8 @@ describe('RemoteSourceAcquireIsland progress', () => {
 		remoteSourceAcquireState.isOpen = false;
 	});
 
-	it('keeps the input panel surface to a trigger button', async () => {
-		const user = userEvent.setup();
-		render(RemoteSourceAcquireIsland);
-
-		await user.click(screen.getByRole('button', { name: 'Import from Library' }));
+	it('opens acquisition from its public dialog entrypoint', () => {
+		openRemoteSourceAcquire();
 
 		expect(remoteSourceAcquireState.isOpen).toBe(true);
 	});

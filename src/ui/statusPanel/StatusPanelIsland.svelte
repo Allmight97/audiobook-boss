@@ -4,7 +4,6 @@
 	import {
 		initStatusPanel,
 		triggerCancelAllFromStatusPanel,
-		triggerProcessFromStatusPanel,
 	} from './controller';
 	import { statusPanelViewState } from './viewState.svelte';
 
@@ -16,10 +15,6 @@
 
 	$: if (statusPanelViewState.jobItems.length === 0) {
 		isQueueExpanded = false;
-	}
-
-	function handleProcessClick(): void {
-		triggerProcessFromStatusPanel();
 	}
 
 	function handleCancelAllClick(): void {
@@ -173,13 +168,6 @@
       </div>
     </div>
     <div class="status-actions">
-      <button
-        id="process-button"
-        class="btn-pill btn-pill-primary"
-        onclick={handleProcessClick}
-      >
-        Start Processing
-      </button>
       <button
         id="cancel-all-button"
         class="btn-pill btn-pill-secondary"

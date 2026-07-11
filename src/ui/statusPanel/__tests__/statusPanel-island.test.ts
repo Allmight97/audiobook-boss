@@ -4,9 +4,8 @@ import { tick } from 'svelte';
 import StatusPanelIsland from '../StatusPanelIsland.svelte';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
-const { initStatusPanelLogicMock, triggerProcessMock, triggerCancelAllMock } = vi.hoisted(() => ({
+const { initStatusPanelLogicMock, triggerCancelAllMock } = vi.hoisted(() => ({
 	initStatusPanelLogicMock: vi.fn(() => ({ isCurrentlyProcessing: false })),
-	triggerProcessMock: vi.fn(),
 	triggerCancelAllMock: vi.fn(),
 }));
 
@@ -14,7 +13,6 @@ vi.mock('../controller', () => ({
 	StatusPanelRuntime: class {},
 	initStatusPanel: initStatusPanelLogicMock,
 	pushStatusPanelTransientStatus: vi.fn(),
-	triggerProcessFromStatusPanel: triggerProcessMock,
 	triggerCancelAllFromStatusPanel: triggerCancelAllMock,
 }));
 
@@ -22,7 +20,6 @@ describe('StatusPanel island mount', () => {
 	beforeEach(() => {
 		resetStatusPanelViewState();
 		initStatusPanelLogicMock.mockClear();
-		triggerProcessMock.mockClear();
 		triggerCancelAllMock.mockClear();
 	});
 
@@ -36,7 +33,6 @@ describe('StatusPanel island mount', () => {
 			'status-text',
 			'step-text',
 			'concurrency-status',
-			'process-button',
 			'cancel-all-button',
 			'job-list',
 		];
@@ -46,7 +42,7 @@ describe('StatusPanel island mount', () => {
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('wires process and cancel buttons to status-panel actions', async () => {
+	it('wires the retained cancel button to the status-panel action', async () => {
 		render(StatusPanelIsland);
 		statusPanelViewState.isProcessing = true;
 		statusPanelViewState.jobItems = [
@@ -61,13 +57,10 @@ describe('StatusPanel island mount', () => {
 		];
 		await tick();
 
-		const processButton = document.getElementById('process-button');
 		const cancelButton = document.getElementById('cancel-all-button');
 
-		processButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		cancelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-		expect(triggerProcessMock).toHaveBeenCalledTimes(1);
 		expect(triggerCancelAllMock).toHaveBeenCalledTimes(1);
 	});
 

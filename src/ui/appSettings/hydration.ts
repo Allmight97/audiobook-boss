@@ -4,6 +4,7 @@ import { applyEncodingDefaults } from '../encoderPanel';
 import { applyMaxConcurrentPreference } from '../jobControls';
 import { applyOutputDefaultsFromSettings } from '../outputPanel';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
+import { applyDensityPreference } from '../appShell';
 
 let hydrationPromise: Promise<void> | null = null;
 
@@ -21,6 +22,10 @@ async function hydrateOnce(): Promise<void> {
 	if (!settings) {
 		return;
 	}
+
+	// Density is global user intent, not a panel default. It always comes from
+	// the top-level value even when panel hydration uses pinned defaults.
+	applyDensityPreference(settings.density);
 
 	const capabilities = await loadRuntimeSettingsCapabilities();
 

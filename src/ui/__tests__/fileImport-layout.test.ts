@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import appShellSource from '../appShell/AppShellIsland.svelte?raw';
 import fileListIslandSource from '../fileList/FileListIsland.svelte?raw';
 import importIslandSource from '../fileImport/FileImportIsland.svelte?raw';
 import inputWorkflowSource from '../leftColumn/InputWorkflowPanel.svelte?raw';
@@ -44,5 +45,13 @@ describe('file import layout', () => {
 		expect(importIslandSource).not.toContain('<svelte:window onkeydown={onFileListKeyDown}');
 		expect(fileListIslandSource).toContain('tabindex="0"');
 		expect(fileListIslandSource).toContain('onkeydown={onFileListKeyDown}');
+	});
+
+	it('leaves the import workflow in place while relocating its controls to app chrome', () => {
+		expect(importIslandSource).not.toContain('add-folder-btn');
+		expect(importIslandSource).not.toContain('acquire-audiobooks-btn');
+		expect(appShellSource).toContain('id="import-files-btn"');
+		expect(appShellSource).toContain('id="add-folder-btn"');
+		expect(appShellSource).toContain('id="acquire-audiobooks-btn"');
 	});
 });

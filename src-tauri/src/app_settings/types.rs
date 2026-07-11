@@ -16,6 +16,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub startup_behavior: StartupBehavior,
     #[serde(default)]
+    pub density: DensityPreference,
+    #[serde(default)]
     pub pinned_defaults: Option<PinnedDefaults>,
 }
 
@@ -27,6 +29,7 @@ pub struct AppSettingsPatch {
     pub output_defaults: Option<OutputDefaults>,
     pub toolchain: Option<ToolchainPreferences>,
     pub startup_behavior: Option<StartupBehavior>,
+    pub density: Option<DensityPreference>,
     /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
     /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
@@ -46,6 +49,18 @@ pub enum StartupBehavior {
     /// Reopen with the user-pinned defaults; in-flight panel tweaks are
     /// ephemeral across restarts.
     PinnedDefaults,
+}
+
+/// The global UI layout density. Comfortable preserves the existing default;
+/// compact reduces rows and padding for high-information workflows.
+#[derive(
+    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum DensityPreference {
+    #[default]
+    Comfortable,
+    Compact,
 }
 
 /// A deliberately captured snapshot of the panel-owned durable preferences.
@@ -99,6 +114,7 @@ impl Default for AppSettings {
             output_defaults: OutputDefaults::default(),
             toolchain: ToolchainPreferences::default(),
             startup_behavior: StartupBehavior::default(),
+            density: DensityPreference::default(),
             pinned_defaults: None,
         }
     }
@@ -135,6 +151,9 @@ impl AppSettings {
         }
         if let Some(startup_behavior) = patch.startup_behavior {
             self.startup_behavior = startup_behavior;
+        }
+        if let Some(density) = patch.density {
+            self.density = density;
         }
         if let Some(pinned_defaults) = patch.pinned_defaults {
             self.pinned_defaults = Some(pinned_defaults);

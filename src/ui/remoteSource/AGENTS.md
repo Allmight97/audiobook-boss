@@ -2,8 +2,10 @@
 
 ## Public API Strip
 
-- Import session-asset coordination from `src/ui/remoteSource`.
+- Import session-asset coordination and the toolbar's acquisition-dialog entry
+  point from `src/ui/remoteSource`.
 - Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
+  `openRemoteSourceAcquire`,
   `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
   `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
   `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
@@ -14,7 +16,7 @@
 ## Private Cluster
 
 - Files: `sessionAssets.svelte.ts`, `acquisitionWorkflow.ts`,
-  `RemoteSourceAcquireIsland.svelte`, `RemoteSourceAcquireDialog.svelte`,
+  `RemoteSourceAcquireDialog.svelte`,
   `acquisitionState.svelte.ts`, `acquisitionAccount.ts`, `remoteSourceSelection.ts`,
   `state.svelte.ts`, `__tests__/`.
 

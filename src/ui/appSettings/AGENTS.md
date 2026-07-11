@@ -41,7 +41,9 @@
   tests stay green.
 - Persist backend/request-shaped settings only.
 - Keep UI-only display state, detected availability text, previews, and panel
-  visibility flags out of App Settings.
+  visibility flags out of App Settings. **Approved exception:** the global
+  `density` preference is durable user intent, like `startupBehavior`; it
+  belongs to the top-level settings value and never to `pinnedDefaults`.
 
 ## Breaking-Change Triggers
 

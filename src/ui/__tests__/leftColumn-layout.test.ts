@@ -24,10 +24,8 @@ describe('left column sibling layout', () => {
 
 	it('keeps input workflow composition in existing behavior owners', () => {
 		expect(inputWorkflowSource).toContain('Input and File Order');
-		expect(inputWorkflowSource).toContain('<JobControlsIsland');
 		expect(inputWorkflowSource).toContain('<FileImportIsland');
-		expect(inputWorkflowSource).toContain('handleMergeModeChange');
-		expect(inputWorkflowSource).toContain('handleMaxConcurrentSelectionChange');
+		expect(inputWorkflowSource).not.toContain('<JobControlsIsland');
 	});
 
 	it('keeps file inspector bound to existing FileList inspector state', () => {

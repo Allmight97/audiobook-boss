@@ -2,6 +2,7 @@ import type {
 	AppSettings as GeneratedAppSettings,
 	AppSettingsPatch as GeneratedAppSettingsPatch,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
+	DensityPreference as GeneratedDensityPreference,
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
 	StartupBehavior as GeneratedStartupBehavior,
@@ -11,6 +12,7 @@ import type { EncoderSettings, OutputNamingConfig } from './audio';
 import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
+export type DensityPreference = GeneratedDensityPreference;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
@@ -24,10 +26,11 @@ export type PinnedDefaults = {
 };
 export type AppSettings = Omit<
 	NullToOptionalDeep<GeneratedAppSettings>,
-	'encoderDefaults' | 'outputDefaults' | 'pinnedDefaults'
+	'encoderDefaults' | 'outputDefaults' | 'pinnedDefaults' | 'density'
 > & {
 	encoderDefaults: EncoderDefaults;
 	outputDefaults: OutputDefaults;
+	density: DensityPreference;
 	pinnedDefaults?: PinnedDefaults;
 };
 
@@ -39,5 +42,6 @@ export type AppSettingsPatch = Partial<{
 		| null;
 	toolchain: ToolchainPreferences | null;
 	startupBehavior: StartupBehavior | null;
+	density: DensityPreference | null;
 	pinnedDefaults: PinnedDefaults | null;
 }>;

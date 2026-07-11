@@ -7,6 +7,13 @@
   under `src/ui/fileImport/`.
 - This cluster is the first frontend step in the Product Spine.
 
+## Public API Strip
+
+- Import toolbar file-picker actions from `src/ui/fileImport`.
+- Exports: `handleClickToSelect`, `handleClickToSelectFolder`.
+- The app shell may place the controls, but this owner keeps file-picker,
+  folder-picker, drag/drop, and import workflow behavior.
+
 ## Preferred Path
 
 - Keep import orchestration in `importAnalysisWorkflow.ts` with injectable

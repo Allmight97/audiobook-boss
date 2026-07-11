@@ -297,6 +297,26 @@ fn settings_file_without_toolchain_field_loads_with_default() {
 }
 
 #[test]
+fn settings_file_without_density_field_loads_with_comfortable_density() {
+    let temp = TempDir::new().expect("temp dir");
+    // Pre-density settings files keep the established comfortable layout.
+    let legacy = serde_json::json!({
+        "maxConcurrentJobs": {"mode": "auto"},
+        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
+        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
+    });
+    std::fs::write(
+        temp.path().join("app-settings.json"),
+        serde_json::to_string_pretty(&legacy).expect("legacy json"),
+    )
+    .expect("write legacy settings");
+
+    let settings = get_app_settings(temp.path()).expect("load legacy settings");
+
+    assert_eq!(settings.density, DensityPreference::Comfortable);
+}
+
+#[test]
 fn pinned_defaults_and_startup_behavior_persist_and_round_trip() {
     let temp = TempDir::new().expect("temp dir");
     let pinned = PinnedDefaults {

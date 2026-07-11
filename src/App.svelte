@@ -6,6 +6,7 @@
 	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
 	import { WorkCenterIsland } from './ui/workCenter';
 	import { MetadataLookupIsland } from './ui/metadataLookup';
+	import { AppShellIsland } from './ui/appShell';
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
 	import RemoteSourceAcquireDialog from './ui/remoteSource/RemoteSourceAcquireDialog.svelte';
 	import { saveMetadataFromUI } from './ui/metadataSession';
@@ -33,22 +34,24 @@
 
 <svelte:window onkeydown={handleGlobalKeyDown} />
 
-<div class="main-container">
-	<LeftColumnIsland />
+<AppShellIsland>
+	<div class="main-container">
+		<LeftColumnIsland />
 
-	<div class="right-column-wrapper">
-		<div class="panel right-column-panel metadata-manager-panel">
-			<MetadataManagerIsland />
+		<div class="right-column-wrapper">
+			<div class="panel right-column-panel metadata-manager-panel">
+				<MetadataManagerIsland />
+			</div>
+
+			<div class="panel right-column-panel encoding-workbench-panel">
+				<EncodingWorkbenchIsland />
+			</div>
+
+			<StatusPanelIsland />
+			<WorkCenterIsland />
 		</div>
-
-		<div class="panel right-column-panel encoding-workbench-panel">
-			<EncodingWorkbenchIsland />
-		</div>
-
-		<StatusPanelIsland />
-		<WorkCenterIsland />
 	</div>
-</div>
+</AppShellIsland>
 <MetadataLookupIsland />
 <RemoteSourceAcquireDialog />
 <CollisionDialogIsland />

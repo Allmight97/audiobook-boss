@@ -8,6 +8,8 @@ import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
 import { refreshCoverArtDisplay } from '../coverArt';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
+export { default as JobControlsIsland } from './JobControlsIsland.svelte';
+
 export function initJobControls(): void {
 	void initializeRuntimeCapabilities();
 	initializeMaxConcurrentControl();

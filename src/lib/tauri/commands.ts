@@ -112,6 +112,7 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 			? { externalFfmpegPath: patch.toolchain.externalFfmpegPath ?? null }
 			: null,
 		startupBehavior: patch.startupBehavior ?? null,
+		density: patch.density ?? null,
 		pinnedDefaults: patch.pinnedDefaults
 			? {
 					maxConcurrentJobs: patch.pinnedDefaults.maxConcurrentJobs,
