@@ -20,6 +20,7 @@ summary_written="false"
 rust_log_source="unset"
 tee_drain_failed="false"
 tee_pid=""
+tee_status_file="$run_dir/tee-exit-status"
 orig_stdout_fd=""
 orig_stderr_fd=""
 declare -a port_notes=()
@@ -220,12 +221,13 @@ finish_run() {
 			kill -0 "$tee_pid" 2>/dev/null || break
 			sleep 0.1
 		done
-		# A vanished tee has flushed and exited: later process substitutions
-		# make the pid unwaitable in bash, so liveness is the drain signal.
+		# Later process substitutions make the pid unwaitable in bash, so
+		# liveness plus the exit-status sidecar is the drain signal: a tee
+		# that died from a write error must not pass as a clean drain.
 		if kill -0 "$tee_pid" 2>/dev/null; then
 			tee_drain_failed="true"
-		else
-			wait "$tee_pid" 2>/dev/null || true
+		elif [[ "$(cat "$tee_status_file" 2>/dev/null)" != "0" ]]; then
+			tee_drain_failed="true"
 		fi
 	fi
 	if [[ "$summary_written" != "true" ]]; then
@@ -443,7 +445,10 @@ main_log=$log_file
 EOF
 
 exec {orig_stdout_fd}>&1 {orig_stderr_fd}>&2
-exec > >(tee -a "$log_file") 2>&1
+exec > >(
+	tee -a "$log_file"
+	printf '%s\n' "$?" > "$tee_status_file"
+) 2>&1
 tee_pid=$!
 trap finish_run EXIT
 
