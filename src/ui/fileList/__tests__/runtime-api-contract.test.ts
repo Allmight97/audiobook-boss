@@ -6,6 +6,7 @@ import { setCurrentFileList } from '../state.svelte';
 const EXPECTED_FILE_LIST_EXPORTS = [
 	'FileListIsland',
 	'appendFileList',
+	'applySelectionIntent',
 	'getCurrentFileList',
 	'getSelectedFileIndex',
 	'getSelectedFileIndices',
@@ -14,6 +15,7 @@ const EXPECTED_FILE_LIST_EXPORTS = [
 	'onOrderLockChange',
 	'persistPendingMetadataDraftsForCurrentSelection',
 	'readCombinedSizeText',
+	'removeSelectedFiles',
 	'selectFile',
 	'setFileOrderLocked',
 	'stageMetadataToSelection',

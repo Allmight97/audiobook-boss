@@ -6,6 +6,18 @@ import {
 	isOrderLocked,
 } from './state.svelte';
 
+type FileWorkActivity = {
+	status: 'queued' | 'running' | 'done' | 'cancelled' | 'failed';
+};
+
+export type ReadWorkActivityByInputId = () => ReadonlyMap<string, FileWorkActivity>;
+
+export type FileListStatusBadge = {
+	label: 'Ready' | 'Queued' | 'Running' | 'Done' | 'Cancelled' | 'Failed' | 'Error';
+	variant: 'ok' | 'info' | 'muted' | 'warn';
+	isError: boolean;
+};
+
 export function readFileListViewFiles(): AudioFile[] {
 	const fileList = getCurrentFileList();
 	if (!fileList) {
@@ -49,6 +61,31 @@ export function readFileListControlsSnapshot(): {
 
 export function readFileListOrderLockVisible(): boolean {
 	return isOrderLocked();
+}
+
+export function readFileListStatusBadge(
+	file: AudioFile,
+	readWorkActivityByInputId?: ReadWorkActivityByInputId,
+): FileListStatusBadge {
+	if (!file.isValid) {
+		return { label: 'Error', variant: 'warn', isError: true };
+	}
+
+	const activity = file.inputId ? readWorkActivityByInputId?.().get(file.inputId) : undefined;
+	switch (activity?.status) {
+		case 'queued':
+			return { label: 'Queued', variant: 'muted', isError: false };
+		case 'running':
+			return { label: 'Running', variant: 'info', isError: false };
+		case 'done':
+			return { label: 'Done', variant: 'ok', isError: false };
+		case 'cancelled':
+			return { label: 'Cancelled', variant: 'muted', isError: false };
+		case 'failed':
+			return { label: 'Failed', variant: 'warn', isError: true };
+		default:
+			return { label: 'Ready', variant: 'muted', isError: false };
+	}
 }
 
 export function readCombinedSizeText(): string {

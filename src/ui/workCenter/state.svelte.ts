@@ -6,6 +6,7 @@ import {
 	releaseRemoteSourceSessionRetainers,
 } from '../remoteSource';
 import {
+	deriveWorkActivityByInputId,
 	isTerminalOperationStatus,
 	replaceOperations,
 	upsertOperation,
@@ -98,6 +99,10 @@ export function applyOperationSnapshot(snapshot: OperationSnapshot): void {
 	const model = upsertOperation(workCenterState, snapshot);
 	workCenterState.operations = model.operations;
 	void purgeRemoteSessionsForTerminalOperation(snapshot);
+}
+
+export function readWorkActivityByInputId() {
+	return deriveWorkActivityByInputId(workCenterState.operations);
 }
 
 export async function cancelWorkOperation(operationId: OperationId): Promise<void> {

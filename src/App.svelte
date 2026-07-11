@@ -4,7 +4,7 @@
 	import { LeftColumnIsland } from './ui/leftColumn';
 	import { MetadataManagerIsland } from './ui/metadataManager';
 	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
-	import { WorkCenterIsland } from './ui/workCenter';
+	import { readWorkActivityByInputId, WorkCenterIsland } from './ui/workCenter';
 	import { MetadataLookupIsland } from './ui/metadataLookup';
 	import { AppShellIsland } from './ui/appShell';
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
@@ -36,7 +36,7 @@
 
 <AppShellIsland>
 	<div class="main-container">
-		<LeftColumnIsland />
+		<LeftColumnIsland {readWorkActivityByInputId} />
 
 		<div class="right-column-wrapper">
 			<div class="panel right-column-panel metadata-manager-panel">

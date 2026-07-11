@@ -9,7 +9,11 @@ import {
 	setSelectedFileIndices,
 } from './state.svelte';
 
-type SelectionModifiers = { multi: boolean; range: boolean };
+export type SelectionIntent =
+	| { type: 'selectOnly'; index: number }
+	| { type: 'toggle'; index: number }
+	| { type: 'selectAll' }
+	| { type: 'clear' };
 
 type SelectionResult = {
 	changed: boolean;
@@ -34,68 +38,54 @@ function ensureAnchor(): void {
 	setSelectedIndex(newAnchor);
 }
 
-export function handleSelection(index: number, modifiers: SelectionModifiers): SelectionResult {
+export function applySelectionIntent(intent: SelectionIntent): SelectionResult {
 	const fileList = getCurrentFileList();
 	if (!fileList) return { changed: false };
 
 	const totalFiles = fileList.files.length;
-	if (index < 0 || index >= totalFiles) return { changed: false };
 
-	const { multi, range } = modifiers;
-	const selectedFileIndex = getSelectedFileIndex();
-
-	if (range && selectedFileIndex !== -1) {
-		const start = Math.min(selectedFileIndex, index);
-		const end = Math.max(selectedFileIndex, index);
-
-		clearSelectedIndices();
-		for (let i = start; i <= end; i += 1) {
-			addToSelectedIndices(i);
+	switch (intent.type) {
+		case 'selectOnly': {
+			if (intent.index < 0 || intent.index >= totalFiles) return { changed: false };
+			const selected = getSelectedFileIndices();
+			if (selected.size === 1 && selected.has(intent.index) && getSelectedFileIndex() === intent.index) {
+				return { changed: false };
+			}
+			setSelectedFileIndices([intent.index]);
+			setSelectedIndex(intent.index);
+			return { changed: true };
 		}
-		setSelectedIndex(index);
-		return { changed: true };
-	}
-
-	if (multi) {
-		const selected = getSelectedFileIndices();
-		if (selected.has(index)) {
-			removeFromSelectedIndices(index);
-		} else {
-			addToSelectedIndices(index);
-			setSelectedIndex(index);
+		case 'toggle': {
+			if (intent.index < 0 || intent.index >= totalFiles) return { changed: false };
+			const selected = getSelectedFileIndices();
+			if (selected.has(intent.index)) {
+				removeFromSelectedIndices(intent.index);
+				ensureAnchor();
+			} else {
+				addToSelectedIndices(intent.index);
+				setSelectedIndex(intent.index);
+			}
+			return { changed: true };
 		}
-
-		ensureAnchor();
-		return { changed: true };
+		case 'selectAll': {
+			if (totalFiles === 0) return { changed: false };
+			const selected = getSelectedFileIndices();
+			if (selected.size === totalFiles) return { changed: false };
+			setSelectedFileIndices(Array.from({ length: totalFiles }, (_, index) => index));
+			if (getSelectedFileIndex() < 0 || !getSelectedFileIndices().has(getSelectedFileIndex())) {
+				setSelectedIndex(0);
+			}
+			return { changed: true };
+		}
+		case 'clear': {
+			if (getSelectedFileIndices().size === 0 && getSelectedFileIndex() === -1) {
+				return { changed: false };
+			}
+			clearSelectedIndices();
+			setSelectedIndex(-1);
+			return { changed: true };
+		}
 	}
-
-	clearSelectedIndices();
-	addToSelectedIndices(index);
-	setSelectedIndex(index);
-	return { changed: true };
-}
-
-export function selectAllFiles(): boolean {
-	const fileList = getCurrentFileList();
-	if (!fileList) return false;
-
-	clearSelectedIndices();
-	const count = fileList.files.length;
-	for (let i = 0; i < count; i += 1) {
-		addToSelectedIndices(i);
-	}
-	setSelectedIndex(count > 0 ? 0 : -1);
-	return count > 0;
-}
-
-export function clearSelection(): boolean {
-	const selectedFileIndex = getSelectedFileIndex();
-	if (getSelectedFileIndices().size === 0 && selectedFileIndex === -1) {
-		return false;
-	}
-	clearSelectedIndices();
-	setSelectedIndex(-1);
-	return true;
 }
 
 export function reindexSelectionAfterRemoval(removedIndex: number): void {

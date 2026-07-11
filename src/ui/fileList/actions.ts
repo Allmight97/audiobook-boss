@@ -17,12 +17,11 @@ import {
 	setOrderLocked,
 } from './state.svelte';
 import {
-	clearSelection,
-	handleSelection,
+	applySelectionIntent as applySelectionIntentToState,
 	reindexSelectionAfterMove,
 	reindexSelectionAfterRemoval,
-	selectAllFiles,
 	swapSelectionIndices,
+	type SelectionIntent,
 } from './selection';
 import {
 	autoUpdateCoverArtFromFirstValidFile,
@@ -122,11 +121,16 @@ export async function selectFile(
 	modifiers?: { multi: boolean; range: boolean },
 	options?: { skipPersistPrevious?: boolean },
 ): Promise<void> {
-	const fileList = getCurrentFileList();
-	if (!fileList || index < 0 || index >= fileList.files.length) {
-		return;
-	}
+	return applySelectionIntent(
+		modifiers?.multi ? { type: 'toggle', index } : { type: 'selectOnly', index },
+		options,
+	);
+}
 
+export async function applySelectionIntent(
+	intent: SelectionIntent,
+	options?: { skipPersistPrevious?: boolean },
+): Promise<void> {
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			skipSingleSelection: options?.skipPersistPrevious,
@@ -136,62 +140,24 @@ export async function selectFile(
 		return;
 	}
 
-	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
+	const selectionResult = applySelectionIntentToState(intent);
 	if (!selectionResult.changed) return;
-
 	const selectedFiles = getSelectedFiles();
-	const count = selectedFiles.length;
-
-	if (count === 0) {
-		setSelectedIndex(-1);
+	if (selectedFiles.length === 0) {
 		clearSelectionPanels();
-		return;
-	}
-
-	if (count === 1) {
+	} else if (selectedFiles.length === 1) {
 		void showSingleSelection(selectedFiles[0]);
-		return;
+	} else {
+		void showMultiSelection(selectedFiles);
 	}
-
-	void showMultiSelection(selectedFiles);
 }
 
 export async function selectAll(): Promise<void> {
-	const fileList = getCurrentFileList();
-	if (!fileList) return;
-
-	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
-			validationFailureMessage: 'Fix metadata validation errors before selecting all files.',
-		}))
-	) {
-		return;
-	}
-
-	const changed = selectAllFiles();
-	if (!changed) return;
-
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length > 1) {
-		void showMultiSelection(selectedFiles);
-	} else if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	}
+	return applySelectionIntent({ type: 'selectAll' });
 }
 
 export async function clearSelectionAction(): Promise<void> {
-	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
-			validationFailureMessage: 'Fix metadata validation errors before clearing the selection.',
-		}))
-	) {
-		return;
-	}
-
-	const changed = clearSelection();
-	if (!changed) return;
-
-	clearSelectionPanels();
+	return applySelectionIntent({ type: 'clear' });
 }
 
 export async function removeFile(index: number): Promise<void> {
@@ -221,6 +187,25 @@ export async function removeFile(index: number): Promise<void> {
 	}
 
 	refreshOutputForFileListChange();
+}
+
+/** Removes the active selection after its current metadata draft has been staged. */
+export async function removeSelectedFiles(): Promise<void> {
+	if (isOrderLocked()) return;
+	const selectedIndices = Array.from(getSelectedFileIndices()).sort((left, right) => right - left);
+	if (selectedIndices.length === 0) return;
+
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
+		}))
+	) {
+		return;
+	}
+
+	for (const index of selectedIndices) {
+		await removeFile(index);
+	}
 }
 
 export function recalculateTotals(): void {
@@ -304,7 +289,7 @@ export async function toggleFileSort(): Promise<void> {
 	});
 	replaceCurrentFileListFiles(nextFiles);
 
-	clearSelection();
+	applySelectionIntentToState({ type: 'clear' });
 	setSelectedIndex(-1);
 	clearSelectionPanels();
 
@@ -327,7 +312,7 @@ export function clearAllFiles(): void {
 		totalSize: 0,
 	};
 
-	clearSelection();
+	applySelectionIntentToState({ type: 'clear' });
 	setSelectedIndex(-1);
 	clearSelectionPanels();
 	refreshOutputForFileListChange();

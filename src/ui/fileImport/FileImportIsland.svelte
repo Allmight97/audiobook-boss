@@ -1,10 +1,23 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { FileListIsland, getCurrentFileList } from '../fileList';
+	import { onMount, type Snippet } from 'svelte';
+	import { getCurrentFileList } from '../fileList';
 	import type { DragDropContext } from './handlers';
 	import { attachTauriDragHandlers, handleClickToSelect } from './handlers';
 	import { fileImportUiState } from './state.svelte';
 
+	type FileImportDropTargetProps = {
+		isDragOver: boolean;
+		supportText: string;
+		onHeaderClick: () => void;
+		onHeaderKeydown: (event: KeyboardEvent) => void;
+		onFileManagementContainerChange: (container: HTMLDivElement | null) => void;
+	};
+
+	interface Props {
+		children: Snippet<[FileImportDropTargetProps]>;
+	}
+
+	let { children }: Props = $props();
 	let fileManagementContainer = $state<HTMLDivElement | null>(null);
 
 	const context: DragDropContext = {
@@ -39,10 +52,12 @@
 	{fileImportUiState.errorMessage}
 </div>
 
-<FileListIsland
-	bind:fileManagementContainer
-	isDragOver={fileImportUiState.isDragOver}
-	supportText={fileImportUiState.supportText}
-	onHeaderClick={handleHeaderClick}
-	onHeaderKeydown={handleHeaderKeydown}
-/>
+{@render children({
+	isDragOver: fileImportUiState.isDragOver,
+	supportText: fileImportUiState.supportText,
+	onHeaderClick: handleHeaderClick,
+	onHeaderKeydown: handleHeaderKeydown,
+	onFileManagementContainerChange: (container) => {
+		fileManagementContainer = container;
+	},
+})}

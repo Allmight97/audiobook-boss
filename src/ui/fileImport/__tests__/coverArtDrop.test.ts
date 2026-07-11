@@ -2,7 +2,7 @@ import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriFileDropEvents } from '../../../types/events';
 import type { AcquisitionJob } from '../../../types/remoteSource';
-import FileImportIsland from '../FileImportIsland.svelte';
+import FileImportTestHarness from './FileImportTestHarness.svelte';
 import { clearFileImportError } from '../state.svelte';
 import { displayFileList } from '../../fileList/actions';
 import { getCurrentFileList } from '../../fileList';
@@ -174,7 +174,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		document.body.innerHTML = `
       <div id="cover-art-area"></div>
 		`;
-		render(FileImportIsland);
+		render(FileImportTestHarness);
 		displayFileList(makeAnalyzedFileList([]));
 
 		const dropZone = document.querySelector('.drop-zone-header') as HTMLElement | null;

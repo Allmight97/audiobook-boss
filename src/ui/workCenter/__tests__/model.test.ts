@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OperationSnapshot } from '../../../types/workRuntime';
-import { replaceOperations, upsertOperation } from '../model';
+import { deriveWorkActivityByInputId, replaceOperations, upsertOperation } from '../model';
 
 function operation(id: string, sequence: number, childCount = 1): OperationSnapshot {
 	const children = Array.from({ length: childCount }, (_, index) => ({
@@ -80,5 +80,64 @@ describe('Work Center model', () => {
 			'third',
 			'first',
 		]);
+	});
+
+	it('joins batch children to their input ids and maps terminal child status', () => {
+		const snapshot = operation('batch', 1);
+		snapshot.children[0] = {
+			...snapshot.children[0]!,
+			status: 'completed',
+			inputId: 'input-batch',
+		};
+
+		expect(deriveWorkActivityByInputId([snapshot]).get('input-batch')).toMatchObject({
+			status: 'done',
+			sequence: 1,
+		});
+	});
+
+	it('projects a terminal merge operation state onto every source input id when children have no input ids', () => {
+		const snapshot = operation('merge', 2);
+		snapshot.status = 'mixed';
+		snapshot.sourceInputIds = ['input-a', 'input-b'];
+		snapshot.children = snapshot.children.map((child) => ({ ...child, inputId: null }));
+
+		const activity = deriveWorkActivityByInputId([snapshot]);
+		expect(activity.get('input-a')).toMatchObject({ status: 'failed', sequence: 2 });
+		expect(activity.get('input-b')).toMatchObject({ status: 'failed', sequence: 2 });
+	});
+
+	it('excludes metadata-save operations that have neither child input ids nor source input ids', () => {
+		const snapshot = operation('metadata', 3);
+		snapshot.kind = 'metadataSave';
+		snapshot.sourceInputIds = [];
+		snapshot.children = snapshot.children.map((child) => ({ ...child, inputId: null }));
+
+		expect(deriveWorkActivityByInputId([snapshot]).size).toBe(0);
+	});
+
+	it('maps cancelled work to cancelled, never failed', () => {
+		const batch = operation('batch-cancel', 1);
+		batch.children[0] = { ...batch.children[0]!, inputId: 'input-c', status: 'cancelled' };
+		const merge = operation('merge-cancel', 2);
+		merge.status = 'cancelled';
+		merge.sourceInputIds = ['input-d'];
+		merge.children = merge.children.map((child) => ({ ...child, inputId: null }));
+
+		const activity = deriveWorkActivityByInputId([batch, merge]);
+		expect(activity.get('input-c')).toMatchObject({ status: 'cancelled' });
+		expect(activity.get('input-d')).toMatchObject({ status: 'cancelled' });
+	});
+
+	it('keeps the latest sequence per input and maps terminal failures', () => {
+		const older = operation('older', 1);
+		older.children[0] = { ...older.children[0]!, inputId: 'input-1', status: 'completed' };
+		const newer = operation('newer', 2);
+		newer.children[0] = { ...newer.children[0]!, inputId: 'input-1', status: 'failed' };
+
+		expect(deriveWorkActivityByInputId([older, newer]).get('input-1')).toMatchObject({
+			status: 'failed',
+			sequence: 2,
+		});
 	});
 });

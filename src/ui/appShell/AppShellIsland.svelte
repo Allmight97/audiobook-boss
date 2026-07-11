@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { openAppSettingsDialog } from '../appSettings';
 	import { handleClickToSelect, handleClickToSelectFolder } from '../fileImport';
+	import { getSelectedFileIndices, removeSelectedFiles } from '../fileList';
 	import {
 		handleMaxConcurrentSelectionChange,
 		handleMergeModeChange,
@@ -9,6 +10,7 @@
 	} from '../jobControls';
 	import { openRemoteSourceAcquire } from '../remoteSource';
 	import { triggerProcessFromStatusPanel } from '../statusPanel';
+	import { openMetadataLookup } from '../metadataLookup';
 	import { densityState, setDensityFromUser } from './density.svelte';
 
 	interface Props {
@@ -16,6 +18,7 @@
 	}
 
 	let { children }: Props = $props();
+	const selectedFileCount = $derived(getSelectedFileIndices().size);
 </script>
 
 <div class="app-shell">
@@ -80,6 +83,25 @@
 				onMaxConcurrentSelectionChange={handleMaxConcurrentSelectionChange}
 			/>
 		</div>
+		<div class="app-shell-toolbar-selection" aria-label="Selected files actions">
+			<span class="app-shell-toolbar-selection-count">{selectedFileCount} selected</span>
+			<button
+				type="button"
+				class="btn-pill btn-pill-secondary"
+				disabled={selectedFileCount === 0}
+				onclick={openMetadataLookup}
+			>
+				Find metadata ({selectedFileCount})
+			</button>
+			<button
+				type="button"
+				class="btn-pill btn-pill-secondary"
+				disabled={selectedFileCount === 0}
+				onclick={() => void removeSelectedFiles()}
+			>
+				Remove
+			</button>
+		</div>
 		<div class="app-shell-toolbar-end">
 			<button
 				id="process-button"
@@ -108,6 +130,7 @@
 	.app-shell-appbar,
 	.app-shell-toolbar,
 	.app-shell-toolbar-start,
+	.app-shell-toolbar-selection,
 	.app-shell-toolbar-end,
 	.app-shell-density {
 		display: flex;
@@ -184,8 +207,18 @@
 	}
 
 	.app-shell-toolbar-start,
+	.app-shell-toolbar-selection,
 	.app-shell-toolbar-end {
 		gap: var(--space-2);
+	}
+
+	.app-shell-toolbar-selection {
+		margin-left: auto;
+	}
+
+	.app-shell-toolbar-selection-count {
+		color: var(--text-muted);
+		font-size: var(--text-sm);
 	}
 
 	.app-shell-main {

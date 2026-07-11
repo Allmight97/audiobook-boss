@@ -6,7 +6,7 @@ import leftColumnSource from '../leftColumn/LeftColumnIsland.svelte?raw';
 
 describe('left column sibling layout', () => {
 	it('keeps App as shell composition for the left column', () => {
-		expect(appSource).toContain('<LeftColumnIsland />');
+		expect(appSource).toContain('<LeftColumnIsland {readWorkActivityByInputId} />');
 		expect(appSource).not.toContain('<FileImportIsland');
 		expect(appSource).not.toContain('<JobControlsIsland');
 		expect(appSource).not.toContain('inspectorState');
@@ -14,7 +14,7 @@ describe('left column sibling layout', () => {
 	});
 
 	it('renders input workflow before file inspector as sibling zones', () => {
-		const inputIndex = leftColumnSource.indexOf('<InputWorkflowPanel />');
+		const inputIndex = leftColumnSource.indexOf('<InputWorkflowPanel {readWorkActivityByInputId} />');
 		const inspectorIndex = leftColumnSource.indexOf('<FileInspectorPanel />');
 
 		expect(leftColumnSource).toContain('data-testid="left-column"');

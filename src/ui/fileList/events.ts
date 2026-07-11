@@ -13,12 +13,11 @@ import {
 } from './keyboardNavigation';
 import {
 	clearSelectionAction,
+	applySelectionIntent,
 	moveFileDown,
 	moveFileUp,
 	removeFile,
 	reorderFiles,
-	selectAll,
-	selectFile,
 } from './actions';
 
 export type FileListDragState = {
@@ -99,19 +98,6 @@ function hasValidIndex(index: number): boolean {
 	return Boolean(fileList && index >= 0 && index < fileList.files.length);
 }
 
-export function onFileListClick(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgress)) return;
-	if (!hasValidIndex(index)) return;
-
-	const multi = event.ctrlKey || event.metaKey;
-	const range = event.shiftKey;
-	if (range) {
-		window.getSelection()?.removeAllRanges();
-	}
-
-	void selectFile(index, { multi, range });
-}
-
 export function onFileListMoveUp(index: number, event: MouseEvent): void {
 	if (get(metadataSaveInProgress) || isOrderLocked()) return;
 	if (index <= 0 || !hasValidIndex(index)) return;
@@ -167,7 +153,7 @@ function handleKeyboardNavigation(event: KeyboardEvent): boolean {
 		return true;
 	}
 
-	void selectFile(targetIndex, { multi: false, range: false });
+	void applySelectionIntent({ type: 'selectOnly', index: targetIndex });
 	return true;
 }
 
@@ -183,7 +169,7 @@ export function onFileListKeyDown(e: KeyboardEvent): void {
 	const key = e.key.toLowerCase();
 	if ((e.metaKey || e.ctrlKey) && key === 'a') {
 		e.preventDefault();
-		void selectAll();
+		void applySelectionIntent({ type: 'selectAll' });
 		return;
 	}
 

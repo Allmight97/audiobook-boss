@@ -6,14 +6,13 @@ const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
 	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
 	getSelectedFilesMock: vi.fn(),
-	handleSelectionMock: vi.fn(() => ({ changed: true })),
-	selectAllFilesMock: vi.fn(() => true),
+	applySelectionIntentMock: vi.fn(() => ({ changed: true })),
 	showMultiSelectionMock: vi.fn(),
 	showSingleSelectionMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
 	validateMetadataDraftMock: vi.fn(),
-	clearSelectionMock: vi.fn(() => true),
+	callOrder: [] as string[],
 }));
 
 vi.mock('../../metadataForm', () => ({
@@ -43,11 +42,9 @@ vi.mock('../events', () => ({
 }));
 
 vi.mock('../selection', () => ({
-	clearSelection: context.clearSelectionMock,
-	handleSelection: context.handleSelectionMock,
+	applySelectionIntent: context.applySelectionIntentMock,
 	reindexSelectionAfterMove: vi.fn(),
 	reindexSelectionAfterRemoval: vi.fn(),
-	selectAllFiles: context.selectAllFilesMock,
 	swapSelectionIndices: vi.fn(),
 }));
 
@@ -107,8 +104,16 @@ describe('selectFile transition options', () => {
 
 		context.readMetadataFormMock.mockClear();
 		context.stageMetadataIntentPatchMock.mockClear();
-		context.handleSelectionMock.mockClear();
-		context.selectAllFilesMock.mockClear();
+		context.stageMetadataIntentPatchMock.mockImplementation(() => {
+			context.callOrder.push('staging');
+			return 'staged';
+		});
+		context.applySelectionIntentMock.mockClear();
+		context.applySelectionIntentMock.mockImplementation(() => {
+			context.callOrder.push('selection');
+			return { changed: true };
+		});
+		context.callOrder.length = 0;
 		context.showMultiSelectionMock.mockClear();
 		context.showSingleSelectionMock.mockClear();
 		context.pushStatusPanelTransientStatusMock.mockClear();
@@ -128,7 +133,6 @@ describe('selectFile transition options', () => {
 			},
 		);
 		context.validationErrorMock.mockReturnValue(null);
-		context.clearSelectionMock.mockClear();
 		context.getSelectedFilesMock.mockReset();
 		context.getSelectedFilesMock.mockReturnValue([
 			{
@@ -156,13 +160,20 @@ describe('selectFile transition options', () => {
 		});
 	});
 
+	it('stages the old selection before applying an intent', async () => {
+		const { selectFile } = await import('../actions');
+		await selectFile(1, { multi: false, range: false });
+
+		expect(context.callOrder).toEqual(['staging', 'selection']);
+	});
+
 	it('keeps the current selection when staging validation fails', async () => {
 		context.validationErrorMock.mockReturnValue('Series part must be a number');
 		const { selectFile } = await import('../actions');
 
 		await selectFile(1, { multi: false, range: false });
 
-		expect(context.handleSelectionMock).not.toHaveBeenCalled();
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
 		expect(context.pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
 			'Series part must be a number',
 			expect.objectContaining({ ttlMs: 2500 }),
@@ -180,9 +191,9 @@ describe('selectFile transition options', () => {
 
 		await clearSelectionAction();
 
-		expect(context.clearSelectionMock).not.toHaveBeenCalled();
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
 		expect(context.pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
-			'Fix metadata validation errors before clearing the selection.',
+			'Fix metadata validation errors before changing selection.',
 			expect.objectContaining({ ttlMs: 2500 }),
 		);
 	});
@@ -207,7 +218,7 @@ describe('selectFile transition options', () => {
 		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/beta.m4b', {
 			series: { op: 'set', value: 'Draft Series' },
 		});
-		expect(context.selectAllFilesMock).toHaveBeenCalledTimes(1);
+		expect(context.applySelectionIntentMock).toHaveBeenCalledWith({ type: 'selectAll' });
 		expect(context.showMultiSelectionMock).toHaveBeenCalledTimes(1);
 	});
 });

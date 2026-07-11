@@ -12,7 +12,7 @@ describe('app shell composition', () => {
 
 		expect(shellIndex).toBeGreaterThan(-1);
 		expect(mainIndex).toBeGreaterThan(shellIndex);
-		expect(appSource).toContain('<LeftColumnIsland />');
+		expect(appSource).toContain('<LeftColumnIsland {readWorkActivityByInputId} />');
 		expect(appSource).toContain('<MetadataManagerIsland />');
 		expect(appSource).toContain('<EncodingWorkbenchIsland />');
 		expect(appSource).toContain('<StatusPanelIsland />');
@@ -40,6 +40,10 @@ describe('app shell composition', () => {
 			'<JobControlsIsland',
 			'triggerProcessFromStatusPanel',
 		]) {
+			expect(appShellSource).toContain(ownerSurface);
+		}
+
+		for (const ownerSurface of ['getSelectedFileIndices', 'removeSelectedFiles', 'openMetadataLookup']) {
 			expect(appShellSource).toContain(ownerSurface);
 		}
 

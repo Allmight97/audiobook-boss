@@ -44,11 +44,9 @@ vi.mock('../events', () => ({
 }));
 
 vi.mock('../selection', () => ({
-	clearSelection: vi.fn(() => true),
-	handleSelection: vi.fn(() => ({ changed: true })),
+	applySelectionIntent: vi.fn(() => ({ changed: true })),
 	reindexSelectionAfterMove: vi.fn(),
 	reindexSelectionAfterRemoval: vi.fn(),
-	selectAllFiles: vi.fn(() => true),
 	swapSelectionIndices: vi.fn(),
 }));
 

@@ -1,10 +1,3 @@
-/**
- * File list module — pre-processing workbench file list state, actions, and rendering.
- */
-export { default as FileListIsland } from './FileListIsland.svelte';
-
-export { appendFileList, selectFile, setFileOrderLocked } from './actions';
-
 export {
 	getCurrentFileList,
 	getSelectedFileIndex,
@@ -20,3 +13,17 @@ export {
 } from './metadataStaging';
 
 export { readCombinedSizeText } from './viewState.svelte';
+export type { ReadWorkActivityByInputId } from './viewState.svelte';
+
+export {
+	appendFileList,
+	applySelectionIntent,
+	removeSelectedFiles,
+	selectFile,
+	setFileOrderLocked,
+} from './actions';
+
+/**
+ * File list module — pre-processing workbench file list state, actions, and rendering.
+ */
+export { default as FileListIsland } from './FileListIsland.svelte';

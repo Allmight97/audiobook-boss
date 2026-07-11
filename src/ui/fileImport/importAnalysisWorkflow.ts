@@ -63,14 +63,17 @@ export function makeImportAnalysisWorkflowServicesLayer(
 }
 
 export const liveImportAnalysisWorkflowServices = {
-	isOrderLocked,
+	// File Import and File List meet through Remote Source. Keep these reads
+	// lazy so a module cycle cannot freeze an uninitialized strip export here.
+	isOrderLocked: () => isOrderLocked(),
 	getSupportedAudioImportMetadata: tauriClient.getSupportedAudioImportMetadata,
 	openFiles: tauriClient.openFiles,
 	openDirectory: tauriClient.openDirectory,
 	discoverAudioImportPaths: tauriClient.discoverAudioImportPaths,
 	analyzeAudioFiles: tauriClient.analyzeAudioFiles,
-	persistPendingMetadataDraftsForCurrentSelection,
-	appendFileList,
+	persistPendingMetadataDraftsForCurrentSelection: () =>
+		persistPendingMetadataDraftsForCurrentSelection(),
+	appendFileList: (...args) => appendFileList(...args),
 	pushStatusPanelTransientStatus,
 	setFileImportError,
 	clearFileImportError,
