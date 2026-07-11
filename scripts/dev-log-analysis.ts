@@ -310,6 +310,11 @@ function parseExternalFdkRuns(input: string): {
 		if (current?.inStderr) {
 			if (line === '--- end external-fdk run ---') {
 				finishCurrent(true);
+			} else if (line.startsWith('--- external-fdk run ')) {
+				// Ambiguous: adversarial stderr content, or a truncated record
+				// followed by a real one. Neither reading may fabricate a
+				// verdict, so the run is malformed (-> indeterminate).
+				current.malformed = true;
 			}
 			continue;
 		}

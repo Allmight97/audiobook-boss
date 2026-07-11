@@ -303,10 +303,31 @@ describe('analyzeDevLog', () => {
 		].join('\n');
 		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
 
-		expect(analysis.health).toBe('clean');
+		expect(analysis.health).toBe('indeterminate');
 		expect(analysis.externalFdkStatuses).toEqual({ success: 1 });
 		expect(analysis.externalFdkRuns).toBe(1);
-		expect(analysis.malformedExternalFdkRuns).toBe(0);
+		expect(analysis.malformedExternalFdkRuns).toBe(1);
+	});
+
+	it('does not report clean when a truncated run swallows a real failed run', () => {
+		const encodingLog = [
+			'--- external-fdk run 1 ---',
+			'run_id=test-run',
+			'status=success',
+			'job_id=job-a',
+			'stderr:',
+			'ffmpeg noise',
+			'--- external-fdk run 2 ---',
+			'run_id=test-run',
+			'status=failed',
+			'job_id=job-b',
+			'stderr:',
+			'--- end external-fdk run ---',
+		].join('\n');
+		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
+
+		expect(analysis.health).toBe('indeterminate');
+		expect(analysis.malformedExternalFdkRuns).toBe(1);
 	});
 
 	it('does not treat normal signal-based dev shutdown as failure', () => {
