@@ -14,8 +14,10 @@ pub(super) fn build_ffmpeg_args(
     let mut args = vec![
         OsString::from("-y"),
         OsString::from("-hide_banner"),
+        // `warning` keeps libfdk_aac's parameter-acceptance warnings (e.g. the
+        // HE-AAC + VBR combination) visible in the captured encoding log.
         OsString::from("-loglevel"),
-        OsString::from("error"),
+        OsString::from("warning"),
         OsString::from("-nostats"),
         OsString::from("-progress"),
         OsString::from("pipe:1"),
