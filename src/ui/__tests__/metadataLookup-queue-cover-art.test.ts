@@ -36,7 +36,8 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state.svelte', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../fileList/state.svelte')>()),
 	getCurrentFileList: () => context.currentFileList,
 	getSelectedFileIndices: () => context.selectedIndices,
 	isOrderLocked: vi.fn(() => false),

@@ -61,7 +61,7 @@
 			<h3 id="collision-dialog-title">{collisionDialogState.title}</h3>
 			<button
 				id="collision-dialog-close"
-				class="btn-pill btn-pill-secondary"
+				class="btn-pill btn-pill-secondary btn-pill-sm"
 				data-testid="collision-dialog-close"
 				type="button"
 				onclick={cancelCollisionDialog}
@@ -71,7 +71,7 @@
 		</div>
 
 		<div class="app-modal-body">
-			<p id="collision-dialog-body" class="text-xs muted-text">{collisionDialogState.body}</p>
+			<p id="collision-dialog-body" class="app-modal-status text-xs">{collisionDialogState.body}</p>
 
 			<div id="collision-dialog-results" class="app-modal-results">
 				{#each collisionDialogState.outputs as output}
@@ -103,7 +103,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-replace"
-						class="btn-pill btn-pill-primary"
+						class="btn-pill btn-pill-primary btn-pill-sm"
 						data-testid="collision-dialog-replace"
 						type="button"
 						onclick={() => chooseCollisionPolicy('replace_existing')}
@@ -114,7 +114,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-skip"
-						class="btn-pill btn-pill-secondary"
+						class="btn-pill btn-pill-secondary btn-pill-sm"
 						data-testid="collision-dialog-skip"
 						type="button"
 						onclick={() => chooseCollisionPolicy('skip_existing')}
@@ -125,7 +125,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-rename"
-						class="btn-pill btn-pill-secondary"
+						class="btn-pill btn-pill-secondary btn-pill-sm"
 						data-testid="collision-dialog-rename"
 						type="button"
 						onclick={() => chooseCollisionPolicy('rename_new')}
@@ -136,7 +136,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-cancel"
-						class="btn-pill btn-pill-secondary"
+						class="btn-pill btn-pill-secondary btn-pill-sm"
 						data-testid="collision-dialog-cancel"
 						type="button"
 						onclick={cancelCollisionDialog}
@@ -156,7 +156,7 @@
 	}
 
 	.collision-dialog-controls {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 		grid-template-columns: repeat(4, auto);
 		justify-content: flex-start;
 	}
@@ -165,14 +165,14 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.2rem;
+		gap: var(--space-1);
 	}
 
 	.collision-dialog-filename {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 0.95rem;
+		font-size: var(--text-lg);
 		font-weight: 600;
 		color: var(--text-primary);
 	}
@@ -182,7 +182,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		font-family: var(--font-mono);
-		font-size: 0.76rem;
+		font-size: var(--text-sm);
 		color: var(--text-secondary);
 	}
 
@@ -192,7 +192,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		text-align: right;
-		font-size: 0.76rem;
+		font-size: var(--text-sm);
 		color: var(--text-secondary);
 	}
 

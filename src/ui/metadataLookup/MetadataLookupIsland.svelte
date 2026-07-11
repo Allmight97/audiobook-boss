@@ -95,7 +95,7 @@
 			<h3 id="metadata-lookup-title">Find Metadata Online</h3>
 			<button
 				id="metadata-lookup-close"
-				class="btn-pill btn-pill-secondary"
+				class="btn-pill btn-pill-secondary btn-pill-sm"
 				data-testid="metadata-lookup-close"
 				type="button"
 				onclick={closeMetadataLookup}
@@ -170,7 +170,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-search-btn"
-						class="btn-pill btn-pill-primary"
+						class="btn-pill btn-pill-primary btn-pill-sm"
 						data-testid="metadata-lookup-search-btn"
 						type="button"
 						onclick={() => void searchMetadataLookup()}
@@ -181,7 +181,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-skip-btn"
-						class="btn-pill btn-pill-secondary"
+						class="btn-pill btn-pill-secondary btn-pill-sm"
 						data-testid="metadata-lookup-skip-btn"
 						type="button"
 						disabled={!metadataLookupState.skipEnabled}
@@ -193,7 +193,7 @@
 			</div>
 			<div
 				id="metadata-lookup-context"
-				class="metadata-lookup-context text-xs muted-text"
+				class="metadata-lookup-context app-modal-status text-xs"
 			>
 				{metadataLookupState.queueContext}
 			</div>
@@ -217,7 +217,7 @@
 							</p>
 							<button
 								id="metadata-lookup-manual-entry-btn"
-								class="btn-pill btn-pill-secondary mt-2"
+								class="btn-pill btn-pill-secondary btn-pill-sm mt-2"
 								data-testid="metadata-lookup-manual-entry-btn"
 								type="button"
 								onclick={useManualMetadataEntryFromLookup}
@@ -270,7 +270,7 @@
 								)}
 							</div>
 						<span
-							class="metadata-lookup-source"
+							class="metadata-lookup-source app-badge app-badge-info"
 							class:is-secondary-source={result.source === 'openlibrary'}
 						>
 							{result.source === 'audnexus'
@@ -283,7 +283,7 @@
 						<div class="metadata-lookup-actions">
 							<button
 								type="button"
-								class="btn-pill btn-pill-secondary"
+								class="btn-pill btn-pill-secondary btn-pill-sm"
 								data-index={index}
 								onclick={() => void applyMetadataLookupResult(index)}
 							>
@@ -303,29 +303,25 @@
 	}
 
 	.metadata-lookup-title {
-		margin-bottom: 0.25rem;
+		margin-bottom: var(--space-1);
 		font-weight: 600;
 	}
 
 	.metadata-lookup-meta {
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		color: var(--text-secondary);
 	}
 
 	.metadata-lookup-source {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.25rem;
-		margin-top: 0.25rem;
-		padding: 0.15rem 0.5rem;
-		border: 1px solid var(--border-secondary);
-		border-radius: 9999px;
-		color: var(--text-secondary);
-		font-size: 0.7rem;
+		gap: var(--space-1);
+		margin-top: var(--space-1);
 	}
 
 	.metadata-lookup-source.is-secondary-source {
 		color: var(--text-muted);
+		background: var(--bg-input);
 	}
 
 	.metadata-lookup-actions {

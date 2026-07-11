@@ -20,6 +20,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Direction v3 unifies the toolbar, gives the book table the full window width
+  with status badges, moves work into a bottom operations bar, adds a popover
+  metadata surface with Facts, Chapters, and Output tabs, and remembers the
+  selected comfortable or compact density.
 - Find Metadata Online now shows separate Title and Author search fields,
   auto-filled from the selected file (title/album into Title, author into
   Author), so you can see and adjust each criterion before searching. ASIN

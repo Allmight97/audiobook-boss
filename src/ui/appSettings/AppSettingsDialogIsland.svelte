@@ -95,7 +95,7 @@
 			<h3 id="app-settings-title">App Settings</h3>
 			<button
 				id="app-settings-close"
-				class="btn-pill btn-pill-secondary"
+				class="btn-pill btn-pill-secondary btn-pill-sm"
 				data-testid="app-settings-close"
 				type="button"
 				onclick={closeAppSettingsDialog}
@@ -106,7 +106,7 @@
 
 		<div class="app-modal-body">
 			{#if appSettingsDialogState.loading}
-				<p class="text-xs muted-text">Loading settings…</p>
+				<p class="app-modal-status text-xs">Loading settings…</p>
 			{:else}
 				<section class="app-settings-section">
 					<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
@@ -124,7 +124,7 @@
 							bind:value={appSettingsDialogState.ffmpegPathDraft}
 						/>
 						<button
-							class="btn-pill btn-pill-secondary"
+							class="btn-pill btn-pill-secondary btn-pill-sm"
 							data-testid="app-settings-ffmpeg-browse"
 							type="button"
 							onclick={() => void browseForFfmpegBinary()}
@@ -132,7 +132,7 @@
 							Browse…
 						</button>
 						<button
-							class="btn-pill btn-pill-secondary"
+							class="btn-pill btn-pill-secondary btn-pill-sm"
 							data-testid="app-settings-ffmpeg-clear"
 							type="button"
 							onclick={clearFfmpegPathDraft}
@@ -140,7 +140,7 @@
 							Clear
 						</button>
 						<button
-							class="btn-pill btn-pill-primary"
+							class="btn-pill btn-pill-primary btn-pill-sm"
 							data-testid="app-settings-ffmpeg-save"
 							type="button"
 							disabled={appSettingsDialogState.saveState === 'saving'}
@@ -150,12 +150,12 @@
 						</button>
 					</div>
 					{#if appSettingsDialogState.saveState === 'error'}
-						<p class="app-settings-status app-settings-status-error" data-testid="app-settings-error">
+						<p class="app-settings-status app-modal-status is-error" data-testid="app-settings-error">
 							{appSettingsDialogState.saveError}
 						</p>
 					{/if}
 					{#if appSettingsDialogState.encoderAvailability}
-						<p class="app-settings-status" data-testid="app-settings-toolchain-status">
+						<p class="app-settings-status app-modal-status" data-testid="app-settings-toolchain-status">
 							{appSettingsDialogState.encoderAvailability.statusMessage}
 							{#if appSettingsDialogState.encoderAvailability.fdkAvailable}
 								(FDK source: {formatFdkSource(appSettingsDialogState.encoderAvailability.fdkSource)})
@@ -215,7 +215,7 @@
 						</div>
 						<div class="app-settings-path-row">
 							<button
-								class="btn-pill btn-pill-secondary"
+								class="btn-pill btn-pill-secondary btn-pill-sm"
 								data-testid="app-settings-pin-defaults"
 								type="button"
 								disabled={appSettingsDialogState.startupSaveState === 'saving'}
@@ -226,7 +226,7 @@
 						</div>
 						{#if appSettingsDialogState.startupSaveState === 'error'}
 							<p
-								class="app-settings-status app-settings-status-error"
+								class="app-settings-status app-modal-status is-error"
 								data-testid="app-settings-startup-error"
 							>
 								{appSettingsDialogState.startupSaveError}
@@ -251,7 +251,7 @@
 						<h4 class="app-settings-section-title">Reset</h4>
 						<div class="app-settings-path-row">
 							<button
-								class="btn-pill btn-pill-secondary"
+								class="btn-pill btn-pill-secondary btn-pill-sm"
 								data-testid="app-settings-reset"
 								type="button"
 								disabled={appSettingsDialogState.saveState === 'saving'}
@@ -269,7 +269,7 @@
 
 <style>
 	.app-settings-section {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 
 	.app-settings-section:first-child {
@@ -277,58 +277,53 @@
 	}
 
 	.app-settings-section-title {
-		margin: 0 0 0.35rem;
-		font-size: 0.85rem;
+		margin: 0 0 var(--space-1);
+		font-size: var(--text-md);
 		font-weight: 600;
 		color: var(--text-primary);
 	}
 
 	.app-settings-path-row {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: center;
-		margin-top: 0.5rem;
+		margin-top: var(--space-2);
 	}
 
 	.app-settings-path-input {
 		flex: 1;
 		min-width: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--text-sm);
 	}
 
 	.app-settings-status {
-		margin-top: 0.5rem;
-		font-size: 0.76rem;
-		color: var(--text-secondary);
-	}
-
-	.app-settings-status-error {
-		color: var(--danger, #e5484d);
+		margin-top: var(--space-2);
+		font-size: var(--text-sm);
 	}
 
 	.app-settings-startup-options {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
-		margin-top: 0.5rem;
-		font-size: 0.78rem;
+		gap: var(--space-1);
+		margin-top: var(--space-2);
+		font-size: var(--text-sm);
 		color: var(--text-primary);
 	}
 
 	.app-settings-radio {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-1);
 		cursor: pointer;
 	}
 
 	.app-settings-summary {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 0.3rem 1rem;
-		margin: 0.5rem 0 0;
-		font-size: 0.78rem;
+		gap: var(--space-1) var(--space-4);
+		margin: var(--space-2) 0 0;
+		font-size: var(--text-sm);
 	}
 
 	.app-settings-summary dt {
