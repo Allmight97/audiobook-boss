@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import * as statusPanel from '..';
 
 const EXPECTED_STATUS_PANEL_EXPORTS = [
-	'StatusPanelIsland',
+	'StatusTransportIsland',
 	'initStatusPanel',
 	'isStatusPanelProcessing',
 	'pushStatusPanelTransientStatus',
@@ -24,12 +24,12 @@ describe('Status Panel Runtime public API contract', () => {
 		expect(Object.keys(statusPanel).sort()).toEqual([...EXPECTED_STATUS_PANEL_EXPORTS].sort());
 	});
 
-	it('updates visible concurrency status through the public runtime API', async () => {
-		const { container } = render(statusPanel.StatusPanelIsland);
+	it('renders the foreground transport through the public runtime API', async () => {
+		const { container } = render(statusPanel.StatusTransportIsland);
 
 		statusPanel.updateStatusPanelConcurrencyStatus('Max jobs: 4');
 		await tick();
 
-		expect(container.querySelector('#concurrency-status')?.textContent).toContain('Max jobs: 4');
+		expect(container.querySelector('[aria-label="Preview transport"]')).toBeTruthy();
 	});
 });

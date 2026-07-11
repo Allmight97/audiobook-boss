@@ -3,8 +3,7 @@
 	import { EncodingWorkbenchIsland } from './ui/encodingWorkbench';
 	import { LeftColumnIsland } from './ui/leftColumn';
 	import { MetadataManagerIsland } from './ui/metadataManager';
-	import StatusPanelIsland from './ui/statusPanel/StatusPanelIsland.svelte';
-	import { readWorkActivityByInputId, WorkCenterIsland } from './ui/workCenter';
+	import { readWorkActivityByInputId } from './ui/workCenter';
 	import { MetadataLookupIsland } from './ui/metadataLookup';
 	import { AppShellIsland } from './ui/appShell';
 	import CollisionDialogIsland from './ui/collisionDialog/CollisionDialogIsland.svelte';
@@ -47,8 +46,6 @@
 				<EncodingWorkbenchIsland />
 			</div>
 
-			<StatusPanelIsland />
-			<WorkCenterIsland />
 		</div>
 	</div>
 </AppShellIsland>

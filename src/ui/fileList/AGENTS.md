@@ -17,6 +17,9 @@
 - Do **not** export `fileListSessionState`, selection internals, or event
   handlers from the index. Cross-module reads use `readX()` accessors from
   `viewState.svelte.ts` inside component `$derived(...)`.
+- Cross-owner total display reads are `readFileListCount()`,
+  `readCombinedDurationText()`, and `readCombinedSizeText()`; they return
+  presentation-ready values without exposing session state.
 
 ## Private Cluster
 

@@ -5,3 +5,4 @@ export {
 	workCenterState,
 } from './state.svelte';
 export type { WorkActivity, WorkActivityStatus } from './model';
+export { deriveWorkOperationCounts } from './model';

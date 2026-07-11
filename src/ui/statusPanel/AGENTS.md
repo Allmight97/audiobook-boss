@@ -33,7 +33,7 @@ re-classify the terminal outcome.
   truth instead of a hand-listed export set here.
 
 ## Private Cluster
-- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
+- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusTransportIsland.svelte`.
 - The cluster consumes backend `OperationKind`, progress events, queue snapshots,
   cancellation facts, and terminal results as a read model. It owns visible
   status derivation, status feedback, controls, and processing request

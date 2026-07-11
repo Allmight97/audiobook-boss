@@ -6,4 +6,4 @@ export {
 	triggerProcessFromStatusPanel,
 } from './controller';
 export { updateStatusPanelConcurrencyStatus } from './runtimeApi';
-export { default as StatusPanelIsland } from './StatusPanelIsland.svelte';
+export { default as StatusTransportIsland } from './StatusTransportIsland.svelte';

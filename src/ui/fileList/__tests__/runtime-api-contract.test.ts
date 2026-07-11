@@ -14,7 +14,9 @@ const EXPECTED_FILE_LIST_EXPORTS = [
 	'isOrderLocked',
 	'onOrderLockChange',
 	'persistPendingMetadataDraftsForCurrentSelection',
+	'readCombinedDurationText',
 	'readCombinedSizeText',
+	'readFileListCount',
 	'removeSelectedFiles',
 	'selectFile',
 	'setFileOrderLocked',
@@ -32,5 +34,7 @@ describe('File List Runtime public API contract', () => {
 
 	it('reads combined size through the public accessor', () => {
 		expect(fileList.readCombinedSizeText()).toBe('--- MB');
+		expect(fileList.readCombinedDurationText()).toBe('---');
+		expect(fileList.readFileListCount()).toBe(0);
 	});
 });

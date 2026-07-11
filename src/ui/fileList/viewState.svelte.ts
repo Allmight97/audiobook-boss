@@ -1,4 +1,4 @@
-import { formatFileSize, type AudioFile } from '../../types/audio';
+import { formatDuration, formatFileSize, type AudioFile } from '../../types/audio';
 import {
 	getCurrentFileList,
 	getSelectedFileIndices,
@@ -94,4 +94,12 @@ export function readCombinedSizeText(): string {
 		return '--- MB';
 	}
 	return formatFileSize(fileList.totalSize);
+}
+
+export function readFileListCount(): number {
+	return getCurrentFileList()?.files.length ?? 0;
+}
+
+export function readCombinedDurationText(): string {
+	return formatDuration(getCurrentFileList()?.totalDuration);
 }

@@ -26,20 +26,18 @@ function cssRule(source: string, selector: string): string {
 }
 
 describe('right column sibling layout', () => {
-	it('renders metadata, encoding, status, and work center as sibling zones', () => {
+	it('renders only metadata and encoding as right-column sibling zones', () => {
 		const metadataIndex = appSource.indexOf(
 			'class="panel right-column-panel metadata-manager-panel"',
 		);
 		const workbenchIndex = appSource.indexOf(
 			'class="panel right-column-panel encoding-workbench-panel"',
 		);
-		const statusIndex = appSource.indexOf('<StatusPanelIsland />');
-		const workCenterIndex = appSource.indexOf('<WorkCenterIsland />');
 
 		expect(metadataIndex).toBeGreaterThan(-1);
 		expect(workbenchIndex).toBeGreaterThan(metadataIndex);
-		expect(statusIndex).toBeGreaterThan(workbenchIndex);
-		expect(workCenterIndex).toBeGreaterThan(statusIndex);
+		expect(appSource).not.toContain('StatusPanelIsland');
+		expect(appSource).not.toContain('WorkCenterIsland');
 		expect(appSource).not.toContain('metadata-output-scroll');
 		expect(appSource).not.toContain('metadata-output-panel');
 	});

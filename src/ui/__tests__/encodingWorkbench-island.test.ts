@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { render, screen } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EncodingWorkbenchIsland from '../encodingWorkbench/EncodingWorkbenchIsland.svelte';
 import { applyOutputDefaultsFromSettings, updateOutputPath } from '../outputPanel';
 
-const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
+const { encoderLogicMocks } = vi.hoisted(() => ({
 	encoderLogicMocks: {
 		handleBitrateModeChange: vi.fn(),
 		handleBitrateValueChange: vi.fn(),
@@ -14,16 +14,9 @@ const { encoderLogicMocks, startPreviewAudioMock } = vi.hoisted(() => ({
 		handleSampleRateSelectionChange: vi.fn(),
 		initializeEncoderPanelLogic: vi.fn(),
 	},
-	startPreviewAudioMock: vi.fn(),
 }));
 
 vi.mock('../encoderPanel/logic', () => encoderLogicMocks);
-vi.mock('../statusPanel', () => ({
-	triggerProcessFromStatusPanel: startPreviewAudioMock,
-	initStatusPanel: vi.fn(),
-	isStatusPanelProcessing: vi.fn(() => false),
-	pushStatusPanelTransientStatus: vi.fn(),
-}));
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		previewOutputPath: vi
@@ -59,7 +52,6 @@ describe('EncodingWorkbenchIsland', () => {
 		for (const mock of Object.values(encoderLogicMocks)) {
 			mock.mockReset();
 		}
-		startPreviewAudioMock.mockReset();
 	});
 
 	it('renders encoder, output, and tags as one scoped workbench row', async () => {
@@ -86,11 +78,8 @@ describe('EncodingWorkbenchIsland', () => {
 		expect(encoderLogicMocks.initializeEncoderPanelLogic).toHaveBeenCalledTimes(1);
 	});
 
-	it('keeps Preview Audio in the tags block and calls the existing preview action', async () => {
+	it('does not retain Preview Audio in the tags block after its transport relocation', async () => {
 		render(EncodingWorkbenchIsland);
-
-		await fireEvent.click(screen.getByRole('button', { name: 'Preview Audio' }));
-
-		expect(startPreviewAudioMock).toHaveBeenCalledWith({ previewSeconds: 30 });
+		expect(screen.queryByRole('button', { name: 'Preview Audio' })).toBeNull();
 	});
 });

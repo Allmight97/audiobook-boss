@@ -1,7 +1,6 @@
 <script lang="ts">
 	import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
 	import { OutputPanelIsland } from '../outputPanel';
-	import PreviewAudioControls from '../previewAudio/PreviewAudioControls.svelte';
 	import { TagPreviewIsland } from '../tagPreview';
 </script>
 
@@ -22,7 +21,6 @@
 		<div class="workbench-block workbench-block-tags" data-testid="encoding-workbench-tags">
 			<div class="workbench-block-header tags-header">
 				<h3>Tags Preview</h3>
-				<PreviewAudioControls variant="compact" />
 			</div>
 			<TagPreviewIsland variant="workbench" />
 		</div>
@@ -80,10 +78,6 @@
 
 	.workbench-block-tags {
 		overflow: visible;
-	}
-
-	.workbench-block-tags :global([data-testid="preview-audio-controls"]) {
-		margin-left: auto;
 	}
 
 	@container (max-width: 760px) {

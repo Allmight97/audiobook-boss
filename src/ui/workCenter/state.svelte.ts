@@ -1,6 +1,6 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
-import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
+import type { OperationId, OperationListSnapshot, OperationSnapshot } from '../../types/workRuntime';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
@@ -50,11 +50,7 @@ export function initializeWorkCenter(): Promise<void> {
 		);
 		await group.add(
 			tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
-				const model = replaceOperations(workCenterState, { operations: payload.operations });
-				workCenterState.operations = model.operations;
-				for (const operation of workCenterState.operations) {
-					void purgeRemoteSessionsForTerminalOperation(operation);
-				}
+				applyOperationListSnapshot({ operations: payload.operations });
 			}),
 		);
 
@@ -63,8 +59,7 @@ export function initializeWorkCenter(): Promise<void> {
 		if (group.disposed) {
 			return;
 		}
-		const model = replaceOperations(workCenterState, list);
-		workCenterState.operations = model.operations;
+		applyOperationListSnapshot(list);
 		workCenterState.initialized = true;
 		workCenterState.errorMessage = null;
 	})().catch((error) => {
@@ -99,6 +94,14 @@ export function applyOperationSnapshot(snapshot: OperationSnapshot): void {
 	const model = upsertOperation(workCenterState, snapshot);
 	workCenterState.operations = model.operations;
 	void purgeRemoteSessionsForTerminalOperation(snapshot);
+}
+
+export function applyOperationListSnapshot(list: OperationListSnapshot): void {
+	const model = replaceOperations(workCenterState, list);
+	workCenterState.operations = model.operations;
+	for (const operation of workCenterState.operations) {
+		void purgeRemoteSessionsForTerminalOperation(operation);
+	}
 }
 
 export function readWorkActivityByInputId() {

@@ -6,6 +6,7 @@
 - `initializeWorkCenter`
 - `readWorkActivityByInputId`
 - `workCenterState`
+- `deriveWorkOperationCounts`
 
 ## Ownership
 

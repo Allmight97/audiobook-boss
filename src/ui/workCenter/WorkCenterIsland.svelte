@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
+	import type { ChildJobSnapshot, OperationSnapshot, ResourceLane } from '../../types/workRuntime';
 	import {
 		cancelWorkOperation,
 		initializeWorkCenter,
@@ -8,54 +8,91 @@
 		workCenterState,
 	} from './state.svelte';
 
+	let expandedOperationIds = $state<Set<string>>(new Set());
+
 	onMount(() => {
 		void initializeWorkCenter();
 	});
 
+	function toggleExpanded(operationId: string): void {
+		const next = new Set(expandedOperationIds);
+		if (next.has(operationId)) {
+			next.delete(operationId);
+		} else {
+			next.add(operationId);
+		}
+		expandedOperationIds = next;
+	}
+
 	function operationStatusLabel(status: OperationSnapshot['status']): string {
-		if (status === 'accepted') return 'Accepted';
+		if (status === 'accepted') return 'Queued';
 		if (status === 'running') return 'Running';
 		if (status === 'cancelling') return 'Cancelling';
-		if (status === 'completed') return 'Completed';
+		if (status === 'completed') return 'Done';
 		if (status === 'cancelled') return 'Cancelled';
 		if (status === 'failed') return 'Failed';
 		return 'Mixed';
 	}
 
-	function operationKindLabel(kind: OperationSnapshot['kind']): string {
-		if (kind === 'processingBatch') return 'Batch';
-		if (kind === 'processingMerge') return 'Merge';
-		if (kind === 'remoteAcquisition') return 'Acquisition';
-		return 'Metadata';
+	function operationStatusVariant(status: OperationSnapshot['status']): 'info' | 'ok' | 'warn' | 'muted' {
+		if (status === 'accepted') return 'muted';
+		if (status === 'running' || status === 'cancelling') return 'info';
+		if (status === 'completed') return 'ok';
+		return 'warn';
 	}
 
-	function childStatusLabel(status: ChildJobSnapshot['status']): string {
-		if (status === 'queued') return 'Queued';
-		if (status === 'running') return 'Running';
-		if (status === 'completed') return 'Done';
-		if (status === 'skipped') return 'Skipped';
-		if (status === 'cancelled') return 'Cancelled';
-		return 'Failed';
+	function operationPositionText(operation: OperationSnapshot): string {
+		if (operation.status === 'accepted' && typeof operation.progress.currentItemIndex === 'number') {
+			return `#${operation.progress.currentItemIndex + 1}`;
+		}
+		return `${operation.progress.percentage.toFixed(0)}%`;
+	}
+
+	function laneLabel(lane: ResourceLane): string {
+		if (lane === 'encodeCpu') return 'Encode';
+		if (lane === 'outputCommit') return 'Commit';
+		if (lane === 'metadataWrite') return 'Metadata';
+		if (lane === 'networkDownload') return 'Download';
+		if (lane === 'helperMaterializer') return 'Materialize';
+		return 'Analysis';
+	}
+
+	function laneChildren(operation: OperationSnapshot, lane: ResourceLane): ChildJobSnapshot[] {
+		return operation.children.filter((child) => child.lane === lane);
+	}
+
+	function lanePercentage(operation: OperationSnapshot, lane: ResourceLane): number {
+		const children = laneChildren(operation, lane);
+		if (children.length === 0) return 0;
+		return children.reduce((total, child) => total + child.progress.percentage, 0) / children.length;
+	}
+
+	function laneDetail(operation: OperationSnapshot, lane: ResourceLane): string {
+		const children = laneChildren(operation, lane);
+		if (children.length === 0) return '—';
+		const completed = children.filter((child) => child.status === 'completed' || child.status === 'skipped').length;
+		return completed === children.length ? 'done' : `${completed}/${children.length}`;
 	}
 
 	function canCancel(operation: OperationSnapshot): boolean {
 		return operation.cancellable && !operation.cancelRequested;
 	}
 
-	function summaryText(operation: OperationSnapshot): string {
-		if (operation.terminalSummary) return operation.terminalSummary.message;
-		return operation.progress.message;
+	function summaryText(operation: OperationSnapshot): string | null {
+		return operation.terminalSummary?.message ?? operation.progress.message ?? null;
+	}
+
+	function childStatusLabel(status: ChildJobSnapshot['status']): string {
+		if (status === 'completed') return 'Done';
+		if (status === 'queued') return 'Queued';
+		if (status === 'running') return 'Running';
+		if (status === 'skipped') return 'Skipped';
+		if (status === 'cancelled') return 'Cancelled';
+		return 'Failed';
 	}
 </script>
 
-<div class="panel work-center" aria-label="Work Center">
-	<div class="work-center-header">
-		<div>
-			<h3>Work Center</h3>
-			<p>{workCenterState.operations.length} operation{workCenterState.operations.length === 1 ? '' : 's'}</p>
-		</div>
-	</div>
-
+<section class="work-center" aria-label="Operations list">
 	{#if workCenterState.errorMessage}
 		<div class="work-center-error">{workCenterState.errorMessage}</div>
 	{/if}
@@ -65,257 +102,207 @@
 	{:else}
 		<div class="work-operation-list">
 			{#each workCenterState.operations as operation (operation.operationId)}
-				<section class={`work-operation is-${operation.status}`}>
-					<div class="work-operation-topline">
-						<div class="work-operation-title-group">
-							<span class="work-kind">{operationKindLabel(operation.kind)}</span>
-							<span class="work-title" title={operation.title}>{operation.title}</span>
-						</div>
-						<div class="work-operation-actions">
-							<span class={`work-status is-${operation.status}`}>
+				<article class:expanded={expandedOperationIds.has(operation.operationId)} class="work-operation">
+					<div class="work-operation-row">
+						<button
+							type="button"
+							class="work-operation-disclosure"
+							aria-expanded={expandedOperationIds.has(operation.operationId)}
+							aria-label={`${expandedOperationIds.has(operation.operationId) ? 'Collapse' : 'Expand'} ${operation.title}`}
+							onclick={() => toggleExpanded(operation.operationId)}
+						>
+							<span class={`app-badge app-badge-${operationStatusVariant(operation.status)}`}>
 								{operationStatusLabel(operation.status)}
 							</span>
+							<span class="work-operation-title" title={operation.title}>{operation.title}</span>
+							<span class="work-operation-position">{operationPositionText(operation)}</span>
+						</button>
+						{#if canCancel(operation)}
 							<button
-								class="work-action-button"
-								disabled={
-									!canCancel(operation) ||
-									Boolean(workCenterState.cancelPendingByOperationId[operation.operationId])
-								}
+								type="button"
+								class="btn-pill btn-pill-secondary btn-pill-xs"
+								aria-label={`Cancel ${operation.title}`}
+								disabled={Boolean(workCenterState.cancelPendingByOperationId[operation.operationId])}
 								onclick={() => void cancelWorkOperation(operation.operationId)}
 							>
 								Cancel
 							</button>
-						</div>
+						{/if}
 					</div>
 
-					<div class="work-progress-row">
-						<div class="app-progress-track work-progress-track">
-							<div
-								class="app-progress-fill"
-								style={`width: ${Math.min(100, Math.max(0, operation.progress.percentage))}%`}
-							></div>
-						</div>
-						<span class="work-progress-value">{operation.progress.percentage.toFixed(0)}%</span>
-					</div>
+					{#if expandedOperationIds.has(operation.operationId)}
+						<div class="work-operation-detail">
+							{#each operation.lanes as lane (lane)}
+								<div class="work-operation-lane" data-testid={`operation-lane-${lane}`}>
+									<span>{laneLabel(lane)}</span>
+									<div class="app-progress-track work-operation-lane-track">
+										<div class="app-progress-fill" style={`width: ${lanePercentage(operation, lane)}%`}></div>
+									</div>
+									<span>{laneDetail(operation, lane)}</span>
+								</div>
+							{/each}
 
-					<div class="work-summary" title={summaryText(operation)}>{summaryText(operation)}</div>
+							{#if summaryText(operation)}
+								<div class="work-operation-summary">{summaryText(operation)}</div>
+							{/if}
 
-					<div class="work-child-list">
-						{#each operation.children as child (child.childJobId)}
-							<div class={`work-child-row is-${child.status}`}>
-								<span class="work-child-label" title={child.sourcePath ?? child.label}>{child.label}</span>
-								<span class="work-child-status">{childStatusLabel(child.status)}</span>
-								{#if child.sourcePath}
-									<button
-										class="work-child-source"
-										title="Open source file"
-										onclick={() => void openChildSource(child)}
-									>
-										Source
-									</button>
-								{/if}
+							{#if operation.warnings.length > 0 || operation.errors.length > 0}
+								<div class="work-operation-messages">
+									{#each operation.warnings as message (message)}
+										<div>{message}</div>
+									{/each}
+									{#each operation.errors as message (message)}
+										<div class="work-operation-error">{message}</div>
+									{/each}
+								</div>
+							{/if}
+
+							<div class="work-child-list">
+								{#each operation.children as child (child.childJobId)}
+									<div class="work-child-row">
+										<span class="work-child-label" title={child.sourcePath ?? child.label}>{child.label}</span>
+										<span class="work-child-status">{childStatusLabel(child.status)}</span>
+										{#if child.sourcePath}
+											<button
+												type="button"
+												class="btn-pill btn-pill-secondary btn-pill-xs"
+												title="Open source file"
+												onclick={() => void openChildSource(child)}
+											>
+												Source
+											</button>
+										{/if}
+									</div>
+								{/each}
 							</div>
-						{/each}
-					</div>
-				</section>
+						</div>
+					{/if}
+				</article>
 			{/each}
 		</div>
 	{/if}
-</div>
+</section>
 
 <style>
-	.work-center {
-		flex-shrink: 0;
-		gap: 0.5rem;
-		padding: 0.625rem 0.75rem;
-	}
-
-	.work-center-header {
+	.work-center,
+	.work-operation-list,
+	.work-operation-detail,
+	.work-child-list {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
+		flex-direction: column;
 	}
 
-	.work-center-header h3 {
-		margin: 0;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: var(--text-secondary);
-	}
-
-	.work-center-header p {
-		margin: 0.125rem 0 0;
-		font-size: 0.75rem;
-		color: var(--text-muted);
+	.work-center,
+	.work-operation-list,
+	.work-operation-detail {
+		gap: var(--space-2);
 	}
 
 	.work-center-empty,
 	.work-center-error,
-	.work-summary {
-		font-size: 0.75rem;
+	.work-operation-summary,
+	.work-operation-messages {
+		font-size: var(--text-sm);
 		color: var(--text-muted);
 	}
 
-	.work-center-error {
+	.work-center-error,
+	.work-operation-error {
 		color: var(--text-error);
 	}
 
-	.work-operation-list {
-		display: flex;
-		max-height: 14rem;
-		flex-direction: column;
-		gap: 0.5rem;
-		overflow-y: auto;
-		padding-right: 0.125rem;
-	}
-
 	.work-operation {
-		display: flex;
-		flex-direction: column;
-		gap: 0.375rem;
-		padding: 0.5rem;
 		border: 1px solid var(--border-primary);
-		border-radius: 0.375rem;
+		border-radius: var(--radius-md);
 		background: var(--bg-input);
 	}
 
-	.work-operation-topline,
-	.work-operation-actions,
-	.work-operation-title-group,
-	.work-progress-row,
+	.work-operation-row,
+	.work-operation-disclosure,
+	.work-operation-lane,
 	.work-child-row {
 		display: flex;
 		align-items: center;
 		min-width: 0;
 	}
 
-	.work-operation-topline {
-		justify-content: space-between;
-		gap: 0.5rem;
+	.work-operation-row {
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
 	}
 
-	.work-operation-title-group {
-		gap: 0.375rem;
+	.work-operation-disclosure {
+		min-width: 0;
+		flex: 1;
+		gap: var(--space-2);
+		margin-top: 0;
+		border: none;
+		background: transparent;
+		color: inherit;
+		text-align: left;
+		cursor: pointer;
 	}
 
-	.work-kind,
-	.work-status {
-		flex-shrink: 0;
-		border-radius: 9999px;
-		padding: 0.125rem 0.375rem;
-		font-size: 0.6875rem;
-		font-weight: 700;
-		line-height: 1.2;
-	}
-
-	.work-kind {
-		background: var(--bg-hover);
-		color: var(--text-secondary);
-	}
-
-	.work-title,
-	.work-child-label,
-	.work-summary {
+	.work-operation-title,
+	.work-child-label {
 		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.work-title {
-		font-size: 0.8125rem;
+	.work-operation-title {
+		flex: 1;
+		font-size: var(--text-sm);
 		font-weight: 600;
-		color: var(--text-primary);
 	}
 
-	.work-operation-actions {
-		flex-shrink: 0;
-		gap: 0.375rem;
-	}
-
-	.work-status.is-running,
-	.work-status.is-accepted,
-	.work-status.is-cancelling {
-		background: rgba(59, 130, 246, 0.12);
-		color: var(--accent-primary);
-	}
-
-	.work-status.is-completed {
-		background: rgba(16, 185, 129, 0.12);
-		color: var(--text-success);
-	}
-
-	.work-status.is-failed,
-	.work-status.is-mixed,
-	.work-status.is-cancelled {
-		background: rgba(239, 68, 68, 0.12);
-		color: var(--text-error);
-	}
-
-	.work-action-button,
-	.work-child-source {
-		margin-top: 0;
-		border: 1px solid var(--border-secondary);
-		border-radius: 0.25rem;
-		background: var(--bg-panel);
-		color: var(--text-secondary);
-		font-size: 0.6875rem;
-		font-weight: 600;
-		line-height: 1;
-	}
-
-	.work-action-button {
-		padding: 0.25rem 0.5rem;
-	}
-
-	.work-child-source {
-		padding: 0.1875rem 0.375rem;
-	}
-
-	.work-action-button:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
-	}
-
-	.work-progress-row {
-		gap: 0.5rem;
-	}
-
-	.work-progress-track {
-		flex: 1 1 auto;
-	}
-
-	.work-progress-value {
-		width: 2.5rem;
-		flex-shrink: 0;
-		text-align: right;
-		font-size: 0.6875rem;
+	.work-operation-position {
 		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
+	}
+
+	.work-operation-detail {
+		padding: 0 var(--space-3) var(--space-2);
+	}
+
+	.work-operation-lane {
+		gap: var(--space-2);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+	}
+
+	.work-operation-lane > :first-child,
+	.work-operation-lane > :last-child {
+		width: 4.75rem;
+	}
+
+	.work-operation-lane > :last-child {
+		text-align: right;
+	}
+
+	.work-operation-lane-track {
+		flex: 1;
 	}
 
 	.work-child-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 
 	.work-child-row {
-		gap: 0.375rem;
+		gap: var(--space-2);
 		border-top: 1px solid var(--border-primary);
-		padding-top: 0.25rem;
-		font-size: 0.75rem;
+		padding-top: var(--space-1);
+		font-size: var(--text-sm);
 	}
 
 	.work-child-label {
-		flex: 1 1 auto;
-		color: var(--text-secondary);
+		flex: 1;
 	}
 
 	.work-child-status {
-		width: 4.5rem;
-		flex-shrink: 0;
-		text-align: right;
 		color: var(--text-muted);
 	}
 </style>

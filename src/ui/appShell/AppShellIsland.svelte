@@ -11,6 +11,7 @@
 	import { openRemoteSourceAcquire } from '../remoteSource';
 	import { triggerProcessFromStatusPanel } from '../statusPanel';
 	import { openMetadataLookup } from '../metadataLookup';
+	import { OperationsBarIsland } from '../operationsBar';
 	import { densityState, setDensityFromUser } from './density.svelte';
 
 	interface Props {
@@ -117,6 +118,10 @@
 	<main class="app-shell-main" data-testid="app-shell-main">
 		{@render children()}
 	</main>
+
+	<div class="app-shell-operations" data-testid="app-shell-operations">
+		<OperationsBarIsland />
+	</div>
 </div>
 
 <style>

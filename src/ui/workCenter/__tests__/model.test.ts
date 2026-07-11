@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { OperationSnapshot } from '../../../types/workRuntime';
-import { deriveWorkActivityByInputId, replaceOperations, upsertOperation } from '../model';
+import {
+	deriveWorkActivityByInputId,
+	deriveWorkOperationCounts,
+	replaceOperations,
+	upsertOperation,
+} from '../model';
 
 function operation(id: string, sequence: number, childCount = 1): OperationSnapshot {
 	const children = Array.from({ length: childCount }, (_, index) => ({
@@ -59,6 +64,24 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 }
 
 describe('Work Center model', () => {
+	it('counts running, queued, and terminal operations for the operations bar', () => {
+		const queued = operation('queued', 1);
+		const running = operation('running', 2);
+		running.status = 'running';
+		const cancelling = operation('cancelling', 3);
+		cancelling.status = 'cancelling';
+		const done = operation('done', 4);
+		done.status = 'completed';
+		const failed = operation('failed', 5);
+		failed.status = 'failed';
+
+		expect(deriveWorkOperationCounts([queued, running, cancelling, done, failed])).toEqual({
+			running: 2,
+			queued: 1,
+			done: 2,
+		});
+	});
+
 	it('upserts one operation without erasing existing operations', () => {
 		let model = { operations: [] as OperationSnapshot[] };
 

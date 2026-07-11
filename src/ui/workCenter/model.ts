@@ -18,6 +18,12 @@ export type WorkActivity = {
 	sequence: number;
 };
 
+export type WorkOperationCounts = {
+	running: number;
+	queued: number;
+	done: number;
+};
+
 const TERMINAL_OPERATION_STATUSES = new Set<WorkOperationStatus>([
 	'completed',
 	'cancelled',
@@ -27,6 +33,24 @@ const TERMINAL_OPERATION_STATUSES = new Set<WorkOperationStatus>([
 
 export function isTerminalOperationStatus(status: WorkOperationStatus): boolean {
 	return TERMINAL_OPERATION_STATUSES.has(status);
+}
+
+export function deriveWorkOperationCounts(
+	operations: readonly OperationSnapshot[],
+): WorkOperationCounts {
+	return operations.reduce<WorkOperationCounts>(
+		(counts, operation) => {
+			if (isTerminalOperationStatus(operation.status)) {
+				counts.done += 1;
+			} else if (operation.status === 'accepted') {
+				counts.queued += 1;
+			} else {
+				counts.running += 1;
+			}
+			return counts;
+		},
+		{ running: 0, queued: 0, done: 0 },
+	);
 }
 
 function workActivityStatusFromOperation(status: WorkOperationStatus): WorkActivityStatus {

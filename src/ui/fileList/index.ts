@@ -12,7 +12,7 @@ export {
 	stageMetadataToSelection,
 } from './metadataStaging';
 
-export { readCombinedSizeText } from './viewState.svelte';
+export { readCombinedDurationText, readCombinedSizeText, readFileListCount } from './viewState.svelte';
 export type { ReadWorkActivityByInputId } from './viewState.svelte';
 
 export {
