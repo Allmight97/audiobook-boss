@@ -28,15 +28,30 @@ external-library truth is the active blocker. No durable artifacts.
 Version-sensitive answers must cite ABB's installed version or say the version
 could not be proven.
 
-## Lookup order
+## Source Order
 
-1. Nearest `AGENTS.md`, code/tests, manifests, lockfiles, generated bindings, installed dependencies
+1. Nearest `AGENTS.md`, code/tests, manifests, lockfiles, generated bindings,
+   and installed dependencies
 2. `references/<library>.md` route card
-3. Context7 (one path: CLI or MCP)
-4. `repos/*` only when the answer needs implementation source, upstream tests,
-   codegen behavior, runtime internals, or Context7/doc version mismatch checks
+3. Current primary documentation for the installed major/minor version
+4. Context7 through exactly one deterministic route
+5. `repos/*` only when the answer needs implementation source, upstream tests,
+   codegen behavior, runtime internals, or a docs/version mismatch check
 
-Context7: known library ID + one query. No broad surveys unless asked.
+Prefer maintainers' documentation, generated API references, source, and tests.
+Use third-party explanations only to find a primary source or when no primary
+source answers the question; label that limitation.
+
+## Context7 Route
+
+1. If a Context7 MCP is callable in the active task, use it.
+2. Otherwise use the shared Context7 launcher configured for the current client.
+3. If neither route is available, report that constraint and continue with
+   installed truth and primary sources; do not silently substitute a broad web
+   survey.
+
+Use one known library ID and one focused query. Do not run both MCP and launcher
+paths for the same question merely to accumulate evidence.
 
 | Need | ID |
 | --- | --- |
@@ -44,6 +59,19 @@ Context7: known library ID + one query. No broad surveys unless asked.
 | Tauri 2 | `/websites/v2_tauri_app` |
 | Effect | `/llmstxt/effect_website_llms_txt` or `/effect-ts/effect` |
 | Tauri shell | `/tauri-apps/tauri-plugin-shell` |
+
+## Completion Gate
+
+Finish only when the answer:
+
+- resolves the active behavior or contract question directly
+- identifies ABB's installed version or explicitly says it could not be proven
+- routes the implication to the owning ABB boundary
+- cites the load-bearing primary or installed source
+- distinguishes confirmed behavior from inference
+- states residual uncertainty or the next narrow proof when evidence conflicts
+- remains in chat; no note, route card, subtree refresh, or other durable
+  artifact is created unless separately requested
 
 ## References
 

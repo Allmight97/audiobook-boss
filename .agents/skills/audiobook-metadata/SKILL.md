@@ -1,6 +1,6 @@
 ---
 name: audiobook-metadata
-description: Canonical metadata strategy for Audiobook Boss. Use when changing tag mappings, metadata intent behavior, or ABS/Plex/Apple interoperability rules.
+description: Canonical metadata and output-naming strategy for Audiobook Boss. Use when changing tag mappings, metadata intent behavior, folder or filename conventions, or ABS/Plex/Apple interoperability rules.
 ---
 
 # Audiobook Metadata
@@ -24,14 +24,21 @@ For series metadata, write both:
 Intent semantics (`set | clear | noop`), the Outcome Plan, and naming-to-artifact
 flow are owned by `src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
 
-## Verification
+## Proof Matrix
 
-1. Verify ffprobe-visible tags:
-```bash
-ffprobe -v quiet -print_format json -show_format output.m4b | jq '.format.tags'
-```
-2. Verify freeform atoms with mp4 tooling (for example `AtomicParsley`).
-3. Validate behavior in ABS/Plex/Apple import workflows when modifying mappings.
+Choose proof by observer; one observer cannot substitute for another.
+
+| Claim changed | Required proof |
+| --- | --- |
+| Pure intent, mapping, validation, or naming rule | Focused tests in `abb-metadata-core` or `abb-output-artifact-core` |
+| MP4 sink, case-distinct freeforms, clear behavior, or container routing | Focused runtime/sink tests that inspect the exact atoms or sink operations |
+| Real artifact tag/chapter/cover truth | Media-execution artifact plus `ffprobe`; use MP4-aware inspection for freeform atoms |
+| ABS, Plex, or Apple importer compatibility | Manual importer evidence when the change affects a compatibility claim |
+
+`ffprobe -show_format` cannot prove that lowercase canonical and uppercase
+mirror freeform atoms both exist because it collapses names that differ only by
+case. Do not treat a bare FFmpeg remux as MP4 metadata proof; the MOV muxer drops
+keys outside its known atom table.
 
 ## References
 
@@ -39,4 +46,5 @@ ffprobe -v quiet -print_format json -show_format output.m4b | jq '.format.tags'
 - Folder conventions: `references/folder-conventions.md`
 - Metadata model and outcome plan: `src-tauri/src/metadata/`
 - Boundary commands: `src-tauri/src/commands/metadata.rs`
-- Output artifact naming: `src-tauri/src/output_artifact/naming.rs`
+- Output artifact naming policy: `crates/abb-output-artifact-core/src/lib.rs`
+- Output artifact naming adapter: `src-tauri/src/output_artifact/naming.rs`

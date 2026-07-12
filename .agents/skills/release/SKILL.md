@@ -1,168 +1,72 @@
 ---
 name: release
-description: Audiobook Boss release workflow for deciding whether changes need a formal version/changelog release, preparing release metadata, validating the local app or DMG artifact, tagging, and publishing manually. Use when the user mentions release, version bump, changelog, tag, GitHub Release, DMG, publish, ship, release notes, or asks whether a change should be released.
+description: Audiobook Boss release workflow for choosing a release lane, preparing version and changelog metadata, validating a local app or DMG artifact, and publishing an intentional tag and GitHub Release. Use when the user mentions release, version bump, changelog, tag, GitHub Release, DMG, publish, ship, release notes, or asks whether a change should be released.
 ---
 
 # Release
 
-## Overview
+Choose exactly one lane before changing state:
 
-- Prefer human-readable `CHANGELOG.md` plus one mechanical version bump script.
-- Choose a release lane before running commands. Do not let "release" silently
-  mean every possible lane.
-- Developer install is local-machine truth: build and replace
-  `/Applications/AudioBook Boss.app` without a DMG.
-- Public release is distribution truth: version/changelog, tag, GitHub Release,
-  and verified DMG attachment.
-- Artifact-only is packaging truth: build and verify a DMG without publishing.
-- A tag alone is tag-only; GitHub will not show it as the latest release.
-- This skill owns release metadata and artifact proof. It does not impose a
-  broad test matrix by default; choose code validation from the touched owner
-  and concrete risk surface before release work, or skip it when the accepted
-  change has already been verified and the owner asks to avoid rerunning tests.
-
-## Lane Selection
-
-Use the user's wording to choose exactly one lane unless they explicitly ask for
-a combined lane.
-
-| User wording | Lane | Meaning |
+| User intent | Lane | Procedure |
 | --- | --- | --- |
-| "dev release", "developer release", "local release", "install local" | Developer Install | Build current repo and silently replace `/Applications/AudioBook Boss.app`. |
-| "public release", "GitHub Release", "tag and publish", "ship DMG" | Public Release | Prepare metadata, build/verify DMG, tag, push, and publish GitHub Release. |
-| "artifact release", "DMG only", "package only" | Artifact-Only | Build/verify DMG and stop before tag/publish. |
-| "release" with no qualifier | Confirm lane if the request is interactive; if the owner is asking to ship a new version, run Public Release plus Developer Install. |
-| "all", "public and dev", "public plus local" | Public Release + Developer Install | Publish the verified DMG, then run a separate developer install so `/Applications/AudioBook Boss.app` matches the release version. Do not run Artifact-Only separately because Public Release already builds the DMG. |
+| Install the latest build locally | Developer Install | `references/developer-install.md` |
+| Build and verify a DMG without publishing | Artifact-Only | `references/artifact-only.md` |
+| Version, tag, and publish | Public Release | `references/public-release.md` |
+| Publish and also update `/Applications` | Public Release, then Developer Install | Load both procedures in that order. |
 
-Never build or open a DMG for Developer Install. Use `bun run app:dev:log` for
-temporary development testing instead of creating a local installed release.
+If “release” is ambiguous, confirm the lane. Do not infer permission to tag,
+push, publish, or replace the installed app.
 
-## Decision Rule
+## Release Decision
 
-Treat a formal release as needed when an accepted change affects user-visible behavior, output files, metadata, audio processing, packaging, runtime safety, supported fixtures, or dependency/security posture.
+A formal release is warranted when accepted work changes user-visible behavior,
+output files, metadata, audio processing, packaging, runtime safety, supported
+fixtures, or dependency/security posture.
 
-Use an internal changelog note without a version bump when the change is only repo guidance, tests, comments, docs, cleanup, or planning state and does not need a shipped build.
+Repo guidance, tests, comments, cleanup, and planning state normally need only
+an internal changelog note, if any. Choose the smallest honest scope.
 
-When in doubt, name the impact and choose the smallest honest release scope. Do not bump version just to make a PR look complete.
+## Fixed Point
 
-## Version Surfaces
+Before any mutation, record:
 
-Keep these synchronized during explicit release work:
+- selected lane and intended version, when applicable
+- current branch, local SHA, worktree status, and configured remote
+- remote parity for the branch being published
+- whether the intended version tag and GitHub Release already exist
+- every dirty path, classified as release-owned, accepted product work, or
+  unrelated/user-owned work
 
-- `package.json`
-- `src-tauri/tauri.conf.json`
-- `src-tauri/Cargo.toml`
-- `Cargo.lock`
-- `CHANGELOG.md`
+Stop on a wrong branch, unexpected divergence, existing tag/release, ambiguous
+dirty path, or overlap with unrelated work. Do not hide these conditions with a
+force flag or broad staging command.
 
-Use:
+## Shared Rules
 
-```bash
-bun scripts/bump-version.ts <x.y.z>
-```
+- Synchronize `package.json`, `src-tauri/tauri.conf.json`,
+  `src-tauri/Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md` during explicit
+  versioned release work.
+- Bump versions with `bun scripts/bump-version.ts <x.y.z>`.
+- Copy the current changelog pattern. Keep entries concise and
+  user/outcome-facing; omit empty categories.
+- Choose validation from the changed owner and concrete risk surface. For
+  release-only metadata changes, `git diff --check` plus artifact proof is
+  sufficient unless an invariant requires more.
+- Stage only enumerated, reviewed paths. Never use `git add -A`, `git add .`, or
+  an equivalent broad staging command in a release workflow.
+- Treat tag, push, GitHub Release creation, and local app replacement as
+  separate state changes. Confirm authority before the first requested one.
 
-## Changelog Format
+## Completion Proof
 
-Keep entries concise and user/outcome-facing. Copy the current file pattern; do not generate from commit history by default.
+Report the selected lane, version, validation performed, artifact path when
+applicable, and all state changes. For a public release, also prove:
 
-```markdown
-## [x.y.z] - YYYY-MM-DD
+- release commit equals the intended local commit
+- remote branch SHA equals the local release commit
+- remote tag resolves to that same commit
+- GitHub Release exists at the intended tag
+- verified DMG is attached under the expected asset name
 
-### Added
-
-### Changed
-
-### Fixed
-
-### Removed
-```
-
-Omit empty categories in a release section. Keep `[Unreleased]` as the staging area only when useful; it is acceptable for release entries to be written directly during release prep.
-
-## Developer Install Lane
-
-Use this lane when the owner wants the latest local app with minimal friction.
-
-```bash
-bun run app:install-local
-```
-
-This builds the `.app`, installs a real `/Applications/AudioBook Boss.app`,
-signs it ad-hoc for local execution, registers it with LaunchServices, refreshes
-Spotlight metadata, and removes the repo-local `.app` install artifact. Use
-`bun run app:install-local:existing` only when a fresh repo-local `.app` already
-exists and the owner only needs to reinstall it locally.
-
-Report the installed app version and whether launch/smoke verification was run.
-Do not tag, publish, or build a DMG in this lane.
-
-## Artifact-Only Lane
-
-Use this lane when packaging needs proof but public release should not be
-published.
-
-```bash
-bun run app:build:dmg
-bun scripts/resolve-release-dmg.ts --version <x.y.z>
-hdiutil verify "<resolved-dmg-path>"
-```
-
-`app:build:dmg` is expected to be noninteractive and must not require Finder or
-manual drag-to-Applications behavior. Report the DMG path and verification
-result. Do not tag or publish.
-
-## Public Release Lane
-
-1. Confirm the intended version and impact category.
-2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
-3. Run `bun scripts/bump-version.ts <x.y.z>`.
-4. Run only the validation warranted by the changed owner or release metadata.
-   For release-only version/changelog edits, `git diff --check` plus the
-   artifact commands below is sufficient unless a concrete safety, data, or
-   contract invariant says otherwise.
-5. For repo-local `.app` artifact validation without touching `/Applications`
-   and without building a DMG, run:
-```bash
-bun run app:build
-```
-Do not run this as a separate pre-step for normal public releases; the DMG
-command builds the app.
-6. For a DMG release, run:
-```bash
-bun run app:build:dmg
-bun scripts/resolve-release-dmg.ts --version <x.y.z>
-hdiutil verify "<resolved-dmg-path>"
-```
-7. If the requested lane is Public Release + Developer Install, run a separate
-   developer install after DMG verification:
-```bash
-bun run app:install-local
-```
-This rebuild is expected. The DMG lane may clean the intermediate repo-local
-`.app`, so do not use `bun run app:install-local:existing` after
-`bun run app:build:dmg`. Reserve `app:install-local:existing` for the narrow
-case where `bun run app:build` or another app-only build just produced
-`target/release/bundle/macos/AudioBook Boss.app` and no DMG build has cleaned
-it.
-8. Commit release metadata and code together when they are part of the same accepted release:
-```bash
-git add -A
-git commit -m "rel: release v<x.y.z>"
-git tag v<x.y.z>
-```
-9. Push intentionally:
-```bash
-git push origin main
-git push origin v<x.y.z>
-```
-10. Publish the GitHub Release unless the owner explicitly asks for tag-only:
-```bash
-gh release create v<x.y.z> "<resolved-dmg-path>" --title "AudioBook Boss v<x.y.z>" --notes-file <notes-file>
-gh release view v<x.y.z>
-gh release list --limit 5
-```
-Use the matching `CHANGELOG.md` section as the release notes and attach the verified DMG.
-
-## Final Verification
-
-End release work by reporting the version, tag, changelog entry, validation commands, DMG path, GitHub Release URL, attached asset name, and local/remote SHA parity. If publishing was intentionally tag-only, state that GitHub will not show it as the latest release.
+If any proof is missing, report the release as incomplete. A tag-only publish is
+not a GitHub Release and will not appear as the latest release.
