@@ -1,15 +1,29 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { initStatusPanel, triggerCancelAllFromStatusPanel } from './controller';
-	import { statusPanelViewState } from './viewState.svelte';
+	import { STATUS_PANEL_DEFAULT_STEP_COLOR, statusPanelViewState } from './viewState.svelte';
 
 	const activeJob = $derived(
 		statusPanelViewState.jobItems.find((item) => item.status === 'processing') ??
 			statusPanelViewState.jobItems[0],
 	);
-	const previewLabel = $derived(activeJob?.label ?? 'Preview ready');
 	const hasCancellableForegroundJob = $derived(
 		statusPanelViewState.jobItems.some((item) => item.canCancel && item.cancelId),
+	);
+
+	// One mono transport line. Precedence: showError/showSuccess feedback
+	// (never demoted to tooltip) → active processing summary → idle status.
+	// The informational step message surfaces as the line's tooltip.
+	const feedbackActive = $derived(
+		statusPanelViewState.stepColor !== STATUS_PANEL_DEFAULT_STEP_COLOR &&
+			statusPanelViewState.stepText.length > 0,
+	);
+	const transportLine = $derived(
+		feedbackActive
+			? statusPanelViewState.stepText
+			: statusPanelViewState.isProcessing
+				? `${activeJob?.label ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${statusPanelViewState.statusText}`
+				: statusPanelViewState.statusText,
 	);
 
 	onMount(() => {
@@ -27,12 +41,14 @@
 			></div>
 		</div>
 	</div>
-	<div class="status-transport-copy">
-		<span class="status-transport-label">{previewLabel} · {statusPanelViewState.progressPercentage.toFixed(0)}%</span>
-		<span class="status-transport-status">{statusPanelViewState.statusText}</span>
-		{#if statusPanelViewState.stepText}
-			<span class="status-transport-step" style:color={statusPanelViewState.stepColor}>{statusPanelViewState.stepText}</span>
-		{/if}
+	<div class="status-transport-copy" title={statusPanelViewState.stepText || undefined}>
+		<span
+			class="status-transport-line"
+			data-testid="status-transport-line"
+			style:color={feedbackActive ? statusPanelViewState.stepColor : undefined}
+		>
+			{transportLine}
+		</span>
 	</div>
 	<button
 		type="button"
@@ -71,28 +87,15 @@
 		display: flex;
 		min-width: 0;
 		flex: 1 1 13rem;
-		flex-direction: column;
-		font-size: var(--text-sm);
+		align-items: center;
 	}
 
-	.status-transport-label,
-	.status-transport-status,
-	.status-transport-step {
+	.status-transport-line {
 		overflow: hidden;
+		color: var(--text-secondary);
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.status-transport-label {
-		color: var(--text-secondary);
-	}
-
-	.status-transport-status {
-		color: var(--text-muted);
-		font-size: var(--text-xs);
-	}
-
-	.status-transport-step {
-		font-size: var(--text-xs);
 	}
 </style>

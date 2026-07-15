@@ -12,6 +12,10 @@ type StatusPanelViewState = {
 	cancelAllPending: boolean;
 };
 
+// Cluster-internal: the transport island compares against the default step
+// color to distinguish showError/showSuccess feedback from informational text.
+export const STATUS_PANEL_DEFAULT_STEP_COLOR = 'var(--text-primary)';
+
 const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
 	coverArtDataUrl: null,
 	jobItems: [],
@@ -19,7 +23,7 @@ const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
 	statusText: 'Idle',
 	statusTextLockUntilEpochMs: 0,
 	stepText: 'Current Step: Waiting for files...',
-	stepColor: 'var(--text-primary)',
+	stepColor: STATUS_PANEL_DEFAULT_STEP_COLOR,
 	isProcessing: false,
 	cancelAllPending: false,
 };
