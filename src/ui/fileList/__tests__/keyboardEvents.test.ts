@@ -126,4 +126,52 @@ describe('file list keyboard events', () => {
 		expect(event.preventDefault).toHaveBeenCalled();
 		expect(context.applySelectionIntentMock).toHaveBeenCalledWith({ type: 'selectAll' });
 	});
+
+	it('reorders the selected file up on Alt+ArrowUp', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		setSelectedIndex(2);
+		setSelectedFileIndices([2]);
+		const event = keyboardEvent('ArrowUp', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(context.moveFileUpMock).toHaveBeenCalledWith(2);
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
+	});
+
+	it('reorders the selected file down on Alt+ArrowDown', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		setSelectedIndex(2);
+		setSelectedFileIndices([2]);
+		const event = keyboardEvent('ArrowDown', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(context.moveFileDownMock).toHaveBeenCalledWith(2);
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
+	});
+
+	it('consumes Alt+ArrowUp at the top edge without reordering', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		setSelectedIndex(0);
+		setSelectedFileIndices([0]);
+		const event = keyboardEvent('ArrowUp', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(context.moveFileUpMock).not.toHaveBeenCalled();
+	});
+
+	it('ignores Alt+Arrow reorder with no selection', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		const event = keyboardEvent('ArrowUp', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(context.moveFileUpMock).not.toHaveBeenCalled();
+		expect(context.moveFileDownMock).not.toHaveBeenCalled();
+	});
 });

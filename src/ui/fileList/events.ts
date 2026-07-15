@@ -10,13 +10,13 @@ import { metadataSaveInProgress } from '../metadataSession';
 import {
 	fileListNavigationCommandFromKey,
 	resolveFileListNavigationTarget,
+	type FileListReorderCommand,
 } from './keyboardNavigation';
 import {
 	clearSelectionAction,
 	applySelectionIntent,
 	moveFileDown,
 	moveFileUp,
-	removeFile,
 	reorderFiles,
 } from './actions';
 
@@ -98,35 +98,23 @@ function hasValidIndex(index: number): boolean {
 	return Boolean(fileList && index >= 0 && index < fileList.files.length);
 }
 
-export function onFileListMoveUp(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgress) || isOrderLocked()) return;
-	if (index <= 0 || !hasValidIndex(index)) return;
+function handleKeyboardReorder(event: KeyboardEvent, command: FileListReorderCommand): boolean {
+	if (isOrderLocked()) return false;
 
-	stopInteraction(event);
-	moveFileUp(index);
-}
+	const index = getSelectedFileIndex();
+	if (!hasValidIndex(index)) return false;
 
-export function onFileListMoveDown(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgress) || isOrderLocked()) return;
-	if (!hasValidIndex(index)) return;
-	const fileList = getCurrentFileList();
-	if (!fileList || index >= fileList.files.length - 1) return;
-
-	stopInteraction(event);
-	moveFileDown(index);
-}
-
-export function onFileListRemove(index: number, event: MouseEvent): void {
-	if (get(metadataSaveInProgress) || isOrderLocked()) return;
-	if (!hasValidIndex(index)) return;
-
-	stopInteraction(event);
-	void removeFile(index);
-}
-
-function stopInteraction(event: Event): void {
-	event.stopPropagation();
 	event.preventDefault();
+	if (command === 'moveUp') {
+		if (index > 0) moveFileUp(index);
+		return true;
+	}
+
+	const fileList = getCurrentFileList();
+	if (fileList && index < fileList.files.length - 1) {
+		moveFileDown(index);
+	}
+	return true;
 }
 
 function isCurrentSingleSelection(index: number): boolean {
@@ -137,6 +125,10 @@ function isCurrentSingleSelection(index: number): boolean {
 function handleKeyboardNavigation(event: KeyboardEvent): boolean {
 	const command = fileListNavigationCommandFromKey(event);
 	if (!command) return false;
+
+	if (command === 'moveUp' || command === 'moveDown') {
+		return handleKeyboardReorder(event, command);
+	}
 
 	const fileList = getCurrentFileList();
 	if (!fileList) return false;

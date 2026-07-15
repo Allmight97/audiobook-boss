@@ -5,13 +5,7 @@
 	import { getMetadataForFile } from '../metadataSession';
 	import { hasSupplementalAssetsForInputId } from '../remoteSource';
 	import { applySelectionIntent, clearAllFiles, toggleFileSort } from './actions';
-	import {
-		createFileListDragHandlers,
-		onFileListKeyDown,
-		onFileListMoveDown,
-		onFileListMoveUp,
-		onFileListRemove,
-	} from './events';
+	import { createFileListDragHandlers, onFileListKeyDown } from './events';
 	import { getCurrentFileList, getSelectedFileIndex } from './state.svelte';
 	import {
 		readFileListControlsSnapshot,
@@ -161,23 +155,25 @@
 
 <div
 	class="file-management-container mb-3"
+	class:drag-over={isDragOver && hasFiles}
 	role="region"
 	aria-label="File list"
 	bind:this={fileManagementContainer}
 >
-	<div
-		class="drop-zone-header"
-		class:drag-over={isDragOver}
-		data-has-files={hasFiles.toString()}
-		role="button"
-		aria-label="Add audio files"
-		tabindex="0"
-		onclick={() => onHeaderClick?.()}
-		onkeydown={(event) => onHeaderKeydown?.(event)}
-	>
-		<p class="text-sm muted-text">Drop files or folders here, click to choose files, or use Add Folder</p>
-		<p class="text-xs muted-text mt-1">{supportText}</p>
-	</div>
+	{#if !hasFiles}
+		<div
+			class="drop-zone-header"
+			class:drag-over={isDragOver}
+			role="button"
+			aria-label="Add audio files"
+			tabindex="0"
+			onclick={() => onHeaderClick?.()}
+			onkeydown={(event) => onHeaderKeydown?.(event)}
+		>
+			<p class="text-sm muted-text">Drop files or folders here, click to choose files, or use Add Folder</p>
+			<p class="text-xs muted-text mt-1">{supportText}</p>
+		</div>
+	{/if}
 
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 	<div
@@ -208,7 +204,6 @@
 					<th class="file-list-number file-list-comfortable-only">Size</th>
 					<th class="file-list-comfortable-only">Codec</th>
 					<th>Status</th>
-					<th class="file-list-actions-heading"><span class="sr-only">File actions</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -275,26 +270,6 @@
 								{badge.label}
 							</span>
 						</td>
-						<td class="file-list-actions-cell">
-							<button
-								class="move-up-btn"
-								aria-label={`Move ${getFileTitle(file)} up`}
-								disabled={index === 0 || orderLockVisible}
-								onclick={(event) => onFileListMoveUp(index, event)}
-							>▲</button>
-							<button
-								class="move-down-btn"
-								aria-label={`Move ${getFileTitle(file)} down`}
-								disabled={index === files.length - 1 || orderLockVisible}
-								onclick={(event) => onFileListMoveDown(index, event)}
-							>▼</button>
-							<button
-								class="remove-file-btn"
-								aria-label={`Remove ${getFileTitle(file)}`}
-								disabled={orderLockVisible}
-								onclick={(event) => onFileListRemove(index, event)}
-							>×</button>
-						</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -306,8 +281,9 @@
 	.file-list-toolbar { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 	.file-list-toolbar-actions { display: flex; gap: var(--space-2); margin-left: auto; }
 	.file-management-container { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 8rem; overflow: hidden; border: 1px solid var(--border-primary); border-radius: var(--radius-md); background: var(--bg-input); }
-	.drop-zone-header { flex-shrink: 0; min-height: 2.5rem; padding: var(--space-2) var(--density-pad); border-bottom: 1px solid var(--border-primary); background: var(--bg-input); cursor: pointer; }
-	.drop-zone-header[data-has-files='false'] { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; border: 2px dashed var(--border-secondary); background: var(--bg-drag-area); }
+	.file-management-container.drag-over { border-color: var(--accent-primary); background: var(--bg-hover); }
+	/* Rendered only while the list is empty; the whole container is the OS drop target. */
+	.drop-zone-header { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; border: 2px dashed var(--border-secondary); background: var(--bg-drag-area); cursor: pointer; }
 	.drop-zone-header:hover, .drop-zone-header.drag-over { background: var(--bg-hover); }
 	.drop-zone-header.drag-over { border-color: var(--accent-primary); }
 	.file-list-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto; }
@@ -329,11 +305,6 @@
 	.file-list-activate:hover { color: var(--text-primary); text-decoration: underline; }
 	.companion-chip { margin-left: var(--space-1); padding: 0.0625rem 0.25rem; border: 1px solid var(--accent-primary); border-radius: var(--radius-sm); color: var(--accent-primary); font-size: 0.625rem; font-weight: 600; }
 	.file-list-number { color: var(--text-muted) !important; font-family: var(--font-mono); font-size: var(--text-sm); text-align: right !important; }
-	.file-list-actions-heading, .file-list-actions-cell { width: 5.5rem; text-align: right; }
-	.move-up-btn, .move-down-btn, .remove-file-btn { width: 1.5rem; height: 1.5rem; margin: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
-	.move-up-btn:hover, .move-down-btn:hover { background: var(--bg-hover); color: var(--accent-primary); }
-	.remove-file-btn:hover { background: color-mix(in srgb, var(--text-error) 12%, transparent); color: var(--text-error); }
-	.move-up-btn:disabled, .move-down-btn:disabled, .remove-file-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 	.file-work-badge-error { color: var(--text-error); }
 	:global(:root[data-density='compact']) .file-list-comfortable-only { display: none; }
 	:global(:root[data-density='compact']) .file-list-cover { --cover-thumb-size: 1.125rem; }
