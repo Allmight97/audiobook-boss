@@ -4,7 +4,6 @@ import JobControlsIsland from '../../jobControls/JobControlsIsland.svelte';
 import { tauriClient } from '../../../lib/tauri/client';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
 import {
-	handleMaxConcurrentSelectionChange,
 	handleMergeModeChange,
 	initJobControls,
 	setJobControlsEnabled,
@@ -27,7 +26,6 @@ function setupDom() {
   `;
 	render(JobControlsIsland, {
 		onMergeModeChange: handleMergeModeChange,
-		onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
 	});
 }
 
@@ -55,8 +53,7 @@ describe('StatusPanel resetToIdle', () => {
 
 	it('clears state and control locks', async () => {
 		const controller = new StatusPanelRuntime();
-		const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
-		const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
+		const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLButtonElement;
 		const snapshot: ProcessingQueueEvent = {
 			operation_kind: 'processingBatch',
 			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
@@ -93,8 +90,6 @@ describe('StatusPanel resetToIdle', () => {
 		expect(idleStatus).not.toHaveProperty('etaSeconds');
 
 		expect(mergeToggle.disabled).toBe(false);
-		expect(maxConcurrent.disabled).toBe(false);
 		expect(mergeToggle.style.opacity).toBe('1');
-		expect(maxConcurrent.style.opacity).toBe('1');
 	});
 });

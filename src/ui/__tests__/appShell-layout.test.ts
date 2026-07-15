@@ -79,6 +79,13 @@ describe('app shell composition', () => {
 		expect(appShellSource).toContain('{@render overlay?.()}');
 	});
 
+	it('renders the selection cluster contextually and feeds the merge chip its file count', () => {
+		expect(appShellSource).toContain('{#if selectedFileCount > 0}');
+		expect(appShellSource).toContain('<JobControlsIsland {fileCount}');
+		expect(appShellSource).toContain('hidden={selectedFileCount > 0}');
+		expect(appShellSource).toContain('readFileListCount');
+	});
+
 	it('marks every selection-mutating toolbar control for metadata click-away coordination', () => {
 		const removeButtonIndex = appShellSource.indexOf('onclick={() => void removeSelectedFiles()}');
 		const markerIndex = appShellSource.lastIndexOf(

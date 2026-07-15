@@ -14,6 +14,7 @@
 
 	let density = $state<'comfortable' | 'compact'>('comfortable');
 	let activeMetadataPreset = $state<MetadataFormLabPresetId>('single-clean-populated');
+	let labSplitOpen = $state(false);
 	let popoverAnchor = $state<HTMLElement | null>(null);
 	let popoverContainer = $state<HTMLElement | null>(null);
 	let popoverPanel = $state<HTMLElement | null>(null);
@@ -252,6 +253,43 @@
 			<button class="btn-pill btn-pill-secondary" type="button">Default</button>
 			<button class="btn-pill btn-pill-secondary btn-pill-sm" type="button">Small</button>
 			<button class="btn-pill btn-pill-secondary btn-pill-xs" type="button">Extra small</button>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="split-button-primitive-section">
+		<h3>Split button (split-button / split-main / split-caret / split-dropdown)</h3>
+		<div class="lab-row">
+			<div class="split-button">
+				<button class="btn-pill btn-pill-secondary split-main" type="button">＋ Import</button>
+				<button
+					class="btn-pill btn-pill-secondary split-caret"
+					type="button"
+					aria-expanded={labSplitOpen}
+					aria-label="More options"
+					onclick={() => {
+						labSplitOpen = !labSplitOpen;
+					}}
+				>
+					▼
+				</button>
+				<div class="split-dropdown" class:open={labSplitOpen}>
+					<button
+						class="split-option"
+						type="button"
+						onclick={() => {
+							labSplitOpen = false;
+						}}
+					>
+						Menu option
+					</button>
+				</div>
+			</div>
+			<div class="split-button">
+				<button class="btn-pill btn-pill-primary split-main" type="button">Primary main</button>
+				<button class="btn-pill btn-pill-primary split-caret" type="button" aria-label="More options">
+					▼
+				</button>
+			</div>
 		</div>
 	</section>
 

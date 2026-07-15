@@ -24,6 +24,22 @@ describe('LabIsland design fixtures', () => {
 		expect(screen.getByRole('button', { name: 'Extra small' })).toHaveClass('btn-pill-xs');
 	});
 
+	it('renders and toggles the promoted split-button primitive', async () => {
+		render(LabIsland);
+
+		expect(screen.getByTestId('split-button-primitive-section')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: '＋ Import' })).toHaveClass('split-main');
+
+		const caret = screen.getAllByRole('button', { name: 'More options' })[0];
+		const option = screen.getByRole('button', { name: 'Menu option' });
+
+		expect(option.closest('.split-dropdown')).not.toHaveClass('open');
+		await fireEvent.click(caret);
+		expect(option.closest('.split-dropdown')).toHaveClass('open');
+		await fireEvent.click(option);
+		expect(option.closest('.split-dropdown')).not.toHaveClass('open');
+	});
+
 	it('opens and closes the popover demo through the shared helper', async () => {
 		render(LabIsland);
 		const trigger = screen.getByRole('button', { name: 'Popover demo' });

@@ -50,13 +50,21 @@ export function getJobType(): JobType {
 	return jobControlsState.jobType;
 }
 
+// Public control snapshot for composing surfaces (App Settings renders these
+// facts and routes changes back through handleMaxConcurrentSelectionChange).
 export function getMaxConcurrentStatus(): {
 	effective: number | null;
 	selection: string;
+	effectiveLabel: string;
+	enabled: boolean;
+	capabilities: MaxConcurrentJobsCapabilities | null;
 } {
 	return {
 		effective: jobControlsState.effectiveMaxConcurrent,
 		selection: jobControlsState.maxConcurrentSelection,
+		effectiveLabel: jobControlsState.effectiveLabel,
+		enabled: jobControlsState.controlsEnabled,
+		capabilities: jobControlsState.maxConcurrentCapabilities,
 	};
 }
 

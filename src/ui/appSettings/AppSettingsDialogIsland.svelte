@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
 	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
+	import { getMaxConcurrentStatus, handleMaxConcurrentSelectionChange } from '../jobControls';
 	import {
 		appSettingsDialogState,
 		browseForFfmpegBinary,
@@ -21,6 +22,13 @@
 		if (event.target === event.currentTarget) {
 			closeAppSettingsDialog();
 		}
+	}
+
+	const concurrency = $derived(getMaxConcurrentStatus());
+
+	function handleConcurrencyChange(event: Event): void {
+		const select = event.currentTarget as HTMLSelectElement | null;
+		handleMaxConcurrentSelectionChange(select?.value ?? 'auto');
 	}
 
 	function formatConcurrency(settings: Pick<AppSettings, 'maxConcurrentJobs'>): string {
@@ -175,6 +183,39 @@
 					<p class="text-xs muted-text">
 						Extra encoding effort for slightly higher quality on the FDK encoder.
 						Leave on unless encode speed matters more than quality.
+					</p>
+				</section>
+
+				<section class="app-settings-section">
+					<h4 class="app-settings-section-title">Processing</h4>
+					<div class="app-settings-path-row" title="Concurrent Jobs">
+						<span class="text-xs muted-text whitespace-nowrap">Number of Jobs:</span>
+						<select
+							id="max-concurrent-select"
+							class="text-xs w-14 px-1 py-0.5"
+							value={concurrency.selection}
+							disabled={!concurrency.enabled || !concurrency.capabilities}
+							onchange={handleConcurrencyChange}
+						>
+							{#if concurrency.capabilities?.allowAuto}
+								<option value="auto">Auto</option>
+							{/if}
+							{#each concurrency.capabilities?.fixedOptions ?? [] as option}
+								<option value={String(option)}>{option}</option>
+							{/each}
+						</select>
+						<span
+							id="max-concurrent-effective"
+							class="text-xs muted-text"
+							aria-live="polite"
+							data-testid="max-concurrent-effective"
+						>
+							{concurrency.effectiveLabel}
+						</span>
+					</div>
+					<p class="text-xs muted-text">
+						How many audiobooks encode at the same time. Auto sizes to this machine;
+						changes apply to newly started jobs.
 					</p>
 				</section>
 

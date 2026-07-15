@@ -6,13 +6,10 @@
 	import {
 		getSelectedFileIndices,
 		openMetadataSurfaceForCurrentSelection,
+		readFileListCount,
 		removeSelectedFiles,
 	} from '../fileList';
-	import {
-		handleMaxConcurrentSelectionChange,
-		handleMergeModeChange,
-		JobControlsIsland,
-	} from '../jobControls';
+	import { handleMergeModeChange, JobControlsIsland } from '../jobControls';
 	import { openRemoteSourceAcquire } from '../remoteSource';
 	import { triggerProcessFromStatusPanel } from '../statusPanel';
 	import { openMetadataLookup } from '../metadataLookup';
@@ -30,8 +27,12 @@ interface Props {
 
 let { children, overlay }: Props = $props();
 	const selectedFileCount = $derived(getSelectedFileIndices().size);
+	const fileCount = $derived(readFileListCount());
 	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
 	const namingSummaryLabel = $derived(readOutputNamingSummaryLabel());
+	let importMenuOpen = $state(false);
+	let importSplitElement = $state<HTMLElement | null>(null);
+	let importCaretElement = $state<HTMLButtonElement | null>(null);
 	let popoverContainer = $state<HTMLElement | null>(null);
 	let encoderAnchor = $state<HTMLElement | null>(null);
 	let encoderPanel = $state<HTMLElement | null>(null);
@@ -61,6 +62,22 @@ let { children, overlay }: Props = $props();
 		if (namingPopover.isOpen && !namingAnchor?.contains(target) && !namingPanel?.contains(target)) {
 			namingPopover.close({ restoreFocus: false });
 		}
+		if (importMenuOpen && !importSplitElement?.contains(target)) {
+			importMenuOpen = false;
+		}
+	}
+
+	function handleImportMenuKeydown(event: KeyboardEvent): void {
+		if (event.key === 'Escape' && importMenuOpen) {
+			event.preventDefault();
+			importMenuOpen = false;
+			importCaretElement?.focus();
+		}
+	}
+
+	function handleAddFolderSelect(): void {
+		importMenuOpen = false;
+		void handleClickToSelectFolder();
 	}
 </script>
 
@@ -99,22 +116,46 @@ let { children, overlay }: Props = $props();
 
 	<div class="app-shell-toolbar" data-testid="app-shell-toolbar">
 		<div class="app-shell-toolbar-start">
-			<button
-				id="import-files-btn"
-				type="button"
-				class="btn-pill btn-pill-secondary"
-				onclick={() => void handleClickToSelect()}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="split-button"
+				bind:this={importSplitElement}
+				onkeydown={handleImportMenuKeydown}
 			>
-				Import
-			</button>
-			<button
-				id="add-folder-btn"
-				type="button"
-				class="btn-pill btn-pill-secondary"
-				onclick={() => void handleClickToSelectFolder()}
-			>
-				Add Folder
-			</button>
+				<button
+					id="import-files-btn"
+					type="button"
+					class="btn-pill btn-pill-secondary split-main"
+					onclick={() => void handleClickToSelect()}
+				>
+					＋ Import
+				</button>
+				<button
+					id="import-menu-toggle"
+					type="button"
+					class="btn-pill btn-pill-secondary split-caret"
+					aria-haspopup="menu"
+					aria-expanded={importMenuOpen}
+					aria-label="More import options"
+					bind:this={importCaretElement}
+					onclick={() => {
+						importMenuOpen = !importMenuOpen;
+					}}
+				>
+					▼
+				</button>
+				<div class="split-dropdown" class:open={importMenuOpen} role="menu">
+					<button
+						id="add-folder-btn"
+						type="button"
+						class="split-option"
+						role="menuitem"
+						onclick={handleAddFolderSelect}
+					>
+						Add Folder
+					</button>
+				</div>
+			</div>
 			<button
 				id="acquire-audiobooks-btn"
 				type="button"
@@ -123,40 +164,39 @@ let { children, overlay }: Props = $props();
 			>
 				Import from Library
 			</button>
-			<JobControlsIsland
-				onMergeModeChange={handleMergeModeChange}
-				onMaxConcurrentSelectionChange={handleMaxConcurrentSelectionChange}
-			/>
+			<div class="app-shell-merge" hidden={selectedFileCount > 0}>
+				<JobControlsIsland {fileCount} onMergeModeChange={handleMergeModeChange} />
+			</div>
 		</div>
-		<div class="app-shell-toolbar-selection" aria-label="Selected files actions">
-			<span class="app-shell-toolbar-selection-count">{selectedFileCount} selected</span>
-			<button
-				type="button"
-				class="btn-pill btn-pill-secondary"
-				disabled={selectedFileCount === 0}
-				onclick={openMetadataLookup}
-			>
-				Find metadata ({selectedFileCount})
-			</button>
-			<button
-				type="button"
-				class="btn-pill btn-pill-secondary"
-				disabled={selectedFileCount < 2}
-				data-metadata-selection-intent
-				onclick={() => void openMetadataSurfaceForCurrentSelection()}
-			>
-				Edit shared fields ({selectedFileCount})
-			</button>
-			<button
-				type="button"
-				class="btn-pill btn-pill-secondary"
-				disabled={selectedFileCount === 0}
-				data-metadata-selection-intent
-				onclick={() => void removeSelectedFiles()}
-			>
-				Remove
-			</button>
-		</div>
+		{#if selectedFileCount > 0}
+			<div class="app-shell-toolbar-selection" aria-label="Selected files actions">
+				<span class="app-badge app-badge-info">{selectedFileCount} selected</span>
+				<button
+					type="button"
+					class="btn-pill btn-pill-secondary"
+					onclick={openMetadataLookup}
+				>
+					Find metadata ({selectedFileCount})
+				</button>
+				<button
+					type="button"
+					class="btn-pill btn-pill-secondary"
+					disabled={selectedFileCount < 2}
+					data-metadata-selection-intent
+					onclick={() => void openMetadataSurfaceForCurrentSelection()}
+				>
+					Edit shared fields ({selectedFileCount})
+				</button>
+				<button
+					type="button"
+					class="btn-pill btn-pill-secondary"
+					data-metadata-selection-intent
+					onclick={() => void removeSelectedFiles()}
+				>
+					Remove
+				</button>
+			</div>
+		{/if}
 		<div class="app-shell-toolbar-end">
 			<button
 				bind:this={encoderAnchor}
@@ -333,9 +373,13 @@ let { children, overlay }: Props = $props();
 		margin-left: auto;
 	}
 
-	.app-shell-toolbar-selection-count {
-		color: var(--text-muted);
-		font-size: var(--text-sm);
+	.app-shell-merge {
+		display: flex;
+		align-items: center;
+	}
+
+	.app-shell-merge[hidden] {
+		display: none;
 	}
 
 	.app-shell-main {

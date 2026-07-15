@@ -4,7 +4,6 @@ import JobControlsIsland from '../../jobControls/JobControlsIsland.svelte';
 import { tauriClient } from '../../../lib/tauri/client';
 import { STAGES } from '../../../types/events';
 import {
-	handleMaxConcurrentSelectionChange,
 	handleMergeModeChange,
 	initJobControls,
 	setJobControlsEnabled,
@@ -33,7 +32,6 @@ function setupDom() {
   `;
 	render(JobControlsIsland, {
 		onMergeModeChange: handleMergeModeChange,
-		onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
 	});
 }
 
@@ -42,19 +40,14 @@ function seedDisabledControls() {
 }
 
 function assertControlsEnabled() {
-	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
-	const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
+	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLButtonElement;
 	expect(mergeToggle.disabled).toBe(false);
-	expect(maxConcurrent.disabled).toBe(false);
 	expect(mergeToggle.style.opacity).toBe('1');
-	expect(maxConcurrent.style.opacity).toBe('1');
 }
 
 function assertControlsDisabled() {
-	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
-	const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
+	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLButtonElement;
 	expect(mergeToggle.disabled).toBe(true);
-	expect(maxConcurrent.disabled).toBe(true);
 }
 
 function getStepText(): string {
