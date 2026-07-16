@@ -69,4 +69,14 @@ describe('createFileListDragHandlers', () => {
 			hoveredIndex: 1,
 		});
 	});
+
+	it('suppresses exactly one click after an internal drag ends', () => {
+		const handlers = createFileListDragHandlers(() => {});
+
+		handlers.onDragStart(0, makeDragEvent());
+		handlers.onDragEnd();
+
+		expect(handlers.consumePostDragClick()).toBe(true);
+		expect(handlers.consumePostDragClick()).toBe(false);
+	});
 });

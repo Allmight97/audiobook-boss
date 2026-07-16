@@ -14,10 +14,11 @@ import { showSingleSelection } from '../metadataPanel';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
+	getSelectedFileIndices,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-	setSortAscending,
+	setSortDirection,
 } from '../state.svelte';
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
@@ -168,7 +169,7 @@ describe('file list reorder behavior', () => {
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
-		setSortAscending(true);
+		setSortDirection('none');
 	});
 
 	it('keeps the same file selected and updates inspector position after moving it up', async () => {
@@ -309,7 +310,7 @@ describe('file list reorder behavior', () => {
 		]);
 	});
 
-	it('stages selected metadata drafts before sorting and clearing selection', async () => {
+	it('stages selected metadata drafts before sorting while preserving selection identity', async () => {
 		const alpha = makeFile('/books/a-alpha.m4b');
 		const beta = makeFile('/books/b-beta.m4b');
 
@@ -327,10 +328,11 @@ describe('file list reorder behavior', () => {
 		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/b-beta.m4b', {
 			series: { op: 'set', value: 'Sorted Series' },
 		});
-		expect(getSelectedFileIndex()).toBe(-1);
+		expect(getSelectedFileIndex()).toBe(0);
+		expect(Array.from(getSelectedFileIndices())).toEqual([0, 1]);
 		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
-			'/books/b-beta.m4b',
 			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
 		]);
 	});
 

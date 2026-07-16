@@ -30,12 +30,14 @@ export type FileListDragHandlers = {
 	onDragOver: (index: number, event: DragEvent) => void;
 	onDrop: (index: number, event: DragEvent) => void;
 	onDragEnd: () => void;
+	consumePostDragClick: () => boolean;
 };
 
 export function createFileListDragHandlers(
 	setDragState: (state: FileListDragState) => void,
 ): FileListDragHandlers {
 	let draggedIndex: number | null = null;
+	let suppressPostDragClick = false;
 
 	function resetDragState(): void {
 		draggedIndex = null;
@@ -76,19 +78,28 @@ export function createFileListDragHandlers(
 			event.stopPropagation();
 
 			if (draggedIndex === null || draggedIndex === index) {
+				suppressPostDragClick = draggedIndex !== null;
 				resetDragState();
 				return;
 			}
 			if (!hasValidIndex(index)) {
+				suppressPostDragClick = true;
 				resetDragState();
 				return;
 			}
 
+			suppressPostDragClick = true;
 			reorderFiles(draggedIndex, index);
 			resetDragState();
 		},
 		onDragEnd() {
+			suppressPostDragClick ||= draggedIndex !== null;
 			resetDragState();
+		},
+		consumePostDragClick() {
+			const shouldSuppress = suppressPostDragClick;
+			suppressPostDragClick = false;
+			return shouldSuppress;
 		},
 	};
 }

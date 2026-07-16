@@ -4,9 +4,11 @@ type FileListSessionState = {
 	currentFileList: FileListInfo | null;
 	selectedFileIndex: number;
 	selectedFileIndices: Set<number>;
-	sortAscending: boolean;
+	sortDirection: FileListSortDirection;
 	orderLocked: boolean;
 };
+
+export type FileListSortDirection = 'none' | 'ascending' | 'descending';
 
 type OrderLockListener = (locked: boolean) => void;
 
@@ -14,7 +16,7 @@ export const fileListSessionState = $state<FileListSessionState>({
 	currentFileList: null,
 	selectedFileIndex: -1,
 	selectedFileIndices: new Set<number>(),
-	sortAscending: true,
+	sortDirection: 'none',
 	orderLocked: false,
 });
 
@@ -25,6 +27,7 @@ export function setCurrentFileList(fileList: FileListInfo | null): void {
 
 	fileListSessionState.selectedFileIndex = -1;
 	fileListSessionState.selectedFileIndices = new Set<number>();
+	fileListSessionState.sortDirection = 'none';
 }
 
 export function setSelectedIndex(index: number): void {
@@ -71,12 +74,12 @@ export function clearSelectedIndices(): void {
 	fileListSessionState.selectedFileIndices = new Set<number>();
 }
 
-export function getSortAscending(): boolean {
-	return fileListSessionState.sortAscending;
+export function getSortDirection(): FileListSortDirection {
+	return fileListSessionState.sortDirection;
 }
 
-export function setSortAscending(ascending: boolean): void {
-	fileListSessionState.sortAscending = ascending;
+export function setSortDirection(direction: FileListSortDirection): void {
+	fileListSessionState.sortDirection = direction;
 }
 
 export function setOrderLocked(locked: boolean): void {

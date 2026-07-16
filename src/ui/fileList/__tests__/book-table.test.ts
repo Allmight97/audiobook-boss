@@ -1,12 +1,21 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 import type { OperationSnapshot } from '../../../types/workRuntime';
 import { readWorkActivityByInputId } from '../../workCenter';
 import { applyOperationSnapshot } from '../../workCenter/state.svelte';
 import FileListIsland from '../FileListIsland.svelte';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../state.svelte';
+import {
+	getCurrentFileList,
+	getSelectedFileIndex,
+	setCurrentFileList,
+	setOrderLocked,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../state.svelte';
+import { cacheMetadataForFile, clearMetadataSession } from '../../metadataSession';
+import { setMetadataSurfacePresentation } from '../metadataPanel';
 
 function file(path: string, inputId: string, isValid = true): AudioFile {
 	return {
@@ -89,6 +98,8 @@ function batchSnapshot(inputId: string): OperationSnapshot {
 
 describe('v3 book table', () => {
 	beforeEach(() => {
+		clearMetadataSession();
+		setOrderLocked(false);
 		setCurrentFileList(
 			fileList(file('/books/ready.m4b', 'ready'), file('/books/bad.m4b', 'bad', false)),
 		);
@@ -98,6 +109,7 @@ describe('v3 book table', () => {
 
 	afterEach(() => {
 		document.documentElement.removeAttribute('data-density');
+		setMetadataSurfacePresentation(null);
 	});
 
 	it('renders derived activity badges but makes invalid input an error', async () => {
@@ -105,9 +117,9 @@ describe('v3 book table', () => {
 		const screen = render(FileListIsland, { props: { readWorkActivityByInputId } });
 
 		await waitFor(() => {
-			expect(screen.getByText('Running')).toBeInTheDocument();
+			expect(screen.getByText('running')).toBeInTheDocument();
 		});
-		expect(screen.getByText('Error')).toHaveAttribute('title', 'Unreadable audio');
+		expect(screen.getByText('error')).toHaveAttribute('title', 'Unreadable audio');
 	});
 
 	it('renders skipped work as skipped rather than done', async () => {
@@ -116,7 +128,7 @@ describe('v3 book table', () => {
 		applyOperationSnapshot(snapshot);
 		const screen = render(FileListIsland, { props: { readWorkActivityByInputId } });
 
-		await waitFor(() => expect(screen.getByText('Skipped')).toBeInTheDocument());
+		await waitFor(() => expect(screen.getByText('skipped')).toBeInTheDocument());
 	});
 
 	it('marks select-all indeterminate for a partial selection', async () => {
@@ -181,5 +193,107 @@ describe('v3 book table', () => {
 			expect(screen.getByRole('checkbox', { name: 'Select two.m4b' })).toBeChecked();
 			expect(screen.getByRole('checkbox', { name: 'Select three.m4b' })).toBeChecked();
 		});
+	});
+
+	it('sorts by displayed title with ascending then descending header state', async () => {
+		const zeta = file('/books/zeta.m4b', 'zeta');
+		const alpha = file('/books/alpha.m4b', 'alpha');
+		setCurrentFileList(fileList(zeta, alpha));
+		cacheMetadataForFile(zeta.path, { title: 'A displayed title' });
+		cacheMetadataForFile(alpha.path, { title: 'Z displayed title' });
+		const screen = render(FileListIsland);
+		const header = screen.getByRole('button', { name: 'Book' });
+
+		expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
+		await fireEvent.click(header);
+		await waitFor(() => {
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/zeta.m4b',
+				'/books/alpha.m4b',
+			]);
+		});
+		expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+
+		await fireEvent.click(header);
+		await waitFor(() => {
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/alpha.m4b',
+				'/books/zeta.m4b',
+			]);
+		});
+		expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
+	});
+
+	it('preserves selected file paths and the active file when sorting', async () => {
+		const zeta = file('/books/zeta.m4b', 'zeta');
+		const alpha = file('/books/alpha.m4b', 'alpha');
+		const beta = file('/books/beta.m4b', 'beta');
+		setCurrentFileList(fileList(zeta, alpha, beta));
+		setSelectedFileIndices([0, 2]);
+		setSelectedIndex(2);
+		const screen = render(FileListIsland);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+		await waitFor(() => {
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/alpha.m4b',
+				'/books/beta.m4b',
+				'/books/zeta.m4b',
+			]);
+		});
+
+		expect(screen.getByRole('checkbox', { name: 'Select beta.m4b' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Select zeta.m4b' })).toBeChecked();
+		expect(getCurrentFileList()?.files[getSelectedFileIndex()]?.path).toBe('/books/beta.m4b');
+	});
+
+	it('does not sort from the book header while ordering is locked', async () => {
+		const first = file('/books/zeta.m4b', 'zeta');
+		const second = file('/books/alpha.m4b', 'alpha');
+		setCurrentFileList(fileList(first, second));
+		setOrderLocked(true);
+		const screen = render(FileListIsland);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+
+		expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+			'/books/zeta.m4b',
+			'/books/alpha.m4b',
+		]);
+		expect(screen.getByRole('button', { name: 'Book' }).closest('th')).toHaveAttribute(
+			'aria-sort',
+			'none',
+		);
+	});
+
+	it('activates selection from the row body but keeps checkbox clicks local', async () => {
+		const openMetadataSurface = vi.fn();
+		setMetadataSurfacePresentation({
+			open: openMetadataSurface,
+			closeWithoutStaging: vi.fn(),
+			isOpen: () => false,
+		});
+		const screen = render(FileListIsland);
+		const firstRow = screen.getByRole('checkbox', { name: 'Select ready.m4b' }).closest('tr');
+		if (!firstRow) throw new Error('Expected a file-list row');
+
+		await fireEvent.click(firstRow);
+		await waitFor(() => expect(getSelectedFileIndex()).toBe(0));
+		expect(openMetadataSurface).toHaveBeenCalledWith(
+			screen.getByRole('button', { name: 'Edit metadata for ready.m4b' }),
+		);
+
+		setSelectedFileIndices([]);
+		setSelectedIndex(-1);
+		await tick();
+		openMetadataSurface.mockClear();
+		await fireEvent.click(screen.getByRole('checkbox', { name: 'Select ready.m4b' }));
+
+		expect(screen.getByRole('checkbox', { name: 'Select ready.m4b' })).toBeChecked();
+		expect(screen.getByRole('button', { name: 'Edit metadata for ready.m4b' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		expect(openMetadataSurface).not.toHaveBeenCalled();
 	});
 });

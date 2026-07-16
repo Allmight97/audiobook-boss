@@ -5,7 +5,7 @@ import type { AcquisitionJob } from '../../../types/remoteSource';
 import FileImportTestHarness from './FileImportTestHarness.svelte';
 import { handleClickToSelect } from '../index';
 import { clearFileImportError } from '../state.svelte';
-import { displayFileList } from '../../fileList/actions';
+import { clearAllFiles, displayFileList } from '../../fileList/actions';
 import { getCurrentFileList } from '../../fileList';
 import { clearMetadataSession } from '../../metadataSession';
 import {
@@ -295,7 +295,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
 	});
 
-	it('shows and wires the Clear button after files are loaded', async () => {
+	it('clears files through the FileList action after files are loaded', async () => {
 		analyzeAudioFilesMock.mockResolvedValue(
 			makeAnalyzedFileList([makeAnalyzedFile('/tmp/file1.mp3')]),
 		);
@@ -303,18 +303,14 @@ describe('File import drop vs cover art drop isolation', () => {
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/file1.mp3']);
 		await flushAsync();
 
-		const clearButton = document.getElementById('clear-files-btn') as HTMLButtonElement | null;
-		expect(clearButton).toBeTruthy();
 		await waitFor(() => {
-			expect(clearButton?.style.display).toBe('block');
 			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 		});
 
-		clearButton?.click();
+		clearAllFiles();
 		await flushAsync();
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(0);
-		expect(clearButton?.style.display).toBe('none');
 	});
 
 	it('shows a PDF companion chip for imported files with acquired supplemental assets', async () => {

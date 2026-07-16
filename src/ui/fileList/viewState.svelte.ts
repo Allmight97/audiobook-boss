@@ -8,9 +8,11 @@ import {
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
-	getSortAscending,
+	getSortDirection,
 	isOrderLocked,
 } from './state.svelte';
+import { pathBasename } from '../../lib/path/basename';
+import { getMetadataForFile } from '../metadataSession';
 
 type FileWorkActivity = {
 	status: 'queued' | 'running' | 'done' | 'skipped' | 'cancelled' | 'failed';
@@ -19,7 +21,7 @@ type FileWorkActivity = {
 export type ReadWorkActivityByInputId = () => ReadonlyMap<string, FileWorkActivity>;
 
 export type FileListStatusBadge = {
-	label: 'Ready' | 'Queued' | 'Running' | 'Done' | 'Skipped' | 'Cancelled' | 'Failed' | 'Error';
+	label: 'ready' | 'queued' | 'running' | 'done' | 'skipped' | 'cancelled' | 'failed' | 'error';
 	variant: 'ok' | 'info' | 'muted' | 'warn';
 	isError: boolean;
 };
@@ -36,33 +38,8 @@ export function readFileListSelectedIndices(): number[] {
 	return Array.from(getSelectedFileIndices());
 }
 
-export function readFileListSortLabel(): string {
-	return getSortAscending() ? 'Sort: A-Z' : 'Sort: Z-A';
-}
-
-export function readFileListControlsSnapshot(): {
-	showSortButton: boolean;
-	showClearButton: boolean;
-	sortDisabled: boolean;
-	clearDisabled: boolean;
-} {
-	const fileList = getCurrentFileList();
-	const locked = isOrderLocked();
-	if (!fileList) {
-		return {
-			showSortButton: false,
-			showClearButton: false,
-			sortDisabled: locked,
-			clearDisabled: locked,
-		};
-	}
-
-	return {
-		showSortButton: fileList.files.length > 1,
-		showClearButton: fileList.files.length > 0,
-		sortDisabled: locked,
-		clearDisabled: locked,
-	};
+export function readFileListSortState(): 'none' | 'ascending' | 'descending' {
+	return getSortDirection();
 }
 
 export function readFileListOrderLockVisible(): boolean {
@@ -74,26 +51,30 @@ export function readFileListStatusBadge(
 	readWorkActivityByInputId?: ReadWorkActivityByInputId,
 ): FileListStatusBadge {
 	if (!file.isValid) {
-		return { label: 'Error', variant: 'warn', isError: true };
+		return { label: 'error', variant: 'warn', isError: true };
 	}
 
 	const activity = file.inputId ? readWorkActivityByInputId?.().get(file.inputId) : undefined;
 	switch (activity?.status) {
 		case 'queued':
-			return { label: 'Queued', variant: 'muted', isError: false };
+			return { label: 'queued', variant: 'muted', isError: false };
 		case 'running':
-			return { label: 'Running', variant: 'info', isError: false };
+			return { label: 'running', variant: 'info', isError: false };
 		case 'done':
-			return { label: 'Done', variant: 'ok', isError: false };
+			return { label: 'done', variant: 'ok', isError: false };
 		case 'skipped':
-			return { label: 'Skipped', variant: 'muted', isError: false };
+			return { label: 'skipped', variant: 'muted', isError: false };
 		case 'cancelled':
-			return { label: 'Cancelled', variant: 'muted', isError: false };
+			return { label: 'cancelled', variant: 'muted', isError: false };
 		case 'failed':
-			return { label: 'Failed', variant: 'warn', isError: true };
+			return { label: 'failed', variant: 'warn', isError: true };
 		default:
-			return { label: 'Ready', variant: 'muted', isError: false };
+			return { label: 'ready', variant: 'muted', isError: false };
 	}
+}
+
+export function displayedTitleForFile(file: AudioFile): string {
+	return getMetadataForFile(file.path)?.title || pathBasename(file.path, { fallback: 'path' });
 }
 
 export function readCombinedSizeText(): string {

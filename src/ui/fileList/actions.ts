@@ -1,4 +1,3 @@
-import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
@@ -11,8 +10,8 @@ import {
 	setCurrentFileList,
 	setSelectedIndex,
 	setSelectedFileIndices,
-	getSortAscending,
-	setSortAscending,
+	getSortDirection,
+	setSortDirection,
 	isOrderLocked,
 	setOrderLocked,
 } from './state.svelte';
@@ -39,6 +38,7 @@ import {
 } from './appendResult';
 import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
+import { displayedTitleForFile } from './viewState.svelte';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -266,25 +266,35 @@ export async function toggleFileSort(): Promise<void> {
 		return;
 	}
 
-	setSortAscending(!getSortAscending());
+	const selectedPaths = new Set(
+		Array.from(getSelectedFileIndices())
+			.map((index) => fileList.files[index]?.path)
+			.filter((path): path is string => Boolean(path)),
+	);
+	const selectedPath = fileList.files[getSelectedFileIndex()]?.path;
+	const nextSortDirection = getSortDirection() === 'ascending' ? 'descending' : 'ascending';
+	setSortDirection(nextSortDirection);
 
 	const nextFiles = [...fileList.files];
 	nextFiles.sort((a, b) => {
-		const nameA = pathBasename(a.path, { fallback: 'path' });
-		const nameB = pathBasename(b.path, { fallback: 'path' });
+		const titleA = displayedTitleForFile(a);
+		const titleB = displayedTitleForFile(b);
 
-		if (getSortAscending()) {
-			return nameA.localeCompare(nameB);
+		if (nextSortDirection === 'ascending') {
+			return titleA.localeCompare(titleB);
 		}
-		return nameB.localeCompare(nameA);
+		return titleB.localeCompare(titleA);
 	});
 	replaceCurrentFileListFiles(nextFiles);
 
-	applySelectionIntentToState({ type: 'clear' });
-	setSelectedIndex(-1);
-	clearSelectionPanels();
+	setSelectedFileIndices(
+		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
+	);
+	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
 
 	refreshOutputForFileListChange();
+
+	void coordinateMetadataSurfacePresentationRefresh();
 }
 
 export function clearAllFiles(): void {

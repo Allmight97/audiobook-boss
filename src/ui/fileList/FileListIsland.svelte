@@ -1,19 +1,18 @@
 <script lang="ts">
-	import { pathBasename } from '../../lib/path/basename';
 	import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 	import { formatDuration, formatFileSize } from '../../types/audio';
 	import { getMetadataForFile } from '../metadataSession';
 	import { hasSupplementalAssetsForInputId } from '../remoteSource';
-	import { applySelectionIntent, clearAllFiles, toggleFileSort } from './actions';
+	import { applySelectionIntent, toggleFileSort } from './actions';
 	import { createFileListDragHandlers, onFileListKeyDown } from './events';
 	import { getCurrentFileList, getSelectedFileIndex } from './state.svelte';
 	import {
-		readFileListControlsSnapshot,
 		readFileListOrderLockVisible,
 		readFileListSelectedIndices,
-		readFileListSortLabel,
+		readFileListSortState,
 		readFileListStatusBadge,
 		readFileListViewFiles,
+		displayedTitleForFile,
 		type ReadWorkActivityByInputId,
 	} from './viewState.svelte';
 
@@ -42,8 +41,7 @@
 
 	const files = $derived(readFileListViewFiles());
 	const selectedIndices = $derived(readFileListSelectedIndices());
-	const sortLabel = $derived(readFileListSortLabel());
-	const controls = $derived(readFileListControlsSnapshot());
+	const sortState = $derived(readFileListSortState());
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
 	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
 	const selectedCount = $derived(selectedIndices.length);
@@ -84,6 +82,21 @@
 		);
 	}
 
+	function handleRowClick(index: number, event: MouseEvent): void {
+		if (dragHandlers.consumePostDragClick()) {
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
+		if (event.target instanceof Element && event.target.closest('[data-metadata-selection-intent]')) {
+			return;
+		}
+
+		const row = event.currentTarget as HTMLTableRowElement;
+		const activateButton = row.querySelector<HTMLElement>(`#file-list-row-activate-${index}`);
+		handleRowActivation(index, activateButton ?? row, event);
+	}
+
 	function toggleRow(index: number, event: MouseEvent): void {
 		event.stopPropagation();
 		void applySelectionIntent(selectionIntentForRow(index, event));
@@ -93,20 +106,8 @@
 		void applySelectionIntent({ type: checked ? 'selectAll' : 'clear' });
 	}
 
-	function handleSortClick(): void {
-		void toggleFileSort();
-	}
-
-	function handleClearClick(): void {
-		clearAllFiles();
-	}
-
-	function getFileName(path: string): string {
-		return pathBasename(path, { fallback: 'path' });
-	}
-
 	function getFileTitle(file: (typeof files)[number]): string {
-		return getMetadataForFile(file.path)?.title || getFileName(file.path);
+		return displayedTitleForFile(file);
 	}
 
 	function getFileAuthor(file: (typeof files)[number]): string {
@@ -118,40 +119,6 @@
 		return coverArt && coverArt.length > 0 ? coverArtBytesToDataUrl(coverArt) : null;
 	}
 </script>
-
-<div class="file-list-toolbar">
-	<span class="text-xs muted-text italic" id="file-count-display">
-		{files.length} {files.length === 1 ? 'file' : 'files'}
-	</span>
-	<span
-		class="text-xs muted-text italic"
-		id="file-order-lock"
-		style:display={orderLockVisible ? 'inline' : 'none'}
-		data-testid="file-order-lock"
-	>
-		Order locked while processing
-	</span>
-	<div class="file-list-toolbar-actions">
-		<button
-			id="sort-toggle-btn"
-			class="btn-pill btn-pill-secondary"
-			style:display={controls.showSortButton ? 'block' : 'none'}
-			disabled={controls.sortDisabled}
-			onclick={handleSortClick}
-		>
-			{sortLabel}
-		</button>
-		<button
-			id="clear-files-btn"
-			class="btn-pill btn-pill-secondary"
-			style:display={controls.showClearButton ? 'block' : 'none'}
-			disabled={controls.clearDisabled}
-			onclick={handleClearClick}
-		>
-			Clear
-		</button>
-	</div>
-</div>
 
 <div
 	class="file-management-container mb-3"
@@ -198,7 +165,11 @@
 						/>
 					</th>
 					<th class="file-list-cover-cell"></th>
-					<th>Book</th>
+					<th aria-sort={sortState}>
+						<button id="book-sort-header" type="button" class="file-list-sort-header" onclick={() => void toggleFileSort()}>
+							Book
+						</button>
+					</th>
 					<th class="file-list-comfortable-only">Author</th>
 					<th class="file-list-number">Duration</th>
 					<th class="file-list-number file-list-comfortable-only">Size</th>
@@ -220,6 +191,7 @@
 						class:dragging={draggedIndex === index}
 						class:drag-over={hoveredIndex === index}
 						draggable={orderLockVisible ? 'false' : 'true'}
+						onclick={(event) => handleRowClick(index, event)}
 						ondragstart={(event) => dragHandlers.onDragStart(index, event)}
 						ondragover={(event) => dragHandlers.onDragOver(index, event)}
 						ondrop={(event) => dragHandlers.onDrop(index, event)}
@@ -278,8 +250,6 @@
 </div>
 
 <style>
-	.file-list-toolbar { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
-	.file-list-toolbar-actions { display: flex; gap: var(--space-2); margin-left: auto; }
 	.file-management-container { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 8rem; overflow: hidden; border: 1px solid var(--border-primary); border-radius: var(--radius-md); background: var(--bg-input); }
 	.file-management-container.drag-over { border-color: var(--accent-primary); background: var(--bg-hover); }
 	/* Rendered only while the list is empty; the whole container is the OS drop target. */
@@ -289,8 +259,9 @@
 	.file-list-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto; }
 	.file-list-content:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 	.file-list-table { width: 100%; border-collapse: collapse; font-size: var(--density-text); }
-	.file-list-table th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-primary); background: var(--bg-main); color: var(--text-placeholder); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
+	.file-list-table th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-primary); background: var(--bg-main); color: var(--text-placeholder); font-size: 0.65625rem; font-weight: 600; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
 	.file-list-table td { height: var(--density-row-h); padding: 0 var(--space-3); overflow: hidden; border-bottom: 1px solid var(--border-primary); color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+	.file-list-table tbody tr { cursor: pointer; }
 	.file-list-table tbody tr:hover { background: var(--bg-panel); }
 	.file-list-table tbody tr.selected { background: color-mix(in srgb, var(--accent-primary) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent-primary); }
 	.file-list-table tbody tr.dragging { opacity: 0.5; }
@@ -299,6 +270,7 @@
 	.file-list-checkbox-cell input { margin-top: 0; accent-color: var(--accent-primary); }
 	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
 	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }
+	.file-list-sort-header { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
 	.file-list-title-cell { max-width: 0; }
 	.file-list-activate { max-width: calc(100% - 2.25rem); margin-top: 0; padding: 0; overflow: hidden; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 	.file-list-table tbody tr.active .file-list-activate { color: var(--text-primary); font-weight: 600; }
