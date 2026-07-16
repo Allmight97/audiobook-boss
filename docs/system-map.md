@@ -132,7 +132,6 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | App Settings | `src/ui/appSettings` | Settings hydration, durable preference coordination, and the settings dialog (FFmpeg/FDK path, concurrency, edit surface, startup behavior, pinned defaults). |
 | Metadata Form | `src/ui/metadataForm` | Metadata text-field state, multi-select actions, dirty reads, validation warning display, and `MetadataFormFieldsIsland`. |
 | Metadata Session | `src/ui/metadataSession` | Per-file metadata cache truth, pending draft/intent staging (`stageMetadataIntentPatch`), draft validation adaptation, and the metadata batch-save workflow. |
-| Metadata Surface | `src/ui/metadataSurface` | Popover composition for the Facts, Chapters, and Output tabs; underlying truth stays with Metadata Form, Metadata Session, File List, Output Panel, and Tag Preview. |
 | Metadata Lookup | `src/ui/metadataLookup` | Lookup modal workflow, queue advancement, safe cover preview, and result application through Metadata Session staging. |
 | Tag Preview | `src/ui/tagPreview` | TSOA calculation and tag preview grid rendering from metadata form preview reads. |
 | Remote Source | `src/ui/remoteSource` | Session-asset coordination for imported remote-source inputs; public strip is session-assets only. |

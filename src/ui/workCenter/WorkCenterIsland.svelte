@@ -172,7 +172,11 @@
 								<div class="lane" data-testid={`operation-lane-${lane}`}>
 									<span>{laneLabel(lane)}</span>
 									<div class="app-progress-track work-operation-lane-track">
-										<div class="app-progress-fill" style={`width: ${lanePercentage(operation, lane)}%`}></div>
+										<div
+										class="app-progress-fill"
+										class:lane-fill-done={lanePercentage(operation, lane) >= 100}
+										style={`width: ${lanePercentage(operation, lane)}%`}
+									></div>
 									</div>
 									<span>{laneDetail(operation, lane)}</span>
 								</div>
@@ -232,6 +236,11 @@
 	.work-child-list {
 		display: flex;
 		flex-direction: column;
+	}
+
+	/* Mock: a finished lane's fill reads green (ui-directions-v3.html:180). */
+	.lane-fill-done {
+		background: var(--text-success);
 	}
 
 	.work-center,
@@ -296,10 +305,6 @@
 	.lane > :last-child {
 		width: 4.75rem;
 		text-align: right;
-	}
-
-	.lane .app-progress-track {
-		flex: 1;
 	}
 
 	.work-child-list {

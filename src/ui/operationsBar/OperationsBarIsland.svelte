@@ -68,9 +68,7 @@
 			role="presentation"
 			onclick={stopInteractiveChildPropagation}
 		>
-			{#if statusTransportProcessing}
-				<StatusTransportIsland />
-			{:else if runningOperation}
+			{#if !statusTransportProcessing && runningOperation}
 				<div class="operations-bar-background-transport" aria-label="Background operation transport">
 					<div class="app-progress-track operations-bar-background-track">
 						<div
@@ -87,22 +85,20 @@
 				</div>
 			{:else}
 				<StatusTransportIsland />
-				{#if orderLockVisible}
+				{#if !statusTransportProcessing && orderLockVisible}
 					<span class="mono operations-bar-order-lock">· order locked</span>
 				{/if}
 			{/if}
-		</div>
-
-		<div class="operations-bar-info" aria-label="File totals">
-			{fileCount} {fileCount === 1 ? 'book' : 'books'} · <span class="mono"
-				>{durationText} · {sizeText}</span
-			>
 		</div>
 
 		<div class="operations-bar-meta">
 			<span class="app-badge app-badge-info">{counts.running} running</span>
 			<span class="app-badge app-badge-muted">{counts.queued} queued</span>
 			<span class="app-badge app-badge-ok">{counts.done} done</span>
+			<span class="operations-bar-info" aria-label="File totals">
+				{fileCount}
+				{fileCount === 1 ? 'book' : 'books'} · <span class="mono">{durationText} · {sizeText}</span>
+			</span>
 			<button
 				type="button"
 				class:on={mode === 'pinned'}

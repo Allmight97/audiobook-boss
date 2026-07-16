@@ -12,11 +12,7 @@
 	import { getMetadataForFile } from '../metadataSession';
 	import { editSurfaceState } from './editSurface.svelte';
 	import MetadataSurfacePanes from './MetadataSurfacePanes.svelte';
-	type Presentation = {
-		open: (anchor: HTMLElement) => void;
-		closeWithoutStaging: (options?: { restoreFocus?: boolean }) => void;
-		isOpen: () => boolean;
-	};
+	import type { MetadataSurfacePresentation as Presentation } from '../fileList';
 
 	interface Props {
 	onDismiss?: (options?: { restoreFocus?: boolean }) => Promise<boolean>;

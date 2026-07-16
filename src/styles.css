@@ -64,6 +64,8 @@
 		--text-muted: #9ca3af;
 		--text-placeholder: #6b7280;
 		--text-inverse: #1f2937;
+		--text-error: #f87171;
+		--text-success: #34d399;
 
 		--border-primary: #374151;
 		--border-secondary: #4b5563;
@@ -323,8 +325,8 @@ button {
 	z-index: 21;
 	background: var(--bg-panel);
 	border: 1px solid var(--border-secondary);
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-md);
+	border-radius: 0.75rem;
+	box-shadow: 0 16px 50px rgba(0, 0, 0, 0.45);
 }
 
 /* v3 field primitive (mock .field): quiet label over a borderless filled

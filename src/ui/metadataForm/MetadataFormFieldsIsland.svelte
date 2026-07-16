@@ -39,13 +39,19 @@
 	});
 </script>
 
+{#if metadataFormState.mode === 'multi'}
+	<div class="batch-note" data-testid="metadata-batch-note">
+		Editing <b>{metadataFormState.selectionCount} files</b>. Shared fields apply to every selected
+		file on save; mixed values stay untouched unless you overwrite them.
+	</div>
+{/if}
 <div
 	class="metadata-form-fields grid grid-cols-4 gap-x-3 gap-y-1.5"
 	class:metadata-form-fields--stacked={layout === 'stacked'}
 	oninput={handleMetadataFieldInput}
 	onchange={handleMetadataFieldChange}
 >
-  <div class="col-span-3">
+  <div class="field col-span-3">
 	    <div class="meta-field-header">
 	      <label for="meta-title">Book Title</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -65,14 +71,14 @@
       id="meta-title"
       bind:value={metadataFormState.fields['meta-title'].value}
       placeholder={metadataFormState.fields['meta-title'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-title'].placeholder}
       data-dirty={metadataFormState.fields['meta-title'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-title'].dirty}
       data-mixed={metadataFormState.fields['meta-title'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-1">
+  <div class="field col-span-1">
 	    <div class="meta-field-header">
 	      <label for="meta-year">Publication Date</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -92,14 +98,14 @@
       id="meta-year"
       bind:value={metadataFormState.fields['meta-year'].value}
       placeholder={metadataFormState.fields['meta-year'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-year'].placeholder}
       data-dirty={metadataFormState.fields['meta-year'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-year'].dirty}
       data-mixed={metadataFormState.fields['meta-year'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-2">
+  <div class="field col-span-2">
 	    <div class="meta-field-header">
 	      <label for="meta-author">Author</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -119,14 +125,14 @@
       id="meta-author"
       bind:value={metadataFormState.fields['meta-author'].value}
       placeholder={metadataFormState.fields['meta-author'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-author'].placeholder}
       data-dirty={metadataFormState.fields['meta-author'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-author'].dirty}
       data-mixed={metadataFormState.fields['meta-author'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-2">
+  <div class="field col-span-2">
 	    <div class="meta-field-header">
 	      <label for="meta-narrator">Narrator</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -146,14 +152,14 @@
       id="meta-narrator"
       bind:value={metadataFormState.fields['meta-narrator'].value}
       placeholder={metadataFormState.fields['meta-narrator'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-narrator'].placeholder}
       data-dirty={metadataFormState.fields['meta-narrator'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-narrator'].dirty}
       data-mixed={metadataFormState.fields['meta-narrator'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-2">
+  <div class="field col-span-2">
 	    <div class="meta-field-header">
 	      <label for="meta-series">Series</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -173,14 +179,14 @@
       id="meta-series"
       bind:value={metadataFormState.fields['meta-series'].value}
       placeholder={metadataFormState.fields['meta-series'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-series'].placeholder}
       data-dirty={metadataFormState.fields['meta-series'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-series'].dirty}
       data-mixed={metadataFormState.fields['meta-series'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-1">
+  <div class="field col-span-1">
 	    <div class="meta-field-header">
 	      <label for="meta-series-part">Book #</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -200,7 +206,7 @@
       id="meta-series-part"
       bind:value={metadataFormState.fields['meta-series-part'].value}
       placeholder={metadataFormState.fields['meta-series-part'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-series-part'].placeholder}
       data-dirty={metadataFormState.fields['meta-series-part'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-series-part'].dirty}
@@ -214,7 +220,7 @@
       {metadataFormState.seriesPartWarning.message}
     </div>
   </div>
-  <div class="col-span-2">
+  <div class="field col-span-2">
 	    <div class="meta-field-header">
 	      <label for="meta-subseries">Sub-series</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -234,14 +240,14 @@
       id="meta-subseries"
       bind:value={metadataFormState.fields['meta-subseries'].value}
       placeholder={metadataFormState.fields['meta-subseries'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-subseries'].placeholder}
       data-dirty={metadataFormState.fields['meta-subseries'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-subseries'].dirty}
       data-mixed={metadataFormState.fields['meta-subseries'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-1">
+  <div class="field col-span-1">
 	    <div class="meta-field-header">
 	      <label for="meta-subseries-part">Sub-series #</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -261,7 +267,7 @@
       id="meta-subseries-part"
       bind:value={metadataFormState.fields['meta-subseries-part'].value}
       placeholder={metadataFormState.fields['meta-subseries-part'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-subseries-part'].placeholder}
       data-dirty={metadataFormState.fields['meta-subseries-part'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-subseries-part'].dirty}
@@ -275,7 +281,7 @@
       {metadataFormState.subseriesPartWarning.message}
     </div>
   </div>
-  <div class="col-span-1">
+  <div class="field col-span-1">
 	    <div class="meta-field-header">
 	      <label for="meta-genre">Genre</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -295,14 +301,14 @@
       id="meta-genre"
       bind:value={metadataFormState.fields['meta-genre'].value}
       placeholder={metadataFormState.fields['meta-genre'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-genre'].placeholder}
       data-dirty={metadataFormState.fields['meta-genre'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-genre'].dirty}
       data-mixed={metadataFormState.fields['meta-genre'].mixed ? 'true' : undefined}
     />
   </div>
-  <div class="col-span-4">
+  <div class="field col-span-4">
 	    <div class="meta-field-header">
 	      <label for="meta-description">Description</label>
 	      {#if metadataFormState.mode === 'multi'}
@@ -322,7 +328,7 @@
       rows="2"
       bind:value={metadataFormState.fields['meta-description'].value}
       placeholder={metadataFormState.fields['meta-description'].mixed
-        ? 'Mixed values'
+        ? `Mixed (${metadataFormState.selectionCount} values)`
         : metadataFormState.fields['meta-description'].placeholder}
       data-dirty={metadataFormState.fields['meta-description'].dirty ? 'true' : undefined}
       class:dirty-field={metadataFormState.fields['meta-description'].dirty}
@@ -332,22 +338,26 @@
 </div>
 <div class="metadata-apply-row">
   <button
+    id="metadata-save-btn"
+    class="pill pill-primary metadata-save-pill"
+    data-testid="metadata-save-btn"
+    disabled={$metadataSaveInProgress}
+    onclick={onSaveMetadata}
+  >
+    {metadataFormState.mode === 'multi'
+      ? `Save to ${metadataFormState.selectionCount} files`
+      : 'Save'}
+  </button>
+  <button
     id="metadata-lookup-btn"
     class="pill pill-ghost"
     data-testid="metadata-lookup-btn"
     type="button"
     onclick={openMetadataLookup}
   >
-    Find Metadata
-  </button>
-  <button
-    id="metadata-save-btn"
-    class="pill pill-primary"
-    data-testid="metadata-save-btn"
-    disabled={$metadataSaveInProgress}
-    onclick={onSaveMetadata}
-  >
-    Save All Changes
+    {metadataFormState.mode === 'multi'
+      ? `Find metadata (${metadataFormState.selectionCount})`
+      : 'Find online'}
   </button>
 </div>
 
@@ -388,9 +398,29 @@
 
 	.metadata-apply-row {
 		display: flex;
-		justify-content: flex-end;
 		gap: 0.5rem;
 		margin-top: 0.5rem;
+	}
+
+	.metadata-save-pill {
+		flex: 1;
+	}
+
+	/* Mock .batch-note (ui-directions-v3.html:93). */
+	.batch-note {
+		margin-bottom: 0.625rem;
+		padding: 0.5rem 0.625rem;
+		border: 1px solid var(--border-primary);
+		border-radius: 0.5rem;
+		background: var(--bg-panel);
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		line-height: 1.5;
+	}
+
+	.batch-note b {
+		color: var(--text-secondary);
+		font-weight: 500;
 	}
 
 	.metadata-form-fields--stacked {

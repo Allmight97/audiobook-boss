@@ -11,7 +11,6 @@
 		MetadataFormFieldsIsland,
 		onMetadataFormActionSelectChange,
 		onMetadataFormFieldInput,
-		readMetadataFormViewSnapshot,
 	} from '../metadataForm';
 	import { readOutputDisplaySnapshot } from '../outputPanel';
 
@@ -33,7 +32,6 @@
 	];
 	let activeTab = $state<TabId>('metadata');
 	let lastResetKey = $state<number | undefined>(undefined);
-	const metadataFormSnapshot = $derived(readMetadataFormViewSnapshot());
 	const facts = $derived(readInspectorFacts());
 	const chapters = $derived(readActiveFileChapters());
 	const output = $derived(readOutputDisplaySnapshot());
@@ -98,8 +96,6 @@
 {#if activeTab === 'metadata'}
 	<div id={`${idPrefix}-panel-metadata`} role="tabpanel" aria-labelledby={`${idPrefix}-tab-metadata`}>
 		<div
-			id="metadata-form"
-			data-multi-select={metadataFormSnapshot.mode === 'multi'}
 			class="metadata-surface-form"
 			class:metadata-surface-form--stacked={layout === 'stacked'}
 		>
@@ -146,24 +142,10 @@
 {/if}
 
 <style>
+	/* Mock .rail-tabs: full-bleed strip, primitive .tab underline (border-bottom). */
 	.metadata-surface-tabs {
-		gap: var(--space-1);
-		margin: 0 calc(-1 * var(--space-1)) var(--space-3);
+		margin: 0 0 var(--space-3);
 		border-bottom: 1px solid var(--border-primary);
-	}
-
-	.metadata-surface-tabs .tab {
-		margin-top: 0;
-		padding: var(--space-2) var(--space-3);
-		border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-		background: transparent;
-		color: var(--text-muted);
-		font-size: var(--text-sm);
-	}
-
-	.metadata-surface-tabs .tab.on {
-		box-shadow: inset 0 -2px 0 var(--accent-primary);
-		color: var(--text-primary);
 	}
 
 	.metadata-surface-form {

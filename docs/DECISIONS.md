@@ -341,3 +341,22 @@
   against real encodes; rail focus behavior asserted in jsdom, not a real
   webview; light theme has no fidelity reference; relative-time ticking
   untested across long sessions.
+
+## v3 rebuild audit adjudication — fixes and residuals (2026-07-16)
+
+- Outcome: four independent audits ran (Fable 5 xhigh branch audit —
+  approve-with-fixes; GPT-5.6 Sol xhigh — rework, 1 blocker; Opus 4.8
+  fidelity — medium, 18 deviations; browser state-matrix validator — 14/14).
+  All blockers/should-fixes adjudicated and fixed across three commits
+  (Rust processing, frontend correctness, fidelity polish); the metadata
+  cache is now reactive (SvelteMap) with a render-first/cache-later pin.
+- Accepted residuals (fidelity nits not taken, re-judged as noise-level):
+  cover-cell width 36px vs mock 34px; assorted 2–4px spacing drift in
+  appbar/ops-bar/rail-head; number-cell font not density-linked in compact;
+  op-row 12px vs mock 12.5px; lane labels Capitalized vs mock lowercase.
+- Deferred with evidence (Fable whittle): statusPanel per-row cancel plumbing
+  and unrendered JobListItem view-model fields (test-consumed; delete when
+  the pinning tests are reworked).
+- Guardrail: the transport precedence is preview → running/cancelling
+  operation → idle-with-feedback; persistent feedback must never mask live
+  background work.

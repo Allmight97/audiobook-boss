@@ -293,8 +293,14 @@ let { children, overlay, rail }: Props = $props();
 		gap: var(--space-2);
 		padding: 0 var(--density-pad);
 		border-bottom: 1px solid var(--border-primary);
-		background: var(--bg-panel);
+		background: var(--bg-main);
 		flex-shrink: 0;
+	}
+
+	/* Mock .nav-tab (13px, 14x12) is larger than the rail-tab default. */
+	.app-shell-appbar :global(.tab) {
+		padding: 0.875rem 0.75rem;
+		font-size: var(--text-md);
 	}
 
 	.app-shell-title {
