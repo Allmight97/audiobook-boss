@@ -333,7 +333,7 @@
 <div class="metadata-apply-row">
   <button
     id="metadata-lookup-btn"
-    class="btn-pill btn-pill-secondary"
+    class="pill pill-ghost"
     data-testid="metadata-lookup-btn"
     type="button"
     onclick={openMetadataLookup}
@@ -342,7 +342,7 @@
   </button>
   <button
     id="metadata-save-btn"
-    class="btn-pill btn-pill-primary"
+    class="pill pill-primary"
     data-testid="metadata-save-btn"
     disabled={$metadataSaveInProgress}
     onclick={onSaveMetadata}

@@ -155,18 +155,18 @@
 		</div>
 		<div class="lab-density" role="group" aria-label="Density">
 			<button
-				class="btn-pill"
-				class:btn-pill-primary={density === 'comfortable'}
-				class:btn-pill-secondary={density !== 'comfortable'}
+				class="pill"
+				class:pill-primary={density === 'comfortable'}
+				class:pill-ghost={density !== 'comfortable'}
 				type="button"
 				onclick={() => setDensity('comfortable')}
 			>
 				Comfortable
 			</button>
 			<button
-				class="btn-pill"
-				class:btn-pill-primary={density === 'compact'}
-				class:btn-pill-secondary={density !== 'compact'}
+				class="pill"
+				class:pill-primary={density === 'compact'}
+				class:pill-ghost={density !== 'compact'}
 				type="button"
 				onclick={() => setDensity('compact')}
 			>
@@ -223,9 +223,9 @@
 	<section class="panel lab-section">
 		<h3>Buttons and form controls</h3>
 		<div class="lab-row">
-			<button class="btn-pill btn-pill-primary" type="button">Primary</button>
-			<button class="btn-pill btn-pill-secondary" type="button">Secondary</button>
-			<button class="btn-pill btn-pill-secondary" type="button" disabled>Disabled</button>
+			<button class="pill pill-primary" type="button">Primary</button>
+			<button class="pill pill-ghost" type="button">Secondary</button>
+			<button class="pill pill-ghost" type="button" disabled>Disabled</button>
 			<label class="checkbox-label text-xs mb-0">
 				<input type="checkbox" checked />
 				<span class="option-label">Checkbox label</span>
@@ -325,22 +325,13 @@
 		</div>
 	</section>
 
-	<section class="panel lab-section" data-testid="pill-size-primitives-section">
-		<h3>Pill sizes (btn-pill-sm / btn-pill-xs)</h3>
-		<div class="lab-row">
-			<button class="btn-pill btn-pill-secondary" type="button">Default</button>
-			<button class="btn-pill btn-pill-secondary btn-pill-sm" type="button">Small</button>
-			<button class="btn-pill btn-pill-secondary btn-pill-xs" type="button">Extra small</button>
-		</div>
-	</section>
-
 	<section class="panel lab-section" data-testid="split-button-primitive-section">
 		<h3>Split button (split-button / split-main / split-caret / split-dropdown)</h3>
 		<div class="lab-row">
 			<div class="split-button">
-				<button class="btn-pill btn-pill-secondary split-main" type="button">＋ Import</button>
+				<button class="pill pill-ghost split-main" type="button">＋ Import</button>
 				<button
-					class="btn-pill btn-pill-secondary split-caret"
+					class="pill pill-ghost split-caret"
 					type="button"
 					aria-expanded={labSplitOpen}
 					aria-label="More options"
@@ -363,8 +354,8 @@
 				</div>
 			</div>
 			<div class="split-button">
-				<button class="btn-pill btn-pill-primary split-main" type="button">Primary main</button>
-				<button class="btn-pill btn-pill-primary split-caret" type="button" aria-label="More options">
+				<button class="pill pill-primary split-main" type="button">Primary main</button>
+				<button class="pill pill-primary split-caret" type="button" aria-label="More options">
 					▼
 				</button>
 			</div>
@@ -376,7 +367,7 @@
 		<div class="lab-popover-stage" bind:this={popoverContainer}>
 			<button
 				bind:this={popoverAnchor}
-				class="btn-pill btn-pill-secondary btn-pill-sm"
+				class="pill pill-ghost pill-sm"
 				type="button"
 				aria-expanded={popover.isOpen}
 				onclick={() => popover.toggle()}
@@ -395,7 +386,7 @@
 				>
 					<strong>Measured and container-clamped</strong>
 					<p class="text-xs muted-text">Escape closes and returns focus to the trigger.</p>
-					<button class="btn-pill btn-pill-primary btn-pill-xs" type="button" onclick={() => popover.close()}>
+					<button class="pill pill-primary pill-xs" type="button" onclick={() => popover.close()}>
 						Close
 					</button>
 				</div>
@@ -438,7 +429,7 @@
 			<div class="app-modal-status is-success text-xs">Applied — success variant.</div>
 			<div class="app-modal-empty">
 				<p>Empty state body copy teaching the surface.</p>
-				<button class="btn-pill btn-pill-secondary mt-2" type="button">Suggested action</button>
+				<button class="pill pill-ghost mt-2" type="button">Suggested action</button>
 			</div>
 		</div>
 	</section>
@@ -492,9 +483,9 @@
 			<div class="lab-preset-controls" role="group" aria-label="Metadata form presets">
 				{#each metadataFormLabPresets as preset (preset.id)}
 					<button
-						class="btn-pill"
-						class:btn-pill-primary={activeMetadataPreset === preset.id}
-						class:btn-pill-secondary={activeMetadataPreset !== preset.id}
+						class="pill"
+						class:pill-primary={activeMetadataPreset === preset.id}
+						class:pill-ghost={activeMetadataPreset !== preset.id}
 						type="button"
 						data-testid={`metadata-preset-${preset.id}`}
 						aria-pressed={activeMetadataPreset === preset.id}

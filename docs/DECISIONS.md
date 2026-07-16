@@ -309,3 +309,35 @@
 - Guardrail: inherited odd tags from external files do not block unrelated
   saves or processing; strict shape validation applies when intent touches the
   series family.
+
+## Full-fidelity v3 rebuild — edit surface, transport, accepted deviations (2026-07-16)
+
+- Outcome: the frontend rebuilt to `docs/design/ui-directions-v3.html` as spec
+  (tokens-first with temporary aliases, owners reskinned in slices, aliases
+  deleted at the end). Evidence: branch `ui/redesign-prototype` slices S1–S11;
+  design lab renders the shipped kit 1:1.
+- Edit surface is a durable preference (`EditSurfacePreference`, Rail default,
+  Popover alternate) persisted like density; both presentations satisfy the
+  FileList `MetadataSurfacePresentation` contract and the rail presentation
+  never steals focus.
+- Transport precedence is composed in operationsBar (foreground preview →
+  top running WorkRuntime op → idle + order-lock suffix); statusPanel stays a
+  pure foreground adapter. ETA and the operation log tail are backend-authored
+  (`eta_seconds` producers; bounded `log_tail` on `OperationSnapshot`).
+- Accepted mock deviations (fidelity audits judge against this list): the ops
+  bar preview pill is replaced by the Process split-button caret
+  (owner-directed); the rail keeps all 10 metadata fields stacked (mock shows
+  an illustrative subset); rail cover editing stays in the Metadata pane; the
+  popover keeps the slim tab row; Cancel All renders only during a cancellable
+  foreground preview; the empty-state dashed drop zone is retained; fidelity
+  is judged in dark mode (light theme reuses the same primitives with light
+  token values, no mock reference exists).
+- Effect v4 and TypeScript 7 migrations deferred with triggers (stable v4
+  release + workflow-driven need; svelte-check parity + measured build
+  savings). Guardrail: do not fold either into visual work.
+- Testing-gaps ledger (post-rebuild): no automated visual-regression harness
+  (screenshot audits are agent/manual); drag-vs-row-click interplay verified
+  manually only; ETA accuracy unit-tested at the smoother, not end-to-end
+  against real encodes; rail focus behavior asserted in jsdom, not a real
+  webview; light theme has no fidelity reference; relative-time ticking
+  untested across long sessions.

@@ -19,9 +19,6 @@ describe('LabIsland design fixtures', () => {
 		expect(screen.getByText('Running')).toHaveClass('app-badge-info');
 		expect(screen.getByText('Warning')).toHaveClass('app-badge-warn');
 		expect(screen.getByText('Queued')).toHaveClass('app-badge-muted');
-		expect(screen.getByTestId('pill-size-primitives-section')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Small' })).toHaveClass('btn-pill-sm');
-		expect(screen.getByRole('button', { name: 'Extra small' })).toHaveClass('btn-pill-xs');
 	});
 
 	it('renders the v3 flat pill kit', () => {

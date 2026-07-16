@@ -13,13 +13,16 @@ react to rendered things instead of prose.
   B2 mission control, B3 stage + drawer), each with a live
   Comfortable ⇄ Compact density switch and pinnable disclosure. Outcome:
   converge on a B1×B2 hybrid; synthesis captured in the roadmap issue.
-- `ui-directions-v3.html` — round 3 (#412 slice 2): the B1×B2 hybrid as one
-  window, honoring the locked synthesis (no Library tab, cover-in-row table,
-  combined transport/ops bar, pinnable expandable operations, density
-  switch). The open forks are live toggles above the window: edit surface
-  (rail vs popover) and single vs multi-file selection (batch metadata with
-  mixed-value handling). The living interactive shell was implemented to
-  settle those forks and retired when the production rebuild shipped in #412;
-  this HTML file remains the lineage reference.
+- `ui-directions-v3.html` — round 3: the B1×B2 hybrid as one window. This
+  mock became the SPEC for the full-fidelity production rebuild (branch
+  `ui/redesign-prototype`, slices S1–S11): the shipped app matches it in dark
+  mode — flat ghost-pill kit, Inter/JetBrains Mono, tab-strip app bar,
+  zero-chrome book table, left-column operations panel with lane cards and
+  log tails, and the 340px metadata rail as the default edit surface with the
+  330px popover as the preference alternate (the mock's rail/popover fork
+  became a durable user setting rather than a one-time decision). Deliberate
+  deviations are recorded in `docs/DECISIONS.md` ("Full-fidelity v3
+  rebuild").
 
-Superseded mocks remain here only as design-lineage artifacts.
+Superseded mocks remain here only as design-lineage artifacts; v3 is the
+living fidelity reference.

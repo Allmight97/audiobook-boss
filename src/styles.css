@@ -178,8 +178,7 @@ button {
 /* v3 flat pill kit (mock .pill): quiet ghost + flat primary, 12px/500.
    Size modifiers mirror the mock's inline paddings (sel-actions 5x12,
    dense controls 3x10). */
-.pill,
-.btn-pill {
+.pill {
 	margin-top: 0;
 	display: inline-flex;
 	align-items: center;
@@ -197,43 +196,36 @@ button {
 		color var(--dur-fast) var(--ease-out);
 }
 
-.pill.pill-sm,
-.btn-pill.btn-pill-sm {
+.pill.pill-sm {
 	padding: 0.3125rem 0.75rem;
 }
 
-.pill.pill-xs,
-.btn-pill.btn-pill-xs {
+.pill.pill-xs {
 	padding: 0.1875rem 0.625rem;
 	font-size: var(--text-xs);
 }
 
-.pill-primary,
-.btn-pill-primary {
+.pill-primary {
 	background: var(--accent-primary);
 	color: #ffffff;
 }
 
-.pill-primary:hover:not(:disabled),
-.btn-pill-primary:hover:not(:disabled) {
+.pill-primary:hover:not(:disabled) {
 	background: var(--accent-primary-hover);
 }
 
-.pill-ghost,
-.btn-pill-secondary {
+.pill-ghost {
 	background: transparent;
 	color: var(--text-secondary);
 	border-color: var(--border-secondary);
 }
 
-.pill-ghost:hover:not(:disabled),
-.btn-pill-secondary:hover:not(:disabled) {
+.pill-ghost:hover:not(:disabled) {
 	background: var(--bg-input);
 	color: var(--text-primary);
 }
 
-.pill:disabled,
-.btn-pill:disabled {
+.pill:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }

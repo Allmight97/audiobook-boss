@@ -2,10 +2,11 @@
 
 ## Public API Strip
 
-- `PreviewAudioControls`
+- `ProcessSplitButton`
 
 ## Ownership
 
-- Own the preview-duration split control. It starts retained foreground preview
-  processing through the Status Panel public strip; it does not read work
-  operation snapshots.
+- Own the Process split control: the primary main action starts a full run and
+  the caret menu starts retained foreground preview processing
+  (15/30/45/60s) — both through the Status Panel public strip. This owner does
+  not read work operation snapshots.

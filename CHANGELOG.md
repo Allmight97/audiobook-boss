@@ -20,6 +20,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Full-fidelity v3 rebuild: the whole frontend now matches the direction-v3
+  mock — self-hosted Inter/JetBrains Mono, the flat ghost-pill design system,
+  a 46px tab-strip app bar, a single-row toolbar (Import menu with Files/
+  Folder, ☁ Audible, merge chip, encoder/naming pills, a Process split-button
+  whose caret runs 15–60s previews), a zero-chrome book table with
+  column-header sorting and whole-row activation, the operations panel inside
+  the left column with per-job lane cards, backend-authored ETAs
+  ("04:02 left") and a bounded operation log tail, and a persistent 340px
+  metadata rail as the default edit surface (switchable to the 330px popover
+  in App Settings). Number of Jobs and the new edit-surface preference live
+  in the App Settings dialog.
 - Direction v3 unifies the toolbar, gives the book table the full window width
   with status badges, moves work into a bottom operations bar, adds a popover
   metadata surface with Facts, Chapters, and Output tabs, and remembers the

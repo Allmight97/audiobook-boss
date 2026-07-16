@@ -120,7 +120,7 @@ describe('Status Transport island mount', () => {
 		];
 		await tick();
 
-		(document.querySelector('button.btn-pill') as HTMLButtonElement).click();
+		(document.querySelector('button.pill') as HTMLButtonElement).click();
 		expect(triggerCancelAllMock).toHaveBeenCalledTimes(1);
 	});
 });

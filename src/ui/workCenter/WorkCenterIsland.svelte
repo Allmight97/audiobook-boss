@@ -204,7 +204,7 @@
 										{#if child.sourcePath}
 											<button
 												type="button"
-												class="btn-pill btn-pill-secondary btn-pill-xs"
+												class="pill pill-ghost pill-xs"
 												title="Open source file"
 												onclick={() => void openChildSource(child)}
 											>

@@ -58,7 +58,7 @@
 	</div>
 	<button
 		type="button"
-		class="btn-pill btn-pill-secondary btn-pill-xs"
+		class="pill pill-ghost pill-xs"
 		disabled={
 			statusPanelViewState.cancelAllPending ||
 			!statusPanelViewState.isProcessing ||
