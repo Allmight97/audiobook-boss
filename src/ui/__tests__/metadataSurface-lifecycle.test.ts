@@ -3,19 +3,30 @@ import { tick } from 'svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import MetadataSurfaceIsland from '../metadataSurface/MetadataSurfaceIsland.svelte';
+import metadataSurfaceSource from '../metadataSurface/MetadataSurfaceIsland.svelte?raw';
 import { applyEditSurfacePreference } from '../metadataSurface/editSurface.svelte';
 
 vi.mock('../coverArt', () => ({
+	coverArtBytesToDataUrl: () => 'data:image/jpeg;base64,cover',
 	onClearCoverArt: vi.fn(),
 	onLoadCoverArtFromFilePicker: vi.fn(),
 	onLoadCoverArtFromInput: vi.fn(),
 }));
 vi.mock('../metadataSession', () => ({
+	getMetadataForFile: () => ({
+		title: 'The Way of Kings',
+		cover_art: new Uint8Array([1]),
+	}),
 	metadataSaveInProgress: { subscribe: vi.fn(() => () => {}) },
 	saveMetadataFromUI: vi.fn(),
 }));
 vi.mock('../metadataLookup', () => ({ openMetadataLookup: vi.fn() }));
 vi.mock('../fileList', () => ({
+	getCurrentFileList: () => ({
+		files: [{ path: '/books/the-way-of-kings.m4b', duration: 65_000 }],
+	}),
+	getSelectedFileIndex: () => 0,
+	getSelectedFiles: () => [{ path: '/books/the-way-of-kings.m4b' }],
 	readInspectorFacts: () => [
 		{ label: 'Codec', value: 'AAC-LC', title: 'AAC-LC' },
 		{ label: 'Position', value: 'Unsupported container', title: 'Unsupported container' },
@@ -63,6 +74,30 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 		await tick();
 		await fireEvent.click(screen.getByRole('button', { name: 'Close metadata editor' }));
 		expect(onDismiss).toHaveBeenCalledTimes(2);
+	});
+
+	it('uses the 330px pop-head with the active title, cover, close pill, and stacked panes', async () => {
+		const onPresentationReady = vi.fn();
+		render(MetadataSurfaceIsland, { onPresentationReady });
+		const runtime = onPresentationReady.mock.calls[0]?.[0] as {
+			open(anchor: HTMLElement): void;
+		};
+		const rowControl = document.createElement('button');
+		document.body.append(rowControl);
+		runtime.open(rowControl);
+		await tick();
+
+		const dialog = screen.getByTestId('metadata-surface');
+		expect(screen.getByRole('heading', { name: 'The Way of Kings' })).toBeInTheDocument();
+		expect(dialog.querySelector('img')).toHaveAttribute('src', 'data:image/jpeg;base64,cover');
+		expect(screen.getByRole('button', { name: 'Close metadata editor' })).toHaveClass(
+			'pill',
+			'pill-ghost',
+			'pill-xs',
+		);
+
+		expect(metadataSurfaceSource).toContain('width: 330px');
+		expect(metadataSurfaceSource).toContain('<MetadataSurfacePanes idPrefix="metadata-surface" layout="stacked"');
 	});
 
 	it('renders inspector facts, embedded chapters, and the public output preview in tabs', async () => {

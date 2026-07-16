@@ -1,8 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { PopoverController } from '../../lib/ui/popover.svelte';
-	import { getSelectedFiles } from '../fileList';
+	import { coverArtBytesToDataUrl } from '../coverArt';
+	import {
+		getCurrentFileList,
+		getSelectedFileIndex,
+		getSelectedFiles,
+		readInspectorFacts,
+	} from '../fileList';
 	import { readMetadataFormViewSnapshot } from '../metadataForm';
+	import { getMetadataForFile } from '../metadataSession';
 	import { editSurfaceState } from './editSurface.svelte';
 	import MetadataSurfacePanes from './MetadataSurfacePanes.svelte';
 	type Presentation = {
@@ -28,6 +35,15 @@
 	let popoverPresentation = $state<Presentation | null>(null);
 
 	const metadataFormSnapshot = $derived(readMetadataFormViewSnapshot());
+	const activeFile = $derived(getCurrentFileList()?.files[getSelectedFileIndex()] ?? null);
+	const facts = $derived(readInspectorFacts());
+	const activeMetadata = $derived(activeFile ? getMetadataForFile(activeFile.path) : undefined);
+	const activeTitle = $derived(
+		activeMetadata?.title || facts.find((fact) => fact.label === 'File')?.value || 'Metadata',
+	);
+	const coverDataUrl = $derived(
+		activeMetadata?.cover_art?.length ? coverArtBytesToDataUrl(activeMetadata.cover_art) : null,
+	);
 
 	$effect(() => {
 		popover.setElements({ anchor, container, panel });
@@ -111,30 +127,36 @@
 		}}
 	>
 		<header class="metadata-surface-header">
-			<div>
-				<h2>Metadata</h2>
-				{#if metadataFormSnapshot.mode === 'multi' && metadataFormSnapshot.selectionCount > 1}
-					<p>{metadataFormSnapshot.selectionCount} files selected</p>
-				{/if}
-			</div>
+			{#if coverDataUrl}
+				<img class="metadata-surface-cover" src={coverDataUrl} alt="" />
+			{:else}
+				<div class="metadata-surface-cover metadata-surface-cover-placeholder" aria-hidden="true"></div>
+			{/if}
+			<h2>
+				{metadataFormSnapshot.mode === 'multi' && metadataFormSnapshot.selectionCount > 1
+					? `${metadataFormSnapshot.selectionCount} files selected`
+					: activeTitle}
+			</h2>
 			<button
 				type="button"
-				class="metadata-surface-close"
+				class="pill pill-ghost pill-xs"
 				aria-label="Close metadata editor"
 				onclick={() => void requestDismissal()}
 			>
-				×
+				✕
 			</button>
 		</header>
 
-		<MetadataSurfacePanes idPrefix="metadata-surface" resetKey={openVersion} />
+		<div class="metadata-surface-body">
+			<MetadataSurfacePanes idPrefix="metadata-surface" layout="stacked" resetKey={openVersion} />
+		</div>
 		</div>
 	{/if}
 </div>
 
 <style>
 	.metadata-surface {
-		width: min(52rem, calc(100% - (2 * var(--space-3))));
+		width: 330px;
 		max-height: calc(100% - (2 * var(--space-3)));
 		overflow: auto;
 	}
@@ -142,19 +164,31 @@
 	.metadata-surface-header {
 		display: flex;
 		align-items: center;
+		gap: 10px;
+		padding: 12px 14px;
+		border-bottom: 1px solid var(--border-primary);
 	}
 
-	.metadata-surface-header {
-		justify-content: space-between;
-		gap: var(--space-3);
-		margin-bottom: var(--space-2);
+	.metadata-surface-cover {
+		width: 34px;
+		height: 34px;
+		flex: 0 0 auto;
+		border-radius: 6px;
+		object-fit: cover;
 	}
 
-	.metadata-surface-header h2,
-	.metadata-surface-header p { margin: 0; }
-	.metadata-surface-header h2 { color: var(--text-primary); font-size: var(--text-lg); }
-	.metadata-surface-header p { color: var(--text-muted); font-size: var(--text-sm); }
-	.metadata-surface-close { margin-top: 0; padding: var(--space-1) var(--space-2); background: transparent; color: var(--text-muted); }
-	.metadata-surface-close:hover, .metadata-surface-close:focus-visible { background: var(--bg-hover); color: var(--text-primary); }
+	.metadata-surface-cover-placeholder { background: var(--bg-hover); }
+	.metadata-surface-header h2 {
+		min-width: 0;
+		flex: 1 1 auto;
+		overflow: hidden;
+		margin: 0;
+		color: var(--text-primary);
+		font-size: 13px;
+		font-weight: 600;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.metadata-surface-body { padding: 12px 14px; }
 
 </style>
