@@ -18,6 +18,7 @@
 	import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
 	import { OutputPanelIsland, readOutputNamingSummaryLabel } from '../outputPanel';
 	import { TagPreviewIsland } from '../tagPreview';
+	import { editSurfaceState } from '../metadataSurface';
 	import { densityState, setDensityFromUser } from './density.svelte';
 
 interface Props {
@@ -27,7 +28,7 @@ interface Props {
 }
 
 let { children, overlay, rail }: Props = $props();
-	const noRail = true;
+	const noRail = $derived(editSurfaceState.preference !== 'rail');
 	const selectedFileCount = $derived(getSelectedFileIndices().size);
 	const fileCount = $derived(readFileListCount());
 	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
@@ -251,7 +252,7 @@ let { children, overlay, rail }: Props = $props();
 		</div>
 	{/if}
 
-	<main class="app-shell-main no-rail" data-testid="app-shell-main">
+	<main class="app-shell-main" class:no-rail={noRail} data-testid="app-shell-main">
 		<div class="app-shell-main-left">
 			<div class="app-shell-main-content">
 				{@render children()}

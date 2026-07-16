@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import MetadataSurfaceIsland from '../metadataSurface/MetadataSurfaceIsland.svelte';
+import { applyEditSurfacePreference } from '../metadataSurface/editSurface.svelte';
 
 vi.mock('../coverArt', () => ({
 	onClearCoverArt: vi.fn(),
@@ -29,6 +30,10 @@ vi.mock('../outputPanel', () => ({
 }));
 
 describe('MetadataSurfaceIsland lifecycle', () => {
+	beforeEach(() => {
+		applyEditSurfacePreference('popover');
+	});
+
 	it('opens on its row anchor, delegates Escape and X dismissal, and restores row focus', async () => {
 		const onDismiss = vi.fn(async () => true);
 		const onPresentationReady = vi.fn();
@@ -63,7 +68,10 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 	it('renders inspector facts, embedded chapters, and the public output preview in tabs', async () => {
 		const onPresentationReady = vi.fn();
 		render(MetadataSurfaceIsland, { onPresentationReady });
-		const runtime = onPresentationReady.mock.calls[0]?.[0] as { open(anchor: HTMLElement): void };
+		const runtime = onPresentationReady.mock.calls[0]?.[0] as {
+			open(anchor: HTMLElement): void;
+			closeWithoutStaging(options?: { restoreFocus?: boolean }): void;
+		};
 		const rowControl = document.createElement('button');
 		document.body.append(rowControl);
 		runtime.open(rowControl);
@@ -77,5 +85,13 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 		expect(screen.getByText('0:00 – 1:05')).toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('tab', { name: 'Output' }));
 		expect(screen.getByText('Example.m4b')).toBeInTheDocument();
+
+		runtime.closeWithoutStaging({ restoreFocus: false });
+		runtime.open(rowControl);
+		await tick();
+		expect(screen.getByRole('tab', { name: 'Metadata' })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
 	});
 });

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { FileListIsland, requestMetadataSurfaceDismissal, setMetadataSurfacePresentation } from './ui/fileList';
 	import FileImportIsland from './ui/fileImport/FileImportIsland.svelte';
-	import { MetadataSurfaceIsland } from './ui/metadataSurface';
+	import { MetadataRailIsland, MetadataSurfaceIsland } from './ui/metadataSurface';
 	import { readWorkActivityByInputId } from './ui/workCenter';
 	import { MetadataLookupIsland } from './ui/metadataLookup';
 	import { AppShellIsland } from './ui/appShell';
@@ -34,6 +34,9 @@
 <svelte:window onkeydown={handleGlobalKeyDown} />
 
 <AppShellIsland>
+	{#snippet rail()}
+		<MetadataRailIsland />
+	{/snippet}
 	{#snippet overlay()}
 		<MetadataSurfaceIsland
 			onDismiss={requestMetadataSurfaceDismissal}

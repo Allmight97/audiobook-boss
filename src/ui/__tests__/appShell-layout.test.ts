@@ -14,11 +14,19 @@ describe('app shell composition', () => {
 		expect(appSource).toContain('<FileImportIsland>');
 		expect(appSource).toContain('<FileListIsland {...dropTarget} {readWorkActivityByInputId} />');
 		expect(appSource).toContain('<MetadataSurfaceIsland');
+		expect(appSource).toContain('{#snippet rail()}');
+		expect(appSource).toContain('<MetadataRailIsland />');
 		expect(appSource).not.toContain('LeftColumnIsland');
 		expect(appSource).not.toContain('MetadataManagerIsland');
 		expect(appSource).not.toContain('main-container');
 		expect(appSource).not.toContain('StatusPanelIsland');
 		expect(appSource).not.toContain('WorkCenterIsland');
+	});
+
+	it('shows the metadata rail from the edit-surface preference instead of a hardcoded gate', () => {
+		expect(appShellSource).toContain('editSurfaceState.preference');
+		expect(appShellSource).not.toContain('const noRail = true');
+		expect(appShellSource).toContain('class:no-rail={noRail}');
 	});
 
 	it('arranges appbar, unified toolbar, main region, and operations bar in that order', () => {

@@ -11,6 +11,7 @@
 	export let onFieldInput: MetadataFieldHandler;
 	export let onActionChange: MetadataFieldHandler;
 	export let onSaveMetadata: MetadataSaveHandler;
+	export let layout: 'grid' | 'stacked' = 'grid';
 
 	function handleMetadataFieldInput(event: Event): void {
 		const target = event.target;
@@ -39,7 +40,8 @@
 </script>
 
 <div
-	class="grid grid-cols-4 gap-x-3 gap-y-1.5"
+	class="metadata-form-fields grid grid-cols-4 gap-x-3 gap-y-1.5"
+	class:metadata-form-fields--stacked={layout === 'stacked'}
 	oninput={handleMetadataFieldInput}
 	onchange={handleMetadataFieldChange}
 >
@@ -389,6 +391,14 @@
 		justify-content: flex-end;
 		gap: 0.5rem;
 		margin-top: 0.5rem;
+	}
+
+	.metadata-form-fields--stacked {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.metadata-form-fields--stacked > div {
+		grid-column: 1 / -1;
 	}
 
 	input.dirty-field,
