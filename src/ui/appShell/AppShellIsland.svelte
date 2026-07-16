@@ -383,6 +383,18 @@ let { children, overlay, rail }: Props = $props();
 		overflow: hidden;
 	}
 
+	/* The rail cell must never dictate the grid row height: without
+	   min-height: 0 a tall Metadata/Chapters pane stretches the row past the
+	   viewport and carries the left cell's operations bar off-screen. The
+	   rail island scrolls internally (mock .rail { overflow: auto }). */
+	.app-shell-main-rail {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+
 	.app-shell-popover {
 		width: min(34rem, calc(100% - (2 * var(--space-3))));
 		max-height: calc(100% - (2 * var(--space-3)));

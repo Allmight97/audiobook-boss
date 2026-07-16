@@ -58,6 +58,7 @@
 	.metadata-rail {
 		display: flex;
 		min-width: 0;
+		min-height: 0;
 		flex: 1 1 auto;
 		flex-direction: column;
 		overflow: auto;
