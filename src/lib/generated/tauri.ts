@@ -518,6 +518,18 @@ export type OperationListSnapshot = {
 	operations: OperationSnapshot[],
 };
 
+/**
+ *  Bounded per-operation activity tail rendered by the Work Center's op-card
+ *  log box. Authored only where snapshot state changes (progress application,
+ *  lifecycle transitions) — the frontend never accumulates its own history.
+ */
+export type OperationLogEntry = {
+	timestampMs: number,
+	message: string,
+	stage: WorkProgressStage | null,
+	childJobId: string | null,
+};
+
 export type OperationResultSummary = {
 	total: number,
 	succeeded: number,
@@ -544,6 +556,7 @@ export type OperationSnapshot = {
 	terminalSummary: OperationTerminalSummary | null,
 	warnings: string[],
 	errors: string[],
+	logTail: OperationLogEntry[],
 };
 
 export type OperationTerminalSummary = {

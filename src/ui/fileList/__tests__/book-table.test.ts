@@ -93,6 +93,7 @@ function batchSnapshot(inputId: string): OperationSnapshot {
 		terminalSummary: undefined,
 		warnings: [],
 		errors: [],
+		logTail: [],
 	};
 }
 

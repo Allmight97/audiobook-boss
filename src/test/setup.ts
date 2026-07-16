@@ -106,6 +106,7 @@ function mockOperationSnapshot(
 		terminalSummary: null,
 		warnings: [],
 		errors: [],
+		logTail: [],
 	};
 }
 

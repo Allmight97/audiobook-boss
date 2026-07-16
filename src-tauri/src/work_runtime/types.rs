@@ -127,6 +127,21 @@ pub struct ChildJobSnapshot {
     pub message: Option<String>,
 }
 
+/// Bounded per-operation activity tail rendered by the Work Center's op-card
+/// log box. Authored only where snapshot state changes (progress application,
+/// lifecycle transitions) — the frontend never accumulates its own history.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationLogEntry {
+    pub timestamp_ms: i64,
+    pub message: String,
+    pub stage: Option<WorkProgressStage>,
+    pub child_job_id: Option<String>,
+}
+
+/// Maximum retained log entries per operation (drop-oldest).
+pub const OPERATION_LOG_TAIL_CAP: usize = 20;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationTerminalSummary {
@@ -158,6 +173,7 @@ pub struct OperationSnapshot {
     pub terminal_summary: Option<OperationTerminalSummary>,
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
+    pub log_tail: Vec<OperationLogEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]

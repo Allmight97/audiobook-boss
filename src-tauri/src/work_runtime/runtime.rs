@@ -248,7 +248,7 @@ impl WorkRuntime {
         event: &ProgressEvent,
     ) {
         match lock_state(&self.inner.state)
-            .and_then(|mut state| state.apply_progress_event(operation_id, event))
+            .and_then(|mut state| state.apply_progress_event(operation_id, event, now_ms()))
         {
             Ok(snapshot) => self.emit_snapshot(window, &snapshot),
             Err(error) => log::warn!(

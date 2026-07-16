@@ -60,6 +60,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		terminalSummary: undefined,
 		warnings: [],
 		errors: [],
+		logTail: [],
 	};
 }
 

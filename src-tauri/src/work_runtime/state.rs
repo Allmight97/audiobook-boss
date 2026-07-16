@@ -1,6 +1,6 @@
 use super::types::{
-    ChildJobStatus, OperationId, OperationListSnapshot, OperationSnapshot,
-    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
+    ChildJobStatus, OperationId, OperationListSnapshot, OperationLogEntry, OperationSnapshot,
+    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage, OPERATION_LOG_TAIL_CAP,
 };
 use crate::errors::{AppError, Result};
 use crate::processing::ProgressEvent;
@@ -21,6 +21,38 @@ const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
     ChildJobStatus::Cancelled,
     ChildJobStatus::Failed,
 ];
+
+/// Appends to the operation's bounded activity tail. Consecutive identical
+/// messages collapse (progress spam must not rotate real history out); the
+/// tail drops oldest past `OPERATION_LOG_TAIL_CAP`.
+fn push_operation_log(
+    snapshot: &mut OperationSnapshot,
+    timestamp_ms: i64,
+    message: &str,
+    stage: Option<WorkProgressStage>,
+    child_job_id: Option<String>,
+) {
+    if message.is_empty() {
+        return;
+    }
+    if snapshot
+        .log_tail
+        .last()
+        .is_some_and(|entry| entry.message == message)
+    {
+        return;
+    }
+    snapshot.log_tail.push(OperationLogEntry {
+        timestamp_ms,
+        message: message.to_string(),
+        stage,
+        child_job_id,
+    });
+    if snapshot.log_tail.len() > OPERATION_LOG_TAIL_CAP {
+        let overflow = snapshot.log_tail.len() - OPERATION_LOG_TAIL_CAP;
+        snapshot.log_tail.drain(0..overflow);
+    }
+}
 
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
@@ -60,6 +92,13 @@ impl WorkRuntimeState {
             snapshot.status = WorkOperationStatus::Running;
             snapshot.progress.stage = WorkProgressStage::Analyzing;
             snapshot.progress.message = "Processing started.".to_string();
+            push_operation_log(
+                snapshot,
+                now_ms,
+                "Processing started.",
+                Some(WorkProgressStage::Analyzing),
+                None,
+            );
             for child in &mut snapshot.children {
                 if child.status == ChildJobStatus::Queued {
                     child.cancellable = true;
@@ -73,6 +112,7 @@ impl WorkRuntimeState {
         &mut self,
         operation_id: &OperationId,
         event: &ProgressEvent,
+        now_ms: i64,
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
         if is_terminal(snapshot.status) {
@@ -82,6 +122,7 @@ impl WorkRuntimeState {
         let child_count = snapshot.children.len();
         let mut matched_child = false;
         let mut child_scoped_batch_event = false;
+        let mut matched_child_job_id: Option<String> = None;
 
         for child in &mut snapshot.children {
             if !progress_matches_child(child, event, child_count) {
@@ -89,6 +130,7 @@ impl WorkRuntimeState {
             }
             matched_child = true;
             child_scoped_batch_event = child_count > 1;
+            matched_child_job_id = Some(child.child_job_id.clone());
 
             let child_status = child_status_from_event_stage(event.stage);
             if let Some(job_id) = event.job_id.as_deref() {
@@ -128,6 +170,13 @@ impl WorkRuntimeState {
             event.stage,
             snapshot.status,
             child_scoped_batch_event,
+        );
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &event.message,
+            Some(work_stage_from_event_stage(event.stage)),
+            matched_child_job_id,
         );
 
         Ok(snapshot.clone())
@@ -240,6 +289,13 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Failed;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &message,
+            Some(WorkProgressStage::Failed),
+            None,
+        );
         snapshot.errors.push(message.clone());
         let summary = OperationResultSummary::all_failed(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
@@ -269,6 +325,13 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Cancelled;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &message,
+            Some(WorkProgressStage::Cancelled),
+            None,
+        );
         let summary = OperationResultSummary::all_cancelled(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
         for child in &mut snapshot.children {
@@ -306,6 +369,13 @@ fn apply_operation_terminal(
     snapshot.progress.stage = stage_from_status(status);
     snapshot.progress.percentage = 100.0;
     snapshot.progress.message = terminal_summary.message.clone();
+    push_operation_log(
+        snapshot,
+        now_ms,
+        &terminal_summary.message,
+        Some(stage_from_status(status)),
+        None,
+    );
     snapshot.terminal_summary = Some(terminal_summary);
 }
 

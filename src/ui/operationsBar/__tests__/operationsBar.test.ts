@@ -63,6 +63,7 @@ function operation(status: OperationSnapshot['status'] = 'running'): OperationSn
 		terminalSummary: undefined,
 		warnings: [],
 		errors: [],
+		logTail: [],
 	};
 }
 

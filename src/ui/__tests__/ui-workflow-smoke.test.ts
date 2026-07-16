@@ -155,6 +155,7 @@ function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted 
 			terminalSummary: undefined,
 			warnings: [],
 			errors: [],
+			logTail: [],
 		},
 	};
 }
