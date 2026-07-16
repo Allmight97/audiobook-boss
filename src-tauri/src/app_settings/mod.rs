@@ -8,8 +8,7 @@ use crate::errors::{AppError, Result};
 
 pub use types::{
     AppSettings, AppSettingsPatch, ConcurrencyPreference, DensityPreference, EditSurfacePreference,
-    EncoderDefaults,
-    OutputDefaults, PinnedDefaults, StartupBehavior, ToolchainPreferences,
+    EncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior, ToolchainPreferences,
 };
 
 static SETTINGS_UPDATE_LOCK: Mutex<()> = Mutex::new(());
