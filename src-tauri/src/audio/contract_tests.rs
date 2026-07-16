@@ -51,8 +51,8 @@ fn audio_contract_rejects_invalid_encoder_bitrate() {
 
 #[test]
 fn audio_file_chapters_serialize_and_default_empty_for_legacy_payloads() {
-    let serialized = serde_json::to_value(AudioFile::new("chaptered.m4b".into()))
-        .expect("serialize audio file");
+    let serialized =
+        serde_json::to_value(AudioFile::new("chaptered.m4b".into())).expect("serialize audio file");
     assert_eq!(serialized["chapters"], serde_json::json!([]));
 
     let legacy = serde_json::json!({
@@ -70,5 +70,8 @@ fn audio_file_chapters_serialize_and_default_empty_for_legacy_payloads() {
         "error": null
     });
     let parsed: AudioFile = serde_json::from_value(legacy).expect("deserialize legacy audio file");
-    assert!(parsed.chapters.is_empty(), "missing chapters defaults to empty");
+    assert!(
+        parsed.chapters.is_empty(),
+        "missing chapters defaults to empty"
+    );
 }

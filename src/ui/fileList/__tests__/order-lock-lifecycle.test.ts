@@ -245,6 +245,5 @@ describe('order lock lifecycle', () => {
 			const current = getCurrentFileList();
 			expect(current?.files.length).toBe(0);
 		});
-
 	});
 });

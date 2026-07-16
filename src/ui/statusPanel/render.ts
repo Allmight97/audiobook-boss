@@ -1,6 +1,7 @@
 import { formatStatusDisplayText } from './formatting';
 import type { JobProgress, ProcessingStatus } from './state';
 import {
+	setStatusPanelEtaSeconds,
 	setStatusPanelIsProcessing,
 	setStatusPanelJobItems,
 	setStatusPanelProgressPercentage,
@@ -16,6 +17,11 @@ export function renderStatus(status: ProcessingStatus, isProcessing: boolean): v
 	setStatusPanelStepText(`Current Step: ${status.message}`);
 	setStatusPanelStepColor('var(--text-primary)');
 	setStatusPanelIsProcessing(isProcessing);
+	setStatusPanelEtaSeconds(
+		status.stage === 'converting' && typeof status.etaSeconds === 'number'
+			? status.etaSeconds
+			: null,
+	);
 }
 
 function formatJobStatusText(

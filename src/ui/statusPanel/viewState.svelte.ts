@@ -10,6 +10,7 @@ type StatusPanelViewState = {
 	stepColor: string;
 	isProcessing: boolean;
 	cancelAllPending: boolean;
+	etaSeconds: number | null;
 };
 
 // Cluster-internal: the transport island compares against the default step
@@ -26,6 +27,7 @@ const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
 	stepColor: STATUS_PANEL_DEFAULT_STEP_COLOR,
 	isProcessing: false,
 	cancelAllPending: false,
+	etaSeconds: null,
 };
 
 const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
@@ -120,6 +122,10 @@ export function setStatusPanelStepColor(value: string): void {
 	statusPanelViewState.stepColor = value;
 }
 
+export function setStatusPanelEtaSeconds(etaSeconds: number | null): void {
+	statusPanelViewState.etaSeconds = etaSeconds;
+}
+
 export function setStatusPanelIsProcessing(isProcessing: boolean): void {
 	statusPanelViewState.isProcessing = isProcessing;
 }
@@ -162,6 +168,7 @@ export function resetStatusPanelViewState(): void {
 	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
 	statusPanelViewState.isProcessing = DEFAULT_STATUS_PANEL_VIEW_STATE.isProcessing;
 	statusPanelViewState.cancelAllPending = DEFAULT_STATUS_PANEL_VIEW_STATE.cancelAllPending;
+	statusPanelViewState.etaSeconds = DEFAULT_STATUS_PANEL_VIEW_STATE.etaSeconds;
 
 	if (statusMessageLockTimeoutId !== null) {
 		window.clearTimeout(statusMessageLockTimeoutId);

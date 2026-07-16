@@ -30,6 +30,7 @@ pub(crate) fn process_input_files(
 ) -> Result<bool> {
     let mut running_pts: i64 = 0;
     let mut last_emit = std::time::Instant::now();
+    let mut eta_estimator = crate::processing::progress::EtaEstimator::new();
     let mut input_samples_total: u64 = 0;
     let mut encoded_samples_total: u64 = 0;
     let mut preview_early_stop = false;
@@ -60,6 +61,7 @@ pub(crate) fn process_input_files(
         output_time_base: io.ost_time_base,
         running_pts: &mut running_pts,
         last_emit: &mut last_emit,
+        eta: &mut eta_estimator,
         current_file_index: 0,
         current_stream_index: 0,
         current_file_name: String::new(),

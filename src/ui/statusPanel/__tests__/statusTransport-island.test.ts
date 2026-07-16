@@ -37,6 +37,29 @@ describe('Status Transport island mount', () => {
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
 	});
 
+	it('prefers the backend-authored ETA over the stage text in the transport line', async () => {
+		render(StatusTransportIsland);
+		statusPanelViewState.isProcessing = true;
+		statusPanelViewState.progressPercentage = 64;
+		statusPanelViewState.statusText = 'Converting';
+		statusPanelViewState.etaSeconds = 242;
+		statusPanelViewState.jobItems = [
+			{
+				key: 'processing',
+				label: 'The Way of Kings',
+				status: 'processing',
+				statusText: 'Converting',
+				canCancel: true,
+				cancelId: 'job-1',
+			},
+		];
+		await tick();
+
+		expect(
+			document.querySelector('[data-testid="status-transport-line"]')?.textContent?.trim(),
+		).toBe('The Way of Kings · 64% · 04:02 left');
+	});
+
 	it('composes label, percentage, and status into one line while processing', async () => {
 		render(StatusTransportIsland);
 		statusPanelViewState.isProcessing = true;

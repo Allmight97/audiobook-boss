@@ -1,3 +1,4 @@
+use crate::processing::progress::EtaEstimator;
 use crate::processing::ProgressEmitter;
 
 pub(super) fn emit_external_progress(
@@ -5,14 +6,16 @@ pub(super) fn emit_external_progress(
     line: &str,
     total_ms: f64,
     current_file: Option<String>,
+    eta: &mut EtaEstimator,
 ) {
     if let Some(progress_ms) = parse_progress_ms(line) {
         let percentage = ((progress_ms / total_ms) * 89.0) as f32;
+        let eta_seconds = eta.update(std::time::Instant::now(), progress_ms, total_ms);
         ui.emit_converting_progress(
             percentage.clamp(1.0, 89.0),
             "Encoding with external FDK AAC...",
             current_file,
-            None,
+            eta_seconds,
         );
     }
 }

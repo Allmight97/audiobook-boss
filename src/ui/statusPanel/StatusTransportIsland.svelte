@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { initStatusPanel, triggerCancelAllFromStatusPanel } from './controller';
+	import { formatEtaRemaining } from './formatting';
 	import { STATUS_PANEL_DEFAULT_STEP_COLOR, statusPanelViewState } from './viewState.svelte';
 
 	const activeJob = $derived(
@@ -18,11 +19,16 @@
 		statusPanelViewState.stepColor !== STATUS_PANEL_DEFAULT_STEP_COLOR &&
 			statusPanelViewState.stepText.length > 0,
 	);
+	const transportTail = $derived(
+		statusPanelViewState.etaSeconds !== null
+			? formatEtaRemaining(statusPanelViewState.etaSeconds)
+			: statusPanelViewState.statusText,
+	);
 	const transportLine = $derived(
 		feedbackActive
 			? statusPanelViewState.stepText
 			: statusPanelViewState.isProcessing
-				? `${activeJob?.label ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${statusPanelViewState.statusText}`
+				? `${activeJob?.label ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${transportTail}`
 				: statusPanelViewState.statusText,
 	);
 
