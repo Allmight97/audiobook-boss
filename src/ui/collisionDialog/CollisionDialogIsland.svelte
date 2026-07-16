@@ -61,7 +61,7 @@
 			<h3 id="collision-dialog-title">{collisionDialogState.title}</h3>
 			<button
 				id="collision-dialog-close"
-				class="btn-pill btn-pill-secondary btn-pill-sm"
+				class="pill pill-ghost pill-sm"
 				data-testid="collision-dialog-close"
 				type="button"
 				onclick={cancelCollisionDialog}
@@ -103,7 +103,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-replace"
-						class="btn-pill btn-pill-primary btn-pill-sm"
+						class="pill pill-primary pill-sm"
 						data-testid="collision-dialog-replace"
 						type="button"
 						onclick={() => chooseCollisionPolicy('replace_existing')}
@@ -114,7 +114,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-skip"
-						class="btn-pill btn-pill-secondary btn-pill-sm"
+						class="pill pill-ghost pill-sm"
 						data-testid="collision-dialog-skip"
 						type="button"
 						onclick={() => chooseCollisionPolicy('skip_existing')}
@@ -125,7 +125,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-rename"
-						class="btn-pill btn-pill-secondary btn-pill-sm"
+						class="pill pill-ghost pill-sm"
 						data-testid="collision-dialog-rename"
 						type="button"
 						onclick={() => chooseCollisionPolicy('rename_new')}
@@ -136,7 +136,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-cancel"
-						class="btn-pill btn-pill-secondary btn-pill-sm"
+						class="pill pill-ghost pill-sm"
 						data-testid="collision-dialog-cancel"
 						type="button"
 						onclick={cancelCollisionDialog}

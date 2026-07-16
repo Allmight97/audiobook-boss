@@ -104,7 +104,7 @@
 			<h3 id="app-settings-title">App Settings</h3>
 			<button
 				id="app-settings-close"
-				class="btn-pill btn-pill-secondary btn-pill-sm"
+				class="pill pill-ghost pill-sm"
 				data-testid="app-settings-close"
 				type="button"
 				onclick={closeAppSettingsDialog}
@@ -133,7 +133,7 @@
 							bind:value={appSettingsDialogState.ffmpegPathDraft}
 						/>
 						<button
-							class="btn-pill btn-pill-secondary btn-pill-sm"
+							class="pill pill-ghost pill-sm"
 							data-testid="app-settings-ffmpeg-browse"
 							type="button"
 							onclick={() => void browseForFfmpegBinary()}
@@ -141,7 +141,7 @@
 							Browse…
 						</button>
 						<button
-							class="btn-pill btn-pill-secondary btn-pill-sm"
+							class="pill pill-ghost pill-sm"
 							data-testid="app-settings-ffmpeg-clear"
 							type="button"
 							onclick={clearFfmpegPathDraft}
@@ -149,7 +149,7 @@
 							Clear
 						</button>
 						<button
-							class="btn-pill btn-pill-primary btn-pill-sm"
+							class="pill pill-primary pill-sm"
 							data-testid="app-settings-ffmpeg-save"
 							type="button"
 							disabled={appSettingsDialogState.saveState === 'saving'}
@@ -284,7 +284,7 @@
 						</div>
 						<div class="app-settings-path-row">
 							<button
-								class="btn-pill btn-pill-secondary btn-pill-sm"
+								class="pill pill-ghost pill-sm"
 								data-testid="app-settings-pin-defaults"
 								type="button"
 								disabled={appSettingsDialogState.startupSaveState === 'saving'}
@@ -320,7 +320,7 @@
 						<h4 class="app-settings-section-title">Reset</h4>
 						<div class="app-settings-path-row">
 							<button
-								class="btn-pill btn-pill-secondary btn-pill-sm"
+								class="pill pill-ghost pill-sm"
 								data-testid="app-settings-reset"
 								type="button"
 								disabled={appSettingsDialogState.saveState === 'saving'}

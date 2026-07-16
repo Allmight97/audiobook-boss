@@ -97,7 +97,9 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 		);
 
 		expect(metadataSurfaceSource).toContain('width: 330px');
-		expect(metadataSurfaceSource).toContain('<MetadataSurfacePanes idPrefix="metadata-surface" layout="stacked"');
+		expect(metadataSurfaceSource).toContain(
+			'<MetadataSurfacePanes idPrefix="metadata-surface" layout="stacked"',
+		);
 	});
 
 	it('renders inspector facts, embedded chapters, and the public output preview in tabs', async () => {
@@ -124,9 +126,6 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 		runtime.closeWithoutStaging({ restoreFocus: false });
 		runtime.open(rowControl);
 		await tick();
-		expect(screen.getByRole('tab', { name: 'Metadata' })).toHaveAttribute(
-			'aria-selected',
-			'true',
-		);
+		expect(screen.getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
 	});
 });

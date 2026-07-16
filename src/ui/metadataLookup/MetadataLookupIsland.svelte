@@ -95,7 +95,7 @@
 			<h3 id="metadata-lookup-title">Find Metadata Online</h3>
 			<button
 				id="metadata-lookup-close"
-				class="btn-pill btn-pill-secondary btn-pill-sm"
+				class="pill pill-ghost pill-sm"
 				data-testid="metadata-lookup-close"
 				type="button"
 				onclick={closeMetadataLookup}
@@ -106,7 +106,7 @@
 		<div class="app-modal-body">
 			<div class="app-modal-controls">
 				<div class="app-modal-field app-modal-field-stack">
-					<div class="app-modal-field">
+					<div class="app-modal-field field">
 						<label for="metadata-lookup-title-query">Title</label>
 						<input
 							id="metadata-lookup-title-query"
@@ -117,7 +117,7 @@
 							onkeydown={handleQueryKeyDown}
 						/>
 					</div>
-					<div class="app-modal-field">
+					<div class="app-modal-field field">
 						<label for="metadata-lookup-author-query">Author</label>
 						<input
 							id="metadata-lookup-author-query"
@@ -129,7 +129,7 @@
 						/>
 					</div>
 				</div>
-				<div class="app-modal-field">
+				<div class="app-modal-field field">
 					<label for="metadata-lookup-source">Source</label>
 					<select
 						id="metadata-lookup-source"
@@ -141,7 +141,7 @@
 						<option value="openlibrary">OpenLibrary</option>
 					</select>
 				</div>
-				<div class="app-modal-field">
+				<div class="app-modal-field field">
 					<label for="metadata-lookup-apply-mode">Apply</label>
 					<select
 						id="metadata-lookup-apply-mode"
@@ -170,7 +170,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-search-btn"
-						class="btn-pill btn-pill-primary btn-pill-sm"
+						class="pill pill-primary pill-sm"
 						data-testid="metadata-lookup-search-btn"
 						type="button"
 						onclick={() => void searchMetadataLookup()}
@@ -181,7 +181,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-skip-btn"
-						class="btn-pill btn-pill-secondary btn-pill-sm"
+						class="pill pill-ghost pill-sm"
 						data-testid="metadata-lookup-skip-btn"
 						type="button"
 						disabled={!metadataLookupState.skipEnabled}
@@ -217,7 +217,7 @@
 							</p>
 							<button
 								id="metadata-lookup-manual-entry-btn"
-								class="btn-pill btn-pill-secondary btn-pill-sm mt-2"
+								class="pill pill-ghost pill-sm mt-2"
 								data-testid="metadata-lookup-manual-entry-btn"
 								type="button"
 								onclick={useManualMetadataEntryFromLookup}
@@ -283,7 +283,7 @@
 						<div class="metadata-lookup-actions">
 							<button
 								type="button"
-								class="btn-pill btn-pill-secondary btn-pill-sm"
+								class="pill pill-ghost pill-sm"
 								data-index={index}
 								onclick={() => void applyMetadataLookupResult(index)}
 							>

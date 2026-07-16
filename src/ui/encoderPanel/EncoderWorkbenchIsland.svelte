@@ -38,7 +38,7 @@
 	</div>
 
 	<div class="encoder-workbench-grid">
-		<div class="encoder-field-row">
+		<div class="encoder-field-row field">
 			<label for="adv-encoder">Encoder</label>
 			<div class="encoder-field-stack">
 				<select
@@ -76,7 +76,7 @@
 			</div>
 		</div>
 
-		<div class="encoder-field-row">
+		<div class="encoder-field-row field">
 			<label for="adv-bitrate-mode">Bitrate Mode</label>
 			<select
 				id="adv-bitrate-mode"
@@ -96,7 +96,7 @@
 			</select>
 		</div>
 
-		<div class="encoder-field-row">
+		<div class="encoder-field-row field">
 			<label for="output-quality" id="quality-bitrate-label">{encoderPanelState.qualityBitrateLabel}</label>
 			<div class="encoder-field-stack">
 				<select
@@ -127,7 +127,7 @@
 			</div>
 		</div>
 
-		<div class="encoder-field-row">
+		<div class="encoder-field-row field">
 			<label for="output-samplerate">Sample Rate</label>
 			<div class="encoder-field-stack">
 				<select
@@ -147,7 +147,7 @@
 			</div>
 		</div>
 
-		<div class="encoder-field-row">
+		<div class="encoder-field-row field">
 			<label for="output-channels">Channels</label>
 			<div class="encoder-field-stack">
 				<select

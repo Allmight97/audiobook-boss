@@ -128,7 +128,7 @@
 			<div class="remote-source-header-actions">
 				{#if acquisition.accountState?.status === 'connected'}
 					<button
-						class="btn-pill btn-pill-secondary btn-pill-sm"
+						class="pill pill-ghost pill-sm"
 						disabled={acquisition.isBusy}
 						onclick={() => void account.logout()}
 					>
@@ -137,7 +137,7 @@
 				{/if}
 				<button
 					id="remote-source-close"
-					class="btn-pill btn-pill-secondary btn-pill-sm"
+					class="pill pill-ghost pill-sm"
 					type="button"
 					onclick={closeRemoteSourceAcquire}
 				>
@@ -148,7 +148,7 @@
 
 		<div class="app-modal-body">
 			<div class="app-modal-controls">
-				<div class="app-modal-field">
+				<div class="app-modal-field field">
 					<label for="remote-source-provider">Source</label>
 					<select id="remote-source-provider" disabled>
 						<option>Audible</option>
@@ -158,14 +158,14 @@
 				{#if acquisition.accountState?.status !== 'connected'}
 					<div class="app-modal-field app-modal-field-button">
 						<button
-							class="btn-pill btn-pill-primary btn-pill-sm"
+							class="pill pill-primary pill-sm"
 							disabled={acquisition.isBusy}
 							onclick={() => void account.startAuth()}
 						>
 							Connect Audible
 						</button>
 					</div>
-					<div class="app-modal-field remote-source-handoff">
+					<div class="app-modal-field field remote-source-handoff">
 						<label for="remote-source-handoff">Auth Handoff</label>
 						<input
 							id="remote-source-handoff"
@@ -176,7 +176,7 @@
 					</div>
 					<div class="app-modal-field app-modal-field-button">
 						<button
-							class="btn-pill btn-pill-secondary btn-pill-sm"
+							class="pill pill-ghost pill-sm"
 							disabled={acquisition.isBusy}
 							onclick={() => void account.completeAuth()}
 						>
@@ -186,7 +186,7 @@
 				{:else}
 					<div class="app-modal-field app-modal-field-button">
 						<button
-							class="btn-pill btn-pill-secondary btn-pill-sm"
+						class="pill pill-ghost pill-sm"
 							disabled={acquisition.isBusy}
 							onclick={() => void account.loadLibrary()}
 						>
@@ -195,14 +195,14 @@
 					</div>
 					<div class="app-modal-field app-modal-field-button">
 						<button
-							class="btn-pill btn-pill-primary btn-pill-sm"
+						class="pill pill-primary pill-sm"
 							disabled={acquisition.isBusy || acquisition.selectedTitleIds.size === 0}
 							onclick={() => void workflow.acquireSelected()}
 						>
 							Acquire Selected
 						</button>
 					</div>
-					<div class="app-modal-field remote-source-filter">
+					<div class="app-modal-field field remote-source-filter">
 						<label for="remote-source-filter">Filter</label>
 						<input
 							id="remote-source-filter"
@@ -267,7 +267,7 @@
 					{/if}
 					{#if !isAcquisitionTerminal(acquisition.activeJob)}
 						<button
-							class="btn-pill btn-pill-secondary btn-pill-sm remote-progress-cancel"
+							class="pill pill-ghost pill-sm remote-progress-cancel"
 							type="button"
 							onclick={() => void workflow.cancelActiveAcquisition()}
 						>

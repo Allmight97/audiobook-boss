@@ -3,9 +3,7 @@ import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AudioFile, FileListInfo } from '../../../types/audio';
-import {
-	setMetadataSurfacePresentation,
-} from '../../fileList';
+import { setMetadataSurfacePresentation } from '../../fileList';
 import { coordinateMetadataSurfaceSelectionTransition } from '../../fileList/metadataPanel';
 import {
 	setCurrentFileList,
@@ -76,7 +74,10 @@ describe('MetadataRailIsland', () => {
 		setCurrentFileList(fileList(...files));
 		setSelectedFileIndices([0, 1, 2]);
 		setSelectedIndex(0);
-		populateMetadataFormMulti([{ artist: 'Author' }, { artist: 'Author' }, { artist: 'Author' }], 3);
+		populateMetadataFormMulti(
+			[{ artist: 'Author' }, { artist: 'Author' }, { artist: 'Author' }],
+			3,
+		);
 		render(MetadataRailIsland);
 
 		expect(screen.getByText('3 files selected')).toBeInTheDocument();
@@ -103,7 +104,8 @@ describe('metadata rail presentation', () => {
 	it('keeps row focus through an open-after-populate selection transition', async () => {
 		const onPresentationReady = vi.fn();
 		render(MetadataSurfaceIsland, { onPresentationReady });
-		const railPresentation = onPresentationReady.mock.calls[onPresentationReady.mock.calls.length - 1]?.[0];
+		const railPresentation =
+			onPresentationReady.mock.calls[onPresentationReady.mock.calls.length - 1]?.[0];
 		setMetadataSurfacePresentation(railPresentation);
 		const row = document.createElement('button');
 		document.body.append(row);
