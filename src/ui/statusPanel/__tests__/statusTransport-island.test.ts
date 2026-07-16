@@ -105,6 +105,13 @@ describe('Status Transport island mount', () => {
 		expect(line.style.color).toBe('var(--text-error, #ef4444)');
 	});
 
+	it('does not render Cancel All at idle', async () => {
+		render(StatusTransportIsland);
+		await tick();
+
+		expect(document.querySelector('button.pill')).toBeNull();
+	});
+
 	it('wires Cancel All to the retained local-settle action', async () => {
 		render(StatusTransportIsland);
 		statusPanelViewState.isProcessing = true;

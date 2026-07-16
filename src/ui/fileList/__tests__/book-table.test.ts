@@ -113,6 +113,23 @@ describe('v3 book table', () => {
 		setMetadataSurfacePresentation(null);
 	});
 
+	it('re-renders titles and authors when metadata caches after first paint', async () => {
+		const screen = render(FileListIsland, { props: { readWorkActivityByInputId } });
+
+		// First paint precedes the async backend metadata read: basename fallback.
+		expect(screen.getByText('ready.m4b')).toBeInTheDocument();
+
+		cacheMetadataForFile('/books/ready.m4b', {
+			title: 'The Way of Kings',
+			artist: 'Brandon Sanderson',
+		});
+		await tick();
+
+		expect(screen.getByText('The Way of Kings')).toBeInTheDocument();
+		expect(screen.getByText('Brandon Sanderson')).toBeInTheDocument();
+		expect(screen.queryByText('ready.m4b')).toBeNull();
+	});
+
 	it('renders derived activity badges but makes invalid input an error', async () => {
 		applyOperationSnapshot(batchSnapshot('ready'));
 		const screen = render(FileListIsland, { props: { readWorkActivityByInputId } });

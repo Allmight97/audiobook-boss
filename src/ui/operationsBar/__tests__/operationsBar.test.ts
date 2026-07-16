@@ -154,6 +154,30 @@ describe('OperationsBarIsland', () => {
 		expect(screen.queryByTestId('status-transport-progress')).not.toBeInTheDocument();
 	});
 
+	it('lets a running operation outrank persistent foreground feedback', async () => {
+		const { showError } = await import('../../statusPanel/viewState.svelte');
+		showError('Preview failed.');
+		render(OperationsBarIsland);
+		applyOperationListSnapshot(operationList(operation()));
+
+		await waitFor(() => {
+			expect(screen.getByText(/The Way of Kings — batch encode · 64%/)).toBeInTheDocument();
+		});
+		expect(screen.queryByText(/Error: Preview failed./)).not.toBeInTheDocument();
+	});
+
+	it('renders a cancelling operation on the background transport, not idle', async () => {
+		const { container } = render(OperationsBarIsland);
+		applyOperationListSnapshot(operationList({ ...operation(), status: 'cancelling' }));
+
+		await waitFor(() => {
+			expect(container.querySelector('.operations-bar-background-line')).toHaveTextContent(
+				'The Way of Kings — batch encode',
+			);
+		});
+		expect(screen.queryByText(/^Idle$/)).not.toBeInTheDocument();
+	});
+
 	it('appends the order-lock suffix to idle transport', async () => {
 		setOrderLocked(true);
 		render(OperationsBarIsland);

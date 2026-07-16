@@ -5,7 +5,7 @@
 		readCombinedSizeText,
 		readFileListOrderLockVisible,
 	} from '../fileList';
-	import { readStatusTransportActive, StatusTransportIsland } from '../statusPanel';
+	import { readStatusTransportProcessing, StatusTransportIsland } from '../statusPanel';
 	import { formatEtaRemaining } from '../../lib/format/eta';
 	import { deriveWorkOperationCounts, workCenterState, WorkCenterIsland } from '../workCenter';
 	import { toggleOpsDisclosure, toggleOpsPin, type OpsMode } from './mode';
@@ -16,9 +16,11 @@
 	const durationText = $derived(readCombinedDurationText());
 	const sizeText = $derived(readCombinedSizeText());
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
-	const statusTransportActive = $derived(readStatusTransportActive());
+	const statusTransportProcessing = $derived(readStatusTransportProcessing());
 	const runningOperation = $derived(
-		workCenterState.operations.find((operation) => operation.status === 'running'),
+		workCenterState.operations.find(
+			(operation) => operation.status === 'running' || operation.status === 'cancelling',
+		),
 	);
 
 	function toggleDisclosure(): void {
@@ -66,7 +68,7 @@
 			role="presentation"
 			onclick={stopInteractiveChildPropagation}
 		>
-			{#if statusTransportActive}
+			{#if statusTransportProcessing}
 				<StatusTransportIsland />
 			{:else if runningOperation}
 				<div class="operations-bar-background-transport" aria-label="Background operation transport">

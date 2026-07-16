@@ -48,8 +48,11 @@
 
 	function operationPositionText(operation: OperationSnapshot): string {
 		if (operation.status === 'accepted') {
+			// Dispatch is FIFO by sequence; the list renders newest-first, so
+			// position must count by ascending sequence, not render order.
 			const position = workCenterState.operations
 				.filter((candidate) => candidate.status === 'accepted')
+				.sort((a, b) => a.sequence - b.sequence)
 				.findIndex((candidate) => candidate.operationId === operation.operationId);
 			return `#${position + 1}`;
 		}

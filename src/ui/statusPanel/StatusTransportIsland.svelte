@@ -56,18 +56,16 @@
 			{transportLine}
 		</span>
 	</div>
-	<button
-		type="button"
-		class="pill pill-ghost pill-xs"
-		disabled={
-			statusPanelViewState.cancelAllPending ||
-			!statusPanelViewState.isProcessing ||
-			!hasCancellableForegroundJob
-		}
-		onclick={triggerCancelAllFromStatusPanel}
-	>
-		Cancel All
-	</button>
+	{#if statusPanelViewState.isProcessing && hasCancellableForegroundJob}
+		<button
+			type="button"
+			class="pill pill-ghost pill-xs"
+			disabled={statusPanelViewState.cancelAllPending}
+			onclick={triggerCancelAllFromStatusPanel}
+		>
+			Cancel All
+		</button>
+	{/if}
 </div>
 
 <style>

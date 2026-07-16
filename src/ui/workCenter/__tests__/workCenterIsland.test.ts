@@ -74,7 +74,10 @@ describe('WorkCenterIsland operation cards', () => {
 
 		const { container } = render(WorkCenterIsland);
 		expect(screen.getAllByText('queued')).toHaveLength(2);
-		expect(screen.getByText('#2')).toBeInTheDocument();
+		// FIFO dispatch order: the LOWER sequence runs next and must carry #1
+		// even though the list renders newest-first.
+		expect(screen.getByText('#1').closest('.op-row')).toHaveTextContent('Second queued');
+		expect(screen.getByText('#2').closest('.op-row')).not.toHaveTextContent('Second queued');
 		expect(screen.getByText('2m ago')).toBeInTheDocument();
 		expect(container.querySelector('.op-card.terminal')).toBeTruthy();
 

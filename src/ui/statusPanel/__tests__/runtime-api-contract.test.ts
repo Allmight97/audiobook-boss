@@ -11,7 +11,7 @@ const EXPECTED_STATUS_PANEL_EXPORTS = [
 	'pushStatusPanelTransientStatus',
 	'triggerCancelAllFromStatusPanel',
 	'triggerProcessFromStatusPanel',
-	'readStatusTransportActive',
+	'readStatusTransportProcessing',
 ] as const;
 
 describe('Status Panel Runtime public API contract', () => {
@@ -30,14 +30,15 @@ describe('Status Panel Runtime public API contract', () => {
 		expect(container.querySelector('[aria-label="Preview transport"]')).toBeTruthy();
 	});
 
-	it('reads foreground processing or feedback activity without exposing view state', async () => {
+	it('reads live foreground processing without counting persistent feedback', async () => {
 		const { statusPanelViewState, resetStatusPanelViewState } = await import('../viewState.svelte');
 		resetStatusPanelViewState();
-		expect(statusPanel.readStatusTransportActive()).toBe(false);
+		expect(statusPanel.readStatusTransportProcessing()).toBe(false);
 		statusPanelViewState.isProcessing = true;
-		expect(statusPanel.readStatusTransportActive()).toBe(true);
+		expect(statusPanel.readStatusTransportProcessing()).toBe(true);
 		statusPanelViewState.isProcessing = false;
+		// Persistent feedback must NOT outrank a live background operation.
 		statusPanelViewState.stepColor = 'var(--text-error)';
-		expect(statusPanel.readStatusTransportActive()).toBe(true);
+		expect(statusPanel.readStatusTransportProcessing()).toBe(false);
 	});
 });
