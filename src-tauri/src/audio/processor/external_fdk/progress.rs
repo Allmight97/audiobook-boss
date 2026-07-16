@@ -7,8 +7,18 @@ pub(super) fn emit_external_progress(
     total_ms: f64,
     current_file: Option<String>,
     eta: &mut EtaEstimator,
+    last_progress_ms: &mut f64,
 ) {
     if let Some(progress_ms) = parse_progress_ms(line) {
+        // FFmpeg's -progress packets carry the same timestamp under several
+        // alias keys (out_time_ms / out_time_us / out_time); only strictly
+        // advancing values may feed the rate estimator, or the duplicate and
+        // regressing samples poison the EWMA.
+        if progress_ms <= *last_progress_ms {
+            return;
+        }
+        *last_progress_ms = progress_ms;
+
         let percentage = ((progress_ms / total_ms) * 89.0) as f32;
         let eta_seconds = eta.update(std::time::Instant::now(), progress_ms, total_ms);
         ui.emit_converting_progress(

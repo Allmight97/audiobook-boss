@@ -39,15 +39,11 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) preview_state: Option<&'a mut PreviewState>,
 }
 
-/// The audio seconds this run actually intends to produce: the preview
-/// excerpt budget when previewing, otherwise the full source duration.
+/// The audio seconds this run actually intends to produce. `total_duration`
+/// already carries the attainable target for every mode: full source total
+/// normally, and the per-file-capped preview total when previewing
+/// (`prepare::progress_total_duration`).
 fn eta_target_seconds(ctx: &FramePipelineCtx) -> f64 {
-    if let Some(preview_state) = ctx.preview_state.as_deref() {
-        return preview_state.per_file_seconds * preview_state.file_count as f64;
-    }
-    if let Some(preview) = ctx.context.preview.as_ref() {
-        return preview.total_seconds.min(ctx.total_duration);
-    }
     ctx.total_duration
 }
 

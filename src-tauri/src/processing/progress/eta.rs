@@ -32,9 +32,14 @@ impl EtaEstimator {
     /// (fewer than two rate samples, zero elapsed time, or a stalled rate).
     pub fn update(&mut self, now: Instant, units_done: f64, units_total: f64) -> Option<f64> {
         if let Some((last_at, last_units)) = self.last_sample {
+            // A regressing sample must not move the baseline: recording it
+            // would double-count the re-covered units on the next advance.
+            if units_done < last_units {
+                return self.eta_seconds(last_units, units_total);
+            }
             let elapsed = now.saturating_duration_since(last_at).as_secs_f64();
             if elapsed > 0.0 {
-                let delta_units = (units_done - last_units).max(0.0);
+                let delta_units = units_done - last_units;
                 let instant_rate = delta_units / elapsed;
                 self.smoothed_rate = Some(match self.smoothed_rate {
                     Some(previous) => EWMA_ALPHA * instant_rate + (1.0 - EWMA_ALPHA) * previous,
@@ -149,5 +154,37 @@ mod tests {
             .update(at(start, 2.0), 120.0, 100.0)
             .expect("rate is live");
         assert_eq!(value, 0.0);
+    }
+}
+
+#[cfg(test)]
+mod regression_tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn at(start: Instant, seconds: f64) -> Instant {
+        start + Duration::from_secs_f64(seconds)
+    }
+
+    #[test]
+    fn regressing_units_do_not_move_the_baseline() {
+        let start = Instant::now();
+        let mut eta = EtaEstimator::new();
+        eta.update(at(start, 0.0), 0.0, 100.0);
+        eta.update(at(start, 1.0), 10.0, 100.0);
+
+        // Regression is ignored entirely (no baseline move, no rate sample).
+        eta.update(at(start, 1.5), 5.0, 100.0);
+
+        // Recovery to the prior value counts zero new units over the window
+        // instead of double-counting the re-covered 5.
+        let value = eta
+            .update(at(start, 2.0), 10.0, 100.0)
+            .expect("rate is live");
+        let expected = 90.0 / (0.3 * 0.0 + 0.7 * 10.0);
+        assert!(
+            (value - expected).abs() < 0.5,
+            "recovery must not double-count: got {value}, want ~{expected}"
+        );
     }
 }

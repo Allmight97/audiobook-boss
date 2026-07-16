@@ -22,9 +22,11 @@ const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
     ChildJobStatus::Failed,
 ];
 
-/// Appends to the operation's bounded activity tail. Consecutive identical
-/// messages collapse (progress spam must not rotate real history out); the
-/// tail drops oldest past `OPERATION_LOG_TAIL_CAP`.
+/// Appends to the operation's bounded activity tail. Consecutive entries that
+/// are identical in message, stage, AND child collapse (progress spam must not
+/// rotate real history out, but distinct children or stage transitions with
+/// the same wording are real history); the tail drops oldest past
+/// `OPERATION_LOG_TAIL_CAP`.
 fn push_operation_log(
     snapshot: &mut OperationSnapshot,
     timestamp_ms: i64,
@@ -35,11 +37,9 @@ fn push_operation_log(
     if message.is_empty() {
         return;
     }
-    if snapshot
-        .log_tail
-        .last()
-        .is_some_and(|entry| entry.message == message)
-    {
+    if snapshot.log_tail.last().is_some_and(|entry| {
+        entry.message == message && entry.stage == stage && entry.child_job_id == child_job_id
+    }) {
         return;
     }
     snapshot.log_tail.push(OperationLogEntry {
@@ -165,7 +165,14 @@ impl WorkRuntimeState {
             event.percentage.clamp(0.0, 100.0)
         };
         snapshot.progress.message = event.message.clone();
-        snapshot.progress.eta_seconds = event.eta_seconds;
+        // A multi-child batch event carries one child's ETA, which does not
+        // describe the aggregated operation percentage rendered beside it —
+        // suppress rather than present a wrong number.
+        snapshot.progress.eta_seconds = if child_scoped_batch_event {
+            None
+        } else {
+            event.eta_seconds
+        };
         snapshot.status = operation_status_from_event_stage(
             event.stage,
             snapshot.status,
@@ -194,6 +201,13 @@ impl WorkRuntimeState {
             snapshot.cancellable = false;
             snapshot.progress.message = "Cancellation requested.".to_string();
             snapshot.progress.stage = WorkProgressStage::Cleaning;
+            push_operation_log(
+                snapshot,
+                now_ms,
+                "Cancellation requested.",
+                Some(WorkProgressStage::Cleaning),
+                None,
+            );
             for child in &mut snapshot.children {
                 child.cancel_requested = true;
                 child.cancellable = false;

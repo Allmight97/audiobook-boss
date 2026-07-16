@@ -557,3 +557,70 @@ fn log_tail_records_terminal_and_cancel_entries() {
     assert_eq!(last.stage, Some(WorkProgressStage::Cancelled));
     assert_eq!(last.timestamp_ms, 500);
 }
+
+#[test]
+fn multi_child_batch_events_suppress_operation_eta() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    let mut event = converting_event(40.0, "encoding chunk 3/12", 0);
+    event.eta_seconds = Some(42.0);
+    let snapshot = state
+        .apply_progress_event(&operation_id, &event, 200)
+        .expect("progress");
+
+    // Two children: the aggregate percentage renders beside the ETA, so one
+    // child's ETA must not be presented as the operation's.
+    assert_eq!(snapshot.progress.eta_seconds, None);
+    let child = snapshot
+        .children
+        .iter()
+        .find(|child| child.input_index == Some(0))
+        .expect("child");
+    assert_eq!(child.progress.eta_seconds, Some(42.0));
+}
+
+#[test]
+fn log_tail_keeps_identical_messages_from_distinct_children() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    let mut first = converting_event(10.0, "Encoding audio...", 0);
+    first.job_id = Some("job-1".to_string());
+    state
+        .apply_progress_event(&operation_id, &first, 200)
+        .expect("progress");
+
+    let mut second = converting_event(10.0, "Encoding audio...", 1);
+    second.job_id = Some("job-2".to_string());
+    let snapshot = state
+        .apply_progress_event(&operation_id, &second, 300)
+        .expect("progress");
+
+    let matching: Vec<_> = snapshot
+        .log_tail
+        .iter()
+        .filter(|entry| entry.message == "Encoding audio...")
+        .collect();
+    assert_eq!(matching.len(), 2, "distinct children are real history");
+    assert_ne!(matching[0].child_job_id, matching[1].child_job_id);
+}
+
+#[test]
+fn log_tail_records_the_cancellation_request_transition() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+    state.request_cancel(&operation_id, 400).expect("request");
+    state
+        .cancel(&operation_id, "Processing was cancelled.".to_string(), 500)
+        .expect("cancel");
+
+    let snapshot = state.get(&operation_id).expect("snapshot");
+    let messages: Vec<&str> = snapshot
+        .log_tail
+        .iter()
+        .map(|entry| entry.message.as_str())
+        .collect();
+    assert!(messages.contains(&"Cancellation requested."));
+    assert_eq!(messages.last(), Some(&"Processing was cancelled."));
+}
