@@ -23,9 +23,11 @@
 interface Props {
 	children: Snippet;
 	overlay?: Snippet;
+	rail?: Snippet;
 }
 
-let { children, overlay }: Props = $props();
+let { children, overlay, rail }: Props = $props();
+	const noRail = true;
 	const selectedFileCount = $derived(getSelectedFileIndices().size);
 	const fileCount = $derived(readFileListCount());
 	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
@@ -86,18 +88,15 @@ let { children, overlay }: Props = $props();
 <div class="app-shell" bind:this={popoverContainer}>
 	<header class="app-shell-appbar" data-testid="app-shell-appbar">
 		<span class="app-shell-title">Audiobook Boss</span>
-		<span class="app-shell-current-view" aria-current="page">Process</span>
-		<button
-			type="button"
-			class="app-shell-settings"
-			onclick={() => void openAppSettingsDialog()}
-		>
-			Settings
-		</button>
-		<div class="app-shell-density" role="group" aria-label="Density">
+		<div class="tab-strip">
+			<button type="button" class="tab on" aria-current="page">Process</button>
+			<button type="button" class="tab" onclick={() => void openAppSettingsDialog()}>
+				Settings
+			</button>
+		</div>
+		<div class="segmented" role="group" aria-label="Density">
 			<button
 				type="button"
-				class:active={densityState.preference === 'comfortable'}
 				aria-pressed={densityState.preference === 'comfortable'}
 				onclick={() => setDensityFromUser('comfortable')}
 			>
@@ -105,7 +104,6 @@ let { children, overlay }: Props = $props();
 			</button>
 			<button
 				type="button"
-				class:active={densityState.preference === 'compact'}
 				aria-pressed={densityState.preference === 'compact'}
 				onclick={() => setDensityFromUser('compact')}
 			>
@@ -263,14 +261,22 @@ let { children, overlay }: Props = $props();
 		</div>
 	{/if}
 
-	<main class="app-shell-main" data-testid="app-shell-main">
-		{@render children()}
+	<main class="app-shell-main no-rail" data-testid="app-shell-main">
+		<div class="app-shell-main-left">
+			<div class="app-shell-main-content">
+				{@render children()}
+			</div>
+			<div class="app-shell-operations" data-testid="app-shell-operations">
+				<OperationsBarIsland />
+			</div>
+		</div>
+		{#if rail && !noRail}
+			<aside class="app-shell-main-rail">
+				{@render rail()}
+			</aside>
+		{/if}
 	</main>
 	{@render overlay?.()}
-
-	<div class="app-shell-operations" data-testid="app-shell-operations">
-		<OperationsBarIsland />
-	</div>
 </div>
 
 <style>
@@ -286,14 +292,13 @@ let { children, overlay }: Props = $props();
 	.app-shell-toolbar,
 	.app-shell-toolbar-start,
 	.app-shell-toolbar-selection,
-	.app-shell-toolbar-end,
-	.app-shell-density {
+	.app-shell-toolbar-end {
 		display: flex;
 		align-items: center;
 	}
 
 	.app-shell-appbar {
-		min-height: var(--density-row-h);
+		height: var(--appbar-h);
 		gap: var(--space-2);
 		padding: 0 var(--density-pad);
 		border-bottom: 1px solid var(--border-primary);
@@ -302,53 +307,14 @@ let { children, overlay }: Props = $props();
 	}
 
 	.app-shell-title {
-		font-size: var(--text-lg);
-		font-weight: 650;
+		margin-right: var(--space-2);
+		font-size: var(--text-md);
+		font-weight: 600;
 		color: var(--text-primary);
 	}
 
-	.app-shell-current-view,
-	.app-shell-settings {
-		margin-top: 0;
-		padding: var(--space-1) var(--space-2);
-		border-radius: var(--radius-sm);
-		background: transparent;
-		color: var(--text-secondary);
-		font-size: var(--text-sm);
-		font-weight: 500;
-	}
-
-	.app-shell-current-view {
-		color: var(--text-primary);
-	}
-
-	.app-shell-settings:hover,
-	.app-shell-settings:focus-visible {
-		background: var(--bg-hover);
-		color: var(--text-primary);
-	}
-
-	.app-shell-density {
+	.segmented {
 		margin-left: auto;
-		padding: 2px;
-		border: 1px solid var(--border-primary);
-		border-radius: var(--radius-pill);
-		background: var(--bg-input);
-	}
-
-	.app-shell-density button {
-		margin-top: 0;
-		padding: var(--space-1) var(--space-2);
-		border-radius: var(--radius-pill);
-		background: transparent;
-		color: var(--text-muted);
-		font-size: var(--text-sm);
-		font-weight: 500;
-	}
-
-	.app-shell-density button.active {
-		background: var(--accent-primary);
-		color: var(--text-inverse);
 	}
 
 	.app-shell-toolbar {
@@ -383,6 +349,31 @@ let { children, overlay }: Props = $props();
 	}
 
 	.app-shell-main {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 340px;
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.app-shell-main.no-rail {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.app-shell-main-left {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		border-right: 1px solid var(--border-primary);
+	}
+
+	.app-shell-main.no-rail .app-shell-main-left {
+		border-right: none;
+	}
+
+	.app-shell-main-content {
 		display: flex;
 		flex: 1 1 auto;
 		min-height: 0;

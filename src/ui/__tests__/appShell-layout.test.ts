@@ -26,12 +26,19 @@ describe('app shell composition', () => {
 		const toolbarIndex = appShellSource.indexOf('data-testid="app-shell-toolbar"');
 		const mainIndex = appShellSource.indexOf('data-testid="app-shell-main"');
 		const operationsIndex = appShellSource.indexOf('data-testid="app-shell-operations"');
+		const leftCellIndex = appShellSource.indexOf('class="app-shell-main-left"');
+		const railColumnIndex = appShellSource.indexOf('class="app-shell-main-rail"');
 
 		expect(appbarIndex).toBeGreaterThan(-1);
 		expect(toolbarIndex).toBeGreaterThan(appbarIndex);
 		expect(mainIndex).toBeGreaterThan(toolbarIndex);
 		expect(operationsIndex).toBeGreaterThan(mainIndex);
+		expect(leftCellIndex).toBeGreaterThan(mainIndex);
+		expect(railColumnIndex).toBeGreaterThan(leftCellIndex);
 		expect(appShellSource).toContain('Audiobook Boss');
+		expect(appShellSource).toContain('class="tab-strip"');
+		expect(appShellSource).toContain('class="tab on"');
+		expect(appShellSource).toContain('class="segmented"');
 		expect(appShellSource).toContain('aria-label="Density"');
 		expect(appShellSource).toContain('openAppSettingsDialog');
 	});
