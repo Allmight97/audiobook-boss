@@ -7,7 +7,8 @@ use std::sync::{Mutex, MutexGuard};
 use crate::errors::{AppError, Result};
 
 pub use types::{
-    AppSettings, AppSettingsPatch, ConcurrencyPreference, DensityPreference, EncoderDefaults,
+    AppSettings, AppSettingsPatch, ConcurrencyPreference, DensityPreference, EditSurfacePreference,
+    EncoderDefaults,
     OutputDefaults, PinnedDefaults, StartupBehavior, ToolchainPreferences,
 };
 

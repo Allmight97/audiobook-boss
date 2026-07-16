@@ -2,6 +2,7 @@
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
 	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
 	import { getMaxConcurrentStatus, handleMaxConcurrentSelectionChange } from '../jobControls';
+	import { editSurfaceState, setEditSurfaceFromUser } from '../metadataSurface';
 	import {
 		appSettingsDialogState,
 		browseForFfmpegBinary,
@@ -216,6 +217,33 @@
 					<p class="text-xs muted-text">
 						How many audiobooks encode at the same time. Auto sizes to this machine;
 						changes apply to newly started jobs.
+					</p>
+				</section>
+
+				<section class="app-settings-section">
+					<h4 class="app-settings-section-title">Editing</h4>
+					<div class="app-settings-path-row">
+						<span class="text-xs muted-text whitespace-nowrap">Metadata edit surface:</span>
+						<div class="segmented" role="group" aria-label="Edit surface" data-testid="app-settings-edit-surface">
+							<button
+								type="button"
+								aria-pressed={editSurfaceState.preference === 'rail'}
+								onclick={() => setEditSurfaceFromUser('rail')}
+							>
+								Rail
+							</button>
+							<button
+								type="button"
+								aria-pressed={editSurfaceState.preference === 'popover'}
+								onclick={() => setEditSurfaceFromUser('popover')}
+							>
+								Popover
+							</button>
+						</div>
+					</div>
+					<p class="text-xs muted-text">
+						Rail keeps a persistent editor beside the book table; popover opens the
+						editor on the selected row instead.
 					</p>
 				</section>
 

@@ -389,3 +389,41 @@ fn invalid_pinned_defaults_are_rejected_by_shared_validators() {
     let reloaded = get_app_settings(temp.path()).expect("reload settings");
     assert_eq!(reloaded.pinned_defaults, None, "rejected pin is not stored");
 }
+
+#[test]
+fn settings_file_without_edit_surface_field_defaults_to_rail() {
+    let temp = TempDir::new().expect("temp dir");
+    // Pre-rail settings files adopt the v3 default edit surface.
+    let legacy = serde_json::json!({
+        "maxConcurrentJobs": {"mode": "auto"},
+        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
+        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
+    });
+    std::fs::write(
+        temp.path().join("app-settings.json"),
+        serde_json::to_string_pretty(&legacy).expect("legacy json"),
+    )
+    .expect("write legacy settings");
+
+    let settings = get_app_settings(temp.path()).expect("load legacy settings");
+
+    assert_eq!(settings.edit_surface, EditSurfacePreference::Rail);
+}
+
+#[test]
+fn edit_surface_preference_persists_and_round_trips() {
+    let temp = TempDir::new().expect("temp dir");
+
+    let updated = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            edit_surface: Some(EditSurfacePreference::Popover),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("update settings");
+    assert_eq!(updated.edit_surface, EditSurfacePreference::Popover);
+
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+    assert_eq!(reloaded.edit_surface, EditSurfacePreference::Popover);
+}

@@ -142,10 +142,14 @@ describe('OperationsBarIsland', () => {
 
 	it('renders a running background transport when foreground transport is idle', async () => {
 		render(OperationsBarIsland);
-		applyOperationListSnapshot(operationList({ ...operation(), progress: { ...operation().progress, etaSeconds: 242 } }));
+		applyOperationListSnapshot(
+			operationList({ ...operation(), progress: { ...operation().progress, etaSeconds: 242 } }),
+		);
 
 		await waitFor(() => {
-			expect(screen.getByText('The Way of Kings — batch encode · 64% · 04:02 left')).toBeInTheDocument();
+			expect(
+				screen.getByText('The Way of Kings — batch encode · 64% · 04:02 left'),
+			).toBeInTheDocument();
 		});
 		expect(screen.queryByTestId('status-transport-progress')).not.toBeInTheDocument();
 	});

@@ -18,6 +18,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub density: DensityPreference,
     #[serde(default)]
+    pub edit_surface: EditSurfacePreference,
+    #[serde(default)]
     pub pinned_defaults: Option<PinnedDefaults>,
 }
 
@@ -30,6 +32,7 @@ pub struct AppSettingsPatch {
     pub toolchain: Option<ToolchainPreferences>,
     pub startup_behavior: Option<StartupBehavior>,
     pub density: Option<DensityPreference>,
+    pub edit_surface: Option<EditSurfacePreference>,
     /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
     /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
@@ -49,6 +52,18 @@ pub enum StartupBehavior {
     /// Reopen with the user-pinned defaults; in-flight panel tweaks are
     /// ephemeral across restarts.
     PinnedDefaults,
+}
+
+/// How the metadata edit surface presents. Rail is the v3 default (persistent
+/// right column); popover anchors to the activated row instead.
+#[derive(
+    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum EditSurfacePreference {
+    #[default]
+    Rail,
+    Popover,
 }
 
 /// The global UI layout density. Comfortable preserves the existing default;
@@ -115,6 +130,7 @@ impl Default for AppSettings {
             toolchain: ToolchainPreferences::default(),
             startup_behavior: StartupBehavior::default(),
             density: DensityPreference::default(),
+            edit_surface: EditSurfacePreference::default(),
             pinned_defaults: None,
         }
     }
@@ -154,6 +170,9 @@ impl AppSettings {
         }
         if let Some(density) = patch.density {
             self.density = density;
+        }
+        if let Some(edit_surface) = patch.edit_surface {
+            self.edit_surface = edit_surface;
         }
         if let Some(pinned_defaults) = patch.pinned_defaults {
             self.pinned_defaults = Some(pinned_defaults);

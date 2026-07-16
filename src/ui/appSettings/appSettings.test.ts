@@ -57,6 +57,7 @@ const settingsFixture = (): AppSettings => ({
 	toolchain: {},
 	startupBehavior: 'rememberLastState',
 	density: 'comfortable',
+	editSurface: 'rail',
 });
 
 const pinnedDefaultsFixture = (): NonNullable<AppSettings['pinnedDefaults']> => ({
@@ -138,6 +139,34 @@ describe('app settings control plane', () => {
 		await hydrateAppSettings();
 
 		expect(document.documentElement.hasAttribute('data-density')).toBe(false);
+	});
+
+	it('hydrates the edit-surface preference from the top-level value', async () => {
+		const settings = {
+			...settingsFixture(),
+			editSurface: 'popover' as const,
+		};
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		const { editSurfaceState } = await import('../metadataSurface');
+		expect(editSurfaceState.preference).toBe('popover');
+	});
+
+	it('falls back to the rail edit surface when the settings field is absent', async () => {
+		const settings = {
+			...settingsFixture(),
+			editSurface: undefined,
+		} as unknown as AppSettings;
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		const { editSurfaceState } = await import('../metadataSurface');
+		expect(editSurfaceState.preference).toBe('rail');
 	});
 
 	it('hydrates from the pinned defaults slot in pinnedDefaults startup mode', async () => {

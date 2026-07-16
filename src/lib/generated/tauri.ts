@@ -183,6 +183,7 @@ export type AppSettings = {
 	toolchain?: ToolchainPreferences,
 	startupBehavior?: StartupBehavior,
 	density?: DensityPreference,
+	editSurface?: EditSurfacePreference,
 	pinnedDefaults?: PinnedDefaults | null,
 };
 
@@ -193,6 +194,7 @@ export type AppSettingsPatch = {
 	toolchain: ToolchainPreferences | null,
 	startupBehavior: StartupBehavior | null,
 	density: DensityPreference | null,
+	editSurface: EditSurfacePreference | null,
 	/**
 	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
 	 *  back to `RememberLastState`, never unpinning.
@@ -303,6 +305,12 @@ export type DecoderSelection = {
  *  compact reduces rows and padding for high-information workflows.
  */
 export type DensityPreference = "comfortable" | "compact";
+
+/**
+ *  How the metadata edit surface presents. Rail is the v3 default (persistent
+ *  right column); popover anchors to the activated row instead.
+ */
+export type EditSurfacePreference = "rail" | "popover";
 
 export type EncoderAvailability = {
 	fdkAvailable: boolean,

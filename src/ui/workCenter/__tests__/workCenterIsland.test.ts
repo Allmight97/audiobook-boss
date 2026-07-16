@@ -54,7 +54,11 @@ describe('WorkCenterIsland operation cards', () => {
 
 	it('renders lower-case statuses, queued position by sequence, terminal time, and the backend log tail', async () => {
 		const firstQueued = operation({ operationId: 'queued-1', sequence: 3 });
-		const secondQueued = operation({ operationId: 'queued-2', sequence: 2, title: 'Second queued' });
+		const secondQueued = operation({
+			operationId: 'queued-2',
+			sequence: 2,
+			title: 'Second queued',
+		});
 		const completed = operation({
 			operationId: 'completed-1',
 			sequence: 1,

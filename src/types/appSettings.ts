@@ -3,6 +3,7 @@ import type {
 	AppSettingsPatch as GeneratedAppSettingsPatch,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
 	DensityPreference as GeneratedDensityPreference,
+	EditSurfacePreference as GeneratedEditSurfacePreference,
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
 	StartupBehavior as GeneratedStartupBehavior,
@@ -13,6 +14,7 @@ import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
 export type DensityPreference = GeneratedDensityPreference;
+export type EditSurfacePreference = GeneratedEditSurfacePreference;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
@@ -42,5 +44,6 @@ export type AppSettingsPatch = Partial<{
 	toolchain: ToolchainPreferences | null;
 	startupBehavior: StartupBehavior | null;
 	density: DensityPreference | null;
+	editSurface: EditSurfacePreference | null;
 	pinnedDefaults: PinnedDefaults | null;
 }>;
