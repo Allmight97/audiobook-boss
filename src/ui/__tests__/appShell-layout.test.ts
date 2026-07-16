@@ -49,7 +49,7 @@ describe('app shell composition', () => {
 			'handleClickToSelectFolder',
 			'openRemoteSourceAcquire',
 			'<JobControlsIsland',
-			'triggerProcessFromStatusPanel',
+			'<ProcessSplitButton',
 		]) {
 			expect(appShellSource).toContain(ownerSurface);
 		}
@@ -67,12 +67,21 @@ describe('app shell composition', () => {
 		expect(fileImportSource).not.toContain('acquire-audiobooks-btn');
 		expect(operationsBarSource).toContain('<StatusTransportIsland');
 		expect(operationsBarSource).toContain('<WorkCenterIsland');
+		expect(operationsBarSource).not.toContain('PreviewAudioControls');
+	});
+
+	it('follows the mock toolbar vocabulary', () => {
+		expect(appShellSource).toContain('＋ Import');
+		expect(appShellSource).toContain('☁ Audible');
+		expect(appShellSource).toContain('import-files-option');
+		expect(appShellSource).toContain('<ProcessSplitButton');
+		expect(appShellSource).not.toContain('Import from Library');
 	});
 
 	it('composes encoder and naming popovers before Process through owner strips', () => {
 		const encoderIndex = appShellSource.indexOf('data-testid="encoder-popover-trigger"');
 		const namingIndex = appShellSource.indexOf('data-testid="naming-popover-trigger"');
-		const processIndex = appShellSource.indexOf('id="process-button"');
+		const processIndex = appShellSource.indexOf('<ProcessSplitButton');
 
 		expect(encoderIndex).toBeGreaterThan(-1);
 		expect(namingIndex).toBeGreaterThan(encoderIndex);

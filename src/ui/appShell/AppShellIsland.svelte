@@ -11,9 +11,9 @@
 	} from '../fileList';
 	import { handleMergeModeChange, JobControlsIsland } from '../jobControls';
 	import { openRemoteSourceAcquire } from '../remoteSource';
-	import { triggerProcessFromStatusPanel } from '../statusPanel';
 	import { openMetadataLookup } from '../metadataLookup';
 	import { OperationsBarIsland } from '../operationsBar';
+	import { ProcessSplitButton } from '../previewAudio';
 	import { readEncoderSummaryLabel } from '../encoderPanel';
 	import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
 	import { OutputPanelIsland, readOutputNamingSummaryLabel } from '../outputPanel';
@@ -33,8 +33,8 @@ let { children, overlay, rail }: Props = $props();
 	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
 	const namingSummaryLabel = $derived(readOutputNamingSummaryLabel());
 	let importMenuOpen = $state(false);
-	let importSplitElement = $state<HTMLElement | null>(null);
-	let importCaretElement = $state<HTMLButtonElement | null>(null);
+	let importMenuElement = $state<HTMLElement | null>(null);
+	let importPillElement = $state<HTMLButtonElement | null>(null);
 	let popoverContainer = $state<HTMLElement | null>(null);
 	let encoderAnchor = $state<HTMLElement | null>(null);
 	let encoderPanel = $state<HTMLElement | null>(null);
@@ -64,7 +64,7 @@ let { children, overlay, rail }: Props = $props();
 		if (namingPopover.isOpen && !namingAnchor?.contains(target) && !namingPanel?.contains(target)) {
 			namingPopover.close({ restoreFocus: false });
 		}
-		if (importMenuOpen && !importSplitElement?.contains(target)) {
+		if (importMenuOpen && !importMenuElement?.contains(target)) {
 			importMenuOpen = false;
 		}
 	}
@@ -73,8 +73,13 @@ let { children, overlay, rail }: Props = $props();
 		if (event.key === 'Escape' && importMenuOpen) {
 			event.preventDefault();
 			importMenuOpen = false;
-			importCaretElement?.focus();
+			importPillElement?.focus();
 		}
+	}
+
+	function handleImportFilesSelect(): void {
+		importMenuOpen = false;
+		void handleClickToSelect();
 	}
 
 	function handleAddFolderSelect(): void {
@@ -115,34 +120,30 @@ let { children, overlay, rail }: Props = $props();
 	<div class="app-shell-toolbar" data-testid="app-shell-toolbar">
 		<div class="app-shell-toolbar-start">
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="split-button"
-				bind:this={importSplitElement}
-				onkeydown={handleImportMenuKeydown}
-			>
+			<div class="split-button" bind:this={importMenuElement} onkeydown={handleImportMenuKeydown}>
 				<button
 					id="import-files-btn"
 					type="button"
-					class="btn-pill btn-pill-secondary split-main"
-					onclick={() => void handleClickToSelect()}
-				>
-					＋ Import
-				</button>
-				<button
-					id="import-menu-toggle"
-					type="button"
-					class="btn-pill btn-pill-secondary split-caret"
+					class="pill pill-ghost"
 					aria-haspopup="menu"
 					aria-expanded={importMenuOpen}
-					aria-label="More import options"
-					bind:this={importCaretElement}
+					bind:this={importPillElement}
 					onclick={() => {
 						importMenuOpen = !importMenuOpen;
 					}}
 				>
-					▼
+					＋ Import
 				</button>
-				<div class="split-dropdown" class:open={importMenuOpen} role="menu">
+				<div class="split-dropdown import-menu-dropdown" class:open={importMenuOpen} role="menu">
+					<button
+						id="import-files-option"
+						type="button"
+						class="split-option"
+						role="menuitem"
+						onclick={handleImportFilesSelect}
+					>
+						Files…
+					</button>
 					<button
 						id="add-folder-btn"
 						type="button"
@@ -150,17 +151,17 @@ let { children, overlay, rail }: Props = $props();
 						role="menuitem"
 						onclick={handleAddFolderSelect}
 					>
-						Add Folder
+						Folder…
 					</button>
 				</div>
 			</div>
 			<button
 				id="acquire-audiobooks-btn"
 				type="button"
-				class="btn-pill btn-pill-secondary"
+				class="pill pill-ghost"
 				onclick={openRemoteSourceAcquire}
 			>
-				Import from Library
+				☁ Audible
 			</button>
 			<div class="app-shell-merge" hidden={selectedFileCount > 0}>
 				<JobControlsIsland {fileCount} onMergeModeChange={handleMergeModeChange} />
@@ -169,16 +170,12 @@ let { children, overlay, rail }: Props = $props();
 		{#if selectedFileCount > 0}
 			<div class="app-shell-toolbar-selection" aria-label="Selected files actions">
 				<span class="app-badge app-badge-info">{selectedFileCount} selected</span>
-				<button
-					type="button"
-					class="btn-pill btn-pill-secondary"
-					onclick={openMetadataLookup}
-				>
+				<button type="button" class="pill pill-ghost pill-sm" onclick={openMetadataLookup}>
 					Find metadata ({selectedFileCount})
 				</button>
 				<button
 					type="button"
-					class="btn-pill btn-pill-secondary"
+					class="pill pill-ghost pill-sm"
 					disabled={selectedFileCount < 2}
 					data-metadata-selection-intent
 					onclick={() => void openMetadataSurfaceForCurrentSelection()}
@@ -187,7 +184,7 @@ let { children, overlay, rail }: Props = $props();
 				</button>
 				<button
 					type="button"
-					class="btn-pill btn-pill-secondary"
+					class="pill pill-ghost pill-sm"
 					data-metadata-selection-intent
 					onclick={() => void removeSelectedFiles()}
 				>
@@ -199,33 +196,26 @@ let { children, overlay, rail }: Props = $props();
 			<button
 				bind:this={encoderAnchor}
 				type="button"
-				class="btn-pill btn-pill-secondary"
+				class="pill pill-ghost"
 				data-testid="encoder-popover-trigger"
 				aria-haspopup="dialog"
 				aria-expanded={encoderPopover.isOpen}
 				onclick={() => togglePopover('encoder')}
 			>
-				{encoderSummaryLabel}
+				{encoderSummaryLabel} ▾
 			</button>
 			<button
 				bind:this={namingAnchor}
 				type="button"
-				class="btn-pill btn-pill-secondary"
+				class="pill pill-ghost"
 				data-testid="naming-popover-trigger"
 				aria-haspopup="dialog"
 				aria-expanded={namingPopover.isOpen}
 				onclick={() => togglePopover('naming')}
 			>
-				{namingSummaryLabel}
+				{namingSummaryLabel} ▾
 			</button>
-			<button
-				id="process-button"
-				type="button"
-				class="btn-pill btn-pill-primary"
-				onclick={() => triggerProcessFromStatusPanel()}
-			>
-				Process
-			</button>
+			<ProcessSplitButton />
 		</div>
 	</div>
 
@@ -321,12 +311,18 @@ let { children, overlay, rail }: Props = $props();
 		justify-content: space-between;
 		/* The primary action must never clip out of view at narrow widths. */
 		flex-wrap: wrap;
-		gap: var(--space-2) var(--space-3);
-		min-height: var(--density-row-h);
-		padding: var(--space-2) var(--density-pad);
+		gap: 0.5rem;
+		padding: 0.625rem 0.875rem;
 		border-bottom: 1px solid var(--border-primary);
 		background: var(--bg-main);
 		flex-shrink: 0;
+	}
+
+	/* The import menu drops under a left-anchored pill. */
+	.import-menu-dropdown {
+		left: 0;
+		right: auto;
+		min-width: 8rem;
 	}
 
 	.app-shell-toolbar-start,

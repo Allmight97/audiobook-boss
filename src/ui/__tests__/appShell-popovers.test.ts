@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { createRawSnippet, tick } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import AppShellIsland from '../appShell/AppShellIsland.svelte';
-import { handleClickToSelectFolder } from '../fileImport';
+import { handleClickToSelect, handleClickToSelectFolder } from '../fileImport';
+import { triggerProcessFromStatusPanel } from '../statusPanel';
 
 const selectionHolder = vi.hoisted(() => ({ indices: new Set<number>() }));
 
@@ -35,48 +36,91 @@ vi.mock('../tagPreview', () => ({ TagPreviewIsland: vi.fn() }));
 
 const emptyChildren = createRawSnippet(() => ({ render: () => '<span></span>' }));
 
-describe('import split-button menu', () => {
-	it('opens from the caret, runs Add Folder, and closes after selection', async () => {
+describe('import menu', () => {
+	it('opens from the Import pill with Files/Folder options and runs Folder', async () => {
 		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
-		const caret = document.getElementById('import-menu-toggle') as HTMLButtonElement;
-		const addFolder = document.getElementById('add-folder-btn') as HTMLButtonElement;
+		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 
-		expect(caret.getAttribute('aria-expanded')).toBe('false');
-		await fireEvent.click(caret);
-		expect(caret.getAttribute('aria-expanded')).toBe('true');
+		expect(pill.getAttribute('aria-expanded')).toBe('false');
+		await fireEvent.click(pill);
+		expect(pill.getAttribute('aria-expanded')).toBe('true');
 
-		await fireEvent.click(addFolder);
+		const filesOption = document.getElementById('import-files-option') as HTMLButtonElement;
+		const folderOption = document.getElementById('add-folder-btn') as HTMLButtonElement;
+		expect(filesOption.textContent).toContain('Files…');
+		expect(folderOption.textContent).toContain('Folder…');
+
+		await fireEvent.click(folderOption);
 		expect(vi.mocked(handleClickToSelectFolder)).toHaveBeenCalledTimes(1);
-		expect(caret.getAttribute('aria-expanded')).toBe('false');
+		expect(pill.getAttribute('aria-expanded')).toBe('false');
 	});
 
-	it('closes on Escape and restores focus to the caret', async () => {
+	it('runs the Files option and closes', async () => {
 		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
-		const caret = document.getElementById('import-menu-toggle') as HTMLButtonElement;
+		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 
-		await fireEvent.click(caret);
-		expect(caret.getAttribute('aria-expanded')).toBe('true');
+		await fireEvent.click(pill);
+		await fireEvent.click(document.getElementById('import-files-option') as HTMLButtonElement);
+
+		expect(vi.mocked(handleClickToSelect)).toHaveBeenCalledTimes(1);
+		expect(pill.getAttribute('aria-expanded')).toBe('false');
+	});
+
+	it('closes on Escape and restores focus to the pill', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
+
+		await fireEvent.click(pill);
+		expect(pill.getAttribute('aria-expanded')).toBe('true');
 
 		const menu = document.getElementById('add-folder-btn') as HTMLButtonElement;
 		await fireEvent.keyDown(menu, { key: 'Escape' });
 		await tick();
-		expect(caret.getAttribute('aria-expanded')).toBe('false');
-		expect(document.activeElement).toBe(caret);
+		expect(pill.getAttribute('aria-expanded')).toBe('false');
+		expect(document.activeElement).toBe(pill);
 	});
 
 	it('closes on click-away', async () => {
 		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
-		const caret = document.getElementById('import-menu-toggle') as HTMLButtonElement;
+		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 		const clickAwayTarget = document.createElement('button');
 		document.body.append(clickAwayTarget);
 
-		await fireEvent.click(caret);
-		expect(caret.getAttribute('aria-expanded')).toBe('true');
+		await fireEvent.click(pill);
+		expect(pill.getAttribute('aria-expanded')).toBe('true');
 		await fireEvent.click(clickAwayTarget);
 		await tick();
+		expect(pill.getAttribute('aria-expanded')).toBe('false');
+	});
+});
+
+describe('process split-button', () => {
+	it('runs a full process from the main button', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+
+		await fireEvent.click(document.getElementById('process-button') as HTMLButtonElement);
+
+		expect(vi.mocked(triggerProcessFromStatusPanel)).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(triggerProcessFromStatusPanel)).toHaveBeenCalledWith();
+	});
+
+	it('offers preview durations from the caret and closes after select', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
+
+		await fireEvent.click(caret);
+		expect(caret.getAttribute('aria-expanded')).toBe('true');
+
+		const preview15 = screen.getByRole('menuitem', { name: 'Preview 15s' });
+		await fireEvent.click(preview15);
+
+		expect(vi.mocked(triggerProcessFromStatusPanel)).toHaveBeenCalledWith({ previewSeconds: 15 });
 		expect(caret.getAttribute('aria-expanded')).toBe('false');
 	});
 });

@@ -12,7 +12,7 @@
 
 	const isMerge = $derived(jobControlsState.jobType === 'merge');
 	const chipLabel = $derived(
-		isMerge ? `Merge — ${fileCount} ${fileCount === 1 ? 'file' : 'files'} → one M4B` : 'Merge off',
+		isMerge ? `merge — ${fileCount} ${fileCount === 1 ? 'file' : 'files'} → one M4B` : 'merge off',
 	);
 
 	onMount(() => {

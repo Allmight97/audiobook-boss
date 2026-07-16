@@ -122,17 +122,17 @@ describe('Job controls merge toggle chip', () => {
 		await flushAsync();
 
 		const toggle = getMergeToggle();
-		expect(toggle.textContent?.trim()).toBe('Merge off');
+		expect(toggle.textContent?.trim()).toBe('merge off');
 
 		toggle.click();
 		await flushAsync();
-		expect(toggle.textContent?.trim()).toBe('Merge — 0 files → one M4B');
+		expect(toggle.textContent?.trim()).toBe('merge — 0 files → one M4B');
 
 		await rerenderIsland({ fileCount: 3 });
-		expect(getMergeToggle().textContent?.trim()).toBe('Merge — 3 files → one M4B');
+		expect(getMergeToggle().textContent?.trim()).toBe('merge — 3 files → one M4B');
 
 		await rerenderIsland({ fileCount: 1 });
-		expect(getMergeToggle().textContent?.trim()).toBe('Merge — 1 file → one M4B');
+		expect(getMergeToggle().textContent?.trim()).toBe('merge — 1 file → one M4B');
 	});
 
 	it('toggles disabled state and opacity on the chip', async () => {

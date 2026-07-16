@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { readFileListCount, readCombinedDurationText, readCombinedSizeText } from '../fileList';
-	import { PreviewAudioControls } from '../previewAudio';
 	import { StatusTransportIsland } from '../statusPanel';
 	import { deriveWorkOperationCounts, workCenterState, WorkCenterIsland } from '../workCenter';
 	import { toggleOpsDisclosure, toggleOpsPin, type OpsMode } from './mode';
@@ -23,7 +22,6 @@
 <section class:open={mode !== 'collapsed'} class="operations-bar" aria-label="Operations">
 	<div class="operations-bar-row">
 		<div class="operations-bar-transport">
-			<PreviewAudioControls variant="compact" />
 			<StatusTransportIsland />
 		</div>
 
