@@ -20,6 +20,7 @@ const EXPECTED_FILE_LIST_EXPORTS = [
 	'readCombinedDurationText',
 	'readCombinedSizeText',
 	'readFileListCount',
+	'readFileListOrderLockVisible',
 	'readInspectorFacts',
 	'removeSelectedFiles',
 	'requestMetadataSurfaceDismissal',

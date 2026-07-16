@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../../types/audio';
 import type { OperationListSnapshot, OperationSnapshot } from '../../../types/workRuntime';
 import { tauriClient } from '../../../lib/tauri/client';
-import { setCurrentFileList } from '../../fileList/state.svelte';
+import { setCurrentFileList, setOrderLocked } from '../../fileList/state.svelte';
 import { initStatusPanel } from '../../statusPanel';
 import { resetStatusPanelViewState } from '../../statusPanel/viewState.svelte';
 import { applyOperationListSnapshot, disposeWorkCenter } from '../../workCenter/state.svelte';
@@ -96,13 +96,14 @@ describe('OperationsBarIsland', () => {
 		disposeWorkCenter();
 		applyOperationListSnapshot(operationList());
 		resetStatusPanelViewState();
+		setOrderLocked(false);
 		setCurrentFileList(fileList());
 		vi.restoreAllMocks();
 	});
 
 	it('transitions collapsed to open to pinned, blocks disclosure while pinned, then unpins to open', async () => {
 		render(OperationsBarIsland);
-		const disclosure = screen.getByRole('button', { name: 'Expand operations' });
+		const disclosure = screen.getByRole('button', { name: 'Toggle operations' });
 
 		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
 		await fireEvent.click(disclosure);
@@ -116,6 +117,46 @@ describe('OperationsBarIsland', () => {
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Unpin operations' }));
 		expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+	});
+
+	it('toggles the body from the bar row while controls keep their own click behavior', async () => {
+		const { container } = render(OperationsBarIsland);
+		const row = container.querySelector('.operations-bar-row') as HTMLElement;
+		const disclosure = screen.getByRole('button', { name: 'Toggle operations' });
+
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+		await fireEvent.click(row);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+		await fireEvent.click(row);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+	});
+
+	it('uses book totals and flips the visible pin label', async () => {
+		render(OperationsBarIsland);
+		expect(screen.getByLabelText('File totals')).toHaveTextContent('1 book');
+		const pin = screen.getByRole('button', { name: 'Pin operations open' });
+		expect(pin).toHaveTextContent('⚲ pin');
+		await fireEvent.click(pin);
+		expect(pin).toHaveTextContent('⚲ pinned');
+	});
+
+	it('renders a running background transport when foreground transport is idle', async () => {
+		render(OperationsBarIsland);
+		applyOperationListSnapshot(operationList({ ...operation(), progress: { ...operation().progress, etaSeconds: 242 } }));
+
+		await waitFor(() => {
+			expect(screen.getByText('The Way of Kings — batch encode · 64% · 04:02 left')).toBeInTheDocument();
+		});
+		expect(screen.queryByTestId('status-transport-progress')).not.toBeInTheDocument();
+	});
+
+	it('appends the order-lock suffix to idle transport', async () => {
+		setOrderLocked(true);
+		render(OperationsBarIsland);
+		await waitFor(() => {
+			expect(screen.getByText(/Idle/)).toBeInTheDocument();
+			expect(screen.getByText('· order locked')).toBeInTheDocument();
+		});
 	});
 
 	it('renders background snapshots through the Work Center apply seam, expands child lanes, and cancels through the existing path', async () => {
@@ -140,12 +181,11 @@ describe('OperationsBarIsland', () => {
 
 	it('keeps foreground transport and background operation snapshots in separate lanes', async () => {
 		render(OperationsBarIsland);
-		const transportFill = screen.getByTestId('status-transport-progress');
-		expect(transportFill).toHaveStyle({ width: '0%' });
+		expect(screen.getByTestId('status-transport-progress')).toHaveStyle({ width: '0%' });
 
 		applyOperationListSnapshot(operationList(operation()));
 		await tick();
-		expect(transportFill).toHaveStyle({ width: '0%' });
+		expect(screen.queryByTestId('status-transport-progress')).not.toBeInTheDocument();
 		expect(screen.getByText('The Way of Kings — batch encode')).toBeInTheDocument();
 
 		initStatusPanel().applyProgress({
@@ -159,7 +199,7 @@ describe('OperationsBarIsland', () => {
 			eta_seconds: undefined,
 		});
 		await waitFor(() => {
-			expect(transportFill).toHaveStyle({ width: '23%' });
+			expect(screen.getByTestId('status-transport-progress')).toHaveStyle({ width: '23%' });
 		});
 		expect(screen.getByText('The Way of Kings — batch encode')).toBeInTheDocument();
 	});

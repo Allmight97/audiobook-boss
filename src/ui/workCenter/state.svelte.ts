@@ -32,9 +32,19 @@ export const workCenterState = $state<WorkCenterState>({
 	errorMessage: null,
 });
 
+export const workCenterClock = $state({ nowMs: Date.now() });
+
 let initializationPromise: Promise<void> | null = null;
 let subscriptions: SubscriptionGroup | null = null;
 const purgedOperationIds = new Set<string>();
+
+export function startWorkCenterClock(): () => void {
+	workCenterClock.nowMs = Date.now();
+	const intervalId = window.setInterval(() => {
+		workCenterClock.nowMs = Date.now();
+	}, 30_000);
+	return () => window.clearInterval(intervalId);
+}
 
 export function initializeWorkCenter(): Promise<void> {
 	if (initializationPromise) return initializationPromise;

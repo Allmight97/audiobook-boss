@@ -5,13 +5,18 @@
 		cancelWorkOperation,
 		initializeWorkCenter,
 		openChildSource,
+		startWorkCenterClock,
+		workCenterClock,
 		workCenterState,
 	} from './state.svelte';
+	import { isTerminalOperationStatus } from './model';
+	import { formatRelativeTime } from './relativeTime';
 
 	let expandedOperationIds = $state<Set<string>>(new Set());
 
 	onMount(() => {
 		void initializeWorkCenter();
+		return startWorkCenterClock();
 	});
 
 	function toggleExpanded(operationId: string): void {
@@ -25,13 +30,13 @@
 	}
 
 	function operationStatusLabel(status: OperationSnapshot['status']): string {
-		if (status === 'accepted') return 'Queued';
-		if (status === 'running') return 'Running';
-		if (status === 'cancelling') return 'Cancelling';
-		if (status === 'completed') return 'Done';
-		if (status === 'cancelled') return 'Cancelled';
-		if (status === 'failed') return 'Failed';
-		return 'Mixed';
+		if (status === 'accepted') return 'queued';
+		if (status === 'running') return 'running';
+		if (status === 'cancelling') return 'cancelling';
+		if (status === 'completed') return 'done';
+		if (status === 'cancelled') return 'cancelled';
+		if (status === 'failed') return 'failed';
+		return 'mixed';
 	}
 
 	function operationStatusVariant(status: OperationSnapshot['status']): 'info' | 'ok' | 'warn' | 'muted' {
@@ -42,10 +47,31 @@
 	}
 
 	function operationPositionText(operation: OperationSnapshot): string {
-		if (operation.status === 'accepted' && typeof operation.progress.currentItemIndex === 'number') {
-			return `#${operation.progress.currentItemIndex + 1}`;
+		if (operation.status === 'accepted') {
+			const position = workCenterState.operations
+				.filter((candidate) => candidate.status === 'accepted')
+				.findIndex((candidate) => candidate.operationId === operation.operationId);
+			return `#${position + 1}`;
+		}
+		if (isTerminalOperationStatus(operation.status)) {
+			return operation.finishedAtMs == null
+				? 'just now'
+				: formatRelativeTime(operation.finishedAtMs, workCenterClock.nowMs);
 		}
 		return `${operation.progress.percentage.toFixed(0)}%`;
+	}
+
+	function formatLogTimestamp(timestampMs: number): string {
+		const timestamp = new Date(timestampMs);
+		return [timestamp.getHours(), timestamp.getMinutes(), timestamp.getSeconds()]
+			.map((value) => String(value).padStart(2, '0'))
+			.join(':');
+	}
+
+	function handleOperationRowKeydown(event: KeyboardEvent, operationId: string): void {
+		if (event.key !== 'Enter' && event.key !== ' ') return;
+		event.preventDefault();
+		toggleExpanded(operationId);
 	}
 
 	function laneLabel(lane: ResourceLane): string {
@@ -102,28 +128,35 @@
 	{:else}
 		<div class="work-operation-list">
 			{#each workCenterState.operations as operation (operation.operationId)}
-				<article class:expanded={expandedOperationIds.has(operation.operationId)} class="work-operation">
-					<div class="work-operation-row">
-						<button
-							type="button"
-							class="work-operation-disclosure"
+				<article
+					class:expanded={expandedOperationIds.has(operation.operationId)}
+					class:terminal={isTerminalOperationStatus(operation.status)}
+					class="op-card"
+				>
+					<div
+						class="op-row"
+						role="button"
+						tabindex="0"
 							aria-expanded={expandedOperationIds.has(operation.operationId)}
 							aria-label={`${expandedOperationIds.has(operation.operationId) ? 'Collapse' : 'Expand'} ${operation.title}`}
 							onclick={() => toggleExpanded(operation.operationId)}
+							onkeydown={(event) => handleOperationRowKeydown(event, operation.operationId)}
 						>
 							<span class={`app-badge app-badge-${operationStatusVariant(operation.status)}`}>
 								{operationStatusLabel(operation.status)}
 							</span>
 							<span class="work-operation-title" title={operation.title}>{operation.title}</span>
 							<span class="work-operation-position">{operationPositionText(operation)}</span>
-						</button>
 						{#if canCancel(operation)}
 							<button
 								type="button"
-								class="btn-pill btn-pill-secondary btn-pill-xs"
+								class="pill pill-ghost pill-xs"
 								aria-label={`Cancel ${operation.title}`}
 								disabled={Boolean(workCenterState.cancelPendingByOperationId[operation.operationId])}
-								onclick={() => void cancelWorkOperation(operation.operationId)}
+								onclick={(event) => {
+									event.stopPropagation();
+									void cancelWorkOperation(operation.operationId);
+								}}
 							>
 								Cancel
 							</button>
@@ -131,9 +164,9 @@
 					</div>
 
 					{#if expandedOperationIds.has(operation.operationId)}
-						<div class="work-operation-detail">
+						<div class="op-detail">
 							{#each operation.lanes as lane (lane)}
-								<div class="work-operation-lane" data-testid={`operation-lane-${lane}`}>
+								<div class="lane" data-testid={`operation-lane-${lane}`}>
 									<span>{laneLabel(lane)}</span>
 									<div class="app-progress-track work-operation-lane-track">
 										<div class="app-progress-fill" style={`width: ${lanePercentage(operation, lane)}%`}></div>
@@ -141,6 +174,12 @@
 									<span>{laneDetail(operation, lane)}</span>
 								</div>
 							{/each}
+
+							<div class="op-log">
+								{#each operation.logTail as entry}
+									<b>{formatLogTimestamp(entry.timestampMs)}</b> {entry.message}<br />
+								{/each}
+							</div>
 
 							{#if summaryText(operation)}
 								<div class="work-operation-summary">{summaryText(operation)}</div>
@@ -186,7 +225,7 @@
 <style>
 	.work-center,
 	.work-operation-list,
-	.work-operation-detail,
+	.op-detail,
 	.work-child-list {
 		display: flex;
 		flex-direction: column;
@@ -194,7 +233,7 @@
 
 	.work-center,
 	.work-operation-list,
-	.work-operation-detail {
+	.op-detail {
 		gap: var(--space-2);
 	}
 
@@ -211,36 +250,20 @@
 		color: var(--text-error);
 	}
 
-	.work-operation {
-		border: 1px solid var(--border-primary);
-		border-radius: var(--radius-md);
-		background: var(--bg-input);
+	.op-card.terminal {
+		opacity: 0.6;
 	}
 
-	.work-operation-row,
-	.work-operation-disclosure,
-	.work-operation-lane,
+	.op-row,
+	.lane,
 	.work-child-row {
 		display: flex;
 		align-items: center;
 		min-width: 0;
 	}
 
-	.work-operation-row {
-		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
-	}
-
-	.work-operation-disclosure {
+	.op-row {
 		min-width: 0;
-		flex: 1;
-		gap: var(--space-2);
-		margin-top: 0;
-		border: none;
-		background: transparent;
-		color: inherit;
-		text-align: left;
-		cursor: pointer;
 	}
 
 	.work-operation-title,
@@ -254,7 +277,7 @@
 	.work-operation-title {
 		flex: 1;
 		font-size: var(--text-sm);
-		font-weight: 600;
+		font-weight: 500;
 	}
 
 	.work-operation-position {
@@ -263,27 +286,16 @@
 		font-size: var(--text-sm);
 	}
 
-	.work-operation-detail {
-		padding: 0 var(--space-3) var(--space-2);
+	.lane > :first-child {
+		width: 4.375rem;
 	}
 
-	.work-operation-lane {
-		gap: var(--space-2);
-		color: var(--text-muted);
-		font-family: var(--font-mono);
-		font-size: var(--text-xs);
-	}
-
-	.work-operation-lane > :first-child,
-	.work-operation-lane > :last-child {
+	.lane > :last-child {
 		width: 4.75rem;
-	}
-
-	.work-operation-lane > :last-child {
 		text-align: right;
 	}
 
-	.work-operation-lane-track {
+	.lane .app-progress-track {
 		flex: 1;
 	}
 

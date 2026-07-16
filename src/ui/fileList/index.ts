@@ -17,6 +17,7 @@ export {
 	readCombinedDurationText,
 	readCombinedSizeText,
 	readFileListCount,
+	readFileListOrderLockVisible,
 } from './viewState.svelte';
 export type { ReadWorkActivityByInputId } from './viewState.svelte';
 export { readInspectorFacts } from './inspectorState.svelte';
