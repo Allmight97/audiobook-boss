@@ -24,6 +24,51 @@ describe('LabIsland design fixtures', () => {
 		expect(screen.getByRole('button', { name: 'Extra small' })).toHaveClass('btn-pill-xs');
 	});
 
+	it('renders the v3 flat pill kit', () => {
+		render(LabIsland);
+
+		expect(screen.getByTestId('pill-primitives-section')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Primary pill' })).toHaveClass(
+			'pill',
+			'pill-primary',
+		);
+		expect(screen.getByRole('button', { name: 'Ghost pill' })).toHaveClass('pill', 'pill-ghost');
+		expect(screen.getByRole('button', { name: 'Small pill' })).toHaveClass('pill-sm');
+		expect(screen.getByRole('button', { name: 'Tiny pill' })).toHaveClass('pill-xs');
+	});
+
+	it('renders the field primitive with mixed-value state', () => {
+		render(LabIsland);
+
+		const section = screen.getByTestId('field-primitive-section');
+		expect(section).toBeInTheDocument();
+		expect(section.querySelector('.field label')).toBeTruthy();
+		expect(section.querySelector('.field input.mixed')).toBeTruthy();
+	});
+
+	it('renders tab-strip and segmented primitives with active states', () => {
+		render(LabIsland);
+
+		const tabs = screen.getByTestId('tab-strip-primitive-section');
+		expect(tabs.querySelectorAll('.tab-strip .tab').length).toBeGreaterThanOrEqual(3);
+		expect(tabs.querySelector('.tab[aria-selected="true"]')).toBeTruthy();
+
+		const seg = screen.getByTestId('segmented-primitive-section');
+		expect(seg.querySelectorAll('.segmented button').length).toBeGreaterThanOrEqual(2);
+		expect(seg.querySelector('.segmented button.on')).toBeTruthy();
+	});
+
+	it('renders the op-card primitive with lanes and a mono log box', () => {
+		render(LabIsland);
+
+		const section = screen.getByTestId('op-card-primitive-section');
+		const card = section.querySelector('.op-card');
+		expect(card).toBeTruthy();
+		expect(card?.querySelector('.op-row')).toBeTruthy();
+		expect(card?.querySelectorAll('.op-detail .lane').length).toBeGreaterThanOrEqual(2);
+		expect(card?.querySelector('.op-log b')).toBeTruthy();
+	});
+
 	it('renders and toggles the promoted split-button primitive', async () => {
 		render(LabIsland);
 

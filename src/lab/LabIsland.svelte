@@ -237,6 +237,84 @@
 		</div>
 	</section>
 
+	<section class="panel lab-section" data-testid="pill-primitives-section">
+		<h3>v3 pills (pill / pill-primary / pill-ghost / pill-sm / pill-xs)</h3>
+		<div class="lab-row">
+			<button class="pill pill-primary" type="button">Primary pill</button>
+			<button class="pill pill-ghost" type="button">Ghost pill</button>
+			<button class="pill pill-ghost pill-sm" type="button">Small pill</button>
+			<button class="pill pill-ghost pill-xs" type="button">Tiny pill</button>
+			<button class="pill pill-primary" type="button" disabled>Disabled primary</button>
+			<button class="pill pill-ghost" type="button" disabled>Disabled ghost</button>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="field-primitive-section">
+		<h3>Field (field / field input.mixed)</h3>
+		<div class="lab-row" style="align-items: flex-start; max-width: 24rem; flex-direction: column;">
+			<div class="field" style="width: 100%">
+				<label for="lab-field-title">Sample field</label>
+				<input id="lab-field-title" type="text" value="The Way of Kings" />
+			</div>
+			<div class="field" style="width: 100%">
+				<label for="lab-field-mixed">Sample mixed field</label>
+				<input id="lab-field-mixed" type="text" class="mixed" value="" placeholder="Mixed (3 values)" />
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="tab-strip-primitive-section">
+		<h3>Tab strip (tab-strip / tab)</h3>
+		<div class="tab-strip" role="tablist" aria-label="Lab tabs">
+			<button class="tab" type="button" role="tab" aria-selected="true">Metadata</button>
+			<button class="tab" type="button" role="tab" aria-selected="false">Facts</button>
+			<button class="tab" type="button" role="tab" aria-selected="false">Chapters</button>
+			<button class="tab" type="button" role="tab" aria-selected="false">Output</button>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="segmented-primitive-section">
+		<h3>Segmented (segmented)</h3>
+		<div class="lab-row">
+			<div class="segmented">
+				<button class="on" type="button">Comfortable</button>
+				<button type="button">Compact</button>
+			</div>
+			<div class="segmented">
+				<button type="button">Rail</button>
+				<button class="on" type="button">Popover</button>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="op-card-primitive-section">
+		<h3>Operation card (op-card / op-row / op-detail / lane / op-log)</h3>
+		<div class="op-card">
+			<div class="op-row">
+				<span class="app-badge app-badge-info">merge</span>
+				<span style="flex: 1; font-weight: 500">The Way of Kings — 3 files → M4B</span>
+				<span class="mono" style="color: var(--text-muted)">64%</span>
+				<button class="pill pill-ghost pill-xs" type="button">Cancel</button>
+			</div>
+			<div class="op-detail">
+				<div class="lane">
+					<span style="width: 70px">analysis</span>
+					<div class="app-progress-track"><div class="app-progress-fill" style="width: 100%; background: var(--text-success)"></div></div>
+					<span class="mono">done</span>
+				</div>
+				<div class="lane">
+					<span style="width: 70px">encode</span>
+					<div class="app-progress-track"><div class="app-progress-fill" style="width: 64%"></div></div>
+					<span class="mono">04:02</span>
+				</div>
+				<div class="op-log" style="margin-top: 6px">
+					<b>10:22:11</b> encoding chunk 8/12 · 12.1 MB/s<br />
+					<b>10:22:40</b> chapters synthesized · 75 markers
+				</div>
+			</div>
+		</div>
+	</section>
+
 	<section class="panel lab-section" data-testid="badge-primitives-section">
 		<h3>Badges (app-badge)</h3>
 		<div class="lab-row">

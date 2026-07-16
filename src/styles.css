@@ -1,8 +1,10 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @theme {
-	--font-sans: "Inter", sans-serif;
-	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+	--font-sans: "Inter Variable", "Inter", sans-serif;
+	--font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 	--color-accent-primary-light: #3b82f6;
 	--color-accent-primary-hover-light: #2563eb;
 	--color-accent-primary-dark: #3b82f6;
@@ -41,6 +43,11 @@
 
 	--progress-bg: #e5e7eb;
 	--progress-fg: #3b82f6;
+
+	/* Terminal-styled log surface (op cards) — deliberately dark in both themes. */
+	--bg-log: #0d1320;
+	--text-log: #9ca3af;
+	--text-log-strong: #e5e7eb;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -104,11 +111,12 @@
 	--dur-slow: 260ms;
 	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-	--density-row-h: 2.5rem;
+	--density-row-h: 2.75rem;
 	--density-pad: var(--space-3);
 	--density-text: var(--text-md);
 
-	--progress-h: 0.375rem;
+	--appbar-h: 2.875rem;
+	--progress-h: 0.3125rem;
 	--cover-thumb-size: 4rem;
 }
 
@@ -167,63 +175,65 @@ button {
 	transition: all 0.2s ease-in-out;
 }
 
+/* v3 flat pill kit (mock .pill): quiet ghost + flat primary, 12px/500.
+   Size modifiers mirror the mock's inline paddings (sel-actions 5x12,
+   dense controls 3x10). */
+.pill,
 .btn-pill {
 	margin-top: 0;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	padding: var(--space-2) var(--space-5);
+	gap: 0.375rem;
+	padding: 0.375rem 0.875rem;
 	border: 1px solid transparent;
 	border-radius: var(--radius-pill);
-	font-size: var(--text-md);
-	font-weight: 600;
-	letter-spacing: 0.01em;
-	box-shadow: var(--shadow-sm);
-	transition: all var(--dur-base) var(--ease-out);
-}
-
-.btn-pill.btn-pill-sm {
-	padding: var(--space-1) var(--space-3);
 	font-size: var(--text-sm);
+	font-weight: 500;
+	white-space: nowrap;
+	transition:
+		background-color var(--dur-fast) var(--ease-out),
+		border-color var(--dur-fast) var(--ease-out),
+		color var(--dur-fast) var(--ease-out);
 }
 
+.pill.pill-sm,
+.btn-pill.btn-pill-sm {
+	padding: 0.3125rem 0.75rem;
+}
+
+.pill.pill-xs,
 .btn-pill.btn-pill-xs {
-	padding: calc(var(--space-1) / 2) calc(var(--space-2) + var(--space-1));
+	padding: 0.1875rem 0.625rem;
 	font-size: var(--text-xs);
 }
 
-.btn-pill:active {
-	transform: scale(0.98);
-}
-
+.pill-primary,
 .btn-pill-primary {
-	background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+	background: var(--accent-primary);
 	color: #ffffff;
-	box-shadow:
-		0 4px 6px -1px rgba(59, 130, 246, 0.3),
-		0 2px 4px -1px rgba(59, 130, 246, 0.15);
 }
 
-.btn-pill-primary:hover {
-	transform: translateY(-1px);
-	box-shadow:
-		0 6px 8px -1px rgba(59, 130, 246, 0.4),
-		0 3px 6px -1px rgba(59, 130, 246, 0.2);
+.pill-primary:hover:not(:disabled),
+.btn-pill-primary:hover:not(:disabled) {
+	background: var(--accent-primary-hover);
 }
 
+.pill-ghost,
 .btn-pill-secondary {
-	background-color: var(--bg-hover);
+	background: transparent;
 	color: var(--text-secondary);
 	border-color: var(--border-secondary);
 }
 
-.btn-pill-secondary:hover {
-	background-color: var(--bg-input);
-	border-color: var(--text-muted);
+.pill-ghost:hover:not(:disabled),
+.btn-pill-secondary:hover:not(:disabled) {
+	background: var(--bg-input);
 	color: var(--text-primary);
 }
 
-.btn-pill-secondary:disabled {
+.pill:disabled,
+.btn-pill:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
@@ -282,9 +292,9 @@ button {
 }
 
 .app-badge {
-	padding: calc(var(--space-1) / 2) var(--space-2);
+	padding: 0.125rem 0.5rem;
 	border-radius: var(--radius-pill);
-	font-size: var(--text-xs);
+	font-size: 0.625rem;
 	font-weight: 600;
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
@@ -311,6 +321,11 @@ button {
 	color: var(--text-muted);
 }
 
+/* Mono text utility (mock .mono): numerics, transport line, op positions. */
+.mono {
+	font-family: var(--font-mono);
+}
+
 .app-popover {
 	position: absolute;
 	z-index: 21;
@@ -318,6 +333,149 @@ button {
 	border: 1px solid var(--border-secondary);
 	border-radius: var(--radius-lg);
 	box-shadow: var(--shadow-md);
+}
+
+/* v3 field primitive (mock .field): quiet label over a borderless filled
+   input; .mixed marks multi-select mixed values. */
+.field label {
+	display: block;
+	margin-bottom: 0.25rem;
+	font-size: var(--text-xs);
+	font-weight: 500;
+	color: var(--text-muted);
+}
+
+.field input,
+.field textarea {
+	width: 100%;
+	padding: 0.4375rem 0.5625rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-md);
+	box-shadow: none;
+	background: var(--bg-input);
+	color: var(--text-primary);
+	font-size: var(--text-md);
+	font-family: inherit;
+}
+
+.field input:hover:not(:focus),
+.field textarea:hover:not(:focus) {
+	border-color: transparent;
+	background: var(--bg-input);
+}
+
+.field input:focus,
+.field textarea:focus {
+	outline: none;
+	border-color: var(--border-focus);
+	box-shadow: none;
+}
+
+.field input.mixed {
+	color: var(--text-placeholder);
+	font-style: italic;
+}
+
+/* v3 tab strip (mock .nav-tab/.rail-tab): underline-active tabs. Active via
+   .on or aria-selected="true". */
+.tab-strip {
+	display: flex;
+}
+
+.tab {
+	margin-top: 0;
+	padding: 0.5625rem 0.625rem;
+	border: none;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	background: none;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+	font-weight: 500;
+}
+
+.tab.on,
+.tab[aria-selected="true"] {
+	color: var(--text-primary);
+	border-bottom-color: var(--accent-primary);
+}
+
+/* v3 segmented control (mock .density/.seg): pill container, filled active. */
+.segmented {
+	display: flex;
+	padding: 2px;
+	border-radius: var(--radius-pill);
+	background: var(--bg-input);
+}
+
+.segmented button {
+	margin-top: 0;
+	padding: 0.25rem 0.75rem;
+	border: none;
+	border-radius: var(--radius-pill);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+	font-weight: 500;
+}
+
+.segmented button.on,
+.segmented button[aria-pressed="true"] {
+	background: var(--accent-primary);
+	color: #ffffff;
+}
+
+/* v3 operation cards (mock .op/.op-row/.op-detail/.lane/.op-log): bordered
+   card, clickable row, lane progress rows, terminal-styled mono log tail. */
+.op-card {
+	border: 1px solid var(--border-primary);
+	border-radius: 0.5rem;
+}
+
+.op-row {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+	padding: 0.5rem 0.75rem;
+	cursor: pointer;
+	font-size: var(--text-sm);
+	color: var(--text-secondary);
+}
+
+.op-row:hover {
+	background: var(--bg-input);
+}
+
+.op-detail {
+	padding: 0.125rem 0.75rem 0.625rem;
+}
+
+.lane {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.25rem 0;
+	font-size: var(--text-xs);
+	color: var(--text-muted);
+}
+
+.lane .app-progress-track {
+	flex: 1;
+}
+
+.op-log {
+	padding: 0.5rem 0.625rem;
+	border-radius: var(--radius-md);
+	background: var(--bg-log);
+	color: var(--text-log);
+	font-family: var(--font-mono);
+	font-size: 0.65625rem;
+	line-height: 1.7;
+}
+
+.op-log b {
+	color: var(--text-log-strong);
+	font-weight: 500;
 }
 
 label,
