@@ -40,6 +40,15 @@ export function clearFileListCoverThumbnails(): void {
 	cacheOrder.length = 0;
 }
 
+export function removeFileListCoverThumbnail(path: string): void {
+	delete thumbnailByPath[path];
+	const cacheIndex = cacheOrder.indexOf(path);
+	if (cacheIndex >= 0) {
+		cacheOrder.splice(cacheIndex, 1);
+	}
+	inflightByPath.delete(path);
+}
+
 export function getFileListCoverThumbnailState(
 	path: string | null | undefined,
 ): FileListCoverThumbnailState {

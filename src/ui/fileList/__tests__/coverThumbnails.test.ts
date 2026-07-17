@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	clearFileListCoverThumbnails,
 	getFileListCoverThumbnailState,
+	removeFileListCoverThumbnail,
 	scheduleFileListCoverThumbnails,
 } from '../coverThumbnails.svelte';
 
@@ -124,5 +125,54 @@ describe('FileList cover thumbnail scheduler', () => {
 
 		expect(getFileListCoverThumbnailState('/books/error.m4b').status).toBe('error');
 		expect(errorLoader).toHaveBeenCalledTimes(1);
+	});
+
+	it('fetches fresh bytes after a ready thumbnail is removed and re-added', async () => {
+		const path = '/books/readded.m4b';
+		const loadThumbnail = vi.fn()
+			.mockResolvedValueOnce([1])
+			.mockResolvedValueOnce([2]);
+
+		scheduleFileListCoverThumbnails([path], loadThumbnail);
+		await flushAsync();
+		const staleDataUrl = getFileListCoverThumbnailState(path);
+		expect(staleDataUrl.status).toBe('ready');
+
+		removeFileListCoverThumbnail(path);
+		scheduleFileListCoverThumbnails([path], loadThumbnail);
+		await flushAsync();
+
+		expect(loadThumbnail).toHaveBeenCalledTimes(2);
+		expect(getFileListCoverThumbnailState(path)).toEqual({
+			status: 'ready',
+			dataUrl: 'data:image/jpeg;base64,Ag==',
+		});
+	});
+
+	it('does not commit pre-removal bytes when an in-flight thumbnail path is re-added', async () => {
+		const path = '/books/inflight-readded.m4b';
+		const staleRequest = createDeferred<number[] | null>();
+		const freshRequest = createDeferred<number[] | null>();
+		const loadThumbnail = vi.fn()
+			.mockReturnValueOnce(staleRequest.promise)
+			.mockReturnValueOnce(freshRequest.promise);
+
+		scheduleFileListCoverThumbnails([path], loadThumbnail);
+		await flushAsync();
+		removeFileListCoverThumbnail(path);
+		scheduleFileListCoverThumbnails([path], loadThumbnail);
+		await flushAsync();
+
+		expect(loadThumbnail).toHaveBeenCalledTimes(2);
+		staleRequest.resolve([1]);
+		await flushAsync();
+		expect(getFileListCoverThumbnailState(path).status).toBe('loading');
+
+		freshRequest.resolve([2]);
+		await flushAsync();
+		expect(getFileListCoverThumbnailState(path)).toEqual({
+			status: 'ready',
+			dataUrl: 'data:image/jpeg;base64,Ag==',
+		});
 	});
 });

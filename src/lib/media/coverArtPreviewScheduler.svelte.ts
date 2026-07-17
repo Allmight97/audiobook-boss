@@ -101,7 +101,7 @@ export function createCoverArtPreviewScheduler(
 				return true;
 			},
 			start: (coverUrl, generation, complete) =>
-				startPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, false, complete),
+				startScheduledPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, complete),
 		});
 	}
 
@@ -169,7 +169,29 @@ export function createCoverArtPreviewScheduler(
 					touchCacheEntry(coverUrl);
 					prunePreviewCache();
 				}
-			});
+		});
+	}
+
+	function startScheduledPreviewFetch(
+		coverUrl: string,
+		loadCoverArtFromUrl: CoverArtPreviewLoader,
+		generation: number,
+		onComplete: () => void,
+	): Promise<number[]> {
+		const existing = previewByUrl[coverUrl];
+		if (existing?.status === 'ready') {
+			touchCacheEntry(coverUrl);
+			onComplete();
+			return Promise.resolve(existing.bytes);
+		}
+
+		const inflight = inflightByUrl.get(coverUrl);
+		if (inflight) {
+			attachScheduledInflightCompletion(coverUrl, inflight, generation);
+			return inflight.finally(onComplete);
+		}
+
+		return startPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, false, onComplete);
 	}
 
 	function startPreviewFetch(

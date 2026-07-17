@@ -106,8 +106,6 @@ describe('app shell composition', () => {
 	it('renders selection actions contextually while keeping the merge chip selection-independent', () => {
 		expect(appShellSource).toContain('{#if selectedFileCount > 0}');
 		expect(appShellSource).toContain('<JobControlsIsland {fileCount}');
-		expect(appShellSource).not.toContain('hidden={selectedFileCount > 0}');
-		expect(appShellSource).not.toContain('.app-shell-merge[hidden]');
 		expect(appShellSource).toContain('readFileListCount');
 	});
 

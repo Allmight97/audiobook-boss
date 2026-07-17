@@ -7,9 +7,9 @@ const COVER_ART_MAX_DIMENSION: u32 = 800;
 const THUMBNAIL_MAX_DIMENSION: u32 = 64;
 const COVER_ART_JPEG_QUALITY: u8 = 85;
 const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
-const THUMBNAIL_MAX_INPUT_DIMENSION: u32 = 2048;
+const THUMBNAIL_MAX_INPUT_DIMENSION: u32 = 4096;
 const THUMBNAIL_MAX_ENCODED_BYTES: usize = 10 * 1024 * 1024;
-const THUMBNAIL_MAX_DECODER_ALLOC_BYTES: u64 = 32 * 1024 * 1024;
+const THUMBNAIL_MAX_DECODER_ALLOC_BYTES: u64 = 96 * 1024 * 1024;
 
 /// Reads an audio file's embedded cover and returns a small display thumbnail.
 ///
@@ -170,5 +170,43 @@ mod tests {
             .expect_err("oversized embedded cover should be rejected");
 
         assert!(error.to_string().contains("thumbnail input limit"));
+    }
+
+    #[test]
+    fn renders_a_3000_pixel_square_embedded_cover() {
+        let image = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
+            3000,
+            3000,
+            Rgba([12, 34, 56, 255]),
+        ));
+        let mut source = Cursor::new(Vec::new());
+        image
+            .write_to(&mut source, ImageFormat::Png)
+            .expect("fixture PNG should encode");
+
+        let thumbnail = render_cover_thumbnail(Some(source.into_inner()))
+            .expect("3000px cover should render")
+            .expect("embedded cover should produce a thumbnail");
+        let decoded = image::load_from_memory(&thumbnail).expect("thumbnail should decode");
+
+        assert_eq!(decoded.dimensions(), (64, 64));
+    }
+
+    #[test]
+    fn rejects_embedded_cover_wider_than_4096_pixels() {
+        let image = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
+            4097,
+            1,
+            Rgba([12, 34, 56, 255]),
+        ));
+        let mut source = Cursor::new(Vec::new());
+        image
+            .write_to(&mut source, ImageFormat::Png)
+            .expect("fixture PNG should encode");
+
+        let error = render_cover_thumbnail(Some(source.into_inner()))
+            .expect_err("covers wider than 4096px should be rejected");
+
+        assert!(error.to_string().contains("Failed to decode image"));
     }
 }

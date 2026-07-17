@@ -1,27 +1,25 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { createRawSnippet, tick } from 'svelte';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import AppShellIsland from '../appShell/AppShellIsland.svelte';
 import { handleClickToSelect, handleClickToSelectFolder } from '../fileImport';
+import { setJobControlsEnabled, setJobTypeSelection } from '../jobControls';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state.svelte';
 import { triggerProcessFromStatusPanel } from '../statusPanel';
-
-const selectionHolder = vi.hoisted(() => ({ indices: new Set<number>() }));
 
 vi.mock('../appSettings', () => ({ openAppSettingsDialog: vi.fn() }));
 vi.mock('../fileImport', () => ({
 	handleClickToSelect: vi.fn(),
 	handleClickToSelectFolder: vi.fn(),
 }));
-vi.mock('../fileList', () => ({
-	getSelectedFileIndices: () => selectionHolder.indices,
-	openMetadataSurfaceForCurrentSelection: vi.fn(),
-	readFileListCount: () => 5,
-	removeSelectedFiles: vi.fn(),
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
+		getMaxConcurrentJobs: vi.fn().mockResolvedValue(2),
+		getRuntimeSettingsCapabilities: vi.fn().mockResolvedValue(null),
+	},
 }));
-vi.mock('../jobControls', () => ({
-	handleMergeModeChange: vi.fn(),
-	JobControlsIsland: vi.fn(),
-}));
+vi.mock('../coverArt', () => ({ refreshCoverArtDisplay: vi.fn() }));
 vi.mock('../remoteSource', () => ({ openRemoteSourceAcquire: vi.fn() }));
 vi.mock('../statusPanel', () => ({ triggerProcessFromStatusPanel: vi.fn() }));
 vi.mock('../metadataLookup', () => ({ openMetadataLookup: vi.fn() }));
@@ -31,14 +29,48 @@ vi.mock('../encoderPanel/EncoderWorkbenchIsland.svelte', () => ({ default: vi.fn
 vi.mock('../outputPanel', () => ({
 	OutputPanelIsland: vi.fn(),
 	readOutputNamingSummaryLabel: () => 'ABS Default',
+	updateOutputPath: vi.fn(),
 }));
 vi.mock('../tagPreview', () => ({ TagPreviewIsland: vi.fn() }));
 
 const emptyChildren = createRawSnippet(() => ({ render: () => '<span></span>' }));
 
+function makeFile(index: number): AudioFile {
+	return {
+		path: `/books/${index}.m4b`,
+		inputId: `input-${index}`,
+		isValid: true,
+		duration: 60,
+		size: 1024,
+		format: 'm4b',
+	};
+}
+
+function setFilesAndSelection(selectedIndices: number[]): void {
+	const files = Array.from({ length: Math.max(selectedIndices.length, 1) }, (_, index) =>
+		makeFile(index),
+	);
+	const fileList: FileListInfo = {
+		files,
+		validCount: files.length,
+		invalidCount: 0,
+		totalDuration: files.length * 60,
+		totalSize: files.length * 1024,
+		selectedDecoders: files.map(() => null),
+	};
+	setCurrentFileList(fileList);
+	setSelectedFileIndices(selectedIndices);
+	setSelectedIndex(selectedIndices.length === 1 ? selectedIndices[0] : -1);
+}
+
+beforeEach(() => {
+	setFilesAndSelection([]);
+	setJobTypeSelection('batch');
+	setJobControlsEnabled(true);
+});
+
 describe('import menu', () => {
 	it('opens from the Import pill with Files/Folder options and runs Folder', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 
@@ -57,7 +89,6 @@ describe('import menu', () => {
 	});
 
 	it('runs the Files option and closes', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 
@@ -69,7 +100,6 @@ describe('import menu', () => {
 	});
 
 	it('closes on Escape and restores focus to the pill', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 
@@ -84,7 +114,6 @@ describe('import menu', () => {
 	});
 
 	it('closes on click-away', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 		const clickAwayTarget = document.createElement('button');
@@ -98,7 +127,6 @@ describe('import menu', () => {
 	});
 
 	it('preserves pointer focus but moves keyboard-open focus into the menu', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
 
@@ -116,7 +144,6 @@ describe('import menu', () => {
 
 describe('process split-button', () => {
 	it('runs a full process from the main button', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 
 		await fireEvent.click(document.getElementById('process-button') as HTMLButtonElement);
@@ -126,7 +153,6 @@ describe('process split-button', () => {
 	});
 
 	it('offers preview durations from the caret and closes after select', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
 
@@ -141,7 +167,6 @@ describe('process split-button', () => {
 	});
 
 	it('closes preview choices on Escape and restores focus to the caret', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
 
@@ -155,7 +180,6 @@ describe('process split-button', () => {
 	});
 
 	it('closes preview choices on click-away without stealing click target focus', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
 		const clickAwayTarget = document.createElement('button');
@@ -171,7 +195,6 @@ describe('process split-button', () => {
 	});
 
 	it('does not dismiss preview choices when the split main action is clicked', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
 
@@ -183,7 +206,6 @@ describe('process split-button', () => {
 	});
 
 	it('preserves pointer focus but moves keyboard-open focus into preview choices', async () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
 
@@ -201,7 +223,6 @@ describe('process split-button', () => {
 
 describe('contextual selection cluster', () => {
 	it('hides selection actions and shows the merge chip zone with no selection', () => {
-		selectionHolder.indices = new Set<number>();
 		render(AppShellIsland, { children: emptyChildren });
 
 		expect(screen.queryByLabelText('Selected files actions')).toBeNull();
@@ -210,7 +231,7 @@ describe('contextual selection cluster', () => {
 	});
 
 	it('shows selection actions while keeping the merge chip zone visible when files are selected', () => {
-		selectionHolder.indices = new Set<number>([0, 1, 2]);
+		setFilesAndSelection([0, 1, 2]);
 		render(AppShellIsland, { children: emptyChildren });
 
 		const cluster = screen.getByLabelText('Selected files actions');
@@ -220,6 +241,17 @@ describe('contextual selection cluster', () => {
 		expect(cluster.textContent).toContain('Remove');
 		const mergeZone = document.querySelector('.app-shell-merge') as HTMLElement;
 		expect(mergeZone.hidden).toBe(false);
+	});
+
+	it('keeps the real merge toggle visible and interactive while files are selected', async () => {
+		setFilesAndSelection([0]);
+		render(AppShellIsland, { children: emptyChildren });
+
+		const mergeToggle = screen.getByTestId('merge-toggle');
+		expect(mergeToggle.getAttribute('aria-pressed')).toBe('false');
+
+		await fireEvent.click(mergeToggle);
+		expect(mergeToggle.getAttribute('aria-pressed')).toBe('true');
 	});
 });
 

@@ -39,6 +39,7 @@ import {
 import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
 import { displayedTitleForFile } from './viewState.svelte';
+import { removeFileListCoverThumbnail } from './coverThumbnails.svelte';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -160,6 +161,7 @@ export async function removeFile(index: number): Promise<void> {
 
 	const removedFile = fileList.files[index];
 	removeMetadataForFile(removedFile.path);
+	removeFileListCoverThumbnail(removedFile.path);
 	void purgeRemoteSourceSessionsForInputIds([removedFile.inputId]);
 
 	const nextFiles = [...fileList.files];
