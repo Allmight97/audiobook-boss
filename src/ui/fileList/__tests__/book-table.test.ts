@@ -173,6 +173,29 @@ describe('v3 book table', () => {
 		expect(screen.getByRole('checkbox', { name: 'Select ready.m4b' })).toBeChecked();
 	});
 
+	it('exposes reorder shortcuts and changes the row grip when ordering locks', async () => {
+		const screen = render(FileListIsland);
+		const keyboardGroup = screen.getByRole('group', { name: 'Audio files' });
+		const row = screen.getByRole('checkbox', { name: 'Select ready.m4b' }).closest('tr');
+		if (!row) throw new Error('Expected a file-list row');
+		const grip = row.querySelector('.file-list-reorder-grip');
+
+		expect(keyboardGroup).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+		expect(grip).toHaveAttribute(
+			'title',
+			'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.',
+		);
+		expect(row).toHaveAttribute('draggable', 'true');
+
+		setOrderLocked(true);
+		await tick();
+
+		expect(row).toHaveClass('order-locked');
+		expect(row).toHaveAttribute('draggable', 'false');
+		expect(grip).toHaveTextContent('⠿');
+		expect(grip).toHaveAttribute('title', 'File order is locked');
+	});
+
 	it('hides comfortable-only columns at compact density', async () => {
 		const screen = render(FileListIsland);
 		document.documentElement.dataset.density = 'compact';

@@ -147,12 +147,15 @@
 		class="file-list-content"
 		role="group"
 		aria-label="Audio files"
+		aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+		title="Move the selected file with Alt+ArrowUp or Alt+ArrowDown"
 		tabindex="0"
 		onkeydown={onFileListKeyDown}
 	>
 		<table class="file-list-table" data-testid="book-table">
 			<thead>
 				<tr>
+					<th class="file-list-reorder-cell"><span class="sr-only">Reorder</span></th>
 					<th class="file-list-checkbox-cell">
 						<input
 							bind:this={selectAllEl}
@@ -190,6 +193,7 @@
 						class:active={active}
 						class:dragging={draggedIndex === index}
 						class:drag-over={hoveredIndex === index}
+						class:order-locked={orderLockVisible}
 						draggable={orderLockVisible ? 'false' : 'true'}
 						onclick={(event) => handleRowClick(index, event)}
 						ondragstart={(event) => dragHandlers.onDragStart(index, event)}
@@ -197,6 +201,24 @@
 						ondrop={(event) => dragHandlers.onDrop(index, event)}
 						ondragend={dragHandlers.onDragEnd}
 					>
+						<td class="file-list-reorder-cell">
+							<span
+								class="file-list-reorder-grip"
+								aria-hidden="true"
+								title={
+									orderLockVisible
+										? 'File order is locked'
+										: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'
+								}
+							>
+								⠿
+							</span>
+							<span class="sr-only">
+								{orderLockVisible
+									? 'File order locked'
+									: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'}
+							</span>
+						</td>
 						<td class="file-list-checkbox-cell">
 							<input
 								type="checkbox"
@@ -266,6 +288,10 @@
 	.file-list-table tbody tr.selected { background: color-mix(in srgb, var(--accent-primary) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent-primary); }
 	.file-list-table tbody tr.dragging { opacity: 0.5; }
 	.file-list-table tbody tr.drag-over { border-top: 2px solid var(--accent-primary); }
+	.file-list-table tbody tr.order-locked { cursor: default; }
+	.file-list-reorder-cell { width: 1.5rem; padding-right: 0 !important; padding-left: var(--space-2) !important; text-align: center !important; }
+	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; }
+	.file-list-table tbody tr.order-locked .file-list-reorder-grip { cursor: not-allowed; opacity: 0.65; }
 	.file-list-checkbox-cell { width: 1.875rem; }
 	.file-list-checkbox-cell input { margin-top: 0; accent-color: var(--accent-primary); }
 	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
