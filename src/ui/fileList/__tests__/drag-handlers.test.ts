@@ -85,7 +85,7 @@ describe('createFileListPointerReorder', () => {
 		expect(handlers.consumePostDragClick()).toBe(false);
 	});
 
-	it('abandons the drag without reordering on pointercancel', () => {
+	it('abandons the drag without reordering or click suppression on pointercancel', () => {
 		const states: Array<{ draggedIndex: number | null; hoveredIndex: number | null }> = [];
 		const handlers = createFileListPointerReorder(
 			(state) => states.push(state),
@@ -98,7 +98,8 @@ describe('createFileListPointerReorder', () => {
 
 		expect(reorderFiles).not.toHaveBeenCalled();
 		expect(states[states.length - 1]).toEqual({ draggedIndex: null, hoveredIndex: null });
-		expect(handlers.consumePostDragClick()).toBe(true);
+		// Cancelled pointers emit no click; suppression must not eat the next one.
+		expect(handlers.consumePostDragClick()).toBe(false);
 	});
 
 	it('ignores secondary-button presses and locked order', () => {

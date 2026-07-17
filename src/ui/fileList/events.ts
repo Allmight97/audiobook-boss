@@ -127,7 +127,8 @@ export function createFileListPointerReorder(
 
 	function handlePointerCancel(event: PointerEvent): void {
 		if (event.pointerId !== pressedPointerId) return;
-		suppressPostDragClick ||= dragEngaged;
+		// A cancelled pointer emits no click, so arming suppression here would
+		// eat the user's NEXT intentional click instead.
 		resetDragState();
 	}
 
@@ -147,6 +148,14 @@ export function createFileListPointerReorder(
 			if (grip instanceof Element && typeof grip.setPointerCapture === 'function') {
 				try {
 					grip.setPointerCapture(event.pointerId);
+					// Losing capture mid-drag (e.g. the grip unmounting) abandons the
+					// drag like a cancel. On a normal pointerup this fires after state
+					// is already reset, so the pointer-id guard makes it a no-op.
+					grip.addEventListener(
+						'lostpointercapture',
+						(lostEvent) => handlePointerCancel(lostEvent as PointerEvent),
+						{ once: true },
+					);
 				} catch {
 					// Capture is best-effort; window listeners carry the drag regardless.
 				}

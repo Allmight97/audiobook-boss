@@ -483,3 +483,19 @@ fn rail_width_persists_and_clamps_to_the_shell_range() {
     .expect("wide patch clamps rather than fails");
     assert_eq!(too_wide.rail_width, 640);
 }
+
+#[test]
+fn hand_edited_rail_width_clamps_on_direct_load() {
+    let temp = TempDir::new().expect("temp dir");
+    let mut settings = serde_json::to_value(AppSettings::default()).expect("settings json");
+    settings["railWidth"] = serde_json::json!(5000);
+    std::fs::write(
+        temp.path().join("app-settings.json"),
+        serde_json::to_string_pretty(&settings).expect("json"),
+    )
+    .expect("write hand-edited settings");
+
+    let loaded = get_app_settings(temp.path()).expect("load clamps rather than fails");
+
+    assert_eq!(loaded.rail_width, 640);
+}

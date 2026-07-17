@@ -3,7 +3,9 @@
 ## Public API Strip
 
 - Import application chrome from `src/ui/appShell`.
-- Exports: `AppShellIsland`, `applyDensityPreference`, `setDensityFromUser`.
+- Exports: `AppShellIsland`, `applyDensityPreference`, `setDensityFromUser`,
+  `applyRailWidthPreference`, `readRailWidth`.
+- Pinned by `src/ui/__tests__/appShell-api-contract.test.ts`.
 
 ## Ownership
 
@@ -15,6 +17,9 @@
 - `density.svelte.ts` owns the global `<html data-density>` projection and asks
   App Settings to persist user choices. App Settings hydration applies the
   persisted top-level preference through this strip.
+- `railWidth.svelte.ts` owns the rail-column width (shell geometry): hydration
+  applies, drags preview live, and only commits (drag end / keyboard adjust)
+  persist through App Settings.
 
 ## Done Criteria
 

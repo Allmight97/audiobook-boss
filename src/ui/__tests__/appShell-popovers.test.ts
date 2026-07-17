@@ -278,6 +278,45 @@ describe('contextual selection cluster', () => {
 		expect(main.getAttribute('style')).toContain('--abb-rail-width: 340px');
 	});
 
+	it('previews rail width during a pointer drag and persists exactly once on release', async () => {
+		const { applyRailWidthPreference, readRailWidth } = await import('../appShell');
+		applyRailWidthPreference(420);
+		persistAppSettingsPatchMock.mockClear();
+		render(AppShellIsland, {
+			children: emptyChildren,
+			rail: createRawSnippet(() => ({ render: () => '<span>rail</span>' })),
+		});
+		const separator = screen.getByRole('separator', { name: 'Resize metadata rail' });
+
+		await fireEvent.pointerDown(separator, { pointerId: 5, button: 0, clientX: 800 });
+		await fireEvent.pointerMove(window, { pointerId: 5, clientX: 760 });
+		expect(readRailWidth()).toBe(460);
+		expect(persistAppSettingsPatchMock).not.toHaveBeenCalled();
+
+		await fireEvent.pointerUp(window, { pointerId: 5, clientX: 760 });
+		expect(persistAppSettingsPatchMock).toHaveBeenCalledTimes(1);
+		expect(persistAppSettingsPatchMock).toHaveBeenCalledWith({ railWidth: 460 });
+	});
+
+	it('restores the prior rail width without persisting when the drag cancels', async () => {
+		const { applyRailWidthPreference, readRailWidth } = await import('../appShell');
+		applyRailWidthPreference(420);
+		persistAppSettingsPatchMock.mockClear();
+		render(AppShellIsland, {
+			children: emptyChildren,
+			rail: createRawSnippet(() => ({ render: () => '<span>rail</span>' })),
+		});
+		const separator = screen.getByRole('separator', { name: 'Resize metadata rail' });
+
+		await fireEvent.pointerDown(separator, { pointerId: 6, button: 0, clientX: 800 });
+		await fireEvent.pointerMove(window, { pointerId: 6, clientX: 700 });
+		expect(readRailWidth()).toBe(520);
+
+		await fireEvent.pointerCancel(window, { pointerId: 6 });
+		expect(readRailWidth()).toBe(420);
+		expect(persistAppSettingsPatchMock).not.toHaveBeenCalled();
+	});
+
 	it('keeps the real merge toggle visible and interactive while files are selected', async () => {
 		setFilesAndSelection([0]);
 		render(AppShellIsland, { children: emptyChildren });

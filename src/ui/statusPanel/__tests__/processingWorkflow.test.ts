@@ -286,6 +286,45 @@ describe('ProcessingWorkflow', () => {
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
+	it('reorders the processing payload when the file list is sorted by filename', async () => {
+		// Cross-owner guardrail (DECISIONS: chapter queue): the sorted visual
+		// order IS the processing order, end to end through the real sort action.
+		const { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } = await import(
+			'../../fileList/state.svelte'
+		);
+		const { toggleFileSort } = await import('../../fileList/actions');
+		const { getCurrentFileList: readRealFileList } = await import('../../fileList');
+		setCurrentFileList({
+			files: [
+				audioFile('/books/10 - Last Chapter.mp3', { inputId: 'tenth' }),
+				audioFile('/books/2 - Early Chapter.mp3', { inputId: 'second' }),
+			],
+			selectedDecoders: [null, null],
+			totalDuration: 2,
+			totalSize: 2,
+			validCount: 2,
+			invalidCount: 0,
+		});
+		setSelectedFileIndices([]);
+		setSelectedIndex(-1);
+		await toggleFileSort();
+
+		const ctx = workflowContext();
+		const { services } = workflowServices({
+			getCurrentFileList: vi.fn(() => readRealFileList()),
+		});
+		await runWithServices(ctx, services);
+
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({
+					inputFiles: ['/books/2 - Early Chapter.mp3', '/books/10 - Last Chapter.mp3'],
+					inputIds: ['second', 'tenth'],
+				}),
+			}),
+		);
+	});
+
 	it('preserves the current FileList valid order in the merge payload', async () => {
 		const currentFileList: FileListInfo = {
 			files: [
