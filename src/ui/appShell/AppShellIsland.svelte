@@ -20,6 +20,14 @@
 	import { TagPreviewIsland } from '../tagPreview';
 	import { editSurfaceState } from '../metadataSurface';
 	import { densityState, setDensityFromUser } from './density.svelte';
+	import {
+		RAIL_WIDTH_KEYBOARD_STEP,
+		RAIL_WIDTH_MAX,
+		RAIL_WIDTH_MIN,
+		previewRailWidthFromUser,
+		readRailWidth,
+		setRailWidthFromUser,
+	} from './railWidth.svelte';
 
 interface Props {
 	children: Snippet;
@@ -44,6 +52,55 @@ let { children, overlay, rail }: Props = $props();
 	const encoderPopover = new PopoverController();
 	const namingPopover = new PopoverController();
 	const importMenu = new PopoverController({ closeOnClickAway: true });
+	const railWidth = $derived(readRailWidth());
+
+	function handleRailResizePointerDown(event: PointerEvent): void {
+		if (event.button !== 0) return;
+		event.preventDefault();
+		const pointerId = event.pointerId;
+		const startX = event.clientX;
+		const startWidth = readRailWidth();
+
+		const handleMove = (moveEvent: PointerEvent): void => {
+			if (moveEvent.pointerId !== pointerId) return;
+			// The rail sits on the right: dragging left grows it.
+			previewRailWidthFromUser(startWidth + (startX - moveEvent.clientX));
+		};
+		const finish = (endEvent: PointerEvent, commit: boolean): void => {
+			if (endEvent.pointerId !== pointerId) return;
+			window.removeEventListener('pointermove', handleMove);
+			window.removeEventListener('pointerup', handleUp);
+			window.removeEventListener('pointercancel', handleCancel);
+			if (commit) setRailWidthFromUser(readRailWidth());
+			else previewRailWidthFromUser(startWidth);
+		};
+		const handleUp = (endEvent: PointerEvent): void => finish(endEvent, true);
+		const handleCancel = (endEvent: PointerEvent): void => finish(endEvent, false);
+
+		const target = event.currentTarget;
+		if (target instanceof Element && typeof target.setPointerCapture === 'function') {
+			try {
+				target.setPointerCapture(pointerId);
+			} catch {
+				// Best-effort; the window listeners carry the drag regardless.
+			}
+		}
+		window.addEventListener('pointermove', handleMove);
+		window.addEventListener('pointerup', handleUp);
+		window.addEventListener('pointercancel', handleCancel);
+	}
+
+	function handleRailResizeKeydown(event: KeyboardEvent): void {
+		const current = readRailWidth();
+		let next: number | null = null;
+		if (event.key === 'ArrowLeft') next = current + RAIL_WIDTH_KEYBOARD_STEP;
+		else if (event.key === 'ArrowRight') next = current - RAIL_WIDTH_KEYBOARD_STEP;
+		else if (event.key === 'Home') next = RAIL_WIDTH_MAX;
+		else if (event.key === 'End') next = RAIL_WIDTH_MIN;
+		if (next === null) return;
+		event.preventDefault();
+		setRailWidthFromUser(next);
+	}
 
 	$effect(() => {
 		encoderPopover.setElements({ anchor: encoderAnchor, container: popoverContainer, panel: encoderPanel });
@@ -266,7 +323,12 @@ let { children, overlay, rail }: Props = $props();
 		</div>
 	{/if}
 
-	<main class="app-shell-main" class:no-rail={noRail} data-testid="app-shell-main">
+	<main
+		class="app-shell-main"
+		class:no-rail={noRail}
+		data-testid="app-shell-main"
+		style={`--abb-rail-width: ${railWidth}px`}
+	>
 		<div class="app-shell-main-left">
 			<div class="app-shell-main-content">
 				{@render children()}
@@ -276,6 +338,19 @@ let { children, overlay, rail }: Props = $props();
 			</div>
 		</div>
 		{#if rail && !noRail}
+			<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+			<div
+				class="app-shell-rail-resizer"
+				role="separator"
+				aria-orientation="vertical"
+				aria-label="Resize metadata rail"
+				aria-valuemin={RAIL_WIDTH_MIN}
+				aria-valuemax={RAIL_WIDTH_MAX}
+				aria-valuenow={railWidth}
+				tabindex="0"
+				onpointerdown={handleRailResizePointerDown}
+				onkeydown={handleRailResizeKeydown}
+			></div>
 			<aside class="app-shell-main-rail">
 				{@render rail()}
 			</aside>
@@ -363,7 +438,7 @@ let { children, overlay, rail }: Props = $props();
 
 	.app-shell-main {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 340px;
+		grid-template-columns: minmax(0, 1fr) auto var(--abb-rail-width, 420px);
 		flex: 1 1 auto;
 		min-width: 0;
 		min-height: 0;
@@ -372,6 +447,19 @@ let { children, overlay, rail }: Props = $props();
 
 	.app-shell-main.no-rail {
 		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.app-shell-rail-resizer {
+		width: 6px;
+		margin-left: -3px;
+		cursor: col-resize;
+		touch-action: none;
+	}
+
+	.app-shell-rail-resizer:hover,
+	.app-shell-rail-resizer:focus-visible {
+		background: color-mix(in srgb, var(--accent-primary) 45%, transparent);
+		outline: none;
 	}
 
 	.app-shell-main-left {

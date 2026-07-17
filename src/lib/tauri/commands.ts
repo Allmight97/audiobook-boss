@@ -114,6 +114,7 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 		startupBehavior: patch.startupBehavior ?? null,
 		density: patch.density ?? null,
 		editSurface: patch.editSurface ?? null,
+		railWidth: patch.railWidth ?? null,
 		pinnedDefaults: patch.pinnedDefaults
 			? {
 					maxConcurrentJobs: patch.pinnedDefaults.maxConcurrentJobs,

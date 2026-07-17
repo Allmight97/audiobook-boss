@@ -4,7 +4,7 @@ import { applyEncodingDefaults } from '../encoderPanel';
 import { applyMaxConcurrentPreference } from '../jobControls';
 import { applyOutputDefaultsFromSettings } from '../outputPanel';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
-import { applyDensityPreference } from '../appShell';
+import { applyDensityPreference, applyRailWidthPreference } from '../appShell';
 import { applyEditSurfacePreference } from '../metadataSurface';
 
 let hydrationPromise: Promise<void> | null = null;
@@ -29,6 +29,7 @@ async function hydrateOnce(): Promise<void> {
 	// uses pinned defaults.
 	applyDensityPreference(settings.density ?? 'comfortable');
 	applyEditSurfacePreference(settings.editSurface ?? 'rail');
+	applyRailWidthPreference(settings.railWidth ?? 420);
 
 	const capabilities = await loadRuntimeSettingsCapabilities();
 

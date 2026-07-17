@@ -22,9 +22,11 @@
 - Change storage or merge internals when App Settings contract tests and runtime
   binding checks stay green.
 - Store backend/request-shaped settings only; keep UI-only display state out of
-  durable settings. **Approved exception:** `DensityPreference` is a global,
-  user-selected layout preference persisted here alongside `StartupBehavior`;
-  it is not panel visibility or transient display state.
+  durable settings. **Approved exceptions:** `DensityPreference` and
+  `rail_width` are global, user-selected layout preferences persisted here
+  alongside `StartupBehavior`; they are not panel visibility or transient
+  display state. `rail_width` is clamped here (`RAIL_WIDTH_MIN/MAX`) so a
+  stale or hand-edited file can never hydrate an unusable layout.
 - Treat persisted user paths as preference data only. Runtime owners still
   validate paths before reads or writes.
 

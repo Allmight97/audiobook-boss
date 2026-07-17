@@ -186,6 +186,8 @@ export type AppSettings = {
 	startupBehavior?: StartupBehavior,
 	density?: DensityPreference,
 	editSurface?: EditSurfacePreference,
+	// Metadata rail width in CSS pixels; clamped to the shell's resize range.
+	railWidth?: number,
 	pinnedDefaults?: PinnedDefaults | null,
 };
 
@@ -197,6 +199,7 @@ export type AppSettingsPatch = {
 	startupBehavior: StartupBehavior | null,
 	density: DensityPreference | null,
 	editSurface: EditSurfacePreference | null,
+	railWidth: number | null,
 	/**
 	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
 	 *  back to `RememberLastState`, never unpinning.

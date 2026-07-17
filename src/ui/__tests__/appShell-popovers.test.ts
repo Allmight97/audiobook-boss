@@ -12,7 +12,11 @@ import {
 } from '../fileList/state.svelte';
 import { triggerProcessFromStatusPanel } from '../statusPanel';
 
-vi.mock('../appSettings', () => ({ openAppSettingsDialog: vi.fn() }));
+const persistAppSettingsPatchMock = vi.hoisted(() => vi.fn());
+vi.mock('../appSettings', () => ({
+	openAppSettingsDialog: vi.fn(),
+	persistAppSettingsPatch: persistAppSettingsPatchMock,
+}));
 vi.mock('../fileImport', () => ({
 	handleClickToSelect: vi.fn(),
 	handleClickToSelectFolder: vi.fn(),
@@ -245,6 +249,33 @@ describe('contextual selection cluster', () => {
 		expect(cluster.textContent).toContain('Remove');
 		const mergeZone = document.querySelector('.app-shell-merge') as HTMLElement;
 		expect(mergeZone.hidden).toBe(false);
+	});
+
+	it('resizes the metadata rail from the keyboard separator and persists on commit', async () => {
+		const { applyRailWidthPreference, readRailWidth } = await import('../appShell');
+		applyRailWidthPreference(420);
+		persistAppSettingsPatchMock.mockClear();
+		render(AppShellIsland, {
+			children: emptyChildren,
+			rail: createRawSnippet(() => ({ render: () => '<span>rail</span>' })),
+		});
+
+		const separator = screen.getByRole('separator', { name: 'Resize metadata rail' });
+		expect(separator).toHaveAttribute('aria-valuenow', '420');
+		expect(separator).toHaveAttribute('aria-valuemin', '340');
+		expect(separator).toHaveAttribute('aria-valuemax', '640');
+
+		await fireEvent.keyDown(separator, { key: 'ArrowLeft' });
+		expect(readRailWidth()).toBe(436);
+		expect(separator).toHaveAttribute('aria-valuenow', '436');
+		expect(persistAppSettingsPatchMock).toHaveBeenCalledWith({ railWidth: 436 });
+
+		await fireEvent.keyDown(separator, { key: 'End' });
+		expect(readRailWidth()).toBe(340);
+		expect(persistAppSettingsPatchMock).toHaveBeenCalledWith({ railWidth: 340 });
+
+		const main = screen.getByTestId('app-shell-main');
+		expect(main.getAttribute('style')).toContain('--abb-rail-width: 340px');
 	});
 
 	it('keeps the real merge toggle visible and interactive while files are selected', async () => {

@@ -94,7 +94,12 @@
 </div>
 
 {#if activeTab === 'metadata'}
-	<div id={`${idPrefix}-panel-metadata`} role="tabpanel" aria-labelledby={`${idPrefix}-tab-metadata`}>
+	<div
+		id={`${idPrefix}-panel-metadata`}
+		role="tabpanel"
+		aria-labelledby={`${idPrefix}-tab-metadata`}
+		class="metadata-surface-panel"
+	>
 		<div
 			class="metadata-surface-form"
 			class:metadata-surface-form--stacked={layout === 'stacked'}
@@ -148,6 +153,10 @@
 		border-bottom: 1px solid var(--border-primary);
 	}
 
+	.metadata-surface-panel {
+		container-type: inline-size;
+	}
+
 	.metadata-surface-form {
 		display: grid;
 		grid-template-columns: minmax(10rem, 0.8fr) minmax(0, 3fr);
@@ -155,12 +164,18 @@
 		align-items: start;
 	}
 
+	/* Stacked (rail) layout: the cover stays visible ABOVE the fields when the
+	   rail is narrow, and returns beside them once the rail is wide enough —
+	   never below the fold. */
 	.metadata-surface-form--stacked {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.metadata-surface-form--stacked .metadata-fields-cell { order: 1; }
-	.metadata-surface-form--stacked .metadata-cover-cell { order: 2; justify-content: flex-start; }
+	@container (min-width: 24rem) {
+		.metadata-surface-form--stacked {
+			grid-template-columns: minmax(10rem, 0.8fr) minmax(0, 3fr);
+		}
+	}
 
 	.metadata-cover-cell,
 	.metadata-fields-cell { min-width: 0; }

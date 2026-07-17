@@ -58,6 +58,7 @@ const settingsFixture = (): AppSettings => ({
 	startupBehavior: 'rememberLastState',
 	density: 'comfortable',
 	editSurface: 'rail',
+	railWidth: 420,
 });
 
 const pinnedDefaultsFixture = (): NonNullable<AppSettings['pinnedDefaults']> => ({
@@ -114,6 +115,21 @@ describe('app settings control plane', () => {
 			settings.maxConcurrentJobs,
 			capabilities.maxConcurrentJobs,
 		);
+	});
+
+	it('hydrates the rail width from settings and clamps it to the shell range', async () => {
+		const settings = { ...settingsFixture(), railWidth: 512 };
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		const { readRailWidth } = await import('../appShell');
+		expect(readRailWidth()).toBe(512);
+
+		context.getAppSettingsMock.mockResolvedValueOnce({ ...settingsFixture(), railWidth: 10_000 });
+		await hydrateAppSettings();
+		expect(readRailWidth()).toBe(640);
 	});
 
 	it('hydrates compact density from the top-level preference, not pinned defaults', async () => {

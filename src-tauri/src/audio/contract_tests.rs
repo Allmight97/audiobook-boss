@@ -77,5 +77,8 @@ fn audio_file_display_tags_and_chapters_serialize_and_default_for_legacy_payload
         "missing chapters defaults to empty"
     );
     assert_eq!(parsed.tag_title, None, "missing title tag defaults to None");
-    assert_eq!(parsed.tag_artist, None, "missing artist tag defaults to None");
+    assert_eq!(
+        parsed.tag_artist, None,
+        "missing artist tag defaults to None"
+    );
 }

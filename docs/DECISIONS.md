@@ -371,3 +371,17 @@
   unverifiable; mock's rows are whole books, ABB's rows are input files.
 - Guardrail: processing order follows visible row order; nothing that consults
   metadata titles may reorder the queue.
+
+## Metadata rail: resizable width + cover beside fields (2026-07-17)
+
+- Outcome: the rail column is user-resizable (pointer handle + keyboard
+  separator, 340–640px, default 420) with `rail_width` persisted in
+  App Settings as an approved layout-preference exception, Rust-clamped. The
+  stacked metadata pane no longer flips the cover below the fields; a
+  container query puts cover beside fields when the rail is ≥24rem, above
+  them when narrower — never below the fold.
+- Evidence: owner smoke (GH #422) — 340px fixed rail hid the cover-art area
+  entirely; old UI guaranteed the cover `minmax(11rem, …)` beside inputs
+  (`main:src/ui/metadataManager/MetadataManagerIsland.svelte`).
+- Guardrail: `MetadataSurfacePresentation` and the rail's no-focus-steal
+  invariant are untouched; hydration applies width but never persists.

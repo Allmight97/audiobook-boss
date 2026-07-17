@@ -88,6 +88,7 @@ function appSettingsFixture() {
 		startupBehavior: 'rememberLastState' as const,
 		density: 'comfortable' as const,
 		editSurface: 'rail' as const,
+		railWidth: 420,
 	};
 }
 

@@ -427,3 +427,59 @@ fn edit_surface_preference_persists_and_round_trips() {
     let reloaded = get_app_settings(temp.path()).expect("reload settings");
     assert_eq!(reloaded.edit_surface, EditSurfacePreference::Popover);
 }
+
+#[test]
+fn settings_file_without_rail_width_field_defaults_to_420() {
+    let temp = TempDir::new().expect("temp dir");
+    let legacy = serde_json::json!({
+        "maxConcurrentJobs": {"mode": "auto"},
+        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
+        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
+    });
+    std::fs::write(
+        temp.path().join("app-settings.json"),
+        serde_json::to_string_pretty(&legacy).expect("legacy json"),
+    )
+    .expect("write legacy settings");
+
+    let settings = get_app_settings(temp.path()).expect("load legacy settings");
+
+    assert_eq!(settings.rail_width, 420);
+}
+
+#[test]
+fn rail_width_persists_and_clamps_to_the_shell_range() {
+    let temp = TempDir::new().expect("temp dir");
+
+    let updated = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            rail_width: Some(512),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("update settings");
+    assert_eq!(updated.rail_width, 512);
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+    assert_eq!(reloaded.rail_width, 512);
+
+    let too_narrow = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            rail_width: Some(10),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("narrow patch clamps rather than fails");
+    assert_eq!(too_narrow.rail_width, 340);
+
+    let too_wide = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            rail_width: Some(5000),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("wide patch clamps rather than fails");
+    assert_eq!(too_wide.rail_width, 640);
+}

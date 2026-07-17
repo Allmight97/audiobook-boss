@@ -174,11 +174,8 @@ mod tests {
 
     #[test]
     fn renders_a_3000_pixel_square_embedded_cover() {
-        let image = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
-            3000,
-            3000,
-            Rgba([12, 34, 56, 255]),
-        ));
+        let image =
+            DynamicImage::ImageRgba8(ImageBuffer::from_pixel(3000, 3000, Rgba([12, 34, 56, 255])));
         let mut source = Cursor::new(Vec::new());
         image
             .write_to(&mut source, ImageFormat::Png)
@@ -194,11 +191,8 @@ mod tests {
 
     #[test]
     fn rejects_embedded_cover_wider_than_4096_pixels() {
-        let image = DynamicImage::ImageRgba8(ImageBuffer::from_pixel(
-            4097,
-            1,
-            Rgba([12, 34, 56, 255]),
-        ));
+        let image =
+            DynamicImage::ImageRgba8(ImageBuffer::from_pixel(4097, 1, Rgba([12, 34, 56, 255])));
         let mut source = Cursor::new(Vec::new());
         image
             .write_to(&mut source, ImageFormat::Png)

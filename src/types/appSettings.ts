@@ -45,5 +45,6 @@ export type AppSettingsPatch = Partial<{
 	startupBehavior: StartupBehavior | null;
 	density: DensityPreference | null;
 	editSurface: EditSurfacePreference | null;
+	railWidth: number | null;
 	pinnedDefaults: PinnedDefaults | null;
 }>;
