@@ -9,6 +9,7 @@ import FileListIsland from '../FileListIsland.svelte';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
+	getSelectedFileIndices,
 	setCurrentFileList,
 	setOrderLocked,
 	setSelectedFileIndices,
@@ -335,6 +336,53 @@ describe('v3 book table', () => {
 			'aria-pressed',
 			'true',
 		);
+		expect(openMetadataSurface).not.toHaveBeenCalled();
+	});
+
+	it('preserves selected identities and suppresses row activation after a rendered drag reorder', async () => {
+		setCurrentFileList(
+			fileList(
+				file('/books/one.m4b', 'one'),
+				file('/books/two.m4b', 'two'),
+				file('/books/three.m4b', 'three'),
+			),
+		);
+		setSelectedFileIndices([0, 1]);
+		setSelectedIndex(0);
+		const openMetadataSurface = vi.fn();
+		setMetadataSurfacePresentation({
+			open: openMetadataSurface,
+			closeWithoutStaging: vi.fn(),
+			isOpen: () => false,
+		});
+		const screen = render(FileListIsland);
+		const draggedRow = screen.getByRole('checkbox', { name: 'Select one.m4b' }).closest('tr');
+		const dropRow = screen.getByRole('checkbox', { name: 'Select three.m4b' }).closest('tr');
+		if (!draggedRow || !dropRow) throw new Error('Expected rendered file-list rows');
+		const dataTransfer = {
+			effectAllowed: 'none',
+			dropEffect: 'none',
+			setData: vi.fn(),
+		} as unknown as DataTransfer;
+
+		await fireEvent.dragStart(draggedRow, { dataTransfer });
+		await fireEvent.dragOver(dropRow, { dataTransfer });
+		await fireEvent.drop(dropRow, { dataTransfer });
+		await fireEvent.dragEnd(draggedRow, { dataTransfer });
+		await waitFor(() => {
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/two.m4b',
+				'/books/three.m4b',
+				'/books/one.m4b',
+			]);
+		});
+
+		expect(Array.from(getSelectedFileIndices()).sort()).toEqual([0, 2]);
+		expect(getCurrentFileList()?.files[getSelectedFileIndex()]?.path).toBe('/books/one.m4b');
+		await fireEvent.click(draggedRow);
+
+		expect(Array.from(getSelectedFileIndices()).sort()).toEqual([0, 2]);
+		expect(getCurrentFileList()?.files[getSelectedFileIndex()]?.path).toBe('/books/one.m4b');
 		expect(openMetadataSurface).not.toHaveBeenCalled();
 	});
 });

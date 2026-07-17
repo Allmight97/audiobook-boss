@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../../types/audio';
+import { EVENTS, type WorkOperationSnapshotEvent } from '../../../types/events';
 import type { OperationListSnapshot, OperationSnapshot } from '../../../types/workRuntime';
 import { tauriClient } from '../../../lib/tauri/client';
 import { setCurrentFileList, setOrderLocked } from '../../fileList/state.svelte';
@@ -99,6 +100,11 @@ describe('OperationsBarIsland', () => {
 		setOrderLocked(false);
 		setCurrentFileList(fileList());
 		vi.restoreAllMocks();
+	});
+
+	afterEach(() => {
+		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
+		disposeWorkCenter();
 	});
 
 	it('transitions collapsed to open to pinned, blocks disclosure while pinned, then unpins to open', async () => {
@@ -205,6 +211,93 @@ describe('OperationsBarIsland', () => {
 			screen.getByRole('button', { name: 'Cancel The Way of Kings — batch encode' }),
 		);
 		expect(cancelSpy).toHaveBeenCalledWith('operation-1');
+	});
+
+	it('carries runtime events through the Work Center UI from progress to cancellation terminal truth', async () => {
+		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		const running = {
+			...operation(),
+			progress: { ...operation().progress, etaSeconds: 242 },
+			logTail: [{ timestampMs: 3, message: 'Encoding chunk 8/12' }],
+		};
+		const cancelling: OperationSnapshot = {
+			...running,
+			status: 'cancelling',
+			cancelRequested: true,
+			progress: { ...running.progress, message: 'Cancellation requested' },
+			children: running.children.map((child) => ({ ...child, cancelRequested: true })),
+			logTail: [...running.logTail, { timestampMs: 4, message: 'Cancellation requested' }],
+		};
+		const cancelled: OperationSnapshot = {
+			...cancelling,
+			status: 'cancelled',
+			finishedAtMs: 5,
+			cancellable: false,
+			progress: {
+				...cancelling.progress,
+				stage: 'cancelled',
+				message: 'Cancelled 1/1.',
+			},
+			children: cancelling.children.map((child) => ({
+				...child,
+				status: 'cancelled',
+				cancellable: false,
+				progress: { ...child.progress, stage: 'cancelled', message: 'Cancelled' },
+			})),
+			terminalSummary: {
+				total: 1,
+				succeeded: 0,
+				skipped: 0,
+				cancelled: 1,
+				failed: 0,
+				message: 'Cancelled 1/1.',
+			},
+			logTail: [...cancelling.logTail, { timestampMs: 5, message: 'Operation cancelled' }],
+		};
+		const listenSpy = vi.spyOn(tauriClient, 'listen').mockResolvedValue(vi.fn());
+		vi.spyOn(tauriClient, 'listWorkOperations').mockResolvedValue(operationList());
+		const cancelSpy = vi.spyOn(tauriClient, 'cancelWorkOperation').mockResolvedValue(cancelling);
+		const { container } = render(OperationsBarIsland);
+
+		await waitFor(() => expect(listenSpy).toHaveBeenCalledTimes(2));
+		expect(listenSpy.mock.calls.map(([event]) => String(event))).toEqual([
+			EVENTS.WORK_OPERATION_SNAPSHOT,
+			EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
+		]);
+		const snapshotHandler = listenSpy.mock.calls[0]?.[1] as
+			| ((event: { payload: WorkOperationSnapshotEvent }) => void)
+			| undefined;
+		if (!snapshotHandler) throw new Error('Expected the WorkRuntime snapshot listener');
+
+		snapshotHandler({ payload: { snapshot: running } });
+		await waitFor(() => {
+			expect(
+				screen.getByText('The Way of Kings — batch encode · 64% · 04:02 left'),
+			).toBeInTheDocument();
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Toggle operations' }));
+		await fireEvent.click(
+			screen.getByRole('button', { name: 'Expand The Way of Kings — batch encode' }),
+		);
+		expect(container.querySelector('.op-log')).toHaveTextContent('Encoding chunk 8/12');
+
+		await fireEvent.click(
+			screen.getByRole('button', { name: 'Cancel The Way of Kings — batch encode' }),
+		);
+		await waitFor(() => expect(cancelSpy).toHaveBeenCalledWith('operation-1'));
+		expect(screen.getByText('cancelling')).toBeInTheDocument();
+		expect(
+			screen.queryByRole('button', { name: 'Cancel The Way of Kings — batch encode' }),
+		).not.toBeInTheDocument();
+		expect(container.querySelector('.operations-bar-background-line')).toHaveTextContent(
+			'The Way of Kings — batch encode',
+		);
+
+		snapshotHandler({ payload: { snapshot: cancelled } });
+		await waitFor(() => expect(screen.getByText('cancelled')).toBeInTheDocument());
+		expect(screen.getByText('Cancelled 1/1.')).toBeInTheDocument();
+		expect(screen.getByText(/^Idle$/)).toBeInTheDocument();
 	});
 
 	it('keeps foreground transport and background operation snapshots in separate lanes', async () => {
