@@ -74,7 +74,8 @@ describe('StatusPanel resetToIdle', () => {
 
 		controller.resetToIdle();
 
-		expect(statusPanelViewState.jobItems).toHaveLength(0);
+		expect(statusPanelViewState.foregroundJobLabel).toBeNull();
+		expect(statusPanelViewState.hasCancellableForegroundJob).toBe(false);
 		expect(statusPanelViewState.statusText).toBe('Idle');
 		expect(statusPanelViewState.stepText).toBe('Current Step: Ready to process audiobook');
 		expect(statusPanelViewState.progressPercentage).toBe(0);

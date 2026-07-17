@@ -43,16 +43,7 @@ describe('Status Transport island mount', () => {
 		statusPanelViewState.progressPercentage = 64;
 		statusPanelViewState.statusText = 'Converting';
 		statusPanelViewState.etaSeconds = 242;
-		statusPanelViewState.jobItems = [
-			{
-				key: 'processing',
-				label: 'The Way of Kings',
-				status: 'processing',
-				statusText: 'Converting',
-				canCancel: true,
-				cancelId: 'job-1',
-			},
-		];
+		statusPanelViewState.foregroundJobLabel = 'The Way of Kings';
 		await tick();
 
 		expect(
@@ -65,16 +56,7 @@ describe('Status Transport island mount', () => {
 		statusPanelViewState.isProcessing = true;
 		statusPanelViewState.progressPercentage = 64.2;
 		statusPanelViewState.statusText = 'Converting';
-		statusPanelViewState.jobItems = [
-			{
-				key: 'processing',
-				label: 'The Way of Kings.m4b',
-				status: 'processing',
-				statusText: 'Converting',
-				canCancel: true,
-				cancelId: 'job-1',
-			},
-		];
+		statusPanelViewState.foregroundJobLabel = 'The Way of Kings.m4b';
 		await tick();
 
 		expect(
@@ -115,16 +97,7 @@ describe('Status Transport island mount', () => {
 	it('wires Cancel All to the retained local-settle action', async () => {
 		render(StatusTransportIsland);
 		statusPanelViewState.isProcessing = true;
-		statusPanelViewState.jobItems = [
-			{
-				key: 'processing',
-				label: 'Preview.m4b',
-				status: 'processing',
-				statusText: 'Converting',
-				canCancel: true,
-				cancelId: 'job-1',
-			},
-		];
+		statusPanelViewState.hasCancellableForegroundJob = true;
 		await tick();
 
 		(document.querySelector('button.pill') as HTMLButtonElement).click();

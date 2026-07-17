@@ -82,6 +82,51 @@ describe('MetadataRailIsland', () => {
 
 		expect(screen.getByText('3 files selected')).toBeInTheDocument();
 		expect(screen.getByTestId('meta-author-action')).toBeInTheDocument();
+		expect(screen.queryByText(/— · 1:05 · 0 chapters/)).toBeNull();
+	});
+
+	it.each([
+		{
+			name: 'single',
+			prepare: () => {
+				const active = file('/books/words-of-radiance.m4b');
+				setCurrentFileList(fileList(active));
+				setSelectedFileIndices([0]);
+				setSelectedIndex(0);
+				cacheMetadataForFile(active.path, { title: 'Words of Radiance' });
+				populateMetadataFormSingle({ title: 'Words of Radiance' });
+			},
+		},
+		{
+			name: 'multi',
+			prepare: () => {
+				const files = [file('/books/one.m4b'), file('/books/two.m4b')];
+				setCurrentFileList(fileList(...files));
+				setSelectedFileIndices([0, 1]);
+				setSelectedIndex(0);
+				populateMetadataFormMulti([{ title: 'One' }, { title: 'Two' }], 2);
+			},
+		},
+	])('renders the same $name summary in rail and popover presentations', async ({ prepare }) => {
+		prepare();
+		const rail = render(MetadataRailIsland);
+		const railHeading = screen.getByRole('heading').textContent;
+		rail.unmount();
+
+		applyEditSurfacePreference('popover');
+		const onPresentationReady = vi.fn();
+		render(MetadataSurfaceIsland, { onPresentationReady });
+		const presentation = onPresentationReady.mock.calls[
+			onPresentationReady.mock.calls.length - 1
+		]?.[0] as { open(anchor: HTMLElement): void };
+		const anchor = document.createElement('button');
+		document.body.append(anchor);
+		presentation.open(anchor);
+		await tick();
+
+		expect(
+			screen.getByRole('dialog', { name: 'Metadata editor' }).querySelector('h2'),
+		).toHaveTextContent(railHeading ?? '');
 	});
 });
 

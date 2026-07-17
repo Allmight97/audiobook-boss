@@ -1,51 +1,23 @@
 <script lang="ts">
-	import { coverArtBytesToDataUrl } from '../coverArt';
-	import {
-		getCurrentFileList,
-		getSelectedFileIndex,
-		getSelectedFiles,
-		readActiveFileChapters,
-		readInspectorFacts,
-	} from '../fileList';
-	import { getMetadataForFile } from '../metadataSession';
-	import { readMetadataFormViewSnapshot } from '../metadataForm';
-	import { formatDuration } from '../../types/audio';
 	import MetadataSurfacePanes from './MetadataSurfacePanes.svelte';
+	import { readActiveFileSummary } from './activeFileSummary.svelte';
 
-	const metadataFormSnapshot = $derived(readMetadataFormViewSnapshot());
-	const activeFile = $derived(getCurrentFileList()?.files[getSelectedFileIndex()] ?? null);
-	const selectedFiles = $derived(getSelectedFiles());
-	const facts = $derived(readInspectorFacts());
-	const chapters = $derived(readActiveFileChapters());
-	const activeMetadata = $derived(activeFile ? getMetadataForFile(activeFile.path) : undefined);
-	const activeTitle = $derived(
-		activeMetadata?.title || facts.find((fact) => fact.label === 'File')?.value || 'Metadata',
-	);
-	const activeAuthor = $derived(activeMetadata?.artist || '—');
-	const activeDuration = $derived(formatDuration(activeFile?.duration));
-	const coverDataUrl = $derived(
-		activeMetadata?.cover_art?.length ? coverArtBytesToDataUrl(activeMetadata.cover_art) : null,
-	);
-	const hasSelection = $derived(selectedFiles.length > 0 && activeFile !== null);
+	const summary = $derived(readActiveFileSummary());
 </script>
 
 <aside class="metadata-rail" data-testid="metadata-rail" aria-label="Metadata editor">
-	{#if !hasSelection}
+	{#if !summary.hasSelection}
 		<div class="metadata-rail-empty">Select a book to edit its details.</div>
 	{:else}
 		<header class="metadata-rail-head">
-			{#if coverDataUrl}
-				<img class="metadata-rail-cover" src={coverDataUrl} alt="" />
+			{#if summary.coverDataUrl}
+				<img class="metadata-rail-cover" src={summary.coverDataUrl} alt="" />
 			{:else}
 				<div class="metadata-rail-cover metadata-rail-cover-placeholder" aria-hidden="true"></div>
 			{/if}
 			<div class="metadata-rail-title-group">
-				{#if metadataFormSnapshot.mode === 'multi' && metadataFormSnapshot.selectionCount > 1}
-					<h2>{metadataFormSnapshot.selectionCount} files selected</h2>
-				{:else}
-					<h2>{activeTitle}</h2>
-					<p>{activeAuthor} · {activeDuration} · {chapters.length} chapters</p>
-				{/if}
+				<h2>{summary.heading}</h2>
+				{#if summary.railSubtitle}<p>{summary.railSubtitle}</p>{/if}
 			</div>
 		</header>
 		<div class="metadata-rail-pane">

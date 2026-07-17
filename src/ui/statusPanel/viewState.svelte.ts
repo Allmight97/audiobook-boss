@@ -1,15 +1,13 @@
-import type { JobListItem } from './viewTypes';
-
 type StatusPanelViewState = {
 	coverArtDataUrl: string | null;
-	jobItems: JobListItem[];
+	foregroundJobLabel: string | null;
+	hasCancellableForegroundJob: boolean;
 	progressPercentage: number;
 	statusText: string;
 	statusTextLockUntilEpochMs: number;
 	stepText: string;
 	stepColor: string;
 	isProcessing: boolean;
-	cancelAllPending: boolean;
 	etaSeconds: number | null;
 };
 
@@ -19,14 +17,14 @@ export const STATUS_PANEL_DEFAULT_STEP_COLOR = 'var(--text-primary)';
 
 const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
 	coverArtDataUrl: null,
-	jobItems: [],
+	foregroundJobLabel: null,
+	hasCancellableForegroundJob: false,
 	progressPercentage: 0,
 	statusText: 'Idle',
 	statusTextLockUntilEpochMs: 0,
 	stepText: 'Current Step: Waiting for files...',
 	stepColor: STATUS_PANEL_DEFAULT_STEP_COLOR,
 	isProcessing: false,
-	cancelAllPending: false,
 	etaSeconds: null,
 };
 
@@ -93,8 +91,14 @@ export function setStatusPanelCoverArtDataUrl(dataUrl: string | null): void {
 	statusPanelViewState.coverArtDataUrl = dataUrl;
 }
 
-export function setStatusPanelJobItems(items: JobListItem[]): void {
-	statusPanelViewState.jobItems = items;
+export function setStatusPanelForegroundJobLabel(label: string | null): void {
+	statusPanelViewState.foregroundJobLabel = label;
+}
+
+export function setStatusPanelHasCancellableForegroundJob(
+	hasCancellableForegroundJob: boolean,
+): void {
+	statusPanelViewState.hasCancellableForegroundJob = hasCancellableForegroundJob;
 }
 
 export function setStatusPanelProgressPercentage(value: number): void {
@@ -130,10 +134,6 @@ export function setStatusPanelIsProcessing(isProcessing: boolean): void {
 	statusPanelViewState.isProcessing = isProcessing;
 }
 
-export function setStatusPanelCancelAllPending(isPending: boolean): void {
-	statusPanelViewState.cancelAllPending = isPending;
-}
-
 export function showError(message: string): void {
 	setStatusPanelStepText(`Error: ${message}`);
 	setStatusPanelStepColor('var(--text-error, #ef4444)');
@@ -159,7 +159,9 @@ export function clearTransientStatusMessageLock(): void {
 
 export function resetStatusPanelViewState(): void {
 	statusPanelViewState.coverArtDataUrl = DEFAULT_STATUS_PANEL_VIEW_STATE.coverArtDataUrl;
-	statusPanelViewState.jobItems = [...DEFAULT_STATUS_PANEL_VIEW_STATE.jobItems];
+	statusPanelViewState.foregroundJobLabel = DEFAULT_STATUS_PANEL_VIEW_STATE.foregroundJobLabel;
+	statusPanelViewState.hasCancellableForegroundJob =
+		DEFAULT_STATUS_PANEL_VIEW_STATE.hasCancellableForegroundJob;
 	statusPanelViewState.progressPercentage = DEFAULT_STATUS_PANEL_VIEW_STATE.progressPercentage;
 	statusPanelViewState.statusText = DEFAULT_STATUS_PANEL_VIEW_STATE.statusText;
 	statusPanelViewState.statusTextLockUntilEpochMs =
@@ -167,7 +169,6 @@ export function resetStatusPanelViewState(): void {
 	statusPanelViewState.stepText = DEFAULT_STATUS_PANEL_VIEW_STATE.stepText;
 	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
 	statusPanelViewState.isProcessing = DEFAULT_STATUS_PANEL_VIEW_STATE.isProcessing;
-	statusPanelViewState.cancelAllPending = DEFAULT_STATUS_PANEL_VIEW_STATE.cancelAllPending;
 	statusPanelViewState.etaSeconds = DEFAULT_STATUS_PANEL_VIEW_STATE.etaSeconds;
 
 	if (statusMessageLockTimeoutId !== null) {

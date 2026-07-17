@@ -1,30 +1,34 @@
 <script lang="ts">
+	import { PopoverController } from '../../lib/ui/popover.svelte';
 	import { triggerProcessFromStatusPanel } from '../statusPanel';
 
 	const PREVIEW_DURATIONS = [15, 30, 45, 60];
 
-	let menuOpen = $state(false);
 	let rootElement = $state<HTMLElement | null>(null);
 	let caretElement = $state<HTMLButtonElement | null>(null);
+	let menuPanel = $state<HTMLElement | null>(null);
+	const menu = new PopoverController({ closeOnClickAway: true });
+
+	$effect(() => {
+		menu.setElements({ anchor: caretElement, panel: menuPanel, clickBoundary: rootElement });
+	});
 
 	function handleWindowClick(event: MouseEvent): void {
-		if (!menuOpen) return;
-		const target = event.target;
-		if (!(target instanceof Node)) return;
-		if (rootElement?.contains(target)) return;
-		menuOpen = false;
+		menu.handleClickAway(event);
 	}
 
 	function handleKeydown(event: KeyboardEvent): void {
-		if (event.key === 'Escape' && menuOpen) {
-			event.preventDefault();
-			menuOpen = false;
-			caretElement?.focus();
-		}
+		menu.handleKeydown(event);
+	}
+
+	function toggleFromKeyboard(event: KeyboardEvent): void {
+		if (!['Enter', ' ', 'ArrowDown'].includes(event.key)) return;
+		event.preventDefault();
+		menu.toggle({ focusInside: true });
 	}
 
 	function handlePreviewSelect(previewSeconds: number): void {
-		menuOpen = false;
+		menu.close({ restoreFocus: false });
 		triggerProcessFromStatusPanel({ previewSeconds });
 	}
 </script>
@@ -46,16 +50,15 @@
 		type="button"
 		class="pill pill-primary split-caret"
 		aria-haspopup="menu"
-		aria-expanded={menuOpen}
+		aria-expanded={menu.isOpen}
 		aria-label="Preview options"
 		bind:this={caretElement}
-		onclick={() => {
-			menuOpen = !menuOpen;
-		}}
+		onclick={() => menu.toggle({ focusInside: false })}
+		onkeydown={toggleFromKeyboard}
 	>
 		▼
 	</button>
-	<div class="split-dropdown" class:open={menuOpen} role="menu">
+	<div bind:this={menuPanel} class="split-dropdown" class:open={menu.isOpen} role="menu">
 		{#each PREVIEW_DURATIONS as seconds (seconds)}
 			<button
 				type="button"

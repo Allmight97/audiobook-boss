@@ -96,6 +96,22 @@ describe('import menu', () => {
 		await tick();
 		expect(pill.getAttribute('aria-expanded')).toBe('false');
 	});
+
+	it('preserves pointer focus but moves keyboard-open focus into the menu', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const pill = document.getElementById('import-files-btn') as HTMLButtonElement;
+
+		pill.focus();
+		await fireEvent.click(pill);
+		await tick();
+		expect(document.activeElement).toBe(pill);
+
+		await fireEvent.click(pill);
+		await fireEvent.keyDown(pill, { key: 'ArrowDown' });
+		await tick();
+		expect(document.activeElement).toBe(document.getElementById('import-files-option'));
+	});
 });
 
 describe('process split-button', () => {
@@ -122,6 +138,64 @@ describe('process split-button', () => {
 
 		expect(vi.mocked(triggerProcessFromStatusPanel)).toHaveBeenCalledWith({ previewSeconds: 15 });
 		expect(caret.getAttribute('aria-expanded')).toBe('false');
+	});
+
+	it('closes preview choices on Escape and restores focus to the caret', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
+
+		await fireEvent.click(caret);
+		const preview15 = screen.getByRole('menuitem', { name: 'Preview 15s' });
+		await fireEvent.keyDown(preview15, { key: 'Escape' });
+		await tick();
+
+		expect(caret.getAttribute('aria-expanded')).toBe('false');
+		expect(document.activeElement).toBe(caret);
+	});
+
+	it('closes preview choices on click-away without stealing click target focus', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
+		const clickAwayTarget = document.createElement('button');
+		document.body.append(clickAwayTarget);
+
+		await fireEvent.click(caret);
+		clickAwayTarget.focus();
+		await fireEvent.click(clickAwayTarget);
+		await tick();
+
+		expect(caret.getAttribute('aria-expanded')).toBe('false');
+		expect(document.activeElement).toBe(clickAwayTarget);
+	});
+
+	it('does not dismiss preview choices when the split main action is clicked', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
+
+		await fireEvent.click(caret);
+		await fireEvent.click(document.getElementById('process-button') as HTMLButtonElement);
+
+		expect(vi.mocked(triggerProcessFromStatusPanel)).toHaveBeenCalledWith();
+		expect(caret.getAttribute('aria-expanded')).toBe('true');
+	});
+
+	it('preserves pointer focus but moves keyboard-open focus into preview choices', async () => {
+		selectionHolder.indices = new Set<number>();
+		render(AppShellIsland, { children: emptyChildren });
+		const caret = document.getElementById('process-menu-toggle') as HTMLButtonElement;
+
+		caret.focus();
+		await fireEvent.click(caret);
+		await tick();
+		expect(document.activeElement).toBe(caret);
+
+		await fireEvent.click(caret);
+		await fireEvent.keyDown(caret, { key: 'ArrowDown' });
+		await tick();
+		expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Preview 15s' }));
 	});
 });
 

@@ -2,6 +2,7 @@ export type PopoverElements = {
 	anchor?: HTMLElement | null;
 	container?: HTMLElement | null;
 	panel?: HTMLElement | null;
+	clickBoundary?: HTMLElement | null;
 };
 
 export type PopoverPosition = {
@@ -12,7 +13,12 @@ export type PopoverPosition = {
 export type PopoverControllerOptions = {
 	gap?: number;
 	inset?: number;
+	closeOnClickAway?: boolean;
 	onOpenChange?: (open: boolean) => void;
+};
+
+export type PopoverOpenOptions = {
+	focusInside?: boolean;
 };
 
 const FOCUSABLE_SELECTOR =
@@ -43,6 +49,8 @@ export class PopoverController {
 	#anchor: HTMLElement | null = null;
 	#container: HTMLElement | null = null;
 	#panel: HTMLElement | null = null;
+	#clickBoundary: HTMLElement | null = null;
+	#focusInsideOnOpen = true;
 	#options: PopoverControllerOptions;
 
 	constructor(options: PopoverControllerOptions = {}) {
@@ -53,17 +61,19 @@ export class PopoverController {
 		if (elements.anchor !== undefined) this.#anchor = elements.anchor;
 		if (elements.container !== undefined) this.#container = elements.container;
 		if (elements.panel !== undefined) this.#panel = elements.panel;
+		if (elements.clickBoundary !== undefined) this.#clickBoundary = elements.clickBoundary;
 		if (this.isOpen) {
 			this.reposition();
-			if (elements.panel) this.#focusInside();
+			if (elements.panel && this.#focusInsideOnOpen) this.#focusInside();
 		}
 	}
 
-	open(): void {
+	open(options: PopoverOpenOptions = {}): void {
 		if (this.isOpen) return;
+		this.#focusInsideOnOpen = options.focusInside ?? true;
 		this.isOpen = true;
 		this.reposition();
-		this.#focusInside();
+		if (this.#focusInsideOnOpen) this.#focusInside();
 		this.#options.onOpenChange?.(true);
 	}
 
@@ -77,9 +87,9 @@ export class PopoverController {
 		}
 	}
 
-	toggle(): void {
+	toggle(options?: PopoverOpenOptions): void {
 		if (this.isOpen) this.close();
-		else this.open();
+		else this.open(options);
 	}
 
 	reposition(): void {
@@ -96,6 +106,13 @@ export class PopoverController {
 		if (event.key !== 'Escape' || !this.isOpen) return;
 		event.preventDefault();
 		this.close();
+	}
+
+	handleClickAway(event: MouseEvent): void {
+		if (!this.isOpen || !this.#options.closeOnClickAway) return;
+		const target = event.target;
+		if (!(target instanceof Node) || this.#clickBoundary?.contains(target)) return;
+		this.close({ restoreFocus: false });
 	}
 
 	#focusInside(): void {

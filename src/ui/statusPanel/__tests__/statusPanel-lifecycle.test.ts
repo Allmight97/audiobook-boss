@@ -58,14 +58,6 @@ function getStepColor(): string {
 	return statusPanelViewState.stepColor;
 }
 
-function getJobRows(): string[] {
-	return statusPanelViewState.jobItems.map((item) => {
-		const percentage =
-			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
-		return `${item.label} • ${item.statusText}${percentage}`;
-	});
-}
-
 async function flushAsync(): Promise<void> {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -203,9 +195,7 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		expect(controller.getCurrentStatus().stage).toBe('cancelled');
-		expect(getJobRows()).toHaveLength(1);
-		expect(getJobRows()[0]).toContain('Cancelled');
-		expect(getJobRows()[0]).not.toContain('Complete');
+		expect(statusPanelViewState.hasCancellableForegroundJob).toBe(false);
 
 		vi.advanceTimersByTime(2000);
 
@@ -303,7 +293,6 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		expect(controller.isCurrentlyProcessing).toBe(true);
-		expect(getJobRows()).toHaveLength(2);
 		assertControlsDisabled();
 
 		vi.advanceTimersByTime(1999);
@@ -321,7 +310,8 @@ describe('StatusPanel lifecycle', () => {
 		});
 		expect(idleStatus).not.toHaveProperty('currentFile');
 		expect(idleStatus).not.toHaveProperty('etaSeconds');
-		expect(statusPanelViewState.jobItems).toHaveLength(0);
+		expect(statusPanelViewState.foregroundJobLabel).toBeNull();
+		expect(statusPanelViewState.hasCancellableForegroundJob).toBe(false);
 		expect(getStepText()).toBe(expectedStepText);
 
 		const toastSpies = {
@@ -358,9 +348,7 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		expect(controller.isCurrentlyProcessing).toBe(true);
-		expect(getJobRows()).toEqual([
-			'Merge output • Skipped existing output at /books/output.m4b (100.0%)',
-		]);
+		expect(statusPanelViewState.foregroundJobLabel).toBe('Merge output');
 
 		vi.advanceTimersByTime(1499);
 		expect(controller.isCurrentlyProcessing).toBe(true);
@@ -469,39 +457,11 @@ describe('StatusPanel lifecycle', () => {
 		});
 		controller.setBatchCompletionMessage('Processed 1/2. Cancelled: 1.');
 
-		expect(getJobRows()).toEqual(['alpha.m4b • Completed (100.0%)', 'beta.m4b • Cancelled']);
-
 		vi.advanceTimersByTime(2000);
 
 		expect(showInfoSpy).toHaveBeenCalledWith('Processed 1/2. Cancelled: 1.');
 		expect(showSuccessSpy).not.toHaveBeenCalled();
 		expect(getStepText()).toBe('Processed 1/2. Cancelled: 1.');
-	});
-
-	it('preserves skipped batch rows when cancellation arrives after a skipped terminal event', () => {
-		const controller = new StatusPanelRuntime();
-		seedDisabledControls();
-
-		controller.applyQueueSnapshot({
-			operation_kind: 'processingBatch',
-			items: [
-				{ input_index: 0, file_path: '/books/alpha.m4b' },
-				{ input_index: 1, file_path: '/books/beta.m4b' },
-			],
-			max_concurrent: 2,
-		});
-
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 0,
-			stage: STAGES.skipped,
-			percentage: 100,
-			message: 'Skipped existing output at /books/alpha.m4b',
-		});
-
-		controller.handleProcessingCancellation();
-
-		expect(getJobRows()).toEqual(['alpha.m4b • Skipped (100.0%)', 'beta.m4b • Cancelled']);
 	});
 
 	it('shows an informational toast when every batch row is skipped', () => {
@@ -583,7 +543,6 @@ describe('StatusPanel lifecycle', () => {
 		});
 
 		expect(controller.isCurrentlyProcessing).toBe(true);
-		expect(getJobRows()).toHaveLength(1);
 		assertControlsDisabled();
 
 		vi.advanceTimersByTime(1999);
@@ -605,7 +564,8 @@ describe('StatusPanel lifecycle', () => {
 		});
 		expect(idleStatus).not.toHaveProperty('currentFile');
 		expect(idleStatus).not.toHaveProperty('etaSeconds');
-		expect(statusPanelViewState.jobItems).toHaveLength(0);
+		expect(statusPanelViewState.foregroundJobLabel).toBeNull();
+		expect(statusPanelViewState.hasCancellableForegroundJob).toBe(false);
 		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
 	});
 
@@ -736,7 +696,7 @@ describe('StatusPanel lifecycle', () => {
 			message: 'Analyzing audio',
 		});
 		vi.advanceTimersByTime(20);
-		expect(getJobRows()[0]).toContain('(10.0%)');
+		expect(statusPanelViewState.progressPercentage).toBe(10);
 
 		// Same job, same tick (< 1s throttle window), non-terminal, but stage changed:
 		// must NOT be throttled — user needs to see stage transitions (e.g. writing).
@@ -750,7 +710,7 @@ describe('StatusPanel lifecycle', () => {
 			message: 'Writing output',
 		});
 		vi.advanceTimersByTime(20);
-		expect(getJobRows()[0]).toContain('(60.0%)');
+		expect(statusPanelViewState.progressPercentage).toBe(60);
 	});
 
 	it('resets queued progress state cleanly before new progress arrives', async () => {
@@ -764,7 +724,7 @@ describe('StatusPanel lifecycle', () => {
 			message: 'Converting',
 		});
 		vi.advanceTimersByTime(20);
-		expect(getJobRows()).toHaveLength(1);
+		expect(statusPanelViewState.foregroundJobLabel).toBe('job-123');
 		expect(getStepText()).toBe('Current Step: Converting');
 
 		controller.resetToIdle();
@@ -779,8 +739,7 @@ describe('StatusPanel lifecycle', () => {
 		});
 		vi.advanceTimersByTime(20);
 		expect(getStepText()).not.toBe(stepAfterReset);
-		expect(getJobRows()).toHaveLength(1);
-		expect(getJobRows()[0]).toContain('(50.0%)');
+		expect(statusPanelViewState.progressPercentage).toBe(50);
 
 		controller.resetToIdle();
 		controller.applyProgress({
@@ -792,7 +751,7 @@ describe('StatusPanel lifecycle', () => {
 		});
 		vi.advanceTimersByTime(20);
 
-		expect(getJobRows()).toHaveLength(1);
-		expect(getJobRows()[0]).toContain('(42.0%)');
+		expect(statusPanelViewState.foregroundJobLabel).toBe('job-456');
+		expect(statusPanelViewState.progressPercentage).toBe(42);
 	});
 });

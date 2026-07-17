@@ -33,8 +33,8 @@ let { children, overlay, rail }: Props = $props();
 	const fileCount = $derived(readFileListCount());
 	const encoderSummaryLabel = $derived(readEncoderSummaryLabel());
 	const namingSummaryLabel = $derived(readOutputNamingSummaryLabel());
-	let importMenuOpen = $state(false);
-	let importMenuElement = $state<HTMLElement | null>(null);
+	let importMenuRoot = $state<HTMLElement | null>(null);
+	let importMenuPanel = $state<HTMLElement | null>(null);
 	let importPillElement = $state<HTMLButtonElement | null>(null);
 	let popoverContainer = $state<HTMLElement | null>(null);
 	let encoderAnchor = $state<HTMLElement | null>(null);
@@ -43,10 +43,16 @@ let { children, overlay, rail }: Props = $props();
 	let namingPanel = $state<HTMLElement | null>(null);
 	const encoderPopover = new PopoverController();
 	const namingPopover = new PopoverController();
+	const importMenu = new PopoverController({ closeOnClickAway: true });
 
 	$effect(() => {
 		encoderPopover.setElements({ anchor: encoderAnchor, container: popoverContainer, panel: encoderPanel });
 		namingPopover.setElements({ anchor: namingAnchor, container: popoverContainer, panel: namingPanel });
+		importMenu.setElements({
+			anchor: importPillElement,
+			panel: importMenuPanel,
+			clickBoundary: importMenuRoot,
+		});
 	});
 
 	function togglePopover(kind: 'encoder' | 'naming'): void {
@@ -65,26 +71,26 @@ let { children, overlay, rail }: Props = $props();
 		if (namingPopover.isOpen && !namingAnchor?.contains(target) && !namingPanel?.contains(target)) {
 			namingPopover.close({ restoreFocus: false });
 		}
-		if (importMenuOpen && !importMenuElement?.contains(target)) {
-			importMenuOpen = false;
-		}
+		importMenu.handleClickAway(event);
 	}
 
 	function handleImportMenuKeydown(event: KeyboardEvent): void {
-		if (event.key === 'Escape' && importMenuOpen) {
-			event.preventDefault();
-			importMenuOpen = false;
-			importPillElement?.focus();
-		}
+		importMenu.handleKeydown(event);
+	}
+
+	function toggleImportMenuFromKeyboard(event: KeyboardEvent): void {
+		if (!['Enter', ' ', 'ArrowDown'].includes(event.key)) return;
+		event.preventDefault();
+		importMenu.toggle({ focusInside: true });
 	}
 
 	function handleImportFilesSelect(): void {
-		importMenuOpen = false;
+		importMenu.close({ restoreFocus: false });
 		void handleClickToSelect();
 	}
 
 	function handleAddFolderSelect(): void {
-		importMenuOpen = false;
+		importMenu.close({ restoreFocus: false });
 		void handleClickToSelectFolder();
 	}
 </script>
@@ -121,21 +127,29 @@ let { children, overlay, rail }: Props = $props();
 	<div class="app-shell-toolbar" data-testid="app-shell-toolbar">
 		<div class="app-shell-toolbar-start">
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="split-button" bind:this={importMenuElement} onkeydown={handleImportMenuKeydown}>
+			<div
+				class="split-button"
+				bind:this={importMenuRoot}
+				onkeydown={handleImportMenuKeydown}
+			>
 				<button
 					id="import-files-btn"
 					type="button"
 					class="pill pill-ghost"
 					aria-haspopup="menu"
-					aria-expanded={importMenuOpen}
+					aria-expanded={importMenu.isOpen}
 					bind:this={importPillElement}
-					onclick={() => {
-						importMenuOpen = !importMenuOpen;
-					}}
+					onclick={() => importMenu.toggle({ focusInside: false })}
+					onkeydown={toggleImportMenuFromKeyboard}
 				>
 					＋ Import
 				</button>
-				<div class="split-dropdown import-menu-dropdown" class:open={importMenuOpen} role="menu">
+				<div
+					bind:this={importMenuPanel}
+					class="split-dropdown import-menu-dropdown"
+					class:open={importMenu.isOpen}
+					role="menu"
+				>
 					<button
 						id="import-files-option"
 						type="button"

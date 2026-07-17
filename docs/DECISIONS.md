@@ -354,9 +354,6 @@
   cover-cell width 36px vs mock 34px; assorted 2–4px spacing drift in
   appbar/ops-bar/rail-head; number-cell font not density-linked in compact;
   op-row 12px vs mock 12.5px; lane labels Capitalized vs mock lowercase.
-- Deferred with evidence (Fable whittle): statusPanel per-row cancel plumbing
-  and unrendered JobListItem view-model fields (test-consumed; delete when
-  the pinning tests are reworked).
 - Guardrail: the transport precedence is preview → running/cancelling
   operation → idle-with-feedback; persistent feedback must never mask live
   background work.

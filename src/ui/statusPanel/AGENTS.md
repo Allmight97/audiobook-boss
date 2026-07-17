@@ -33,7 +33,7 @@ re-classify the terminal outcome.
   truth instead of a hand-listed export set here.
 
 ## Private Cluster
-- Files: `controller.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusTransportIsland.svelte`.
+- Files: `controller.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `domain/`, `services/`, `__tests__/`, `StatusTransportIsland.svelte`.
 - The cluster consumes backend `OperationKind`, progress events, queue snapshots,
   cancellation facts, and terminal results as a read model. It owns visible
   status derivation, status feedback, controls, and processing request
@@ -45,7 +45,7 @@ re-classify the terminal outcome.
   Vitest files when proving UI behavior changes and generated-binding,
   Public API Strip, and runtime contract checks when generated event shapes are
   touched.
-- Test visible status outcomes rather than private reducer shape when behavior is user-facing.
+- Test the visible transport summary (foreground label and cancellability), not per-job view models or reducer shape.
 - Keep direct view-state/controller imports inside this cluster or tests.
 - Build `ProcessingRequestConfig` through `processingConfig.ts`; do not import encoder or output panel private state to assemble process payloads.
 - Consume the backend-owned terminal verdict (`RunTerminalClass` on

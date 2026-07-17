@@ -1,17 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { PopoverController } from '../../lib/ui/popover.svelte';
-	import { coverArtBytesToDataUrl } from '../coverArt';
-	import {
-		getCurrentFileList,
-		getSelectedFileIndex,
-		getSelectedFiles,
-		readInspectorFacts,
-	} from '../fileList';
-	import { readMetadataFormViewSnapshot } from '../metadataForm';
-	import { getMetadataForFile } from '../metadataSession';
+	import { getSelectedFiles } from '../fileList';
 	import { editSurfaceState } from './editSurface.svelte';
 	import MetadataSurfacePanes from './MetadataSurfacePanes.svelte';
+	import { readActiveFileSummary } from './activeFileSummary.svelte';
 	import type { MetadataSurfacePresentation as Presentation } from '../fileList';
 
 	interface Props {
@@ -30,16 +23,7 @@
 	const popover = new PopoverController();
 	let popoverPresentation = $state<Presentation | null>(null);
 
-	const metadataFormSnapshot = $derived(readMetadataFormViewSnapshot());
-	const activeFile = $derived(getCurrentFileList()?.files[getSelectedFileIndex()] ?? null);
-	const facts = $derived(readInspectorFacts());
-	const activeMetadata = $derived(activeFile ? getMetadataForFile(activeFile.path) : undefined);
-	const activeTitle = $derived(
-		activeMetadata?.title || facts.find((fact) => fact.label === 'File')?.value || 'Metadata',
-	);
-	const coverDataUrl = $derived(
-		activeMetadata?.cover_art?.length ? coverArtBytesToDataUrl(activeMetadata.cover_art) : null,
-	);
+	const summary = $derived(readActiveFileSummary());
 
 	$effect(() => {
 		popover.setElements({ anchor, container, panel });
@@ -123,15 +107,13 @@
 		}}
 	>
 		<header class="metadata-surface-header">
-			{#if coverDataUrl}
-				<img class="metadata-surface-cover" src={coverDataUrl} alt="" />
+			{#if summary.coverDataUrl}
+				<img class="metadata-surface-cover" src={summary.coverDataUrl} alt="" />
 			{:else}
 				<div class="metadata-surface-cover metadata-surface-cover-placeholder" aria-hidden="true"></div>
 			{/if}
 			<h2>
-				{metadataFormSnapshot.mode === 'multi' && metadataFormSnapshot.selectionCount > 1
-					? `${metadataFormSnapshot.selectionCount} files selected`
-					: activeTitle}
+				{summary.heading}
 			</h2>
 			<button
 				type="button"

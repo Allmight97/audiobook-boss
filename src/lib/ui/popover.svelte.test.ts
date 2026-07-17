@@ -104,4 +104,54 @@ describe('PopoverController', () => {
 
 		expect(document.activeElement).toBe(target);
 	});
+
+	it('leaves click-away disabled unless the controller opts in', () => {
+		const boundary = document.createElement('div');
+		const target = document.createElement('button');
+		document.body.append(boundary, target);
+		const popover = new PopoverController();
+		popover.setElements({ clickBoundary: boundary });
+		popover.open({ focusInside: false });
+
+		const event = new MouseEvent('click', { bubbles: true });
+		target.dispatchEvent(event);
+		popover.handleClickAway(event);
+
+		expect(popover.isOpen).toBe(true);
+	});
+
+	it('closes opted-in menus on click-away without restoring focus', async () => {
+		const anchor = document.createElement('button');
+		const boundary = document.createElement('div');
+		const target = document.createElement('button');
+		document.body.append(anchor, boundary, target);
+		const popover = new PopoverController({ closeOnClickAway: true });
+		popover.setElements({ anchor, clickBoundary: boundary });
+		popover.open({ focusInside: false });
+		target.focus();
+
+		const event = new MouseEvent('click', { bubbles: true });
+		target.dispatchEvent(event);
+		popover.handleClickAway(event);
+		await flushMicrotasks();
+
+		expect(popover.isOpen).toBe(false);
+		expect(document.activeElement).toBe(target);
+	});
+
+	it('keeps opted-in menus open for clicks inside their boundary', () => {
+		const boundary = document.createElement('div');
+		const target = document.createElement('button');
+		boundary.append(target);
+		document.body.append(boundary);
+		const popover = new PopoverController({ closeOnClickAway: true });
+		popover.setElements({ clickBoundary: boundary });
+		popover.open({ focusInside: false });
+
+		const event = new MouseEvent('click', { bubbles: true });
+		target.dispatchEvent(event);
+		popover.handleClickAway(event);
+
+		expect(popover.isOpen).toBe(true);
+	});
 });

@@ -18,14 +18,6 @@ function setupDom() {
   `;
 }
 
-function getJobRows(): string[] {
-	return statusPanelViewState.jobItems.map((item) => {
-		const percentage =
-			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
-		return `${item.label} • ${item.statusText}${percentage}`;
-	});
-}
-
 async function flushRenderFrame(): Promise<void> {
 	await new Promise<void>((resolve) => {
 		requestAnimationFrame(() => resolve());
@@ -51,7 +43,8 @@ describe('StatusPanel queue snapshot', () => {
 
 		controller.applyQueueSnapshot(snapshot);
 
-		expect(getJobRows()).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
+		expect(statusPanelViewState.foregroundJobLabel).toBe('alpha.m4b');
+		expect(statusPanelViewState.hasCancellableForegroundJob).toBe(false);
 		expect(statusPanelViewState.statusText).toBe('Analyzing');
 		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 2 files');
 		const status = controller.getCurrentStatus();
@@ -86,17 +79,12 @@ describe('StatusPanel queue snapshot', () => {
 		controller.applyProgress(earlyProgress);
 		await flushRenderFrame();
 
-		expect(getJobRows()).toHaveLength(1);
-		expect(getJobRows()[0]).toContain('Converting (45.0%)');
+		expect(statusPanelViewState.foregroundJobLabel).toBe('Processing');
 		expect(statusPanelViewState.stepText).toBe('Current Step: working');
 
 		controller.applyQueueSnapshot(snapshot);
 
-		expect(getJobRows()).toEqual([
-			'gamma.m4b • Queued • #1 of 3',
-			'beta.m4b • Queued • #2 of 3',
-			'alpha.m4b • Queued • #3 of 3',
-		]);
+		expect(statusPanelViewState.foregroundJobLabel).toBe('gamma.m4b');
 		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 3 files');
 		const status = controller.getCurrentStatus();
 		expect(status).toEqual({

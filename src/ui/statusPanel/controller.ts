@@ -3,7 +3,7 @@ import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './processingWorkflow';
-import { renderJobList, renderStatus } from './render';
+import { renderStatus, renderTransportSummary } from './render';
 import type { ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
@@ -152,7 +152,7 @@ export class StatusPanelRuntime {
 		this.clearSingleCompletionTimeout();
 
 		this.pendingRender = false;
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 
 		this.updateStatus(this.model.currentStatus);
 
@@ -298,7 +298,7 @@ export class StatusPanelRuntime {
 	}
 
 	private renderModel(): void {
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
 	}
 
@@ -315,7 +315,7 @@ export class StatusPanelRuntime {
 		this.clearBatchCompletionTimeout();
 		this.clearSingleCompletionTimeout();
 		this.pendingRender = false;
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
@@ -332,14 +332,6 @@ export class StatusPanelRuntime {
 		}
 	}
 
-	private cancelJob(_jobId: string): void {
-		// Per-row cancel: the foreground/direct lane has no backend cancel command
-		// (operation-scoped cancel lives in the Work Center). Settle the local
-		// foreground render; any in-flight preview completes and auto-opens
-		// normally. See docs/DECISIONS.md (preview ephemeral lane) and #376.
-		this.handleProcessingCancellation();
-	}
-
 	private scheduleRender(immediate: boolean): void {
 		if (immediate) {
 			this.flushRender();
@@ -352,7 +344,7 @@ export class StatusPanelRuntime {
 	private flushRender(): void {
 		this.pendingRender = false;
 
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
 
 		if (this.model.currentWorkKind === 'batch' && this.model.latestProgressEvent) {

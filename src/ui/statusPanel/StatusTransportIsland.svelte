@@ -4,14 +4,6 @@
 	import { formatEtaRemaining } from './formatting';
 	import { STATUS_PANEL_DEFAULT_STEP_COLOR, statusPanelViewState } from './viewState.svelte';
 
-	const activeJob = $derived(
-		statusPanelViewState.jobItems.find((item) => item.status === 'processing') ??
-			statusPanelViewState.jobItems[0],
-	);
-	const hasCancellableForegroundJob = $derived(
-		statusPanelViewState.jobItems.some((item) => item.canCancel && item.cancelId),
-	);
-
 	// One mono transport line. Precedence: showError/showSuccess feedback
 	// (never demoted to tooltip) → active processing summary → idle status.
 	// The informational step message surfaces as the line's tooltip.
@@ -28,7 +20,7 @@
 		feedbackActive
 			? statusPanelViewState.stepText
 			: statusPanelViewState.isProcessing
-				? `${activeJob?.label ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${transportTail}`
+				? `${statusPanelViewState.foregroundJobLabel ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${transportTail}`
 				: statusPanelViewState.statusText,
 	);
 
@@ -56,11 +48,10 @@
 			{transportLine}
 		</span>
 	</div>
-	{#if statusPanelViewState.isProcessing && hasCancellableForegroundJob}
+	{#if statusPanelViewState.isProcessing && statusPanelViewState.hasCancellableForegroundJob}
 		<button
 			type="button"
 			class="pill pill-ghost pill-xs"
-			disabled={statusPanelViewState.cancelAllPending}
 			onclick={triggerCancelAllFromStatusPanel}
 		>
 			Cancel All

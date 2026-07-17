@@ -33,13 +33,6 @@ import { updateTagPreview } from '../tagPreview';
 
 export { default as MetadataFormFieldsIsland } from './MetadataFormFieldsIsland.svelte';
 
-export type MetadataFormValidationWarnings = {
-	byField?: {
-		series_part?: string;
-		subseries_part?: string;
-	};
-};
-
 function readFieldValue(inputId: MetadataFieldId): string {
 	return metadataFormState.fields[inputId].value;
 }
@@ -289,7 +282,7 @@ function updateSubseriesPartWarning(
 
 export function applyMetadataFormValidationWarnings(
 	metadata: Partial<AudiobookMetadata>,
-	errors: MetadataFormValidationWarnings,
+	errors: { byField?: { series_part?: string; subseries_part?: string } },
 ): void {
 	updateSeriesPartWarning(metadata, errors.byField?.series_part ?? null);
 	updateSubseriesPartWarning(metadata, errors.byField?.subseries_part ?? null);
