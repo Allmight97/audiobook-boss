@@ -434,6 +434,29 @@
 		</div>
 	</section>
 
+	<section class="panel lab-section" data-testid="modal-body-scroll-primitive-section">
+		<h3>Modal body scroll containment</h3>
+		<div
+			class="app-modal-dialog lab-modal-scroll-specimen"
+			role="group"
+			aria-label="Constrained modal body specimen"
+		>
+			<div class="app-modal-header">
+				<h4>Long result list</h4>
+				<button class="pill pill-ghost pill-xs" type="button">Close specimen</button>
+			</div>
+			<div class="app-modal-body" data-testid="modal-body-scroll-specimen">
+				<p class="app-modal-status text-xs">The body owns overflow below this header.</p>
+				{#each ['The Way of Kings', 'Words of Radiance', 'Oathbringer', 'Rhythm of War', 'Wind and Truth'] as title, index (title)}
+					<div class="lab-modal-scroll-row">
+						<strong>{index + 1}. {title}</strong>
+						<span class="text-xs muted-text">Search result metadata remains reachable.</span>
+					</div>
+				{/each}
+			</div>
+		</div>
+	</section>
+
 	<section class="panel lab-section">
 		<h3>Density-driven rows</h3>
 		<div class="lab-stack">
@@ -633,6 +656,21 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+	}
+
+	.lab-modal-scroll-specimen {
+		width: min(100%, 32rem);
+		height: calc(var(--density-row-h) * 5 + var(--space-6));
+	}
+
+	.lab-modal-scroll-row {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--density-pad);
+		border: 1px solid var(--border-secondary);
+		border-radius: var(--radius-md);
+		background: var(--bg-input);
 	}
 
 	.lab-progress-row {
