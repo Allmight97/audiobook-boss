@@ -18,7 +18,8 @@
 		readFileListSortState,
 		readFileListStatusBadge,
 		readFileListViewFiles,
-		displayedTitleForFile,
+		displayedFileNameForFile,
+		displayedSecondaryTitleForFile,
 		type ReadWorkActivityByInputId,
 	} from './viewState.svelte';
 
@@ -41,7 +42,6 @@
 	}: Props = $props();
 
 	let fileManagementContainer: HTMLDivElement | null = null;
-	let selectAllEl: HTMLInputElement | null = null;
 	let draggedIndex = $state<number | null>(null);
 	let hoveredIndex = $state<number | null>(null);
 
@@ -50,9 +50,6 @@
 	const sortState = $derived(readFileListSortState());
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
 	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
-	const selectedCount = $derived(selectedIndices.length);
-	const allSelected = $derived(files.length > 0 && selectedCount === files.length);
-	const selectAllIndeterminate = $derived(selectedCount > 0 && selectedCount < files.length);
 
 	const dragHandlers = createFileListDragHandlers((state) => {
 		draggedIndex = state.draggedIndex;
@@ -61,12 +58,6 @@
 
 	$effect(() => {
 		onFileManagementContainerChange?.(fileManagementContainer);
-	});
-
-	$effect(() => {
-		if (selectAllEl) {
-			selectAllEl.indeterminate = selectAllIndeterminate;
-		}
 	});
 
 	$effect(() => {
@@ -125,22 +116,13 @@
 		handleRowActivation(index, activateButton ?? row, event);
 	}
 
-	function toggleRow(index: number, event: MouseEvent): void {
-		event.stopPropagation();
-		void applySelectionIntent(selectionIntentForRow(index, event));
+	function getFileName(file: (typeof files)[number]): string {
+		return displayedFileNameForFile(file);
 	}
 
-	function toggleSelectAll(checked: boolean): void {
-		void applySelectionIntent({ type: checked ? 'selectAll' : 'clear' });
-	}
-
-	function getFileTitle(file: (typeof files)[number]): string {
-		return displayedTitleForFile(file);
-	}
-
-	function getFileAuthor(file: (typeof files)[number]): string {
-		const metadata = getMetadataForFile(file.path);
-		return (metadata === undefined ? file.tagArtist : metadata.artist) || '—';
+	function getSecondaryTitle(file: (typeof files)[number]): string | null {
+		const title = displayedSecondaryTitleForFile(file);
+		return title && title !== getFileName(file) ? title : null;
 	}
 
 	function getCoverDataUrl(file: (typeof files)[number]): string | null {
@@ -198,10 +180,8 @@
 		>
 			<colgroup>
 				<col class="file-list-reorder-column" />
-				<col class="file-list-checkbox-column" />
 				<col class="file-list-cover-column" />
 				<col class="file-list-title-column" />
-				<col class="file-list-comfortable-only file-list-author-column" />
 				<col class="file-list-duration-column" />
 				<col class="file-list-comfortable-only file-list-size-column" />
 				<col class="file-list-comfortable-only file-list-codec-column" />
@@ -210,24 +190,12 @@
 			<thead>
 				<tr>
 					<th class="file-list-reorder-cell"><span class="sr-only">Reorder</span></th>
-					<th class="file-list-checkbox-cell">
-						<input
-							bind:this={selectAllEl}
-							type="checkbox"
-							aria-label="Select all files"
-							data-metadata-selection-intent
-							checked={allSelected}
-							disabled={files.length === 0}
-							onchange={(event) => toggleSelectAll(event.currentTarget.checked)}
-						/>
-					</th>
 					<th class="file-list-cover-cell"></th>
 					<th aria-sort={sortState}>
-						<button id="book-sort-header" type="button" class="file-list-sort-header" onclick={() => void toggleFileSort()}>
-							Book
+						<button id="file-sort-header" type="button" class="file-list-sort-header" onclick={() => void toggleFileSort()}>
+							File
 						</button>
 					</th>
-					<th class="file-list-comfortable-only">Author</th>
 					<th class="file-list-number">Duration</th>
 					<th class="file-list-number file-list-comfortable-only">Size</th>
 					<th class="file-list-comfortable-only">Codec</th>
@@ -240,6 +208,8 @@
 					{@const active = index === getSelectedFileIndex()}
 					{@const badge = readFileListStatusBadge(file, readWorkActivityByInputId)}
 					{@const coverDataUrl = getCoverDataUrl(file)}
+					{@const fileName = getFileName(file)}
+					{@const secondaryTitle = getSecondaryTitle(file)}
 					<tr
 						data-file-index={index}
 						class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
@@ -248,6 +218,7 @@
 						class:dragging={draggedIndex === index}
 						class:drag-over={hoveredIndex === index}
 						class:order-locked={orderLockVisible}
+						aria-selected={selected}
 						draggable="false"
 						onclick={(event) => handleRowClick(index, event)}
 						ondragover={(event) => dragHandlers.onDragOver(index, event)}
@@ -274,15 +245,6 @@
 									: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'}
 							</span>
 						</td>
-						<td class="file-list-checkbox-cell">
-							<input
-								type="checkbox"
-								aria-label={`Select ${getFileTitle(file)}`}
-								data-metadata-selection-intent
-								checked={selected}
-								onclick={(event) => toggleRow(index, event)}
-							/>
-						</td>
 						<td class="file-list-cover-cell">
 							<div class="app-cover-thumb file-list-cover">
 								{#if coverDataUrl}
@@ -297,19 +259,20 @@
 								type="button"
 								class="file-list-activate"
 								aria-pressed={active ?? false}
-								aria-label={`Edit metadata for ${getFileTitle(file)}`}
-								title={getFileTitle(file)}
+								aria-label={`Edit metadata for ${fileName}`}
+								title={secondaryTitle ? `${fileName} — ${secondaryTitle}` : fileName}
 								id={`file-list-row-activate-${index}`}
 								data-metadata-selection-intent
 								onclick={(event) => handleRowActivation(index, event.currentTarget, event)}
 							>
-								{getFileTitle(file)}
+								<span class="file-list-file-name">{fileName}</span>{#if secondaryTitle}<span
+										class="file-list-file-title file-list-comfortable-only">&nbsp;— {secondaryTitle}</span
+									>{/if}
 							</button>
 							{#if hasSupplementalAssetsForInputId(file.inputId)}
 								<span class="companion-chip" title="Supplemental PDF attached">PDF</span>
 							{/if}
 						</td>
-						<td class="file-list-comfortable-only">{getFileAuthor(file)}</td>
 						<td class="file-list-number">{file.duration ? formatDuration(file.duration) : '—'}</td>
 						<td class="file-list-number file-list-comfortable-only">
 							{file.size ? formatFileSize(file.size) : '—'}
@@ -336,11 +299,9 @@
 	.drop-zone-header.drag-over { border-color: var(--accent-primary); }
 	.file-list-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto; }
 	.file-list-content:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-	.file-list-table { width: 100%; min-width: 43rem; border-collapse: collapse; font-size: var(--density-text); }
+	.file-list-table { width: 100%; min-width: 32rem; border-collapse: collapse; font-size: var(--density-text); }
 	.file-list-reorder-column { width: 1.75rem; }
-	.file-list-checkbox-column { width: 2.125rem; }
 	.file-list-cover-column { width: 2.5rem; }
-	.file-list-author-column { width: 12rem; }
 	.file-list-duration-column { width: 5.5rem; }
 	.file-list-size-column { width: 5.5rem; }
 	.file-list-codec-column { width: 5rem; }
@@ -356,8 +317,6 @@
 	.file-list-reorder-cell { width: 1.5rem; padding-right: 0 !important; padding-left: var(--space-2) !important; text-align: center !important; }
 	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; }
 	.file-list-table tbody tr.order-locked .file-list-reorder-grip { cursor: not-allowed; opacity: 0.65; }
-	.file-list-checkbox-cell { width: 1.875rem; }
-	.file-list-checkbox-cell input { margin-top: 0; accent-color: var(--accent-primary); }
 	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
 	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }
 	.file-list-sort-header { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
@@ -365,6 +324,7 @@
 	.file-list-activate { max-width: 100%; margin-top: 0; padding: 0; overflow: hidden; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 	.file-list-table tbody tr.active .file-list-activate { color: var(--text-primary); font-weight: 600; }
 	.file-list-activate:hover { color: var(--text-primary); text-decoration: underline; }
+	.file-list-file-title { color: var(--text-muted); font-weight: 400; }
 	.companion-chip { margin-left: var(--space-1); padding: 0.0625rem 0.25rem; border: 1px solid var(--accent-primary); border-radius: var(--radius-sm); color: var(--accent-primary); font-size: 0.625rem; font-weight: 600; }
 	.file-list-number { color: var(--text-muted) !important; font-family: var(--font-mono); font-size: var(--text-sm); text-align: right !important; }
 	.file-work-badge-error { color: var(--text-error); }

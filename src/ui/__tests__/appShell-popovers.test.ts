@@ -5,7 +5,11 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import AppShellIsland from '../appShell/AppShellIsland.svelte';
 import { handleClickToSelect, handleClickToSelectFolder } from '../fileImport';
 import { setJobControlsEnabled, setJobTypeSelection } from '../jobControls';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../fileList/state.svelte';
+import {
+	setCurrentFileList,
+	setSelectedFileIndices,
+	setSelectedIndex,
+} from '../fileList/state.svelte';
 import { triggerProcessFromStatusPanel } from '../statusPanel';
 
 vi.mock('../appSettings', () => ({ openAppSettingsDialog: vi.fn() }));

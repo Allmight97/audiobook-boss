@@ -357,3 +357,17 @@
 - Guardrail: the transport precedence is preview → running/cancelling
   operation → idle-with-feedback; persistent feedback must never mask live
   background work.
+
+## File table is a chapter queue, not a library (2026-07-17)
+
+- Outcome: deliberate deviation from the v3 mock's book table — per-row and
+  select-all checkboxes removed (selection = click / Cmd-toggle / Shift-range /
+  Cmd+A, exposed via `aria-selected` on rows), Author column dropped (book-level
+  fact, lives in the rail), rows render filename-primary with the session/tag
+  title as a muted secondary span, and the header sort orders by natural numeric
+  basename, never metadata title.
+- Evidence: owner smoke on `ui/redesign-prototype` (GH #422) — checkbox cell
+  truncated to `●…`, filenames/numbering invisible so chapter order was
+  unverifiable; mock's rows are whole books, ABB's rows are input files.
+- Guardrail: processing order follows visible row order; nothing that consults
+  metadata titles may reorder the queue.

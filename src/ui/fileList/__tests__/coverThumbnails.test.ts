@@ -129,9 +129,7 @@ describe('FileList cover thumbnail scheduler', () => {
 
 	it('fetches fresh bytes after a ready thumbnail is removed and re-added', async () => {
 		const path = '/books/readded.m4b';
-		const loadThumbnail = vi.fn()
-			.mockResolvedValueOnce([1])
-			.mockResolvedValueOnce([2]);
+		const loadThumbnail = vi.fn().mockResolvedValueOnce([1]).mockResolvedValueOnce([2]);
 
 		scheduleFileListCoverThumbnails([path], loadThumbnail);
 		await flushAsync();
@@ -153,7 +151,8 @@ describe('FileList cover thumbnail scheduler', () => {
 		const path = '/books/inflight-readded.m4b';
 		const staleRequest = createDeferred<number[] | null>();
 		const freshRequest = createDeferred<number[] | null>();
-		const loadThumbnail = vi.fn()
+		const loadThumbnail = vi
+			.fn()
 			.mockReturnValueOnce(staleRequest.promise)
 			.mockReturnValueOnce(freshRequest.promise);
 

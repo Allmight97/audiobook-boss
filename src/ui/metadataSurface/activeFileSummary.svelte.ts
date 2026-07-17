@@ -23,12 +23,10 @@ export function readActiveFileSummary(): ActiveFileSummary {
 	const facts = readInspectorFacts();
 	const form = readMetadataFormViewSnapshot();
 	const isMultiSelection = form.mode === 'multi' && form.selectionCount > 1;
-	const displayTitle =
-		activeMetadata === undefined ? activeFile?.tagTitle : activeMetadata?.title;
+	const displayTitle = activeMetadata === undefined ? activeFile?.tagTitle : activeMetadata?.title;
 	const displayArtist =
 		activeMetadata === undefined ? activeFile?.tagArtist : activeMetadata?.artist;
-	const title =
-		displayTitle || facts.find((fact) => fact.label === 'File')?.value || 'Metadata';
+	const title = displayTitle || facts.find((fact) => fact.label === 'File')?.value || 'Metadata';
 
 	return {
 		hasSelection: getSelectedFiles().length > 0 && activeFile !== null,

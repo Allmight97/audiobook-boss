@@ -38,7 +38,7 @@ import {
 } from './appendResult';
 import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
-import { displayedTitleForFile } from './viewState.svelte';
+import { pathBasename } from '../../lib/path/basename';
 import { removeFileListCoverThumbnail } from './coverThumbnails.svelte';
 
 function refreshOutputForFileListChange(): void {
@@ -278,14 +278,16 @@ export async function toggleFileSort(): Promise<void> {
 	setSortDirection(nextSortDirection);
 
 	const nextFiles = [...fileList.files];
+	// Sort by filename with numeric ordering ("2 -" before "10 -") — the queue's
+	// visible identity. Metadata titles must never decide processing order.
 	nextFiles.sort((a, b) => {
-		const titleA = displayedTitleForFile(a);
-		const titleB = displayedTitleForFile(b);
-
-		if (nextSortDirection === 'ascending') {
-			return titleA.localeCompare(titleB);
-		}
-		return titleB.localeCompare(titleA);
+		const nameA = pathBasename(a.path, { fallback: 'path' });
+		const nameB = pathBasename(b.path, { fallback: 'path' });
+		const comparison = nameA.localeCompare(nameB, undefined, {
+			numeric: true,
+			sensitivity: 'base',
+		});
+		return nextSortDirection === 'ascending' ? comparison : -comparison;
 	});
 	replaceCurrentFileListFiles(nextFiles);
 

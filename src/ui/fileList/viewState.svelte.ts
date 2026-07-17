@@ -73,12 +73,14 @@ export function readFileListStatusBadge(
 	}
 }
 
-export function displayedTitleForFile(file: AudioFile): string {
+export function displayedFileNameForFile(file: AudioFile): string {
+	return pathBasename(file.path, { fallback: 'path' });
+}
+
+/** Display-only title beside the filename; session truth wins once an entry exists. */
+export function displayedSecondaryTitleForFile(file: AudioFile): string | null {
 	const metadata = getMetadataForFile(file.path);
-	return (
-		(metadata === undefined ? file.tagTitle : metadata.title) ||
-		pathBasename(file.path, { fallback: 'path' })
-	);
+	return (metadata === undefined ? file.tagTitle : metadata.title) || null;
 }
 
 export function readCombinedSizeText(): string {

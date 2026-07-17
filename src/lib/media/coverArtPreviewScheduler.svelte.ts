@@ -169,7 +169,7 @@ export function createCoverArtPreviewScheduler(
 					touchCacheEntry(coverUrl);
 					prunePreviewCache();
 				}
-		});
+			});
 	}
 
 	function startScheduledPreviewFetch(
