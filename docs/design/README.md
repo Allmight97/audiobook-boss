@@ -26,3 +26,9 @@ react to rendered things instead of prose.
 
 Superseded mocks remain here only as design-lineage artifacts; v3 is the
 living fidelity reference.
+
+Note: the `ui-directions-*.html` files have never been committed — a
+`/docs/**/*.html` ignore rule excluded them, so they exist only on the
+owner's machine. The ignore rule now carves out `ui-directions-*.html`;
+commit them from the machine that has them to make this reference
+inspectable.

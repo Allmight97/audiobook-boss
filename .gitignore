@@ -74,6 +74,8 @@ __pycache__/
 
 # Generated presentation companions belong outside repo docs.
 /docs/**/*.html
+# Exception: the committed UI-direction fidelity mocks (design lineage).
+!/docs/design/ui-directions-*.html
 
 # Local AI/editor settings
 .cursor/

@@ -385,3 +385,24 @@
   (`main:src/ui/metadataManager/MetadataManagerIsland.svelte`).
 - Guardrail: `MetadataSurfacePresentation` and the rail's no-focus-steal
   invariant are untouched; hydration applies width but never persists.
+
+## Chapter queue ordering contract: sort is an operation with a restorable inverse (2026-07-17)
+
+- Outcome: the queue's filename sort is an explicit operation ("Order by
+  filename", persistent direction glyph), not a passive table view — it
+  rewrites the processing order. Import (arrival) order is retained as a
+  path-keyed ordinal in FileList state, with a one-click "Restore import
+  order" inverse that appears only when the visible order diverges. Manual
+  reorders (drag, Alt+Arrow) reset the sort claim so `aria-sort` never lies.
+- Selection gutter/checkboxes stay rejected (extends the 2026-07-17 chapter
+  queue entry): owner rationale — they added clutter and, together with the
+  small preview element, truncated the numbered filenames needed to verify
+  chapter order; selection remains click / Cmd-toggle / Shift-range / Cmd+A.
+- Evidence: `src/ui/fileList/actions.ts` (`restoreImportOrder`,
+  `toggleFileSort`), `__tests__/reorder-behavior.test.ts` restore/ordinal
+  cases; external audit adjudication (Codex static audit, 2026-07-17) with
+  its gutter prescription rejected against the owner-smoke evidence.
+- Guardrail: the order lock is submission-scoped — engaged when a job is
+  submitted, released on Work Center acceptance
+  (`processingWorkflow.ts` begin/complete) — never a processing-wide freeze;
+  wording anywhere in the UI must not imply the queue blocks during encoding.
