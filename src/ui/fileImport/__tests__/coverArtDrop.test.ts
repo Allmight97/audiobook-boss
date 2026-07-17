@@ -445,7 +445,16 @@ describe('File import drop vs cover art drop isolation', () => {
 		expect(document.querySelector('.drop-zone-header')).toBeNull();
 		const container = document.querySelector('.file-management-container') as HTMLElement;
 
+		// Path-less native drag sessions (e.g. internal pointer drags) must not
+		// flash the import overlay.
 		listeners['tauri://drag-enter']?.({ payload: {} });
+		listeners['tauri://drag-enter']?.({ payload: { position: { x: 1, y: 1 }, paths: [] } });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(container.classList.contains('drag-over')).toBe(false);
+
+		listeners['tauri://drag-enter']?.({
+			payload: { position: { x: 1, y: 1 }, paths: ['/tmp/book-b.mp3'] },
+		});
 		await waitFor(() => {
 			expect(container.classList.contains('drag-over')).toBe(true);
 		});

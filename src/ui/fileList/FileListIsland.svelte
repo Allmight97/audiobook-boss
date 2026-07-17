@@ -10,7 +10,7 @@
 		getFileListCoverThumbnailState,
 		scheduleFileListCoverThumbnails,
 	} from './coverThumbnails.svelte';
-	import { createFileListDragHandlers, onFileListKeyDown } from './events';
+	import { createFileListPointerReorder, onFileListKeyDown } from './events';
 	import { getCurrentFileList, getSelectedFileIndex } from './state.svelte';
 	import {
 		readFileListOrderLockVisible,
@@ -51,7 +51,7 @@
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
 	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
 
-	const dragHandlers = createFileListDragHandlers((state) => {
+	const reorderHandlers = createFileListPointerReorder((state) => {
 		draggedIndex = state.draggedIndex;
 		hoveredIndex = state.hoveredIndex;
 	});
@@ -102,7 +102,7 @@
 	}
 
 	function handleRowClick(index: number, event: MouseEvent): void {
-		if (dragHandlers.consumePostDragClick()) {
+		if (reorderHandlers.consumePostDragClick()) {
 			event.preventDefault();
 			event.stopPropagation();
 			return;
@@ -221,21 +221,17 @@
 						aria-selected={selected}
 						draggable="false"
 						onclick={(event) => handleRowClick(index, event)}
-						ondragover={(event) => dragHandlers.onDragOver(index, event)}
-						ondrop={(event) => dragHandlers.onDrop(index, event)}
 					>
 						<td class="file-list-reorder-cell">
 							<span
 								class="file-list-reorder-grip"
 								aria-hidden="true"
-								draggable={orderLockVisible ? 'false' : 'true'}
 								title={
 									orderLockVisible
 										? 'File order is locked'
 										: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'
 								}
-								ondragstart={(event) => dragHandlers.onDragStart(index, event)}
-								ondragend={dragHandlers.onDragEnd}
+								onpointerdown={(event) => reorderHandlers.onGripPointerDown(index, event)}
 							>
 								⠿
 							</span>
@@ -315,7 +311,7 @@
 	.file-list-table tbody tr.drag-over { border-top: 2px solid var(--accent-primary); }
 	.file-list-table tbody tr.order-locked { cursor: default; }
 	.file-list-reorder-cell { width: 1.5rem; padding-right: 0 !important; padding-left: var(--space-2) !important; text-align: center !important; }
-	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; }
+	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; touch-action: none; }
 	.file-list-table tbody tr.order-locked .file-list-reorder-grip { cursor: not-allowed; opacity: 0.65; }
 	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
 	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }

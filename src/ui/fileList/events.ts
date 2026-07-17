@@ -25,76 +25,135 @@ export type FileListDragState = {
 	hoveredIndex: number | null;
 };
 
-export type FileListDragHandlers = {
-	onDragStart: (index: number, event: DragEvent) => void;
-	onDragOver: (index: number, event: DragEvent) => void;
-	onDrop: (index: number, event: DragEvent) => void;
-	onDragEnd: () => void;
+export type FileListRowHitTest = (clientX: number, clientY: number) => number | null;
+
+export type FileListPointerReorderHandlers = {
+	onGripPointerDown: (index: number, event: PointerEvent) => void;
 	consumePostDragClick: () => boolean;
 };
 
-export function createFileListDragHandlers(
+/** Pixels of pointer travel before a grip press becomes a drag. */
+const REORDER_DRAG_THRESHOLD_PX = 4;
+
+/**
+ * Default hit test: the row index under the pointer. jsdom has no layout, so
+ * tests inject their own hit test instead of stubbing elementFromPoint.
+ */
+export function fileListRowIndexFromPoint(clientX: number, clientY: number): number | null {
+	if (typeof document.elementFromPoint !== 'function') return null;
+	const row = document
+		.elementFromPoint(clientX, clientY)
+		?.closest<HTMLElement>('tr[data-file-index]');
+	const index = row ? Number.parseInt(row.dataset.fileIndex ?? '', 10) : Number.NaN;
+	return Number.isInteger(index) ? index : null;
+}
+
+/**
+ * Pointer-based reorder. Internal reorder must never enter the OS drag layer:
+ * HTML5 drags start a native drag session that Tauri/wry intercepts as
+ * file-import ingress (wry emits drag-enter for any NSDraggingInfo).
+ */
+export function createFileListPointerReorder(
 	setDragState: (state: FileListDragState) => void,
-): FileListDragHandlers {
+	hitTest: FileListRowHitTest = fileListRowIndexFromPoint,
+): FileListPointerReorderHandlers {
+	let pressedIndex: number | null = null;
+	let pressedPointerId: number | null = null;
+	let startX = 0;
+	let startY = 0;
+	let dragEngaged = false;
 	let draggedIndex: number | null = null;
+	let hoveredIndex: number | null = null;
 	let suppressPostDragClick = false;
 
+	function detachWindowListeners(): void {
+		window.removeEventListener('pointermove', handlePointerMove);
+		window.removeEventListener('pointerup', handlePointerUp);
+		window.removeEventListener('pointercancel', handlePointerCancel);
+	}
+
 	function resetDragState(): void {
+		pressedIndex = null;
+		pressedPointerId = null;
+		dragEngaged = false;
 		draggedIndex = null;
+		hoveredIndex = null;
+		detachWindowListeners();
 		setDragState({ draggedIndex: null, hoveredIndex: null });
 	}
 
-	return {
-		onDragStart(index: number, event: DragEvent) {
-			if (get(metadataSaveInProgress) || isOrderLocked()) return;
-			if (!event.dataTransfer || !hasValidIndex(index)) return;
+	function handlePointerMove(event: PointerEvent): void {
+		if (event.pointerId !== pressedPointerId || pressedIndex === null) return;
+		if (get(metadataSaveInProgress) || isOrderLocked()) {
+			resetDragState();
+			return;
+		}
 
-			const item = event.currentTarget as HTMLElement | null;
-			if (!item) return;
+		if (!dragEngaged) {
+			const travel = Math.hypot(event.clientX - startX, event.clientY - startY);
+			if (travel < REORDER_DRAG_THRESHOLD_PX) return;
+			dragEngaged = true;
+			draggedIndex = pressedIndex;
+		}
 
-			draggedIndex = index;
-			event.dataTransfer.effectAllowed = 'move';
-			event.dataTransfer.setData('text/plain', index.toString());
-			setDragState({ draggedIndex: index, hoveredIndex: null });
-		},
-		onDragOver(index: number, event: DragEvent) {
-			if (get(metadataSaveInProgress)) return;
-			if (isOrderLocked()) return;
-			event.preventDefault();
-			if (!event.dataTransfer) return;
+		const targetIndex = hitTest(event.clientX, event.clientY);
+		hoveredIndex =
+			targetIndex !== null && targetIndex !== draggedIndex && hasValidIndex(targetIndex)
+				? targetIndex
+				: null;
+		setDragState({ draggedIndex, hoveredIndex });
+	}
 
-			event.dataTransfer.dropEffect = 'move';
-			if (!hasValidIndex(index) || draggedIndex === null) return;
+	function handlePointerUp(event: PointerEvent): void {
+		if (event.pointerId !== pressedPointerId) return;
 
-			setDragState({
-				draggedIndex,
-				hoveredIndex: draggedIndex === index ? null : index,
-			});
-		},
-		onDrop(index: number, event: DragEvent) {
-			if (get(metadataSaveInProgress)) return;
-			if (isOrderLocked()) return;
-			event.preventDefault();
-			event.stopPropagation();
-
-			if (draggedIndex === null || draggedIndex === index) {
-				suppressPostDragClick = draggedIndex !== null;
-				resetDragState();
-				return;
-			}
-			if (!hasValidIndex(index)) {
-				suppressPostDragClick = true;
-				resetDragState();
-				return;
-			}
-
+		if (dragEngaged) {
+			// Only an engaged drag suppresses the click that follows pointerup.
 			suppressPostDragClick = true;
-			reorderFiles(draggedIndex, index);
-			resetDragState();
-		},
-		onDragEnd() {
-			suppressPostDragClick ||= draggedIndex !== null;
-			resetDragState();
+			const from = draggedIndex;
+			const to = hoveredIndex;
+			if (
+				from !== null &&
+				to !== null &&
+				from !== to &&
+				!get(metadataSaveInProgress) &&
+				!isOrderLocked()
+			) {
+				reorderFiles(from, to);
+			}
+		}
+		resetDragState();
+	}
+
+	function handlePointerCancel(event: PointerEvent): void {
+		if (event.pointerId !== pressedPointerId) return;
+		suppressPostDragClick ||= dragEngaged;
+		resetDragState();
+	}
+
+	return {
+		onGripPointerDown(index: number, event: PointerEvent) {
+			if (event.button !== 0) return;
+			if (get(metadataSaveInProgress) || isOrderLocked()) return;
+			if (!hasValidIndex(index)) return;
+
+			pressedIndex = index;
+			pressedPointerId = event.pointerId;
+			startX = event.clientX;
+			startY = event.clientY;
+			event.preventDefault();
+
+			const grip = event.currentTarget;
+			if (grip instanceof Element && typeof grip.setPointerCapture === 'function') {
+				try {
+					grip.setPointerCapture(event.pointerId);
+				} catch {
+					// Capture is best-effort; window listeners carry the drag regardless.
+				}
+			}
+			window.addEventListener('pointermove', handlePointerMove);
+			window.addEventListener('pointerup', handlePointerUp);
+			window.addEventListener('pointercancel', handlePointerCancel);
 		},
 		consumePostDragClick() {
 			const shouldSuppress = suppressPostDragClick;

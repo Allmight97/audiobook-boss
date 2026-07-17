@@ -36,6 +36,14 @@ function file(path: string, inputId: string, isValid = true): AudioFile {
 	};
 }
 
+function stubElementFromPoint(hit: () => Element | null): () => void {
+	const original = document.elementFromPoint;
+	document.elementFromPoint = hit as typeof document.elementFromPoint;
+	return () => {
+		document.elementFromPoint = original;
+	};
+}
+
 function rowFor(
 	screen: { getByRole: (role: string, options: { name: string }) => HTMLElement },
 	name: string,
@@ -284,8 +292,9 @@ describe('v3 book table', () => {
 			'title',
 			'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.',
 		);
+		// Reorder is pointer-driven: nothing in the table may enter the OS drag layer.
 		expect(row).toHaveAttribute('draggable', 'false');
-		expect(grip).toHaveAttribute('draggable', 'true');
+		expect(grip).not.toHaveAttribute('draggable');
 
 		setOrderLocked(true);
 		await tick();
@@ -293,7 +302,6 @@ describe('v3 book table', () => {
 		expect(row).toHaveClass('order-locked');
 		expect(row).toHaveAttribute('draggable', 'false');
 		expect(grip).toHaveTextContent('⠿');
-		expect(grip).toHaveAttribute('draggable', 'false');
 		expect(grip).toHaveAttribute('title', 'File order is locked');
 	});
 
@@ -301,21 +309,23 @@ describe('v3 book table', () => {
 		const screen = render(FileListIsland);
 		const firstTitle = screen.getByRole('button', { name: 'Edit metadata for ready.m4b' });
 		const secondRow = rowFor(screen, 'bad.m4b');
-		const dataTransfer = {
-			effectAllowed: 'none',
-			dropEffect: 'none',
-			setData: vi.fn(),
-		} as unknown as DataTransfer;
+		const restoreHitTest = stubElementFromPoint(() => secondRow);
 
-		expect(firstTitle).toHaveAttribute('title', 'ready.m4b');
-		await fireEvent.dragStart(firstTitle, { dataTransfer });
-		await fireEvent.dragOver(secondRow, { dataTransfer });
-		await fireEvent.drop(secondRow, { dataTransfer });
+		try {
+			expect(firstTitle).toHaveAttribute('title', 'ready.m4b');
+			// Only the grip starts a reorder: a pointer drag from the title text
+			// must never move rows, even past the movement threshold.
+			await fireEvent.pointerDown(firstTitle, { pointerId: 1, button: 0, clientX: 0, clientY: 0 });
+			await fireEvent.pointerMove(window, { pointerId: 1, clientX: 0, clientY: 40 });
+			await fireEvent.pointerUp(window, { pointerId: 1 });
 
-		expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
-			'/books/ready.m4b',
-			'/books/bad.m4b',
-		]);
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/ready.m4b',
+				'/books/bad.m4b',
+			]);
+		} finally {
+			restoreHitTest();
+		}
 	});
 
 	it('hides comfortable-only columns at compact density', async () => {
@@ -481,23 +491,22 @@ describe('v3 book table', () => {
 		const dropRow = rowFor(screen, 'three.m4b');
 		const dragGrip = draggedRow.querySelector<HTMLElement>('.file-list-reorder-grip');
 		if (!dragGrip) throw new Error('Expected rendered file-list drag grip');
-		const dataTransfer = {
-			effectAllowed: 'none',
-			dropEffect: 'none',
-			setData: vi.fn(),
-		} as unknown as DataTransfer;
+		const restoreHitTest = stubElementFromPoint(() => dropRow);
 
-		await fireEvent.dragStart(dragGrip, { dataTransfer });
-		await fireEvent.dragOver(dropRow, { dataTransfer });
-		await fireEvent.drop(dropRow, { dataTransfer });
-		await fireEvent.dragEnd(dragGrip, { dataTransfer });
-		await waitFor(() => {
-			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
-				'/books/two.m4b',
-				'/books/three.m4b',
-				'/books/one.m4b',
-			]);
-		});
+		try {
+			await fireEvent.pointerDown(dragGrip, { pointerId: 1, button: 0, clientX: 0, clientY: 0 });
+			await fireEvent.pointerMove(window, { pointerId: 1, clientX: 0, clientY: 60 });
+			await fireEvent.pointerUp(window, { pointerId: 1 });
+			await waitFor(() => {
+				expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+					'/books/two.m4b',
+					'/books/three.m4b',
+					'/books/one.m4b',
+				]);
+			});
+		} finally {
+			restoreHitTest();
+		}
 
 		expect(Array.from(getSelectedFileIndices()).sort()).toEqual([0, 2]);
 		expect(getCurrentFileList()?.files[getSelectedFileIndex()]?.path).toBe('/books/one.m4b');
