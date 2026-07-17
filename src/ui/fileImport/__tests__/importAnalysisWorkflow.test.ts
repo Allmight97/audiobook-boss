@@ -114,7 +114,7 @@ describe('ImportAnalysisWorkflow', () => {
 		expect(harness.services.openFiles).not.toHaveBeenCalled();
 		expect(harness.services.discoverAudioImportPaths).not.toHaveBeenCalled();
 		expect(harness.services.setFileImportError).toHaveBeenCalledWith(
-			'Order locked while processing. Wait for completion to add files.',
+			'Order locked while submitting to the work queue. Try again in a moment.',
 		);
 	});
 

@@ -14,6 +14,10 @@ import {
 	setSortDirection,
 	isOrderLocked,
 	setOrderLocked,
+	getImportOrdinal,
+	recordImportOrder,
+	removeImportOrdinal,
+	resetImportOrder,
 } from './state.svelte';
 import {
 	applySelectionIntent as applySelectionIntentToState,
@@ -80,6 +84,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
 	clearMetadataSession();
 	setCurrentFileList(normalizedFileListInfo);
+	resetImportOrder(normalizedFileListInfo.files);
 	clearSelectionPanels();
 
 	refreshOutputForFileListChange();
@@ -111,6 +116,7 @@ export function appendFileList(
 	const selectedIndex = getSelectedFileIndex();
 	const selectedIndices = getSelectedFileIndices();
 	setCurrentFileList(appendResult.fileList);
+	recordImportOrder(appendResult.fileList.files);
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);
 
@@ -161,6 +167,7 @@ export async function removeFile(index: number): Promise<void> {
 
 	const removedFile = fileList.files[index];
 	removeMetadataForFile(removedFile.path);
+	removeImportOrdinal(removedFile.path);
 	removeFileListCoverThumbnail(removedFile.path);
 	void purgeRemoteSourceSessionsForInputIds([removedFile.inputId]);
 
@@ -227,6 +234,7 @@ export function moveFileUp(index: number): void {
 	nextFiles[index] = nextFiles[index - 1];
 	nextFiles[index - 1] = temp;
 	replaceCurrentFileListFiles(nextFiles);
+	setSortDirection('none');
 
 	swapSelectionIndices(index, index - 1);
 
@@ -247,6 +255,7 @@ export function moveFileDown(index: number): void {
 	nextFiles[index] = nextFiles[index + 1];
 	nextFiles[index + 1] = temp;
 	replaceCurrentFileListFiles(nextFiles);
+	setSortDirection('none');
 
 	swapSelectionIndices(index, index + 1);
 
@@ -308,6 +317,7 @@ export function clearAllFiles(): void {
 	const inputIds = fileList.files.map((file) => file.inputId);
 
 	clearMetadataSession();
+	resetImportOrder([]);
 	fileListSessionState.currentFileList = {
 		...fileList,
 		files: [],
@@ -337,8 +347,51 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	const [moved] = nextFiles.splice(fromIndex, 1);
 	nextFiles.splice(toIndex, 0, moved);
 	replaceCurrentFileListFiles(nextFiles);
+	setSortDirection('none');
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
+
+	refreshOutputForFileListChange();
+
+	void coordinateMetadataSurfacePresentationRefresh();
+}
+
+/**
+ * Restores the queue to import (arrival) order — the one-click inverse of
+ * filename ordering and manual drags. No-op when any file lacks an ordinal
+ * (lists seeded outside display/append flows).
+ */
+export async function restoreImportOrder(): Promise<void> {
+	if (isOrderLocked()) return;
+	const fileList = getCurrentFileList();
+	if (!fileList || fileList.files.length <= 1) return;
+	if (fileList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
+
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
+		}))
+	) {
+		return;
+	}
+
+	const selectedPaths = new Set(
+		Array.from(getSelectedFileIndices())
+			.map((index) => fileList.files[index]?.path)
+			.filter((path): path is string => Boolean(path)),
+	);
+	const selectedPath = fileList.files[getSelectedFileIndex()]?.path;
+
+	const nextFiles = [...fileList.files].sort(
+		(a, b) => (getImportOrdinal(a.path) ?? 0) - (getImportOrdinal(b.path) ?? 0),
+	);
+	replaceCurrentFileListFiles(nextFiles);
+	setSortDirection('none');
+
+	setSelectedFileIndices(
+		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
+	);
+	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
 
 	refreshOutputForFileListChange();
 

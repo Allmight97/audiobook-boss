@@ -4,7 +4,7 @@
 	import { formatDuration, formatFileSize } from '../../types/audio';
 	import { getMetadataForFile, getMetadataIntentPatchForFile } from '../metadataSession';
 	import { hasSupplementalAssetsForInputId } from '../remoteSource';
-	import { applySelectionIntent, toggleFileSort } from './actions';
+	import { applySelectionIntent, restoreImportOrder, toggleFileSort } from './actions';
 	import {
 		clearFileListCoverThumbnails,
 		getFileListCoverThumbnailState,
@@ -13,6 +13,7 @@
 	import { createFileListPointerReorder, onFileListKeyDown } from './events';
 	import { getCurrentFileList, getSelectedFileIndex } from './state.svelte';
 	import {
+		readFileListOrderDiffersFromImport,
 		readFileListOrderLockVisible,
 		readFileListSelectedIndices,
 		readFileListSortState,
@@ -48,6 +49,7 @@
 	const files = $derived(readFileListViewFiles());
 	const selectedIndices = $derived(readFileListSelectedIndices());
 	const sortState = $derived(readFileListSortState());
+	const orderDiffersFromImport = $derived(readFileListOrderDiffersFromImport());
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
 	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
 
@@ -192,9 +194,31 @@
 					<th class="file-list-reorder-cell"><span class="sr-only">Reorder</span></th>
 					<th class="file-list-cover-cell"></th>
 					<th aria-sort={sortState}>
-						<button id="file-sort-header" type="button" class="file-list-sort-header" onclick={() => void toggleFileSort()}>
-							File
-						</button>
+						<span class="file-list-order-controls">
+							<button
+								id="file-sort-header"
+								type="button"
+								class="file-list-sort-header"
+								aria-label="Order by filename"
+								title="Order by filename (click to reverse)"
+								onclick={() => void toggleFileSort()}
+							>
+								File<span class="file-list-sort-direction" aria-hidden="true"
+									>{sortState === 'ascending' ? '↑' : sortState === 'descending' ? '↓' : '↕'}</span
+								>
+							</button>
+							{#if orderDiffersFromImport && !orderLockVisible}
+								<button
+									type="button"
+									class="file-list-restore-order"
+									aria-label="Restore import order"
+									title="Restore import order"
+									onclick={() => void restoreImportOrder()}
+								>
+									↺
+								</button>
+							{/if}
+						</span>
 					</th>
 					<th class="file-list-number">Duration</th>
 					<th class="file-list-number file-list-comfortable-only">Size</th>
@@ -228,7 +252,7 @@
 								aria-hidden="true"
 								title={
 									orderLockVisible
-										? 'File order is locked'
+										? 'Order locked while submitting to the work queue'
 										: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'
 								}
 								onpointerdown={(event) => reorderHandlers.onGripPointerDown(index, event)}
@@ -237,7 +261,7 @@
 							</span>
 							<span class="sr-only">
 								{orderLockVisible
-									? 'File order locked'
+									? 'Order locked while submitting to the work queue'
 									: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'}
 							</span>
 						</td>
@@ -315,7 +339,11 @@
 	.file-list-table tbody tr.order-locked .file-list-reorder-grip { cursor: not-allowed; opacity: 0.65; }
 	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
 	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }
+	.file-list-order-controls { display: inline-flex; align-items: baseline; gap: var(--space-1); }
 	.file-list-sort-header { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+	.file-list-sort-direction { margin-left: 0.25rem; color: var(--text-muted); }
+	.file-list-restore-order { padding: 0; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; line-height: 1; }
+	.file-list-restore-order:hover { color: var(--text-primary); }
 	.file-list-title-cell { max-width: 0; }
 	.file-list-activate { max-width: 100%; margin-top: 0; padding: 0; overflow: hidden; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 	.file-list-table tbody tr.active .file-list-activate { color: var(--text-primary); font-weight: 600; }
