@@ -135,7 +135,7 @@ describe('contextual selection cluster', () => {
 		expect(mergeZone.hidden).toBe(false);
 	});
 
-	it('shows selection actions and hides the merge chip zone when files are selected', () => {
+	it('shows selection actions while keeping the merge chip zone visible when files are selected', () => {
 		selectionHolder.indices = new Set<number>([0, 1, 2]);
 		render(AppShellIsland, { children: emptyChildren });
 
@@ -145,7 +145,7 @@ describe('contextual selection cluster', () => {
 		expect(cluster.textContent).toContain('Edit shared fields (3)');
 		expect(cluster.textContent).toContain('Remove');
 		const mergeZone = document.querySelector('.app-shell-merge') as HTMLElement;
-		expect(mergeZone.hidden).toBe(true);
+		expect(mergeZone.hidden).toBe(false);
 	});
 });
 

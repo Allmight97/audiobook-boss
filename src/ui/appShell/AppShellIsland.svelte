@@ -164,7 +164,7 @@ let { children, overlay, rail }: Props = $props();
 			>
 				☁ Audible
 			</button>
-			<div class="app-shell-merge" hidden={selectedFileCount > 0}>
+			<div class="app-shell-merge">
 				<JobControlsIsland {fileCount} onMergeModeChange={handleMergeModeChange} />
 			</div>
 		</div>
@@ -345,10 +345,6 @@ let { children, overlay, rail }: Props = $props();
 	.app-shell-merge {
 		display: flex;
 		align-items: center;
-	}
-
-	.app-shell-merge[hidden] {
-		display: none;
 	}
 
 	.app-shell-main {
