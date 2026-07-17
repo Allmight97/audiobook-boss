@@ -139,7 +139,8 @@
 	}
 
 	function getFileAuthor(file: (typeof files)[number]): string {
-		return getMetadataForFile(file.path)?.artist || '—';
+		const metadata = getMetadataForFile(file.path);
+		return (metadata === undefined ? file.tagArtist : metadata.artist) || '—';
 	}
 
 	function getCoverDataUrl(file: (typeof files)[number]): string | null {

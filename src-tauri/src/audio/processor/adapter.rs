@@ -190,6 +190,8 @@ mod tests {
                 channels: None,
                 codec_label: Some("AAC".to_string()),
                 selected_decoder: Some("Apple AAC".to_string()),
+                tag_title: None,
+                tag_artist: None,
                 chapters: Vec::new(),
                 is_valid: true,
                 error: None,

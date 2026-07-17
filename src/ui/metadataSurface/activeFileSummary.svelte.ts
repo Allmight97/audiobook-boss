@@ -23,15 +23,19 @@ export function readActiveFileSummary(): ActiveFileSummary {
 	const facts = readInspectorFacts();
 	const form = readMetadataFormViewSnapshot();
 	const isMultiSelection = form.mode === 'multi' && form.selectionCount > 1;
+	const displayTitle =
+		activeMetadata === undefined ? activeFile?.tagTitle : activeMetadata?.title;
+	const displayArtist =
+		activeMetadata === undefined ? activeFile?.tagArtist : activeMetadata?.artist;
 	const title =
-		activeMetadata?.title || facts.find((fact) => fact.label === 'File')?.value || 'Metadata';
+		displayTitle || facts.find((fact) => fact.label === 'File')?.value || 'Metadata';
 
 	return {
 		hasSelection: getSelectedFiles().length > 0 && activeFile !== null,
 		heading: isMultiSelection ? `${form.selectionCount} files selected` : title,
 		railSubtitle: isMultiSelection
 			? null
-			: `${activeMetadata?.artist || '—'} · ${formatDuration(activeFile?.duration)} · ${readActiveFileChapters().length} chapters`,
+			: `${displayArtist || '—'} · ${formatDuration(activeFile?.duration)} · ${readActiveFileChapters().length} chapters`,
 		coverDataUrl: activeMetadata?.cover_art?.length
 			? coverArtBytesToDataUrl(activeMetadata.cover_art)
 			: null,

@@ -48,7 +48,7 @@ impl From<MetadataCoreError> for AppError {
     }
 }
 
-pub use reader::read_metadata;
+pub use reader::{display_tags_from_ffmpeg_dict, read_metadata};
 pub(crate) use thumbnail::optimize_cover_art;
 pub use thumbnail::read_audio_cover_thumbnail;
 

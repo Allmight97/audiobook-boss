@@ -309,6 +309,23 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
 }
 
 #[tokio::test]
+async fn analysis_populates_display_tags_from_an_existing_tagged_fixture() {
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let output = lane.process(None).await;
+    let patch = MetadataIntentPatch {
+        title: PatchOp::Set("Analyzed Fixture Title".to_string()),
+        artist: PatchOp::Set("Analyzed Fixture Artist".to_string()),
+        ..Default::default()
+    };
+    save_metadata_intent(&output, &patch).expect("tag fixture through metadata boundary");
+
+    let analyzed = get_file_list_info(&[&output]).expect("analyze tagged fixture");
+    let file = analyzed.files.first().expect("one analyzed fixture");
+    assert_eq!(file.tag_title.as_deref(), Some("Analyzed Fixture Title"));
+    assert_eq!(file.tag_artist.as_deref(), Some("Analyzed Fixture Artist"));
+}
+
+#[tokio::test]
 async fn cancellation_yields_terminal_error_without_artifact_or_staging_residue() {
     let lane = MediaLane::with_fixtures(&[1.0]);
 

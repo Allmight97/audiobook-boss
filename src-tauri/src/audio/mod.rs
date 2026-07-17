@@ -45,6 +45,10 @@ pub struct AudioFile {
     pub codec_label: Option<String>,
     /// Friendly selected decoder label for display only (None if unavailable)
     pub selected_decoder: Option<String>,
+    /// Title tag discovered during input analysis (None if unavailable)
+    pub tag_title: Option<String>,
+    /// Artist tag discovered during input analysis (None if unavailable)
+    pub tag_artist: Option<String>,
     /// Chapters embedded in this individual source file, normalized to milliseconds.
     #[serde(default)]
     pub chapters: Vec<AudioChapter>,
@@ -96,6 +100,8 @@ impl AudioFile {
             channels: None,
             codec_label: None,
             selected_decoder: None,
+            tag_title: None,
+            tag_artist: None,
             chapters: Vec::new(),
             is_valid: false,
             error: None,

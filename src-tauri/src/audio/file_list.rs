@@ -70,6 +70,8 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
             audio_file.sample_rate = properties.sample_rate;
             audio_file.channels = properties.channels;
             audio_file.codec_label = properties.codec_label;
+            audio_file.tag_title = properties.tag_title;
+            audio_file.tag_artist = properties.tag_artist;
             audio_file.chapters = properties.chapters;
             audio_file.selected_decoder = properties
                 .selected_decoder
@@ -101,6 +103,8 @@ struct AudioProperties {
     sample_rate: Option<u32>,
     channels: Option<u32>,
     codec_label: Option<String>,
+    tag_title: Option<String>,
+    tag_artist: Option<String>,
     chapters: Vec<AudioChapter>,
     selected_decoder: Option<DecoderSelection>,
 }
@@ -111,7 +115,7 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
     // First check if we support the file extension
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
-    let (duration, chapters) = {
+    let (duration, chapters, (tag_title, tag_artist)) = {
         let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
         let audio_stream = ictx
             .streams()
@@ -145,7 +149,8 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
                 ),
             })
             .collect();
-        (duration, chapters)
+        let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
+        (duration, chapters, display_tags)
     };
 
     // Validate that we got a reasonable duration
@@ -175,6 +180,8 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
         sample_rate,
         channels,
         codec_label: inspection.codec_label,
+        tag_title,
+        tag_artist,
         chapters,
         selected_decoder: Some(selected_decoder),
     })

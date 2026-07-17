@@ -74,7 +74,11 @@ export function readFileListStatusBadge(
 }
 
 export function displayedTitleForFile(file: AudioFile): string {
-	return getMetadataForFile(file.path)?.title || pathBasename(file.path, { fallback: 'path' });
+	const metadata = getMetadataForFile(file.path);
+	return (
+		(metadata === undefined ? file.tagTitle : metadata.title) ||
+		pathBasename(file.path, { fallback: 'path' })
+	);
 }
 
 export function readCombinedSizeText(): string {

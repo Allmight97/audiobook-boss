@@ -138,6 +138,62 @@ describe('v3 book table', () => {
 		expect(screen.queryByText('ready.m4b')).toBeNull();
 	});
 
+	it('shows analyzed tags with zero selection before a metadata session entry exists', () => {
+		const tagged = {
+			...file('/books/tagged.m4b', 'tagged'),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+		setCurrentFileList(fileList(tagged));
+		const screen = render(FileListIsland);
+
+		expect(getSelectedFileIndex()).toBe(-1);
+		expect(screen.getByText('Analyzed Title')).toBeInTheDocument();
+		expect(screen.getByText('Analyzed Artist')).toBeInTheDocument();
+	});
+
+	it('does not resurrect analyzed row tags after a staged clear succeeds', async () => {
+		const saveMetadata = vi.spyOn(tauriClient, 'saveMetadataBatch').mockResolvedValue({
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+			results: [
+				{
+					inputIndex: 0,
+					filePath: '/books/tagged.m4b',
+					status: 'success',
+					message: 'saved',
+				},
+			],
+		});
+		const tagged = {
+			...file('/books/tagged.m4b', 'tagged'),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+		setCurrentFileList(fileList(tagged));
+		cacheMetadataForFile(tagged.path, { title: 'Session title', artist: 'Session artist' });
+		expect(
+			stageMetadataIntentPatch(tagged.path, {
+				title: { op: 'clear' },
+				artist: { op: 'clear' },
+			}),
+		).toBe('staged');
+		const screen = render(FileListIsland);
+
+		expect(screen.getByText('tagged.m4b')).toBeInTheDocument();
+		expect(screen.getAllByText('—')).toHaveLength(2);
+		expect(screen.queryByText('Analyzed Title')).toBeNull();
+		expect(screen.queryByText('Analyzed Artist')).toBeNull();
+
+		await saveMetadataFromUI();
+		await waitFor(() => expect(saveMetadata).toHaveBeenCalledTimes(1));
+		await tick();
+
+		expect(screen.getByText('tagged.m4b')).toBeInTheDocument();
+		expect(screen.getAllByText('—')).toHaveLength(2);
+		expect(screen.queryByText('Analyzed Title')).toBeNull();
+		expect(screen.queryByText('Analyzed Artist')).toBeNull();
+	});
+
 	it('loads row thumbnails independently and keeps a saved cover clear authoritative', async () => {
 		const readThumbnail = vi
 			.spyOn(tauriClient, 'readAudioCoverThumbnail')

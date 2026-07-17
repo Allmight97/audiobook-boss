@@ -155,6 +155,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 							format: 'mp3',
 							codecLabel: 'MP3',
 							selectedDecoder: 'ffmpeg',
+							tagTitle: null,
+							tagArtist: null,
 							error: null,
 						},
 						{
@@ -169,6 +171,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 							format: 'mp3',
 							codecLabel: 'MP3',
 							selectedDecoder: 'ffmpeg',
+							tagTitle: null,
+							tagArtist: null,
 							error: null,
 						},
 					],

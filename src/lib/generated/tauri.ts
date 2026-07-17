@@ -236,6 +236,10 @@ export type AudioFile = {
 	codecLabel: string | null,
 	// Friendly selected decoder label for display only (None if unavailable)
 	selectedDecoder: string | null,
+	// Title tag discovered during input analysis (None if unavailable)
+	tagTitle: string | null,
+	// Artist tag discovered during input analysis (None if unavailable)
+	tagArtist: string | null,
 	// Chapters embedded in this individual source file, normalized to milliseconds.
 	chapters?: AudioChapter[],
 	// Validation status

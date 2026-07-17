@@ -50,10 +50,12 @@ fn audio_contract_rejects_invalid_encoder_bitrate() {
 }
 
 #[test]
-fn audio_file_chapters_serialize_and_default_empty_for_legacy_payloads() {
+fn audio_file_display_tags_and_chapters_serialize_and_default_for_legacy_payloads() {
     let serialized =
         serde_json::to_value(AudioFile::new("chaptered.m4b".into())).expect("serialize audio file");
     assert_eq!(serialized["chapters"], serde_json::json!([]));
+    assert_eq!(serialized["tagTitle"], serde_json::Value::Null);
+    assert_eq!(serialized["tagArtist"], serde_json::Value::Null);
 
     let legacy = serde_json::json!({
         "inputId": "legacy-input",
@@ -74,4 +76,6 @@ fn audio_file_chapters_serialize_and_default_empty_for_legacy_payloads() {
         parsed.chapters.is_empty(),
         "missing chapters defaults to empty"
     );
+    assert_eq!(parsed.tag_title, None, "missing title tag defaults to None");
+    assert_eq!(parsed.tag_artist, None, "missing artist tag defaults to None");
 }

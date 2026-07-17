@@ -168,6 +168,8 @@ fn external_decoder_contract_rejects_unsupported_named_decoder() {
         channels: None,
         codec_label: None,
         selected_decoder: Some("Apple AAC".to_string()),
+        tag_title: None,
+        tag_artist: None,
         chapters: Vec::new(),
         is_valid: true,
         error: None,

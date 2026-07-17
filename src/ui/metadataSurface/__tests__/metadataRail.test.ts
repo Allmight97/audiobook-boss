@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { tauriClient } from '../../../lib/tauri/client';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 import { setMetadataSurfacePresentation } from '../../fileList';
 import { coordinateMetadataSurfaceSelectionTransition } from '../../fileList/metadataPanel';
@@ -10,8 +11,14 @@ import {
 	setSelectedFileIndices,
 	setSelectedIndex,
 } from '../../fileList/state.svelte';
+import { resetInspectorState, setInspectorContext } from '../../fileList/inspectorState.svelte';
 import { populateMetadataFormMulti, populateMetadataFormSingle } from '../../metadataForm';
-import { clearMetadataSession, cacheMetadataForFile } from '../../metadataSession';
+import {
+	cacheMetadataForFile,
+	clearMetadataSession,
+	saveMetadataFromUI,
+	stageMetadataIntentPatch,
+} from '../../metadataSession';
 import MetadataRailIsland from '../MetadataRailIsland.svelte';
 import MetadataSurfaceIsland from '../MetadataSurfaceIsland.svelte';
 import { applyEditSurfacePreference } from '../editSurface.svelte';
@@ -38,6 +45,7 @@ describe('MetadataRailIsland', () => {
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
+		resetInspectorState();
 		populateMetadataFormSingle({});
 	});
 
@@ -67,6 +75,61 @@ describe('MetadataRailIsland', () => {
 
 		await fireEvent.click(screen.getByRole('tab', { name: 'Facts' }));
 		expect(screen.getByRole('tabpanel')).toHaveAttribute('id', 'metadata-rail-panel-facts');
+	});
+
+	it('uses analyzed tags when the active file has no metadata session entry', () => {
+		const active = {
+			...file('/books/analyzed.m4b', 65),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+		setCurrentFileList(fileList(active));
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+		render(MetadataRailIsland);
+
+		expect(screen.getByRole('heading', { name: 'Analyzed Title' })).toBeInTheDocument();
+		expect(screen.getByText('Analyzed Artist · 1:05 · 0 chapters')).toBeInTheDocument();
+	});
+
+	it('does not resurrect analyzed rail tags after a staged clear succeeds', async () => {
+		const active = {
+			...file('/books/analyzed.m4b', 65),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+		setCurrentFileList(fileList(active));
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+		setInspectorContext({ text: 'analyzed.m4b', variant: 'single' });
+		cacheMetadataForFile(active.path, { title: 'Session title', artist: 'Session artist' });
+		expect(
+			stageMetadataIntentPatch(active.path, {
+				title: { op: 'clear' },
+				artist: { op: 'clear' },
+			}),
+		).toBe('staged');
+		const saveMetadata = vi.spyOn(tauriClient, 'saveMetadataBatch').mockResolvedValue({
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+			results: [
+				{
+					inputIndex: 0,
+					filePath: active.path,
+					status: 'success',
+					message: 'saved',
+				},
+			],
+		});
+		render(MetadataRailIsland);
+
+		expect(screen.getByRole('heading', { name: 'analyzed.m4b' })).toBeInTheDocument();
+		expect(screen.getByText('— · 1:05 · 0 chapters')).toBeInTheDocument();
+
+		await saveMetadataFromUI();
+		await vi.waitFor(() => expect(saveMetadata).toHaveBeenCalledTimes(1));
+
+		expect(screen.getByRole('heading', { name: 'analyzed.m4b' })).toBeInTheDocument();
+		expect(screen.getByText('— · 1:05 · 0 chapters')).toBeInTheDocument();
 	});
 
 	it('shows the multi-select pane header', () => {

@@ -117,6 +117,19 @@ fn first_tag(dict: &ff::DictionaryRef<'_>, field: TagField) -> Option<String> {
     first_tag_keys(dict, field.read_keys())
 }
 
+/// Returns the display-safe title and artist tags from an already-open FFmpeg input.
+///
+/// This intentionally owns the canonical tag-key lookup so analysis callers do
+/// not depend on the metadata reader's private lookup helpers or open files again.
+pub fn display_tags_from_ffmpeg_dict(
+    dict: &ff::DictionaryRef<'_>,
+) -> (Option<String>, Option<String>) {
+    (
+        first_tag(dict, TagField::Title),
+        first_tag(dict, TagField::Artist),
+    )
+}
+
 fn first_tag_keys(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
     first_tag_with_lookup(keys, |key| dict.get(key).map(str::to_string))
 }
