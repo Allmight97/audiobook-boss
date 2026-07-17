@@ -32,6 +32,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'preview_output_path',
 	'process_audiobook_files',
 	'purge_remote_source_session',
+	'read_audio_cover_thumbnail',
 	'read_audio_metadata',
 	'reset_app_settings',
 	'save_metadata_batch',

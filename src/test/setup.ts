@@ -138,6 +138,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
 				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
+			case 'read_audio_cover_thumbnail':
+				return Promise.resolve(null);
 			case 'analyze_audio_files':
 				return Promise.resolve({
 					files: [

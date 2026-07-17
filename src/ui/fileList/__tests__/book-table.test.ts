@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { tauriClient } from '../../../lib/tauri/client';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 import type { OperationSnapshot } from '../../../types/workRuntime';
 import { readWorkActivityByInputId } from '../../workCenter';
@@ -15,7 +16,12 @@ import {
 	setSelectedFileIndices,
 	setSelectedIndex,
 } from '../state.svelte';
-import { cacheMetadataForFile, clearMetadataSession } from '../../metadataSession';
+import {
+	cacheMetadataForFile,
+	clearMetadataSession,
+	saveMetadataFromUI,
+	stageMetadataIntentPatch,
+} from '../../metadataSession';
 import { setMetadataSurfacePresentation } from '../metadataPanel';
 
 function file(path: string, inputId: string, isValid = true): AudioFile {
@@ -110,6 +116,7 @@ describe('v3 book table', () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		document.documentElement.removeAttribute('data-density');
 		setMetadataSurfacePresentation(null);
 	});
@@ -129,6 +136,45 @@ describe('v3 book table', () => {
 		expect(screen.getByText('The Way of Kings')).toBeInTheDocument();
 		expect(screen.getByText('Brandon Sanderson')).toBeInTheDocument();
 		expect(screen.queryByText('ready.m4b')).toBeNull();
+	});
+
+	it('loads row thumbnails independently and keeps a saved cover clear authoritative', async () => {
+		const readThumbnail = vi
+			.spyOn(tauriClient, 'readAudioCoverThumbnail')
+			.mockImplementation(async (path) => (path.endsWith('ready.m4b') ? [1, 2, 3] : null));
+		const saveMetadata = vi.spyOn(tauriClient, 'saveMetadataBatch').mockResolvedValue({
+			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+			results: [
+				{
+					inputIndex: 0,
+					filePath: '/books/ready.m4b',
+					status: 'success',
+					message: 'saved',
+				},
+			],
+		});
+		const screen = render(FileListIsland);
+		const readyRow = screen.getByRole('checkbox', { name: 'Select ready.m4b' }).closest('tr');
+		if (!readyRow) throw new Error('Expected the ready file row');
+
+		await waitFor(() => expect(readyRow.querySelector('img')).toBeInTheDocument());
+		expect(getSelectedFileIndex()).toBe(-1);
+		expect(readThumbnail).toHaveBeenCalledWith('/books/ready.m4b');
+		expect(readThumbnail).not.toHaveBeenCalledWith('/books/bad.m4b');
+
+		cacheMetadataForFile('/books/ready.m4b', { cover_art: [9] });
+		expect(stageMetadataIntentPatch('/books/ready.m4b', { cover_art: { op: 'clear' } })).toBe(
+			'staged',
+		);
+		await tick();
+
+		expect(readyRow.querySelector('img')).not.toBeInTheDocument();
+
+		await saveMetadataFromUI();
+		await waitFor(() => expect(saveMetadata).toHaveBeenCalledTimes(1));
+		await tick();
+
+		expect(readyRow.querySelector('img')).not.toBeInTheDocument();
 	});
 
 	it('renders derived activity badges but makes invalid input an error', async () => {
@@ -177,16 +223,20 @@ describe('v3 book table', () => {
 	it('exposes reorder shortcuts and changes the row grip when ordering locks', async () => {
 		const screen = render(FileListIsland);
 		const keyboardGroup = screen.getByRole('group', { name: 'Audio files' });
+		const table = screen.getByTestId('book-table');
 		const row = screen.getByRole('checkbox', { name: 'Select ready.m4b' }).closest('tr');
 		if (!row) throw new Error('Expected a file-list row');
 		const grip = row.querySelector('.file-list-reorder-grip');
 
 		expect(keyboardGroup).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+		expect(getComputedStyle(table).tableLayout).toBe('fixed');
+		expect(getComputedStyle(table).userSelect).toBe('none');
 		expect(grip).toHaveAttribute(
 			'title',
 			'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.',
 		);
-		expect(row).toHaveAttribute('draggable', 'true');
+		expect(row).toHaveAttribute('draggable', 'false');
+		expect(grip).toHaveAttribute('draggable', 'true');
 
 		setOrderLocked(true);
 		await tick();
@@ -194,7 +244,30 @@ describe('v3 book table', () => {
 		expect(row).toHaveClass('order-locked');
 		expect(row).toHaveAttribute('draggable', 'false');
 		expect(grip).toHaveTextContent('⠿');
+		expect(grip).toHaveAttribute('draggable', 'false');
 		expect(grip).toHaveAttribute('title', 'File order is locked');
+	});
+
+	it('keeps text non-draggable while retaining full book-title tooltips', async () => {
+		const screen = render(FileListIsland);
+		const firstTitle = screen.getByRole('button', { name: 'Edit metadata for ready.m4b' });
+		const secondRow = screen.getByRole('checkbox', { name: 'Select bad.m4b' }).closest('tr');
+		if (!secondRow) throw new Error('Expected a file-list row');
+		const dataTransfer = {
+			effectAllowed: 'none',
+			dropEffect: 'none',
+			setData: vi.fn(),
+		} as unknown as DataTransfer;
+
+		expect(firstTitle).toHaveAttribute('title', 'ready.m4b');
+		await fireEvent.dragStart(firstTitle, { dataTransfer });
+		await fireEvent.dragOver(secondRow, { dataTransfer });
+		await fireEvent.drop(secondRow, { dataTransfer });
+
+		expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+			'/books/ready.m4b',
+			'/books/bad.m4b',
+		]);
 	});
 
 	it('hides comfortable-only columns at compact density', async () => {
@@ -359,16 +432,18 @@ describe('v3 book table', () => {
 		const draggedRow = screen.getByRole('checkbox', { name: 'Select one.m4b' }).closest('tr');
 		const dropRow = screen.getByRole('checkbox', { name: 'Select three.m4b' }).closest('tr');
 		if (!draggedRow || !dropRow) throw new Error('Expected rendered file-list rows');
+		const dragGrip = draggedRow.querySelector<HTMLElement>('.file-list-reorder-grip');
+		if (!dragGrip) throw new Error('Expected rendered file-list drag grip');
 		const dataTransfer = {
 			effectAllowed: 'none',
 			dropEffect: 'none',
 			setData: vi.fn(),
 		} as unknown as DataTransfer;
 
-		await fireEvent.dragStart(draggedRow, { dataTransfer });
+		await fireEvent.dragStart(dragGrip, { dataTransfer });
 		await fireEvent.dragOver(dropRow, { dataTransfer });
 		await fireEvent.drop(dropRow, { dataTransfer });
-		await fireEvent.dragEnd(draggedRow, { dataTransfer });
+		await fireEvent.dragEnd(dragGrip, { dataTransfer });
 		await waitFor(() => {
 			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
 				'/books/two.m4b',

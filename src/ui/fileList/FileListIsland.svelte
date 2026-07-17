@@ -1,9 +1,15 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 	import { formatDuration, formatFileSize } from '../../types/audio';
-	import { getMetadataForFile } from '../metadataSession';
+	import { getMetadataForFile, getMetadataIntentPatchForFile } from '../metadataSession';
 	import { hasSupplementalAssetsForInputId } from '../remoteSource';
 	import { applySelectionIntent, toggleFileSort } from './actions';
+	import {
+		clearFileListCoverThumbnails,
+		getFileListCoverThumbnailState,
+		scheduleFileListCoverThumbnails,
+	} from './coverThumbnails.svelte';
 	import { createFileListDragHandlers, onFileListKeyDown } from './events';
 	import { getCurrentFileList, getSelectedFileIndex } from './state.svelte';
 	import {
@@ -63,6 +69,28 @@
 		}
 	});
 
+	$effect(() => {
+		const validPaths = files.filter((file) => file.isValid).map((file) => file.path);
+		let active = true;
+
+		// Schedule outside the reactive effect so thumbnail state writes do not
+		// become dependencies of the file-list path calculation.
+		queueMicrotask(() => {
+			if (!active) return;
+			if (validPaths.length === 0) {
+				clearFileListCoverThumbnails();
+				return;
+			}
+			scheduleFileListCoverThumbnails(validPaths);
+		});
+
+		return () => {
+			active = false;
+		};
+	});
+
+	onDestroy(clearFileListCoverThumbnails);
+
 	function selectionIntentForRow(index: number, event: MouseEvent) {
 		if (event.shiftKey) {
 			const anchorIndex = getSelectedFileIndex();
@@ -115,8 +143,18 @@
 	}
 
 	function getCoverDataUrl(file: (typeof files)[number]): string | null {
-		const coverArt = getMetadataForFile(file.path)?.cover_art;
-		return coverArt && coverArt.length > 0 ? coverArtBytesToDataUrl(coverArt) : null;
+		const coverIntent = getMetadataIntentPatchForFile(file.path)?.cover_art;
+		if (coverIntent?.op === 'clear') return null;
+		if (coverIntent?.op === 'set') return coverArtBytesToDataUrl(coverIntent.value);
+
+		const metadata = getMetadataForFile(file.path);
+		if (metadata !== undefined) {
+			const coverArt = metadata.cover_art;
+			return coverArt && coverArt.length > 0 ? coverArtBytesToDataUrl(coverArt) : null;
+		}
+
+		const thumbnail = getFileListCoverThumbnailState(file.path);
+		return thumbnail.status === 'ready' ? thumbnail.dataUrl : null;
 	}
 </script>
 
@@ -152,7 +190,22 @@
 		tabindex="0"
 		onkeydown={onFileListKeyDown}
 	>
-		<table class="file-list-table" data-testid="book-table">
+		<table
+			class="file-list-table"
+			data-testid="book-table"
+			style="table-layout: fixed; user-select: none;"
+		>
+			<colgroup>
+				<col class="file-list-reorder-column" />
+				<col class="file-list-checkbox-column" />
+				<col class="file-list-cover-column" />
+				<col class="file-list-title-column" />
+				<col class="file-list-comfortable-only file-list-author-column" />
+				<col class="file-list-duration-column" />
+				<col class="file-list-comfortable-only file-list-size-column" />
+				<col class="file-list-comfortable-only file-list-codec-column" />
+				<col class="file-list-status-column" />
+			</colgroup>
 			<thead>
 				<tr>
 					<th class="file-list-reorder-cell"><span class="sr-only">Reorder</span></th>
@@ -194,22 +247,23 @@
 						class:dragging={draggedIndex === index}
 						class:drag-over={hoveredIndex === index}
 						class:order-locked={orderLockVisible}
-						draggable={orderLockVisible ? 'false' : 'true'}
+						draggable="false"
 						onclick={(event) => handleRowClick(index, event)}
-						ondragstart={(event) => dragHandlers.onDragStart(index, event)}
 						ondragover={(event) => dragHandlers.onDragOver(index, event)}
 						ondrop={(event) => dragHandlers.onDrop(index, event)}
-						ondragend={dragHandlers.onDragEnd}
 					>
 						<td class="file-list-reorder-cell">
 							<span
 								class="file-list-reorder-grip"
 								aria-hidden="true"
+								draggable={orderLockVisible ? 'false' : 'true'}
 								title={
 									orderLockVisible
 										? 'File order is locked'
 										: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'
 								}
+								ondragstart={(event) => dragHandlers.onDragStart(index, event)}
+								ondragend={dragHandlers.onDragEnd}
 							>
 								⠿
 							</span>
@@ -243,6 +297,7 @@
 								class="file-list-activate"
 								aria-pressed={active ?? false}
 								aria-label={`Edit metadata for ${getFileTitle(file)}`}
+								title={getFileTitle(file)}
 								id={`file-list-row-activate-${index}`}
 								data-metadata-selection-intent
 								onclick={(event) => handleRowActivation(index, event.currentTarget, event)}
@@ -280,7 +335,15 @@
 	.drop-zone-header.drag-over { border-color: var(--accent-primary); }
 	.file-list-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto; }
 	.file-list-content:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-	.file-list-table { width: 100%; border-collapse: collapse; font-size: var(--density-text); }
+	.file-list-table { width: 100%; min-width: 43rem; border-collapse: collapse; font-size: var(--density-text); }
+	.file-list-reorder-column { width: 1.75rem; }
+	.file-list-checkbox-column { width: 2.125rem; }
+	.file-list-cover-column { width: 2.5rem; }
+	.file-list-author-column { width: 12rem; }
+	.file-list-duration-column { width: 5.5rem; }
+	.file-list-size-column { width: 5.5rem; }
+	.file-list-codec-column { width: 5rem; }
+	.file-list-status-column { width: 5.5rem; }
 	.file-list-table th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-primary); background: var(--bg-main); color: var(--text-placeholder); font-size: 0.65625rem; font-weight: 600; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
 	.file-list-table td { height: var(--density-row-h); padding: 0 var(--space-3); overflow: hidden; border-bottom: 1px solid var(--border-primary); color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
 	.file-list-table tbody tr { cursor: pointer; }
@@ -298,12 +361,14 @@
 	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }
 	.file-list-sort-header { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
 	.file-list-title-cell { max-width: 0; }
-	.file-list-activate { max-width: calc(100% - 2.25rem); margin-top: 0; padding: 0; overflow: hidden; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+	.file-list-activate { max-width: 100%; margin-top: 0; padding: 0; overflow: hidden; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 	.file-list-table tbody tr.active .file-list-activate { color: var(--text-primary); font-weight: 600; }
 	.file-list-activate:hover { color: var(--text-primary); text-decoration: underline; }
 	.companion-chip { margin-left: var(--space-1); padding: 0.0625rem 0.25rem; border: 1px solid var(--accent-primary); border-radius: var(--radius-sm); color: var(--accent-primary); font-size: 0.625rem; font-weight: 600; }
 	.file-list-number { color: var(--text-muted) !important; font-family: var(--font-mono); font-size: var(--text-sm); text-align: right !important; }
 	.file-work-badge-error { color: var(--text-error); }
 	:global(:root[data-density='compact']) .file-list-comfortable-only { display: none; }
+	:global(:root[data-density='compact']) .file-list-table { min-width: 0; }
+	:global(:root[data-density='compact']) .file-list-table col.file-list-comfortable-only { display: none; }
 	:global(:root[data-density='compact']) .file-list-cover { --cover-thumb-size: 1.125rem; }
 </style>

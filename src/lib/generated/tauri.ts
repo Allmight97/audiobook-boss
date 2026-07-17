@@ -18,6 +18,8 @@ export const commands = {
 	 *  Returns metadata as JSON-serializable struct
 	 */
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
+	// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
+	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**
 	 *  Writes cover art to an M4B file
 	 *  Accepts file path and base64-encoded image data

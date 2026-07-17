@@ -26,7 +26,8 @@
 - Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
   `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
-  `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+  `inspectorState.svelte.ts`, `keyboardNavigation.ts`,
+  `coverThumbnails.svelte.ts`, `__tests__/`.
 
 ## Preferred Path
 
@@ -39,6 +40,9 @@
   select, reorder, remove, clear, lock, totals, and output refresh.
 - `FileListIsland.svelte` owns list rendering; `FileImportIsland` composes it
   and owns import/drop/picker workflow.
+- `coverThumbnails.svelte.ts` is FileList-private, ephemeral display cache.
+  It may not read or mutate Metadata Session cover truth; schedule with the
+  current list paths and treat `absent` as a stable placeholder state.
 - Preserve `FileListInfo` truth from the backend. Do not add frontend-owned
   audio importability or supported-extension allowlists.
 

@@ -9,6 +9,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   plus the test-only write-plan contract helper `plan_metadata_write`.
+- Thumbnail symbol: `read_audio_cover_thumbnail` (reads embedded art without adapting metadata
+  intent; re-exported at the crate root for the media-execution integration proof).
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
   `finalize_artifact_metadata` (all also re-exported at the crate root for
   external integration tests, e.g. the media-execution lane's tag round-trip

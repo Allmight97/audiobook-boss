@@ -47,6 +47,15 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     Ok(metadata)
 }
 
+pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
+    let tag = Tag::read_from_path(path)
+        .map_err(|error| AppError::General(format!("mp4ameta read failed: {error}")))?;
+
+    tag.artwork()
+        .map(|image| super::thumbnail::clone_thumbnail_cover_art(image.data))
+        .transpose()
+}
+
 fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32, Option<u32>)> {
     number.map(|number| (u32::from(number), total.map(u32::from)))
 }

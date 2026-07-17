@@ -188,6 +188,10 @@ export const tauriClient = {
 		commandSpecs.validate_files({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
+	readAudioCoverThumbnail: (
+		filePath: string,
+	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
+		commandSpecs.read_audio_cover_thumbnail({ filePath }),
 	writeCoverArt: (
 		filePath: string,
 		coverData: number[],

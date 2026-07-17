@@ -286,6 +286,37 @@ describe('ProcessingWorkflow', () => {
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
+	it('preserves the current FileList valid order in the merge payload', async () => {
+		const currentFileList: FileListInfo = {
+			files: [
+				audioFile('/books/invalid.m4b', { isValid: false, error: 'Unreadable audio' }),
+				audioFile('/books/volume-two.m4b', { inputId: 'volume-two' }),
+				audioFile('/books/volume-one.m4b', { inputId: 'volume-one' }),
+			],
+			selectedDecoders: [null, null, null],
+			totalDuration: 3,
+			totalSize: 3,
+			validCount: 2,
+			invalidCount: 1,
+		};
+		const ctx = workflowContext();
+		const { services } = workflowServices({
+			getCurrentFileList: vi.fn(() => currentFileList),
+		});
+
+		await runWithServices(ctx, services);
+
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
+			payload: expect.objectContaining({
+				jobType: 'merge',
+				inputFiles: ['/books/volume-two.m4b', '/books/volume-one.m4b'],
+				inputIds: ['volume-two', 'volume-one'],
+			}),
+			metadataIntent: null,
+			previewSeconds: undefined,
+		});
+	});
+
 	it('passes acquired supplemental PDF assets into processing payload by FileList input id', async () => {
 		const currentFileList: FileListInfo = {
 			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
