@@ -11,6 +11,24 @@
 		metadataFormLabPresets,
 		type MetadataFormLabPresetId,
 	} from '../ui/metadataForm/labFixtures';
+	import { FileListIsland } from '../ui/fileList';
+	import {
+		applyFileListLabScenario,
+		isFileListLabScenarioId,
+	} from '../ui/fileList/labFixtures';
+
+	// ?scenario=<id> renders one deterministic full-component stage instead of
+	// the token/primitive sheet — the target surface for `bun run lab:shots`.
+	const scenarioParam =
+		typeof window === 'undefined'
+			? null
+			: new URLSearchParams(window.location.search).get('scenario');
+	const fileListScenario = isFileListLabScenarioId(scenarioParam) ? scenarioParam : null;
+	const modalShortScenario = scenarioParam === 'modal-short';
+
+	if (fileListScenario) {
+		applyFileListLabScenario(fileListScenario);
+	}
 
 	let density = $state<'comfortable' | 'compact'>('comfortable');
 	let activeMetadataPreset = $state<MetadataFormLabPresetId>('single-clean-populated');
@@ -144,6 +162,40 @@
 	);
 </script>
 
+{#if fileListScenario}
+	<div
+		class="lab-scenario-stage"
+		data-testid="lab-scenario-stage"
+		data-scenario={fileListScenario}
+	>
+		<FileListIsland supportText="Lab fixture — no backend attached" />
+	</div>
+{:else if modalShortScenario}
+	<div
+		class="lab-scenario-stage lab-scenario-modal"
+		data-testid="lab-scenario-stage"
+		data-scenario="modal-short"
+	>
+		<div class="app-modal-dialog" role="group" aria-label="Short-window modal scenario">
+			<div class="app-modal-header">
+				<h4>Long result list</h4>
+				<button class="pill pill-ghost pill-xs" type="button">Close</button>
+			</div>
+			<div class="app-modal-body" data-testid="modal-scenario-body">
+				{#each Array.from({ length: 14 }, (_, i) => `Search result ${i + 1} — The Final Empire, narrated edition`) as row, index (row)}
+					<div class="lab-modal-scroll-row" data-testid={`modal-scenario-row-${index + 1}`}>
+						<strong>{row}</strong>
+						<span class="text-xs muted-text">Publisher metadata line stays reachable.</span>
+					</div>
+				{/each}
+			</div>
+			<div class="lab-modal-footer" data-testid="modal-scenario-footer">
+				<button class="pill pill-ghost" type="button">Cancel</button>
+				<button class="pill pill-primary" type="button">Apply</button>
+			</div>
+		</div>
+	</div>
+{:else}
 <div class="lab">
 	<header class="lab-header panel">
 		<div>
@@ -454,6 +506,10 @@
 					</div>
 				{/each}
 			</div>
+			<div class="lab-modal-footer" data-testid="modal-specimen-footer">
+				<button class="pill pill-ghost" type="button">Cancel</button>
+				<button class="pill pill-primary" type="button">Apply</button>
+			</div>
 		</div>
 	</section>
 
@@ -528,8 +584,26 @@
 		</div>
 	</section>
 </div>
+{/if}
 
 <style>
+	.lab-scenario-stage {
+		display: flex;
+		flex-direction: column;
+		height: 100vh;
+		padding: var(--space-4);
+		background: var(--bg-main);
+	}
+
+	.lab-scenario-modal {
+		align-items: center;
+		justify-content: center;
+	}
+
+	.lab-scenario-modal .app-modal-dialog {
+		width: min(100%, 32rem);
+	}
+
 	.lab {
 		display: flex;
 		flex-direction: column;
@@ -671,6 +745,15 @@
 		border: 1px solid var(--border-secondary);
 		border-radius: var(--radius-md);
 		background: var(--bg-input);
+	}
+
+	.lab-modal-footer {
+		display: flex;
+		flex: 0 0 auto;
+		justify-content: flex-end;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border-top: 1px solid var(--border-primary);
 	}
 
 	.lab-progress-row {

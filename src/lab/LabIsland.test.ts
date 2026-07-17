@@ -116,13 +116,16 @@ describe('LabIsland design fixtures', () => {
 		expect(screen.getByText('Terminal failure')).toBeInTheDocument();
 	});
 
-	it('renders the constrained modal body specimen', () => {
+	// Render-level only: jsdom has no layout, so short-window usability
+	// (body scrolls, footer stays reachable) is proved by `bun run lab:shots`.
+	it('renders the modal body specimen markup', () => {
 		render(LabIsland);
 
 		const section = screen.getByTestId('modal-body-scroll-primitive-section');
 		expect(section.querySelector('.app-modal-dialog')).toBeTruthy();
 		expect(screen.getByTestId('modal-body-scroll-specimen')).toHaveClass('app-modal-body');
 		expect(screen.getByText('5. Wind and Truth')).toBeInTheDocument();
+		expect(screen.getByTestId('modal-specimen-footer')).toBeInTheDocument();
 	});
 
 	it('toggles metadata form presets through the real fields island', async () => {
