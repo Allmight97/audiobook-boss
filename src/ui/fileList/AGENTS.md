@@ -27,7 +27,10 @@
   `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
   `inspectorState.svelte.ts`, `keyboardNavigation.ts`,
-  `coverThumbnails.svelte.ts`, `__tests__/`.
+  `coverThumbnails.svelte.ts`, `labFixtures.ts`, `__tests__/`.
+- `labFixtures.ts` is a dev-only design-lab adapter (deterministic scenario
+  seeding for `lab.html`); it is not exported from the runtime Public API
+  Strip.
 
 ## Preferred Path
 
@@ -45,6 +48,9 @@
   current list paths and treat `absent` as a stable placeholder state.
 - Preserve `FileListInfo` truth from the backend. Do not add frontend-owned
   audio importability or supported-extension allowlists.
+- Import-order (arrival) ordinal truth lives in `state.svelte.ts` and is
+  assigned only by the display/append actions; restore behavior no-ops when
+  ordinals are absent.
 
 ## Hard Invariants
 

@@ -6,6 +6,7 @@ import {
 } from '../../types/audio';
 import {
 	getCurrentFileList,
+	getImportOrdinal,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
 	getSortDirection,
@@ -44,6 +45,25 @@ export function readFileListSortState(): 'none' | 'ascending' | 'descending' {
 
 export function readFileListOrderLockVisible(): boolean {
 	return isOrderLocked();
+}
+
+/**
+ * True when the visible order differs from import (arrival) order.
+ * Conservatively false when any file lacks an ordinal (lists seeded outside
+ * the display/append actions), so the restore control never over-promises.
+ */
+export function readFileListOrderDiffersFromImport(): boolean {
+	const fileList = getCurrentFileList();
+	if (!fileList || fileList.files.length <= 1) return false;
+
+	let previousOrdinal = -1;
+	for (const file of fileList.files) {
+		const ordinal = getImportOrdinal(file.path);
+		if (ordinal === undefined) return false;
+		if (ordinal < previousOrdinal) return true;
+		previousOrdinal = ordinal;
+	}
+	return false;
 }
 
 export function readFileListStatusBadge(

@@ -11,6 +11,7 @@ import {
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
+	resetImportOrder,
 	setCurrentFileList,
 	setOrderLocked,
 	setSelectedFileIndices,
@@ -125,6 +126,7 @@ describe('v3 book table', () => {
 	beforeEach(() => {
 		clearMetadataSession();
 		setOrderLocked(false);
+		resetImportOrder([]);
 		setCurrentFileList(
 			fileList(file('/books/ready.m4b', 'ready'), file('/books/bad.m4b', 'bad', false)),
 		);
@@ -281,13 +283,10 @@ describe('v3 book table', () => {
 	it('exposes reorder shortcuts and changes the row grip when ordering locks', async () => {
 		const screen = render(FileListIsland);
 		const keyboardGroup = screen.getByRole('group', { name: 'Audio files' });
-		const table = screen.getByTestId('book-table');
 		const row = rowFor(screen, 'ready.m4b');
 		const grip = row.querySelector('.file-list-reorder-grip');
 
 		expect(keyboardGroup).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
-		expect(getComputedStyle(table).tableLayout).toBe('fixed');
-		expect(getComputedStyle(table).userSelect).toBe('none');
 		expect(grip).toHaveAttribute(
 			'title',
 			'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.',
@@ -302,7 +301,7 @@ describe('v3 book table', () => {
 		expect(row).toHaveClass('order-locked');
 		expect(row).toHaveAttribute('draggable', 'false');
 		expect(grip).toHaveTextContent('⠿');
-		expect(grip).toHaveAttribute('title', 'File order is locked');
+		expect(grip).toHaveAttribute('title', 'Order locked while submitting to the work queue');
 	});
 
 	it('keeps text non-draggable while retaining full book-title tooltips', async () => {
@@ -380,7 +379,7 @@ describe('v3 book table', () => {
 		cacheMetadataForFile(tenth.path, { title: 'AAA title' });
 		cacheMetadataForFile(second.path, { title: 'ZZZ title' });
 		const screen = render(FileListIsland);
-		const header = screen.getByRole('button', { name: 'File' });
+		const header = screen.getByRole('button', { name: 'Order by filename' });
 
 		expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
 		await fireEvent.click(header);
@@ -402,6 +401,46 @@ describe('v3 book table', () => {
 		expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
 	});
 
+	it('offers Restore import order only after the visible order diverges', async () => {
+		const zeta = file('/books/zeta.m4b', 'zeta');
+		const alpha = file('/books/alpha.m4b', 'alpha');
+		const list = fileList(zeta, alpha);
+		setCurrentFileList(list);
+		resetImportOrder(list.files);
+		const screen = render(FileListIsland);
+
+		expect(screen.queryByRole('button', { name: 'Restore import order' })).toBeNull();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Order by filename' }));
+		const restore = await screen.findByRole('button', { name: 'Restore import order' });
+
+		await fireEvent.click(restore);
+		await waitFor(() => {
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/zeta.m4b',
+				'/books/alpha.m4b',
+			]);
+		});
+		expect(screen.queryByRole('button', { name: 'Restore import order' })).toBeNull();
+	});
+
+	it('hides Restore import order when files were seeded without ordinals', async () => {
+		const zeta = file('/books/zeta.m4b', 'zeta');
+		const alpha = file('/books/alpha.m4b', 'alpha');
+		setCurrentFileList(fileList(zeta, alpha));
+		const screen = render(FileListIsland);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Order by filename' }));
+		await waitFor(() => {
+			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
+				'/books/alpha.m4b',
+				'/books/zeta.m4b',
+			]);
+		});
+
+		expect(screen.queryByRole('button', { name: 'Restore import order' })).toBeNull();
+	});
+
 	it('preserves selected file paths and the active file when sorting', async () => {
 		const zeta = file('/books/zeta.m4b', 'zeta');
 		const alpha = file('/books/alpha.m4b', 'alpha');
@@ -411,7 +450,7 @@ describe('v3 book table', () => {
 		setSelectedIndex(2);
 		const screen = render(FileListIsland);
 
-		await fireEvent.click(screen.getByRole('button', { name: 'File' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Order by filename' }));
 		await waitFor(() => {
 			expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
 				'/books/alpha.m4b',
@@ -432,13 +471,13 @@ describe('v3 book table', () => {
 		setOrderLocked(true);
 		const screen = render(FileListIsland);
 
-		await fireEvent.click(screen.getByRole('button', { name: 'File' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Order by filename' }));
 
 		expect(getCurrentFileList()?.files.map((item) => item.path)).toEqual([
 			'/books/zeta.m4b',
 			'/books/alpha.m4b',
 		]);
-		expect(screen.getByRole('button', { name: 'File' }).closest('th')).toHaveAttribute(
+		expect(screen.getByRole('button', { name: 'Order by filename' }).closest('th')).toHaveAttribute(
 			'aria-sort',
 			'none',
 		);

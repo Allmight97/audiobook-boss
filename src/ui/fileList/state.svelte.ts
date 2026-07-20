@@ -22,6 +22,38 @@ export const fileListSessionState = $state<FileListSessionState>({
 
 const orderLockListeners = new Set<OrderLockListener>();
 
+// Import (arrival) order, path-keyed to match append/dedupe identity. A plain
+// Map is reactivity-safe: every order mutation also replaces currentFileList,
+// so derived reads re-run at the right times. Assigned only by display/append
+// actions — never by setCurrentFileList, which cannot tell replace from append.
+const importOrdinalByPath = new Map<string, number>();
+let nextImportOrdinal = 0;
+
+export function resetImportOrder(files: AudioFile[]): void {
+	importOrdinalByPath.clear();
+	nextImportOrdinal = 0;
+	for (const file of files) {
+		importOrdinalByPath.set(file.path, nextImportOrdinal++);
+	}
+}
+
+/** Assigns fresh ordinals to paths not seen yet; existing paths keep theirs. */
+export function recordImportOrder(files: AudioFile[]): void {
+	for (const file of files) {
+		if (!importOrdinalByPath.has(file.path)) {
+			importOrdinalByPath.set(file.path, nextImportOrdinal++);
+		}
+	}
+}
+
+export function removeImportOrdinal(path: string): void {
+	importOrdinalByPath.delete(path);
+}
+
+export function getImportOrdinal(path: string): number | undefined {
+	return importOrdinalByPath.get(path);
+}
+
 export function setCurrentFileList(fileList: FileListInfo | null): void {
 	fileListSessionState.currentFileList = fileList;
 

@@ -577,7 +577,7 @@ describe('remote source acquisition dialog', () => {
 	it('does not start acquisition while file import handoff is order-locked', async () => {
 		const user = userEvent.setup();
 		context.getImportedAudioPathsBlockedMessageMock.mockReturnValue(
-			'Order locked while processing. Wait for completion to add files.',
+			'Order locked while submitting to the work queue. Try again in a moment.',
 		);
 		remoteSourceAcquireState.isOpen = true;
 		render(RemoteSourceAcquireDialog);
@@ -588,7 +588,7 @@ describe('remote source acquisition dialog', () => {
 
 		expect(context.startRemoteSourceAcquisitionMock).not.toHaveBeenCalled();
 		expect(
-			screen.getByText('Order locked while processing. Wait for completion to add files.'),
+			screen.getByText('Order locked while submitting to the work queue. Try again in a moment.'),
 		).toBeTruthy();
 	});
 
@@ -691,7 +691,7 @@ describe('remote source acquisition dialog', () => {
 		);
 		context.handleImportedAudioPathsMock.mockResolvedValueOnce({
 			status: 'blocked',
-			message: 'Order locked while processing. Wait for completion to add files.',
+			message: 'Order locked while submitting to the work queue. Try again in a moment.',
 		});
 		remoteSourceAcquireState.isOpen = true;
 		render(RemoteSourceAcquireDialog);
@@ -700,7 +700,9 @@ describe('remote source acquisition dialog', () => {
 		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
 		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
 
-		await screen.findByText(/Order locked while processing\. Wait for completion to add files\./);
+		await screen.findByText(
+			/Order locked while submitting to the work queue\. Try again in a moment\./,
+		);
 		expect(context.handleImportedAudioPathsMock).toHaveBeenCalledWith(['/tmp/remote/book.m4b']);
 		expect(context.purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
 		expect(context.registerRemoteSourceSupplementalAssetsMock).not.toHaveBeenCalled();
