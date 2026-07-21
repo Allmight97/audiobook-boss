@@ -23,9 +23,13 @@ import {
 export type FileListDragState = {
 	draggedIndex: number | null;
 	hoveredIndex: number | null;
+	hoveredEdge: 'top' | 'bottom' | null;
 };
 
-export type FileListRowHitTest = (clientX: number, clientY: number) => number | null;
+/** A hovered row plus which half of it the pointer is over. */
+export type FileListRowHit = { index: number; edge: 'top' | 'bottom' };
+
+export type FileListRowHitTest = (clientX: number, clientY: number) => FileListRowHit | null;
 
 export type FileListPointerReorderHandlers = {
 	onGripPointerDown: (index: number, event: PointerEvent) => void;
@@ -36,16 +40,21 @@ export type FileListPointerReorderHandlers = {
 const REORDER_DRAG_THRESHOLD_PX = 4;
 
 /**
- * Default hit test: the row index under the pointer. jsdom has no layout, so
- * tests inject their own hit test instead of stubbing elementFromPoint.
+ * Default hit test: the row under the pointer plus which half it's in. jsdom
+ * has no layout, so tests inject their own hit test instead of stubbing
+ * elementFromPoint/getBoundingClientRect.
  */
-export function fileListRowIndexFromPoint(clientX: number, clientY: number): number | null {
+export function fileListRowHitFromPoint(clientX: number, clientY: number): FileListRowHit | null {
 	if (typeof document.elementFromPoint !== 'function') return null;
 	const row = document
 		.elementFromPoint(clientX, clientY)
 		?.closest<HTMLElement>('tr[data-file-index]');
-	const index = row ? Number.parseInt(row.dataset.fileIndex ?? '', 10) : Number.NaN;
-	return Number.isInteger(index) ? index : null;
+	if (!row) return null;
+	const index = Number.parseInt(row.dataset.fileIndex ?? '', 10);
+	if (!Number.isInteger(index)) return null;
+	const rect = row.getBoundingClientRect();
+	const edge = clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+	return { index, edge };
 }
 
 /**
@@ -55,7 +64,7 @@ export function fileListRowIndexFromPoint(clientX: number, clientY: number): num
  */
 export function createFileListPointerReorder(
 	setDragState: (state: FileListDragState) => void,
-	hitTest: FileListRowHitTest = fileListRowIndexFromPoint,
+	hitTest: FileListRowHitTest = fileListRowHitFromPoint,
 ): FileListPointerReorderHandlers {
 	let pressedIndex: number | null = null;
 	let pressedPointerId: number | null = null;
@@ -64,12 +73,35 @@ export function createFileListPointerReorder(
 	let dragEngaged = false;
 	let draggedIndex: number | null = null;
 	let hoveredIndex: number | null = null;
+	let hoveredEdge: 'top' | 'bottom' | null = null;
 	let suppressPostDragClick = false;
+	let pressedGrip: Element | null = null;
+	let lostPointerCaptureListener: ((event: Event) => void) | null = null;
 
 	function detachWindowListeners(): void {
 		window.removeEventListener('pointermove', handlePointerMove);
 		window.removeEventListener('pointerup', handlePointerUp);
 		window.removeEventListener('pointercancel', handlePointerCancel);
+	}
+
+	function detachLostPointerCaptureListener(): void {
+		if (pressedGrip && lostPointerCaptureListener) {
+			pressedGrip.removeEventListener('lostpointercapture', lostPointerCaptureListener);
+		}
+		pressedGrip = null;
+		lostPointerCaptureListener = null;
+	}
+
+	function disarmPostDragClickSuppression(): void {
+		suppressPostDragClick = false;
+		window.removeEventListener('pointerdown', disarmPostDragClickSuppression, true);
+	}
+
+	function armPostDragClickSuppression(): void {
+		suppressPostDragClick = true;
+		// The immediate post-drag click (if any) fires before the user's next
+		// pointerdown, so this only ever disarms a click that never arrived.
+		window.addEventListener('pointerdown', disarmPostDragClickSuppression, true);
 	}
 
 	function resetDragState(): void {
@@ -78,8 +110,10 @@ export function createFileListPointerReorder(
 		dragEngaged = false;
 		draggedIndex = null;
 		hoveredIndex = null;
+		hoveredEdge = null;
 		detachWindowListeners();
-		setDragState({ draggedIndex: null, hoveredIndex: null });
+		detachLostPointerCaptureListener();
+		setDragState({ draggedIndex: null, hoveredIndex: null, hoveredEdge: null });
 	}
 
 	function handlePointerMove(event: PointerEvent): void {
@@ -96,12 +130,15 @@ export function createFileListPointerReorder(
 			draggedIndex = pressedIndex;
 		}
 
-		const targetIndex = hitTest(event.clientX, event.clientY);
-		hoveredIndex =
-			targetIndex !== null && targetIndex !== draggedIndex && hasValidIndex(targetIndex)
-				? targetIndex
-				: null;
-		setDragState({ draggedIndex, hoveredIndex });
+		const hit = hitTest(event.clientX, event.clientY);
+		if (hit !== null && hit.index !== draggedIndex && hasValidIndex(hit.index)) {
+			hoveredIndex = hit.index;
+			hoveredEdge = hit.edge;
+		} else {
+			hoveredIndex = null;
+			hoveredEdge = null;
+		}
+		setDragState({ draggedIndex, hoveredIndex, hoveredEdge });
 	}
 
 	function handlePointerUp(event: PointerEvent): void {
@@ -109,17 +146,21 @@ export function createFileListPointerReorder(
 
 		if (dragEngaged) {
 			// Only an engaged drag suppresses the click that follows pointerup.
-			suppressPostDragClick = true;
+			armPostDragClickSuppression();
 			const from = draggedIndex;
-			const to = hoveredIndex;
 			if (
 				from !== null &&
-				to !== null &&
-				from !== to &&
+				hoveredIndex !== null &&
+				hoveredEdge !== null &&
 				!get(metadataSaveInProgress) &&
 				!isOrderLocked()
 			) {
-				reorderFiles(from, to);
+				// The indicator promises "insert above" (top) or "insert below"
+				// (bottom) of the hovered row; compensate for reorderFiles'
+				// remove-then-insert splice so the drop lands where it's shown.
+				const insertIndex = hoveredEdge === 'top' ? hoveredIndex : hoveredIndex + 1;
+				const to = from < insertIndex ? insertIndex - 1 : insertIndex;
+				if (to !== from) reorderFiles(from, to);
 			}
 		}
 		resetDragState();
@@ -151,11 +192,14 @@ export function createFileListPointerReorder(
 					// Losing capture mid-drag (e.g. the grip unmounting) abandons the
 					// drag like a cancel. On a normal pointerup this fires after state
 					// is already reset, so the pointer-id guard makes it a no-op.
-					grip.addEventListener(
-						'lostpointercapture',
-						(lostEvent) => handlePointerCancel(lostEvent as PointerEvent),
-						{ once: true },
-					);
+					// Tracked so resetDragState can remove it if it never fires,
+					// avoiding a stale listener surviving pointer-id reuse.
+					lostPointerCaptureListener = (lostEvent) =>
+						handlePointerCancel(lostEvent as PointerEvent);
+					pressedGrip = grip;
+					grip.addEventListener('lostpointercapture', lostPointerCaptureListener, {
+						once: true,
+					});
 				} catch {
 					// Capture is best-effort; window listeners carry the drag regardless.
 				}
@@ -166,7 +210,7 @@ export function createFileListPointerReorder(
 		},
 		consumePostDragClick() {
 			const shouldSuppress = suppressPostDragClick;
-			suppressPostDragClick = false;
+			if (shouldSuppress) disarmPostDragClickSuppression();
 			return shouldSuppress;
 		},
 	};

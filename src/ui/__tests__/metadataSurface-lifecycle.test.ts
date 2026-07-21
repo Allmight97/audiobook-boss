@@ -128,4 +128,49 @@ describe('MetadataSurfaceIsland lifecycle', () => {
 		await tick();
 		expect(screen.getByRole('tab', { name: 'Metadata' })).toHaveAttribute('aria-selected', 'true');
 	});
+
+	it('dismisses through the draft-preserving path on outside scroll, but ignores scroll inside the popover', async () => {
+		const onDismiss = vi.fn(async () => true);
+		const onPresentationReady = vi.fn();
+		render(MetadataSurfaceIsland, { onDismiss, onPresentationReady });
+		const runtime = onPresentationReady.mock.calls[0]?.[0] as {
+			open(anchor: HTMLElement): void;
+		};
+		const rowControl = document.createElement('button');
+		document.body.append(rowControl);
+		runtime.open(rowControl);
+		await tick();
+
+		const dialog = screen.getByTestId('metadata-surface');
+
+		// Scroll originating inside the popover's own body must not dismiss it.
+		await fireEvent.scroll(dialog);
+		expect(onDismiss).not.toHaveBeenCalled();
+
+		// A nested container scrolling elsewhere in the app (e.g. the file list)
+		// dismisses through the same draft-preserving onDismiss path the
+		// window-click handler uses.
+		const outsideContainer = document.createElement('div');
+		document.body.append(outsideContainer);
+		await fireEvent.scroll(outsideContainer);
+		expect(onDismiss).toHaveBeenCalledTimes(1);
+		expect(onDismiss).toHaveBeenCalledWith({ restoreFocus: false });
+	});
+
+	it('dismisses through the draft-preserving path on window resize', async () => {
+		const onDismiss = vi.fn(async () => true);
+		const onPresentationReady = vi.fn();
+		render(MetadataSurfaceIsland, { onDismiss, onPresentationReady });
+		const runtime = onPresentationReady.mock.calls[0]?.[0] as {
+			open(anchor: HTMLElement): void;
+		};
+		const rowControl = document.createElement('button');
+		document.body.append(rowControl);
+		runtime.open(rowControl);
+		await tick();
+
+		await fireEvent(window, new Event('resize'));
+
+		expect(onDismiss).toHaveBeenCalledWith({ restoreFocus: false });
+	});
 });
