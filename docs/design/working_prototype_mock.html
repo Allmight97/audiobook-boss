@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Audiobook Boss — direction v3 (B1×B2 hybrid)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg-main:#111827;--bg-panel:#1f2937;--bg-input:#374151;--bg-hover:#4b5563;
+--text-primary:#f9fafb;--text-secondary:#e5e7eb;--text-muted:#9ca3af;--text-placeholder:#6b7280;
+--border-primary:#374151;--border-secondary:#4b5563;--border-focus:#6366f1;
+--accent:#3b82f6;--accent-hover:#60a5fa;--success:#34d399;--error:#f87171;--warning:#fbbf24;
+--mono:'JetBrains Mono',ui-monospace,monospace;
+--row-h:44px;--fs:13px;--fs-sm:12px;
+}
+.compact{--row-h:30px;--fs:12px;--fs-sm:11px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0f19;color:var(--text-primary);font-family:'Inter',sans-serif;padding:24px 24px 80px}
+.chrome{max-width:1440px;margin:0 auto}
+.chrome-header{display:flex;align-items:baseline;gap:16px;margin-bottom:6px}
+.chrome-header h1{font-size:18px;font-weight:600}
+.chrome-header p{font-size:13px;color:var(--text-muted)}
+.forks{display:flex;gap:18px;margin:12px 0 18px;font-size:12.5px;color:var(--text-muted);flex-wrap:wrap}
+.fork{display:flex;align-items:center;gap:8px}
+.fork .seg{display:flex;background:var(--bg-panel);border:1px solid var(--border-primary);border-radius:999px;padding:2px}
+.fork .seg button{border:none;background:transparent;color:var(--text-muted);font-size:11.5px;font-weight:500;padding:4px 12px;border-radius:999px;cursor:pointer;font-family:inherit}
+.fork .seg button.on{background:var(--accent);color:#fff}
+.window{background:var(--bg-main);border:1px solid var(--border-primary);border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;height:880px;position:relative}
+button{font-family:inherit;cursor:pointer}
+
+.p-track{height:5px;background:var(--bg-input);border-radius:999px;overflow:hidden}
+.p-fill{height:100%;background:var(--accent);border-radius:999px}
+.pill{border-radius:999px;font-size:12px;font-weight:500;padding:6px 14px;border:1px solid transparent}
+.pill-primary{background:var(--accent);color:#fff}
+.pill-primary:hover{background:var(--accent-hover)}
+.pill-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-secondary)}
+.pill-ghost:hover{background:var(--bg-input)}
+.badge{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.badge-ok{background:rgba(52,211,153,.14);color:var(--success)}
+.badge-info{background:rgba(59,130,246,.16);color:var(--accent-hover)}
+.badge-warn{background:rgba(251,191,36,.14);color:var(--warning)}
+.badge-mut{background:var(--bg-input);color:var(--text-muted)}
+.mono{font-family:var(--mono)}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:4px}
+.field input{width:100%;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);font-size:13px;padding:7px 9px;font-family:inherit}
+.field input:focus{outline:none;border-color:var(--border-focus)}
+.field input.mixed{color:var(--text-placeholder);font-style:italic}
+.cover{border-radius:4px;flex-shrink:0}
+
+.appbar{display:flex;align-items:center;gap:10px;padding:0 14px;height:46px;border-bottom:1px solid var(--border-primary);flex-shrink:0}
+.dots{display:flex;gap:7px;margin-right:8px}
+.dot{width:11px;height:11px;border-radius:50%}
+.appbar .title{font-size:13px;font-weight:600;margin-right:10px}
+.nav-tab{background:none;border:none;color:var(--text-muted);font-size:13px;font-weight:500;padding:14px 12px;border-bottom:2px solid transparent}
+.nav-tab.on{color:var(--text-primary);border-bottom-color:var(--accent)}
+.density{display:flex;background:var(--bg-input);border-radius:999px;padding:2px;margin-left:auto}
+.density button{border:none;background:transparent;color:var(--text-muted);font-size:11px;font-weight:500;padding:4px 12px;border-radius:999px}
+.density button.on{background:var(--accent);color:#fff}
+
+.toolbar{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border-primary);align-items:center;flex-shrink:0}
+.sel-actions{display:none;align-items:center;gap:8px}
+.multi .sel-actions{display:flex}
+.multi .single-hint{display:none}
+
+.main{display:grid;grid-template-columns:1fr 340px;min-height:0;flex:1}
+.main.no-rail{grid-template-columns:1fr}
+.left{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border-primary)}
+.main.no-rail .left{border-right:none}
+
+.tbl{width:100%;border-collapse:collapse;font-size:var(--fs)}
+.tbl th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-placeholder);padding:8px 12px;border-bottom:1px solid var(--border-primary);position:sticky;top:0;background:var(--bg-main);z-index:1}
+.tbl td{padding:0 12px;height:var(--row-h);border-bottom:1px solid var(--border-primary);color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover{background:var(--bg-panel)}
+.tbl tbody tr.sel{background:rgba(59,130,246,.12);box-shadow:inset 2px 0 0 var(--accent)}
+.tbl td.n{font-family:var(--mono);text-align:right;color:var(--text-muted);font-size:var(--fs-sm)}
+.tbl .ck{width:30px}
+.tbl input[type=checkbox]{accent-color:var(--accent)}
+.comfy-only{display:table-cell}
+.compact .comfy-only{display:none}
+.cover-cell .cover{width:26px;height:26px}
+.compact .cover-cell .cover{width:18px;height:18px}
+
+.rail{display:flex;flex-direction:column;min-width:0;overflow:auto}
+.rail-head{padding:14px 16px 0}
+.rail-head h2{font-size:15px;font-weight:600}
+.rail-head .sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.rail-tabs{display:flex;padding:6px 12px 0;border-bottom:1px solid var(--border-primary)}
+.rail-tab{background:none;border:none;color:var(--text-muted);font-size:12px;font-weight:500;padding:9px 10px;border-bottom:2px solid transparent}
+.rail-tab.on{color:var(--text-primary);border-bottom-color:var(--accent)}
+.rail-pane{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.batch-note{font-size:11.5px;color:var(--text-muted);background:var(--bg-panel);border:1px solid var(--border-primary);border-radius:8px;padding:8px 10px;line-height:1.5}
+
+.pop{position:absolute;width:330px;background:var(--bg-panel);border:1px solid var(--border-secondary);border-radius:12px;box-shadow:0 16px 50px rgba(0,0,0,.6);z-index:20;display:none}
+.pop.open{display:block}
+.pop-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border-primary)}
+.pop-head .t{font-size:13px;font-weight:600;flex:1}
+.pop-body{padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+
+.ops{border-top:1px solid var(--border-primary);background:var(--bg-panel);flex-shrink:0}
+.ops-bar{display:flex;align-items:center;gap:14px;padding:9px 16px;cursor:pointer}
+.ops-body{display:none;max-height:220px;overflow:auto;padding:0 16px 12px;flex-direction:column;gap:8px}
+.ops.open .ops-body{display:flex}
+.op{border:1px solid var(--border-primary);border-radius:8px}
+.op-row{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:12.5px}
+.op-row:hover{background:var(--bg-input)}
+.op-detail{display:none;padding:2px 12px 10px}
+.op.open .op-detail{display:block}
+.op-log{background:#0d1320;border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--text-muted)}
+.op-log b{color:var(--text-secondary);font-weight:500}
+.lane{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--text-muted);padding:4px 0}
+.lane .p-track{flex:1}
+.pin{background:none;border:none;color:var(--text-placeholder);font-size:12px;padding:4px}
+.pin.on{color:var(--accent-hover)}
+</style>
+</head>
+<body>
+<div class="chrome">
+<div class="chrome-header"><h1>Direction v3 — the B1×B2 hybrid</h1><p>one window, open forks as live toggles</p></div>
+<div class="forks">
+  <div class="fork"><span>Edit surface</span><div class="seg" id="fk-surface"><button class="on" data-v="rail">Rail</button><button data-v="popover">Popover</button></div></div>
+  <div class="fork"><span>Selection demo</span><div class="seg" id="fk-sel"><button class="on" data-v="single">Single file</button><button data-v="multi">3 files selected</button></div></div>
+  <div class="fork"><span>Ops panel</span><div class="seg" id="fk-ops"><button data-v="closed">Collapsed</button><button class="on" data-v="open">Pinned open</button></div></div>
+</div>
+
+<div class="window" id="win">
+<div class="appbar">
+  <div class="dots"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div></div>
+  <span class="title">Audiobook Boss</span>
+  <button class="nav-tab on">Process</button><button class="nav-tab">Settings</button>
+  <div class="density" id="density"><button class="on">Comfortable</button><button>Compact</button></div>
+</div>
+
+<div class="toolbar">
+  <button class="pill pill-ghost">＋ Import</button>
+  <button class="pill pill-ghost">☁ Audible</button>
+  <span class="badge badge-info single-hint">merge — 3 files → one M4B</span>
+  <div class="sel-actions">
+    <span class="badge badge-info">3 selected</span>
+    <button class="pill pill-ghost" style="padding:5px 12px">Find metadata (3)</button>
+    <button class="pill pill-ghost" style="padding:5px 12px">Edit shared fields</button>
+    <button class="pill pill-ghost" style="padding:5px 12px">Remove</button>
+  </div>
+  <span style="flex:1"></span>
+  <button class="pill pill-ghost">FDK HE-AAC · VBR 3 ▾</button>
+  <button class="pill pill-ghost">ABS naming ▾</button>
+  <button class="pill pill-primary">Process</button>
+</div>
+
+<div class="main" id="main">
+  <div class="left">
+    <div style="flex:1;overflow:auto">
+    <table class="tbl"><thead><tr><th class="ck"><input type="checkbox" id="ck-all"></th><th style="width:34px"></th><th>Book</th><th class="comfy-only">Author</th><th style="text-align:right">Duration</th><th style="text-align:right" class="comfy-only">Size</th><th class="comfy-only">Codec</th><th>Status</th></tr></thead>
+    <tbody id="rows">
+      <tr data-i="0" class="sel"><td class="ck"><input type="checkbox"></td><td class="cover-cell"><div class="cover" style="background:linear-gradient(160deg,#4338ca,#1e3a8a)"></div></td><td>The Way of Kings</td><td class="comfy-only">Brandon Sanderson</td><td class="n">18:22:41</td><td class="n comfy-only">512 MB</td><td class="comfy-only">AAC-LC</td><td><span class="badge badge-info">encoding</span></td></tr>
+      <tr data-i="1"><td class="ck"><input type="checkbox"></td><td class="cover-cell"><div class="cover" style="background:linear-gradient(160deg,#9d174d,#4c0519)"></div></td><td>A Change of Plans</td><td class="comfy-only">Dannie Ella</td><td class="n">9:04:12</td><td class="n comfy-only">261 MB</td><td class="comfy-only">AAC-LC</td><td><span class="badge badge-ok">ready</span></td></tr>
+      <tr data-i="2"><td class="ck"><input type="checkbox"></td><td class="cover-cell"><div class="cover" style="background:linear-gradient(160deg,#065f46,#022c22)"></div></td><td>The Future</td><td class="comfy-only">Naomi Alderman</td><td class="n">11:41:03</td><td class="n comfy-only">322 MB</td><td class="comfy-only">AAC-LC</td><td><span class="badge badge-warn">no cover</span></td></tr>
+      <tr data-i="3"><td class="ck"><input type="checkbox"></td><td class="cover-cell"><div class="cover" style="background:linear-gradient(160deg,#92400e,#451a03)"></div></td><td>The Martian</td><td class="comfy-only">Andy Weir</td><td class="n">10:53:29</td><td class="n comfy-only">299 MB</td><td class="comfy-only">MP3</td><td><span class="badge badge-ok">ready</span></td></tr>
+      <tr data-i="4"><td class="ck"><input type="checkbox"></td><td class="cover-cell"><div class="cover" style="background:linear-gradient(160deg,#155e75,#082f49)"></div></td><td>Emergent Strategy</td><td class="comfy-only">adrienne maree brown</td><td class="n">12:45:02</td><td class="n comfy-only">351 MB</td><td class="comfy-only">AAC-LC</td><td><span class="badge badge-mut">queued</span></td></tr>
+    </tbody></table>
+    </div>
+
+    <div class="ops open" id="ops">
+      <div class="ops-bar" id="ops-bar">
+        <button class="pill pill-ghost" style="padding:5px 12px" onclick="event.stopPropagation()">▶ 30s</button>
+        <div style="flex:1;max-width:380px"><div class="p-track"><div class="p-fill" style="width:64%"></div></div></div>
+        <span class="mono" style="font-size:12px;color:var(--text-secondary)">The Way of Kings · 64% · 04:02 left</span>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--text-muted)">
+          <span class="badge badge-info">1 running</span><span class="badge badge-mut">1 queued</span><span class="badge badge-ok">2 done</span>
+          <span>5 books · <span class="mono">62:46:27 · 1.72 GB</span></span>
+          <button class="pin on" id="ops-pin" onclick="event.stopPropagation();togglePin()">⚲ pinned</button>
+          <span>▾</span>
+        </span>
+      </div>
+      <div class="ops-body">
+        <div class="op open">
+          <div class="op-row"><span class="badge badge-info">merge</span><span style="flex:1;font-weight:500">The Way of Kings — 3 files → M4B</span><span class="mono" style="color:var(--text-muted)">64%</span><button class="pill pill-ghost" style="padding:3px 10px" onclick="event.stopPropagation()">Cancel</button></div>
+          <div class="op-detail">
+            <div class="lane"><span style="width:70px">analysis</span><div class="p-track"><div class="p-fill" style="width:100%;background:var(--success)"></div></div><span class="mono">done</span></div>
+            <div class="lane"><span style="width:70px">encode</span><div class="p-track"><div class="p-fill" style="width:64%"></div></div><span class="mono">04:02</span></div>
+            <div class="lane"><span style="width:70px">commit</span><div class="p-track"><div class="p-fill" style="width:0%"></div></div><span class="mono">—</span></div>
+            <div class="op-log" style="margin-top:6px"><b>10:22:11</b> encoding chunk 8/12 · 12.1 MB/s<br><b>10:22:40</b> chapters synthesized · 75 markers</div>
+          </div>
+        </div>
+        <div class="op">
+          <div class="op-row"><span class="badge badge-mut">queued</span><span style="flex:1;color:var(--text-muted)">Emergent Strategy — batch encode</span><span class="mono" style="color:var(--text-placeholder)">#2</span></div>
+        </div>
+        <div class="op" style="opacity:.6">
+          <div class="op-row"><span class="badge badge-ok">done</span><span style="flex:1">The Martian — batch encode</span><span class="mono" style="color:var(--text-placeholder)">2m ago</span></div>
+          <div class="op-detail"><div class="op-log"><b>terminal</b> success · output verified · 298.4 MB</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rail" id="rail">
+    <div class="rail-head" style="display:flex;gap:12px;align-items:center">
+      <div class="cover" id="rail-cover" style="width:56px;height:56px;border-radius:8px;background:linear-gradient(160deg,#4338ca,#1e3a8a)"></div>
+      <div style="min-width:0;flex:1">
+        <h2 id="rail-title">The Way of Kings</h2>
+        <div class="sub" id="rail-sub">Brandon Sanderson · 18:22:41 · 75 chapters</div>
+      </div>
+    </div>
+    <div class="rail-tabs"><button class="rail-tab on">Metadata</button><button class="rail-tab">Facts</button><button class="rail-tab">Chapters</button><button class="rail-tab">Output</button></div>
+    <div class="rail-pane" id="rail-pane-single">
+      <div class="field"><label>Book title</label><input value="The Way of Kings"></div>
+      <div class="field"><label>Author</label><input value="Brandon Sanderson"></div>
+      <div class="field"><label>Narrator</label><input value="Michael Kramer, Kate Reading"></div>
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:10px">
+        <div class="field"><label>Series</label><input value="The Stormlight Archive"></div>
+        <div class="field"><label>Book #</label><input value="1"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:2px"><button class="pill pill-primary" style="flex:1">Save</button><button class="pill pill-ghost">Find online</button></div>
+    </div>
+    <div class="rail-pane" id="rail-pane-multi" style="display:none">
+      <div class="batch-note">Editing <b>3 files</b>. Shared fields apply to every selected file on save; mixed values stay untouched unless you overwrite them.</div>
+      <div class="field"><label>Author</label><input value="" placeholder="Mixed (3 values)" class="mixed"></div>
+      <div class="field"><label>Series</label><input value=""></div>
+      <div class="field"><label>Genre</label><input value="Science Fiction"></div>
+      <div style="display:flex;gap:8px;margin-top:2px"><button class="pill pill-primary" style="flex:1">Save to 3 files</button><button class="pill pill-ghost">Find metadata (3)</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="pop" id="pop" style="top:170px;left:520px">
+  <div class="pop-head">
+    <div class="cover" id="pop-cover" style="width:34px;height:34px;background:linear-gradient(160deg,#4338ca,#1e3a8a)"></div>
+    <span class="t" id="pop-title">The Way of Kings</span>
+    <button class="pill pill-ghost" style="padding:3px 10px" onclick="document.getElementById('pop').classList.remove('open')">✕</button>
+  </div>
+  <div class="pop-body" id="pop-body-single">
+    <div class="field"><label>Book title</label><input value="The Way of Kings"></div>
+    <div class="field"><label>Author</label><input value="Brandon Sanderson"></div>
+    <div style="display:grid;grid-template-columns:1fr 80px;gap:10px">
+      <div class="field"><label>Series</label><input value="The Stormlight Archive"></div>
+      <div class="field"><label>Book #</label><input value="1"></div>
+    </div>
+    <div style="display:flex;gap:8px"><button class="pill pill-primary" style="flex:1">Save</button><button class="pill pill-ghost">Find online</button></div>
+  </div>
+  <div class="pop-body" id="pop-body-multi" style="display:none">
+    <div class="batch-note">Editing <b>3 files</b> — shared fields only.</div>
+    <div class="field"><label>Author</label><input value="" placeholder="Mixed (3 values)" class="mixed"></div>
+    <div class="field"><label>Series</label><input value=""></div>
+    <div style="display:flex;gap:8px"><button class="pill pill-primary" style="flex:1">Save to 3 files</button><button class="pill pill-ghost">Find metadata (3)</button></div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+const books=[
+ {t:'The Way of Kings',sub:'Brandon Sanderson · 18:22:41 · 75 chapters',g:'linear-gradient(160deg,#4338ca,#1e3a8a)'},
+ {t:'A Change of Plans',sub:'Dannie Ella · 9:04:12 · 41 chapters',g:'linear-gradient(160deg,#9d174d,#4c0519)'},
+ {t:'The Future',sub:'Naomi Alderman · 11:41:03 · 52 chapters',g:'linear-gradient(160deg,#065f46,#022c22)'},
+ {t:'The Martian',sub:'Andy Weir · 10:53:29 · 38 chapters',g:'linear-gradient(160deg,#92400e,#451a03)'},
+ {t:'Emergent Strategy',sub:'adrienne maree brown · 12:45:02 · 12 chapters',g:'linear-gradient(160deg,#155e75,#082f49)'}];
+let surface='rail';
+
+function setSeg(id,val){document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===val))}
+function applySurface(){
+  document.getElementById('main').classList.toggle('no-rail',surface==='popover');
+  document.getElementById('rail').style.display=surface==='rail'?'flex':'none';
+  if(surface==='rail')document.getElementById('pop').classList.remove('open');
+}
+document.querySelectorAll('#fk-surface button').forEach(b=>b.addEventListener('click',()=>{surface=b.dataset.v;setSeg('fk-surface',surface);applySurface();if(surface==='popover')openPopFor(document.querySelector('#rows tr.sel'));}));
+
+function setMulti(on){
+  document.querySelector('.toolbar').classList.toggle('multi',on);
+  document.getElementById('rail-pane-single').style.display=on?'none':'flex';
+  document.getElementById('rail-pane-multi').style.display=on?'flex':'none';
+  document.getElementById('pop-body-single').style.display=on?'none':'flex';
+  document.getElementById('pop-body-multi').style.display=on?'flex':'none';
+  document.getElementById('rail-title').textContent=on?'3 files selected':books[selIdx].t;
+  document.getElementById('rail-sub').textContent=on?'A Change of Plans · The Future · The Martian':books[selIdx].sub;
+  document.getElementById('pop-title').textContent=on?'3 files selected':books[selIdx].t;
+  const rows=[...document.querySelectorAll('#rows tr')];
+  rows.forEach((r,i)=>{
+    const ck=r.querySelector('input');
+    if(on){const m=i>=1&&i<=3;ck.checked=m;r.classList.toggle('sel',m);}
+    else{ck.checked=false;r.classList.toggle('sel',i===selIdx);}
+  });
+}
+document.querySelectorAll('#fk-sel button').forEach(b=>b.addEventListener('click',()=>{setSeg('fk-sel',b.dataset.v);setMulti(b.dataset.v==='multi');}));
+
+document.querySelectorAll('#fk-ops button').forEach(b=>b.addEventListener('click',()=>{setSeg('fk-ops',b.dataset.v);document.getElementById('ops').classList.toggle('open',b.dataset.v==='open');}));
+document.getElementById('ops-bar').addEventListener('click',()=>{document.getElementById('ops').classList.toggle('open');});
+function togglePin(){document.getElementById('ops-pin').classList.toggle('on');}
+
+let selIdx=0;
+function openPopFor(tr){
+  const i=+tr.dataset.i,b=books[i];
+  document.getElementById('pop-title').textContent=b.t;
+  document.getElementById('pop-cover').style.background=b.g;
+  const rect=tr.getBoundingClientRect(),win=document.getElementById('win').getBoundingClientRect();
+  const pop=document.getElementById('pop');
+  pop.style.top=Math.min(rect.bottom-win.top+6,win.height-360)+'px';
+  pop.style.left='430px';
+  pop.classList.add('open');
+}
+document.getElementById('rows').addEventListener('click',e=>{
+  const tr=e.target.closest('tr');if(!tr)return;
+  if(e.target.type==='checkbox'){
+    tr.classList.toggle('sel',e.target.checked);
+    const n=[...document.querySelectorAll('#rows input:checked')].length;
+    document.querySelector('.toolbar').classList.toggle('multi',n>1);
+    return;
+  }
+  selIdx=+tr.dataset.i;
+  document.querySelectorAll('#rows tr').forEach(x=>{x.classList.remove('sel');x.querySelector('input').checked=false;});
+  tr.classList.add('sel');
+  document.querySelector('.toolbar').classList.remove('multi');
+  const b=books[selIdx];
+  document.getElementById('rail-title').textContent=b.t;
+  document.getElementById('rail-sub').textContent=b.sub;
+  document.getElementById('rail-cover').style.background=b.g;
+  document.getElementById('rail-pane-single').style.display='flex';
+  document.getElementById('rail-pane-multi').style.display='none';
+  if(surface==='popover')openPopFor(tr);
+});
+document.querySelectorAll('#density button').forEach((b,i)=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#density button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  document.getElementById('win').classList.toggle('compact',i===1);
+}));
+document.querySelectorAll('.rail-tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.rail-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+}));
+document.querySelectorAll('.op .op-row').forEach(r=>r.addEventListener('click',e=>{
+  if(e.target.closest('button'))return;
+  r.parentElement.classList.toggle('open');
+}));
+document.getElementById('ck-all').addEventListener('click',e=>{
+  e.stopPropagation();
+  const on=e.target.checked;
+  document.querySelectorAll('#rows tr').forEach(r=>{r.querySelector('input').checked=on;r.classList.toggle('sel',on);});
+  document.querySelector('.toolbar').classList.toggle('multi',on);
+});
+</script>
+</body>
+</html>
