@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
+	import { ModalController } from '../../lib/ui/modal.svelte';
 	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
 	import { getMaxConcurrentStatus, handleMaxConcurrentSelectionChange } from '../jobControls';
 	import { editSurfaceState, setEditSurfaceFromUser } from '../metadataSurface';
@@ -13,6 +14,51 @@
 		saveToolchainPreference,
 		setStartupBehavior,
 	} from './settingsDialog.svelte';
+
+	let dialogEl = $state<HTMLElement | null>(null);
+	const modal = new ModalController();
+
+	$effect(() => {
+		modal.sync(appSettingsDialogState.isOpen, { container: dialogEl }, { onEscape: closeAppSettingsDialog });
+	});
+
+	// Reset all settings needs a second step: the button first swaps into a
+	// confirm state, and any other interaction or a timeout backs it out.
+	let resetConfirming = $state(false);
+	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	function cancelResetConfirm(): void {
+		clearTimeout(resetConfirmTimeout);
+		resetConfirmTimeout = undefined;
+		resetConfirming = false;
+	}
+
+	function requestResetConfirm(): void {
+		resetConfirming = true;
+		clearTimeout(resetConfirmTimeout);
+		resetConfirmTimeout = setTimeout(cancelResetConfirm, 4000);
+	}
+
+	function confirmReset(): void {
+		cancelResetConfirm();
+		void resetAllAppSettings();
+	}
+
+	// Any interaction outside the reset control row backs the confirm step
+	// out, same as the timeout. The row itself is exempt so the same click
+	// that requests confirmation does not immediately cancel it.
+	function handleWindowClickForResetConfirm(event: MouseEvent): void {
+		if (!resetConfirming) return;
+		const target = event.target;
+		if (target instanceof Element && target.closest('[data-testid="app-settings-reset-row"]')) {
+			return;
+		}
+		cancelResetConfirm();
+	}
+
+	$effect(() => {
+		if (!appSettingsDialogState.isOpen) cancelResetConfirm();
+	});
 
 	function handleAfterburnerChange(event: Event): void {
 		const target = (event.currentTarget ?? event.target) as HTMLInputElement | null;
@@ -86,6 +132,8 @@
 	}
 </script>
 
+<svelte:window onclick={handleWindowClickForResetConfirm} />
+
 <div
 	id="app-settings-modal"
 	class="app-modal-backdrop"
@@ -99,6 +147,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="app-settings-title"
+		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="app-settings-title">App Settings</h3>
@@ -318,16 +367,39 @@
 
 					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">Reset</h4>
-						<div class="app-settings-path-row">
-							<button
-								class="pill pill-ghost pill-sm"
-								data-testid="app-settings-reset"
-								type="button"
-								disabled={appSettingsDialogState.saveState === 'saving'}
-								onclick={() => void resetAllAppSettings()}
-							>
-								Reset all settings to defaults
-							</button>
+						<div class="app-settings-path-row" data-testid="app-settings-reset-row">
+							{#if resetConfirming}
+								<span class="text-xs muted-text" data-testid="app-settings-reset-confirm-prompt">
+									Reset all settings?
+								</span>
+								<button
+									class="pill pill-sm reset-confirm-btn"
+									data-testid="app-settings-reset-confirm"
+									type="button"
+									disabled={appSettingsDialogState.saveState === 'saving'}
+									onclick={confirmReset}
+								>
+									Reset
+								</button>
+								<button
+									class="pill pill-ghost pill-sm"
+									data-testid="app-settings-reset-cancel"
+									type="button"
+									onclick={cancelResetConfirm}
+								>
+									Cancel
+								</button>
+							{:else}
+								<button
+									class="pill pill-ghost pill-sm"
+									data-testid="app-settings-reset"
+									type="button"
+									disabled={appSettingsDialogState.saveState === 'saving'}
+									onclick={requestResetConfirm}
+								>
+									Reset all settings to defaults
+								</button>
+							{/if}
 						</div>
 					</section>
 				{/if}
@@ -364,6 +436,17 @@
 		min-width: 0;
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
+	}
+
+	/* Local danger-pill variant: only this owner's reset confirm needs it, so
+	   it stays scoped here rather than joining the shared .pill kit. */
+	.reset-confirm-btn {
+		background: var(--text-error);
+		color: #ffffff;
+	}
+
+	.reset-confirm-btn:hover:not(:disabled) {
+		opacity: 0.85;
 	}
 
 	.app-settings-status {

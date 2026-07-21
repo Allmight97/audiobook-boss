@@ -1,10 +1,18 @@
 <script lang="ts">
 	import { pathBasename } from '../../lib/path/basename';
+	import { ModalController } from '../../lib/ui/modal.svelte';
 	import {
 		cancelCollisionDialog,
 		chooseCollisionPolicy,
 		collisionDialogState,
 	} from './state.svelte';
+
+	let dialogEl = $state<HTMLElement | null>(null);
+	const modal = new ModalController();
+
+	$effect(() => {
+		modal.sync(collisionDialogState.isOpen, { container: dialogEl }, { onEscape: cancelCollisionDialog });
+	});
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -56,7 +64,13 @@
 	aria-hidden={!collisionDialogState.isOpen}
 	onclick={handleBackdropClick}
 >
-	<div class="app-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="collision-dialog-title">
+	<div
+		class="app-modal-dialog"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="collision-dialog-title"
+		bind:this={dialogEl}
+	>
 		<div class="app-modal-header">
 			<h3 id="collision-dialog-title">{collisionDialogState.title}</h3>
 			<button

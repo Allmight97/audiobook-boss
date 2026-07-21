@@ -23,5 +23,8 @@
 
 - Pinning makes the body sticky and disclosure inert; unpinning returns to
   open; whole-row click toggles disclosure while interactive children stay
-  isolated.
-- Keep the dual-lane regression proof focused on both directions of isolation.
+  isolated. Enter/Space on the row keydown handler mirrors this: interactive
+  descendants (pin button, transport's Cancel All) keep their own keyboard
+  behavior and never trigger the row's disclosure toggle.
+- Keep the dual-lane regression proof focused on both directions of isolation,
+  for both click and keyboard.

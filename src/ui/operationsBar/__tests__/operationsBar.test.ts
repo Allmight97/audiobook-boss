@@ -7,7 +7,10 @@ import type { OperationListSnapshot, OperationSnapshot } from '../../../types/wo
 import { tauriClient } from '../../../lib/tauri/client';
 import { setCurrentFileList, setOrderLocked } from '../../fileList/state.svelte';
 import { initStatusPanel } from '../../statusPanel';
-import { resetStatusPanelViewState } from '../../statusPanel/viewState.svelte';
+import {
+	resetStatusPanelViewState,
+	statusPanelViewState,
+} from '../../statusPanel/viewState.svelte';
 import { applyOperationListSnapshot, disposeWorkCenter } from '../../workCenter/state.svelte';
 import OperationsBarIsland from '../OperationsBarIsland.svelte';
 
@@ -323,6 +326,40 @@ describe('OperationsBarIsland', () => {
 			expect(screen.getByTestId('status-transport-progress')).toHaveStyle({ width: '23%' });
 		});
 		expect(screen.getByText('The Way of Kings — batch encode')).toBeInTheDocument();
+	});
+
+	it('does not toggle disclosure or preventDefault when Enter/Space targets the pin button', async () => {
+		render(OperationsBarIsland);
+		const disclosure = screen.getByRole('button', { name: 'Toggle operations' });
+		const pin = screen.getByRole('button', { name: 'Pin operations open' });
+
+		expect(await fireEvent.keyDown(pin, { key: 'Enter' })).toBe(true);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+		expect(await fireEvent.keyDown(pin, { key: ' ' })).toBe(true);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+	});
+
+	it('does not toggle disclosure or preventDefault when Enter/Space targets Cancel All', async () => {
+		statusPanelViewState.isProcessing = true;
+		statusPanelViewState.hasCancellableForegroundJob = true;
+		render(OperationsBarIsland);
+		const disclosure = screen.getByRole('button', { name: 'Toggle operations' });
+		const cancelAll = screen.getByRole('button', { name: 'Cancel All' });
+
+		expect(await fireEvent.keyDown(cancelAll, { key: 'Enter' })).toBe(true);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+		expect(await fireEvent.keyDown(cancelAll, { key: ' ' })).toBe(true);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+	});
+
+	it('still toggles disclosure via Enter/Space on the row itself', async () => {
+		render(OperationsBarIsland);
+		const disclosure = screen.getByRole('button', { name: 'Toggle operations' });
+
+		expect(await fireEvent.keyDown(disclosure, { key: 'Enter' })).toBe(false);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+		expect(await fireEvent.keyDown(disclosure, { key: ' ' })).toBe(false);
+		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
 	});
 
 	it('renders a metadata batch-save snapshot through the Work Center seam', async () => {

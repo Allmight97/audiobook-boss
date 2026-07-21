@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
+	import { ModalController } from '../../lib/ui/modal.svelte';
 	import {
 		applyMetadataLookupResult,
 		closeMetadataLookup,
@@ -15,6 +16,13 @@
 		scheduleMetadataLookupCoverPreviews,
 	} from './metadataLookupCoverPreview.svelte';
 	import { metadataLookupState } from './state.svelte';
+
+	let dialogEl = $state<HTMLElement | null>(null);
+	const modal = new ModalController();
+
+	$effect(() => {
+		modal.sync(metadataLookupState.isOpen, { container: dialogEl }, { onEscape: closeMetadataLookup });
+	});
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -90,6 +98,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="metadata-lookup-title"
+		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="metadata-lookup-title">Find Metadata Online</h3>

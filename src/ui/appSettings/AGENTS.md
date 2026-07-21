@@ -58,3 +58,11 @@
   owning runtime/control module to accept the change first.
 - Changing startup-source selection or capture semantics above without updating
   the hydration and dialog tests that pin them.
+- Reset-all (`resetAllAppSettings`) deletes the entire settings file; the
+  dialog gates it behind an inline two-step confirm (`AppSettingsDialogIsland`
+  local `resetConfirming` state — not a native `confirm()`). Do not wire the
+  reset button back to a single click.
+- The dialog's Escape/focus-trap behavior routes through the shared
+  `src/lib/ui/modal.svelte.ts` `ModalController`, keyed on this dialog's own
+  `isOpen` transitions since the dialog stays mounted while hidden. Escape
+  always calls `closeAppSettingsDialog` — never a direct state write.

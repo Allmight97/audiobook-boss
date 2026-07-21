@@ -231,6 +231,24 @@ describe('remote source acquisition dialog', () => {
 		expect(document.body.textContent).not.toContain('covers.example.com');
 	});
 
+	it('closes on Escape through the existing close callback even while an acquisition is in flight', async () => {
+		const user = userEvent.setup();
+		remoteSourceAcquireState.isOpen = true;
+		render(RemoteSourceAcquireDialog);
+
+		await screen.findByText('Mock Audible Book');
+		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Acquire Selected' }));
+		await tick();
+
+		// Close is never disabled while busy in this dialog, so Escape matches
+		// clicking it: it closes regardless of the in-flight acquisition.
+		expect(screen.getByRole('button', { name: 'Acquire Selected' })).toBeDisabled();
+		await fireEvent.keyDown(screen.getByRole('button', { name: 'Close' }), { key: 'Escape' });
+
+		expect(remoteSourceAcquireState.isOpen).toBe(false);
+	});
+
 	it('polls acquisition status and renders active download/decrypt progress in the app modal', async () => {
 		const user = userEvent.setup();
 		remoteSourceAcquireState.isOpen = true;

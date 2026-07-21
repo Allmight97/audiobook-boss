@@ -38,10 +38,7 @@ function gripPointerDown(clientX = 0, clientY = 0): PointerEvent {
 	} as unknown as PointerEvent;
 }
 
-function firePointer(
-	type: 'pointermove' | 'pointerup' | 'pointercancel',
-	init: PointerEventInit,
-) {
+function firePointer(type: 'pointermove' | 'pointerup' | 'pointercancel', init: PointerEventInit) {
 	window.dispatchEvent(new PointerEvent(type, { pointerId: POINTER_ID, ...init }));
 }
 
@@ -55,7 +52,11 @@ describe('createFileListPointerReorder', () => {
 	});
 
 	it('engages only after the movement threshold', () => {
-		const states: Array<{ draggedIndex: number | null; hoveredIndex: number | null; hoveredEdge: 'top' | 'bottom' | null }> = [];
+		const states: Array<{
+			draggedIndex: number | null;
+			hoveredIndex: number | null;
+			hoveredEdge: 'top' | 'bottom' | null;
+		}> = [];
 		const handlers = createFileListPointerReorder(
 			(state) => states.push(state),
 			() => ({ index: 1, edge: 'bottom' }),
@@ -93,7 +94,11 @@ describe('createFileListPointerReorder', () => {
 	});
 
 	it('abandons the drag without reordering or click suppression on pointercancel', () => {
-		const states: Array<{ draggedIndex: number | null; hoveredIndex: number | null; hoveredEdge: 'top' | 'bottom' | null }> = [];
+		const states: Array<{
+			draggedIndex: number | null;
+			hoveredIndex: number | null;
+			hoveredEdge: 'top' | 'bottom' | null;
+		}> = [];
 		const handlers = createFileListPointerReorder(
 			(state) => states.push(state),
 			() => ({ index: 1, edge: 'top' }),
@@ -135,7 +140,11 @@ describe('createFileListPointerReorder', () => {
 	});
 
 	it('drops the hover target when the hit test misses or points at the dragged row', () => {
-		const states: Array<{ draggedIndex: number | null; hoveredIndex: number | null; hoveredEdge: 'top' | 'bottom' | null }> = [];
+		const states: Array<{
+			draggedIndex: number | null;
+			hoveredIndex: number | null;
+			hoveredEdge: 'top' | 'bottom' | null;
+		}> = [];
 		let target: FileListRowHit | null = { index: 0, edge: 'top' };
 		const handlers = createFileListPointerReorder(
 			(state) => states.push(state),
