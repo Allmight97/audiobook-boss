@@ -49,6 +49,15 @@
 		}
 	}
 
+	// The list scrolls in a nested container, so a bubbling window listener
+	// would miss it; capture phase sees every scroll on the way down. Dismiss
+	// rather than reposition — the popover has no live anchor-tracking loop.
+	function handleScrollOrResizeDismiss(event: Event): void {
+		if (!popover.isOpen) return;
+		const target = event.target;
+		if (target instanceof Node && panel?.contains(target)) return;
+		void requestDismissal({ restoreFocus: false });
+	}
 
 	const railPresentation: Presentation = {
 		open: () => {},
@@ -87,6 +96,8 @@
 			void requestDismissal({ restoreFocus: false });
 		}
 	}}
+	onscrollcapture={handleScrollOrResizeDismiss}
+	onresize={handleScrollOrResizeDismiss}
 />
 
 <div class="metadata-surface-host" bind:this={host}>

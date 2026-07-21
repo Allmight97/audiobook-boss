@@ -45,6 +45,7 @@
 	let fileManagementContainer: HTMLDivElement | null = null;
 	let draggedIndex = $state<number | null>(null);
 	let hoveredIndex = $state<number | null>(null);
+	let hoveredEdge = $state<'top' | 'bottom' | null>(null);
 
 	const files = $derived(readFileListViewFiles());
 	const selectedIndices = $derived(readFileListSelectedIndices());
@@ -56,6 +57,7 @@
 	const reorderHandlers = createFileListPointerReorder((state) => {
 		draggedIndex = state.draggedIndex;
 		hoveredIndex = state.hoveredIndex;
+		hoveredEdge = state.hoveredEdge;
 	});
 
 	$effect(() => {
@@ -240,7 +242,8 @@
 						class:selected
 						class:active={active}
 						class:dragging={draggedIndex === index}
-						class:drag-over={hoveredIndex === index}
+						class:drag-over={hoveredIndex === index && hoveredEdge === 'top'}
+						class:drag-over-bottom={hoveredIndex === index && hoveredEdge === 'bottom'}
 						class:order-locked={orderLockVisible}
 						aria-selected={selected}
 						draggable="false"
@@ -333,6 +336,7 @@
 	.file-list-table tbody tr.selected { background: color-mix(in srgb, var(--accent-primary) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent-primary); }
 	.file-list-table tbody tr.dragging { opacity: 0.5; }
 	.file-list-table tbody tr.drag-over { border-top: 2px solid var(--accent-primary); }
+	.file-list-table tbody tr.drag-over-bottom { border-bottom: 2px solid var(--accent-primary); }
 	.file-list-table tbody tr.order-locked { cursor: default; }
 	.file-list-reorder-cell { width: 1.5rem; padding-right: 0 !important; padding-left: var(--space-2) !important; text-align: center !important; }
 	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; touch-action: none; }
