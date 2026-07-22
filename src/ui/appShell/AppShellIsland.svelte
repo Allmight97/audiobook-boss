@@ -159,14 +159,17 @@ let { children, overlay, rail }: Props = $props();
 	     window's drag surface (drag fires only on direct hits, so nested
 	     buttons/tabs keep their own clicks). -->
 	<header class="app-shell-appbar" data-testid="app-shell-appbar" data-tauri-drag-region>
-		<span class="app-shell-title">Audiobook Boss</span>
-		<div class="tab-strip">
+		<!-- The drag attribute fires on direct hits only, so it must also sit
+		     on the non-button surfaces inside the bar (title, strip/group
+		     backgrounds) or the draggable area shrinks to padding slivers. -->
+		<span class="app-shell-title" data-tauri-drag-region>Audiobook Boss</span>
+		<div class="tab-strip" data-tauri-drag-region>
 			<button type="button" class="tab on" aria-current="page">Process</button>
 			<button type="button" class="tab" onclick={() => void openAppSettingsDialog()}>
 				Settings
 			</button>
 		</div>
-		<div class="segmented" role="group" aria-label="Density">
+		<div class="segmented" role="group" aria-label="Density" data-tauri-drag-region>
 			<button
 				type="button"
 				aria-pressed={densityState.preference === 'comfortable'}
