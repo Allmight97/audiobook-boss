@@ -10,12 +10,20 @@
   `pinned`). It is not persisted.
 - Compose public islands and read accessors from Status Panel, Work Center,
   and FileList. Do not import their private state, reducers, or handlers.
-- The bar composes the transport precedence: Status Panel's retained
-  foreground line (via `readStatusTransportActive` + `StatusTransportIsland`)
-  wins; otherwise the top running WorkRuntime operation renders an
-  operationsBar-owned mono line from snapshot truth; otherwise idle with an
-  order-lock suffix from the FileList strip. Status Panel itself never reads
-  WorkRuntime state — the union lives here.
+- The bar composes the transport precedence: live foreground processing
+  (via `readStatusTransportProcessing` + `StatusTransportIsland`) wins;
+  otherwise the top running/cancelling WorkRuntime operation renders an
+  operationsBar-owned mono line from snapshot truth; otherwise
+  `StatusTransportIsland` again (retained showSuccess/showError verdict or
+  idle) with an order-lock suffix from the FileList strip. Status Panel
+  itself never reads WorkRuntime state — the union lives here.
+- Retained-verdict lifecycle: the bar clears Status Panel's retained
+  feedback (`clearStatusPanelRetainedFeedback`) only when a background
+  operation APPEARS over an idle transport row — a true takeover. A verdict
+  written while an operation is already running (a preview finishing during
+  background work) is fresh and must survive to win precedence when the
+  background row yields. Preserve this transition guard when editing this
+  island.
 - Preview controls no longer live in this bar; the Process split-button in the
   toolbar owns preview entry (previewAudio strip).
 
