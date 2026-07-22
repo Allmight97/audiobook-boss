@@ -31,7 +31,13 @@ import {
 	type StatusPanelModel,
 	workKindFromOperationKind,
 } from './domain/stateMachine';
-import { pushTransientStatusMessage, showError, showInfo, showSuccess } from './viewState.svelte';
+import {
+	clearStatusPanelFeedback,
+	pushTransientStatusMessage,
+	showError,
+	showInfo,
+	showSuccess,
+} from './viewState.svelte';
 
 export class StatusPanelRuntime {
 	private readonly progressSubscription = createProgressSubscription({
@@ -394,4 +400,7 @@ export function pushStatusPanelTransientStatus(
 	options?: { ttlMs?: number },
 ): void {
 	pushTransientStatusMessage(message, options?.ttlMs);
+}
+export function clearStatusPanelRetainedFeedback(): void {
+	clearStatusPanelFeedback();
 }

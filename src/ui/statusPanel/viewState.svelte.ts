@@ -126,6 +126,15 @@ export function setStatusPanelStepColor(value: string): void {
 	statusPanelViewState.stepColor = value;
 }
 
+// Resets a retained showSuccess/showError/showInfo verdict back to idle
+// defaults. Called when a background WorkRuntime operation takes over the
+// transport row, so a stale preview verdict cannot resurface once that
+// operation finishes and the row reverts to this island.
+export function clearStatusPanelFeedback(): void {
+	statusPanelViewState.stepText = DEFAULT_STATUS_PANEL_VIEW_STATE.stepText;
+	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
+}
+
 export function setStatusPanelEtaSeconds(etaSeconds: number | null): void {
 	statusPanelViewState.etaSeconds = etaSeconds;
 }

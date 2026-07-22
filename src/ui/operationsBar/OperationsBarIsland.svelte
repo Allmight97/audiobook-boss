@@ -5,7 +5,11 @@
 		readCombinedSizeText,
 		readFileListOrderLockVisible,
 	} from '../fileList';
-	import { readStatusTransportProcessing, StatusTransportIsland } from '../statusPanel';
+	import {
+		clearStatusPanelRetainedFeedback,
+		readStatusTransportProcessing,
+		StatusTransportIsland,
+	} from '../statusPanel';
 	import { formatEtaRemaining } from '../../lib/format/eta';
 	import { deriveWorkOperationCounts, workCenterState, WorkCenterIsland } from '../workCenter';
 	import { toggleOpsDisclosure, toggleOpsPin, type OpsMode } from './mode';
@@ -22,6 +26,22 @@
 			(operation) => operation.status === 'running' || operation.status === 'cancelling',
 		),
 	);
+
+	// Clear retained preview verdicts only on a true background takeover of an
+	// idle transport row (F11): a background operation APPEARING while the
+	// foreground is not processing. Any verdict retained at that moment
+	// predates the takeover and would be stale when the row reverts. A verdict
+	// written while an operation is already running (preview finishing during
+	// background work) is fresh — it must survive and win precedence once the
+	// background row yields.
+	let hadRunningOperation = false;
+	$effect(() => {
+		const hasRunningOperation = runningOperation !== undefined;
+		if (hasRunningOperation && !hadRunningOperation && !statusTransportProcessing) {
+			clearStatusPanelRetainedFeedback();
+		}
+		hadRunningOperation = hasRunningOperation;
+	});
 
 	function toggleDisclosure(): void {
 		mode = toggleOpsDisclosure(mode);
@@ -78,7 +98,14 @@
 		>
 			{#if !statusTransportProcessing && runningOperation}
 				<div class="operations-bar-background-transport" aria-label="Background operation transport">
-					<div class="app-progress-track operations-bar-background-track">
+					<div
+						class="app-progress-track operations-bar-background-track"
+						role="progressbar"
+						aria-label="Background operation progress"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow={Math.round(runningOperation.progress.percentage)}
+					>
 						<div
 							class="app-progress-fill"
 							style={`width: ${runningOperation.progress.percentage}%`}
@@ -94,7 +121,7 @@
 			{:else}
 				<StatusTransportIsland />
 				{#if !statusTransportProcessing && orderLockVisible}
-					<span class="mono operations-bar-order-lock">· order locked</span>
+					<span class="mono operations-bar-order-lock">· order locked (submitting)</span>
 				{/if}
 			{/if}
 		</div>

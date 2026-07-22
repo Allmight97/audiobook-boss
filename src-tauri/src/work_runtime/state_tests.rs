@@ -607,6 +607,111 @@ fn log_tail_keeps_identical_messages_from_distinct_children() {
 }
 
 #[test]
+fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
+    let mut state = WorkRuntimeState::default();
+
+    // 25 terminal operations, sequence 1..=25, oldest first.
+    for sequence in 1..=25u64 {
+        let id = OperationId(format!("term-{sequence}"));
+        state.insert_operation(new_processing_snapshot(
+            id.clone(),
+            sequence,
+            OperationKind::ProcessingBatch,
+            format!("Batch {sequence}"),
+            &["/tmp/f.m4b".to_string()],
+            None,
+            100,
+        ));
+        state
+            .fail(&id, "boom".to_string(), 100 + sequence as i64)
+            .expect("fail terminalizes and prunes");
+    }
+
+    // A running operation must survive pruning regardless of its sequence.
+    let running_id = OperationId("running-op".to_string());
+    state.insert_operation(new_processing_snapshot(
+        running_id.clone(),
+        1,
+        OperationKind::ProcessingBatch,
+        "Running".to_string(),
+        &["/tmp/r.m4b".to_string()],
+        None,
+        500,
+    ));
+    state.mark_running(&running_id, 500).expect("running");
+
+    let list = state.list();
+    assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
+    assert!(state.get(&running_id).is_ok());
+
+    // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent
+    // (sequence 6..=25) remain.
+    for sequence in 1..=5u64 {
+        assert!(
+            state.get(&OperationId(format!("term-{sequence}"))).is_err(),
+            "sequence {sequence} should have been pruned"
+        );
+    }
+    for sequence in 6..=25u64 {
+        assert!(
+            state.get(&OperationId(format!("term-{sequence}"))).is_ok(),
+            "sequence {sequence} should be retained"
+        );
+    }
+}
+
+#[test]
+fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
+    let mut state = WorkRuntimeState::default();
+
+    // A low-sequence operation that stays running for a long time.
+    let long_runner = OperationId("long-runner".to_string());
+    state.insert_operation(new_processing_snapshot(
+        long_runner.clone(),
+        1,
+        OperationKind::ProcessingBatch,
+        "Long batch".to_string(),
+        &["/tmp/long.m4b".to_string()],
+        None,
+        100,
+    ));
+    state.mark_running(&long_runner, 100).expect("running");
+
+    // 25 newer operations terminalize while it runs.
+    for sequence in 2..=26u64 {
+        let id = OperationId(format!("term-{sequence}"));
+        state.insert_operation(new_processing_snapshot(
+            id.clone(),
+            sequence,
+            OperationKind::ProcessingBatch,
+            format!("Batch {sequence}"),
+            &["/tmp/f.m4b".to_string()],
+            None,
+            100,
+        ));
+        state
+            .fail(&id, "boom".to_string(), 100 + sequence as i64)
+            .expect("fail terminalizes and prunes");
+    }
+
+    // Now the long runner finishes. Pruning by submission sequence would
+    // evict it immediately (it has the lowest sequence); pruning by
+    // terminalization order must keep it as the NEWEST terminal entry.
+    state
+        .fail(&long_runner, "done late".to_string(), 10_000)
+        .expect("long runner terminalizes");
+
+    assert!(
+        state.get(&long_runner).is_ok(),
+        "the just-finished long-running operation must survive its own prune"
+    );
+    let list = state.list();
+    assert_eq!(list.operations.len(), 20, "terminal cap holds");
+    // The oldest-terminalized entries were evicted instead.
+    assert!(state.get(&OperationId("term-2".to_string())).is_err());
+}
+
+#[test]
 fn log_tail_records_the_cancellation_request_transition() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 100).expect("running");

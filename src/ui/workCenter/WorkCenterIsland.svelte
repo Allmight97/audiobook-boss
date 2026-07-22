@@ -179,7 +179,14 @@
 							{#each operation.lanes as lane (lane)}
 								<div class="lane" data-testid={`operation-lane-${lane}`}>
 									<span>{laneLabel(lane)}</span>
-									<div class="app-progress-track work-operation-lane-track">
+									<div
+										class="app-progress-track work-operation-lane-track"
+										role="progressbar"
+										aria-label={`${laneLabel(lane)} progress`}
+										aria-valuemin="0"
+										aria-valuemax="100"
+										aria-valuenow={Math.round(lanePercentage(operation, lane))}
+									>
 										<div
 										class="app-progress-fill"
 										class:lane-fill-done={lanePercentage(operation, lane) >= 100}

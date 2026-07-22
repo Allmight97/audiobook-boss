@@ -65,6 +65,32 @@ describe('WorkCenterIsland operation cards', () => {
 			status: 'completed',
 			title: 'Completed book',
 			finishedAtMs: Date.now() - 2 * 60 * 1000,
+			children: [
+				{
+					childJobId: 'completed-1-child',
+					operationId: 'completed-1',
+					label: 'Completed book.m4b',
+					status: 'completed',
+					lane: 'encodeCpu',
+					progress: {
+						stage: 'complete',
+						percentage: 100,
+						message: 'Complete.',
+						currentItemIndex: undefined,
+						totalItems: 1,
+						bytesDownloaded: undefined,
+						bytesTotal: undefined,
+						etaSeconds: undefined,
+					},
+					sourcePath: undefined,
+					inputIndex: 0,
+					inputId: 'input-1',
+					jobId: 'job-1',
+					cancellable: false,
+					cancelRequested: false,
+					message: 'Complete.',
+				},
+			],
 			logTail: [
 				{ timestampMs: new Date('2026-07-16T12:34:56').getTime(), message: 'Started encode' },
 				{ timestampMs: new Date('2026-07-16T12:35:00').getTime(), message: 'Finished encode' },
@@ -90,6 +116,12 @@ describe('WorkCenterIsland operation cards', () => {
 			`${localTime(new Date('2026-07-16T12:35:00').getTime())} Finished encode`,
 		);
 		expect(log?.querySelectorAll('b')).toHaveLength(2);
+
+		const track = container.querySelector('[aria-label="Encode progress"]') as HTMLElement;
+		expect(track).toHaveAttribute('role', 'progressbar');
+		expect(track).toHaveAttribute('aria-valuemin', '0');
+		expect(track).toHaveAttribute('aria-valuemax', '100');
+		expect(track).toHaveAttribute('aria-valuenow', '100');
 	});
 
 	it('does not toggle expansion or preventDefault when Enter/Space targets a Cancel button', async () => {

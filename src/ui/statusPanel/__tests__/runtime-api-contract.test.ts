@@ -6,6 +6,7 @@ import * as statusPanel from '..';
 
 const EXPECTED_STATUS_PANEL_EXPORTS = [
 	'StatusTransportIsland',
+	'clearStatusPanelRetainedFeedback',
 	'initStatusPanel',
 	'isStatusPanelProcessing',
 	'pushStatusPanelTransientStatus',
