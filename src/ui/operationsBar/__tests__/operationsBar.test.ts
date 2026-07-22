@@ -140,6 +140,21 @@ describe('OperationsBarIsland', () => {
 		expect(disclosure).toHaveAttribute('aria-expanded', 'false');
 	});
 
+	it('hides the running/queued/done badge cluster at idle 0/0/0 and shows it once a count is non-zero', async () => {
+		const { container } = render(OperationsBarIsland);
+
+		expect(container.querySelector('.app-badge-info')).not.toBeInTheDocument();
+		expect(container.querySelector('.app-badge-muted')).not.toBeInTheDocument();
+		expect(container.querySelector('.app-badge-ok')).not.toBeInTheDocument();
+
+		applyOperationListSnapshot(operationList(operation()));
+		await waitFor(() => {
+			expect(container.querySelector('.app-badge-info')).toHaveTextContent('1 running');
+		});
+		expect(container.querySelector('.app-badge-muted')).toHaveTextContent('0 queued');
+		expect(container.querySelector('.app-badge-ok')).toHaveTextContent('0 done');
+	});
+
 	it('uses book totals and flips the visible pin label', async () => {
 		render(OperationsBarIsland);
 		expect(screen.getByLabelText('File totals')).toHaveTextContent('1 book');

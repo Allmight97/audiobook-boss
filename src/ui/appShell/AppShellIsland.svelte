@@ -155,7 +155,12 @@ let { children, overlay, rail }: Props = $props();
 <svelte:window onclick={handleWindowClick} />
 
 <div class="app-shell" bind:this={popoverContainer}>
-	<header class="app-shell-appbar" data-testid="app-shell-appbar">
+	<!-- data-tauri-drag-region="deep": with titleBarStyle Overlay the appbar
+	     is the window's drag surface. "deep" makes the whole subtree drag
+	     (tauri's drag.js walks the event path and lets clickable elements —
+	     buttons, inputs — block dragging on their own), so nested tabs and
+	     controls keep their clicks without per-element attributes. -->
+	<header class="app-shell-appbar" data-testid="app-shell-appbar" data-tauri-drag-region="deep">
 		<span class="app-shell-title">Audiobook Boss</span>
 		<div class="tab-strip">
 			<button type="button" class="tab on" aria-current="page">Process</button>
@@ -380,7 +385,13 @@ let { children, overlay, rail }: Props = $props();
 	.app-shell-appbar {
 		height: var(--appbar-h);
 		gap: var(--space-2);
-		padding: 0 var(--density-pad);
+		/* Left padding reserves space for macOS's overlay-titlebar traffic
+		   lights (tauri.conf.json `titleBarStyle: "Overlay"`). Frontend code
+		   has no platform read today, so this is unconditional; the config
+		   flag only takes effect on macOS (tauri-runtime-wry gates it behind
+		   `cfg(target_os = "macos")`), so this is dead space elsewhere. The
+		   planned Linux port keeps native decorations and can drop this then. */
+		padding: 0 var(--density-pad) 0 4.875rem;
 		border-bottom: 1px solid var(--border-primary);
 		background: var(--bg-main);
 		flex-shrink: 0;

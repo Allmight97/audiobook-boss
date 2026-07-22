@@ -127,9 +127,11 @@
 		</div>
 
 		<div class="operations-bar-meta">
-			<span class="app-badge app-badge-info">{counts.running} running</span>
-			<span class="app-badge app-badge-muted">{counts.queued} queued</span>
-			<span class="app-badge app-badge-ok">{counts.done} done</span>
+			{#if counts.running > 0 || counts.queued > 0 || counts.done > 0}
+				<span class="app-badge app-badge-info">{counts.running} running</span>
+				<span class="app-badge app-badge-muted">{counts.queued} queued</span>
+				<span class="app-badge app-badge-ok">{counts.done} done</span>
+			{/if}
 			<span class="operations-bar-info" aria-label="File totals">
 				{fileCount}
 				{fileCount === 1 ? 'book' : 'books'} · <span class="mono">{durationText} · {sizeText}</span>
