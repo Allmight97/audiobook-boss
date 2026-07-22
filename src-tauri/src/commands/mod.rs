@@ -1,5 +1,6 @@
 pub mod app_settings;
 pub mod audio;
+pub mod frontend_log;
 pub mod metadata;
 pub mod metadata_lookup;
 pub mod remote_source;
@@ -9,6 +10,7 @@ pub type CommandResult<T> = std::result::Result<T, crate::errors::AppErrorEnvelo
 
 pub use app_settings::*;
 pub use audio::*;
+pub use frontend_log::*;
 pub use metadata::*;
 pub use metadata_lookup::*;
 pub use remote_source::*;

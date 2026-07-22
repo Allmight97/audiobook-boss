@@ -406,7 +406,7 @@
 		flex: 1;
 	}
 
-	/* Mock .batch-note (ui-directions-v3.html:93). */
+	/* Mock .batch-note (working_prototype_mock.html:93). */
 	.batch-note {
 		margin-bottom: 0.625rem;
 		padding: 0.5rem 0.625rem;

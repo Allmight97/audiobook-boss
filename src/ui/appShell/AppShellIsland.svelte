@@ -163,7 +163,11 @@ let { children, overlay, rail }: Props = $props();
 	<header class="app-shell-appbar" data-testid="app-shell-appbar" data-tauri-drag-region="deep">
 		<span class="app-shell-title">Audiobook Boss</span>
 		<div class="tab-strip">
-			<button type="button" class="tab on" aria-current="page">Process</button>
+			<!-- Non-interactive: Process is the only page and has no handler. A
+			     BUTTON here would sit in tauri drag.js's own clickable-element
+			     exclusion and block window-dragging over its pixels for zero
+			     benefit (it never does anything on click). -->
+			<span class="tab on" aria-current="page">Process</span>
 			<button type="button" class="tab" onclick={() => void openAppSettingsDialog()}>
 				Settings
 			</button>

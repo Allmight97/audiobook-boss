@@ -1,5 +1,4 @@
 type StatusPanelViewState = {
-	coverArtDataUrl: string | null;
 	foregroundJobLabel: string | null;
 	hasCancellableForegroundJob: boolean;
 	progressPercentage: number;
@@ -16,7 +15,6 @@ type StatusPanelViewState = {
 export const STATUS_PANEL_DEFAULT_STEP_COLOR = 'var(--text-primary)';
 
 const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
-	coverArtDataUrl: null,
 	foregroundJobLabel: null,
 	hasCancellableForegroundJob: false,
 	progressPercentage: 0,
@@ -85,10 +83,6 @@ export function pushStatusPanelUserMessageLock(
 			clearStatusPanelUserMessageLock();
 		}, lockTtlMs);
 	}
-}
-
-export function setStatusPanelCoverArtDataUrl(dataUrl: string | null): void {
-	statusPanelViewState.coverArtDataUrl = dataUrl;
 }
 
 export function setStatusPanelForegroundJobLabel(label: string | null): void {
@@ -167,7 +161,6 @@ export function clearTransientStatusMessageLock(): void {
 }
 
 export function resetStatusPanelViewState(): void {
-	statusPanelViewState.coverArtDataUrl = DEFAULT_STATUS_PANEL_VIEW_STATE.coverArtDataUrl;
 	statusPanelViewState.foregroundJobLabel = DEFAULT_STATUS_PANEL_VIEW_STATE.foregroundJobLabel;
 	statusPanelViewState.hasCancellableForegroundJob =
 		DEFAULT_STATUS_PANEL_VIEW_STATE.hasCancellableForegroundJob;

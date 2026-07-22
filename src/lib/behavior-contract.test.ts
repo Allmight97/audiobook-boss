@@ -27,6 +27,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'load_cover_art_file',
 	'load_cover_art_from_url',
 	'load_remote_source_library',
+	'log_frontend',
 	'logout_remote_source_account',
 	'preflight_processing_plan',
 	'preview_output_path',

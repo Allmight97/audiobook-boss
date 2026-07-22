@@ -1,0 +1,116 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const logFrontendMock = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('./tauri/client', () => ({
+	tauriClient: {
+		logFrontend: (...args: unknown[]) => logFrontendMock(...args),
+	},
+}));
+
+import {
+	disposeFrontendErrorLogBridgeForTests,
+	initFrontendErrorLogBridge,
+} from './frontendLogBridge';
+
+function rejectionEvent(reason: unknown): PromiseRejectionEvent {
+	return new PromiseRejectionEvent('unhandledrejection', {
+		promise: Promise.reject().catch(() => undefined) as unknown as Promise<unknown>,
+		reason,
+	});
+}
+
+describe('frontend error log bridge', () => {
+	beforeEach(() => {
+		logFrontendMock.mockClear();
+		// The bridge is a no-op outside a Tauri webview; jsdom needs the marker.
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+		initFrontendErrorLogBridge();
+	});
+
+	afterEach(() => {
+		disposeFrontendErrorLogBridgeForTests();
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined;
+	});
+
+	it('does not install outside a Tauri webview', () => {
+		disposeFrontendErrorLogBridgeForTests();
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined;
+		initFrontendErrorLogBridge();
+
+		window.dispatchEvent(rejectionEvent(new Error('boom')));
+		expect(logFrontendMock).not.toHaveBeenCalled();
+	});
+
+	it('redacts a raw string rejection instead of forwarding it verbatim', () => {
+		window.dispatchEvent(rejectionEvent('token=sk-secret /Users/me/private/file.m4b'));
+
+		expect(logFrontendMock).toHaveBeenCalledTimes(1);
+		const entry = logFrontendMock.mock.calls[0]![0];
+		expect(entry.message).not.toContain('sk-secret');
+		expect(entry.message).not.toContain('/Users/me');
+		expect(entry.message).toContain('String rejection value');
+	});
+
+	it('forwards exactly one bounded call for an unhandled rejection', () => {
+		window.dispatchEvent(rejectionEvent(new Error('boom')));
+
+		expect(logFrontendMock).toHaveBeenCalledTimes(1);
+		expect(logFrontendMock).toHaveBeenCalledWith({
+			level: 'error',
+			scope: 'window.unhandledrejection:Error',
+			message: 'boom',
+		});
+	});
+
+	it('never forwards an arbitrary rejection value verbatim', () => {
+		const secretPayload = { token: 'sk-secret', path: '/Users/me/private/file.txt' };
+		window.dispatchEvent(rejectionEvent(secretPayload));
+
+		expect(logFrontendMock).toHaveBeenCalledTimes(1);
+		const entry = logFrontendMock.mock.calls[0]![0];
+		expect(entry.message).not.toContain('sk-secret');
+		expect(entry.message).not.toContain('/Users/me/private/file.txt');
+		expect(entry.message).toBe('Non-error rejection value');
+	});
+
+	it('truncates an oversized message before sending', () => {
+		window.dispatchEvent(rejectionEvent(new Error('x'.repeat(600))));
+
+		const entry = logFrontendMock.mock.calls[0]![0];
+		expect(entry.message.length).toBe(501);
+		expect(entry.message.endsWith('…')).toBe(true);
+	});
+
+	it('drops events past the per-minute rate limit and reports the overflow once the window rolls', () => {
+		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(0);
+		for (let i = 0; i < 25; i++) {
+			window.dispatchEvent(rejectionEvent(new Error(`error-${i}`)));
+		}
+
+		// 20 allowed, 5 silently dropped — no overflow report until the window rolls.
+		expect(logFrontendMock).toHaveBeenCalledTimes(20);
+
+		nowSpy.mockReturnValue(120_000);
+		window.dispatchEvent(rejectionEvent(new Error('after rollover')));
+
+		// One overflow summary, then the new window's own event.
+		expect(logFrontendMock).toHaveBeenCalledTimes(22);
+		expect(logFrontendMock.mock.calls[20]![0]).toEqual({
+			level: 'warn',
+			scope: 'frontendLogBridge.rateLimit',
+			message: 'Dropped 5 frontend log event(s) over the 20/minute limit.',
+		});
+
+		nowSpy.mockRestore();
+	});
+
+	it('installs its listeners at most once', () => {
+		initFrontendErrorLogBridge();
+		initFrontendErrorLogBridge();
+
+		window.dispatchEvent(rejectionEvent(new Error('single')));
+
+		expect(logFrontendMock).toHaveBeenCalledTimes(1);
+	});
+});

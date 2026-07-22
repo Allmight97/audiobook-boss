@@ -203,7 +203,7 @@
 	>
 		<table
 			class="file-list-table"
-			data-testid="book-table"
+			data-testid="chapter-queue"
 			style="table-layout: fixed; user-select: none;"
 		>
 			<colgroup>

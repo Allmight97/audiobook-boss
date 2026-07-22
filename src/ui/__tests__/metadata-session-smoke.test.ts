@@ -148,7 +148,6 @@ function processingContext() {
 	return {
 		updateStatus: vi.fn((_status: ProcessingStatus) => undefined),
 		setProcessingState: vi.fn(),
-		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),

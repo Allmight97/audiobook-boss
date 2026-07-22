@@ -7,11 +7,7 @@ import { renderStatus, renderTransportSummary } from './render';
 import type { ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
-import { createCoverArtTracker } from './services/coverArtTracker';
-import {
-	findFilePathByIndex as findFilePathByIndexService,
-	findFilePathByCurrentFile as findFilePathByCurrentFileService,
-} from './services/fileLookup';
+import { findFilePathByIndex as findFilePathByIndexService } from './services/fileLookup';
 import { createProgressSubscription } from './services/progressSubscription';
 import {
 	applyCancellation,
@@ -44,7 +40,6 @@ export class StatusPanelRuntime {
 		onProgress: (event) => this.updateProgress(event),
 		onQueue: (event) => this.handleQueueSnapshot(event),
 	});
-	private readonly coverArt = createCoverArtTracker();
 	private model: StatusPanelModel;
 	private batchCompletionTimeout?: number;
 	private singleCompletionTimeout?: number;
@@ -53,7 +48,6 @@ export class StatusPanelRuntime {
 	constructor() {
 		this.model = createStatusPanelModel();
 		this.renderModel();
-		this.coverArt.reset();
 	}
 
 	public async startProcessing(options?: { previewSeconds?: number }): Promise<void> {
@@ -69,7 +63,6 @@ export class StatusPanelRuntime {
 						isProcessing,
 					};
 				},
-				updateArtThumbnail: () => this.coverArt.syncForCurrentList(),
 				startProgressListener: () => this.progressSubscription.start(),
 				setCurrentWorkKind: (workKind) => {
 					this.model = withCurrentWorkKind(this.model, workKind);
@@ -164,7 +157,6 @@ export class StatusPanelRuntime {
 
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
-		this.coverArt.reset();
 	}
 
 	public get isCurrentlyProcessing(): boolean {
@@ -325,7 +317,6 @@ export class StatusPanelRuntime {
 		this.updateStatus(this.model.currentStatus);
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
-		this.coverArt.reset();
 	}
 
 	private showCompletionFeedback(feedbackResult: StatusPanelCompletionFeedback): void {
@@ -352,24 +343,6 @@ export class StatusPanelRuntime {
 
 		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
-
-		if (this.model.currentWorkKind === 'batch' && this.model.latestProgressEvent) {
-			const event = this.model.latestProgressEvent;
-			const indexedPath =
-				typeof event.input_index === 'number' ? this.findFilePathByIndex(event.input_index) : null;
-			if (indexedPath) {
-				void this.coverArt.syncForFile(indexedPath);
-			} else if (event.current_file) {
-				const filePath = this.findFilePathByCurrentFile(event.current_file);
-				if (filePath) {
-					void this.coverArt.syncForFile(filePath);
-				}
-			}
-		}
-	}
-
-	private findFilePathByCurrentFile(currentFile: string): string | null {
-		return findFilePathByCurrentFileService(getCurrentFileList(), currentFile);
 	}
 
 	private findFilePathByIndex(index: number): string | null {

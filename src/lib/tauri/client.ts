@@ -49,6 +49,7 @@ import type {
 	SubmitProcessingOperationRequest,
 	WorkSubmissionAccepted,
 } from '../../types/workRuntime';
+import type { FrontendLogEntry } from '../../types/frontendLog';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
 	normalizeOperationListSnapshot,
@@ -289,6 +290,8 @@ export const tauriClient = {
 		commandSpecs.get_work_operation({ operationId }),
 	cancelWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
 		commandSpecs.cancel_work_operation({ operationId }),
+	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
+		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,
 	open: openDialog,
 	openFile,

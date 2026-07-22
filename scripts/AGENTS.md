@@ -78,7 +78,9 @@ commands over invoking internals directly.
   visual evidence jsdom cannot give (layout, overflow, hit targets); attach
   the screenshots as review evidence per `src/AGENTS.md`. Manual invocation
   only — it is not part of `bun run test` or CI. One-time per machine:
-  `bunx playwright install chromium`. Scenario fixtures live in owner-local
+  `bunx playwright install chromium`. Set `ABB_LAB_CHROMIUM` to a system/other
+  Chromium executable path to use it instead when the pinned Playwright build
+  isn't cached on the machine. Scenario fixtures live in owner-local
   `labFixtures.ts` adapters and stay fixture-only: adding media synthesis,
   screenshot-diff baselines, or a default-path/CI hook is an owner decision
   (same pattern as the media lane), not a default.
