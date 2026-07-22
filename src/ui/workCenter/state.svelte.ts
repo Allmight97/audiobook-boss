@@ -36,7 +36,29 @@ export const workCenterClock = $state({ nowMs: Date.now() });
 
 let initializationPromise: Promise<void> | null = null;
 let subscriptions: SubscriptionGroup | null = null;
+
+// Bounded FIFO tombstone of operation ids already purged: an operation's
+// terminal snapshot arrives from both the single-snapshot and list-snapshot
+// events, and the list snapshot keeps resending it on every unrelated
+// operation's event until the backend prunes it (see the Rust runtime's
+// terminal-operation cap, `TERMINAL_OPERATIONS_CAP` in
+// `src-tauri/src/work_runtime/state.rs`, currently 20). This cap MUST stay
+// above that backend cap: an id can only legitimately reappear in a list
+// snapshot while the backend still retains it, so keeping this tombstone
+// larger than the backend's retention window guarantees an evicted id can
+// never be re-delivered and mistakenly re-trigger a release.
+const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 const purgedOperationIds = new Set<string>();
+const purgedOperationOrder: string[] = [];
+
+function markOperationPurged(operationId: string): void {
+	purgedOperationIds.add(operationId);
+	purgedOperationOrder.push(operationId);
+	if (purgedOperationOrder.length > PURGED_OPERATION_TOMBSTONE_CAP) {
+		const oldest = purgedOperationOrder.shift();
+		if (oldest !== undefined) purgedOperationIds.delete(oldest);
+	}
+}
 
 export function startWorkCenterClock(): () => void {
 	workCenterClock.nowMs = Date.now();
@@ -149,7 +171,7 @@ async function purgeRemoteSessionsForTerminalOperation(
 ): Promise<void> {
 	if (!isTerminalOperationStatus(operation.status)) return;
 	if (purgedOperationIds.has(operation.operationId)) return;
-	purgedOperationIds.add(operation.operationId);
+	markOperationPurged(operation.operationId);
 
 	const operationInputIds =
 		operation.sourceInputIds.length > 0

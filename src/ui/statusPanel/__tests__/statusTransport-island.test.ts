@@ -35,6 +35,12 @@ describe('Status Transport island mount', () => {
 		});
 		expect(document.body.textContent).toContain('Previewing');
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
+
+		const track = document.querySelector('[aria-label="Preview progress"]') as HTMLElement;
+		expect(track).toHaveAttribute('role', 'progressbar');
+		expect(track).toHaveAttribute('aria-valuemin', '0');
+		expect(track).toHaveAttribute('aria-valuemax', '100');
+		expect(track).toHaveAttribute('aria-valuenow', '42');
 	});
 
 	it('prefers the backend-authored ETA over the stage text in the transport line', async () => {
@@ -73,6 +79,20 @@ describe('Status Transport island mount', () => {
 		expect(document.querySelector('.status-transport-copy')?.getAttribute('title')).toBe(
 			'Current Step: Writing chapter metadata',
 		);
+	});
+
+	it('lets live foreground progress outrank a retained verdict from an earlier run', async () => {
+		render(StatusTransportIsland);
+		showError('Stale preview verdict.');
+		statusPanelViewState.isProcessing = true;
+		statusPanelViewState.progressPercentage = 12;
+		statusPanelViewState.statusText = 'Converting';
+		statusPanelViewState.foregroundJobLabel = 'New Preview.m4b';
+		await tick();
+
+		const line = document.querySelector('[data-testid="status-transport-line"]') as HTMLElement;
+		expect(line.textContent).toContain('New Preview.m4b · 12% · Converting');
+		expect(line.textContent).not.toContain('Stale preview verdict.');
 	});
 
 	it('keeps showError feedback visible on the transport line', async () => {

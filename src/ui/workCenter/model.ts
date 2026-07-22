@@ -119,7 +119,7 @@ export function replaceOperations(
 	list: OperationListSnapshot,
 ): WorkCenterModel {
 	return {
-		operations: [...list.operations].sort(sortBySequenceDesc),
+		operations: [...list.operations].sort(sortByStatusThenSequenceDesc),
 	};
 }
 
@@ -131,10 +131,24 @@ export function upsertOperation(
 		(operation) => operation.operationId !== snapshot.operationId,
 	);
 	next.push(snapshot);
-	next.sort(sortBySequenceDesc);
+	next.sort(sortByStatusThenSequenceDesc);
 	return { operations: next };
 }
 
-function sortBySequenceDesc(left: OperationSnapshot, right: OperationSnapshot): number {
+/**
+ * Active (running/cancelling) operations render above queued (accepted)
+ * operations, which render above terminal ones; sequence-desc breaks ties
+ * within a bucket. A running op must not be buried by a newer submission
+ * that is merely queued or already finished.
+ */
+function statusDisplayBucket(status: WorkOperationStatus): 0 | 1 | 2 {
+	if (isTerminalOperationStatus(status)) return 2;
+	if (status === 'accepted') return 1;
+	return 0;
+}
+
+function sortByStatusThenSequenceDesc(left: OperationSnapshot, right: OperationSnapshot): number {
+	const bucketDiff = statusDisplayBucket(left.status) - statusDisplayBucket(right.status);
+	if (bucketDiff !== 0) return bucketDiff;
 	return right.sequence - left.sequence;
 }

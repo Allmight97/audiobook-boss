@@ -154,15 +154,16 @@ describe('ModalController', () => {
 		// focus() call is a no-op, later calls behave normally.
 		const nativeFocus = HTMLElement.prototype.focus;
 		let refusals = 1;
-		const focusSpy = vi
-			.spyOn(HTMLElement.prototype, 'focus')
-			.mockImplementation(function (this: HTMLElement, ...args) {
-				if (refusals > 0) {
-					refusals -= 1;
-					return;
-				}
-				nativeFocus.apply(this, args);
-			});
+		const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
+			this: HTMLElement,
+			...args
+		) {
+			if (refusals > 0) {
+				refusals -= 1;
+				return;
+			}
+			nativeFocus.apply(this, args);
+		});
 
 		modal.sync(true, { container }, { onEscape: vi.fn() });
 		await flushMicrotasks();

@@ -143,6 +143,42 @@ describe('Work Center state', () => {
 		resolvePurge();
 	});
 
+	it('bounds the purge tombstone and tolerates a stale replay of an evicted id without crashing or double-purging', async () => {
+		// The tombstone is a bounded FIFO (cap 64): once 64 distinct terminal
+		// operations have been purged, the 65th eviction drops the oldest entry.
+		// This mirrors the backend's own terminal-operation cap (20, see
+		// src-tauri/src/work_runtime/state.rs) — the frontend cap must stay
+		// larger so an evicted id can never legitimately reappear in a list
+		// snapshot; this test only proves the eviction itself is safe.
+		vi.resetModules();
+		const fresh = await import('../state.svelte');
+
+		for (let index = 0; index < 64; index += 1) {
+			fresh.applyOperationSnapshot(completedMergeOperation(`fill-${index}`));
+		}
+		await Promise.resolve();
+		releaseMock.mockClear();
+		purgeMock.mockClear();
+
+		// The 65th distinct terminal operation evicts the oldest tombstone entry (fill-0).
+		fresh.applyOperationSnapshot(completedMergeOperation('fill-64'));
+		await Promise.resolve();
+		expect(releaseMock).toHaveBeenCalledTimes(1);
+		expect(purgeMock).toHaveBeenCalledTimes(1);
+
+		releaseMock.mockClear();
+		purgeMock.mockClear();
+
+		// A stale replay of the now-evicted id must not throw and must settle
+		// through the same single release/purge path, not a double release.
+		expect(() => fresh.applyOperationSnapshot(completedMergeOperation('fill-0'))).not.toThrow();
+		await Promise.resolve();
+		expect(releaseMock).toHaveBeenCalledTimes(1);
+		expect(purgeMock).toHaveBeenCalledTimes(1);
+
+		fresh.disposeWorkCenter();
+	});
+
 	it('does not mark initialized or retain listeners when disposed mid-initialization', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const snapshotUnlisten = vi.fn();

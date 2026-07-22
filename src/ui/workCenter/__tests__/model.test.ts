@@ -106,6 +106,24 @@ describe('Work Center model', () => {
 		]);
 	});
 
+	it('keeps a running operation above a newer queued or terminal submission', () => {
+		const running = operation('running', 1);
+		running.status = 'running';
+		const queuedNewer = operation('queued-newer', 2);
+		queuedNewer.status = 'accepted';
+		const terminalNewest = operation('terminal-newest', 3);
+		terminalNewest.status = 'completed';
+
+		const list = { operations: [terminalNewest, queuedNewer, running] };
+		const model = replaceOperations({ operations: [] }, list);
+
+		expect(model.operations.map((item) => item.operationId)).toEqual([
+			'running',
+			'queued-newer',
+			'terminal-newest',
+		]);
+	});
+
 	it('joins batch children to their input ids and maps terminal child status', () => {
 		const snapshot = operation('batch', 1);
 		snapshot.children[0] = {

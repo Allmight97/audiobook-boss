@@ -150,7 +150,7 @@ describe('OperationsBarIsland', () => {
 	});
 
 	it('renders a running background transport when foreground transport is idle', async () => {
-		render(OperationsBarIsland);
+		const { container } = render(OperationsBarIsland);
 		applyOperationListSnapshot(
 			operationList({ ...operation(), progress: { ...operation().progress, etaSeconds: 242 } }),
 		);
@@ -161,6 +161,12 @@ describe('OperationsBarIsland', () => {
 			).toBeInTheDocument();
 		});
 		expect(screen.queryByTestId('status-transport-progress')).not.toBeInTheDocument();
+
+		const track = container.querySelector('.operations-bar-background-track') as HTMLElement;
+		expect(track).toHaveAttribute('role', 'progressbar');
+		expect(track).toHaveAttribute('aria-valuemin', '0');
+		expect(track).toHaveAttribute('aria-valuemax', '100');
+		expect(track).toHaveAttribute('aria-valuenow', '64');
 	});
 
 	it('lets a running operation outrank persistent foreground feedback', async () => {
@@ -192,7 +198,7 @@ describe('OperationsBarIsland', () => {
 		render(OperationsBarIsland);
 		await waitFor(() => {
 			expect(screen.getByText(/Idle/)).toBeInTheDocument();
-			expect(screen.getByText('· order locked')).toBeInTheDocument();
+			expect(screen.getByText('· order locked (submitting)')).toBeInTheDocument();
 		});
 	});
 
@@ -218,6 +224,11 @@ describe('OperationsBarIsland', () => {
 
 	it('carries runtime events through the Work Center UI from progress to cancellation terminal truth', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		// A stale preview verdict from an earlier, unrelated run must not
+		// resurface once this background operation finishes and the transport
+		// row reverts to StatusTransportIsland (F11).
+		const { showError } = await import('../../statusPanel/viewState.svelte');
+		showError('Stale preview verdict.');
 		const running = {
 			...operation(),
 			progress: { ...operation().progress, etaSeconds: 242 },
@@ -301,6 +312,7 @@ describe('OperationsBarIsland', () => {
 		await waitFor(() => expect(screen.getByText('cancelled')).toBeInTheDocument());
 		expect(screen.getByText('Cancelled 1/1.')).toBeInTheDocument();
 		expect(screen.getByText(/^Idle$/)).toBeInTheDocument();
+		expect(screen.queryByText(/Stale preview verdict\./)).not.toBeInTheDocument();
 	});
 
 	it('keeps foreground transport and background operation snapshots in separate lanes', async () => {

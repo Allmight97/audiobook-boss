@@ -5,7 +5,11 @@
 		readCombinedSizeText,
 		readFileListOrderLockVisible,
 	} from '../fileList';
-	import { readStatusTransportProcessing, StatusTransportIsland } from '../statusPanel';
+	import {
+		clearStatusPanelRetainedFeedback,
+		readStatusTransportProcessing,
+		StatusTransportIsland,
+	} from '../statusPanel';
 	import { formatEtaRemaining } from '../../lib/format/eta';
 	import { deriveWorkOperationCounts, workCenterState, WorkCenterIsland } from '../workCenter';
 	import { toggleOpsDisclosure, toggleOpsPin, type OpsMode } from './mode';
@@ -22,6 +26,15 @@
 			(operation) => operation.status === 'running' || operation.status === 'cancelling',
 		),
 	);
+
+	// The background operation takes over the transport row here — clear any
+	// retained preview verdict so it cannot resurface once this operation
+	// finishes and the row reverts to StatusTransportIsland (F11).
+	$effect(() => {
+		if (!statusTransportProcessing && runningOperation) {
+			clearStatusPanelRetainedFeedback();
+		}
+	});
 
 	function toggleDisclosure(): void {
 		mode = toggleOpsDisclosure(mode);
@@ -78,7 +91,14 @@
 		>
 			{#if !statusTransportProcessing && runningOperation}
 				<div class="operations-bar-background-transport" aria-label="Background operation transport">
-					<div class="app-progress-track operations-bar-background-track">
+					<div
+						class="app-progress-track operations-bar-background-track"
+						role="progressbar"
+						aria-label="Background operation progress"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow={Math.round(runningOperation.progress.percentage)}
+					>
 						<div
 							class="app-progress-fill"
 							style={`width: ${runningOperation.progress.percentage}%`}
@@ -94,7 +114,7 @@
 			{:else}
 				<StatusTransportIsland />
 				{#if !statusTransportProcessing && orderLockVisible}
-					<span class="mono operations-bar-order-lock">· order locked</span>
+					<span class="mono operations-bar-order-lock">· order locked (submitting)</span>
 				{/if}
 			{/if}
 		</div>

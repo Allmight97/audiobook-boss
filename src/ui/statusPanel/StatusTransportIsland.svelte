@@ -4,11 +4,13 @@
 	import { formatEtaRemaining } from './formatting';
 	import { STATUS_PANEL_DEFAULT_STEP_COLOR, statusPanelViewState } from './viewState.svelte';
 
-	// One mono transport line. Precedence: showError/showSuccess feedback
-	// (never demoted to tooltip) → active processing summary → idle status.
-	// The informational step message surfaces as the line's tooltip.
+	// One mono transport line. Precedence: active foreground progress (a live
+	// preview must never be hidden behind a retained verdict) → showError/
+	// showSuccess feedback (never demoted to tooltip) → idle status. The
+	// informational step message surfaces as the line's tooltip.
 	const feedbackActive = $derived(
-		statusPanelViewState.stepColor !== STATUS_PANEL_DEFAULT_STEP_COLOR &&
+		!statusPanelViewState.isProcessing &&
+			statusPanelViewState.stepColor !== STATUS_PANEL_DEFAULT_STEP_COLOR &&
 			statusPanelViewState.stepText.length > 0,
 	);
 	const transportTail = $derived(
@@ -17,10 +19,10 @@
 			: statusPanelViewState.statusText,
 	);
 	const transportLine = $derived(
-		feedbackActive
-			? statusPanelViewState.stepText
-			: statusPanelViewState.isProcessing
-				? `${statusPanelViewState.foregroundJobLabel ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${transportTail}`
+		statusPanelViewState.isProcessing
+			? `${statusPanelViewState.foregroundJobLabel ?? 'Preview'} · ${statusPanelViewState.progressPercentage.toFixed(0)}% · ${transportTail}`
+			: feedbackActive
+				? statusPanelViewState.stepText
 				: statusPanelViewState.statusText,
 	);
 
@@ -31,7 +33,14 @@
 
 <div class="status-transport" aria-label="Preview transport">
 	<div class="status-transport-track">
-		<div class="app-progress-track" aria-label="Preview progress">
+		<div
+			class="app-progress-track"
+			role="progressbar"
+			aria-label="Preview progress"
+			aria-valuemin="0"
+			aria-valuemax="100"
+			aria-valuenow={Math.round(statusPanelViewState.progressPercentage)}
+		>
 			<div
 				class="app-progress-fill status-transport-fill"
 				data-testid="status-transport-progress"

@@ -607,6 +607,60 @@ fn log_tail_keeps_identical_messages_from_distinct_children() {
 }
 
 #[test]
+fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
+    let mut state = WorkRuntimeState::default();
+
+    // 25 terminal operations, sequence 1..=25, oldest first.
+    for sequence in 1..=25u64 {
+        let id = OperationId(format!("term-{sequence}"));
+        state.insert_operation(new_processing_snapshot(
+            id.clone(),
+            sequence,
+            OperationKind::ProcessingBatch,
+            format!("Batch {sequence}"),
+            &["/tmp/f.m4b".to_string()],
+            None,
+            100,
+        ));
+        state
+            .fail(&id, "boom".to_string(), 100 + sequence as i64)
+            .expect("fail terminalizes and prunes");
+    }
+
+    // A running operation must survive pruning regardless of its sequence.
+    let running_id = OperationId("running-op".to_string());
+    state.insert_operation(new_processing_snapshot(
+        running_id.clone(),
+        1,
+        OperationKind::ProcessingBatch,
+        "Running".to_string(),
+        &["/tmp/r.m4b".to_string()],
+        None,
+        500,
+    ));
+    state.mark_running(&running_id, 500).expect("running");
+
+    let list = state.list();
+    assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
+    assert!(state.get(&running_id).is_ok());
+
+    // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent
+    // (sequence 6..=25) remain.
+    for sequence in 1..=5u64 {
+        assert!(
+            state.get(&OperationId(format!("term-{sequence}"))).is_err(),
+            "sequence {sequence} should have been pruned"
+        );
+    }
+    for sequence in 6..=25u64 {
+        assert!(
+            state.get(&OperationId(format!("term-{sequence}"))).is_ok(),
+            "sequence {sequence} should be retained"
+        );
+    }
+}
+
+#[test]
 fn log_tail_records_the_cancellation_request_transition() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 100).expect("running");

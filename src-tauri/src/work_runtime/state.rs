@@ -54,6 +54,15 @@ fn push_operation_log(
     }
 }
 
+/// Cap on retained terminal operations (running/accepted operations are never
+/// pruned). Keeps unbounded history from growing forever while every
+/// currently-active operation stays visible. The frontend Work Center
+/// tombstone (`PURGED_OPERATION_TOMBSTONE_CAP` in
+/// `src/ui/workCenter/state.svelte.ts`) must stay larger than this cap so an
+/// operation pruned here can never be re-delivered after its frontend
+/// dedupe entry has been evicted.
+const TERMINAL_OPERATIONS_CAP: usize = 20;
+
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
@@ -249,7 +258,9 @@ impl WorkRuntimeState {
             }
         }
 
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     /// Terminalize a command-driven inline operation (metadata save) from its
@@ -287,7 +298,9 @@ impl WorkRuntimeState {
             }
         }
 
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     pub(crate) fn fail(
@@ -322,7 +335,9 @@ impl WorkRuntimeState {
                 child.cancellable = false;
             }
         }
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     pub(crate) fn cancel(
@@ -358,13 +373,36 @@ impl WorkRuntimeState {
                 child.cancel_requested = true;
             }
         }
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     fn snapshot_mut(&mut self, operation_id: &OperationId) -> Result<&mut OperationSnapshot> {
         self.operations
             .get_mut(operation_id.as_str())
             .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
+    }
+
+    /// Bound retained terminal-operation history: once more than
+    /// `TERMINAL_OPERATIONS_CAP` operations are terminal, drop the oldest
+    /// (lowest sequence) beyond the cap. Running/accepted operations are
+    /// never inspected here and are never pruned.
+    fn prune_terminal_operations(&mut self) {
+        let mut terminal_ids: Vec<(u64, String)> = self
+            .operations
+            .iter()
+            .filter(|(_, snapshot)| is_terminal(snapshot.status))
+            .map(|(id, snapshot)| (snapshot.sequence, id.clone()))
+            .collect();
+        if terminal_ids.len() <= TERMINAL_OPERATIONS_CAP {
+            return;
+        }
+        terminal_ids.sort_by_key(|(sequence, _)| *sequence);
+        let excess = terminal_ids.len() - TERMINAL_OPERATIONS_CAP;
+        for (_, id) in terminal_ids.into_iter().take(excess) {
+            self.operations.remove(&id);
+        }
     }
 }
 

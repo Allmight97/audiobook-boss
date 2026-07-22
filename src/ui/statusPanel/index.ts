@@ -1,4 +1,5 @@
 export {
+	clearStatusPanelRetainedFeedback,
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
