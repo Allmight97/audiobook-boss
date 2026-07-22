@@ -23,11 +23,33 @@ function rejectionEvent(reason: unknown): PromiseRejectionEvent {
 describe('frontend error log bridge', () => {
 	beforeEach(() => {
 		logFrontendMock.mockClear();
+		// The bridge is a no-op outside a Tauri webview; jsdom needs the marker.
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
 		initFrontendErrorLogBridge();
 	});
 
 	afterEach(() => {
 		disposeFrontendErrorLogBridgeForTests();
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined;
+	});
+
+	it('does not install outside a Tauri webview', () => {
+		disposeFrontendErrorLogBridgeForTests();
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = undefined;
+		initFrontendErrorLogBridge();
+
+		window.dispatchEvent(rejectionEvent(new Error('boom')));
+		expect(logFrontendMock).not.toHaveBeenCalled();
+	});
+
+	it('redacts a raw string rejection instead of forwarding it verbatim', () => {
+		window.dispatchEvent(rejectionEvent('token=sk-secret /Users/me/private/file.m4b'));
+
+		expect(logFrontendMock).toHaveBeenCalledTimes(1);
+		const entry = logFrontendMock.mock.calls[0]![0];
+		expect(entry.message).not.toContain('sk-secret');
+		expect(entry.message).not.toContain('/Users/me');
+		expect(entry.message).toContain('String rejection value');
 	});
 
 	it('forwards exactly one bounded call for an unhandled rejection', () => {

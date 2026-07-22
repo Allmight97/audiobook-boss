@@ -35,8 +35,10 @@ function summarizeRejectionReason(reason: unknown): { name: string; message: str
 	if (isAppErrorEnvelope(reason)) {
 		return { name: reason.category, message: reason.message };
 	}
+	// String reasons are arbitrary caller payloads — forwarding them verbatim
+	// would bypass the sanitization guardrail (they can carry paths/secrets).
 	if (typeof reason === 'string') {
-		return { name: 'Rejection', message: reason };
+		return { name: 'Rejection', message: `String rejection value (${reason.length} chars)` };
 	}
 	return { name: 'Rejection', message: 'Non-error rejection value' };
 }
@@ -65,13 +67,21 @@ function rollRateLimitWindow(nowMs: number): number {
 }
 
 function sendLogFrontend(level: FrontendLogLevel, scope: string, message: string): void {
-	void tauriClient
-		.logFrontend({
-			level,
-			scope: truncate(scope, SCOPE_MAX_CHARS),
-			message: truncate(message, MESSAGE_MAX_CHARS),
-		})
-		.catch(() => undefined);
+	// Synchronous try: outside a Tauri webview (plain Vite dev, lab.html) the
+	// generated invoke reads window.__TAURI_INTERNALS__ synchronously and
+	// throws before any promise exists — an error handler must never itself
+	// throw a second error per event.
+	try {
+		void tauriClient
+			.logFrontend({
+				level,
+				scope: truncate(scope, SCOPE_MAX_CHARS),
+				message: truncate(message, MESSAGE_MAX_CHARS),
+			})
+			.catch(() => undefined);
+	} catch {
+		// Not running under Tauri; the console still has the original error.
+	}
 }
 
 function forward(scope: string, message: string): void {
@@ -103,9 +113,12 @@ function handleUnhandledRejection(event: PromiseRejectionEvent): void {
 	forward(`window.unhandledrejection:${name}`, message);
 }
 
-/** Registers the window-level listeners exactly once per process lifetime. */
+/** Registers the window-level listeners exactly once per process lifetime.
+ * No-op outside a Tauri webview (plain Vite dev, lab.html) — there is no
+ * backend to receive the records. */
 export function initFrontendErrorLogBridge(): void {
 	if (installed) return;
+	if (!(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) return;
 	installed = true;
 	window.addEventListener('error', handleWindowError);
 	window.addEventListener('unhandledrejection', handleUnhandledRejection);
