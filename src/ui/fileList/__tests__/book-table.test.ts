@@ -509,6 +509,63 @@ describe('v3 book table', () => {
 		expect(openMetadataSurface).not.toHaveBeenCalled();
 	});
 
+	it('renders only the drop zone, with no table header, when the queue is empty', () => {
+		setCurrentFileList(fileList());
+		const screen = render(FileListIsland);
+
+		expect(screen.getByRole('button', { name: 'Add audio files' })).toBeInTheDocument();
+		expect(screen.queryByTestId('book-table')).not.toBeInTheDocument();
+		expect(screen.queryByText('Status')).not.toBeInTheDocument();
+	});
+
+	it('marks invalid rows with the invalid class for at-a-glance styling', () => {
+		const screen = render(FileListIsland);
+
+		expect(rowFor(screen, 'ready.m4b')).toHaveClass('valid');
+		expect(rowFor(screen, 'bad.m4b')).toHaveClass('invalid');
+	});
+
+	it('renders distinct cover-cell states for loading, absent, and error thumbnails', async () => {
+		let resolveLoading!: (value: number[] | null) => void;
+		const loadingPromise = new Promise<number[] | null>((resolve) => {
+			resolveLoading = resolve;
+		});
+		vi.spyOn(tauriClient, 'readAudioCoverThumbnail').mockImplementation(async (path: string) => {
+			if (path.endsWith('loading.m4b')) return loadingPromise;
+			if (path.endsWith('absent.m4b')) return null;
+			throw new Error('unreadable cover');
+		});
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		setCurrentFileList(
+			fileList(
+				file('/books/loading.m4b', 'loading'),
+				file('/books/absent.m4b', 'absent'),
+				file('/books/broken.m4b', 'broken'),
+			),
+		);
+		const screen = render(FileListIsland);
+
+		await waitFor(() => {
+			expect(
+				rowFor(screen, 'loading.m4b').querySelector('.file-list-cover-loading'),
+			).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			expect(rowFor(screen, 'absent.m4b').querySelector('.file-list-cover-cell')).toHaveTextContent(
+				'—',
+			);
+		});
+		await waitFor(() => {
+			expect(
+				rowFor(screen, 'broken.m4b').querySelector('.file-list-cover-error'),
+			).toBeInTheDocument();
+		});
+
+		warn.mockRestore();
+		resolveLoading(null);
+	});
+
 	it('preserves selected identities and suppresses row activation after a rendered drag reorder', async () => {
 		setCurrentFileList(
 			fileList(

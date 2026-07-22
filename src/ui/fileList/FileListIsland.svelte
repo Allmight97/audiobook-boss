@@ -129,19 +129,44 @@
 		return title && title !== getFileName(file) ? title : null;
 	}
 
-	function getCoverDataUrl(file: (typeof files)[number]): string | null {
+	type CoverCellState =
+		| { kind: 'image'; url: string }
+		| { kind: 'placeholder' }
+		| { kind: 'loading' }
+		| { kind: 'error' };
+
+	function getCoverCellState(file: (typeof files)[number]): CoverCellState {
+		// Intent and loaded metadata are authoritative: an explicit clear or a
+		// metadata load that answers "no cover" must never be overdrawn by
+		// stale thumbnail-cache state (queued/loading/error). Only the
+		// fallthrough — metadata not yet loaded — consults the thumbnail cache.
 		const coverIntent = getMetadataIntentPatchForFile(file.path)?.cover_art;
-		if (coverIntent?.op === 'clear') return null;
-		if (coverIntent?.op === 'set') return coverArtBytesToDataUrl(coverIntent.value);
+		if (coverIntent?.op === 'clear') return { kind: 'placeholder' };
+		if (coverIntent?.op === 'set') {
+			return { kind: 'image', url: coverArtBytesToDataUrl(coverIntent.value) };
+		}
 
 		const metadata = getMetadataForFile(file.path);
 		if (metadata !== undefined) {
 			const coverArt = metadata.cover_art;
-			return coverArt && coverArt.length > 0 ? coverArtBytesToDataUrl(coverArt) : null;
+			return coverArt && coverArt.length > 0
+				? { kind: 'image', url: coverArtBytesToDataUrl(coverArt) }
+				: { kind: 'placeholder' };
 		}
 
 		const thumbnail = getFileListCoverThumbnailState(file.path);
-		return thumbnail.status === 'ready' ? thumbnail.dataUrl : null;
+		switch (thumbnail.status) {
+			case 'ready':
+				return { kind: 'image', url: thumbnail.dataUrl };
+			case 'queued':
+			case 'loading':
+				return { kind: 'loading' };
+			case 'error':
+				return { kind: 'error' };
+			case 'idle':
+			case 'absent':
+				return { kind: 'placeholder' };
+		}
 	}
 </script>
 
@@ -162,11 +187,10 @@
 			onclick={() => onHeaderClick?.()}
 			onkeydown={(event) => onHeaderKeydown?.(event)}
 		>
-			<p class="text-sm muted-text">Drop files or folders here, click to choose files, or use Add Folder</p>
+			<p class="text-sm muted-text">Drop files or folders here, or use ＋ Import above to add Files… or a Folder…</p>
 			<p class="text-xs muted-text mt-1">{supportText}</p>
 		</div>
-	{/if}
-
+	{:else}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 	<div
 		class="file-list-content"
@@ -233,7 +257,7 @@
 					{@const selected = selectedIndices.includes(index)}
 					{@const active = index === getSelectedFileIndex()}
 					{@const badge = readFileListStatusBadge(file, readWorkActivityByInputId)}
-					{@const coverDataUrl = getCoverDataUrl(file)}
+					{@const coverState = getCoverCellState(file)}
 					{@const fileName = getFileName(file)}
 					{@const secondaryTitle = getSecondaryTitle(file)}
 					<tr
@@ -270,8 +294,18 @@
 						</td>
 						<td class="file-list-cover-cell">
 							<div class="app-cover-thumb file-list-cover">
-								{#if coverDataUrl}
-									<img src={coverDataUrl} alt="" />
+								{#if coverState.kind === 'image'}
+									<img src={coverState.url} alt="" />
+								{:else if coverState.kind === 'loading'}
+									<span class="file-list-cover-loading" aria-hidden="true"></span>
+								{:else if coverState.kind === 'error'}
+									<span
+										class="file-list-cover-error"
+										aria-hidden="true"
+										title="Cover art failed to load"
+									>
+										!
+									</span>
 								{:else}
 									<span aria-hidden="true">—</span>
 								{/if}
@@ -311,6 +345,7 @@
 			</tbody>
 		</table>
 	</div>
+	{/if}
 </div>
 
 <style>
@@ -338,11 +373,15 @@
 	.file-list-table tbody tr.drag-over { border-top: 2px solid var(--accent-primary); }
 	.file-list-table tbody tr.drag-over-bottom { border-bottom: 2px solid var(--accent-primary); }
 	.file-list-table tbody tr.order-locked { cursor: default; }
+	.file-list-table tbody tr.invalid .file-list-file-name { color: var(--text-error); opacity: 0.85; }
 	.file-list-reorder-cell { width: 1.5rem; padding-right: 0 !important; padding-left: var(--space-2) !important; text-align: center !important; }
 	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; touch-action: none; }
 	.file-list-table tbody tr.order-locked .file-list-reorder-grip { cursor: not-allowed; opacity: 0.65; }
 	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
 	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }
+	.file-list-cover-loading { display: inline-block; width: 60%; height: 60%; border-radius: var(--radius-sm); background: var(--bg-hover); animation: file-list-cover-pulse 1.2s ease-in-out infinite; }
+	.file-list-cover-error { color: var(--text-error); font-size: var(--text-sm); font-weight: 700; }
+	@keyframes file-list-cover-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.85; } }
 	.file-list-order-controls { display: inline-flex; align-items: baseline; gap: var(--space-1); }
 	.file-list-sort-header { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
 	.file-list-sort-direction { margin-left: 0.25rem; color: var(--text-muted); }

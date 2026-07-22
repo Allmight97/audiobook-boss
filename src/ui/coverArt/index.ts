@@ -287,6 +287,7 @@ export function setCustomCoverArt(coverArtBytes: number[] | null): void {
 		setHasCustomCoverArt(false);
 		setCoverArtRemovalRequested(false);
 		refreshCoverArtDisplay();
+		showCoverArtMessage('Select exactly one file to set its cover.', 'error');
 		return;
 	}
 	setCoverArtSession(coverArtBytes);

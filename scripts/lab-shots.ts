@@ -124,7 +124,9 @@ async function assertQueueDragLandsAtIndicator(page: import('playwright').Page):
 	const targetRow = page.locator(`tr[data-file-index="${targetIndex}"]`);
 	const hasTopIndicator = await targetRow.evaluate((row) => row.classList.contains('drag-over'));
 	if (!hasTopIndicator) {
-		throw new Error('queue-drag: expected drag-over (top indicator) while hovering the upper half.');
+		throw new Error(
+			'queue-drag: expected drag-over (top indicator) while hovering the upper half.',
+		);
 	}
 
 	await page.mouse.move(targetX, targetLowerY, { steps: 5 });
@@ -163,7 +165,10 @@ async function assertQueueDragAppendsAfterLast(page: import('playwright').Page):
 	await page.mouse.up();
 
 	const finalTitles = await readQueueRowTitles(page);
-	if (finalTitles.length !== initialTitles.length || finalTitles[finalTitles.length - 1] !== initialTitles[0]) {
+	if (
+		finalTitles.length !== initialTitles.length ||
+		finalTitles[finalTitles.length - 1] !== initialTitles[0]
+	) {
 		throw new Error(
 			`queue-drag: expected the dragged row last.\nexpected last: ${initialTitles[0]}\nactual last:   ${finalTitles[finalTitles.length - 1]}`,
 		);
@@ -176,8 +181,9 @@ async function waitForModalEscapeOpenState(
 ): Promise<void> {
 	await page.waitForFunction(
 		(wantOpen) =>
-			document.querySelector('[data-testid="modal-escape-backdrop"]')?.classList.contains('open') ===
-			wantOpen,
+			document
+				.querySelector('[data-testid="modal-escape-backdrop"]')
+				?.classList.contains('open') === wantOpen,
 		open,
 		{ timeout: 2_000 },
 	);
