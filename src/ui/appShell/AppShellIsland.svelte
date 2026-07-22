@@ -380,7 +380,13 @@ let { children, overlay, rail }: Props = $props();
 	.app-shell-appbar {
 		height: var(--appbar-h);
 		gap: var(--space-2);
-		padding: 0 var(--density-pad);
+		/* Left padding reserves space for macOS's overlay-titlebar traffic
+		   lights (tauri.conf.json `titleBarStyle: "Overlay"`). Frontend code
+		   has no platform read today, so this is unconditional; the config
+		   flag only takes effect on macOS (tauri-runtime-wry gates it behind
+		   `cfg(target_os = "macos")`), so this is dead space elsewhere. The
+		   planned Linux port keeps native decorations and can drop this then. */
+		padding: 0 var(--density-pad) 0 4.875rem;
 		border-bottom: 1px solid var(--border-primary);
 		background: var(--bg-main);
 		flex-shrink: 0;
