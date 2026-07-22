@@ -129,6 +129,27 @@ describe('CoverArt island mount + clear behavior', () => {
 		expect(document.body.textContent).toContain('Only HTTPS URLs are supported.');
 	});
 
+	it('keeps the multi-select gate error when a URL load is reverted, not a success message', async () => {
+		setCurrentFileList({
+			files: [
+				{ path: '/books/a.m4b', isValid: true, inputId: 'a' } as AudioFile,
+				{ path: '/books/b.m4b', isValid: true, inputId: 'b' } as AudioFile,
+			],
+			validCount: 2,
+			invalidCount: 0,
+			totalDuration: 0,
+			totalSize: 0,
+		} as FileListInfo);
+		setSelectedFileIndices([0, 1]);
+		setSelectedIndex(0);
+		loadCoverArtFromUrlMock.mockResolvedValue([0x89, 0x50, 0x4e, 0x47]);
+
+		await onLoadCoverArtFromInput('https://example.com/cover.png');
+
+		expect(document.body.textContent).toContain('Select exactly one file to set its cover.');
+		expect(document.body.textContent).not.toContain('Cover art loaded from URL.');
+	});
+
 	it('shows sanitized backend cover-art validation errors', async () => {
 		openFileMock.mockResolvedValue('/Users/example/private/cover.gif');
 		loadCoverArtFileMock.mockRejectedValue({

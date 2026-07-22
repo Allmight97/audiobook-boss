@@ -155,7 +155,10 @@ let { children, overlay, rail }: Props = $props();
 <svelte:window onclick={handleWindowClick} />
 
 <div class="app-shell" bind:this={popoverContainer}>
-	<header class="app-shell-appbar" data-testid="app-shell-appbar">
+	<!-- data-tauri-drag-region: with titleBarStyle Overlay the appbar is the
+	     window's drag surface (drag fires only on direct hits, so nested
+	     buttons/tabs keep their own clicks). -->
+	<header class="app-shell-appbar" data-testid="app-shell-appbar" data-tauri-drag-region>
 		<span class="app-shell-title">Audiobook Boss</span>
 		<div class="tab-strip">
 			<button type="button" class="tab on" aria-current="page">Process</button>
