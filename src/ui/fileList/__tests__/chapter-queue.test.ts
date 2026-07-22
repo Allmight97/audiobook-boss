@@ -122,7 +122,7 @@ function batchSnapshot(inputId: string): OperationSnapshot {
 	};
 }
 
-describe('v3 book table', () => {
+describe('chapter queue', () => {
 	beforeEach(() => {
 		clearMetadataSession();
 		setOrderLocked(false);
@@ -514,7 +514,7 @@ describe('v3 book table', () => {
 		const screen = render(FileListIsland);
 
 		expect(screen.getByRole('button', { name: 'Add audio files' })).toBeInTheDocument();
-		expect(screen.queryByTestId('book-table')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('chapter-queue')).not.toBeInTheDocument();
 		expect(screen.queryByText('Status')).not.toBeInTheDocument();
 	});
 

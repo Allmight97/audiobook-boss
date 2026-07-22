@@ -312,7 +312,7 @@
 
 ## Full-fidelity v3 rebuild — edit surface, transport, accepted deviations (2026-07-16)
 
-- Outcome: the frontend rebuilt to `docs/design/ui-directions-v3.html` as spec
+- Outcome: the frontend rebuilt to `docs/design/working_prototype_mock.html` as spec
   (tokens-first with temporary aliases, owners reskinned in slices, aliases
   deleted at the end). Evidence: branch `ui/redesign-prototype` slices S1–S11;
   design lab renders the shipped kit 1:1.
@@ -406,3 +406,12 @@
   submitted, released on Work Center acceptance
   (`processingWorkflow.ts` begin/complete) — never a processing-wide freeze;
   wording anywhere in the UI must not imply the queue blocks during encoding.
+
+## Frontend failures enter dev logs through one sanitized bridge (2026-07-22)
+
+- Outcome: WebView errors and unhandled rejections are forwarded as bounded
+  structured records through tauriClient/log_frontend.
+- Evidence: `src/lib/tauri/client.ts`, `src-tauri/src/commands/`,
+  `scripts/dev-tauri-log.sh`.
+- Guardrail: never forward arbitrary console objects, paths, URLs, provider
+  payloads, or secrets.

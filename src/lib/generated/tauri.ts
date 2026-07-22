@@ -113,6 +113,13 @@ export const commands = {
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	getWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("get_work_operation", { operationId })),
 	cancelWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId })),
+	/**
+	 *  Logs a sanitized frontend failure record through the standard `log` crate
+	 *  so webview errors and unhandled rejections show up in captured dev logs
+	 *  (`RUST_LOG=audiobook_boss_lib=info`), which otherwise only tee Rust
+	 *  stdout/stderr.
+	 */
+	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
 
 /** Events */
@@ -417,6 +424,14 @@ export type FileListInfo = {
 	// Number of invalid files
 	invalidCount: number,
 };
+
+export type FrontendLogEntry = {
+	level: FrontendLogLevel,
+	scope: string,
+	message: string,
+};
+
+export type FrontendLogLevel = "error" | "warn";
 
 export type JobType = "merge" | "batch";
 

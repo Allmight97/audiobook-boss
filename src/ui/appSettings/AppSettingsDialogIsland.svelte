@@ -293,7 +293,7 @@
 						</div>
 					</div>
 					<p class="text-xs muted-text">
-						Rail keeps a persistent editor beside the book table; popover opens the
+						Rail keeps a persistent editor beside the chapter queue; popover opens the
 						editor on the selected row instead.
 					</p>
 				</section>

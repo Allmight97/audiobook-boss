@@ -158,7 +158,7 @@ export async function clearSelectionAction(): Promise<void> {
 	return applySelectionIntent({ type: 'clear' });
 }
 
-export async function removeFile(index: number): Promise<void> {
+export function removeFile(index: number): void {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
 	if (!fileList || index < 0 || index >= fileList.files.length) {
@@ -204,7 +204,7 @@ export async function removeSelectedFiles(): Promise<void> {
 	}
 
 	for (const index of selectedIndices) {
-		await removeFile(index);
+		removeFile(index);
 	}
 }
 

@@ -181,7 +181,6 @@ function workflowContext(): ProcessingWorkflowContext {
 	return {
 		updateStatus: vi.fn(),
 		setProcessingState: vi.fn(),
-		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
@@ -267,7 +266,6 @@ describe('ProcessingWorkflow', () => {
 		});
 		expect(services.setJobControlsEnabled).toHaveBeenCalledWith(false);
 		expect(services.setFileOrderLocked).toHaveBeenCalledWith(true);
-		expect(ctx.updateArtThumbnail).toHaveBeenCalledTimes(1);
 		expect(ctx.startProgressListener).not.toHaveBeenCalled();
 		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({

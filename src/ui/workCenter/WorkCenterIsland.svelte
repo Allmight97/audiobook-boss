@@ -253,7 +253,7 @@
 		flex-direction: column;
 	}
 
-	/* Mock: a finished lane's fill reads green (ui-directions-v3.html:180). */
+	/* Mock: a finished lane's fill reads green (working_prototype_mock.html:180). */
 	.lane-fill-done {
 		background: var(--text-success);
 	}

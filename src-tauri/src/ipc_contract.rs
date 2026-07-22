@@ -44,6 +44,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::list_work_operations,
             crate::commands::get_work_operation,
             crate::commands::cancel_work_operation,
+            crate::commands::log_frontend,
         ])
         .events(tauri_specta::collect_events![
             crate::processing::ProgressEvent,

@@ -79,7 +79,6 @@ describe('StatusPanel resetToIdle', () => {
 		expect(statusPanelViewState.statusText).toBe('Idle');
 		expect(statusPanelViewState.stepText).toBe('Current Step: Ready to process audiobook');
 		expect(statusPanelViewState.progressPercentage).toBe(0);
-		expect(statusPanelViewState.coverArtDataUrl).toBeNull();
 		expect(controller.isCurrentlyProcessing).toBe(false);
 		const idleStatus = controller.getCurrentStatus();
 		expect(idleStatus).toEqual({

@@ -164,7 +164,6 @@ function workflowContext(): ProcessingWorkflowContext {
 	return {
 		updateStatus: vi.fn(),
 		setProcessingState: vi.fn(),
-		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),

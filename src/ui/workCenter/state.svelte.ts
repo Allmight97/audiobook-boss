@@ -60,11 +60,16 @@ function markOperationPurged(operationId: string): void {
 	}
 }
 
+// Tick faster than relativeTime's 45s "just now" threshold (see
+// relativeTime.ts) so a running operation's age never reads stale by more
+// than one tick.
+const WORK_CENTER_CLOCK_TICK_MS = 10_000;
+
 export function startWorkCenterClock(): () => void {
 	workCenterClock.nowMs = Date.now();
 	const intervalId = window.setInterval(() => {
 		workCenterClock.nowMs = Date.now();
-	}, 30_000);
+	}, WORK_CENTER_CLOCK_TICK_MS);
 	return () => window.clearInterval(intervalId);
 }
 

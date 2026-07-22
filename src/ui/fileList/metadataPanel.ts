@@ -191,7 +191,7 @@ export function coordinateMetadataSurfacePresentationRefresh(): Promise<void> {
 	return metadataSurfaceCoordinator.refresh();
 }
 
-let latestSingleSelectionRequestId = 0;
+let latestSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;
 
 function refreshOutputForMetadataChange(): void {
@@ -328,7 +328,7 @@ function updateMultiSelectionProperties(selectedFiles: AudioFile[]): void {
 }
 
 function isCurrentSingleSelectionRequest(requestId: number, filePath: string): boolean {
-	if (requestId !== latestSingleSelectionRequestId) return false;
+	if (requestId !== latestSelectionRequestId) return false;
 	if (getSelectedFileIndices().size !== 1) return false;
 
 	const fileList = getCurrentFileList();
@@ -341,7 +341,7 @@ function isCurrentSingleSelectionRequest(requestId: number, filePath: string): b
 }
 
 function isCurrentMultiSelectionRequest(requestId: number, filePaths: string[]): boolean {
-	if (requestId !== latestSingleSelectionRequestId) return false;
+	if (requestId !== latestSelectionRequestId) return false;
 
 	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
 	if (selectedIndices.length !== filePaths.length) return false;
@@ -370,7 +370,7 @@ function renderWorkbenchAutoResolutionHints(): void {
 }
 
 export async function showSingleSelection(file: AudioFile): Promise<void> {
-	const requestId = ++latestSingleSelectionRequestId;
+	const requestId = ++latestSelectionRequestId;
 	renderAutoResolutionHints([file]);
 	updateFileProperties(file);
 	refreshOutputForMetadataChange();
@@ -401,7 +401,7 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 }
 
 export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<void> {
-	const requestId = ++latestSingleSelectionRequestId;
+	const requestId = ++latestSelectionRequestId;
 	renderAutoResolutionHints(selectedFiles);
 	updateMultiSelectionProperties(selectedFiles);
 

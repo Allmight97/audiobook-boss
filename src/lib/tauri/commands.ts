@@ -23,6 +23,7 @@ import type {
 	RemoteAuthCompletionRequest,
 } from '../../types/remoteSource';
 import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
+import type { FrontendLogEntry } from '../../types/frontendLog';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeMetadata,
@@ -326,6 +327,8 @@ export const commandSpecs = {
 			generatedCommands.cancelWorkOperation(args.operationId),
 			normalizeOperationSnapshot,
 		),
+	log_frontend: (args: { entry: FrontendLogEntry }) =>
+		runGeneratedCommand(generatedCommands.logFrontend(args.entry)),
 } as const;
 
 export type TauriCommand = keyof typeof commandSpecs;

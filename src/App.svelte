@@ -14,6 +14,7 @@
 		initializeAppSettingsControlPlane,
 		openAppSettingsDialog,
 	} from './ui/appSettings';
+	import { initFrontendErrorLogBridge } from './lib/frontendLogBridge';
 
 	function handleGlobalKeyDown(event: KeyboardEvent): void {
 		if ((event.metaKey || event.ctrlKey) && event.key === 's') {
@@ -27,6 +28,7 @@
 	}
 
 	onMount(() => {
+		initFrontendErrorLogBridge();
 		void initializeAppSettingsControlPlane();
 	});
 </script>

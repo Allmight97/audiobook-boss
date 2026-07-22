@@ -21,6 +21,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'loadCoverArtFile',
 	'loadCoverArtFromUrl',
 	'loadRemoteSourceLibrary',
+	'logFrontend',
 	'logoutRemoteSourceAccount',
 	'open',
 	'openDirectory',
@@ -74,6 +75,7 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('list_work_operations');
 		expect(TAURI_COMMAND_NAMES).toContain('get_work_operation');
 		expect(TAURI_COMMAND_NAMES).toContain('cancel_work_operation');
+		expect(TAURI_COMMAND_NAMES).toContain('log_frontend');
 		expect([...TAURI_APP_EVENT_NAMES]).toEqual([
 			'processing-progress',
 			'processing-queue',
