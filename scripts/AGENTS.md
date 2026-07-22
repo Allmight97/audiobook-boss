@@ -82,6 +82,18 @@ commands over invoking internals directly.
   `labFixtures.ts` adapters and stay fixture-only: adding media synthesis,
   screenshot-diff baselines, or a default-path/CI hook is an owner decision
   (same pattern as the media lane), not a default.
+  - Also runs two browser-only interaction proofs, on their own dedicated
+    pages so they never mutate a screenshot page's state: (1) a real pointer
+    drag on the `chapter-queue` scenario asserting the drop lands exactly
+    where the `drag-over`/`drag-over-bottom` indicator promised, including
+    append-after-last (pins the F1 drop-position fix); (2) Escape through the
+    real `ModalController`/CSS visibility transition on the lab-local
+    `modal-escape` scenario (no owner fixture file, same pattern as
+    `modal-short`), asserting Escape closes the dialog regardless of focus
+    timing (pins the PR-2 Escape fix). Chromium cannot reproduce the exact
+    WebKit focus-refusal timing the fix addresses; the proof verifies the
+    invariant instead. Both stay manual-invocation only, same scope boundary
+    as the rest of this command.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local`, then the contract
   Vitest files: `bun run test -- src/lib/tauri-public-api.contract.test.ts

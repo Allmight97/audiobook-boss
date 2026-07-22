@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { PopoverController } from '../lib/ui/popover.svelte';
+	import { ModalController } from '../lib/ui/modal.svelte';
 	import {
 		MetadataFormFieldsIsland,
 		onMetadataFormActionSelectChange,
@@ -25,6 +26,11 @@
 			: new URLSearchParams(window.location.search).get('scenario');
 	const fileListScenario = isFileListLabScenarioId(scenarioParam) ? scenarioParam : null;
 	const modalShortScenario = scenarioParam === 'modal-short';
+	// Lab-only interaction-proof stage (no owner fixture file — same pattern as
+	// modal-short): exercises the REAL ModalController/CSS transition so
+	// scripts/lab-shots.ts can pin the Escape-regardless-of-focus guarantee in
+	// a real browser (jsdom cannot see focus/visibility-transition timing).
+	const modalEscapeScenario = scenarioParam === 'modal-escape';
 
 	if (fileListScenario) {
 		applyFileListLabScenario(fileListScenario);
@@ -44,6 +50,27 @@
 			container: popoverContainer,
 			panel: popoverPanel,
 		});
+	});
+
+	let modalEscapeOpen = $state(false);
+	let modalEscapeDialogEl = $state<HTMLElement | null>(null);
+	const modalEscapeModal = new ModalController();
+
+	function closeModalEscape(): void {
+		modalEscapeOpen = false;
+	}
+
+	$effect(() => {
+		if (!modalEscapeScenario) return;
+		modalEscapeModal.sync(
+			modalEscapeOpen,
+			{ container: modalEscapeDialogEl },
+			{ onEscape: closeModalEscape },
+		);
+	});
+
+	onDestroy(() => {
+		if (modalEscapeScenario) modalEscapeModal.destroy();
 	});
 
 	function setDensity(next: 'comfortable' | 'compact'): void {
@@ -192,6 +219,62 @@
 			<div class="lab-modal-footer" data-testid="modal-scenario-footer">
 				<button class="pill pill-ghost" type="button">Cancel</button>
 				<button class="pill pill-primary" type="button">Apply</button>
+			</div>
+		</div>
+	</div>
+{:else if modalEscapeScenario}
+	<div
+		class="lab-scenario-stage"
+		data-testid="lab-scenario-stage"
+		data-scenario="modal-escape"
+	>
+		<button
+			class="pill pill-primary"
+			type="button"
+			data-testid="modal-escape-open"
+			onclick={() => {
+				modalEscapeOpen = true;
+			}}
+		>
+			Open dialog
+		</button>
+		<div
+			class="app-modal-backdrop"
+			class:open={modalEscapeOpen}
+			data-testid="modal-escape-backdrop"
+			aria-hidden={!modalEscapeOpen}
+		>
+			<div
+				class="app-modal-dialog"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="modal-escape-title"
+				data-testid="modal-escape-dialog"
+				bind:this={modalEscapeDialogEl}
+			>
+				<div class="app-modal-header">
+					<h4 id="modal-escape-title" data-testid="modal-escape-heading">Escape proof dialog</h4>
+				</div>
+				<div class="app-modal-body">
+					<div class="field">
+						<label for="modal-escape-field-1">First field</label>
+						<input id="modal-escape-field-1" type="text" data-testid="modal-escape-field-1" />
+					</div>
+					<div class="field">
+						<label for="modal-escape-field-2">Second field</label>
+						<input id="modal-escape-field-2" type="text" data-testid="modal-escape-field-2" />
+					</div>
+				</div>
+				<div class="lab-modal-footer">
+					<button
+						class="pill pill-ghost"
+						type="button"
+						data-testid="modal-escape-close"
+						onclick={closeModalEscape}
+					>
+						Close
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
