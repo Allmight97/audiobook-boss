@@ -200,10 +200,23 @@ async function assertModalEscapeClosesRegardlessOfFocus(
 	await page.keyboard.press('Escape');
 	await waitForModalEscapeOpenState(page, false);
 
-	// Case 2: reopen, click a non-focusable area inside the dialog, then Escape.
+	// Case 2: reopen, force focus OUTSIDE the dialog, then Escape. A click on
+	// a non-focusable area is not guaranteed to move focus out in Chromium,
+	// which would let this proof pass against a container-scoped listener —
+	// the exact design this proof exists to reject. Blur explicitly and
+	// assert focus really is outside before pressing the key.
 	await page.getByTestId('modal-escape-open').click();
 	await waitForModalEscapeOpenState(page, true);
 	await page.getByTestId('modal-escape-heading').click();
+	await page.evaluate(() => {
+		(document.activeElement as HTMLElement | null)?.blur();
+	});
+	const focusOutsideDialog = await page
+		.getByTestId('modal-escape-dialog')
+		.evaluate((dialog) => !dialog.contains(document.activeElement));
+	if (!focusOutsideDialog) {
+		throw new Error('modal-escape: could not move focus outside the dialog for case 2.');
+	}
 	await page.keyboard.press('Escape');
 	await waitForModalEscapeOpenState(page, false);
 
