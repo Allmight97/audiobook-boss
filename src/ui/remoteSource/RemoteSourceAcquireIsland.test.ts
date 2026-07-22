@@ -233,6 +233,26 @@ describe('remote source acquisition dialog', () => {
 
 	it('closes on Escape through the existing close callback even while an acquisition is in flight', async () => {
 		const user = userEvent.setup();
+		// Terminal on the first poll so the acquisition workflow drains inside
+		// this test instead of leaking a running poll loop (and the shared
+		// mock's Once-queue) into whichever test runs next.
+		context.getRemoteSourceAcquisitionStatusMock.mockReset();
+		context.getRemoteSourceAcquisitionStatusMock.mockResolvedValue(
+			acquisitionJob({
+				status: 'failed',
+				progress: {
+					stage: 'failed',
+					percentage: 100,
+					message: 'Acquisition failed.',
+					bytesDownloaded: undefined,
+					bytesTotal: undefined,
+					currentTitleId: 'B000000001',
+					currentItemIndex: 1,
+					totalItems: 1,
+					terminal: true,
+				},
+			}),
+		);
 		remoteSourceAcquireState.isOpen = true;
 		render(RemoteSourceAcquireDialog);
 
@@ -247,6 +267,12 @@ describe('remote source acquisition dialog', () => {
 		await fireEvent.keyDown(screen.getByRole('button', { name: 'Close' }), { key: 'Escape' });
 
 		expect(remoteSourceAcquireState.isOpen).toBe(false);
+
+		// Drain the poll loop to its terminal state before the test ends.
+		await vi.waitFor(() => {
+			expect(context.getRemoteSourceAcquisitionStatusMock).toHaveBeenCalled();
+		});
+		await tick();
 	});
 
 	it('polls acquisition status and renders active download/decrypt progress in the app modal', async () => {

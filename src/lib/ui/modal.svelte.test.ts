@@ -1,8 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ModalController } from './modal.svelte';
+import { ModalController as BareModalController } from './modal.svelte';
 
 async function flushMicrotasks(): Promise<void> {
 	await new Promise<void>((resolve) => queueMicrotask(resolve));
+}
+
+// Track every controller so afterEach can detach the document-level listener
+// of any modal a test left open — leaked listeners bleed across tests.
+const liveControllers: BareModalController[] = [];
+class ModalController extends BareModalController {
+	constructor() {
+		super();
+		liveControllers.push(this);
+	}
 }
 
 function dialogWithFields(): { container: HTMLElement; first: HTMLElement; last: HTMLElement } {
@@ -16,6 +26,7 @@ function dialogWithFields(): { container: HTMLElement; first: HTMLElement; last:
 }
 
 afterEach(() => {
+	for (const controller of liveControllers.splice(0)) controller.destroy();
 	document.body.innerHTML = '';
 });
 
@@ -75,6 +86,91 @@ describe('ModalController', () => {
 		await flushMicrotasks();
 
 		expect(document.activeElement).not.toBe(invoker);
+	});
+
+	it('hears Escape at the document level even when focus is outside the container', async () => {
+		const { container } = dialogWithFields();
+		const outside = document.createElement('button');
+		document.body.append(outside);
+		const onEscape = vi.fn();
+		const modal = new ModalController();
+		modal.sync(true, { container }, { onEscape });
+		await flushMicrotasks();
+		outside.focus();
+
+		outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(onEscape).toHaveBeenCalledTimes(1);
+
+		// After close, the document listener is gone.
+		modal.sync(false, { container }, { onEscape });
+		outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(onEscape).toHaveBeenCalledTimes(1);
+		outside.remove();
+	});
+
+	it('pulls a Tab that starts outside the open modal back to the first focusable', async () => {
+		const { container, first } = dialogWithFields();
+		const outside = document.createElement('button');
+		document.body.append(outside);
+		const modal = new ModalController();
+		modal.sync(true, { container }, { onEscape: vi.fn() });
+		await flushMicrotasks();
+		outside.focus();
+
+		const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+		outside.dispatchEvent(event);
+
+		expect(event.defaultPrevented).toBe(true);
+		expect(document.activeElement).toBe(first);
+		outside.remove();
+	});
+
+	it('only the topmost of two open modals responds to Escape', async () => {
+		const lower = dialogWithFields();
+		const upper = dialogWithFields();
+		const onLowerEscape = vi.fn();
+		const onUpperEscape = vi.fn();
+		const lowerModal = new ModalController();
+		const upperModal = new ModalController();
+		lowerModal.sync(true, { container: lower.container }, { onEscape: onLowerEscape });
+		upperModal.sync(true, { container: upper.container }, { onEscape: onUpperEscape });
+		await flushMicrotasks();
+
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(onUpperEscape).toHaveBeenCalledTimes(1);
+		expect(onLowerEscape).not.toHaveBeenCalled();
+
+		// With the upper modal closed, the lower one becomes topmost.
+		upperModal.sync(false, { container: upper.container }, { onEscape: onUpperEscape });
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		expect(onUpperEscape).toHaveBeenCalledTimes(1);
+		expect(onLowerEscape).toHaveBeenCalledTimes(1);
+	});
+
+	it('retries initial focus on the next animation frame when the first attempt is refused', async () => {
+		const { container, first } = dialogWithFields();
+		const modal = new ModalController();
+		// Simulate WebKit refusing focus mid-visibility-transition: the first
+		// focus() call is a no-op, later calls behave normally.
+		const nativeFocus = HTMLElement.prototype.focus;
+		let refusals = 1;
+		const focusSpy = vi
+			.spyOn(HTMLElement.prototype, 'focus')
+			.mockImplementation(function (this: HTMLElement, ...args) {
+				if (refusals > 0) {
+					refusals -= 1;
+					return;
+				}
+				nativeFocus.apply(this, args);
+			});
+
+		modal.sync(true, { container }, { onEscape: vi.fn() });
+		await flushMicrotasks();
+		expect(container.contains(document.activeElement)).toBe(false);
+
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		expect(document.activeElement).toBe(first);
+		focusSpy.mockRestore();
 	});
 
 	it('routes Escape through the provided callback rather than closing itself', async () => {

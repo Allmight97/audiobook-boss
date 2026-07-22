@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { pathBasename } from '../../lib/path/basename';
 	import { ModalController } from '../../lib/ui/modal.svelte';
 	import {
@@ -13,6 +14,7 @@
 	$effect(() => {
 		modal.sync(collisionDialogState.isOpen, { container: dialogEl }, { onEscape: cancelCollisionDialog });
 	});
+	onDestroy(() => modal.destroy());
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {

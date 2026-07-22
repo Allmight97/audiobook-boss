@@ -13,6 +13,12 @@ function focusableElements(container: HTMLElement): HTMLElement[] {
 	return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
 }
 
+// Open controllers in opening order; the last entry is the topmost modal and
+// the only one that responds to Escape/Tab. Each controller has its own
+// document listener, and stopPropagation cannot arbitrate between listeners
+// on the same node — this stack can.
+const openModals: ModalController[] = [];
+
 /// Escape/focus-trap/initial-focus/focus-restore for a dialog that stays
 /// MOUNTED while hidden (visibility toggled by the owning state module), so
 /// behavior keys on open-state TRANSITIONS rather than component mount/destroy.
@@ -40,17 +46,31 @@ export class ModalController {
 	}
 
 	destroy(): void {
-		this.#container?.removeEventListener('keydown', this.#keydownHandler);
+		document.removeEventListener('keydown', this.#keydownHandler, true);
+		this.#removeFromStack();
+	}
+
+	#removeFromStack(): void {
+		const index = openModals.indexOf(this);
+		if (index !== -1) openModals.splice(index, 1);
 	}
 
 	#handleOpenTransition(): void {
 		this.#invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		this.#container?.addEventListener('keydown', this.#keydownHandler);
+		// Document-level, capture-phase: Escape must work wherever focus sits.
+		// A container-scoped listener goes deaf whenever focus is outside the
+		// dialog (initial focus refused while the backdrop's visibility
+		// transition hasn't ticked, or WebKit blurring to body on a click of a
+		// non-focusable area), which is exactly the live-app failure this
+		// replaces.
+		document.addEventListener('keydown', this.#keydownHandler, true);
+		openModals.push(this);
 		this.#focusInside();
 	}
 
 	#handleCloseTransition(): void {
-		this.#container?.removeEventListener('keydown', this.#keydownHandler);
+		document.removeEventListener('keydown', this.#keydownHandler, true);
+		this.#removeFromStack();
 		const invoker = this.#invoker;
 		this.#invoker = null;
 		if (invoker && document.contains(invoker)) {
@@ -61,19 +81,31 @@ export class ModalController {
 	#focusInside(): void {
 		const container = this.#container;
 		if (!container) return;
-		queueMicrotask(() => {
-			if (!this.#isOpen || container !== this.#container) return;
+		const attempt = (): boolean => {
+			if (!this.#isOpen || container !== this.#container) return true;
 			const target =
 				container.querySelector<HTMLElement>('[autofocus]') ??
 				focusableElements(container)[0] ??
 				container;
 			target.focus();
+			return container.contains(document.activeElement);
+		};
+		queueMicrotask(() => {
+			// WebKit refuses focus while the backdrop's visibility transition
+			// hasn't had a style recalc, so retry after the next frame.
+			if (!attempt() && typeof requestAnimationFrame === 'function') {
+				requestAnimationFrame(() => attempt());
+			}
 		});
 	}
 
 	#handleKeydown(event: KeyboardEvent): void {
+		if (openModals[openModals.length - 1] !== this) return;
 		if (event.key === 'Escape') {
+			// Capture-phase on document: consume Escape exclusively so it
+			// cannot also dismiss an overlay layered behind the modal.
 			event.preventDefault();
+			event.stopPropagation();
 			this.#onEscape?.();
 			return;
 		}
@@ -90,12 +122,20 @@ export class ModalController {
 		const first = focusable[0];
 		const last = focusable[focusable.length - 1];
 		const active = document.activeElement;
+		if (!container.contains(active)) {
+			// Focus drifted outside the open modal (blur-to-body, refused
+			// initial focus): pull it back in rather than cycling relative to
+			// wherever it ended up.
+			event.preventDefault();
+			(event.shiftKey ? last : first).focus();
+			return;
+		}
 		if (event.shiftKey) {
-			if (active === first || !container.contains(active)) {
+			if (active === first) {
 				event.preventDefault();
 				last.focus();
 			}
-		} else if (active === last || !container.contains(active)) {
+		} else if (active === last) {
 			event.preventDefault();
 			first.focus();
 		}

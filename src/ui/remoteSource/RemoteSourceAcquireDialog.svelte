@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
 	import { ModalController } from '../../lib/ui/modal.svelte';
 	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
@@ -87,6 +87,7 @@
 			{ onEscape: closeRemoteSourceAcquire },
 		);
 	});
+	onDestroy(() => modal.destroy());
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {

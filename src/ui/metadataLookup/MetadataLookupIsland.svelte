@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
 	import { ModalController } from '../../lib/ui/modal.svelte';
 	import {
@@ -23,6 +23,7 @@
 	$effect(() => {
 		modal.sync(metadataLookupState.isOpen, { container: dialogEl }, { onEscape: closeMetadataLookup });
 	});
+	onDestroy(() => modal.destroy());
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {

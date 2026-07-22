@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
 	import { ModalController } from '../../lib/ui/modal.svelte';
 	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
@@ -21,6 +22,7 @@
 	$effect(() => {
 		modal.sync(appSettingsDialogState.isOpen, { container: dialogEl }, { onEscape: closeAppSettingsDialog });
 	});
+	onDestroy(() => modal.destroy());
 
 	// Reset all settings needs a second step: the button first swaps into a
 	// confirm state, and any other interaction or a timeout backs it out.
