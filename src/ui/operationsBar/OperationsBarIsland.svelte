@@ -27,13 +27,20 @@
 		),
 	);
 
-	// The background operation takes over the transport row here — clear any
-	// retained preview verdict so it cannot resurface once this operation
-	// finishes and the row reverts to StatusTransportIsland (F11).
+	// Clear retained preview verdicts only on a true background takeover of an
+	// idle transport row (F11): a background operation APPEARING while the
+	// foreground is not processing. Any verdict retained at that moment
+	// predates the takeover and would be stale when the row reverts. A verdict
+	// written while an operation is already running (preview finishing during
+	// background work) is fresh — it must survive and win precedence once the
+	// background row yields.
+	let hadRunningOperation = false;
 	$effect(() => {
-		if (!statusTransportProcessing && runningOperation) {
+		const hasRunningOperation = runningOperation !== undefined;
+		if (hasRunningOperation && !hadRunningOperation && !statusTransportProcessing) {
 			clearStatusPanelRetainedFeedback();
 		}
+		hadRunningOperation = hasRunningOperation;
 	});
 
 	function toggleDisclosure(): void {

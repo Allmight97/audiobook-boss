@@ -181,6 +181,31 @@ describe('OperationsBarIsland', () => {
 		expect(screen.queryByText(/Error: Preview failed./)).not.toBeInTheDocument();
 	});
 
+	it('preserves a verdict written while a background operation was already running', async () => {
+		const { showError } = await import('../../statusPanel/viewState.svelte');
+		render(OperationsBarIsland);
+
+		// Foreground preview is active when the background operation appears —
+		// not a takeover of an idle row, so nothing may be cleared.
+		statusPanelViewState.isProcessing = true;
+		await tick();
+		applyOperationListSnapshot(operationList(operation()));
+		await tick();
+
+		// The preview finishes DURING the background operation: its verdict is
+		// fresh, not stale, and must survive the row being in background mode.
+		statusPanelViewState.isProcessing = false;
+		showError('Preview failed.');
+		await tick();
+
+		// Background operation terminalizes → the row reverts to the status
+		// transport → the fresh verdict wins, instead of being erased.
+		applyOperationListSnapshot(operationList({ ...operation(), status: 'completed' }));
+		await waitFor(() => {
+			expect(screen.getByText(/Preview failed./)).toBeInTheDocument();
+		});
+	});
+
 	it('renders a cancelling operation on the background transport, not idle', async () => {
 		const { container } = render(OperationsBarIsland);
 		applyOperationListSnapshot(operationList({ ...operation(), status: 'cancelling' }));

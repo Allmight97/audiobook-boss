@@ -66,6 +66,11 @@ const TERMINAL_OPERATIONS_CAP: usize = 20;
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
+    /// Operation ids in the order they terminalized (runtime-internal, never
+    /// serialized). Pruning follows this order — not submission `sequence` —
+    /// so a long-running operation that finishes late is the NEWEST terminal
+    /// entry and survives, instead of being evicted the moment it completes.
+    terminal_order: Vec<String>,
 }
 
 impl WorkRuntimeState {
@@ -259,6 +264,7 @@ impl WorkRuntimeState {
         }
 
         let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
         self.prune_terminal_operations();
         Ok(snapshot)
     }
@@ -299,6 +305,7 @@ impl WorkRuntimeState {
         }
 
         let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
         self.prune_terminal_operations();
         Ok(snapshot)
     }
@@ -336,6 +343,7 @@ impl WorkRuntimeState {
             }
         }
         let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
         self.prune_terminal_operations();
         Ok(snapshot)
     }
@@ -374,6 +382,7 @@ impl WorkRuntimeState {
             }
         }
         let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
         self.prune_terminal_operations();
         Ok(snapshot)
     }
@@ -384,24 +393,23 @@ impl WorkRuntimeState {
             .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
     }
 
-    /// Bound retained terminal-operation history: once more than
-    /// `TERMINAL_OPERATIONS_CAP` operations are terminal, drop the oldest
-    /// (lowest sequence) beyond the cap. Running/accepted operations are
-    /// never inspected here and are never pruned.
-    fn prune_terminal_operations(&mut self) {
-        let mut terminal_ids: Vec<(u64, String)> = self
-            .operations
-            .iter()
-            .filter(|(_, snapshot)| is_terminal(snapshot.status))
-            .map(|(id, snapshot)| (snapshot.sequence, id.clone()))
-            .collect();
-        if terminal_ids.len() <= TERMINAL_OPERATIONS_CAP {
-            return;
+    /// Record an operation as terminalized, once, in completion order.
+    fn record_terminal_operation(&mut self, operation_id: &str) {
+        if !self.terminal_order.iter().any(|id| id == operation_id) {
+            self.terminal_order.push(operation_id.to_string());
         }
-        terminal_ids.sort_by_key(|(sequence, _)| *sequence);
-        let excess = terminal_ids.len() - TERMINAL_OPERATIONS_CAP;
-        for (_, id) in terminal_ids.into_iter().take(excess) {
-            self.operations.remove(&id);
+    }
+
+    /// Bound retained terminal-operation history: once more than
+    /// `TERMINAL_OPERATIONS_CAP` operations are terminal, drop the oldest by
+    /// TERMINALIZATION order (`terminal_order`), never by submission
+    /// sequence — a just-finished long-running operation must survive the
+    /// prune that its own completion triggers. Running/accepted operations
+    /// are never inspected and never pruned.
+    fn prune_terminal_operations(&mut self) {
+        while self.terminal_order.len() > TERMINAL_OPERATIONS_CAP {
+            let oldest = self.terminal_order.remove(0);
+            self.operations.remove(&oldest);
         }
     }
 }
