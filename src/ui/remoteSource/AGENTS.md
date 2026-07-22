@@ -36,6 +36,13 @@ Supplemental Assets are tracked by the imported file's `inputId`. Do not key
 them only by path after file-list import, and do not pass them to audio
 processing except through the explicit processing payload map.
 
+`RemoteSourceAcquireDialog`'s Escape/focus-trap behavior routes through the
+shared `src/lib/ui/modal.svelte.ts` `ModalController`, keyed on
+`remoteSourceAcquireState.isOpen` transitions (the dialog stays mounted while
+hidden). Escape always calls `closeRemoteSourceAcquire` — the same
+unconditional close the header Close button uses — never a direct state
+write; the dialog has no in-flight close guard today.
+
 ## Shape
 
 Svelte components own rendering and event wiring. Account/workflow controllers

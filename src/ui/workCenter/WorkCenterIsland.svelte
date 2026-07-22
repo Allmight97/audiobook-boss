@@ -71,8 +71,16 @@
 			.join(':');
 	}
 
+	function isNestedInteractiveTarget(event: KeyboardEvent): boolean {
+		const target = event.target;
+		if (!(target instanceof Element)) return false;
+		const interactive = target.closest('button, a, input, select, textarea, [role="button"]');
+		return interactive !== null && interactive !== event.currentTarget;
+	}
+
 	function handleOperationRowKeydown(event: KeyboardEvent, operationId: string): void {
 		if (event.key !== 'Enter' && event.key !== ' ') return;
+		if (isNestedInteractiveTarget(event)) return;
 		event.preventDefault();
 		toggleExpanded(operationId);
 	}

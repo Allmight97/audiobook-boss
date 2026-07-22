@@ -91,4 +91,33 @@ describe('WorkCenterIsland operation cards', () => {
 		);
 		expect(log?.querySelectorAll('b')).toHaveLength(2);
 	});
+
+	it('does not toggle expansion or preventDefault when Enter/Space targets a Cancel button', async () => {
+		applyOperationListSnapshot({ operations: [operation()] });
+		render(WorkCenterIsland);
+		const row = screen.getByRole('button', {
+			name: 'Expand The Way of Kings — batch encode',
+		});
+		const cancel = screen.getByRole('button', {
+			name: 'Cancel The Way of Kings — batch encode',
+		});
+
+		expect(await fireEvent.keyDown(cancel, { key: 'Enter' })).toBe(true);
+		expect(row).toHaveAttribute('aria-expanded', 'false');
+		expect(await fireEvent.keyDown(cancel, { key: ' ' })).toBe(true);
+		expect(row).toHaveAttribute('aria-expanded', 'false');
+	});
+
+	it('still toggles expansion via Enter/Space on the row itself', async () => {
+		applyOperationListSnapshot({ operations: [operation()] });
+		render(WorkCenterIsland);
+		const row = screen.getByRole('button', {
+			name: 'Expand The Way of Kings — batch encode',
+		});
+
+		expect(await fireEvent.keyDown(row, { key: 'Enter' })).toBe(false);
+		expect(row).toHaveAttribute('aria-expanded', 'true');
+		expect(await fireEvent.keyDown(row, { key: ' ' })).toBe(false);
+		expect(row).toHaveAttribute('aria-expanded', 'false');
+	});
 });

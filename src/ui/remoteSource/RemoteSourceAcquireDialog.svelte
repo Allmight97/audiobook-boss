@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
+	import { ModalController } from '../../lib/ui/modal.svelte';
 	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
 
 	// provider-neutral state shape (owned by acquisitionState.svelte.ts)
@@ -76,6 +77,18 @@
 
 	// -- modal lifecycle --
 
+	let dialogEl = $state<HTMLElement | null>(null);
+	const modal = new ModalController();
+
+	$effect(() => {
+		modal.sync(
+			remoteSourceAcquireState.isOpen,
+			{ container: dialogEl },
+			{ onEscape: closeRemoteSourceAcquire },
+		);
+	});
+	onDestroy(() => modal.destroy());
+
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
 			closeRemoteSourceAcquire();
@@ -122,6 +135,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="remote-source-title"
+		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="remote-source-title">Acquire Audiobooks</h3>

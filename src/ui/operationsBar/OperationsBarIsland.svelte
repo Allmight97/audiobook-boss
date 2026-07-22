@@ -45,8 +45,16 @@
 		}
 	}
 
+	function isNestedInteractiveTarget(event: KeyboardEvent): boolean {
+		const target = event.target;
+		if (!(target instanceof Element)) return false;
+		const interactive = target.closest('button, a, input, select, textarea, [role="button"]');
+		return interactive !== null && interactive !== event.currentTarget;
+	}
+
 	function handleRowKeydown(event: KeyboardEvent): void {
 		if (event.key !== 'Enter' && event.key !== ' ') return;
+		if (isNestedInteractiveTarget(event)) return;
 		event.preventDefault();
 		toggleDisclosure();
 	}
