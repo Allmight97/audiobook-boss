@@ -48,12 +48,13 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
 }
 
 pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
-    let tag = Tag::read_from_path(path)
-        .map_err(|error| AppError::General(format!("mp4ameta read failed: {error}")))?;
-
-    tag.artwork()
-        .map(|image| super::thumbnail::clone_thumbnail_cover_art(image.data))
-        .transpose()
+    match super::mp4_covr::read_bounded_mp4_cover_art(
+        path,
+        super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES,
+    )? {
+        Some(bytes) => super::thumbnail::clone_thumbnail_cover_art(&bytes).map(Some),
+        None => Ok(None),
+    }
 }
 
 fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32, Option<u32>)> {

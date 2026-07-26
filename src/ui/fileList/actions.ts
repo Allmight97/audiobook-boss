@@ -18,6 +18,11 @@ import {
 	recordImportOrder,
 	removeImportOrdinal,
 	resetImportOrder,
+	captureFileListMutationSnapshot,
+	canCommitFileListMutation,
+	findFileIndexByIdentityKey,
+	fileIdentityKey,
+	replaceFileListFiles,
 } from './state.svelte';
 import {
 	applySelectionIntent as applySelectionIntentToState,
@@ -40,7 +45,10 @@ import {
 	normalizeFileListInfo,
 	type FileListAppendResult,
 } from './appendResult';
-import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
+import {
+	commitPreparedMetadataDrafts,
+	prepareMetadataDraftsForCurrentSelection,
+} from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
 import { pathBasename } from '../../lib/path/basename';
 import { removeFileListCoverThumbnail } from './coverThumbnails.svelte';
@@ -51,22 +59,6 @@ function refreshOutputForFileListChange(): void {
 
 function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
-}
-
-function replaceCurrentFileListFiles(nextFiles: AudioFile[]): void {
-	const fileList = getCurrentFileList();
-	if (!fileList) {
-		return;
-	}
-
-	const validCount = nextFiles.filter((file) => file.isValid).length;
-	fileListSessionState.currentFileList = {
-		...fileList,
-		files: nextFiles,
-		validCount,
-		invalidCount: nextFiles.length - validCount,
-	};
-	recalculateTotals();
 }
 
 function selectSoleImportedFile(fileList: FileListInfo): void {
@@ -173,7 +165,8 @@ export function removeFile(index: number): void {
 
 	const nextFiles = [...fileList.files];
 	nextFiles.splice(index, 1);
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 
 	reindexSelectionAfterRemoval(index);
 
@@ -192,19 +185,34 @@ export function removeFile(index: number): void {
 /** Removes the active selection after its current metadata draft has been staged. */
 export async function removeSelectedFiles(): Promise<void> {
 	if (isOrderLocked()) return;
-	const selectedIndices = Array.from(getSelectedFileIndices()).sort((left, right) => right - left);
-	if (selectedIndices.length === 0) return;
+	const fileList = getCurrentFileList();
+	if (!fileList) return;
 
-	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
-			validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
-		}))
-	) {
+	const selectedIdentityKeys = Array.from(getSelectedFileIndices())
+		.map((index) => fileList.files[index])
+		.filter((file): file is AudioFile => Boolean(file))
+		.map((file) => fileIdentityKey(file));
+	if (selectedIdentityKeys.length === 0) return;
+
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const prepared = await prepareMetadataDraftsForCurrentSelection({
+		validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
+	});
+	if (!prepared.ok) {
+		return;
+	}
+	if (!canCommitFileListMutation(mutationSnapshot)) {
+		return;
+	}
+	if (!(await commitPreparedMetadataDrafts(prepared.prepared))) {
 		return;
 	}
 
-	for (const index of selectedIndices) {
-		removeFile(index);
+	for (const identityKey of selectedIdentityKeys) {
+		const index = findFileIndexByIdentityKey(identityKey);
+		if (index >= 0) {
+			removeFile(index);
+		}
 	}
 }
 
@@ -233,7 +241,8 @@ export function moveFileUp(index: number): void {
 	const temp = nextFiles[index];
 	nextFiles[index] = nextFiles[index - 1];
 	nextFiles[index - 1] = temp;
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 	setSortDirection('none');
 
 	swapSelectionIndices(index, index - 1);
@@ -254,7 +263,8 @@ export function moveFileDown(index: number): void {
 	const temp = nextFiles[index];
 	nextFiles[index] = nextFiles[index + 1];
 	nextFiles[index + 1] = temp;
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 	setSortDirection('none');
 
 	swapSelectionIndices(index, index + 1);
@@ -269,20 +279,26 @@ export async function toggleFileSort(): Promise<void> {
 	const fileList = getCurrentFileList();
 	if (!fileList || fileList.files.length <= 1) return;
 
-	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
-			validationFailureMessage: 'Fix metadata validation errors before sorting files.',
-		}))
-	) {
-		return;
-	}
-
 	const selectedPaths = new Set(
 		Array.from(getSelectedFileIndices())
 			.map((index) => fileList.files[index]?.path)
 			.filter((path): path is string => Boolean(path)),
 	);
 	const selectedPath = fileList.files[getSelectedFileIndex()]?.path;
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const prepared = await prepareMetadataDraftsForCurrentSelection({
+		validationFailureMessage: 'Fix metadata validation errors before sorting files.',
+	});
+	if (!prepared.ok) {
+		return;
+	}
+	if (!canCommitFileListMutation(mutationSnapshot)) {
+		return;
+	}
+	if (!(await commitPreparedMetadataDrafts(prepared.prepared))) {
+		return;
+	}
+
 	const nextSortDirection = getSortDirection() === 'ascending' ? 'descending' : 'ascending';
 	setSortDirection(nextSortDirection);
 
@@ -298,7 +314,8 @@ export async function toggleFileSort(): Promise<void> {
 		});
 		return nextSortDirection === 'ascending' ? comparison : -comparison;
 	});
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 
 	setSelectedFileIndices(
 		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
@@ -318,14 +335,8 @@ export function clearAllFiles(): void {
 
 	clearMetadataSession();
 	resetImportOrder([]);
-	fileListSessionState.currentFileList = {
-		...fileList,
-		files: [],
-		validCount: 0,
-		invalidCount: 0,
-		totalDuration: 0,
-		totalSize: 0,
-	};
+	replaceFileListFiles([]);
+	recalculateTotals();
 
 	applySelectionIntentToState({ type: 'clear' });
 	setSelectedIndex(-1);
@@ -346,7 +357,8 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	const nextFiles = [...fileList.files];
 	const [moved] = nextFiles.splice(fromIndex, 1);
 	nextFiles.splice(toIndex, 0, moved);
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 	setSortDirection('none');
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
@@ -367,25 +379,31 @@ export async function restoreImportOrder(): Promise<void> {
 	if (!fileList || fileList.files.length <= 1) return;
 	if (fileList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
 
-	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
-			validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
-		}))
-	) {
-		return;
-	}
-
 	const selectedPaths = new Set(
 		Array.from(getSelectedFileIndices())
 			.map((index) => fileList.files[index]?.path)
 			.filter((path): path is string => Boolean(path)),
 	);
 	const selectedPath = fileList.files[getSelectedFileIndex()]?.path;
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const prepared = await prepareMetadataDraftsForCurrentSelection({
+		validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
+	});
+	if (!prepared.ok) {
+		return;
+	}
+	if (!canCommitFileListMutation(mutationSnapshot)) {
+		return;
+	}
+	if (!(await commitPreparedMetadataDrafts(prepared.prepared))) {
+		return;
+	}
 
 	const nextFiles = [...fileList.files].sort(
 		(a, b) => (getImportOrdinal(a.path) ?? 0) - (getImportOrdinal(b.path) ?? 0),
 	);
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 	setSortDirection('none');
 
 	setSelectedFileIndices(

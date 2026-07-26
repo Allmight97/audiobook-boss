@@ -410,8 +410,12 @@
 ## Frontend failures enter dev logs through one sanitized bridge (2026-07-22)
 
 - Outcome: WebView errors and unhandled rejections are forwarded as bounded
-  structured records through tauriClient/log_frontend.
-- Evidence: `src/lib/tauri/client.ts`, `src-tauri/src/commands/`,
-  `scripts/dev-tauri-log.sh`.
-- Guardrail: never forward arbitrary console objects, paths, URLs, provider
-  payloads, or secrets.
+  structured records through tauriClient/log_frontend into the **local**
+  captured dev log (`.logs/tauri-dev.log`), not remote telemetry.
+- Evidence: `src/lib/tauri/client.ts`, `src/lib/frontendLogBridge.ts`,
+  `src-tauri/src/commands/frontend_log.rs`, `scripts/dev-tauri-log.sh`.
+- Guardrail: forward only error name/category plus a short diagnostic message
+  (CR/LF flattened, length-capped on both sides). Still forbidden: arbitrary
+  console objects, string-rejection bodies, provider payloads, and deliberate
+  secret logging. Paths may appear inside short Error messages because local
+  diagnosis needs them; revisit if log upload is ever added.

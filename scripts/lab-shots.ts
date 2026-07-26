@@ -28,6 +28,44 @@ const PORT = 4517;
 const BASE_URL = `http://localhost:${PORT}/lab.html`;
 const OUT_DIR = path.join(process.cwd(), '.artifacts/lab-shots');
 
+type PageErrorCollector = {
+	pageErrors: string[];
+	consoleErrors: string[];
+};
+
+function attachPageErrorCollector(page: import('playwright').Page): PageErrorCollector {
+	const collector: PageErrorCollector = { pageErrors: [], consoleErrors: [] };
+	page.on('pageerror', (error) => {
+		collector.pageErrors.push(error.stack ?? error.message);
+	});
+	page.on('console', (message) => {
+		if (message.type() === 'error') {
+			collector.consoleErrors.push(message.text());
+		}
+	});
+	return collector;
+}
+
+function assertNoPageErrors(collector: PageErrorCollector, context: string): void {
+	if (collector.pageErrors.length === 0 && collector.consoleErrors.length === 0) {
+		return;
+	}
+	const details = [...collector.pageErrors, ...collector.consoleErrors].join('\n');
+	throw new Error(`${context}: page/console errors detected:\n${details}`);
+}
+
+async function openLabScenario(
+	browser: import('playwright').Browser,
+	scenarioId: string,
+	viewport: { width: number; height: number },
+): Promise<{ page: import('playwright').Page; errors: PageErrorCollector }> {
+	const page = await browser.newPage({ viewport, colorScheme: 'dark' });
+	const errors = attachPageErrorCollector(page);
+	await page.goto(`${BASE_URL}?scenario=${scenarioId}`);
+	await page.getByTestId('lab-scenario-stage').waitFor({ timeout: 10_000 });
+	return { page, errors };
+}
+
 const SCENARIOS: { id: string; viewport: { width: number; height: number } }[] = [
 	{ id: 'chapter-queue', viewport: { width: 1440, height: 900 } },
 	{ id: 'chapter-queue-locked', viewport: { width: 1440, height: 900 } },
@@ -259,12 +297,7 @@ async function main(): Promise<void> {
 		try {
 			for (const scenario of SCENARIOS) {
 				// Fidelity is judged in dark mode (docs/DECISIONS.md, v3 rebuild).
-				const page = await browser.newPage({
-					viewport: scenario.viewport,
-					colorScheme: 'dark',
-				});
-				await page.goto(`${BASE_URL}?scenario=${scenario.id}`);
-				await page.getByTestId('lab-scenario-stage').waitFor({ timeout: 10_000 });
+				const { page, errors } = await openLabScenario(browser, scenario.id, scenario.viewport);
 
 				if (scenario.id === 'modal-short') {
 					await assertShortModalUsable(page);
@@ -273,40 +306,41 @@ async function main(): Promise<void> {
 				const shotPath = path.join(OUT_DIR, `${scenario.id}.png`);
 				await page.screenshot({ path: shotPath, fullPage: false });
 				console.log(`shot: ${shotPath}`);
+				assertNoPageErrors(errors, `scenario:${scenario.id}`);
 				await page.close();
 			}
 
 			// Interaction proofs run on their own fresh pages (dedicated navigations,
 			// not the screenshot pages above) so mutating drag/keyboard state cannot
 			// bleed into the chapter-queue or modal-short screenshots.
-			const queueDragPage = await browser.newPage({
-				viewport: { width: 1440, height: 900 },
-				colorScheme: 'dark',
-			});
-			await queueDragPage.goto(`${BASE_URL}?scenario=chapter-queue`);
-			await queueDragPage.getByTestId('lab-scenario-stage').waitFor({ timeout: 10_000 });
+			const { page: queueDragPage, errors: queueDragErrors } = await openLabScenario(
+				browser,
+				'chapter-queue',
+				{ width: 1440, height: 900 },
+			);
 			await assertQueueDragLandsAtIndicator(queueDragPage);
 			console.log('proof: chapter-queue drag lands at the indicator (F1)');
+			assertNoPageErrors(queueDragErrors, 'proof:chapter-queue-drag');
 			await queueDragPage.close();
 
-			const queueDragAppendPage = await browser.newPage({
-				viewport: { width: 1440, height: 900 },
-				colorScheme: 'dark',
-			});
-			await queueDragAppendPage.goto(`${BASE_URL}?scenario=chapter-queue`);
-			await queueDragAppendPage.getByTestId('lab-scenario-stage').waitFor({ timeout: 10_000 });
+			const { page: queueDragAppendPage, errors: queueDragAppendErrors } = await openLabScenario(
+				browser,
+				'chapter-queue',
+				{ width: 1440, height: 900 },
+			);
 			await assertQueueDragAppendsAfterLast(queueDragAppendPage);
 			console.log('proof: chapter-queue drag appends after the last row (F1)');
+			assertNoPageErrors(queueDragAppendErrors, 'proof:chapter-queue-drag-append');
 			await queueDragAppendPage.close();
 
-			const modalEscapePage = await browser.newPage({
-				viewport: { width: 1440, height: 900 },
-				colorScheme: 'dark',
-			});
-			await modalEscapePage.goto(`${BASE_URL}?scenario=modal-escape`);
-			await modalEscapePage.getByTestId('lab-scenario-stage').waitFor({ timeout: 10_000 });
+			const { page: modalEscapePage, errors: modalEscapeErrors } = await openLabScenario(
+				browser,
+				'modal-escape',
+				{ width: 1440, height: 900 },
+			);
 			await assertModalEscapeClosesRegardlessOfFocus(modalEscapePage);
 			console.log('proof: modal-escape closes regardless of focus (PR-2)');
+			assertNoPageErrors(modalEscapeErrors, 'proof:modal-escape');
 			await modalEscapePage.close();
 		} finally {
 			await browser.close();

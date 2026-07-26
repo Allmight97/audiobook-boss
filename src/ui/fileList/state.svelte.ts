@@ -54,12 +54,69 @@ export function getImportOrdinal(path: string): number | undefined {
 	return importOrdinalByPath.get(path);
 }
 
+let fileListRevision = 0;
+
+export function getFileListRevision(): number {
+	return fileListRevision;
+}
+
+function bumpFileListRevision(): void {
+	fileListRevision += 1;
+}
+
+export type FileListMutationSnapshot = {
+	revision: number;
+	orderLockExpected: boolean;
+};
+
+export function captureFileListMutationSnapshot(): FileListMutationSnapshot {
+	return {
+		revision: fileListRevision,
+		orderLockExpected: isOrderLocked(),
+	};
+}
+
+export function canCommitFileListMutation(snapshot: FileListMutationSnapshot): boolean {
+	return (
+		fileListRevision === snapshot.revision && fileListSessionState.orderLocked === snapshot.orderLockExpected
+	);
+}
+
+export function fileIdentityKey(file: AudioFile): string {
+	return file.inputId ?? file.path;
+}
+
+export function findFileIndexByIdentityKey(identityKey: string): number {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return -1;
+	}
+	return fileList.files.findIndex((file) => fileIdentityKey(file) === identityKey);
+}
+
+export function replaceFileListFiles(nextFiles: AudioFile[]): void {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return;
+	}
+
+	const validCount = nextFiles.filter((file) => file.isValid).length;
+	fileListSessionState.currentFileList = {
+		...fileList,
+		files: nextFiles,
+		validCount,
+		invalidCount: nextFiles.length - validCount,
+	};
+	bumpFileListRevision();
+}
+
 export function setCurrentFileList(fileList: FileListInfo | null): void {
 	fileListSessionState.currentFileList = fileList;
 
 	fileListSessionState.selectedFileIndex = -1;
 	fileListSessionState.selectedFileIndices = new Set<number>();
 	fileListSessionState.sortDirection = 'none';
+	bumpFileListRevision();
 }
 
 export function setSelectedIndex(index: number): void {

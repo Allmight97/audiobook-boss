@@ -96,6 +96,9 @@ commands over invoking internals directly.
     WebKit focus-refusal timing the fix addresses; the proof verifies the
     invariant instead. Both stay manual-invocation only, same scope boundary
     as the rest of this command.
+  - Attaches `pageerror` and console-`error` collectors before every
+    navigation (screenshot scenarios and interaction proofs) and fails the
+    run if any are recorded before the page closes.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local`, then the contract
   Vitest files: `bun run test -- src/lib/tauri-public-api.contract.test.ts

@@ -25,3 +25,6 @@
 
 - Keep controls relocated, never duplicated across the old island placements.
 - Pin composition zones and density persistence/hydration with focused tests.
+- Overlay title bars require three coupled legs: `titleBarStyle: Overlay` in
+  Tauri config, `data-tauri-drag-region="deep"` on the appbar, and the two
+  window drag capabilities — pinned by `__tests__/drag-capability.contract.test.ts`.

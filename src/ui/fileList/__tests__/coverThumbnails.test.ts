@@ -127,6 +127,30 @@ describe('FileList cover thumbnail scheduler', () => {
 		expect(errorLoader).toHaveBeenCalledTimes(1);
 	});
 
+	it('does not restore stale art after clear then re-add while inflight', async () => {
+		const path = '/books/clear-readd.m4b';
+		const staleRequest = createDeferred<number[] | null>();
+		const freshRequest = createDeferred<number[] | null>();
+		const loadThumbnail = vi
+			.fn()
+			.mockReturnValueOnce(staleRequest.promise)
+			.mockReturnValueOnce(freshRequest.promise);
+
+		scheduleFileListCoverThumbnails([path], loadThumbnail);
+		await flushAsync();
+		clearFileListCoverThumbnails();
+		scheduleFileListCoverThumbnails([path], loadThumbnail);
+		await flushAsync();
+
+		staleRequest.resolve([1]);
+		await flushAsync();
+		expect(getFileListCoverThumbnailState(path).status).toBe('loading');
+
+		freshRequest.resolve([2]);
+		await flushAsync();
+		expect(getFileListCoverThumbnailState(path).status).toBe('ready');
+	});
+
 	it('fetches fresh bytes after a ready thumbnail is removed and re-added', async () => {
 		const path = '/books/readded.m4b';
 		const loadThumbnail = vi.fn().mockResolvedValueOnce([1]).mockResolvedValueOnce([2]);

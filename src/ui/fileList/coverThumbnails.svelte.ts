@@ -38,6 +38,7 @@ export function clearFileListCoverThumbnails(): void {
 		delete thumbnailByPath[path];
 	}
 	cacheOrder.length = 0;
+	inflightByPath.clear();
 }
 
 export function removeFileListCoverThumbnail(path: string): void {

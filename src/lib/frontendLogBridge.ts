@@ -10,12 +10,13 @@ import type { FrontendLogLevel } from '../types/frontendLog';
  *
  * Sanitization is deliberate and narrow: only an error name/category plus a
  * truncated message string ever leave this module. Never forward arbitrary
- * console objects, file paths, URLs, provider payloads, or secrets — the
- * two window events are read for a name and a message only, nothing else.
+ * console objects or string-rejection bodies. Short Error/AppError messages
+ * are kept for local diagnosis (paths may appear); provider payloads and secrets
+ * must not be logged deliberately.
  */
 const MESSAGE_MAX_CHARS = 500;
 const SCOPE_MAX_CHARS = 200;
-const RATE_LIMIT_MAX_PER_MINUTE = 20;
+const MAX_EVENTS_PER_WINDOW = 20;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 let installed = false;
@@ -23,9 +24,20 @@ let windowStartMs = 0;
 let sentInWindow = 0;
 let droppedInWindow = 0;
 
+/** Flattens log-breaking control characters before IPC. Exported for tests. */
+export function flattenLogText(value: string): string {
+	return value
+		.replace(/[\r\n\t]+/g, ' ')
+		.replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '');
+}
+
 function truncate(value: string, maxChars: number): string {
 	if (value.length <= maxChars) return value;
 	return `${value.slice(0, maxChars)}…`;
+}
+
+function sanitizeOutboundField(value: string, maxChars: number): string {
+	return truncate(flattenLogText(value), maxChars);
 }
 
 function summarizeRejectionReason(reason: unknown): { name: string; message: string } {
@@ -53,7 +65,7 @@ function summarizeErrorEvent(event: ErrorEvent): { name: string; message: string
 	return { name: 'Error', message: event.message || 'Unknown error' };
 }
 
-/** Resets the sliding rate-limit window and reports how many events the
+/** Resets the fixed rate-limit window and reports how many events the
  * previous window dropped, if any. */
 function rollRateLimitWindow(nowMs: number): number {
 	if (nowMs - windowStartMs < RATE_LIMIT_WINDOW_MS) {
@@ -75,8 +87,8 @@ function sendLogFrontend(level: FrontendLogLevel, scope: string, message: string
 		void tauriClient
 			.logFrontend({
 				level,
-				scope: truncate(scope, SCOPE_MAX_CHARS),
-				message: truncate(message, MESSAGE_MAX_CHARS),
+				scope: sanitizeOutboundField(scope, SCOPE_MAX_CHARS),
+				message: sanitizeOutboundField(message, MESSAGE_MAX_CHARS),
 			})
 			.catch(() => undefined);
 	} catch {
@@ -91,11 +103,11 @@ function forward(scope: string, message: string): void {
 		sendLogFrontend(
 			'warn',
 			'frontendLogBridge.rateLimit',
-			`Dropped ${droppedSinceLastReset} frontend log event(s) over the ${RATE_LIMIT_MAX_PER_MINUTE}/minute limit.`,
+			`Dropped ${droppedSinceLastReset} frontend log event(s) over the ${MAX_EVENTS_PER_WINDOW}/60s fixed-window limit.`,
 		);
 	}
 
-	if (sentInWindow >= RATE_LIMIT_MAX_PER_MINUTE) {
+	if (sentInWindow >= MAX_EVENTS_PER_WINDOW) {
 		droppedInWindow += 1;
 		return;
 	}

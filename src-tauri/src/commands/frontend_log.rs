@@ -22,6 +22,18 @@ pub struct FrontendLogEntry {
     pub message: String,
 }
 
+fn flatten_log_field(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| match ch {
+            '\n' | '\r' => ' ',
+            '\t' => ' ',
+            ch if ch.is_control() => '?',
+            ch => ch,
+        })
+        .collect()
+}
+
 fn truncate_field(value: &str, max_chars: usize) -> String {
     if value.chars().count() <= max_chars {
         return value.to_string();
@@ -35,8 +47,14 @@ fn truncate_field(value: &str, max_chars: usize) -> String {
 /// without asserting against `log` macro output.
 fn sanitized_fields(entry: &FrontendLogEntry) -> (String, String) {
     (
-        truncate_field(&entry.scope, FRONTEND_LOG_FIELD_MAX_CHARS),
-        truncate_field(&entry.message, FRONTEND_LOG_FIELD_MAX_CHARS),
+        truncate_field(
+            &flatten_log_field(&entry.scope),
+            FRONTEND_LOG_FIELD_MAX_CHARS,
+        ),
+        truncate_field(
+            &flatten_log_field(&entry.message),
+            FRONTEND_LOG_FIELD_MAX_CHARS,
+        ),
     )
 }
 
@@ -77,6 +95,20 @@ mod tests {
         assert_eq!(truncated.chars().count(), 501); // 500 chars + the ellipsis marker
         assert!(truncated.starts_with(&"a".repeat(500)));
         assert!(truncated.ends_with('…'));
+    }
+
+    #[test]
+    fn sanitized_fields_flattens_newlines_and_control_characters() {
+        let entry = FrontendLogEntry {
+            level: FrontendLogLevel::Error,
+            scope: "window.error:Error".to_string(),
+            message: "line1\nline2\r\n\tok\u{0008}bad".to_string(),
+        };
+
+        let (scope, message) = sanitized_fields(&entry);
+
+        assert_eq!(scope, "window.error:Error");
+        assert_eq!(message, "line1 line2   ok?bad");
     }
 
     #[test]

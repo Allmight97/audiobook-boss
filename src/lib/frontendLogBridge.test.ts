@@ -10,6 +10,7 @@ vi.mock('./tauri/client', () => ({
 
 import {
 	disposeFrontendErrorLogBridgeForTests,
+	flattenLogText,
 	initFrontendErrorLogBridge,
 } from './frontendLogBridge';
 
@@ -82,7 +83,7 @@ describe('frontend error log bridge', () => {
 		expect(entry.message.endsWith('…')).toBe(true);
 	});
 
-	it('drops events past the per-minute rate limit and reports the overflow once the window rolls', () => {
+	it('drops events past the 20/60s fixed-window rate limit and reports overflow once the window rolls', () => {
 		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(0);
 		for (let i = 0; i < 25; i++) {
 			window.dispatchEvent(rejectionEvent(new Error(`error-${i}`)));
@@ -99,10 +100,21 @@ describe('frontend error log bridge', () => {
 		expect(logFrontendMock.mock.calls[20]![0]).toEqual({
 			level: 'warn',
 			scope: 'frontendLogBridge.rateLimit',
-			message: 'Dropped 5 frontend log event(s) over the 20/minute limit.',
+			message: 'Dropped 5 frontend log event(s) over the 20/60s fixed-window limit.',
 		});
 
 		nowSpy.mockRestore();
+	});
+
+	it('flattens newlines and control characters before sending', () => {
+		window.dispatchEvent(rejectionEvent(new Error('line1\nline2\r\n\tok')));
+
+		const entry = logFrontendMock.mock.calls[0]![0];
+		expect(entry.message).toBe('line1 line2 ok');
+	});
+
+	it('flattenLogText removes log-breaking controls', () => {
+		expect(flattenLogText('a\nb\rc\t')).toBe('a b c ');
 	});
 
 	it('installs its listeners at most once', () => {

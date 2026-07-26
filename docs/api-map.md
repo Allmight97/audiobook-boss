@@ -90,6 +90,13 @@ snapshots) are the only scoping.
     Runtime-coupled values, such as max concurrency, are accepted by their
     runtime owner first and then persisted as settings truth.
 
+- `log_frontend`
+  - Rust: `src-tauri/src/commands/frontend_log.rs`
+  - Frontend bridge: `src/lib/frontendLogBridge.ts` (installed from
+    `src/lib/frontendLogBridge.install.ts` before `App.svelte` in `src/main.ts`)
+  - Use: bounded local dev-log forwarding for webview `error` /
+    `unhandledrejection` events; not remote telemetry
+
 ### Audio Analysis And Processing
 
 - `validate_files`, `analyze_audio_files`

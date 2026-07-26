@@ -21,6 +21,7 @@ mod intent_plan;
 mod metadata_ops;
 mod metadata_sinks;
 mod mp4ameta_bridge;
+mod mp4_covr;
 mod passthrough;
 mod remux;
 mod thumbnail;

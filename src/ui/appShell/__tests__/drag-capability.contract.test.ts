@@ -8,9 +8,10 @@ const { readFile } = (await import(fsPromisesSpecifier)) as {
 // Cross-source contract: titleBarStyle "Overlay" makes tauri's injected
 // drag.js the window's only drag surface, and drag.js needs two capability
 // grants to function (start a drag, and toggle maximize on the appbar's
-// double-click). Nothing else ties the window-config choice to the
-// capability file, so a future edit could silently drop either grant and
-// leave the window undraggable. This test does.
+// double-click). The appbar must expose data-tauri-drag-region="deep" so
+// clicks on non-clickable children still drag. Nothing else ties these three
+// legs together, so a future edit could silently drop any one and leave the
+// window undraggable. This test does.
 async function readJson(filePath: string): Promise<unknown> {
 	const source = await readFile(filePath, 'utf8');
 	return JSON.parse(source);
@@ -32,5 +33,10 @@ describe('titleBarStyle Overlay / drag-capability contract', () => {
 
 		expect(permissions).toContain('core:window:allow-start-dragging');
 		expect(permissions).toContain('core:window:allow-internal-toggle-maximize');
+	});
+
+	it('pins data-tauri-drag-region="deep" on the app shell appbar', async () => {
+		const appShellSource = await readFile('src/ui/appShell/AppShellIsland.svelte', 'utf8');
+		expect(appShellSource).toMatch(/data-tauri-drag-region="deep"/);
 	});
 });

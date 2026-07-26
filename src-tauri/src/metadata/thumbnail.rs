@@ -8,7 +8,7 @@ const THUMBNAIL_MAX_DIMENSION: u32 = 64;
 const COVER_ART_JPEG_QUALITY: u8 = 85;
 const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
 const THUMBNAIL_MAX_INPUT_DIMENSION: u32 = 4096;
-const THUMBNAIL_MAX_ENCODED_BYTES: usize = 10 * 1024 * 1024;
+pub(crate) const THUMBNAIL_MAX_ENCODED_BYTES: usize = 10 * 1024 * 1024;
 const THUMBNAIL_MAX_DECODER_ALLOC_BYTES: u64 = 96 * 1024 * 1024;
 
 /// Reads an audio file's embedded cover and returns a small display thumbnail.
