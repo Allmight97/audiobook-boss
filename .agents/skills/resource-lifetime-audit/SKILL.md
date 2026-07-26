@@ -1,73 +1,60 @@
 ---
 name: resource-lifetime-audit
-description: Read-only audit for Audiobook Boss resource-lifetime foot-guns with high bug potential. Use when the user asks to hunt for lifecycle bugs, file-handle contention, Windows or cross-platform file behavior, temp-file cleanup, process lifetime, FFmpeg/mp4ameta reopen issues, rename/replace semantics, or similar in-kind high-ROI hazards. Apply fixes only when the user explicitly asks.
+description: Audit and fix Audiobook Boss resource-lifetime foot-guns with high bug potential. Use when the user asks to hunt for lifecycle bugs, file-handle contention, Windows/cross-platform file behavior, temp-file cleanup, process lifetime, FFmpeg/mp4ameta reopen issues, rename/replace semantics, or "similar in-kind" high-ROI issues.
 ---
 
 # Resource Lifetime Audit
 
-Default to a read-only audit. Do not edit code merely because a credible hazard
-was found. Enter fix mode only when the user explicitly requests implementation.
-
 ## Scan Scope
 
-Scan the highest-risk boundaries first: audio processing, metadata
-read/write/remux, output artifact commit, path validation, cleanup,
-cancellation, and external process handling.
+Scan the highest-risk boundaries first: audio processing, metadata read/write/remux, output artifact commit, path validation, cleanup, cancellation, and external process handling.
 
-Look for transitions where one owner may still hold a resource while the next
-operation conflicts with it:
+## Hunt Pattern
 
-- probe/open/read → reopen the same path
-- FFmpeg context → mp4ameta read/write on the same path
-- write temp → rename/copy/replace final path
-- spawn process → read pipes → cancel/kill/wait
-- register cleanup → remove path from cleanup ownership
-- validate path → persist or write path
+Search for code that crosses one lifecycle phase into another:
 
-## Scan Ledger
+- probe/open/read -> reopen same path
+- FFmpeg context -> mp4ameta read/write on same path
+- write temp -> rename/copy/replace final path
+- spawn process -> read pipes -> cancel/kill/wait
+- register cleanup -> remove path from cleanup ownership
+- validate path -> persist or write path
 
-Record every investigated transition, including rejected candidates:
+For each candidate, ask:
 
-| Field | Required content |
-| --- | --- |
-| Owner / path | Owning module and concrete code path |
-| Resource / lifetime | Handle, process, temp artifact, cleanup token, or path assumption and when it ends |
-| Next conflicting operation | Reopen, mutate, delete, rename, replace, kill, or persist |
-| Status | Confirmed bug, credible hazard, or rejected |
-| Impact / platform | False success, loss, residue, stuck job, retry noise; platform sensitivity |
-| Proof | Reproduction, code evidence, focused test, or reason rejected |
-| Residual uncertainty | What remains unproven |
-
-For each candidate ask: what is still alive, what conflicts next, whether the
-behavior relies on macOS/POSIX semantics, what the failure costs, and whether a
-local owner-scoped fix is testable.
+1. What resource is still alive?
+2. What opens, mutates, deletes, renames, or replaces the same resource next?
+3. Does this rely on macOS/POSIX behavior that may fail on Windows?
+4. Would a failure cause false success, file loss, residue, stuck jobs, or noisy retries?
+5. Is the fix local and testable?
 
 ## Priority
 
-Prioritize source files, final artifacts, metadata/cover writes, FFmpeg
-contexts and processes, and cleanup/cancellation terminal paths. Defer style
-cleanup unless it prevents repeated ownership mistakes.
+Prioritize findings that touch:
 
-## Fix Mode
+- source audiobook files
+- final output artifacts
+- metadata writes and cover art
+- FFmpeg input/output contexts
+- external FFmpeg processes
+- cleanup/cancellation terminal paths
 
-When explicitly authorized, prefer explicit ownership transitions:
+Defer low-impact style cleanup unless it prevents repeated lifecycle mistakes.
 
-- drop probe/remux contexts before reopening or replacing the same path
-- keep replacement behavior in the owning boundary
-- use rollback or create-new semantics instead of assuming portable
-  rename-over-existing behavior
-- remove cleanup ownership only after durable commit
-- map file/path failures through existing `AppError` patterns
+## Fix Shape
 
-Every fix needs proof that can go red before the fix and green after it: a
-reproduction, focused regression test, or portability contract test. Use the
-owner-scoped command menu in `README.md` or `scripts/AGENTS.md`. If an observed
-failure needs iterative diagnosis rather than a bounded lifecycle correction,
-route to `diagnose`.
+Prefer explicit ownership transitions:
 
-## Report
+- Drop FFmpeg probe contexts before reopening the same path.
+- Keep replacement behavior in the owning boundary.
+- Use backup/rollback or create-new semantics instead of assuming rename-over-existing is portable.
+- Remove cleanup ownership only after the durable artifact is committed.
+- Map file/path errors through existing `AppError` patterns.
 
-Lead with status, category, affected boundary, impact, and proof. Use
-“resource-lifetime foot-gun” for a credible hazard that is not confirmed as an
-active bug. Include the complete scan ledger and residual uncertainty; do not
-turn absence of reproduction into certainty.
+Add focused tests when behavior is deterministic without real media. Use the
+owner-scoped command menu from `README.md` / `scripts/AGENTS.md` for code
+changes.
+
+## Report Shape
+
+Lead with the category name, affected boundary, impact, and fix. Use "resource-lifetime foot-gun" for hazards that are not always active bugs but have credible cross-platform or edge-case failure paths.

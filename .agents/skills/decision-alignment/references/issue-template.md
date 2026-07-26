@@ -45,6 +45,6 @@ Numbered steps with dependency order when steps must serialize.
 Or omit this section when the decision is locked.
 ```
 
-Apply `ready-for-agent` only after the gate in `../SKILL.md` passes.
+Apply `ready-for-agent` when the issue is complete enough for an agent without chat context.
 
 For large work the user wants sliced, stop after the parent issue; user invokes `to-issues` separately.

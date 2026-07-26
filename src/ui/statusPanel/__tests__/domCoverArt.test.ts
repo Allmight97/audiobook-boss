@@ -26,6 +26,16 @@ describe('statusPanel feedback and view-state updates', () => {
 		viewStateModule.resetStatusPanelViewState();
 	});
 
+	it('syncs cover art changes into reactive view state', () => {
+		const dataUrl = 'data:image/png;base64,Zm9v';
+
+		viewStateModule.setStatusPanelCoverArtDataUrl(dataUrl);
+		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBe(dataUrl);
+
+		viewStateModule.setStatusPanelCoverArtDataUrl(null);
+		expect(viewStateModule.statusPanelViewState.coverArtDataUrl).toBeNull();
+	});
+
 	it('does not overwrite transient user status text until lock expires', () => {
 		const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
 		viewStateModule.pushTransientStatusMessage('Metadata saved!', 10_000);

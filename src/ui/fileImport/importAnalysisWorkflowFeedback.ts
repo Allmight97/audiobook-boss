@@ -2,7 +2,7 @@ import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/aud
 import type { ImportAnalysisWorkflowServices } from './importAnalysisWorkflow';
 
 export function importOrderLockedMessage(): string {
-	return 'Order locked while submitting to the work queue. Try again in a moment.';
+	return 'Order locked while processing. Wait for completion to add files.';
 }
 
 export function unsupportedImportMessage(metadata: SupportedAudioImportMetadata): string {

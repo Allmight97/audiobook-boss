@@ -36,14 +36,9 @@ Other workflows (architecture scan, library lookup, handoff, issue slicing) star
 
 Default: GitHub issue per `docs/agents/issue-tracker.md`. Load `references/issue-template.md` when publishing.
 
-Draft in chat by default. Create or label the GitHub issue only when the user
-explicitly authorizes that external mutation.
+Label `ready-for-agent` per `docs/agents/triage-labels.md` when complete without chat.
 
-Label `ready-for-agent` per `docs/agents/triage-labels.md` only after the gate
-below passes.
-
-Session handoff → `handoff` to OS temp. Do not write handoff files in the repo
-or duplicate an issue body into a handoff.
+Session handoff → `handoff` to OS temp; see `references/handoff-template.md`. Do not write handoff files in the repo.
 
 | Outcome | Home |
 | --- | --- |
@@ -58,24 +53,7 @@ or duplicate an issue body into a handoff.
 
 `docs/specs/<task>.md` only when the user explicitly wants a repo-local spec. Load `references/active-spec-template.md`; delete or distill when done.
 
-`docs/DECISIONS.md`: accepted, durable, non-obvious rationale only. Follow the
-current file's compact shape; edit only when the user asks. Do not introduce a
-parallel ADR or `CONTEXT.md` system.
-
-## Ready-for-Agent Gate
-
-Apply `ready-for-agent` only when a fresh agent can act without chat context:
-
-- current `main` truth and the affected owner are explicit
-- the owning invariant and terminal outcome are unambiguous
-- scope and ordered dependencies are stated
-- proof is located at the owner seam, including manual evidence where needed
-- no unresolved human decision remains; any open implementation fork has an
-  explicit default and escalation trigger
-- the body is resume-ready and contains no hidden dependency on conversation
-- publication or other external mutation still requires explicit authority
-
-If the gate fails, keep the issue unlabelled and name the missing input.
+`docs/DECISIONS.md`: accepted rationale only. Load `references/decision-note-template.md`; edit when the user asks.
 
 ## Output Shape
 
@@ -90,5 +68,4 @@ Substantial alignment:
 - **Capture**
 - **Next Question** (if any)
 
-Issue bodies follow `references/issue-template.md` strip rules. Active specs use
-`references/active-spec-template.md` only when explicitly requested.
+Issue and spec bodies follow `references/issue-template.md` strip rules.

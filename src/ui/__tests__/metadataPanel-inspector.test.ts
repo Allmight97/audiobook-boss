@@ -2,11 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import {
 	clearSelectionPanels,
-	makeMetadataSurfaceTransitionCoordinator,
 	showMultiSelection,
 	showSingleSelection,
 } from '../fileList/metadataPanel';
-import { readInspectorFacts } from '../fileList/inspectorState.svelte';
 import { setCurrentFileList, setSelectedIndex } from '../fileList/state.svelte';
 import { inspectorState } from '../fileList/inspectorState.svelte';
 
@@ -123,18 +121,6 @@ describe('metadata panel input inspector', () => {
 		expect(inspectorState.codecText).toBe('USAC / xHE-AAC');
 		expect(inspectorState.decoderText).toBe('Apple AAC');
 		expect(inspectorState.contextText).toContain('science.m4b');
-		expect(readInspectorFacts().map((fact) => fact.label)).toEqual([
-			'File',
-			'Position',
-			'Bitrate',
-			'Sample rate',
-			'Channels',
-			'Codec',
-			'Decoder',
-			'File size',
-			'Supplemental',
-			'Combined size',
-		]);
 	});
 
 	it('shows companion assets for a single selected file', async () => {
@@ -204,192 +190,5 @@ describe('metadata panel input inspector', () => {
 		expect(inspectorState.codecText).toBe('---');
 		expect(inspectorState.decoderText).toBe('---');
 		expect(inspectorState.companionsText).toBe('---');
-	});
-});
-
-describe('metadata surface transition coordinator', () => {
-	it('stages the old draft, closes without staging again, then mutates and populates', async () => {
-		const calls: string[] = [];
-		const row = document.createElement('button');
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts: async () => {
-				calls.push('stage-old');
-				return true;
-			},
-			getSelectedFiles: () => [{ path: '/books/new.m4b', isValid: true }],
-			populateSelection: async () => {
-				calls.push('populate-new');
-			},
-			closeWithoutStaging: () => calls.push('close'),
-			open: (anchor) => calls.push(anchor === row ? 'open-row' : 'wrong-anchor'),
-			getActiveRowControl: () => row,
-		});
-
-		await coordinator.selection(
-			{ type: 'selectOnly', index: 1 },
-			() => {
-				calls.push('mutate');
-				return { changed: true };
-			},
-			{ openAfterPopulate: true },
-		);
-
-		expect(calls).toEqual(['stage-old', 'close', 'mutate', 'populate-new', 'open-row']);
-	});
-
-	it('keeps the popover open and aborts mutation when validation rejects staging', async () => {
-		const mutate = vi.fn(() => ({ changed: true }));
-		const close = vi.fn();
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts: vi.fn(async () => false),
-			getSelectedFiles: () => [],
-			populateSelection: vi.fn(),
-			closeWithoutStaging: close,
-			open: vi.fn(),
-			getActiveRowControl: () => null,
-		});
-
-		await expect(coordinator.selection({ type: 'toggle', index: 1 }, mutate)).resolves.toBe(false);
-		expect(close).not.toHaveBeenCalled();
-		expect(mutate).not.toHaveBeenCalled();
-	});
-
-	it('serializes rapid selection intents without double-staging a dirty draft', async () => {
-		let dirty = true;
-		const stageIntentPatch = vi.fn();
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts: async () => {
-				if (dirty) stageIntentPatch('/books/old.m4b');
-				return true;
-			},
-			getSelectedFiles: () => [{ path: '/books/new.m4b', isValid: true }],
-			populateSelection: async () => {},
-			closeWithoutStaging: vi.fn(),
-			open: vi.fn(),
-			getActiveRowControl: () => null,
-		});
-		const mutate = () => {
-			dirty = false;
-			return { changed: true };
-		};
-
-		await Promise.all([
-			coordinator.selection({ type: 'selectOnly', index: 1 }, mutate),
-			coordinator.selection({ type: 'selectOnly', index: 2 }, mutate),
-		]);
-
-		expect(stageIntentPatch).toHaveBeenCalledTimes(1);
-		expect(stageIntentPatch).toHaveBeenCalledWith('/books/old.m4b');
-	});
-
-	it('stages and closes a click-away dismissal exactly once', async () => {
-		const persistOldDrafts = vi.fn(async () => true);
-		const closeWithoutStaging = vi.fn();
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts,
-			getSelectedFiles: () => [],
-			populateSelection: vi.fn(),
-			closeWithoutStaging,
-			open: vi.fn(),
-			getActiveRowControl: () => null,
-		});
-
-		await expect(coordinator.dismiss()).resolves.toBe(true);
-		expect(persistOldDrafts).toHaveBeenCalledOnce();
-		expect(persistOldDrafts).toHaveBeenCalledWith({ showStatus: true });
-		expect(closeWithoutStaging).toHaveBeenCalledOnce();
-	});
-
-	it('persists dirty multi-selection drafts before repopulating and does not reopen an open surface', async () => {
-		const row = document.createElement('button');
-		let visibleFormValues = { title: 'Shared title' };
-		let persistedDraft = { title: '' };
-		const persistOldDrafts = vi.fn(async () => {
-			persistedDraft = { ...visibleFormValues };
-			return true;
-		});
-		const populateSelection = vi.fn(async () => {
-			visibleFormValues = { ...persistedDraft };
-		});
-		const open = vi.fn();
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts,
-			getSelectedFiles: () => [
-				{ path: '/books/one.m4b', isValid: true },
-				{ path: '/books/two.m4b', isValid: true },
-			],
-			populateSelection,
-			closeWithoutStaging: vi.fn(),
-			open,
-			isOpen: () => true,
-			getActiveRowControl: () => row,
-		});
-
-		await expect(coordinator.openMulti()).resolves.toBe(true);
-
-		expect(persistOldDrafts).toHaveBeenCalledExactlyOnceWith({ showStatus: false });
-		expect(populateSelection).toHaveBeenCalledOnce();
-		expect(visibleFormValues).toEqual({ title: 'Shared title' });
-		expect(open).not.toHaveBeenCalled();
-	});
-
-	it('does not stage or mutate selection while metadata save is in progress', async () => {
-		const persistOldDrafts = vi.fn(async () => true);
-		const mutate = vi.fn(() => ({ changed: true }));
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts,
-			getSelectedFiles: () => [],
-			populateSelection: vi.fn(),
-			closeWithoutStaging: vi.fn(),
-			open: vi.fn(),
-			getActiveRowControl: () => null,
-			isSaveInProgress: () => true,
-		});
-
-		await expect(coordinator.selection({ type: 'selectOnly', index: 1 }, mutate)).resolves.toBe(
-			false,
-		);
-
-		expect(persistOldDrafts).not.toHaveBeenCalled();
-		expect(mutate).not.toHaveBeenCalled();
-	});
-
-	it('serializes a refresh behind an in-flight selection transition', async () => {
-		const calls: string[] = [];
-		let releaseSelection: (() => void) | undefined;
-		const coordinator = makeMetadataSurfaceTransitionCoordinator({
-			persistOldDrafts: async () => true,
-			getSelectedFiles: () => [{ path: '/books/current.m4b', isValid: true }],
-			populateSelection: async () => {
-				calls.push('populate');
-				if (calls.length === 1) await new Promise<void>((resolve) => (releaseSelection = resolve));
-			},
-			closeWithoutStaging: vi.fn(),
-			open: vi.fn(),
-			getActiveRowControl: () => null,
-		});
-
-		const selection = coordinator.selection({ type: 'selectOnly', index: 0 }, () => ({
-			changed: true,
-		}));
-		const refresh = coordinator.refresh();
-		await Promise.resolve();
-		await Promise.resolve();
-		expect(calls).toEqual(['populate']);
-		releaseSelection?.();
-		await Promise.all([selection, refresh]);
-
-		expect(calls).toEqual(['populate', 'populate']);
-	});
-
-	it('clears stale form values and exposes the import error for an invalid active file', async () => {
-		const file = makeFile({ isValid: false, error: 'Unsupported container' });
-		setCurrentFileList(makeFileList(file));
-		setSelectedIndex(0);
-
-		await showSingleSelection(file);
-
-		expect(context.populateMetadataFormSingleMock).toHaveBeenCalledWith({});
-		expect(readInspectorFacts().some((fact) => fact.value === 'Unsupported container')).toBe(true);
 	});
 });

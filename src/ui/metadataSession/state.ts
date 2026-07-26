@@ -1,4 +1,3 @@
-import { SvelteMap } from 'svelte/reactivity';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
@@ -7,10 +6,7 @@ import {
 	mergeMetadataDraftIntents,
 } from './draft';
 
-// Reactive: the table and both edit surfaces read this cache inside template
-// deriveds, and backend reads land AFTER first paint — a plain Map leaves
-// rows showing basename fallbacks until an unrelated re-render.
-const metadataByFile = new SvelteMap<string, Partial<AudiobookMetadata>>();
+const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
 const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
 const pendingSavePaths = new Set<string>();
 

@@ -1,5 +1,4 @@
 import { coverArtBytesToDataUrl } from './coverArtDataUrl';
-import { createBoundedGenerationQueue } from './boundedGenerationQueue';
 
 export const DEFAULT_COVER_ART_PREVIEW_CONCURRENCY = 2;
 export const DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES = 64;
@@ -35,8 +34,14 @@ export function createCoverArtPreviewScheduler(
 	options: CoverArtPreviewSchedulerOptions,
 ): CoverArtPreviewScheduler {
 	const inflightByUrl = new Map<string, Promise<number[]>>();
+	const activePreviewTasks = new Set<number>();
 	const cacheOrder: string[] = [];
-	const scheduledPreviewQueue = createBoundedGenerationQueue(DEFAULT_COVER_ART_PREVIEW_CONCURRENCY);
+
+	let nextPreviewTaskId = 0;
+	let previewScheduleGeneration = 0;
+	let queuedCoverUrls: string[] = [];
+	let visibleCoverUrls = new Set<string>();
+	let activeLoader: CoverArtPreviewLoader | null = null;
 
 	function clear(): void {
 		cancel();
@@ -48,7 +53,10 @@ export function createCoverArtPreviewScheduler(
 	}
 
 	function cancel(): void {
-		scheduledPreviewQueue.cancel();
+		previewScheduleGeneration += 1;
+		queuedCoverUrls = [];
+		visibleCoverUrls = new Set();
+		activeLoader = null;
 		for (const [coverUrl, state] of Object.entries(previewByUrl)) {
 			if (state.status === 'queued' || state.status === 'loading') {
 				delete previewByUrl[coverUrl];
@@ -72,37 +80,39 @@ export function createCoverArtPreviewScheduler(
 		coverUrls: ReadonlyArray<string | null | undefined>,
 		loadCoverArtFromUrl: CoverArtPreviewLoader,
 	): void {
+		previewScheduleGeneration += 1;
+		activeLoader = loadCoverArtFromUrl;
+		const generation = previewScheduleGeneration;
 		const uniqueUrls = uniqueCoverUrls(coverUrls);
-		scheduledPreviewQueue.schedule(uniqueUrls, {
-			visibleKeysChanged: (visibleUrls) => {
-				for (const coverUrl of Object.keys(previewByUrl)) {
-					if (visibleUrls.has(coverUrl)) {
-						continue;
-					}
-					const state = previewByUrl[coverUrl];
-					if (state.status === 'queued' || state.status === 'loading') {
-						delete previewByUrl[coverUrl];
-					}
-				}
-			},
-			prepare: (coverUrl, generation) => {
+		visibleCoverUrls = new Set(uniqueUrls);
+		queuedCoverUrls = [];
+
+		for (const coverUrl of Object.keys(previewByUrl)) {
+			if (!visibleCoverUrls.has(coverUrl)) {
 				const state = previewByUrl[coverUrl];
-				if (state?.status === 'ready') {
-					touchCacheEntry(coverUrl);
-					return false;
+				if (state.status === 'queued' || state.status === 'loading') {
+					delete previewByUrl[coverUrl];
 				}
-				const inflight = inflightByUrl.get(coverUrl);
-				if (inflight) {
-					previewByUrl[coverUrl] = { status: 'loading' };
-					attachScheduledInflightCompletion(coverUrl, inflight, generation);
-					return false;
-				}
-				previewByUrl[coverUrl] = { status: 'queued' };
-				return true;
-			},
-			start: (coverUrl, generation, complete) =>
-				startScheduledPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, complete),
-		});
+			}
+		}
+
+		for (const coverUrl of uniqueUrls) {
+			const state = previewByUrl[coverUrl];
+			if (state?.status === 'ready') {
+				touchCacheEntry(coverUrl);
+				continue;
+			}
+			const inflight = inflightByUrl.get(coverUrl);
+			if (inflight) {
+				previewByUrl[coverUrl] = { status: 'loading' };
+				attachScheduledInflightCompletion(coverUrl, inflight, generation);
+				continue;
+			}
+			previewByUrl[coverUrl] = { status: 'queued' };
+			queuedCoverUrls.push(coverUrl);
+		}
+
+		pumpPreviewQueue(generation);
 	}
 
 	async function loadBytes(
@@ -116,7 +126,7 @@ export function createCoverArtPreviewScheduler(
 		}
 		const inflight = inflightByUrl.get(coverUrl);
 		if (inflight) {
-			const generation = scheduledPreviewQueue.currentGeneration();
+			const generation = previewScheduleGeneration;
 			return inflight.then((bytes) => {
 				if (shouldCommitPreviewCompletion(coverUrl, generation, true)) {
 					commitReadyPreview(coverUrl, bytes);
@@ -124,14 +134,7 @@ export function createCoverArtPreviewScheduler(
 				return bytes;
 			});
 		}
-		return scheduledPreviewQueue.track(
-			startPreviewFetch(
-				coverUrl,
-				loadCoverArtFromUrl,
-				scheduledPreviewQueue.currentGeneration(),
-				true,
-			),
-		);
+		return startPreviewFetch(coverUrl, loadCoverArtFromUrl, previewScheduleGeneration, true);
 	}
 
 	async function fetch(
@@ -172,26 +175,24 @@ export function createCoverArtPreviewScheduler(
 			});
 	}
 
-	function startScheduledPreviewFetch(
-		coverUrl: string,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
-		generation: number,
-		onComplete: () => void,
-	): Promise<number[]> {
-		const existing = previewByUrl[coverUrl];
-		if (existing?.status === 'ready') {
-			touchCacheEntry(coverUrl);
-			onComplete();
-			return Promise.resolve(existing.bytes);
+	function pumpPreviewQueue(generation: number): void {
+		if (!activeLoader || generation !== previewScheduleGeneration) {
+			return;
 		}
-
-		const inflight = inflightByUrl.get(coverUrl);
-		if (inflight) {
-			attachScheduledInflightCompletion(coverUrl, inflight, generation);
-			return inflight.finally(onComplete);
+		while (
+			activePreviewTasks.size < DEFAULT_COVER_ART_PREVIEW_CONCURRENCY &&
+			queuedCoverUrls.length > 0
+		) {
+			const coverUrl = queuedCoverUrls.shift();
+			if (!coverUrl || !visibleCoverUrls.has(coverUrl)) {
+				continue;
+			}
+			const state = previewByUrl[coverUrl];
+			if (state?.status === 'ready' || inflightByUrl.has(coverUrl)) {
+				continue;
+			}
+			void startPreviewFetch(coverUrl, activeLoader, generation, false).catch(() => undefined);
 		}
-
-		return startPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, false, onComplete);
 	}
 
 	function startPreviewFetch(
@@ -199,9 +200,10 @@ export function createCoverArtPreviewScheduler(
 		loadCoverArtFromUrl: CoverArtPreviewLoader,
 		generation: number,
 		allowOffscreenCompletion: boolean,
-		onComplete?: () => void,
 	): Promise<number[]> {
 		previewByUrl[coverUrl] = { status: 'loading' };
+		const taskId = ++nextPreviewTaskId;
+		activePreviewTasks.add(taskId);
 		let promise!: Promise<number[]>;
 		promise = loadCoverArtFromUrl(coverUrl)
 			.then((bytes): number[] => {
@@ -220,10 +222,11 @@ export function createCoverArtPreviewScheduler(
 				throw error;
 			})
 			.finally(() => {
+				activePreviewTasks.delete(taskId);
 				if (inflightByUrl.get(coverUrl) === promise) {
 					inflightByUrl.delete(coverUrl);
 				}
-				onComplete?.();
+				pumpPreviewQueue(previewScheduleGeneration);
 			});
 
 		inflightByUrl.set(coverUrl, promise);
@@ -245,7 +248,10 @@ export function createCoverArtPreviewScheduler(
 		generation: number,
 		allowOffscreenCompletion: boolean,
 	): boolean {
-		return allowOffscreenCompletion || scheduledPreviewQueue.isCurrent(coverUrl, generation);
+		return (
+			generation === previewScheduleGeneration &&
+			(allowOffscreenCompletion || visibleCoverUrls.has(coverUrl))
+		);
 	}
 
 	function touchCacheEntry(coverUrl: string): void {
@@ -264,10 +270,7 @@ export function createCoverArtPreviewScheduler(
 			if (!coverUrl) {
 				continue;
 			}
-			if (
-				inflightByUrl.has(coverUrl) ||
-				scheduledPreviewQueue.isCurrent(coverUrl, scheduledPreviewQueue.currentGeneration())
-			) {
+			if (inflightByUrl.has(coverUrl) || visibleCoverUrls.has(coverUrl)) {
 				cacheOrder.push(coverUrl);
 				continue;
 			}

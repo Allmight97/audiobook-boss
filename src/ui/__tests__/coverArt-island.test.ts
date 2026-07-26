@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import { tick } from 'svelte';
 import CoverArtIsland from '../coverArt/CoverArtIsland.svelte';
 import {
 	applyCoverArtDrop,
@@ -48,7 +46,7 @@ describe('CoverArt island mount + clear behavior', () => {
 		});
 	});
 
-	it('mounts from root and clears cover art through UI action', async () => {
+	it('mounts from root and clears cover art through UI action', () => {
 		setCurrentFileList({
 			files: [{ path: '/books/a.m4b', isValid: true, inputId: 'a' } as AudioFile],
 			validCount: 1,
@@ -60,7 +58,6 @@ describe('CoverArt island mount + clear behavior', () => {
 		setSelectedIndex(0);
 
 		setCustomCoverArt([0x89, 0x50, 0x4e, 0x47]);
-		await tick();
 
 		const clearButton = document.getElementById('cover-art-clear-btn') as HTMLButtonElement | null;
 		expect(clearButton).toBeTruthy();
@@ -70,32 +67,6 @@ describe('CoverArt island mount + clear behavior', () => {
 
 		expect(getCurrentCoverArt()).toBeNull();
 		expect(isCoverArtRemovalRequested()).toBe(true);
-	});
-
-	it('keeps cover choice and removal as separate keyboard-reachable buttons', async () => {
-		expect(document.querySelector('button[aria-label="Remove cover art"]')).toBeNull();
-		setCustomCoverArt([0x89, 0x50, 0x4e, 0x47]);
-		await tick();
-
-		const area = document.getElementById('cover-art-area') as HTMLDivElement;
-		const chooseButton = document.querySelector<HTMLButtonElement>(
-			'button[aria-label="Choose cover art"]',
-		);
-		const clearButton = document.querySelector<HTMLButtonElement>(
-			'button[aria-label="Remove cover art"]',
-		);
-
-		expect(area).not.toHaveAttribute('role');
-		expect(area).not.toHaveAttribute('tabindex');
-		expect(chooseButton).toHaveAttribute('type', 'button');
-		expect(clearButton).toHaveAttribute('type', 'button');
-		expect(chooseButton).not.toContainElement(clearButton);
-
-		const user = userEvent.setup();
-		await user.tab();
-		expect(chooseButton).toHaveFocus();
-		await user.tab();
-		expect(clearButton).toHaveFocus();
 	});
 
 	it('uses centralized cover-art extension hints for the file picker', async () => {
@@ -127,27 +98,6 @@ describe('CoverArt island mount + clear behavior', () => {
 
 		expect(loadCoverArtFromUrlMock).not.toHaveBeenCalled();
 		expect(document.body.textContent).toContain('Only HTTPS URLs are supported.');
-	});
-
-	it('keeps the multi-select gate error when a URL load is reverted, not a success message', async () => {
-		setCurrentFileList({
-			files: [
-				{ path: '/books/a.m4b', isValid: true, inputId: 'a' } as AudioFile,
-				{ path: '/books/b.m4b', isValid: true, inputId: 'b' } as AudioFile,
-			],
-			validCount: 2,
-			invalidCount: 0,
-			totalDuration: 0,
-			totalSize: 0,
-		} as FileListInfo);
-		setSelectedFileIndices([0, 1]);
-		setSelectedIndex(0);
-		loadCoverArtFromUrlMock.mockResolvedValue([0x89, 0x50, 0x4e, 0x47]);
-
-		await onLoadCoverArtFromInput('https://example.com/cover.png');
-
-		expect(document.body.textContent).toContain('Select exactly one file to set its cover.');
-		expect(document.body.textContent).not.toContain('Cover art loaded from URL.');
 	});
 
 	it('shows sanitized backend cover-art validation errors', async () => {

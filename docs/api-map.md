@@ -90,13 +90,6 @@ snapshots) are the only scoping.
     Runtime-coupled values, such as max concurrency, are accepted by their
     runtime owner first and then persisted as settings truth.
 
-- `log_frontend`
-  - Rust: `src-tauri/src/commands/frontend_log.rs`
-  - Frontend bridge: `src/lib/frontendLogBridge.ts` (installed from
-    `src/lib/frontendLogBridge.install.ts` before `App.svelte` in `src/main.ts`)
-  - Use: bounded local dev-log forwarding for webview `error` /
-    `unhandledrejection` events; not remote telemetry
-
 ### Audio Analysis And Processing
 
 - `validate_files`, `analyze_audio_files`
@@ -183,7 +176,7 @@ snapshots) are the only scoping.
 
 ### Metadata
 
-- `read_audio_metadata`, `read_audio_cover_thumbnail`, `validate_metadata_intent_patch`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
+- `read_audio_metadata`, `validate_metadata_intent_patch`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
   - Rust: `src-tauri/src/commands/metadata.rs`
   - Core helpers: `src-tauri/src/metadata/`, `src-tauri/src/audio/path_validation.rs`
   - Classification: `save_metadata_batch` is a **WorkRuntime `MetadataSave` operation**

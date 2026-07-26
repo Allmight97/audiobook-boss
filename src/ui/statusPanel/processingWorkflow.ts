@@ -101,6 +101,7 @@ export function makeProcessingWorkflowServicesLayer(
 export interface ProcessingWorkflowContext {
 	updateStatus: (status: ProcessingStatus) => void;
 	setProcessingState: (isProcessing: boolean) => void;
+	updateArtThumbnail: () => Promise<void>;
 	startProgressListener: () => Promise<void>;
 	setCurrentWorkKind: (workKind: 'merge' | 'batch') => void;
 	setBatchCompletionMessage: (message: string | null) => void;
@@ -317,6 +318,7 @@ function startProcessingRuntime(
 	context: ProcessingWorkflowContext,
 ): AppEffect<void, ProcessingWorkflowFailed> {
 	return Effect.gen(function* () {
+		yield* workflowPromise(() => context.updateArtThumbnail(), 'Failed to update art thumbnail.');
 		yield* workflowPromise(
 			() => context.startProgressListener(),
 			'Failed to start progress listener.',
@@ -481,6 +483,7 @@ export function processingWorkflowProgram(
 			return;
 		}
 
+		yield* workflowPromise(() => context.updateArtThumbnail(), 'Failed to update art thumbnail.');
 		const accepted = yield* submitRetainedProcessingCommand(services, {
 			payload: reviewResult.payload,
 			metadataIntentByPath: metadataIntentByPath,

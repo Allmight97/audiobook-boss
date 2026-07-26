@@ -21,10 +21,8 @@ mod intent_plan;
 mod metadata_ops;
 mod metadata_sinks;
 mod mp4ameta_bridge;
-mod mp4_covr;
 mod passthrough;
 mod remux;
-mod thumbnail;
 
 pub use abb_metadata_core::{
     build_series_list, compute_album_sort, normalize_publication_date, publication_year_from_date,
@@ -49,9 +47,7 @@ impl From<MetadataCoreError> for AppError {
     }
 }
 
-pub use reader::{display_tags_from_ffmpeg_dict, read_metadata};
-pub(crate) use thumbnail::optimize_cover_art;
-pub use thumbnail::read_audio_cover_thumbnail;
+pub use reader::read_metadata;
 
 pub use cover_art::{
     add_cover_art_stream_pre_header, write_cover_art_packet_post_header, CoverFormat,

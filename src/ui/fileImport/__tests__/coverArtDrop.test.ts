@@ -2,10 +2,9 @@ import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriFileDropEvents } from '../../../types/events';
 import type { AcquisitionJob } from '../../../types/remoteSource';
-import FileImportTestHarness from './FileImportTestHarness.svelte';
-import { handleClickToSelect } from '../index';
+import FileImportIsland from '../FileImportIsland.svelte';
 import { clearFileImportError } from '../state.svelte';
-import { clearAllFiles, displayFileList } from '../../fileList/actions';
+import { displayFileList } from '../../fileList/actions';
 import { getCurrentFileList } from '../../fileList';
 import { clearMetadataSession } from '../../metadataSession';
 import {
@@ -149,7 +148,7 @@ function acquisitionJobWithPdf(): AcquisitionJob {
 }
 
 describe('File import drop vs cover art drop isolation', () => {
-	beforeEach(async () => {
+	beforeEach(() => {
 		analyzeAudioFilesMock.mockReset();
 		discoverAudioImportPathsMock.mockReset();
 		discoverAudioImportPathsMock.mockImplementation(async (paths: string[]) => paths);
@@ -175,15 +174,13 @@ describe('File import drop vs cover art drop isolation', () => {
 		document.body.innerHTML = `
       <div id="cover-art-area"></div>
 		`;
-		render(FileImportTestHarness);
+		render(FileImportIsland);
 		displayFileList(makeAnalyzedFileList([]));
-		// The empty-state drop-zone header renders after Svelte flushes the
-		// list reset (module file-list state persists across tests).
-		await waitFor(() => {
-			if (!document.querySelector('.drop-zone-header')) {
-				throw new Error('Expected file import island to render drop zone');
-			}
-		});
+
+		const dropZone = document.querySelector('.drop-zone-header') as HTMLElement | null;
+		if (!dropZone) {
+			throw new Error('Expected file import island to render drop zone');
+		}
 
 		const container = document.querySelector('.file-management-container') as HTMLElement | null;
 		if (!container) {
@@ -295,7 +292,7 @@ describe('File import drop vs cover art drop isolation', () => {
 		expect(analyzeAudioFilesMock).not.toHaveBeenCalled();
 	});
 
-	it('clears files through the FileList action after files are loaded', async () => {
+	it('shows and wires the Clear button after files are loaded', async () => {
 		analyzeAudioFilesMock.mockResolvedValue(
 			makeAnalyzedFileList([makeAnalyzedFile('/tmp/file1.mp3')]),
 		);
@@ -303,14 +300,18 @@ describe('File import drop vs cover art drop isolation', () => {
 		fireDragDrop({ x: 200, y: 200 }, ['/tmp/file1.mp3']);
 		await flushAsync();
 
+		const clearButton = document.getElementById('clear-files-btn') as HTMLButtonElement | null;
+		expect(clearButton).toBeTruthy();
 		await waitFor(() => {
+			expect(clearButton?.style.display).toBe('block');
 			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
 		});
 
-		clearAllFiles();
+		clearButton?.click();
 		await flushAsync();
 
 		expect(document.querySelectorAll('.file-list-item')).toHaveLength(0);
+		expect(clearButton?.style.display).toBe('none');
 	});
 
 	it('shows a PDF companion chip for imported files with acquired supplemental assets', async () => {
@@ -354,10 +355,9 @@ describe('File import drop vs cover art drop isolation', () => {
 			}),
 		);
 
-		// The drop-zone header only renders while the list is empty; adding more
-		// files goes through the toolbar import action.
-		expect(document.querySelector('.drop-zone-header')).toBeNull();
-		await handleClickToSelect();
+		document
+			.querySelector('.drop-zone-header')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		await flushAsync();
 
 		await waitFor(() => {
@@ -388,7 +388,9 @@ describe('File import drop vs cover art drop isolation', () => {
 		);
 		openFilesMock.mockResolvedValueOnce(['/tmp/book-a.mp3', '/tmp/book-b.mp3']);
 
-		await handleClickToSelect();
+		document
+			.querySelector('.drop-zone-header')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		await flushAsync();
 
 		await waitFor(() => {
@@ -414,7 +416,9 @@ describe('File import drop vs cover art drop isolation', () => {
 		);
 		openFilesMock.mockResolvedValueOnce(['/tmp/book-a.mp3']);
 
-		await handleClickToSelect();
+		document
+			.querySelector('.drop-zone-header')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		await flushAsync();
 
 		await waitFor(() => {
@@ -431,37 +435,5 @@ describe('File import drop vs cover art drop isolation', () => {
 			'No new files added. All analyzed files were already in the list.',
 			{ ttlMs: 2000 },
 		);
-	});
-
-	it('shows container drag-over feedback for a populated list without the header strip', async () => {
-		analyzeAudioFilesMock.mockResolvedValueOnce(
-			makeAnalyzedFileList([makeAnalyzedFile('/tmp/book-a.mp3')]),
-		);
-		fireDragDrop({ x: 200, y: 200 }, ['/tmp/book-a.mp3']);
-		await waitFor(() => {
-			expect(document.querySelectorAll('.file-list-item')).toHaveLength(1);
-		});
-
-		expect(document.querySelector('.drop-zone-header')).toBeNull();
-		const container = document.querySelector('.file-management-container') as HTMLElement;
-
-		// Path-less native drag sessions (e.g. internal pointer drags) must not
-		// flash the import overlay.
-		listeners['tauri://drag-enter']?.({ payload: {} });
-		listeners['tauri://drag-enter']?.({ payload: { position: { x: 1, y: 1 }, paths: [] } });
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(container.classList.contains('drag-over')).toBe(false);
-
-		listeners['tauri://drag-enter']?.({
-			payload: { position: { x: 1, y: 1 }, paths: ['/tmp/book-b.mp3'] },
-		});
-		await waitFor(() => {
-			expect(container.classList.contains('drag-over')).toBe(true);
-		});
-
-		listeners['tauri://drag-leave']?.({ payload: {} });
-		await waitFor(() => {
-			expect(container.classList.contains('drag-over')).toBe(false);
-		});
 	});
 });

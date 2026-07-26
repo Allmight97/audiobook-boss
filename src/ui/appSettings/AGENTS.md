@@ -19,11 +19,8 @@
   `tauriClient` while leaving runtime request ownership in the job controls,
   encoder panel, and output panel Public API Strips.
 - The settings dialog (Cmd+, via `App.svelte`) owns the user FFmpeg/FDK path
-  preference, the FDK afterburner toggle (via the encoder panel's
-  `readFdkAfterburner`/`setFdkAfterburner` strip), the Processing
-  concurrency select (via the job controls' `getMaxConcurrentStatus`/
-  `handleMaxConcurrentSelectionChange` strip), startup-behavior toggle,
-  pin-current-as-defaults capture, and reset-all.
+  preference, startup-behavior toggle, pin-current-as-defaults capture, and
+  reset-all.
 
 ## Startup / Pinned-Defaults Semantics
 
@@ -43,11 +40,7 @@
   tests stay green.
 - Persist backend/request-shaped settings only.
 - Keep UI-only display state, detected availability text, previews, and panel
-  visibility flags out of App Settings. **Approved exceptions:** the global
-  `density` and `railWidth` preferences are durable user intent, like
-  `startupBehavior`; they belong to the top-level settings value and never to
-  `pinnedDefaults`. The rail resizer previews live and persists only on
-  commit (drag end / keyboard adjust); hydration never persists.
+  visibility flags out of App Settings.
 
 ## Breaking-Change Triggers
 
@@ -58,11 +51,3 @@
   owning runtime/control module to accept the change first.
 - Changing startup-source selection or capture semantics above without updating
   the hydration and dialog tests that pin them.
-- Reset-all (`resetAllAppSettings`) deletes the entire settings file; the
-  dialog gates it behind an inline two-step confirm (`AppSettingsDialogIsland`
-  local `resetConfirming` state — not a native `confirm()`). Do not wire the
-  reset button back to a single click.
-- The dialog's Escape/focus-trap behavior routes through the shared
-  `src/lib/ui/modal.svelte.ts` `ModalController`, keyed on this dialog's own
-  `isOpen` transitions since the dialog stays mounted while hidden. Escape
-  always calls `closeAppSettingsDialog` — never a direct state write.

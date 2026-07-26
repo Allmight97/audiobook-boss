@@ -16,23 +16,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub startup_behavior: StartupBehavior,
     #[serde(default)]
-    pub density: DensityPreference,
-    #[serde(default)]
-    pub edit_surface: EditSurfacePreference,
-    /// Metadata rail width in CSS pixels; clamped to the shell's resize range.
-    #[serde(default = "default_rail_width")]
-    pub rail_width: u32,
-    #[serde(default)]
     pub pinned_defaults: Option<PinnedDefaults>,
-}
-
-/// Shell rail resize range. The backend owns the clamp so a hand-edited or
-/// stale settings file can never hydrate an unusable layout.
-pub const RAIL_WIDTH_MIN: u32 = 340;
-pub const RAIL_WIDTH_MAX: u32 = 640;
-
-fn default_rail_width() -> u32 {
-    420
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -43,9 +27,6 @@ pub struct AppSettingsPatch {
     pub output_defaults: Option<OutputDefaults>,
     pub toolchain: Option<ToolchainPreferences>,
     pub startup_behavior: Option<StartupBehavior>,
-    pub density: Option<DensityPreference>,
-    pub edit_surface: Option<EditSurfacePreference>,
-    pub rail_width: Option<u32>,
     /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
     /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
@@ -65,30 +46,6 @@ pub enum StartupBehavior {
     /// Reopen with the user-pinned defaults; in-flight panel tweaks are
     /// ephemeral across restarts.
     PinnedDefaults,
-}
-
-/// How the metadata edit surface presents. Rail is the v3 default (persistent
-/// right column); popover anchors to the activated row instead.
-#[derive(
-    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
-)]
-#[serde(rename_all = "camelCase")]
-pub enum EditSurfacePreference {
-    #[default]
-    Rail,
-    Popover,
-}
-
-/// The global UI layout density. Comfortable preserves the existing default;
-/// compact reduces rows and padding for high-information workflows.
-#[derive(
-    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
-)]
-#[serde(rename_all = "camelCase")]
-pub enum DensityPreference {
-    #[default]
-    Comfortable,
-    Compact,
 }
 
 /// A deliberately captured snapshot of the panel-owned durable preferences.
@@ -142,9 +99,6 @@ impl Default for AppSettings {
             output_defaults: OutputDefaults::default(),
             toolchain: ToolchainPreferences::default(),
             startup_behavior: StartupBehavior::default(),
-            density: DensityPreference::default(),
-            edit_surface: EditSurfacePreference::default(),
-            rail_width: default_rail_width(),
             pinned_defaults: None,
         }
     }
@@ -182,15 +136,6 @@ impl AppSettings {
         if let Some(startup_behavior) = patch.startup_behavior {
             self.startup_behavior = startup_behavior;
         }
-        if let Some(density) = patch.density {
-            self.density = density;
-        }
-        if let Some(edit_surface) = patch.edit_surface {
-            self.edit_surface = edit_surface;
-        }
-        if let Some(rail_width) = patch.rail_width {
-            self.rail_width = rail_width;
-        }
         if let Some(pinned_defaults) = patch.pinned_defaults {
             self.pinned_defaults = Some(pinned_defaults);
         }
@@ -203,7 +148,6 @@ impl AppSettings {
         self.encoder_defaults.validate()?;
         self.output_defaults.normalize();
         self.toolchain.normalize();
-        self.rail_width = self.rail_width.clamp(RAIL_WIDTH_MIN, RAIL_WIDTH_MAX);
         if let Some(pinned) = self.pinned_defaults.as_mut() {
             // Same validators as the live values: a stale or hand-edited
             // pinned snapshot must never brick launch hydration.

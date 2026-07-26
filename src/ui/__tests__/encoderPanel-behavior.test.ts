@@ -39,6 +39,11 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
+const changeCheckboxValue = (input: HTMLInputElement, checked: boolean): void => {
+	input.checked = checked;
+	input.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
 const waitForEncoderOptions = async (): Promise<void> => {
 	await vi.waitFor(() => {
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -65,7 +70,7 @@ describe('encoder panel behavior controls', () => {
 		expect(defaults.afterburner).toBe(true);
 	});
 
-	it('renders no afterburner control; the App Settings dialog owns it', async () => {
+	it('shows afterburner for effective FDK and keeps it visible under Auto', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -83,12 +88,27 @@ describe('encoder panel behavior controls', () => {
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
-		expect(document.getElementById('fdk-options')).toBeNull();
-		expect(document.getElementById('adv-fdk-afterburner')).toBeNull();
-		expect(document.getElementById('encoder-inline-option-row')).toBeNull();
+		await vi.waitFor(() => {
+			const behaviorRow = document.getElementById('encoder-inline-option-row');
+			const fdkOptions = document.getElementById('fdk-options');
+			const afterburner = document.getElementById('adv-fdk-afterburner') as HTMLInputElement | null;
+			expect(behaviorRow?.classList.contains('hidden')).toBe(false);
+			expect(fdkOptions?.classList.contains('hidden')).toBe(false);
+			expect(afterburner?.checked).toBe(true);
+		});
+
+		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		changeSelectValue(select, 'fdk_he_aac');
+
+		await vi.waitFor(() => {
+			expect(
+				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
+			).toBe(false);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(false);
+		});
 	});
 
-	it('applies the settings-dialog afterburner preference to encoding config', async () => {
+	it('exposes auto-FDK afterburner and preserves the toggle in encoding config', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -101,14 +121,14 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic, setFdkAfterburner } = await import(
-			'../encoderPanel/logic'
-		);
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		render(EncoderWorkbenchIsland);
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
+			const afterburner = document.getElementById('adv-fdk-afterburner') as HTMLInputElement | null;
+			expect(afterburner?.checked).toBe(true);
 			const config = readEncodingRequestConfig();
 			expect(config.encoderSettings.encoderType).toBe('auto');
 			expect(config.encoderSettings.afterburner).toBe(true);
@@ -117,7 +137,8 @@ describe('encoder panel behavior controls', () => {
 			);
 		});
 
-		setFdkAfterburner(false);
+		const afterburner = document.getElementById('adv-fdk-afterburner') as HTMLInputElement;
+		changeCheckboxValue(afterburner, false);
 
 		await vi.waitFor(() => {
 			const config = readEncodingRequestConfig();
@@ -216,6 +237,48 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
+	it('shows the FDK afterburner control and hides the option row for Native and Apple AAC', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
+		render(EncoderWorkbenchIsland);
+		initializeEncoderPanelLogic();
+		await waitForEncoderOptions();
+
+		await vi.waitFor(() => {
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(false);
+		});
+
+		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		changeSelectValue(select, 'native_aac');
+
+		await vi.waitFor(() => {
+			expect(
+				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
+			).toBe(true);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
+		});
+
+		changeSelectValue(select, 'aac_at');
+
+		await vi.waitFor(() => {
+			expect(
+				document.getElementById('encoder-inline-option-row')?.classList.contains('hidden'),
+			).toBe(true);
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(true);
+		});
+	});
+
 	it('retains the session afterburner opt-out across re-init', async () => {
 		encoderPanelState.flavor = 'fdk_he_aac';
 		encoderPanelState.fdkAfterburner = false;
@@ -237,6 +300,7 @@ describe('encoder panel behavior controls', () => {
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
+			expect(document.getElementById('fdk-options')?.classList.contains('hidden')).toBe(false);
 			expect(encoderPanelState.fdkAfterburner).toBe(false);
 		});
 

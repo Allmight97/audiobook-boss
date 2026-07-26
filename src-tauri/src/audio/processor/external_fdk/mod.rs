@@ -115,9 +115,12 @@ fn expected_duration_seconds(
     files: &[AudioFile],
     preview: Option<&crate::processing::preview_config::PreviewConfig>,
 ) -> f64 {
-    // Shared attainable-target policy with the native path: previews cap each
-    // file's contribution at its own duration.
-    crate::audio::processor::prepare::progress_total_duration(files, preview).max(1.0)
+    if let Some(preview) = preview {
+        return preview.per_file_seconds(files.len()) * files.len() as f64;
+    }
+
+    let total: f64 = files.iter().filter_map(|file| file.duration).sum();
+    total.max(1.0)
 }
 
 #[cfg(test)]

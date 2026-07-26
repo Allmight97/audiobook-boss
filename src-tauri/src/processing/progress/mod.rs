@@ -1,9 +1,6 @@
 //! Progress module: shared types, utilities, and submodule re-exports
 
 mod emitter;
-mod eta;
-
-pub use eta::EtaEstimator;
 
 use crate::processing::lifecycle::OperationKind;
 use crate::processing::ProcessingStage;

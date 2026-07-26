@@ -4,10 +4,9 @@ import type { JobType, MaxConcurrentJobsCapabilities } from '../../types/audio';
 import { flushSync } from 'svelte';
 import { jobControlsState } from './state.svelte';
 import { updateOutputPath } from '../outputPanel';
+import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
 import { refreshCoverArtDisplay } from '../coverArt';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
-
-export { default as JobControlsIsland } from './JobControlsIsland.svelte';
 
 export function initJobControls(): void {
 	void initializeRuntimeCapabilities();
@@ -50,21 +49,13 @@ export function getJobType(): JobType {
 	return jobControlsState.jobType;
 }
 
-// Public control snapshot for composing surfaces (App Settings renders these
-// facts and routes changes back through handleMaxConcurrentSelectionChange).
 export function getMaxConcurrentStatus(): {
 	effective: number | null;
 	selection: string;
-	effectiveLabel: string;
-	enabled: boolean;
-	capabilities: MaxConcurrentJobsCapabilities | null;
 } {
 	return {
 		effective: jobControlsState.effectiveMaxConcurrent,
 		selection: jobControlsState.maxConcurrentSelection,
-		effectiveLabel: jobControlsState.effectiveLabel,
-		enabled: jobControlsState.controlsEnabled,
-		capabilities: jobControlsState.maxConcurrentCapabilities,
 	};
 }
 
@@ -88,6 +79,7 @@ export function setJobControlsEnabled(enabled: boolean): void {
 function updateMaxConcurrentIndicator(): void {
 	if (jobControlsState.effectiveMaxConcurrent === null) {
 		jobControlsState.effectiveLabel = '';
+		updateStatusPanelConcurrencyStatus('Max jobs: —');
 		return;
 	}
 
@@ -96,6 +88,11 @@ function updateMaxConcurrentIndicator(): void {
 	} else {
 		jobControlsState.effectiveLabel = `Max ${jobControlsState.effectiveMaxConcurrent}`;
 	}
+
+	const suffix = jobControlsState.maxConcurrentSelection === 'auto' ? ' (Auto)' : '';
+	updateStatusPanelConcurrencyStatus(
+		`Max jobs: ${jobControlsState.effectiveMaxConcurrent}${suffix}`,
+	);
 }
 
 async function pushMaxConcurrentToBackend(

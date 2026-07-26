@@ -43,8 +43,3 @@
 
 - Preview scheduler, island rendering, and apply workflow behavior stay covered
   by focused Vitest tests.
-- `MetadataLookupIsland`'s Escape/focus-trap behavior routes through the
-  shared `src/lib/ui/modal.svelte.ts` `ModalController`, keyed on
-  `metadataLookupState.isOpen` transitions since the dialog stays mounted
-  while hidden. Escape always calls `closeMetadataLookup` — never a direct
-  state write.

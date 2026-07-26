@@ -4,8 +4,6 @@ import { applyEncodingDefaults } from '../encoderPanel';
 import { applyMaxConcurrentPreference } from '../jobControls';
 import { applyOutputDefaultsFromSettings } from '../outputPanel';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
-import { applyDensityPreference, applyRailWidthPreference } from '../appShell';
-import { applyEditSurfacePreference } from '../metadataSurface';
 
 let hydrationPromise: Promise<void> | null = null;
 
@@ -23,13 +21,6 @@ async function hydrateOnce(): Promise<void> {
 	if (!settings) {
 		return;
 	}
-
-	// Density and edit surface are global user intent, not panel defaults.
-	// They always come from the top-level values even when panel hydration
-	// uses pinned defaults.
-	applyDensityPreference(settings.density ?? 'comfortable');
-	applyEditSurfacePreference(settings.editSurface ?? 'rail');
-	applyRailWidthPreference(settings.railWidth ?? 420);
 
 	const capabilities = await loadRuntimeSettingsCapabilities();
 

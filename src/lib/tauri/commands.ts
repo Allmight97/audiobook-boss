@@ -23,7 +23,6 @@ import type {
 	RemoteAuthCompletionRequest,
 } from '../../types/remoteSource';
 import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
-import type { FrontendLogEntry } from '../../types/frontendLog';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeMetadata,
@@ -113,9 +112,6 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 			? { externalFfmpegPath: patch.toolchain.externalFfmpegPath ?? null }
 			: null,
 		startupBehavior: patch.startupBehavior ?? null,
-		density: patch.density ?? null,
-		editSurface: patch.editSurface ?? null,
-		railWidth: patch.railWidth ?? null,
 		pinnedDefaults: patch.pinnedDefaults
 			? {
 					maxConcurrentJobs: patch.pinnedDefaults.maxConcurrentJobs,
@@ -166,8 +162,6 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.validateFiles(args.filePaths)),
 	read_audio_metadata: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
-	read_audio_cover_thumbnail: (args: { filePath: string }) =>
-		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
 	write_cover_art: (args: { filePath: string; coverData: number[] }) =>
 		runGeneratedCommand(generatedCommands.writeCoverArt(args.filePath, args.coverData)),
 	load_cover_art_file: (args: { filePath: string }) =>
@@ -327,8 +321,6 @@ export const commandSpecs = {
 			generatedCommands.cancelWorkOperation(args.operationId),
 			normalizeOperationSnapshot,
 		),
-	log_frontend: (args: { entry: FrontendLogEntry }) =>
-		runGeneratedCommand(generatedCommands.logFrontend(args.entry)),
 } as const;
 
 export type TauriCommand = keyof typeof commandSpecs;

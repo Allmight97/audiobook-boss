@@ -87,50 +87,8 @@ impl AppError {
     }
 }
 
-impl AppErrorCode {
-    /// Stable dev-log label; parsed from captured dev sessions by
-    /// `scripts/dev-log-analysis.ts`.
-    pub(crate) fn log_label(self) -> &'static str {
-        match self {
-            Self::FileValidationFailed => "file_validation_failed",
-            Self::InvalidInput => "invalid_input",
-            Self::IoError => "io_error",
-            Self::FfmpegError => "ffmpeg_error",
-            Self::ProcessTerminationFailed => "process_termination_failed",
-            Self::TempDirectoryCreationFailed => "temp_directory_creation_failed",
-            Self::ResourceCleanupFailed => "resource_cleanup_failed",
-            Self::InternalError => "internal_error",
-            Self::ImageProcessingError => "image_processing_error",
-            Self::ProcessingCancelled => "processing_cancelled",
-            Self::ToolchainRequired => "toolchain_required",
-        }
-    }
-}
-
-impl AppErrorCategory {
-    /// Stable dev-log label; parsed from captured dev sessions by
-    /// `scripts/dev-log-analysis.ts`.
-    pub(crate) fn log_label(self) -> &'static str {
-        match self {
-            Self::Validation => "validation",
-            Self::Cancellation => "cancellation",
-            Self::Toolchain => "toolchain",
-            Self::Processing => "processing",
-            Self::Resource => "resource",
-            Self::Io => "io",
-            Self::Internal => "internal",
-        }
-    }
-}
-
 impl From<AppError> for AppErrorEnvelope {
     fn from(error: AppError) -> Self {
-        Self::from(&error)
-    }
-}
-
-impl From<&AppError> for AppErrorEnvelope {
-    fn from(error: &AppError) -> Self {
         match error {
             AppError::FileValidation(message) => Self::new(
                 AppErrorCode::FileValidationFailed,
@@ -189,13 +147,13 @@ impl From<&AppError> for AppErrorEnvelope {
             AppError::Cancellation(message) => Self::new(
                 AppErrorCode::ProcessingCancelled,
                 AppErrorCategory::Cancellation,
-                message.clone(),
+                message,
                 None,
             ),
             AppError::ToolchainRequired(message) => Self::new(
                 AppErrorCode::ToolchainRequired,
                 AppErrorCategory::Toolchain,
-                message.clone(),
+                message,
                 None,
             ),
         }

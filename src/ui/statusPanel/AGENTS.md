@@ -33,7 +33,7 @@ re-classify the terminal outcome.
   truth instead of a hand-listed export set here.
 
 ## Private Cluster
-- Files: `controller.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `domain/`, `services/`, `__tests__/`, `StatusTransportIsland.svelte`.
+- Files: `controller.ts`, `runtimeApi.ts`, `events.ts`, `formatting.ts`, `preview.ts`, `processing.ts`, `processingConfig.ts`, `processingWorkflow.ts`, `processingWorkflow.deps.ts`, `processingWorkflowPreparation.ts`, `render.ts`, `state.ts`, `viewState.svelte.ts`, `viewTypes.ts`, `domain/`, `services/`, `__tests__/`, `StatusPanelIsland.svelte`.
 - The cluster consumes backend `OperationKind`, progress events, queue snapshots,
   cancellation facts, and terminal results as a read model. It owns visible
   status derivation, status feedback, controls, and processing request
@@ -45,8 +45,8 @@ re-classify the terminal outcome.
   Vitest files when proving UI behavior changes and generated-binding,
   Public API Strip, and runtime contract checks when generated event shapes are
   touched.
-- Test the visible transport summary (foreground label and cancellability), not per-job view models or reducer shape.
-- Keep direct view-state/controller imports inside this cluster or tests.
+- Test visible status outcomes rather than private reducer shape when behavior is user-facing.
+- Keep direct view-state/controller/runtimeApi imports inside this cluster or tests.
 - Build `ProcessingRequestConfig` through `processingConfig.ts`; do not import encoder or output panel private state to assemble process payloads.
 - Consume the backend-owned terminal verdict (`RunTerminalClass` on
   `ProcessCommandResult`) for the preview completion outcome; do not re-derive
@@ -57,7 +57,7 @@ re-classify the terminal outcome.
 ## Breaking-Change Triggers
 - Adding, removing, or renaming any Public API Strip export.
 - Changing progress, cancellation, queue terminalization, success/failure/cancel truth, or concurrency-status behavior.
-- Letting external runtime code import `viewState.svelte`, `controller.ts`, or reducer/domain internals directly.
+- Letting external runtime code import `viewState.svelte`, `controller.ts`, `runtimeApi.ts`, or reducer/domain internals directly.
 - Reintroducing mirrored encoder/sample-rate state outside the encoder panel.
 - Converting Status Panel to a WorkRuntime consumer without explicit migration
   proof (this must be a deliberate architecture decision with documented

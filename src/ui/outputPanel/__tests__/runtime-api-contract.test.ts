@@ -7,8 +7,6 @@ const EXPECTED_OUTPUT_PANEL_EXPORTS = [
 	'applyOutputDefaultsFromSettings',
 	'initOutputPanel',
 	'readEstimatedSizeText',
-	'readOutputDisplaySnapshot',
-	'readOutputNamingSummaryLabel',
 	'readOutputDefaultsFromState',
 	'readOutputRequestConfig',
 	'runOutputPlanReviewWorkflow',
@@ -28,13 +26,5 @@ describe('Output Panel Runtime public API contract', () => {
 	it('reads estimated size through the public accessor after refresh', () => {
 		outputPanel.updateEstimatedSize();
 		expect(outputPanel.readEstimatedSizeText()).toMatch(/^~/);
-	});
-
-	it('derives the naming summary from the live naming preset', () => {
-		expect(outputPanel.readOutputNamingSummaryLabel()).toBe('ABS Default');
-		outputPanel.applyOutputDefaultsFromSettings({
-			outputNaming: { preset: 'customTemplate', includeYear: false },
-		});
-		expect(outputPanel.readOutputNamingSummaryLabel()).toBe('Custom Template');
 	});
 });

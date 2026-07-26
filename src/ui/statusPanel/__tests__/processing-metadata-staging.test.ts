@@ -47,8 +47,7 @@ vi.mock('../../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../fileList/state.svelte', async (importOriginal) => ({
-	...(await importOriginal<typeof import('../../fileList/state.svelte')>()),
+vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndex: context.getSelectedFileIndexMock,
 	getSelectedFileIndices: context.getSelectedFileIndicesMock,
@@ -130,6 +129,7 @@ function processingContext() {
 	return {
 		updateStatus: vi.fn((_status: ProcessingStatus) => undefined),
 		setProcessingState: vi.fn(),
+		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
