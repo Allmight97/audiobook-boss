@@ -19,14 +19,6 @@ function setupDom() {
   `;
 }
 
-function getJobRows(): string[] {
-	return statusPanelViewState.jobItems.map((item) => {
-		const percentage =
-			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
-		return `${item.label} • ${item.statusText}${percentage}`;
-	});
-}
-
 describe('StatusPanel aggregate progress', () => {
 	beforeEach(() => {
 		setupDom();
@@ -77,10 +69,8 @@ describe('StatusPanel aggregate progress', () => {
 		});
 		expect(statusPanelViewState.progressPercentage).toBe(75);
 		expect(statusPanelViewState.statusText).toBe('Converting');
-		expect(getJobRows()).toEqual([
-			'alpha.m4b • Converting (50.0%)',
-			'beta.m4b • Completed (100.0%)',
-		]);
+		expect(statusPanelViewState.foregroundJobLabel).toBe('alpha.m4b');
+		expect(statusPanelViewState.hasCancellableForegroundJob).toBe(false);
 	});
 
 	it('counts queued jobs as zero-progress participants in batch averages', () => {
@@ -111,11 +101,7 @@ describe('StatusPanel aggregate progress', () => {
 		});
 		expect(statusPanelViewState.progressPercentage).toBe(33.3);
 		expect(statusPanelViewState.statusText).toBe('Analyzing');
-		expect(getJobRows()).toEqual([
-			'alpha.m4b • Completed (100.0%)',
-			'beta.m4b • Queued • #2 of 3',
-			'gamma.m4b • Queued • #3 of 3',
-		]);
+		expect(statusPanelViewState.foregroundJobLabel).toBe('alpha.m4b');
 	});
 
 	// Regression guard for the discriminated-union refactor. Before `buildStatus`,

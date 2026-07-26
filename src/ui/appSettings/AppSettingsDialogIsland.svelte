@@ -1,5 +1,10 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
+	import { ModalController } from '../../lib/ui/modal.svelte';
+	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
+	import { getMaxConcurrentStatus, handleMaxConcurrentSelectionChange } from '../jobControls';
+	import { editSurfaceState, setEditSurfaceFromUser } from '../metadataSurface';
 	import {
 		appSettingsDialogState,
 		browseForFfmpegBinary,
@@ -11,10 +16,68 @@
 		setStartupBehavior,
 	} from './settingsDialog.svelte';
 
+	let dialogEl = $state<HTMLElement | null>(null);
+	const modal = new ModalController();
+
+	$effect(() => {
+		modal.sync(appSettingsDialogState.isOpen, { container: dialogEl }, { onEscape: closeAppSettingsDialog });
+	});
+	onDestroy(() => modal.destroy());
+
+	// Reset all settings needs a second step: the button first swaps into a
+	// confirm state, and any other interaction or a timeout backs it out.
+	let resetConfirming = $state(false);
+	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	function cancelResetConfirm(): void {
+		clearTimeout(resetConfirmTimeout);
+		resetConfirmTimeout = undefined;
+		resetConfirming = false;
+	}
+
+	function requestResetConfirm(): void {
+		resetConfirming = true;
+		clearTimeout(resetConfirmTimeout);
+		resetConfirmTimeout = setTimeout(cancelResetConfirm, 4000);
+	}
+
+	function confirmReset(): void {
+		cancelResetConfirm();
+		void resetAllAppSettings();
+	}
+
+	// Any interaction outside the reset control row backs the confirm step
+	// out, same as the timeout. The row itself is exempt so the same click
+	// that requests confirmation does not immediately cancel it.
+	function handleWindowClickForResetConfirm(event: MouseEvent): void {
+		if (!resetConfirming) return;
+		const target = event.target;
+		if (target instanceof Element && target.closest('[data-testid="app-settings-reset-row"]')) {
+			return;
+		}
+		cancelResetConfirm();
+	}
+
+	$effect(() => {
+		if (!appSettingsDialogState.isOpen) cancelResetConfirm();
+	});
+
+	function handleAfterburnerChange(event: Event): void {
+		const target = (event.currentTarget ?? event.target) as HTMLInputElement | null;
+		void setFdkAfterburner(Boolean(target?.checked));
+	}
+
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
 			closeAppSettingsDialog();
 		}
+	}
+
+	const concurrency = $derived(getMaxConcurrentStatus());
+
+	function handleConcurrencyChange(event: Event): void {
+		const select = event.currentTarget as HTMLSelectElement | null;
+		handleMaxConcurrentSelectionChange(select?.value ?? 'auto');
 	}
 
 	function formatConcurrency(settings: Pick<AppSettings, 'maxConcurrentJobs'>): string {
@@ -71,6 +134,8 @@
 	}
 </script>
 
+<svelte:window onclick={handleWindowClickForResetConfirm} />
+
 <div
 	id="app-settings-modal"
 	class="app-modal-backdrop"
@@ -84,12 +149,13 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="app-settings-title"
+		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="app-settings-title">App Settings</h3>
 			<button
 				id="app-settings-close"
-				class="btn-pill btn-pill-secondary"
+				class="pill pill-ghost pill-sm"
 				data-testid="app-settings-close"
 				type="button"
 				onclick={closeAppSettingsDialog}
@@ -100,7 +166,7 @@
 
 		<div class="app-modal-body">
 			{#if appSettingsDialogState.loading}
-				<p class="text-xs muted-text">Loading settings…</p>
+				<p class="app-modal-status text-xs">Loading settings…</p>
 			{:else}
 				<section class="app-settings-section">
 					<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
@@ -118,7 +184,7 @@
 							bind:value={appSettingsDialogState.ffmpegPathDraft}
 						/>
 						<button
-							class="btn-pill btn-pill-secondary"
+							class="pill pill-ghost pill-sm"
 							data-testid="app-settings-ffmpeg-browse"
 							type="button"
 							onclick={() => void browseForFfmpegBinary()}
@@ -126,7 +192,7 @@
 							Browse…
 						</button>
 						<button
-							class="btn-pill btn-pill-secondary"
+							class="pill pill-ghost pill-sm"
 							data-testid="app-settings-ffmpeg-clear"
 							type="button"
 							onclick={clearFfmpegPathDraft}
@@ -134,7 +200,7 @@
 							Clear
 						</button>
 						<button
-							class="btn-pill btn-pill-primary"
+							class="pill pill-primary pill-sm"
 							data-testid="app-settings-ffmpeg-save"
 							type="button"
 							disabled={appSettingsDialogState.saveState === 'saving'}
@@ -144,18 +210,92 @@
 						</button>
 					</div>
 					{#if appSettingsDialogState.saveState === 'error'}
-						<p class="app-settings-status app-settings-status-error" data-testid="app-settings-error">
+						<p class="app-settings-status app-modal-status is-error" data-testid="app-settings-error">
 							{appSettingsDialogState.saveError}
 						</p>
 					{/if}
 					{#if appSettingsDialogState.encoderAvailability}
-						<p class="app-settings-status" data-testid="app-settings-toolchain-status">
+						<p class="app-settings-status app-modal-status" data-testid="app-settings-toolchain-status">
 							{appSettingsDialogState.encoderAvailability.statusMessage}
 							{#if appSettingsDialogState.encoderAvailability.fdkAvailable}
 								(FDK source: {formatFdkSource(appSettingsDialogState.encoderAvailability.fdkSource)})
 							{/if}
 						</p>
 					{/if}
+					<label class="checkbox-label" data-testid="app-settings-afterburner-toggle">
+						<input
+							type="checkbox"
+							id="app-settings-afterburner"
+							data-testid="app-settings-afterburner-checkbox"
+							checked={readFdkAfterburner()}
+							onchange={handleAfterburnerChange}
+						/>
+						<span class="option-label">FDK Afterburner</span>
+					</label>
+					<p class="text-xs muted-text">
+						Extra encoding effort for slightly higher quality on the FDK encoder.
+						Leave on unless encode speed matters more than quality.
+					</p>
+				</section>
+
+				<section class="app-settings-section">
+					<h4 class="app-settings-section-title">Processing</h4>
+					<div class="app-settings-path-row" title="Concurrent Jobs">
+						<span class="text-xs muted-text whitespace-nowrap">Number of Jobs:</span>
+						<select
+							id="max-concurrent-select"
+							class="text-xs w-14 px-1 py-0.5"
+							value={concurrency.selection}
+							disabled={!concurrency.enabled || !concurrency.capabilities}
+							onchange={handleConcurrencyChange}
+						>
+							{#if concurrency.capabilities?.allowAuto}
+								<option value="auto">Auto</option>
+							{/if}
+							{#each concurrency.capabilities?.fixedOptions ?? [] as option}
+								<option value={String(option)}>{option}</option>
+							{/each}
+						</select>
+						<span
+							id="max-concurrent-effective"
+							class="text-xs muted-text"
+							aria-live="polite"
+							data-testid="max-concurrent-effective"
+						>
+							{concurrency.effectiveLabel}
+						</span>
+					</div>
+					<p class="text-xs muted-text">
+						How many audiobooks encode at the same time. Auto sizes to this machine;
+						changes apply to newly started jobs.
+					</p>
+				</section>
+
+				<section class="app-settings-section">
+					<h4 class="app-settings-section-title">Editing</h4>
+					<div class="app-settings-path-row">
+						<span class="text-xs muted-text whitespace-nowrap">Metadata edit surface:</span>
+						<div class="segmented" role="group" aria-label="Edit surface" data-testid="app-settings-edit-surface">
+							<button
+								type="button"
+								aria-pressed={editSurfaceState.preference === 'rail'}
+								onclick={() => setEditSurfaceFromUser('rail')}
+							>
+								Rail
+							</button>
+							<button
+								type="button"
+								aria-pressed={editSurfaceState.preference === 'popover'}
+								onclick={() => setEditSurfaceFromUser('popover')}
+							>
+								Popover
+							</button>
+						</div>
+					</div>
+					<p class="text-xs muted-text">
+						Rail keeps a persistent editor beside the chapter queue; popover opens the
+						editor on the selected row instead.
+					</p>
 				</section>
 
 				{#if appSettingsDialogState.settings}
@@ -195,7 +335,7 @@
 						</div>
 						<div class="app-settings-path-row">
 							<button
-								class="btn-pill btn-pill-secondary"
+								class="pill pill-ghost pill-sm"
 								data-testid="app-settings-pin-defaults"
 								type="button"
 								disabled={appSettingsDialogState.startupSaveState === 'saving'}
@@ -206,7 +346,7 @@
 						</div>
 						{#if appSettingsDialogState.startupSaveState === 'error'}
 							<p
-								class="app-settings-status app-settings-status-error"
+								class="app-settings-status app-modal-status is-error"
 								data-testid="app-settings-startup-error"
 							>
 								{appSettingsDialogState.startupSaveError}
@@ -229,16 +369,39 @@
 
 					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">Reset</h4>
-						<div class="app-settings-path-row">
-							<button
-								class="btn-pill btn-pill-secondary"
-								data-testid="app-settings-reset"
-								type="button"
-								disabled={appSettingsDialogState.saveState === 'saving'}
-								onclick={() => void resetAllAppSettings()}
-							>
-								Reset all settings to defaults
-							</button>
+						<div class="app-settings-path-row" data-testid="app-settings-reset-row">
+							{#if resetConfirming}
+								<span class="text-xs muted-text" data-testid="app-settings-reset-confirm-prompt">
+									Reset all settings?
+								</span>
+								<button
+									class="pill pill-sm reset-confirm-btn"
+									data-testid="app-settings-reset-confirm"
+									type="button"
+									disabled={appSettingsDialogState.saveState === 'saving'}
+									onclick={confirmReset}
+								>
+									Reset
+								</button>
+								<button
+									class="pill pill-ghost pill-sm"
+									data-testid="app-settings-reset-cancel"
+									type="button"
+									onclick={cancelResetConfirm}
+								>
+									Cancel
+								</button>
+							{:else}
+								<button
+									class="pill pill-ghost pill-sm"
+									data-testid="app-settings-reset"
+									type="button"
+									disabled={appSettingsDialogState.saveState === 'saving'}
+									onclick={requestResetConfirm}
+								>
+									Reset all settings to defaults
+								</button>
+							{/if}
 						</div>
 					</section>
 				{/if}
@@ -249,7 +412,7 @@
 
 <style>
 	.app-settings-section {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 
 	.app-settings-section:first-child {
@@ -257,58 +420,64 @@
 	}
 
 	.app-settings-section-title {
-		margin: 0 0 0.35rem;
-		font-size: 0.85rem;
+		margin: 0 0 var(--space-1);
+		font-size: var(--text-md);
 		font-weight: 600;
 		color: var(--text-primary);
 	}
 
 	.app-settings-path-row {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: center;
-		margin-top: 0.5rem;
+		margin-top: var(--space-2);
 	}
 
 	.app-settings-path-input {
 		flex: 1;
 		min-width: 0;
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: var(--text-sm);
+	}
+
+	/* Local danger-pill variant: only this owner's reset confirm needs it, so
+	   it stays scoped here rather than joining the shared .pill kit. */
+	.reset-confirm-btn {
+		background: var(--text-error);
+		color: #ffffff;
+	}
+
+	.reset-confirm-btn:hover:not(:disabled) {
+		opacity: 0.85;
 	}
 
 	.app-settings-status {
-		margin-top: 0.5rem;
-		font-size: 0.76rem;
-		color: var(--text-secondary);
-	}
-
-	.app-settings-status-error {
-		color: var(--danger, #e5484d);
+		margin-top: var(--space-2);
+		font-size: var(--text-sm);
 	}
 
 	.app-settings-startup-options {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
-		margin-top: 0.5rem;
-		font-size: 0.78rem;
+		gap: var(--space-1);
+		margin-top: var(--space-2);
+		font-size: var(--text-sm);
 		color: var(--text-primary);
 	}
 
 	.app-settings-radio {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--space-1);
 		cursor: pointer;
 	}
 
 	.app-settings-summary {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 0.3rem 1rem;
-		margin: 0.5rem 0 0;
-		font-size: 0.78rem;
+		gap: var(--space-1) var(--space-4);
+		margin: var(--space-2) 0 0;
+		font-size: var(--text-sm);
 	}
 
 	.app-settings-summary dt {

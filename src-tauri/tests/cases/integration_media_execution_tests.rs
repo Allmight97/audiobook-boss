@@ -28,10 +28,11 @@ use audiobook_boss_lib::audio::{
 use audiobook_boss_lib::processing::job_registry::{JobId, JobRegistry};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use audiobook_boss_lib::{
-    extract_passthrough_metadata, finalize_artifact_metadata, read_metadata, save_metadata_intent,
-    AlbumSortPatchOp, AppError, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
-    PassthroughSource, PatchOp,
+    extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
+    read_metadata, save_metadata_intent, AlbumSortPatchOp, AppError, AudiobookMetadata,
+    CoverArtPassthroughPolicy, MetadataIntentPatch, PassthroughSource, PatchOp,
 };
+use image::{GenericImageView, ImageFormat};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -273,6 +274,20 @@ async fn import_configure_process_produces_decodable_m4b_with_truthful_duration(
     );
 }
 
+/// Analysis exposes the real chapters already embedded in one M4B; the fixture
+/// is a normal engine-produced two-source artifact, not a serialized stand-in.
+#[tokio::test]
+async fn analysis_exposes_embedded_chapters_from_real_m4b() {
+    let lane = MediaLane::with_fixtures(&[1.0, 1.5]);
+    let output = lane.process(None).await;
+
+    let probe = get_file_list_info(&[&output]).expect("analyze chaptered M4B");
+    let chapters = &probe.files[0].chapters;
+    assert_eq!(chapters.len(), 2, "analysis returns both embedded chapters");
+    assert_eq!(chapters[0].title.as_deref(), Some("fixture-0"));
+    assert_eq!(chapters[1].title.as_deref(), Some("fixture-1"));
+}
+
 #[tokio::test]
 async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     let lane = MediaLane::with_fixtures(&[1.0]);
@@ -291,6 +306,23 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     assert_eq!(reread.artist.as_deref(), Some("Lane Narrator"));
     assert_eq!(reread.album.as_deref(), Some("Lane Album"));
     assert_eq!(reread.genre.as_deref(), Some("Audiobook"));
+}
+
+#[tokio::test]
+async fn analysis_populates_display_tags_from_an_existing_tagged_fixture() {
+    let lane = MediaLane::with_fixtures(&[1.0]);
+    let output = lane.process(None).await;
+    let patch = MetadataIntentPatch {
+        title: PatchOp::Set("Analyzed Fixture Title".to_string()),
+        artist: PatchOp::Set("Analyzed Fixture Artist".to_string()),
+        ..Default::default()
+    };
+    save_metadata_intent(&output, &patch).expect("tag fixture through metadata boundary");
+
+    let analyzed = get_file_list_info(&[&output]).expect("analyze tagged fixture");
+    let file = analyzed.files.first().expect("one analyzed fixture");
+    assert_eq!(file.tag_title.as_deref(), Some("Analyzed Fixture Title"));
+    assert_eq!(file.tag_artist.as_deref(), Some("Analyzed Fixture Artist"));
 }
 
 #[tokio::test]
@@ -596,6 +628,35 @@ async fn cover_art_saved_during_processing_rereads_from_output_artifact() {
     assert_eq!(
         cover, jpg,
         "cover art bytes round-trip unchanged through processing"
+    );
+}
+
+#[tokio::test]
+async fn embedded_cover_thumbnail_is_bounded_jpeg_and_coverless_artifact_returns_none() {
+    let covered_lane = MediaLane::with_fixtures(&[1.0]);
+    let mut metadata = AudiobookMetadata::new();
+    metadata.cover_art = Some(minimal_jpg_bytes());
+    let covered_output = covered_lane.process(Some(metadata)).await;
+
+    let thumbnail = read_audio_cover_thumbnail(&covered_output)
+        .expect("read embedded cover thumbnail")
+        .expect("covered artifact should return a thumbnail");
+    let decoded = image::load_from_memory(&thumbnail).expect("thumbnail should decode");
+    assert_eq!(
+        image::guess_format(&thumbnail).expect("thumbnail format should be detectable"),
+        ImageFormat::Jpeg
+    );
+    let (width, height) = decoded.dimensions();
+    assert!(
+        width <= 64 && height <= 64,
+        "thumbnail dimensions {width}x{height} exceed the 64px bound"
+    );
+
+    let coverless_lane = MediaLane::with_fixtures(&[1.0]);
+    let coverless_output = coverless_lane.process(None).await;
+    assert_eq!(
+        read_audio_cover_thumbnail(&coverless_output).expect("read coverless artifact thumbnail"),
+        None
     );
 }
 

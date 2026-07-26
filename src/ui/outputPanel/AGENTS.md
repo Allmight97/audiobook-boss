@@ -7,6 +7,7 @@
   truth instead of a hand-listed export set here.
 - External Svelte consumers read estimated size through `readEstimatedSizeText()`
   inside reactive markup (`$derived(...)`).
+- App Shell reads the live naming preset label through `readOutputNamingSummaryLabel()`.
 
 ## Private Cluster
 - Files: `OutputPanelIsland.svelte`, `actions.ts`, `preview.ts`, `state.svelte.ts`, `outputPlanWorkflow.ts`, `__tests__/`.

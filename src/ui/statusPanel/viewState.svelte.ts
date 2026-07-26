@@ -1,29 +1,29 @@
-import type { JobListItem } from './viewTypes';
-
 type StatusPanelViewState = {
-	coverArtDataUrl: string | null;
-	jobItems: JobListItem[];
+	foregroundJobLabel: string | null;
+	hasCancellableForegroundJob: boolean;
 	progressPercentage: number;
 	statusText: string;
 	statusTextLockUntilEpochMs: number;
 	stepText: string;
 	stepColor: string;
-	concurrencyText: string;
 	isProcessing: boolean;
-	cancelAllPending: boolean;
+	etaSeconds: number | null;
 };
 
+// Cluster-internal: the transport island compares against the default step
+// color to distinguish showError/showSuccess feedback from informational text.
+export const STATUS_PANEL_DEFAULT_STEP_COLOR = 'var(--text-primary)';
+
 const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
-	coverArtDataUrl: null,
-	jobItems: [],
+	foregroundJobLabel: null,
+	hasCancellableForegroundJob: false,
 	progressPercentage: 0,
 	statusText: 'Idle',
 	statusTextLockUntilEpochMs: 0,
 	stepText: 'Current Step: Waiting for files...',
-	stepColor: 'var(--text-primary)',
-	concurrencyText: '',
+	stepColor: STATUS_PANEL_DEFAULT_STEP_COLOR,
 	isProcessing: false,
-	cancelAllPending: false,
+	etaSeconds: null,
 };
 
 const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
@@ -85,12 +85,14 @@ export function pushStatusPanelUserMessageLock(
 	}
 }
 
-export function setStatusPanelCoverArtDataUrl(dataUrl: string | null): void {
-	statusPanelViewState.coverArtDataUrl = dataUrl;
+export function setStatusPanelForegroundJobLabel(label: string | null): void {
+	statusPanelViewState.foregroundJobLabel = label;
 }
 
-export function setStatusPanelJobItems(items: JobListItem[]): void {
-	statusPanelViewState.jobItems = items;
+export function setStatusPanelHasCancellableForegroundJob(
+	hasCancellableForegroundJob: boolean,
+): void {
+	statusPanelViewState.hasCancellableForegroundJob = hasCancellableForegroundJob;
 }
 
 export function setStatusPanelProgressPercentage(value: number): void {
@@ -118,16 +120,21 @@ export function setStatusPanelStepColor(value: string): void {
 	statusPanelViewState.stepColor = value;
 }
 
-export function setStatusPanelConcurrencyText(value: string): void {
-	statusPanelViewState.concurrencyText = value;
+// Resets a retained showSuccess/showError/showInfo verdict back to idle
+// defaults. Called when a background WorkRuntime operation takes over the
+// transport row, so a stale preview verdict cannot resurface once that
+// operation finishes and the row reverts to this island.
+export function clearStatusPanelFeedback(): void {
+	statusPanelViewState.stepText = DEFAULT_STATUS_PANEL_VIEW_STATE.stepText;
+	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
+}
+
+export function setStatusPanelEtaSeconds(etaSeconds: number | null): void {
+	statusPanelViewState.etaSeconds = etaSeconds;
 }
 
 export function setStatusPanelIsProcessing(isProcessing: boolean): void {
 	statusPanelViewState.isProcessing = isProcessing;
-}
-
-export function setStatusPanelCancelAllPending(isPending: boolean): void {
-	statusPanelViewState.cancelAllPending = isPending;
 }
 
 export function showError(message: string): void {
@@ -154,17 +161,17 @@ export function clearTransientStatusMessageLock(): void {
 }
 
 export function resetStatusPanelViewState(): void {
-	statusPanelViewState.coverArtDataUrl = DEFAULT_STATUS_PANEL_VIEW_STATE.coverArtDataUrl;
-	statusPanelViewState.jobItems = [...DEFAULT_STATUS_PANEL_VIEW_STATE.jobItems];
+	statusPanelViewState.foregroundJobLabel = DEFAULT_STATUS_PANEL_VIEW_STATE.foregroundJobLabel;
+	statusPanelViewState.hasCancellableForegroundJob =
+		DEFAULT_STATUS_PANEL_VIEW_STATE.hasCancellableForegroundJob;
 	statusPanelViewState.progressPercentage = DEFAULT_STATUS_PANEL_VIEW_STATE.progressPercentage;
 	statusPanelViewState.statusText = DEFAULT_STATUS_PANEL_VIEW_STATE.statusText;
 	statusPanelViewState.statusTextLockUntilEpochMs =
 		DEFAULT_STATUS_PANEL_VIEW_STATE.statusTextLockUntilEpochMs;
 	statusPanelViewState.stepText = DEFAULT_STATUS_PANEL_VIEW_STATE.stepText;
 	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
-	statusPanelViewState.concurrencyText = DEFAULT_STATUS_PANEL_VIEW_STATE.concurrencyText;
 	statusPanelViewState.isProcessing = DEFAULT_STATUS_PANEL_VIEW_STATE.isProcessing;
-	statusPanelViewState.cancelAllPending = DEFAULT_STATUS_PANEL_VIEW_STATE.cancelAllPending;
+	statusPanelViewState.etaSeconds = DEFAULT_STATUS_PANEL_VIEW_STATE.etaSeconds;
 
 	if (statusMessageLockTimeoutId !== null) {
 		window.clearTimeout(statusMessageLockTimeoutId);

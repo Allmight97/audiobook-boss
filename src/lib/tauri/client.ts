@@ -49,6 +49,7 @@ import type {
 	SubmitProcessingOperationRequest,
 	WorkSubmissionAccepted,
 } from '../../types/workRuntime';
+import type { FrontendLogEntry } from '../../types/frontendLog';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
 	normalizeOperationListSnapshot,
@@ -188,6 +189,10 @@ export const tauriClient = {
 		commandSpecs.validate_files({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
+	readAudioCoverThumbnail: (
+		filePath: string,
+	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
+		commandSpecs.read_audio_cover_thumbnail({ filePath }),
 	writeCoverArt: (
 		filePath: string,
 		coverData: number[],
@@ -285,6 +290,8 @@ export const tauriClient = {
 		commandSpecs.get_work_operation({ operationId }),
 	cancelWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
 		commandSpecs.cancel_work_operation({ operationId }),
+	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
+		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,
 	open: openDialog,
 	openFile,

@@ -1,6 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::app_settings::types::{RAIL_WIDTH_MAX, RAIL_WIDTH_MIN};
 use crate::app_settings::AppSettings;
 use crate::errors::{AppError, Result};
 
@@ -14,11 +15,15 @@ pub(super) fn load(config_dir: &Path) -> Result<AppSettings> {
         Err(error) => return Err(AppError::Io(error)),
     };
 
-    serde_json::from_str(&content).map_err(|error| {
+    let mut settings: AppSettings = serde_json::from_str(&content).map_err(|error| {
         AppError::InvalidInput(format!(
             "App settings file is invalid. Reset app settings to restore defaults. ({error})"
         ))
-    })
+    })?;
+    // Layout preferences normalize on load (never fail): a hand-edited or
+    // stale value must not brick launch hydration.
+    settings.rail_width = settings.rail_width.clamp(RAIL_WIDTH_MIN, RAIL_WIDTH_MAX);
+    Ok(settings)
 }
 
 pub(super) fn save(config_dir: &Path, settings: &AppSettings) -> Result<()> {

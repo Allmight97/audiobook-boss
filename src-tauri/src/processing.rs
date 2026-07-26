@@ -32,7 +32,7 @@ pub use context::{OutputConfig, ProcessingContext};
 pub use job_registry::{
     AggregateJobStatus, CancellationChecker, JobId, JobRegistry, MaxConcurrentJobsCapabilities,
 };
-pub use lifecycle::{OperationKind, OperationResultSummary};
+pub use lifecycle::{operation_kind_log_label, OperationKind, OperationResultSummary};
 pub use preview_config::PreviewConfig;
 pub use progress::{
     converting_percentage_from_seconds, emit_progress_event, emit_queue_event, EventStage,

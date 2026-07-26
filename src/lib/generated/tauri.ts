@@ -18,6 +18,8 @@ export const commands = {
 	 *  Returns metadata as JSON-serializable struct
 	 */
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
+	// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
+	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**
 	 *  Writes cover art to an M4B file
 	 *  Accepts file path and base64-encoded image data
@@ -111,6 +113,13 @@ export const commands = {
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	getWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("get_work_operation", { operationId })),
 	cancelWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId })),
+	/**
+	 *  Logs a sanitized frontend failure record through the standard `log` crate
+	 *  so webview errors and unhandled rejections show up in captured dev logs
+	 *  (`RUST_LOG=audiobook_boss_lib=info`), which otherwise only tee Rust
+	 *  stdout/stderr.
+	 */
+	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
 
 /** Events */
@@ -182,6 +191,10 @@ export type AppSettings = {
 	outputDefaults: OutputDefaults,
 	toolchain?: ToolchainPreferences,
 	startupBehavior?: StartupBehavior,
+	density?: DensityPreference,
+	editSurface?: EditSurfacePreference,
+	// Metadata rail width in CSS pixels; clamped to the shell's resize range.
+	railWidth?: number,
 	pinnedDefaults?: PinnedDefaults | null,
 };
 
@@ -191,11 +204,24 @@ export type AppSettingsPatch = {
 	outputDefaults: OutputDefaults | null,
 	toolchain: ToolchainPreferences | null,
 	startupBehavior: StartupBehavior | null,
+	density: DensityPreference | null,
+	editSurface: EditSurfacePreference | null,
+	railWidth: number | null,
 	/**
 	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
 	 *  back to `RememberLastState`, never unpinning.
 	 */
 	pinnedDefaults: PinnedDefaults | null,
+};
+
+// Read-only chapter facts discovered while analyzing one audio file.
+export type AudioChapter = {
+	// Embedded chapter title, when present in the source container.
+	title: string | null,
+	// Chapter start in milliseconds from the beginning of this file.
+	startMs: number,
+	// Chapter end in milliseconds from the beginning of this file.
+	endMs: number,
 };
 
 // Represents an audio file with metadata
@@ -220,6 +246,12 @@ export type AudioFile = {
 	codecLabel: string | null,
 	// Friendly selected decoder label for display only (None if unavailable)
 	selectedDecoder: string | null,
+	// Title tag discovered during input analysis (None if unavailable)
+	tagTitle: string | null,
+	// Artist tag discovered during input analysis (None if unavailable)
+	tagArtist: string | null,
+	// Chapters embedded in this individual source file, normalized to milliseconds.
+	chapters?: AudioChapter[],
 	// Validation status
 	isValid: boolean,
 	// Error message if validation failed
@@ -283,6 +315,18 @@ export type DecoderSelection = {
 	// Friendly decoder label used for display only.
 	decoderLabel: string,
 };
+
+/**
+ *  The global UI layout density. Comfortable preserves the existing default;
+ *  compact reduces rows and padding for high-information workflows.
+ */
+export type DensityPreference = "comfortable" | "compact";
+
+/**
+ *  How the metadata edit surface presents. Rail is the v3 default (persistent
+ *  right column); popover anchors to the activated row instead.
+ */
+export type EditSurfacePreference = "rail" | "popover";
 
 export type EncoderAvailability = {
 	fdkAvailable: boolean,
@@ -380,6 +424,14 @@ export type FileListInfo = {
 	// Number of invalid files
 	invalidCount: number,
 };
+
+export type FrontendLogEntry = {
+	level: FrontendLogLevel,
+	scope: string,
+	message: string,
+};
+
+export type FrontendLogLevel = "error" | "warn";
 
 export type JobType = "merge" | "batch";
 
@@ -498,6 +550,18 @@ export type OperationListSnapshot = {
 	operations: OperationSnapshot[],
 };
 
+/**
+ *  Bounded per-operation activity tail rendered by the Work Center's op-card
+ *  log box. Authored only where snapshot state changes (progress application,
+ *  lifecycle transitions) — the frontend never accumulates its own history.
+ */
+export type OperationLogEntry = {
+	timestampMs: number,
+	message: string,
+	stage: WorkProgressStage | null,
+	childJobId: string | null,
+};
+
 export type OperationResultSummary = {
 	total: number,
 	succeeded: number,
@@ -524,6 +588,7 @@ export type OperationSnapshot = {
 	terminalSummary: OperationTerminalSummary | null,
 	warnings: string[],
 	errors: string[],
+	logTail: OperationLogEntry[],
 };
 
 export type OperationTerminalSummary = {

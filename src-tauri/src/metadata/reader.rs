@@ -30,6 +30,26 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     read_metadata_with_ffmpeg_input(&ictx)
 }
 
+pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
+    if !path.exists() {
+        return Err(AppError::FileValidation(format!(
+            "File not found: {}",
+            sanitize_path_for_display(path)
+        )));
+    }
+
+    ff::init().map_err(AppError::Ffmpeg)?;
+    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
+    let route = super::container::classify_format_name(ictx.format().name());
+
+    if matches!(route, super::container::ContainerRoute::Mp4Family) {
+        drop(ictx);
+        return mp4ameta_bridge::read_cover_art_for_thumbnail(path);
+    }
+
+    extract_attached_pic_for_thumbnail(&ictx)
+}
+
 fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<AudiobookMetadata> {
     let dict = ictx.metadata();
 
@@ -97,6 +117,19 @@ fn first_tag(dict: &ff::DictionaryRef<'_>, field: TagField) -> Option<String> {
     first_tag_keys(dict, field.read_keys())
 }
 
+/// Returns the display-safe title and artist tags from an already-open FFmpeg input.
+///
+/// This intentionally owns the canonical tag-key lookup so analysis callers do
+/// not depend on the metadata reader's private lookup helpers or open files again.
+pub fn display_tags_from_ffmpeg_dict(
+    dict: &ff::DictionaryRef<'_>,
+) -> (Option<String>, Option<String>) {
+    (
+        first_tag(dict, TagField::Title),
+        first_tag(dict, TagField::Artist),
+    )
+}
+
 fn first_tag_keys(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {
     first_tag_with_lookup(keys, |key| dict.get(key).map(str::to_string))
 }
@@ -144,6 +177,26 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
         }
     }
     None
+}
+
+fn extract_attached_pic_for_thumbnail(
+    ictx: &ff::format::context::Input,
+) -> Result<Option<Vec<u8>>> {
+    use ff::format::stream::Disposition;
+
+    for stream in ictx.streams() {
+        if stream.disposition().contains(Disposition::ATTACHED_PIC) {
+            unsafe {
+                let av_stream = stream.as_ptr();
+                let pic = (*av_stream).attached_pic;
+                if !pic.data.is_null() && pic.size > 0 {
+                    let bytes = std::slice::from_raw_parts(pic.data, pic.size as usize);
+                    return super::thumbnail::clone_thumbnail_cover_art(bytes).map(Some);
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O

@@ -56,6 +56,9 @@ const settingsFixture = (): AppSettings => ({
 	},
 	toolchain: {},
 	startupBehavior: 'rememberLastState',
+	density: 'comfortable',
+	editSurface: 'rail',
+	railWidth: 420,
 });
 
 const pinnedDefaultsFixture = (): NonNullable<AppSettings['pinnedDefaults']> => ({
@@ -82,6 +85,7 @@ const pinnedDefaultsFixture = (): NonNullable<AppSettings['pinnedDefaults']> => 
 describe('app settings control plane', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		delete document.documentElement.dataset.density;
 		context.updateAppSettingsMock.mockResolvedValue(settingsFixture());
 		context.loadRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture(),
@@ -111,6 +115,74 @@ describe('app settings control plane', () => {
 			settings.maxConcurrentJobs,
 			capabilities.maxConcurrentJobs,
 		);
+	});
+
+	it('hydrates the rail width from settings and clamps it to the shell range', async () => {
+		const settings = { ...settingsFixture(), railWidth: 512 };
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		const { readRailWidth } = await import('../appShell');
+		expect(readRailWidth()).toBe(512);
+
+		context.getAppSettingsMock.mockResolvedValueOnce({ ...settingsFixture(), railWidth: 10_000 });
+		await hydrateAppSettings();
+		expect(readRailWidth()).toBe(640);
+	});
+
+	it('hydrates compact density from the top-level preference, not pinned defaults', async () => {
+		const settings = {
+			...settingsFixture(),
+			density: 'compact' as const,
+			startupBehavior: 'pinnedDefaults' as const,
+			pinnedDefaults: pinnedDefaultsFixture(),
+		};
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		expect(document.documentElement.dataset.density).toBe('compact');
+	});
+
+	it('removes the density attribute for the comfortable preference', async () => {
+		document.documentElement.dataset.density = 'compact';
+		context.getAppSettingsMock.mockResolvedValueOnce(settingsFixture());
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		expect(document.documentElement.hasAttribute('data-density')).toBe(false);
+	});
+
+	it('hydrates the edit-surface preference from the top-level value', async () => {
+		const settings = {
+			...settingsFixture(),
+			editSurface: 'popover' as const,
+		};
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		const { editSurfaceState } = await import('../metadataSurface');
+		expect(editSurfaceState.preference).toBe('popover');
+	});
+
+	it('falls back to the rail edit surface when the settings field is absent', async () => {
+		const settings = {
+			...settingsFixture(),
+			editSurface: undefined,
+		} as unknown as AppSettings;
+		context.getAppSettingsMock.mockResolvedValueOnce(settings);
+
+		const { hydrateAppSettings } = await import('./hydration');
+		await hydrateAppSettings();
+
+		const { editSurfaceState } = await import('../metadataSurface');
+		expect(editSurfaceState.preference).toBe('rail');
 	});
 
 	it('hydrates from the pinned defaults slot in pinnedDefaults startup mode', async () => {
@@ -221,5 +293,13 @@ describe('app settings control plane', () => {
 		expect(context.updateAppSettingsMock).toHaveBeenCalledWith({
 			maxConcurrentJobs: { mode: 'fixed', value: 2 },
 		});
+	});
+
+	it('persists a density preference through the settings patch rail', async () => {
+		const { persistAppSettingsPatch } = await import('./persistence');
+
+		await persistAppSettingsPatch({ density: 'compact' });
+
+		expect(context.updateAppSettingsMock).toHaveBeenCalledWith({ density: 'compact' });
 	});
 });

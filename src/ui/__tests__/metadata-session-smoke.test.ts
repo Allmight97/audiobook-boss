@@ -116,6 +116,7 @@ vi.mock('../fileList', async () => {
 
 const FILE_A = { path: '/books/edited.m4b', isValid: true };
 const FILE_B = { path: '/books/looked-up.m4b', isValid: true };
+const FILE_C = { path: '/books/third.m4b', isValid: true };
 
 function smokeFileList(): FileListInfo {
 	return {
@@ -147,7 +148,6 @@ function processingContext() {
 	return {
 		updateStatus: vi.fn((_status: ProcessingStatus) => undefined),
 		setProcessingState: vi.fn(),
-		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
@@ -186,6 +186,7 @@ function acceptedProcessingSubmission(): WorkSubmissionAccepted {
 			terminalSummary: undefined,
 			warnings: [],
 			errors: [],
+			logTail: [],
 		},
 	};
 }
@@ -347,6 +348,36 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 			title: { op: 'set', value: 'Looked Up Title' },
 		});
 		expect(metadataSession.collectActionableMetadataIntent([FILE_B.path])).toBeNull();
+	});
+
+	it('saves shared multi-file fields and explicit blanks as one batch payload per selected file', async () => {
+		const files = [FILE_A, FILE_B, FILE_C];
+		context.getCurrentFileListMock.mockReturnValue({ files });
+		context.getSelectedFilesMock.mockReturnValue(files);
+		context.readMetadataFormMock.mockReturnValue({ title: 'Shared title', genre: '' });
+		context.saveMetadataBatchMock.mockResolvedValue({
+			summary: { total: 3, succeeded: 3, skipped: 0, cancelled: 0, failed: 0 },
+			results: files.map((file, inputIndex) => ({
+				inputIndex,
+				filePath: file.path,
+				status: 'success',
+				message: 'saved',
+			})),
+		});
+
+		const { stageMetadataToSelection } = await import('../fileList');
+		await expect(stageMetadataToSelection()).resolves.toBe(true);
+		await metadataSession.saveMetadataFromUI();
+
+		expect(context.saveMetadataBatchMock).toHaveBeenCalledWith(
+			files.map((file) => ({
+				filePath: file.path,
+				metadataPatch: {
+					title: { op: 'set', value: 'Shared title' },
+					genre: { op: 'clear' },
+				},
+			})),
+		);
 	});
 
 	it('drains staged metadata into output review and retained processing submission', async () => {

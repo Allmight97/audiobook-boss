@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-	handleSelection,
-	selectAllFiles,
-	clearSelection,
+	applySelectionIntent,
 	reindexSelectionAfterRemoval,
 	reindexSelectionAfterMove,
 	swapSelectionIndices,
@@ -43,51 +41,49 @@ describe('file list selection', () => {
 		setSelectedIndex(-1);
 	});
 
-	it('selects a single item and updates anchor', () => {
-		const result = handleSelection(2, { multi: false, range: false });
+	it('selects only one item and makes it active', () => {
+		const result = applySelectionIntent({ type: 'selectOnly', index: 2 });
 
 		expect(result.changed).toBe(true);
 		expect(selectedIndices()).toEqual([2]);
 		expect(getSelectedFileIndex()).toBe(2);
 	});
 
-	it('toggles multi-select and maintains anchor', () => {
-		handleSelection(1, { multi: false, range: false });
-		handleSelection(3, { multi: true, range: false });
+	it('repairs the active file when toggling it off', () => {
+		applySelectionIntent({ type: 'selectOnly', index: 1 });
+		applySelectionIntent({ type: 'toggle', index: 3 });
 
 		expect(selectedIndices()).toEqual([1, 3]);
 		expect(getSelectedFileIndex()).toBe(3);
 
-		handleSelection(3, { multi: true, range: false });
+		applySelectionIntent({ type: 'toggle', index: 3 });
 
 		expect(selectedIndices()).toEqual([1]);
 		expect(getSelectedFileIndex()).toBe(1);
 	});
 
-	it('selects a range from the anchor', () => {
-		handleSelection(1, { multi: false, range: false });
-		handleSelection(3, { multi: false, range: true });
+	it('selects all files and clears them', () => {
+		const changed = applySelectionIntent({ type: 'selectAll' });
 
-		expect(selectedIndices()).toEqual([1, 2, 3]);
-		expect(getSelectedFileIndex()).toBe(3);
-	});
-
-	it('selects all files', () => {
-		const changed = selectAllFiles();
-
-		expect(changed).toBe(true);
+		expect(changed.changed).toBe(true);
 		expect(selectedIndices()).toEqual([0, 1, 2, 3, 4]);
 		expect(getSelectedFileIndex()).toBe(0);
-	});
 
-	it('clears selection', () => {
-		handleSelection(2, { multi: false, range: false });
+		const cleared = applySelectionIntent({ type: 'clear' });
 
-		const changed = clearSelection();
-
-		expect(changed).toBe(true);
+		expect(cleared.changed).toBe(true);
 		expect(selectedIndices()).toEqual([]);
 		expect(getSelectedFileIndex()).toBe(-1);
+	});
+
+	it('selects an inclusive range and makes the clicked file active', () => {
+		applySelectionIntent({ type: 'selectOnly', index: 1 });
+
+		const result = applySelectionIntent({ type: 'range', anchorIndex: 1, index: 4 });
+
+		expect(result.changed).toBe(true);
+		expect(selectedIndices()).toEqual([1, 2, 3, 4]);
+		expect(getSelectedFileIndex()).toBe(4);
 	});
 
 	it('reindexes selection after removal', () => {
@@ -121,7 +117,7 @@ describe('file list selection', () => {
 	});
 
 	it('ignores out-of-bounds selections', () => {
-		const result = handleSelection(9, { multi: false, range: false });
+		const result = applySelectionIntent({ type: 'selectOnly', index: 9 });
 
 		expect(result.changed).toBe(false);
 		expect(getCurrentFileList()?.files.length).toBe(5);

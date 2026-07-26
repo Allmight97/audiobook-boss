@@ -35,7 +35,8 @@ vi.mock('../fileList/metadataStaging', () => ({
 	persistPendingMetadataDraftsForCurrentSelection: context.persistPendingDraftsMock,
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state.svelte', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../fileList/state.svelte')>()),
 	getCurrentFileList: vi.fn(() => null),
 	isOrderLocked: context.isOrderLockedMock,
 	onOrderLockChange: context.onOrderLockChangeMock,
@@ -170,12 +171,12 @@ describe('file import handlers', () => {
 
 		expect(result).toEqual({
 			status: 'blocked',
-			message: 'Order locked while processing. Wait for completion to add files.',
+			message: 'Order locked while submitting to the work queue. Try again in a moment.',
 		});
 		expect(context.discoverAudioImportPathsMock).not.toHaveBeenCalled();
 		expect(context.analyzeAudioFilesMock).not.toHaveBeenCalled();
 		expect(fileImportUiState.errorMessage).toBe(
-			'Order locked while processing. Wait for completion to add files.',
+			'Order locked while submitting to the work queue. Try again in a moment.',
 		);
 	});
 
@@ -295,7 +296,7 @@ describe('file import handlers', () => {
 
 		expect(context.takeOpenedAudioFilesMock).not.toHaveBeenCalled();
 		expect(fileImportUiState.errorMessage).toBe(
-			'Order locked while processing. Wait for completion to add files.',
+			'Order locked while submitting to the work queue. Try again in a moment.',
 		);
 		expect(orderLockListener).toBeDefined();
 

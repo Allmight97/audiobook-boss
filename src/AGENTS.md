@@ -48,6 +48,11 @@
   density switcher. When adding or changing a token or `src/styles.css`
   primitive, add/update its lab rendering in the same change — the lab is the
   visual-review surface for design-system work (screenshot it for evidence).
+- The lab also renders full-component scenario stages
+  (`lab.html?scenario=<id>`), seeded through owner-local `labFixtures.ts`
+  adapters with no Tauri backend; `bun run lab:shots` captures them in a real
+  browser when a UI change needs rendered layout evidence. Command, scenario
+  list, and scope boundary: `scripts/AGENTS.md`.
 - Density is a user preference: read `--density-*` tokens instead of
   hardcoding row heights/padding; `[data-density='compact']` on `<html>`
   flips them.

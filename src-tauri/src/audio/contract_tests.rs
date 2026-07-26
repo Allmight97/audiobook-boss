@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::audio::{
     supported_audio_import_metadata, validate_encoder_settings, validate_input_audio_path,
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
+    AudioFile, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
 };
 
 #[test]
@@ -46,5 +46,39 @@ fn audio_contract_rejects_invalid_encoder_bitrate() {
     assert!(
         !err.to_string().is_empty(),
         "encoder validation should return a concrete error"
+    );
+}
+
+#[test]
+fn audio_file_display_tags_and_chapters_serialize_and_default_for_legacy_payloads() {
+    let serialized =
+        serde_json::to_value(AudioFile::new("chaptered.m4b".into())).expect("serialize audio file");
+    assert_eq!(serialized["chapters"], serde_json::json!([]));
+    assert_eq!(serialized["tagTitle"], serde_json::Value::Null);
+    assert_eq!(serialized["tagArtist"], serde_json::Value::Null);
+
+    let legacy = serde_json::json!({
+        "inputId": "legacy-input",
+        "path": "chaptered.m4b",
+        "size": null,
+        "duration": null,
+        "format": null,
+        "bitrate": null,
+        "sampleRate": null,
+        "channels": null,
+        "codecLabel": null,
+        "selectedDecoder": null,
+        "isValid": false,
+        "error": null
+    });
+    let parsed: AudioFile = serde_json::from_value(legacy).expect("deserialize legacy audio file");
+    assert!(
+        parsed.chapters.is_empty(),
+        "missing chapters defaults to empty"
+    );
+    assert_eq!(parsed.tag_title, None, "missing title tag defaults to None");
+    assert_eq!(
+        parsed.tag_artist, None,
+        "missing artist tag defaults to None"
     );
 }

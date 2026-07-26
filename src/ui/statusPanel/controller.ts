@@ -3,16 +3,11 @@ import { getCurrentFileList, setFileOrderLocked } from '../fileList';
 import { setJobControlsEnabled } from '../jobControls';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './processingWorkflow';
-import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
-import type { AggregateProgress, ProcessingStatus } from './state';
+import { renderStatus, renderTransportSummary } from './render';
+import type { ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
-import { calculateAggregateProgressAndStage } from './domain/aggregate';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
-import { createCoverArtTracker } from './services/coverArtTracker';
-import {
-	findFilePathByIndex as findFilePathByIndexService,
-	findFilePathByCurrentFile as findFilePathByCurrentFileService,
-} from './services/fileLookup';
+import { findFilePathByIndex as findFilePathByIndexService } from './services/fileLookup';
 import { createProgressSubscription } from './services/progressSubscription';
 import {
 	applyCancellation,
@@ -32,14 +27,19 @@ import {
 	type StatusPanelModel,
 	workKindFromOperationKind,
 } from './domain/stateMachine';
-import { pushTransientStatusMessage, showError, showInfo, showSuccess } from './viewState.svelte';
+import {
+	clearStatusPanelFeedback,
+	pushTransientStatusMessage,
+	showError,
+	showInfo,
+	showSuccess,
+} from './viewState.svelte';
 
 export class StatusPanelRuntime {
 	private readonly progressSubscription = createProgressSubscription({
 		onProgress: (event) => this.updateProgress(event),
 		onQueue: (event) => this.handleQueueSnapshot(event),
 	});
-	private readonly coverArt = createCoverArtTracker();
 	private model: StatusPanelModel;
 	private batchCompletionTimeout?: number;
 	private singleCompletionTimeout?: number;
@@ -48,8 +48,6 @@ export class StatusPanelRuntime {
 	constructor() {
 		this.model = createStatusPanelModel();
 		this.renderModel();
-		this.updateConcurrencyIndicator();
-		this.coverArt.reset();
 	}
 
 	public async startProcessing(options?: { previewSeconds?: number }): Promise<void> {
@@ -65,7 +63,6 @@ export class StatusPanelRuntime {
 						isProcessing,
 					};
 				},
-				updateArtThumbnail: () => this.coverArt.syncForCurrentList(),
 				startProgressListener: () => this.progressSubscription.start(),
 				setCurrentWorkKind: (workKind) => {
 					this.model = withCurrentWorkKind(this.model, workKind);
@@ -154,14 +151,12 @@ export class StatusPanelRuntime {
 		this.clearSingleCompletionTimeout();
 
 		this.pendingRender = false;
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 
 		this.updateStatus(this.model.currentStatus);
-		this.updateConcurrencyIndicator();
 
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
-		this.coverArt.reset();
 	}
 
 	public get isCurrentlyProcessing(): boolean {
@@ -300,22 +295,9 @@ export class StatusPanelRuntime {
 		}
 	}
 
-	private calculateAggregateProgressAndStage(): {
-		aggregate: AggregateProgress;
-		stage: ProcessingStatus['stage'];
-	} {
-		return calculateAggregateProgressAndStage(this.model.jobProgress);
-	}
-
 	private renderModel(): void {
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
-		const { aggregate } = this.calculateAggregateProgressAndStage();
-		this.updateConcurrencyIndicator(aggregate);
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
-	}
-
-	private updateConcurrencyIndicator(aggregate?: AggregateProgress): void {
-		renderConcurrencyStatus(aggregate);
 	}
 
 	private updateStatus(status: ProcessingStatus): void {
@@ -331,12 +313,10 @@ export class StatusPanelRuntime {
 		this.clearBatchCompletionTimeout();
 		this.clearSingleCompletionTimeout();
 		this.pendingRender = false;
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
-		this.updateConcurrencyIndicator();
 		setJobControlsEnabled(true);
 		setFileOrderLocked(false);
-		this.coverArt.reset();
 	}
 
 	private showCompletionFeedback(feedbackResult: StatusPanelCompletionFeedback): void {
@@ -347,14 +327,6 @@ export class StatusPanelRuntime {
 		} else {
 			showInfo(feedbackResult.message);
 		}
-	}
-
-	private cancelJob(_jobId: string): void {
-		// Per-row cancel: the foreground/direct lane has no backend cancel command
-		// (operation-scoped cancel lives in the Work Center). Settle the local
-		// foreground render; any in-flight preview completes and auto-opens
-		// normally. See docs/DECISIONS.md (preview ephemeral lane) and #376.
-		this.handleProcessingCancellation();
 	}
 
 	private scheduleRender(immediate: boolean): void {
@@ -369,28 +341,8 @@ export class StatusPanelRuntime {
 	private flushRender(): void {
 		this.pendingRender = false;
 
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
-		const { aggregate } = this.calculateAggregateProgressAndStage();
-		this.updateConcurrencyIndicator(aggregate);
+		renderTransportSummary(this.model.jobProgress, this.model.queueOrder);
 		this.updateStatus(this.model.currentStatus);
-
-		if (this.model.currentWorkKind === 'batch' && this.model.latestProgressEvent) {
-			const event = this.model.latestProgressEvent;
-			const indexedPath =
-				typeof event.input_index === 'number' ? this.findFilePathByIndex(event.input_index) : null;
-			if (indexedPath) {
-				void this.coverArt.syncForFile(indexedPath);
-			} else if (event.current_file) {
-				const filePath = this.findFilePathByCurrentFile(event.current_file);
-				if (filePath) {
-					void this.coverArt.syncForFile(filePath);
-				}
-			}
-		}
-	}
-
-	private findFilePathByCurrentFile(currentFile: string): string | null {
-		return findFilePathByCurrentFileService(getCurrentFileList(), currentFile);
 	}
 
 	private findFilePathByIndex(index: number): string | null {
@@ -421,4 +373,7 @@ export function pushStatusPanelTransientStatus(
 	options?: { ttlMs?: number },
 ): void {
 	pushTransientStatusMessage(message, options?.ttlMs);
+}
+export function clearStatusPanelRetainedFeedback(): void {
+	clearStatusPanelFeedback();
 }

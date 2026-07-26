@@ -2,9 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import JobControlsIsland from '../jobControls/JobControlsIsland.svelte';
 import {
-	applyMaxConcurrentPreference,
 	getJobType,
-	handleMaxConcurrentSelectionChange,
 	handleMergeModeChange,
 	initJobControls,
 	setJobControlsEnabled,
@@ -33,27 +31,24 @@ vi.mock('../../lib/tauri/client', () => ({
 
 const mockedDependencies = vi.hoisted(() => ({
 	updateOutputPathMock: vi.fn(),
-	updateStatusPanelConcurrencyStatusMock: vi.fn(),
 }));
 
 vi.mock('../outputPanel', () => ({
 	updateOutputPath: mockedDependencies.updateOutputPathMock,
 }));
 
-vi.mock('../statusPanel', () => ({
-	updateStatusPanelConcurrencyStatus: mockedDependencies.updateStatusPanelConcurrencyStatusMock,
-}));
-
-const setMaxConcurrentJobsMock = vi.mocked(tauriClient.setMaxConcurrentJobs);
-const updateAppSettingsMock = vi.mocked(tauriClient.updateAppSettings);
 const getMaxConcurrentJobsMock = vi.mocked(tauriClient.getMaxConcurrentJobs);
 const getRuntimeSettingsCapabilitiesMock = vi.mocked(tauriClient.getRuntimeSettingsCapabilities);
 
-function setupDomRoot() {
-	render(JobControlsIsland, {
+type RerenderProps = { fileCount?: number };
+let rerenderIsland: (props: RerenderProps) => Promise<void>;
+
+function setupDomRoot(fileCount = 0) {
+	const { rerender } = render(JobControlsIsland, {
+		fileCount,
 		onMergeModeChange: handleMergeModeChange,
-		onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
 	});
+	rerenderIsland = rerender;
 }
 
 async function flushAsync() {
@@ -62,67 +57,21 @@ async function flushAsync() {
 	await Promise.resolve();
 }
 
-function getMergeToggle(): HTMLInputElement {
-	const toggle = document.getElementById('merge-mode-toggle') as HTMLInputElement | null;
+function getMergeToggle(): HTMLButtonElement {
+	const toggle = document.getElementById('merge-mode-toggle') as HTMLButtonElement | null;
 	if (!toggle) {
 		throw new Error('Expected merge toggle to be mounted');
 	}
 	return toggle;
 }
 
-function getMaxConcurrentSelect(): HTMLSelectElement {
-	const select = document.getElementById('max-concurrent-select') as HTMLSelectElement | null;
-	if (!select) {
-		throw new Error('Expected max-concurrent select to be mounted');
-	}
-	return select;
-}
-
-function getMaxConcurrentIndicator(): HTMLElement {
-	const indicator = document.getElementById('max-concurrent-effective');
-	if (!indicator) {
-		throw new Error('Expected max-concurrent indicator to be mounted');
-	}
-	return indicator;
-}
-
-function appSettingsFixture() {
-	return {
-		maxConcurrentJobs: { mode: 'auto' as const },
-		encoderDefaults: {
-			settings: {
-				encoderType: 'auto' as const,
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'vbr' as const, value: 3 },
-				channels: 'auto' as const,
-				afterburner: true,
-			},
-			sampleRate: 'auto' as const,
-		},
-		outputDefaults: {
-			outputNaming: {
-				preset: 'absDefault' as const,
-				includeYear: false,
-				customTemplate: undefined,
-			},
-			outputDirectory: undefined,
-		},
-		toolchain: {},
-		startupBehavior: 'rememberLastState' as const,
-	};
-}
-
-describe('Job controls merge toggle', () => {
+describe('Job controls merge toggle chip', () => {
 	beforeEach(() => {
-		setMaxConcurrentJobsMock.mockReset();
 		getRuntimeSettingsCapabilitiesMock.mockReset();
 		getRuntimeSettingsCapabilitiesMock.mockResolvedValue(runtimeSettingsCapabilitiesFixture());
-		updateAppSettingsMock.mockReset();
-		updateAppSettingsMock.mockResolvedValue(appSettingsFixture());
 		getMaxConcurrentJobsMock.mockReset();
 		getMaxConcurrentJobsMock.mockResolvedValue(4);
 		mockedDependencies.updateOutputPathMock.mockReset();
-		mockedDependencies.updateStatusPanelConcurrencyStatusMock.mockReset();
 		setJobTypeSelection('batch');
 		setJobControlsEnabled(true);
 		jobControlsState.maxConcurrentSelection = 'auto';
@@ -134,26 +83,25 @@ describe('Job controls merge toggle', () => {
 		setupDomRoot();
 	});
 
-	it('renders backend-owned fixed concurrency options', async () => {
-		initJobControls();
-		await flushAsync();
-
-		const values = Array.from(getMaxConcurrentSelect().options).map((option) => option.value);
-
-		expect(values).toEqual(['auto', '1', '2', '3', '4', '5', '6', '7', '8']);
-	});
-
-	it('updates job type and refreshes output preview when merge mode changes', async () => {
-		setMaxConcurrentJobsMock.mockResolvedValueOnce(4);
+	it('toggles job type and refreshes output preview when the chip is clicked', async () => {
 		initJobControls();
 		await flushAsync();
 
 		const toggle = getMergeToggle();
-		toggle.checked = true;
-		toggle.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+		toggle.click();
+		await flushAsync();
 
 		expect(getJobType()).toBe('merge');
+		expect(toggle.getAttribute('aria-pressed')).toBe('true');
 		expect(mockedDependencies.updateOutputPathMock).toHaveBeenCalledTimes(1);
+
+		toggle.click();
+		await flushAsync();
+
+		expect(getJobType()).toBe('batch');
+		expect(toggle.getAttribute('aria-pressed')).toBe('false');
 	});
 
 	it('does not duplicate side effects when initialized twice on same DOM', async () => {
@@ -161,134 +109,46 @@ describe('Job controls merge toggle', () => {
 		await flushAsync();
 		initJobControls();
 		await flushAsync();
-		setMaxConcurrentJobsMock.mockClear();
 		mockedDependencies.updateOutputPathMock.mockClear();
 
-		const toggle = getMergeToggle();
-		toggle.checked = true;
-		toggle.dispatchEvent(new Event('change', { bubbles: true }));
-
-		const select = getMaxConcurrentSelect();
-		select.value = '3';
-		updateAppSettingsMock.mockResolvedValueOnce({
-			...appSettingsFixture(),
-			maxConcurrentJobs: { mode: 'fixed', value: 3 },
-		});
-		getMaxConcurrentJobsMock.mockResolvedValueOnce(3);
-		select.dispatchEvent(new Event('change', { bubbles: true }));
+		getMergeToggle().click();
 		await flushAsync();
 
 		expect(mockedDependencies.updateOutputPathMock).toHaveBeenCalledTimes(1);
-		expect(setMaxConcurrentJobsMock).not.toHaveBeenCalled();
-		expect(updateAppSettingsMock).toHaveBeenCalledWith({
-			maxConcurrentJobs: { mode: 'fixed', value: 3 },
-		});
 	});
 
-	it('applies a hydrated fixed max concurrency preference and updates indicator + status text', async () => {
-		setMaxConcurrentJobsMock.mockResolvedValueOnce(3);
-
-		await applyMaxConcurrentPreference(
-			{ mode: 'fixed', value: 3 },
-			runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
-		);
-		await flushAsync();
-
-		expect(getMaxConcurrentSelect().value).toBe('3');
-		expect(setMaxConcurrentJobsMock).toHaveBeenCalledWith(3);
-		expect(getMaxConcurrentIndicator().textContent).toBe('Max 3');
-		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
-			'Max jobs: 3',
-		);
-	});
-
-	it('keeps the in-memory selection and pushes the new auto payload', async () => {
-		jobControlsState.maxConcurrentSelection = '2';
-
+	it('reflects the live file count in the on-state label', async () => {
 		initJobControls();
 		await flushAsync();
-		setMaxConcurrentJobsMock.mockClear();
-		getMaxConcurrentJobsMock.mockClear();
 
-		const select = getMaxConcurrentSelect();
-		select.value = 'auto';
-		getMaxConcurrentJobsMock.mockResolvedValueOnce(6);
-		select.dispatchEvent(new Event('change', { bubbles: true }));
+		const toggle = getMergeToggle();
+		expect(toggle.textContent?.trim()).toBe('merge off');
+
+		toggle.click();
 		await flushAsync();
+		expect(toggle.textContent?.trim()).toBe('merge — 0 files → one M4B');
 
-		expect(setMaxConcurrentJobsMock).not.toHaveBeenCalled();
-		expect(updateAppSettingsMock).toHaveBeenCalledWith({
-			maxConcurrentJobs: { mode: 'auto' },
-		});
-		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
-		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 6');
-		expect(mockedDependencies.updateStatusPanelConcurrencyStatusMock).toHaveBeenLastCalledWith(
-			'Max jobs: 6 (Auto)',
-		);
+		await rerenderIsland({ fileCount: 3 });
+		expect(getMergeToggle().textContent?.trim()).toBe('merge — 3 files → one M4B');
+
+		await rerenderIsland({ fileCount: 1 });
+		expect(getMergeToggle().textContent?.trim()).toBe('merge — 1 file → one M4B');
 	});
 
-	it('rolls back the visible concurrency selection when backend acceptance fails', async () => {
-		jobControlsState.maxConcurrentSelection = 'auto';
-		jobControlsState.effectiveMaxConcurrent = 4;
-		jobControlsState.effectiveLabel = 'Auto → 4';
-		updateAppSettingsMock.mockRejectedValueOnce(new Error('jobs active'));
-		getMaxConcurrentJobsMock.mockResolvedValueOnce(4);
-		getMaxConcurrentJobsMock.mockClear();
-
-		const select = getMaxConcurrentSelect();
-		select.value = '3';
-		select.dispatchEvent(new Event('change', { bubbles: true }));
-		await flushAsync();
-
-		expect(updateAppSettingsMock).toHaveBeenCalledWith({
-			maxConcurrentJobs: { mode: 'fixed', value: 3 },
-		});
-		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
-		expect(jobControlsState.maxConcurrentSelection).toBe('auto');
-		expect(getMaxConcurrentIndicator().textContent).toBe('Auto → 4');
-	});
-
-	it('keeps accepted concurrency selection when accepted follow-up read fails', async () => {
-		updateAppSettingsMock.mockResolvedValueOnce({
-			...appSettingsFixture(),
-			maxConcurrentJobs: { mode: 'fixed', value: 3 },
-		});
-		getMaxConcurrentJobsMock.mockRejectedValueOnce(new Error('read failed'));
-		getMaxConcurrentJobsMock.mockClear();
-
-		const select = getMaxConcurrentSelect();
-		select.value = '3';
-		select.dispatchEvent(new Event('change', { bubbles: true }));
-		await flushAsync();
-
-		expect(updateAppSettingsMock).toHaveBeenCalledWith({
-			maxConcurrentJobs: { mode: 'fixed', value: 3 },
-		});
-		expect(getMaxConcurrentJobsMock).toHaveBeenCalledTimes(1);
-		expect(jobControlsState.maxConcurrentSelection).toBe('3');
-		expect(getMaxConcurrentIndicator().textContent).toBe('Max 3');
-	});
-
-	it('toggles disabled state and opacity on both controls', async () => {
-		setMaxConcurrentJobsMock.mockResolvedValueOnce(4);
+	it('toggles disabled state and opacity on the chip', async () => {
 		initJobControls();
 		await flushAsync();
 
 		const mergeToggle = getMergeToggle();
-		const maxConcurrentSelect = getMaxConcurrentSelect();
 
 		setJobControlsEnabled(false);
 		await flushAsync();
 		expect(mergeToggle.disabled).toBe(true);
 		expect(mergeToggle.style.opacity).toBe('0.5');
-		expect(maxConcurrentSelect.disabled).toBe(true);
-		expect(maxConcurrentSelect.style.opacity).toBe('0.5');
 
 		setJobControlsEnabled(true);
 		await flushAsync();
 		expect(mergeToggle.disabled).toBe(false);
 		expect(mergeToggle.style.opacity).toBe('1');
-		expect(maxConcurrentSelect.disabled).toBe(false);
-		expect(maxConcurrentSelect.style.opacity).toBe('1');
 	});
 });

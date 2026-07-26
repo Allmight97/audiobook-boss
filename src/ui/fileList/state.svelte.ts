@@ -4,9 +4,11 @@ type FileListSessionState = {
 	currentFileList: FileListInfo | null;
 	selectedFileIndex: number;
 	selectedFileIndices: Set<number>;
-	sortAscending: boolean;
+	sortDirection: FileListSortDirection;
 	orderLocked: boolean;
 };
+
+export type FileListSortDirection = 'none' | 'ascending' | 'descending';
 
 type OrderLockListener = (locked: boolean) => void;
 
@@ -14,17 +16,107 @@ export const fileListSessionState = $state<FileListSessionState>({
 	currentFileList: null,
 	selectedFileIndex: -1,
 	selectedFileIndices: new Set<number>(),
-	sortAscending: true,
+	sortDirection: 'none',
 	orderLocked: false,
 });
 
 const orderLockListeners = new Set<OrderLockListener>();
+
+// Import (arrival) order, path-keyed to match append/dedupe identity. A plain
+// Map is reactivity-safe: every order mutation also replaces currentFileList,
+// so derived reads re-run at the right times. Assigned only by display/append
+// actions — never by setCurrentFileList, which cannot tell replace from append.
+const importOrdinalByPath = new Map<string, number>();
+let nextImportOrdinal = 0;
+
+export function resetImportOrder(files: AudioFile[]): void {
+	importOrdinalByPath.clear();
+	nextImportOrdinal = 0;
+	for (const file of files) {
+		importOrdinalByPath.set(file.path, nextImportOrdinal++);
+	}
+}
+
+/** Assigns fresh ordinals to paths not seen yet; existing paths keep theirs. */
+export function recordImportOrder(files: AudioFile[]): void {
+	for (const file of files) {
+		if (!importOrdinalByPath.has(file.path)) {
+			importOrdinalByPath.set(file.path, nextImportOrdinal++);
+		}
+	}
+}
+
+export function removeImportOrdinal(path: string): void {
+	importOrdinalByPath.delete(path);
+}
+
+export function getImportOrdinal(path: string): number | undefined {
+	return importOrdinalByPath.get(path);
+}
+
+let fileListRevision = 0;
+
+export function getFileListRevision(): number {
+	return fileListRevision;
+}
+
+function bumpFileListRevision(): void {
+	fileListRevision += 1;
+}
+
+export type FileListMutationSnapshot = {
+	revision: number;
+	orderLockExpected: boolean;
+};
+
+export function captureFileListMutationSnapshot(): FileListMutationSnapshot {
+	return {
+		revision: fileListRevision,
+		orderLockExpected: isOrderLocked(),
+	};
+}
+
+export function canCommitFileListMutation(snapshot: FileListMutationSnapshot): boolean {
+	return (
+		fileListRevision === snapshot.revision && fileListSessionState.orderLocked === snapshot.orderLockExpected
+	);
+}
+
+export function fileIdentityKey(file: AudioFile): string {
+	return file.inputId ?? file.path;
+}
+
+export function findFileIndexByIdentityKey(identityKey: string): number {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return -1;
+	}
+	return fileList.files.findIndex((file) => fileIdentityKey(file) === identityKey);
+}
+
+export function replaceFileListFiles(nextFiles: AudioFile[]): void {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return;
+	}
+
+	const validCount = nextFiles.filter((file) => file.isValid).length;
+	fileListSessionState.currentFileList = {
+		...fileList,
+		files: nextFiles,
+		validCount,
+		invalidCount: nextFiles.length - validCount,
+	};
+	bumpFileListRevision();
+}
 
 export function setCurrentFileList(fileList: FileListInfo | null): void {
 	fileListSessionState.currentFileList = fileList;
 
 	fileListSessionState.selectedFileIndex = -1;
 	fileListSessionState.selectedFileIndices = new Set<number>();
+	fileListSessionState.sortDirection = 'none';
+	bumpFileListRevision();
 }
 
 export function setSelectedIndex(index: number): void {
@@ -71,12 +163,12 @@ export function clearSelectedIndices(): void {
 	fileListSessionState.selectedFileIndices = new Set<number>();
 }
 
-export function getSortAscending(): boolean {
-	return fileListSessionState.sortAscending;
+export function getSortDirection(): FileListSortDirection {
+	return fileListSessionState.sortDirection;
 }
 
-export function setSortAscending(ascending: boolean): void {
-	fileListSessionState.sortAscending = ascending;
+export function setSortDirection(direction: FileListSortDirection): void {
+	fileListSessionState.sortDirection = direction;
 }
 
 export function setOrderLocked(locked: boolean): void {

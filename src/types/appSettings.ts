@@ -2,6 +2,8 @@ import type {
 	AppSettings as GeneratedAppSettings,
 	AppSettingsPatch as GeneratedAppSettingsPatch,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
+	DensityPreference as GeneratedDensityPreference,
+	EditSurfacePreference as GeneratedEditSurfacePreference,
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
 	StartupBehavior as GeneratedStartupBehavior,
@@ -11,6 +13,8 @@ import type { EncoderSettings, OutputNamingConfig } from './audio';
 import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
+export type DensityPreference = GeneratedDensityPreference;
+export type EditSurfacePreference = GeneratedEditSurfacePreference;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
@@ -39,5 +43,8 @@ export type AppSettingsPatch = Partial<{
 		| null;
 	toolchain: ToolchainPreferences | null;
 	startupBehavior: StartupBehavior | null;
+	density: DensityPreference | null;
+	editSurface: EditSurfacePreference | null;
+	railWidth: number | null;
 	pinnedDefaults: PinnedDefaults | null;
 }>;

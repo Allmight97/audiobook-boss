@@ -43,8 +43,6 @@ const createDefaultState = () => ({
 	sampleRateOptions: [] as string[],
 	channelOptions: [] as NonNullable<EncoderSettingsState['channels']>[],
 	showQuality: true,
-	showInlineOptionRow: false,
-	showFdkOptions: false,
 	bitrateModeAvailability: {
 		vbr: true,
 		cvbr: false,
@@ -110,6 +108,12 @@ function sampleRateSelectionFromConfig(
 		: 'auto';
 }
 
+// Live request truth for the App Settings dialog's afterburner control:
+// what the next encode will use, regardless of hydration source.
+export function readFdkAfterburner(): boolean {
+	return encoderPanelState.fdkAfterburner;
+}
+
 export function readEncoderSettingsFromState(): EncoderSettingsState {
 	return {
 		flavor: encoderPanelState.flavor,
@@ -164,6 +168,29 @@ export function readEncoderDefaultsFromState(): EncoderDefaults {
 		settings: readBoundaryEncoderSettings(),
 		sampleRate: readSampleRateFromState(),
 	};
+}
+
+export function readEncoderSummaryLabel(): string {
+	const encoder = (() => {
+		switch (encoderPanelState.flavor) {
+			case 'fdk_he_aac':
+				return 'FDK';
+			case 'aac_at':
+				return 'Apple';
+			case 'native_aac':
+				return 'Native';
+			default:
+				return encoderPanelState.autoOptionLabel;
+		}
+	})();
+	const profile = encoderPanelState.profileDisplay.replace(/ v\d+$/i, '');
+	const mode = encoderPanelState.bitrateModeSelection.toUpperCase();
+	const modeValue =
+		encoderPanelState.bitrateModeSelection === 'vbr'
+			? String(encoderPanelState.qualityValue)
+			: `${encoderPanelState.bitrateValue} kbps`;
+
+	return `${encoder} ${profile} · ${mode} ${modeValue}`;
 }
 
 export function applyEncoderDefaults(defaults: EncoderDefaults): void {

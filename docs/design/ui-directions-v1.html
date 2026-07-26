@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Audiobook Boss — UI direction mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg-main:#111827;--bg-panel:#1f2937;--bg-input:#374151;--bg-hover:#4b5563;--bg-drag:#374151;
+--text-primary:#f9fafb;--text-secondary:#e5e7eb;--text-muted:#9ca3af;--text-placeholder:#6b7280;
+--border-primary:#374151;--border-secondary:#4b5563;--border-focus:#6366f1;
+--accent:#3b82f6;--accent-hover:#60a5fa;--success:#34d399;--error:#f87171;--warning:#fbbf24;
+--progress-bg:#374151;--progress-fg:#3b82f6;
+--mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0f19;color:var(--text-primary);font-family:'Inter',sans-serif;padding:24px 24px 80px}
+.chrome{max-width:1360px;margin:0 auto}
+.chrome-header{display:flex;align-items:baseline;gap:16px;margin-bottom:8px}
+.chrome-header h1{font-size:18px;font-weight:600}
+.chrome-header p{font-size:13px;color:var(--text-muted)}
+.tabs{display:flex;gap:8px;margin:16px 0 20px}
+.tab{padding:8px 18px;border-radius:999px;border:1px solid var(--border-secondary);background:transparent;color:var(--text-secondary);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+.tab:hover{background:var(--bg-panel)}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.direction{display:none}
+.direction.active{display:block}
+.dir-note{font-size:13px;color:var(--text-muted);margin-bottom:14px;max-width:900px;line-height:1.5}
+.window{background:var(--bg-main);border:1px solid var(--border-primary);border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.titlebar{height:38px;display:flex;align-items:center;padding:0 14px;gap:8px;border-bottom:1px solid var(--border-primary);background:var(--bg-main)}
+.dot{width:11px;height:11px;border-radius:50%}
+.titlebar span{font-size:12px;color:var(--text-muted);margin:0 auto}
+button{font-family:inherit;cursor:pointer}
+
+/* ---------- shared primitives (the kit all three directions reuse) ---------- */
+.p-track{height:6px;background:var(--progress-bg);border-radius:999px;overflow:hidden}
+.p-fill{height:100%;background:var(--progress-fg);border-radius:999px}
+.pill{border-radius:999px;font-size:12px;font-weight:500;padding:6px 14px;border:1px solid transparent}
+.pill-primary{background:var(--accent);color:#fff}
+.pill-primary:hover{background:var(--accent-hover)}
+.pill-ghost{background:transparent;color:var(--text-secondary);border-color:var(--border-secondary)}
+.pill-ghost:hover{background:var(--bg-input)}
+.badge{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.badge-ok{background:rgba(52,211,153,.15);color:var(--success)}
+.badge-info{background:rgba(59,130,246,.15);color:var(--accent-hover)}
+.badge-warn{background:rgba(251,191,36,.15);color:var(--warning)}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:4px}
+.field input,.field select{width:100%;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);font-size:13px;padding:7px 9px;font-family:inherit}
+.field input:focus,.field select:focus{outline:none;border-color:var(--border-focus)}
+.mono{font-family:var(--mono)}
+
+/* ---------- Direction A: refined current ---------- */
+.a-body{display:grid;grid-template-columns:420px 1fr;gap:14px;padding:14px;height:820px}
+.a-col{display:flex;flex-direction:column;gap:14px;min-height:0}
+.panel-a{background:var(--bg-panel);border:1px solid var(--border-primary);border-radius:10px;padding:14px;display:flex;flex-direction:column;min-height:0}
+.panel-a h3{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.a-drop{border:1.5px dashed var(--border-secondary);border-radius:8px;padding:14px;text-align:center;color:var(--text-muted);font-size:12px;margin-bottom:12px}
+.a-drop b{color:var(--text-secondary);font-weight:500}
+.a-file{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent}
+.a-file:hover{background:var(--bg-input)}
+.a-file.sel{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.4)}
+.a-file .num{width:20px;font-size:11px;color:var(--text-placeholder);font-family:var(--mono)}
+.a-file .name{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.a-file .meta{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.a-insp{font-size:12px;color:var(--text-secondary);display:grid;grid-template-columns:auto 1fr;gap:5px 14px}
+.a-insp dt{color:var(--text-muted)}
+.a-meta-grid{display:grid;grid-template-columns:96px 1fr 1fr;gap:12px}
+.a-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px;grid-column:span 2}
+.a-cover{width:96px;height:96px;border-radius:8px;background:linear-gradient(160deg,#4338ca,#1e3a8a);display:flex;align-items:center;justify-content:center;font-size:10px;color:#c7d2fe;text-align:center;padding:6px}
+.a-enc{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.a-status{display:flex;align-items:center;gap:14px}
+</style>
+</head>
+<body>
+<div class="chrome">
+<div class="chrome-header"><h1>Audiobook Boss — three UI directions</h1><p>real dark palette · click around, everything selectable is clickable</p></div>
+<div class="tabs">
+<button class="tab active" data-dir="a">A · Refined current</button>
+<button class="tab" data-dir="b">B · Pro-tool density</button>
+<button class="tab" data-dir="c">C · Library-first</button>
+</div>
+
+<!-- ================= DIRECTION A ================= -->
+<section class="direction active" id="dir-a">
+<p class="dir-note">Evolution, not revolution: your exact zones and workflow, re-set on a disciplined scale — one spacing rhythm, one uppercase section-label style, one progress primitive, consistent input heights, and selection states that use tinted accent instead of solid fills. If the current app is the sketch, this is the inked version.</p>
+<div class="window">
+<div class="titlebar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div><span>Audiobook Boss</span></div>
+<div class="a-body">
+  <div class="a-col">
+    <div class="panel-a" style="flex:1.5">
+      <h3>Files <span class="badge badge-info">merge · 3 files</span></h3>
+      <div class="a-drop">Drop audio files or folders — <b>browse</b></div>
+      <div id="a-list" style="flex:1;overflow:auto">
+        <div class="a-file sel" data-i="0"><span class="num">1</span><span class="name">01 - The Way of Kings.m4b</span><span class="meta">18:22:41 · 512 MB</span></div>
+        <div class="a-file" data-i="1"><span class="num">2</span><span class="name">A Change of Plans.m4b</span><span class="meta">9:04:12 · 261 MB</span></div>
+        <div class="a-file" data-i="2"><span class="num">3</span><span class="name">The Future.m4b</span><span class="meta">11:41:03 · 322 MB</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border-primary);font-size:11px;color:var(--text-muted)">
+        <span>3 valid · 0 invalid</span><span class="mono">39:07:56 · 1.07 GB</span>
+      </div>
+    </div>
+    <div class="panel-a" style="flex:1">
+      <h3>Inspector</h3>
+      <dl class="a-insp" id="a-insp">
+        <dt>File</dt><dd>01 - The Way of Kings.m4b</dd>
+        <dt>Codec</dt><dd>AAC-LC · Apple AAC decoder</dd>
+        <dt>Sample rate</dt><dd class="mono">44.1 kHz · stereo · 64 kbps</dd>
+        <dt>Chapters</dt><dd>75 embedded</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="a-col">
+    <div class="panel-a">
+      <h3>Metadata <span style="display:flex;gap:8px"><button class="pill pill-ghost">Find online</button><button class="pill pill-primary">Save all</button></span></h3>
+      <div class="a-meta-grid">
+        <div class="a-cover">The Way of Kings</div>
+        <div class="a-fields">
+          <div class="field"><label>Book title</label><input value="The Way of Kings"></div>
+          <div class="field"><label>Publication date</label><input value="2010-08-31"></div>
+          <div class="field"><label>Author</label><input value="Brandon Sanderson"></div>
+          <div class="field"><label>Narrator</label><input value="Michael Kramer, Kate Reading"></div>
+          <div class="field"><label>Series</label><input value="The Stormlight Archive"></div>
+          <div class="field"><label>Book #</label><input value="1"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-a">
+      <h3>Encoding</h3>
+      <div class="a-enc">
+        <div class="field"><label>Encoder</label><select><option>Auto — FDK HE-AAC</option><option>Apple AAC</option><option>Native AAC</option></select></div>
+        <div class="field"><label>Quality</label><select><option>VBR 3 (recommended)</option></select></div>
+        <div class="field"><label>Sample rate</label><select><option>Auto (44.1 kHz)</option></select></div>
+        <div class="field" style="grid-column:span 2"><label>Output</label><input value="~/Audiobooks/Brandon Sanderson/The Stormlight Archive/1 - The Way of Kings.m4b" class="mono" style="font-size:11.5px"></div>
+        <div class="field"><label>Naming</label><select><option>ABS default</option></select></div>
+      </div>
+    </div>
+    <div class="panel-a">
+      <h3>Status <span class="badge badge-ok">encoding</span></h3>
+      <div class="a-status">
+        <div style="flex:1"><div class="p-track"><div class="p-fill" id="a-prog" style="width:64%"></div></div></div>
+        <span class="mono" style="font-size:12px;color:var(--text-secondary)" id="a-pct">64%</span>
+        <button class="pill pill-ghost">Preview 30s</button>
+        <button class="pill pill-primary">Process</button>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">Merging 3 files → The Way of Kings.m4b · est. 4 min left</div>
+    </div>
+    <div class="panel-a" style="flex:1">
+      <h3>Work center</h3>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--border-primary);border-radius:8px">
+        <span class="badge badge-info">merge</span>
+        <span style="font-size:13px;flex:1">Merge encode (3 files)</span>
+        <div style="width:160px"><div class="p-track"><div class="p-fill" style="width:64%"></div></div></div>
+        <button class="pill pill-ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+
+<!-- ================= DIRECTION B ================= -->
+<section class="direction" id="dir-b">
+<p class="dir-note">The audio-suite read: a command toolbar on top, one dense sortable table as the centerpiece, parameters as a bottom strip of compact segments, and a transport-style status bar. Every number is monospace and column-aligned. Built for the person processing forty books, not three.</p>
+<style>
+.b-toolbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-primary)}
+.b-tool{display:flex;align-items:center;gap:6px;background:var(--bg-input);border:none;border-radius:6px;color:var(--text-secondary);font-size:12px;font-weight:500;padding:7px 12px}
+.b-tool:hover{background:var(--bg-hover);color:var(--text-primary)}
+.b-seg{display:flex;background:var(--bg-input);border-radius:6px;overflow:hidden}
+.b-seg button{border:none;background:transparent;color:var(--text-muted);font-size:12px;font-weight:500;padding:7px 14px}
+.b-seg button.on{background:var(--accent);color:#fff}
+.b-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.b-table th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-placeholder);padding:8px 12px;border-bottom:1px solid var(--border-primary);position:sticky;top:0;background:var(--bg-main)}
+.b-table td{padding:8px 12px;border-bottom:1px solid var(--border-primary);color:var(--text-secondary);white-space:nowrap}
+.b-table tr{cursor:pointer}
+.b-table tbody tr:hover{background:var(--bg-panel)}
+.b-table tr.sel td{background:rgba(59,130,246,.12)}
+.b-table td.n{font-family:var(--mono);text-align:right;color:var(--text-muted)}
+.b-params{display:grid;grid-template-columns:repeat(5,1fr) auto;gap:1px;background:var(--border-primary);border-top:1px solid var(--border-primary)}
+.b-param{background:var(--bg-panel);padding:10px 14px}
+.b-param label{display:block;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-placeholder);margin-bottom:4px}
+.b-param .v{font-size:12.5px;color:var(--text-primary);font-weight:500}
+.b-param .v small{color:var(--text-muted);font-weight:400}
+.b-transport{display:flex;align-items:center;gap:14px;padding:10px 14px;background:var(--bg-panel);border-top:1px solid var(--border-primary)}
+</style>
+<div class="window">
+<div class="titlebar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div><span>Audiobook Boss</span></div>
+<div class="b-toolbar">
+  <button class="b-tool">＋ Import</button>
+  <button class="b-tool">☁ Audible</button>
+  <div class="b-seg" id="b-mode"><button class="on">Merge</button><button>Batch</button></div>
+  <span style="flex:1"></span>
+  <button class="b-tool">FDK HE-AAC · VBR 3 ▾</button>
+  <button class="b-tool">ABS naming ▾</button>
+  <button class="pill pill-primary" style="padding:7px 20px">Process</button>
+</div>
+<div style="height:430px;overflow:auto">
+<table class="b-table"><thead><tr><th style="width:28px">#</th><th>File</th><th>Title</th><th>Author</th><th style="text-align:right">Duration</th><th style="text-align:right">Size</th><th>Codec</th><th style="text-align:right">kbps</th><th>Status</th></tr></thead>
+<tbody id="b-rows">
+<tr class="sel"><td class="n">1</td><td>01 - The Way of Kings.m4b</td><td>The Way of Kings</td><td>Brandon Sanderson</td><td class="n">18:22:41</td><td class="n">512 MB</td><td>AAC-LC</td><td class="n">64</td><td><span class="badge badge-ok">ready</span></td></tr>
+<tr><td class="n">2</td><td>A Change of Plans.m4b</td><td>A Change of Plans</td><td>Dannie Ella</td><td class="n">9:04:12</td><td class="n">261 MB</td><td>AAC-LC</td><td class="n">64</td><td><span class="badge badge-ok">ready</span></td></tr>
+<tr><td class="n">3</td><td>The Future.m4b</td><td>The Future</td><td>Naomi Alderman</td><td class="n">11:41:03</td><td class="n">322 MB</td><td>AAC-LC</td><td class="n">64</td><td><span class="badge badge-warn">no cover</span></td></tr>
+<tr><td class="n">4</td><td>the-martian-64k.mp3</td><td>The Martian</td><td>Andy Weir</td><td class="n">10:53:29</td><td class="n">299 MB</td><td>MP3</td><td class="n">64</td><td><span class="badge badge-ok">ready</span></td></tr>
+</tbody></table>
+</div>
+<div class="b-params">
+  <div class="b-param"><label>Encoder</label><div class="v">FDK HE-AAC <small>· user FFmpeg</small></div></div>
+  <div class="b-param"><label>Quality</label><div class="v">VBR 3 <small>· ~64 kbps</small></div></div>
+  <div class="b-param"><label>Sample rate</label><div class="v">Auto <small>· 44.1 kHz</small></div></div>
+  <div class="b-param"><label>Channels</label><div class="v">Auto <small>· stereo in</small></div></div>
+  <div class="b-param"><label>Output</label><div class="v mono" style="font-size:11px">~/Audiobooks/…/1 - The Way of Kings.m4b</div></div>
+  <div class="b-param" style="display:flex;align-items:center"><button class="pill pill-ghost">Edit metadata…</button></div>
+</div>
+<div class="b-transport">
+  <button class="b-tool" style="padding:6px 10px">▶ 30s</button>
+  <div style="flex:1"><div class="p-track"><div class="p-fill" style="width:64%"></div></div></div>
+  <span class="mono" style="font-size:12px;color:var(--text-secondary)">64% · 04:02 left</span>
+  <span class="badge badge-info">merge · job 1/1</span>
+  <button class="b-tool" style="padding:6px 10px">✕ Cancel</button>
+</div>
+</div>
+</section>
+
+<!-- ================= DIRECTION C ================= -->
+<section class="direction" id="dir-c">
+<p class="dir-note">The re-frame: the unit is the <em>book</em>, not the file. A cover rail holds your working set like a shelf; the detail pane gives each book room to breathe (metadata, chapters, source facts in tabs); processing lives in a task drawer that slides up when there's work. Import is just another tile on the shelf.</p>
+<style>
+.c-body{display:grid;grid-template-columns:108px 1fr;height:820px}
+.c-rail{border-right:1px solid var(--border-primary);padding:12px 10px;display:flex;flex-direction:column;gap:10px;align-items:center;overflow:auto}
+.c-tile{width:80px;height:80px;border-radius:10px;cursor:pointer;border:2px solid transparent;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9.5px;padding:6px;color:#e0e7ff;position:relative}
+.c-tile.sel{border-color:var(--accent)}
+.c-tile .st{position:absolute;bottom:-4px;right:-4px;width:16px;height:16px;border-radius:50%;border:2px solid var(--bg-main);background:var(--success)}
+.c-add{width:80px;height:80px;border-radius:10px;border:1.5px dashed var(--border-secondary);background:transparent;color:var(--text-muted);font-size:22px}
+.c-add:hover{border-color:var(--accent);color:var(--accent)}
+.c-main{display:flex;flex-direction:column;min-width:0}
+.c-hero{display:flex;gap:22px;padding:26px 28px 18px}
+.c-hero-cover{width:148px;height:148px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#e0e7ff;font-size:13px;padding:10px}
+.c-hero h2{font-size:22px;font-weight:600;margin-bottom:2px}
+.c-hero .sub{font-size:14px;color:var(--text-muted);margin-bottom:12px}
+.c-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.c-chip{font-size:11.5px;color:var(--text-secondary);background:var(--bg-input);padding:4px 10px;border-radius:999px}
+.c-tabs{display:flex;gap:2px;padding:0 28px;border-bottom:1px solid var(--border-primary)}
+.c-tab{background:none;border:none;color:var(--text-muted);font-size:13px;font-weight:500;padding:10px 16px;border-bottom:2px solid transparent}
+.c-tab.on{color:var(--text-primary);border-bottom-color:var(--accent)}
+.c-pane{flex:1;padding:20px 28px;overflow:auto}
+.c-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:760px}
+.c-drawer{border-top:1px solid var(--border-primary);background:var(--bg-panel);transition:height .25s ease;height:56px;overflow:hidden}
+.c-drawer.open{height:170px}
+.c-drawer-bar{display:flex;align-items:center;gap:14px;height:56px;padding:0 22px;cursor:pointer}
+.c-drawer-body{padding:0 22px 16px;display:flex;flex-direction:column;gap:10px}
+.c-task{display:flex;align-items:center;gap:12px;padding:9px 12px;background:var(--bg-input);border-radius:8px;font-size:12.5px}
+</style>
+<div class="window">
+<div class="titlebar"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div><span>Audiobook Boss</span></div>
+<div class="c-body">
+  <div class="c-rail" id="c-rail">
+    <div class="c-tile sel" style="background:linear-gradient(160deg,#4338ca,#1e3a8a)" data-b="0">The Way of Kings<span class="st"></span></div>
+    <div class="c-tile" style="background:linear-gradient(160deg,#9d174d,#4c0519)" data-b="1">A Change of Plans</div>
+    <div class="c-tile" style="background:linear-gradient(160deg,#065f46,#022c22)" data-b="2">The Future</div>
+    <div class="c-tile" style="background:linear-gradient(160deg,#92400e,#451a03)" data-b="3">The Martian</div>
+    <button class="c-add" title="Import">＋</button>
+  </div>
+  <div class="c-main">
+    <div class="c-hero">
+      <div class="c-hero-cover" id="c-cover" style="background:linear-gradient(160deg,#4338ca,#1e3a8a)">The Way of Kings</div>
+      <div style="min-width:0;flex:1">
+        <h2 id="c-title">The Way of Kings</h2>
+        <div class="sub" id="c-sub">Brandon Sanderson · read by Michael Kramer, Kate Reading</div>
+        <div class="c-chips"><span class="c-chip">The Stormlight Archive #1</span><span class="c-chip mono">18:22:41</span><span class="c-chip mono">512 MB · AAC-LC</span><span class="c-chip">75 chapters</span></div>
+        <div style="display:flex;gap:8px"><button class="pill pill-primary">Process book</button><button class="pill pill-ghost">Preview 30s</button><button class="pill pill-ghost">Find metadata</button></div>
+      </div>
+    </div>
+    <div class="c-tabs">
+      <button class="c-tab on" data-p="meta">Metadata</button>
+      <button class="c-tab" data-p="chapters">Chapters</button>
+      <button class="c-tab" data-p="source">Source files</button>
+      <button class="c-tab" data-p="output">Output</button>
+    </div>
+    <div class="c-pane">
+      <div class="c-meta" id="c-pane-meta">
+        <div class="field"><label>Book title</label><input value="The Way of Kings"></div>
+        <div class="field"><label>Publication date</label><input value="2010-08-31"></div>
+        <div class="field"><label>Author</label><input value="Brandon Sanderson"></div>
+        <div class="field"><label>Narrator</label><input value="Michael Kramer, Kate Reading"></div>
+        <div class="field"><label>Series</label><input value="The Stormlight Archive"></div>
+        <div class="field"><label>Book #</label><input value="1"></div>
+        <div class="field" style="grid-column:span 2"><label>Description</label><input value="From #1 New York Times bestselling author Brandon Sanderson…"></div>
+      </div>
+    </div>
+    <div class="c-drawer" id="c-drawer">
+      <div class="c-drawer-bar" onclick="document.getElementById('c-drawer').classList.toggle('open')">
+        <span class="badge badge-ok">1 running</span>
+        <div style="flex:1;max-width:420px"><div class="p-track"><div class="p-fill" style="width:64%"></div></div></div>
+        <span class="mono" style="font-size:12px;color:var(--text-secondary)">Merging The Way of Kings · 64%</span>
+        <span style="margin-left:auto;color:var(--text-muted);font-size:12px">tasks ▴</span>
+      </div>
+      <div class="c-drawer-body">
+        <div class="c-task"><span class="badge badge-info">merge</span><span style="flex:1">The Way of Kings — 3 files → M4B</span><span class="mono" style="color:var(--text-muted)">04:02 left</span><button class="pill pill-ghost" style="padding:4px 10px">Cancel</button></div>
+        <div class="c-task" style="opacity:.65"><span class="badge badge-ok">done</span><span style="flex:1">The Future — metadata saved</span><span class="mono" style="color:var(--text-muted)">2 min ago</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.direction').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('dir-'+t.dataset.dir).classList.add('active');
+}));
+const aData=[
+ {f:'01 - The Way of Kings.m4b',c:'AAC-LC · Apple AAC decoder',s:'44.1 kHz · stereo · 64 kbps',ch:'75 embedded'},
+ {f:'A Change of Plans.m4b',c:'AAC-LC · Apple AAC decoder',s:'44.1 kHz · stereo · 64 kbps',ch:'41 embedded'},
+ {f:'The Future.m4b',c:'AAC-LC · Apple AAC decoder',s:'48 kHz · stereo · 64 kbps',ch:'52 embedded'}];
+document.querySelectorAll('#a-list .a-file').forEach(r=>r.addEventListener('click',()=>{
+  document.querySelectorAll('#a-list .a-file').forEach(x=>x.classList.remove('sel'));
+  r.classList.add('sel');
+  const d=aData[+r.dataset.i];
+  document.getElementById('a-insp').innerHTML=
+   `<dt>File</dt><dd>${d.f}</dd><dt>Codec</dt><dd>${d.c}</dd><dt>Sample rate</dt><dd class="mono">${d.s}</dd><dt>Chapters</dt><dd>${d.ch}</dd>`;
+}));
+document.querySelectorAll('#b-rows tr').forEach(r=>r.addEventListener('click',()=>{
+  document.querySelectorAll('#b-rows tr').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');
+}));
+document.querySelectorAll('#b-mode button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#b-mode button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+}));
+const cData=[
+ {t:'The Way of Kings',sub:'Brandon Sanderson · read by Michael Kramer, Kate Reading',g:'linear-gradient(160deg,#4338ca,#1e3a8a)'},
+ {t:'A Change of Plans',sub:'Dannie Ella · read by Renée Dorian',g:'linear-gradient(160deg,#9d174d,#4c0519)'},
+ {t:'The Future',sub:'Naomi Alderman · read by full cast',g:'linear-gradient(160deg,#065f46,#022c22)'},
+ {t:'The Martian',sub:'Andy Weir · read by R.C. Bray',g:'linear-gradient(160deg,#92400e,#451a03)'}];
+document.querySelectorAll('#c-rail .c-tile').forEach(r=>r.addEventListener('click',()=>{
+  document.querySelectorAll('#c-rail .c-tile').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');
+  const d=cData[+r.dataset.b];
+  document.getElementById('c-title').textContent=d.t;
+  document.getElementById('c-sub').textContent=d.sub;
+  const cov=document.getElementById('c-cover');cov.textContent=d.t;cov.style.background=d.g;
+}));
+document.querySelectorAll('.c-tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.c-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+}));
+</script>
+</body>
+</html>

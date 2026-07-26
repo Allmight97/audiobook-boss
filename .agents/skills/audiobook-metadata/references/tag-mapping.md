@@ -52,63 +52,28 @@ Additional freeform atoms recognized by ABS:
 | `----:com.apple.iTunes:AUDIBLE_ASIN` | `audible_asin` | ASIN |
 | `----:com.apple.iTunes:ISBN` | `isbn` | ISBN |
 
-## Writing with ffmpeg
+## ABB Write Ownership
 
-### Basic metadata via ffmetadata file
+Container-neutral mappings and clear groups are owned by
+`src-tauri/src/metadata/field_schema.rs` and
+`src-tauri/src/metadata/metadata_ops.rs`. Container adapters apply those
+operations. MP4-family artifact finalization is owned by
+`finalize_artifact_metadata` and the mp4ameta sink.
 
-```ini
-;FFMETADATA1
-title=Book Title
-artist=Author Name
-composer=Narrator Name
-series=Series Name
-series-part=1
-genre=Science Fiction/Fantasy
-```
+Do not teach or use a bare `ffmpeg -c copy` metadata recipe as ABB's MP4 write
+path. FFmpeg's MOV muxer drops dictionary keys outside its known atom table, so
+series freeforms, mirrors, and other MP4 tag truth must be finalized through the
+owning adapter.
 
-Apply with:
-```bash
-ffmpeg -i input.m4b -i metadata.txt -map_metadata 1 -c copy output.m4b
-```
-
-### Direct command line
-
-```bash
-ffmpeg -i input.m4b \
-  -metadata title="Book Title" \
-  -metadata artist="Author Name" \
-  -metadata composer="Narrator Name" \
-  -metadata series="Series Name" \
-  -metadata series-part="1" \
-  -c copy output.m4b
-```
-
-## Writing with ffmpeg-next (Rust)
-
-audiobook-boss writes canonical ffprobe-visible keys plus iTunes freeform mirrors
-for series metadata. These are the series keys ABB currently owns in the FFmpeg
-dictionary path.
-
-```rust
-// Primary + mirrored keys written together
-dict.set("series", series_name);
-dict.set("----:com.apple.iTunes:SERIES", series_name);
-
-dict.set("series-part", book_number);
-dict.set("----:com.apple.iTunes:SERIES-PART", book_number);
-```
-
-The mp4ameta path writes the same logical values to lowercase canonical
-freeforms and uppercase iTunes mirrors. Keep both families unless player
+Keep lowercase canonical freeforms and uppercase iTunes mirrors unless player
 evidence and an explicit product decision replace this compatibility strategy.
 
 Series-part values should stay scanner-friendly. Slash-form values like `1/5`
 are rejected by validation.
 
-Validation checklist:
-1. Creating an M4B with these tags
-2. Running `ffprobe -show_format output.m4b`
-3. Confirming `series` and `series-part` appear in the tags (plus the freeform atom names)
+Proof must match the observer-specific matrix in `../SKILL.md`. In particular,
+`ffprobe` proves visible tags but cannot prove both case-distinct freeform atom
+families.
 
 Legacy read compatibility remains (`show` / `episode_sort`) for older files,
 but write paths should use the canonical and freeform keys above.

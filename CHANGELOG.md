@@ -20,6 +20,21 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Full-fidelity v3 rebuild: the whole frontend now matches the direction-v3
+  mock — self-hosted Inter/JetBrains Mono, the flat ghost-pill design system,
+  a 46px tab-strip app bar, a single-row toolbar (Import menu with Files/
+  Folder, ☁ Audible, merge chip, encoder/naming pills, a Process split-button
+  whose caret runs 15–60s previews), a zero-chrome book table with
+  column-header sorting and whole-row activation, the operations panel inside
+  the left column with per-job lane cards, backend-authored ETAs
+  ("04:02 left") and a bounded operation log tail, and a persistent 340px
+  metadata rail as the default edit surface (switchable to the 330px popover
+  in App Settings). Number of Jobs and the new edit-surface preference live
+  in the App Settings dialog.
+- Direction v3 unifies the toolbar, gives the book table the full window width
+  with status badges, moves work into a bottom operations bar, adds a popover
+  metadata surface with Facts, Chapters, and Output tabs, and remembers the
+  selected comfortable or compact density.
 - Find Metadata Online now shows separate Title and Author search fields,
   auto-filled from the selected file (title/album into Title, author into
   Author), so you can see and adjust each criterion before searching. ASIN
@@ -47,6 +62,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - The media test lane also covers sample-rate-converted merges and stereo
   channel preservation (per-channel RMS on the decoded artifact), and its
   Apple AAC tests skip cleanly on non-macOS agents (#413).
+- The FDK HE-AAC afterburner control moved from the encoder workbench into
+  the App Settings dialog. It stays default-on (Fraunhofer guidance); the
+  setting exists for users who knowingly trade quality for encode speed.
+  Encode payloads and the IPC contract are unchanged.
 
 ### Removed
 
@@ -79,6 +98,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   artifact owner instead of dropping edits made while a non-first input is
   selected; non-merge processing blocks dirty edits on an invalid selection
   instead of retargeting them to another file (#415).
+- Captured dev-log encoding sessions now report terminal truth end-to-end:
+  foreground/preview failures and validation-rejected requests always leave
+  a typed terminal record, FDK parameter-acceptance warnings are no longer
+  muzzled out of the per-run log, and the session-verdict analyzer treats
+  ambiguous or truncated FDK run markers, dying tee pipes, and adversarial
+  encoder stderr as indeterminate instead of fabricating a clean or failed
+  verdict. Legacy logs without a parseable Run ID are archived rather than
+  destroyed.
 
 ## [1.3.0] - 2026-07-02
 

@@ -1,31 +1,36 @@
 <script lang="ts">
-	import { pathBasename } from '../../lib/path/basename';
+	import { onDestroy } from 'svelte';
+	import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 	import { formatDuration, formatFileSize } from '../../types/audio';
-	import { clearAllFiles, toggleFileSort } from './actions';
+	import { getMetadataForFile, getMetadataIntentPatchForFile } from '../metadataSession';
+	import { hasSupplementalAssetsForInputId } from '../remoteSource';
+	import { applySelectionIntent, restoreImportOrder, toggleFileSort } from './actions';
 	import {
-		createFileListDragHandlers,
-		onFileListClick,
-		onFileListKeyDown,
-		onFileListMoveDown,
-		onFileListMoveUp,
-		onFileListRemove,
-	} from './events';
-	import { getCurrentFileList } from './state.svelte';
+		clearFileListCoverThumbnails,
+		getFileListCoverThumbnailState,
+		scheduleFileListCoverThumbnails,
+	} from './coverThumbnails.svelte';
+	import { createFileListPointerReorder, onFileListKeyDown } from './events';
+	import { getCurrentFileList, getSelectedFileIndex } from './state.svelte';
 	import {
-		readFileListControlsSnapshot,
+		readFileListOrderDiffersFromImport,
 		readFileListOrderLockVisible,
 		readFileListSelectedIndices,
-		readFileListSortLabel,
+		readFileListSortState,
+		readFileListStatusBadge,
 		readFileListViewFiles,
+		displayedFileNameForFile,
+		displayedSecondaryTitleForFile,
+		type ReadWorkActivityByInputId,
 	} from './viewState.svelte';
-	import { hasSupplementalAssetsForInputId } from '../remoteSource';
 
 	interface Props {
 		isDragOver?: boolean;
 		supportText?: string;
 		onHeaderClick?: () => void;
 		onHeaderKeydown?: (event: KeyboardEvent) => void;
-		fileManagementContainer?: HTMLDivElement | null;
+		onFileManagementContainerChange?: (container: HTMLDivElement | null) => void;
+		readWorkActivityByInputId?: ReadWorkActivityByInputId;
 	}
 
 	let {
@@ -33,437 +38,365 @@
 		supportText = '',
 		onHeaderClick,
 		onHeaderKeydown,
-		fileManagementContainer = $bindable(null),
+		onFileManagementContainerChange,
+		readWorkActivityByInputId,
 	}: Props = $props();
 
-	let fileListContent: HTMLDivElement | null = null;
+	let fileManagementContainer: HTMLDivElement | null = null;
 	let draggedIndex = $state<number | null>(null);
 	let hoveredIndex = $state<number | null>(null);
+	let hoveredEdge = $state<'top' | 'bottom' | null>(null);
 
 	const files = $derived(readFileListViewFiles());
 	const selectedIndices = $derived(readFileListSelectedIndices());
-	const sortLabel = $derived(readFileListSortLabel());
-	const controls = $derived(readFileListControlsSnapshot());
+	const sortState = $derived(readFileListSortState());
+	const orderDiffersFromImport = $derived(readFileListOrderDiffersFromImport());
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
 	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
 
-	const dragHandlers = createFileListDragHandlers((state) => {
+	const reorderHandlers = createFileListPointerReorder((state) => {
 		draggedIndex = state.draggedIndex;
 		hoveredIndex = state.hoveredIndex;
+		hoveredEdge = state.hoveredEdge;
 	});
-
-	function focusFileListContent(): void {
-		fileListContent?.focus({ preventScroll: true });
-	}
-
-	function handleFileListClick(index: number, event: MouseEvent): void {
-		focusFileListContent();
-		onFileListClick(index, event);
-	}
-
-	function handleSortClick(): void {
-		void toggleFileSort();
-	}
-
-	function handleClearClick(): void {
-		clearAllFiles();
-	}
-
-	function getFileName(path: string): string {
-		return pathBasename(path, { fallback: 'path' });
-	}
-
-	function formatFileDetails(file: (typeof files)[number]): string {
-		if (file.isValid && file.duration && file.size) {
-			return `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}`;
-		}
-		return `Error: ${file.error || 'Invalid file'}`;
-	}
-
-	function scrollSelectedFileIntoView(index: number): void {
-		requestAnimationFrame(() => {
-			const selectedItem = fileListContent?.querySelector<HTMLElement>(
-				`[data-file-index="${index}"]`,
-			);
-			selectedItem?.scrollIntoView({ block: 'nearest' });
-		});
-	}
 
 	$effect(() => {
-		const selectedIndex = selectedIndices[selectedIndices.length - 1];
-		if (typeof selectedIndex !== 'number') return;
-
-		scrollSelectedFileIntoView(selectedIndex);
+		onFileManagementContainerChange?.(fileManagementContainer);
 	});
+
+	$effect(() => {
+		const validPaths = files.filter((file) => file.isValid).map((file) => file.path);
+		let active = true;
+
+		// Schedule outside the reactive effect so thumbnail state writes do not
+		// become dependencies of the file-list path calculation.
+		queueMicrotask(() => {
+			if (!active) return;
+			if (validPaths.length === 0) {
+				clearFileListCoverThumbnails();
+				return;
+			}
+			scheduleFileListCoverThumbnails(validPaths);
+		});
+
+		return () => {
+			active = false;
+		};
+	});
+
+	onDestroy(clearFileListCoverThumbnails);
+
+	function selectionIntentForRow(index: number, event: MouseEvent) {
+		if (event.shiftKey) {
+			const anchorIndex = getSelectedFileIndex();
+			return anchorIndex >= 0
+				? { type: 'range' as const, anchorIndex, index }
+				: { type: 'selectOnly' as const, index };
+		}
+		if (event.metaKey || event.ctrlKey) return { type: 'toggle' as const, index };
+		return { type: 'selectOnly' as const, index };
+	}
+
+	function handleRowActivation(index: number, anchor: HTMLElement, event: MouseEvent): void {
+		const intent = selectionIntentForRow(index, event);
+		void applySelectionIntent(
+			intent,
+			intent.type === 'selectOnly' ? { openMetadataSurface: true, anchor } : undefined,
+		);
+	}
+
+	function handleRowClick(index: number, event: MouseEvent): void {
+		if (reorderHandlers.consumePostDragClick()) {
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
+		if (event.target instanceof Element && event.target.closest('[data-metadata-selection-intent]')) {
+			return;
+		}
+
+		const row = event.currentTarget as HTMLTableRowElement;
+		const activateButton = row.querySelector<HTMLElement>(`#file-list-row-activate-${index}`);
+		handleRowActivation(index, activateButton ?? row, event);
+	}
+
+	function getFileName(file: (typeof files)[number]): string {
+		return displayedFileNameForFile(file);
+	}
+
+	function getSecondaryTitle(file: (typeof files)[number]): string | null {
+		const title = displayedSecondaryTitleForFile(file);
+		return title && title !== getFileName(file) ? title : null;
+	}
+
+	type CoverCellState =
+		| { kind: 'image'; url: string }
+		| { kind: 'placeholder' }
+		| { kind: 'loading' }
+		| { kind: 'error' };
+
+	function getCoverCellState(file: (typeof files)[number]): CoverCellState {
+		// Intent and loaded metadata are authoritative: an explicit clear or a
+		// metadata load that answers "no cover" must never be overdrawn by
+		// stale thumbnail-cache state (queued/loading/error). Only the
+		// fallthrough — metadata not yet loaded — consults the thumbnail cache.
+		const coverIntent = getMetadataIntentPatchForFile(file.path)?.cover_art;
+		if (coverIntent?.op === 'clear') return { kind: 'placeholder' };
+		if (coverIntent?.op === 'set') {
+			return { kind: 'image', url: coverArtBytesToDataUrl(coverIntent.value) };
+		}
+
+		const metadata = getMetadataForFile(file.path);
+		if (metadata !== undefined) {
+			const coverArt = metadata.cover_art;
+			return coverArt && coverArt.length > 0
+				? { kind: 'image', url: coverArtBytesToDataUrl(coverArt) }
+				: { kind: 'placeholder' };
+		}
+
+		const thumbnail = getFileListCoverThumbnailState(file.path);
+		switch (thumbnail.status) {
+			case 'ready':
+				return { kind: 'image', url: thumbnail.dataUrl };
+			case 'queued':
+			case 'loading':
+				return { kind: 'loading' };
+			case 'error':
+				return { kind: 'error' };
+			case 'idle':
+			case 'absent':
+				return { kind: 'placeholder' };
+		}
+	}
 </script>
-
-<div class="flex flex-col gap-2 mb-2">
-	<div class="flex items-center justify-end gap-2">
-		<div class="flex items-center gap-2 mr-auto self-center pl-1">
-			<span class="text-xs muted-text italic" id="file-count-display">
-				{files.length}
-				{files.length === 1 ? 'file' : 'files'}
-			</span>
-			<span
-				class="text-xs muted-text italic"
-				id="file-order-lock"
-				style:display={orderLockVisible ? 'inline' : 'none'}
-				data-testid="file-order-lock"
-			>
-				Order locked while processing
-			</span>
-		</div>
-		<button
-			id="sort-toggle-btn"
-			class="btn-pill btn-pill-secondary"
-			style:display={controls.showSortButton ? 'block' : 'none'}
-			disabled={controls.sortDisabled}
-			onclick={handleSortClick}
-		>
-			{sortLabel}
-		</button>
-		<button
-			id="clear-files-btn"
-			class="btn-pill btn-pill-secondary"
-			style:display={controls.showClearButton ? 'block' : 'none'}
-			disabled={controls.clearDisabled}
-			onclick={handleClearClick}
-		>
-			Clear
-		</button>
-	</div>
-</div>
-
-<style>
-	.file-management-container {
-		display: flex;
-		flex: 1 1 auto;
-		flex-direction: column;
-		min-height: 8rem;
-		overflow: hidden;
-		border: 1px solid var(--border-primary);
-		border-radius: 0.375rem;
-		background-color: var(--bg-input);
-	}
-
-	.file-list-content:focus-visible {
-		outline: 2px solid var(--border-focus);
-		outline-offset: -2px;
-	}
-
-	.drop-zone-header[data-has-files='false'] {
-		display: flex;
-		flex: 1 1 auto;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 2rem 1rem;
-		border: 2px dashed var(--border-secondary);
-		background-color: var(--bg-drag-area);
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.drop-zone-header[data-has-files='false']:hover,
-	.drop-zone-header[data-has-files='false'].drag-over {
-		border-color: var(--accent-primary);
-		background-color: var(--bg-hover);
-	}
-
-	.drop-zone-header[data-has-files='false'].drag-over {
-		transform: scale(1.02);
-	}
-
-	.drop-zone-header[data-has-files='false']:focus {
-		outline: 2px solid var(--border-focus);
-		outline-offset: 2px;
-	}
-
-	.drop-zone-header[data-has-files='true'] {
-		flex-shrink: 0;
-		min-height: 2.5rem;
-		padding: 0.5rem 1rem;
-		border-bottom: 1px solid var(--border-primary);
-		background-color: var(--bg-input);
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.drop-zone-header[data-has-files='true']:hover {
-		background-color: var(--bg-hover);
-	}
-
-	.drop-zone-header[data-has-files='true']:focus {
-		outline: 2px solid var(--border-focus);
-		outline-offset: -2px;
-	}
-
-	.file-list-content {
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow-y: auto;
-	}
-
-	.file-list-item {
-		padding: 0.75rem;
-		border-bottom: 1px solid var(--border-primary);
-		cursor: pointer;
-		transition: background-color 0.2s ease;
-		user-select: none;
-	}
-
-	.file-list-item:last-child {
-		border-bottom: none;
-	}
-
-	.file-list-item:hover {
-		background-color: var(--bg-hover);
-	}
-
-	.file-list-item.selected {
-		background-color: var(--accent-primary);
-		color: var(--text-inverse);
-	}
-
-	.file-list-item.dragging {
-		opacity: 0.5;
-	}
-
-	.file-list-item.drag-over {
-		border-top: 2px solid var(--accent-primary);
-	}
-
-	.file-item-content {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		min-width: 0;
-	}
-
-	.file-status {
-		min-width: 1rem;
-		font-size: 1rem;
-		font-weight: bold;
-	}
-
-	.file-info {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.file-name-row {
-		display: flex;
-		align-items: center;
-		gap: 0.375rem;
-		margin-bottom: 0.25rem;
-		min-width: 0;
-	}
-
-	.file-name {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 0.875rem;
-		font-weight: 500;
-	}
-
-	.companion-chip {
-		flex: 0 0 auto;
-		padding: 0.0625rem 0.25rem;
-		border: 1px solid var(--accent-primary);
-		border-radius: 0.25rem;
-		background-color: rgb(59 130 246 / 0.12);
-		color: var(--accent-primary);
-		font-size: 0.625rem;
-		font-weight: 600;
-		line-height: 1;
-	}
-
-	.file-list-item.selected .companion-chip {
-		border-color: rgb(255 255 255 / 0.7);
-		background-color: rgb(255 255 255 / 0.18);
-		color: var(--text-inverse);
-	}
-
-	.file-details {
-		overflow: hidden;
-		color: var(--text-muted);
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 0.75rem;
-	}
-
-	.file-list-item.selected .file-details {
-		color: var(--text-inverse);
-		opacity: 0.9;
-	}
-
-	.remove-file-btn,
-	.move-up-btn,
-	.move-down-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 1.5rem;
-		height: 1.5rem;
-		padding: 0.25rem;
-		border: none;
-		border-radius: 0.25rem;
-		background: none;
-		color: var(--text-muted);
-		font-size: 1.25rem;
-		font-weight: bold;
-		cursor: pointer;
-	}
-
-	.remove-file-btn:hover {
-		background-color: rgb(239 68 68 / 0.1);
-		color: #ef4444;
-	}
-
-	.move-up-btn:hover,
-	.move-down-btn:hover {
-		background-color: var(--bg-hover);
-		color: var(--accent-primary);
-		transform: translateY(-1px);
-	}
-
-	.move-up-btn:focus-visible,
-	.move-down-btn:focus-visible {
-		outline: 2px solid var(--border-focus);
-		outline-offset: 2px;
-	}
-
-	.move-up-btn:disabled,
-	.move-down-btn:disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-	}
-
-	.move-up-btn:disabled:hover,
-	.move-down-btn:disabled:hover {
-		background-color: transparent;
-		color: var(--text-muted);
-		transform: none;
-	}
-
-	.file-list-item.selected .remove-file-btn,
-	.file-list-item.selected .move-up-btn,
-	.file-list-item.selected .move-down-btn {
-		color: var(--text-inverse);
-		opacity: 0.8;
-	}
-
-	.file-list-item.selected .remove-file-btn:hover,
-	.file-list-item.selected .move-up-btn:hover,
-	.file-list-item.selected .move-down-btn:hover {
-		background-color: rgb(255 255 255 / 0.2);
-		color: var(--text-inverse);
-		opacity: 1;
-	}
-
-	.file-list-item.selected .move-up-btn:disabled,
-	.file-list-item.selected .move-down-btn:disabled {
-		color: var(--text-inverse);
-	}
-</style>
 
 <div
 	class="file-management-container mb-3"
+	class:drag-over={isDragOver && hasFiles}
 	role="region"
 	aria-label="File list"
 	bind:this={fileManagementContainer}
 >
+	{#if !hasFiles}
+		<div
+			class="drop-zone-header"
+			class:drag-over={isDragOver}
+			role="button"
+			aria-label="Add audio files"
+			tabindex="0"
+			onclick={() => onHeaderClick?.()}
+			onkeydown={(event) => onHeaderKeydown?.(event)}
+		>
+			<p class="text-sm muted-text">Drop files or folders here, or use ＋ Import above to add Files… or a Folder…</p>
+			<p class="text-xs muted-text mt-1">{supportText}</p>
+		</div>
+	{:else}
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 	<div
-		class="drop-zone-header"
-		class:drag-over={isDragOver}
-		data-has-files={hasFiles.toString()}
-		role="button"
-		aria-label="Add audio files"
-		tabindex="0"
-		onclick={() => onHeaderClick?.()}
-		onkeydown={(event) => onHeaderKeydown?.(event)}
-	>
-		<p class="text-sm muted-text">
-			Drop files or folders here, click to choose files, or use Add Folder
-		</p>
-		<p class="text-xs muted-text mt-1">{supportText}</p>
-	</div>
-
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-	<div
-		bind:this={fileListContent}
 		class="file-list-content"
-		role="listbox"
+		role="group"
 		aria-label="Audio files"
-		aria-multiselectable="true"
+		aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+		title="Move the selected file with Alt+ArrowUp or Alt+ArrowDown"
 		tabindex="0"
 		onkeydown={onFileListKeyDown}
 	>
-		{#each files as file, index (file.inputId ?? file.path)}
-			<div
-				data-file-index={index}
-				class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
-				class:selected={selectedIndices.includes(index)}
-				class:dragging={draggedIndex === index}
-				class:drag-over={hoveredIndex === index}
-				draggable={orderLockVisible ? 'false' : 'true'}
-				role="option"
-				aria-selected={selectedIndices.includes(index)}
-				aria-label={getFileName(file.path)}
-				tabindex="-1"
-				onclick={(event) => handleFileListClick(index, event)}
-				ondragstart={(event) => dragHandlers.onDragStart(index, event)}
-				ondragover={(event) => dragHandlers.onDragOver(index, event)}
-				ondrop={(event) => dragHandlers.onDrop(index, event)}
-				ondragend={dragHandlers.onDragEnd}
-			>
-				<div class="file-item-content">
-					<div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
-						{file.isValid ? '✓' : '✗'}
-					</div>
-					<div class="file-info">
-						<div class="file-name-row">
-							<div class="file-name">{getFileName(file.path)}</div>
+		<table
+			class="file-list-table"
+			data-testid="chapter-queue"
+			style="table-layout: fixed; user-select: none;"
+		>
+			<colgroup>
+				<col class="file-list-reorder-column" />
+				<col class="file-list-cover-column" />
+				<col class="file-list-title-column" />
+				<col class="file-list-duration-column" />
+				<col class="file-list-comfortable-only file-list-size-column" />
+				<col class="file-list-comfortable-only file-list-codec-column" />
+				<col class="file-list-status-column" />
+			</colgroup>
+			<thead>
+				<tr>
+					<th class="file-list-reorder-cell"><span class="sr-only">Reorder</span></th>
+					<th class="file-list-cover-cell"></th>
+					<th aria-sort={sortState}>
+						<span class="file-list-order-controls">
+							<button
+								id="file-sort-header"
+								type="button"
+								class="file-list-sort-header"
+								aria-label="Order by filename"
+								title="Order by filename (click to reverse)"
+								onclick={() => void toggleFileSort()}
+							>
+								File<span class="file-list-sort-direction" aria-hidden="true"
+									>{sortState === 'ascending' ? '↑' : sortState === 'descending' ? '↓' : '↕'}</span
+								>
+							</button>
+							{#if orderDiffersFromImport && !orderLockVisible}
+								<button
+									type="button"
+									class="file-list-restore-order"
+									aria-label="Restore import order"
+									title="Restore import order"
+									onclick={() => void restoreImportOrder()}
+								>
+									↺
+								</button>
+							{/if}
+						</span>
+					</th>
+					<th class="file-list-number">Duration</th>
+					<th class="file-list-number file-list-comfortable-only">Size</th>
+					<th class="file-list-comfortable-only">Codec</th>
+					<th>Status</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each files as file, index (file.inputId ?? file.path)}
+					{@const selected = selectedIndices.includes(index)}
+					{@const active = index === getSelectedFileIndex()}
+					{@const badge = readFileListStatusBadge(file, readWorkActivityByInputId)}
+					{@const coverState = getCoverCellState(file)}
+					{@const fileName = getFileName(file)}
+					{@const secondaryTitle = getSecondaryTitle(file)}
+					<tr
+						data-file-index={index}
+						class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
+						class:selected
+						class:active={active}
+						class:dragging={draggedIndex === index}
+						class:drag-over={hoveredIndex === index && hoveredEdge === 'top'}
+						class:drag-over-bottom={hoveredIndex === index && hoveredEdge === 'bottom'}
+						class:order-locked={orderLockVisible}
+						aria-selected={selected}
+						draggable="false"
+						onclick={(event) => handleRowClick(index, event)}
+					>
+						<td class="file-list-reorder-cell">
+							<span
+								class="file-list-reorder-grip"
+								aria-hidden="true"
+								title={
+									orderLockVisible
+										? 'Order locked while submitting to the work queue'
+										: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'
+								}
+								onpointerdown={(event) => reorderHandlers.onGripPointerDown(index, event)}
+							>
+								⠿
+							</span>
+							<span class="sr-only">
+								{orderLockVisible
+									? 'Order locked while submitting to the work queue'
+									: 'Drag to reorder. Move the selected file with Alt+ArrowUp or Alt+ArrowDown.'}
+							</span>
+						</td>
+						<td class="file-list-cover-cell">
+							<div class="app-cover-thumb file-list-cover">
+								{#if coverState.kind === 'image'}
+									<img src={coverState.url} alt="" />
+								{:else if coverState.kind === 'loading'}
+									<span class="file-list-cover-loading" aria-hidden="true"></span>
+								{:else if coverState.kind === 'error'}
+									<span
+										class="file-list-cover-error"
+										aria-hidden="true"
+										title="Cover art failed to load"
+									>
+										!
+									</span>
+								{:else}
+									<span aria-hidden="true">—</span>
+								{/if}
+							</div>
+						</td>
+						<td class="file-list-title-cell">
+							<button
+								type="button"
+								class="file-list-activate"
+								aria-pressed={active ?? false}
+								aria-label={`Edit metadata for ${fileName}`}
+								title={secondaryTitle ? `${fileName} — ${secondaryTitle}` : fileName}
+								id={`file-list-row-activate-${index}`}
+								data-metadata-selection-intent
+								onclick={(event) => handleRowActivation(index, event.currentTarget, event)}
+							>
+								<span class="file-list-file-name">{fileName}</span>{#if secondaryTitle}<span
+										class="file-list-file-title file-list-comfortable-only">&nbsp;— {secondaryTitle}</span
+									>{/if}
+							</button>
 							{#if hasSupplementalAssetsForInputId(file.inputId)}
 								<span class="companion-chip" title="Supplemental PDF attached">PDF</span>
 							{/if}
-						</div>
-						<div class="file-details">{formatFileDetails(file)}</div>
-					</div>
-					<button
-						class="move-up-btn"
-						onclick={(event) => {
-							event.stopPropagation();
-							onFileListMoveUp(index, event);
-						}}
-						disabled={index === 0 || orderLockVisible}
-					>
-						▲
-					</button>
-					<button
-						class="move-down-btn"
-						onclick={(event) => {
-							event.stopPropagation();
-							onFileListMoveDown(index, event);
-						}}
-						disabled={index === files.length - 1 || orderLockVisible}
-					>
-						▼
-					</button>
-					<button
-						class="remove-file-btn"
-						disabled={orderLockVisible}
-						onclick={(event) => {
-							event.stopPropagation();
-							onFileListRemove(index, event);
-						}}
-					>
-						×
-					</button>
-				</div>
-			</div>
-		{/each}
+						</td>
+						<td class="file-list-number">{file.duration ? formatDuration(file.duration) : '—'}</td>
+						<td class="file-list-number file-list-comfortable-only">
+							{file.size ? formatFileSize(file.size) : '—'}
+						</td>
+						<td class="file-list-comfortable-only">{file.format ?? '—'}</td>
+						<td>
+							<span title={file.isValid ? undefined : file.error} class:file-work-badge-error={badge.isError} class={`app-badge app-badge-${badge.variant}`}>
+								{badge.label}
+							</span>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
 	</div>
+	{/if}
 </div>
+
+<style>
+	.file-management-container { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 8rem; overflow: hidden; border: 1px solid var(--border-primary); border-radius: var(--radius-md); background: var(--bg-input); }
+	.file-management-container.drag-over { border-color: var(--accent-primary); background: var(--bg-hover); }
+	/* Rendered only while the list is empty; the whole container is the OS drop target. */
+	.drop-zone-header { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; border: 2px dashed var(--border-secondary); background: var(--bg-drag-area); cursor: pointer; }
+	.drop-zone-header:hover, .drop-zone-header.drag-over { background: var(--bg-hover); }
+	.drop-zone-header.drag-over { border-color: var(--accent-primary); }
+	.file-list-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: auto; }
+	.file-list-content:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+	.file-list-table { width: 100%; min-width: 32rem; border-collapse: collapse; font-size: var(--density-text); }
+	.file-list-reorder-column { width: 1.75rem; }
+	.file-list-cover-column { width: 2.5rem; }
+	.file-list-duration-column { width: 5.5rem; }
+	.file-list-size-column { width: 5.5rem; }
+	.file-list-codec-column { width: 5rem; }
+	.file-list-status-column { width: 5.5rem; }
+	.file-list-table th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-primary); background: var(--bg-main); color: var(--text-placeholder); font-size: 0.65625rem; font-weight: 600; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
+	.file-list-table td { height: var(--density-row-h); padding: 0 var(--space-3); overflow: hidden; border-bottom: 1px solid var(--border-primary); color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+	.file-list-table tbody tr { cursor: pointer; }
+	.file-list-table tbody tr:hover { background: var(--bg-panel); }
+	.file-list-table tbody tr.selected { background: color-mix(in srgb, var(--accent-primary) 12%, transparent); box-shadow: inset 2px 0 0 var(--accent-primary); }
+	.file-list-table tbody tr.dragging { opacity: 0.5; }
+	.file-list-table tbody tr.drag-over { border-top: 2px solid var(--accent-primary); }
+	.file-list-table tbody tr.drag-over-bottom { border-bottom: 2px solid var(--accent-primary); }
+	.file-list-table tbody tr.order-locked { cursor: default; }
+	.file-list-table tbody tr.invalid .file-list-file-name { color: var(--text-error); opacity: 0.85; }
+	.file-list-reorder-cell { width: 1.5rem; padding-right: 0 !important; padding-left: var(--space-2) !important; text-align: center !important; }
+	.file-list-reorder-grip { display: inline-flex; align-items: center; justify-content: center; width: 1rem; color: var(--text-muted); cursor: grab; font-size: 0.875rem; line-height: 1; user-select: none; touch-action: none; }
+	.file-list-table tbody tr.order-locked .file-list-reorder-grip { cursor: not-allowed; opacity: 0.65; }
+	.file-list-cover-cell { width: 2.25rem; padding-right: 0 !important; }
+	.file-list-cover { --cover-thumb-size: 1.625rem; border: none; }
+	.file-list-cover-loading { display: inline-block; width: 60%; height: 60%; border-radius: var(--radius-sm); background: var(--bg-hover); animation: file-list-cover-pulse 1.2s ease-in-out infinite; }
+	.file-list-cover-error { color: var(--text-error); font-size: var(--text-sm); font-weight: 700; }
+	@keyframes file-list-cover-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.85; } }
+	.file-list-order-controls { display: inline-flex; align-items: baseline; gap: var(--space-1); }
+	.file-list-sort-header { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+	.file-list-sort-direction { margin-left: 0.25rem; color: var(--text-muted); }
+	.file-list-restore-order { padding: 0; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; line-height: 1; }
+	.file-list-restore-order:hover { color: var(--text-primary); }
+	.file-list-title-cell { max-width: 0; }
+	.file-list-activate { max-width: 100%; margin-top: 0; padding: 0; overflow: hidden; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+	.file-list-table tbody tr.active .file-list-activate { color: var(--text-primary); font-weight: 600; }
+	.file-list-activate:hover { color: var(--text-primary); text-decoration: underline; }
+	.file-list-file-title { color: var(--text-muted); font-weight: 400; }
+	.companion-chip { margin-left: var(--space-1); padding: 0.0625rem 0.25rem; border: 1px solid var(--accent-primary); border-radius: var(--radius-sm); color: var(--accent-primary); font-size: 0.625rem; font-weight: 600; }
+	.file-list-number { color: var(--text-muted) !important; font-family: var(--font-mono); font-size: var(--text-sm); text-align: right !important; }
+	.file-work-badge-error { color: var(--text-error); }
+	:global(:root[data-density='compact']) .file-list-comfortable-only { display: none; }
+	:global(:root[data-density='compact']) .file-list-table { min-width: 0; }
+	:global(:root[data-density='compact']) .file-list-table col.file-list-comfortable-only { display: none; }
+	:global(:root[data-density='compact']) .file-list-cover { --cover-thumb-size: 1.125rem; }
+</style>

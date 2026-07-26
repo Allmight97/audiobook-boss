@@ -36,7 +36,8 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state.svelte', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../fileList/state.svelte')>()),
 	getCurrentFileList: () => context.currentFileList,
 	getSelectedFileIndices: () => context.selectedIndices,
 	isOrderLocked: vi.fn(() => false),
@@ -316,7 +317,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		expect(getContextText()).toBe('2 of 2 • beta.m4b');
 		expect(context.selectFileMock).toHaveBeenCalledWith(
 			1,
-			{ multi: false, range: false },
+			{ multi: false },
 			{ skipPersistPrevious: true },
 		);
 	});

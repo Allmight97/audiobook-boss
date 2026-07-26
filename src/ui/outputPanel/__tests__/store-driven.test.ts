@@ -14,7 +14,8 @@ const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 }));
 
-vi.mock('../../fileList/state.svelte', () => ({
+vi.mock('../../fileList/state.svelte', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../fileList/state.svelte')>()),
 	getCurrentFileList: context.getCurrentFileListMock,
 	isOrderLocked: vi.fn(() => false),
 	onOrderLockChange: vi.fn(() => () => undefined),

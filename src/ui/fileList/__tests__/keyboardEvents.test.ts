@@ -4,22 +4,20 @@ import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '..
 
 const context = vi.hoisted(() => ({
 	clearSelectionActionMock: vi.fn(),
+	applySelectionIntentMock: vi.fn(async () => undefined),
 	moveFileDownMock: vi.fn(),
 	moveFileUpMock: vi.fn(),
 	removeFileMock: vi.fn(),
 	reorderFilesMock: vi.fn(),
-	selectAllMock: vi.fn(),
-	selectFileMock: vi.fn(async () => undefined),
 }));
 
 vi.mock('../actions', () => ({
 	clearSelectionAction: context.clearSelectionActionMock,
+	applySelectionIntent: context.applySelectionIntentMock,
 	moveFileDown: context.moveFileDownMock,
 	moveFileUp: context.moveFileUpMock,
 	removeFile: context.removeFileMock,
 	reorderFiles: context.reorderFilesMock,
-	selectAll: context.selectAllMock,
-	selectFile: context.selectFileMock,
 }));
 
 const makeFileList = (count: number): FileListInfo => {
@@ -71,8 +69,7 @@ describe('file list keyboard events', () => {
 		context.moveFileUpMock.mockClear();
 		context.removeFileMock.mockClear();
 		context.reorderFilesMock.mockClear();
-		context.selectAllMock.mockClear();
-		context.selectFileMock.mockClear();
+		context.applySelectionIntentMock.mockClear();
 	});
 
 	it('selects the first file from an empty selection on ArrowDown', async () => {
@@ -82,7 +79,7 @@ describe('file list keyboard events', () => {
 		onFileListKeyDown(event);
 
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(context.selectFileMock).toHaveBeenCalledWith(0, { multi: false, range: false });
+		expect(context.applySelectionIntentMock).toHaveBeenCalledWith({ type: 'selectOnly', index: 0 });
 	});
 
 	it('jumps to the bottom of the file list on End', async () => {
@@ -94,7 +91,7 @@ describe('file list keyboard events', () => {
 		onFileListKeyDown(event);
 
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(context.selectFileMock).toHaveBeenCalledWith(4, { multi: false, range: false });
+		expect(context.applySelectionIntentMock).toHaveBeenCalledWith({ type: 'selectOnly', index: 4 });
 	});
 
 	it('does not reselect while already colliding with a list edge', async () => {
@@ -106,7 +103,7 @@ describe('file list keyboard events', () => {
 		onFileListKeyDown(event);
 
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(context.selectFileMock).not.toHaveBeenCalled();
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
 	});
 
 	it('leaves text input arrow handling alone', async () => {
@@ -117,7 +114,7 @@ describe('file list keyboard events', () => {
 		onFileListKeyDown(event);
 
 		expect(event.preventDefault).not.toHaveBeenCalled();
-		expect(context.selectFileMock).not.toHaveBeenCalled();
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
 	});
 
 	it('keeps existing file-list select all behavior inside the focused region', async () => {
@@ -127,6 +124,54 @@ describe('file list keyboard events', () => {
 		onFileListKeyDown(event);
 
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(context.selectAllMock).toHaveBeenCalledTimes(1);
+		expect(context.applySelectionIntentMock).toHaveBeenCalledWith({ type: 'selectAll' });
+	});
+
+	it('reorders the selected file up on Alt+ArrowUp', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		setSelectedIndex(2);
+		setSelectedFileIndices([2]);
+		const event = keyboardEvent('ArrowUp', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(context.moveFileUpMock).toHaveBeenCalledWith(2);
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
+	});
+
+	it('reorders the selected file down on Alt+ArrowDown', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		setSelectedIndex(2);
+		setSelectedFileIndices([2]);
+		const event = keyboardEvent('ArrowDown', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(context.moveFileDownMock).toHaveBeenCalledWith(2);
+		expect(context.applySelectionIntentMock).not.toHaveBeenCalled();
+	});
+
+	it('consumes Alt+ArrowUp at the top edge without reordering', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		setSelectedIndex(0);
+		setSelectedFileIndices([0]);
+		const event = keyboardEvent('ArrowUp', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(context.moveFileUpMock).not.toHaveBeenCalled();
+	});
+
+	it('ignores Alt+Arrow reorder with no selection', async () => {
+		const { onFileListKeyDown } = await import('../events');
+		const event = keyboardEvent('ArrowUp', { altKey: true });
+
+		onFileListKeyDown(event);
+
+		expect(context.moveFileUpMock).not.toHaveBeenCalled();
+		expect(context.moveFileDownMock).not.toHaveBeenCalled();
 	});
 });

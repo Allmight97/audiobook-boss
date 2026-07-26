@@ -5,7 +5,9 @@ import {
 	displayFileList,
 	moveFileDown,
 	moveFileUp,
+	removeFile,
 	reorderFiles,
+	restoreImportOrder,
 	toggleFileSort,
 } from '../actions';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../metadataStaging';
@@ -14,10 +16,13 @@ import { showSingleSelection } from '../metadataPanel';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
+	getSelectedFileIndices,
+	getSortDirection,
+	resetImportOrder,
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-	setSortAscending,
+	setSortDirection,
 } from '../state.svelte';
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
@@ -168,7 +173,8 @@ describe('file list reorder behavior', () => {
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
 		setSelectedIndex(-1);
-		setSortAscending(true);
+		setSortDirection('none');
+		resetImportOrder([]);
 	});
 
 	it('keeps the same file selected and updates inspector position after moving it up', async () => {
@@ -184,8 +190,11 @@ describe('file list reorder behavior', () => {
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		moveFileUp(1);
+		await Promise.resolve();
+		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(0);
+		expect(Array.from(getSelectedFileIndices())).toEqual([0]);
 		expect(inspectorState.contextText).toBe('beta.m4b');
 		expect(inspectorState.contextDetail).toBe('1 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
@@ -205,8 +214,11 @@ describe('file list reorder behavior', () => {
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		moveFileDown(1);
+		await Promise.resolve();
+		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(2);
+		expect(Array.from(getSelectedFileIndices())).toEqual([2]);
 		expect(inspectorState.contextText).toBe('beta.m4b');
 		expect(inspectorState.contextDetail).toBe('3 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
@@ -226,6 +238,8 @@ describe('file list reorder behavior', () => {
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		reorderFiles(0, 2);
+		await Promise.resolve();
+		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(2);
 		expect(inspectorState.contextText).toBe('alpha.m4b');
@@ -303,7 +317,7 @@ describe('file list reorder behavior', () => {
 		]);
 	});
 
-	it('stages selected metadata drafts before sorting and clearing selection', async () => {
+	it('stages selected metadata drafts before sorting while preserving selection identity', async () => {
 		const alpha = makeFile('/books/a-alpha.m4b');
 		const beta = makeFile('/books/b-beta.m4b');
 
@@ -321,10 +335,11 @@ describe('file list reorder behavior', () => {
 		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/b-beta.m4b', {
 			series: { op: 'set', value: 'Sorted Series' },
 		});
-		expect(getSelectedFileIndex()).toBe(-1);
+		expect(getSelectedFileIndex()).toBe(0);
+		expect(Array.from(getSelectedFileIndices())).toEqual([0, 1]);
 		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
-			'/books/b-beta.m4b',
 			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
 		]);
 	});
 
@@ -350,6 +365,144 @@ describe('file list reorder behavior', () => {
 		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
 			'/books/b-alpha.m4b',
 			'/books/a-beta.m4b',
+		]);
+	});
+
+	it('restores import order after a filename sort while preserving selection identity', async () => {
+		const charlie = makeFile('/books/c-charlie.m4b');
+		const alpha = makeFile('/books/a-alpha.m4b');
+		const beta = makeFile('/books/b-beta.m4b');
+
+		displayFileList(makeFileList(charlie, alpha, beta));
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+
+		await toggleFileSort();
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
+			'/books/c-charlie.m4b',
+		]);
+
+		await restoreImportOrder();
+
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/c-charlie.m4b',
+			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
+		]);
+		expect(getSelectedFileIndex()).toBe(0);
+		expect(Array.from(getSelectedFileIndices())).toEqual([0]);
+		expect(getSortDirection()).toBe('none');
+		expect(context.updateEstimatedSizeMock).toHaveBeenCalled();
+	});
+
+	it('restores import order after a manual drag and resets stale sort state', async () => {
+		const alpha = makeFile('/books/a-alpha.m4b');
+		const beta = makeFile('/books/b-beta.m4b');
+		const gamma = makeFile('/books/c-gamma.m4b');
+
+		displayFileList(makeFileList(alpha, beta, gamma));
+
+		await toggleFileSort();
+		expect(getSortDirection()).toBe('ascending');
+
+		reorderFiles(0, 2);
+		// A manual drag invalidates the sorted claim; aria-sort must not lie.
+		expect(getSortDirection()).toBe('none');
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/b-beta.m4b',
+			'/books/c-gamma.m4b',
+			'/books/a-alpha.m4b',
+		]);
+
+		await restoreImportOrder();
+
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
+			'/books/c-gamma.m4b',
+		]);
+	});
+
+	it('keeps import ordinals across appends and treats a re-added file as a new arrival', async () => {
+		const beta = makeFile('/books/b-beta.m4b');
+		const alpha = makeFile('/books/a-alpha.m4b');
+		const charlie = makeFile('/books/c-charlie.m4b');
+
+		displayFileList(makeFileList(beta, alpha));
+		await toggleFileSort();
+		appendFileList(makeFileList(charlie));
+
+		await restoreImportOrder();
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/b-beta.m4b',
+			'/books/a-alpha.m4b',
+			'/books/c-charlie.m4b',
+		]);
+
+		await removeFile(0);
+		appendFileList(makeFileList(beta));
+		await toggleFileSort();
+		await restoreImportOrder();
+
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/a-alpha.m4b',
+			'/books/c-charlie.m4b',
+			'/books/b-beta.m4b',
+		]);
+	});
+
+	it('stages dirty drafts before restoring import order and blocks on validation failure', async () => {
+		const beta = makeFile('/books/b-beta.m4b');
+		const alpha = makeFile('/books/a-alpha.m4b');
+
+		displayFileList(makeFileList(beta, alpha));
+		await toggleFileSort();
+		setSelectedFileIndices([0]);
+		setSelectedIndex(0);
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ series: 'Restored Series' });
+
+		await restoreImportOrder();
+
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a-alpha.m4b', {
+			series: { op: 'set', value: 'Restored Series' },
+		});
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/b-beta.m4b',
+			'/books/a-alpha.m4b',
+		]);
+
+		await toggleFileSort();
+		setSelectedFileIndices([0, 1]);
+		context.stageMetadataIntentPatchMock.mockClear();
+		context.validationErrorMock.mockReturnValue('Series part must be a number');
+
+		await restoreImportOrder();
+
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.pushStatusPanelTransientStatusMock).toHaveBeenCalledWith(
+			'Fix metadata validation errors before restoring import order.',
+			expect.objectContaining({ ttlMs: 2500 }),
+		);
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
+		]);
+	});
+
+	it('does not restore when files were seeded without import ordinals', async () => {
+		const beta = makeFile('/books/b-beta.m4b');
+		const alpha = makeFile('/books/a-alpha.m4b');
+
+		setCurrentFileList(makeFileList(beta, alpha));
+
+		await restoreImportOrder();
+
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/b-beta.m4b',
+			'/books/a-alpha.m4b',
 		]);
 	});
 });

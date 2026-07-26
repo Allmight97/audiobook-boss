@@ -1,5 +1,77 @@
 <script lang="ts">
+	import { onDestroy, onMount } from 'svelte';
+	import { PopoverController } from '../lib/ui/popover.svelte';
+	import { ModalController } from '../lib/ui/modal.svelte';
+	import {
+		MetadataFormFieldsIsland,
+		onMetadataFormActionSelectChange,
+		onMetadataFormFieldInput,
+	} from '../ui/metadataForm';
+	import {
+		applyMetadataFormLabPreset,
+		metadataFormLabPresets,
+		type MetadataFormLabPresetId,
+	} from '../ui/metadataForm/labFixtures';
+	import { FileListIsland } from '../ui/fileList';
+	import {
+		applyFileListLabScenario,
+		isFileListLabScenarioId,
+	} from '../ui/fileList/labFixtures';
+
+	// ?scenario=<id> renders one deterministic full-component stage instead of
+	// the token/primitive sheet — the target surface for `bun run lab:shots`.
+	const scenarioParam =
+		typeof window === 'undefined'
+			? null
+			: new URLSearchParams(window.location.search).get('scenario');
+	const fileListScenario = isFileListLabScenarioId(scenarioParam) ? scenarioParam : null;
+	const modalShortScenario = scenarioParam === 'modal-short';
+	// Lab-only interaction-proof stage (no owner fixture file — same pattern as
+	// modal-short): exercises the REAL ModalController/CSS transition so
+	// scripts/lab-shots.ts can pin the Escape-regardless-of-focus guarantee in
+	// a real browser (jsdom cannot see focus/visibility-transition timing).
+	const modalEscapeScenario = scenarioParam === 'modal-escape';
+
+	if (fileListScenario) {
+		applyFileListLabScenario(fileListScenario);
+	}
+
 	let density = $state<'comfortable' | 'compact'>('comfortable');
+	let activeMetadataPreset = $state<MetadataFormLabPresetId>('single-clean-populated');
+	let labSplitOpen = $state(false);
+	let popoverAnchor = $state<HTMLElement | null>(null);
+	let popoverContainer = $state<HTMLElement | null>(null);
+	let popoverPanel = $state<HTMLElement | null>(null);
+	const popover = new PopoverController();
+
+	$effect(() => {
+		popover.setElements({
+			anchor: popoverAnchor,
+			container: popoverContainer,
+			panel: popoverPanel,
+		});
+	});
+
+	let modalEscapeOpen = $state(false);
+	let modalEscapeDialogEl = $state<HTMLElement | null>(null);
+	const modalEscapeModal = new ModalController();
+
+	function closeModalEscape(): void {
+		modalEscapeOpen = false;
+	}
+
+	$effect(() => {
+		if (!modalEscapeScenario) return;
+		modalEscapeModal.sync(
+			modalEscapeOpen,
+			{ container: modalEscapeDialogEl },
+			{ onEscape: closeModalEscape },
+		);
+	});
+
+	onDestroy(() => {
+		if (modalEscapeScenario) modalEscapeModal.destroy();
+	});
 
 	function setDensity(next: 'comfortable' | 'compact'): void {
 		density = next;
@@ -9,6 +81,15 @@
 			delete document.documentElement.dataset.density;
 		}
 	}
+
+	function setMetadataPreset(next: MetadataFormLabPresetId): void {
+		activeMetadataPreset = next;
+		applyMetadataFormLabPreset(next);
+	}
+
+	onMount(() => {
+		applyMetadataFormLabPreset(activeMetadataPreset);
+	});
 
 	const colorTokens = [
 		'--bg-main',
@@ -22,6 +103,7 @@
 		'--text-placeholder',
 		'--text-error',
 		'--text-success',
+		'--text-warning',
 		'--border-primary',
 		'--border-secondary',
 		'--border-focus',
@@ -34,8 +116,169 @@
 	const typeTokens = ['--text-xs', '--text-sm', '--text-md', '--text-lg', '--text-xl'];
 	const radiusTokens = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-pill'];
 	const progressStops = [0, 37, 64, 100];
+	const stateFixtures = [
+		{
+			id: 'empty',
+			label: 'Empty',
+			body: 'Drop audiobook files to begin.',
+			meta: 'No selection',
+			tone: 'neutral',
+			progress: 0,
+		},
+		{
+			id: 'loading',
+			label: 'Loading',
+			body: 'Reading metadata from selected files.',
+			meta: 'Pending',
+			tone: 'neutral',
+			progress: 12,
+		},
+		{
+			id: 'progress',
+			label: 'Progress',
+			body: 'Encoding chapter 02 of 06.',
+			meta: '42%',
+			tone: 'active',
+			progress: 42,
+		},
+		{
+			id: 'error',
+			label: 'Error',
+			body: 'Chapter 03 could not be decoded.',
+			meta: 'Action needed',
+			tone: 'error',
+			progress: 64,
+		},
+		{
+			id: 'success',
+			label: 'Terminal success',
+			body: 'Output committed to the selected folder.',
+			meta: 'Complete',
+			tone: 'success',
+			progress: 100,
+		},
+		{
+			id: 'failure',
+			label: 'Terminal failure',
+			body: 'No output was written for this operation.',
+			meta: 'Failed',
+			tone: 'error',
+			progress: 100,
+		},
+		{
+			id: 'selected',
+			label: 'Selected row',
+			body: '01 - Opening Moves.m4b',
+			meta: '1 selected',
+			tone: 'selected',
+			progress: 0,
+		},
+		{
+			id: 'multi-selected',
+			label: 'Multi-selected rows',
+			body: '03 selected files share pending metadata edits.',
+			meta: '3 selected',
+			tone: 'selected',
+			progress: 0,
+		},
+	] as const;
+
+	const activeMetadataPresetDetails = $derived(
+		metadataFormLabPresets.find((preset) => preset.id === activeMetadataPreset) ??
+			metadataFormLabPresets[0],
+	);
 </script>
 
+{#if fileListScenario}
+	<div
+		class="lab-scenario-stage"
+		data-testid="lab-scenario-stage"
+		data-scenario={fileListScenario}
+	>
+		<FileListIsland supportText="Lab fixture — no backend attached" />
+	</div>
+{:else if modalShortScenario}
+	<div
+		class="lab-scenario-stage lab-scenario-modal"
+		data-testid="lab-scenario-stage"
+		data-scenario="modal-short"
+	>
+		<div class="app-modal-dialog" role="group" aria-label="Short-window modal scenario">
+			<div class="app-modal-header">
+				<h4>Long result list</h4>
+				<button class="pill pill-ghost pill-xs" type="button">Close</button>
+			</div>
+			<div class="app-modal-body" data-testid="modal-scenario-body">
+				{#each Array.from({ length: 14 }, (_, i) => `Search result ${i + 1} — The Final Empire, narrated edition`) as row, index (row)}
+					<div class="lab-modal-scroll-row" data-testid={`modal-scenario-row-${index + 1}`}>
+						<strong>{row}</strong>
+						<span class="text-xs muted-text">Publisher metadata line stays reachable.</span>
+					</div>
+				{/each}
+			</div>
+			<div class="lab-modal-footer" data-testid="modal-scenario-footer">
+				<button class="pill pill-ghost" type="button">Cancel</button>
+				<button class="pill pill-primary" type="button">Apply</button>
+			</div>
+		</div>
+	</div>
+{:else if modalEscapeScenario}
+	<div
+		class="lab-scenario-stage"
+		data-testid="lab-scenario-stage"
+		data-scenario="modal-escape"
+	>
+		<button
+			class="pill pill-primary"
+			type="button"
+			data-testid="modal-escape-open"
+			onclick={() => {
+				modalEscapeOpen = true;
+			}}
+		>
+			Open dialog
+		</button>
+		<div
+			class="app-modal-backdrop"
+			class:open={modalEscapeOpen}
+			data-testid="modal-escape-backdrop"
+			aria-hidden={!modalEscapeOpen}
+		>
+			<div
+				class="app-modal-dialog"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="modal-escape-title"
+				data-testid="modal-escape-dialog"
+				bind:this={modalEscapeDialogEl}
+			>
+				<div class="app-modal-header">
+					<h4 id="modal-escape-title" data-testid="modal-escape-heading">Escape proof dialog</h4>
+				</div>
+				<div class="app-modal-body">
+					<div class="field">
+						<label for="modal-escape-field-1">First field</label>
+						<input id="modal-escape-field-1" type="text" data-testid="modal-escape-field-1" />
+					</div>
+					<div class="field">
+						<label for="modal-escape-field-2">Second field</label>
+						<input id="modal-escape-field-2" type="text" data-testid="modal-escape-field-2" />
+					</div>
+				</div>
+				<div class="lab-modal-footer">
+					<button
+						class="pill pill-ghost"
+						type="button"
+						data-testid="modal-escape-close"
+						onclick={closeModalEscape}
+					>
+						Close
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{:else}
 <div class="lab">
 	<header class="lab-header panel">
 		<div>
@@ -47,18 +290,18 @@
 		</div>
 		<div class="lab-density" role="group" aria-label="Density">
 			<button
-				class="btn-pill"
-				class:btn-pill-primary={density === 'comfortable'}
-				class:btn-pill-secondary={density !== 'comfortable'}
+				class="pill"
+				class:pill-primary={density === 'comfortable'}
+				class:pill-ghost={density !== 'comfortable'}
 				type="button"
 				onclick={() => setDensity('comfortable')}
 			>
 				Comfortable
 			</button>
 			<button
-				class="btn-pill"
-				class:btn-pill-primary={density === 'compact'}
-				class:btn-pill-secondary={density !== 'compact'}
+				class="pill"
+				class:pill-primary={density === 'compact'}
+				class:pill-ghost={density !== 'compact'}
 				type="button"
 				onclick={() => setDensity('compact')}
 			>
@@ -70,7 +313,7 @@
 	<section class="panel lab-section">
 		<h3>Color tokens</h3>
 		<div class="lab-swatches">
-			{#each colorTokens as token}
+			{#each colorTokens as token (token)}
 				<div class="lab-swatch">
 					<div class="lab-swatch-chip" style={`background: var(${token})`}></div>
 					<code class="text-xs">{token}</code>
@@ -84,7 +327,7 @@
 		<div class="lab-scale-grid">
 			<div>
 				<h4 class="text-xs muted-text">Spacing</h4>
-				{#each spaceTokens as token}
+				{#each spaceTokens as token (token)}
 					<div class="lab-space-row">
 						<code class="text-xs">{token}</code>
 						<div class="lab-space-bar" style={`width: var(${token})`}></div>
@@ -93,7 +336,7 @@
 			</div>
 			<div>
 				<h4 class="text-xs muted-text">Type</h4>
-				{#each typeTokens as token}
+				{#each typeTokens as token (token)}
 					<div style={`font-size: var(${token})`}>
 						Aa — the quick brown fox <code class="text-xs">{token}</code>
 					</div>
@@ -102,7 +345,7 @@
 			<div>
 				<h4 class="text-xs muted-text">Radius</h4>
 				<div class="lab-radius-row">
-					{#each radiusTokens as token}
+					{#each radiusTokens as token (token)}
 						<div class="lab-radius-chip" style={`border-radius: var(${token})`}>
 							<code class="text-xs">{token.replace('--radius-', '')}</code>
 						</div>
@@ -115,9 +358,9 @@
 	<section class="panel lab-section">
 		<h3>Buttons and form controls</h3>
 		<div class="lab-row">
-			<button class="btn-pill btn-pill-primary" type="button">Primary</button>
-			<button class="btn-pill btn-pill-secondary" type="button">Secondary</button>
-			<button class="btn-pill btn-pill-secondary" type="button" disabled>Disabled</button>
+			<button class="pill pill-primary" type="button">Primary</button>
+			<button class="pill pill-ghost" type="button">Secondary</button>
+			<button class="pill pill-ghost" type="button" disabled>Disabled</button>
 			<label class="checkbox-label text-xs mb-0">
 				<input type="checkbox" checked />
 				<span class="option-label">Checkbox label</span>
@@ -129,10 +372,167 @@
 		</div>
 	</section>
 
+	<section class="panel lab-section" data-testid="pill-primitives-section">
+		<h3>v3 pills (pill / pill-primary / pill-ghost / pill-sm / pill-xs)</h3>
+		<div class="lab-row">
+			<button class="pill pill-primary" type="button">Primary pill</button>
+			<button class="pill pill-ghost" type="button">Ghost pill</button>
+			<button class="pill pill-ghost pill-sm" type="button">Small pill</button>
+			<button class="pill pill-ghost pill-xs" type="button">Tiny pill</button>
+			<button class="pill pill-primary" type="button" disabled>Disabled primary</button>
+			<button class="pill pill-ghost" type="button" disabled>Disabled ghost</button>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="field-primitive-section">
+		<h3>Field (field / field input.mixed)</h3>
+		<div class="lab-row" style="align-items: flex-start; max-width: 24rem; flex-direction: column;">
+			<div class="field" style="width: 100%">
+				<label for="lab-field-title">Sample field</label>
+				<input id="lab-field-title" type="text" value="The Way of Kings" />
+			</div>
+			<div class="field" style="width: 100%">
+				<label for="lab-field-mixed">Sample mixed field</label>
+				<input id="lab-field-mixed" type="text" class="mixed" value="" placeholder="Mixed (3 values)" />
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="tab-strip-primitive-section">
+		<h3>Tab strip (tab-strip / tab)</h3>
+		<div class="tab-strip" role="tablist" aria-label="Lab tabs">
+			<button class="tab" type="button" role="tab" aria-selected="true">Metadata</button>
+			<button class="tab" type="button" role="tab" aria-selected="false">Facts</button>
+			<button class="tab" type="button" role="tab" aria-selected="false">Chapters</button>
+			<button class="tab" type="button" role="tab" aria-selected="false">Output</button>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="segmented-primitive-section">
+		<h3>Segmented (segmented)</h3>
+		<div class="lab-row">
+			<div class="segmented">
+				<button class="on" type="button">Comfortable</button>
+				<button type="button">Compact</button>
+			</div>
+			<div class="segmented">
+				<button type="button">Rail</button>
+				<button class="on" type="button">Popover</button>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="op-card-primitive-section">
+		<h3>Operation card (op-card / op-row / op-detail / lane / op-log)</h3>
+		<div class="op-card">
+			<div class="op-row">
+				<span class="app-badge app-badge-info">merge</span>
+				<span style="flex: 1; font-weight: 500">The Way of Kings — 3 files → M4B</span>
+				<span class="mono" style="color: var(--text-muted)">64%</span>
+				<button class="pill pill-ghost pill-xs" type="button">Cancel</button>
+			</div>
+			<div class="op-detail">
+				<div class="lane">
+					<span style="width: 70px">analysis</span>
+					<div class="app-progress-track"><div class="app-progress-fill" style="width: 100%; background: var(--text-success)"></div></div>
+					<span class="mono">done</span>
+				</div>
+				<div class="lane">
+					<span style="width: 70px">encode</span>
+					<div class="app-progress-track"><div class="app-progress-fill" style="width: 64%"></div></div>
+					<span class="mono">04:02</span>
+				</div>
+				<div class="op-log" style="margin-top: 6px">
+					<b>10:22:11</b> encoding chunk 8/12 · 12.1 MB/s<br />
+					<b>10:22:40</b> chapters synthesized · 75 markers
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="badge-primitives-section">
+		<h3>Badges (app-badge)</h3>
+		<div class="lab-row">
+			<span class="app-badge app-badge-ok">Done</span>
+			<span class="app-badge app-badge-info">Running</span>
+			<span class="app-badge app-badge-warn">Warning</span>
+			<span class="app-badge app-badge-muted">Queued</span>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="split-button-primitive-section">
+		<h3>Split button (split-button / split-main / split-caret / split-dropdown)</h3>
+		<div class="lab-row">
+			<div class="split-button">
+				<button class="pill pill-ghost split-main" type="button">＋ Import</button>
+				<button
+					class="pill pill-ghost split-caret"
+					type="button"
+					aria-expanded={labSplitOpen}
+					aria-label="More options"
+					onclick={() => {
+						labSplitOpen = !labSplitOpen;
+					}}
+				>
+					▼
+				</button>
+				<div class="split-dropdown" class:open={labSplitOpen}>
+					<button
+						class="split-option"
+						type="button"
+						onclick={() => {
+							labSplitOpen = false;
+						}}
+					>
+						Menu option
+					</button>
+				</div>
+			</div>
+			<div class="split-button">
+				<button class="pill pill-primary split-main" type="button">Primary main</button>
+				<button class="pill pill-primary split-caret" type="button" aria-label="More options">
+					▼
+				</button>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="popover-primitive-section">
+		<h3>Popover (app-popover)</h3>
+		<div class="lab-popover-stage" bind:this={popoverContainer}>
+			<button
+				bind:this={popoverAnchor}
+				class="pill pill-ghost pill-sm"
+				type="button"
+				aria-expanded={popover.isOpen}
+				onclick={() => popover.toggle()}
+			>
+				Popover demo
+			</button>
+			{#if popover.isOpen}
+				<div
+					bind:this={popoverPanel}
+					class="app-popover lab-popover"
+					role="dialog"
+					aria-label="Popover primitive demo"
+					tabindex="-1"
+					style={`left: ${popover.position.left}px; top: ${popover.position.top}px`}
+					onkeydown={(event) => popover.handleKeydown(event)}
+				>
+					<strong>Measured and container-clamped</strong>
+					<p class="text-xs muted-text">Escape closes and returns focus to the trigger.</p>
+					<button class="pill pill-primary pill-xs" type="button" onclick={() => popover.close()}>
+						Close
+					</button>
+				</div>
+			{/if}
+		</div>
+	</section>
+
 	<section class="panel lab-section">
 		<h3>Progress (app-progress-track / app-progress-fill)</h3>
 		<div class="lab-stack">
-			{#each progressStops as stop}
+			{#each progressStops as stop (stop)}
 				<div class="lab-progress-row">
 					<code class="text-xs lab-progress-label">{stop}%</code>
 					<div class="app-progress-track" style="flex: 1">
@@ -164,7 +564,34 @@
 			<div class="app-modal-status is-success text-xs">Applied — success variant.</div>
 			<div class="app-modal-empty">
 				<p>Empty state body copy teaching the surface.</p>
-				<button class="btn-pill btn-pill-secondary mt-2" type="button">Suggested action</button>
+				<button class="pill pill-ghost mt-2" type="button">Suggested action</button>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="modal-body-scroll-primitive-section">
+		<h3>Modal body scroll containment</h3>
+		<div
+			class="app-modal-dialog lab-modal-scroll-specimen"
+			role="group"
+			aria-label="Constrained modal body specimen"
+		>
+			<div class="app-modal-header">
+				<h4>Long result list</h4>
+				<button class="pill pill-ghost pill-xs" type="button">Close specimen</button>
+			</div>
+			<div class="app-modal-body" data-testid="modal-body-scroll-specimen">
+				<p class="app-modal-status text-xs">The body owns overflow below this header.</p>
+				{#each ['The Way of Kings', 'Words of Radiance', 'Oathbringer', 'Rhythm of War', 'Wind and Truth'] as title, index (title)}
+					<div class="lab-modal-scroll-row">
+						<strong>{index + 1}. {title}</strong>
+						<span class="text-xs muted-text">Search result metadata remains reachable.</span>
+					</div>
+				{/each}
+			</div>
+			<div class="lab-modal-footer" data-testid="modal-specimen-footer">
+				<button class="pill pill-ghost" type="button">Cancel</button>
+				<button class="pill pill-primary" type="button">Apply</button>
 			</div>
 		</div>
 	</section>
@@ -172,7 +599,7 @@
 	<section class="panel lab-section">
 		<h3>Density-driven rows</h3>
 		<div class="lab-stack">
-			{#each ['01 - Prologue.m4b', '02 - The First Step.m4b', '03 - Into the Unknown.m4b'] as name, i}
+			{#each ['01 - Prologue.m4b', '02 - The First Step.m4b', '03 - Into the Unknown.m4b'] as name, i (name)}
 				<div class="lab-density-row" class:lab-density-row-sel={i === 1}>
 					<span>{name}</span>
 					<span class="muted-text lab-mono">00:{18 + i}:45</span>
@@ -183,9 +610,83 @@
 			</p>
 		</div>
 	</section>
+
+	<section class="panel lab-section" data-testid="state-fixtures-section">
+		<h3>State fixtures</h3>
+		<div class="lab-state-grid">
+			{#each stateFixtures as fixture (fixture.id)}
+				<article
+					class="lab-state-card"
+					class:is-active={fixture.tone === 'active'}
+					class:is-error={fixture.tone === 'error'}
+					class:is-success={fixture.tone === 'success'}
+					class:is-selected={fixture.tone === 'selected'}
+					data-testid={`lab-state-${fixture.id}`}
+				>
+					<div class="lab-state-card-head">
+						<strong>{fixture.label}</strong>
+						<span class="text-xs muted-text">{fixture.meta}</span>
+					</div>
+					<p class="text-xs">{fixture.body}</p>
+					<div class="app-progress-track" aria-label={`${fixture.label} progress`}>
+						<div class="app-progress-fill" style={`width: ${fixture.progress}%`}></div>
+					</div>
+				</article>
+			{/each}
+		</div>
+	</section>
+
+	<section class="panel lab-section" data-testid="metadata-form-fixtures-section">
+		<div class="lab-section-head">
+			<div>
+				<h3>Metadata form presets</h3>
+				<p class="text-xs muted-text">{activeMetadataPresetDetails?.summary}</p>
+			</div>
+			<div class="lab-preset-controls" role="group" aria-label="Metadata form presets">
+				{#each metadataFormLabPresets as preset (preset.id)}
+					<button
+						class="pill"
+						class:pill-primary={activeMetadataPreset === preset.id}
+						class:pill-ghost={activeMetadataPreset !== preset.id}
+						type="button"
+						data-testid={`metadata-preset-${preset.id}`}
+						aria-pressed={activeMetadataPreset === preset.id}
+						onclick={() => setMetadataPreset(preset.id)}
+					>
+						{preset.label}
+					</button>
+				{/each}
+			</div>
+		</div>
+		<div class="lab-metadata-fixture" data-testid={`metadata-fixture-${activeMetadataPreset}`}>
+			<MetadataFormFieldsIsland
+				onFieldInput={onMetadataFormFieldInput}
+				onActionChange={onMetadataFormActionSelectChange}
+				onSaveMetadata={() => {}}
+			/>
+		</div>
+	</section>
 </div>
+{/if}
 
 <style>
+	.lab-scenario-stage {
+		display: flex;
+		flex-direction: column;
+		height: 100vh;
+		padding: var(--space-4);
+		background: var(--bg-main);
+	}
+
+	.lab-scenario-modal {
+		align-items: center;
+		justify-content: center;
+	}
+
+	.lab-scenario-modal .app-modal-dialog {
+		width: min(100%, 32rem);
+	}
+
 	.lab {
 		display: flex;
 		flex-direction: column;
@@ -212,6 +713,18 @@
 
 	.lab-section h3 {
 		margin-bottom: var(--space-3);
+	}
+
+	.lab-section-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-bottom: var(--space-3);
+	}
+
+	.lab-section-head h3 {
+		margin-bottom: var(--space-1);
 	}
 
 	.lab-swatches {
@@ -278,10 +791,52 @@
 		flex-wrap: wrap;
 	}
 
+	.lab-popover-stage {
+		position: relative;
+		min-height: calc(9rem + var(--density-row-h));
+		padding: var(--density-pad);
+		border: 1px dashed var(--border-secondary);
+		border-radius: var(--radius-md);
+	}
+
+	.lab-popover {
+		width: 18rem;
+		padding: var(--density-pad);
+		font-size: var(--density-text);
+	}
+
+	.lab-popover p {
+		margin: var(--space-2) 0;
+	}
+
 	.lab-stack {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+	}
+
+	.lab-modal-scroll-specimen {
+		width: min(100%, 32rem);
+		height: calc(var(--density-row-h) * 5 + var(--space-6));
+	}
+
+	.lab-modal-scroll-row {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--density-pad);
+		border: 1px solid var(--border-secondary);
+		border-radius: var(--radius-md);
+		background: var(--bg-input);
+	}
+
+	.lab-modal-footer {
+		display: flex;
+		flex: 0 0 auto;
+		justify-content: flex-end;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border-top: 1px solid var(--border-primary);
 	}
 
 	.lab-progress-row {
@@ -314,5 +869,60 @@
 	.lab-mono {
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
+	}
+
+	.lab-state-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+		gap: var(--space-2);
+	}
+
+	.lab-state-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		min-height: 7rem;
+		padding: var(--space-3);
+		border: 1px solid var(--border-primary);
+		border-radius: var(--radius-md);
+		background: var(--bg-input);
+	}
+
+	.lab-state-card-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+
+	.lab-state-card.is-active {
+		border-color: var(--accent-primary);
+	}
+
+	.lab-state-card.is-error {
+		border-color: var(--text-error);
+	}
+
+	.lab-state-card.is-success {
+		border-color: var(--text-success);
+	}
+
+	.lab-state-card.is-selected {
+		border-color: var(--border-focus);
+		background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-input));
+	}
+
+	.lab-preset-controls {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: var(--space-2);
+	}
+
+	.lab-metadata-fixture {
+		padding: var(--space-3);
+		border: 1px solid var(--border-secondary);
+		border-radius: var(--radius-md);
+		background: var(--bg-panel);
 	}
 </style>

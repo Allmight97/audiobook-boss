@@ -1,6 +1,7 @@
 // EXCEPTION: requires private API access (URL validation + resolver internals)
 
 use super::{is_supported_image_content_type, validate_cover_art_url, BogonFilteringResolver};
+use crate::errors::AppErrorCode;
 use crate::metadata::{MetadataIntentPatch, PatchOp};
 use reqwest::dns::Name;
 use reqwest::dns::Resolve;
@@ -50,6 +51,19 @@ fn validate_metadata_intent_patch_command_returns_field_errors_as_data() {
             .as_deref(),
         Some("Date")
     );
+}
+
+#[tokio::test]
+async fn read_audio_cover_thumbnail_rejects_non_audio_path_at_command_ingress() {
+    let temp_dir = tempfile::tempdir().expect("temporary directory should be available");
+    let path = temp_dir.path().join("not-an-audiobook.txt");
+    std::fs::write(&path, "not audio").expect("fixture should write");
+
+    let error = super::read_audio_cover_thumbnail(path.to_string_lossy().into_owned())
+        .await
+        .expect_err("non-audio input should be rejected before metadata reads");
+
+    assert_eq!(error.code, AppErrorCode::InvalidInput);
 }
 
 // SSRF Protection Tests

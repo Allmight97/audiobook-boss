@@ -1,5 +1,6 @@
 import { pathSegments } from '../../lib/path/basename';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
+export { formatEtaRemaining } from '../../lib/format/eta';
 
 function assertNever(value: never): never {
 	throw new Error(`Unhandled status stage: ${String(value)}`);

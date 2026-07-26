@@ -17,13 +17,20 @@
 - Do **not** export `fileListSessionState`, selection internals, or event
   handlers from the index. Cross-module reads use `readX()` accessors from
   `viewState.svelte.ts` inside component `$derived(...)`.
+- Cross-owner total display reads are `readFileListCount()`,
+  `readCombinedDurationText()`, and `readCombinedSizeText()`; they return
+  presentation-ready values without exposing session state.
 
 ## Private Cluster
 
 - Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
   `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
-  `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+  `inspectorState.svelte.ts`, `keyboardNavigation.ts`,
+  `coverThumbnails.svelte.ts`, `labFixtures.ts`, `__tests__/`.
+- `labFixtures.ts` is a dev-only design-lab adapter (deterministic scenario
+  seeding for `lab.html`); it is not exported from the runtime Public API
+  Strip.
 
 ## Preferred Path
 
@@ -36,8 +43,14 @@
   select, reorder, remove, clear, lock, totals, and output refresh.
 - `FileListIsland.svelte` owns list rendering; `FileImportIsland` composes it
   and owns import/drop/picker workflow.
+- `coverThumbnails.svelte.ts` is FileList-private, ephemeral display cache.
+  It may not read or mutate Metadata Session cover truth; schedule with the
+  current list paths and treat `absent` as a stable placeholder state.
 - Preserve `FileListInfo` truth from the backend. Do not add frontend-owned
   audio importability or supported-extension allowlists.
+- Import-order (arrival) ordinal truth lives in `state.svelte.ts` and is
+  assigned only by the display/append actions; restore behavior no-ops when
+  ordinals are absent.
 
 ## Hard Invariants
 

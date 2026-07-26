@@ -13,7 +13,7 @@
 		"fmt:check": "bunx @biomejs/biome format --no-errors-on-unmatched . && bunx prettier --check \"src/**/*.svelte\"",
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",
 		"lint:check": "bunx @biomejs/biome lint --no-errors-on-unmatched .",
-		"check:svelte": "svelte-check --tsconfig ./tsconfig.json",
+		"check:svelte": "svelte-check --tsconfig ./src/tsconfig.svelte-check.json",
 		"audit": "cargo audit -D warnings",
 		"preview": "vite preview",
 		"tauri": "tauri",
@@ -30,9 +30,12 @@
 		"bindings:check:runtime-boundary": "bun scripts/check-tauri-runtime-boundary.ts",
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"lab:shots": "bun scripts/lab-shots.ts"
 	},
 	"dependencies": {
+		"@fontsource-variable/inter": "^5.2.8",
+		"@fontsource-variable/jetbrains-mono": "^5.2.8",
 		"@tauri-apps/api": "^2.11.0",
 		"@tauri-apps/plugin-dialog": "^2.7.1",
 		"@tauri-apps/plugin-opener": "^2.5.4",
@@ -47,6 +50,7 @@
 		"@testing-library/svelte": "^5.3.1",
 		"@testing-library/user-event": "^14.6.1",
 		"jsdom": "^29.1.1",
+		"playwright": "1.56.1",
 		"prettier": "^3.8.4",
 		"prettier-plugin-svelte": "^3.5.2",
 		"svelte": "^5.56.3",

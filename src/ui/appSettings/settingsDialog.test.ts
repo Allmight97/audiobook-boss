@@ -48,6 +48,9 @@ const settingsFixture = (externalFfmpegPath?: string): AppSettings => ({
 	},
 	toolchain: externalFfmpegPath ? { externalFfmpegPath } : {},
 	startupBehavior: 'rememberLastState',
+	density: 'comfortable',
+	editSurface: 'rail',
+	railWidth: 420,
 });
 
 async function loadDialogModule() {

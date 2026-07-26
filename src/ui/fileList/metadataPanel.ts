@@ -1,4 +1,5 @@
 import { pathBasename } from '../../lib/path/basename';
+import { get } from 'svelte/store';
 import { type AudioFile, formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudiobookMetadata } from '../../types/metadata';
@@ -12,6 +13,7 @@ import {
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
 	isUsableMetadataCache,
+	metadataSaveInProgress,
 } from '../metadataSession';
 import {
 	populateMetadataFormMulti,
@@ -35,8 +37,161 @@ import {
 	getSelectedFileIndex,
 	getSelectedFiles,
 } from './state.svelte';
+import { persistPendingMetadataDraftsForCurrentSelection } from './metadataStaging';
+import type { SelectionIntent } from './selection';
 
-let latestSingleSelectionRequestId = 0;
+export type MetadataSurfacePresentation = {
+	open: (anchor: HTMLElement) => void;
+	closeWithoutStaging: (options?: { restoreFocus?: boolean }) => void;
+	isOpen: () => boolean;
+};
+
+let metadataSurfacePresentation: MetadataSurfacePresentation | null = null;
+
+/**
+ * App composition registers the surface adapter here. FileList keeps the
+ * selection protocol while the surface keeps its PopoverController private.
+ */
+export function setMetadataSurfacePresentation(
+	presentation: MetadataSurfacePresentation | null,
+): void {
+	metadataSurfacePresentation = presentation;
+}
+
+function activeRowControl(): HTMLElement | null {
+	const index = getSelectedFileIndex();
+	return index >= 0 ? document.getElementById(`file-list-row-activate-${index}`) : null;
+}
+
+export type MetadataSurfaceCoordinatorServices = {
+	persistOldDrafts: (options: { showStatus: boolean }) => Promise<boolean>;
+	getSelectedFiles: () => AudioFile[];
+	populateSelection: (files: AudioFile[]) => Promise<void>;
+	closeWithoutStaging: (options?: { restoreFocus?: boolean }) => void;
+	open: (anchor: HTMLElement) => void;
+	isOpen?: () => boolean;
+	isSaveInProgress?: () => boolean;
+	getActiveRowControl: () => HTMLElement | null;
+};
+
+export function makeMetadataSurfaceTransitionCoordinator(
+	services: MetadataSurfaceCoordinatorServices,
+) {
+	let queue = Promise.resolve();
+	function enqueue<T>(work: () => Promise<T>): Promise<T> {
+		const next = queue.then(work, work);
+		queue = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		return next;
+	}
+
+	return {
+		selection(
+			intent: SelectionIntent,
+			mutateSelection: (intent: SelectionIntent) => { changed: boolean },
+			options?: {
+				openAfterPopulate?: boolean;
+				anchor?: HTMLElement | null;
+				skipPersistPrevious?: boolean;
+			},
+		): Promise<boolean> {
+			return enqueue(async () => {
+				if (services.isSaveInProgress?.()) return false;
+				if (
+					!options?.skipPersistPrevious &&
+					!(await services.persistOldDrafts({ showStatus: false }))
+				) {
+					return false;
+				}
+				services.closeWithoutStaging();
+				const result = mutateSelection(intent);
+				if (result.changed) await services.populateSelection(services.getSelectedFiles());
+				if (options?.openAfterPopulate) {
+					const anchor = options.anchor ?? services.getActiveRowControl();
+					if (anchor) services.open(anchor);
+				}
+				return true;
+			});
+		},
+		dismiss(options?: { restoreFocus?: boolean }): Promise<boolean> {
+			return enqueue(async () => {
+				if (services.isSaveInProgress?.()) return false;
+				if (!(await services.persistOldDrafts({ showStatus: true }))) return false;
+				services.closeWithoutStaging(options);
+				return true;
+			});
+		},
+		openMulti(): Promise<boolean> {
+			return enqueue(async () => {
+				if (services.isSaveInProgress?.()) return false;
+				if (!(await services.persistOldDrafts({ showStatus: false }))) return false;
+				const files = services.getSelectedFiles();
+				if (files.length < 2) return false;
+				await services.populateSelection(files);
+				if (services.isOpen?.()) return true;
+				const anchor = services.getActiveRowControl();
+				if (!anchor) return false;
+				services.open(anchor);
+				return true;
+			});
+		},
+		refresh(): Promise<void> {
+			return enqueue(async () => {
+				await services.populateSelection(services.getSelectedFiles());
+			});
+		},
+	};
+}
+
+async function populateCurrentSelection(files: AudioFile[]): Promise<void> {
+	if (files.length === 0) clearSelectionPanels();
+	else if (files.length === 1 && files[0]) await showSingleSelection(files[0]);
+	else await showMultiSelection(files);
+}
+
+const metadataSurfaceCoordinator = makeMetadataSurfaceTransitionCoordinator({
+	persistOldDrafts: (options) => persistPendingMetadataDraftsForCurrentSelection(options),
+	getSelectedFiles,
+	populateSelection: populateCurrentSelection,
+	closeWithoutStaging: (options) => metadataSurfacePresentation?.closeWithoutStaging(options),
+	open: (anchor) => metadataSurfacePresentation?.open(anchor),
+	isOpen: () => metadataSurfacePresentation?.isOpen() ?? false,
+	isSaveInProgress: () => get(metadataSaveInProgress),
+	getActiveRowControl: activeRowControl,
+});
+
+/** The sole selection/popover coordinator: stage → close → mutate → populate. */
+export function coordinateMetadataSurfaceSelectionTransition(
+	intent: SelectionIntent,
+	mutateSelection: (intent: SelectionIntent) => { changed: boolean },
+	options?: {
+		openAfterPopulate?: boolean;
+		anchor?: HTMLElement | null;
+		skipPersistPrevious?: boolean;
+	},
+): Promise<boolean> {
+	return metadataSurfaceCoordinator.selection(intent, mutateSelection, options);
+}
+
+/** Non-selection dismissals stage once and close only after success. */
+export function requestMetadataSurfaceDismissal(options?: {
+	restoreFocus?: boolean;
+}): Promise<boolean> {
+	return metadataSurfaceCoordinator.dismiss(options);
+}
+
+export function openMetadataSurfaceForCurrentSelection(): Promise<boolean> {
+	return metadataSurfaceCoordinator.openMulti();
+}
+
+/** Serializes non-selection presentation refreshes behind selection transitions. */
+export function coordinateMetadataSurfacePresentationRefresh(): Promise<void> {
+	return metadataSurfaceCoordinator.refresh();
+}
+
+let latestSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;
 
 function refreshOutputForMetadataChange(): void {
@@ -57,7 +212,9 @@ function updatePropertiesContextSingle(file: AudioFile, index: number): void {
 	setInspectorContext({
 		text: fileName,
 		variant: 'single',
-		detail: `${index + 1} of ${fileList.files.length}`,
+		detail: file.isValid
+			? `${index + 1} of ${fileList.files.length}`
+			: (file.error ?? 'Invalid file'),
 	});
 }
 
@@ -171,7 +328,7 @@ function updateMultiSelectionProperties(selectedFiles: AudioFile[]): void {
 }
 
 function isCurrentSingleSelectionRequest(requestId: number, filePath: string): boolean {
-	if (requestId !== latestSingleSelectionRequestId) return false;
+	if (requestId !== latestSelectionRequestId) return false;
 	if (getSelectedFileIndices().size !== 1) return false;
 
 	const fileList = getCurrentFileList();
@@ -184,7 +341,7 @@ function isCurrentSingleSelectionRequest(requestId: number, filePath: string): b
 }
 
 function isCurrentMultiSelectionRequest(requestId: number, filePaths: string[]): boolean {
-	if (requestId !== latestSingleSelectionRequestId) return false;
+	if (requestId !== latestSelectionRequestId) return false;
 
 	const selectedIndices = Array.from(getSelectedFileIndices()).sort((a, b) => a - b);
 	if (selectedIndices.length !== filePaths.length) return false;
@@ -213,11 +370,15 @@ function renderWorkbenchAutoResolutionHints(): void {
 }
 
 export async function showSingleSelection(file: AudioFile): Promise<void> {
-	const requestId = ++latestSingleSelectionRequestId;
+	const requestId = ++latestSelectionRequestId;
 	renderAutoResolutionHints([file]);
 	updateFileProperties(file);
 	refreshOutputForMetadataChange();
 	updateTagPreview();
+	if (!file.isValid) {
+		populateMetadataFormSingle({});
+		return;
+	}
 
 	const stored = getMetadataForFile(file.path);
 	if (isUsableMetadataCache(stored)) {
@@ -240,7 +401,7 @@ export async function showSingleSelection(file: AudioFile): Promise<void> {
 }
 
 export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<void> {
-	const requestId = ++latestSingleSelectionRequestId;
+	const requestId = ++latestSelectionRequestId;
 	renderAutoResolutionHints(selectedFiles);
 	updateMultiSelectionProperties(selectedFiles);
 
@@ -267,23 +428,6 @@ export async function showMultiSelection(selectedFiles: AudioFile[]): Promise<vo
 	refreshOutputForMetadataChange();
 	updateTagPreview();
 	refreshCoverArtDisplay();
-}
-
-export function refreshSelectionPresentation(selectedFiles: AudioFile[]): void {
-	latestSingleSelectionRequestId += 1;
-	renderAutoResolutionHints(selectedFiles);
-
-	if (selectedFiles.length === 1 && selectedFiles[0]) {
-		updateFileProperties(selectedFiles[0]);
-	} else if (selectedFiles.length > 1) {
-		updateMultiSelectionProperties(selectedFiles);
-	} else {
-		clearSelectionPanels();
-		return;
-	}
-
-	refreshOutputForMetadataChange();
-	updateTagPreview();
 }
 
 export function clearSelectionPanels(): void {

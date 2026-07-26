@@ -440,7 +440,7 @@ describe('MetadataLookupWorkflow', () => {
 
 		expect(harness.mocks.selectFile).toHaveBeenCalledWith(
 			0,
-			{ multi: false, range: false },
+			{ multi: false },
 			{ skipPersistPrevious: true },
 		);
 		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
@@ -591,7 +591,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.queueState.index).toBe(1);
 		expect(harness.mocks.selectFile).toHaveBeenCalledWith(
 			1,
-			{ multi: false, range: false },
+			{ multi: false },
 			{ skipPersistPrevious: true },
 		);
 		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
