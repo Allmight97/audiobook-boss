@@ -135,30 +135,32 @@ fn read_covr_item_cover(
         }
 
         if head.fourcc == DATA_ATOM {
-            let payload_len = head
-                .content_len()
-                .checked_sub(DATA_ATOM_HEADER_BYTES)
-                .unwrap_or(0);
-            if payload_len > max_image_bytes as u64 {
-                return Err(AppError::ImageProcessing(format!(
-                    "Embedded cover exceeds the {} MiB thumbnail input limit",
-                    max_image_bytes / (1024 * 1024)
-                )));
+            if head.content_len() < DATA_ATOM_HEADER_BYTES {
+                parsed = parsed.saturating_add(head.size);
+                continue;
             }
+            let payload_len = head.content_len() - DATA_ATOM_HEADER_BYTES;
 
             file.seek(SeekFrom::Start(start + parsed + head.header_len))
                 .map_err(|error| AppError::General(format!("Failed to seek MP4: {error}")))?;
             let mut header = [0u8; 8];
             file.read_exact(&mut header)
                 .map_err(|error| AppError::General(format!("Failed to read covr data atom: {error}")))?;
+            // Skip unsupported versions / non-image types; later data siblings may be valid.
             if header[0] != 0 {
-                return Err(AppError::General(
-                    "Unsupported covr data atom version".to_string(),
-                ));
+                parsed = parsed.saturating_add(head.size);
+                continue;
             }
             let datatype = u32::from_be_bytes([0, header[1], header[2], header[3]]);
             if !matches!(datatype, JPEG_TYPE | PNG_TYPE | BMP_TYPE) {
-                return Ok(None);
+                parsed = parsed.saturating_add(head.size);
+                continue;
+            }
+            if payload_len > max_image_bytes as u64 {
+                return Err(AppError::ImageProcessing(format!(
+                    "Embedded cover exceeds the {} MiB thumbnail input limit",
+                    max_image_bytes / (1024 * 1024)
+                )));
             }
 
             let mut bytes = vec![0u8; payload_len as usize];
@@ -177,10 +179,21 @@ fn read_covr_item_cover(
 }
 
 fn is_container_atom(fourcc: &[u8; 4]) -> bool {
-    matches!(
-        fourcc,
-        b"moov" | b"trak" | b"mdia" | b"minf" | b"stbl" | b"udta" | b"meta" | b"ilst" | b"edts"
-    )
+    // Thumbnail art lives under moov → udta/meta → ilst → covr. Avoid walking
+    // media sample tables (trak/mdia/…).
+    matches!(fourcc, b"moov" | b"udta" | b"meta" | b"ilst")
+}
+
+/// True when the file begins with an `ftyp` atom (ISO BMFF / MP4-family).
+pub(crate) fn looks_like_mp4_family_file(path: &Path) -> Result<bool> {
+    let mut file = File::open(path).map_err(|error| {
+        AppError::General(format!("Failed to open file for MP4 probe: {error}"))
+    })?;
+    let head = match read_atom_head(&mut file) {
+        Ok(head) => head,
+        Err(_) => return Ok(false),
+    };
+    Ok(head.fourcc == *b"ftyp" && head.size >= 8)
 }
 
 fn read_atom_head(reader: &mut impl Read) -> Result<AtomHead> {
@@ -244,26 +257,34 @@ mod tests {
         build_atom(&DATA_ATOM, &content)
     }
 
-    fn build_mp4_with_covr(image: &[u8]) -> Vec<u8> {
-        let covr = build_atom(&COVR_ATOM, &build_data_atom(image, JPEG_TYPE));
+    fn build_mp4_with_covr_data_atoms(data_atoms: &[Vec<u8>]) -> Vec<u8> {
+        let mut covr_content = Vec::new();
+        for data in data_atoms {
+            covr_content.extend_from_slice(data);
+        }
+        let covr = build_atom(&COVR_ATOM, &covr_content);
         let ilst = build_atom(b"ilst", &covr);
         let mut meta_content = vec![0, 0, 0, 0];
         meta_content.extend_from_slice(&ilst);
         let meta = build_atom(b"meta", &meta_content);
         let udta = build_atom(b"udta", &meta);
         let moov = build_atom(&MOOV_ATOM, &udta);
-        let ftyp = build_atom(
-            b"ftyp",
-            b"isom\0\0\0\0isommp41",
-        );
+        let ftyp = build_atom(b"ftyp", b"isom\0\0\0\0isommp41");
         [ftyp, moov].concat()
     }
 
-    fn write_fixture(image: &[u8]) -> NamedTempFile {
+    fn build_mp4_with_covr(image: &[u8]) -> Vec<u8> {
+        build_mp4_with_covr_data_atoms(&[build_data_atom(image, JPEG_TYPE)])
+    }
+
+    fn write_bytes(bytes: &[u8]) -> NamedTempFile {
         let mut file = NamedTempFile::new().expect("temp mp4");
-        file.write_all(&build_mp4_with_covr(image))
-            .expect("write temp mp4");
+        file.write_all(bytes).expect("write temp mp4");
         file
+    }
+
+    fn write_fixture(image: &[u8]) -> NamedTempFile {
+        write_bytes(&build_mp4_with_covr(image))
     }
 
     #[test]
@@ -273,6 +294,7 @@ mod tests {
             .expect("bounded read should succeed")
             .expect("cover should exist");
         assert_eq!(cover, vec![0xFF, 0xD8, 0xFF, 0xD9]);
+        assert!(looks_like_mp4_family_file(file.path()).expect("ftyp probe"));
     }
 
     #[test]
@@ -281,6 +303,28 @@ mod tests {
         let file = write_fixture(&oversized);
         let error = read_bounded_mp4_cover_art(file.path(), 10 * 1024 * 1024)
             .expect_err("oversized cover should be rejected");
+        assert!(error.to_string().contains("thumbnail input limit"));
+    }
+
+    #[test]
+    fn skips_non_image_data_sibling_and_returns_later_jpeg() {
+        let reserved = build_data_atom(b"not-an-image", 0); // RESERVED type
+        let jpeg = build_data_atom(&[0xFF, 0xD8, 0xFF, 0xD9], JPEG_TYPE);
+        let file = write_bytes(&build_mp4_with_covr_data_atoms(&[reserved, jpeg]));
+        let cover = read_bounded_mp4_cover_art(file.path(), 10 * 1024 * 1024)
+            .expect("bounded read should succeed")
+            .expect("later jpeg should be found");
+        assert_eq!(cover, vec![0xFF, 0xD8, 0xFF, 0xD9]);
+    }
+
+    #[test]
+    fn public_thumbnail_path_rejects_oversized_mp4_covr_without_ffmpeg_open() {
+        use crate::metadata::read_audio_cover_thumbnail;
+
+        let oversized = vec![0xFF; (10 * 1024 * 1024) + 1];
+        let file = write_fixture(&oversized);
+        let error = read_audio_cover_thumbnail(file.path())
+            .expect_err("public thumbnail path should reject oversized covr");
         assert!(error.to_string().contains("thumbnail input limit"));
     }
 }

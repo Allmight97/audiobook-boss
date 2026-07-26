@@ -38,15 +38,14 @@ pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>
         )));
     }
 
-    ff::init().map_err(AppError::Ffmpeg)?;
-    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    let route = super::container::classify_format_name(ictx.format().name());
-
-    if matches!(route, super::container::ContainerRoute::Mp4Family) {
-        drop(ictx);
+    // MP4-family: bound artwork via atom walk without opening FFmpeg (which can
+    // materialize a full attached-pic / covr packet during demuxer open).
+    if super::mp4_covr::looks_like_mp4_family_file(path)? {
         return mp4ameta_bridge::read_cover_art_for_thumbnail(path);
     }
 
+    ff::init().map_err(AppError::Ffmpeg)?;
+    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
     extract_attached_pic_for_thumbnail(&ictx)
 }
 

@@ -182,6 +182,29 @@ export function removeFile(index: number): void {
 	refreshOutputForFileListChange();
 }
 
+/**
+ * Prepare (may await) → revalidate → sync commit → revalidate.
+ * Returns false if validation failed or the list/lock drifted.
+ */
+async function prepareRevalidateCommitMetadata(options: {
+	validationFailureMessage: string;
+}): Promise<boolean> {
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const prepared = await prepareMetadataDraftsForCurrentSelection({
+		validationFailureMessage: options.validationFailureMessage,
+	});
+	if (!prepared.ok) {
+		return false;
+	}
+	if (!canCommitFileListMutation(mutationSnapshot)) {
+		return false;
+	}
+	if (!commitPreparedMetadataDrafts(prepared.prepared)) {
+		return false;
+	}
+	return canCommitFileListMutation(mutationSnapshot);
+}
+
 /** Removes the active selection after its current metadata draft has been staged. */
 export async function removeSelectedFiles(): Promise<void> {
 	if (isOrderLocked()) return;
@@ -194,17 +217,11 @@ export async function removeSelectedFiles(): Promise<void> {
 		.map((file) => fileIdentityKey(file));
 	if (selectedIdentityKeys.length === 0) return;
 
-	const mutationSnapshot = captureFileListMutationSnapshot();
-	const prepared = await prepareMetadataDraftsForCurrentSelection({
-		validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
-	});
-	if (!prepared.ok) {
-		return;
-	}
-	if (!canCommitFileListMutation(mutationSnapshot)) {
-		return;
-	}
-	if (!(await commitPreparedMetadataDrafts(prepared.prepared))) {
+	if (
+		!(await prepareRevalidateCommitMetadata({
+			validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
+		}))
+	) {
 		return;
 	}
 
@@ -276,28 +293,26 @@ export function moveFileDown(index: number): void {
 
 export async function toggleFileSort(): Promise<void> {
 	if (isOrderLocked()) return;
-	const fileList = getCurrentFileList();
-	if (!fileList || fileList.files.length <= 1) return;
+	const initialList = getCurrentFileList();
+	if (!initialList || initialList.files.length <= 1) return;
 
 	const selectedPaths = new Set(
 		Array.from(getSelectedFileIndices())
-			.map((index) => fileList.files[index]?.path)
+			.map((index) => initialList.files[index]?.path)
 			.filter((path): path is string => Boolean(path)),
 	);
-	const selectedPath = fileList.files[getSelectedFileIndex()]?.path;
-	const mutationSnapshot = captureFileListMutationSnapshot();
-	const prepared = await prepareMetadataDraftsForCurrentSelection({
-		validationFailureMessage: 'Fix metadata validation errors before sorting files.',
-	});
-	if (!prepared.ok) {
+	const selectedPath = initialList.files[getSelectedFileIndex()]?.path;
+
+	if (
+		!(await prepareRevalidateCommitMetadata({
+			validationFailureMessage: 'Fix metadata validation errors before sorting files.',
+		}))
+	) {
 		return;
 	}
-	if (!canCommitFileListMutation(mutationSnapshot)) {
-		return;
-	}
-	if (!(await commitPreparedMetadataDrafts(prepared.prepared))) {
-		return;
-	}
+
+	const fileList = getCurrentFileList();
+	if (!fileList || fileList.files.length <= 1) return;
 
 	const nextSortDirection = getSortDirection() === 'ascending' ? 'descending' : 'ascending';
 	setSortDirection(nextSortDirection);
@@ -375,29 +390,28 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
  */
 export async function restoreImportOrder(): Promise<void> {
 	if (isOrderLocked()) return;
-	const fileList = getCurrentFileList();
-	if (!fileList || fileList.files.length <= 1) return;
-	if (fileList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
+	const initialList = getCurrentFileList();
+	if (!initialList || initialList.files.length <= 1) return;
+	if (initialList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
 
 	const selectedPaths = new Set(
 		Array.from(getSelectedFileIndices())
-			.map((index) => fileList.files[index]?.path)
+			.map((index) => initialList.files[index]?.path)
 			.filter((path): path is string => Boolean(path)),
 	);
-	const selectedPath = fileList.files[getSelectedFileIndex()]?.path;
-	const mutationSnapshot = captureFileListMutationSnapshot();
-	const prepared = await prepareMetadataDraftsForCurrentSelection({
-		validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
-	});
-	if (!prepared.ok) {
+	const selectedPath = initialList.files[getSelectedFileIndex()]?.path;
+
+	if (
+		!(await prepareRevalidateCommitMetadata({
+			validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
+		}))
+	) {
 		return;
 	}
-	if (!canCommitFileListMutation(mutationSnapshot)) {
-		return;
-	}
-	if (!(await commitPreparedMetadataDrafts(prepared.prepared))) {
-		return;
-	}
+
+	const fileList = getCurrentFileList();
+	if (!fileList || fileList.files.length <= 1) return;
+	if (fileList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
 
 	const nextFiles = [...fileList.files].sort(
 		(a, b) => (getImportOrdinal(a.path) ?? 0) - (getImportOrdinal(b.path) ?? 0),

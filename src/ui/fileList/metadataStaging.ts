@@ -1,12 +1,18 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile } from '../../types/audio';
+import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { hasDirtyMetadataFields, readMetadataForm, resetDirtyState } from '../metadataForm';
-import { stageMetadataIntentPatch, validateMetadataDraft } from '../metadataSession';
+import {
+	cacheMetadataForFile,
+	getMetadataForFile,
+	isUsableMetadataCache,
+	stageMetadataIntentPatch,
+	validateMetadataDraft,
+} from '../metadataSession';
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
-import { ensureMetadataForFiles, getSelectedFiles } from './metadataPanel';
-import { getCurrentFileList } from './state.svelte';
+import { getCurrentFileList, getSelectedFiles } from './state.svelte';
 
 function refreshOutputForMetadataChange(): void {
 	updateOutputPath('final');
@@ -24,11 +30,31 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 export type PreparedMetadataDraft =
 	| { kind: 'none' }
 	| { kind: 'single'; filePath: string; intentPatch: MetadataIntentPatch }
-	| { kind: 'multi'; files: AudioFile[]; intentPatch: MetadataIntentPatch };
+	| {
+			kind: 'multi';
+			files: AudioFile[];
+			intentPatch: MetadataIntentPatch;
+			/** Fresh reads to cache only at commit time (after FileList revalidation). */
+			pendingCacheByPath: Record<string, Partial<AudiobookMetadata>>;
+	  };
 
 export type PrepareMetadataDraftsResult =
 	| { ok: true; prepared: PreparedMetadataDraft }
 	| { ok: false };
+
+async function readMetadataSnapshot(
+	file: AudioFile,
+): Promise<Partial<AudiobookMetadata> | null> {
+	if (!file.isValid) return null;
+	const existing = getMetadataForFile(file.path);
+	if (isUsableMetadataCache(existing)) return null; // already cached; nothing pending
+	try {
+		return await tauriClient.readAudioMetadata(file.path);
+	} catch (error) {
+		console.warn('Failed to load metadata:', error);
+		return null;
+	}
+}
 
 async function prepareSingleSelectionMetadata(file: AudioFile | null): Promise<PrepareMetadataDraftsResult> {
 	if (!file?.isValid) return { ok: true, prepared: { kind: 'none' } };
@@ -74,13 +100,30 @@ async function prepareMultiSelectionMetadata(options?: {
 		return { ok: false };
 	}
 
+	// Await reads only — do not touch the session cache until commit (post-revalidate).
+	const pendingCacheByPath: Record<string, Partial<AudiobookMetadata>> = {};
+	await Promise.all(
+		selectedFiles.map(async (file) => {
+			const snapshot = await readMetadataSnapshot(file);
+			if (snapshot) {
+				pendingCacheByPath[file.path] = snapshot;
+			}
+		}),
+	);
+
 	return {
 		ok: true,
-		prepared: { kind: 'multi', files: selectedFiles, intentPatch: validation.intentPatch },
+		prepared: {
+			kind: 'multi',
+			files: selectedFiles,
+			intentPatch: validation.intentPatch,
+			pendingCacheByPath,
+		},
 	};
 }
 
-export async function commitPreparedMetadataDrafts(prepared: PreparedMetadataDraft): Promise<boolean> {
+/** Sync metadata commit only — no awaits. Callers revalidate revision before/after. */
+export function commitPreparedMetadataDrafts(prepared: PreparedMetadataDraft): boolean {
 	if (prepared.kind === 'none') {
 		return true;
 	}
@@ -94,7 +137,12 @@ export async function commitPreparedMetadataDrafts(prepared: PreparedMetadataDra
 		return true;
 	}
 
-	await ensureMetadataForFiles(prepared.files);
+	for (const [path, metadata] of Object.entries(prepared.pendingCacheByPath)) {
+		if (!isUsableMetadataCache(getMetadataForFile(path))) {
+			cacheMetadataForFile(path, metadata);
+		}
+	}
+
 	const stageResults = prepared.files.map((file) =>
 		stageMetadataIntentPatch(file.path, prepared.intentPatch),
 	);
@@ -141,7 +189,7 @@ export async function stageMetadataToSelection(options?: {
 	if (!prepared.ok) {
 		return false;
 	}
-	const committed = await commitPreparedMetadataDrafts(prepared.prepared);
+	const committed = commitPreparedMetadataDrafts(prepared.prepared);
 	if (committed && prepared.prepared.kind === 'multi' && options?.showStatus) {
 		setTransientStatusMessage(`Draft saved for ${prepared.prepared.files.length} files`);
 	}
