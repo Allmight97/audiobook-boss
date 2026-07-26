@@ -201,7 +201,11 @@ async function advanceQueue(
 	services.refreshCoverArtDisplay();
 
 	if (nextItem) {
-		await services.selectFile(nextItem.index, { multi: false }, { skipPersistPrevious: true });
+		await services.selectFile(
+			nextItem.index,
+			{ multi: false, range: false },
+			{ skipPersistPrevious: true },
+		);
 		services.setMetadataLookupQueueIndex(nextIndex);
 		updateQueueContext(services);
 		const state = services.getLookupState();
@@ -256,7 +260,11 @@ async function applyResult(
 
 	const current = queue[services.getQueueState().index];
 	if (current) {
-		await services.selectFile(current.index, { multi: false }, { skipPersistPrevious: true });
+		await services.selectFile(
+			current.index,
+			{ multi: false, range: false },
+			{ skipPersistPrevious: true },
+		);
 	}
 
 	services.applyMetadataToForm(metadata, { mode: 'single', markDirty: true });

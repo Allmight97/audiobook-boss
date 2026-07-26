@@ -50,15 +50,13 @@ vi.mock('../../coverArt', () => ({
 	onLoadCoverArtFromInput: vi.fn(),
 	onClearCoverArt: vi.fn(),
 }));
-vi.mock('../../jobControls', async (importOriginal) => ({
-	...(await importOriginal<typeof import('../../jobControls')>()),
+vi.mock('../../jobControls', () => ({
 	initJobControls: vi.fn(),
 	handleMergeModeChange: vi.fn(),
 	handleMaxConcurrentSelectionChange: vi.fn(),
 	getMaxConcurrentStatus: vi.fn(() => ({ effective: 2, selection: 'auto' })),
 }));
-vi.mock('../../statusPanel/index', async (importOriginal) => ({
-	...(await importOriginal<typeof import('../../statusPanel/index')>()),
+vi.mock('../../statusPanel/index', () => ({
 	initStatusPanel: vi.fn(),
 	isStatusPanelProcessing: () => context.statusPanelProcessing,
 	pushStatusPanelTransientStatus: (message: string) => {
@@ -69,32 +67,26 @@ vi.mock('../../statusPanel/index', async (importOriginal) => ({
 	},
 }));
 
-vi.mock('../../metadataForm', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../../metadataForm')>();
-	return {
-		...actual,
-		readMetadataFormPreviewValues: vi.fn(() => ({
-			title: '',
-			author: '',
-			narrator: '',
-			series: '',
-			seriesPart: '',
-			subseries: '',
-			subseriesPart: '',
-			year: '',
-			genre: '',
-		})),
-		initMetadataFormEvents: vi.fn(),
-		readMetadataForm: vi.fn(() => ({})),
-		readMetadataFormViewSnapshot: vi.fn(() => ({ mode: 'single', selectionCount: 0 })),
-		resetDirtyState: context.resetDirtyStateMock,
-		onMetadataFormFieldInput: vi.fn(),
-		onMetadataFormActionSelectChange: vi.fn(),
-	};
-});
+vi.mock('../../metadataForm', () => ({
+	readMetadataFormPreviewValues: vi.fn(() => ({
+		title: '',
+		author: '',
+		narrator: '',
+		series: '',
+		seriesPart: '',
+		subseries: '',
+		subseriesPart: '',
+		year: '',
+		genre: '',
+	})),
+	initMetadataFormEvents: vi.fn(),
+	readMetadataForm: vi.fn(() => ({})),
+	resetDirtyState: context.resetDirtyStateMock,
+	onMetadataFormFieldInput: vi.fn(),
+	onMetadataFormActionSelectChange: vi.fn(),
+}));
 
-vi.mock('../../fileList/state.svelte', async (importOriginal) => ({
-	...(await importOriginal<typeof import('../../fileList/state.svelte')>()),
+vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),
@@ -102,8 +94,7 @@ vi.mock('../../fileList/state.svelte', async (importOriginal) => ({
 	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
-vi.mock('../../fileList/actions', async (importOriginal) => ({
-	...(await importOriginal<typeof import('../../fileList/actions')>()),
+vi.mock('../../fileList/actions', () => ({
 	appendFileList: vi.fn(),
 }));
 
@@ -139,8 +130,8 @@ describe('metadata save pending flow', () => {
 			runtimeSettingsCapabilitiesFixture(),
 		);
 
-		({ saveMetadataFromUI } = await import('../saveWorkflow'));
 		await import('../../../main');
+		({ saveMetadataFromUI } = await import('../saveWorkflow'));
 		({ metadataSaveInProgressStore } = await import('../saveState'));
 	});
 

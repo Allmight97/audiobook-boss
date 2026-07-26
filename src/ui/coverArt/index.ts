@@ -141,7 +141,7 @@ async function loadCoverArtFile(filePath: string): Promise<void> {
 	try {
 		const imageData = await tauriClient.loadCoverArtFile(filePath);
 
-		if (!applyLoadedCoverArt(imageData)) return;
+		applyLoadedCoverArt(imageData);
 
 		console.log('Cover art loaded:', filePath);
 	} catch (error) {
@@ -156,9 +156,7 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
 		clearCoverArtMessage();
 		const imageData = await tauriClient.loadCoverArtFromUrl(url);
 
-		// A gated revert already showed its own error — do not overwrite it
-		// with a success message for a cover that was never staged.
-		if (!applyLoadedCoverArt(imageData)) return;
+		applyLoadedCoverArt(imageData);
 		showCoverArtMessage('Cover art loaded from URL.', 'success');
 	} catch (error) {
 		console.error('Failed to load cover art URL:', error);
@@ -168,8 +166,8 @@ async function loadCoverArtFromUrl(url: string): Promise<void> {
 	}
 }
 
-function applyLoadedCoverArt(imageData: number[]): boolean {
-	return setCustomCoverArt(imageData);
+function applyLoadedCoverArt(imageData: number[]): void {
+	setCustomCoverArt(imageData);
 }
 
 export { coverArtBytesToDataUrl };
@@ -277,14 +275,10 @@ export function setCoverArt(coverArtBytes: number[] | null): void {
 	displayCoverArt(coverArtBytes);
 }
 
-/**
- * Returns false when the commit was gated to a single owner and reverted
- * (batch multi-select) — callers must not report success in that case.
- */
-export function setCustomCoverArt(coverArtBytes: number[] | null): boolean {
+export function setCustomCoverArt(coverArtBytes: number[] | null): void {
 	if (!coverArtBytes || coverArtBytes.length === 0) {
 		clearCoverArt({ markRemoval: true });
-		return true;
+		return;
 	}
 
 	const committed = commitCoverArtToOwners(coverArtBytes, false);
@@ -293,14 +287,12 @@ export function setCustomCoverArt(coverArtBytes: number[] | null): boolean {
 		setHasCustomCoverArt(false);
 		setCoverArtRemovalRequested(false);
 		refreshCoverArtDisplay();
-		showCoverArtMessage('Select exactly one file to set its cover.', 'error');
-		return false;
+		return;
 	}
 	setCoverArtSession(coverArtBytes);
 	setHasCustomCoverArt(true);
 	setCoverArtRemovalRequested(false);
 	refreshCoverArtDisplay();
-	return true;
 }
 
 export function clearCoverArt(options?: { markRemoval?: boolean }): void {

@@ -64,7 +64,7 @@
       </div>
       <button
         id="output-dir-browse"
-        class="pill pill-primary pill-sm output-browse-button"
+        class="btn-pill btn-pill-primary-soft output-browse-button"
         onclick={handleBrowseClick}
       >
         Browse…
@@ -182,6 +182,15 @@
 
 	.output-panel-workbench .output-path-text {
 		color: var(--text-primary);
+	}
+
+	.btn-pill-primary-soft {
+		background-color: #6ba3f7;
+		color: #ffffff;
+	}
+
+	.btn-pill-primary-soft:hover {
+		background-color: #5b93e7;
 	}
 
 	.output-browse-button {

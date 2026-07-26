@@ -2,17 +2,11 @@
 
 ## Public API Strip
 - Import encoder request configuration from `src/ui/encoderPanel`.
-- Authoritative runtime export surface = `index.ts`, pinned by
-  `__tests__/runtime-api-contract.test.ts`.
 - Exports: `applyEncodingDefaults`, `readEncoderDefaultsFromState`,
-  `readEncoderSummaryLabel`, `readEncodingRequestConfig`, `readFdkAfterburner`,
-  `setFdkAfterburner`.
-- `readFdkAfterburner`/`setFdkAfterburner` exist for the App Settings dialog,
-  which owns the afterburner control; the panel keeps the request-truth
-  carrier and persistence rails and renders no afterburner UI.
+  `readEncodingRequestConfig`.
 - `applyEncodingDefaults(defaults, capabilities)` accepts an already-loaded
   Runtime Settings Capabilities encoder slice from App Settings hydration.
-- The composition-only App Shell may import `EncoderWorkbenchIsland.svelte`; do not
+- Composition-only UI shells may import `EncoderWorkbenchIsland.svelte`; do not
   use the main encoder index for renderer exports because it must stay
   side-effect-light for config consumers.
 

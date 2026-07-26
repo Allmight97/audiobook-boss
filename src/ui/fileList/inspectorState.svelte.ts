@@ -1,5 +1,3 @@
-import { readCombinedSizeText } from './viewState.svelte';
-
 type InspectorState = {
 	contextText: string;
 	contextVariant: 'empty' | 'single' | 'multi';
@@ -12,12 +10,6 @@ type InspectorState = {
 	fileSizeText: string;
 	companionsText: string;
 	companionsTitle: string;
-};
-
-export type InspectorFact = {
-	label: string;
-	value: string;
-	title: string;
 };
 
 const EMPTY_INSPECTOR_STATE: InspectorState = {
@@ -79,32 +71,4 @@ export function resetInspectorState(): void {
 	inspectorState.fileSizeText = EMPTY_INSPECTOR_STATE.fileSizeText;
 	inspectorState.companionsText = EMPTY_INSPECTOR_STATE.companionsText;
 	inspectorState.companionsTitle = EMPTY_INSPECTOR_STATE.companionsTitle;
-}
-
-/** Read-only inspector projection for the metadata surface Facts tab. */
-export function readInspectorFacts(): InspectorFact[] {
-	return [
-		{ label: 'File', value: inspectorState.contextText, title: inspectorState.contextText },
-		{
-			label: 'Position',
-			value: inspectorState.contextDetail || '—',
-			title: inspectorState.contextDetail,
-		},
-		{ label: 'Bitrate', value: inspectorState.bitrateText, title: inspectorState.bitrateText },
-		{
-			label: 'Sample rate',
-			value: inspectorState.sampleRateText,
-			title: inspectorState.sampleRateText,
-		},
-		{ label: 'Channels', value: inspectorState.channelsText, title: inspectorState.channelsText },
-		{ label: 'Codec', value: inspectorState.codecText, title: inspectorState.codecText },
-		{ label: 'Decoder', value: inspectorState.decoderText, title: inspectorState.decoderText },
-		{ label: 'File size', value: inspectorState.fileSizeText, title: inspectorState.fileSizeText },
-		{
-			label: 'Supplemental',
-			value: inspectorState.companionsText,
-			title: inspectorState.companionsTitle,
-		},
-		{ label: 'Combined size', value: readCombinedSizeText(), title: readCombinedSizeText() },
-	];
 }

@@ -47,16 +47,6 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     Ok(metadata)
 }
 
-pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
-    match super::mp4_covr::read_bounded_mp4_cover_art(
-        path,
-        super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES,
-    )? {
-        Some(bytes) => super::thumbnail::clone_thumbnail_cover_art(&bytes).map(Some),
-        None => Ok(None),
-    }
-}
-
 fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32, Option<u32>)> {
     number.map(|number| (u32::from(number), total.map(u32::from)))
 }

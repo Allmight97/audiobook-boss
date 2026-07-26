@@ -68,10 +68,6 @@ export function readEstimatedSizeText(): string {
 	return outputPanelState.estimatedSizeText;
 }
 
-export function readOutputNamingSummaryLabel(): string {
-	return outputPanelState.namingPreset === 'absDefault' ? 'ABS Default' : 'Custom Template';
-}
-
 export function readOutputDisplaySnapshot(): OutputDisplaySnapshot {
 	return {
 		outputDirectory: outputPanelState.outputDirectory,

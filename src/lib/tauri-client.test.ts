@@ -230,19 +230,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(metadata.cover_art).toBeUndefined();
 	});
 
-	it('routes nullable cover thumbnails through the generated command', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce(null);
-
-		const { tauriClient } = await import('./tauri/client');
-		await expect(tauriClient.readAudioCoverThumbnail('/books/a.m4b')).resolves.toBeNull();
-
-		expect(mockInvoke).toHaveBeenLastCalledWith('read_audio_cover_thumbnail', {
-			filePath: '/books/a.m4b',
-		});
-	});
-
 	it('denormalizes process payload and compiles metadata patch map, then normalizes result nullish fields', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);

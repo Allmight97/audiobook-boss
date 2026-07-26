@@ -19,14 +19,6 @@
 
 - Own operation identity, immutable accepted submissions, operation snapshots,
   operation-scoped cancellation, and Work Center event truth.
-- Terminal-operation retention: `WorkRuntimeState` keeps at most
-  `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
-  TERMINALIZATION order (never submission sequence — a just-finished
-  long-running operation must survive its own prune). Running/accepted
-  operations are never pruned. The frontend purge tombstone
-  (`PURGED_OPERATION_TOMBSTONE_CAP` in `src/ui/workCenter/state.svelte.ts`)
-  must stay strictly larger than this cap; a contract test pins the
-  relationship — keep both sites and that test in sync.
 - Use `processing::run` as the processing executor boundary. Do not import audio
   processor internals, output-artifact internals, or remote-source private
   provider/materializer modules.

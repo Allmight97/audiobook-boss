@@ -5,7 +5,6 @@ import * as remoteSource from '../../remoteSource';
 const EXPECTED_REMOTE_SOURCE_EXPORTS = [
 	'companionSummaryForInputIds',
 	'hasSupplementalAssetsForInputId',
-	'openRemoteSourceAcquire',
 	'purgeRemoteSourceSessionsForInputIds',
 	'registerRemoteSourceSupplementalAssets',
 	'releaseRemoteSourceSessionRetainers',
@@ -18,6 +17,7 @@ const FORBIDDEN_REMOTE_SOURCE_IMPORTS = [
 	'remoteSource/acquisitionWorkflow',
 	'remoteSource/acquisitionState.svelte',
 	'remoteSource/state.svelte',
+	'remoteSource/RemoteSourceAcquireIsland.svelte',
 	'remoteSource/RemoteSourceAcquireDialog.svelte',
 	'remoteSource/acquisitionAccount',
 	'remoteSource/remoteSourceSelection',

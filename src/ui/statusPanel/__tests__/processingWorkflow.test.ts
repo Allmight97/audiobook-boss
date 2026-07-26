@@ -132,7 +132,6 @@ function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted 
 			terminalSummary: undefined,
 			warnings: [],
 			errors: [],
-			logTail: [],
 		},
 	};
 }
@@ -181,6 +180,7 @@ function workflowContext(): ProcessingWorkflowContext {
 	return {
 		updateStatus: vi.fn(),
 		setProcessingState: vi.fn(),
+		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
 		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
@@ -266,6 +266,7 @@ describe('ProcessingWorkflow', () => {
 		});
 		expect(services.setJobControlsEnabled).toHaveBeenCalledWith(false);
 		expect(services.setFileOrderLocked).toHaveBeenCalledWith(true);
+		expect(ctx.updateArtThumbnail).toHaveBeenCalledTimes(1);
 		expect(ctx.startProgressListener).not.toHaveBeenCalled();
 		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
@@ -282,76 +283,6 @@ describe('ProcessingWorkflow', () => {
 		expect(services.setFileOrderLocked).toHaveBeenLastCalledWith(false);
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
-	});
-
-	it('reorders the processing payload when the file list is sorted by filename', async () => {
-		// Cross-owner guardrail (DECISIONS: chapter queue): the sorted visual
-		// order IS the processing order, end to end through the real sort action.
-		const { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } = await import(
-			'../../fileList/state.svelte'
-		);
-		const { toggleFileSort } = await import('../../fileList/actions');
-		const { getCurrentFileList: readRealFileList } = await import('../../fileList');
-		setCurrentFileList({
-			files: [
-				audioFile('/books/10 - Last Chapter.mp3', { inputId: 'tenth' }),
-				audioFile('/books/2 - Early Chapter.mp3', { inputId: 'second' }),
-			],
-			selectedDecoders: [null, null],
-			totalDuration: 2,
-			totalSize: 2,
-			validCount: 2,
-			invalidCount: 0,
-		});
-		setSelectedFileIndices([]);
-		setSelectedIndex(-1);
-		await toggleFileSort();
-
-		const ctx = workflowContext();
-		const { services } = workflowServices({
-			getCurrentFileList: vi.fn(() => readRealFileList()),
-		});
-		await runWithServices(ctx, services);
-
-		expect(services.submitProcessingOperation).toHaveBeenCalledWith(
-			expect.objectContaining({
-				payload: expect.objectContaining({
-					inputFiles: ['/books/2 - Early Chapter.mp3', '/books/10 - Last Chapter.mp3'],
-					inputIds: ['second', 'tenth'],
-				}),
-			}),
-		);
-	});
-
-	it('preserves the current FileList valid order in the merge payload', async () => {
-		const currentFileList: FileListInfo = {
-			files: [
-				audioFile('/books/invalid.m4b', { isValid: false, error: 'Unreadable audio' }),
-				audioFile('/books/volume-two.m4b', { inputId: 'volume-two' }),
-				audioFile('/books/volume-one.m4b', { inputId: 'volume-one' }),
-			],
-			selectedDecoders: [null, null, null],
-			totalDuration: 3,
-			totalSize: 3,
-			validCount: 2,
-			invalidCount: 1,
-		};
-		const ctx = workflowContext();
-		const { services } = workflowServices({
-			getCurrentFileList: vi.fn(() => currentFileList),
-		});
-
-		await runWithServices(ctx, services);
-
-		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
-			payload: expect.objectContaining({
-				jobType: 'merge',
-				inputFiles: ['/books/volume-two.m4b', '/books/volume-one.m4b'],
-				inputIds: ['volume-two', 'volume-one'],
-			}),
-			metadataIntent: null,
-			previewSeconds: undefined,
-		});
 	});
 
 	it('passes acquired supplemental PDF assets into processing payload by FileList input id', async () => {

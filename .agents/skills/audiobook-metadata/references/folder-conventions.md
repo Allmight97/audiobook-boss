@@ -1,38 +1,135 @@
-# Output Folder and Filename Conventions
+# Folder Structure Conventions
 
-Current policy is owned by
-`crates/abb-output-artifact-core/src/lib.rs`; the Tauri adapter is
-`src-tauri/src/output_artifact/naming.rs`. Read those surfaces and their tests
-before changing or describing naming behavior.
+ABS and Plex folder naming patterns for automatic metadata parsing.
 
-## Current ABB Shape
+## Recommended Structure
 
-```text
-<output>/<author>/<series-when-present>/<title-folder>/<title-file>.m4b
+Universal structure that works for ABS, Plex, and general file organization:
+
+```
+/Audiobooks
+  /Author Name
+    /Series Name
+      /Book Title
+        book.m4b
+        cover.jpg
 ```
 
+For standalone books (no series):
+
+```
+/Audiobooks
+  /Author Name
+    /Book Title
+      book.m4b
+      cover.jpg
+```
+
+## ABS Title Folder Patterns
+
+ABS parses metadata from folder names. Supported patterns:
+
+| Pattern | Example |
+|---------|---------|
+| Title only | `Wizards First Rule` |
+| With narrator | `Wizards First Rule {Sam Tsoutsouvas}` |
+| Year prefix | `1994 - Wizards First Rule` |
+| Sequence prefix | `Book 1 - Wizards First Rule` |
+| Sequence + year | `Vol 1 - 1994 - Wizards First Rule` |
+| With subtitle | `1994 - Wizards First Rule - A Subtitle` |
+
+### Parsing Rules
+
+- **Narrator**: Wrap in `{curly braces}`
+- **Year**: 4 digits, separated by ` - ` (space-dash-space)
+- **Sequence**: Prefix with `Book`, `Vol`, `Vol.`, or `Volume`
+- **Subtitle**: Separated by ` - ` (requires ABS server setting)
+
+### Sequence Prefix Examples
+
+All valid:
+```
+Book 1 - Title
+Book 1. Title
+Vol 1 - Title
+Vol. 1 - Title
+Volume 1 - Title
+```
+
+## ABS Author Folder Patterns
+
+Multiple formats supported:
+
+| Format | Example |
+|--------|---------|
+| First Last | `Terry Goodkind` |
+| Last, First | `Goodkind, Terry` |
+| Multiple (comma) | `Terry Goodkind, Brandon Sanderson` |
+| Multiple (ampersand) | `Terry Goodkind & Brandon Sanderson` |
+| Multiple (and) | `Terry Goodkind and Brandon Sanderson` |
+
+## Plex Considerations
+
+Plex treats audiobooks as music albums in a Music library:
+
+1. **Library type**: Music with "Store Track Progress" enabled
+2. **Disable online matching**: Plex will misidentify audiobooks
+3. **Preferred structure**: `Author/Book Title/audiobook.m4b`
+4. **Series**: No native support—relies on folder structure or custom agents
+
+For Plex compatibility, the Author folder is most important. Series organization is secondary.
+
+## Filename Sanitization
+
+Characters to remove or replace in folder/file names:
+
+| Character | Replacement | Reason |
+|-----------|-------------|--------|
+| `:` | ` -` or remove | Invalid on Windows |
+| `?` | remove | Invalid on Windows |
+| `*` | remove | Invalid on Windows |
+| `"` | `'` or remove | Invalid on Windows |
+| `<` | remove | Invalid on Windows |
+| `>` | remove | Invalid on Windows |
+| `\|` | ` -` or remove | Invalid on Windows |
+| `/` | ` -` or remove | Path separator |
+| `\` | ` -` or remove | Path separator (Windows) |
+
+### Sanitization Function (Pseudocode)
+
+```
+sanitize(name):
+  replace ":" with " -"
+  replace "," with " - " (except author)
+  replace "/" "\" with " "
+  remove "?" "*" "<" ">" "|"
+  collapse multiple spaces to single space
+  trim leading/trailing whitespace
+  return name
+```
+
+## audiobook-boss Implementation
+
+The output path generation is in `src-tauri/src/output_artifact/naming.rs`:
+
+```rust
+// build_output_path_preview()
+// Structure (ABS-compatible): output_dir / author / series (optional) / Book # - Title / Book # - Title.m4b
+```
+
+Current behavior:
 - ABS-compatible structure is the default.
-- Author comes from metadata artist, with the product's current fallback.
-- Series folder is omitted when series is empty.
-- Title folder and filename use the core naming policy and filesystem-safe
-  normalization.
-- Author commas and commas in other components intentionally have different
-  handling.
-- Year appears only when explicitly enabled and a usable metadata date exists.
-- Series sequence and display-title rules belong to the core policy, not to
-  ad-hoc path construction in callers.
+- Author folder: Uses `artist` from metadata (falls back to "Unknown Author").
+- Series folder: Uses `series` from metadata (skipped if empty).
+- Title folder + filename: Uses full `title` from metadata, sanitized for filesystem safety.
+- Author folder preserves commas; other components replace commas with ` - `.
+- Year appears only when explicitly enabled and metadata date is present.
 
-## Change Rule
+To modify folder structure behavior, edit `build_output_path_preview()` in `src-tauri/src/output_artifact/naming.rs` and its core implementation in `crates/abb-output-artifact-core/src/lib.rs`.
 
-Change naming in the core owner first, keep the adapter thin, and update focused
-core tests for Windows-invalid characters, empty/fallback fields, series/no-
-series branches, sequence display, and optional year behavior. When claiming
-ABS, Plex, or Apple compatibility, add manual importer evidence if the changed
-folder shape is observable by that importer.
+---
 
-External scanner examples are evidence, not an alternate naming algorithm. Do
-not copy generic Plex setup guidance or pseudocode sanitizers into this
-reference; they drift from the product owner and create a second policy.
-
-Primary external reference when scanner behavior is the question:
-[Audiobookshelf folder naming](https://www.audiobookshelf.org/docs/#book-title-folder-naming).
+Sources:
+- [ABS Docs - Title Folder Naming](https://www.audiobookshelf.org/docs/#book-title-folder-naming)
+- [ABS Docs - Author Folder Naming](https://www.audiobookshelf.org/docs/#book-author-folder-naming)
+- [Plex Audiobook Guide](https://github.com/seanap/Plex-Audiobook-Guide)

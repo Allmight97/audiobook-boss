@@ -1,25 +1,4 @@
-use crate::processing::{
-    operation_kind_log_label, EventStage, OperationKind, ProcessResultStatus, ProgressEvent,
-};
-
-#[test]
-fn processing_contract_operation_kind_log_labels_are_stable() {
-    assert_eq!(
-        [
-            OperationKind::ProcessingMerge,
-            OperationKind::ProcessingBatch,
-            OperationKind::RemoteAcquisition,
-            OperationKind::MetadataSave,
-        ]
-        .map(operation_kind_log_label),
-        [
-            "processing_merge",
-            "processing_batch",
-            "remote_acquisition",
-            "metadata_save",
-        ]
-    );
-}
+use crate::processing::{EventStage, OperationKind, ProcessResultStatus, ProgressEvent};
 
 #[test]
 fn processing_contract_lifecycle_kinds_are_distinct() {

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
-	import { ModalController } from '../../lib/ui/modal.svelte';
 	import {
 		applyMetadataLookupResult,
 		closeMetadataLookup,
@@ -16,14 +15,6 @@
 		scheduleMetadataLookupCoverPreviews,
 	} from './metadataLookupCoverPreview.svelte';
 	import { metadataLookupState } from './state.svelte';
-
-	let dialogEl = $state<HTMLElement | null>(null);
-	const modal = new ModalController();
-
-	$effect(() => {
-		modal.sync(metadataLookupState.isOpen, { container: dialogEl }, { onEscape: closeMetadataLookup });
-	});
-	onDestroy(() => modal.destroy());
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -99,13 +90,12 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="metadata-lookup-title"
-		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="metadata-lookup-title">Find Metadata Online</h3>
 			<button
 				id="metadata-lookup-close"
-				class="pill pill-ghost pill-sm"
+				class="btn-pill btn-pill-secondary"
 				data-testid="metadata-lookup-close"
 				type="button"
 				onclick={closeMetadataLookup}
@@ -116,7 +106,7 @@
 		<div class="app-modal-body">
 			<div class="app-modal-controls">
 				<div class="app-modal-field app-modal-field-stack">
-					<div class="app-modal-field field">
+					<div class="app-modal-field">
 						<label for="metadata-lookup-title-query">Title</label>
 						<input
 							id="metadata-lookup-title-query"
@@ -127,7 +117,7 @@
 							onkeydown={handleQueryKeyDown}
 						/>
 					</div>
-					<div class="app-modal-field field">
+					<div class="app-modal-field">
 						<label for="metadata-lookup-author-query">Author</label>
 						<input
 							id="metadata-lookup-author-query"
@@ -139,7 +129,7 @@
 						/>
 					</div>
 				</div>
-				<div class="app-modal-field field">
+				<div class="app-modal-field">
 					<label for="metadata-lookup-source">Source</label>
 					<select
 						id="metadata-lookup-source"
@@ -151,7 +141,7 @@
 						<option value="openlibrary">OpenLibrary</option>
 					</select>
 				</div>
-				<div class="app-modal-field field">
+				<div class="app-modal-field">
 					<label for="metadata-lookup-apply-mode">Apply</label>
 					<select
 						id="metadata-lookup-apply-mode"
@@ -180,7 +170,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-search-btn"
-						class="pill pill-primary pill-sm"
+						class="btn-pill btn-pill-primary"
 						data-testid="metadata-lookup-search-btn"
 						type="button"
 						onclick={() => void searchMetadataLookup()}
@@ -191,7 +181,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="metadata-lookup-skip-btn"
-						class="pill pill-ghost pill-sm"
+						class="btn-pill btn-pill-secondary"
 						data-testid="metadata-lookup-skip-btn"
 						type="button"
 						disabled={!metadataLookupState.skipEnabled}
@@ -203,7 +193,7 @@
 			</div>
 			<div
 				id="metadata-lookup-context"
-				class="metadata-lookup-context app-modal-status text-xs"
+				class="metadata-lookup-context text-xs muted-text"
 			>
 				{metadataLookupState.queueContext}
 			</div>
@@ -227,7 +217,7 @@
 							</p>
 							<button
 								id="metadata-lookup-manual-entry-btn"
-								class="pill pill-ghost pill-sm mt-2"
+								class="btn-pill btn-pill-secondary mt-2"
 								data-testid="metadata-lookup-manual-entry-btn"
 								type="button"
 								onclick={useManualMetadataEntryFromLookup}
@@ -280,7 +270,7 @@
 								)}
 							</div>
 						<span
-							class="metadata-lookup-source app-badge app-badge-info"
+							class="metadata-lookup-source"
 							class:is-secondary-source={result.source === 'openlibrary'}
 						>
 							{result.source === 'audnexus'
@@ -293,7 +283,7 @@
 						<div class="metadata-lookup-actions">
 							<button
 								type="button"
-								class="pill pill-ghost pill-sm"
+								class="btn-pill btn-pill-secondary"
 								data-index={index}
 								onclick={() => void applyMetadataLookupResult(index)}
 							>
@@ -313,25 +303,29 @@
 	}
 
 	.metadata-lookup-title {
-		margin-bottom: var(--space-1);
+		margin-bottom: 0.25rem;
 		font-weight: 600;
 	}
 
 	.metadata-lookup-meta {
-		font-size: var(--text-sm);
+		font-size: 0.75rem;
 		color: var(--text-secondary);
 	}
 
 	.metadata-lookup-source {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-1);
-		margin-top: var(--space-1);
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+		padding: 0.15rem 0.5rem;
+		border: 1px solid var(--border-secondary);
+		border-radius: 9999px;
+		color: var(--text-secondary);
+		font-size: 0.7rem;
 	}
 
 	.metadata-lookup-source.is-secondary-source {
 		color: var(--text-muted);
-		background: var(--bg-input);
 	}
 
 	.metadata-lookup-actions {

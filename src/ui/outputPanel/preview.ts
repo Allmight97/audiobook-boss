@@ -3,11 +3,12 @@ import type { AudiobookMetadata } from '../../types/metadata';
 import { tauriClient } from '../../lib/tauri/client';
 import { getCurrentFileList, getSelectedFileIndices } from '../fileList';
 import { getCurrentCoverArt } from '../coverArt';
+import { readMetadataForm } from '../metadataForm';
 import {
-	applyMetadataFormValidationWarnings,
-	readMetadataForm,
-	readMetadataFormViewSnapshot,
-} from '../metadataForm';
+	setSeriesPartWarning,
+	setSubseriesPartWarning,
+	metadataFormState,
+} from '../metadataForm/state.svelte';
 import {
 	beginOutputPreviewRequest,
 	getState,
@@ -27,9 +28,8 @@ type OutputPathPreviewContext = {
 };
 
 export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataDraft {
-	const metadataFormSnapshot = readMetadataFormViewSnapshot();
 	const metadata = readMetadataForm({
-		mode: metadataFormSnapshot.mode,
+		mode: metadataFormState.mode,
 		onlyDirty: false,
 		includeCoverArt: true,
 	});
@@ -51,9 +51,60 @@ export function readOutputPathPreviewMetadataDraft(): OutputPathPreviewMetadataD
 	};
 }
 
+function updateSeriesPartWarning(
+	metadata: AudiobookMetadata,
+	seriesPartError: string | null,
+): void {
+	const seriesValue = metadata.series?.trim() ?? '';
+	const seriesPartValue = metadata.series_part?.trim() ?? '';
+	const subseriesValue = metadata.subseries?.trim() ?? '';
+	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
+
+	if (seriesPartError) {
+		setSeriesPartWarning(seriesPartError, true);
+		return;
+	}
+
+	const shouldShowDuplicate =
+		seriesValue.length > 0 &&
+		subseriesValue.length > 0 &&
+		seriesPartValue.length > 0 &&
+		subseriesPartValue.length > 0 &&
+		seriesPartValue === subseriesPartValue;
+
+	if (shouldShowDuplicate) {
+		const message =
+			'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.';
+		setSeriesPartWarning(message, true);
+		return;
+	}
+
+	const message = 'Series detected - add Book # (series sequence) for ABS ordering.';
+	const visible = seriesValue.length > 0 && seriesPartValue.length === 0;
+	setSeriesPartWarning(message, visible);
+}
+
+function updateSubseriesPartWarning(
+	metadata: AudiobookMetadata,
+	subseriesPartError: string | null,
+): void {
+	const subseriesValue = metadata.subseries?.trim() ?? '';
+	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
+
+	if (subseriesPartError) {
+		setSubseriesPartWarning(subseriesPartError, true);
+		return;
+	}
+
+	const message = 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.';
+	const visible = subseriesValue.length > 0 && subseriesPartValue.length === 0;
+	setSubseriesPartWarning(message, visible);
+}
+
 export async function updateMetadataIntentWarnings(metadata: AudiobookMetadata): Promise<void> {
 	const validation = await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
-	applyMetadataFormValidationWarnings(metadata, validation.errors);
+	updateSeriesPartWarning(metadata, validation.errors.byField.series_part ?? null);
+	updateSubseriesPartWarning(metadata, validation.errors.byField.subseries_part ?? null);
 }
 
 export function updateOutputPath(outputKind: OutputKind): void {

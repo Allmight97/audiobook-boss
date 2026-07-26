@@ -88,8 +88,6 @@ pub struct ProcessingContext {
     pub preview: Option<PreviewConfig>,
     /// Optional job identifier for parallel batch processing
     pub job_id: Option<String>,
-    /// WorkRuntime operation identity; absent for foreground processing.
-    pub(crate) operation_id: Option<String>,
     /// Optional index of the input file in the original request
     pub input_index: Option<usize>,
     /// Backend operation family for lifecycle events emitted by this context
@@ -108,7 +106,6 @@ impl std::fmt::Debug for ProcessingContext {
             .field("workspace_root", &self.workspace_root)
             .field("preview", &self.preview)
             .field("job_id", &self.job_id)
-            .field("operation_id", &self.operation_id)
             .field("input_index", &self.input_index)
             .field("operation_kind", &self.operation_kind)
             .field("progress_listener", &self.progress_listener.is_some())
@@ -134,7 +131,6 @@ impl ProcessingContext {
             workspace_root,
             preview: None,
             job_id: None,
-            operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
@@ -173,7 +169,6 @@ impl ProcessingContext {
             workspace_root,
             preview: None,
             job_id: None,
-            operation_id: None,
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,

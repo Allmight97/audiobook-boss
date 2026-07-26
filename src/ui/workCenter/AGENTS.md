@@ -4,9 +4,7 @@
 
 - `WorkCenterIsland`
 - `initializeWorkCenter`
-- `readWorkActivityByInputId`
 - `workCenterState`
-- `deriveWorkOperationCounts`
 
 ## Ownership
 
@@ -33,10 +31,6 @@
 
 - Keep multi-operation state in `model.ts`/`state.svelte.ts`; the Svelte
   component should render and dispatch actions only.
-- Each operation row uses `role="button"` for whole-row expand/collapse; its
-  Enter/Space keydown handler must isolate nested interactive children (the
-  Cancel button) the same way OperationsBar isolates its row, mirroring
-  `src/ui/operationsBar/AGENTS.md`.
 - Do not push singleton queue logic back into StatusPanel.
 - Never reintroduce `processing-progress` overlay consumption for background
   operations.

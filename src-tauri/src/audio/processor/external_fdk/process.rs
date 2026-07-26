@@ -218,15 +218,13 @@ where
     R: tokio::io::AsyncBufRead + Unpin,
 {
     let total_ms = (total_duration_seconds * 1000.0).max(1.0);
-    let mut eta = crate::processing::progress::EtaEstimator::new();
-    let mut last_progress_ms = f64::NEG_INFINITY;
     loop {
         tokio::select! {
             line = progress_lines.next_line() => {
                 match line {
                     Ok(Some(line)) => {
                         progress_diagnostics.record_line(&line);
-                        super::progress::emit_external_progress(ui, &line, total_ms, current_file.clone(), &mut eta, &mut last_progress_ms);
+                        super::progress::emit_external_progress(ui, &line, total_ms, current_file.clone());
                     }
                     Ok(None) => break,
                     Err(error) => {

@@ -1,20 +1,10 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
 	import { pathBasename } from '../../lib/path/basename';
-	import { ModalController } from '../../lib/ui/modal.svelte';
 	import {
 		cancelCollisionDialog,
 		chooseCollisionPolicy,
 		collisionDialogState,
 	} from './state.svelte';
-
-	let dialogEl = $state<HTMLElement | null>(null);
-	const modal = new ModalController();
-
-	$effect(() => {
-		modal.sync(collisionDialogState.isOpen, { container: dialogEl }, { onEscape: cancelCollisionDialog });
-	});
-	onDestroy(() => modal.destroy());
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -66,18 +56,12 @@
 	aria-hidden={!collisionDialogState.isOpen}
 	onclick={handleBackdropClick}
 >
-	<div
-		class="app-modal-dialog"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="collision-dialog-title"
-		bind:this={dialogEl}
-	>
+	<div class="app-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="collision-dialog-title">
 		<div class="app-modal-header">
 			<h3 id="collision-dialog-title">{collisionDialogState.title}</h3>
 			<button
 				id="collision-dialog-close"
-				class="pill pill-ghost pill-sm"
+				class="btn-pill btn-pill-secondary"
 				data-testid="collision-dialog-close"
 				type="button"
 				onclick={cancelCollisionDialog}
@@ -87,7 +71,7 @@
 		</div>
 
 		<div class="app-modal-body">
-			<p id="collision-dialog-body" class="app-modal-status text-xs">{collisionDialogState.body}</p>
+			<p id="collision-dialog-body" class="text-xs muted-text">{collisionDialogState.body}</p>
 
 			<div id="collision-dialog-results" class="app-modal-results">
 				{#each collisionDialogState.outputs as output}
@@ -119,7 +103,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-replace"
-						class="pill pill-primary pill-sm"
+						class="btn-pill btn-pill-primary"
 						data-testid="collision-dialog-replace"
 						type="button"
 						onclick={() => chooseCollisionPolicy('replace_existing')}
@@ -130,7 +114,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-skip"
-						class="pill pill-ghost pill-sm"
+						class="btn-pill btn-pill-secondary"
 						data-testid="collision-dialog-skip"
 						type="button"
 						onclick={() => chooseCollisionPolicy('skip_existing')}
@@ -141,7 +125,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-rename"
-						class="pill pill-ghost pill-sm"
+						class="btn-pill btn-pill-secondary"
 						data-testid="collision-dialog-rename"
 						type="button"
 						onclick={() => chooseCollisionPolicy('rename_new')}
@@ -152,7 +136,7 @@
 				<div class="app-modal-field app-modal-field-button">
 					<button
 						id="collision-dialog-cancel"
-						class="pill pill-ghost pill-sm"
+						class="btn-pill btn-pill-secondary"
 						data-testid="collision-dialog-cancel"
 						type="button"
 						onclick={cancelCollisionDialog}
@@ -172,7 +156,7 @@
 	}
 
 	.collision-dialog-controls {
-		margin-top: var(--space-4);
+		margin-top: 1rem;
 		grid-template-columns: repeat(4, auto);
 		justify-content: flex-start;
 	}
@@ -181,14 +165,14 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		gap: 0.2rem;
 	}
 
 	.collision-dialog-filename {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: var(--text-lg);
+		font-size: 0.95rem;
 		font-weight: 600;
 		color: var(--text-primary);
 	}
@@ -198,7 +182,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		font-family: var(--font-mono);
-		font-size: var(--text-sm);
+		font-size: 0.76rem;
 		color: var(--text-secondary);
 	}
 
@@ -208,7 +192,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		text-align: right;
-		font-size: var(--text-sm);
+		font-size: 0.76rem;
 		color: var(--text-secondary);
 	}
 

@@ -76,7 +76,6 @@ pub(crate) fn new_processing_snapshot(
         terminal_summary: None,
         warnings: Vec::new(),
         errors: Vec::new(),
-        log_tail: Vec::new(),
     }
 }
 
@@ -127,7 +126,6 @@ pub(crate) fn new_metadata_save_snapshot(
         terminal_summary: None,
         warnings: Vec::new(),
         errors: Vec::new(),
-        log_tail: Vec::new(),
     }
 }
 

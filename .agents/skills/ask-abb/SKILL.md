@@ -1,41 +1,35 @@
 ---
 name: ask-abb
-description: Read-only router that selects one next Audiobook Boss workflow when the user asks which step or skill fits. Use for smell-to-ship routing in audiobook-boss only; do not invoke the route or mutate state.
+description: Pick the next Audiobook Boss flow when the user asks which step to use. Use for smell-to-ship routing in audiobook-boss only.
 ---
 
 # Ask ABB
 
-Return exactly one recommended next route, why it fits, and what input it needs.
-Do not invoke the route, capture an issue, edit files, or mutate GitHub state.
+Precondition: `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` exist in the repo.
 
-## Routes
+## Main flow
 
-| Active need | Route |
-| --- | --- |
-| Repo-grounded product or engineering decision; substantial issue capture | `decision-alignment` |
-| Concrete observed bug or performance regression | `diagnose` |
-| External library/API or installed-version uncertainty | `abb-library-research` |
-| Metadata tags, intent, interoperability, folder or filename policy | `audiobook-metadata` |
-| File handles, process lifetime, cleanup, replacement, or cross-platform lifecycle hazards | `resource-lifetime-audit` |
-| Version, changelog, local install, DMG, tag, or publication | `release` |
-| Structural smell or architecture candidate scan | `improve-codebase-architecture` |
-| Approved large plan that needs vertical-slice child issues | `to-issues` |
-| Agent guidance drift or owner-instruction placement | `agents-md-steward` |
-| Pre-repo or non-ABB pressure testing | `grill-me` |
-| Continue work in another task | `handoff` |
+1. **`decision-alignment`** — repo-grounded explore. Read `docs/system-map.md`, `docs/ubiquitous-language.md`, owning code. Chat first; capture a GitHub issue only when explicit.
+2. **Library/API unknown** → **`abb-library-research`** (user invokes). Answer in chat.
+3. **Structural smell, not ready to capture** → **`improve-codebase-architecture`** (user invokes). Report in OS temp; return to step 1 if capture is next.
+4. **Capture** → issue per `docs/agents/issue-tracker.md` and `decision-alignment/references/issue-template.md`. Label `ready-for-agent` when complete without chat.
+5. **Large approved plan** → **`to-issues`** (user invokes).
+6. **Implement** → fresh session from issue body.
 
-## Selection Rule
+Keep explore and capture in one window when practical. After `to-issues`, fresh session per child issue. **`handoff`** to OS temp when switching threads — link issues; do not paste bodies.
 
-Choose the route that owns the current blocker, not the eventual finish line.
-Default ambiguous ABB repo work to `decision-alignment`. If two routes appear
-plausible, name the decisive distinction and still recommend one; ask a question
-only when that distinction changes the safe next action.
+## Other entry points
 
-Repository canon and capture rules belong to the selected workflow and current
-repo guidance. Do not duplicate their procedures here.
+- Pre-repo or non-ABB thinking → **`grill-me`**
+- Raw incoming tickets → labels in `docs/agents/triage-labels.md`
+- Guidance drift → **`agents-md-steward`**
+- Architecture upkeep → **`improve-codebase-architecture`** (user invokes), then step 1 if capturing
 
-## Output
+## Canon
 
-- **Route:** one skill or workflow
-- **Why:** one or two sentences tied to the active blocker
-- **Bring:** the minimum file, issue, symptom, or decision needed to start
+- `docs/ubiquitous-language.md`
+- `docs/system-map.md`
+- `docs/DECISIONS.md`
+- `docs/api-map.md`
+
+Default: ABB repo work → step 1. Not repo-grounded → `grill-me`.

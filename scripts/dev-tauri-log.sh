@@ -3,26 +3,15 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log_dir="$repo_root/.logs"
+log_file="$log_dir/tauri-dev.log"
+summary_file="$log_dir/tauri-dev-summary.md"
+encoding_log="$log_dir/encoding.log"
 dev_port="1420"
 run_id="$(date -u +"%Y%m%dT%H%M%SZ")-$$"
-runs_dir="$log_dir/runs"
-run_dir="$runs_dir/$run_id"
-log_file="$run_dir/tauri-dev.log"
-summary_file="$run_dir/tauri-dev-summary.md"
-encoding_log="$run_dir/encoding.log"
-latest_log_file="$log_dir/tauri-dev.log"
-latest_summary_file="$log_dir/tauri-dev-summary.md"
-latest_encoding_log="$log_dir/encoding.log"
-retained_run_count=5
 start_epoch="$(date +%s)"
 start_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 summary_written="false"
 rust_log_source="unset"
-tee_drain_failed="false"
-tee_pid=""
-tee_status_file="$run_dir/tee-exit-status"
-orig_stdout_fd=""
-orig_stderr_fd=""
 declare -a port_notes=()
 
 timestamp_utc() {
@@ -149,6 +138,35 @@ print_process_snapshot() {
 	'
 }
 
+print_log_matches() {
+	local source_file="$1"
+	local pattern='version mismatched|panicked|panic|thread .* panicked|error|failed|capabilit(y|ies)|ipc|forbidden|denied|ffmpeg|external fdk|warn'
+
+	if [[ ! -s "$source_file" ]]; then
+		printf 'no log content\n'
+		return 0
+	fi
+
+	if command -v rg >/dev/null 2>&1; then
+		rg -n -i "$pattern" "$source_file" 2>/dev/null | rg -v 'RUST_LOG:' | tail -n 80 || true
+	else
+		grep -nEi "$pattern" "$source_file" 2>/dev/null | grep -v 'RUST_LOG:' | tail -n 80 || true
+	fi
+}
+
+encoding_log_summary() {
+	local line_count section_count
+
+	if [[ ! -s "$encoding_log" ]]; then
+		printf 'No encoder entries were written. This is expected if no encode ran.\n'
+		return 0
+	fi
+
+	line_count="$(wc -l < "$encoding_log" | tr -d ' ')"
+	section_count="$(grep -c '^--- external-fdk run' "$encoding_log" 2>/dev/null || true)"
+	printf 'lines=%s external_fdk_sections=%s\n' "$line_count" "${section_count:-0}"
+}
+
 write_summary() {
 	local status="$1"
 	local end_epoch duration end_iso
@@ -163,10 +181,8 @@ write_summary() {
 		printf -- '- Ended: `%s`\n' "$end_iso"
 		printf -- '- Duration: `%ss`\n' "$duration"
 		printf -- '- Exit status: `%s`\n' "$status"
-		printf -- '- Run directory: `%s`\n' "$run_dir"
 		printf -- '- Main log: `%s`\n' "$log_file"
 		printf -- '- Encoder log: `%s`\n' "$encoding_log"
-		printf -- '- Latest summary entrypoint: `%s`\n' "$latest_summary_file"
 		printf '\n## Git\n\n'
 		printf -- '- Branch: `%s`\n' "$(command_or_unavailable git branch --show-current)"
 		printf -- '- HEAD: `%s`\n' "$(command_or_unavailable git rev-parse --short HEAD)"
@@ -192,19 +208,20 @@ write_summary() {
 		printf '\n## Process Snapshot At Exit\n\n```text\n'
 		print_process_snapshot
 		printf '```\n'
-		printf '\n'
-		if [[ "$tee_drain_failed" == "true" ]]; then
-			printf '## Session Verdict\n\n'
-			printf -- '- Health: `indeterminate`\n'
-			printf -- '- Log capture did not drain cleanly; inspect the raw run log.\n'
-		elif ! bun "$repo_root/scripts/dev-log-analysis.ts" \
-			--main-log "$log_file" \
-			--encoding-log "$encoding_log" \
-			--exit-status "$status"; then
-			printf '## Session Verdict\n\n'
-			printf -- '- Health: `indeterminate`\n'
-			printf -- '- Dev-log analysis failed; inspect the raw run log.\n'
+		printf '\n## Main Log Matches\n\n'
+		printf 'Recent lines matching panic/error/warning/Tauri/IPC/FFmpeg patterns:\n\n'
+		printf '```text\n'
+		local matches
+		matches="$(print_log_matches "$log_file")"
+		if [[ -n "$matches" ]]; then
+			printf '%s\n' "$matches"
+		else
+			printf 'none\n'
 		fi
+		printf '```\n'
+		printf '\n## Encoder Log\n\n```text\n'
+		encoding_log_summary
+		printf '```\n'
 	} > "$summary_file"
 
 	summary_written="true"
@@ -213,23 +230,6 @@ write_summary() {
 finish_run() {
 	local status="$?"
 	set +e
-	if [[ -n "${tee_pid:-}" ]]; then
-		exec >&"$orig_stdout_fd" 2>&"$orig_stderr_fd"
-		# Bounded drain: an orphaned child still holding the pipe write end
-		# must degrade the verdict, not hang the exit trap.
-		for _ in {1..100}; do
-			kill -0 "$tee_pid" 2>/dev/null || break
-			sleep 0.1
-		done
-		# Later process substitutions make the pid unwaitable in bash, so
-		# liveness plus the exit-status sidecar is the drain signal: a tee
-		# that died from a write error must not pass as a clean drain.
-		if kill -0 "$tee_pid" 2>/dev/null; then
-			tee_drain_failed="true"
-		elif [[ "$(cat "$tee_status_file" 2>/dev/null)" != "0" ]]; then
-			tee_drain_failed="true"
-		fi
-	fi
 	if [[ "$summary_written" != "true" ]]; then
 		write_summary "$status"
 	fi
@@ -238,7 +238,6 @@ finish_run() {
 	printf 'Ended: %s\n' "$(timestamp_utc)"
 	printf 'Exit status: %s\n' "$status"
 	printf 'Summary: %s\n' "$summary_file"
-	printf 'Latest summary: %s\n' "$latest_summary_file"
 	printf 'Encoder log: %s\n' "$encoding_log"
 	return "$status"
 }
@@ -364,77 +363,10 @@ reclaim_dev_port() {
 	exit 1
 }
 
-archive_legacy_latest_run() {
-	local existing_run_id legacy_run_dir fallback_dir source target
-	local has_regular="false"
-	local -a entrypoints=("$latest_log_file" "$latest_summary_file" "$latest_encoding_log")
-
-	for source in "${entrypoints[@]}"; do
-		if [[ -f "$source" && ! -L "$source" ]]; then
-			has_regular="true"
-			break
-		fi
-	done
-	[[ "$has_regular" == "true" ]] || return 0
-
-	if [[ -f "$latest_log_file" && ! -L "$latest_log_file" ]]; then
-		existing_run_id="$(sed -n 's/^Run ID: //p' "$latest_log_file" | head -n 1)"
-	else
-		existing_run_id=""
-	fi
-
-	if [[ "$existing_run_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ && "$existing_run_id" != "$run_id" ]]; then
-		legacy_run_dir="$runs_dir/$existing_run_id"
-		mkdir -p "$legacy_run_dir"
-		for source in "${entrypoints[@]}"; do
-			[[ -f "$source" && ! -L "$source" ]] || continue
-			target="$legacy_run_dir/$(basename "$source")"
-			[[ -e "$target" ]] || cp -p "$source" "$target"
-		done
-		return 0
-	fi
-
-	fallback_dir="$runs_dir/legacy-${start_epoch}-$$"
-	mkdir -p "$fallback_dir"
-	for source in "${entrypoints[@]}"; do
-		[[ -f "$source" && ! -L "$source" ]] || continue
-		mv "$source" "$fallback_dir/$(basename "$source")"
-	done
-}
-
-prune_run_history() {
-	local candidate candidate_name remove_count index
-	local -a run_dirs=()
-
-	shopt -s nullglob
-	for candidate in "$runs_dir"/*; do
-		[[ -d "$candidate" ]] || continue
-		candidate_name="$(basename "$candidate")"
-		[[ "$candidate_name" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]] || continue
-		run_dirs+=("$candidate")
-	done
-	shopt -u nullglob
-
-	remove_count=$((${#run_dirs[@]} - retained_run_count))
-	((remove_count > 0)) || return 0
-	for ((index = 0; index < remove_count; index++)); do
-		candidate="${run_dirs[$index]}"
-		[[ "$candidate" != "$run_dir" && "$candidate" == "$runs_dir/"* ]] || continue
-		rm -rf -- "$candidate"
-	done
-}
-
-mkdir -p "$runs_dir"
-archive_legacy_latest_run
-mkdir -p "$run_dir"
+mkdir -p "$log_dir"
 : > "$log_file"
 : > "$summary_file"
 : > "$encoding_log"
-
-ln -sfn "runs/$run_id/tauri-dev.log" "$latest_log_file"
-ln -sfn "runs/$run_id/tauri-dev-summary.md" "$latest_summary_file"
-ln -sfn "runs/$run_id/encoding.log" "$latest_encoding_log"
-prune_run_history
 
 cat > "$encoding_log" <<EOF
 # ABB encoding log
@@ -444,12 +376,7 @@ main_log=$log_file
 
 EOF
 
-exec {orig_stdout_fd}>&1 {orig_stderr_fd}>&2
-exec > >(
-	tee -a "$log_file"
-	printf '%s\n' "$?" > "$tee_status_file"
-) 2>&1
-tee_pid=$!
+exec > >(tee -a "$log_file") 2>&1
 trap finish_run EXIT
 
 cd "$repo_root"
@@ -470,10 +397,9 @@ printf '=== ABB Tauri dev log ===\n'
 printf 'Run ID: %s\n' "$run_id"
 printf 'Started: %s\n' "$start_iso"
 printf 'Repo: %s\n' "$repo_root"
-printf 'Run directory: %s\n' "$run_dir"
-printf 'Main log: %s (latest: %s)\n' "$log_file" "$latest_log_file"
-printf 'Summary: %s (latest: %s)\n' "$summary_file" "$latest_summary_file"
-printf 'Encoder log: %s (latest: %s)\n' "$encoding_log" "$latest_encoding_log"
+printf 'Main log: %s\n' "$log_file"
+printf 'Summary: %s\n' "$summary_file"
+printf 'Encoder log: %s\n' "$encoding_log"
 printf 'RUST_LOG: %s\n' "$RUST_LOG"
 printf 'RUST_LOG source: %s\n' "$rust_log_source"
 printf '\n=== Git ===\n'

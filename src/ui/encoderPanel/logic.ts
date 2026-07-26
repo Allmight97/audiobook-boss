@@ -43,6 +43,9 @@ const clamp = (value: number, min: number, max: number): number =>
 const selectTarget = (event: Event): HTMLSelectElement | null =>
 	(event.currentTarget ?? event.target) as HTMLSelectElement | null;
 
+const inputTarget = (event: Event): HTMLInputElement | null =>
+	(event.currentTarget ?? event.target) as HTMLInputElement | null;
+
 const resolveEffectiveEncoder = (flavor: EncoderFlavor): EncoderFlavor => {
 	if (flavor !== 'auto') return flavor;
 	return encoderPanelState.availability?.autoEncoder ?? 'auto';
@@ -192,6 +195,11 @@ const updateQualityVisibility = (): void => {
 	encoderPanelState.qualityBitrateLabel = encoderPanelState.showQuality ? 'Quality' : 'Bitrate';
 };
 
+const updateInlineOptions = (effectiveEncoder: EncoderFlavor): void => {
+	encoderPanelState.showFdkOptions = effectiveEncoder === 'fdk_he_aac';
+	encoderPanelState.showInlineOptionRow = encoderPanelState.showFdkOptions;
+};
+
 const updateEstimatedBitrate = (): void => {
 	if (encoderPanelState.bitrateModeSelection === 'vbr') {
 		const estimate =
@@ -244,6 +252,7 @@ const syncEncoderState = (): void => {
 	const effectiveEncoder = resolveEffectiveEncoder(encoderPanelState.flavor);
 	enforceBitrateModeCompatibility(effectiveEncoder);
 	updateQualityVisibility();
+	updateInlineOptions(effectiveEncoder);
 	updateProfileDisplay(effectiveEncoder);
 	updateEstimatedBitrate();
 	updateAutoOptionLabel();
@@ -347,10 +356,9 @@ export const handleBitrateValueChange = (event: Event): void => {
 	persistCurrentEncoderDefaults();
 };
 
-// App Settings entrypoint (dialog owns the control): the panel keeps the
-// afterburner request-truth carrier and its persistence rails.
-export const setFdkAfterburner = (enabled: boolean): void => {
-	encoderPanelState.fdkAfterburner = enabled;
+export const handleFdkAfterburnerChange = (event: Event): void => {
+	const target = inputTarget(event);
+	encoderPanelState.fdkAfterburner = Boolean(target?.checked);
 	syncAfterStateChange();
 	persistCurrentEncoderDefaults();
 };

@@ -64,41 +64,10 @@ commands over invoking internals directly.
   `cargo nextest run -p audiobook-boss --lib` or
   `cargo nextest run -p audiobook-boss --test all_tests`.
 - Manual Tauri dev with captured logs:
-  `bun run app:dev:log`; inspect `.logs/tauri-dev-summary.md` for the semantic
-  session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
-  pasted terminal output. These are latest-run entrypoints; the five newest
-  run-scoped artifacts remain under `.logs/runs/<run-id>/`.
+  `bun run app:dev:log`; inspect `.logs/tauri-dev.log` before asking for pasted
+  terminal output. The file is overwritten on each fresh run.
 - Frontend owner: `bun run test -- <owner test files>`.
 - Frontend type validation: `bun run typecheck`.
-- Browser-level UI evidence: `bun run lab:shots` — renders the
-  `lab.html?scenario=<id>` fixture stages (chapter queue, locked queue, empty
-  queue, short-window modal) in headless Chromium, saves screenshots to
-  `.artifacts/lab-shots/`, and asserts the short-window modal keeps its footer
-  reachable while the body scrolls. Use it when a UI change needs rendered
-  visual evidence jsdom cannot give (layout, overflow, hit targets); attach
-  the screenshots as review evidence per `src/AGENTS.md`. Manual invocation
-  only — it is not part of `bun run test` or CI. One-time per machine:
-  `bunx playwright install chromium`. Set `ABB_LAB_CHROMIUM` to a system/other
-  Chromium executable path to use it instead when the pinned Playwright build
-  isn't cached on the machine. Scenario fixtures live in owner-local
-  `labFixtures.ts` adapters and stay fixture-only: adding media synthesis,
-  screenshot-diff baselines, or a default-path/CI hook is an owner decision
-  (same pattern as the media lane), not a default.
-  - Also runs two browser-only interaction proofs, on their own dedicated
-    pages so they never mutate a screenshot page's state: (1) a real pointer
-    drag on the `chapter-queue` scenario asserting the drop lands exactly
-    where the `drag-over`/`drag-over-bottom` indicator promised, including
-    append-after-last (pins the F1 drop-position fix); (2) Escape through the
-    real `ModalController`/CSS visibility transition on the lab-local
-    `modal-escape` scenario (no owner fixture file, same pattern as
-    `modal-short`), asserting Escape closes the dialog regardless of focus
-    timing (pins the PR-2 Escape fix). Chromium cannot reproduce the exact
-    WebKit focus-refusal timing the fix addresses; the proof verifies the
-    invariant instead. Both stay manual-invocation only, same scope boundary
-    as the rest of this command.
-  - Attaches `pageerror` and console-`error` collectors before every
-    navigation (screenshot scenarios and interaction proofs) and fails the
-    run if any are recorded before the page closes.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local`, then the contract
   Vitest files: `bun run test -- src/lib/tauri-public-api.contract.test.ts
@@ -119,15 +88,11 @@ commands over invoking internals directly.
 
 ## Script Families
 
-- `dev-tauri-log.sh` + `dev-log-analysis.ts`: captured Tauri dev sessions,
-  bounded run history, lifecycle closure, and semantic session verdicts.
 - `check-generated-bindings.sh`: IPC binding drift detection.
 - `check-tauri-runtime-boundary.ts`: generated command/event import boundary
   plus raw Tauri invoke bypass protection.
 - `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
   `bump-version.ts`: build/release utilities.
-- `lab-shots.ts`: lab scenario screenshots plus the short-window modal layout
-  assertion (command and scope in the Command Menu entry above).
 - `analyze_code_lines.py`: optional human "Commander View" source-size
   diagnostic, not proof.
 - `*.test.ts`: Vitest coverage for script helpers.
