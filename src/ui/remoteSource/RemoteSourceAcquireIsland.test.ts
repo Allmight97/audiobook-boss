@@ -4,7 +4,7 @@ import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob, RemoteSourceAccountState } from '../../types/remoteSource';
 import RemoteSourceAcquireDialog from './RemoteSourceAcquireDialog.svelte';
-import { openRemoteSourceAcquire } from '.';
+import RemoteSourceAcquireIsland from './RemoteSourceAcquireIsland.svelte';
 import { clearRemoteSourceCoverPreviewCache } from './remoteSourceCoverPreview.svelte';
 import { remoteSourceAcquireState } from './state.svelte';
 
@@ -39,8 +39,7 @@ vi.mock('../fileImport/handlers', () => ({
 	handleImportedAudioPaths: context.handleImportedAudioPathsMock,
 }));
 
-vi.mock('../fileList/state.svelte', async (importOriginal) => ({
-	...(await importOriginal<typeof import('../fileList/state.svelte')>()),
+vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 }));
 
@@ -84,7 +83,7 @@ function acquisitionJob(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob
 	} as AcquisitionJob;
 }
 
-describe('remote source acquisition dialog', () => {
+describe('RemoteSourceAcquireIsland progress', () => {
 	beforeEach(() => {
 		remoteSourceAcquireState.isOpen = false;
 		clearRemoteSourceCoverPreviewCache();
@@ -170,8 +169,11 @@ describe('remote source acquisition dialog', () => {
 		remoteSourceAcquireState.isOpen = false;
 	});
 
-	it('opens acquisition from its public dialog entrypoint', () => {
-		openRemoteSourceAcquire();
+	it('keeps the input panel surface to a trigger button', async () => {
+		const user = userEvent.setup();
+		render(RemoteSourceAcquireIsland);
+
+		await user.click(screen.getByRole('button', { name: 'Import from Library' }));
 
 		expect(remoteSourceAcquireState.isOpen).toBe(true);
 	});
@@ -229,50 +231,6 @@ describe('remote source acquisition dialog', () => {
 		expect(context.loadCoverArtFromUrlMock).toHaveBeenCalledTimes(1);
 		expect(document.querySelector('[src*="covers.example.com"]')).toBeNull();
 		expect(document.body.textContent).not.toContain('covers.example.com');
-	});
-
-	it('closes on Escape through the existing close callback even while an acquisition is in flight', async () => {
-		const user = userEvent.setup();
-		// Terminal on the first poll so the acquisition workflow drains inside
-		// this test instead of leaking a running poll loop (and the shared
-		// mock's Once-queue) into whichever test runs next.
-		context.getRemoteSourceAcquisitionStatusMock.mockReset();
-		context.getRemoteSourceAcquisitionStatusMock.mockResolvedValue(
-			acquisitionJob({
-				status: 'failed',
-				progress: {
-					stage: 'failed',
-					percentage: 100,
-					message: 'Acquisition failed.',
-					bytesDownloaded: undefined,
-					bytesTotal: undefined,
-					currentTitleId: 'B000000001',
-					currentItemIndex: 1,
-					totalItems: 1,
-					terminal: true,
-				},
-			}),
-		);
-		remoteSourceAcquireState.isOpen = true;
-		render(RemoteSourceAcquireDialog);
-
-		await screen.findByText('Mock Audible Book');
-		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
-		await fireEvent.click(screen.getByRole('button', { name: 'Acquire Selected' }));
-		await tick();
-
-		// Close is never disabled while busy in this dialog, so Escape matches
-		// clicking it: it closes regardless of the in-flight acquisition.
-		expect(screen.getByRole('button', { name: 'Acquire Selected' })).toBeDisabled();
-		await fireEvent.keyDown(screen.getByRole('button', { name: 'Close' }), { key: 'Escape' });
-
-		expect(remoteSourceAcquireState.isOpen).toBe(false);
-
-		// Drain the poll loop to its terminal state before the test ends.
-		await vi.waitFor(() => {
-			expect(context.getRemoteSourceAcquisitionStatusMock).toHaveBeenCalled();
-		});
-		await tick();
 	});
 
 	it('polls acquisition status and renders active download/decrypt progress in the app modal', async () => {
@@ -621,7 +579,7 @@ describe('remote source acquisition dialog', () => {
 	it('does not start acquisition while file import handoff is order-locked', async () => {
 		const user = userEvent.setup();
 		context.getImportedAudioPathsBlockedMessageMock.mockReturnValue(
-			'Order locked while submitting to the work queue. Try again in a moment.',
+			'Order locked while processing. Wait for completion to add files.',
 		);
 		remoteSourceAcquireState.isOpen = true;
 		render(RemoteSourceAcquireDialog);
@@ -632,7 +590,7 @@ describe('remote source acquisition dialog', () => {
 
 		expect(context.startRemoteSourceAcquisitionMock).not.toHaveBeenCalled();
 		expect(
-			screen.getByText('Order locked while submitting to the work queue. Try again in a moment.'),
+			screen.getByText('Order locked while processing. Wait for completion to add files.'),
 		).toBeTruthy();
 	});
 
@@ -735,7 +693,7 @@ describe('remote source acquisition dialog', () => {
 		);
 		context.handleImportedAudioPathsMock.mockResolvedValueOnce({
 			status: 'blocked',
-			message: 'Order locked while submitting to the work queue. Try again in a moment.',
+			message: 'Order locked while processing. Wait for completion to add files.',
 		});
 		remoteSourceAcquireState.isOpen = true;
 		render(RemoteSourceAcquireDialog);
@@ -744,9 +702,7 @@ describe('remote source acquisition dialog', () => {
 		await user.click(screen.getByRole('button', { name: /Mock Audible Book/i }));
 		await user.click(screen.getByRole('button', { name: 'Acquire Selected' }));
 
-		await screen.findByText(
-			/Order locked while submitting to the work queue\. Try again in a moment\./,
-		);
+		await screen.findByText(/Order locked while processing\. Wait for completion to add files\./);
 		expect(context.handleImportedAudioPathsMock).toHaveBeenCalledWith(['/tmp/remote/book.m4b']);
 		expect(context.purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
 		expect(context.registerRemoteSourceSupplementalAssetsMock).not.toHaveBeenCalled();

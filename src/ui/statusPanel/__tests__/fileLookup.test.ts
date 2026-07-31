@@ -1,29 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import type { FileListInfo } from '../../../types/audio';
-import { findFilePathByIndex } from '../services/fileLookup';
+import type { AudioFile, FileListInfo } from '../../../types/audio';
+import {
+	findFilePathByCurrentFile,
+	findFilePathByIndex,
+	findFilePathByName,
+} from '../services/fileLookup';
 
 function makeFileList(paths: string[]): FileListInfo {
+	const files: AudioFile[] = paths.map((path) => ({
+		path,
+		isValid: true,
+	}));
+
 	return {
-		files: paths.map((path) => ({ path, size: 1, duration: 1, isValid: true })),
-		selectedDecoders: paths.map(() => null),
-		totalDuration: paths.length,
-		totalSize: paths.length,
-		validCount: paths.length,
+		files,
+		selectedDecoders: files.map(() => null),
+		totalDuration: 0,
+		totalSize: 0,
+		validCount: files.length,
 		invalidCount: 0,
 	};
 }
 
-describe('statusPanel fileLookup', () => {
-	it('findFilePathByIndex resolves a valid queue index', () => {
-		const fileList = makeFileList(['/library/first.m4b', '/library/second.m4b']);
-		expect(findFilePathByIndex(fileList, 1)).toBe('/library/second.m4b');
+describe('file lookup helpers', () => {
+	it('prefers exact current_file path matches before basename fallback', () => {
+		const fileList = makeFileList([
+			'/library/first/chapter-01.m4b',
+			'/library/second/chapter-01.m4b',
+		]);
+
+		expect(findFilePathByCurrentFile(fileList, '/library/second/chapter-01.m4b (1/10)')).toBe(
+			'/library/second/chapter-01.m4b',
+		);
 	});
 
-	it('findFilePathByIndex rejects out-of-range and non-integer indices', () => {
-		const fileList = makeFileList(['/library/first.m4b']);
-		expect(findFilePathByIndex(fileList, -1)).toBeNull();
-		expect(findFilePathByIndex(fileList, 1)).toBeNull();
-		expect(findFilePathByIndex(fileList, 1.5)).toBeNull();
-		expect(findFilePathByIndex(null, 0)).toBeNull();
+	it('returns null when basename fallback is ambiguous', () => {
+		const fileList = makeFileList([
+			'/library/first/chapter-01.m4b',
+			'/library/second/chapter-01.m4b',
+		]);
+
+		expect(findFilePathByName(fileList, 'chapter-01.m4b')).toBeNull();
+		expect(findFilePathByCurrentFile(fileList, 'chapter-01.m4b (1/10)')).toBeNull();
+	});
+
+	it('still supports indexed lookup for queue-correlated progress', () => {
+		const fileList = makeFileList(['/library/alpha.m4b', '/library/beta.m4b']);
+
+		expect(findFilePathByIndex(fileList, 1)).toBe('/library/beta.m4b');
+		expect(findFilePathByIndex(fileList, 2)).toBeNull();
 	});
 });

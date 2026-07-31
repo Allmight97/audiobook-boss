@@ -216,36 +216,4 @@ describe('metadata lookup cover preview scheduler', () => {
 		await expect(bytesPromise).resolves.toEqual([4, 5, 6]);
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
 	});
-
-	it('does not refetch a queued URL when a direct load has already made it ready', async () => {
-		const first = createDeferred<number[]>();
-		const second = createDeferred<number[]>();
-		const direct = createDeferred<number[]>();
-		const queuedUrl = 'https://example.com/queued.jpg';
-		const loadCoverArtFromUrl = vi
-			.fn()
-			.mockReturnValueOnce(first.promise)
-			.mockReturnValueOnce(second.promise)
-			.mockReturnValueOnce(direct.promise);
-
-		scheduleMetadataLookupCoverPreviews(
-			['https://example.com/first.jpg', 'https://example.com/second.jpg', queuedUrl],
-			loadCoverArtFromUrl,
-		);
-		await flushAsync();
-		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(2);
-
-		const directBytes = loadMetadataLookupCoverBytes(queuedUrl, loadCoverArtFromUrl);
-		direct.resolve([9, 8, 7]);
-		await expect(directBytes).resolves.toEqual([9, 8, 7]);
-		expect(getMetadataLookupCoverPreviewState(queuedUrl).status).toBe('ready');
-
-		first.resolve([1]);
-		await flushAsync();
-
-		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(3);
-		expect(getMetadataLookupCoverPreviewState(queuedUrl).status).toBe('ready');
-		second.resolve([2]);
-		await flushAsync();
-	});
 });

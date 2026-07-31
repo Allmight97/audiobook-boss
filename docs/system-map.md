@@ -121,16 +121,12 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 
 | Strip | Entry | Owns |
 | --- | --- | --- |
-| App Shell | `src/ui/appShell` | Application chrome (tab-strip app bar), unified toolbar, density projection, the main grid (left file column + 340px metadata rail column driven by the edit-surface preference), popover placement, and the left-column operations zone. |
-| Operations Bar | `src/ui/operationsBar` | Left-column operation/transport composition (transport precedence union of foreground preview, top running WorkRuntime operation, idle + order lock) and its session-only collapsed/open/pinned display mode. |
-| Metadata Surface | `src/ui/metadataSurface` | Edit-surface presentations (rail default, 330px popover) sharing one pane set (Metadata/Facts/Chapters/Output), the durable edit-surface preference projection, and the FileList presentation-adapter registrations. |
 | Output Panel | `src/ui/outputPanel` | Output directory, naming presets, path preview, estimated-size display reads, and `OutputPanelIsland`. |
 | File List | `src/ui/fileList` | Pre-processing file list session, mutations, metadata staging hooks, `readCombinedSizeText()`, and `FileListIsland` rendering. |
 | File Import | `src/ui/fileImport` | Drag/drop, picker, and import-analysis workflow; composes `FileListIsland`. |
-| Status Panel | `src/ui/statusPanel` | Processing launch controls and foreground preview progress rendering (single mono transport line with backend-authored ETA). |
+| Status Panel | `src/ui/statusPanel` | Processing launch controls, concurrency display, and foreground preview progress rendering. |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
-| App Settings | `src/ui/appSettings` | Settings hydration, durable preference coordination, and the settings dialog (FFmpeg/FDK path, concurrency, edit surface, startup behavior, pinned defaults). |
-| Metadata Form | `src/ui/metadataForm` | Metadata text-field state, multi-select actions, dirty reads, validation warning display, and `MetadataFormFieldsIsland`. |
+| App Settings | `src/ui/appSettings` | Settings hydration, durable preference coordination, and the settings dialog (FFmpeg/FDK path, startup behavior, pinned defaults). |
 | Metadata Session | `src/ui/metadataSession` | Per-file metadata cache truth, pending draft/intent staging (`stageMetadataIntentPatch`), draft validation adaptation, and the metadata batch-save workflow. |
 | Metadata Lookup | `src/ui/metadataLookup` | Lookup modal workflow, queue advancement, safe cover preview, and result application through Metadata Session staging. |
 | Tag Preview | `src/ui/tagPreview` | TSOA calculation and tag preview grid rendering from metadata form preview reads. |

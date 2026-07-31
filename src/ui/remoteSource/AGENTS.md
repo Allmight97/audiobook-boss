@@ -2,10 +2,8 @@
 
 ## Public API Strip
 
-- Import session-asset coordination and the toolbar's acquisition-dialog entry
-  point from `src/ui/remoteSource`.
+- Import session-asset coordination from `src/ui/remoteSource`.
 - Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
-  `openRemoteSourceAcquire`,
   `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
   `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
   `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
@@ -16,7 +14,7 @@
 ## Private Cluster
 
 - Files: `sessionAssets.svelte.ts`, `acquisitionWorkflow.ts`,
-  `RemoteSourceAcquireDialog.svelte`,
+  `RemoteSourceAcquireIsland.svelte`, `RemoteSourceAcquireDialog.svelte`,
   `acquisitionState.svelte.ts`, `acquisitionAccount.ts`, `remoteSourceSelection.ts`,
   `state.svelte.ts`, `__tests__/`.
 
@@ -35,13 +33,6 @@ user-triggered.
 Supplemental Assets are tracked by the imported file's `inputId`. Do not key
 them only by path after file-list import, and do not pass them to audio
 processing except through the explicit processing payload map.
-
-`RemoteSourceAcquireDialog`'s Escape/focus-trap behavior routes through the
-shared `src/lib/ui/modal.svelte.ts` `ModalController`, keyed on
-`remoteSourceAcquireState.isOpen` transitions (the dialog stays mounted while
-hidden). Escape always calls `closeRemoteSourceAcquire` — the same
-unconditional close the header Close button uses — never a direct state
-write; the dialog has no in-flight close guard today.
 
 ## Shape
 

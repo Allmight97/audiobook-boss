@@ -61,15 +61,4 @@ describe('MetadataForm island mount + multi-select action sync', () => {
 		expect(metadataFormState.mode).toBe('multi');
 		expect(metadataFormState.selectionCount).toBe(3);
 	});
-
-	it('uses its stacked layout class when requested', () => {
-		const result = render(MetadataFormFieldsIsland, {
-			onFieldInput: onMetadataFormFieldInput,
-			onActionChange: onMetadataFormActionSelectChange,
-			onSaveMetadata: () => {},
-			layout: 'stacked',
-		});
-
-		expect(result.container.querySelector('.metadata-form-fields--stacked')).toBeInTheDocument();
-	});
 });

@@ -6,10 +6,6 @@ export type FileListNavigationCommand =
 	| 'pagePrevious'
 	| 'pageNext';
 
-export type FileListReorderCommand = 'moveUp' | 'moveDown';
-
-export type FileListKeyCommand = FileListNavigationCommand | FileListReorderCommand;
-
 export const DEFAULT_FILE_LIST_PAGE_STEP = 10;
 
 type KeyboardNavigationEvent = Pick<
@@ -34,13 +30,7 @@ function clampIndex(index: number, fileCount: number): number {
 
 export function fileListNavigationCommandFromKey(
 	event: KeyboardNavigationEvent,
-): FileListKeyCommand | null {
-	if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-		if (event.key === 'ArrowUp') return 'moveUp';
-		if (event.key === 'ArrowDown') return 'moveDown';
-		return null;
-	}
-
+): FileListNavigationCommand | null {
 	if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
 		return null;
 	}

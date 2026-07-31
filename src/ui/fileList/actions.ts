@@ -1,3 +1,4 @@
+import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
@@ -10,33 +11,24 @@ import {
 	setCurrentFileList,
 	setSelectedIndex,
 	setSelectedFileIndices,
-	getSortDirection,
-	setSortDirection,
+	getSortAscending,
+	setSortAscending,
 	isOrderLocked,
 	setOrderLocked,
-	getImportOrdinal,
-	recordImportOrder,
-	removeImportOrdinal,
-	resetImportOrder,
-	captureFileListMutationSnapshot,
-	canCommitFileListMutation,
-	findFileIndexByIdentityKey,
-	fileIdentityKey,
-	replaceFileListFiles,
 } from './state.svelte';
 import {
-	applySelectionIntent as applySelectionIntentToState,
+	clearSelection,
+	handleSelection,
 	reindexSelectionAfterMove,
 	reindexSelectionAfterRemoval,
+	selectAllFiles,
 	swapSelectionIndices,
-	type SelectionIntent,
 } from './selection';
 import {
 	autoUpdateCoverArtFromFirstValidFile,
 	clearSelectionPanels,
 	getSelectedFiles,
-	coordinateMetadataSurfaceSelectionTransition,
-	coordinateMetadataSurfacePresentationRefresh,
+	refreshSelectionPresentation,
 	showMultiSelection,
 	showSingleSelection,
 } from './metadataPanel';
@@ -48,10 +40,9 @@ import {
 import {
 	commitPreparedMetadataDrafts,
 	prepareMetadataDraftsForCurrentSelection,
+	preserveMetadataDraftsBeforeSelectionChange,
 } from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
-import { pathBasename } from '../../lib/path/basename';
-import { removeFileListCoverThumbnail } from './coverThumbnails.svelte';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -59,6 +50,22 @@ function refreshOutputForFileListChange(): void {
 
 function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
+}
+
+function replaceCurrentFileListFiles(nextFiles: AudioFile[]): void {
+	const fileList = getCurrentFileList();
+	if (!fileList) {
+		return;
+	}
+
+	const validCount = nextFiles.filter((file) => file.isValid).length;
+	fileListSessionState.currentFileList = {
+		...fileList,
+		files: nextFiles,
+		validCount,
+		invalidCount: nextFiles.length - validCount,
+	};
+	recalculateTotals();
 }
 
 function selectSoleImportedFile(fileList: FileListInfo): void {
@@ -76,7 +83,6 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
 	clearMetadataSession();
 	setCurrentFileList(normalizedFileListInfo);
-	resetImportOrder(normalizedFileListInfo.files);
 	clearSelectionPanels();
 
 	refreshOutputForFileListChange();
@@ -108,7 +114,6 @@ export function appendFileList(
 	const selectedIndex = getSelectedFileIndex();
 	const selectedIndices = getSelectedFileIndices();
 	setCurrentFileList(appendResult.fileList);
-	recordImportOrder(appendResult.fileList.files);
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);
 
@@ -118,39 +123,82 @@ export function appendFileList(
 
 export async function selectFile(
 	index: number,
-	modifiers?: { multi: boolean },
+	modifiers?: { multi: boolean; range: boolean },
 	options?: { skipPersistPrevious?: boolean },
 ): Promise<void> {
-	return applySelectionIntent(
-		modifiers?.multi ? { type: 'toggle', index } : { type: 'selectOnly', index },
-		options,
-	);
-}
+	const fileList = getCurrentFileList();
+	if (!fileList || index < 0 || index >= fileList.files.length) {
+		return;
+	}
 
-export async function applySelectionIntent(
-	intent: SelectionIntent,
-	options?: {
-		skipPersistPrevious?: boolean;
-		openMetadataSurface?: boolean;
-		anchor?: HTMLElement | null;
-	},
-): Promise<void> {
-	await coordinateMetadataSurfaceSelectionTransition(intent, applySelectionIntentToState, {
-		skipPersistPrevious: options?.skipPersistPrevious,
-		openAfterPopulate: options?.openMetadataSurface,
-		anchor: options?.anchor,
-	});
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			skipSingleSelection: options?.skipPersistPrevious,
+			validationFailureMessage: 'Fix metadata validation errors before changing selection.',
+		}))
+	) {
+		return;
+	}
+
+	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
+	if (!selectionResult.changed) return;
+
+	const selectedFiles = getSelectedFiles();
+	const count = selectedFiles.length;
+
+	if (count === 0) {
+		setSelectedIndex(-1);
+		clearSelectionPanels();
+		return;
+	}
+
+	if (count === 1) {
+		void showSingleSelection(selectedFiles[0]);
+		return;
+	}
+
+	void showMultiSelection(selectedFiles);
 }
 
 export async function selectAll(): Promise<void> {
-	return applySelectionIntent({ type: 'selectAll' });
+	const fileList = getCurrentFileList();
+	if (!fileList) return;
+
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before selecting all files.',
+		}))
+	) {
+		return;
+	}
+
+	const changed = selectAllFiles();
+	if (!changed) return;
+
+	const selectedFiles = getSelectedFiles();
+	if (selectedFiles.length > 1) {
+		void showMultiSelection(selectedFiles);
+	} else if (selectedFiles.length === 1) {
+		void showSingleSelection(selectedFiles[0]);
+	}
 }
 
 export async function clearSelectionAction(): Promise<void> {
-	return applySelectionIntent({ type: 'clear' });
+	if (
+		!(await preserveMetadataDraftsBeforeSelectionChange({
+			validationFailureMessage: 'Fix metadata validation errors before clearing the selection.',
+		}))
+	) {
+		return;
+	}
+
+	const changed = clearSelection();
+	if (!changed) return;
+
+	clearSelectionPanels();
 }
 
-export function removeFile(index: number): void {
+export async function removeFile(index: number): Promise<void> {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
 	if (!fileList || index < 0 || index >= fileList.files.length) {
@@ -159,14 +207,11 @@ export function removeFile(index: number): void {
 
 	const removedFile = fileList.files[index];
 	removeMetadataForFile(removedFile.path);
-	removeImportOrdinal(removedFile.path);
-	removeFileListCoverThumbnail(removedFile.path);
 	void purgeRemoteSourceSessionsForInputIds([removedFile.inputId]);
 
 	const nextFiles = [...fileList.files];
 	nextFiles.splice(index, 1);
-	replaceFileListFiles(nextFiles);
-	recalculateTotals();
+	replaceCurrentFileListFiles(nextFiles);
 
 	reindexSelectionAfterRemoval(index);
 
@@ -180,57 +225,6 @@ export function removeFile(index: number): void {
 	}
 
 	refreshOutputForFileListChange();
-}
-
-/**
- * Prepare (may await) → revalidate → sync commit → revalidate.
- * Returns false if validation failed or the list/lock drifted.
- */
-async function prepareRevalidateCommitMetadata(options: {
-	validationFailureMessage: string;
-}): Promise<boolean> {
-	const mutationSnapshot = captureFileListMutationSnapshot();
-	const prepared = await prepareMetadataDraftsForCurrentSelection({
-		validationFailureMessage: options.validationFailureMessage,
-	});
-	if (!prepared.ok) {
-		return false;
-	}
-	if (!canCommitFileListMutation(mutationSnapshot)) {
-		return false;
-	}
-	if (!commitPreparedMetadataDrafts(prepared.prepared)) {
-		return false;
-	}
-	return canCommitFileListMutation(mutationSnapshot);
-}
-
-/** Removes the active selection after its current metadata draft has been staged. */
-export async function removeSelectedFiles(): Promise<void> {
-	if (isOrderLocked()) return;
-	const fileList = getCurrentFileList();
-	if (!fileList) return;
-
-	const selectedIdentityKeys = Array.from(getSelectedFileIndices())
-		.map((index) => fileList.files[index])
-		.filter((file): file is AudioFile => Boolean(file))
-		.map((file) => fileIdentityKey(file));
-	if (selectedIdentityKeys.length === 0) return;
-
-	if (
-		!(await prepareRevalidateCommitMetadata({
-			validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
-		}))
-	) {
-		return;
-	}
-
-	for (const identityKey of selectedIdentityKeys) {
-		const index = findFileIndexByIdentityKey(identityKey);
-		if (index >= 0) {
-			removeFile(index);
-		}
-	}
 }
 
 export function recalculateTotals(): void {
@@ -258,15 +252,13 @@ export function moveFileUp(index: number): void {
 	const temp = nextFiles[index];
 	nextFiles[index] = nextFiles[index - 1];
 	nextFiles[index - 1] = temp;
-	replaceFileListFiles(nextFiles);
-	recalculateTotals();
-	setSortDirection('none');
+	replaceCurrentFileListFiles(nextFiles);
 
 	swapSelectionIndices(index, index - 1);
 
 	refreshOutputForFileListChange();
 
-	void coordinateMetadataSurfacePresentationRefresh();
+	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export function moveFileDown(index: number): void {
@@ -280,15 +272,13 @@ export function moveFileDown(index: number): void {
 	const temp = nextFiles[index];
 	nextFiles[index] = nextFiles[index + 1];
 	nextFiles[index + 1] = temp;
-	replaceFileListFiles(nextFiles);
-	recalculateTotals();
-	setSortDirection('none');
+	replaceCurrentFileListFiles(nextFiles);
 
 	swapSelectionIndices(index, index + 1);
 
 	refreshOutputForFileListChange();
 
-	void coordinateMetadataSurfacePresentationRefresh();
+	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export async function toggleFileSort(): Promise<void> {
@@ -296,50 +286,40 @@ export async function toggleFileSort(): Promise<void> {
 	const initialList = getCurrentFileList();
 	if (!initialList || initialList.files.length <= 1) return;
 
-	const selectedPaths = new Set(
-		Array.from(getSelectedFileIndices())
-			.map((index) => initialList.files[index]?.path)
-			.filter((path): path is string => Boolean(path)),
-	);
-	const selectedPath = initialList.files[getSelectedFileIndex()]?.path;
-
-	if (
-		!(await prepareRevalidateCommitMetadata({
-			validationFailureMessage: 'Fix metadata validation errors before sorting files.',
-		}))
-	) {
+	const prepared = await prepareMetadataDraftsForCurrentSelection({
+		validationFailureMessage: 'Fix metadata validation errors before sorting files.',
+	});
+	if (!prepared.ok) {
 		return;
 	}
-
+	if (getCurrentFileList() !== initialList || isOrderLocked()) {
+		return;
+	}
+	if (!commitPreparedMetadataDrafts(prepared.prepared)) {
+		return;
+	}
 	const fileList = getCurrentFileList();
-	if (!fileList || fileList.files.length <= 1) return;
+	if (fileList !== initialList || isOrderLocked()) return;
 
-	const nextSortDirection = getSortDirection() === 'ascending' ? 'descending' : 'ascending';
-	setSortDirection(nextSortDirection);
+	setSortAscending(!getSortAscending());
 
 	const nextFiles = [...fileList.files];
-	// Sort by filename with numeric ordering ("2 -" before "10 -") — the queue's
-	// visible identity. Metadata titles must never decide processing order.
 	nextFiles.sort((a, b) => {
 		const nameA = pathBasename(a.path, { fallback: 'path' });
 		const nameB = pathBasename(b.path, { fallback: 'path' });
-		const comparison = nameA.localeCompare(nameB, undefined, {
-			numeric: true,
-			sensitivity: 'base',
-		});
-		return nextSortDirection === 'ascending' ? comparison : -comparison;
-	});
-	replaceFileListFiles(nextFiles);
-	recalculateTotals();
 
-	setSelectedFileIndices(
-		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
-	);
-	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
+		if (getSortAscending()) {
+			return nameA.localeCompare(nameB);
+		}
+		return nameB.localeCompare(nameA);
+	});
+	replaceCurrentFileListFiles(nextFiles);
+
+	clearSelection();
+	setSelectedIndex(-1);
+	clearSelectionPanels();
 
 	refreshOutputForFileListChange();
-
-	void coordinateMetadataSurfacePresentationRefresh();
 }
 
 export function clearAllFiles(): void {
@@ -349,11 +329,16 @@ export function clearAllFiles(): void {
 	const inputIds = fileList.files.map((file) => file.inputId);
 
 	clearMetadataSession();
-	resetImportOrder([]);
-	replaceFileListFiles([]);
-	recalculateTotals();
+	fileListSessionState.currentFileList = {
+		...fileList,
+		files: [],
+		validCount: 0,
+		invalidCount: 0,
+		totalDuration: 0,
+		totalSize: 0,
+	};
 
-	applySelectionIntentToState({ type: 'clear' });
+	clearSelection();
 	setSelectedIndex(-1);
 	clearSelectionPanels();
 	refreshOutputForFileListChange();
@@ -372,60 +357,11 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	const nextFiles = [...fileList.files];
 	const [moved] = nextFiles.splice(fromIndex, 1);
 	nextFiles.splice(toIndex, 0, moved);
-	replaceFileListFiles(nextFiles);
-	recalculateTotals();
-	setSortDirection('none');
+	replaceCurrentFileListFiles(nextFiles);
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
 
 	refreshOutputForFileListChange();
 
-	void coordinateMetadataSurfacePresentationRefresh();
-}
-
-/**
- * Restores the queue to import (arrival) order — the one-click inverse of
- * filename ordering and manual drags. No-op when any file lacks an ordinal
- * (lists seeded outside display/append flows).
- */
-export async function restoreImportOrder(): Promise<void> {
-	if (isOrderLocked()) return;
-	const initialList = getCurrentFileList();
-	if (!initialList || initialList.files.length <= 1) return;
-	if (initialList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
-
-	const selectedPaths = new Set(
-		Array.from(getSelectedFileIndices())
-			.map((index) => initialList.files[index]?.path)
-			.filter((path): path is string => Boolean(path)),
-	);
-	const selectedPath = initialList.files[getSelectedFileIndex()]?.path;
-
-	if (
-		!(await prepareRevalidateCommitMetadata({
-			validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
-		}))
-	) {
-		return;
-	}
-
-	const fileList = getCurrentFileList();
-	if (!fileList || fileList.files.length <= 1) return;
-	if (fileList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
-
-	const nextFiles = [...fileList.files].sort(
-		(a, b) => (getImportOrdinal(a.path) ?? 0) - (getImportOrdinal(b.path) ?? 0),
-	);
-	replaceFileListFiles(nextFiles);
-	recalculateTotals();
-	setSortDirection('none');
-
-	setSelectedFileIndices(
-		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
-	);
-	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
-
-	refreshOutputForFileListChange();
-
-	void coordinateMetadataSurfacePresentationRefresh();
+	refreshSelectionPresentation(getSelectedFiles());
 }

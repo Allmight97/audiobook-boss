@@ -5,41 +5,31 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import * as statusPanel from '..';
 
 const EXPECTED_STATUS_PANEL_EXPORTS = [
-	'StatusTransportIsland',
-	'clearStatusPanelRetainedFeedback',
+	'StatusPanelIsland',
 	'initStatusPanel',
 	'isStatusPanelProcessing',
 	'pushStatusPanelTransientStatus',
 	'triggerCancelAllFromStatusPanel',
 	'triggerProcessFromStatusPanel',
-	'readStatusTransportProcessing',
+	'updateStatusPanelConcurrencyStatus',
 ] as const;
 
 describe('Status Panel Runtime public API contract', () => {
 	beforeEach(() => {
 		document.body.innerHTML = '';
+		statusPanel.updateStatusPanelConcurrencyStatus('');
 	});
 
 	it('pins the status panel public export strip', () => {
 		expect(Object.keys(statusPanel).sort()).toEqual([...EXPECTED_STATUS_PANEL_EXPORTS].sort());
 	});
 
-	it('renders the foreground transport through the public runtime API', async () => {
-		const { container } = render(statusPanel.StatusTransportIsland);
+	it('updates visible concurrency status through the public runtime API', async () => {
+		const { container } = render(statusPanel.StatusPanelIsland);
+
+		statusPanel.updateStatusPanelConcurrencyStatus('Max jobs: 4');
 		await tick();
 
-		expect(container.querySelector('[aria-label="Preview transport"]')).toBeTruthy();
-	});
-
-	it('reads live foreground processing without counting persistent feedback', async () => {
-		const { statusPanelViewState, resetStatusPanelViewState } = await import('../viewState.svelte');
-		resetStatusPanelViewState();
-		expect(statusPanel.readStatusTransportProcessing()).toBe(false);
-		statusPanelViewState.isProcessing = true;
-		expect(statusPanel.readStatusTransportProcessing()).toBe(true);
-		statusPanelViewState.isProcessing = false;
-		// Persistent feedback must NOT outrank a live background operation.
-		statusPanelViewState.stepColor = 'var(--text-error)';
-		expect(statusPanel.readStatusTransportProcessing()).toBe(false);
+		expect(container.querySelector('#concurrency-status')?.textContent).toContain('Max jobs: 4');
 	});
 });

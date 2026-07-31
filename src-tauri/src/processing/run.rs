@@ -1,5 +1,5 @@
 use crate::audio::validate_encoder_settings;
-use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
+use crate::errors::Result;
 use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
 use crate::processing::{JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
@@ -34,51 +34,6 @@ pub(crate) async fn process_payload(
 }
 
 pub(crate) async fn process_payload_with_options(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    let result = dispatch_payload(
-        window,
-        registry,
-        workspace_root,
-        payload,
-        metadata,
-        preview_seconds,
-        options,
-    )
-    .await;
-    if let Some(record) = result
-        .as_ref()
-        .err()
-        .and_then(processing_request_rejected_record)
-    {
-        log::error!("{record}");
-    }
-    result
-}
-
-/// Stable dev-log diagnostic for processing requests that terminate as an
-/// error before any job lifecycle exists (validation, planning, registration).
-/// Counted by `scripts/dev-log-analysis.ts` via its generic ERROR counter;
-/// cancellations are excluded so a user cancel cannot degrade a session.
-fn processing_request_rejected_record(error: &AppError) -> Option<String> {
-    let envelope = AppErrorEnvelope::from(error);
-    if envelope.category == AppErrorCategory::Cancellation {
-        return None;
-    }
-    Some(format!(
-        "processing_request event=rejected code={} category={}",
-        envelope.code.log_label(),
-        envelope.category.log_label(),
-    ))
-}
-
-async fn dispatch_payload(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
@@ -134,15 +89,13 @@ pub(crate) fn preflight_payload(
 #[cfg(test)]
 mod tests {
     use super::run_job::{
-        commit_supplemental_assets, register_job_and_validate_output,
-        supplemental_assets_for_input, ProcessingJobLogContext,
+        commit_supplemental_assets, register_job_and_validate_output, supplemental_assets_for_input,
     };
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
     use crate::output_artifact::OutputKind;
     use crate::processing::terminal_outcomes::{
         classify_processing_error, ProcessingJobTerminalOutcome,
     };
-    use crate::processing::OperationKind;
     use crate::processing::{JobType, ProcessPayload, SupplementalProcessingAsset};
     use std::collections::HashMap;
     use tempfile::TempDir;
@@ -190,111 +143,13 @@ mod tests {
         }
     }
 
-    fn batch_log_context() -> ProcessingJobLogContext {
-        ProcessingJobLogContext {
-            operation_id: None,
-            input_index: None,
-            operation_kind: OperationKind::ProcessingBatch,
-        }
-    }
-
-    /// Captures lifecycle records emitted through `log` so tests can assert
-    /// terminal truth. Installable once per process; safe under Nextest's
-    /// process-per-test execution.
-    struct CapturingLogger {
-        records: std::sync::Mutex<Vec<String>>,
-    }
-
-    impl log::Log for CapturingLogger {
-        fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
-            true
-        }
-
-        fn log(&self, record: &log::Record<'_>) {
-            self.records
-                .lock()
-                .expect("capturing logger lock")
-                .push(record.args().to_string());
-        }
-
-        fn flush(&self) {}
-    }
-
-    static CAPTURING_LOGGER: CapturingLogger = CapturingLogger {
-        records: std::sync::Mutex::new(Vec::new()),
-    };
-
-    #[tokio::test]
-    async fn failed_output_validation_emits_started_and_failed_terminal_records() {
-        log::set_logger(&CAPTURING_LOGGER).expect("install capturing logger");
-        log::set_max_level(log::LevelFilter::Info);
-        let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(2));
-        let temp_dir = TempDir::new().expect("create temp dir");
-        let invalid_output = temp_dir.path().join("output.mp3");
-
-        if register_job_and_validate_output(&registry, &invalid_output, None, batch_log_context())
-            .await
-            .is_ok()
-        {
-            panic!("invalid extension should fail validation");
-        }
-
-        let records = CAPTURING_LOGGER
-            .records
-            .lock()
-            .expect("capturing logger lock")
-            .clone();
-        let started: Vec<&String> = records
-            .iter()
-            .filter(|record| record.contains("processing_job event=started"))
-            .collect();
-        let terminal: Vec<&String> = records
-            .iter()
-            .filter(|record| record.contains("processing_job event=terminal"))
-            .collect();
-        assert_eq!(started.len(), 1, "records: {records:?}");
-        assert_eq!(terminal.len(), 1, "records: {records:?}");
-        assert!(
-            terminal[0].contains("status=failed")
-                && terminal[0].contains("elapsed_ms=")
-                && terminal[0].contains("code=invalid_input")
-                && terminal[0].contains("category=validation"),
-            "unexpected terminal record: {}",
-            terminal[0]
-        );
-    }
-
-    #[test]
-    fn processing_request_rejected_record_pins_format_and_skips_cancellation() {
-        assert_eq!(
-            super::processing_request_rejected_record(&crate::errors::AppError::FileValidation(
-                "bad output".to_string(),
-            ))
-            .as_deref(),
-            Some(
-                "processing_request event=rejected code=file_validation_failed category=validation"
-            )
-        );
-        assert_eq!(
-            super::processing_request_rejected_record(&crate::errors::AppError::cancelled()),
-            None
-        );
-    }
-
     #[tokio::test]
     async fn register_job_and_validate_output_cleans_up_failed_validation() {
         let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(2));
         let temp_dir = TempDir::new().expect("create temp dir");
         let invalid_output = temp_dir.path().join("output.mp3");
 
-        let error = match register_job_and_validate_output(
-            &registry,
-            &invalid_output,
-            None,
-            batch_log_context(),
-        )
-        .await
-        {
+        let error = match register_job_and_validate_output(&registry, &invalid_output, None).await {
             Ok(_) => panic!("invalid extension should fail validation"),
             Err(error) => error,
         };

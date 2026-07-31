@@ -9,8 +9,7 @@
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
   `ProgressEvent`, `QueueEvent`, `QueueItem`, `JobId`, `CancellationChecker`.
   Functions/helpers: `emit_progress_event`, `emit_queue_event`,
-  `ProgressEmitter`, `operation_kind_log_label` (stable dev-log label parsed
-  by `scripts/dev-log-analysis.ts`).
+  `ProgressEmitter`.
 - Pure lifecycle/terminal summary classification that has no runtime/media
   dependency is packaged in `abb-processing-core`.
 - Processing may consume `crate::output_artifact` types in payloads and plans;

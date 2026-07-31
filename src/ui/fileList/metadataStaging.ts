@@ -34,7 +34,7 @@ export type PreparedMetadataDraft =
 			kind: 'multi';
 			files: AudioFile[];
 			intentPatch: MetadataIntentPatch;
-			/** Fresh reads to cache only at commit time (after FileList revalidation). */
+			/** Fresh reads to cache only at commit time, after FileList revalidation. */
 			pendingCacheByPath: Record<string, Partial<AudiobookMetadata>>;
 	  };
 
@@ -42,12 +42,10 @@ export type PrepareMetadataDraftsResult =
 	| { ok: true; prepared: PreparedMetadataDraft }
 	| { ok: false };
 
-async function readMetadataSnapshot(
-	file: AudioFile,
-): Promise<Partial<AudiobookMetadata> | null> {
+async function readMetadataSnapshot(file: AudioFile): Promise<Partial<AudiobookMetadata> | null> {
 	if (!file.isValid) return null;
 	const existing = getMetadataForFile(file.path);
-	if (isUsableMetadataCache(existing)) return null; // already cached; nothing pending
+	if (isUsableMetadataCache(existing)) return null;
 	try {
 		return await tauriClient.readAudioMetadata(file.path);
 	} catch (error) {
@@ -56,7 +54,9 @@ async function readMetadataSnapshot(
 	}
 }
 
-async function prepareSingleSelectionMetadata(file: AudioFile | null): Promise<PrepareMetadataDraftsResult> {
+async function prepareSingleSelectionMetadata(
+	file: AudioFile | null,
+): Promise<PrepareMetadataDraftsResult> {
 	if (!file?.isValid) return { ok: true, prepared: { kind: 'none' } };
 	if (!hasDirtyMetadataFields()) return { ok: true, prepared: { kind: 'none' } };
 
@@ -100,7 +100,7 @@ async function prepareMultiSelectionMetadata(options?: {
 		return { ok: false };
 	}
 
-	// Await reads only — do not touch the session cache until commit (post-revalidate).
+	// Await reads only. Cache and intent writes wait for the caller's post-await revalidation.
 	const pendingCacheByPath: Record<string, Partial<AudiobookMetadata>> = {};
 	await Promise.all(
 		selectedFiles.map(async (file) => {
@@ -122,7 +122,7 @@ async function prepareMultiSelectionMetadata(options?: {
 	};
 }
 
-/** Sync metadata commit only — no awaits. Callers revalidate revision before/after. */
+/** Synchronous metadata commit. Callers with an async mutation window revalidate first. */
 export function commitPreparedMetadataDrafts(prepared: PreparedMetadataDraft): boolean {
 	if (prepared.kind === 'none') {
 		return true;
@@ -216,8 +216,17 @@ export async function persistPendingMetadataDraftsForCurrentSelection(options?: 
 }
 
 export async function preserveMetadataDraftsBeforeSelectionChange(options?: {
+	skipSingleSelection?: boolean;
 	validationFailureMessage?: string;
 }): Promise<boolean> {
+	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
+	if (selectedFiles.length === 0) {
+		return true;
+	}
+	if (options?.skipSingleSelection && selectedFiles.length === 1) {
+		return true;
+	}
+
 	const prepared = await prepareMetadataDraftsForCurrentSelection(options);
 	if (!prepared.ok) {
 		return false;

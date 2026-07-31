@@ -7,7 +7,6 @@ import {
 	refreshCoverArtDisplay,
 	setCustomCoverArt,
 } from '../coverArt';
-import { coverArtUiState } from '../coverArt/state.svelte';
 import { jobControlsState } from '../jobControls/state.svelte';
 import {
 	setCurrentFileList,
@@ -73,18 +72,6 @@ describe('coverArt owner integration', () => {
 		expect(getMetadataIntentPatchForFile('/books/b.m4b')?.cover_art).toBeUndefined();
 		expect(getCurrentCoverArt()).toBeNull();
 		expect(getHasCustomCoverArt()).toBe(false);
-	});
-
-	it('surfaces a status message when the batch multi-select gate reverts a cover commit', () => {
-		setSelectedFileIndices([0, 1]);
-		setSelectedIndex(0);
-
-		setCustomCoverArt([7, 8, 9]);
-
-		expect(coverArtUiState.message).toEqual({
-			kind: 'error',
-			text: 'Select exactly one file to set its cover.',
-		});
 	});
 
 	it('commits merge cover art to the first valid file regardless of selection', () => {

@@ -9,8 +9,6 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
   plus the test-only write-plan contract helper `plan_metadata_write`.
-- Thumbnail symbol: `read_audio_cover_thumbnail` (reads embedded art without adapting metadata
-  intent; re-exported at the crate root for the media-execution integration proof).
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
   `finalize_artifact_metadata` (all also re-exported at the crate root for
   external integration tests, e.g. the media-execution lane's tag round-trip
@@ -22,9 +20,6 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   silently drops dict keys outside its known-atom table (series, series-part,
   freeform mirrors, sort_album), so MP4-family tag truth must not depend on a
   bare remux.
-- Analysis display-tag symbol: `display_tags_from_ffmpeg_dict` reads title and
-  artist from an already-open FFmpeg dictionary. Audio analysis uses this
-  narrow surface rather than reader internals or a second file open.
 - Passthrough symbols: `PassthroughSource`, `PassthroughMetadata`,
   `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
   `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`

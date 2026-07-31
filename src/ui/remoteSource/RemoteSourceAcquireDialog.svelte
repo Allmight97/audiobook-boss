@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { tauriClient } from '../../lib/tauri/client';
-	import { ModalController } from '../../lib/ui/modal.svelte';
 	import { closeRemoteSourceAcquire, remoteSourceAcquireState } from './state.svelte';
 
 	// provider-neutral state shape (owned by acquisitionState.svelte.ts)
@@ -77,18 +76,6 @@
 
 	// -- modal lifecycle --
 
-	let dialogEl = $state<HTMLElement | null>(null);
-	const modal = new ModalController();
-
-	$effect(() => {
-		modal.sync(
-			remoteSourceAcquireState.isOpen,
-			{ container: dialogEl },
-			{ onEscape: closeRemoteSourceAcquire },
-		);
-	});
-	onDestroy(() => modal.destroy());
-
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
 			closeRemoteSourceAcquire();
@@ -135,23 +122,18 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="remote-source-title"
-		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="remote-source-title">Acquire Audiobooks</h3>
 			<div class="remote-source-header-actions">
 				{#if acquisition.accountState?.status === 'connected'}
-					<button
-						class="pill pill-ghost pill-sm"
-						disabled={acquisition.isBusy}
-						onclick={() => void account.logout()}
-					>
+					<button class="btn-pill btn-pill-secondary" disabled={acquisition.isBusy} onclick={() => void account.logout()}>
 						Logout
 					</button>
 				{/if}
 				<button
 					id="remote-source-close"
-					class="pill pill-ghost pill-sm"
+					class="btn-pill btn-pill-secondary"
 					type="button"
 					onclick={closeRemoteSourceAcquire}
 				>
@@ -162,7 +144,7 @@
 
 		<div class="app-modal-body">
 			<div class="app-modal-controls">
-				<div class="app-modal-field field">
+				<div class="app-modal-field">
 					<label for="remote-source-provider">Source</label>
 					<select id="remote-source-provider" disabled>
 						<option>Audible</option>
@@ -171,15 +153,11 @@
 
 				{#if acquisition.accountState?.status !== 'connected'}
 					<div class="app-modal-field app-modal-field-button">
-						<button
-							class="pill pill-primary pill-sm"
-							disabled={acquisition.isBusy}
-							onclick={() => void account.startAuth()}
-						>
+						<button class="btn-pill btn-pill-primary" disabled={acquisition.isBusy} onclick={() => void account.startAuth()}>
 							Connect Audible
 						</button>
 					</div>
-					<div class="app-modal-field field remote-source-handoff">
+					<div class="app-modal-field remote-source-handoff">
 						<label for="remote-source-handoff">Auth Handoff</label>
 						<input
 							id="remote-source-handoff"
@@ -189,34 +167,26 @@
 						/>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button
-							class="pill pill-ghost pill-sm"
-							disabled={acquisition.isBusy}
-							onclick={() => void account.completeAuth()}
-						>
+						<button class="btn-pill btn-pill-secondary" disabled={acquisition.isBusy} onclick={() => void account.completeAuth()}>
 							Complete Auth
 						</button>
 					</div>
 				{:else}
 					<div class="app-modal-field app-modal-field-button">
-						<button
-						class="pill pill-ghost pill-sm"
-							disabled={acquisition.isBusy}
-							onclick={() => void account.loadLibrary()}
-						>
+						<button class="btn-pill btn-pill-secondary" disabled={acquisition.isBusy} onclick={() => void account.loadLibrary()}>
 							Refresh Library
 						</button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
 						<button
-						class="pill pill-primary pill-sm"
+							class="btn-pill btn-pill-primary"
 							disabled={acquisition.isBusy || acquisition.selectedTitleIds.size === 0}
 							onclick={() => void workflow.acquireSelected()}
 						>
 							Acquire Selected
 						</button>
 					</div>
-					<div class="app-modal-field field remote-source-filter">
+					<div class="app-modal-field remote-source-filter">
 						<label for="remote-source-filter">Filter</label>
 						<input
 							id="remote-source-filter"
@@ -245,7 +215,7 @@
 			{/if}
 
 			{#if acquisition.accountState?.status === 'connected'}
-				<div class="remote-selection-summary app-modal-status" aria-live="polite">
+				<div class="remote-selection-summary" aria-live="polite">
 					<span>{selectedSummaryText()}</span>
 					{#if acquisition.selectedTitleIds.size > 0}
 						<button
@@ -281,7 +251,7 @@
 					{/if}
 					{#if !isAcquisitionTerminal(acquisition.activeJob)}
 						<button
-							class="pill pill-ghost pill-sm remote-progress-cancel"
+							class="btn-pill btn-pill-secondary remote-progress-cancel"
 							type="button"
 							onclick={() => void workflow.cancelActiveAcquisition()}
 						>
@@ -340,9 +310,7 @@
 								<span class="remote-title-name">{title.title}</span>
 								<span class="remote-title-meta">{title.authors.join(', ')}</span>
 								{#if !isTitleAcquirable(title)}
-									<span class="remote-title-availability app-badge app-badge-warn"
-										>{titleAvailability(title).label}</span
-									>
+									<span class="remote-title-availability">{titleAvailability(title).label}</span>
 									{#if titleAvailability(title).detail}
 										<span class="remote-title-availability-detail">{titleAvailability(title).detail}</span>
 									{/if}
@@ -374,7 +342,7 @@
 
 	.remote-source-header-actions {
 		display: flex;
-		gap: var(--space-2);
+		gap: 0.5rem;
 	}
 
 	.remote-source-filter,
@@ -386,10 +354,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-3);
+		gap: 0.75rem;
 		min-height: 1.5rem;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: 0.75rem;
 	}
 
 	.remote-clear-selection {
@@ -410,21 +378,21 @@
 	.remote-progress {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		gap: 0.25rem;
 	}
 
 	.remote-progress-copy {
 		display: flex;
 		justify-content: space-between;
-		gap: var(--space-3);
+		gap: 0.75rem;
 		color: var(--text-primary);
-		font-size: var(--text-sm);
+		font-size: 0.75rem;
 	}
 
 	.remote-progress-bytes {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: 0.7rem;
 	}
 
 	.remote-progress-cancel {
@@ -440,7 +408,7 @@
 	.remote-title-row {
 		display: flex;
 		align-items: center;
-		gap: var(--density-pad);
+		gap: 0.75rem;
 		border-bottom: 1px solid var(--border-primary);
 	}
 
@@ -458,7 +426,7 @@
 
 	.remote-title-cover {
 		flex: 0 0 var(--cover-thumb-size);
-		margin-left: var(--density-pad);
+		margin-left: 0.75rem;
 	}
 
 	.remote-title-button {
@@ -466,8 +434,8 @@
 		min-width: 0;
 		flex: 1;
 		flex-direction: column;
-		gap: calc(var(--space-1) / 2);
-		padding: var(--density-pad) var(--density-pad) var(--density-pad) 0;
+		gap: 0.125rem;
+		padding: 0.65rem 0.75rem 0.65rem 0;
 		border: 0;
 		background: transparent;
 		color: inherit;
@@ -489,7 +457,7 @@
 	}
 
 	.remote-title-name {
-		font-size: var(--text-md);
+		font-size: 0.85rem;
 		font-weight: 600;
 	}
 
@@ -498,19 +466,19 @@
 	.remote-title-availability,
 	.remote-title-availability-detail {
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: 0.75rem;
 	}
 
 	.remote-title-availability {
 		font-weight: 600;
-		align-self: flex-start;
+		color: var(--text-secondary);
 	}
 
 	.remote-pdf-toggle {
 		display: flex;
 		align-items: center;
-		gap: var(--space-1);
-		padding-right: var(--density-pad);
+		gap: 0.25rem;
+		padding-right: 0.75rem;
 		white-space: nowrap;
 	}
 

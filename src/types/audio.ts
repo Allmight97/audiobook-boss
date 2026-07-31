@@ -2,7 +2,6 @@
 import type {
 	BitrateMode as GeneratedBitrateMode,
 	ChannelConfig as GeneratedChannelConfig,
-	AudioChapter as GeneratedAudioChapter,
 	AudioFile as GeneratedAudioFile,
 	CollisionPolicy as GeneratedCollisionPolicy,
 	DecoderSelection as GeneratedDecoderSelection,
@@ -37,10 +36,8 @@ import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 type GeneratedAudioFileUi = NullToOptionalDeep<GeneratedAudioFile>;
-export type AudioChapter = NullToOptionalDeep<GeneratedAudioChapter>;
-export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId' | 'chapters'> & {
+export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId'> & {
 	inputId?: string;
-	chapters?: AudioChapter[];
 };
 export type DecoderSelection = NullToOptionalDeep<GeneratedDecoderSelection>;
 

@@ -17,8 +17,15 @@
 		}
 	}
 
-	function chooseCoverArt(): void {
+	function handleAreaClick(): void {
 		onLoadFromFile?.();
+	}
+
+	function handleAreaKeyDown(event: KeyboardEvent): void {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			onLoadFromFile?.();
+		}
 	}
 
 	function handleClearButtonClick(event: MouseEvent): void {
@@ -89,7 +96,6 @@
 
 <div class="col-span-1 flex flex-col items-center">
   <span class="text-xs font-medium mb-1">Cover Art</span>
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     id="cover-art-area"
     class="cover-art-area mb-1"
@@ -97,6 +103,10 @@
     class:loading={coverArtUiState.isLoading}
     class:drag-over={coverArtUiState.isDragOver}
     data-testid="cover-art-area"
+    role="button"
+    tabindex="0"
+    onclick={handleAreaClick}
+    onkeydown={handleAreaKeyDown}
     onmouseenter={handleMouseEnter}
     onmouseleave={handleMouseLeave}
     ondragover={handleDragOver}
@@ -111,24 +121,10 @@
       id="cover-art-img"
       class:hidden={!coverArtUiState.imageDataUrl}
     />
-    <button
-      type="button"
-      class="cover-art-choose-btn"
-      aria-label="Choose cover art"
-      onclick={chooseCoverArt}
-    ></button>
     <div class="cover-art-loading" id="cover-art-loading">Loading...</div>
-    {#if coverArtUiState.imageDataUrl}
-      <button
-        type="button"
-        class="cover-art-clear-btn"
-        id="cover-art-clear-btn"
-        aria-label="Remove cover art"
-        onclick={handleClearButtonClick}
-      >
-        ✕
-      </button>
-    {/if}
+    <button class="cover-art-clear-btn" id="cover-art-clear-btn" onclick={handleClearButtonClick}>
+      ✕
+    </button>
   </div>
   <div class="cover-art-url-row">
     <input
@@ -193,24 +189,6 @@
 		object-fit: cover;
 	}
 
-	.cover-art-choose-btn {
-		position: absolute;
-		inset: 0;
-		z-index: 2;
-		width: 100%;
-		height: 100%;
-		padding: 0;
-		border: 0;
-		border-radius: inherit;
-		background: transparent;
-		cursor: pointer;
-	}
-
-	.cover-art-choose-btn:focus-visible {
-		outline: 2px solid var(--border-focus);
-		outline-offset: -4px;
-	}
-
 	.cover-art-area .placeholder-text {
 		position: absolute;
 		top: 50%;
@@ -247,7 +225,7 @@
 		top: 6px;
 		right: 6px;
 		z-index: 2;
-		display: flex;
+		display: none;
 		align-items: center;
 		justify-content: center;
 		width: 28px;
@@ -259,21 +237,11 @@
 		color: #ffffff;
 		font-size: 14px;
 		line-height: 1;
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 0.2s ease-in-out;
 	}
 
 	.cover-art-area.has-image:hover .cover-art-clear-btn,
-	.cover-art-area.has-image:focus-within .cover-art-clear-btn,
 	.cover-art-area.has-image .cover-art-clear-btn:focus-visible {
-		opacity: 1;
-		pointer-events: auto;
-	}
-
-	.cover-art-clear-btn:focus-visible {
-		outline: 2px solid var(--border-focus);
-		outline-offset: 2px;
+		display: flex;
 	}
 
 	.cover-art-url-row {

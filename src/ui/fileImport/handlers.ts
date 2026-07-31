@@ -51,7 +51,7 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 		payload: { position: { x: number; y: number }; paths: string[] };
 	}) => {
 		setFileImportDragOver(false);
-		if (!isFileDropEvent(event.payload) || event.payload.paths.length === 0) {
+		if (!isFileDropEvent(event.payload)) {
 			return;
 		}
 
@@ -81,13 +81,8 @@ export function attachTauriDragHandlers(context: DragDropContext): Unlisten {
 
 	void subscriptions.add(tauriClient.listen('tauri://drag-drop', dragDropHandler));
 	void subscriptions.add(
-		tauriClient.listen('tauri://drag-enter', (event: { payload: unknown }) => {
-			// wry emits drag-enter for ANY native drag session. Only drags that
-			// actually carry file paths are import ingress; anything else must not
-			// flash the import overlay.
-			if (isFileDropEvent(event.payload) && event.payload.paths.length > 0) {
-				setFileImportDragOver(true);
-			}
+		tauriClient.listen('tauri://drag-enter', () => {
+			setFileImportDragOver(true);
 		}),
 	);
 	void subscriptions.add(
