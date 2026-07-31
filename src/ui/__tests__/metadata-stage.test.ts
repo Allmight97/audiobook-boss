@@ -29,6 +29,7 @@ const context = vi.hoisted(() => ({
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
+		readAudioMetadata: vi.fn(async () => ({})),
 		saveMetadataBatch: vi.fn(),
 		listen: vi.fn(async () => () => {}),
 	},

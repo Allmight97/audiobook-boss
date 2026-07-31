@@ -25,6 +25,7 @@ vi.mock('../../metadataForm', () => ({
 vi.mock('../../metadataSession', () => ({
 	clearMetadataSession: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
+	isUsableMetadataCache: vi.fn(() => true),
 	cacheMetadataForFile: vi.fn(),
 	removeMetadataForFile: vi.fn(),
 	stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
