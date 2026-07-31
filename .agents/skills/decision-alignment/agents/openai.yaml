@@ -1,4 +1,0 @@
-interface:
-  display_name: "Decision Alignment"
-  short_description: "Align ABB decisions; default capture is GitHub issues"
-  default_prompt: "Use $decision-alignment to align this ABB decision to current repo truth and capture to a GitHub issue when substantial."

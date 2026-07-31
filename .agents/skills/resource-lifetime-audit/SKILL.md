@@ -1,6 +1,6 @@
 ---
 name: resource-lifetime-audit
-description: Audit and fix Audiobook Boss resource-lifetime foot-guns with high bug potential. Use when the user asks to hunt for lifecycle bugs, file-handle contention, Windows/cross-platform file behavior, temp-file cleanup, process lifetime, FFmpeg/mp4ameta reopen issues, rename/replace semantics, or "similar in-kind" high-ROI issues.
+description: Read-only audit for Audiobook Boss resource-lifetime foot-guns with high bug potential. Use when reviewing or planning ABB changes across file handles, external processes, temp artifacts, replacement, cleanup ownership, validation-to-write, or FFmpeg/mp4ameta reopen boundaries, and when the user asks to hunt for lifecycle or cross-platform hazards. Apply fixes only with explicit implementation authority.
 ---
 
 # Resource Lifetime Audit
@@ -27,6 +27,24 @@ For each candidate, ask:
 3. Does this rely on macOS/POSIX behavior that may fail on Windows?
 4. Would a failure cause false success, file loss, residue, stuck jobs, or noisy retries?
 5. Is the fix local and testable?
+
+For cleanup candidates, trace exact path values through registration, removal,
+draining, overlapping guards, and startup or other backstop owners. Evaluate
+terminal classification separately from residue retry or recovery. A cleanup
+removal call is not proof of ownership: prove that the registered and removed
+values match and identify every remaining owner.
+
+Do not close a post-commit cleanup candidate until both questions are answered:
+
+1. If the durable operation succeeded and cleanup fails, what terminal outcome
+   reaches the caller or user?
+2. Which exact owner retains or reacquires the failed path for retry?
+
+A retry or startup backstop can limit residue without making a false terminal
+failure truthful.
+
+Before concluding that no retry owner remains, enumerate every caller of the
+transition and every guard that registered the same concrete resource value.
 
 ## Priority
 
