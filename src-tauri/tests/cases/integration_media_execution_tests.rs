@@ -2,7 +2,7 @@
 //!
 //! Smallest maintained real-media lane: every fixture is synthesized at test
 //! time (no committed media, no licensing exposure) — WAVs in pure Rust, MP3s
-//! via the linked FFmpeg's libmp3lame, M4Bs by reusing the engine's own
+//! via the environment's FFmpeg CLI, M4Bs by reusing the engine's own
 //! committed output as a second-pass input. Execution runs the in-process
 //! ffmpeg-next native path with a headless `ProcessingContext`.
 //!
@@ -700,79 +700,45 @@ async fn chapters_synthesize_on_merge_and_survive_reprocessing() {
     );
 }
 
-/// Synthesizes a mono sine MP3 at test time via the linked FFmpeg's
-/// `libmp3lame` encoder. MP3 cannot be fabricated by remuxing PCM, so this is
-/// the smallest honest fixture path. Panics loudly if `libmp3lame` is absent:
-/// both supported environments (local brew FFmpeg and the CI runner's brew
-/// FFmpeg) ship it, and a silent skip would be false green.
+/// Synthesizes a mono sine MP3 with the environment's FFmpeg CLI. Fixture
+/// generation stays independent of ABB's linked decoder/encoder feature set;
+/// the test below still exercises the real linked MP3 import path.
 fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
-    use ffmpeg_next as ff;
-
-    ff::init().expect("ffmpeg init");
-    let codec = ff::encoder::find_by_name("libmp3lame")
-        .expect("libmp3lame encoder must be available in the linked FFmpeg (brew ffmpeg ships it)")
-        .audio()
-        .expect("libmp3lame is an audio codec");
-
-    let mut octx = ff::format::output(&path).expect("create mp3 output context");
-    let mut stream = octx.add_stream(codec).expect("add mp3 stream");
-    let context = ff::codec::context::Context::from_parameters(stream.parameters())
-        .expect("encoder context from stream parameters");
-    let mut encoder = context.encoder().audio().expect("audio encoder");
-
-    let channel_layout = codec
-        .channel_layouts()
-        .map(|layouts| layouts.best(1))
-        .unwrap_or(ff::ChannelLayout::MONO);
-    let sample_format = ff::format::Sample::I16(ff::format::sample::Type::Planar);
-    encoder.set_rate(SAMPLE_RATE as i32);
-    encoder.set_channel_layout(channel_layout);
-    encoder.set_format(sample_format);
-    encoder.set_bit_rate(64_000);
-    encoder.set_time_base((1, SAMPLE_RATE as i32));
-    stream.set_time_base((1, SAMPLE_RATE as i32));
-
-    let mut encoder = encoder.open_as(codec).expect("open libmp3lame encoder");
-    stream.set_parameters(&encoder);
-    octx.write_header().expect("write mp3 header");
-    let out_time_base = octx.stream(0).expect("mp3 stream").time_base();
-
-    let frame_size = encoder.frame_size() as usize;
-    assert!(frame_size > 0, "libmp3lame reports a fixed frame size");
-    let total_samples = (seconds * f64::from(SAMPLE_RATE)) as usize;
-    let mut written = 0usize;
-    let receive_packets = |encoder: &mut ff::codec::encoder::Audio,
-                           octx: &mut ff::format::context::Output| {
-        let mut packet = ff::Packet::empty();
-        while encoder.receive_packet(&mut packet).is_ok() {
-            packet.set_stream(0);
-            packet.rescale_ts(ff::Rational(1, SAMPLE_RATE as i32), out_time_base);
-            packet.write_interleaved(octx).expect("write mp3 packet");
-        }
-    };
-
-    while written < total_samples {
-        let count = frame_size.min(total_samples - written);
-        let mut frame = ff::frame::Audio::new(sample_format, count, channel_layout);
-        frame.set_rate(SAMPLE_RATE);
-        frame.set_pts(Some(written as i64));
-        {
-            let plane = frame.plane_mut::<i16>(0);
-            for (offset, sample) in plane.iter_mut().enumerate().take(count) {
-                let t = (written + offset) as f64 / f64::from(SAMPLE_RATE);
-                *sample = (0.3
-                    * (2.0 * std::f64::consts::PI * freq_hz * t).sin()
-                    * f64::from(i16::MAX)) as i16;
-            }
-        }
-        encoder.send_frame(&frame).expect("send mp3 frame");
-        receive_packets(&mut encoder, &mut octx);
-        written += count;
-    }
-
-    encoder.send_eof().expect("flush mp3 encoder");
-    receive_packets(&mut encoder, &mut octx);
-    octx.write_trailer().expect("write mp3 trailer");
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let source = format!("sine=frequency={freq_hz}:sample_rate={SAMPLE_RATE}");
+    let duration = seconds.to_string();
+    let output = Command::new(&binary)
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            &source,
+            "-t",
+            &duration,
+            "-ac",
+            "1",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "64k",
+            "-y",
+        ])
+        .arg(path)
+        .output()
+        .unwrap_or_else(|error| {
+            panic!(
+                "ffmpeg must be on PATH or set via ABB_FFMPEG for MP3 fixture synthesis; spawning `{binary}` failed: {error}"
+            )
+        });
+    assert!(
+        output.status.success(),
+        "ffmpeg failed to synthesize {}: {}",
+        path.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 /// MP3 is the other common real input. The fixture is a genuine lame-encoded
