@@ -93,7 +93,7 @@ fn build_supplemental_pdf_get_request(
 fn supplemental_pdf_redirect_target(
     current_url: &reqwest::Url,
     location: Option<&HeaderValue>,
-    allow_insecure_for_test: bool,
+    transport_policy: SupplementalPdfTransportPolicy,
 ) -> std::result::Result<reqwest::Url, SupplementalPdfFailure> {
     let location = location.ok_or_else(|| SupplementalPdfFailure::new("missing_location", None))?;
     let location = location
@@ -102,10 +102,27 @@ fn supplemental_pdf_redirect_target(
     let next = current_url
         .join(location)
         .map_err(|_| SupplementalPdfFailure::new("invalid_location", None))?;
-    if !url_is_allowed(&next, allow_insecure_for_test) {
+    if !transport_policy.allows(&next) {
         return Err(SupplementalPdfFailure::new("redirect_non_https", None));
     }
     Ok(next)
+}
+
+#[derive(Clone, Copy)]
+enum SupplementalPdfTransportPolicy {
+    HttpsOnly,
+    #[cfg(test)]
+    HttpForTests,
+}
+
+impl SupplementalPdfTransportPolicy {
+    fn allows(self, url: &reqwest::Url) -> bool {
+        match self {
+            Self::HttpsOnly => url.scheme() == "https",
+            #[cfg(test)]
+            Self::HttpForTests => matches!(url.scheme(), "http" | "https"),
+        }
+    }
 }
 
 pub(super) struct SupplementalPdfRequest<'a> {
@@ -130,14 +147,21 @@ pub(super) async fn download_supplemental_pdf(
 ) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
     let client = no_redirect_client().map_err(|_| SupplementalPdfFailure::new("request", None))?;
     let url = companion_file_url(request.title_id)?;
-    download_supplemental_pdf_with_client(&client, request, url, false, is_cancelled).await
+    download_supplemental_pdf_with_client(
+        &client,
+        request,
+        url,
+        SupplementalPdfTransportPolicy::HttpsOnly,
+        is_cancelled,
+    )
+    .await
 }
 
 async fn download_supplemental_pdf_with_client(
     client: &reqwest::Client,
     request: SupplementalPdfRequest<'_>,
     start_url: reqwest::Url,
-    allow_insecure_for_test: bool,
+    transport_policy: SupplementalPdfTransportPolicy,
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<(SupplementalAsset, ProvisionalCommittedFile), SupplementalPdfFailure> {
     if is_cancelled() {
@@ -173,7 +197,7 @@ async fn download_supplemental_pdf_with_client(
         &cookie,
         log,
         start_url,
-        allow_insecure_for_test,
+        transport_policy,
         staged.partial_path(),
         is_cancelled,
     )
@@ -228,7 +252,7 @@ async fn fetch_pdf_to_partial(
     cookie: &HeaderValue,
     log: SupplementalPdfLog<'_>,
     start_url: reqwest::Url,
-    allow_insecure_for_test: bool,
+    transport_policy: SupplementalPdfTransportPolicy,
     partial_path: &Path,
     is_cancelled: &impl Fn() -> bool,
 ) -> std::result::Result<SupplementalPdfIdentity, SupplementalPdfFailure> {
@@ -238,7 +262,7 @@ async fn fetch_pdf_to_partial(
         if is_cancelled() {
             return Err(SupplementalPdfFailure::new("cancelled", None));
         }
-        if !url_is_allowed(&url, allow_insecure_for_test) {
+        if !transport_policy.allows(&url) {
             return Err(SupplementalPdfFailure::new("redirect_non_https", None));
         }
         let response = build_supplemental_pdf_get_request(client, url.clone(), cookie)
@@ -268,14 +292,14 @@ async fn fetch_pdf_to_partial(
             let next = supplemental_pdf_redirect_target(
                 &url,
                 response.headers().get(LOCATION),
-                allow_insecure_for_test,
+                transport_policy,
             )?;
             redirect_count += 1;
             url = next;
             continue;
         }
 
-        if !status.is_success() || !url_is_allowed(&response_url, allow_insecure_for_test) {
+        if !status.is_success() || !transport_policy.allows(&response_url) {
             log_supplemental_pdf_request_status(
                 log.job_id,
                 log.title_id,
@@ -360,10 +384,6 @@ async fn stream_pdf_body(
         .await
         .map_err(|_| SupplementalPdfFailure::new("file", None))?;
     Ok(identity.finalize())
-}
-
-fn url_is_allowed(url: &reqwest::Url, allow_insecure_for_test: bool) -> bool {
-    url.scheme() == "https" || allow_insecure_for_test && url.scheme() == "http"
 }
 
 pub(super) fn supplemental_pdf_failure_message(failure: SupplementalPdfFailure) -> String {
@@ -567,8 +587,12 @@ mod tests {
             reqwest::Url::parse("https://www.audible.com/companion-file/B000000001").expect("url");
         let location = HeaderValue::from_static("http://cdn.example.test/book.pdf");
 
-        let failure = supplemental_pdf_redirect_target(&current, Some(&location), false)
-            .expect_err("cleartext redirect");
+        let failure = supplemental_pdf_redirect_target(
+            &current,
+            Some(&location),
+            SupplementalPdfTransportPolicy::HttpsOnly,
+        )
+        .expect_err("cleartext redirect");
 
         assert_eq!(failure.category, "redirect_non_https");
     }
@@ -619,7 +643,7 @@ mod tests {
                 job_dir: root.path(),
             },
             start_url,
-            true,
+            SupplementalPdfTransportPolicy::HttpForTests,
             &|| false,
         )
         .await
@@ -729,7 +753,7 @@ mod tests {
                 job_dir: root.path(),
             },
             start_url,
-            true,
+            SupplementalPdfTransportPolicy::HttpForTests,
             &|| false,
         )
         .await;
@@ -777,7 +801,7 @@ mod tests {
                 job_dir: root.path(),
             },
             start_url,
-            true,
+            SupplementalPdfTransportPolicy::HttpForTests,
             &|| false,
         )
         .await
@@ -832,7 +856,7 @@ mod tests {
                 job_dir: root.path(),
             },
             start_url,
-            true,
+            SupplementalPdfTransportPolicy::HttpForTests,
             &|| false,
         )
         .await
@@ -887,7 +911,7 @@ mod tests {
                 job_dir: root.path(),
             },
             start_url,
-            true,
+            SupplementalPdfTransportPolicy::HttpForTests,
             &|| cancel_checks.fetch_add(1, Ordering::SeqCst) >= 3,
         )
         .await
@@ -936,7 +960,7 @@ mod tests {
                 job_dir: root.path(),
             },
             start_url,
-            true,
+            SupplementalPdfTransportPolicy::HttpForTests,
             &|| false,
         )
         .await
