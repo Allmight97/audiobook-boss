@@ -303,11 +303,11 @@ describe('file list reorder behavior', () => {
 		]);
 	});
 
-	it('stages selected metadata drafts before sorting and clearing selection', async () => {
+	it('stages selected metadata drafts before sorting and preserves selection identity', async () => {
 		const alpha = makeFile('/books/a-alpha.m4b');
 		const beta = makeFile('/books/b-beta.m4b');
 
-		setCurrentFileList(makeFileList(alpha, beta));
+		setCurrentFileList(makeFileList(beta, alpha));
 		setSelectedFileIndices([0, 1]);
 		setSelectedIndex(0);
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
@@ -321,10 +321,10 @@ describe('file list reorder behavior', () => {
 		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/b-beta.m4b', {
 			series: { op: 'set', value: 'Sorted Series' },
 		});
-		expect(getSelectedFileIndex()).toBe(-1);
+		expect(getSelectedFileIndex()).toBe(1);
 		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
-			'/books/b-beta.m4b',
 			'/books/a-alpha.m4b',
+			'/books/b-beta.m4b',
 		]);
 	});
 
