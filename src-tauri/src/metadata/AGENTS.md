@@ -7,8 +7,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,
   `MetadataIntentValidationResult`, `validate_metadata_intent_patch`.
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
-  `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`,
-  plus the test-only write-plan contract helper `plan_metadata_write`.
+  `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
   `finalize_artifact_metadata` (all also re-exported at the crate root for
   external integration tests, e.g. the media-execution lane's tag round-trip
