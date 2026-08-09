@@ -40,11 +40,6 @@ fn render_cover_thumbnail(cover_art: Option<Vec<u8>>) -> Result<Option<Vec<u8>>>
         .transpose()
 }
 
-pub(super) fn clone_thumbnail_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {
-    ensure_thumbnail_encoded_size(bytes.len())?;
-    Ok(bytes.to_vec())
-}
-
 fn ensure_thumbnail_encoded_size(byte_len: usize) -> Result<()> {
     if byte_len > THUMBNAIL_MAX_ENCODED_BYTES {
         return Err(AppError::ImageProcessing(format!(

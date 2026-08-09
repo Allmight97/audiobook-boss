@@ -14,6 +14,7 @@ mod container;
 #[cfg(test)]
 mod contract_tests;
 mod cover_art;
+mod embedded_cover;
 mod ffi;
 mod ffmpeg_dict;
 mod field_schema;

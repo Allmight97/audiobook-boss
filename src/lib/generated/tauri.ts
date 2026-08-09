@@ -18,8 +18,6 @@ export const commands = {
 	 *  Returns metadata as JSON-serializable struct
 	 */
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
-	// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
-	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**
 	 *  Writes cover art to an M4B file
 	 *  Accepts file path and base64-encoded image data
@@ -36,6 +34,8 @@ export const commands = {
 	 *  Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
 	 */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
+	// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
+	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	// Validates and normalizes metadata intent without writing files.
 	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch) => typedError<MetadataIntentValidationResult, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
 	/**
@@ -113,12 +113,6 @@ export const commands = {
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	getWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("get_work_operation", { operationId })),
 	cancelWorkOperation: (operationId: OperationId) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId })),
-	/**
-	 *  Logs a sanitized frontend failure record through the standard `log` crate
-	 *  so webview errors and unhandled rejections show up in captured dev logs
-	 *  (`RUST_LOG=audiobook_boss_lib=info`), which otherwise only tee Rust
-	 *  stdout/stderr.
-	 */
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
 };
 
@@ -941,7 +935,6 @@ async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; dat
         return { status: "error", error: e as any };
     }
 }
-
 function makeEvent<T>(name: string) {
     const base = {
         listen: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.listen(name, cb),

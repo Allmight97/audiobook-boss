@@ -44,9 +44,7 @@ pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>
         return mp4ameta_bridge::read_cover_art_for_thumbnail(path);
     }
 
-    ff::init().map_err(AppError::Ffmpeg)?;
-    let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    extract_attached_pic_for_thumbnail(&ictx)
+    super::embedded_cover::read_bounded_non_mp4_cover_art(path)
 }
 
 fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<AudiobookMetadata> {
@@ -173,26 +171,6 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
         }
     }
     None
-}
-
-fn extract_attached_pic_for_thumbnail(
-    ictx: &ff::format::context::Input,
-) -> Result<Option<Vec<u8>>> {
-    use ff::format::stream::Disposition;
-
-    for stream in ictx.streams() {
-        if stream.disposition().contains(Disposition::ATTACHED_PIC) {
-            unsafe {
-                let av_stream = stream.as_ptr();
-                let pic = (*av_stream).attached_pic;
-                if !pic.data.is_null() && pic.size > 0 {
-                    let bytes = std::slice::from_raw_parts(pic.data, pic.size as usize);
-                    return super::thumbnail::clone_thumbnail_cover_art(bytes).map(Some);
-                }
-            }
-        }
-    }
-    Ok(None)
 }
 
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O

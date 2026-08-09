@@ -52,7 +52,7 @@ pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>
         path,
         super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES,
     )? {
-        Some(bytes) => super::thumbnail::clone_thumbnail_cover_art(&bytes).map(Some),
+        Some(bytes) => Ok(Some(bytes)),
         None => Ok(None),
     }
 }
