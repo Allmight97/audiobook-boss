@@ -571,6 +571,19 @@ mod tests {
     use super::*;
     use abb_metadata_core::AudiobookMetadata;
 
+    fn sample_naming_metadata() -> NamingMetadata {
+        NamingMetadata::from_metadata(&AudiobookMetadata {
+            title: Some("Dune".to_string()),
+            artist: Some("Frank Herbert".to_string()),
+            date: Some("1965".to_string()),
+            series: Some("Dune Saga".to_string()),
+            series_part: Some("1".to_string()),
+            subseries: Some("Discovery".to_string()),
+            subseries_part: Some("1".to_string()),
+            ..Default::default()
+        })
+    }
+
     #[test]
     fn derive_output_artifact_path_appends_preview_suffix() {
         let path = Path::new("/tmp/Book 1.m4b");
@@ -644,6 +657,98 @@ mod tests {
         .expect_err("traversal should fail");
 
         assert!(err.to_string().contains("path traversal"));
+
+        let absolute_err = build_output_path_preview(
+            Path::new("/out"),
+            Some(&sample_naming_metadata()),
+            OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("/{author}/{title}".to_string()),
+            },
+            None,
+        )
+        .expect_err("absolute path should fail");
+        assert!(absolute_err.to_string().contains("relative path"));
+    }
+
+    #[test]
+    fn custom_template_substitutes_whitelisted_tokens() {
+        let path = build_output_path_preview(
+            Path::new("/out"),
+            Some(&sample_naming_metadata()),
+            OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("{author}/{series}/{title}-{seriesPart}-{year}".to_string()),
+            },
+            None,
+        )
+        .expect("custom template");
+
+        assert_eq!(
+            path,
+            Path::new("/out/Frank Herbert/Dune Saga/Dune-1-1965.m4b")
+        );
+    }
+
+    #[test]
+    fn custom_template_rejects_unknown_tokens() {
+        let err = build_output_path_preview(
+            Path::new("/out"),
+            Some(&sample_naming_metadata()),
+            OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("{author}/{bogus}/{title}".to_string()),
+            },
+            None,
+        )
+        .expect_err("unknown token should fail");
+
+        assert!(err.to_string().contains("Unknown template token"));
+    }
+
+    #[test]
+    fn custom_template_appends_m4b_extension() {
+        let path = build_output_path_preview(
+            Path::new("/out"),
+            Some(&sample_naming_metadata()),
+            OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("{author}/{title}".to_string()),
+            },
+            None,
+        )
+        .expect("custom template");
+
+        assert_eq!(
+            path.file_name().and_then(|value| value.to_str()),
+            Some("Dune.m4b")
+        );
+    }
+
+    #[test]
+    fn custom_template_skips_empty_series_segment() {
+        let metadata = NamingMetadata::from_metadata(&AudiobookMetadata {
+            title: Some("Dune".to_string()),
+            artist: Some("Frank Herbert".to_string()),
+            ..Default::default()
+        });
+        let path = build_output_path_preview(
+            Path::new("/out"),
+            Some(&metadata),
+            OutputNamingConfig {
+                preset: NamingPreset::CustomTemplate,
+                include_year: false,
+                custom_template: Some("{series}/{title}".to_string()),
+            },
+            None,
+        )
+        .expect("custom template");
+
+        assert_eq!(path, Path::new("/out/Dune.m4b"));
     }
 
     #[test]

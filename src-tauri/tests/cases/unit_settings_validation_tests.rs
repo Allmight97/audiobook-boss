@@ -82,14 +82,6 @@ fn encoder_settings_validation_rejects_invalid_combinations() {
 }
 
 #[test]
-fn encoder_settings_preserve_public_fields() {
-    let encoder_settings = baseline_encoder_settings();
-    assert_eq!(encoder_settings.encoder_type, EncoderType::NativeAac);
-    assert_eq!(encoder_settings.bitrate_mode, BitrateMode::Cbr);
-    assert_eq!(encoder_settings.channels, EncoderChannelConfig::Mono);
-}
-
-#[test]
 fn output_path_validation_rejects_file_parent() {
     let temp_dir = TempDir::new().expect("create temp dir");
     let file_parent = temp_dir.path().join("not_a_dir.txt");

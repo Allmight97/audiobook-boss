@@ -177,3 +177,21 @@ pub fn converting_percentage_from_seconds(current_seconds: f64, total_duration: 
 // ============================================================================
 
 pub use emitter::{EmitContext, ProgressEmitter};
+
+#[cfg(test)]
+mod tests {
+    use super::converting_percentage_from_seconds;
+
+    #[test]
+    fn converting_percentage_maps_seconds_into_converting_range() {
+        assert!(converting_percentage_from_seconds(0.0, 100.0) >= 10.0);
+        assert!(converting_percentage_from_seconds(50.0, 100.0) > 10.0);
+        assert!(converting_percentage_from_seconds(100.0, 100.0) <= 80.0);
+    }
+
+    #[test]
+    fn converting_percentage_handles_empty_or_unknown_duration() {
+        assert_eq!(converting_percentage_from_seconds(0.0, 0.0), 10.0);
+        assert!(converting_percentage_from_seconds(100.0, 0.0) >= 10.0);
+    }
+}

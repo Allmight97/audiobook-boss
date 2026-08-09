@@ -163,6 +163,5 @@ mod tests {
         let title_id = "../../account-title";
         assert_eq!(title_ref(title_id).len(), 12);
         assert!(!title_ref(title_id).contains(title_id));
-        assert_eq!(title_ref(title_id), title_ref(title_id));
     }
 }

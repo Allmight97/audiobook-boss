@@ -1,5 +1,5 @@
 use audiobook_boss_lib::processing::job_registry::{
-    AggregateJobStatus, JobId, JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS,
+    JobId, JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS,
 };
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -426,16 +426,4 @@ async fn test_scheduler_preserves_index_for_panicking_tasks() {
     );
     assert_eq!(outcomes[2].as_ref().expect("index 2 should succeed"), &2);
     assert_eq!(outcomes[3].as_ref().expect("index 3 should succeed"), &3);
-}
-
-#[test]
-fn aggregate_job_status_struct() {
-    let status = AggregateJobStatus {
-        active_jobs: 1,
-        total_jobs: 2,
-        max_concurrent: 3,
-    };
-    assert_eq!(status.active_jobs, 1);
-    assert_eq!(status.total_jobs, 2);
-    assert_eq!(status.max_concurrent, 3);
 }
