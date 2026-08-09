@@ -309,3 +309,15 @@
 - Guardrail: inherited odd tags from external files do not block unrelated
   saves or processing; strict shape validation applies when intent touches the
   series family.
+
+## 2026-08-09 - FileList Sort Changes Processing Order
+
+- Outcome: filename sorting rewrites the queue using natural numeric basename order; FileList retains path-keyed arrival ordinals and exposes Restore import order when visible order diverges.
+- Evidence: `src/ui/fileList/actions.ts` plus reorder, restore-order, selection, and payload-order tests.
+- Guardrail: selection follows file identity, manual reorder clears the sort claim, and `aria-sort` reflects the actual queue order.
+
+## 2026-08-09 - Frontend Failures Enter Local Dev Logs Through One Boundary
+
+- Outcome: webview errors and unhandled rejections reach the local captured dev log through the bounded `log_frontend` Runtime Boundary command.
+- Evidence: `src/lib/frontendLogBridge.ts`, `src-tauri/src/commands/frontend_log.rs`, and `scripts/dev-log-analysis.test.ts`.
+- Guardrail: forward only a short sanitized error name/category and message; arbitrary rejection values, provider payloads, and secrets do not cross the boundary.

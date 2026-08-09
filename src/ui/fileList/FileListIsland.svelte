@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { pathBasename } from '../../lib/path/basename';
 	import { formatDuration, formatFileSize } from '../../types/audio';
-	import { clearAllFiles, toggleFileSort } from './actions';
+	import { clearAllFiles, restoreImportOrder, toggleFileSort } from './actions';
 	import {
-		createFileListDragHandlers,
+		createFileListPointerReorder,
 		onFileListClick,
 		onFileListKeyDown,
 		onFileListMoveDown,
@@ -12,10 +12,19 @@
 	} from './events';
 	import { getCurrentFileList } from './state.svelte';
 	import {
+		clearFileListCoverThumbnails,
+		getFileListCoverThumbnailState,
+		scheduleFileListCoverThumbnails,
+	} from './coverThumbnails.svelte';
+	import {
 		readFileListControlsSnapshot,
+		displayedArtistForFile,
+		displayedTitleForFile,
 		readFileListOrderLockVisible,
 		readFileListSelectedIndices,
+		readFileListOrderDiffersFromImport,
 		readFileListSortLabel,
+		readFileListSortState,
 		readFileListViewFiles,
 	} from './viewState.svelte';
 	import { hasSupplementalAssetsForInputId } from '../remoteSource';
@@ -39,17 +48,21 @@
 	let fileListContent: HTMLDivElement | null = null;
 	let draggedIndex = $state<number | null>(null);
 	let hoveredIndex = $state<number | null>(null);
+	let hoveredEdge = $state<'top' | 'bottom' | null>(null);
 
 	const files = $derived(readFileListViewFiles());
 	const selectedIndices = $derived(readFileListSelectedIndices());
 	const sortLabel = $derived(readFileListSortLabel());
+	const sortState = $derived(readFileListSortState());
+	const orderDiffersFromImport = $derived(readFileListOrderDiffersFromImport());
 	const controls = $derived(readFileListControlsSnapshot());
 	const orderLockVisible = $derived(readFileListOrderLockVisible());
 	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
 
-	const dragHandlers = createFileListDragHandlers((state) => {
+	const reorderHandlers = createFileListPointerReorder((state) => {
 		draggedIndex = state.draggedIndex;
 		hoveredIndex = state.hoveredIndex;
+		hoveredEdge = state.hoveredEdge;
 	});
 
 	function focusFileListContent(): void {
@@ -57,12 +70,17 @@
 	}
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
+		if (reorderHandlers.consumePostDragClick()) return;
 		focusFileListContent();
 		onFileListClick(index, event);
 	}
 
 	function handleSortClick(): void {
 		void toggleFileSort();
+	}
+
+	function handleRestoreImportOrder(): void {
+		void restoreImportOrder();
 	}
 
 	function handleClearClick(): void {
@@ -74,8 +92,13 @@
 	}
 
 	function formatFileDetails(file: (typeof files)[number]): string {
+		const artist = displayedArtistForFile(file);
+		const artistPrefix = artist ? `${artist} • ` : '';
+		const chapterSuffix = file.chapters?.length
+			? ` • ${file.chapters.length} chapter${file.chapters.length === 1 ? '' : 's'}`
+			: '';
 		if (file.isValid && file.duration && file.size) {
-			return `${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}`;
+			return `${artistPrefix}${formatDuration(file.duration)} • ${formatFileSize(file.size)} • ${file.format}${chapterSuffix}`;
 		}
 		return `Error: ${file.error || 'Invalid file'}`;
 	}
@@ -88,6 +111,22 @@
 			selectedItem?.scrollIntoView({ block: 'nearest' });
 		});
 	}
+
+	$effect(() => {
+		const validPaths = files.filter((file) => file.isValid).map((file) => file.path);
+		let active = true;
+		queueMicrotask(() => {
+			if (!active) return;
+			if (validPaths.length === 0) {
+				clearFileListCoverThumbnails();
+				return;
+			}
+			scheduleFileListCoverThumbnails(validPaths);
+		});
+		return () => {
+			active = false;
+		};
+	});
 
 	$effect(() => {
 		const selectedIndex = selectedIndices[selectedIndices.length - 1];
@@ -118,9 +157,27 @@
 			class="btn-pill btn-pill-secondary"
 			style:display={controls.showSortButton ? 'block' : 'none'}
 			disabled={controls.sortDisabled}
+			aria-label={`Sort files ${sortState === 'ascending' ? 'descending' : 'ascending'}`}
+			aria-describedby="file-sort-status"
 			onclick={handleSortClick}
 		>
 			{sortLabel}
+		</button>
+		<span id="file-sort-status" class="sr-only" aria-live="polite">
+			{sortState === 'ascending'
+				? 'Files sorted from A to Z.'
+				: sortState === 'descending'
+					? 'Files sorted from Z to A.'
+					: 'Files are in import order.'}
+		</span>
+		<button
+			id="restore-import-order-btn"
+			class="btn-pill btn-pill-secondary"
+			style:display={orderDiffersFromImport ? 'block' : 'none'}
+			disabled={controls.sortDisabled}
+			onclick={handleRestoreImportOrder}
+		>
+			Restore import order
 		</button>
 		<button
 			id="clear-files-btn"
@@ -244,6 +301,26 @@
 		min-width: 1rem;
 		font-size: 1rem;
 		font-weight: bold;
+	}
+
+	.file-cover-thumbnail {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2rem;
+		height: 2rem;
+		flex: 0 0 2rem;
+		overflow: hidden;
+		border-radius: 0.25rem;
+		background: var(--bg-drag-area);
+		color: var(--text-muted);
+		font-size: 0.625rem;
+	}
+
+	.file-cover-thumbnail img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.file-info {
@@ -402,30 +479,44 @@
 		onkeydown={onFileListKeyDown}
 	>
 		{#each files as file, index (file.inputId ?? file.path)}
+			{@const thumbnail = getFileListCoverThumbnailState(file.path)}
 			<div
 				data-file-index={index}
 				class="file-list-item {file.isValid ? 'valid' : 'invalid'}"
 				class:selected={selectedIndices.includes(index)}
 				class:dragging={draggedIndex === index}
 				class:drag-over={hoveredIndex === index}
-				draggable={orderLockVisible ? 'false' : 'true'}
+				data-drop-edge={hoveredIndex === index ? hoveredEdge : undefined}
 				role="option"
 				aria-selected={selectedIndices.includes(index)}
 				aria-label={getFileName(file.path)}
 				tabindex="-1"
 				onclick={(event) => handleFileListClick(index, event)}
-				ondragstart={(event) => dragHandlers.onDragStart(index, event)}
-				ondragover={(event) => dragHandlers.onDragOver(index, event)}
-				ondrop={(event) => dragHandlers.onDrop(index, event)}
-				ondragend={dragHandlers.onDragEnd}
 			>
 				<div class="file-item-content">
+					<span
+						class="file-reorder-grip"
+						role="button"
+						tabindex="-1"
+						aria-label={`Reorder ${getFileName(file.path)}`}
+						onpointerdown={(event) => reorderHandlers.onGripPointerDown(index, event)}
+						onclick={(event) => event.stopPropagation()}
+					>
+						⋮⋮
+					</span>
+				<div class="file-cover-thumbnail" aria-hidden="true">
+						{#if thumbnail.status === 'ready'}
+							<img src={thumbnail.dataUrl} alt="" />
+						{:else}
+							<span>Art</span>
+						{/if}
+					</div>
 					<div class="file-status {file.isValid ? 'text-green-500' : 'text-red-500'}">
 						{file.isValid ? '✓' : '✗'}
 					</div>
 					<div class="file-info">
 						<div class="file-name-row">
-							<div class="file-name">{getFileName(file.path)}</div>
+							<div class="file-name">{displayedTitleForFile(file)}</div>
 							{#if hasSupplementalAssetsForInputId(file.inputId)}
 								<span class="companion-chip" title="Supplemental PDF attached">PDF</span>
 							{/if}

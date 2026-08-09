@@ -1,5 +1,6 @@
 // TypeScript interfaces for audio processing
 import type {
+	AudioChapter as GeneratedAudioChapter,
 	BitrateMode as GeneratedBitrateMode,
 	ChannelConfig as GeneratedChannelConfig,
 	AudioFile as GeneratedAudioFile,
@@ -36,8 +37,10 @@ import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 type GeneratedAudioFileUi = NullToOptionalDeep<GeneratedAudioFile>;
-export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId'> & {
+export type AudioChapter = NullToOptionalDeep<GeneratedAudioChapter>;
+export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId' | 'chapters'> & {
 	inputId?: string;
+	chapters?: AudioChapter[];
 };
 export type DecoderSelection = NullToOptionalDeep<GeneratedDecoderSelection>;
 

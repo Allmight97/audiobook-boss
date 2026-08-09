@@ -132,6 +132,7 @@ function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted 
 			terminalSummary: undefined,
 			warnings: [],
 			errors: [],
+			logTail: [],
 		},
 	};
 }
@@ -283,6 +284,43 @@ describe('ProcessingWorkflow', () => {
 		expect(services.setFileOrderLocked).toHaveBeenLastCalledWith(false);
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
 		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
+	});
+
+	it('uses natural filename sort as the submitted processing order', async () => {
+		const { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } = await import(
+			'../../fileList/state.svelte'
+		);
+		const { toggleFileSort } = await import('../../fileList/actions');
+		const { getCurrentFileList: readRealFileList } = await import('../../fileList');
+		setCurrentFileList({
+			files: [
+				audioFile('/books/10 - Last Chapter.mp3', { inputId: 'tenth' }),
+				audioFile('/books/2 - Early Chapter.mp3', { inputId: 'second' }),
+			],
+			selectedDecoders: [null, null],
+			totalDuration: 2,
+			totalSize: 2,
+			validCount: 2,
+			invalidCount: 0,
+		});
+		setSelectedFileIndices([]);
+		setSelectedIndex(-1);
+		await toggleFileSort();
+
+		const ctx = workflowContext();
+		const { services } = workflowServices({
+			getCurrentFileList: vi.fn(() => readRealFileList()),
+		});
+		await runWithServices(ctx, services);
+
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({
+					inputFiles: ['/books/2 - Early Chapter.mp3', '/books/10 - Last Chapter.mp3'],
+					inputIds: ['second', 'tenth'],
+				}),
+			}),
+		);
 	});
 
 	it('passes acquired supplemental PDF assets into processing payload by FileList input id', async () => {

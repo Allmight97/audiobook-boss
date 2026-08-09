@@ -55,6 +55,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		terminalSummary: undefined,
 		warnings: [],
 		errors: [],
+		logTail: [],
 	};
 }
 
@@ -79,6 +80,21 @@ describe('Work Center model', () => {
 			'second',
 			'third',
 			'first',
+		]);
+	});
+
+	it('keeps running work above queued and terminal history', () => {
+		const running = { ...operation('running', 1), status: 'running' as const };
+		const queued = operation('queued', 3);
+		const completed = { ...operation('completed', 4), status: 'completed' as const };
+		const model = replaceOperations(
+			{ operations: [] },
+			{ operations: [completed, queued, running] },
+		);
+		expect(model.operations.map((item) => item.operationId)).toEqual([
+			'running',
+			'queued',
+			'completed',
 		]);
 	});
 });

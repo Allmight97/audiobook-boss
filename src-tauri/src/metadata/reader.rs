@@ -30,6 +30,23 @@ pub fn read_metadata<P: AsRef<Path>>(file_path: P) -> Result<AudiobookMetadata> 
     read_metadata_with_ffmpeg_input(&ictx)
 }
 
+pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
+    if !path.exists() {
+        return Err(AppError::FileValidation(format!(
+            "File not found: {}",
+            sanitize_path_for_display(path)
+        )));
+    }
+
+    // MP4-family: bound artwork via atom walk without opening FFmpeg (which can
+    // materialize a full attached-pic / covr packet during demuxer open).
+    if super::mp4_covr::looks_like_mp4_family_file(path)? {
+        return mp4ameta_bridge::read_cover_art_for_thumbnail(path);
+    }
+
+    super::embedded_cover::read_bounded_non_mp4_cover_art(path)
+}
+
 fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<AudiobookMetadata> {
     let dict = ictx.metadata();
 
@@ -95,6 +112,16 @@ where
 
 fn first_tag(dict: &ff::DictionaryRef<'_>, field: TagField) -> Option<String> {
     first_tag_keys(dict, field.read_keys())
+}
+
+/// Returns the display-safe title and artist tags from an already-open FFmpeg input.
+pub fn display_tags_from_ffmpeg_dict(
+    dict: &ff::DictionaryRef<'_>,
+) -> (Option<String>, Option<String>) {
+    (
+        first_tag(dict, TagField::Title),
+        first_tag(dict, TagField::Artist),
+    )
 }
 
 fn first_tag_keys(dict: &ff::DictionaryRef<'_>, keys: &[&str]) -> Option<String> {

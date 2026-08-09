@@ -1,4 +1,3 @@
-import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
@@ -11,10 +10,19 @@ import {
 	setCurrentFileList,
 	setSelectedIndex,
 	setSelectedFileIndices,
-	getSortAscending,
-	setSortAscending,
+	getSortDirection,
+	setSortDirection,
 	isOrderLocked,
 	setOrderLocked,
+	getImportOrdinal,
+	recordImportOrder,
+	removeImportOrdinal,
+	resetImportOrder,
+	captureFileListMutationSnapshot,
+	canCommitFileListMutation,
+	findFileIndexByIdentityKey,
+	fileIdentityKey,
+	replaceFileListFiles,
 } from './state.svelte';
 import {
 	clearSelection,
@@ -37,8 +45,20 @@ import {
 	normalizeFileListInfo,
 	type FileListAppendResult,
 } from './appendResult';
-import { preserveMetadataDraftsBeforeSelectionChange } from './metadataStaging';
+import {
+	preserveMetadataDraftsBeforeSelectionChange,
+	prepareMetadataDraftsForCurrentSelection,
+	commitPreparedMetadataDrafts,
+	captureMetadataEditSnapshot,
+	isCurrentMetadataEditSnapshot,
+} from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
+import { pathBasename } from '../../lib/path/basename';
+import {
+	clearFileListCoverThumbnails,
+	removeFileListCoverThumbnail,
+	scheduleFileListCoverThumbnails,
+} from './coverThumbnails.svelte';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -48,20 +68,18 @@ function setTransientStatusMessage(message: string, timeoutMs: number = 2000): v
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
 }
 
-function replaceCurrentFileListFiles(nextFiles: AudioFile[]): void {
-	const fileList = getCurrentFileList();
-	if (!fileList) {
-		return;
-	}
+// Selection and order actions may await metadata validation or hydration. A
+// later user intent supersedes an earlier one before its async preparation can
+// commit. The synchronous commit remains guarded by the file-list snapshot.
+let latestFileListTransitionId = 0;
 
-	const validCount = nextFiles.filter((file) => file.isValid).length;
-	fileListSessionState.currentFileList = {
-		...fileList,
-		files: nextFiles,
-		validCount,
-		invalidCount: nextFiles.length - validCount,
-	};
-	recalculateTotals();
+function beginFileListTransition(): number {
+	latestFileListTransitionId += 1;
+	return latestFileListTransitionId;
+}
+
+function isCurrentFileListTransition(transitionId: number): boolean {
+	return transitionId === latestFileListTransitionId;
 }
 
 function selectSoleImportedFile(fileList: FileListInfo): void {
@@ -79,6 +97,7 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 
 	clearMetadataSession();
 	setCurrentFileList(normalizedFileListInfo);
+	resetImportOrder(normalizedFileListInfo.files);
 	clearSelectionPanels();
 
 	refreshOutputForFileListChange();
@@ -110,6 +129,7 @@ export function appendFileList(
 	const selectedIndex = getSelectedFileIndex();
 	const selectedIndices = getSelectedFileIndices();
 	setCurrentFileList(appendResult.fileList);
+	recordImportOrder(appendResult.fileList.files);
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);
 
@@ -122,51 +142,78 @@ export async function selectFile(
 	modifiers?: { multi: boolean; range: boolean },
 	options?: { skipPersistPrevious?: boolean },
 ): Promise<void> {
-	const fileList = getCurrentFileList();
-	if (!fileList || index < 0 || index >= fileList.files.length) {
-		return;
-	}
+	const intent: SelectionIntent = modifiers?.range
+		? { type: 'range', index }
+		: modifiers?.multi
+			? { type: 'toggle', index }
+			: { type: 'selectOnly', index };
+	return applySelectionIntent(intent, { skipPersistPrevious: options?.skipPersistPrevious });
+}
 
+export type SelectionIntent =
+	| { type: 'selectOnly'; index: number }
+	| { type: 'toggle'; index: number }
+	| { type: 'range'; index: number }
+	| { type: 'selectAll' }
+	| { type: 'clear' };
+
+export async function applySelectionIntent(
+	intent: SelectionIntent,
+	options?: { skipPersistPrevious?: boolean },
+): Promise<void> {
+	const fileList = getCurrentFileList();
+	if (!fileList) return;
+	const transitionId = beginFileListTransition();
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const isCurrent = (): boolean =>
+		isCurrentFileListTransition(transitionId) && canCommitFileListMutation(mutationSnapshot);
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			skipSingleSelection: options?.skipPersistPrevious,
 			validationFailureMessage: 'Fix metadata validation errors before changing selection.',
+			isCurrent,
 		}))
-	) {
+	)
 		return;
-	}
-
-	const selectionResult = handleSelection(index, modifiers || { multi: false, range: false });
+	if (!isCurrent()) return;
+	const selectionResult =
+		intent.type === 'selectAll'
+			? { changed: selectAllFiles() }
+			: intent.type === 'clear'
+				? { changed: clearSelection() }
+				: handleSelection(intent.index, {
+						multi: intent.type === 'toggle',
+						range: intent.type === 'range',
+					});
 	if (!selectionResult.changed) return;
-
 	const selectedFiles = getSelectedFiles();
-	const count = selectedFiles.length;
-
-	if (count === 0) {
+	if (selectedFiles.length === 0) {
 		setSelectedIndex(-1);
 		clearSelectionPanels();
-		return;
-	}
-
-	if (count === 1) {
+	} else if (selectedFiles.length === 1) {
 		void showSingleSelection(selectedFiles[0]);
-		return;
+	} else {
+		void showMultiSelection(selectedFiles);
 	}
-
-	void showMultiSelection(selectedFiles);
 }
 
 export async function selectAll(): Promise<void> {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
+	const transitionId = beginFileListTransition();
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const isCurrent = (): boolean =>
+		isCurrentFileListTransition(transitionId) && canCommitFileListMutation(mutationSnapshot);
 
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			validationFailureMessage: 'Fix metadata validation errors before selecting all files.',
+			isCurrent,
 		}))
 	) {
 		return;
 	}
+	if (!isCurrent()) return;
 
 	const changed = selectAllFiles();
 	if (!changed) return;
@@ -180,13 +227,19 @@ export async function selectAll(): Promise<void> {
 }
 
 export async function clearSelectionAction(): Promise<void> {
+	const transitionId = beginFileListTransition();
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const isCurrent = (): boolean =>
+		isCurrentFileListTransition(transitionId) && canCommitFileListMutation(mutationSnapshot);
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			validationFailureMessage: 'Fix metadata validation errors before clearing the selection.',
+			isCurrent,
 		}))
 	) {
 		return;
 	}
+	if (!isCurrent()) return;
 
 	const changed = clearSelection();
 	if (!changed) return;
@@ -202,12 +255,18 @@ export async function removeFile(index: number): Promise<void> {
 	}
 
 	const removedFile = fileList.files[index];
+	removeFileListCoverThumbnail(removedFile.path);
 	removeMetadataForFile(removedFile.path);
+	removeImportOrdinal(removedFile.path);
 	void purgeRemoteSourceSessionsForInputIds([removedFile.inputId]);
 
 	const nextFiles = [...fileList.files];
 	nextFiles.splice(index, 1);
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	scheduleFileListCoverThumbnails(
+		nextFiles.filter((file) => file.isValid).map((file) => file.path),
+	);
+	recalculateTotals();
 
 	reindexSelectionAfterRemoval(index);
 
@@ -237,6 +296,54 @@ export function recalculateTotals(): void {
 	};
 }
 
+/** Prepare may await; list/lock drift is revalidated before and after the
+ * synchronous metadata commit. No cache or intent write happens before the
+ * final validation. */
+async function prepareRevalidateCommitMetadata(options: {
+	validationFailureMessage: string;
+	isCurrent?: () => boolean;
+}): Promise<boolean> {
+	const snapshot = captureFileListMutationSnapshot();
+	const editSnapshot = captureMetadataEditSnapshot();
+	const prepared = await prepareMetadataDraftsForCurrentSelection({
+		validationFailureMessage: options.validationFailureMessage,
+		isCurrent: options.isCurrent,
+	});
+	if (
+		!prepared.ok ||
+		options.isCurrent?.() === false ||
+		!canCommitFileListMutation(snapshot) ||
+		!isCurrentMetadataEditSnapshot(editSnapshot)
+	)
+		return false;
+	if (!commitPreparedMetadataDrafts(prepared.prepared, editSnapshot)) return false;
+	return options.isCurrent?.() !== false && canCommitFileListMutation(snapshot);
+}
+
+export async function removeSelectedFiles(): Promise<void> {
+	if (isOrderLocked()) return;
+	const fileList = getCurrentFileList();
+	if (!fileList) return;
+	const transitionId = beginFileListTransition();
+	const selectedIdentityKeys = Array.from(getSelectedFileIndices())
+		.map((index) => fileList.files[index])
+		.filter((file): file is AudioFile => Boolean(file))
+		.map((file) => fileIdentityKey(file));
+	if (selectedIdentityKeys.length === 0) return;
+	if (
+		!(await prepareRevalidateCommitMetadata({
+			validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
+			isCurrent: () => isCurrentFileListTransition(transitionId),
+		}))
+	) {
+		return;
+	}
+	for (const identityKey of selectedIdentityKeys) {
+		const index = findFileIndexByIdentityKey(identityKey);
+		if (index >= 0) removeFile(index);
+	}
+}
+
 export function moveFileUp(index: number): void {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
@@ -248,7 +355,9 @@ export function moveFileUp(index: number): void {
 	const temp = nextFiles[index];
 	nextFiles[index] = nextFiles[index - 1];
 	nextFiles[index - 1] = temp;
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
+	setSortDirection('none');
 
 	swapSelectionIndices(index, index - 1);
 
@@ -268,7 +377,9 @@ export function moveFileDown(index: number): void {
 	const temp = nextFiles[index];
 	nextFiles[index] = nextFiles[index + 1];
 	nextFiles[index + 1] = temp;
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
+	setSortDirection('none');
 
 	swapSelectionIndices(index, index + 1);
 
@@ -279,36 +390,48 @@ export function moveFileDown(index: number): void {
 
 export async function toggleFileSort(): Promise<void> {
 	if (isOrderLocked()) return;
-	const fileList = getCurrentFileList();
-	if (!fileList || fileList.files.length <= 1) return;
-
+	const initialList = getCurrentFileList();
+	if (!initialList || initialList.files.length <= 1) return;
+	const transitionId = beginFileListTransition();
+	const selectedPaths = new Set(
+		Array.from(getSelectedFileIndices())
+			.map((index) => initialList.files[index]?.path)
+			.filter((path): path is string => Boolean(path)),
+	);
+	const selectedPath = initialList.files[getSelectedFileIndex()]?.path;
 	if (
-		!(await preserveMetadataDraftsBeforeSelectionChange({
+		!(await prepareRevalidateCommitMetadata({
 			validationFailureMessage: 'Fix metadata validation errors before sorting files.',
+			isCurrent: () => isCurrentFileListTransition(transitionId),
 		}))
 	) {
 		return;
 	}
-
-	setSortAscending(!getSortAscending());
+	const fileList = getCurrentFileList();
+	if (!fileList || fileList.files.length <= 1) return;
+	const nextSortDirection = getSortDirection() === 'ascending' ? 'descending' : 'ascending';
+	setSortDirection(nextSortDirection);
 
 	const nextFiles = [...fileList.files];
 	nextFiles.sort((a, b) => {
 		const nameA = pathBasename(a.path, { fallback: 'path' });
 		const nameB = pathBasename(b.path, { fallback: 'path' });
-
-		if (getSortAscending()) {
-			return nameA.localeCompare(nameB);
-		}
-		return nameB.localeCompare(nameA);
+		const comparison = nameA.localeCompare(nameB, undefined, {
+			numeric: true,
+			sensitivity: 'base',
+		});
+		return nextSortDirection === 'ascending' ? comparison : -comparison;
 	});
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
 
-	clearSelection();
-	setSelectedIndex(-1);
-	clearSelectionPanels();
+	setSelectedFileIndices(
+		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
+	);
+	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
 
 	refreshOutputForFileListChange();
+	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export function clearAllFiles(): void {
@@ -316,16 +439,12 @@ export function clearAllFiles(): void {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
 	const inputIds = fileList.files.map((file) => file.inputId);
+	clearFileListCoverThumbnails();
 
 	clearMetadataSession();
-	fileListSessionState.currentFileList = {
-		...fileList,
-		files: [],
-		validCount: 0,
-		invalidCount: 0,
-		totalDuration: 0,
-		totalSize: 0,
-	};
+	resetImportOrder([]);
+	replaceFileListFiles([]);
+	recalculateTotals();
 
 	clearSelection();
 	setSelectedIndex(-1);
@@ -346,11 +465,51 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	const nextFiles = [...fileList.files];
 	const [moved] = nextFiles.splice(fromIndex, 1);
 	nextFiles.splice(toIndex, 0, moved);
-	replaceCurrentFileListFiles(nextFiles);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
+	setSortDirection('none');
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
 
 	refreshOutputForFileListChange();
 
+	refreshSelectionPresentation(getSelectedFiles());
+}
+
+/** Restore the original arrival order captured by display/append. */
+export async function restoreImportOrder(): Promise<void> {
+	if (isOrderLocked()) return;
+	const initialList = getCurrentFileList();
+	if (!initialList || initialList.files.length <= 1) return;
+	if (initialList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
+	const transitionId = beginFileListTransition();
+	const selectedPaths = new Set(
+		Array.from(getSelectedFileIndices())
+			.map((index) => initialList.files[index]?.path)
+			.filter((path): path is string => Boolean(path)),
+	);
+	const selectedPath = initialList.files[getSelectedFileIndex()]?.path;
+	if (
+		!(await prepareRevalidateCommitMetadata({
+			validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
+			isCurrent: () => isCurrentFileListTransition(transitionId),
+		}))
+	) {
+		return;
+	}
+	const fileList = getCurrentFileList();
+	if (!fileList || fileList.files.length <= 1) return;
+	if (fileList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
+	const nextFiles = [...fileList.files].sort(
+		(a, b) => (getImportOrdinal(a.path) ?? 0) - (getImportOrdinal(b.path) ?? 0),
+	);
+	replaceFileListFiles(nextFiles);
+	recalculateTotals();
+	setSortDirection('none');
+	setSelectedFileIndices(
+		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
+	);
+	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
+	refreshOutputForFileListChange();
 	refreshSelectionPresentation(getSelectedFiles());
 }

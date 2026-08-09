@@ -19,8 +19,9 @@
   `tauriClient` while leaving runtime request ownership in the job controls,
   encoder panel, and output panel Public API Strips.
 - The settings dialog (Cmd+, via `App.svelte`) owns the user FFmpeg/FDK path
-  preference, startup-behavior toggle, pin-current-as-defaults capture, and
-  reset-all.
+  preference, the FDK afterburner toggle (via the encoder panel's
+  `readFdkAfterburner`/`setFdkAfterburner` strip), startup-behavior toggle,
+  pin-current-as-defaults capture, and reset-all.
 
 ## Startup / Pinned-Defaults Semantics
 

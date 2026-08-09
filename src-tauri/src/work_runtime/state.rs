@@ -1,6 +1,6 @@
 use super::types::{
-    ChildJobStatus, OperationId, OperationListSnapshot, OperationSnapshot,
-    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage,
+    ChildJobStatus, OperationId, OperationListSnapshot, OperationLogEntry, OperationSnapshot,
+    OperationTerminalSummary, WorkOperationStatus, WorkProgressStage, OPERATION_LOG_TAIL_CAP,
 };
 use crate::errors::{AppError, Result};
 use crate::processing::ProgressEvent;
@@ -22,9 +22,55 @@ const TERMINAL_CHILD_STATUSES: [ChildJobStatus; 4] = [
     ChildJobStatus::Failed,
 ];
 
+/// Appends to the operation's bounded activity tail. Consecutive entries that
+/// are identical in message, stage, AND child collapse (progress spam must not
+/// rotate real history out, but distinct children or stage transitions with
+/// the same wording are real history); the tail drops oldest past
+/// `OPERATION_LOG_TAIL_CAP`.
+fn push_operation_log(
+    snapshot: &mut OperationSnapshot,
+    timestamp_ms: i64,
+    message: &str,
+    stage: Option<WorkProgressStage>,
+    child_job_id: Option<String>,
+) {
+    if message.is_empty() {
+        return;
+    }
+    if snapshot.log_tail.last().is_some_and(|entry| {
+        entry.message == message && entry.stage == stage && entry.child_job_id == child_job_id
+    }) {
+        return;
+    }
+    snapshot.log_tail.push(OperationLogEntry {
+        timestamp_ms,
+        message: message.to_string(),
+        stage,
+        child_job_id,
+    });
+    if snapshot.log_tail.len() > OPERATION_LOG_TAIL_CAP {
+        let overflow = snapshot.log_tail.len() - OPERATION_LOG_TAIL_CAP;
+        snapshot.log_tail.drain(0..overflow);
+    }
+}
+
+/// Cap on retained terminal operations (running/accepted operations are never
+/// pruned). Keeps unbounded history from growing forever while every
+/// currently-active operation stays visible. The frontend Work Center
+/// tombstone (`PURGED_OPERATION_TOMBSTONE_CAP` in
+/// `src/ui/workCenter/state.svelte.ts`) must stay larger than this cap so an
+/// operation pruned here can never be re-delivered after its frontend
+/// dedupe entry has been evicted.
+const TERMINAL_OPERATIONS_CAP: usize = 20;
+
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
+    /// Operation ids in the order they terminalized (runtime-internal, never
+    /// serialized). Pruning follows this order — not submission `sequence` —
+    /// so a long-running operation that finishes late is the NEWEST terminal
+    /// entry and survives, instead of being evicted the moment it completes.
+    terminal_order: Vec<String>,
 }
 
 impl WorkRuntimeState {
@@ -60,6 +106,13 @@ impl WorkRuntimeState {
             snapshot.status = WorkOperationStatus::Running;
             snapshot.progress.stage = WorkProgressStage::Analyzing;
             snapshot.progress.message = "Processing started.".to_string();
+            push_operation_log(
+                snapshot,
+                now_ms,
+                "Processing started.",
+                Some(WorkProgressStage::Analyzing),
+                None,
+            );
             for child in &mut snapshot.children {
                 if child.status == ChildJobStatus::Queued {
                     child.cancellable = true;
@@ -73,6 +126,7 @@ impl WorkRuntimeState {
         &mut self,
         operation_id: &OperationId,
         event: &ProgressEvent,
+        now_ms: i64,
     ) -> Result<OperationSnapshot> {
         let snapshot = self.snapshot_mut(operation_id)?;
         if is_terminal(snapshot.status) {
@@ -82,6 +136,7 @@ impl WorkRuntimeState {
         let child_count = snapshot.children.len();
         let mut matched_child = false;
         let mut child_scoped_batch_event = false;
+        let mut matched_child_job_id: Option<String> = None;
 
         for child in &mut snapshot.children {
             if !progress_matches_child(child, event, child_count) {
@@ -89,6 +144,7 @@ impl WorkRuntimeState {
             }
             matched_child = true;
             child_scoped_batch_event = child_count > 1;
+            matched_child_job_id = Some(child.child_job_id.clone());
 
             let child_status = child_status_from_event_stage(event.stage);
             if let Some(job_id) = event.job_id.as_deref() {
@@ -123,11 +179,25 @@ impl WorkRuntimeState {
             event.percentage.clamp(0.0, 100.0)
         };
         snapshot.progress.message = event.message.clone();
-        snapshot.progress.eta_seconds = event.eta_seconds;
+        // A multi-child batch event carries one child's ETA, which does not
+        // describe the aggregated operation percentage rendered beside it —
+        // suppress rather than present a wrong number.
+        snapshot.progress.eta_seconds = if child_scoped_batch_event {
+            None
+        } else {
+            event.eta_seconds
+        };
         snapshot.status = operation_status_from_event_stage(
             event.stage,
             snapshot.status,
             child_scoped_batch_event,
+        );
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &event.message,
+            Some(work_stage_from_event_stage(event.stage)),
+            matched_child_job_id,
         );
 
         Ok(snapshot.clone())
@@ -145,6 +215,13 @@ impl WorkRuntimeState {
             snapshot.cancellable = false;
             snapshot.progress.message = "Cancellation requested.".to_string();
             snapshot.progress.stage = WorkProgressStage::Cleaning;
+            push_operation_log(
+                snapshot,
+                now_ms,
+                "Cancellation requested.",
+                Some(WorkProgressStage::Cleaning),
+                None,
+            );
             for child in &mut snapshot.children {
                 child.cancel_requested = true;
                 child.cancellable = false;
@@ -186,7 +263,10 @@ impl WorkRuntimeState {
             }
         }
 
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     /// Terminalize a command-driven inline operation (metadata save) from its
@@ -224,7 +304,10 @@ impl WorkRuntimeState {
             }
         }
 
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     pub(crate) fn fail(
@@ -240,6 +323,13 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Failed;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &message,
+            Some(WorkProgressStage::Failed),
+            None,
+        );
         snapshot.errors.push(message.clone());
         let summary = OperationResultSummary::all_failed(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
@@ -252,7 +342,10 @@ impl WorkRuntimeState {
                 child.cancellable = false;
             }
         }
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     pub(crate) fn cancel(
@@ -269,6 +362,13 @@ impl WorkRuntimeState {
         snapshot.progress.stage = WorkProgressStage::Cancelled;
         snapshot.progress.percentage = 100.0;
         snapshot.progress.message = message.clone();
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &message,
+            Some(WorkProgressStage::Cancelled),
+            None,
+        );
         let summary = OperationResultSummary::all_cancelled(snapshot.children.len());
         snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
         for child in &mut snapshot.children {
@@ -281,13 +381,36 @@ impl WorkRuntimeState {
                 child.cancel_requested = true;
             }
         }
-        Ok(snapshot.clone())
+        let snapshot = snapshot.clone();
+        self.record_terminal_operation(operation_id.as_str());
+        self.prune_terminal_operations();
+        Ok(snapshot)
     }
 
     fn snapshot_mut(&mut self, operation_id: &OperationId) -> Result<&mut OperationSnapshot> {
         self.operations
             .get_mut(operation_id.as_str())
             .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
+    }
+
+    /// Record an operation as terminalized, once, in completion order.
+    fn record_terminal_operation(&mut self, operation_id: &str) {
+        if !self.terminal_order.iter().any(|id| id == operation_id) {
+            self.terminal_order.push(operation_id.to_string());
+        }
+    }
+
+    /// Bound retained terminal-operation history: once more than
+    /// `TERMINAL_OPERATIONS_CAP` operations are terminal, drop the oldest by
+    /// TERMINALIZATION order (`terminal_order`), never by submission
+    /// sequence — a just-finished long-running operation must survive the
+    /// prune that its own completion triggers. Running/accepted operations
+    /// are never inspected and never pruned.
+    fn prune_terminal_operations(&mut self) {
+        while self.terminal_order.len() > TERMINAL_OPERATIONS_CAP {
+            let oldest = self.terminal_order.remove(0);
+            self.operations.remove(&oldest);
+        }
     }
 }
 
@@ -306,6 +429,13 @@ fn apply_operation_terminal(
     snapshot.progress.stage = stage_from_status(status);
     snapshot.progress.percentage = 100.0;
     snapshot.progress.message = terminal_summary.message.clone();
+    push_operation_log(
+        snapshot,
+        now_ms,
+        &terminal_summary.message,
+        Some(stage_from_status(status)),
+        None,
+    );
     snapshot.terminal_summary = Some(terminal_summary);
 }
 

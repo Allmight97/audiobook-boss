@@ -8,6 +8,9 @@
 - Runtime command/event index only: `docs/api-map.md`.
 - Architecture ownership and product spine: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
+- When work crosses file-handle, external-process, temp-artifact, replacement,
+  or cleanup ownership, use `.agents/skills/resource-lifetime-audit`; nearest
+  local `AGENTS.md` files supply the current owners and invariants.
 - In local guidance, "Public API Strip" means the owned module's allowed import/export surface; use it instead of importing private implementation files.
 - Canonical metadata lookup provider-degradation behavior is documented in
   `src-tauri/src/commands/metadata_lookup/service.rs`.

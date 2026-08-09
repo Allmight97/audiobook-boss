@@ -27,6 +27,7 @@ import type {
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
+import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import type {
 	MetadataIntentPatch,
@@ -197,6 +198,10 @@ export const tauriClient = {
 		commandSpecs.load_cover_art_file({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
 		commandSpecs.load_cover_art_from_url({ url }),
+	readAudioCoverThumbnail: (
+		filePath: string,
+	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
+		commandSpecs.read_audio_cover_thumbnail({ filePath }),
 	validateMetadataIntentPatch: (
 		metadataIntent: MetadataIntentPatch,
 	): Promise<MetadataIntentValidationResult> =>
@@ -285,6 +290,8 @@ export const tauriClient = {
 		commandSpecs.get_work_operation({ operationId }),
 	cancelWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
 		commandSpecs.cancel_work_operation({ operationId }),
+	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
+		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,
 	open: openDialog,
 	openFile,

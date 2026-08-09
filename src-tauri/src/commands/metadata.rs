@@ -2,7 +2,8 @@ use crate::audio::{validate_input_audio_path, validate_input_image_path};
 use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
 use crate::metadata::{
-    read_metadata, AudiobookMetadata, MetadataIntentPatch, MetadataIntentValidationResult,
+    optimize_cover_art, read_audio_cover_thumbnail as read_embedded_cover_thumbnail, read_metadata,
+    AudiobookMetadata, MetadataIntentPatch, MetadataIntentValidationResult,
 };
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
@@ -30,6 +31,21 @@ pub async fn read_audio_metadata(file_path: String) -> CommandResult<AudiobookMe
     })
     .await
     .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?;
+
+    Ok(result?)
+}
+
+/// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_audio_cover_thumbnail(file_path: String) -> CommandResult<Option<Vec<u8>>> {
+    let result: Result<Option<Vec<u8>>> = tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(&file_path);
+        let validated_path = validate_input_audio_path(&path)?;
+        read_embedded_cover_thumbnail(&validated_path)
+    })
+    .await
+    .map_err(|error| AppError::General(format!("Cover thumbnail read task failed: {error}")))?;
 
     Ok(result?)
 }
@@ -227,63 +243,12 @@ fn build_cover_art_http_client() -> std::result::Result<reqwest::Client, String>
         .map_err(|error| error.to_string())
 }
 
-/// Maximum dimension for cover art (width or height)
-const COVER_ART_MAX_DIMENSION: u32 = 800;
-/// JPEG quality for cover art (0-100)
-const COVER_ART_JPEG_QUALITY: u8 = 85;
-
-/// Maximum input image dimension allowed (DoS prevention)
-const COVER_ART_MAX_INPUT_DIMENSION: u32 = 4096;
 /// Max download size for remote cover art (DoS prevention)
 const COVER_ART_MAX_DOWNLOAD_BYTES: usize = 10 * 1024 * 1024;
 /// HTTP fetch timeout for cover art
 const COVER_ART_FETCH_TIMEOUT_SECS: u64 = 30;
 /// Max redirects for cover art URL fetch
 const COVER_ART_MAX_REDIRECTS: usize = 5;
-
-/// Optimizes cover art: resize to max 800×800, flatten transparency, encode as JPEG 85%
-///
-/// This standardizes all cover art for consistent metadata embedding and reduces
-/// file sizes for large images while maintaining good visual quality.
-pub fn optimize_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {
-    use image::codecs::jpeg::JpegEncoder;
-    use image::ImageReader;
-    use std::io::Cursor;
-
-    // Set up reader with resource limits to prevent DoS attacks from large images
-    let mut reader = ImageReader::new(Cursor::new(bytes))
-        .with_guessed_format()
-        .map_err(|e| AppError::ImageProcessing(format!("Failed to detect image format: {}", e)))?;
-
-    // Limit max dimensions to prevent memory exhaustion from malicious images
-    let mut limits = image::Limits::default();
-    limits.max_image_width = Some(COVER_ART_MAX_INPUT_DIMENSION);
-    limits.max_image_height = Some(COVER_ART_MAX_INPUT_DIMENSION);
-    reader.limits(limits);
-
-    let img = reader
-        .decode()
-        .map_err(|e| AppError::ImageProcessing(format!("Failed to decode image: {}", e)))?;
-
-    // Resize if needed using thumbnail() which preserves aspect ratio
-    let img = if img.width() > COVER_ART_MAX_DIMENSION || img.height() > COVER_ART_MAX_DIMENSION {
-        img.thumbnail(COVER_ART_MAX_DIMENSION, COVER_ART_MAX_DIMENSION)
-    } else {
-        img
-    };
-
-    // Flatten transparency to white background and convert to RGB
-    let rgb_img = flatten_transparency_to_white(img);
-
-    // Encode as JPEG with specified quality
-    let mut output = Vec::new();
-    let encoder = JpegEncoder::new_with_quality(&mut output, COVER_ART_JPEG_QUALITY);
-    rgb_img
-        .write_with_encoder(encoder)
-        .map_err(|e| AppError::ImageProcessing(format!("Failed to encode JPEG: {}", e)))?;
-
-    Ok(output)
-}
 
 fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
     let parsed =
@@ -352,33 +317,6 @@ fn is_supported_image_content_type(content_type: &str) -> bool {
         content_type,
         "image/jpeg" | "image/jpg" | "image/png" | "image/webp"
     )
-}
-
-/// Flattens any alpha channel to white background
-fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImage {
-    use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
-
-    // If no alpha channel, just convert to RGB8
-    if !img.color().has_alpha() {
-        return DynamicImage::ImageRgb8(img.to_rgb8());
-    }
-
-    // Convert to RGBA8 first to handle all alpha formats uniformly
-    let rgba = img.to_rgba8();
-    let (width, height) = rgba.dimensions();
-    let mut rgb_img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-
-    for (x, y, pixel) in rgba.enumerate_pixels() {
-        let Rgba([r, g, b, a]) = *pixel;
-        let alpha = a as f32 / 255.0;
-        let bg_channel = 255.0 * (1.0 - alpha);
-        let new_r = (r as f32 * alpha + bg_channel) as u8;
-        let new_g = (g as f32 * alpha + bg_channel) as u8;
-        let new_b = (b as f32 * alpha + bg_channel) as u8;
-        rgb_img.put_pixel(x, y, Rgb([new_r, new_g, new_b]));
-    }
-
-    DynamicImage::ImageRgb8(rgb_img)
 }
 
 #[cfg(test)]

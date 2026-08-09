@@ -30,6 +30,16 @@ export const coverArtSessionState = $state<CoverArtSessionState>({
 	coverArtRemovalRequested: false,
 });
 
+let coverArtSessionRevision = 0;
+
+function bumpCoverArtSessionRevision(): void {
+	coverArtSessionRevision += 1;
+}
+
+export function getCoverArtSessionRevision(): number {
+	return coverArtSessionRevision;
+}
+
 export const coverArtUiState = $state<CoverArtUiState>({
 	imageDataUrl: null,
 	isLoading: false,
@@ -69,16 +79,20 @@ export function setCoverArtUrlInputValue(value: string): void {
 
 export function setCoverArtSession(coverArtBytes: number[] | null): void {
 	coverArtSessionState.currentCoverArt = coverArtBytes;
+	bumpCoverArtSessionRevision();
 }
 
 export function clearCoverArtSession(): void {
 	coverArtSessionState.currentCoverArt = null;
+	bumpCoverArtSessionRevision();
 }
 
 export function setHasCustomCoverArt(hasCustom: boolean): void {
 	coverArtSessionState.hasCustomCoverArt = hasCustom;
+	bumpCoverArtSessionRevision();
 }
 
 export function setCoverArtRemovalRequested(markRemoval: boolean): void {
 	coverArtSessionState.coverArtRemovalRequested = markRemoval;
+	bumpCoverArtSessionRevision();
 }

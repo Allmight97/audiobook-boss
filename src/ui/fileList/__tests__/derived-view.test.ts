@@ -2,7 +2,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 import { removeFile, reorderFiles } from '../actions';
 import { setCurrentFileList } from '../state.svelte';
-import { readFileListSelectedIndices, readFileListViewFiles } from '../viewState.svelte';
+import {
+	displayedArtistForFile,
+	displayedTitleForFile,
+	readFileListSelectedIndices,
+	readFileListViewFiles,
+} from '../viewState.svelte';
+import {
+	cacheMetadataForFile,
+	clearMetadataSession,
+	stageMetadataIntentPatch,
+} from '../../metadataSession';
 
 function makeFile(path: string): AudioFile {
 	return {
@@ -29,6 +39,52 @@ function makeFileList(...files: AudioFile[]): FileListInfo {
 describe('derived file list view accessors', () => {
 	beforeEach(() => {
 		setCurrentFileList(null);
+		clearMetadataSession();
+	});
+
+	it('uses analyzed tags only until metadata session truth exists', () => {
+		const tagged = {
+			...makeFile('/books/tagged.m4b'),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+		expect(displayedTitleForFile(tagged)).toBe('Analyzed Title');
+		expect(displayedArtistForFile(tagged)).toBe('Analyzed Artist');
+
+		cacheMetadataForFile(tagged.path, { title: 'Session Title', artist: 'Session Artist' });
+		expect(displayedTitleForFile(tagged)).toBe('Session Title');
+		expect(displayedArtistForFile(tagged)).toBe('Session Artist');
+
+		stageMetadataIntentPatch(tagged.path, {
+			title: { op: 'clear' },
+			artist: { op: 'clear' },
+		});
+		expect(displayedTitleForFile(tagged)).toBe('tagged.m4b');
+		expect(displayedArtistForFile(tagged)).toBeNull();
+	});
+
+	it('keeps analyzed tags visible through a cover-only cache without weakening explicit clears', () => {
+		const tagged = {
+			...makeFile('/books/cover-only.m4b'),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+
+		cacheMetadataForFile(tagged.path, { cover_art: [1, 2, 3] });
+		expect(displayedTitleForFile(tagged)).toBe('Analyzed Title');
+		expect(displayedArtistForFile(tagged)).toBe('Analyzed Artist');
+
+		cacheMetadataForFile(tagged.path, {
+			title: 'Loaded Title',
+			artist: 'Loaded Artist',
+			cover_art: [1, 2, 3],
+		});
+		stageMetadataIntentPatch(tagged.path, {
+			title: { op: 'clear' },
+			artist: { op: 'clear' },
+		});
+		expect(displayedTitleForFile(tagged)).toBe('cover-only.m4b');
+		expect(displayedArtistForFile(tagged)).toBeNull();
 	});
 
 	it('reflects session reorder without manual view sync', () => {

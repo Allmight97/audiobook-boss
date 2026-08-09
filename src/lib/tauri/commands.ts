@@ -15,6 +15,7 @@ import type {
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
+import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
@@ -168,6 +169,8 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.loadCoverArtFile(args.filePath)),
 	load_cover_art_from_url: (args: { url: string }) =>
 		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
+	read_audio_cover_thumbnail: (args: { filePath: string }) =>
+		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
 	validate_metadata_intent_patch: (args: { metadataIntent: MetadataIntentPatch }) =>
 		runGeneratedCommand(
 			generatedCommands.validateMetadataIntentPatch(
@@ -321,6 +324,8 @@ export const commandSpecs = {
 			generatedCommands.cancelWorkOperation(args.operationId),
 			normalizeOperationSnapshot,
 		),
+	log_frontend: (args: { entry: FrontendLogEntry }) =>
+		runGeneratedCommand(generatedCommands.logFrontend(args.entry)),
 } as const;
 
 export type TauriCommand = keyof typeof commandSpecs;

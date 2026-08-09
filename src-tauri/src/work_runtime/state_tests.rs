@@ -81,6 +81,7 @@ fn late_progress_does_not_overwrite_pending_cancellation() {
                 job_id: Some("job-1".to_string()),
                 input_index: Some(0),
             },
+            1_000,
         )
         .expect("progress");
 
@@ -166,6 +167,7 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
                 job_id: Some("job-1".to_string()),
                 input_index: Some(0),
             },
+            1_000,
         )
         .expect("progress");
 
@@ -191,6 +193,7 @@ fn apply_batch_progress_updates_matched_child_and_aggregates_operation_progress(
                 job_id: Some("job-1".to_string()),
                 input_index: Some(0),
             },
+            1_000,
         )
         .expect("progress");
 
@@ -228,6 +231,7 @@ fn apply_single_child_progress_stages_operation_stage_without_terminaling_operat
                 job_id: Some("single-job".to_string()),
                 input_index: None,
             },
+            1_000,
         )
         .expect("progress");
 
@@ -255,6 +259,7 @@ fn apply_batch_progress_failure_keeps_operation_running_for_child_event() {
                 job_id: Some("job-1".to_string()),
                 input_index: Some(0),
             },
+            1_000,
         )
         .expect("progress");
 
@@ -284,6 +289,7 @@ fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
                 job_id: Some("single-job".to_string()),
                 input_index: None,
             },
+            1_000,
         )
         .expect("progress");
 
@@ -452,4 +458,274 @@ fn cancel_terminalizes_metadata_save_operation_as_cancelled_not_failed() {
         .all(|child| child.status == ChildJobStatus::Cancelled));
     assert!(!snapshot.cancellable);
     assert_eq!(snapshot.finished_at_ms, Some(300));
+}
+
+fn converting_event(percentage: f32, message: &str, input_index: usize) -> ProgressEvent {
+    ProgressEvent {
+        operation_kind: OperationKind::ProcessingBatch,
+        stage: EventStage::Converting,
+        percentage,
+        message: message.to_string(),
+        current_file: Some("/tmp/first.m4b".to_string()),
+        eta_seconds: None,
+        job_id: Some("job-1".to_string()),
+        input_index: Some(input_index),
+    }
+}
+
+#[test]
+fn log_tail_records_lifecycle_and_progress_with_dedupe() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    state
+        .apply_progress_event(
+            &operation_id,
+            &converting_event(10.0, "encoding chunk 1/12", 0),
+            200,
+        )
+        .expect("progress");
+    // Identical consecutive message must not rotate the tail.
+    state
+        .apply_progress_event(
+            &operation_id,
+            &converting_event(12.0, "encoding chunk 1/12", 0),
+            300,
+        )
+        .expect("progress");
+    let snapshot = state
+        .apply_progress_event(
+            &operation_id,
+            &converting_event(20.0, "encoding chunk 2/12", 0),
+            400,
+        )
+        .expect("progress");
+
+    let messages: Vec<&str> = snapshot
+        .log_tail
+        .iter()
+        .map(|entry| entry.message.as_str())
+        .collect();
+    assert_eq!(
+        messages,
+        [
+            "Processing started.",
+            "encoding chunk 1/12",
+            "encoding chunk 2/12"
+        ]
+    );
+    assert_eq!(snapshot.log_tail[0].timestamp_ms, 100);
+    assert_eq!(
+        snapshot.log_tail[1].child_job_id.as_deref(),
+        Some("input-0")
+    );
+}
+
+#[test]
+fn log_tail_is_bounded_drop_oldest() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    for step in 0..40 {
+        let message = format!("encoding chunk {step}/40");
+        state
+            .apply_progress_event(
+                &operation_id,
+                &converting_event(step as f32, &message, 0),
+                200 + i64::from(step),
+            )
+            .expect("progress");
+    }
+
+    let snapshot = state.get(&operation_id).expect("snapshot");
+    assert_eq!(snapshot.log_tail.len(), 20);
+    assert_eq!(snapshot.log_tail[0].message, "encoding chunk 20/40");
+    assert_eq!(snapshot.log_tail[19].message, "encoding chunk 39/40");
+}
+
+#[test]
+fn log_tail_records_terminal_and_cancel_entries() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+    state
+        .cancel(&operation_id, "Processing was cancelled.".to_string(), 500)
+        .expect("cancel");
+
+    let snapshot = state.get(&operation_id).expect("snapshot");
+    let last = snapshot.log_tail.last().expect("tail entry");
+    assert_eq!(last.message, "Processing was cancelled.");
+    assert_eq!(last.stage, Some(WorkProgressStage::Cancelled));
+    assert_eq!(last.timestamp_ms, 500);
+}
+
+#[test]
+fn multi_child_batch_events_suppress_operation_eta() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    let mut event = converting_event(40.0, "encoding chunk 3/12", 0);
+    event.eta_seconds = Some(42.0);
+    let snapshot = state
+        .apply_progress_event(&operation_id, &event, 200)
+        .expect("progress");
+
+    // Two children: the aggregate percentage renders beside the ETA, so one
+    // child's ETA must not be presented as the operation's.
+    assert_eq!(snapshot.progress.eta_seconds, None);
+    let child = snapshot
+        .children
+        .iter()
+        .find(|child| child.input_index == Some(0))
+        .expect("child");
+    assert_eq!(child.progress.eta_seconds, Some(42.0));
+}
+
+#[test]
+fn log_tail_keeps_identical_messages_from_distinct_children() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    let mut first = converting_event(10.0, "Encoding audio...", 0);
+    first.job_id = Some("job-1".to_string());
+    state
+        .apply_progress_event(&operation_id, &first, 200)
+        .expect("progress");
+
+    let mut second = converting_event(10.0, "Encoding audio...", 1);
+    second.job_id = Some("job-2".to_string());
+    let snapshot = state
+        .apply_progress_event(&operation_id, &second, 300)
+        .expect("progress");
+
+    let matching: Vec<_> = snapshot
+        .log_tail
+        .iter()
+        .filter(|entry| entry.message == "Encoding audio...")
+        .collect();
+    assert_eq!(matching.len(), 2, "distinct children are real history");
+    assert_ne!(matching[0].child_job_id, matching[1].child_job_id);
+}
+
+#[test]
+fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
+    let mut state = WorkRuntimeState::default();
+
+    // 25 terminal operations, sequence 1..=25, oldest first.
+    for sequence in 1..=25u64 {
+        let id = OperationId(format!("term-{sequence}"));
+        state.insert_operation(new_processing_snapshot(
+            id.clone(),
+            sequence,
+            OperationKind::ProcessingBatch,
+            format!("Batch {sequence}"),
+            &["/tmp/f.m4b".to_string()],
+            None,
+            100,
+        ));
+        state
+            .fail(&id, "boom".to_string(), 100 + sequence as i64)
+            .expect("fail terminalizes and prunes");
+    }
+
+    // A running operation must survive pruning regardless of its sequence.
+    let running_id = OperationId("running-op".to_string());
+    state.insert_operation(new_processing_snapshot(
+        running_id.clone(),
+        1,
+        OperationKind::ProcessingBatch,
+        "Running".to_string(),
+        &["/tmp/r.m4b".to_string()],
+        None,
+        500,
+    ));
+    state.mark_running(&running_id, 500).expect("running");
+
+    let list = state.list();
+    assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
+    assert!(state.get(&running_id).is_ok());
+
+    // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent
+    // (sequence 6..=25) remain.
+    for sequence in 1..=5u64 {
+        assert!(
+            state.get(&OperationId(format!("term-{sequence}"))).is_err(),
+            "sequence {sequence} should have been pruned"
+        );
+    }
+    for sequence in 6..=25u64 {
+        assert!(
+            state.get(&OperationId(format!("term-{sequence}"))).is_ok(),
+            "sequence {sequence} should be retained"
+        );
+    }
+}
+
+#[test]
+fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
+    let mut state = WorkRuntimeState::default();
+
+    // A low-sequence operation that stays running for a long time.
+    let long_runner = OperationId("long-runner".to_string());
+    state.insert_operation(new_processing_snapshot(
+        long_runner.clone(),
+        1,
+        OperationKind::ProcessingBatch,
+        "Long batch".to_string(),
+        &["/tmp/long.m4b".to_string()],
+        None,
+        100,
+    ));
+    state.mark_running(&long_runner, 100).expect("running");
+
+    // 25 newer operations terminalize while it runs.
+    for sequence in 2..=26u64 {
+        let id = OperationId(format!("term-{sequence}"));
+        state.insert_operation(new_processing_snapshot(
+            id.clone(),
+            sequence,
+            OperationKind::ProcessingBatch,
+            format!("Batch {sequence}"),
+            &["/tmp/f.m4b".to_string()],
+            None,
+            100,
+        ));
+        state
+            .fail(&id, "boom".to_string(), 100 + sequence as i64)
+            .expect("fail terminalizes and prunes");
+    }
+
+    // Now the long runner finishes. Pruning by submission sequence would
+    // evict it immediately (it has the lowest sequence); pruning by
+    // terminalization order must keep it as the NEWEST terminal entry.
+    state
+        .fail(&long_runner, "done late".to_string(), 10_000)
+        .expect("long runner terminalizes");
+
+    assert!(
+        state.get(&long_runner).is_ok(),
+        "the just-finished long-running operation must survive its own prune"
+    );
+    let list = state.list();
+    assert_eq!(list.operations.len(), 20, "terminal cap holds");
+    // The oldest-terminalized entries were evicted instead.
+    assert!(state.get(&OperationId("term-2".to_string())).is_err());
+}
+
+#[test]
+fn log_tail_records_the_cancellation_request_transition() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+    state.request_cancel(&operation_id, 400).expect("request");
+    state
+        .cancel(&operation_id, "Processing was cancelled.".to_string(), 500)
+        .expect("cancel");
+
+    let snapshot = state.get(&operation_id).expect("snapshot");
+    let messages: Vec<&str> = snapshot
+        .log_tail
+        .iter()
+        .map(|entry| entry.message.as_str())
+        .collect();
+    assert!(messages.contains(&"Cancellation requested."));
+    assert_eq!(messages.last(), Some(&"Processing was cancelled."));
 }

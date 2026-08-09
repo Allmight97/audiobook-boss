@@ -1,6 +1,6 @@
 ---
 name: audiobook-metadata
-description: Canonical metadata strategy for Audiobook Boss. Use when changing tag mappings, metadata intent behavior, or ABS/Plex/Apple interoperability rules.
+description: Canonical audiobook tag and interoperability strategy for Audiobook Boss. Use when changing tag mappings, folder conventions, or ABS/Plex/Apple compatibility; ordinary metadata intent and validation work follows the nearest owning AGENTS.md.
 ---
 
 # Audiobook Metadata

@@ -6,7 +6,6 @@
 		handleBitrateValueChange,
 		handleChannelsSelectionChange,
 		handleFlavorChange,
-		handleFdkAfterburnerChange,
 		handleQualityValueChange,
 		handleSampleRateSelectionChange,
 		initializeEncoderPanelLogic,
@@ -125,35 +124,6 @@
 				<p id="estimated-bitrate" class="field-hint" data-testid="estimated-bitrate">
 					{encoderPanelState.estimatedBitrateText}
 				</p>
-			</div>
-		</div>
-
-		<div
-			id="encoder-inline-option-row"
-			class="encoder-inline-option-row encoder-option-row-workbench"
-			class:hidden={!encoderPanelState.showInlineOptionRow}
-			data-testid="encoder-inline-option-row"
-		>
-			<div
-				id="fdk-options"
-				class="encoder-option-group"
-				class:hidden={!encoderPanelState.showFdkOptions}
-				data-testid="fdk-options"
-			>
-				<label
-					class="checkbox-label encoder-inline-toggle"
-					data-testid="afterburner-toggle"
-					title="Enable Afterburner"
-				>
-					<input
-						type="checkbox"
-						id="adv-fdk-afterburner"
-						data-testid="afterburner-checkbox"
-						checked={encoderPanelState.fdkAfterburner}
-						onchange={handleFdkAfterburnerChange}
-					/>
-					<span class="option-label">Afterburner</span>
-				</label>
 			</div>
 		</div>
 
@@ -286,16 +256,4 @@
 		line-height: 1.25;
 	}
 
-	.encoder-option-row-workbench {
-		grid-column: 1 / -1;
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		min-height: 0;
-	}
-
-	.encoder-inline-toggle {
-		margin-top: 0;
-		align-items: center;
-	}
 </style>

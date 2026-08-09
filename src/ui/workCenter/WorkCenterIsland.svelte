@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { formatEtaRemaining } from '../../lib/format/eta';
 	import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
 	import {
 		cancelWorkOperation,
@@ -20,6 +21,17 @@
 		if (status === 'cancelled') return 'Cancelled';
 		if (status === 'failed') return 'Failed';
 		return 'Mixed';
+	}
+
+	function acceptedQueuePosition(operation: OperationSnapshot): number | null {
+		if (operation.status !== 'accepted') return null;
+		const accepted = workCenterState.operations
+			.filter((candidate) => candidate.status === 'accepted')
+			.sort((left, right) => left.sequence - right.sequence);
+		const index = accepted.findIndex(
+			(candidate) => candidate.operationId === operation.operationId,
+		);
+		return index >= 0 ? index + 1 : null;
 	}
 
 	function operationKindLabel(kind: OperationSnapshot['kind']): string {
@@ -74,6 +86,9 @@
 						<div class="work-operation-actions">
 							<span class={`work-status is-${operation.status}`}>
 								{operationStatusLabel(operation.status)}
+								{#if acceptedQueuePosition(operation)}
+									#{acceptedQueuePosition(operation)}
+								{/if}
 							</span>
 							<button
 								class="work-action-button"
@@ -95,16 +110,34 @@
 								style={`width: ${Math.min(100, Math.max(0, operation.progress.percentage))}%`}
 							></div>
 						</div>
-						<span class="work-progress-value">{operation.progress.percentage.toFixed(0)}%</span>
+						<span class="work-progress-value">
+							{operation.progress.percentage.toFixed(0)}%
+							{#if operation.status === 'running' && operation.progress.etaSeconds != null}
+								· {formatEtaRemaining(operation.progress.etaSeconds)}
+							{/if}
+						</span>
 					</div>
 
 					<div class="work-summary" title={summaryText(operation)}>{summaryText(operation)}</div>
+
+					{#if operation.logTail.length > 0}
+						<div class="work-log-tail" aria-label="Recent operation activity">
+							{#each operation.logTail as entry}
+								<div>{entry.message}</div>
+							{/each}
+						</div>
+					{/if}
 
 					<div class="work-child-list">
 						{#each operation.children as child (child.childJobId)}
 							<div class={`work-child-row is-${child.status}`}>
 								<span class="work-child-label" title={child.sourcePath ?? child.label}>{child.label}</span>
-								<span class="work-child-status">{childStatusLabel(child.status)}</span>
+								<span class="work-child-status">
+									{childStatusLabel(child.status)}
+									{#if child.status === 'running' && child.progress.etaSeconds != null}
+										· {formatEtaRemaining(child.progress.etaSeconds)}
+									{/if}
+								</span>
 								{#if child.sourcePath}
 									<button
 										class="work-child-source"
@@ -152,9 +185,16 @@
 
 	.work-center-empty,
 	.work-center-error,
-	.work-summary {
+	.work-summary,
+	.work-log-tail {
 		font-size: 0.75rem;
 		color: var(--text-muted);
+	}
+
+	.work-log-tail {
+		max-height: 5rem;
+		overflow-y: auto;
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 	}
 
 	.work-center-error {
@@ -287,7 +327,7 @@
 	}
 
 	.work-progress-value {
-		width: 2.5rem;
+		min-width: 2.5rem;
 		flex-shrink: 0;
 		text-align: right;
 		font-size: 0.6875rem;
@@ -313,7 +353,7 @@
 	}
 
 	.work-child-status {
-		width: 4.5rem;
+		min-width: 4.5rem;
 		flex-shrink: 0;
 		text-align: right;
 		color: var(--text-muted);

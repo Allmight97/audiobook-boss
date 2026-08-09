@@ -43,8 +43,6 @@ const createDefaultState = () => ({
 	sampleRateOptions: [] as string[],
 	channelOptions: [] as NonNullable<EncoderSettingsState['channels']>[],
 	showQuality: true,
-	showInlineOptionRow: false,
-	showFdkOptions: false,
 	bitrateModeAvailability: {
 		vbr: true,
 		cvbr: false,
@@ -108,6 +106,12 @@ function sampleRateSelectionFromConfig(
 	return capabilities.explicitSampleRates.includes(sampleRate.explicit)
 		? String(sampleRate.explicit)
 		: 'auto';
+}
+
+// Live request truth for the App Settings dialog's afterburner control:
+// what the next encode will use, regardless of hydration source.
+export function readFdkAfterburner(): boolean {
+	return encoderPanelState.fdkAfterburner;
 }
 
 export function readEncoderSettingsFromState(): EncoderSettingsState {

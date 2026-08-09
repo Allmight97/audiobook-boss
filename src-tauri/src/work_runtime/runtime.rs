@@ -2,7 +2,8 @@ use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::types::{
     OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
-    WorkOperationListSnapshotEvent, WorkOperationSnapshotEvent, WorkSubmissionAccepted,
+    WorkOperationListSnapshotEvent, WorkOperationSnapshotEvent, WorkOperationStatus,
+    WorkSubmissionAccepted,
 };
 use crate::errors::{AppError, Result};
 use crate::processing::context::processing::ProgressEventListener;
@@ -82,6 +83,7 @@ impl WorkRuntime {
             flags.insert(operation_id.0.clone(), cancel_flag.clone());
         }
 
+        log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
         self.emit_snapshot(&window, &snapshot);
         self.emit_list(&window);
 
@@ -108,6 +110,7 @@ impl WorkRuntime {
                 request.metadata,
                 request.preview_seconds,
                 ProcessingRunOptions {
+                    operation_id: Some(operation_id_for_task.to_string()),
                     operation_cancel: Some(cancel_flag),
                     progress_listener,
                 },
@@ -158,6 +161,7 @@ impl WorkRuntime {
             flags.insert(operation_id.0.clone(), cancel_flag.clone());
         }
 
+        log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
         self.emit_snapshot(window, &snapshot);
         self.emit_list(window);
         self.mark_running_and_emit(window, &operation_id);
@@ -189,6 +193,7 @@ impl WorkRuntime {
             let mut state = lock_state(&self.inner.state)?;
             state.complete_from_summary(operation_id, summary, child_terminals, now_ms())?
         };
+        log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
         self.emit_snapshot(window, &snapshot);
         self.emit_list(window);
         self.remove_cancel_flag(operation_id);
@@ -207,6 +212,7 @@ impl WorkRuntime {
             let mut state = lock_state(&self.inner.state)?;
             state.fail(operation_id, message, now_ms())?
         };
+        log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
         self.emit_snapshot(window, &snapshot);
         self.emit_list(window);
         self.remove_cancel_flag(operation_id);
@@ -228,6 +234,7 @@ impl WorkRuntime {
             let mut state = lock_state(&self.inner.state)?;
             state.cancel(operation_id, message, now_ms())?
         };
+        log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
         self.emit_snapshot(window, &snapshot);
         self.emit_list(window);
         self.remove_cancel_flag(operation_id);
@@ -241,7 +248,7 @@ impl WorkRuntime {
         event: &ProgressEvent,
     ) {
         match lock_state(&self.inner.state)
-            .and_then(|mut state| state.apply_progress_event(operation_id, event))
+            .and_then(|mut state| state.apply_progress_event(operation_id, event, now_ms()))
         {
             Ok(snapshot) => self.emit_snapshot(window, &snapshot),
             Err(error) => log::warn!(
@@ -272,6 +279,9 @@ impl WorkRuntime {
             flag.store(true, Ordering::Release);
         }
         let snapshot = lock_state(&self.inner.state)?.request_cancel(&operation_id, now_ms())?;
+        if snapshot.status == WorkOperationStatus::Cancelling {
+            log_work_operation(WorkOperationLogEvent::CancelRequested, &snapshot);
+        }
         self.emit_snapshot(window, &snapshot);
         self.emit_list(window);
         Ok(snapshot)
@@ -282,6 +292,9 @@ impl WorkRuntime {
             .and_then(|mut state| state.mark_running(operation_id, now_ms()))
         {
             Ok(snapshot) => {
+                if snapshot.status == WorkOperationStatus::Running {
+                    log_work_operation(WorkOperationLogEvent::Running, &snapshot);
+                }
                 self.emit_snapshot(window, &snapshot);
                 self.emit_list(window);
             }
@@ -310,6 +323,7 @@ impl WorkRuntime {
 
         match snapshot_result {
             Ok(snapshot) => {
+                log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
                 self.emit_snapshot(window, &snapshot);
                 self.emit_list(window);
             }
@@ -346,6 +360,94 @@ impl WorkRuntime {
             }
             Err(error) => log::warn!("Failed to build work operation list snapshot: {}", error),
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WorkOperationLogEvent {
+    Accepted,
+    Running,
+    CancelRequested,
+    Terminal,
+}
+
+#[derive(Default)]
+struct WorkOperationLogCounts {
+    total: usize,
+    succeeded: usize,
+    skipped: usize,
+    cancelled: usize,
+    failed: usize,
+}
+
+fn log_work_operation(event: WorkOperationLogEvent, snapshot: &OperationSnapshot) {
+    log::info!("{}", format_work_operation_record(event, snapshot));
+}
+
+fn format_work_operation_record(
+    event: WorkOperationLogEvent,
+    snapshot: &OperationSnapshot,
+) -> String {
+    let counts = work_operation_log_counts(snapshot);
+    format!(
+        "work_operation event={} operation_id={} kind={} status={} total={} succeeded={} skipped={} cancelled={} failed={}",
+        work_operation_event_label(event),
+        snapshot.operation_id,
+        crate::processing::operation_kind_log_label(snapshot.kind),
+        work_operation_status_label(snapshot.status),
+        counts.total,
+        counts.succeeded,
+        counts.skipped,
+        counts.cancelled,
+        counts.failed,
+    )
+}
+
+fn work_operation_log_counts(snapshot: &OperationSnapshot) -> WorkOperationLogCounts {
+    if let Some(summary) = &snapshot.terminal_summary {
+        return WorkOperationLogCounts {
+            total: summary.total,
+            succeeded: summary.succeeded,
+            skipped: summary.skipped,
+            cancelled: summary.cancelled,
+            failed: summary.failed,
+        };
+    }
+
+    let mut counts = WorkOperationLogCounts {
+        total: snapshot.children.len(),
+        ..WorkOperationLogCounts::default()
+    };
+    for child in &snapshot.children {
+        match child.status {
+            super::ChildJobStatus::Completed => counts.succeeded += 1,
+            super::ChildJobStatus::Skipped => counts.skipped += 1,
+            super::ChildJobStatus::Cancelled => counts.cancelled += 1,
+            super::ChildJobStatus::Failed => counts.failed += 1,
+            super::ChildJobStatus::Queued | super::ChildJobStatus::Running => {}
+        }
+    }
+    counts
+}
+
+fn work_operation_event_label(event: WorkOperationLogEvent) -> &'static str {
+    match event {
+        WorkOperationLogEvent::Accepted => "accepted",
+        WorkOperationLogEvent::Running => "running",
+        WorkOperationLogEvent::CancelRequested => "cancel_requested",
+        WorkOperationLogEvent::Terminal => "terminal",
+    }
+}
+
+fn work_operation_status_label(status: WorkOperationStatus) -> &'static str {
+    match status {
+        WorkOperationStatus::Accepted => "accepted",
+        WorkOperationStatus::Running => "running",
+        WorkOperationStatus::Cancelling => "cancelling",
+        WorkOperationStatus::Completed => "completed",
+        WorkOperationStatus::Cancelled => "cancelled",
+        WorkOperationStatus::Failed => "failed",
+        WorkOperationStatus::Mixed => "mixed",
     }
 }
 
@@ -394,4 +496,84 @@ fn lock_cancel_flags(
     flags
         .lock()
         .map_err(|_| AppError::General("Work runtime cancellation lock failed".to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::processing::OperationKind;
+
+    #[test]
+    fn work_operation_record_format_is_stable_and_path_free() {
+        let mut snapshot = new_processing_snapshot(
+            OperationId("operation-123".to_string()),
+            1,
+            OperationKind::ProcessingBatch,
+            "Batch encode".to_string(),
+            &[
+                "/private/library/first.m4b".to_string(),
+                "/private/library/second.m4b".to_string(),
+            ],
+            None,
+            100,
+        );
+
+        let accepted = format_work_operation_record(WorkOperationLogEvent::Accepted, &snapshot);
+        assert_eq!(
+            accepted,
+            "work_operation event=accepted operation_id=operation-123 kind=processing_batch status=accepted total=2 succeeded=0 skipped=0 cancelled=0 failed=0"
+        );
+        assert!(!accepted.contains("/private/library"));
+
+        snapshot.status = WorkOperationStatus::Mixed;
+        snapshot.terminal_summary = Some(super::super::OperationTerminalSummary {
+            total: 2,
+            succeeded: 1,
+            skipped: 0,
+            cancelled: 0,
+            failed: 1,
+            message: "Mixed result".to_string(),
+        });
+        assert_eq!(
+            format_work_operation_record(WorkOperationLogEvent::Terminal, &snapshot),
+            "work_operation event=terminal operation_id=operation-123 kind=processing_batch status=mixed total=2 succeeded=1 skipped=0 cancelled=0 failed=1"
+        );
+    }
+
+    #[test]
+    fn work_operation_record_labels_pin_all_contract_variants() {
+        // Operation-kind labels are pinned by the owning processing contract
+        // test (`processing_contract_operation_kind_log_labels_are_stable`).
+        assert_eq!(
+            [
+                WorkOperationStatus::Accepted,
+                WorkOperationStatus::Running,
+                WorkOperationStatus::Cancelling,
+                WorkOperationStatus::Completed,
+                WorkOperationStatus::Cancelled,
+                WorkOperationStatus::Failed,
+                WorkOperationStatus::Mixed,
+            ]
+            .map(work_operation_status_label),
+            [
+                "accepted",
+                "running",
+                "cancelling",
+                "completed",
+                "cancelled",
+                "failed",
+                "mixed",
+            ]
+        );
+        assert_eq!(
+            [
+                WorkOperationLogEvent::Accepted,
+                WorkOperationLogEvent::Running,
+                WorkOperationLogEvent::CancelRequested,
+                WorkOperationLogEvent::Terminal,
+            ]
+            .map(work_operation_event_label),
+            ["accepted", "running", "cancel_requested", "terminal"]
+        );
+    }
 }

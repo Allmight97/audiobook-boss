@@ -49,6 +49,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - The broader metadata boundary owns passthrough, cover-art handling, remux helpers,
   and container routing. `tag_registry.rs` retains series constants folded by
   `field_schema`.
+- Thumbnail ingestion stays allocation-bounded before decode or demux:
+  `mp4_covr` bounds MP4 payload, nesting, and atom traversal; `embedded_cover`
+  reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg. Unknown
+  non-MP4 tag containers return no thumbnail instead of using an unbounded
+  demux fallback.
 
 ## Allowed Agent Edits Without Escalation
 - Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.

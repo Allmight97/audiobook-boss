@@ -127,6 +127,7 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | Status Panel | `src/ui/statusPanel` | Processing launch controls, concurrency display, and foreground preview progress rendering. |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
 | App Settings | `src/ui/appSettings` | Settings hydration, durable preference coordination, and the settings dialog (FFmpeg/FDK path, startup behavior, pinned defaults). |
+| Metadata Form | `src/ui/metadataForm` | Metadata text-field state, multi-select actions, dirty reads, validation warning display, and `MetadataFormFieldsIsland`. |
 | Metadata Session | `src/ui/metadataSession` | Per-file metadata cache truth, pending draft/intent staging (`stageMetadataIntentPatch`), draft validation adaptation, and the metadata batch-save workflow. |
 | Metadata Lookup | `src/ui/metadataLookup` | Lookup modal workflow, queue advancement, safe cover preview, and result application through Metadata Session staging. |
 | Tag Preview | `src/ui/tagPreview` | TSOA calculation and tag preview grid rendering from metadata form preview reads. |

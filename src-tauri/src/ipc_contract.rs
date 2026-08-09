@@ -14,6 +14,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::write_cover_art,
             crate::commands::load_cover_art_file,
             crate::commands::load_cover_art_from_url,
+            crate::commands::read_audio_cover_thumbnail,
             crate::commands::validate_metadata_intent_patch,
             crate::commands::save_metadata_to_file,
             crate::commands::metadata::save_batch::save_metadata_batch,
@@ -43,6 +44,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::list_work_operations,
             crate::commands::get_work_operation,
             crate::commands::cancel_work_operation,
+            crate::commands::log_frontend,
         ])
         .events(tauri_specta::collect_events![
             crate::processing::ProgressEvent,
@@ -98,5 +100,23 @@ fn trim_generated_typescript(input: &str) -> String {
         normalized.push('\n');
     }
 
+    while normalized.ends_with("\n\n") {
+        normalized.pop();
+    }
+    if !normalized.is_empty() && !normalized.ends_with('\n') {
+        normalized.push('\n');
+    }
+
     normalized
+}
+
+#[cfg(test)]
+mod tests {
+    use super::trim_generated_typescript;
+
+    #[test]
+    fn generated_typescript_has_one_terminal_newline() {
+        assert_eq!(trim_generated_typescript("export {};\n\n"), "export {};\n");
+        assert_eq!(trim_generated_typescript("export {};"), "export {};\n");
+    }
 }

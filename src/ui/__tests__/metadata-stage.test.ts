@@ -52,6 +52,7 @@ vi.mock('../statusPanel', () => ({
 
 vi.mock('../metadataForm', () => ({
 	readMetadataForm: context.readMetadataFormMock,
+	readMetadataFormRevision: vi.fn(() => 0),
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 	resetDirtyState: vi.fn(),
 }));
