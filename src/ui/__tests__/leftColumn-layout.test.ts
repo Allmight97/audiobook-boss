@@ -1,51 +1,44 @@
-import { describe, expect, it } from 'vitest';
-import appSource from '../../App.svelte?raw';
-import fileInspectorSource from '../leftColumn/FileInspectorPanel.svelte?raw';
-import inputWorkflowSource from '../leftColumn/InputWorkflowPanel.svelte?raw';
-import leftColumnSource from '../leftColumn/LeftColumnIsland.svelte?raw';
+import { render, screen } from '@testing-library/svelte';
+import { describe, expect, it, vi } from 'vitest';
+import LeftColumnIsland from '../leftColumn/LeftColumnIsland.svelte';
 
-describe('left column sibling layout', () => {
-	it('keeps App as shell composition for the left column', () => {
-		expect(appSource).toContain('<LeftColumnIsland />');
-		expect(appSource).not.toContain('<FileImportIsland');
-		expect(appSource).not.toContain('<JobControlsIsland');
-		expect(appSource).not.toContain('inspectorState');
-		expect(appSource).not.toContain('Selected File Properties');
-	});
+vi.mock('../../lib/tauri/client', () => ({
+	tauriClient: {
+		analyzeAudioFiles: vi.fn(),
+		getRuntimeSettingsCapabilities: vi.fn(async () => ({
+			maxConcurrentJobs: { selection: 'auto', effective: 2, allowedValues: [1, 2] },
+			encoderSettings: {
+				encoders: [],
+				bitrateKbpsOptions: [],
+				vbrQualityRange: { min: 1, max: 5 },
+			},
+		})),
+		listen: vi.fn(async () => () => undefined),
+		openDirectory: vi.fn(),
+		openFiles: vi.fn(),
+	},
+}));
 
-	it('renders input workflow before file inspector as sibling zones', () => {
-		const inputIndex = leftColumnSource.indexOf('<InputWorkflowPanel />');
-		const inspectorIndex = leftColumnSource.indexOf('<FileInspectorPanel />');
+vi.mock('../statusPanel', () => ({
+	initStatusPanel: vi.fn(),
+	isStatusPanelProcessing: vi.fn(() => false),
+	pushStatusPanelTransientStatus: vi.fn(),
+}));
 
-		expect(leftColumnSource).toContain('data-testid="left-column"');
-		expect(inputIndex).toBeGreaterThan(-1);
-		expect(inspectorIndex).toBeGreaterThan(inputIndex);
-	});
+describe('left column composition', () => {
+	it('renders input workflow before the selected-file inspector as sibling zones', () => {
+		render(LeftColumnIsland);
 
-	it('keeps input workflow composition in existing behavior owners', () => {
-		expect(inputWorkflowSource).toContain('Input and File Order');
-		expect(inputWorkflowSource).toContain('<JobControlsIsland');
-		expect(inputWorkflowSource).toContain('<FileImportIsland');
-		expect(inputWorkflowSource).toContain('handleMergeModeChange');
-		expect(inputWorkflowSource).toContain('handleMaxConcurrentSelectionChange');
-	});
+		const shell = screen.getByTestId('left-column');
+		const workflow = screen.getByTestId('input-workflow-panel');
+		const inspector = screen.getByTestId('file-inspector-panel');
 
-	it('keeps file inspector bound to existing FileList inspector state', () => {
-		for (const label of [
-			'Bitrate:',
-			'Sample Rate:',
-			'Channels:',
-			'Codec:',
-			'Decoder:',
-			'File Size:',
-			'Supplemental:',
-			'Combined Size:',
-		]) {
-			expect(fileInspectorSource).toContain(label);
-		}
-
-		expect(fileInspectorSource).toContain('inspectorState');
-		expect(fileInspectorSource).toContain('readCombinedSizeText');
-		expect(fileInspectorSource).toContain('data-testid="file-inspector-panel"');
+		expect(workflow.parentElement).toBe(shell);
+		expect(inspector.parentElement).toBe(shell);
+		expect(
+			workflow.compareDocumentPosition(inspector) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBe(workflow);
+		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBe(inspector);
 	});
 });

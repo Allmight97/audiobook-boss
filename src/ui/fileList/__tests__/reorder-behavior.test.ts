@@ -15,6 +15,7 @@ import { showSingleSelection } from '../metadataPanel';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
+	getSelectedFileIndices,
 	setCurrentFileList,
 	resetImportOrder,
 	setSelectedFileIndices,
@@ -194,6 +195,7 @@ describe('file list reorder behavior', () => {
 		moveFileUp(1);
 
 		expect(getSelectedFileIndex()).toBe(0);
+		expect(getSelectedFileIndices()).toEqual(new Set([0]));
 		expect(inspectorState.contextText).toBe('beta.m4b');
 		expect(inspectorState.contextDetail).toBe('1 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
@@ -215,6 +217,7 @@ describe('file list reorder behavior', () => {
 		moveFileDown(1);
 
 		expect(getSelectedFileIndex()).toBe(2);
+		expect(getSelectedFileIndices()).toEqual(new Set([2]));
 		expect(inspectorState.contextText).toBe('beta.m4b');
 		expect(inspectorState.contextDetail).toBe('3 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
@@ -236,6 +239,7 @@ describe('file list reorder behavior', () => {
 		reorderFiles(0, 2);
 
 		expect(getSelectedFileIndex()).toBe(2);
+		expect(getSelectedFileIndices()).toEqual(new Set([2]));
 		expect(inspectorState.contextText).toBe('alpha.m4b');
 		expect(inspectorState.contextDetail).toBe('3 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
