@@ -186,6 +186,7 @@ function acceptedProcessingSubmission(): WorkSubmissionAccepted {
 			terminalSummary: undefined,
 			warnings: [],
 			errors: [],
+			logTail: [],
 		},
 	};
 }

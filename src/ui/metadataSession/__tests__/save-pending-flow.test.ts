@@ -67,29 +67,36 @@ vi.mock('../../statusPanel/index', () => ({
 	},
 }));
 
-vi.mock('../../metadataForm', () => ({
-	readMetadataFormPreviewValues: vi.fn(() => ({
-		title: '',
-		author: '',
-		narrator: '',
-		series: '',
-		seriesPart: '',
-		subseries: '',
-		subseriesPart: '',
-		year: '',
-		genre: '',
-	})),
-	initMetadataFormEvents: vi.fn(),
-	readMetadataForm: vi.fn(() => ({})),
-	resetDirtyState: context.resetDirtyStateMock,
-	onMetadataFormFieldInput: vi.fn(),
-	onMetadataFormActionSelectChange: vi.fn(),
-}));
+vi.mock('../../metadataForm', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../metadataForm')>();
+	return {
+		...actual,
+		readMetadataFormViewSnapshot: vi.fn(() => ({ mode: 'single', selectionCount: 1 })),
+		readMetadataFormPreviewValues: vi.fn(() => ({
+			title: '',
+			author: '',
+			narrator: '',
+			series: '',
+			seriesPart: '',
+			subseries: '',
+			subseriesPart: '',
+			year: '',
+			genre: '',
+		})),
+		initMetadataFormEvents: vi.fn(),
+		readMetadataForm: vi.fn(() => ({})),
+		resetDirtyState: context.resetDirtyStateMock,
+		onMetadataFormFieldInput: vi.fn(),
+		onMetadataFormActionSelectChange: vi.fn(),
+	};
+});
 
 vi.mock('../../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),
+	getSortDirection: vi.fn(() => 'ascending'),
+	getImportOrdinal: vi.fn(() => 0),
 	isOrderLocked: vi.fn(() => false),
 	onOrderLockChange: vi.fn(() => () => undefined),
 }));

@@ -13,12 +13,6 @@ vi.mock('../metadataSession', () => ({
 	metadataSaveInProgress: { subscribe: vi.fn(() => () => {}) },
 }));
 
-vi.mock('../metadataForm', () => ({
-	onMetadataFormActionSelectChange: vi.fn(),
-	onMetadataFormFieldInput: vi.fn(),
-	initMetadataFormEvents: vi.fn(),
-}));
-
 vi.mock('../fileList', () => ({
 	getCurrentFileList: vi.fn().mockReturnValue(null),
 	getSelectedFileIndices: vi.fn().mockReturnValue(new Set()),
