@@ -3,7 +3,10 @@
 ## Public API Strip
 - Import encoder request configuration from `src/ui/encoderPanel`.
 - Exports: `applyEncodingDefaults`, `readEncoderDefaultsFromState`,
-  `readEncodingRequestConfig`.
+  `readEncodingRequestConfig`, `readFdkAfterburner`, `setFdkAfterburner`.
+- `readFdkAfterburner`/`setFdkAfterburner` exist for the App Settings dialog,
+  which owns the afterburner control; the panel keeps the request-truth
+  carrier and persistence rails and renders no afterburner UI.
 - `applyEncodingDefaults(defaults, capabilities)` accepts an already-loaded
   Runtime Settings Capabilities encoder slice from App Settings hydration.
 - Composition-only UI shells may import `EncoderWorkbenchIsland.svelte`; do not

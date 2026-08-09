@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
+	import { ModalController } from '../../lib/ui/modal.svelte';
+	import { readFdkAfterburner, setFdkAfterburner } from '../encoderPanel';
 	import {
 		appSettingsDialogState,
 		browseForFfmpegBinary,
@@ -10,6 +13,49 @@
 		saveToolchainPreference,
 		setStartupBehavior,
 	} from './settingsDialog.svelte';
+
+	let dialogEl = $state<HTMLElement | null>(null);
+	const modal = new ModalController();
+	let resetConfirming = $state(false);
+	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	$effect(() => {
+		modal.sync(appSettingsDialogState.isOpen, { container: dialogEl }, { onEscape: closeAppSettingsDialog });
+	});
+	onDestroy(() => modal.destroy());
+
+	function handleAfterburnerChange(event: Event): void {
+		const target = (event.currentTarget ?? event.target) as HTMLInputElement | null;
+		void setFdkAfterburner(Boolean(target?.checked));
+	}
+
+	function cancelResetConfirm(): void {
+		clearTimeout(resetConfirmTimeout);
+		resetConfirmTimeout = undefined;
+		resetConfirming = false;
+	}
+
+	function requestResetConfirm(): void {
+		resetConfirming = true;
+		clearTimeout(resetConfirmTimeout);
+		resetConfirmTimeout = setTimeout(cancelResetConfirm, 4000);
+	}
+
+	function confirmReset(): void {
+		cancelResetConfirm();
+		void resetAllAppSettings();
+	}
+
+	function handleWindowClickForResetConfirm(event: MouseEvent): void {
+		if (!resetConfirming) return;
+		const target = event.target;
+		if (target instanceof Element && target.closest('[data-testid="app-settings-reset-row"]')) return;
+		cancelResetConfirm();
+	}
+
+	$effect(() => {
+		if (!appSettingsDialogState.isOpen) cancelResetConfirm();
+	});
 
 	function handleBackdropClick(event: MouseEvent): void {
 		if (event.target === event.currentTarget) {
@@ -71,6 +117,8 @@
 	}
 </script>
 
+<svelte:window onclick={handleWindowClickForResetConfirm} />
+
 <div
 	id="app-settings-modal"
 	class="app-modal-backdrop"
@@ -84,6 +132,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="app-settings-title"
+		bind:this={dialogEl}
 	>
 		<div class="app-modal-header">
 			<h3 id="app-settings-title">App Settings</h3>
@@ -156,6 +205,20 @@
 							{/if}
 						</p>
 					{/if}
+					<label class="checkbox-label" data-testid="app-settings-afterburner-toggle">
+						<input
+							type="checkbox"
+							id="app-settings-afterburner"
+							data-testid="app-settings-afterburner-checkbox"
+							checked={readFdkAfterburner()}
+							onchange={handleAfterburnerChange}
+						/>
+						<span class="option-label">FDK Afterburner</span>
+					</label>
+					<p class="text-xs muted-text">
+						Extra encoding effort for slightly higher quality on the FDK encoder.
+						Leave on unless encode speed matters more than quality.
+					</p>
 				</section>
 
 				{#if appSettingsDialogState.settings}
@@ -229,16 +292,36 @@
 
 					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">Reset</h4>
-						<div class="app-settings-path-row">
-							<button
-								class="btn-pill btn-pill-secondary"
-								data-testid="app-settings-reset"
-								type="button"
-								disabled={appSettingsDialogState.saveState === 'saving'}
-								onclick={() => void resetAllAppSettings()}
-							>
-								Reset all settings to defaults
-							</button>
+						<div class="app-settings-path-row" data-testid="app-settings-reset-row">
+							{#if resetConfirming}
+								<span class="text-xs muted-text" data-testid="app-settings-reset-confirm-prompt">
+									Reset all settings?
+								</span>
+								<button
+									data-testid="app-settings-reset-confirm"
+									type="button"
+									disabled={appSettingsDialogState.saveState === 'saving'}
+									onclick={confirmReset}
+								>
+									Reset
+								</button>
+								<button
+									data-testid="app-settings-reset-cancel"
+									type="button"
+									onclick={cancelResetConfirm}
+								>
+									Cancel
+								</button>
+							{:else}
+								<button
+									data-testid="app-settings-reset"
+									type="button"
+									disabled={appSettingsDialogState.saveState === 'saving'}
+									onclick={requestResetConfirm}
+								>
+									Reset all settings to defaults
+								</button>
+							{/if}
 						</div>
 					</section>
 				{/if}
