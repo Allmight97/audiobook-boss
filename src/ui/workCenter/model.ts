@@ -24,7 +24,7 @@ export function replaceOperations(
 	list: OperationListSnapshot,
 ): WorkCenterModel {
 	return {
-		operations: [...list.operations].sort(sortBySequenceDesc),
+		operations: [...list.operations].sort(sortByStatusThenSequenceDesc),
 	};
 }
 
@@ -36,10 +36,18 @@ export function upsertOperation(
 		(operation) => operation.operationId !== snapshot.operationId,
 	);
 	next.push(snapshot);
-	next.sort(sortBySequenceDesc);
+	next.sort(sortByStatusThenSequenceDesc);
 	return { operations: next };
 }
 
-function sortBySequenceDesc(left: OperationSnapshot, right: OperationSnapshot): number {
+function statusDisplayBucket(status: WorkOperationStatus): 0 | 1 | 2 {
+	if (isTerminalOperationStatus(status)) return 2;
+	if (status === 'accepted') return 1;
+	return 0;
+}
+
+function sortByStatusThenSequenceDesc(left: OperationSnapshot, right: OperationSnapshot): number {
+	const bucketDiff = statusDisplayBucket(left.status) - statusDisplayBucket(right.status);
+	if (bucketDiff !== 0) return bucketDiff;
 	return right.sequence - left.sequence;
 }

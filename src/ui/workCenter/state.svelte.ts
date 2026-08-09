@@ -1,6 +1,10 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { EVENTS } from '../../types/events';
-import type { OperationId, OperationSnapshot } from '../../types/workRuntime';
+import type {
+	OperationId,
+	OperationListSnapshot,
+	OperationSnapshot,
+} from '../../types/workRuntime';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
@@ -29,7 +33,18 @@ export const workCenterState = $state<WorkCenterState>({
 
 let initializationPromise: Promise<void> | null = null;
 let subscriptions: SubscriptionGroup | null = null;
+const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 const purgedOperationIds = new Set<string>();
+const purgedOperationOrder: string[] = [];
+
+function markOperationPurged(operationId: string): void {
+	purgedOperationIds.add(operationId);
+	purgedOperationOrder.push(operationId);
+	if (purgedOperationOrder.length > PURGED_OPERATION_TOMBSTONE_CAP) {
+		const oldest = purgedOperationOrder.shift();
+		if (oldest !== undefined) purgedOperationIds.delete(oldest);
+	}
+}
 
 export function initializeWorkCenter(): Promise<void> {
 	if (initializationPromise) return initializationPromise;
@@ -49,11 +64,7 @@ export function initializeWorkCenter(): Promise<void> {
 		);
 		await group.add(
 			tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
-				const model = replaceOperations(workCenterState, { operations: payload.operations });
-				workCenterState.operations = model.operations;
-				for (const operation of workCenterState.operations) {
-					void purgeRemoteSessionsForTerminalOperation(operation);
-				}
+				applyOperationListSnapshot({ operations: payload.operations });
 			}),
 		);
 
@@ -62,8 +73,7 @@ export function initializeWorkCenter(): Promise<void> {
 		if (group.disposed) {
 			return;
 		}
-		const model = replaceOperations(workCenterState, list);
-		workCenterState.operations = model.operations;
+		applyOperationListSnapshot(list);
 		workCenterState.initialized = true;
 		workCenterState.errorMessage = null;
 	})().catch((error) => {
@@ -100,6 +110,14 @@ export function applyOperationSnapshot(snapshot: OperationSnapshot): void {
 	void purgeRemoteSessionsForTerminalOperation(snapshot);
 }
 
+export function applyOperationListSnapshot(list: OperationListSnapshot): void {
+	const model = replaceOperations(workCenterState, list);
+	workCenterState.operations = model.operations;
+	for (const operation of workCenterState.operations) {
+		void purgeRemoteSessionsForTerminalOperation(operation);
+	}
+}
+
 export async function cancelWorkOperation(operationId: OperationId): Promise<void> {
 	workCenterState.cancelPendingByOperationId = {
 		...workCenterState.cancelPendingByOperationId,
@@ -127,7 +145,7 @@ async function purgeRemoteSessionsForTerminalOperation(
 ): Promise<void> {
 	if (!isTerminalOperationStatus(operation.status)) return;
 	if (purgedOperationIds.has(operation.operationId)) return;
-	purgedOperationIds.add(operation.operationId);
+	markOperationPurged(operation.operationId);
 
 	const operationInputIds =
 		operation.sourceInputIds.length > 0

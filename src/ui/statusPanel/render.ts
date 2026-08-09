@@ -1,5 +1,5 @@
 import { getMaxConcurrentStatus } from '../jobControls';
-import { formatStatusDisplayText } from './formatting';
+import { formatEtaRemaining, formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
 import {
 	setStatusPanelConcurrencyText,
@@ -14,7 +14,11 @@ import type { JobListItem } from './viewTypes';
 
 export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
 	setStatusPanelProgressPercentage(status.percentage);
-	setStatusPanelStatusText(formatStatusDisplayText(status.stage));
+	const statusText =
+		status.stage === 'converting' && status.etaSeconds !== undefined
+			? `${formatStatusDisplayText(status.stage)} · ${formatEtaRemaining(status.etaSeconds)}`
+			: formatStatusDisplayText(status.stage);
+	setStatusPanelStatusText(statusText);
 	setStatusPanelStepText(`Current Step: ${status.message}`);
 	setStatusPanelStepColor('var(--text-primary)');
 	setStatusPanelIsProcessing(isProcessing);

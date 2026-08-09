@@ -18,6 +18,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'listen',
 	'listRemoteSourceProviders',
 	'listWorkOperations',
+	'logFrontend',
 	'loadCoverArtFile',
 	'loadCoverArtFromUrl',
 	'loadRemoteSourceLibrary',
@@ -33,6 +34,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'processAudiobookFiles',
 	'purgeRemoteSourceSession',
 	'readAudioMetadata',
+	'readAudioCoverThumbnail',
 	'resetAppSettings',
 	'saveMetadataBatch',
 	'saveMetadataIntentToFile',
@@ -66,12 +68,14 @@ describe('Tauri Runtime Boundary public API contract', () => {
 		expect(TAURI_COMMAND_NAMES).toContain('discover_audio_import_paths');
 		expect(TAURI_COMMAND_NAMES).toContain('get_supported_audio_import_metadata');
 		expect(TAURI_COMMAND_NAMES).toContain('take_opened_audio_files');
+		expect(TAURI_COMMAND_NAMES).toContain('read_audio_cover_thumbnail');
 		expect(TAURI_COMMAND_NAMES).toContain('list_remote_source_providers');
 		expect(TAURI_COMMAND_NAMES).toContain('start_remote_source_acquisition');
 		expect(TAURI_COMMAND_NAMES).toContain('submit_processing_operation');
 		expect(TAURI_COMMAND_NAMES).toContain('list_work_operations');
 		expect(TAURI_COMMAND_NAMES).toContain('get_work_operation');
 		expect(TAURI_COMMAND_NAMES).toContain('cancel_work_operation');
+		expect(TAURI_COMMAND_NAMES).toContain('log_frontend');
 		expect([...TAURI_APP_EVENT_NAMES]).toEqual([
 			'processing-progress',
 			'processing-queue',

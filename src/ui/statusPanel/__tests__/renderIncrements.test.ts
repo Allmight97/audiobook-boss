@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderJobList } from '../render';
+import { renderJobList, renderStatus } from '../render';
 import type { JobProgress } from '../state';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
@@ -53,6 +53,17 @@ describe('renderJobList incremental updates', () => {
 		renderJobList(cloneJobProgress(jobProgress), [...queueOrder], vi.fn());
 		const secondSnapshot = JSON.stringify(statusPanelViewState.jobItems);
 		expect(secondSnapshot).toBe(firstSnapshot);
+	});
+
+	it('renders backend-authored ETA only for active conversion status', () => {
+		renderStatus(
+			{ stage: 'converting', percentage: 64, message: 'Encoding', etaSeconds: 242 },
+			true,
+		);
+		expect(statusPanelViewState.statusText).toBe('Converting · 04:02 left');
+
+		renderStatus({ stage: 'completed', percentage: 100, message: 'Done' }, false);
+		expect(statusPanelViewState.statusText).toBe('Completed');
 	});
 
 	it('keeps ordered keyed items and updates only changed values', () => {

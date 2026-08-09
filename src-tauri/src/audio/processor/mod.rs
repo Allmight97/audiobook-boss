@@ -109,8 +109,18 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Stri
         adapter::ResolvedProcessorAdapter::NativeFfmpegNext => "native_ffmpeg_next",
         adapter::ResolvedProcessorAdapter::ExternalFdk { .. } => "external_fdk",
     };
+    let operation_id = request
+        .context
+        .operation_id
+        .as_deref()
+        .unwrap_or("foreground");
+    let job_id = request.context.job_id.as_deref().unwrap_or("none");
+    let input_index = request
+        .context
+        .input_index
+        .map_or_else(|| "none".to_string(), |index| index.to_string());
     log::info!(
-        "audio engine adapter: kind={adapter_label} requested_encoder={:?}",
+        "audio engine adapter: operation_id={operation_id} job_id={job_id} input_index={input_index} kind={adapter_label} requested_encoder={:?}",
         request.encoder_settings.encoder_type,
     );
     adapter

@@ -48,7 +48,7 @@ impl JobRegistry {
             jobs.insert(job_id.0, job);
         }
 
-        log::info!("Job {} registered and started", job_id);
+        log::info!("Job {} registered", job_id);
         Ok((job_id, permit))
     }
 

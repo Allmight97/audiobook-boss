@@ -28,6 +28,7 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) output_time_base: ff::Rational,
     pub(crate) running_pts: &'a mut i64,
     pub(crate) last_emit: &'a mut std::time::Instant,
+    pub(crate) eta: &'a mut crate::processing::progress::EtaEstimator,
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
     pub(crate) current_file_name: String,
@@ -38,6 +39,14 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) preview_state: Option<&'a mut PreviewState>,
 }
 
+/// The audio seconds this run actually intends to produce. `total_duration`
+/// already carries the attainable target for every mode: full source total
+/// normally, and the per-file-capped preview total when previewing
+/// (`prepare::progress_total_duration`).
+fn eta_target_seconds(ctx: &FramePipelineCtx) -> f64 {
+    ctx.total_duration
+}
+
 fn emit_progress_update(ctx: &mut FramePipelineCtx) {
     if ctx.last_emit.elapsed() > std::time::Duration::from_millis(PROGRESS_EMIT_INTERVAL_MS) {
         *ctx.last_emit = std::time::Instant::now();
@@ -46,6 +55,11 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             current_seconds,
             ctx.total_duration,
         ) as f64;
+        let eta_seconds = ctx.eta.update(
+            std::time::Instant::now(),
+            current_seconds,
+            eta_target_seconds(ctx),
+        );
         let file_label = if ctx.current_file_name.is_empty() {
             "Unknown file"
         } else {
@@ -60,7 +74,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
                 ctx.current_file_index + 1,
                 ctx.total_files
             )),
-            None,
+            eta_seconds,
         );
     }
 }

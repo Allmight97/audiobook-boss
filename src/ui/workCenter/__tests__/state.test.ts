@@ -83,6 +83,7 @@ function completedMergeOperation(operationId: string): OperationSnapshot {
 		},
 		warnings: [],
 		errors: [],
+		logTail: [],
 	};
 }
 
