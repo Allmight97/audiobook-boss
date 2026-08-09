@@ -643,6 +643,24 @@ mod tests {
     }
 
     #[test]
+    fn abs_default_builds_subseries_book_path() {
+        let path = build_output_path_preview(
+            Path::new("/out"),
+            Some(&sample_naming_metadata()),
+            OutputNamingConfig::default(),
+            None,
+        )
+        .expect("path");
+
+        assert_eq!(
+            path,
+            Path::new(
+                "/out/Frank Herbert/Dune Saga/Part 1 - Discovery/Book 1 - Dune/Book 1 - Dune.m4b"
+            )
+        );
+    }
+
+    #[test]
     fn custom_template_rejects_path_traversal() {
         let err = build_output_path_preview(
             Path::new("/out"),
