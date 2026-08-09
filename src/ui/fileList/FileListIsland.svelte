@@ -152,20 +152,24 @@
 				Order locked while processing
 			</span>
 		</div>
-		<div
-			role="columnheader"
-			aria-sort={sortState === 'ascending' ? 'ascending' : sortState === 'descending' ? 'descending' : 'none'}
-		>
 		<button
 			id="sort-toggle-btn"
 			class="btn-pill btn-pill-secondary"
 			style:display={controls.showSortButton ? 'block' : 'none'}
 			disabled={controls.sortDisabled}
+			aria-label={`Sort files ${sortState === 'ascending' ? 'descending' : 'ascending'}`}
+			aria-describedby="file-sort-status"
 			onclick={handleSortClick}
 		>
 			{sortLabel}
 		</button>
-		</div>
+		<span id="file-sort-status" class="sr-only" aria-live="polite">
+			{sortState === 'ascending'
+				? 'Files sorted from A to Z.'
+				: sortState === 'descending'
+					? 'Files sorted from Z to A.'
+					: 'Files are in import order.'}
+		</span>
 		<button
 			id="restore-import-order-btn"
 			class="btn-pill btn-pill-secondary"

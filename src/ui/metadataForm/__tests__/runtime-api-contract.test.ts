@@ -14,6 +14,7 @@ const EXPECTED_METADATA_FORM_EXPORTS = [
 	'populateMetadataFormSingle',
 	'readMetadataForm',
 	'readMetadataFormPreviewValues',
+	'readMetadataFormRevision',
 	'readMetadataFormViewSnapshot',
 	'resetDirtyState',
 	'setMetadataFormMode',

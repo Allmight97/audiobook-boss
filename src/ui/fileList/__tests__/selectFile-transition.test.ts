@@ -5,6 +5,7 @@ import { setCurrentFileList, setSelectedIndex } from '../state.svelte';
 const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
 	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
+	resetDirtyStateMock: vi.fn(),
 	getSelectedFilesMock: vi.fn(),
 	handleSelectionMock: vi.fn(() => ({ changed: true })),
 	selectAllFilesMock: vi.fn(() => true),
@@ -14,17 +15,26 @@ const context = vi.hoisted(() => ({
 	validationErrorMock: vi.fn<() => string | null>(() => null),
 	validateMetadataDraftMock: vi.fn(),
 	clearSelectionMock: vi.fn(() => true),
+	metadataFormRevision: 0,
+	coverArtRevision: 0,
 }));
 
 vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => true),
 	readMetadataForm: context.readMetadataFormMock,
-	resetDirtyState: vi.fn(),
+	readMetadataFormRevision: vi.fn(() => context.metadataFormRevision),
+	resetDirtyState: context.resetDirtyStateMock,
+}));
+
+vi.mock('../../coverArt', () => ({
+	readCoverArtSessionRevision: vi.fn(() => context.coverArtRevision),
 }));
 
 vi.mock('../../metadataSession', () => ({
 	clearMetadataSession: vi.fn(),
 	getMetadataForFile: vi.fn(() => ({})),
+	getMetadataIntentPatchForFile: vi.fn(() => undefined),
+	isUsableMetadataCache: vi.fn(() => true),
 	cacheMetadataForFile: vi.fn(),
 	removeMetadataForFile: vi.fn(),
 	stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
@@ -107,6 +117,7 @@ describe('selectFile transition options', () => {
 
 		context.readMetadataFormMock.mockClear();
 		context.stageMetadataIntentPatchMock.mockClear();
+		context.resetDirtyStateMock.mockClear();
 		context.handleSelectionMock.mockClear();
 		context.selectAllFilesMock.mockClear();
 		context.showMultiSelectionMock.mockClear();
@@ -129,6 +140,8 @@ describe('selectFile transition options', () => {
 		);
 		context.validationErrorMock.mockReturnValue(null);
 		context.clearSelectionMock.mockClear();
+		context.metadataFormRevision = 0;
+		context.coverArtRevision = 0;
 		context.getSelectedFilesMock.mockReset();
 		context.getSelectedFilesMock.mockReturnValue([
 			{
@@ -185,6 +198,165 @@ describe('selectFile transition options', () => {
 			'Fix metadata validation errors before clearing the selection.',
 			expect.objectContaining({ ttlMs: 2500 }),
 		);
+	});
+
+	it('lets the latest selection intent win when validation resolves out of order', async () => {
+		type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+		const deferred = <T>(): Deferred<T> => {
+			let resolve!: (value: T) => void;
+			const promise = new Promise<T>((resolvePromise) => {
+				resolve = resolvePromise;
+			});
+			return { promise, resolve };
+		};
+		const firstValidation = deferred<{
+			intentPatch: Record<string, unknown>;
+			ok: boolean;
+			errors: { first: null; byField: Record<string, unknown> };
+			result: { isValid: boolean; metadataPatch: Record<string, unknown>; fieldErrors: never[] };
+		}>();
+		const secondValidation =
+			deferred<typeof firstValidation extends Deferred<infer T> ? T : never>();
+		context.validateMetadataDraftMock
+			.mockImplementationOnce(() => firstValidation.promise)
+			.mockImplementationOnce(() => secondValidation.promise);
+
+		const { selectFile } = await import('../actions');
+		const first = selectFile(1, { multi: false, range: false });
+		const second = selectFile(0, { multi: false, range: false });
+
+		secondValidation.resolve({
+			intentPatch: { title: { op: 'set', value: 'Latest' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await second;
+		firstValidation.resolve({
+			intentPatch: { title: { op: 'set', value: 'Stale' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await first;
+
+		expect(context.handleSelectionMock).toHaveBeenCalledTimes(1);
+		expect(context.handleSelectionMock).toHaveBeenCalledWith(0, {
+			multi: false,
+			range: false,
+		});
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledTimes(1);
+		expect(context.resetDirtyStateMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not publish validation status from a stale selection intent', async () => {
+		type ValidationResult = {
+			intentPatch: Record<string, unknown>;
+			ok: boolean;
+			errors: { first: string | null; byField: Record<string, unknown> };
+			result: { isValid: boolean; metadataPatch: Record<string, unknown>; fieldErrors: never[] };
+		};
+		type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+		const deferred = <T>(): Deferred<T> => {
+			let resolve!: (value: T) => void;
+			const promise = new Promise<T>((resolvePromise) => {
+				resolve = resolvePromise;
+			});
+			return { promise, resolve };
+		};
+		const staleValidation = deferred<ValidationResult>();
+		const latestValidation = deferred<ValidationResult>();
+		context.validateMetadataDraftMock
+			.mockImplementationOnce(() => staleValidation.promise)
+			.mockImplementationOnce(() => latestValidation.promise);
+
+		const { selectFile } = await import('../actions');
+		const stale = selectFile(1, { multi: false, range: false });
+		const latest = selectFile(0, { multi: false, range: false });
+
+		latestValidation.resolve({
+			intentPatch: { title: { op: 'set', value: 'Latest' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await latest;
+		context.pushStatusPanelTransientStatusMock.mockClear();
+		staleValidation.resolve({
+			intentPatch: {},
+			ok: false,
+			errors: { first: 'Stale validation failure', byField: {} },
+			result: { isValid: false, metadataPatch: {}, fieldErrors: [] },
+		});
+		await stale;
+
+		expect(context.pushStatusPanelTransientStatusMock).not.toHaveBeenCalled();
+	});
+
+	it('does not commit or change selection when the visible metadata form changes during validation', async () => {
+		let resolveValidation!: (value: {
+			intentPatch: Record<string, unknown>;
+			ok: boolean;
+			errors: { first: null; byField: Record<string, unknown> };
+			result: { isValid: boolean; metadataPatch: Record<string, unknown>; fieldErrors: never[] };
+		}) => void;
+		context.validateMetadataDraftMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveValidation = resolve;
+				}),
+		);
+
+		const { selectFile } = await import('../actions');
+		const transition = selectFile(1, { multi: false, range: false });
+		context.metadataFormRevision += 1;
+		resolveValidation({
+			intentPatch: { title: { op: 'set', value: 'Stale' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await transition;
+
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.resetDirtyStateMock).not.toHaveBeenCalled();
+		expect(context.handleSelectionMock).not.toHaveBeenCalled();
+	});
+
+	it('does not apply a stale selection index after the FileList changes during validation', async () => {
+		let resolveValidation!: (value: {
+			intentPatch: Record<string, unknown>;
+			ok: boolean;
+			errors: { first: null; byField: Record<string, unknown> };
+			result: { isValid: boolean; metadataPatch: Record<string, unknown>; fieldErrors: never[] };
+		}) => void;
+		context.validateMetadataDraftMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveValidation = resolve;
+				}),
+		);
+
+		const { selectFile } = await import('../actions');
+		const transition = selectFile(1, { multi: false, range: false });
+		setCurrentFileList({
+			files: [],
+			selectedDecoders: [],
+			totalDuration: 0,
+			totalSize: 0,
+			validCount: 0,
+			invalidCount: 0,
+		});
+		resolveValidation({
+			intentPatch: { title: { op: 'set', value: 'Stale' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await transition;
+
+		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.handleSelectionMock).not.toHaveBeenCalled();
 	});
 
 	it('stages dirty multi-selection metadata before selecting all files', async () => {

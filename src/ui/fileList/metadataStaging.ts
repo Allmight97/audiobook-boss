@@ -1,7 +1,13 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { hasDirtyMetadataFields, readMetadataForm, resetDirtyState } from '../metadataForm';
+import {
+	hasDirtyMetadataFields,
+	readMetadataForm,
+	readMetadataFormRevision,
+	resetDirtyState,
+} from '../metadataForm';
+import { readCoverArtSessionRevision } from '../coverArt';
 import {
 	cacheMetadataForFile,
 	getMetadataForFile,
@@ -44,6 +50,25 @@ export type PrepareMetadataDraftsResult =
 	| { ok: true; prepared: PreparedMetadataDraft }
 	| { ok: false };
 
+export type MetadataEditSnapshot = {
+	formRevision: number;
+	coverArtRevision: number;
+};
+
+export function captureMetadataEditSnapshot(): MetadataEditSnapshot {
+	return {
+		formRevision: readMetadataFormRevision(),
+		coverArtRevision: readCoverArtSessionRevision(),
+	};
+}
+
+export function isCurrentMetadataEditSnapshot(snapshot: MetadataEditSnapshot): boolean {
+	return (
+		snapshot.formRevision === readMetadataFormRevision() &&
+		snapshot.coverArtRevision === readCoverArtSessionRevision()
+	);
+}
+
 async function readMetadataSnapshot(file: AudioFile): Promise<Partial<AudiobookMetadata> | null> {
 	if (!file.isValid) return null;
 	const existing = getMetadataForFile(file.path);
@@ -61,12 +86,13 @@ async function readMetadataSnapshot(file: AudioFile): Promise<Partial<AudiobookM
 
 async function prepareSingleSelectionMetadata(
 	file: AudioFile | null,
+	isCurrent: () => boolean = () => true,
 ): Promise<PrepareMetadataDraftsResult> {
 	if (!file?.isValid || !hasDirtyMetadataFields()) return { ok: true, prepared: { kind: 'none' } };
 	const metadata = readMetadataForm({ mode: 'single' });
 	const validation = await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
 	if (!validation.ok) {
-		setStatusMessage(validation.errors.first ?? 'Metadata validation failed.');
+		if (isCurrent()) setStatusMessage(validation.errors.first ?? 'Metadata validation failed.');
 		return { ok: false };
 	}
 	return {
@@ -78,6 +104,7 @@ async function prepareSingleSelectionMetadata(
 async function prepareMultiSelectionMetadata(options?: {
 	showStatus?: boolean;
 	selectedFilesOverride?: AudioFile[];
+	isCurrent?: () => boolean;
 }): Promise<PrepareMetadataDraftsResult> {
 	if (!getCurrentFileList()) return { ok: true, prepared: { kind: 'none' } };
 	const selectedFiles = (options?.selectedFilesOverride ?? getSelectedFiles()).filter(
@@ -91,7 +118,7 @@ async function prepareMultiSelectionMetadata(options?: {
 	}
 	const validation = await validateMetadataDraft(changes, tauriClient.validateMetadataIntentPatch);
 	if (!validation.ok) {
-		if (options?.showStatus)
+		if (options?.showStatus && options.isCurrent?.() !== false)
 			setStatusMessage(validation.errors.first ?? 'Metadata validation failed.');
 		return { ok: false };
 	}
@@ -115,7 +142,11 @@ async function prepareMultiSelectionMetadata(options?: {
 
 /** Synchronous commit: callers must revalidate list/lock immediately before
  * and after calling this function. */
-export function commitPreparedMetadataDrafts(prepared: PreparedMetadataDraft): boolean {
+export function commitPreparedMetadataDrafts(
+	prepared: PreparedMetadataDraft,
+	editSnapshot?: MetadataEditSnapshot,
+): boolean {
+	if (editSnapshot && !isCurrentMetadataEditSnapshot(editSnapshot)) return false;
 	if (prepared.kind === 'none') return true;
 	if (prepared.kind === 'single') {
 		if (stageMetadataIntentPatch(prepared.filePath, prepared.intentPatch) !== 'staged') return true;
@@ -141,30 +172,38 @@ export function commitPreparedMetadataDrafts(prepared: PreparedMetadataDraft): b
 
 export async function prepareMetadataDraftsForCurrentSelection(options?: {
 	validationFailureMessage?: string;
+	isCurrent?: () => boolean;
 }): Promise<PrepareMetadataDraftsResult> {
 	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
 	if (selectedFiles.length === 0) return { ok: true, prepared: { kind: 'none' } };
 	const prepared =
 		selectedFiles.length === 1
-			? await prepareSingleSelectionMetadata(selectedFiles[0])
-			: await prepareMultiSelectionMetadata();
-	if (!prepared.ok && options?.validationFailureMessage)
+			? await prepareSingleSelectionMetadata(selectedFiles[0], options?.isCurrent)
+			: await prepareMultiSelectionMetadata({ isCurrent: options?.isCurrent });
+	if (!prepared.ok && options?.validationFailureMessage && options.isCurrent?.() !== false)
 		setStatusMessage(options.validationFailureMessage);
 	return prepared;
 }
 
 export async function persistSingleSelectionMetadata(file: AudioFile | null): Promise<boolean> {
-	const prepared = await prepareSingleSelectionMetadata(file);
-	return prepared.ok && commitPreparedMetadataDrafts(prepared.prepared);
+	const editSnapshot = captureMetadataEditSnapshot();
+	const prepared = await prepareSingleSelectionMetadata(file, () =>
+		isCurrentMetadataEditSnapshot(editSnapshot),
+	);
+	return prepared.ok && commitPreparedMetadataDrafts(prepared.prepared, editSnapshot);
 }
 
 export async function stageMetadataToSelection(options?: {
 	showStatus?: boolean;
 	selectedFilesOverride?: AudioFile[];
 }): Promise<boolean> {
-	const prepared = await prepareMultiSelectionMetadata(options);
+	const editSnapshot = captureMetadataEditSnapshot();
+	const prepared = await prepareMultiSelectionMetadata({
+		...options,
+		isCurrent: () => isCurrentMetadataEditSnapshot(editSnapshot),
+	});
 	if (!prepared.ok) return false;
-	const committed = commitPreparedMetadataDrafts(prepared.prepared);
+	const committed = commitPreparedMetadataDrafts(prepared.prepared, editSnapshot);
 	if (committed && prepared.prepared.kind === 'multi' && options?.showStatus) {
 		setTransientStatusMessage(`Draft saved for ${prepared.prepared.files.length} files`);
 	}
@@ -193,12 +232,22 @@ export async function persistPendingMetadataDraftsForCurrentSelection(options?: 
 export async function preserveMetadataDraftsBeforeSelectionChange(options?: {
 	skipSingleSelection?: boolean;
 	validationFailureMessage?: string;
+	isCurrent?: () => boolean;
 }): Promise<boolean> {
 	const selectedFiles = getSelectedFiles().filter((file) => file.isValid);
 	if (selectedFiles.length === 0 || (options?.skipSingleSelection && selectedFiles.length === 1))
 		return true;
+	const editSnapshot = captureMetadataEditSnapshot();
 	const prepared = await prepareMetadataDraftsForCurrentSelection({
 		validationFailureMessage: options?.validationFailureMessage,
+		isCurrent: options?.isCurrent,
 	});
-	return prepared.ok && commitPreparedMetadataDrafts(prepared.prepared);
+	if (
+		!prepared.ok ||
+		options?.isCurrent?.() === false ||
+		!isCurrentMetadataEditSnapshot(editSnapshot)
+	)
+		return false;
+	const committed = commitPreparedMetadataDrafts(prepared.prepared, editSnapshot);
+	return committed && options?.isCurrent?.() !== false;
 }

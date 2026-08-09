@@ -23,6 +23,7 @@ import {
 	setCoverArtMessage,
 	setCoverArtUrlInputValue,
 	coverArtSessionState,
+	getCoverArtSessionRevision,
 } from './state.svelte';
 
 let coverArtMessageTimeoutId: number | null = null;
@@ -265,6 +266,11 @@ export function getHasCustomCoverArt(): boolean {
 
 export function isCoverArtRemovalRequested(): boolean {
 	return coverArtSessionState.coverArtRemovalRequested;
+}
+
+/** Owner revision for guarding asynchronous metadata prepare -> commit work. */
+export function readCoverArtSessionRevision(): number {
+	return getCoverArtSessionRevision();
 }
 
 export function setCoverArt(coverArtBytes: number[] | null): void {

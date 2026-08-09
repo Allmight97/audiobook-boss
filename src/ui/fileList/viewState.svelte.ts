@@ -1,5 +1,9 @@
 import { formatFileSize, type AudioFile } from '../../types/audio';
-import { getMetadataForFile } from '../metadataSession';
+import {
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+	isUsableMetadataCache,
+} from '../metadataSession';
 import { pathBasename } from '../../lib/path/basename';
 import {
 	getCurrentFileList,
@@ -73,15 +77,28 @@ export function readFileListOrderLockVisible(): boolean {
 
 export function displayedTitleForFile(file: AudioFile): string {
 	const metadata = getMetadataForFile(file.path);
-	return (
-		(metadata === undefined ? file.tagTitle : metadata.title) ||
-		pathBasename(file.path, { fallback: 'path' })
-	);
+	const titleIntent = getMetadataIntentPatchForFile(file.path)?.title;
+	if (titleIntent?.op === 'clear') return pathBasename(file.path, { fallback: 'path' });
+	if (typeof metadata?.title === 'string' && metadata.title.trim().length > 0) {
+		return metadata.title;
+	}
+	if (!isUsableMetadataCache(metadata) || metadata?.title === undefined) {
+		return file.tagTitle || pathBasename(file.path, { fallback: 'path' });
+	}
+	return pathBasename(file.path, { fallback: 'path' });
 }
 
 export function displayedArtistForFile(file: AudioFile): string | null {
 	const metadata = getMetadataForFile(file.path);
-	return (metadata === undefined ? file.tagArtist : metadata.artist) || null;
+	const artistIntent = getMetadataIntentPatchForFile(file.path)?.artist;
+	if (artistIntent?.op === 'clear') return null;
+	if (typeof metadata?.artist === 'string' && metadata.artist.trim().length > 0) {
+		return metadata.artist;
+	}
+	if (!isUsableMetadataCache(metadata) || metadata?.artist === undefined) {
+		return file.tagArtist || null;
+	}
+	return null;
 }
 
 export function readCombinedSizeText(): string {

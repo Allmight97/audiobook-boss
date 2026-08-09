@@ -19,16 +19,16 @@
   `applyMetadataFormValidationWarnings(metadata, errors)`.
 - Tag Preview reads form-derived tag inputs through
   `readMetadataFormPreviewValues()`.
+- Async metadata transitions guard prepare -> commit work with
+  `readMetadataFormRevision()` so stale validation cannot reset newer edits.
 
 ## Private Cluster
 
-- Files: `MetadataFormFieldsIsland.svelte`, `index.ts`, `labFixtures.ts`,
+- Files: `MetadataFormFieldsIsland.svelte`, `index.ts`,
   `previewState.svelte.ts`, `state.svelte.ts`, `__tests__/`.
 - The cluster owns form field state, multi-select action state, warning display
   state, form-to-draft reads, form population, dirty-state tracking, and preview
   value publication for Tag Preview.
-- `labFixtures.ts` is a dev-only design-lab adapter for owner state presets. It
-  is not exported from the runtime Public API Strip.
 
 ## Hard Invariants
 

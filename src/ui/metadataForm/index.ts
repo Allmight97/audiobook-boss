@@ -14,6 +14,7 @@ export { readMetadataFormPreviewValues } from './previewState.svelte';
 import {
 	getMetadataFieldDefinitionByActionId,
 	getMetadataFieldDefinitionByInputId,
+	getMetadataFormRevision,
 	metadataFormState,
 	METADATA_FIELD_DEFINITIONS,
 	setMetadataFormFieldAction,
@@ -68,6 +69,11 @@ export function readMetadataFormViewSnapshot(): {
 		mode: metadataFormState.mode,
 		selectionCount: metadataFormState.selectionCount,
 	};
+}
+
+/** Owner revision for guarding asynchronous metadata prepare -> commit work. */
+export function readMetadataFormRevision(): number {
+	return getMetadataFormRevision();
 }
 
 export function initMetadataFormEvents(): void {

@@ -44,6 +44,7 @@ vi.mock('../../lib/tauri/client', () => ({
 
 vi.mock('../metadataForm', () => ({
 	readMetadataForm: context.readMetadataFormMock,
+	readMetadataFormRevision: vi.fn(() => 0),
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 	resetDirtyState: context.resetDirtyStateMock,
 	applyMetadataToForm: vi.fn(),
@@ -74,6 +75,7 @@ vi.mock('../coverArt', () => ({
 	setCustomCoverArt: vi.fn(),
 	refreshCoverArtDisplay: vi.fn(),
 	getCurrentCoverArt: vi.fn(() => null),
+	readCoverArtSessionRevision: vi.fn(() => 0),
 }));
 
 vi.mock('../tagPreview', () => ({

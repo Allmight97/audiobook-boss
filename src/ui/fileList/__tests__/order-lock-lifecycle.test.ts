@@ -13,7 +13,12 @@ import { readFileListControlsSnapshot, readFileListOrderLockVisible } from '../v
 vi.mock('../../metadataForm', () => ({
 	hasDirtyMetadataFields: vi.fn(() => false),
 	readMetadataForm: vi.fn(() => ({})),
+	readMetadataFormRevision: vi.fn(() => 0),
 	resetDirtyState: vi.fn(),
+}));
+
+vi.mock('../../coverArt', () => ({
+	readCoverArtSessionRevision: vi.fn(() => 0),
 }));
 
 vi.mock('../../metadataSession', () => ({

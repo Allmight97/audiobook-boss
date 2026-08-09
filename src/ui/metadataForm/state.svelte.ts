@@ -158,6 +158,19 @@ export const metadataFormState = $state<MetadataFormState>({
 	subseriesPartWarning: { ...EMPTY_WARNING_STATE },
 });
 
+// Monotonic owner revision for async prepare -> commit guards. Increment for
+// every form-state mutation, including programmatic selection hydration, so an
+// older validation result can never reset or commit over a newer visible form.
+let metadataFormRevision = 0;
+
+function bumpMetadataFormRevision(): void {
+	metadataFormRevision += 1;
+}
+
+export function getMetadataFormRevision(): number {
+	return metadataFormRevision;
+}
+
 export function getMetadataFieldDefinitionByInputId(
 	inputId: string,
 ): MetadataFieldDefinition | undefined {
@@ -172,6 +185,7 @@ export function getMetadataFieldDefinitionByActionId(
 
 export function setMetadataFormFieldValue(inputId: MetadataFieldId, value: string): void {
 	metadataFormState.fields[inputId].value = value;
+	bumpMetadataFormRevision();
 }
 
 export function setMetadataFormFieldAction(
@@ -179,19 +193,23 @@ export function setMetadataFormFieldAction(
 	action: MetadataFieldAction,
 ): void {
 	metadataFormState.fields[inputId].action = action;
+	bumpMetadataFormRevision();
 }
 
 export function setMetadataFormFieldDirty(inputId: MetadataFieldId, dirty: boolean): void {
 	metadataFormState.fields[inputId].dirty = dirty;
+	bumpMetadataFormRevision();
 }
 
 export function setMetadataFormFieldMixed(inputId: MetadataFieldId, mixed: boolean): void {
 	metadataFormState.fields[inputId].mixed = mixed;
+	bumpMetadataFormRevision();
 }
 
 export function setMetadataFormModeState(mode: MetadataFormMode, selectionCount: number = 0): void {
 	metadataFormState.mode = mode;
 	metadataFormState.selectionCount = mode === 'multi' ? selectionCount : 0;
+	bumpMetadataFormRevision();
 }
 
 export function setSeriesPartWarning(message: string, visible: boolean): void {

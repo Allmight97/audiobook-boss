@@ -6,6 +6,7 @@ import {
 	moveFileDown,
 	moveFileUp,
 	reorderFiles,
+	restoreImportOrder,
 	toggleFileSort,
 } from '../actions';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../metadataStaging';
@@ -15,6 +16,7 @@ import {
 	getCurrentFileList,
 	getSelectedFileIndex,
 	setCurrentFileList,
+	resetImportOrder,
 	setSelectedFileIndices,
 	setSelectedIndex,
 	setSortAscending,
@@ -42,6 +44,8 @@ const context = vi.hoisted(() => ({
 	resetAutoResolutionHintsMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
 	validateMetadataDraftMock: vi.fn(),
+	metadataFormRevision: 0,
+	coverArtRevision: 0,
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -71,6 +75,7 @@ vi.mock('../../metadataForm', () => ({
 	populateMetadataFormSingle: context.populateMetadataFormSingleMock,
 	populateMetadataFormMulti: context.populateMetadataFormMultiMock,
 	readMetadataForm: context.readMetadataFormMock,
+	readMetadataFormRevision: vi.fn(() => context.metadataFormRevision),
 	resetDirtyState: context.resetDirtyStateMock,
 }));
 
@@ -88,6 +93,7 @@ vi.mock('../../coverArt', () => ({
 	getHasCustomCoverArt: context.getHasCustomCoverArtMock,
 	refreshCoverArtDisplay: context.refreshCoverArtDisplayMock,
 	setCoverArt: context.setCoverArtMock,
+	readCoverArtSessionRevision: vi.fn(() => context.coverArtRevision),
 }));
 
 vi.mock('../../statusPanel', () => ({
@@ -164,6 +170,8 @@ describe('file list reorder behavior', () => {
 		context.resetAutoResolutionHintsMock.mockReset();
 		context.validationErrorMock.mockReset();
 		context.validationErrorMock.mockReturnValue(null);
+		context.metadataFormRevision = 0;
+		context.coverArtRevision = 0;
 		context.getMetadataForFileMock.mockReturnValue({});
 		setCurrentFileList(null);
 		setSelectedFileIndices([]);
@@ -351,5 +359,61 @@ describe('file list reorder behavior', () => {
 			'/books/b-alpha.m4b',
 			'/books/a-beta.m4b',
 		]);
+	});
+
+	it('lets the latest sort or restore intent win when validation resolves out of order', async () => {
+		type ValidationResult = {
+			intentPatch: Record<string, unknown>;
+			ok: boolean;
+			errors: { first: null; byField: Record<string, unknown> };
+			result: { isValid: boolean; metadataPatch: Record<string, unknown>; fieldErrors: never[] };
+		};
+		type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+		const deferred = <T>(): Deferred<T> => {
+			let resolve!: (value: T) => void;
+			const promise = new Promise<T>((resolvePromise) => {
+				resolve = resolvePromise;
+			});
+			return { promise, resolve };
+		};
+		const firstValidation = deferred<ValidationResult>();
+		const secondValidation = deferred<ValidationResult>();
+		context.validateMetadataDraftMock
+			.mockImplementationOnce(() => firstValidation.promise)
+			.mockImplementationOnce(() => secondValidation.promise);
+
+		const beta = makeFile('/books/b-beta.m4b');
+		const alpha = makeFile('/books/a-alpha.m4b');
+		setCurrentFileList(makeFileList(beta, alpha));
+		resetImportOrder([beta, alpha]);
+		setSelectedFileIndices([0, 1]);
+		setSelectedIndex(0);
+		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
+		context.readMetadataFormMock.mockReturnValue({ series: 'Draft Series' });
+
+		const first = toggleFileSort();
+		const second = restoreImportOrder();
+
+		secondValidation.resolve({
+			intentPatch: { series: { op: 'set', value: 'Latest' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await second;
+		firstValidation.resolve({
+			intentPatch: { series: { op: 'set', value: 'Stale' } },
+			ok: true,
+			errors: { first: null, byField: {} },
+			result: { isValid: true, metadataPatch: {}, fieldErrors: [] },
+		});
+		await first;
+
+		expect(getCurrentFileList()?.files.map((file) => file.path)).toEqual([
+			'/books/b-beta.m4b',
+			'/books/a-alpha.m4b',
+		]);
+		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledTimes(2);
+		expect(getSelectedFileIndex()).toBe(0);
 	});
 });

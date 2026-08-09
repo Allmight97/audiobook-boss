@@ -63,6 +63,30 @@ describe('derived file list view accessors', () => {
 		expect(displayedArtistForFile(tagged)).toBeNull();
 	});
 
+	it('keeps analyzed tags visible through a cover-only cache without weakening explicit clears', () => {
+		const tagged = {
+			...makeFile('/books/cover-only.m4b'),
+			tagTitle: 'Analyzed Title',
+			tagArtist: 'Analyzed Artist',
+		};
+
+		cacheMetadataForFile(tagged.path, { cover_art: [1, 2, 3] });
+		expect(displayedTitleForFile(tagged)).toBe('Analyzed Title');
+		expect(displayedArtistForFile(tagged)).toBe('Analyzed Artist');
+
+		cacheMetadataForFile(tagged.path, {
+			title: 'Loaded Title',
+			artist: 'Loaded Artist',
+			cover_art: [1, 2, 3],
+		});
+		stageMetadataIntentPatch(tagged.path, {
+			title: { op: 'clear' },
+			artist: { op: 'clear' },
+		});
+		expect(displayedTitleForFile(tagged)).toBe('cover-only.m4b');
+		expect(displayedArtistForFile(tagged)).toBeNull();
+	});
+
 	it('reflects session reorder without manual view sync', () => {
 		const alpha = makeFile('/books/alpha.m4b');
 		const beta = makeFile('/books/beta.m4b');

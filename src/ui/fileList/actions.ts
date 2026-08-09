@@ -49,6 +49,8 @@ import {
 	preserveMetadataDraftsBeforeSelectionChange,
 	prepareMetadataDraftsForCurrentSelection,
 	commitPreparedMetadataDrafts,
+	captureMetadataEditSnapshot,
+	isCurrentMetadataEditSnapshot,
 } from './metadataStaging';
 import { purgeRemoteSourceSessionsForInputIds } from '../remoteSource';
 import { pathBasename } from '../../lib/path/basename';
@@ -64,6 +66,20 @@ function refreshOutputForFileListChange(): void {
 
 function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
+}
+
+// Selection and order actions may await metadata validation or hydration. A
+// later user intent supersedes an earlier one before its async preparation can
+// commit. The synchronous commit remains guarded by the file-list snapshot.
+let latestFileListTransitionId = 0;
+
+function beginFileListTransition(): number {
+	latestFileListTransitionId += 1;
+	return latestFileListTransitionId;
+}
+
+function isCurrentFileListTransition(transitionId: number): boolean {
+	return transitionId === latestFileListTransitionId;
 }
 
 function selectSoleImportedFile(fileList: FileListInfo): void {
@@ -147,13 +163,19 @@ export async function applySelectionIntent(
 ): Promise<void> {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
+	const transitionId = beginFileListTransition();
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const isCurrent = (): boolean =>
+		isCurrentFileListTransition(transitionId) && canCommitFileListMutation(mutationSnapshot);
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			skipSingleSelection: options?.skipPersistPrevious,
 			validationFailureMessage: 'Fix metadata validation errors before changing selection.',
+			isCurrent,
 		}))
 	)
 		return;
+	if (!isCurrent()) return;
 	const selectionResult =
 		intent.type === 'selectAll'
 			? { changed: selectAllFiles() }
@@ -178,14 +200,20 @@ export async function applySelectionIntent(
 export async function selectAll(): Promise<void> {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
+	const transitionId = beginFileListTransition();
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const isCurrent = (): boolean =>
+		isCurrentFileListTransition(transitionId) && canCommitFileListMutation(mutationSnapshot);
 
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			validationFailureMessage: 'Fix metadata validation errors before selecting all files.',
+			isCurrent,
 		}))
 	) {
 		return;
 	}
+	if (!isCurrent()) return;
 
 	const changed = selectAllFiles();
 	if (!changed) return;
@@ -199,13 +227,19 @@ export async function selectAll(): Promise<void> {
 }
 
 export async function clearSelectionAction(): Promise<void> {
+	const transitionId = beginFileListTransition();
+	const mutationSnapshot = captureFileListMutationSnapshot();
+	const isCurrent = (): boolean =>
+		isCurrentFileListTransition(transitionId) && canCommitFileListMutation(mutationSnapshot);
 	if (
 		!(await preserveMetadataDraftsBeforeSelectionChange({
 			validationFailureMessage: 'Fix metadata validation errors before clearing the selection.',
+			isCurrent,
 		}))
 	) {
 		return;
 	}
+	if (!isCurrent()) return;
 
 	const changed = clearSelection();
 	if (!changed) return;
@@ -267,20 +301,30 @@ export function recalculateTotals(): void {
  * final validation. */
 async function prepareRevalidateCommitMetadata(options: {
 	validationFailureMessage: string;
+	isCurrent?: () => boolean;
 }): Promise<boolean> {
 	const snapshot = captureFileListMutationSnapshot();
+	const editSnapshot = captureMetadataEditSnapshot();
 	const prepared = await prepareMetadataDraftsForCurrentSelection({
 		validationFailureMessage: options.validationFailureMessage,
+		isCurrent: options.isCurrent,
 	});
-	if (!prepared.ok || !canCommitFileListMutation(snapshot)) return false;
-	if (!commitPreparedMetadataDrafts(prepared.prepared)) return false;
-	return canCommitFileListMutation(snapshot);
+	if (
+		!prepared.ok ||
+		options.isCurrent?.() === false ||
+		!canCommitFileListMutation(snapshot) ||
+		!isCurrentMetadataEditSnapshot(editSnapshot)
+	)
+		return false;
+	if (!commitPreparedMetadataDrafts(prepared.prepared, editSnapshot)) return false;
+	return options.isCurrent?.() !== false && canCommitFileListMutation(snapshot);
 }
 
 export async function removeSelectedFiles(): Promise<void> {
 	if (isOrderLocked()) return;
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
+	const transitionId = beginFileListTransition();
 	const selectedIdentityKeys = Array.from(getSelectedFileIndices())
 		.map((index) => fileList.files[index])
 		.filter((file): file is AudioFile => Boolean(file))
@@ -289,6 +333,7 @@ export async function removeSelectedFiles(): Promise<void> {
 	if (
 		!(await prepareRevalidateCommitMetadata({
 			validationFailureMessage: 'Fix metadata validation errors before removing selected files.',
+			isCurrent: () => isCurrentFileListTransition(transitionId),
 		}))
 	) {
 		return;
@@ -347,6 +392,7 @@ export async function toggleFileSort(): Promise<void> {
 	if (isOrderLocked()) return;
 	const initialList = getCurrentFileList();
 	if (!initialList || initialList.files.length <= 1) return;
+	const transitionId = beginFileListTransition();
 	const selectedPaths = new Set(
 		Array.from(getSelectedFileIndices())
 			.map((index) => initialList.files[index]?.path)
@@ -356,6 +402,7 @@ export async function toggleFileSort(): Promise<void> {
 	if (
 		!(await prepareRevalidateCommitMetadata({
 			validationFailureMessage: 'Fix metadata validation errors before sorting files.',
+			isCurrent: () => isCurrentFileListTransition(transitionId),
 		}))
 	) {
 		return;
@@ -435,6 +482,7 @@ export async function restoreImportOrder(): Promise<void> {
 	const initialList = getCurrentFileList();
 	if (!initialList || initialList.files.length <= 1) return;
 	if (initialList.files.some((file) => getImportOrdinal(file.path) === undefined)) return;
+	const transitionId = beginFileListTransition();
 	const selectedPaths = new Set(
 		Array.from(getSelectedFileIndices())
 			.map((index) => initialList.files[index]?.path)
@@ -444,6 +492,7 @@ export async function restoreImportOrder(): Promise<void> {
 	if (
 		!(await prepareRevalidateCommitMetadata({
 			validationFailureMessage: 'Fix metadata validation errors before restoring import order.',
+			isCurrent: () => isCurrentFileListTransition(transitionId),
 		}))
 	) {
 		return;
