@@ -45,123 +45,12 @@ Use an internal changelog note without a version bump when the change is only re
 
 When in doubt, name the impact and choose the smallest honest release scope. Do not bump version just to make a PR look complete.
 
-## Version Surfaces
+## Execute The Lane
 
-Keep these synchronized during explicit release work:
-
-- `package.json`
-- `src-tauri/tauri.conf.json`
-- `src-tauri/Cargo.toml`
-- `Cargo.lock`
-- `CHANGELOG.md`
-
-Use:
-
-```bash
-bun scripts/bump-version.ts <x.y.z>
-```
-
-## Changelog Format
-
-Keep entries concise and user/outcome-facing. Copy the current file pattern; do not generate from commit history by default.
-
-```markdown
-## [x.y.z] - YYYY-MM-DD
-
-### Added
-
-### Changed
-
-### Fixed
-
-### Removed
-```
-
-Omit empty categories in a release section. Keep `[Unreleased]` as the staging area only when useful; it is acceptable for release entries to be written directly during release prep.
-
-## Developer Install Lane
-
-Use this lane when the owner wants the latest local app with minimal friction.
-
-```bash
-bun run app:install-local
-```
-
-This builds the `.app`, installs a real `/Applications/AudioBook Boss.app`,
-signs it ad-hoc for local execution, registers it with LaunchServices, refreshes
-Spotlight metadata, and removes the repo-local `.app` install artifact. Use
-`bun run app:install-local:existing` only when a fresh repo-local `.app` already
-exists and the owner only needs to reinstall it locally.
-
-Report the installed app version and whether launch/smoke verification was run.
-Do not tag, publish, or build a DMG in this lane.
-
-## Artifact-Only Lane
-
-Use this lane when packaging needs proof but public release should not be
-published.
-
-```bash
-bun run app:build:dmg
-bun scripts/resolve-release-dmg.ts --version <x.y.z>
-hdiutil verify "<resolved-dmg-path>"
-```
-
-`app:build:dmg` is expected to be noninteractive and must not require Finder or
-manual drag-to-Applications behavior. Report the DMG path and verification
-result. Do not tag or publish.
-
-## Public Release Lane
-
-1. Confirm the intended version and impact category.
-2. Update `CHANGELOG.md` with `## [x.y.z] - YYYY-MM-DD`.
-3. Run `bun scripts/bump-version.ts <x.y.z>`.
-4. Run only the validation warranted by the changed owner or release metadata.
-   For release-only version/changelog edits, `git diff --check` plus the
-   artifact commands below is sufficient unless a concrete safety, data, or
-   contract invariant says otherwise.
-5. For repo-local `.app` artifact validation without touching `/Applications`
-   and without building a DMG, run:
-```bash
-bun run app:build
-```
-Do not run this as a separate pre-step for normal public releases; the DMG
-command builds the app.
-6. For a DMG release, run:
-```bash
-bun run app:build:dmg
-bun scripts/resolve-release-dmg.ts --version <x.y.z>
-hdiutil verify "<resolved-dmg-path>"
-```
-7. If the requested lane is Public Release + Developer Install, run a separate
-   developer install after DMG verification:
-```bash
-bun run app:install-local
-```
-This rebuild is expected. The DMG lane may clean the intermediate repo-local
-`.app`, so do not use `bun run app:install-local:existing` after
-`bun run app:build:dmg`. Reserve `app:install-local:existing` for the narrow
-case where `bun run app:build` or another app-only build just produced
-`target/release/bundle/macos/AudioBook Boss.app` and no DMG build has cleaned
-it.
-8. Commit release metadata and code together when they are part of the same accepted release:
-```bash
-git add -A
-git commit -m "rel: release v<x.y.z>"
-git tag v<x.y.z>
-```
-9. Push intentionally:
-```bash
-git push origin main
-git push origin v<x.y.z>
-```
-10. Publish the GitHub Release unless the owner explicitly asks for tag-only:
-```bash
-gh release create v<x.y.z> "<resolved-dmg-path>" --title "AudioBook Boss v<x.y.z>" --notes-file <notes-file>
-gh release view v<x.y.z>
-gh release list --limit 5
-```
-Use the matching `CHANGELOG.md` section as the release notes and attach the verified DMG.
+After choosing a lane, read
+[`references/execution.md`](references/execution.md) for the current version,
+changelog, build, install, tag, and publication sequence. Reconcile it with
+`scripts/AGENTS.md` and the live package scripts before running commands.
 
 ## Final Verification
 
