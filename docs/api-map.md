@@ -259,7 +259,7 @@ UI caller
 
 ## Verification Pointers
 
-- Contract and boundary regressions: `src/lib/behavior-contract.test.ts`, `src/lib/tauri-client.test.ts`
+- Contract and boundary regressions: `src/lib/tauri-public-api.contract.test.ts`, `src/lib/tauri-client.test.ts`
 - UI integration and event behavior: `src/ui/**/__tests__`, `src/test/setup.ts`
 - Runtime boundary checks: `bash scripts/check-generated-bindings.sh --mode local` and targeted `bun run test -- src/lib/...`
 - Broader review: escalate through the owner-scoped command menu in `scripts/AGENTS.md` only when the changed surface crosses owners or a concrete safety/data/contract invariant requires it.
