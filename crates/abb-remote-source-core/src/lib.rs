@@ -60,6 +60,7 @@ pub enum AcquisitionStrategy {
 #[serde(rename_all = "camelCase")]
 pub struct AcquisitionProgress {
     pub stage: AcquisitionStage,
+    #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     pub message: String,
     pub bytes_downloaded: Option<u64>,

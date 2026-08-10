@@ -149,7 +149,7 @@ export type AcquisitionPlan = {
 
 export type AcquisitionProgress = {
 	stage: AcquisitionStage,
-	percentage: number | null,
+	percentage: number,
 	message: string,
 	bytesDownloaded: number | null,
 	bytesTotal: number | null,

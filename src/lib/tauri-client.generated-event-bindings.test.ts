@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { EVENTS } from '../types/events';
 import type {
+	AcquisitionProgress,
 	AudioChapter,
 	FileListInfo,
 	MaterializedSourceFile,
@@ -57,6 +58,7 @@ describe('tauriClient generated event bindings', () => {
 	});
 
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {
+		expectTypeOf<AcquisitionProgress['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<AudioChapter['startMs']>().toEqualTypeOf<number>();
 		expectTypeOf<MaterializedSourceFile['sizeBytes']>().toEqualTypeOf<number>();
 		expectTypeOf<MetadataSaveResultEntry['inputIndex']>().toEqualTypeOf<number>();
