@@ -26,6 +26,12 @@ describe('StatusPanel island mount', () => {
 		triggerCancelAllMock.mockClear();
 	});
 
+	it('initializes the status panel once when rendered', () => {
+		render(StatusPanelIsland);
+
+		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
+	});
+
 	it('wires process and cancel buttons to status-panel actions', async () => {
 		render(StatusPanelIsland);
 		statusPanelViewState.isProcessing = true;
