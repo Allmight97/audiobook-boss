@@ -60,8 +60,8 @@ jobs:
         with:
           toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
-      # Binding export uses ABB's pinned bundled FFmpeg because Homebrew's
-      # current FFmpeg major is incompatible with ffmpeg-next 8.1.
+      # Binding export uses ABB's pinned bundled FFmpeg for release-artifact
+      # parity; system FFmpeg remains a fast local diagnostic route only.
       - run: brew install pkg-config
       # tauri-build requires the AAXClean sidecar resource to exist; binding
       # generation never executes it, so a stub keeps .NET out of this lane.

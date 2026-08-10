@@ -79,7 +79,11 @@ custom-protocol = ["tauri/custom-protocol"]
 
 # Default features - now minimal with only essential Tauri features
 default = []
-bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
+bundled-ffmpeg = [
+    "ffmpeg-next/build",
+    "ffmpeg-sys-next/build-audiotoolbox",
+    "ffmpeg-sys-next/build-portable",
+]
 
 [dev-dependencies]
 tempfile = "3.27.0"

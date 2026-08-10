@@ -56,7 +56,7 @@ These are tracked at summary level so the register stays useful:
 - `src-tauri/tests/**` and inline `#[cfg(test)]` modules under `src-tauri/src/**`:
   unsafe frame allocation and raw sample slice helpers are used to build FFmpeg
   test frames and assert sample contents.
-- `vendor/ffmpeg-sys-next-8.1.0/**`: unsafe C wrapper functions belong to the
+- `vendor/ffmpeg-sys-next-9.0.0/**`: unsafe C wrapper functions belong to the
   vendored FFmpeg sys layer. Treat this as dependency/sys surface unless local
   production code calls a wrapper directly.
 - `src/AGENTS.md`: "unsafe `any` propagation" is TypeScript lint language, not
@@ -67,7 +67,7 @@ These are tracked at summary level so the register stays useful:
 Use this from the repo root when refreshing the register:
 
 ```bash
-rg -n "\bunsafe\b" src-tauri/src src-tauri/tests vendor/ffmpeg-sys-next-8.1.0/src src/AGENTS.md --glob '!target'
+rg -n "\bunsafe\b" src-tauri/src src-tauri/tests vendor/ffmpeg-sys-next-9.0.0/src src/AGENTS.md --glob '!target'
 ```
 
 Then classify hits as:
