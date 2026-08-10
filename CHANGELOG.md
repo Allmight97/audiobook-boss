@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-09
+
 ### Added
 
 - Design-system foundations ahead of the UI evolution (#412): a full token
