@@ -34,9 +34,9 @@ export const commands = {
 	 *  Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
 	 */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
-	// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
+	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
-	// Validates and normalizes metadata intent without writing files.
+	/**  Validates and normalizes metadata intent without writing files. */
 	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch) => typedError<MetadataIntentValidationResult, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
 	/**
 	 *  Saves metadata to an audio file using explicit write intent (metadata-only editing)
@@ -54,11 +54,11 @@ export const commands = {
 	 *  Returns comprehensive file information including duration and size
 	 */
 	analyzeAudioFiles: (filePaths: string[]) => typedError<FileListInfo, AppErrorEnvelope>(__TAURI_INVOKE("analyze_audio_files", { filePaths })),
-	// Returns backend-owned supported local audio import metadata for picker UI.
+	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
-	// Recursively discovers supported local audio files from files and directories.
+	/**  Recursively discovers supported local audio files from files and directories. */
 	discoverAudioImportPaths: (inputPaths: string[]) => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("discover_audio_import_paths", { inputPaths })),
-	// Drains local audio paths opened by the OS before the frontend was ready.
+	/**  Drains local audio paths opened by the OS before the frontend was ready. */
 	takeOpenedAudioFiles: () => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("take_opened_audio_files")),
 	listRemoteSourceProviders: () => typedError<RemoteSourceProviderCapabilities[], AppErrorEnvelope>(__TAURI_INVOKE("list_remote_source_providers")),
 	getRemoteSourceAccountState: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_account_state", { providerId })),
@@ -70,11 +70,11 @@ export const commands = {
 	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
 	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
 	purgeRemoteSourceSession: (jobId: string) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("purge_remote_source_session", { jobId })),
-	// Validates encoder settings (no side effects)
+	/**  Validates encoder settings (no side effects) */
 	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
-	// Returns backend-owned runtime settings capabilities for UI controls.
+	/**  Returns backend-owned runtime settings capabilities for UI controls. */
 	getRuntimeSettingsCapabilities: () => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities")),
-	// Builds an output path preview using backend naming rules without collision suffixing.
+	/**  Builds an output path preview using backend naming rules without collision suffixing. */
 	previewOutputPath: (outputDir: string, metadata: {
 	title: string | null,
 	artist: string | null,
@@ -98,9 +98,9 @@ export const commands = {
 	customTemplate: string | null,
 } | null, sourcePath: string | null, outputKind: "final" | "preview" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind })),
 	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
-	// Returns the current maximum concurrent jobs setting
+	/**  Returns the current maximum concurrent jobs setting */
 	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
-	// Updates the maximum concurrent jobs setting (requires idle state)
+	/**  Updates the maximum concurrent jobs setting (requires idle state) */
 	setMaxConcurrentJobs: (maxConcurrent: number | null) => typedError<number, AppErrorEnvelope>(__TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent })),
 	/**
 	 *  Processes audiobook files with configurable encoder settings.
@@ -119,7 +119,7 @@ export const commands = {
 /** Events */
 export const events = {
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
-	processingProgress: makeEvent<ProgressEvent>("processing-progress"),
+	processingProgress: makeEvent<ProgressEvent_Deserialize>("processing-progress"),
 	processingQueue: makeEvent<QueueEvent>("processing-queue"),
 	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
 	workOperationSnapshot: makeEvent<WorkOperationSnapshotEvent>("work-operation-snapshot"),
@@ -149,7 +149,7 @@ export type AcquisitionPlan = {
 
 export type AcquisitionProgress = {
 	stage: AcquisitionStage,
-	percentage: number,
+	percentage: number | null,
 	message: string,
 	bytesDownloaded: number | null,
 	bytesTotal: number | null,
@@ -201,47 +201,47 @@ export type AppSettingsPatch = {
 	pinnedDefaults: PinnedDefaults | null,
 };
 
-// Read-only chapter facts discovered while analyzing one audio file.
+/**  Read-only chapter facts discovered while analyzing one audio file. */
 export type AudioChapter = {
-	// Embedded chapter title, when present in the source container.
+	/**  Embedded chapter title, when present in the source container. */
 	title: string | null,
-	// Chapter start in milliseconds from the beginning of this file.
+	/**  Chapter start in milliseconds from the beginning of this file. */
 	startMs: number,
-	// Chapter end in milliseconds from the beginning of this file.
+	/**  Chapter end in milliseconds from the beginning of this file. */
 	endMs: number,
 };
 
-// Represents an audio file with metadata
+/**  Represents an audio file with metadata */
 export type AudioFile = {
-	// Stable workbench/session identity for joins that must survive reorder/remove operations.
+	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
 	inputId: string,
-	// File path
+	/**  File path */
 	path: string,
-	// File size in bytes (None if unavailable)
+	/**  File size in bytes (None if unavailable) */
 	size: number | null,
-	// Duration in seconds (None if unavailable)
+	/**  Duration in seconds (None if unavailable) */
 	duration: number | null,
-	// Audio format (None if unavailable)
+	/**  Audio format (None if unavailable) */
 	format: string | null,
-	// Bitrate in kbps (None if unavailable)
+	/**  Bitrate in kbps (None if unavailable) */
 	bitrate: number | null,
-	// Sample rate in Hz (None if unavailable)
+	/**  Sample rate in Hz (None if unavailable) */
 	sampleRate: number | null,
-	// Number of channels (None if unavailable)
+	/**  Number of channels (None if unavailable) */
 	channels: number | null,
-	// Friendly codec label for display (None if unavailable)
+	/**  Friendly codec label for display (None if unavailable) */
 	codecLabel: string | null,
-	// Friendly selected decoder label for display only (None if unavailable)
+	/**  Friendly selected decoder label for display only (None if unavailable) */
 	selectedDecoder: string | null,
-	// Title tag discovered during input analysis (None if unavailable)
+	/**  Title tag discovered during input analysis (None if unavailable) */
 	tagTitle: string | null,
-	// Artist tag discovered during input analysis (None if unavailable)
+	/**  Artist tag discovered during input analysis (None if unavailable) */
 	tagArtist: string | null,
-	// Chapters embedded in this individual source file, normalized to milliseconds.
+	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
 	chapters?: AudioChapter[],
-	// Validation status
+	/**  Validation status */
 	isValid: boolean,
-	// Error message if validation failed
+	/**  Error message if validation failed */
 	error: string | null,
 };
 
@@ -264,13 +264,13 @@ export type AudiobookMetadata = {
 	cover_art: number[] | null,
 };
 
-// Bitrate/quality control mode per encoder
+/**  Bitrate/quality control mode per encoder */
 export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; value: number };
 
-// Bitrate mode capability without encoder-specific values.
+/**  Bitrate mode capability without encoder-specific values. */
 export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
 
-// Channel selection strategy
+/**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
 
 export type ChildJobSnapshot = {
@@ -295,11 +295,11 @@ export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
 
-// Machine-readable decoder identity paired with the friendly display label.
+/**  Machine-readable decoder identity paired with the friendly display label. */
 export type DecoderSelection = {
-	// Stable decoder identifier used for routing and comparisons.
+	/**  Stable decoder identifier used for routing and comparisons. */
 	decoderId: string,
-	// Friendly decoder label used for display only.
+	/**  Friendly decoder label used for display only. */
 	decoderLabel: string,
 };
 
@@ -320,7 +320,7 @@ export type EncoderBitrateModeCapability = {
 };
 
 export type EncoderCapabilitySource = "none" | "detected" |
-// Validated from the user-configured FFmpeg path in App Settings.
+/**  Validated from the user-configured FFmpeg path in App Settings. */
 "user_configured";
 
 export type EncoderDefaults = {
@@ -344,7 +344,7 @@ export type EncoderSettings = {
 	bitrateKbps: number,
 	bitrateMode: BitrateMode,
 	channels: ChannelConfig,
-	// Applies to FDK encoder only
+	/**  Applies to FDK encoder only */
 	afterburner: boolean,
 };
 
@@ -362,15 +362,15 @@ export type EncoderSettingsCapabilities = {
 	channelOptions: ChannelConfig[],
 };
 
-// Supported encoder types for audiobooks
+/**  Supported encoder types for audiobooks */
 export type EncoderType =
-// Auto-detect best available (FDK > Apple > Native AAC)
+/**  Auto-detect best available (FDK > Apple > Native AAC) */
 "auto" |
-// FDK HE-AAC VBR (libfdk_aac)
+/**  FDK HE-AAC VBR (libfdk_aac) */
 "fdk_he_aac" |
-// Apple AAC (AudioToolbox), macOS-only
+/**  Apple AAC (AudioToolbox), macOS-only */
 "aac_at" |
-// Native FFmpeg AAC encoder (aac)
+/**  Native FFmpeg AAC encoder (aac) */
 "native_aac";
 
 /**
@@ -384,19 +384,19 @@ export type EncoderType =
  */
 export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "skipped" | "failed" | "cancelled";
 
-// Summary information for a file list
+/**  Summary information for a file list */
 export type FileListInfo = {
-	// List of validated audio files
+	/**  List of validated audio files */
 	files: AudioFile[],
-	// Stable decoder identities aligned by index with `files`.
+	/**  Stable decoder identities aligned by index with `files`. */
 	selectedDecoders: (DecoderSelection | null)[],
-	// Total duration in seconds
+	/**  Total duration in seconds */
 	totalDuration: number,
-	// Total size in bytes
+	/**  Total size in bytes */
 	totalSize: number,
-	// Number of valid files
+	/**  Number of valid files */
 	validCount: number,
-	// Number of invalid files
+	/**  Number of invalid files */
 	invalidCount: number,
 };
 
@@ -603,7 +603,7 @@ export type OutputReviewRequirement = {
 
 export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" };
 
-// A deliberately captured snapshot of the panel-owned durable preferences.
+/**  A deliberately captured snapshot of the panel-owned durable preferences. */
 export type PinnedDefaults = {
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
@@ -644,14 +644,14 @@ export type ProcessPayload = {
 	inputIds: (string | null)[] | null,
 	outputDir: string,
 	settings: EncoderSettings,
-	// Sample rate from frontend (optional, defaults to Auto)
+	/**  Sample rate from frontend (optional, defaults to Auto) */
 	sampleRate: SampleRateConfig | null,
 	jobType: JobType | null,
-	// Output naming configuration (defaults to ABS-compatible)
+	/**  Output naming configuration (defaults to ABS-compatible) */
 	outputNaming: OutputNamingConfig | null,
-	// Explicit collision policy selected by the user after preflight review.
+	/**  Explicit collision policy selected by the user after preflight review. */
 	collisionPolicy: CollisionPolicy | null,
-	// Signature returned by preflight so execution can reject stale destination assumptions.
+	/**  Signature returned by preflight so execution can reject stale destination assumptions. */
 	preflightSignature: string | null,
 	/**
 	 *  Supplemental assets keyed by input id. These are committed only after a
@@ -680,46 +680,46 @@ export type ProcessingPreflightPlan = {
 	outputs: PlannedOutput[],
 };
 
-// Progress event structure for frontend communication
+/**  Progress event structure for frontend communication */
 export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;
 
-// Progress event structure for frontend communication
+/**  Progress event structure for frontend communication */
 export type ProgressEvent_Deserialize = {
-	// Backend operation family that emitted this event
+	/**  Backend operation family that emitted this event */
 	operation_kind: OperationKind,
-	// Current processing stage
+	/**  Current processing stage */
 	stage: EventStage,
-	// Progress percentage (0-100)
+	/**  Progress percentage (0-100) */
 	percentage: number,
-	// Human-readable status message
+	/**  Human-readable status message */
 	message: string,
-	// Currently processing file (if applicable)
+	/**  Currently processing file (if applicable) */
 	current_file: string | null,
-	// Estimated time remaining in seconds
+	/**  Estimated time remaining in seconds */
 	eta_seconds: number | null,
-	// Job identifier when this event is tied to a registered job
+	/**  Job identifier when this event is tied to a registered job */
 	job_id: string | null,
-	// Original input index when this event maps to one selected input
+	/**  Original input index when this event maps to one selected input */
 	input_index: number | null,
 };
 
-// Progress event structure for frontend communication
+/**  Progress event structure for frontend communication */
 export type ProgressEvent_Serialize = {
-	// Backend operation family that emitted this event
+	/**  Backend operation family that emitted this event */
 	operation_kind: OperationKind,
-	// Current processing stage
+	/**  Current processing stage */
 	stage: EventStage,
-	// Progress percentage (0-100)
+	/**  Progress percentage (0-100) */
 	percentage: number,
-	// Human-readable status message
+	/**  Human-readable status message */
 	message: string,
-	// Currently processing file (if applicable)
+	/**  Currently processing file (if applicable) */
 	current_file: string | null,
-	// Estimated time remaining in seconds
+	/**  Estimated time remaining in seconds */
 	eta_seconds: number | null,
-	// Job identifier when this event is tied to a registered job
+	/**  Job identifier when this event is tied to a registered job */
 	job_id?: string | null,
-	// Original input index when this event maps to one selected input
+	/**  Original input index when this event maps to one selected input */
 	input_index?: number | null,
 };
 
@@ -736,14 +736,14 @@ export type ProgressSnapshot = {
 
 export type ProviderId = "audible";
 
-// Batch queue snapshot for frontend communication
+/**  Batch queue snapshot for frontend communication */
 export type QueueEvent = {
 	operation_kind: OperationKind,
 	items: QueueItem[],
 	max_concurrent: number,
 };
 
-// Single queued item in a batch run
+/**  Single queued item in a batch run */
 export type QueueItem = {
 	input_index: number,
 	file_path: string,
@@ -840,11 +840,11 @@ export type RuntimeSettingsCapabilities = {
 	maxConcurrentJobs: MaxConcurrentJobsCapabilities,
 };
 
-// Sample rate configuration options
+/**  Sample rate configuration options */
 export type SampleRateConfig =
-// Automatically detect from input files
+/**  Automatically detect from input files */
 "auto" |
-// Explicit sample rate in Hz
+/**  Explicit sample rate in Hz */
 { explicit: number };
 
 /**
@@ -853,7 +853,7 @@ export type SampleRateConfig =
  *  hydration source.
  */
 export type StartupBehavior =
-// Today's behavior: reopen with whatever the panels last persisted.
+/**  Today's behavior: reopen with whatever the panels last persisted. */
 "rememberLastState" |
 /**
  *  Reopen with the user-pinned defaults; in-flight panel tweaks are
@@ -905,7 +905,7 @@ export type SupportedAudioImportMetadata = {
  *  owner probes and validates the path before any runtime use.
  */
 export type ToolchainPreferences = {
-	// User-selected external FFmpeg binary expected to expose `libfdk_aac`.
+	/**  User-selected external FFmpeg binary expected to expose `libfdk_aac`. */
 	externalFfmpegPath: string | null,
 };
 
@@ -936,17 +936,22 @@ async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; dat
     }
 }
 
-function makeEvent<T>(name: string) {
+type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;
+
+function makeEvent<T>(name: string, serialize?: (payload: T) => unknown, deserialize?: (payload: any) => T) {
+    const mapEvent = (cb: __TAURI_EVENT.EventCallback<T>) => (event: __TAURI_EVENT.Event<any>) => cb({ ...event, payload: deserialize ? deserialize(event.payload) : event.payload });
+    const mapPayload = (payload: T) => serialize ? serialize(payload) : payload;
+
     const base = {
-        listen: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.listen(name, cb),
-        once: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.once(name, cb),
-        emit: ((payload: T) => __TAURI_EVENT.emit(name, payload) as unknown) as (T extends null ? () => Promise<void> : (payload: T) => Promise<void>)
+        listen: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.listen(name, mapEvent(cb)),
+        once: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.once(name, mapEvent(cb)),
+        emit: ((payload: T) => __TAURI_EVENT.emit(name, mapPayload(payload)) as unknown) as EventEmit<T>
     };
 
     const fn = (target: import("@tauri-apps/api/webview").Webview | import("@tauri-apps/api/window").Window) => ({
-        listen: (cb: __TAURI_EVENT.EventCallback<T>) => target.listen(name, cb),
-        once: (cb: __TAURI_EVENT.EventCallback<T>) => target.once(name, cb),
-        emit: ((payload: T) => target.emit(name, payload) as unknown) as (T extends null ? () => Promise<void> : (payload: T) => Promise<void>)
+        listen: (cb: __TAURI_EVENT.EventCallback<T>) => target.listen(name, mapEvent(cb)),
+        once: (cb: __TAURI_EVENT.EventCallback<T>) => target.once(name, mapEvent(cb)),
+        emit: ((payload: T) => target.emit(name, mapPayload(payload)) as unknown) as EventEmit<T>
     });
 
     return Object.assign(fn, base);

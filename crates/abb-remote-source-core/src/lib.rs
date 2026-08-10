@@ -169,7 +169,10 @@ pub fn acquisition_progress(
     bytes_downloaded: Option<u64>,
     bytes_total: Option<u64>,
 ) -> AcquisitionProgress {
-    let fraction = fraction.unwrap_or(0.0).clamp(0.0, 1.0);
+    let fraction = fraction
+        .filter(|value| value.is_finite())
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0);
     let (start, end, message, terminal) = match stage {
         AcquisitionStage::Auth => (0.0, 5.0, "Preparing account session.", false),
         AcquisitionStage::Library => (0.0, 5.0, "Loading remote library.", false),
@@ -468,5 +471,13 @@ mod tests {
         assert_eq!(scoped_progress.current_item_index, Some(2));
         assert_eq!(scoped_progress.total_items, Some(3));
         assert_eq!(scoped_progress.stage, AcquisitionStage::Download);
+    }
+
+    #[test]
+    fn progress_plan_rejects_non_finite_fraction_at_its_owner() {
+        let progress = acquisition_progress(AcquisitionStage::Download, Some(f32::NAN), None, None);
+
+        assert_eq!(progress.percentage, 15.0);
+        assert!(progress.percentage.is_finite());
     }
 }

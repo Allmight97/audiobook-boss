@@ -152,7 +152,7 @@ impl WorkRuntimeState {
             }
             child.status = child_status;
             child.progress.stage = work_stage_from_event_stage(event.stage);
-            child.progress.percentage = event.percentage.clamp(0.0, 100.0);
+            child.progress.percentage = finite_percentage(event.percentage);
             child.progress.message = event.message.clone();
             child.progress.eta_seconds = event.eta_seconds;
             child.cancellable =
@@ -176,7 +176,7 @@ impl WorkRuntimeState {
         snapshot.progress.percentage = if child_scoped_batch_event {
             aggregate_child_progress(&snapshot.children)
         } else {
-            event.percentage.clamp(0.0, 100.0)
+            finite_percentage(event.percentage)
         };
         snapshot.progress.message = event.message.clone();
         // A multi-child batch event carries one child's ETA, which does not
@@ -411,6 +411,14 @@ impl WorkRuntimeState {
             let oldest = self.terminal_order.remove(0);
             self.operations.remove(&oldest);
         }
+    }
+}
+
+fn finite_percentage(percentage: f32) -> f32 {
+    if percentage.is_finite() {
+        percentage.clamp(0.0, 100.0)
+    } else {
+        0.0
     }
 }
 

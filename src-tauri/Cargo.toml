@@ -50,9 +50,9 @@ reqwest = { version = "0.13.4", default-features = false, features = ["rustls", 
 audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"
-specta = "=2.0.0-rc.24"
-specta-typescript = "=0.0.11"
-tauri-specta = { version = "=2.0.0-rc.24", features = ["typescript"] }
+specta = "=2.0.0-rc.25"
+specta-typescript = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
 keyring-core = "1.0.0"
 secrecy = "0.10.3"
 sha2 = "0.10.9"

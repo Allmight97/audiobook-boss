@@ -96,6 +96,7 @@ pub struct ProgressEvent {
     /// Current processing stage
     pub stage: EventStage,
     /// Progress percentage (0-100)
+    #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     /// Human-readable status message
     pub message: String,

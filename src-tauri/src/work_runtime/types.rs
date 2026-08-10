@@ -85,6 +85,7 @@ pub enum ResourceLane {
 #[serde(rename_all = "camelCase")]
 pub struct ProgressSnapshot {
     pub stage: WorkProgressStage,
+    #[specta(type = specta_typescript::Number)]
     pub percentage: f32,
     pub message: String,
     pub current_item_index: Option<usize>,

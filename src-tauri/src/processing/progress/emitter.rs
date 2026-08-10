@@ -225,6 +225,11 @@ impl ProgressEmitter {
         current_file: Option<String>,
         eta_seconds: Option<f64>,
     ) {
+        let percentage = if percentage.is_finite() {
+            percentage.clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
         let event = ProgressEvent {
             operation_kind: self.operation_kind,
             stage: EventStage::from(&stage),
@@ -289,5 +294,39 @@ mod tests {
         assert_eq!(failed.eta_seconds, None);
         assert_eq!(cancelled.eta_seconds, None);
         assert_eq!(skipped.eta_seconds, None);
+    }
+
+    #[test]
+    fn emitted_progress_normalizes_non_finite_percentage() {
+        let captured = Arc::new(std::sync::Mutex::new(None));
+        let listener_capture = Arc::clone(&captured);
+        let listener: ProgressListener = Arc::new(move |event| {
+            *listener_capture.lock().expect("capture progress event") = Some(event.clone());
+        });
+        let emitter = ProgressEmitter::with_context(
+            None,
+            EmitContext {
+                operation_kind: OperationKind::ProcessingBatch,
+                job_id: None,
+                input_index: None,
+            },
+        )
+        .with_progress_listener(Some(listener));
+
+        emitter.emit_custom(
+            ProcessingStage::Converting,
+            f32::NAN,
+            "Encoding",
+            None,
+            None,
+        );
+
+        let event = captured
+            .lock()
+            .expect("read progress event")
+            .clone()
+            .expect("progress event was emitted");
+        assert_eq!(event.percentage, 0.0);
+        assert!(event.percentage.is_finite());
     }
 }

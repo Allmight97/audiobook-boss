@@ -54,6 +54,10 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::work_runtime::WorkOperationListSnapshotEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
+        // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,
+        // counts, indices, and sequence values. They remain below JavaScript's exact
+        // integer range, and frontend consumers intentionally perform number arithmetic.
+        .dangerously_cast_bigints_to_number()
 }
 
 pub fn default_typescript_output_path() -> PathBuf {
