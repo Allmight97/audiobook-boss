@@ -166,6 +166,12 @@ export function resolveRequestedBundles(buildArgs: string[]): Set<RequestedBundl
 	return bundles;
 }
 
+export function bundledFfmpegFeatureForBuild(buildArgs: string[]): string {
+	return resolveRequestedBundles(buildArgs).has('dmg')
+		? 'bundled-ffmpeg-portable'
+		: 'bundled-ffmpeg';
+}
+
 export function buildTauriApp(
 	repoRoot: string,
 	buildArgs: string[],
@@ -174,10 +180,16 @@ export function buildTauriApp(
 	publishAaxcleanHelper(repoRoot, options.commandRunner);
 	verifyAaxcleanHelperSidecar(repoRoot);
 
+	const ffmpegFeature = bundledFfmpegFeatureForBuild(buildArgs);
 	const tauriArgs = addAaxcleanHelperConfigArg(
-		ensureFeatureArg(buildArgs, '--features', 'bundled-ffmpeg'),
+		ensureFeatureArg(buildArgs, '--features', ffmpegFeature),
 	);
 	const env = options.nonInteractiveDmg ? { ...process.env, CI: 'true' } : process.env;
+	console.log(
+		ffmpegFeature === 'bundled-ffmpeg-portable'
+			? '[build-app] FFmpeg CPU target: portable distribution baseline.'
+			: '[build-app] FFmpeg CPU target: native build host.',
+	);
 	if (options.nonInteractiveDmg) {
 		console.log('[build-app] DMG build is noninteractive; Tauri will skip Finder styling.');
 	}

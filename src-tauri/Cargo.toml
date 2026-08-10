@@ -82,6 +82,9 @@ default = []
 bundled-ffmpeg = [
     "ffmpeg-next/build",
     "ffmpeg-sys-next/build-audiotoolbox",
+]
+bundled-ffmpeg-portable = [
+    "bundled-ffmpeg",
     "ffmpeg-sys-next/build-portable",
 ]
 

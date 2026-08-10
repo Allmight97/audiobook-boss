@@ -10,10 +10,11 @@ description: Audiobook Boss release workflow for deciding whether changes need a
 - Prefer human-readable `CHANGELOG.md` plus one mechanical version bump script.
 - Choose a release lane before running commands. Do not let "release" silently
   mean every possible lane.
-- Developer install is local-machine truth: build and replace
-  `/Applications/AudioBook Boss.app` without a DMG.
+- Developer install is local-machine truth: build FFmpeg for the compiling
+  Apple Silicon host and replace `/Applications/AudioBook Boss.app` without a
+  DMG.
 - Public release is distribution truth: version/changelog, tag, GitHub Release,
-  and verified DMG attachment.
+  and a verified portable Apple Silicon DMG attachment.
 - Artifact-only is packaging truth: build and verify a DMG without publishing.
 - A tag alone is tag-only; GitHub will not show it as the latest release.
 - This skill owns release metadata and artifact proof. It does not impose a
@@ -28,11 +29,11 @@ a combined lane.
 
 | User wording | Lane | Meaning |
 | --- | --- | --- |
-| "dev release", "developer release", "local release", "install local" | Developer Install | Build current repo and silently replace `/Applications/AudioBook Boss.app`. |
-| "public release", "GitHub Release", "tag and publish", "ship DMG" | Public Release | Prepare metadata, build/verify DMG, tag, push, and publish GitHub Release. |
-| "artifact release", "DMG only", "package only" | Artifact-Only | Build/verify DMG and stop before tag/publish. |
+| "dev release", "developer release", "local release", "install local" | Developer Install | Build current repo with native host tuning and silently replace `/Applications/AudioBook Boss.app`. |
+| "public release", "GitHub Release", "tag and publish", "ship DMG" | Public Release | Prepare metadata, build/verify a portable DMG, tag, push, and publish GitHub Release. |
+| "artifact release", "DMG only", "package only" | Artifact-Only | Build/verify a portable DMG and stop before tag/publish. |
 | "release" with no qualifier | Confirm lane if the request is interactive; if the owner is asking to ship a new version, run Public Release plus Developer Install. |
-| "all", "public and dev", "public plus local" | Public Release + Developer Install | Publish the verified DMG, then run a separate developer install so `/Applications/AudioBook Boss.app` matches the release version. Do not run Artifact-Only separately because Public Release already builds the DMG. |
+| "all", "public and dev", "public plus local" | Public Release + Developer Install | Publish the verified portable DMG, then run a separate native developer install so `/Applications/AudioBook Boss.app` matches the release version. Do not run Artifact-Only separately because Public Release already builds the DMG. |
 
 Never build or open a DMG for Developer Install. Use `bun run app:dev:log` for
 temporary development testing instead of creating a local installed release.

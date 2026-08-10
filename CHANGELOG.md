@@ -9,6 +9,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Migrated ABB's in-process media stack and portable bundled builds to FFmpeg
   9.0 with a reproducibly pinned upstream source; existing audio, metadata,
   output, IPC, and user-supplied external-FDK behavior remains unchanged (#441).
+- Source-built apps now target the compiling Apple Silicon Mac natively;
+  prebuilt DMG releases retain a portable Apple Silicon baseline.
 
 ## [1.3.1] - 2026-08-09
 

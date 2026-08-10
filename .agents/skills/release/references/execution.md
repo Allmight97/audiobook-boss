@@ -41,8 +41,9 @@ bun run app:install-local
 
 This builds and installs `/Applications/AudioBook Boss.app`, signs it ad hoc,
 registers it, refreshes Spotlight metadata, and removes the repo-local install
-artifact. Use `bun run app:install-local:existing` only when a fresh repo-local
-app already exists and only reinstalling is needed.
+artifact. The source build targets the compiling Apple Silicon host natively.
+Use `bun run app:install-local:existing` only when a fresh repo-local app
+already exists and only reinstalling is needed.
 
 Report the installed version and any launch/smoke proof. Do not tag, publish, or
 build a DMG in this lane.
@@ -57,8 +58,10 @@ bun scripts/resolve-release-dmg.ts --version <x.y.z>
 hdiutil verify "<resolved-dmg-path>"
 ```
 
-The build must stay noninteractive. Report the resolved path and verification
-result, then stop before tagging or publishing.
+The build must stay noninteractive and use the portable Apple Silicon FFmpeg
+feature; a distributable DMG must not inherit the build host's native CPU
+tuning. Report the resolved path and verification result, then stop before
+tagging or publishing.
 
 ## Public Release
 
@@ -78,8 +81,10 @@ result, then stop before tagging or publishing.
    Use `bun run app:build` only for explicit repo-local app validation; a normal
    DMG release already builds the app.
 5. For Public Release + Developer Install, run `bun run app:install-local` after
-   DMG verification. This rebuild is expected because the DMG lane may remove
-   the intermediate app; do not substitute `app:install-local:existing`.
+   DMG verification. This native rebuild is expected: the published DMG stays
+   portable while the owner's installed app targets the local Mac. The DMG
+   lane may also remove the intermediate app; do not substitute
+   `app:install-local:existing`.
 6. Commit and tag the accepted release:
 
    ```bash

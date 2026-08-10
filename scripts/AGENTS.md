@@ -81,9 +81,11 @@ commands over invoking internals directly.
   targeted contract tests for the owning public surface. Boundary rules:
   `src-tauri/src/commands/AGENTS.md` + `src/lib/tauri/AGENTS.md`.
 - Build/release artifact changes: use the release skill's lane commands.
-  Developer install replaces `/Applications/AudioBook Boss.app`; public release
-  builds a verified noninteractive DMG. Do not convert release work into a broad
-  test mandate by default.
+  Developer install and ordinary source builds target the compiling Apple
+  Silicon host natively; public release builds use
+  `bundled-ffmpeg-portable` for the verified noninteractive DMG. A build that
+  produces a DMG must never inherit host-native CPU tuning. Do not convert
+  release work into a broad test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
   reports file/test counts; shell checks print `OK` or matched offending lines;
   `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
