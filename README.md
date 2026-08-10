@@ -74,8 +74,8 @@ default broad review route.
   `cargo nextest run -p abb-output-artifact-core`,
   `cargo nextest run -p abb-processing-core`,
   `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p audiobook-boss --lib`, or
-  `cargo nextest run -p audiobook-boss --test all_tests`.
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib`, or
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
 - Focused frontend loops: `bun run test -- <test files>`.
 - IPC/boundary checks: `scripts/check-generated-bindings.sh --mode local` and
   `bun scripts/check-tauri-runtime-boundary.ts`. Run standalone when touching

@@ -1104,6 +1104,90 @@ mod tests {
     }
 
     #[test]
+    fn metadata_intent_validation_reports_field_errors_as_data() {
+        let patch = MetadataIntentPatch {
+            date: PatchOp::Set("not a date".to_string()),
+            series_part: PatchOp::Set("1/2".to_string()),
+            ..Default::default()
+        };
+
+        let result = validate_metadata_intent_patch(&patch);
+
+        assert!(!result.is_valid);
+        assert_eq!(result.field_errors.len(), 2);
+        assert!(result
+            .field_errors
+            .iter()
+            .any(|error| error.message.contains("Publication date")));
+        assert!(result
+            .field_errors
+            .iter()
+            .any(|error| error.message.contains("Series sequence")));
+    }
+
+    #[test]
+    fn metadata_intent_validation_normalizes_valid_publication_date() {
+        let patch = MetadataIntentPatch {
+            date: PatchOp::Set("2024-07-15T12:00:00Z".to_string()),
+            ..Default::default()
+        };
+
+        let result = validate_metadata_intent_patch(&patch);
+
+        assert!(result.is_valid);
+        assert!(result.field_errors.is_empty());
+        assert_eq!(
+            result.metadata_patch.date,
+            PatchOp::Set("2024-07".to_string())
+        );
+    }
+
+    #[test]
+    fn metadata_intent_validation_reports_structured_field_codes() {
+        let patch = MetadataIntentPatch {
+            date: PatchOp::Set("2024-13".to_string()),
+            series_part: PatchOp::Set("7/8".to_string()),
+            subseries_part: PatchOp::Set("2/3".to_string()),
+            ..Default::default()
+        };
+
+        let result = validate_metadata_intent_patch(&patch);
+
+        assert!(!result.is_valid);
+        assert_eq!(result.field_errors.len(), 3);
+        assert!(result.field_errors.iter().any(|error| {
+            error.field == MetadataIntentValidationField::Date
+                && error.code == MetadataIntentValidationCode::PublicationDateSyntax
+        }));
+        assert!(result.field_errors.iter().any(|error| {
+            error.field == MetadataIntentValidationField::SeriesPart
+                && error.code == MetadataIntentValidationCode::SeriesPartContainsSlash
+                && error.message.contains("Series sequence")
+        }));
+        assert!(result.field_errors.iter().any(|error| {
+            error.field == MetadataIntentValidationField::SubseriesPart
+                && error.code == MetadataIntentValidationCode::SubseriesPartContainsSlash
+                && error.message.contains("Sub-series sequence")
+        }));
+    }
+
+    #[test]
+    fn metadata_intent_validation_preserves_invalid_date_for_validation() {
+        let patch = MetadataIntentPatch::from(AudiobookMetadata {
+            date: Some("not a date".to_string()),
+            ..Default::default()
+        });
+
+        assert_eq!(patch.date, PatchOp::Set("not a date".to_string()));
+        let result = validate_metadata_intent_patch(&patch);
+        assert!(!result.is_valid);
+        assert_eq!(
+            result.field_errors.first().map(|error| error.field),
+            Some(MetadataIntentValidationField::Date)
+        );
+    }
+
+    #[test]
     fn publication_year_from_date_handles_multibyte_prefix_without_panicking() {
         assert_eq!(publication_year_from_date(Some("2024-07")), Some(2024));
         assert_eq!(publication_year_from_date(Some("💥024-07")), None);

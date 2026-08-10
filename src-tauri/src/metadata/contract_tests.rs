@@ -1,9 +1,8 @@
 use crate::metadata::{
-    extract_passthrough_metadata, plan_metadata_outcome, plan_metadata_write,
-    validate_metadata_intent_patch, AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy,
-    MetadataIntentPatch, MetadataOutcomeRequest, PassthroughSource, PatchOp,
+    extract_passthrough_metadata, plan_metadata_outcome, AlbumSortPatchOp,
+    CoverArtPassthroughPolicy, MetadataIntentPatch, MetadataOutcomeRequest, PassthroughSource,
+    PatchOp,
 };
-use abb_metadata_core::{MetadataIntentValidationCode, MetadataIntentValidationField};
 
 #[test]
 fn metadata_intent_plan_contract_preserves_set_clear_noop_semantics() {
@@ -34,13 +33,6 @@ fn metadata_intent_plan_contract_preserves_set_clear_noop_semantics() {
         ),
         "explicit cover clear should suppress passthrough cover art"
     );
-
-    let write_plan = plan_metadata_write(&patch)
-        .expect("write metadata")
-        .metadata;
-    assert_eq!(write_plan.title.as_deref(), Some("Contract Title"));
-    assert_eq!(write_plan.artist.as_deref(), Some(""));
-    assert_eq!(write_plan.cover_art, Some(Vec::new()));
 }
 
 #[test]
@@ -57,96 +49,6 @@ fn metadata_intent_plan_contract_rejects_invalid_publication_dates() {
     .expect_err("invalid date should fail");
 
     assert!(err.to_string().contains("Publication date"));
-}
-
-#[test]
-fn metadata_intent_validation_contract_reports_field_errors_as_data() {
-    let patch = MetadataIntentPatch {
-        date: PatchOp::Set("not a date".to_string()),
-        series_part: PatchOp::Set("1/2".to_string()),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(!result.is_valid);
-    assert_eq!(result.field_errors.len(), 2);
-    assert!(
-        result
-            .field_errors
-            .iter()
-            .any(|error| error.message.contains("Publication date")),
-        "expected publication-date field error"
-    );
-    assert!(
-        result
-            .field_errors
-            .iter()
-            .any(|error| error.message.contains("Series sequence")),
-        "expected series-part field error"
-    );
-}
-
-#[test]
-fn metadata_intent_validation_contract_normalizes_valid_publication_date() {
-    let patch = MetadataIntentPatch {
-        date: PatchOp::Set("2024-07-15T12:00:00Z".to_string()),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(result.is_valid);
-    assert!(result.field_errors.is_empty());
-    assert_eq!(
-        result.metadata_patch.date,
-        PatchOp::Set("2024-07".to_string())
-    );
-}
-
-#[test]
-fn metadata_intent_validation_contract_reports_structured_field_codes() {
-    let patch = MetadataIntentPatch {
-        date: PatchOp::Set("2024-13".to_string()),
-        series_part: PatchOp::Set("7/8".to_string()),
-        subseries_part: PatchOp::Set("2/3".to_string()),
-        ..Default::default()
-    };
-
-    let result = validate_metadata_intent_patch(&patch);
-
-    assert!(!result.is_valid);
-    assert_eq!(result.field_errors.len(), 3);
-    assert!(result.field_errors.iter().any(|error| {
-        error.field == MetadataIntentValidationField::Date
-            && error.code == MetadataIntentValidationCode::PublicationDateSyntax
-    }));
-    assert!(result.field_errors.iter().any(|error| {
-        error.field == MetadataIntentValidationField::SeriesPart
-            && error.code == MetadataIntentValidationCode::SeriesPartContainsSlash
-            && error.message.contains("Series sequence")
-    }));
-    assert!(result.field_errors.iter().any(|error| {
-        error.field == MetadataIntentValidationField::SubseriesPart
-            && error.code == MetadataIntentValidationCode::SubseriesPartContainsSlash
-            && error.message.contains("Sub-series sequence")
-    }));
-}
-
-#[test]
-fn metadata_intent_validation_contract_preserves_invalid_date_for_validation() {
-    let patch = MetadataIntentPatch::from(AudiobookMetadata {
-        date: Some("not a date".to_string()),
-        ..Default::default()
-    });
-
-    assert_eq!(patch.date, PatchOp::Set("not a date".to_string()));
-    let result = validate_metadata_intent_patch(&patch);
-    assert!(!result.is_valid);
-    assert_eq!(
-        result.field_errors.first().map(|error| error.field),
-        Some(MetadataIntentValidationField::Date)
-    );
 }
 
 #[test]

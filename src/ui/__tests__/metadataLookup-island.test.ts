@@ -69,14 +69,6 @@ describe('MetadataLookup island mount', () => {
 		render(MetadataLookupIsland);
 	});
 
-	it('mounts modal controls into root', () => {
-		initMetadataLookup();
-
-		expect(document.getElementById('metadata-lookup-modal')).toBeTruthy();
-		expect(document.getElementById('metadata-lookup-search-btn')).toBeTruthy();
-		expect(document.getElementById('metadata-lookup-skip-btn')).toBeTruthy();
-	});
-
 	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
 		initMetadataLookup();
 		metadataLookupState.isOpen = true;

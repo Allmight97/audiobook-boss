@@ -1,5 +1,4 @@
 use super::PreviewState;
-use crate::audio::processor::frame_pipeline::PreviewAction;
 
 #[test]
 fn preview_state_new_initializes_correctly() {
@@ -30,11 +29,4 @@ fn preview_state_all_files_complete() {
 
     state.current_file_index = 2;
     assert!(state.all_files_complete());
-}
-
-#[test]
-fn preview_action_enum_values() {
-    assert_eq!(PreviewAction::Continue, PreviewAction::Continue);
-    assert_ne!(PreviewAction::Continue, PreviewAction::NextFile);
-    assert_ne!(PreviewAction::NextFile, PreviewAction::StopAll);
 }

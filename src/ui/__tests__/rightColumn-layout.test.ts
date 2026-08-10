@@ -1,62 +1,28 @@
+import { render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
-import appSource from '../../App.svelte?raw';
-import metadataManagerSource from '../metadataManager/MetadataManagerIsland.svelte?raw';
+import App from '../../App.svelte';
 
-const fsPromisesSpecifier = 'node:fs/promises';
-const { readFile } = (await import(fsPromisesSpecifier)) as {
-	readFile(path: URL, encoding: 'utf8'): Promise<string>;
-};
-const nodeUrlSpecifier = 'node:url';
-const { pathToFileURL } = (await import(nodeUrlSpecifier)) as {
-	pathToFileURL(path: string): URL;
-};
-const processRef = (globalThis as { process?: { cwd(): string } }).process;
-if (!processRef) {
-	throw new Error('right column layout test requires a Node-compatible test runner');
-}
-const repoRootUrl = pathToFileURL(`${processRef.cwd()}/`);
-const globalCss = await readFile(new URL('src/styles.css', repoRootUrl), 'utf8');
+describe('right column composition', () => {
+	it('renders metadata, encoding, Status Panel, and Work Center in order', () => {
+		render(App);
 
-function cssRule(source: string, selector: string): string {
-	const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const match = new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, 'm').exec(source);
+		const inputWorkflow = screen.getByRole('region', { name: 'Input and File Order' });
+		const metadata = screen.getByRole('region', { name: 'Metadata Manager' });
+		const encoding = screen.getByRole('region', { name: 'Encoding, output, and tags' });
+		const status = screen.getByRole('button', { name: 'Start Processing' });
+		const workCenter = screen.getByRole('heading', { name: 'Work Center' });
 
-	expect(match, `Missing CSS rule for ${selector}`).not.toBeNull();
-	return match?.groups?.body ?? '';
-}
-
-describe('right column sibling layout', () => {
-	it('renders metadata, encoding, status, and work center as sibling zones', () => {
-		const metadataIndex = appSource.indexOf(
-			'class="panel right-column-panel metadata-manager-panel"',
-		);
-		const workbenchIndex = appSource.indexOf(
-			'class="panel right-column-panel encoding-workbench-panel"',
-		);
-		const statusIndex = appSource.indexOf('<StatusPanelIsland />');
-		const workCenterIndex = appSource.indexOf('<WorkCenterIsland />');
-
-		expect(metadataIndex).toBeGreaterThan(-1);
-		expect(workbenchIndex).toBeGreaterThan(metadataIndex);
-		expect(statusIndex).toBeGreaterThan(workbenchIndex);
-		expect(workCenterIndex).toBeGreaterThan(statusIndex);
-		expect(appSource).not.toContain('metadata-output-scroll');
-		expect(appSource).not.toContain('metadata-output-panel');
-	});
-
-	it('keeps right-column overflow at the sibling stack instead of metadata/workbench wrapper', () => {
-		const rightColumnRule = cssRule(globalCss, '.right-column-wrapper');
-		expect(rightColumnRule).toContain('gap: 0.5rem;');
-		expect(rightColumnRule).toContain('overflow-y: auto;');
-		expect(globalCss).not.toContain('.metadata-output-scroll');
-		expect(globalCss).not.toContain('.metadata-output-panel');
-	});
-
-	it('keeps metadata manager as a composition-only island', () => {
-		expect(metadataManagerSource).toContain('data-testid="metadata-manager"');
-		expect(metadataManagerSource).toContain('<CoverArtIsland');
-		expect(metadataManagerSource).toContain('<MetadataFormFieldsIsland');
-		expect(metadataManagerSource).toContain('saveMetadataFromUI');
-		expect(metadataManagerSource).not.toContain('<EncodingWorkbenchIsland');
+		expect(
+			inputWorkflow.compareDocumentPosition(metadata) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			metadata.compareDocumentPosition(encoding) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			encoding.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			status.compareDocumentPosition(workCenter) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	});
 });

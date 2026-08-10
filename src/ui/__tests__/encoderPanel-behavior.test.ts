@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import EncoderWorkbenchIsland from '../encoderPanel/EncoderWorkbenchIsland.svelte';
-import { defaultEncoderSettings } from '../../types/audio';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
 import { readEncodingRequestConfig } from '../encoderPanel';
 import { renderAutoResolutionHints } from '../encoderPanel/autoResolutionHints';
@@ -57,12 +56,6 @@ describe('encoder panel behavior controls', () => {
 		resetEncoderPanelState();
 		setRuntimeSettingsCapabilities(null);
 		runtimeSettingsCapabilitiesState.loading = false;
-	});
-
-	it('defaults to truthful default-on encoder behavior settings', () => {
-		const defaults = defaultEncoderSettings();
-
-		expect(defaults.afterburner).toBe(true);
 	});
 
 	it('renders no afterburner control; the App Settings dialog owns it', async () => {

@@ -493,7 +493,7 @@ print_process_snapshot
 printf '\n=== Tauri output ===\n'
 
 set +e
-bun run tauri dev
+bun run tauri dev --features bundled-ffmpeg
 status="$?"
 set -e
 exit "$status"

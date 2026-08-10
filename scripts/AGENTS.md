@@ -35,9 +35,9 @@ commands over invoking internals directly.
   manual or env-gated only; Apple AAC is macOS-gated and skips elsewhere),
   sample-rate-converted merges, stereo channel preservation (per-channel RMS),
   cover art, chapters, metadata round-trips, and cancellation. All fixtures
-  are synthesized at test time (WAV in Rust, MP3 via libmp3lame, M4B from the
+  are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
-  `cargo nextest run -p audiobook-boss --test all_tests -E 'test(media_execution)'`
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
   (runtime budget ~1s wall clock; shrink fixtures before widening it). Do not
   add broad media gates or committed fixtures beyond this lane without a new
   owner decision.
@@ -61,8 +61,8 @@ commands over invoking internals directly.
   `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
 - Runtime shell or Rust integration:
-  `cargo nextest run -p audiobook-boss --lib` or
-  `cargo nextest run -p audiobook-boss --test all_tests`.
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib` or
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
 - Manual Tauri dev with captured logs:
   `bun run app:dev:log`; inspect `.logs/tauri-dev-summary.md` for the semantic
   session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
@@ -127,8 +127,9 @@ commands over invoking internals directly.
   and `PATH="<prefix>/bin:$PATH"` before `cargo test`. Distro FFmpeg 6.x fails
   the media lane with swresample "Input changed" errors on WAV inputs — that
   is an FFmpeg-version artifact, not a code regression.
-- External-reader tag proofs in the media lane spawn `ffprobe` from PATH
-  (override with `ABB_FFPROBE=<path>`); the built FFmpeg prefix provides it.
+- External media fixture/readback proofs in the media lane spawn `ffmpeg` and
+  `ffprobe` from PATH (override with `ABB_FFMPEG=<path>` and
+  `ABB_FFPROBE=<path>`); the built FFmpeg prefix provides both.
 - Tauri test builds need `libgtk-3-dev`/`libwebkit2gtk-4.1-dev` and an
   executable stub at `binaries/abb-aaxclean-helper-<host-triple>`
   (gitignored; any `exit 0` script satisfies the resource check).

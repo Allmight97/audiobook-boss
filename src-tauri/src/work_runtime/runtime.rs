@@ -542,8 +542,8 @@ mod tests {
 
     #[test]
     fn work_operation_record_labels_pin_all_contract_variants() {
-        // Operation-kind labels are pinned by the owning processing contract
-        // test (`processing_contract_operation_kind_log_labels_are_stable`).
+        // Operation-kind labels remain owned by the processing lifecycle
+        // utility; this test pins the work-runtime status vocabulary here.
         assert_eq!(
             [
                 WorkOperationStatus::Accepted,

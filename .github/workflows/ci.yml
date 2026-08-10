@@ -60,8 +60,9 @@ jobs:
         with:
           toolchain: "1.95"
       - uses: Swatinem/rust-cache@v2
-      # ffmpeg-sys-next links the system FFmpeg libs (libavutil etc.)
-      - run: brew install ffmpeg pkg-config
+      # Binding export uses ABB's pinned bundled FFmpeg because Homebrew's
+      # current FFmpeg major is incompatible with ffmpeg-next 8.1.
+      - run: brew install pkg-config
       # tauri-build requires the AAXClean sidecar resource to exist; binding
       # generation never executes it, so a stub keeps .NET out of this lane.
       - run: |

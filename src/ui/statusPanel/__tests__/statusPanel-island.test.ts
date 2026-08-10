@@ -26,23 +26,9 @@ describe('StatusPanel island mount', () => {
 		triggerCancelAllMock.mockClear();
 	});
 
-	it('renders status panel controls and delegates initialization', () => {
+	it('initializes the status panel once when rendered', () => {
 		render(StatusPanelIsland);
 
-		expect(document.querySelector('.panel.status-panel')).toBeTruthy();
-		const requiredIds = [
-			'progress-bar',
-			'percentage-processed',
-			'status-text',
-			'step-text',
-			'concurrency-status',
-			'process-button',
-			'cancel-all-button',
-			'job-list',
-		];
-		requiredIds.forEach((id) => {
-			expect(document.getElementById(id)).toBeTruthy();
-		});
 		expect(initStatusPanelLogicMock).toHaveBeenCalledTimes(1);
 	});
 

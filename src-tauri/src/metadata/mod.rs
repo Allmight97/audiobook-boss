@@ -34,8 +34,6 @@ pub use abb_metadata_core::{
     PatchOp,
 };
 pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
-#[cfg(test)]
-pub(crate) use intent_plan::plan_metadata_write;
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
     plan_metadata_outcome, plan_metadata_write_for_path, MetadataOutcomePlan,

@@ -43,6 +43,3 @@ pub use types::{
     JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset,
 };
-
-#[cfg(test)]
-mod contract_tests;

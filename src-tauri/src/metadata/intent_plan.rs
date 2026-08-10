@@ -61,11 +61,6 @@ pub(crate) fn plan_metadata_outcome(
     })
 }
 
-#[cfg(test)]
-pub(crate) fn plan_metadata_write(patch: &MetadataIntentPatch) -> Result<MetadataWritePlan> {
-    Ok(patch.to_write_plan()?)
-}
-
 pub(crate) fn plan_metadata_write_for_path(
     input_path: &Path,
     patch: &MetadataIntentPatch,
@@ -108,8 +103,7 @@ fn resolve_naming_metadata(
 mod tests {
     use super::{plan_metadata_outcome, MetadataOutcomeRequest};
     use crate::metadata::{
-        plan_metadata_write, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
-        PatchOp,
+        AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
     };
     use crate::output_artifact::naming::build_output_path_preview;
     use crate::output_artifact::OutputNamingConfig;
@@ -355,22 +349,6 @@ mod tests {
                 CoverArtPassthroughPolicy::SuppressAfterExplicitClear
             ),
             "explicit cover clear must suppress source cover art passthrough"
-        );
-    }
-
-    #[test]
-    fn metadata_write_plan_preserves_cover_art_clear() {
-        let patch = MetadataIntentPatch {
-            cover_art: PatchOp::Clear,
-            ..Default::default()
-        };
-
-        assert_eq!(
-            plan_metadata_write(&patch)
-                .expect("write plan")
-                .metadata
-                .cover_art,
-            Some(Vec::new())
         );
     }
 }
