@@ -10,8 +10,9 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
+edition = "2024"
 name = "ffmpeg-sys-next"
-version = "8.1.0"
+version = "9.0.0"
 authors = [
     "meh. <meh@schizofreni.co>",
     "Zhiming Wang <i@zhimingwang.org>",
@@ -97,6 +98,7 @@ build-mediacodec = ["build"]
 build-nvenc = ["build"]
 build-nvidia = ["build"]
 build-pic = ["build"]
+build-portable = ["build"]
 build-vaapi = ["build"]
 build-videotoolbox = ["build"]
 build-vulkan = ["build"]
@@ -129,7 +131,7 @@ features = ["runtime"]
 default-features = false
 
 [build-dependencies.cc]
-version = "1.2"
+version = "1.3"
 
 [build-dependencies.num_cpus]
 version = "1.17"

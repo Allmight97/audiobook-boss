@@ -1,5 +1,22 @@
 # Decisions
 
+## 2026-08-09 - FFmpeg 9 Uses a Minimal Source-Provenance Vendor (#441)
+
+- Outcome: ABB moves `ffmpeg-next` and `ffmpeg-sys-next` together to 9.0.0 and
+  retains a minimal `ffmpeg-sys-next` vendor to replace its mutable
+  `release/9.0` clone with FFmpeg tag `n9.0`, verified at peeled commit
+  `d32b387f2b0a484599d4587d651891f0c63c4238`, and restore the `CoreAudio`
+  framework required by FFmpeg's AudioToolbox device symbols. Distributed
+  bundled builds enable `build-portable`; no other Apple behavior is carried.
+- Evidence: exact v1.3.1 source compiled unchanged against Homebrew FFmpeg 9
+  and completed an upstream bundled FFmpeg 9 build; upstream sys 9.0.0 still
+  follows a mutable release branch. The first bundled runtime-test link then
+  failed on `AudioObjectGetPropertyData*` until `CoreAudio` was restored.
+- Guardrail: keep the vendor diff limited to source selection, commit
+  verification, and the proven `CoreAudio` link requirement; advance the
+  FFmpeg tag/commit deliberately with wrapper/sys review and the media,
+  packaging, and release proof in issue #441.
+
 ## 2026-07-02 - Artifact Drawer Removed; Clear Path Stays Contractual
 
 - Outcome: the "Embedded artifacts" inspect/clear drawer (1.3.0, #281) was
