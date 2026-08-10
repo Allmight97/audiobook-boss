@@ -184,7 +184,15 @@ export function buildTauriApp(
 	const tauriArgs = addAaxcleanHelperConfigArg(
 		ensureFeatureArg(buildArgs, '--features', ffmpegFeature),
 	);
-	const env = options.nonInteractiveDmg ? { ...process.env, CI: 'true' } : process.env;
+	const env =
+		ffmpegFeature === 'bundled-ffmpeg-portable'
+			? {
+					...process.env,
+					CI: options.nonInteractiveDmg ? 'true' : process.env.CI,
+					FFMPEG_MARCH: '',
+					FFMPEG_MTUNE: '',
+				}
+			: process.env;
 	console.log(
 		ffmpegFeature === 'bundled-ffmpeg-portable'
 			? '[build-app] FFmpeg CPU target: portable distribution baseline.'

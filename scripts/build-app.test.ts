@@ -335,6 +335,8 @@ describe('buildTauriApp', () => {
 		});
 		expect(calls[1]?.stdio).toBe('inherit');
 		expect(calls[1]?.env?.CI).toBe('true');
+		expect(calls[1]?.env?.FFMPEG_MARCH).toBe('');
+		expect(calls[1]?.env?.FFMPEG_MTUNE).toBe('');
 	});
 
 	it('leaves CI value untouched for non-DMG app builds', () => {
