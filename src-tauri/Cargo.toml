@@ -41,8 +41,8 @@ tokio = { version = "1.52.1", features = ["full"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 log = "0.4.29"
 env_logger = "0.11.10"
-ffmpeg-next = "8.1.0"
-ffmpeg-sys-next = { version = "8.1.0", default-features = false }
+ffmpeg-next = "9.0.0"
+ffmpeg-sys-next = { version = "9.0.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "stream", "json", "query", "form"] }
 # audible_api currently accepts reqwest 0.12 request values. Keep this renamed
@@ -79,7 +79,14 @@ custom-protocol = ["tauri/custom-protocol"]
 
 # Default features - now minimal with only essential Tauri features
 default = []
-bundled-ffmpeg = ["ffmpeg-next/build", "ffmpeg-sys-next/build-audiotoolbox"]
+bundled-ffmpeg = [
+    "ffmpeg-next/build",
+    "ffmpeg-sys-next/build-audiotoolbox",
+]
+bundled-ffmpeg-portable = [
+    "bundled-ffmpeg",
+    "ffmpeg-sys-next/build-portable",
+]
 
 [dev-dependencies]
 tempfile = "3.27.0"
@@ -87,7 +94,7 @@ tauri = { version = "2.11.2", features = ["test"] }
 base64 = "0.22.1"
 # Media-lane fixture synthesis (e.g. MP3 via libmp3lame). Same version as the
 # main dependency, so this adds zero extra compilation.
-ffmpeg-next = "8.1.0"
+ffmpeg-next = "9.0.0"
 
 [lints]
 workspace = true

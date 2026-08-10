@@ -53,9 +53,14 @@ Build the current branch and replace `/Applications/AudioBook Boss.app` in
 place. macOS (Apple Silicon) only; the replace is silent and unprompted.
 
 ```bash
-bun run app:install-local            # build, verify, install, prune artifacts
+bun run app:install-local            # native build, verify, install, prune artifacts
 bun run app:install-local:existing   # install an already-built bundle (--skip-build)
 ```
+
+Source-built app, development, and test routes target the compiling Apple
+Silicon Mac natively. `bun run app:build` builds that native repo-local app.
+`bun run app:build:dmg` and `bun run app:build:all` instead use the portable
+Apple Silicon baseline because their DMG may run on an unknown recipient Mac.
 
 ## Script Guide
 
@@ -93,9 +98,10 @@ default broad review route.
   when investigating compile cost.
 - Release lanes: use `.agents/skills/release`.
   `bun scripts/bump-version.ts <version>` updates version surfaces;
-  `bun run app:install-local` is the developer-install lane and silently
+  `bun run app:install-local` is the native developer-install lane and silently
   replaces `/Applications/AudioBook Boss.app`; `bun run app:build` builds a
-  repo-local `.app`; `bun run app:build:dmg` builds a noninteractive public DMG.
+  native repo-local `.app`; `bun run app:build:dmg` builds a portable,
+  noninteractive public DMG.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before publishing a GitHub Release.
 
 ## Project Operation

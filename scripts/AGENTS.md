@@ -81,9 +81,11 @@ commands over invoking internals directly.
   targeted contract tests for the owning public surface. Boundary rules:
   `src-tauri/src/commands/AGENTS.md` + `src/lib/tauri/AGENTS.md`.
 - Build/release artifact changes: use the release skill's lane commands.
-  Developer install replaces `/Applications/AudioBook Boss.app`; public release
-  builds a verified noninteractive DMG. Do not convert release work into a broad
-  test mandate by default.
+  Developer install and ordinary source builds target the compiling Apple
+  Silicon host natively; public release builds use
+  `bundled-ffmpeg-portable` for the verified noninteractive DMG. A build that
+  produces a DMG must never inherit host-native CPU tuning. Do not convert
+  release work into a broad test mandate by default.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
   reports file/test counts; shell checks print `OK` or matched offending lines;
   `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
@@ -120,9 +122,9 @@ commands over invoking internals directly.
   `libmp3lame`, makes FFmpeg discoverable after the setup shell exits, creates
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`.
-- The runtime suite links FFmpeg at the pinned major (see
-  `vendor/ffmpeg-sys-next-*`, which clones `release/<major>.<minor>`). On a
-  Linux agent, build that FFmpeg branch from source and export
+- The runtime suite links FFmpeg at the pinned source revision (see
+  `vendor/ffmpeg-sys-next-*`, which selects `n9.0` and verifies its peeled
+  commit). On a Linux agent, build that same tag from source and export
   `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig`, `LD_LIBRARY_PATH=<prefix>/lib`,
   and `PATH="<prefix>/bin:$PATH"` before `cargo test`. Distro FFmpeg 6.x fails
   the media lane with swresample "Input changed" errors on WAV inputs — that

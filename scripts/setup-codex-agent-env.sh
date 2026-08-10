@@ -10,8 +10,9 @@ set -euo pipefail
 # scripts/AGENTS.md by touched owner.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ffmpeg_ref="${ABB_CODEX_FFMPEG_REF:-release/8.1}"
-ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg81}"
+ffmpeg_ref="${ABB_CODEX_FFMPEG_REF:-n9.0}"
+ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-d32b387f2b0a484599d4587d651891f0c63c4238}"
+ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg90}"
 ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
 local_env_file="${repo_root}/.codex/agent-env.local.sh"
 required_bun_version="1.3.14"
@@ -143,7 +144,9 @@ persist_linux_ffmpeg_paths() {
 	if [ "$(id -u)" -eq 0 ] || have sudo; then
 		log "Registering FFmpeg ${ffmpeg_prefix} for runtime linker discovery"
 		run_as_root mkdir -p /etc/ld.so.conf.d /etc/profile.d
-		printf '%s/lib\n' "${ffmpeg_prefix}" | run_as_root tee /etc/ld.so.conf.d/abb-ffmpeg81.conf >/dev/null
+		# Remove the superseded linker entry when upgrading an existing agent image.
+		run_as_root rm -f /etc/ld.so.conf.d/abb-ffmpeg81.conf
+		printf '%s/lib\n' "${ffmpeg_prefix}" | run_as_root tee /etc/ld.so.conf.d/abb-ffmpeg90.conf >/dev/null
 		cat "${local_env_file}" | run_as_root tee /etc/profile.d/abb-codex-agent-env.sh >/dev/null
 		run_as_root ldconfig
 	else
@@ -170,6 +173,13 @@ ensure_linux_ffmpeg() {
 	log "Building FFmpeg ${ffmpeg_ref} into ${ffmpeg_prefix}"
 	run_as_root rm -rf "${ffmpeg_src}"
 	run_as_root git clone --depth=1 -b "${ffmpeg_ref}" https://github.com/FFmpeg/FFmpeg "${ffmpeg_src}"
+	local resolved_commit
+	resolved_commit="$(run_as_root git -C "${ffmpeg_src}" rev-parse HEAD)"
+	if [ "${resolved_commit}" != "${ffmpeg_commit}" ]; then
+		printf 'error: FFmpeg %s resolved to %s; expected %s\n' \
+			"${ffmpeg_ref}" "${resolved_commit}" "${ffmpeg_commit}" >&2
+		return 1
+	fi
 
 	pushd "${ffmpeg_src}" >/dev/null
 	run_as_root ./configure \
