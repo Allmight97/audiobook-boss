@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-08-10
+
 ### Changed
 
 - Migrated ABB's in-process media stack and portable bundled builds to FFmpeg
