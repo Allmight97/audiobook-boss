@@ -13,10 +13,12 @@
   `src-tauri/src/ipc_contract.rs` owns the integer policy;
   `src/lib/tauri-client.generated-event-bindings.test.ts` pins representative
   numeric shapes; focused Rust tests pin non-finite progress normalization.
-- Guardrail: do not introduce JavaScript `bigint`, lossless-float semantic
-  transforms, or per-core-crate TypeScript annotations without a concrete
-  payload that can exceed JavaScript's exact integer range or must preserve
-  non-finite floats end to end.
+- Guardrail: do not introduce JavaScript `bigint` or lossless-float semantic
+  transforms without a concrete payload that needs those runtime semantics.
+  An owner-local `specta-typescript::Number` annotation is allowed only when
+  the Rust owner normalizes the value to a finite number and the established
+  wire contract must remain non-nullable; keep focused owner and generated-type
+  proof beside that exception.
 
 ## 2026-08-09 - FFmpeg 9 Uses a Minimal Source-Provenance Vendor (#441)
 
