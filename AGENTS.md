@@ -44,6 +44,8 @@
 ## Testing And Proof Infrastructure
 
 - Verification cost and signal are first-order product concerns. Treat slow, opaque, false-green, or target-bloated proof routes as `fix` candidates when measured evidence shows they waste agent or human attention.
+- A retained test should name a plausible regression at its owning stable boundary. Tests that only restate source or test-authored structure, detect refactors without protecting observable behavior, or duplicate another tier's contract without distinct integration risk do not earn keep.
+- For an explicit repository-wide or change-scoped test-value audit, pruning pass, or test-only seam cleanup, use `.agents/skills/audit-test-value`.
 - Add tests only when they reduce false confidence or protect a concrete user-visible handoff, runtime contract, cleanup path, or regression. Prefer deterministic focused checks over coverage-count expansion.
 - For a bug fix or a new assertion on existing behavior, prefer a failing-first test that pins it before the fix; it is a tool, not a ceremony — skip it for trivial or greenfield-adjacent work.
 - Test tier: pick the lowest tier that proves the behavior deterministically, owned by the surface that owns the logic; push a test down a tier whenever the same guarantee proves more cheaply there.

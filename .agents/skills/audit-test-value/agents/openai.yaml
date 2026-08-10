@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Test Value"
+  short_description: "Audit test value and simplify stale seams"
+  default_prompt: "Use $audit-test-value to audit this test scope for behavior value, ownership, duplication, and test-only production seams."
