@@ -105,6 +105,10 @@ tagging or publishing.
 
    ```bash
    gh release create v<x.y.z> "<resolved-dmg-path>" --title "AudioBook Boss v<x.y.z>" --notes-file <notes-file>
+   gh release verify-asset v<x.y.z> "<resolved-dmg-path>"
    gh release view v<x.y.z>
    gh release list --limit 5
    ```
+
+   `verify-asset` must succeed for the exact local DMG that passed `hdiutil
+   verify`; it confirms the GitHub asset is byte-for-byte the tested file.
