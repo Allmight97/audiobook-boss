@@ -7,11 +7,11 @@ commands over invoking internals directly.
 ## Public Entrypoints
 
 - Convenience commands: `package.json` scripts.
-- CI tripwire (`.github/workflows/ci.yml`) runs on push to `main` only:
-  clean-install typecheck + `check:svelte`, generated-binding drift, and
-  core-crate Nextest. It is a narrow post-push alarm, not a gate; local
-  commands below remain the default evidence trail. Widening it requires a
-  repo-owner decision (see `docs/DECISIONS.md` 2026-07-01).
+- Frontend clean-install alarm (`.github/workflows/ci.yml`) runs after relevant
+  frontend/dependency/config pushes to `main`: frozen install, typecheck, and
+  `check:svelte`. It catches undeclared dependencies that a warm checkout can
+  conceal; it is not a PR gate or broad test route. Rust and generated-binding
+  proof stay local/release-owned through the commands below.
 - There is no repo-owned verification runner and no default broad review route.
   Run native commands directly, one at a time, only for the touched owner or
   explicit risk surface. Report the command, elapsed time when meaningful, exit
@@ -99,7 +99,11 @@ commands over invoking internals directly.
 - `check-tauri-runtime-boundary.ts`: generated command/event import boundary
   plus raw Tauri invoke bypass protection.
 - `build-app.ts`, `install-local-app.ts`, `resolve-release-dmg.ts`,
-  `bump-version.ts`: build/release utilities.
+  `bump-version.ts`: build/release utilities. Public DMG builds always publish
+  the AAXClean helper from current source and retain the matching portable app
+  long enough to verify it; local app builds may reuse a fresh helper sidecar.
+  Bundle verification accepts exactly the app and helper executables and
+  inspects both.
 - `analyze_code_lines.py`: optional human "Commander View" source-size
   diagnostic, not proof.
 - `*.test.ts`: Vitest coverage for script helpers.

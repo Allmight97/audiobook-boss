@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-08-11 - Hosted Proof Is One Clean-Frontend Alarm (#450)
+
+- Outcome: GitHub automatically runs only Pages publication and a
+  path-narrowed frontend frozen-install/type/Svelte alarm. Rust tests and
+  generated-binding verification stay explicit local or release checks.
+- Evidence: the clean frontend runner caught an undeclared `@types/node`
+  dependency hidden by a warm checkout; hosted core tests had no unique catch,
+  and the binding job's only catch was a trailing newline after compiling the
+  FFmpeg-linked runtime.
+- Guardrail: automatic hosted work needs a demonstrated clean-runner or
+  publication outcome that local/release proof does not already own.
+
 ## 2026-08-10 - Specta RC25 Keeps ABB's Numeric IPC Contract (#448)
 
 - Outcome: ABB adopts Specta/tauri-specta RC25 and keeps bounded byte sizes,
