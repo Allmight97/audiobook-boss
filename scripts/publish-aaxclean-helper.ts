@@ -14,6 +14,11 @@ interface AaxcleanHelperPaths {
 	sidecarPath: string;
 }
 
+interface PublishAaxcleanHelperOptions {
+	commandRunner?: typeof spawnSync;
+	force?: boolean;
+}
+
 export function resolveDotnetCommand(): string {
 	if (process.env.DOTNET_CLI && process.env.DOTNET_CLI.length > 0) {
 		return process.env.DOTNET_CLI;
@@ -45,16 +50,16 @@ export function resolveAaxcleanHelperPaths(repoRoot: string): AaxcleanHelperPath
 
 export function publishAaxcleanHelper(
 	repoRoot: string,
-	commandRunner: typeof spawnSync = spawnSync,
+	options: PublishAaxcleanHelperOptions = {},
 ): string {
 	const paths = resolveAaxcleanHelperPaths(repoRoot);
-	if (helperSidecarIsFresh(repoRoot, paths.sidecarPath)) {
+	if (!options.force && helperSidecarIsFresh(repoRoot, paths.sidecarPath)) {
 		console.log(`[aaxclean-helper] Using existing ${paths.sidecarPath}`);
 		return paths.sidecarPath;
 	}
 
 	const dotnet = resolveDotnetCommand();
-	const result = commandRunner(
+	const result = (options.commandRunner ?? spawnSync)(
 		dotnet,
 		[
 			'publish',

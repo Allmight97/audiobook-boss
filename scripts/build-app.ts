@@ -177,7 +177,11 @@ export function buildTauriApp(
 	buildArgs: string[],
 	options: BuildTauriAppOptions = {},
 ): void {
-	publishAaxcleanHelper(repoRoot, options.commandRunner);
+	const requestedBundles = resolveRequestedBundles(buildArgs);
+	publishAaxcleanHelper(repoRoot, {
+		commandRunner: options.commandRunner,
+		force: requestedBundles.has('dmg'),
+	});
 	verifyAaxcleanHelperSidecar(repoRoot);
 
 	const ffmpegFeature = bundledFfmpegFeatureForBuild(buildArgs);
@@ -235,7 +239,10 @@ export function addAaxcleanHelperConfigArg(args: string[]): string[] {
 	];
 }
 
-export function verifyMacOsBundle(paths: BundlePaths): void {
+export function verifyMacOsBundle(
+	paths: BundlePaths,
+	commandRunner: typeof spawnSync = spawnSync,
+): void {
 	if (!existsSync(paths.canonicalAppPath)) {
 		throw new Error(`Expected canonical app bundle at ${paths.canonicalAppPath}`);
 	}
@@ -248,25 +255,45 @@ export function verifyMacOsBundle(paths: BundlePaths): void {
 		throw new Error(`Expected AAXClean helper executable at ${paths.helperExecutablePath}`);
 	}
 
-	verifyMacOsExecutableArchitecture(paths.executablePath);
-	verifyMacOsExecutableArchitecture(paths.helperExecutablePath);
+	const macOsDir = path.dirname(paths.executablePath);
+	const expectedExecutables = new Set([
+		path.basename(paths.executablePath),
+		path.basename(paths.helperExecutablePath),
+	]);
+	const unexpectedExecutables = readdirSync(macOsDir).filter(
+		(entry) => !expectedExecutables.has(entry),
+	);
+	if (unexpectedExecutables.length > 0) {
+		throw new Error(
+			[
+				`Packaged app contains unexpected executables under ${macOsDir}:`,
+				...unexpectedExecutables.sort(),
+			].join('\n'),
+		);
+	}
 
-	const result = spawnSync('otool', ['-L', paths.executablePath], {
+	verifyMacOsExecutableArchitecture(paths.executablePath, commandRunner);
+	verifyMacOsExecutableArchitecture(paths.helperExecutablePath, commandRunner);
+	verifyMacOsExecutableLinks(paths.executablePath, commandRunner);
+	verifyMacOsExecutableLinks(paths.helperExecutablePath, commandRunner);
+}
+
+function verifyMacOsExecutableLinks(executablePath: string, commandRunner: typeof spawnSync): void {
+	const result = commandRunner('otool', ['-L', executablePath], {
 		encoding: 'utf8',
 	});
 
 	if (result.status !== 0) {
-		throw new Error(result.stderr.trim() || `otool failed for ${paths.executablePath}`);
+		throw new Error(result.stderr.trim() || `otool failed for ${executablePath}`);
 	}
 
 	const forbiddenMatches = findForbiddenLinkedLibraries(result.stdout);
 
 	if (forbiddenMatches.length > 0) {
 		throw new Error(
-			[
-				`Packaged app still links external libraries: ${paths.executablePath}`,
-				...forbiddenMatches,
-			].join('\n'),
+			[`Packaged app still links external libraries: ${executablePath}`, ...forbiddenMatches].join(
+				'\n',
+			),
 		);
 	}
 }
@@ -282,8 +309,11 @@ export function verifyDmgBundle(paths: BundlePaths): void {
 	}
 }
 
-function verifyMacOsExecutableArchitecture(executablePath: string): void {
-	const result = spawnSync('lipo', ['-archs', executablePath], {
+function verifyMacOsExecutableArchitecture(
+	executablePath: string,
+	commandRunner: typeof spawnSync,
+): void {
+	const result = commandRunner('lipo', ['-archs', executablePath], {
 		encoding: 'utf8',
 	});
 
@@ -398,7 +428,7 @@ function main(): void {
 	}
 
 	const bundlePaths = resolveMacOsBundlePaths(repoRoot);
-	if (requestedBundles.has('app')) {
+	if (requestedBundles.has('app') || requestedBundles.has('dmg')) {
 		verifyMacOsBundle(bundlePaths);
 	}
 

@@ -16,6 +16,7 @@ import {
 	pruneLocalInstallArtifacts,
 	resolveRequestedBundles,
 	resolveMacOsBundlePaths,
+	verifyMacOsBundle,
 	verifyDmgBundle,
 } from './build-app';
 
@@ -104,6 +105,58 @@ describe('findForbiddenLinkedLibraries', () => {
 			'/opt/homebrew/opt/ffmpeg/lib/libavcodec.62.dylib',
 			'/usr/local/opt/libx11/lib/libX11.6.dylib',
 		]);
+	});
+});
+
+describe('verifyMacOsBundle', () => {
+	function createPackagedAppFixture(): {
+		commandRunner: typeof spawnSync;
+		paths: ReturnType<typeof resolveMacOsBundlePaths>;
+		toolCalls: Array<{ args: string[]; command: string }>;
+	} {
+		const { applicationsDir, repoRoot } = createRepoFixture();
+		const paths = resolveMacOsBundlePaths(repoRoot, applicationsDir);
+		const macOsDir = path.dirname(paths.executablePath);
+		mkdirSync(macOsDir, { recursive: true });
+		writeFileSync(paths.executablePath, 'app');
+		writeFileSync(paths.helperExecutablePath, 'helper');
+
+		const toolCalls: Array<{ args: string[]; command: string }> = [];
+		const commandRunner = ((command: string, args: string[]) => {
+			toolCalls.push({ command, args });
+			return {
+				status: 0,
+				stderr: '',
+				stdout:
+					command === 'lipo'
+						? 'arm64\n'
+						: `${args[1]}:\n\t/System/Library/Frameworks/Foundation.framework/Foundation\n`,
+			};
+		}) as typeof spawnSync;
+
+		return { commandRunner, paths, toolCalls };
+	}
+
+	it('accepts exactly the app and helper and inspects both executables', () => {
+		const { commandRunner, paths, toolCalls } = createPackagedAppFixture();
+
+		expect(() => verifyMacOsBundle(paths, commandRunner)).not.toThrow();
+		expect(toolCalls).toEqual([
+			{ command: 'lipo', args: ['-archs', paths.executablePath] },
+			{ command: 'lipo', args: ['-archs', paths.helperExecutablePath] },
+			{ command: 'otool', args: ['-L', paths.executablePath] },
+			{ command: 'otool', args: ['-L', paths.helperExecutablePath] },
+		]);
+	});
+
+	it('rejects an unexpected executable before inspecting the bundle', () => {
+		const { commandRunner, paths, toolCalls } = createPackagedAppFixture();
+		writeFileSync(path.join(path.dirname(paths.executablePath), 'export_bindings'), 'unexpected');
+
+		expect(() => verifyMacOsBundle(paths, commandRunner)).toThrow(
+			'Packaged app contains unexpected executables',
+		);
+		expect(toolCalls).toEqual([]);
 	});
 });
 
@@ -293,6 +346,12 @@ describe('addAaxcleanHelperConfigArg', () => {
 describe('buildTauriApp', () => {
 	it('forces noninteractive Finder-free DMG packaging when requested', () => {
 		const { repoRoot } = createRepoFixture();
+		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
+		mkdirSync(sidecarDir, { recursive: true });
+		writeFileSync(
+			path.join(sidecarDir, 'abb-aaxclean-helper-aarch64-apple-darwin'),
+			'existing helper',
+		);
 		const calls: Array<{
 			args: string[];
 			command: string;
@@ -341,6 +400,12 @@ describe('buildTauriApp', () => {
 
 	it('leaves CI value untouched for non-DMG app builds', () => {
 		const { repoRoot } = createRepoFixture();
+		const sidecarDir = path.join(repoRoot, 'src-tauri/binaries');
+		mkdirSync(sidecarDir, { recursive: true });
+		writeFileSync(
+			path.join(sidecarDir, 'abb-aaxclean-helper-aarch64-apple-darwin'),
+			'existing helper',
+		);
 		const calls: Array<{ env?: NodeJS.ProcessEnv }> = [];
 		const commandRunner = ((
 			command: string,
@@ -362,8 +427,9 @@ describe('buildTauriApp', () => {
 			nonInteractiveDmg: false,
 		});
 
-		expect(calls[1]?.env?.CI).toBe(process.env.CI);
-		expect(calls[1]?.env).toBe(process.env);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.env?.CI).toBe(process.env.CI);
+		expect(calls[0]?.env).toBe(process.env);
 	});
 });
 
