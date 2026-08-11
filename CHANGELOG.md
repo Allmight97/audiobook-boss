@@ -4,6 +4,24 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-08-10
+
+### Changed
+
+- Updated ABB's Tauri desktop runtime, build tooling, and dialog stack to the
+  current compatible patch releases.
+- Updated the Specta/tauri-specta binding stack to RC25 and made ABB's numeric
+  IPC contract explicit for bounded sizes, timestamps, counts, indices,
+  sequence values, and progress values.
+
+### Fixed
+
+- Non-finite progress values are normalized at their Rust owners instead of
+  becoming unexpected `null` values in generated JSON payloads.
+- Work Center source files and generated previews can open again from
+  user-owned, temporary, and mounted-volume paths. Opener failures now appear
+  as Work Center feedback instead of an unhandled frontend rejection.
+
 ## [1.3.2] - 2026-08-10
 
 ### Changed
