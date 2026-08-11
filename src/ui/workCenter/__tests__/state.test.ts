@@ -12,7 +12,12 @@ vi.mock('../../remoteSource/sessionAssets.svelte', () => ({
 	releaseRemoteSourceSessionRetainers: releaseMock,
 }));
 
-import { applyOperationSnapshot, disposeWorkCenter, initializeWorkCenter } from '../state.svelte';
+import {
+	applyOperationSnapshot,
+	disposeWorkCenter,
+	initializeWorkCenter,
+	openChildSource,
+} from '../state.svelte';
 import { workCenterState } from '../state.svelte';
 
 function createDeferred<T>() {
@@ -94,6 +99,7 @@ describe('Work Center state', () => {
 		releaseMock.mockReset();
 		releaseMock.mockReturnValue([]);
 		disposeWorkCenter();
+		workCenterState.errorMessage = null;
 	});
 
 	afterEach(() => {
@@ -141,6 +147,16 @@ describe('Work Center state', () => {
 		expect(releaseMock).toHaveBeenCalledTimes(1);
 		expect(purgeMock).toHaveBeenCalledTimes(1);
 		resolvePurge();
+	});
+
+	it('surfaces source-open rejection without leaving an unhandled promise', async () => {
+		vi.spyOn(tauriClient, 'openPath').mockRejectedValueOnce('source application unavailable');
+
+		await expect(openChildSource({ sourcePath: '/tmp/book.m4b' })).resolves.toBeUndefined();
+
+		expect(workCenterState.errorMessage).toBe(
+			'Failed to open source file: source application unavailable',
+		);
 	});
 
 	it('does not mark initialized or retain listeners when disposed mid-initialization', async () => {
