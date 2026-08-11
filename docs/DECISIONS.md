@@ -1,5 +1,25 @@
 # Decisions
 
+## 2026-08-10 - Specta RC25 Keeps ABB's Numeric IPC Contract (#448)
+
+- Outcome: ABB adopts Specta/tauri-specta RC25 and keeps bounded byte sizes,
+  timestamps, counts, indices, and sequence values as TypeScript `number` at
+  the Tauri IPC boundary. The exporter opts into the RC25 integer remapper at
+  that boundary; pure domain crates retain their Rust-owned integer types.
+  Float fields used for progress and file totals stay numeric only where their
+  Rust owners normalize non-finite values before serialization.
+- Evidence: RC25 binding generation rejects wide integers without an explicit
+  policy and represents potentially non-finite floats as `number | null`.
+  `src-tauri/src/ipc_contract.rs` owns the integer policy;
+  `src/lib/tauri-client.generated-event-bindings.test.ts` pins representative
+  numeric shapes; focused Rust tests pin non-finite progress normalization.
+- Guardrail: do not introduce JavaScript `bigint` or lossless-float semantic
+  transforms without a concrete payload that needs those runtime semantics.
+  An owner-local `specta-typescript::Number` annotation is allowed only when
+  the Rust owner normalizes the value to a finite number and the established
+  wire contract must remain non-nullable; keep focused owner and generated-type
+  proof beside that exception.
+
 ## 2026-08-09 - FFmpeg 9 Uses a Minimal Source-Provenance Vendor (#441)
 
 - Outcome: ABB moves `ffmpeg-next` and `ffmpeg-sys-next` together to 9.0.0 and

@@ -137,7 +137,11 @@ export async function cancelWorkOperation(operationId: OperationId): Promise<voi
 
 export async function openChildSource(child: { sourcePath?: string | null }): Promise<void> {
 	if (!child.sourcePath) return;
-	await tauriClient.openPath(child.sourcePath);
+	try {
+		await tauriClient.openPath(child.sourcePath);
+	} catch (error) {
+		workCenterState.errorMessage = `Failed to open source file: ${toUserMessage(error)}`;
+	}
 }
 
 async function purgeRemoteSessionsForTerminalOperation(

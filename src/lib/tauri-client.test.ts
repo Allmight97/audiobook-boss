@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings, type EncoderSettings } from '../types/audio';
 import type { ProcessingProgressEvent } from '../types/events';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
+import mainWindowCapability from '../../src-tauri/capabilities/default.json';
 
 // Note: Tauri APIs are auto-mocked by src/test/setup.ts
 
@@ -57,6 +58,18 @@ describe('tauriClient', () => {
 	});
 
 	describe('opener helpers', () => {
+		it('limits source and preview opening to user-owned or mounted paths', () => {
+			const openPathPermission = mainWindowCapability.permissions.find(
+				(permission) =>
+					typeof permission === 'object' && permission.identifier === 'opener:allow-open-path',
+			);
+
+			expect(openPathPermission).toEqual({
+				identifier: 'opener:allow-open-path',
+				allow: [{ path: '$HOME/**' }, { path: '$TEMP/**' }, { path: '/Volumes/**' }],
+			});
+		});
+
 		it('routes paths and URLs to distinct Tauri opener commands', async () => {
 			const { openPath, openUrl } = await import('@tauri-apps/plugin-opener');
 			const mockOpenPath = vi.mocked(openPath);

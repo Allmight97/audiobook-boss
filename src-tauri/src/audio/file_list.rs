@@ -15,8 +15,10 @@ pub struct FileListInfo {
     /// Stable decoder identities aligned by index with `files`.
     pub selected_decoders: Vec<Option<DecoderSelection>>,
     /// Total duration in seconds
+    #[specta(type = specta_typescript::Number)]
     pub total_duration: f64,
     /// Total size in bytes
+    #[specta(type = specta_typescript::Number)]
     pub total_size: f64,
     /// Number of valid files
     pub valid_count: usize,
@@ -211,8 +213,11 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
 
     for file in &files {
         if file.is_valid {
-            total_duration += file.duration.unwrap_or(0.0);
-            total_size += file.size.unwrap_or(0.0);
+            total_duration += file
+                .duration
+                .filter(|value| value.is_finite())
+                .unwrap_or(0.0);
+            total_size += file.size.filter(|value| value.is_finite()).unwrap_or(0.0);
             valid_count += 1;
         } else {
             invalid_count += 1;

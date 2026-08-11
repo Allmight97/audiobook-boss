@@ -1,6 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { EVENTS } from '../types/events';
+import type {
+	AcquisitionProgress,
+	AudioChapter,
+	FileListInfo,
+	MaterializedSourceFile,
+	MaxConcurrentJobsCapabilities,
+	MetadataSaveResultEntry,
+	OperationSnapshot,
+	ProgressEvent,
+	ProgressSnapshot,
+} from './generated/tauri';
 
 describe('tauriClient generated event bindings', () => {
 	beforeEach(() => {
@@ -44,5 +55,18 @@ describe('tauriClient generated event bindings', () => {
 			expect.any(Function),
 		);
 		expect(tauriListen).toHaveBeenCalledTimes(5);
+	});
+
+	it('keeps bounded wide Rust values in the numeric IPC contract', () => {
+		expectTypeOf<AcquisitionProgress['percentage']>().toEqualTypeOf<number>();
+		expectTypeOf<AudioChapter['startMs']>().toEqualTypeOf<number>();
+		expectTypeOf<MaterializedSourceFile['sizeBytes']>().toEqualTypeOf<number>();
+		expectTypeOf<MetadataSaveResultEntry['inputIndex']>().toEqualTypeOf<number>();
+		expectTypeOf<OperationSnapshot['sequence']>().toEqualTypeOf<number>();
+		expectTypeOf<FileListInfo['totalDuration']>().toEqualTypeOf<number>();
+		expectTypeOf<ProgressEvent['percentage']>().toEqualTypeOf<number>();
+		expectTypeOf<ProgressSnapshot['percentage']>().toEqualTypeOf<number>();
+		expectTypeOf<ProgressSnapshot['bytesDownloaded']>().toEqualTypeOf<number | null>();
+		expectTypeOf<MaxConcurrentJobsCapabilities['fixedMax']>().toEqualTypeOf<number>();
 	});
 });
