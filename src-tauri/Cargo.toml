@@ -6,6 +6,16 @@ authors = ["JStar"]
 edition = "2021"
 default-run = "audiobook-boss"
 
+[[bin]]
+name = "export_bindings"
+path = "src/bin/export_bindings.rs"
+required-features = ["binding-export"]
+
+[[bin]]
+name = "verify_aac_decoder_contract"
+path = "src/bin/verify_aac_decoder_contract.rs"
+required-features = ["decoder-contract"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -79,6 +89,8 @@ custom-protocol = ["tauri/custom-protocol"]
 
 # Default features - now minimal with only essential Tauri features
 default = []
+binding-export = []
+decoder-contract = []
 bundled-ffmpeg = [
     "ffmpeg-next/build",
     "ffmpeg-sys-next/build-audiotoolbox",

@@ -21,6 +21,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Work Center source files and generated previews can open again from
   user-owned, temporary, and mounted-volume paths. Opener failures now appear
   as Work Center feedback instead of an unhandled frontend rejection.
+- Public and local app bundles no longer include developer-only TypeScript
+  binding-export or AAC decoder-contract executables.
 
 ## [1.3.2] - 2026-08-10
 

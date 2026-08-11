@@ -24,6 +24,7 @@ commands over invoking internals directly.
   or contract invariant requires finishing the current command.
 - Keep Rust binary checks out of broad Nextest discovery. Run generated binding
   export and decoder-contract binaries through their explicit commands only.
+- AAC decoder capability contract: `bun run aac-decoder-contract:check`.
 - Avoid broad workspace and multi-package Nextest routes; they can discover or
   list unrelated binaries such as `export_bindings` and
   `verify_aac_decoder_contract`.
