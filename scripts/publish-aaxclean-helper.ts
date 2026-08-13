@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import {
+	chmodSync,
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	statSync,
+	unlinkSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -12,6 +20,11 @@ interface AaxcleanHelperPaths {
 	publishedExecutablePath: string;
 	sidecarDir: string;
 	sidecarPath: string;
+}
+
+interface PublishAaxcleanHelperOptions {
+	commandRunner?: typeof spawnSync;
+	force?: boolean;
 }
 
 export function resolveDotnetCommand(): string {
@@ -45,16 +58,20 @@ export function resolveAaxcleanHelperPaths(repoRoot: string): AaxcleanHelperPath
 
 export function publishAaxcleanHelper(
 	repoRoot: string,
-	commandRunner: typeof spawnSync = spawnSync,
+	options: PublishAaxcleanHelperOptions = {},
 ): string {
 	const paths = resolveAaxcleanHelperPaths(repoRoot);
-	if (helperSidecarIsFresh(repoRoot, paths.sidecarPath)) {
+	if (!options.force && helperSidecarIsFresh(repoRoot, paths.sidecarPath)) {
 		console.log(`[aaxclean-helper] Using existing ${paths.sidecarPath}`);
 		return paths.sidecarPath;
 	}
 
+	if (existsSync(paths.publishedExecutablePath)) {
+		unlinkSync(paths.publishedExecutablePath);
+	}
+
 	const dotnet = resolveDotnetCommand();
-	const result = commandRunner(
+	const result = (options.commandRunner ?? spawnSync)(
 		dotnet,
 		[
 			'publish',
@@ -78,11 +95,17 @@ export function publishAaxcleanHelper(
 		},
 	);
 
-	if (typeof result.status === 'number' && result.status !== 0) {
-		process.exit(result.status);
-	}
 	if (result.error) {
 		throw result.error;
+	}
+	if (result.status !== 0) {
+		const detail =
+			typeof result.status === 'number'
+				? `status ${result.status}`
+				: result.signal
+					? `signal ${result.signal}`
+					: 'no successful exit status';
+		throw new Error(`AAXClean helper publish failed (${detail})`);
 	}
 	if (!existsSync(paths.publishedExecutablePath)) {
 		throw new Error(`Expected published AAXClean helper at ${paths.publishedExecutablePath}`);

@@ -1,17 +1,25 @@
-name: tripwire
+name: frontend clean-install alarm
 
-# Narrow app-correctness tripwire (issue #341 / roadmap #407 Slice 1).
-# Deliberately NOT a broad app gate: typecheck + clean-install svelte-check,
-# generated-binding drift, and core-crate Nextest only. Widen only with
-# repo-owner sign-off recorded in docs/DECISIONS.md.
+# Clean-runner check for frontend dependency and type drift that a warm local
+# checkout can conceal. This is an alarm after relevant main pushes, not a PR
+# gate or a broad test route.
 
 on:
   push:
     branches: [main]
+    paths:
+      - .github/workflows/ci.yml
+      - src/**
+      - package.json
+      - bun.lock
+      - bunfig.toml
+      - svelte.config.js
+      - tsconfig.json
+      - vite.config.ts
   workflow_dispatch:
 
 concurrency:
-  group: tripwire-${{ github.ref }}
+  group: frontend-clean-install-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,54 +27,10 @@ jobs:
     name: Typecheck + svelte-check (clean install)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run check:svelte
-
-  rust-core:
-    name: Core-crate Nextest
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.95"
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
-      - run: >-
-          cargo nextest run
-          -p abb-audible-core
-          -p abb-media-core
-          -p abb-metadata-core
-          -p abb-output-artifact-core
-          -p abb-processing-core
-          -p abb-remote-source-core
-
-  bindings:
-    name: Generated-binding drift
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.95"
-      - uses: Swatinem/rust-cache@v2
-      # Binding export uses ABB's pinned bundled FFmpeg for release-artifact
-      # parity; system FFmpeg remains a fast local diagnostic route only.
-      - run: brew install pkg-config
-      # tauri-build requires the AAXClean sidecar resource to exist; binding
-      # generation never executes it, so a stub keeps .NET out of this lane.
-      - run: |
-          mkdir -p src-tauri/binaries
-          touch src-tauri/binaries/abb-aaxclean-helper-aarch64-apple-darwin
-          chmod +x src-tauri/binaries/abb-aaxclean-helper-aarch64-apple-darwin
-      - run: bash scripts/check-generated-bindings.sh --mode verify

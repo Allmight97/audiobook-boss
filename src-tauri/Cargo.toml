@@ -5,6 +5,11 @@ description = "AudioBook Boss™ — Batch audiobook processing and metadata man
 authors = ["JStar"]
 edition = "2021"
 default-run = "audiobook-boss"
+autobins = false
+
+[[bin]]
+name = "audiobook-boss"
+path = "src/main.rs"
 
 [[bin]]
 name = "export_bindings"

@@ -4,6 +4,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Release packaging is now deterministic: Cargo binary discovery is explicit,
+  bundle verification rejects any unexpected executable next to the app and
+  AAXClean helper, and both shipped executables are checked for architecture
+  and external library links.
+- Public DMG builds always rebuild the AAXClean helper from current source
+  instead of reusing machine-history output; developer builds keep fast reuse.
+  A failed or interrupted helper publish no longer copies leftover output.
+- Formal releases now verify the uploaded GitHub asset is byte-for-byte the
+  locally validated DMG (`gh release verify-asset`).
+
 ## [1.3.3] - 2026-08-10
 
 ### Changed

@@ -87,9 +87,11 @@ default broad review route.
   generated bindings or Tauri runtime boundaries directly.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review path.
-- CI: a narrow tripwire workflow runs on push to `main` (clean-install
-  typecheck/svelte-check, binding drift, core-crate Nextest). It is an alarm,
-  not a gate; local commands above are the evidence trail.
+- CI: GitHub automatically runs Pages for `site/**` and a path-narrowed
+  frontend clean-install alarm (frozen install, typecheck, svelte-check) after
+  relevant `main` pushes. It is an alarm, not a PR gate. Rust tests and
+  generated-binding checks stay local or release-owned; an empty PR check list
+  does not mean those proofs ran on GitHub.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a validated tooling
   decision changes that.
