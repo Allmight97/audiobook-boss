@@ -12,6 +12,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   and external library links.
 - Public DMG builds always rebuild the AAXClean helper from current source
   instead of reusing machine-history output; developer builds keep fast reuse.
+  A failed or interrupted helper publish no longer copies leftover output.
 - Formal releases now verify the uploaded GitHub asset is byte-for-byte the
   locally validated DMG (`gh release verify-asset`).
 
