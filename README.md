@@ -8,6 +8,7 @@ Convert, tag, and organize your audiobook library with metadata that works every
 
 - **Batch convert** MP3/M4A/M4B/AAC/WAV/FLAC to optimized M4B audiobooks
 - **Book Binder** — Merge multiple chapterized audio files into a single M4B with chapter markers and metadata.
+- **Audible acquire** — sign in, browse the library, and materialize AAX/AAXC titles through the bundled helper
 - **Smart metadata** — series, narrator, cover art with Audiobookshelf/Apple Books dual-write compatibility
 - **Parallel processing** with real-time progress and per-job cancellation
 - **Metadata lookup** — search online databases and apply results in batch
@@ -16,36 +17,30 @@ Convert, tag, and organize your audiobook library with metadata that works every
 ## Quick start
 
 ```bash
-# System dependencies (macOS)
-brew install ffmpeg
-
-# Install JS/TS dependencies
+# JS/TS dependencies (Bun 1.3.14; see package.json packageManager)
 bun install
 
-# Run in development with reusable logs
+# First run publishes the AAXClean sidecar (.NET 8 SDK required)
+# then starts Tauri with bundled FFmpeg and reusable logs.
 bun run app:dev:log
 ```
 
-**AAC runtime contract**: output encoder choice and input decoder choice are separate concerns. Normal processing uses the in-process `ffmpeg-next` engine. FDK HE-AAC output routes through an external FFmpeg/libfdk_aac processor adapter, which can force compatible AAC-family input decoders such as `aac_at` or `libfdk_aac` when the default decoder cannot handle the source. For higher quality AAC encoding and broader AAC decode compatibility on macOS, `brew install fdk-aac` and rebuild ffmpeg with `--enable-libfdk-aac`.
+Requires: macOS (Apple Silicon), Bun 1.3.14, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
 
-Requires: macOS (Apple Silicon). [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
+**AAC runtime contract**: output encoder and input decoder are separate. Normal processing uses in-process `ffmpeg-next`. FDK HE-AAC output uses an external FFmpeg/`libfdk_aac` adapter and may force `aac_at` or `libfdk_aac` when the default decoder cannot handle the source.
+
+[Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 
 ## Toolchain
 
-- Package manager: **Bun 1.3.14 stable**.
-- Refresh: `bun upgrade --stable`.
-- Verify Bun changes with direct test/build commands; use `.agents/skills/release`
-  for packaging/release work.
+- Package manager: **Bun 1.3.14**, pinned by `package.json` `packageManager`.
+- Verify Bun or frontend changes with the commands below; use `.agents/skills/release`
+  for packaging and GitHub Release work.
 
 ## Development
 
-```bash
-bun install
-bun run app:dev:log
-```
-
 Run targeted validation from the script guide for the owner or risk surface you
-touched.
+touched. There is no default broad review command.
 
 ### Install a local build
 
@@ -69,11 +64,16 @@ Human index for common commands. `package.json` owns shortcuts and
 currently uses direct native commands, not a custom verification runner or a
 default broad review route.
 
-- Core dev: `bun run app:dev:log`, `bun run build`
-- Verification is owner-scoped by default. Run the smallest native command that
-  proves the touched owner or risk surface, then escalate only when the change
-  crosses owners or a concrete safety/data/contract invariant requires it.
+- Core dev: `bun run app:dev:log` (bundled FFmpeg). `bun run build` is the
+  frontend production bundle only.
+- Verification is owner-scoped. Run the smallest native command that proves the
+  touched owner, then escalate only when the change crosses owners or a safety,
+  data, or contract invariant requires it.
+- Frontend checks: `bun run typecheck`, `bun run check:svelte`,
+  `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
+  when formatting or lint is in scope.
 - Focused Rust loops:
+  `cargo nextest run -p abb-audible-core`,
   `cargo nextest run -p abb-media-core`,
   `cargo nextest run -p abb-metadata-core`,
   `cargo nextest run -p abb-output-artifact-core`,
@@ -81,10 +81,9 @@ default broad review route.
   `cargo nextest run -p abb-remote-source-core`,
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib`, or
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
-- Focused frontend loops: `bun run test -- <test files>`.
-- IPC/boundary checks: `scripts/check-generated-bindings.sh --mode local` and
-  `bun scripts/check-tauri-runtime-boundary.ts`. Run standalone when touching
-  generated bindings or Tauri runtime boundaries directly.
+- IPC/boundary checks: `bun run bindings:check:local` and
+  `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
+  release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review path.
 - CI: GitHub automatically runs Pages for `site/**` and a path-narrowed
@@ -103,13 +102,14 @@ default broad review route.
   `bun run app:install-local` is the native developer-install lane and silently
   replaces `/Applications/AudioBook Boss.app`; `bun run app:build` builds a
   native repo-local `.app`; `bun run app:build:dmg` builds a portable,
-  noninteractive public DMG.
-  `bun scripts/resolve-release-dmg.ts --version <version>` resolves the release artifact before publishing a GitHub Release.
+  noninteractive public DMG and rebuilds the AAXClean helper from current source.
+  `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
+  `gh release verify-asset` proves the uploaded file matches that local DMG.
 
 ## Project Operation
 
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
-- Grey-box module work is governed by the eight Public APIs documented in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime.
+- Grey-box module work is governed by the Public API Set in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, WorkRuntime, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime.
 - For substantial planning and alignment, use global `grill-me` with the owner and task frame in `docs/system-map.md`; default durable capture is GitHub issues (`docs/agents/issue-tracker.md`). Use `docs/specs/` only when explicitly requested. Session handoffs belong in OS temp via global `handoff`, not the repo. External presentation artifacts belong under `/Users/jstar/Documents/Codex/artifacts/audiobook-boss`.
 - For external library/API behavior, use `.agents/skills/abb-library-research` as the control plane for authenticated Context7/current docs, squashed `repos/*` reference source, route cards, subtree refresh guidance, and installed dependency truth. Reference repos are read-only research material, not app dependencies.
 - For the product/system shape, use [docs/system-map.md](docs/system-map.md) and [docs/ubiquitous-language.md](docs/ubiquitous-language.md).

@@ -54,11 +54,11 @@ commands over invoking internals directly.
 - Rust lint: for a touched core owner, package-select with
   `cargo clippy -p abb-<owner>-core --all-targets` — this avoids pulling
   `src-tauri`'s gdk/gtk GUI libs, which core crates build without and which are
-  absent in common agent/CI sandboxes. Use the full `cargo clippy --workspace
+  absent in common agent sandboxes. Use the full `cargo clippy --workspace
   --all-targets` only when the change actually spans owners or includes
-  `src-tauri` (GUI libs must be present); the CI gate is `cargo clippy
-  --workspace --all-targets -- -D warnings`. Workspace lint posture is
-  centralized in root `Cargo.toml` `[workspace.lints]` (members opt in with
+  `src-tauri` (GUI libs must be present). GitHub does not run Clippy; it is a
+  local owner check. Workspace lint posture is centralized in root
+  `Cargo.toml` `[workspace.lints]` (members opt in with
   `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
 - Runtime shell or Rust integration:
