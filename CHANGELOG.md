@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-08-13
+
 ### Changed
 
 - Release packaging is now deterministic: Cargo binary discovery is explicit,
