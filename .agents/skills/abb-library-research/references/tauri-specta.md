@@ -1,13 +1,11 @@
 # Tauri Specta Route Card
 
-- Upstream: `https://github.com/specta-rs/tauri-specta.git` on `main`
-- Local subtree: `repos/tauri-specta`
+- ABB crate: `tauri-specta`
+- Upstream: `https://github.com/specta-rs/tauri-specta.git`
+- Context7: none pinned; prefer `docs.rs` at the exact crate version. Current
+  Context7/docs snapshots may lag ABB's pinned RC.
 
-Refresh:
-
-```bash
-git subtree pull --prefix=repos/tauri-specta https://github.com/specta-rs/tauri-specta.git main --squash
-```
+Resolve the pinned version from `Cargo.lock` (do not cache it here).
 
 ## Use For
 
@@ -15,28 +13,26 @@ git subtree pull --prefix=repos/tauri-specta https://github.com/specta-rs/tauri-
   integration between Tauri and Specta.
 - Confirming how command/event bindings should be emitted and consumed.
 
-## Start Here
+## Installed / registry entrypoints
 
-- `repos/tauri-specta/src/lib.rs`
-- `repos/tauri-specta/src/builder.rs`
-- `repos/tauri-specta/src/commands.rs`
-- `repos/tauri-specta/src/event.rs`
-- `repos/tauri-specta/src/lang/js_ts.rs`
+- Cargo registry crate `tauri-specta` at the `Cargo.lock` version and checksum
+- `docs.rs/tauri-specta/<exact-version>`
 
-## Examples And Tests
+## Exceptional upstream areas
 
-- `repos/tauri-specta/tests/tauri_command.rs`
-- `repos/tauri-specta/tests/test.rs`
-- `repos/tauri-specta/examples/app/src-tauri/src/main.rs`
-- `repos/tauri-specta/examples/app/src/bindings-ts-files`
-- `repos/tauri-specta/examples/custom-plugin`
+- `src/lib.rs`, `src/builder.rs`, `src/commands.rs`, `src/event.rs`,
+  `src/lang/js_ts.rs`
+- `tests/tauri_command.rs`, `tests/test.rs`
+- `examples/app/src-tauri/src/main.rs`
+- `examples/app/src/bindings-ts-files`
+- `macros/`
 
 ## Avoid
 
 - Do not let upstream examples override ABB's runtime-boundary ownership.
 - Do not change generated binding shape without proving TS/Rust parity.
-- Do not assume upstream `main` matches ABB's pinned `tauri-specta` release
-  candidate.
+- Do not treat Context7 or default-branch docs as proof of ABB's pinned
+  release candidate.
 
 ## ABB Reconciliation
 

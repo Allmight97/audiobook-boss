@@ -1,13 +1,11 @@
 # Specta Route Card
 
-- Upstream: `https://github.com/specta-rs/specta.git` on `main`
-- Local subtree: `repos/specta`
+- ABB crates: `specta`, `specta-typescript`
+- Upstream: `https://github.com/specta-rs/specta.git`
+- Context7: none pinned; prefer `docs.rs` at the exact crate version
 
-Refresh:
-
-```bash
-git subtree pull --prefix=repos/specta https://github.com/specta-rs/specta.git main --squash
-```
+Resolve pinned versions from `Cargo.lock` (do not cache them here). ABB pins
+release candidates; upstream default branch is not proof.
 
 ## Use For
 
@@ -15,24 +13,26 @@ git subtree pull --prefix=repos/specta https://github.com/specta-rs/specta.git m
   behavior, and generated binding expectations.
 - Source-level confirmation for ABB's IPC type export path.
 
-## Start Here
+## Installed / registry entrypoints
 
-- `repos/specta/specta/src`
-- `repos/specta/specta-typescript/src`
-- `repos/specta/specta-macros/src`
-- `repos/specta/specta-serde/src`
+- Cargo registry crates `specta` and `specta-typescript` at the `Cargo.lock`
+  versions and checksums
+- `docs.rs/specta/<exact-version>`
+- `docs.rs/specta-typescript/<exact-version>`
 
-## Examples And Tests
+## Exceptional upstream areas
 
-- `repos/specta/tests/tests`
-- `repos/specta/tests/tests/macro`
-- `repos/specta/tests/tests/snapshots`
-- `repos/specta/examples/basic-ts`
-- `repos/specta/examples/collect`
+- `specta/src`
+- `specta-typescript/src`
+- `specta-macros/src`
+- `specta-serde/src`
+- `tests/tests`, `tests/tests/macro`, `tests/tests/snapshots`
+- `examples/basic-ts`, `examples/collect`
 
 ## Avoid
 
-- Do not assume upstream `main` matches ABB's pinned release candidates.
+- Do not assume upstream default-branch docs match ABB's pinned release
+  candidates.
 - Do not hand-edit generated ABB bindings to match upstream examples.
 - Do not copy snapshot expectations without checking ABB's exporter command.
 

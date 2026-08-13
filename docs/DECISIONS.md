@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-08-13 - Committed Upstream Research Snapshots Retired
+
+- Outcome: committed upstream research snapshots were retired.
+  External-library research uses resolved lockfile versions, installed or
+  registry-packaged source, Context7, exact public package docs, and ephemeral
+  verified source retrieval.
+- Evidence: the snapshots tracked stale upstream branches, produced hundreds of
+  Dependabot alerts against research lockfiles, and exceeded GitHub's default
+  150-manifest dependency-graph processing budget.
+- Guardrail: do not recommit general research clones; keep `vendor/ffmpeg-sys-next`
+  as build provenance, not research material.
+
 ## 2026-08-11 - Hosted Proof Is One Clean-Frontend Alarm (#450)
 
 - Outcome: GitHub automatically runs only Pages publication and a

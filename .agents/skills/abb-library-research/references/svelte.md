@@ -1,13 +1,10 @@
 # Svelte Route Card
 
-- Upstream: `https://github.com/sveltejs/svelte.git` on `main`
-- Local subtree: `repos/svelte`
+- ABB packages: `svelte`, `@sveltejs/vite-plugin-svelte`
+- Upstream: `https://github.com/sveltejs/svelte.git`
+- Context7: `/sveltejs/svelte` or `/websites/svelte_dev`
 
-Refresh:
-
-```bash
-git subtree pull --prefix=repos/svelte https://github.com/sveltejs/svelte.git main --squash
-```
+Resolve installed versions from `bun.lock` (do not cache them here).
 
 ## Use For
 
@@ -15,22 +12,22 @@ git subtree pull --prefix=repos/svelte https://github.com/sveltejs/svelte.git ma
   tests, stores, transitions, and runtime edge cases.
 - Verifying whether ABB UI behavior follows current Svelte patterns.
 
-## Start Here
+## Installed / registry entrypoints
 
-- `repos/svelte/documentation/docs`
-- `repos/svelte/packages/svelte/src/reactivity`
-- `repos/svelte/packages/svelte/src/internal/client`
-- `repos/svelte/packages/svelte/src/compiler`
-- `repos/svelte/packages/svelte/src/store`
-- `repos/svelte/packages/svelte/types`
+- `node_modules/svelte/types/index.d.ts`
+- `node_modules/svelte/src/index.d.ts`
+- `node_modules/svelte/compiler`
+- `node_modules/svelte/src/reactivity`
+- `node_modules/svelte/src/store`
+- npm/unpkg: `svelte` at the lockfile version
 
-## Examples And Tests
+## Exceptional upstream areas
 
-- `repos/svelte/packages/svelte/tests/runtime-runes`
-- `repos/svelte/packages/svelte/tests/runtime-browser`
-- `repos/svelte/packages/svelte/tests/compiler-errors`
-- `repos/svelte/packages/svelte/tests/types`
-- `repos/svelte/packages/svelte/tests/print`
+- `documentation/docs`
+- `packages/svelte/src/internal/client`
+- `packages/svelte/src/compiler`
+- `packages/svelte/tests/runtime-runes`, `runtime-browser`, `compiler-errors`,
+  `types`, `print`
 
 ## Avoid
 
@@ -41,7 +38,7 @@ git subtree pull --prefix=repos/svelte https://github.com/sveltejs/svelte.git ma
 
 ## ABB Reconciliation
 
-- Check `package.json` and `bun.lock` for the installed `svelte` and
+- Check `package.json` and `bun.lock` for the resolved `svelte` and
   `@sveltejs/vite-plugin-svelte` versions.
 - Verify ABB state conventions in `src/ui/**/state.svelte.ts` before changing
   component state shape.

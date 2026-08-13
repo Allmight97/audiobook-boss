@@ -1,1 +1,0 @@
-<svelte:head x></svelte:head>

@@ -1,13 +1,12 @@
 # Tauri Route Card
 
-- Upstream: `https://github.com/tauri-apps/tauri.git` on `dev`
-- Local subtree: `repos/tauri`
+- ABB packages/crates: `@tauri-apps/api`, `@tauri-apps/cli`, `tauri`,
+  `tauri-build`, `tauri-utils`
+- Upstream: `https://github.com/tauri-apps/tauri.git`
+- Context7: `/websites/v2_tauri_app`
 
-Refresh:
-
-```bash
-git subtree pull --prefix=repos/tauri https://github.com/tauri-apps/tauri.git dev --squash
-```
+Resolve installed versions from `bun.lock` and `Cargo.lock` (do not cache them
+here). Do not treat upstream `dev` as ABB truth until those versions match.
 
 ## Use For
 
@@ -16,30 +15,28 @@ git subtree pull --prefix=repos/tauri https://github.com/tauri-apps/tauri.git de
 - Source-level confirmation when Context7/current docs leave contract behavior
   ambiguous.
 
-## Start Here
+## Installed / registry entrypoints
 
-- `repos/tauri/packages/api/src`
-- `repos/tauri/crates/tauri/src`
-- `repos/tauri/crates/tauri-runtime/src`
-- `repos/tauri/crates/tauri-runtime-wry/src`
-- `repos/tauri/crates/tauri-utils/src/config`
-- `repos/tauri/crates/tauri-bundler/src`
+- `node_modules/@tauri-apps/api`
+- Cargo registry crate `tauri` at the `Cargo.lock` version and checksum
+- `docs.rs/tauri/<exact-version>`
+- `docs.rs/tauri-utils/<exact-version>`
 
-## Examples And Tests
+## Exceptional upstream areas
 
-- `repos/tauri/examples/api/src`
-- `repos/tauri/examples/api/src-tauri`
-- `repos/tauri/examples/commands`
-- `repos/tauri/crates/tests`
-- `repos/tauri/crates/tauri/test`
+- `packages/api/src`
+- `crates/tauri/src`
+- `crates/tauri-runtime/src`
+- `crates/tauri-runtime-wry/src`
+- `crates/tauri-utils/src/config`
+- `crates/tauri-bundler/src`
+- `crates/tests`, `crates/tauri/test`, `examples/api`, `examples/commands`
 
 ## Avoid
 
 - Do not bypass ABB's centralized runtime boundary in `src/lib/tauri/*`.
 - Do not copy Tauri example permission/config shapes without comparing ABB's
   `src-tauri/capabilities` and `src-tauri/tauri.conf.json`.
-- Do not treat Tauri `dev` branch behavior as installed ABB behavior until
-  package and Cargo versions match.
 
 ## ABB Reconciliation
 

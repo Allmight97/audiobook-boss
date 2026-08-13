@@ -1,7 +1,0 @@
-  main.svelte-xyz button:where(.svelte-xyz) {
-    background-color: red;
-  }
-
-  main.svelte-xyz div:where(.svelte-xyz) > button:where(.svelte-xyz) {
-    background-color: blue;
-  }

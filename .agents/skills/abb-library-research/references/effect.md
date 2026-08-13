@@ -1,13 +1,10 @@
 # Effect Route Card
 
-- Upstream: `https://github.com/Effect-TS/effect.git` on `main`
-- Local subtree: `repos/effect`
+- ABB packages: `effect`
+- Upstream: `https://github.com/Effect-TS/effect.git`
+- Context7: `/llmstxt/effect_website_llms_txt` or `/effect-ts/effect`
 
-Refresh:
-
-```bash
-git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
-```
+Resolve the installed version from `bun.lock` (do not cache it here).
 
 ## Use For
 
@@ -15,36 +12,36 @@ git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git m
   streams, schedules, schemas, and Effect test idioms.
 - Idiomatic examples before designing ABB Effect owners or helpers.
 
-## Start Here
+## Installed / registry entrypoints
 
-- `repos/effect/packages/effect/src/Effect.ts`
-- `repos/effect/packages/effect/src/Context.ts`
-- `repos/effect/packages/effect/src/Layer.ts`
-- `repos/effect/packages/effect/src/Scope.ts`
-- `repos/effect/packages/effect/src/Schema.ts`
-- `repos/effect/packages/effect/src/Stream.ts`
-- `repos/effect/packages/effect/src/Schedule.ts`
+- `node_modules/effect/dist/dts/index.d.ts`
+- `node_modules/effect/dist/dts/Effect.d.ts`
+- `node_modules/effect/dist/dts/Context.d.ts`
+- `node_modules/effect/dist/dts/Layer.d.ts`
+- `node_modules/effect/dist/dts/Scope.d.ts`
+- `node_modules/effect/dist/dts/Schema.d.ts`
+- `node_modules/effect/dist/dts/Stream.d.ts`
+- `node_modules/effect/dist/dts/Schedule.d.ts`
+- npm/unpkg: `effect` at the lockfile version (`packages/effect` in the
+  upstream monorepo)
 
-## Examples And Tests
+## Exceptional upstream areas
 
-- `repos/effect/packages/effect/test/Effect`
-- `repos/effect/packages/effect/test/Schema`
-- `repos/effect/packages/effect/test/Stream`
-- `repos/effect/packages/effect/test/Scope.test.ts`
-- `repos/effect/packages/effect/test/Schedule.test.ts`
+- `packages/effect/src/Effect.ts` and sibling modules
+- `packages/effect/test/Effect`, `Schema`, `Stream`, `Scope.test.ts`,
+  `Schedule.test.ts`
 
 ## Avoid
 
-- Do not import from `repos/effect`; ABB imports from the installed `effect`
-  package.
+- Import the installed `effect` package, not unpublished monorepo paths.
 - Do not copy internal helpers from `src/internal` unless an exported installed
   API proves the same capability exists.
-- Do not treat Effect v4 notes inside upstream files as ABB truth unless ABB has
-  adopted that version.
+- Do not treat Effect v4 notes as ABB truth unless ABB has adopted that version.
+- Effect `llms.txt` is current documentation, not versioned evidence.
 
 ## ABB Reconciliation
 
-- Check `package.json` and `bun.lock` for the installed `effect` version.
+- Check `package.json` and `bun.lock` for the resolved `effect` version.
 - Prefer installed TypeScript declarations and exported APIs over source-only
   internals.
 - Keep Effect private to the owning ABB workflow until an explicit boundary
