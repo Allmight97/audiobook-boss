@@ -14,7 +14,9 @@
 		"fmt:changed": "bunx @biomejs/biome format --write --changed --no-errors-on-unmatched && bunx prettier --write \"src/**/*.svelte\"",
 		"lint:check": "bunx @biomejs/biome lint --no-errors-on-unmatched .",
 		"check:svelte": "svelte-check --tsconfig ./tsconfig.json",
-		"audit": "cargo audit -D warnings",
+		"audit:rust": "cargo audit -D warnings",
+		"audit:js": "bun audit",
+		"audit": "bun run audit:rust && bun run audit:js",
 		"preview": "vite preview",
 		"tauri": "tauri",
 		"app:dev:log": "bash scripts/dev-tauri-log.sh",
@@ -54,11 +56,11 @@
 		"svelte-check": "^4.1.0",
 		"tailwindcss": "^4.3.1",
 		"typescript": "^6.0.3",
-		"vite": "^8.0.16",
-		"vitest": "^4.1.9"
+		"vite": "^8.2.1",
+		"vitest": "^4.1.10"
 	},
 	"overrides": {
 		"@tauri-apps/api": "2.11.1",
-		"undici": "^7.28.0"
+		"undici": "^7.29.0"
 	}
 }
