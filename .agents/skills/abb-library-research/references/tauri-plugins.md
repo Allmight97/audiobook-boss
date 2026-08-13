@@ -1,13 +1,13 @@
 # Tauri Plugins Route Card
 
-- Upstream: `https://github.com/tauri-apps/plugins-workspace.git` on `v2`
-- Local subtree: `repos/tauri-plugins`
+- ABB packages/crates: `@tauri-apps/plugin-dialog`, `@tauri-apps/plugin-opener`,
+  `tauri-plugin-dialog`, `tauri-plugin-opener`
+- Upstream: `https://github.com/tauri-apps/plugins-workspace.git`
+- Context7: `/tauri-apps/tauri-plugin-shell` for shell; prefer installed
+  package docs for dialog and opener
 
-Refresh:
-
-```bash
-git subtree pull --prefix=repos/tauri-plugins https://github.com/tauri-apps/plugins-workspace.git v2 --squash
-```
+Resolve installed versions from `bun.lock` and `Cargo.lock` (do not cache them
+here).
 
 ## Use For
 
@@ -15,28 +15,26 @@ git subtree pull --prefix=repos/tauri-plugins https://github.com/tauri-apps/plug
   schemas, and plugin-specific examples.
 - ABB-installed plugins such as dialog and opener.
 
-## Start Here
+## Installed / registry entrypoints
 
-- `repos/tauri-plugins/plugins/dialog/guest-js`
-- `repos/tauri-plugins/plugins/dialog/src`
-- `repos/tauri-plugins/plugins/dialog/permissions`
-- `repos/tauri-plugins/plugins/opener/guest-js`
-- `repos/tauri-plugins/plugins/opener/src`
-- `repos/tauri-plugins/plugins/opener/permissions`
+- `node_modules/@tauri-apps/plugin-dialog`
+- `node_modules/@tauri-apps/plugin-opener`
+- Cargo registry crates `tauri-plugin-dialog` and `tauri-plugin-opener` at the
+  `Cargo.lock` versions and checksums
+- `docs.rs/tauri-plugin-dialog/<exact-version>`
+- `docs.rs/tauri-plugin-opener/<exact-version>`
 
-## Examples And Tests
+## Exceptional upstream areas
 
-- `repos/tauri-plugins/plugins/dialog/test`
-- `repos/tauri-plugins/plugins/shell/test`
-- `repos/tauri-plugins/examples`
-- `repos/tauri-plugins/plugins/*/permissions/schemas`
+- `plugins/dialog/guest-js`, `plugins/dialog/src`, `plugins/dialog/permissions`
+- `plugins/opener/guest-js`, `plugins/opener/src`, `plugins/opener/permissions`
+- `plugins/dialog/test`, `plugins/*/permissions/schemas`
 
 ## Avoid
 
 - Do not treat every plugin in the workspace as an ABB dependency.
 - Do not copy permission files without comparing ABB capabilities.
-- Do not import guest JS from this subtree; ABB imports installed
-  `@tauri-apps/plugin-*` packages.
+- Import installed `@tauri-apps/plugin-*` packages, not unpublished guest JS.
 
 ## ABB Reconciliation
 

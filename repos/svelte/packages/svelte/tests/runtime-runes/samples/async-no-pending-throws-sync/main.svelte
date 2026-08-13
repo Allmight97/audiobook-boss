@@ -1,1 +1,0 @@
-<p>{await Promise.resolve('hello')}</p>

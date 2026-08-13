@@ -18,6 +18,10 @@
 - `CLAUDE.md` files are Claude Code import stubs only. Keep `AGENTS.md`
   canonical; update the matching `AGENTS.md`, not the sibling `CLAUDE.md`,
   unless the user explicitly asks for Claude-specific behavior.
+- External-library research routes through
+  `.agents/skills/abb-library-research`. Do not commit upstream source
+  snapshots as research material. Build provenance explicitly owned by ABB,
+  such as the patched FFmpeg sys crate under `vendor/`, is a separate concern.
 
 ## Hard Invariants
 

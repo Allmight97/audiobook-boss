@@ -1,5 +1,0 @@
----
-title: svelte
----
-
-> MODULE: svelte

@@ -1,1 +1,0 @@
-<div>{@html await 'this should work'}</div>

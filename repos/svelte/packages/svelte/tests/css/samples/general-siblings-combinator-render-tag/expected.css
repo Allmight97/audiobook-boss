@@ -1,4 +1,0 @@
-
-	h1.svelte-xyz ~ p:where(.svelte-xyz) {
-		color: green;
-	}

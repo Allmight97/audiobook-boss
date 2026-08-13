@@ -1,1 +1,0 @@
-<div class:cool={true} class:cool={true}></div>

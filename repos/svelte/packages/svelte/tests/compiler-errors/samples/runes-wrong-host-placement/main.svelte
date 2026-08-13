@@ -1,3 +1,0 @@
-<script>
-	$host();
-</script>

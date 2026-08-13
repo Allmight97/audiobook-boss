@@ -1,3 +1,0 @@
-<script>
-	arguments
-</script>

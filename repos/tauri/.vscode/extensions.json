@@ -1,8 +1,0 @@
-{
-  "recommendations": [
-    "rust-lang.rust-analyzer",
-    "EditorConfig.EditorConfig",
-    "esbenp.prettier-vscode",
-    "tamasfe.even-better-toml"
-  ]
-}
