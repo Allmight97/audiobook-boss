@@ -8,7 +8,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
-- Removed committed upstream research snapshots from the product dependency
+- Removed committed upstream research snapshots from the repository dependency
   graph. External-library research now uses ABB's resolved package versions,
   installed or registry source, exact public docs, and ephemeral verified
   upstream retrieval only when necessary.
