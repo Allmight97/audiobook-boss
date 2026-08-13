@@ -15,7 +15,6 @@ Resolve installed versions from `bun.lock` (do not cache them here).
 ## Installed / registry entrypoints
 
 - `node_modules/svelte/types/index.d.ts`
-- `node_modules/svelte/src/index.d.ts`
 - `node_modules/svelte/compiler`
 - `node_modules/svelte/src/reactivity`
 - `node_modules/svelte/src/store`

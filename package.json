@@ -16,7 +16,7 @@
 		"check:svelte": "svelte-check --tsconfig ./tsconfig.json",
 		"audit:rust": "cargo audit -D warnings",
 		"audit:js": "bun audit",
-		"audit": "bun run audit:rust && bun run audit:js",
+		"audit": "bun run --sequential --no-exit-on-error audit:rust audit:js",
 		"preview": "vite preview",
 		"tauri": "tauri",
 		"app:dev:log": "bash scripts/dev-tauri-log.sh",
@@ -61,6 +61,7 @@
 	},
 	"overrides": {
 		"@tauri-apps/api": "2.11.1",
+		"nanoid": "3.3.18",
 		"undici": "^7.29.0"
 	}
 }
