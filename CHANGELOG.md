@@ -4,6 +4,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-08-13
+
+### Changed
+
+- Removed committed upstream research snapshots from the repository dependency
+  graph. External-library research now uses ABB's resolved package versions,
+  installed or registry source, exact public docs, and ephemeral verified
+  upstream retrieval only when necessary.
+- Updated the Rust property-list/XML dependency chain and frontend build
+  toolchain to patched releases. Dependency auditing now checks both Rust and
+  JavaScript graphs without one failed audit suppressing the other.
+
 ## [1.3.4] - 2026-08-13
 
 ### Changed

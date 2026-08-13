@@ -39,8 +39,8 @@ export default defineConfig(async () => ({
 				}
 			: undefined,
 		watch: {
-			// 3. tell vite to ignore app-external Rust and reference trees
-			ignored: ['**/src-tauri/**', '**/repos/**'],
+			// 3. tell vite to ignore app-external Rust
+			ignored: ['**/src-tauri/**'],
 		},
 	},
 	build: {
@@ -49,7 +49,7 @@ export default defineConfig(async () => ({
 		modulePreload: false,
 		rolldownOptions: {
 			output: {
-				inlineDynamicImports: true,
+				codeSplitting: false,
 			},
 		},
 	},

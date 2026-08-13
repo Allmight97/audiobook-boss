@@ -67,9 +67,11 @@ tagging or publishing.
 
 1. Confirm the intended version and impact category.
 2. Write the matching `CHANGELOG.md` section and run the version bump script.
-3. Run validation selected by the changed owner. For release-only metadata,
-   `git diff --check` plus artifact proof is sufficient unless a concrete
-   safety, data, or contract invariant requires more.
+3. Run `bun run audit` so both Rust and JavaScript dependency graphs report
+   before public packaging; any failure blocks the release. Run additional
+   validation selected by the changed owner. For release-only metadata,
+   `git diff --check` plus the dependency audit and artifact proof is sufficient
+   unless a concrete safety, data, or contract invariant requires more.
 4. Build and verify the DMG:
 
    ```bash

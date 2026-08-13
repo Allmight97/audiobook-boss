@@ -87,8 +87,7 @@
 				"target/**",
 				"dist/**",
 				"coverage/**",
-				"site/**",
-				"repos/**"
+				"site/**"
 			],
 			"formatter": {
 				"enabled": false

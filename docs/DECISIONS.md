@@ -118,11 +118,12 @@
 
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
 
-- Outcome: distribution posture — unsigned local/DMG distribution stands until
-  public distribution work begins; signing, notarization, and the
-  `keychain-access-groups` entitlement are decided then. #396 (Data Protection
-  Keychain migration) is post-launch deferred behind that trigger; no keychain
-  code changes until the posture is explicit.
+- Outcome: current local and GitHub DMG distribution remains unsigned. Public
+  releases use the verified portable Apple Silicon artifact route; signing,
+  notarization, the `keychain-access-groups` entitlement, and #396 (Data
+  Protection Keychain migration) remain deferred until the owner explicitly
+  adopts a signed distribution lane. No keychain code changes before that
+  posture changes.
 - Dependency/supply-chain cadence (#326): manual-first, run around releases;
   the tripwire CI lane is the future automation home only if dependency drift
   becomes recurring friction. `bunfig.toml` `minimumReleaseAge` remains the

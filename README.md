@@ -52,10 +52,11 @@ bun run app:install-local            # native build, verify, install, prune arti
 bun run app:install-local:existing   # install an already-built bundle (--skip-build)
 ```
 
-Source-built app, development, and test routes target the compiling Apple
-Silicon Mac natively. `bun run app:build` builds that native repo-local app.
-`bun run app:build:dmg` and `bun run app:build:all` instead use the portable
-Apple Silicon baseline because their DMG may run on an unknown recipient Mac.
+On a supported Apple Silicon Mac, source app builds and developer installs
+target the compiling host natively. `bun run app:build` builds that native
+repo-local app. `bun run app:build:dmg` and `bun run app:build:all` instead use
+the portable Apple Silicon baseline because their DMG may run on an unknown
+recipient Mac.
 
 ## Script Guide
 
