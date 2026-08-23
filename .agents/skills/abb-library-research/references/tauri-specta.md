@@ -2,8 +2,12 @@
 
 - ABB crate: `tauri-specta`
 - Upstream: `https://github.com/specta-rs/tauri-specta.git`
-- Context7: none pinned; prefer `docs.rs` at the exact crate version. Current
-  Context7/docs snapshots may lag ABB's pinned RC.
+- Context7: resolve `tauri-specta` live. Prefer an exact-version library only
+  when it matches `Cargo.lock`; default-branch and mismatched RC snapshots are
+  orientation only.
+- Exa: discover primary docs, source, issues, releases, or history when exact
+  package documentation is incomplete. Validate the selected source against
+  the resolved crate before using it as implementation evidence.
 
 Resolve the pinned version from `Cargo.lock` (do not cache it here).
 
@@ -16,6 +20,7 @@ Resolve the pinned version from `Cargo.lock` (do not cache it here).
 ## Installed / registry entrypoints
 
 - Cargo registry crate `tauri-specta` at the `Cargo.lock` version and checksum
+- Registry `.cargo_vcs_info.json`, when present, for the packaged source commit
 - `docs.rs/tauri-specta/<exact-version>`
 
 ## Exceptional upstream areas
@@ -33,6 +38,9 @@ Resolve the pinned version from `Cargo.lock` (do not cache it here).
 - Do not change generated binding shape without proving TS/Rust parity.
 - Do not treat Context7 or default-branch docs as proof of ABB's pinned
   release candidate.
+- Reconcile search-returned commits or default-branch source with the registry
+  package commit or exact packaged source before treating them as pinned-release
+  evidence.
 
 ## ABB Reconciliation
 

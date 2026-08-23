@@ -1,4 +1,4 @@
 interface:
   display_name: "ABB Library Research"
-  short_description: "Route ABB Context7 docs and resolved package source"
-  default_prompt: "Use $abb-library-research to choose the ABB Context7 CLI/MCP route, validate external library behavior from lockfiles and installed or registry source, or retrieve verified upstream source only when registry packages cannot answer."
+  short_description: "Resolve ABB library behavior from exact sources"
+  default_prompt: "Use $abb-library-research to resolve version-sensitive external-library behavior from ABB lockfiles and exact package source, using Context7 for focused docs or Exa for primary-source discovery only when needed."
