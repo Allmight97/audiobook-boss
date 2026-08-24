@@ -224,17 +224,17 @@ fn i16_packed_drain_preserves_interleaved_lr_order_through_data_mut_0() {
     init_ffmpeg();
     // Distinct L/R magnitudes so a channel swap is obvious: L negative, R positive.
     let interleaved = [-1000i16, 2000, -3000, 4000, -5000, 6000, -7000, 8000];
-    assert_eq!(interleaved.len(), FRAME_SIZE * 2);
+    let frame_size = interleaved.len() / 2;
 
-    let mut input = alloc_audio_frame(i16_packed(), 2, FRAME_SIZE);
+    let mut input = alloc_audio_frame(i16_packed(), 2, frame_size);
     fill_i16_packed(&mut input, &interleaved);
 
-    let mut accumulator = new_accumulator(2, FRAME_SIZE, i16_packed());
+    let mut accumulator = new_accumulator(2, frame_size, i16_packed());
     let drained = accumulator.push_frame(&input);
     assert_eq!(drained.len(), 1);
 
     let out = &drained[0];
-    assert_eq!(out.samples(), FRAME_SIZE);
+    assert_eq!(out.samples(), frame_size);
     assert_eq!(
         i16_packed_samples(out, 2),
         interleaved,
