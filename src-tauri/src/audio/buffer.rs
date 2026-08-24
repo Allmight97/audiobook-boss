@@ -407,3 +407,7 @@ impl SampleAccumulator {
         self.consumed_samples = 0;
     }
 }
+
+#[cfg(test)]
+#[path = "buffer_tests.rs"]
+mod buffer_tests;
