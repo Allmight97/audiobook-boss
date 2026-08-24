@@ -249,8 +249,9 @@ fn construct_rejects_zero_frame_size_and_unsupported_formats_as_anti_corruption_
     init_ffmpeg();
     let stereo = layout(2);
 
-    let zero = SampleAccumulator::new(2, 0, SAMPLE_RATE, stereo, f32_planar())
-        .expect_err("frame_size == 0 must fail closed");
+    let Err(zero) = SampleAccumulator::new(2, 0, SAMPLE_RATE, stereo, f32_planar()) else {
+        panic!("frame_size == 0 must fail closed");
+    };
     assert!(
         zero.to_string().contains("frame_size=0"),
         "zero frame_size error should name the anti-corruption guard, got {zero}"
@@ -262,8 +263,9 @@ fn construct_rejects_zero_frame_size_and_unsupported_formats_as_anti_corruption_
         ff::format::Sample::U8(ff::format::sample::Type::Packed),
     ];
     for format in unsupported {
-        let err = SampleAccumulator::new(2, FRAME_SIZE, SAMPLE_RATE, stereo, format)
-            .expect_err("unsupported formats must fail closed");
+        let Err(err) = SampleAccumulator::new(2, FRAME_SIZE, SAMPLE_RATE, stereo, format) else {
+            panic!("unsupported format {format:?} must fail closed");
+        };
         let message = err.to_string();
         assert!(
             message.contains("Unsupported encoder sample format"),
