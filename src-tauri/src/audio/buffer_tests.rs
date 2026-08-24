@@ -73,7 +73,7 @@ fn f32_plane_samples(frame: &ff::frame::Audio, channel: usize) -> Vec<f32> {
 
 fn fill_i16_packed(frame: &mut ff::frame::Audio, interleaved: &[i16]) {
     let plane = frame.data_mut(0);
-    let needed_bytes = interleaved.len() * std::mem::size_of::<i16>();
+    let needed_bytes = std::mem::size_of_val(interleaved);
     assert!(
         plane.len() >= needed_bytes,
         "packed I16 frame data(0) is shorter than the interleaved payload"
