@@ -1,5 +1,24 @@
 # Decisions
 
+## 2026-08-24 - Function Complexity Is An Attention Ratchet, Not A Gate (#454)
+
+- Outcome: CCN >8 stays an attention prompt adjudicated by issue #454's four
+  questions (consequence, proof, structure, change pressure). New or reshaped
+  functions target roughly CCN ≤10 / cognitive ≤15, with named exceptions for
+  dispatch `match`/`switch` and sequential `?` lifecycle chains. The existing
+  high-CCN findings are grandfathered: adjudicate each at its next change
+  point; coverage decides sequencing (pin behavior, then reshape), never
+  whether a function is worth reducing.
+- Evidence: source audit of the top five #454 candidates found Rust `?`
+  inflates CCN on cohesive orchestrators (`materialize`, `setup_encoder`,
+  `rewrite_metadata_with_ffmpeg_plan_as`) whose splits would scatter RAII and
+  ordering invariants, while `readMetadataForm` (CCN 38) is duplicated control
+  flow over the existing `METADATA_FIELD_DEFINITIONS` table; the threshold
+  literature defends 10/15 as testability convention, not a measured defect
+  cliff (McCabe 1976, NIST SP 500-235, Shepperd 1988, El Emam 2001).
+- Guardrail: no repo-wide CCN reduction campaign; the new-code threshold
+  loosens only by explicit owner decision — agents do not move it.
+
 ## 2026-08-13 - Committed Upstream Research Snapshots Retired
 
 - Outcome: committed upstream research snapshots were retired.
