@@ -39,25 +39,25 @@
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.2",
 		"@tauri-apps/plugin-opener": "^2.5.4",
-		"effect": "^3.21.3"
+		"effect": "^3.22.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.0",
-		"@sveltejs/vite-plugin-svelte": "^7.1.2",
-		"@tailwindcss/vite": "^4.3.1",
+		"@biomejs/biome": "^2.5.9",
+		"@sveltejs/vite-plugin-svelte": "^7.3.0",
+		"@tailwindcss/vite": "^4.3.3",
 		"@tauri-apps/cli": "^2.11.4",
-		"@testing-library/jest-dom": "^6.9.1",
-		"@testing-library/svelte": "^5.3.1",
-		"@testing-library/user-event": "^14.6.1",
+		"@testing-library/jest-dom": "^6.10.0",
+		"@testing-library/svelte": "^5.4.2",
+		"@testing-library/user-event": "^14.6.5",
 		"jsdom": "^29.1.1",
-		"prettier": "^3.8.4",
+		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^3.5.2",
-		"svelte": "^5.56.3",
-		"svelte-check": "^4.1.0",
-		"tailwindcss": "^4.3.1",
+		"svelte": "^5.56.9",
+		"svelte-check": "^4.7.6",
+		"tailwindcss": "^4.3.3",
 		"typescript": "^6.0.3",
-		"vite": "^8.2.1",
-		"vitest": "^4.1.10"
+		"vite": "^8.2.2",
+		"vitest": "^4.1.11"
 	},
 	"overrides": {
 		"@tauri-apps/api": "2.11.1",

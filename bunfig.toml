@@ -1,5 +1,5 @@
 [install]
-# Delay fresh dependency resolutions by 7 days to reduce exposure to newly
+# Delay fresh dependency resolutions by 10 days to reduce exposure to newly
 # published supply-chain compromises while leaving the committed lockfile flow
-# unchanged.
-minimumReleaseAge = 604800
+# unchanged. Blanket policy per docs/DECISIONS.md 2026-08-27.
+minimumReleaseAge = 864000

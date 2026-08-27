@@ -1,5 +1,32 @@
 # Decisions
 
+## 2026-08-27 - Dependency Resolution And Release-Age Policy
+
+- Outcome: `Cargo.lock` and `bun.lock` are committed resolution truth; any CI
+  or verification command that resolves dependencies uses frozen/locked
+  installs. Manifest ranges remain compatible by default. Exact pins are
+  reserved for proven prerelease families,
+  cross-version type boundaries, synchronized families, and vendored or
+  provenance-sensitive dependencies.
+- Outcome: a blanket 10-day minimum release age applies to every ordinary
+  dependency update, no family tiers. It is mechanical on both surfaces:
+  `bunfig.toml` `minimumReleaseAge` gates fresh Bun resolutions and the
+  Dependabot cooldown gates update PRs. Cargo has no release-age filter, so
+  manual `cargo update` has no gate and relies on reviewer discipline.
+  Security fixes bypass the age with focused proof.
+- Outcome: weekly Dependabot version updates for Cargo and the text `bun.lock`
+  ecosystem use the same 10-day cooldown, compatible-update groups, and a low
+  PR limit.
+- Grandfather: the 2026-08-27 refresh (h2 security fix plus blanket
+  `cargo update`/same-major Bun refresh) predates this policy and is its
+  baseline; do not re-audit its individual package ages.
+- Guardrail: retain the split reqwest 0.12 Audible boundary, exact Specta RC
+  pins, Tauri API override, and vendored FFmpeg provenance. RustCrypto majors
+  and TypeScript 7/jsdom 30/jest-dom 7/prettier-plugin-svelte 4 are dedicated
+  migrations, not routine refreshes. Evidence: `Cargo.toml`,
+  `src-tauri/Cargo.toml`, `package.json`, `bunfig.toml`, and
+  `.github/dependabot.yml`.
+
 ## 2026-08-24 - Function Complexity Is An Attention Ratchet, Not A Gate (#454)
 
 - Outcome: CCN >8 stays an attention prompt adjudicated by issue #454's four
@@ -143,10 +170,10 @@
   Protection Keychain migration) remain deferred until the owner explicitly
   adopts a signed distribution lane. No keychain code changes before that
   posture changes.
-- Dependency/supply-chain cadence (#326): manual-first, run around releases;
-  the tripwire CI lane is the future automation home only if dependency drift
-  becomes recurring friction. `bunfig.toml` `minimumReleaseAge` remains the
-  standing supply-chain guard.
+- Dependency/supply-chain cadence (#326): weekly Dependabot/manual review is
+  the routine lane, with a blanket 10-day release age (see 2026-08-27).
+  `bunfig.toml` `minimumReleaseAge` remains the standing Bun resolution guard;
+  security fixes bypass the age with focused proof.
 - Effect workflow kit (#389): spike accepted, rolled out to all five workflow
   owners (`makeWorkflowKit`); convention recorded in `src/lib/effect/AGENTS.md`.
 - #180 perf attribution stays open as the sole post-launch research issue;
