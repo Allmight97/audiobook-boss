@@ -66,6 +66,7 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 		openFile: vi.fn(async () => null),
 		loadCoverArtFile: vi.fn(async () => [1, 2, 3]),
 		loadCoverArtFromUrl: vi.fn(async () => [1, 2, 3]),
+		searchOnlineMetadata: vi.fn(async () => ({ results: [], diagnostics: [] })),
 		...overrides,
 	};
 }

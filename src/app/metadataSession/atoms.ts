@@ -510,6 +510,13 @@ function applyLoadedCoverArt(get: MetadataAtomGet, bytes: number[]): void {
 	);
 }
 
+export const setCustomCoverArtAtom = Atom.fnSync((coverArtBytes: number[] | null, get) => {
+	if (!coverArtBytes || coverArtBytes.length === 0) {
+		return;
+	}
+	applyLoadedCoverArt(get as MetadataAtomGet, coverArtBytes);
+}).pipe(Atom.keepAlive);
+
 export const clearCoverArtAtom = Atom.fnSync((_: undefined, get) => {
 	const editor = get(metadataEditorAtom);
 	const session = get(inputSessionAtom);

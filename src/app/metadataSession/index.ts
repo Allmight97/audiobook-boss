@@ -27,6 +27,7 @@ export {
 	setCoverDragOverAtom,
 	setCoverHoveredAtom,
 	setCoverUrlInputAtom,
+	setCustomCoverArtAtom,
 	setMetadataFieldActionAtom,
 	setMetadataFieldValueAtom,
 } from './atoms';

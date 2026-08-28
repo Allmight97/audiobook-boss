@@ -1,7 +1,9 @@
 import type {
 	AudiobookMetadata,
+	MetadataLookupResponse,
 	MetadataSaveBatchResult,
 	MetadataSaveRequest,
+	MetadataSource,
 } from '../../../types/metadata';
 import type {
 	MetadataIntentPatch,
@@ -24,6 +26,11 @@ export interface MetadataCapability {
 	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
 	loadCoverArtFile(filePath: string): Promise<number[]>;
 	loadCoverArtFromUrl(url: string): Promise<number[]>;
+	searchOnlineMetadata(args: {
+		query: string;
+		sources: MetadataSource[] | null;
+		limit?: number | null;
+	}): Promise<MetadataLookupResponse>;
 }
 
 export const liveMetadataCapability: MetadataCapability = {
@@ -44,4 +51,5 @@ export const liveMetadataCapability: MetadataCapability = {
 		),
 	loadCoverArtFile: (filePath) => tauriClient.loadCoverArtFile(filePath),
 	loadCoverArtFromUrl: (url) => tauriClient.loadCoverArtFromUrl(url),
+	searchOnlineMetadata: (args) => tauriClient.searchOnlineMetadata(args),
 };

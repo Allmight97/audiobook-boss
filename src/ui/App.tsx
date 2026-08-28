@@ -3,6 +3,7 @@ import { FileImportView } from './fileImport/FileImportView';
 import { MergeModeToggle } from './jobControls/MergeModeToggle';
 import { FileInspectorView } from './leftColumn/FileInspectorView';
 import { MetadataManagerView } from './metadataManager/MetadataManagerView';
+import { MetadataLookupView } from './metadataLookup/MetadataLookupView';
 import { TagPreviewView } from './tagPreview/TagPreviewView';
 import { saveMetadataAtom } from '../app/metadataSession';
 import { useAtomSet } from '../app/runtime/solid';
@@ -63,6 +64,7 @@ export function App(): JSX.Element {
 					</div>
 				</div>
 			</div>
+			<MetadataLookupView />
 		</div>
 	);
 }

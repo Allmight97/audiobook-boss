@@ -1,4 +1,5 @@
 import { For, type JSX } from 'solid-js';
+import { runLookupActionAtom } from '../../app/metadataLookup';
 import {
 	METADATA_FIELD_DEFINITIONS,
 	metadataViewAtom,
@@ -21,6 +22,7 @@ export function MetadataFormView(): JSX.Element {
 	const setFieldValue = useAtomSet(() => setMetadataFieldValueAtom);
 	const setFieldAction = useAtomSet(() => setMetadataFieldActionAtom);
 	const saveMetadata = useAtomSet(() => saveMetadataAtom);
+	const openLookup = useAtomSet(() => runLookupActionAtom);
 	const form = () => view().form;
 
 	return (
@@ -118,6 +120,7 @@ export function MetadataFormView(): JSX.Element {
 					class="btn-pill btn-pill-secondary"
 					data-testid="metadata-lookup-btn"
 					type="button"
+					onClick={() => void openLookup({ type: 'open' })}
 				>
 					Find Metadata
 				</button>
