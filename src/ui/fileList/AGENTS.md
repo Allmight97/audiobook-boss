@@ -24,6 +24,11 @@
   `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
   `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+- Spike sibling (do not import from live File List): `solid2/` is a Solid 2
+  island with its own Vite/TSX entry (`file-list-solid2.html`). It owns
+  files/selection/sort/inspector/thumbnail view state in Solid signals/stores.
+  No Atom, no `runAppEffect`, no `commandSpecs` collapse. Live Svelte File List
+  stays the public runtime strip above.
 
 ## Preferred Path
 
