@@ -129,7 +129,7 @@ export function outputPathPreviewBody(
 			() => services.updateMetadataIntentWarnings(previewMetadataDraft),
 			'Failed to validate metadata intent for output preview.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					services.console.error('Metadata preview validation failed:', error.cause);
 					services.showOutputError('Failed to validate metadata preview.');
@@ -156,7 +156,7 @@ export function outputPathPreviewBody(
 				}),
 			'Output preview failed.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					if (!services.isLatestOutputPreviewRequest(requestId)) {
 						return null;

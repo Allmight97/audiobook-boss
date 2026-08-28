@@ -4,12 +4,12 @@ export { Context, Data, Effect, Layer };
 
 export type AppEffect<A, E = never, R = never> = Effect.Effect<A, E, R>;
 export type AppLayer<ROut, E = never, RIn = never> = Layer.Layer<ROut, E, RIn>;
-export type AppServiceTag<Identifier, Service> = Context.Tag<Identifier, Service>;
+export type AppServiceTag<Identifier, Service> = Context.Service<Identifier, Service>;
 
 export function makeWorkflowServiceTag<Identifier extends string, Service>(
 	identifier: Identifier,
 ): AppServiceTag<Identifier, Service> {
-	return Context.GenericTag<Identifier, Service>(`abb/${identifier}`);
+	return Context.Service<Identifier, Service>(`abb/${identifier}`);
 }
 
 export function makeWorkflowLayer<Identifier, Service>(

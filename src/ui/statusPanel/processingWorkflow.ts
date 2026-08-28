@@ -263,7 +263,7 @@ function submitRetainedProcessingCommand(
 	return Effect.gen(function* () {
 		yield* Effect.sync(() => retainRemoteSourceSessionsForInputIds(request.inputIds));
 		return yield* submitProcessingCommand(services, request).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.tryPromise({
 					try: async () => {
 						const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(request.inputIds);
@@ -273,7 +273,7 @@ function submitRetainedProcessingCommand(
 					},
 					catch: () => undefined,
 				}).pipe(
-					Effect.catchAll(() => Effect.succeed(undefined)),
+					Effect.catch(() => Effect.succeed(undefined)),
 					Effect.flatMap(() => Effect.fail(error)),
 				),
 			),
@@ -288,7 +288,7 @@ function readProcessingConfig(
 		try: () => services.readProcessingRequestConfig(),
 		catch: (cause) => cause,
 	}).pipe(
-		Effect.catchAll((error) =>
+		Effect.catch((error) =>
 			Effect.sync(() => {
 				services.console.log('StatusPanel: Settings validation failed:', error);
 				services.feedback.showError(`Settings validation failed: ${errorDisplayText(error)}`);
@@ -491,7 +491,7 @@ export function processingWorkflowProgram(
 		});
 		yield* completeAcceptedSubmission(services, context, accepted);
 	}).pipe(
-		Effect.catchAll((error) =>
+		Effect.catch((error) =>
 			Effect.gen(function* () {
 				const services = yield* ProcessingWorkflowServicesTag;
 				yield* handleWorkflowError(services, context, error);

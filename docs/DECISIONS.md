@@ -1,5 +1,24 @@
 # Decisions
 
+## 2026-08-27 - TypeScript 7 / Effect 4 Frontend Toolchain (#462)
+
+- Outcome: ABB's frontend compiler is TypeScript 7 via `@typescript/native`.
+  The `typescript` package slot is `@typescript/typescript6` only because
+  `svelte-check@4.7.6` still `require()`s a TypeScript 6 compiler API even
+  with `--tsgo`. ABB-owned code does not import `typescript`. Bun is `1.4.0`
+  because `1.3.14` cannot resolve that nested alias graph. Effect is an exact
+  v4 RC pin (`4.0.0-rc.112` at landing), not a range. Workflow owners consume
+  Effect only through `src/lib/effect/appEffect.ts`.
+- Evidence: `package.json`, `bun.lock`, `.github/workflows/ci.yml`,
+  `scripts/check-tauri-runtime-boundary.ts`.
+- Guardrail: drop the TypeScript 6 shim when svelte-check can type `.svelte`
+  files against TypeScript 7 alone. Do not put TypeScript 7 in the
+  `typescript` slot before that; `svelte-check` will refuse to start. The
+  runtime-boundary check is a text scan for this window, not an AST
+  parser. Replace it when TypeScript 7.1's programmatic API and a svelte-check
+  that types `.svelte` on that API exist. Do not grow it toward AST
+  completeness in the meantime.
+
 ## 2026-08-27 - Dependency Resolution And Release-Age Policy
 
 - Outcome: `Cargo.lock` and `bun.lock` are committed resolution truth; any CI

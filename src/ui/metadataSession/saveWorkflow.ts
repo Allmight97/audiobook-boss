@@ -309,7 +309,7 @@ export function metadataSaveWorkflowProgram(
 ): AppEffect<void, never, MetadataSaveWorkflowServicesId> {
 	const state = { enteredSave: preparedEntry !== undefined };
 	return metadataSaveWorkflowBody(state, preparedEntry).pipe(
-		Effect.catchAll((error) =>
+		Effect.catch((error) =>
 			Effect.gen(function* () {
 				const services = yield* MetadataSaveWorkflowServicesTag;
 				yield* reportWorkflowFailure(services, error);

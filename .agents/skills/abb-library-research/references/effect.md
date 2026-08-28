@@ -14,14 +14,14 @@ Resolve the installed version from `bun.lock` (do not cache it here).
 
 ## Installed / registry entrypoints
 
-- `node_modules/effect/dist/dts/index.d.ts`
-- `node_modules/effect/dist/dts/Effect.d.ts`
-- `node_modules/effect/dist/dts/Context.d.ts`
-- `node_modules/effect/dist/dts/Layer.d.ts`
-- `node_modules/effect/dist/dts/Scope.d.ts`
-- `node_modules/effect/dist/dts/Schema.d.ts`
-- `node_modules/effect/dist/dts/Stream.d.ts`
-- `node_modules/effect/dist/dts/Schedule.d.ts`
+- `node_modules/effect/dist/index.d.ts`
+- `node_modules/effect/dist/Effect.d.ts`
+- `node_modules/effect/dist/Context.d.ts`
+- `node_modules/effect/dist/Layer.d.ts`
+- `node_modules/effect/dist/Scope.d.ts`
+- `node_modules/effect/dist/Schema.d.ts`
+- `node_modules/effect/dist/Stream.d.ts`
+- `node_modules/effect/dist/Schedule.d.ts`
 - npm/unpkg: `effect` at the lockfile version (`packages/effect` in the
   upstream monorepo)
 
@@ -36,11 +36,13 @@ Resolve the installed version from `bun.lock` (do not cache it here).
 - Import the installed `effect` package, not unpublished monorepo paths.
 - Do not copy internal helpers from `src/internal` unless an exported installed
   API proves the same capability exists.
-- Do not treat Effect v4 notes as ABB truth unless ABB has adopted that version.
 - Effect `llms.txt` is current documentation, not versioned evidence.
 
 ## ABB Reconciliation
 
+- ABB is on Effect 4 (exact pin in `package.json`). Reconcile docs against
+  `bun.lock`. Workflow owners import Effect only through
+  `src/lib/effect/appEffect.ts`.
 - Check `package.json` and `bun.lock` for the resolved `effect` version.
 - Prefer installed TypeScript declarations and exported APIs over source-only
   internals.

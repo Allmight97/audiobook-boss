@@ -125,48 +125,46 @@ describe('StatusPanel aggregate progress', () => {
 	// fields are type-level impossible on terminal variants; this test pins the
 	// runtime behavior so a future regression (e.g. someone reintroduces the
 	// copy-unconditional pattern behind a cast) fails loudly.
-	it.each([
-		STAGES.completed,
-		STAGES.skipped,
-		STAGES.failed,
-		STAGES.cancelled,
-	])('does not leak stale currentFile/etaSeconds onto terminal aggregates for %s', (terminalStage) => {
-		const controller = new StatusPanelRuntime();
-		const snapshot: ProcessingQueueEvent = {
-			operation_kind: 'processingBatch',
-			items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
-			max_concurrent: 1,
-		};
+	it.each([STAGES.completed, STAGES.skipped, STAGES.failed, STAGES.cancelled])(
+		'does not leak stale currentFile/etaSeconds onto terminal aggregates for %s',
+		(terminalStage) => {
+			const controller = new StatusPanelRuntime();
+			const snapshot: ProcessingQueueEvent = {
+				operation_kind: 'processingBatch',
+				items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],
+				max_concurrent: 1,
+			};
 
-		controller.applyQueueSnapshot(snapshot);
+			controller.applyQueueSnapshot(snapshot);
 
-		// Active progress populates `latestProgressEvent` with active-stage
-		// fields; a careless flushRender would preserve these onto the terminal
-		// status that follows.
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 0,
-			stage: 'converting',
-			percentage: 80,
-			message: 'Working',
-			current_file: '/books/alpha.m4b',
-			eta_seconds: 42,
-		});
+			// Active progress populates `latestProgressEvent` with active-stage
+			// fields; a careless flushRender would preserve these onto the terminal
+			// status that follows.
+			controller.applyProgress({
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				stage: 'converting',
+				percentage: 80,
+				message: 'Working',
+				current_file: '/books/alpha.m4b',
+				eta_seconds: 42,
+			});
 
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 0,
-			stage: terminalStage,
-			percentage: 100,
-			message: 'Done',
-		});
-		vi.advanceTimersByTime(20);
+			controller.applyProgress({
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				stage: terminalStage,
+				percentage: 100,
+				message: 'Done',
+			});
+			vi.advanceTimersByTime(20);
 
-		const status = controller.getCurrentStatus();
-		expect(status).toMatchObject({
-			stage: terminalStage === STAGES.skipped ? 'completed' : terminalStage,
-		});
-		expect(status).not.toHaveProperty('currentFile');
-		expect(status).not.toHaveProperty('etaSeconds');
-	});
+			const status = controller.getCurrentStatus();
+			expect(status).toMatchObject({
+				stage: terminalStage === STAGES.skipped ? 'completed' : terminalStage,
+			});
+			expect(status).not.toHaveProperty('currentFile');
+			expect(status).not.toHaveProperty('etaSeconds');
+		},
+	);
 });
