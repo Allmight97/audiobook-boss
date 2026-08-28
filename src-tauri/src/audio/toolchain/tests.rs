@@ -121,6 +121,31 @@ fn no_fdk_found_returns_none_with_status_message() {
     );
 }
 
+/// Homebrew's ffmpeg can sit on PATH and still fail `-version` (missing dylib).
+/// Every other fake here exits 0 on `-version`, so that hole was untested.
+#[cfg(unix)]
+#[test]
+fn nonstarting_ffmpeg_candidate_is_not_fdk_available() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let ffmpeg_path = write_nonstarting_ffmpeg(temp_dir.path());
+
+    let resolution = resolve_external_toolchain_with_candidates(None, vec![ffmpeg_path]);
+
+    assert!(resolution.validated.is_none());
+    assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);
+    assert!(
+        resolution.status_message.contains("could not start"),
+        "status must name the start failure: {}",
+        resolution.status_message
+    );
+    assert!(
+        !resolution.status_message.contains("FDK AAC detected")
+            && !resolution.status_message.contains("FDK AAC ready"),
+        "status must not claim FDK is ready: {}",
+        resolution.status_message
+    );
+}
+
 #[test]
 fn toolchain_validation_captures_decoder_capabilities() {
     let temp_dir = TempDir::new().expect("temp dir");
@@ -218,6 +243,19 @@ fn write_fake_ffmpeg_decoy_encoder(root: &Path) -> PathBuf {
         "echo ' V..... someaac          AAC (libfdk_aac wrapper)'",
         "echo ' V..... aac'",
     )
+}
+
+fn write_nonstarting_ffmpeg(root: &Path) -> PathBuf {
+    std::fs::create_dir_all(root).expect("create fake ffmpeg root");
+    let script_path = root.join("fake-ffmpeg");
+    let script = "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-version\" ]; then\n    echo 'dyld[1]: Library not loaded: /opt/homebrew/opt/x265/lib/libx265.216.dylib' >&2\n    exit 1\n  fi\ndone\nexit 1\n";
+    write(&script_path, script).expect("write nonstarting ffmpeg");
+    let mut permissions = std::fs::metadata(&script_path)
+        .expect("metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    set_permissions(&script_path, permissions).expect("chmod nonstarting ffmpeg");
+    script_path
 }
 
 fn write_fake_ffmpeg_script(root: &Path, encoder_line: &str, decoder_lines: &str) -> PathBuf {
