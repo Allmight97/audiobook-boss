@@ -36,11 +36,13 @@ Resolve the installed version from `bun.lock` (do not cache it here).
 - Import the installed `effect` package, not unpublished monorepo paths.
 - Do not copy internal helpers from `src/internal` unless an exported installed
   API proves the same capability exists.
-- Do not treat Effect v4 notes as ABB truth unless ABB has adopted that version.
 - Effect `llms.txt` is current documentation, not versioned evidence.
 
 ## ABB Reconciliation
 
+- ABB is on Effect 4 (exact pin in `package.json`). Reconcile docs against
+  `bun.lock`. Workflow owners import Effect only through
+  `src/lib/effect/appEffect.ts`.
 - Check `package.json` and `bun.lock` for the resolved `effect` version.
 - Prefer installed TypeScript declarations and exported APIs over source-only
   internals.

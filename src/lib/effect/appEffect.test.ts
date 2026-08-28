@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { Data } from './appEffect';
 import {
@@ -132,5 +135,42 @@ describe('makeWorkflowKit (#389 spike acceptance)', () => {
 		);
 
 		expect(result).toBe('alpha-live');
+	});
+});
+
+describe('Effect package import boundary', () => {
+	const srcRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+	const allowed = path.normalize(path.join(srcRoot, 'lib/effect/appEffect.ts'));
+
+	it('lets only appEffect.ts import the effect package', () => {
+		const hits: string[] = [];
+		const walk = (dir: string): void => {
+			for (const entry of readdirSync(dir, { withFileTypes: true })) {
+				const fullPath = path.join(dir, entry.name);
+				if (entry.isDirectory()) {
+					if (entry.name === 'node_modules' || entry.name === 'dist') {
+						continue;
+					}
+					walk(fullPath);
+					continue;
+				}
+				if (!/\.(?:[cm]?tsx?|mjs|svelte)$/.test(entry.name)) {
+					continue;
+				}
+				if (path.normalize(fullPath) === allowed) {
+					continue;
+				}
+				const source = readFileSync(fullPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+				if (
+					/\b(?:import\s*\(\s*|require\s*\(\s*|(?:import|export)(?:\s+type)?\s+(?:[^'"\n]*?\sfrom\s*)?)['"]effect['"]/.test(
+						source,
+					)
+				) {
+					hits.push(path.relative(srcRoot, fullPath));
+				}
+			}
+		};
+		walk(srcRoot);
+		expect(hits).toEqual([]);
 	});
 });

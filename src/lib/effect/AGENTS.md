@@ -13,6 +13,9 @@ multi-service orchestration.
 
 Keep Effect private to workflow owners:
 
+- Only `src/lib/effect/appEffect.ts` imports the `effect` package. Owners and
+  tests import `Effect`, `Context`, `Data`, and `Layer` from that file. Proof:
+  `bun run test -- src/lib/effect/appEffect.test.ts`.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
 - Workflow owners expose a local service interface, service tag, live layer

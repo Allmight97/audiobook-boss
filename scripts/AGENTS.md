@@ -117,6 +117,16 @@ commands over invoking internals directly.
   domain logic through filtered broad-crate tests when a core crate can own it.
 - Do not recreate custom runner aliases without explicit repo-owner approval.
 - New scripts need an obvious public command, package script, or usage header.
+- TypeScript 7 lives in `@typescript/native`; the `typescript` slot stays the
+  TypeScript 6 `require()` shim for `svelte-check --tsgo`. Do not collapse
+  them, and do not import `typescript` from ABB `src/` or `scripts/` (parse
+  without the compiler API). Rationale: `docs/DECISIONS.md` 2026-08-27
+  TypeScript 7 / Effect 4. Proof:
+  `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
+- Bun version truth is `package.json#packageManager`. When it changes, set
+  `.github/workflows/ci.yml` `bun-version` and
+  `scripts/setup-codex-agent-env.sh` to that same field. Do not copy the
+  version from the 2026-05-28 DECISIONS entry.
 
 ## Linux Agent Environment (media lane)
 
