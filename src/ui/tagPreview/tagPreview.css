@@ -1,0 +1,131 @@
+.tag-preview-workbench {
+	min-width: 0;
+}
+
+.tag-compact-table {
+	overflow: hidden;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	background: var(--bg-input);
+}
+
+.tag-compact-row {
+	display: grid;
+	grid-template-columns: minmax(3.75rem, 0.36fr) minmax(0, 1fr);
+	align-items: center;
+	min-height: 1.55rem;
+	border-bottom: 1px solid var(--border-primary);
+	font-size: 0.75rem;
+	line-height: 1.25;
+}
+
+.tag-compact-row:last-child {
+	border-bottom: 0;
+}
+
+.tag-compact-name {
+	padding: 0.25rem 0.5rem;
+	color: var(--text-muted);
+}
+
+.tag-compact-value {
+	min-width: 0;
+	margin: 0.1875rem 0.5rem 0.1875rem 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-primary);
+}
+
+.tag-compact-value:not(.tag-value-empty) {
+	width: fit-content;
+	max-width: calc(100% - 0.5rem);
+	padding: 0.0625rem 0.375rem;
+	border-radius: 9999px;
+	background: rgba(16, 185, 129, 0.14);
+	color: #60d394;
+}
+
+.tag-expanded {
+	margin-top: 0.375rem;
+	min-width: 0;
+}
+
+.tag-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.75rem;
+	padding: 0.5rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	background: var(--bg-input);
+}
+
+.tag-preview-workbench .tag-grid {
+	grid-template-columns: 1fr;
+	gap: 0.25rem;
+	max-height: 4.75rem;
+	overflow: auto;
+	padding-top: 0.375rem;
+	padding-bottom: 0.375rem;
+}
+
+.tag-column {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.tag-row {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	min-width: 0;
+	font-size: 0.7rem;
+	line-height: 1.4;
+}
+
+.tag-preview-workbench .tag-row {
+	gap: 0.375rem;
+}
+
+.tag-name {
+	min-width: 70px;
+	color: var(--text-muted);
+	font-family: var(--font-mono);
+	white-space: nowrap;
+}
+
+.tag-preview-workbench .tag-name {
+	flex: 0 1 8.25rem;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tag-value {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-primary);
+}
+
+.show-all-tags-button {
+	width: 100%;
+	margin-top: 0.375rem;
+	padding: 0.4rem 0.75rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	background: var(--bg-input);
+	color: var(--text-secondary);
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.show-all-tags-button:hover {
+	border-color: var(--border-secondary);
+	background: var(--bg-hover);
+	color: var(--text-primary);
+}

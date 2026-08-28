@@ -89,16 +89,12 @@ vi.mock('../tagPreview', () => ({
 // selection reads so the scenario stays deterministic.
 vi.mock('../fileList/state.svelte', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
+	getSelectedFiles: context.getSelectedFilesMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),
 	isOrderLocked: vi.fn(() => false),
 	onOrderLockChange: vi.fn(() => () => undefined),
 	setCurrentFileList: vi.fn(),
-}));
-
-vi.mock('../fileList/metadataPanel', () => ({
-	getSelectedFiles: context.getSelectedFilesMock,
-	ensureMetadataForFiles: vi.fn(async () => undefined),
 }));
 
 vi.mock('../fileList', async () => {

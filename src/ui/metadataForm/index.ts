@@ -32,8 +32,6 @@ import {
 } from './state.svelte';
 import { updateTagPreview } from '../tagPreview';
 
-export { default as MetadataFormFieldsIsland } from './MetadataFormFieldsIsland.svelte';
-
 export type MetadataFormValidationWarnings = {
 	byField?: {
 		series_part?: string;

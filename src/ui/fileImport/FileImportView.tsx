@@ -10,6 +10,7 @@ import {
 	nativeDropLooksLikeCoverArt,
 	nativeDropTargetAtPoint,
 } from '../../app/inputSession/nativeIngress';
+import { applyCoverArtDropAtom } from '../../app/metadataSession';
 import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
@@ -20,6 +21,7 @@ export function FileImportView(): JSX.Element {
 	const view = useAtomValue(() => inputViewAtom);
 	const capability = useAtomValue(() => inputCapabilityAtom);
 	const importIntent = useAtomSet(() => importIntentAtom);
+	const applyCoverArtDrop = useAtomSet(() => applyCoverArtDropAtom);
 	const hydrateSupportText = useAtomSet(() => hydrateSupportTextAtom);
 	const setDragOver = useAtomSet(() => setDragOverAtom);
 	let fileManagementContainer: HTMLElement | null = null;
@@ -55,17 +57,16 @@ export function FileImportView(): JSX.Element {
 					return;
 				}
 				const coverArea = document.getElementById('cover-art-area');
-				void (() => {
-					const coverHit = nativeDropTargetAtPoint(payload.position, coverArea, null) === 'cover';
-					const filesHit =
-						nativeDropTargetAtPoint(payload.position, null, fileManagementContainer) === 'files';
-					if (coverHit && nativeDropLooksLikeCoverArt(payload.paths)) {
-						return;
-					}
-					if (filesHit) {
-						importIntent({ type: 'importPaths', paths: [...payload.paths] });
-					}
-				})();
+				const coverHit = nativeDropTargetAtPoint(payload.position, coverArea, null) === 'cover';
+				const filesHit =
+					nativeDropTargetAtPoint(payload.position, null, fileManagementContainer) === 'files';
+				if (coverHit && nativeDropLooksLikeCoverArt(payload.paths)) {
+					void applyCoverArtDrop([...payload.paths]);
+					return;
+				}
+				if (filesHit) {
+					importIntent({ type: 'importPaths', paths: [...payload.paths] });
+				}
 			}),
 		);
 		void subscriptions.add(

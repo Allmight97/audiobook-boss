@@ -57,16 +57,6 @@ vi.mock('../selection', () => ({
 	swapSelectionIndices: vi.fn(),
 }));
 
-vi.mock('../metadataPanel', () => ({
-	autoUpdateCoverArtFromFirstValidFile: vi.fn(async () => undefined),
-	clearSelectionPanels: vi.fn(),
-	ensureMetadataForFiles: vi.fn(async () => undefined),
-	getSelectedFiles: vi.fn(() => []),
-	refreshSelectionPresentation: vi.fn(),
-	showMultiSelection: vi.fn(async () => undefined),
-	showSingleSelection: vi.fn(async () => undefined),
-}));
-
 vi.mock('../../fileImport', () => ({
 	updateDropZoneState: vi.fn(),
 }));

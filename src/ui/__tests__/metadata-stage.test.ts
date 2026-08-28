@@ -34,11 +34,6 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList/metadataPanel', () => ({
-	ensureMetadataForFiles: vi.fn(async () => undefined),
-	getSelectedFiles: context.selectedFilesMock,
-}));
-
 vi.mock('../outputPanel', () => ({
 	updateEstimatedSize: vi.fn(),
 	updateOutputPath: vi.fn(),
@@ -152,10 +147,34 @@ describe('stageMetadataToSelection', () => {
 	});
 
 	it('treats one valid selected file as single-selection pending metadata', async () => {
-		context.selectedFilesMock.mockReturnValue([
-			{ path: '/invalid.mp3', isValid: false },
-			{ path: '/a.mp3', isValid: true },
-		]);
+		setCurrentFileList({
+			files: [
+				{
+					path: '/invalid.mp3',
+					size: 1,
+					duration: 1,
+					isValid: false,
+					bitrate: 64,
+					sampleRate: 44100,
+					channels: 2,
+				},
+				{
+					path: '/a.mp3',
+					size: 1,
+					duration: 1,
+					isValid: true,
+					bitrate: 64,
+					sampleRate: 44100,
+					channels: 2,
+				},
+			],
+			selectedDecoders: [null, null],
+			totalDuration: 1,
+			totalSize: 2,
+			validCount: 1,
+			invalidCount: 1,
+		});
+		setSelectedFileIndices([0, 1]);
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ title: 'Single Valid' });
 

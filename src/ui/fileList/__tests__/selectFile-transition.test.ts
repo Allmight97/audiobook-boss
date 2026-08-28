@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../../types/audio';
-import { setCurrentFileList, setSelectedIndex } from '../state.svelte';
+import { setCurrentFileList, setSelectedIndex, setSelectedFileIndices } from '../state.svelte';
 
 const context = vi.hoisted(() => ({
 	readMetadataFormMock: vi.fn<() => Record<string, unknown>>(() => ({ title: 'Persisted Title' })),
 	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
 	resetDirtyStateMock: vi.fn(),
-	getSelectedFilesMock: vi.fn(),
 	handleSelectionMock: vi.fn(() => ({ changed: true })),
 	selectAllFilesMock: vi.fn(() => true),
-	showMultiSelectionMock: vi.fn(),
-	showSingleSelectionMock: vi.fn(),
 	pushStatusPanelTransientStatusMock: vi.fn(),
 	validationErrorMock: vi.fn<() => string | null>(() => null),
 	validateMetadataDraftMock: vi.fn(),
@@ -61,16 +58,6 @@ vi.mock('../selection', () => ({
 	swapSelectionIndices: vi.fn(),
 }));
 
-vi.mock('../metadataPanel', () => ({
-	autoUpdateCoverArtFromFirstValidFile: vi.fn(async () => undefined),
-	clearSelectionPanels: vi.fn(),
-	ensureMetadataForFiles: vi.fn(async () => undefined),
-	getSelectedFiles: context.getSelectedFilesMock,
-	refreshSelectionPresentation: vi.fn(),
-	showMultiSelection: context.showMultiSelectionMock,
-	showSingleSelection: context.showSingleSelectionMock,
-}));
-
 vi.mock('../../statusPanel', () => ({
 	pushStatusPanelTransientStatus: context.pushStatusPanelTransientStatusMock,
 }));
@@ -114,14 +101,13 @@ describe('selectFile transition options', () => {
 
 		setCurrentFileList(fileList);
 		setSelectedIndex(0);
+		setSelectedFileIndices([0]);
 
 		context.readMetadataFormMock.mockClear();
 		context.stageMetadataIntentPatchMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		context.handleSelectionMock.mockClear();
 		context.selectAllFilesMock.mockClear();
-		context.showMultiSelectionMock.mockClear();
-		context.showSingleSelectionMock.mockClear();
 		context.pushStatusPanelTransientStatusMock.mockClear();
 		context.validationErrorMock.mockReset();
 		context.validateMetadataDraftMock.mockReset();
@@ -142,13 +128,6 @@ describe('selectFile transition options', () => {
 		context.clearSelectionMock.mockClear();
 		context.metadataFormRevision = 0;
 		context.coverArtRevision = 0;
-		context.getSelectedFilesMock.mockReset();
-		context.getSelectedFilesMock.mockReturnValue([
-			{
-				path: '/books/alpha.m4b',
-				isValid: true,
-			},
-		]);
 	});
 
 	it('skips previous-file autosave for queue-managed transitions', async () => {
@@ -180,15 +159,11 @@ describe('selectFile transition options', () => {
 			'Series part must be a number',
 			expect.objectContaining({ ttlMs: 2500 }),
 		);
-		expect(context.showSingleSelectionMock).not.toHaveBeenCalled();
 	});
 
 	it('keeps the current selection when clear-selection staging validation fails', async () => {
 		context.validationErrorMock.mockReturnValue('Series part must be a number');
-		context.getSelectedFilesMock.mockReturnValue([
-			{ path: '/books/alpha.m4b', isValid: true },
-			{ path: '/books/beta.m4b', isValid: true },
-		]);
+		setSelectedFileIndices([0, 1]);
 		const { clearSelectionAction } = await import('../actions');
 
 		await clearSelectionAction();
@@ -361,10 +336,7 @@ describe('selectFile transition options', () => {
 
 	it('stages dirty multi-selection metadata before selecting all files', async () => {
 		context.readMetadataFormMock.mockReturnValue({ series: 'Draft Series' });
-		context.getSelectedFilesMock.mockReturnValue([
-			{ path: '/books/alpha.m4b', isValid: true },
-			{ path: '/books/beta.m4b', isValid: true },
-		]);
+		setSelectedFileIndices([0, 1]);
 		const { selectAll } = await import('../actions');
 
 		await selectAll();
@@ -380,6 +352,5 @@ describe('selectFile transition options', () => {
 			series: { op: 'set', value: 'Draft Series' },
 		});
 		expect(context.selectAllFilesMock).toHaveBeenCalledTimes(1);
-		expect(context.showMultiSelectionMock).toHaveBeenCalledTimes(1);
 	});
 });

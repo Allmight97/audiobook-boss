@@ -10,8 +10,6 @@ import {
 	toggleFileSort,
 } from '../actions';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../metadataStaging';
-import { inspectorState } from '../inspectorState.svelte';
-import { showSingleSelection } from '../metadataPanel';
 import {
 	getCurrentFileList,
 	getSelectedFileIndex,
@@ -189,15 +187,12 @@ describe('file list reorder behavior', () => {
 		setSelectedFileIndices([1]);
 		setSelectedIndex(1);
 
-		await showSingleSelection(beta);
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		moveFileUp(1);
 
 		expect(getSelectedFileIndex()).toBe(0);
 		expect(getSelectedFileIndices()).toEqual(new Set([0]));
-		expect(inspectorState.contextText).toBe('beta.m4b');
-		expect(inspectorState.contextDetail).toBe('1 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
 		expect(context.resetDirtyStateMock).not.toHaveBeenCalled();
 	});
@@ -211,15 +206,12 @@ describe('file list reorder behavior', () => {
 		setSelectedFileIndices([1]);
 		setSelectedIndex(1);
 
-		await showSingleSelection(beta);
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		moveFileDown(1);
 
 		expect(getSelectedFileIndex()).toBe(2);
 		expect(getSelectedFileIndices()).toEqual(new Set([2]));
-		expect(inspectorState.contextText).toBe('beta.m4b');
-		expect(inspectorState.contextDetail).toBe('3 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
 		expect(context.resetDirtyStateMock).not.toHaveBeenCalled();
 	});
@@ -233,15 +225,12 @@ describe('file list reorder behavior', () => {
 		setSelectedFileIndices([0]);
 		setSelectedIndex(0);
 
-		await showSingleSelection(alpha);
 		context.populateMetadataFormSingleMock.mockClear();
 		context.resetDirtyStateMock.mockClear();
 		reorderFiles(0, 2);
 
 		expect(getSelectedFileIndex()).toBe(2);
 		expect(getSelectedFileIndices()).toEqual(new Set([2]));
-		expect(inspectorState.contextText).toBe('alpha.m4b');
-		expect(inspectorState.contextDetail).toBe('3 of 3');
 		expect(context.populateMetadataFormSingleMock).not.toHaveBeenCalled();
 		expect(context.resetDirtyStateMock).not.toHaveBeenCalled();
 	});
@@ -255,15 +244,10 @@ describe('file list reorder behavior', () => {
 		setSelectedFileIndices([1]);
 		setSelectedIndex(1);
 
-		await showSingleSelection(beta);
-		expect(inspectorState.contextText).toBe('beta.m4b');
-
 		displayFileList(makeFileList(replacement));
 		await Promise.resolve();
 
 		expect(getSelectedFileIndex()).toBe(0);
-		expect(inspectorState.contextText).toBe('new-alpha.m4b');
-		expect(inspectorState.contextDetail).toBe('1 of 1');
 	});
 
 	it('renders all-file auto-resolution hints when a multi-file list has no selection', () => {
@@ -273,8 +257,6 @@ describe('file list reorder behavior', () => {
 		displayFileList(makeFileList(alpha, beta));
 
 		expect(getSelectedFileIndex()).toBe(-1);
-		expect(context.renderAutoResolutionHintsMock).toHaveBeenCalledWith([alpha, beta]);
-		expect(context.resetAutoResolutionHintsMock).not.toHaveBeenCalled();
 	});
 
 	it('persists the current single-file draft before additive import and keeps selection stable', async () => {
@@ -284,7 +266,6 @@ describe('file list reorder behavior', () => {
 		setCurrentFileList(makeFileList(alpha));
 		setSelectedFileIndices([0]);
 		setSelectedIndex(0);
-		await showSingleSelection(alpha);
 
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ title: 'Draft Title' });
@@ -298,7 +279,6 @@ describe('file list reorder behavior', () => {
 			title: { op: 'set', value: 'Draft Title' },
 		});
 		expect(getSelectedFileIndex()).toBe(0);
-		expect(inspectorState.contextText).toBe('alpha.m4b');
 	});
 
 	it('appends using explicit existing files when the caller supplies the visible list', () => {

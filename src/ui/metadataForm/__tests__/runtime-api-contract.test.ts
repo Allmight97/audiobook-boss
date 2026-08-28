@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import * as metadataForm from '..';
 
 const EXPECTED_METADATA_FORM_EXPORTS = [
-	'MetadataFormFieldsIsland',
 	'applyMetadataFormValidationWarnings',
 	'applyMetadataToForm',
 	'hasDirtyMetadataFields',

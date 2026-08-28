@@ -23,6 +23,7 @@ import {
 	findFileIndexByIdentityKey,
 	fileIdentityKey,
 	replaceFileListFiles,
+	getSelectedFiles,
 } from './state.svelte';
 import {
 	clearSelection,
@@ -32,14 +33,6 @@ import {
 	selectAllFiles,
 	swapSelectionIndices,
 } from './selection';
-import {
-	autoUpdateCoverArtFromFirstValidFile,
-	clearSelectionPanels,
-	getSelectedFiles,
-	refreshSelectionPresentation,
-	showMultiSelection,
-	showSingleSelection,
-} from './metadataPanel';
 import {
 	buildFileListAppendResult,
 	normalizeFileListInfo,
@@ -88,7 +81,6 @@ function selectSoleImportedFile(fileList: FileListInfo): void {
 
 	setSelectedIndex(0);
 	setSelectedFileIndices([0]);
-	void showSingleSelection(fileList.files[0]);
 }
 
 export function displayFileList(fileListInfo: FileListInfo): void {
@@ -98,12 +90,10 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	clearMetadataSession();
 	setCurrentFileList(normalizedFileListInfo);
 	resetImportOrder(normalizedFileListInfo.files);
-	clearSelectionPanels();
 
 	refreshOutputForFileListChange();
 
 	selectSoleImportedFile(normalizedFileListInfo);
-	void autoUpdateCoverArtFromFirstValidFile();
 	void purgeRemoteSourceSessionsForInputIds(previousInputIds);
 }
 
@@ -186,14 +176,8 @@ export async function applySelectionIntent(
 						range: intent.type === 'range',
 					});
 	if (!selectionResult.changed) return;
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length === 0) {
+	if (getSelectedFiles().length === 0) {
 		setSelectedIndex(-1);
-		clearSelectionPanels();
-	} else if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	} else {
-		void showMultiSelection(selectedFiles);
 	}
 }
 
@@ -217,13 +201,6 @@ export async function selectAll(): Promise<void> {
 
 	const changed = selectAllFiles();
 	if (!changed) return;
-
-	const selectedFiles = getSelectedFiles();
-	if (selectedFiles.length > 1) {
-		void showMultiSelection(selectedFiles);
-	} else if (selectedFiles.length === 1) {
-		void showSingleSelection(selectedFiles[0]);
-	}
 }
 
 export async function clearSelectionAction(): Promise<void> {
@@ -243,8 +220,6 @@ export async function clearSelectionAction(): Promise<void> {
 
 	const changed = clearSelection();
 	if (!changed) return;
-
-	clearSelectionPanels();
 }
 
 export async function removeFile(index: number): Promise<void> {
@@ -269,15 +244,6 @@ export async function removeFile(index: number): Promise<void> {
 	recalculateTotals();
 
 	reindexSelectionAfterRemoval(index);
-
-	const remainingSelection = getSelectedFiles();
-	if (remainingSelection.length === 0) {
-		clearSelectionPanels();
-	} else if (remainingSelection.length === 1) {
-		void showSingleSelection(remainingSelection[0]);
-	} else {
-		void showMultiSelection(remainingSelection);
-	}
 
 	refreshOutputForFileListChange();
 }
@@ -362,8 +328,6 @@ export function moveFileUp(index: number): void {
 	swapSelectionIndices(index, index - 1);
 
 	refreshOutputForFileListChange();
-
-	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export function moveFileDown(index: number): void {
@@ -384,8 +348,6 @@ export function moveFileDown(index: number): void {
 	swapSelectionIndices(index, index + 1);
 
 	refreshOutputForFileListChange();
-
-	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export async function toggleFileSort(): Promise<void> {
@@ -431,7 +393,6 @@ export async function toggleFileSort(): Promise<void> {
 	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
 
 	refreshOutputForFileListChange();
-	refreshSelectionPresentation(getSelectedFiles());
 }
 
 export function clearAllFiles(): void {
@@ -448,7 +409,6 @@ export function clearAllFiles(): void {
 
 	clearSelection();
 	setSelectedIndex(-1);
-	clearSelectionPanels();
 	refreshOutputForFileListChange();
 	void purgeRemoteSourceSessionsForInputIds(inputIds);
 }
@@ -472,8 +432,6 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 	reindexSelectionAfterMove(fromIndex, toIndex);
 
 	refreshOutputForFileListChange();
-
-	refreshSelectionPresentation(getSelectedFiles());
 }
 
 /** Restore the original arrival order captured by display/append. */
@@ -511,5 +469,4 @@ export async function restoreImportOrder(): Promise<void> {
 	);
 	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
 	refreshOutputForFileListChange();
-	refreshSelectionPresentation(getSelectedFiles());
 }

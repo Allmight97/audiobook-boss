@@ -75,9 +75,9 @@ describe('Solid import tracer shell', () => {
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		expect(await screen.findByRole('option', { name: 'chapter.m4b' })).toBeInTheDocument();
 		expect(screen.getByText('Chapter One')).toBeInTheDocument();
-		expect(screen.getByText(/Narrator/)).toBeInTheDocument();
+		expect(document.querySelector('.file-details')?.textContent).toMatch(/Narrator/);
 		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBeInTheDocument();
-		expect(screen.queryByRole('region', { name: 'Metadata Manager' })).toBeNull();
+		expect(screen.getByRole('region', { name: 'Metadata Manager' })).toBeInTheDocument();
 	});
 });
