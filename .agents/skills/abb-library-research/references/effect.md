@@ -14,14 +14,14 @@ Resolve the installed version from `bun.lock` (do not cache it here).
 
 ## Installed / registry entrypoints
 
-- `node_modules/effect/dist/dts/index.d.ts`
-- `node_modules/effect/dist/dts/Effect.d.ts`
-- `node_modules/effect/dist/dts/Context.d.ts`
-- `node_modules/effect/dist/dts/Layer.d.ts`
-- `node_modules/effect/dist/dts/Scope.d.ts`
-- `node_modules/effect/dist/dts/Schema.d.ts`
-- `node_modules/effect/dist/dts/Stream.d.ts`
-- `node_modules/effect/dist/dts/Schedule.d.ts`
+- `node_modules/effect/dist/index.d.ts`
+- `node_modules/effect/dist/Effect.d.ts`
+- `node_modules/effect/dist/Context.d.ts`
+- `node_modules/effect/dist/Layer.d.ts`
+- `node_modules/effect/dist/Scope.d.ts`
+- `node_modules/effect/dist/Schema.d.ts`
+- `node_modules/effect/dist/Stream.d.ts`
+- `node_modules/effect/dist/Schedule.d.ts`
 - npm/unpkg: `effect` at the lockfile version (`packages/effect` in the
   upstream monorepo)
 

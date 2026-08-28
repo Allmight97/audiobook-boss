@@ -120,11 +120,17 @@ commands over invoking internals directly.
 - TypeScript 7 lives in `@typescript/native`; the `typescript` slot stays the
   TypeScript 6 `require()` shim for `svelte-check --tsgo`. Do not collapse
   them, and do not import `typescript` from ABB `src/` or `scripts/` (parse
-  without the compiler API). Rationale: `docs/DECISIONS.md` 2026-08-27
+  without the compiler API). The runtime-boundary text scanner is for this
+  window only. Replace it when TypeScript 7.1's API and svelte-check can type
+  `.svelte` files without the TypeScript 6 shim. Do not grow it toward AST
+  completeness. Rationale: `docs/DECISIONS.md` 2026-08-27
   TypeScript 7 / Effect 4. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
-  The no-import tripwire matches `from 'typescript'` so ordinary multiline
-  named imports count; do not require the binding list to sit on one line.
+  The no-import tripwires match `from 'typescript'` / `from 'effect'` so
+  ordinary multiline named imports count; do not require the binding list
+  to sit on one line. Effect imports are allowed only in
+  `src/lib/effect/appEffect.ts`. The tripwire stays in `scripts/` so it does
+  not pull Node types into the frontend `tsconfig`.
 - Bun version truth is `package.json#packageManager`. When it changes, set
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install

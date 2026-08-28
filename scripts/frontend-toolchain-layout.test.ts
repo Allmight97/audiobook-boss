@@ -47,20 +47,28 @@ function collectSourceFiles(root: string): string[] {
 }
 
 function importsTypescriptPackage(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]typescript['"]/.test(
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]typescript['"]/.test(source);
+}
+
+function importsEffectPackage(source: string): boolean {
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect(?:\/[^'"]*)?['"]/.test(
 		source,
 	);
 }
 
-function typescriptImportHits(): string[] {
+function packageImportHits(
+	matches: (source: string) => boolean,
+	skip: ReadonlySet<string> = new Set(),
+): string[] {
 	const self = path.normalize(fileURLToPath(import.meta.url));
 	const hits: string[] = [];
 	for (const root of ['src', 'scripts']) {
 		for (const file of collectSourceFiles(path.join(repoRoot, root))) {
-			if (path.normalize(file) === self) {
+			const normalized = path.normalize(file);
+			if (normalized === self || skip.has(normalized)) {
 				continue;
 			}
-			if (importsTypescriptPackage(readFileSync(file, 'utf8'))) {
+			if (matches(readFileSync(file, 'utf8'))) {
 				hits.push(path.relative(repoRoot, file));
 			}
 		}
@@ -90,15 +98,37 @@ describe('frontend toolchain layout', () => {
 	});
 
 	it('does not import the typescript package from ABB src/ or scripts/', () => {
-		expect(typescriptImportHits()).toEqual([]);
+		expect(packageImportHits(importsTypescriptPackage)).toEqual([]);
 	});
 
 	it('records typescript specifiers from multiline named imports', () => {
-		expect(
-			importsTypescriptPackage("import {\n\tcreateSourceFile,\n} from 'typescript';\n"),
-		).toBe(true);
+		expect(importsTypescriptPackage("import {\n\tcreateSourceFile,\n} from 'typescript';\n")).toBe(
+			true,
+		);
 		expect(importsTypescriptPackage("import { createSourceFile } from './typescript';\n")).toBe(
 			false,
 		);
+	});
+
+	it('keeps bun.lock @typescript/old on real TypeScript 6, not the wrapper', () => {
+		const lock = readFileSync(path.join(repoRoot, 'bun.lock'), 'utf8');
+		expect(lock).toContain('"@typescript/old": ["typescript@6.');
+		expect(lock).not.toMatch(/"@typescript\/old": \["@typescript\/typescript6/);
+	});
+
+	it('lets only appEffect.ts import the effect package', () => {
+		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
+		expect(packageImportHits(importsEffectPackage, new Set([allowed]))).toEqual([]);
+	});
+
+	it('treats Effect package root and subpath specifiers as the same boundary', () => {
+		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
+		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);
+		expect(importsEffectPackage("import { something } from './effect'")).toBe(false);
+	});
+
+	it('records effect specifiers from multiline named imports', () => {
+		expect(importsEffectPackage("import {\n\tEffect,\n} from 'effect';\n")).toBe(true);
+		expect(importsEffectPackage("import { Effect } from './effect';\n")).toBe(false);
 	});
 });

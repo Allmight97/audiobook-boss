@@ -15,9 +15,10 @@ Keep Effect private to workflow owners:
 
 - Only `src/lib/effect/appEffect.ts` imports the `effect` package. Owners and
   tests import `Effect`, `Context`, `Data`, and `Layer` from that file. Proof:
-  `bun run test -- src/lib/effect/appEffect.test.ts`. The tripwire matches
-  `from 'effect'` and `from 'effect/...'` so ordinary multiline named imports
-  count; do not require the binding list to sit on one line.
+  `bun run test -- scripts/frontend-toolchain-layout.test.ts`. The tripwire
+  lives in scripts so the frontend `tsconfig` stays Vite/Svelte types. It
+  matches `from 'effect'` and `from 'effect/...'` so ordinary multiline named
+  imports count; do not require the binding list to sit on one line.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
 - Workflow owners expose a local service interface, service tag, live layer

@@ -13,7 +13,11 @@
   `scripts/check-tauri-runtime-boundary.ts`.
 - Guardrail: drop the TypeScript 6 shim when svelte-check can type `.svelte`
   files against TypeScript 7 alone. Do not put TypeScript 7 in the
-  `typescript` slot before that; `svelte-check` will refuse to start.
+  `typescript` slot before that; `svelte-check` will refuse to start. The
+  runtime-boundary check is a text scan for this window, not an AST
+  parser. Replace it when TypeScript 7.1's programmatic API and a svelte-check
+  that types `.svelte` on that API exist. Do not grow it toward AST
+  completeness in the meantime.
 
 ## 2026-08-27 - Dependency Resolution And Release-Age Policy
 

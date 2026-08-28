@@ -1,6 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { Data } from './appEffect';
 import {
@@ -135,56 +132,5 @@ describe('makeWorkflowKit (#389 spike acceptance)', () => {
 		);
 
 		expect(result).toBe('alpha-live');
-	});
-});
-
-function importsEffectPackage(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect(?:\/[^'"]*)?['"]/.test(
-		source,
-	);
-}
-
-describe('Effect package import boundary', () => {
-	const srcRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-	const allowed = path.normalize(path.join(srcRoot, 'lib/effect/appEffect.ts'));
-
-	it('treats Effect package root and subpath specifiers as the same boundary', () => {
-		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
-		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);
-		expect(importsEffectPackage("import { something } from './effect'")).toBe(false);
-	});
-
-	it('records effect specifiers from multiline named imports', () => {
-		expect(importsEffectPackage("import {\n\tEffect,\n} from 'effect';\n")).toBe(true);
-		expect(importsEffectPackage("import { Effect } from './effect';\n")).toBe(false);
-	});
-
-	it('lets only appEffect.ts import the effect package', () => {
-		const hits: string[] = [];
-		const self = path.normalize(fileURLToPath(import.meta.url));
-		const walk = (dir: string): void => {
-			for (const entry of readdirSync(dir, { withFileTypes: true })) {
-				const fullPath = path.join(dir, entry.name);
-				if (entry.isDirectory()) {
-					if (entry.name === 'node_modules' || entry.name === 'dist') {
-						continue;
-					}
-					walk(fullPath);
-					continue;
-				}
-				if (!/\.(?:[cm]?tsx?|mjs|svelte)$/.test(entry.name)) {
-					continue;
-				}
-				if (path.normalize(fullPath) === allowed || path.normalize(fullPath) === self) {
-					continue;
-				}
-				const source = readFileSync(fullPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-				if (importsEffectPackage(source)) {
-					hits.push(path.relative(srcRoot, fullPath));
-				}
-			}
-		};
-		walk(srcRoot);
-		expect(hits).toEqual([]);
 	});
 });
