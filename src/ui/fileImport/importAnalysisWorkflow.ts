@@ -141,7 +141,7 @@ function analyzeFileListInfo(
 	evaluate: () => ReturnType<ImportAnalysisWorkflowServices['analyzeAudioFiles']>,
 ): AppEffect<FileListInfo | null, never> {
 	return workflowPromise(evaluate, 'Failed to analyze files.').pipe(
-		Effect.catchAll((error) =>
+		Effect.catch((error) =>
 			Effect.sync(() => {
 				return reportAnalysisFailure(services, error.cause);
 			}),
@@ -156,7 +156,7 @@ function stagePendingMetadataDrafts(
 		() => services.persistPendingMetadataDraftsForCurrentSelection(),
 		'Failed to stage metadata drafts before import.',
 	).pipe(
-		Effect.catchAll((error) =>
+		Effect.catch((error) =>
 			Effect.sync(() => {
 				return reportMetadataStagingFailure(services, error.cause);
 			}),
@@ -226,7 +226,7 @@ function reportUnsupportedImport(
 			() => services.getSupportedAudioImportMetadata(),
 			'Failed to load supported audio import metadata.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					return reportImportMetadataFailure(services, error.cause);
 				}),
@@ -267,7 +267,7 @@ function discoverAndProcessPaths(
 			() => services.discoverAudioImportPaths(paths),
 			'Failed to discover audio files.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					return reportImportDiscoveryFailure(services, error.cause);
 				}),
@@ -307,7 +307,7 @@ function processSelectedFiles(
 			evaluateSelectedPaths,
 			'Failed to open file dialog.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					return reportOpenFileDialogFailure(services, error.cause);
 				}),
@@ -331,7 +331,7 @@ function processSelectedFolder(
 			evaluateSelectedPath,
 			'Failed to open folder dialog.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					return reportOpenFolderDialogFailure(services, error.cause);
 				}),
@@ -380,7 +380,7 @@ function importPathsFromPrepared(
 			() => preparedEntry.discoveredPaths,
 			'Failed to discover audio files.',
 		).pipe(
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					return reportImportDiscoveryFailure(services, error.cause);
 				}),

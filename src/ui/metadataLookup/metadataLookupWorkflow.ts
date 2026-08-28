@@ -465,7 +465,7 @@ export function metadataLookupWorkflowProgram(
 	action: MetadataLookupWorkflowAction,
 ): AppEffect<void, never, MetadataLookupWorkflowServicesId> {
 	return metadataLookupWorkflowBody(action).pipe(
-		Effect.catchAll((error) =>
+		Effect.catch((error) =>
 			Effect.gen(function* () {
 				const services = yield* MetadataLookupWorkflowServicesTag;
 				yield* reportWorkflowFailure(services, error);

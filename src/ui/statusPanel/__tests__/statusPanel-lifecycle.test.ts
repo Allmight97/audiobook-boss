@@ -256,95 +256,98 @@ describe('StatusPanel lifecycle', () => {
 			expectedMessage: 'One or more files failed to process.',
 			expectedStepText: 'Error: One or more files failed to process.',
 		},
-	])('applies batch terminal lifecycle reset after 2s when %s', ({
-		terminalStages,
-		terminalClass,
-		summary,
-		resultStatuses,
-		expectedMethod,
-		expectedMessage,
-		expectedStepText,
-	}) => {
-		const controller = new StatusPanelRuntime();
-		seedDisabledControls();
-
-		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
-		const showErrorSpy = vi.spyOn(viewState, 'showError');
-		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
-
-		controller.applyQueueSnapshot({
-			operation_kind: 'processingBatch',
-			items: [
-				{ input_index: 0, file_path: '/books/alpha.m4b' },
-				{ input_index: 1, file_path: '/books/beta.m4b' },
-			],
-			max_concurrent: 2,
-		});
-
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 0,
-			stage: terminalStages[0],
-			percentage: 100,
-			message: 'terminal-0',
-		});
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			input_index: 1,
-			stage: terminalStages[1],
-			percentage: 100,
-			message: 'terminal-1',
-		});
-
-		// The terminal verdict is backend-owned: reconcile the run result so the
-		// completion toast renders `terminalClass`, not a TS re-classification.
-		controller.reconcileProcessResult({
-			jobType: 'batch',
-			summary,
+	])(
+		'applies batch terminal lifecycle reset after 2s when %s',
+		({
+			terminalStages,
 			terminalClass,
-			results: resultStatuses.map((status, index) => ({
-				inputIndex: index,
-				status,
-				message: `terminal-${index}`,
-			})),
-		});
+			summary,
+			resultStatuses,
+			expectedMethod,
+			expectedMessage,
+			expectedStepText,
+		}) => {
+			const controller = new StatusPanelRuntime();
+			seedDisabledControls();
 
-		expect(controller.isCurrentlyProcessing).toBe(true);
-		expect(getJobRows()).toHaveLength(2);
-		assertControlsDisabled();
+			const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+			const showErrorSpy = vi.spyOn(viewState, 'showError');
+			const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
-		vi.advanceTimersByTime(1999);
-		expect(controller.isCurrentlyProcessing).toBe(true);
+			controller.applyQueueSnapshot({
+				operation_kind: 'processingBatch',
+				items: [
+					{ input_index: 0, file_path: '/books/alpha.m4b' },
+					{ input_index: 1, file_path: '/books/beta.m4b' },
+				],
+				max_concurrent: 2,
+			});
 
-		vi.advanceTimersByTime(1);
+			controller.applyProgress({
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				stage: terminalStages[0],
+				percentage: 100,
+				message: 'terminal-0',
+			});
+			controller.applyProgress({
+				operation_kind: 'processingBatch',
+				input_index: 1,
+				stage: terminalStages[1],
+				percentage: 100,
+				message: 'terminal-1',
+			});
 
-		assertControlsEnabled();
-		expect(controller.isCurrentlyProcessing).toBe(false);
-		const idleStatus = controller.getCurrentStatus();
-		expect(idleStatus).toEqual({
-			stage: 'idle',
-			percentage: 0,
-			message: 'Ready to process audiobook',
-		});
-		expect(idleStatus).not.toHaveProperty('currentFile');
-		expect(idleStatus).not.toHaveProperty('etaSeconds');
-		expect(statusPanelViewState.jobItems).toHaveLength(0);
-		expect(getStepText()).toBe(expectedStepText);
+			// The terminal verdict is backend-owned: reconcile the run result so the
+			// completion toast renders `terminalClass`, not a TS re-classification.
+			controller.reconcileProcessResult({
+				jobType: 'batch',
+				summary,
+				terminalClass,
+				results: resultStatuses.map((status, index) => ({
+					inputIndex: index,
+					status,
+					message: `terminal-${index}`,
+				})),
+			});
 
-		const toastSpies = {
-			showSuccess: showSuccessSpy,
-			showError: showErrorSpy,
-			showInfo: showInfoSpy,
-		};
-		const expectedSpy = toastSpies[expectedMethod];
-		expect(expectedSpy).toHaveBeenCalledTimes(1);
-		expect(expectedSpy).toHaveBeenCalledWith(expectedMessage);
-		for (const [method, spy] of Object.entries(toastSpies)) {
-			if (method !== expectedMethod) {
-				expect(spy).not.toHaveBeenCalled();
+			expect(controller.isCurrentlyProcessing).toBe(true);
+			expect(getJobRows()).toHaveLength(2);
+			assertControlsDisabled();
+
+			vi.advanceTimersByTime(1999);
+			expect(controller.isCurrentlyProcessing).toBe(true);
+
+			vi.advanceTimersByTime(1);
+
+			assertControlsEnabled();
+			expect(controller.isCurrentlyProcessing).toBe(false);
+			const idleStatus = controller.getCurrentStatus();
+			expect(idleStatus).toEqual({
+				stage: 'idle',
+				percentage: 0,
+				message: 'Ready to process audiobook',
+			});
+			expect(idleStatus).not.toHaveProperty('currentFile');
+			expect(idleStatus).not.toHaveProperty('etaSeconds');
+			expect(statusPanelViewState.jobItems).toHaveLength(0);
+			expect(getStepText()).toBe(expectedStepText);
+
+			const toastSpies = {
+				showSuccess: showSuccessSpy,
+				showError: showErrorSpy,
+				showInfo: showInfoSpy,
+			};
+			const expectedSpy = toastSpies[expectedMethod];
+			expect(expectedSpy).toHaveBeenCalledTimes(1);
+			expect(expectedSpy).toHaveBeenCalledWith(expectedMessage);
+			for (const [method, spy] of Object.entries(toastSpies)) {
+				if (method !== expectedMethod) {
+					expect(spy).not.toHaveBeenCalled();
+				}
 			}
-		}
-	});
+		},
+	);
 
 	it('reconciles merge skip_existing results back to idle and unlocks controls', () => {
 		const controller = new StatusPanelRuntime();
@@ -569,52 +572,51 @@ describe('StatusPanel lifecycle', () => {
 			message: 'Processing was cancelled.',
 			method: 'showInfo' as const,
 		},
-	])('applies single-job terminal lifecycle reset after 2s when %s', ({
-		stage,
-		message,
-		method,
-	}) => {
-		const controller = new StatusPanelRuntime();
-		seedDisabledControls();
+	])(
+		'applies single-job terminal lifecycle reset after 2s when %s',
+		({ stage, message, method }) => {
+			const controller = new StatusPanelRuntime();
+			seedDisabledControls();
 
-		const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
-		const showErrorSpy = vi.spyOn(viewState, 'showError');
-		const showInfoSpy = vi.spyOn(viewState, 'showInfo');
+			const showSuccessSpy = vi.spyOn(viewState, 'showSuccess');
+			const showErrorSpy = vi.spyOn(viewState, 'showError');
+			const showInfoSpy = vi.spyOn(viewState, 'showInfo');
 
-		controller.applyProgress({
-			operation_kind: 'processingBatch',
-			job_id: 'job-1',
-			stage,
-			percentage: 100,
-			message,
-		});
+			controller.applyProgress({
+				operation_kind: 'processingBatch',
+				job_id: 'job-1',
+				stage,
+				percentage: 100,
+				message,
+			});
 
-		expect(controller.isCurrentlyProcessing).toBe(true);
-		expect(getJobRows()).toHaveLength(1);
-		assertControlsDisabled();
+			expect(controller.isCurrentlyProcessing).toBe(true);
+			expect(getJobRows()).toHaveLength(1);
+			assertControlsDisabled();
 
-		vi.advanceTimersByTime(1999);
-		vi.advanceTimersByTime(1);
+			vi.advanceTimersByTime(1999);
+			vi.advanceTimersByTime(1);
 
-		const expectedSpy =
-			method === 'showSuccess'
-				? showSuccessSpy
-				: method === 'showError'
-					? showErrorSpy
-					: showInfoSpy;
-		expect(expectedSpy).toHaveBeenCalledWith(message);
-		assertControlsEnabled();
-		const idleStatus = controller.getCurrentStatus();
-		expect(idleStatus).toEqual({
-			stage: 'idle',
-			percentage: 0,
-			message: 'Ready to process audiobook',
-		});
-		expect(idleStatus).not.toHaveProperty('currentFile');
-		expect(idleStatus).not.toHaveProperty('etaSeconds');
-		expect(statusPanelViewState.jobItems).toHaveLength(0);
-		expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
-	});
+			const expectedSpy =
+				method === 'showSuccess'
+					? showSuccessSpy
+					: method === 'showError'
+						? showErrorSpy
+						: showInfoSpy;
+			expect(expectedSpy).toHaveBeenCalledWith(message);
+			assertControlsEnabled();
+			const idleStatus = controller.getCurrentStatus();
+			expect(idleStatus).toEqual({
+				stage: 'idle',
+				percentage: 0,
+				message: 'Ready to process audiobook',
+			});
+			expect(idleStatus).not.toHaveProperty('currentFile');
+			expect(idleStatus).not.toHaveProperty('etaSeconds');
+			expect(statusPanelViewState.jobItems).toHaveLength(0);
+			expect(getStepText()).toBe(method === 'showError' ? `Error: ${message}` : message);
+		},
+	);
 
 	it('prevents stale single-job completion timeout from resetting a newer active run', () => {
 		const controller = new StatusPanelRuntime();

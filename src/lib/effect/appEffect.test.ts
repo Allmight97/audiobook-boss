@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Data } from 'effect';
+import { Data } from './appEffect';
 import {
 	type AppEffect,
 	Effect,

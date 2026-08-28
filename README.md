@@ -17,7 +17,7 @@ Convert, tag, and organize your audiobook library with metadata that works every
 ## Quick start
 
 ```bash
-# JS/TS dependencies (Bun 1.3.14; see package.json packageManager)
+# JS/TS dependencies (Bun 1.4.0; see package.json packageManager)
 bun install
 
 # First run publishes the AAXClean sidecar (.NET 8 SDK required)
@@ -25,7 +25,7 @@ bun install
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon), Bun 1.3.14, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
+Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
 
 **AAC runtime contract**: output encoder and input decoder are separate. Normal processing uses in-process `ffmpeg-next`. FDK HE-AAC output uses an external FFmpeg/`libfdk_aac` adapter and may force `aac_at` or `libfdk_aac` when the default decoder cannot handle the source.
 
@@ -33,7 +33,7 @@ Requires: macOS (Apple Silicon), Bun 1.3.14, Rust, and a .NET 8 SDK for the side
 
 ## Toolchain
 
-- Package manager: **Bun 1.3.14**, pinned by `package.json` `packageManager`.
+- Package manager: **Bun 1.4.0**, pinned by `package.json` `packageManager`.
 - Verify Bun or frontend changes with the commands below; use `.agents/skills/release`
   for packaging and GitHub Release work.
 

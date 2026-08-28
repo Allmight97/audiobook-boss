@@ -15,7 +15,7 @@ ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-d32b387f2b0a484599d4587d651891f0c63c42
 ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg90}"
 ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
 local_env_file="${repo_root}/.codex/agent-env.local.sh"
-required_bun_version="1.3.14"
+required_bun_version="1.4.0"
 
 log() {
 	printf '\n==> %s\n' "$*"
