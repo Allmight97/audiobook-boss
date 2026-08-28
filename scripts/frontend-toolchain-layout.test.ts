@@ -46,68 +46,21 @@ function collectSourceFiles(root: string): string[] {
 	return files;
 }
 
-function blankComments(source: string): string {
-	let output = '';
-	let index = 0;
-	let quote: "'" | '"' | '`' | null = null;
-	while (index < source.length) {
-		const character = source[index] ?? '';
-		const next = source[index + 1] ?? '';
-		if (quote) {
-			output += character;
-			if (character === '\\' && quote !== '`') {
-				output += next;
-				index += 2;
-				continue;
-			}
-			if (character === quote) {
-				quote = null;
-			}
-			index += 1;
-			continue;
-		}
-		if (character === '/' && next === '/') {
-			const end = source.indexOf('\n', index);
-			const length = (end === -1 ? source.length : end) - index;
-			output += ' '.repeat(length);
-			index += length;
-			continue;
-		}
-		if (character === '/' && next === '*') {
-			const end = source.indexOf('*/', index + 2);
-			const close = end === -1 ? source.length : end + 2;
-			output += source.slice(index, close).replace(/[^\n]/g, ' ');
-			index = close;
-			continue;
-		}
-		if (character === "'" || character === '"' || character === '`') {
-			quote = character;
-		}
-		output += character;
-		index += 1;
-	}
-	return output;
-}
-
-function moduleSpecifiers(source: string): string[] {
-	const code = blankComments(source);
-	const specifiers: string[] = [];
-	const pattern =
-		/\b(?:import\s*\(\s*|require\s*\(\s*|(?:import|export)(?:\s+type)?\s+(?:[^'"\n]*?\sfrom\s*)?)['"]([^'"]+)['"]/g;
-	for (const match of code.matchAll(pattern)) {
-		if (match[1]) {
-			specifiers.push(match[1]);
-		}
-	}
-	return specifiers;
+function importsTypescriptPackage(source: string): boolean {
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]typescript['"]/.test(
+		source,
+	);
 }
 
 function typescriptImportHits(): string[] {
+	const self = path.normalize(fileURLToPath(import.meta.url));
 	const hits: string[] = [];
 	for (const root of ['src', 'scripts']) {
 		for (const file of collectSourceFiles(path.join(repoRoot, root))) {
-			const specifiers = moduleSpecifiers(readFileSync(file, 'utf8'));
-			if (specifiers.includes('typescript')) {
+			if (path.normalize(file) === self) {
+				continue;
+			}
+			if (importsTypescriptPackage(readFileSync(file, 'utf8'))) {
 				hits.push(path.relative(repoRoot, file));
 			}
 		}
@@ -138,5 +91,14 @@ describe('frontend toolchain layout', () => {
 
 	it('does not import the typescript package from ABB src/ or scripts/', () => {
 		expect(typescriptImportHits()).toEqual([]);
+	});
+
+	it('records typescript specifiers from multiline named imports', () => {
+		expect(
+			importsTypescriptPackage("import {\n\tcreateSourceFile,\n} from 'typescript';\n"),
+		).toBe(true);
+		expect(importsTypescriptPackage("import { createSourceFile } from './typescript';\n")).toBe(
+			false,
+		);
 	});
 });

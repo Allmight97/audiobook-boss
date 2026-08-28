@@ -138,17 +138,25 @@ describe('makeWorkflowKit (#389 spike acceptance)', () => {
 	});
 });
 
-const EFFECT_PACKAGE_IMPORT =
-	/\b(?:import\s*\(\s*|require\s*\(\s*|(?:import|export)(?:\s+type)?\s+(?:[^'"\n]*?\sfrom\s*)?)['"]effect(?:\/[^'"]*)?['"]/;
+function importsEffectPackage(source: string): boolean {
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect(?:\/[^'"]*)?['"]/.test(
+		source,
+	);
+}
 
 describe('Effect package import boundary', () => {
 	const srcRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 	const allowed = path.normalize(path.join(srcRoot, 'lib/effect/appEffect.ts'));
 
 	it('treats Effect package root and subpath specifiers as the same boundary', () => {
-		expect(EFFECT_PACKAGE_IMPORT.test("import { Effect } from 'effect'")).toBe(true);
-		expect(EFFECT_PACKAGE_IMPORT.test("import { Effect } from 'effect/Effect'")).toBe(true);
-		expect(EFFECT_PACKAGE_IMPORT.test("import { something } from './effect'")).toBe(false);
+		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
+		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);
+		expect(importsEffectPackage("import { something } from './effect'")).toBe(false);
+	});
+
+	it('records effect specifiers from multiline named imports', () => {
+		expect(importsEffectPackage("import {\n\tEffect,\n} from 'effect';\n")).toBe(true);
+		expect(importsEffectPackage("import { Effect } from './effect';\n")).toBe(false);
 	});
 
 	it('lets only appEffect.ts import the effect package', () => {
@@ -171,7 +179,7 @@ describe('Effect package import boundary', () => {
 					continue;
 				}
 				const source = readFileSync(fullPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-				if (EFFECT_PACKAGE_IMPORT.test(source)) {
+				if (importsEffectPackage(source)) {
 					hits.push(path.relative(srcRoot, fullPath));
 				}
 			}

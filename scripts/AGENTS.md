@@ -123,6 +123,8 @@ commands over invoking internals directly.
   without the compiler API). Rationale: `docs/DECISIONS.md` 2026-08-27
   TypeScript 7 / Effect 4. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
+  The no-import tripwire matches `from 'typescript'` so ordinary multiline
+  named imports count; do not require the binding list to sit on one line.
 - Bun version truth is `package.json#packageManager`. When it changes, set
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install
