@@ -4,6 +4,22 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-08-28
+
+### Changed
+
+- Updated the frontend toolchain to TypeScript 7 and Effect 4 RC, with Bun
+  1.4.0 required for the supported Svelte diagnostic setup. This is a patch
+  release because the migration preserves ABB's existing user-facing feature
+  and IPC behavior while improving dependency and runtime foundations.
+
+### Fixed
+
+- Kept QuickTime chapter timestamps valid when cover art is embedded in an
+  audiobook.
+- Reported an unavailable external FDK encoder when an FFmpeg candidate cannot
+  start, instead of treating the candidate as ready.
+
 ## [1.3.5] - 2026-08-13
 
 ### Changed
