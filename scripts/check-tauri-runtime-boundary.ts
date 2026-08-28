@@ -1,6 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
 
 const repoRoot = process.cwd();
 const generatedModulePath = path.join(repoRoot, 'src/lib/generated/tauri');
@@ -13,6 +12,21 @@ type Violation = {
 	file: string;
 	line: number;
 	message: string;
+};
+
+type NamedBinding = {
+	name: string;
+	typeOnly: boolean;
+};
+
+type ModuleStatement = {
+	kind: 'import' | 'export';
+	index: number;
+	typeOnly: boolean;
+	hasDefault: boolean;
+	hasNamespace: boolean;
+	names: NamedBinding[];
+	source: string;
 };
 
 const sourceFiles = collectSourceFiles(path.join(repoRoot, 'src'));
@@ -56,73 +70,38 @@ function checkFile(file: string): void {
 }
 
 function checkSourceBlock(file: string, fullContent: string, block: SourceBlock): void {
-	const sourceFile = ts.createSourceFile(file, block.content, ts.ScriptTarget.Latest, true);
-	for (const statement of sourceFile.statements) {
-		if (ts.isImportDeclaration(statement)) {
-			checkImportDeclaration(file, fullContent, block, sourceFile, statement);
-		} else if (ts.isExportDeclaration(statement)) {
-			checkExportDeclaration(file, fullContent, block, sourceFile, statement);
-		}
+	const code = blankComments(block.content);
+	for (const statement of parseModuleStatements(code)) {
+		checkModuleStatement(file, fullContent, block, statement);
 	}
-
 	if (!allowsRawTauriCore(file)) {
-		checkRawTauriInvokeUsage(file, fullContent, block, sourceFile);
+		checkRawTauriInvokeUsage(file, fullContent, block, code);
 	}
 }
 
-function checkImportDeclaration(
+function checkModuleStatement(
 	file: string,
 	fullContent: string,
 	block: SourceBlock,
-	sourceFile: ts.SourceFile,
-	statement: ts.ImportDeclaration,
+	statement: ModuleStatement,
 ): void {
-	const source = moduleSpecifierText(statement.moduleSpecifier);
-	const importClause = statement.importClause;
-	if (!source || !importClause || importClause.isTypeOnly) {
+	const line = lineNumberAt(fullContent, block.start + statement.index);
+	if (statement.source === '@tauri-apps/api/core' && !allowsRawTauriCore(file)) {
+		pushRawTauriCoreImportViolations(file, line, statement);
 		return;
 	}
 
-	const line = lineNumberAt(fullContent, block.start + statement.getStart(sourceFile));
-	if (source === '@tauri-apps/api/core' && !allowsRawTauriCore(file)) {
-		pushRawTauriCoreImportViolations(file, line, importClause);
+	if (statement.typeOnly || !isGeneratedTauriImport(file, statement.source)) {
 		return;
 	}
 
-	if (!isGeneratedTauriImport(file, source)) {
-		return;
-	}
+	pushNamedValueViolations(
+		file,
+		line,
+		new Set(statement.names.filter((binding) => !binding.typeOnly).map((binding) => binding.name)),
+	);
 
-	const namedImports = importNamedValues(importClause);
-	const hasValueNamespaceImport =
-		importClause.namedBindings !== undefined && ts.isNamespaceImport(importClause.namedBindings);
-	pushNamedValueViolations(file, line, namedImports);
-
-	if (hasValueNamespaceImport) {
-		violations.push({
-			file: displayPath(file),
-			line,
-			message:
-				'generated Tauri namespace value imports are not allowed; import commands or events through the owning boundary file',
-		});
-	}
-}
-
-function checkExportDeclaration(
-	file: string,
-	fullContent: string,
-	block: SourceBlock,
-	sourceFile: ts.SourceFile,
-	statement: ts.ExportDeclaration,
-): void {
-	const source = moduleSpecifierText(statement.moduleSpecifier);
-	if (!source || statement.isTypeOnly || !isGeneratedTauriImport(file, source)) {
-		return;
-	}
-
-	const line = lineNumberAt(fullContent, block.start + statement.getStart(sourceFile));
-	const exportClause = statement.exportClause;
-	if (!exportClause || ts.isNamespaceExport(exportClause)) {
+	if (statement.kind === 'export' && (statement.hasNamespace || statement.names.length === 0)) {
 		violations.push({
 			file: displayPath(file),
 			line,
@@ -132,48 +111,48 @@ function checkExportDeclaration(
 		return;
 	}
 
-	pushNamedValueViolations(file, line, namedExports(exportClause));
+	if (statement.hasNamespace) {
+		violations.push({
+			file: displayPath(file),
+			line,
+			message:
+				'generated Tauri namespace value imports are not allowed; import commands or events through the owning boundary file',
+		});
+	}
 }
 
 function checkRawTauriInvokeUsage(
 	file: string,
 	fullContent: string,
 	block: SourceBlock,
-	sourceFile: ts.SourceFile,
+	code: string,
 ): void {
-	function visit(node: ts.Node): void {
-		if (ts.isIdentifier(node) && node.text === '__TAURI_INVOKE') {
-			violations.push({
-				file: displayPath(file),
-				line: lineNumberAt(fullContent, block.start + node.getStart(sourceFile)),
-				message: 'raw __TAURI_INVOKE usage must stay out of runtime app code; use tauriClient',
-			});
-		}
-		ts.forEachChild(node, visit);
+	const searchable = blankQuoted(code);
+	for (const match of searchable.matchAll(/\b__TAURI_INVOKE\b/g)) {
+		violations.push({
+			file: displayPath(file),
+			line: lineNumberAt(fullContent, block.start + (match.index ?? 0)),
+			message: 'raw __TAURI_INVOKE usage must stay out of runtime app code; use tauriClient',
+		});
 	}
-
-	visit(sourceFile);
 }
 
 function pushRawTauriCoreImportViolations(
 	file: string,
 	line: number,
-	importClause: ts.ImportClause,
+	statement: ModuleStatement,
 ): void {
-	if (importClause.name) {
+	if (statement.typeOnly) {
+		return;
+	}
+	if (statement.hasDefault) {
 		violations.push({
 			file: displayPath(file),
 			line,
 			message: 'raw Tauri core default imports must stay out of runtime app code; use tauriClient',
 		});
 	}
-
-	const namedBindings = importClause.namedBindings;
-	if (!namedBindings) {
-		return;
-	}
-
-	if (ts.isNamespaceImport(namedBindings)) {
+	if (statement.hasNamespace) {
 		violations.push({
 			file: displayPath(file),
 			line,
@@ -182,19 +161,12 @@ function pushRawTauriCoreImportViolations(
 		});
 		return;
 	}
-
-	for (const specifier of namedBindings.elements) {
-		if (specifier.isTypeOnly) {
-			continue;
-		}
-		const name = specifier.propertyName?.text ?? specifier.name.text;
-		if (name === 'invoke') {
-			violations.push({
-				file: displayPath(file),
-				line,
-				message: "raw Tauri 'invoke' imports must stay out of runtime app code; use tauriClient",
-			});
-		}
+	if (statement.names.some((binding) => !binding.typeOnly && binding.name === 'invoke')) {
+		violations.push({
+			file: displayPath(file),
+			line,
+			message: "raw Tauri 'invoke' imports must stay out of runtime app code; use tauriClient",
+		});
 	}
 }
 
@@ -217,38 +189,227 @@ function sourceBlocks(file: string, content: string): SourceBlock[] {
 	return blocks;
 }
 
-function moduleSpecifierText(moduleSpecifier: ts.Expression | undefined): string | null {
-	if (!moduleSpecifier || !ts.isStringLiteral(moduleSpecifier)) {
+function parseModuleStatements(source: string): ModuleStatement[] {
+	const statements: ModuleStatement[] = [];
+	const keyword = /\b(import|export)\b/g;
+	let match = keyword.exec(source);
+	while (match) {
+		const kind = match[1] as 'import' | 'export';
+		const start = match.index;
+		if (kind === 'import' && source[start + 6] === '(') {
+			match = keyword.exec(source);
+			continue;
+		}
+		const parsed = parseModuleStatement(kind, source.slice(start));
+		if (!parsed) {
+			match = keyword.exec(source);
+			continue;
+		}
+		const { consumed, ...statement } = parsed;
+		statements.push({ ...statement, kind, index: start });
+		keyword.lastIndex = start + consumed;
+		match = keyword.exec(source);
+	}
+	return statements;
+}
+
+function parseModuleStatement(
+	kind: 'import' | 'export',
+	text: string,
+): (Omit<ModuleStatement, 'kind' | 'index'> & { consumed: number }) | null {
+	const prefix = kind === 'import' ? /^import\s+/ : /^export\s+/;
+	const afterKeyword = text.match(prefix);
+	if (!afterKeyword) {
 		return null;
 	}
-	return moduleSpecifier.text;
+
+	let cursor = afterKeyword[0].length;
+	const typeOnly = /^(type\s+)(?!as\b)/.test(text.slice(cursor));
+	if (typeOnly) {
+		cursor += text.slice(cursor).match(/^type\s+/)?.[0].length ?? 0;
+	}
+
+	const fromMatch = findFromClause(text.slice(cursor));
+	if (!fromMatch) {
+		return null;
+	}
+
+	const bindings = text.slice(cursor, cursor + fromMatch.bindingsEnd).trim();
+	const source = fromMatch.source;
+	const consumed = cursor + fromMatch.consumed;
+	if (bindings === '*') {
+		return {
+			typeOnly,
+			hasDefault: false,
+			hasNamespace: true,
+			names: [],
+			source,
+			consumed,
+		};
+	}
+
+	return {
+		typeOnly,
+		...parseBindings(bindings),
+		source,
+		consumed,
+	};
 }
 
-function importNamedValues(importClause: ts.ImportClause): Set<string> {
-	const namedBindings = importClause.namedBindings;
-	if (!namedBindings || !ts.isNamedImports(namedBindings)) {
-		return new Set();
-	}
-
-	const names = new Set<string>();
-	for (const specifier of namedBindings.elements) {
-		if (specifier.isTypeOnly) {
+function findFromClause(
+	text: string,
+): { bindingsEnd: number; source: string; consumed: number } | null {
+	let depth = 0;
+	for (let index = 0; index < text.length; index += 1) {
+		const character = text[index];
+		if (character === '{' || character === '(') {
+			depth += 1;
 			continue;
 		}
-		names.add(specifier.propertyName?.text ?? specifier.name.text);
+		if (character === '}' || character === ')') {
+			depth = Math.max(0, depth - 1);
+			continue;
+		}
+		if (depth !== 0 || !text.startsWith('from', index) || /\S/.test(text[index - 1] ?? ' ')) {
+			continue;
+		}
+		const specifier = text.slice(index + 4).match(/^\s*(['"])([^'"]+)\1/);
+		if (!specifier) {
+			return null;
+		}
+		return {
+			bindingsEnd: index,
+			source: specifier[2] ?? '',
+			consumed: index + 4 + specifier[0].length,
+		};
 	}
-	return names;
+	return null;
 }
 
-function namedExports(exportClause: ts.NamedExports): Set<string> {
-	const names = new Set<string>();
-	for (const specifier of exportClause.elements) {
-		if (specifier.isTypeOnly) {
+function parseBindings(
+	bindings: string,
+): Pick<ModuleStatement, 'hasDefault' | 'hasNamespace' | 'names'> {
+	const hasNamespace = /(?:^|,)\s*\*(?:\s+as\s+[A-Za-z_$][\w$]*)?/.test(bindings);
+	const hasDefault = /^[A-Za-z_$][\w$]*\s*(,|$)/.test(bindings);
+	const named = bindings.match(/\{([\s\S]*)\}/);
+	if (!named) {
+		return { hasDefault, hasNamespace, names: [] };
+	}
+
+	const names: NamedBinding[] = [];
+	for (const raw of splitBindingList(named[1] ?? '')) {
+		const specifier = raw.trim();
+		if (!specifier) {
 			continue;
 		}
-		names.add(specifier.propertyName?.text ?? specifier.name.text);
+		const typeOnly = /^type\s+/.test(specifier);
+		const rest = typeOnly ? specifier.slice(5).trim() : specifier;
+		const name = rest.split(/\s+as\s+/)[0]?.trim();
+		if (name) {
+			names.push({ name, typeOnly });
+		}
 	}
-	return names;
+	return { hasDefault, hasNamespace, names };
+}
+
+function splitBindingList(list: string): string[] {
+	const parts: string[] = [];
+	let current = '';
+	let depth = 0;
+	for (const character of list) {
+		if (character === '{' || character === '(') {
+			depth += 1;
+		} else if (character === '}' || character === ')') {
+			depth = Math.max(0, depth - 1);
+		}
+		if (character === ',' && depth === 0) {
+			parts.push(current);
+			current = '';
+			continue;
+		}
+		current += character;
+	}
+	if (current.trim()) {
+		parts.push(current);
+	}
+	return parts;
+}
+
+function blankComments(source: string): string {
+	let output = '';
+	let index = 0;
+	let quote: "'" | '"' | '`' | null = null;
+	while (index < source.length) {
+		const character = source[index] ?? '';
+		const next = source[index + 1] ?? '';
+		if (quote) {
+			output += character;
+			if (character === '\\' && quote !== '`') {
+				output += next;
+				index += 2;
+				continue;
+			}
+			if (character === quote) {
+				quote = null;
+			}
+			index += 1;
+			continue;
+		}
+		if (character === '/' && next === '/') {
+			const end = source.indexOf('\n', index);
+			const length = (end === -1 ? source.length : end) - index;
+			output += ' '.repeat(length);
+			index += length;
+			continue;
+		}
+		if (character === '/' && next === '*') {
+			const end = source.indexOf('*/', index + 2);
+			const close = end === -1 ? source.length : end + 2;
+			output += source.slice(index, close).replace(/[^\n]/g, ' ');
+			index = close;
+			continue;
+		}
+		if (character === "'" || character === '"' || character === '`') {
+			quote = character;
+		}
+		output += character;
+		index += 1;
+	}
+	return output;
+}
+
+function blankQuoted(source: string): string {
+	let output = '';
+	let index = 0;
+	let quote: "'" | '"' | '`' | null = null;
+	while (index < source.length) {
+		const character = source[index] ?? '';
+		if (quote) {
+			if (character === '\\' && quote !== '`') {
+				output += '  ';
+				index += 2;
+				continue;
+			}
+			if (character === quote) {
+				output += character;
+				quote = null;
+				index += 1;
+				continue;
+			}
+			output += character === '\n' ? '\n' : ' ';
+			index += 1;
+			continue;
+		}
+		if (character === "'" || character === '"' || character === '`') {
+			quote = character;
+			output += character;
+			index += 1;
+			continue;
+		}
+		output += character;
+		index += 1;
+	}
+	return output;
 }
 
 function pushNamedValueViolations(file: string, line: number, names: Set<string>): void {
