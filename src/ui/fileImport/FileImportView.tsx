@@ -1,55 +1,87 @@
-import { onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { createEffect, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import {
 	hydrateSupportTextAtom,
 	importIntentAtom,
+	inputCapabilityAtom,
 	inputViewAtom,
 	setDragOverAtom,
 } from '../../app/inputSession';
+import {
+	nativeDropLooksLikeCoverArt,
+	nativeDropTargetAtPoint,
+} from '../../app/inputSession/nativeIngress';
 import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { isFileDropEvent } from '../../types/events';
+import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
+import { openRemoteSourceAcquire } from '../remoteSource/state.svelte';
 import { FileListView } from '../fileList/FileListView';
 
 export function FileImportView(): JSX.Element {
 	const view = useAtomValue(() => inputViewAtom);
+	const capability = useAtomValue(() => inputCapabilityAtom);
 	const importIntent = useAtomSet(() => importIntentAtom);
 	const hydrateSupportText = useAtomSet(() => hydrateSupportTextAtom);
 	const setDragOver = useAtomSet(() => setDragOverAtom);
 	let fileManagementContainer: HTMLElement | null = null;
+	let deferredOpenedDrain = false;
+
+	async function drainOpenedAudioFiles(): Promise<void> {
+		if (view().orderLocked) {
+			deferredOpenedDrain = true;
+			importIntent({ type: 'drainOpened' });
+			return;
+		}
+		deferredOpenedDrain = false;
+		importIntent({ type: 'drainOpened' });
+	}
 
 	onMount(() => {
 		hydrateSupportText(undefined);
-		const onDragOver = (event: DragEvent) => {
-			event.preventDefault();
-			setDragOver(true);
-		};
-		const onDragLeave = () => setDragOver(false);
-		const onDrop = (event: DragEvent) => {
-			event.preventDefault();
-			setDragOver(false);
-			const files = Array.from(event.dataTransfer?.files ?? [])
-				.map((file) => (file as File & { path?: string }).path)
-				.filter((path): path is string => Boolean(path));
-			if (files.length > 0) {
-				importIntent({ type: 'importPaths', paths: files });
-			}
-		};
-		const target = fileManagementContainer;
-		target?.addEventListener('dragover', onDragOver);
-		target?.addEventListener('dragleave', onDragLeave);
-		target?.addEventListener('drop', onDrop);
-		onCleanup(() => {
-			target?.removeEventListener('dragover', onDragOver);
-			target?.removeEventListener('dragleave', onDragLeave);
-			target?.removeEventListener('drop', onDrop);
-		});
+		const subscriptions = createSubscriptionGroup();
+		void subscriptions.add(
+			capability().listenDragEnter(() => {
+				setDragOver(true);
+			}),
+		);
+		void subscriptions.add(
+			capability().listenDragLeave(() => {
+				setDragOver(false);
+			}),
+		);
+		void subscriptions.add(
+			capability().listenDragDrop((payload) => {
+				setDragOver(false);
+				if (!isFileDropEvent(payload)) {
+					return;
+				}
+				const coverArea = document.getElementById('cover-art-area');
+				void (() => {
+					const coverHit = nativeDropTargetAtPoint(payload.position, coverArea, null) === 'cover';
+					const filesHit =
+						nativeDropTargetAtPoint(payload.position, null, fileManagementContainer) === 'files';
+					if (coverHit && nativeDropLooksLikeCoverArt(payload.paths)) {
+						return;
+					}
+					if (filesHit) {
+						importIntent({ type: 'importPaths', paths: [...payload.paths] });
+					}
+				})();
+			}),
+		);
+		void subscriptions.add(
+			capability().listenOpenedAudioFiles(() => {
+				void drainOpenedAudioFiles();
+			}),
+		);
+		void drainOpenedAudioFiles();
+		onCleanup(() => subscriptions.dispose());
 	});
 
-	function handleHeaderClick(): void {
-		importIntent({ type: 'pickFiles' });
-	}
-
-	function handleFolderClick(): void {
-		importIntent({ type: 'pickFolder' });
-	}
+	createEffect(() => {
+		if (!view().orderLocked && deferredOpenedDrain) {
+			void drainOpenedAudioFiles();
+		}
+	});
 
 	return (
 		<>
@@ -58,9 +90,17 @@ export function FileImportView(): JSX.Element {
 					id="add-folder-btn"
 					class="btn-pill btn-pill-secondary"
 					type="button"
-					onClick={handleFolderClick}
+					onClick={() => importIntent({ type: 'pickFolder' })}
 				>
 					Add Folder
+				</button>
+				<button
+					id="acquire-audiobooks-btn"
+					class="btn-pill btn-pill-secondary"
+					type="button"
+					onClick={() => openRemoteSourceAcquire()}
+				>
+					Import from Library
 				</button>
 			</div>
 			<Show when={view().errorMessage}>
@@ -71,7 +111,7 @@ export function FileImportView(): JSX.Element {
 				)}
 			</Show>
 			<FileListView
-				onHeaderClick={handleHeaderClick}
+				onHeaderClick={() => importIntent({ type: 'pickFiles' })}
 				fileManagementRef={(element) => {
 					fileManagementContainer = element;
 				}}

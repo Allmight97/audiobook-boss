@@ -40,6 +40,11 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		analyzeAudioFiles: vi.fn(async () => analyzedFile('/books/chapter.m4b')),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		takeOpenedAudioFiles: vi.fn(async () => []),
+		readAudioCoverThumbnail: vi.fn(async () => null),
+		listenDragDrop: vi.fn(async () => () => undefined),
+		listenDragEnter: vi.fn(async () => () => undefined),
+		listenDragLeave: vi.fn(async () => () => undefined),
+		listenOpenedAudioFiles: vi.fn(async () => () => undefined),
 		...overrides,
 	};
 }
@@ -61,7 +66,7 @@ describe('input session import tracer', () => {
 		});
 		const view = runtime.registry.get(inputViewAtom);
 		expect(view.files[0]?.path).toBe('/books/chapter.m4b');
-		expect(view.files[0]?.selected).toBe(true);
+		expect(view.selectedIndices).toEqual([0]);
 		expect(view.errorMessage).toBe('');
 		expect(input.analyzeAudioFiles).toHaveBeenCalledWith(['/books/chapter.m4b']);
 	});

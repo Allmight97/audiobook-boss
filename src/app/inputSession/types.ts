@@ -20,14 +20,10 @@ export type InputSessionState = {
 	readonly nextImportOrdinal: number;
 };
 
-export type InputViewFile = AudioFile & {
-	readonly index: number;
-	readonly selected: boolean;
-};
-
 export type InputView = {
-	readonly files: ReadonlyArray<InputViewFile>;
+	readonly files: ReadonlyArray<AudioFile>;
 	readonly selectedIndices: ReadonlyArray<number>;
+	readonly selectedAnchor: number;
 	readonly fileCount: number;
 	readonly hasFiles: boolean;
 	readonly orderLocked: boolean;
@@ -37,12 +33,16 @@ export type InputView = {
 	readonly sortDirection: InputSortDirection;
 	readonly sortLabel: string;
 	readonly orderDiffersFromImport: boolean;
+	readonly showSortButton: boolean;
+	readonly showClearButton: boolean;
+	readonly showRestoreImportOrder: boolean;
 };
 
 export type ImportIntent =
 	| { readonly type: 'pickFiles' }
 	| { readonly type: 'pickFolder' }
-	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> };
+	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> }
+	| { readonly type: 'drainOpened' };
 
 export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
 
@@ -63,4 +63,19 @@ export function emptyInputSession(): InputSessionState {
 
 export function fileIdentityKey(file: AudioFile): string {
 	return file.inputId ?? file.path;
+}
+
+export function orderDiffersFromImport(
+	files: ReadonlyArray<AudioFile>,
+	importOrdinalByPath: Readonly<Record<string, number>>,
+): boolean {
+	if (files.length <= 1) return false;
+	let previous = -1;
+	for (const file of files) {
+		const ordinal = importOrdinalByPath[file.path];
+		if (ordinal === undefined) return false;
+		if (ordinal < previous) return true;
+		previous = ordinal;
+	}
+	return false;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	fileListNavigationCommandFromKey,
 	resolveFileListNavigationTarget,
-} from '../fileList/keyboardNavigation';
+} from '../../app/inputSession';
 
 function keyEvent(
 	key: string,

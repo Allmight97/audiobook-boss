@@ -45,6 +45,11 @@ function fakeInput(): InputCapability {
 		analyzeAudioFiles: vi.fn(async () => analyzedFile('/books/chapter.m4b')),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		takeOpenedAudioFiles: vi.fn(async () => []),
+		readAudioCoverThumbnail: vi.fn(async () => null),
+		listenDragDrop: vi.fn(async () => () => undefined),
+		listenDragEnter: vi.fn(async () => () => undefined),
+		listenDragLeave: vi.fn(async () => () => undefined),
+		listenOpenedAudioFiles: vi.fn(async () => () => undefined),
 	};
 }
 
@@ -68,9 +73,11 @@ describe('Solid import tracer shell', () => {
 		));
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-		expect(await screen.findByRole('option', { name: 'Chapter One' })).toBeInTheDocument();
+		expect(await screen.findByRole('option', { name: 'chapter.m4b' })).toBeInTheDocument();
+		expect(screen.getByText('Chapter One')).toBeInTheDocument();
 		expect(screen.getByText(/Narrator/)).toBeInTheDocument();
 		expect(screen.getByRole('region', { name: 'Input and File Order' })).toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Selected File Properties' })).toBeInTheDocument();
 		expect(screen.queryByRole('region', { name: 'Metadata Manager' })).toBeNull();
 	});
 });

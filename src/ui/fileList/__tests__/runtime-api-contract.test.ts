@@ -4,7 +4,6 @@ import * as fileList from '..';
 import { setCurrentFileList } from '../state.svelte';
 
 const EXPECTED_FILE_LIST_EXPORTS = [
-	'FileListIsland',
 	'appendFileList',
 	'getCurrentFileList',
 	'getSelectedFileIndex',

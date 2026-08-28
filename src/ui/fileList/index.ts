@@ -1,8 +1,6 @@
 /**
- * File list module — pre-processing workbench file list state, actions, and rendering.
+ * File list module — leftover Svelte workbench adapters used by unmigrated owners.
  */
-export { default as FileListIsland } from './FileListIsland.svelte';
-
 export { appendFileList, selectFile, setFileOrderLocked } from './actions';
 
 export {

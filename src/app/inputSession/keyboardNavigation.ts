@@ -86,3 +86,45 @@ export function resolveFileListNavigationTarget({
 			return Math.min(maxIndex, currentIndex + normalizedPageStep);
 	}
 }
+
+export type FileListKeyCommand =
+	| { readonly type: 'navigate'; readonly index: number }
+	| { readonly type: 'selectAll' }
+	| { readonly type: 'clear' };
+
+export function interpretFileListKeyDown(
+	event: KeyboardEvent,
+	snapshot: { readonly fileCount: number; readonly selectedAnchor: number },
+): FileListKeyCommand | null {
+	if (isTextInputTarget(event.target)) {
+		return null;
+	}
+	const command = fileListNavigationCommandFromKey(event);
+	if (command) {
+		const targetIndex = resolveFileListNavigationTarget({
+			command,
+			fileCount: snapshot.fileCount,
+			selectedIndex: snapshot.selectedAnchor,
+		});
+		if (targetIndex === null) {
+			return null;
+		}
+		return { type: 'navigate', index: targetIndex };
+	}
+	const key = event.key.toLowerCase();
+	if ((event.metaKey || event.ctrlKey) && key === 'a') {
+		return { type: 'selectAll' };
+	}
+	if (key === 'escape') {
+		return { type: 'clear' };
+	}
+	return null;
+}
+
+function isTextInputTarget(target: EventTarget | null): boolean {
+	if (!target || !(target instanceof HTMLElement)) {
+		return false;
+	}
+	const tagName = target.tagName.toLowerCase();
+	return tagName === 'input' || tagName === 'textarea';
+}
