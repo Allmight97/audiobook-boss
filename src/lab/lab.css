@@ -1,0 +1,144 @@
+.lab {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	max-width: 60rem;
+	margin: 0 auto;
+	padding: var(--space-5);
+	overflow: auto;
+	height: 100%;
+}
+
+.lab-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-4);
+}
+
+.lab-density {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2);
+	flex-shrink: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-inline-size: 0;
+}
+
+.lab-density legend {
+	float: left;
+	width: 100%;
+	padding: 0;
+	margin: 0 0 var(--space-1);
+	font-size: var(--text-xs);
+	color: var(--text-muted);
+}
+
+.lab-section h3 {
+	margin-bottom: var(--space-3);
+}
+
+.lab-swatches {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+	gap: var(--space-2);
+}
+
+.lab-swatch {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.lab-swatch-chip {
+	width: 1.75rem;
+	height: 1.75rem;
+	flex-shrink: 0;
+	border: 1px solid var(--border-secondary);
+	border-radius: var(--radius-sm);
+}
+
+.lab-scale-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+	gap: var(--space-4);
+}
+
+.lab-space-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	margin-top: var(--space-1);
+}
+
+.lab-space-bar {
+	height: 0.5rem;
+	background: var(--accent-primary);
+	border-radius: var(--radius-sm);
+}
+
+.lab-radius-row {
+	display: flex;
+	gap: var(--space-2);
+	margin-top: var(--space-2);
+	flex-wrap: wrap;
+}
+
+.lab-radius-chip {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 4.5rem;
+	height: 3rem;
+	border: 1px solid var(--border-secondary);
+	background: var(--bg-input);
+}
+
+.lab-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	flex-wrap: wrap;
+}
+
+.lab-stack {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.lab-progress-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.lab-progress-label {
+	width: 2.5rem;
+	text-align: right;
+}
+
+.lab-density-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--density-row-h);
+	padding: 0 var(--density-pad);
+	font-size: var(--density-text);
+	border: 1px solid var(--border-primary);
+	border-radius: var(--radius-md);
+}
+
+.lab-density-row-sel {
+	border-color: var(--border-focus);
+	background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+}
+
+.lab-mono {
+	font-family: var(--font-mono);
+	font-size: var(--text-sm);
+}

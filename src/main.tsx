@@ -1,11 +1,11 @@
 import './styles.css';
 import './lib/frontendLogBridge.install';
-import { mount } from 'svelte';
-import App from './App.svelte';
+import { render } from 'solid-js/web';
+import { ProductionRoot } from './app/runtime/ProductionRoot';
 
 const target = document.getElementById('app');
 if (!target) {
 	throw new Error('App root #app not found');
 }
 
-mount(App, { target });
+export const disposeApp = render(() => <ProductionRoot />, target);

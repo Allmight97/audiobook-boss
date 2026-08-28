@@ -1,10 +1,10 @@
 import '../styles.css';
-import { mount } from 'svelte';
-import LabIsland from './LabIsland.svelte';
+import { render } from 'solid-js/web';
+import { Lab } from './Lab';
 
 const target = document.getElementById('lab');
 if (!target) {
 	throw new Error('Lab root #lab not found');
 }
 
-mount(LabIsland, { target });
+export const disposeLab = render(() => <Lab />, target);
