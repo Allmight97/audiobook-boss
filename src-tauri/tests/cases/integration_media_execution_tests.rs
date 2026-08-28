@@ -570,6 +570,112 @@ fn chapters_of(path: &Path) -> Vec<(Option<String>, i64, i64)> {
         .collect()
 }
 
+/// Apple Books reads the QuickTime `text` trak, not Nero `chpl`.
+/// FFmpeg's chapter API only sees `chpl`, so a green chpl probe does not prove
+/// the player-visible track. Walk the `text` handler's `mdhd`.
+fn timed_text_chapter_track(path: &Path) -> (f64, u32, u32) {
+    let bytes = fs::read(path).expect("read artifact for timed-text atom probe");
+    let moov = find_atom(&bytes, 0, bytes.len(), *b"moov").expect("moov atom");
+    let mut offset = moov.0;
+    let end = moov.1;
+    let mut audio_timescale = None;
+    let mut text = None;
+    while offset + 8 <= end {
+        let (trak_start, trak_end, size) = match next_atom(&bytes, offset, end) {
+            Some(atom) => atom,
+            None => break,
+        };
+        offset += size;
+        if bytes[trak_start + 4..trak_start + 8] != *b"trak" {
+            continue;
+        }
+        let Some(mdia) = find_atom(&bytes, trak_start + 8, trak_end, *b"mdia") else {
+            continue;
+        };
+        let Some(hdlr) = find_atom(&bytes, mdia.0, mdia.1, *b"hdlr") else {
+            continue;
+        };
+        // hdlr payload: version/flags (4) + component type (4) + handler (4)
+        let subtype_at = hdlr.0 + 8;
+        if subtype_at + 4 > hdlr.1 {
+            continue;
+        }
+        let handler = &bytes[subtype_at..subtype_at + 4];
+        let Some(mdhd) = find_atom(&bytes, mdia.0, mdia.1, *b"mdhd") else {
+            continue;
+        };
+        let (timescale, duration) = parse_mdhd(&bytes, mdhd.0, mdhd.1);
+        if handler == b"soun" {
+            audio_timescale = Some(timescale);
+        } else if handler == b"text" {
+            assert!(timescale > 0, "text trak timescale is zero");
+            text = Some((duration as f64 / f64::from(timescale), timescale));
+        }
+    }
+    let (duration_secs, text_timescale) =
+        text.expect("QuickTime timed-text chapter trak not found");
+    (
+        duration_secs,
+        text_timescale,
+        audio_timescale.expect("audio trak timescale"),
+    )
+}
+
+fn next_atom(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize, usize)> {
+    if start + 8 > end {
+        return None;
+    }
+    let mut size = u32::from_be_bytes(bytes[start..start + 4].try_into().ok()?) as usize;
+    let mut header = 8;
+    if size == 1 {
+        if start + 16 > end {
+            return None;
+        }
+        size = u64::from_be_bytes(bytes[start + 8..start + 16].try_into().ok()?) as usize;
+        header = 16;
+    } else if size == 0 {
+        size = end - start;
+    }
+    if size < header || start + size > end {
+        return None;
+    }
+    Some((start, start + size, size))
+}
+
+fn find_atom(bytes: &[u8], start: usize, end: usize, fourcc: [u8; 4]) -> Option<(usize, usize)> {
+    let mut offset = start;
+    while offset + 8 <= end {
+        let (atom_start, atom_end, size) = next_atom(bytes, offset, end)?;
+        if bytes[atom_start + 4..atom_start + 8] == fourcc {
+            let header =
+                if u32::from_be_bytes(bytes[atom_start..atom_start + 4].try_into().ok()?) == 1 {
+                    16
+                } else {
+                    8
+                };
+            return Some((atom_start + header, atom_end));
+        }
+        offset += size;
+    }
+    None
+}
+
+fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
+    assert!(start + 4 <= end, "mdhd too small");
+    let version = bytes[start];
+    if version == 1 {
+        assert!(start + 28 <= end, "mdhd v1 too small");
+        let timescale = u32::from_be_bytes(bytes[start + 20..start + 24].try_into().unwrap());
+        let duration = u64::from_be_bytes(bytes[start + 24..start + 32].try_into().unwrap());
+        (timescale, duration)
+    } else {
+        assert!(start + 20 <= end, "mdhd v0 too small");
+        let timescale = u32::from_be_bytes(bytes[start + 12..start + 16].try_into().unwrap());
+        let duration = u32::from_be_bytes(bytes[start + 16..start + 20].try_into().unwrap()) as u64;
+        (timescale, duration)
+    }
+}
+
 /// The user's dominant real input is M4B, not WAV. Two-pass: the engine's own
 /// committed output becomes the single input for a second run — exercising
 /// AAC decode → encode and the MP4 tag read path with no committed media.
@@ -697,6 +803,36 @@ async fn chapters_synthesize_on_merge_and_survive_reprocessing() {
     assert!(
         (preserved_boundary - boundary).abs() < 200,
         "preserved chapter boundary {preserved_boundary}ms should match the source's {boundary}ms"
+    );
+}
+
+/// Cover art is a second output stream. If its time_base stays 0/0, FFmpeg's
+/// ipod muxer defaults it to 1/90000, LCMs with audio 1/44100 into movie
+/// timescale 4410000, and the QuickTime chapter packets overflow. Apple Books
+/// reads that broken timed-text track; Nero `chpl` stays correct. Cover art is
+/// the reproducing trigger, not a decoration.
+#[tokio::test]
+async fn qt_chapter_track_times_span_the_book_when_cover_art_is_muxed() {
+    let lane = MediaLane::with_fixtures(&[1.5, 1.0]);
+    let mut metadata = AudiobookMetadata::new();
+    metadata.cover_art = Some(minimal_jpg_bytes());
+    let output = lane.process(Some(metadata)).await;
+
+    let chpl = chapters_of(&output);
+    assert_eq!(
+        chpl.len(),
+        2,
+        "Nero chpl still synthesizes one chapter per input"
+    );
+
+    let (qt_duration, text_timescale, audio_timescale) = timed_text_chapter_track(&output);
+    assert_eq!(
+        text_timescale, audio_timescale,
+        "timed-text timescale {text_timescale} must match audio {audio_timescale}; 4410000 is the 44100×90000 LCM from an unset cover-art time_base"
+    );
+    assert!(
+        (qt_duration - 2.5).abs() < 0.75,
+        "timed-text track duration {qt_duration}s must span the whole book (~2.5s), not only the last chapter"
     );
 }
 

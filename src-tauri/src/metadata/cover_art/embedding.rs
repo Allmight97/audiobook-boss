@@ -132,8 +132,11 @@ fn configure_cover_art_stream_parameters(
         .open_as(codec)
         .map_err(|e| AppError::General(format!("Failed to open cover art encoder: {}", e)))?;
 
-    // Set the stream parameters from the encoder context
+    // Parameters first, then the stream time_base. An unset cover time_base
+    // (num=0) makes the ipod muxer default the stream to 1/90000, LCM with
+    // audio 1/44100 into movie timescale 4410000, and overflow QT chapter packets.
     stream.set_parameters(&encoder);
+    stream.set_time_base(ff::Rational(1, 1));
 
     log::debug!(
         "Configured cover art stream parameters for {:?} format ({}x{})",
