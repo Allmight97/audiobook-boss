@@ -24,6 +24,12 @@
   `viewState.svelte.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
   `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+- Spike (issue #464 lock 1, not the live runtime strip): `solid/` — Solid 1.9
+  island on official `@effect/atom-solid`. Public spike strip = `solid/index.ts`
+  (atoms + sync actions only). Do not import `FileListIsland.tsx`,
+  `mount.tsx`, or `@effect/atom-solid` from outside `solid/`. Do not grow
+  `index.ts` with this spike. No `runAppEffect` on this island; Atoms run
+  Effects and the TSX reads Atom/AsyncResult.
 
 ## Preferred Path
 

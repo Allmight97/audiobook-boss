@@ -36,13 +36,16 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
+		"@effect/atom-solid": "4.0.0-rc.110",
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.2",
 		"@tauri-apps/plugin-opener": "^2.5.4",
-		"effect": "4.0.0-rc.112"
+		"effect": "4.0.0-rc.112",
+		"solid-js": "1.9.15"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
+		"@solidjs/testing-library": "0.8.10",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@tailwindcss/vite": "^4.3.3",
 		"@tauri-apps/cli": "^2.11.4",
@@ -58,6 +61,7 @@
 		"tailwindcss": "^4.3.3",
 		"typescript": "npm:@typescript/typescript6@6.0.2",
 		"vite": "^8.2.2",
+		"vite-plugin-solid": "2.11.14",
 		"vitest": "^4.1.11"
 	},
 	"overrides": {

@@ -1,6 +1,7 @@
 import { Context, Data, Effect, Layer } from 'effect';
+import { Atom, AtomRegistry, AsyncResult } from 'effect/unstable/reactivity';
 
-export { Context, Data, Effect, Layer };
+export { Atom, AtomRegistry, AsyncResult, Context, Data, Effect, Layer };
 
 export type AppEffect<A, E = never, R = never> = Effect.Effect<A, E, R>;
 export type AppLayer<ROut, E = never, RIn = never> = Layer.Layer<ROut, E, RIn>;

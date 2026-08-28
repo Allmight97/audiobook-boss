@@ -67,7 +67,7 @@
 			}
 		},
 		{
-			"includes": ["src/**/*.test.ts", "src/test/**/*.ts"],
+			"includes": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts"],
 			"linter": {
 				"rules": {
 					"style": {
