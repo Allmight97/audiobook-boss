@@ -263,4 +263,54 @@ describe('check-tauri-runtime-boundary.ts', () => {
 			rmSync(repoRoot, { force: true, recursive: true });
 		}
 	});
+
+	it('rejects raw __TAURI_INVOKE usage inside template interpolations', () => {
+		const repoRoot = createFixtureRepo();
+		try {
+			writeFileSync(
+				path.join(repoRoot, 'src/ui/templateInvoke.ts'),
+				'`${window.__TAURI_INVOKE("process_audiobook_files")}`;\n',
+			);
+
+			const result = runTauriBoundaryCheck(repoRoot);
+			expectStatus(result, 1);
+			expect(result.stderr).toContain('raw __TAURI_INVOKE usage');
+			expect(result.stderr).toContain('src/ui/templateInvoke.ts');
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
+
+	it('ignores generated-import text inside string literals', () => {
+		const repoRoot = createFixtureRepo();
+		try {
+			writeFileSync(
+				path.join(repoRoot, 'src/ui/helpText.ts'),
+				'const help = "import { commands } from \'../lib/generated/tauri\'";\nexport const ok = help;\n',
+			);
+
+			const result = runTauriBoundaryCheck(repoRoot);
+			expectStatus(result, 0);
+			expect(result.stdout).toContain('[check-tauri-runtime-boundary] OK');
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
+
+	it('allows a type-only generated re-export after a side-effect import', () => {
+		const repoRoot = createFixtureRepo();
+		try {
+			writeFileSync(
+				path.join(repoRoot, 'src/ui/types.ts'),
+				"import './setup';\nexport type { commands } from '../lib/generated/tauri';\n",
+			);
+			writeFileSync(path.join(repoRoot, 'src/ui/setup.ts'), 'export {};\n');
+
+			const result = runTauriBoundaryCheck(repoRoot);
+			expectStatus(result, 0);
+			expect(result.stdout).toContain('[check-tauri-runtime-boundary] OK');
+		} finally {
+			rmSync(repoRoot, { force: true, recursive: true });
+		}
+	});
 });

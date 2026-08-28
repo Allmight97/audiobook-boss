@@ -138,12 +138,22 @@ describe('makeWorkflowKit (#389 spike acceptance)', () => {
 	});
 });
 
+const EFFECT_PACKAGE_IMPORT =
+	/\b(?:import\s*\(\s*|require\s*\(\s*|(?:import|export)(?:\s+type)?\s+(?:[^'"\n]*?\sfrom\s*)?)['"]effect(?:\/[^'"]*)?['"]/;
+
 describe('Effect package import boundary', () => {
 	const srcRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 	const allowed = path.normalize(path.join(srcRoot, 'lib/effect/appEffect.ts'));
 
+	it('treats Effect package root and subpath specifiers as the same boundary', () => {
+		expect(EFFECT_PACKAGE_IMPORT.test("import { Effect } from 'effect'")).toBe(true);
+		expect(EFFECT_PACKAGE_IMPORT.test("import { Effect } from 'effect/Effect'")).toBe(true);
+		expect(EFFECT_PACKAGE_IMPORT.test("import { something } from './effect'")).toBe(false);
+	});
+
 	it('lets only appEffect.ts import the effect package', () => {
 		const hits: string[] = [];
+		const self = path.normalize(fileURLToPath(import.meta.url));
 		const walk = (dir: string): void => {
 			for (const entry of readdirSync(dir, { withFileTypes: true })) {
 				const fullPath = path.join(dir, entry.name);
@@ -157,15 +167,11 @@ describe('Effect package import boundary', () => {
 				if (!/\.(?:[cm]?tsx?|mjs|svelte)$/.test(entry.name)) {
 					continue;
 				}
-				if (path.normalize(fullPath) === allowed) {
+				if (path.normalize(fullPath) === allowed || path.normalize(fullPath) === self) {
 					continue;
 				}
 				const source = readFileSync(fullPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-				if (
-					/\b(?:import\s*\(\s*|require\s*\(\s*|(?:import|export)(?:\s+type)?\s+(?:[^'"\n]*?\sfrom\s*)?)['"]effect['"]/.test(
-						source,
-					)
-				) {
+				if (EFFECT_PACKAGE_IMPORT.test(source)) {
 					hits.push(path.relative(srcRoot, fullPath));
 				}
 			}

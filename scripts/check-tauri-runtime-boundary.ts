@@ -191,24 +191,52 @@ function sourceBlocks(file: string, content: string): SourceBlock[] {
 
 function parseModuleStatements(source: string): ModuleStatement[] {
 	const statements: ModuleStatement[] = [];
-	const keyword = /\b(import|export)\b/g;
-	let match = keyword.exec(source);
-	while (match) {
-		const kind = match[1] as 'import' | 'export';
-		const start = match.index;
-		if (kind === 'import' && source[start + 6] === '(') {
-			match = keyword.exec(source);
+	let index = 0;
+	let quote: "'" | '"' | '`' | null = null;
+	while (index < source.length) {
+		const character = source[index] ?? '';
+		const next = source[index + 1] ?? '';
+		if (quote) {
+			if (character === '\\' && quote !== '`') {
+				index += 2;
+				continue;
+			}
+			if (character === quote) {
+				quote = null;
+			}
+			index += 1;
 			continue;
 		}
-		const parsed = parseModuleStatement(kind, source.slice(start));
+		if (character === "'" || character === '"' || character === '`') {
+			quote = character;
+			index += 1;
+			continue;
+		}
+		if (character === '/' && next === '/') {
+			const end = source.indexOf('\n', index);
+			index = end === -1 ? source.length : end;
+			continue;
+		}
+		if (character === '/' && next === '*') {
+			const end = source.indexOf('*/', index + 2);
+			index = end === -1 ? source.length : end + 2;
+			continue;
+		}
+		const remaining = source.slice(index);
+		const keyword = remaining.match(/^(import|export)\b/);
+		if (!keyword || (keyword[1] === 'import' && remaining[6] === '(')) {
+			index += 1;
+			continue;
+		}
+		const kind = keyword[1] as 'import' | 'export';
+		const parsed = parseModuleStatement(kind, remaining);
 		if (!parsed) {
-			match = keyword.exec(source);
+			index += keyword[0].length;
 			continue;
 		}
 		const { consumed, ...statement } = parsed;
-		statements.push({ ...statement, kind, index: start });
-		keyword.lastIndex = start + consumed;
-		match = keyword.exec(source);
+		statements.push({ ...statement, kind, index });
+		index += consumed;
 	}
 	return statements;
 }
@@ -227,6 +255,18 @@ function parseModuleStatement(
 	const typeOnly = /^(type\s+)(?!as\b)/.test(text.slice(cursor));
 	if (typeOnly) {
 		cursor += text.slice(cursor).match(/^type\s+/)?.[0].length ?? 0;
+	}
+
+	const sideEffect = text.slice(cursor).match(/^(['"])([^'"]+)\1\s*;?/);
+	if (kind === 'import' && sideEffect) {
+		return {
+			typeOnly,
+			hasDefault: false,
+			hasNamespace: false,
+			names: [],
+			source: sideEffect[2] ?? '',
+			consumed: cursor + sideEffect[0].length,
+		};
 	}
 
 	const fromMatch = findFromClause(text.slice(cursor));
@@ -260,8 +300,23 @@ function findFromClause(
 	text: string,
 ): { bindingsEnd: number; source: string; consumed: number } | null {
 	let depth = 0;
+	let quote: "'" | '"' | '`' | null = null;
 	for (let index = 0; index < text.length; index += 1) {
-		const character = text[index];
+		const character = text[index] ?? '';
+		if (quote) {
+			if (character === '\\' && quote !== '`') {
+				index += 1;
+				continue;
+			}
+			if (character === quote) {
+				quote = null;
+			}
+			continue;
+		}
+		if (character === "'" || character === '"' || character === '`') {
+			quote = character;
+			continue;
+		}
 		if (character === '{' || character === '(') {
 			depth += 1;
 			continue;
@@ -269,6 +324,9 @@ function findFromClause(
 		if (character === '}' || character === ')') {
 			depth = Math.max(0, depth - 1);
 			continue;
+		}
+		if (depth === 0 && character === ';') {
+			return null;
 		}
 		if (depth !== 0 || !text.startsWith('from', index) || /\S/.test(text[index - 1] ?? ' ')) {
 			continue;
@@ -384,7 +442,45 @@ function blankQuoted(source: string): string {
 	let quote: "'" | '"' | '`' | null = null;
 	while (index < source.length) {
 		const character = source[index] ?? '';
+		const next = source[index + 1] ?? '';
 		if (quote) {
+			if (quote === '`' && character === '$' && next === '{') {
+				output += '${';
+				index += 2;
+				let depth = 1;
+				let innerQuote: "'" | '"' | '`' | null = null;
+				while (index < source.length && depth > 0) {
+					const inner = source[index] ?? '';
+					const innerNext = source[index + 1] ?? '';
+					if (innerQuote) {
+						output += inner;
+						if (inner === '\\' && innerQuote !== '`') {
+							output += innerNext;
+							index += 2;
+							continue;
+						}
+						if (inner === innerQuote) {
+							innerQuote = null;
+						}
+						index += 1;
+						continue;
+					}
+					if (inner === "'" || inner === '"' || inner === '`') {
+						innerQuote = inner;
+						output += inner;
+						index += 1;
+						continue;
+					}
+					if (inner === '{') {
+						depth += 1;
+					} else if (inner === '}') {
+						depth -= 1;
+					}
+					output += inner;
+					index += 1;
+				}
+				continue;
+			}
 			if (character === '\\' && quote !== '`') {
 				output += '  ';
 				index += 2;

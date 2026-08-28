@@ -118,7 +118,7 @@ function typescriptImportHits(): string[] {
 describe('frontend toolchain layout', () => {
 	it('keeps TypeScript 7 in @typescript/native and the 6.x require() shim in the typescript slot', () => {
 		const pkg = readPackageManifest();
-		expect(pkg.devDependencies['@typescript/native']).toMatch(/^npm:typescript@/);
+		expect(pkg.devDependencies['@typescript/native']).toMatch(/^npm:typescript@7\./);
 		expect(pkg.devDependencies.typescript).toMatch(/^npm:@typescript\/typescript6@/);
 		expect(pkg.scripts['check:svelte']).toContain('--tsgo');
 	});
@@ -132,6 +132,8 @@ describe('frontend toolchain layout', () => {
 		);
 		expect(ciYml).toContain(`bun-version: ${bunVersion}`);
 		expect(setupScript).toContain(`required_bun_version="${bunVersion}"`);
+		expect(setupScript).toContain(`BUN_VERSION="\${required_bun_version}"`);
+		expect(setupScript).toContain('error: need Bun');
 	});
 
 	it('does not import the typescript package from ABB src/ or scripts/', () => {

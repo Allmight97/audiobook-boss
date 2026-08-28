@@ -77,25 +77,27 @@ ensure_rust_toolchain() {
 }
 
 ensure_bun() {
-	if have bun; then
-		log "Using existing Bun $(bun --version)"
-		if [ "$(bun --version)" != "${required_bun_version}" ]; then
-			warn "repo packageManager pins Bun ${required_bun_version}; prefer setting that version in Codex environment settings"
-		fi
+	if have bun && [ "$(bun --version)" = "${required_bun_version}" ]; then
+		log "Using Bun ${required_bun_version}"
 		return
 	fi
 
 	if ! have curl; then
-		warn "curl not found; cannot install Bun automatically"
-		return
+		printf 'error: need Bun %s (found %s) and curl is missing\n' \
+			"${required_bun_version}" \
+			"$(bun --version 2>/dev/null || printf 'missing')" >&2
+		exit 1
 	fi
 
-	log "Installing Bun for frontend dependency setup"
-	curl -fsSL https://bun.sh/install | bash
+	log "Installing Bun ${required_bun_version}"
+	curl -fsSL https://bun.sh/install | BUN_VERSION="${required_bun_version}" bash
 	export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 	export PATH="${BUN_INSTALL}/bin:${PATH}"
-	if have bun && [ "$(bun --version)" != "${required_bun_version}" ]; then
-		warn "installed Bun $(bun --version); repo packageManager pins ${required_bun_version}"
+	if ! have bun || [ "$(bun --version)" != "${required_bun_version}" ]; then
+		printf 'error: need Bun %s; found %s\n' \
+			"${required_bun_version}" \
+			"$(bun --version 2>/dev/null || printf 'missing')" >&2
+		exit 1
 	fi
 }
 
