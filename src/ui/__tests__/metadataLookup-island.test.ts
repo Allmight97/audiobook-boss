@@ -13,7 +13,7 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state', () => ({
 	getCurrentFileList: () => ({ files: [] }),
 	getSelectedFileIndices: () => new Set<number>(),
 	isOrderLocked: vi.fn(() => false),

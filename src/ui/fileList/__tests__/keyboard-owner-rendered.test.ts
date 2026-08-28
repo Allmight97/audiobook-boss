@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 import FileListIsland from '../FileListIsland.svelte';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../state.svelte';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../state';
 
 const context = vi.hoisted(() => ({
 	clearAllFilesMock: vi.fn(),

@@ -15,7 +15,7 @@ import {
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../state.svelte';
+} from '../state';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 
 const makeFileList = (count: number): FileListInfo => {

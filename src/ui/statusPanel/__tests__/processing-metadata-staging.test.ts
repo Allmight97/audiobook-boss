@@ -47,7 +47,7 @@ vi.mock('../../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../fileList/state.svelte', () => ({
+vi.mock('../../fileList/state', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndex: context.getSelectedFileIndexMock,
 	getSelectedFileIndices: context.getSelectedFileIndicesMock,

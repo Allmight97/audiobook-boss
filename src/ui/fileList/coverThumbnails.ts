@@ -4,6 +4,8 @@ import {
 	type BoundedGenerationQueue,
 } from '../../lib/media/boundedGenerationQueue';
 import { tauriClient } from '../../lib/tauri/client';
+import { Atom } from '../../lib/effect/appEffect';
+import { fileListAtomRegistry } from './state';
 
 export const FILE_LIST_COVER_THUMBNAIL_CONCURRENCY = 2;
 export const MAX_FILE_LIST_COVER_THUMBNAIL_CACHE_ENTRIES = 64;
@@ -18,24 +20,48 @@ export type FileListCoverThumbnailLoader = (
 	path: string,
 ) => Promise<ReadonlyArray<number> | null | undefined>;
 
-const thumbnailByPath = $state<Record<string, FileListCoverThumbnailState>>({});
+export const fileListCoverThumbnailAtom = Atom.make<Record<string, FileListCoverThumbnailState>>(
+	{},
+).pipe(Atom.keepAlive);
+
 const inflightByPath = new Map<string, Promise<ReadonlyArray<number> | null | undefined>>();
 const cacheOrder: string[] = [];
 const thumbnailQueue: BoundedGenerationQueue = createBoundedGenerationQueue(
 	FILE_LIST_COVER_THUMBNAIL_CONCURRENCY,
 );
+
+function readThumbnails(): Record<string, FileListCoverThumbnailState> {
+	return fileListAtomRegistry.get(fileListCoverThumbnailAtom);
+}
+
+function writeThumbnails(next: Record<string, FileListCoverThumbnailState>): void {
+	fileListAtomRegistry.set(fileListCoverThumbnailAtom, next);
+}
+
+function writeThumbnail(path: string, state: FileListCoverThumbnailState | undefined): void {
+	const current = readThumbnails();
+	if (state === undefined) {
+		if (!(path in current)) return;
+		const next = { ...current };
+		delete next[path];
+		writeThumbnails(next);
+		return;
+	}
+	writeThumbnails({ ...current, [path]: state });
+}
+
 function defaultLoader(path: string): Promise<ReadonlyArray<number> | null | undefined> {
 	return tauriClient.readAudioCoverThumbnail(path);
 }
 
 export function clearFileListCoverThumbnails(): void {
 	thumbnailQueue.cancel();
-	for (const path of Object.keys(thumbnailByPath)) delete thumbnailByPath[path];
+	writeThumbnails({});
 	cacheOrder.length = 0;
 	inflightByPath.clear();
 }
 export function removeFileListCoverThumbnail(path: string): void {
-	delete thumbnailByPath[path];
+	writeThumbnail(path, undefined);
 	const cacheIndex = cacheOrder.indexOf(path);
 	if (cacheIndex >= 0) cacheOrder.splice(cacheIndex, 1);
 	inflightByPath.delete(path);
@@ -43,7 +69,7 @@ export function removeFileListCoverThumbnail(path: string): void {
 export function getFileListCoverThumbnailState(
 	path: string | null | undefined,
 ): FileListCoverThumbnailState {
-	const state = path ? thumbnailByPath[path] : undefined;
+	const state = path ? readThumbnails()[path] : undefined;
 	if (!path || !thumbnailQueue.isCurrent(path, thumbnailQueue.currentGeneration()))
 		return { status: 'idle' };
 	return state ?? { status: 'idle' };
@@ -54,25 +80,26 @@ export function scheduleFileListCoverThumbnails(
 ): void {
 	thumbnailQueue.schedule(paths, {
 		visibleKeysChanged: (visiblePaths) => {
-			for (const path of Object.keys(thumbnailByPath)) {
+			for (const path of Object.keys(readThumbnails())) {
 				if (visiblePaths.has(path)) continue;
-				const state = thumbnailByPath[path];
-				if (state.status === 'queued' || state.status === 'loading') delete thumbnailByPath[path];
+				const state = readThumbnails()[path];
+				if (state.status === 'queued' || state.status === 'loading')
+					writeThumbnail(path, undefined);
 			}
 		},
 		prepare: (path, generation) => {
-			const state = thumbnailByPath[path];
+			const state = readThumbnails()[path];
 			if (isTerminalThumbnailState(state)) {
 				touchCacheEntry(path);
 				return false;
 			}
 			const inflight = inflightByPath.get(path);
 			if (inflight) {
-				thumbnailByPath[path] = { status: 'loading' };
+				writeThumbnail(path, { status: 'loading' });
 				attachInflightCompletion(path, inflight, generation);
 				return false;
 			}
-			thumbnailByPath[path] = { status: 'queued' };
+			writeThumbnail(path, { status: 'queued' });
 			return true;
 		},
 		start: (path, generation, complete) =>
@@ -85,7 +112,7 @@ function startThumbnailFetch(
 	generation: number,
 	onComplete: () => void,
 ): Promise<ReadonlyArray<number> | null | undefined> {
-	thumbnailByPath[path] = { status: 'loading' };
+	writeThumbnail(path, { status: 'loading' });
 	let promise!: Promise<ReadonlyArray<number> | null | undefined>;
 	const load = loadThumbnail(path);
 	promise = load
@@ -96,7 +123,7 @@ function startThumbnailFetch(
 		.catch((error) => {
 			if (thumbnailQueue.isCurrent(path, generation)) {
 				console.warn('Failed to load file-list cover thumbnail:', error);
-				thumbnailByPath[path] = { status: 'error' };
+				writeThumbnail(path, { status: 'error' });
 				touchCacheEntry(path);
 				pruneThumbnailCache();
 			}
@@ -121,16 +148,19 @@ function attachInflightCompletion(
 		.catch((error) => {
 			if (thumbnailQueue.isCurrent(path, generation)) {
 				console.warn('Failed to load file-list cover thumbnail:', error);
-				thumbnailByPath[path] = { status: 'error' };
+				writeThumbnail(path, { status: 'error' });
 				touchCacheEntry(path);
 				pruneThumbnailCache();
 			}
 		});
 }
 function commitThumbnail(path: string, bytes: ReadonlyArray<number> | null | undefined): void {
-	thumbnailByPath[path] = bytes
-		? { status: 'ready', dataUrl: coverArtBytesToDataUrl(Array.from(bytes)) }
-		: { status: 'absent' };
+	writeThumbnail(
+		path,
+		bytes
+			? { status: 'ready', dataUrl: coverArtBytesToDataUrl(Array.from(bytes)) }
+			: { status: 'absent' },
+	);
 	touchCacheEntry(path);
 	pruneThumbnailCache();
 }
@@ -147,6 +177,6 @@ function touchCacheEntry(path: string): void {
 function pruneThumbnailCache(): void {
 	while (cacheOrder.length > MAX_FILE_LIST_COVER_THUMBNAIL_CACHE_ENTRIES) {
 		const path = cacheOrder.shift();
-		if (path) delete thumbnailByPath[path];
+		if (path) writeThumbnail(path, undefined);
 	}
 }

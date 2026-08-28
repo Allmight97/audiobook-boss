@@ -10,7 +10,7 @@ import {
 	toggleFileSort,
 } from '../actions';
 import { persistPendingMetadataDraftsForCurrentSelection } from '../metadataStaging';
-import { inspectorState } from '../inspectorState.svelte';
+import { inspectorState } from '../inspectorState';
 import { showSingleSelection } from '../metadataPanel';
 import {
 	getCurrentFileList,
@@ -21,7 +21,7 @@ import {
 	setSelectedFileIndices,
 	setSelectedIndex,
 	setSortAscending,
-} from '../state.svelte';
+} from '../state';
 const context = vi.hoisted(() => ({
 	readAudioMetadataMock: vi.fn(),
 	getMetadataForFileMock: vi.fn(),

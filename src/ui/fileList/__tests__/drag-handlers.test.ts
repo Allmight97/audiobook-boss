@@ -12,7 +12,7 @@ vi.mock('svelte/store', () => ({
 	get: () => false,
 }));
 
-vi.mock('../state.svelte', () => ({
+vi.mock('../state', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	isOrderLocked: context.isOrderLockedMock,
 }));

@@ -5,7 +5,7 @@ import {
 	getSelectedFileIndex,
 	getSelectedFileIndices,
 	isOrderLocked,
-} from './state.svelte';
+} from './state';
 import { metadataSaveInProgress } from '../metadataSession';
 import {
 	fileListNavigationCommandFromKey,

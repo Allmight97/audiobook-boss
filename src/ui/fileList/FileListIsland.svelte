@@ -10,12 +10,13 @@
 		onFileListMoveUp,
 		onFileListRemove,
 	} from './events';
-	import { getCurrentFileList } from './state.svelte';
+	import { fileListAtomRegistry, fileListSessionAtom, getCurrentFileList } from './state';
 	import {
 		clearFileListCoverThumbnails,
+		fileListCoverThumbnailAtom,
 		getFileListCoverThumbnailState,
 		scheduleFileListCoverThumbnails,
-	} from './coverThumbnails.svelte';
+	} from './coverThumbnails';
 	import {
 		readFileListControlsSnapshot,
 		displayedArtistForFile,
@@ -26,8 +27,19 @@
 		readFileListSortLabel,
 		readFileListSortState,
 		readFileListViewFiles,
-	} from './viewState.svelte';
+	} from './viewState';
 	import { hasSupplementalAssetsForInputId } from '../remoteSource';
+
+	const fileListSessionStore = {
+		subscribe(run: (value: unknown) => void) {
+			return fileListAtomRegistry.subscribe(fileListSessionAtom, run, { immediate: true });
+		},
+	};
+	const coverThumbnailStore = {
+		subscribe(run: (value: unknown) => void) {
+			return fileListAtomRegistry.subscribe(fileListCoverThumbnailAtom, run, { immediate: true });
+		},
+	};
 
 	interface Props {
 		isDragOver?: boolean;
@@ -50,14 +62,46 @@
 	let hoveredIndex = $state<number | null>(null);
 	let hoveredEdge = $state<'top' | 'bottom' | null>(null);
 
-	const files = $derived(readFileListViewFiles());
-	const selectedIndices = $derived(readFileListSelectedIndices());
-	const sortLabel = $derived(readFileListSortLabel());
-	const sortState = $derived(readFileListSortState());
-	const orderDiffersFromImport = $derived(readFileListOrderDiffersFromImport());
-	const controls = $derived(readFileListControlsSnapshot());
-	const orderLockVisible = $derived(readFileListOrderLockVisible());
-	const hasFiles = $derived((getCurrentFileList()?.files.length ?? 0) > 0);
+	const session = $fileListSessionStore;
+	const coverThumbnails = $coverThumbnailStore;
+
+	const files = $derived.by(() => {
+		session;
+		return readFileListViewFiles();
+	});
+	const selectedIndices = $derived.by(() => {
+		session;
+		return readFileListSelectedIndices();
+	});
+	const sortLabel = $derived.by(() => {
+		session;
+		return readFileListSortLabel();
+	});
+	const sortState = $derived.by(() => {
+		session;
+		return readFileListSortState();
+	});
+	const orderDiffersFromImport = $derived.by(() => {
+		session;
+		return readFileListOrderDiffersFromImport();
+	});
+	const controls = $derived.by(() => {
+		session;
+		return readFileListControlsSnapshot();
+	});
+	const orderLockVisible = $derived.by(() => {
+		session;
+		return readFileListOrderLockVisible();
+	});
+	const hasFiles = $derived.by(() => {
+		session;
+		return (getCurrentFileList()?.files.length ?? 0) > 0;
+	});
+
+	function coverThumbnail(path: string) {
+		coverThumbnails;
+		return getFileListCoverThumbnailState(path);
+	}
 
 	const reorderHandlers = createFileListPointerReorder((state) => {
 		draggedIndex = state.draggedIndex;
@@ -479,7 +523,7 @@
 		onkeydown={onFileListKeyDown}
 	>
 		{#each files as file, index (file.inputId ?? file.path)}
-			{@const thumbnail = getFileListCoverThumbnailState(file.path)}
+			{@const thumbnail = coverThumbnail(file.path)}
 			<div
 				data-file-index={index}
 				class="file-list-item {file.isValid ? 'valid' : 'invalid'}"

@@ -288,7 +288,7 @@ describe('ProcessingWorkflow', () => {
 
 	it('uses natural filename sort as the submitted processing order', async () => {
 		const { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } = await import(
-			'../../fileList/state.svelte'
+			'../../fileList/state'
 		);
 		const { toggleFileSort } = await import('../../fileList/actions');
 		const { getCurrentFileList: readRealFileList } = await import('../../fileList');

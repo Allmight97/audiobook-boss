@@ -17,7 +17,7 @@ import {
 import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { getSelectedFiles } from './metadataPanel';
-import { getCurrentFileList } from './state.svelte';
+import { getCurrentFileList } from './state';
 
 function refreshOutputForMetadataChange(): void {
 	updateOutputPath('final');

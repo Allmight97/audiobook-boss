@@ -11,14 +11,18 @@ Use `AppEffect` for frontend workflow owners that coordinate async work,
 dependencies, typed failures, cleanup, cancellation/lifetime handoff, or
 multi-service orchestration.
 
-Keep Effect private to workflow owners:
+Keep Effect private to workflow owners and the File List Atom spike:
 
 - Only `src/lib/effect/appEffect.ts` imports the `effect` package. Owners and
-  tests import `Effect`, `Context`, `Data`, and `Layer` from that file. Proof:
+  tests import `Effect`, `Context`, `Data`, `Layer`, `Atom`, and `AtomRegistry`
+  from that file. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`. The tripwire
   lives in scripts so the frontend `tsconfig` stays Vite/Svelte types. It
   matches `from 'effect'` and `from 'effect/...'` so ordinary multiline named
   imports count; do not require the binding list to sit on one line.
+  `Atom` / `AtomRegistry` are re-exported from the same kernel for File List
+  UI state (#464 spike). Do not import `effect` or `effect/unstable/*` from
+  islands.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
 - Workflow owners expose a local service interface, service tag, live layer

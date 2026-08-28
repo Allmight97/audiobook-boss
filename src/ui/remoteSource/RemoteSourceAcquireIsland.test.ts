@@ -39,7 +39,7 @@ vi.mock('../fileImport/handlers', () => ({
 	handleImportedAudioPaths: context.handleImportedAudioPathsMock,
 }));
 
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 }));
 

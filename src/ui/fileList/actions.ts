@@ -3,7 +3,6 @@ import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { clearMetadataSession, removeMetadataForFile } from '../metadataSession';
 import {
-	fileListSessionState,
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,
@@ -23,7 +22,8 @@ import {
 	findFileIndexByIdentityKey,
 	fileIdentityKey,
 	replaceFileListFiles,
-} from './state.svelte';
+	updateFileListSession,
+} from './state';
 import {
 	clearSelection,
 	handleSelection,
@@ -58,7 +58,7 @@ import {
 	clearFileListCoverThumbnails,
 	removeFileListCoverThumbnail,
 	scheduleFileListCoverThumbnails,
-} from './coverThumbnails.svelte';
+} from './coverThumbnails';
 
 function refreshOutputForFileListChange(): void {
 	updateEstimatedSize();
@@ -289,11 +289,17 @@ export function recalculateTotals(): void {
 	const validFiles = fileList.files.filter((file) => file.isValid && file.duration && file.size);
 	const totalDuration = validFiles.reduce((sum, file) => sum + (file.duration || 0), 0);
 	const totalSize = validFiles.reduce((sum, file) => sum + (file.size || 0), 0);
-	fileListSessionState.currentFileList = {
-		...fileList,
-		totalDuration,
-		totalSize,
-	};
+	updateFileListSession((session) => {
+		if (!session.currentFileList) return session;
+		return {
+			...session,
+			currentFileList: {
+				...session.currentFileList,
+				totalDuration,
+				totalSize,
+			},
+		};
+	});
 }
 
 /** Prepare may await; list/lock drift is revalidated before and after the

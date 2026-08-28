@@ -14,16 +14,18 @@
 - Authoritative runtime export surface = `index.ts`, pinned by
   `__tests__/runtime-api-contract.test.ts`. Treat that test as the source of
   truth instead of a hand-listed export set here.
-- Do **not** export `fileListSessionState`, selection internals, or event
+- Do **not** export `fileListSessionAtom`, selection internals, or event
   handlers from the index. Cross-module reads use `readX()` accessors from
-  `viewState.svelte.ts` inside component `$derived(...)`.
+  `viewState.ts`. Painting islands bind File List atoms with a handmade Svelte
+  store-contract adapter (`subscribe` + `$store`); there is no atom-svelte
+  package.
 
 ## Private Cluster
 
-- Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
-  `viewState.svelte.ts`, `events.ts`, `selection.ts`,
+- Files: `FileListIsland.svelte`, `actions.ts`, `state.ts`,
+  `viewState.ts`, `events.ts`, `selection.ts`,
   `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
-  `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+  `inspectorState.ts`, `coverThumbnails.ts`, `keyboardNavigation.ts`, `__tests__/`.
 
 ## Preferred Path
 

@@ -7,7 +7,7 @@ import {
 	clearSelectedIndices,
 	removeFromSelectedIndices,
 	setSelectedFileIndices,
-} from './state.svelte';
+} from './state';
 
 type SelectionModifiers = { multi: boolean; range: boolean };
 

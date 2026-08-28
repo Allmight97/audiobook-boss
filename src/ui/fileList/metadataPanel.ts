@@ -27,14 +27,14 @@ import {
 	resetInspectorState,
 	setInspectorContext,
 	setInspectorValues,
-} from './inspectorState.svelte';
+} from './inspectorState';
 import { companionSummaryForInputIds } from '../remoteSource';
 import {
 	getCurrentFileList,
 	getSelectedFileIndices,
 	getSelectedFileIndex,
 	getSelectedFiles,
-} from './state.svelte';
+} from './state';
 
 let latestSingleSelectionRequestId = 0;
 let latestAutoCoverRequestId = 0;
@@ -357,4 +357,4 @@ export async function autoUpdateCoverArtFromFirstValidFile(): Promise<void> {
 	}
 }
 
-export { getSelectedFiles } from './state.svelte';
+export { getSelectedFiles } from './state';

@@ -11,7 +11,7 @@ import {
 	getSelectedFileIndices,
 	getSortDirection,
 	isOrderLocked,
-} from './state.svelte';
+} from './state';
 
 export function readFileListViewFiles(): AudioFile[] {
 	const fileList = getCurrentFileList();

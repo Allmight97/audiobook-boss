@@ -1,4 +1,5 @@
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { Atom, AtomRegistry } from '../../lib/effect/appEffect';
 
 type FileListSessionState = {
 	currentFileList: FileListInfo | null;
@@ -12,13 +13,34 @@ export type FileListSortDirection = 'none' | 'ascending' | 'descending';
 
 type OrderLockListener = (locked: boolean) => void;
 
-export const fileListSessionState = $state<FileListSessionState>({
+const INITIAL_FILE_LIST_SESSION: FileListSessionState = {
 	currentFileList: null,
 	selectedFileIndex: -1,
 	selectedFileIndices: new Set<number>(),
 	sortDirection: 'none',
 	orderLocked: false,
-});
+};
+
+export const fileListAtomRegistry = AtomRegistry.make();
+
+export const fileListSessionAtom = Atom.make<FileListSessionState>({
+	...INITIAL_FILE_LIST_SESSION,
+	selectedFileIndices: new Set<number>(),
+}).pipe(Atom.keepAlive);
+
+function readSession(): FileListSessionState {
+	return fileListAtomRegistry.get(fileListSessionAtom);
+}
+
+function writeSession(next: FileListSessionState): void {
+	fileListAtomRegistry.set(fileListSessionAtom, next);
+}
+
+export function updateFileListSession(
+	update: (session: FileListSessionState) => FileListSessionState,
+): void {
+	fileListAtomRegistry.update(fileListSessionAtom, update);
+}
 
 const orderLockListeners = new Set<OrderLockListener>();
 
@@ -66,7 +88,7 @@ export function captureFileListMutationSnapshot(): FileListMutationSnapshot {
 export function canCommitFileListMutation(snapshot: FileListMutationSnapshot): boolean {
 	return (
 		fileListRevision === snapshot.revision &&
-		fileListSessionState.orderLocked === snapshot.orderLockExpected
+		readSession().orderLocked === snapshot.orderLockExpected
 	);
 }
 
@@ -83,38 +105,44 @@ export function replaceFileListFiles(nextFiles: AudioFile[]): void {
 	const fileList = getCurrentFileList();
 	if (!fileList) return;
 	const validCount = nextFiles.filter((file) => file.isValid).length;
-	fileListSessionState.currentFileList = {
-		...fileList,
-		files: nextFiles,
-		validCount,
-		invalidCount: nextFiles.length - validCount,
-	};
+	updateFileListSession((session) => ({
+		...session,
+		currentFileList: {
+			...fileList,
+			files: nextFiles,
+			validCount,
+			invalidCount: nextFiles.length - validCount,
+		},
+	}));
 	fileListRevision += 1;
 }
 
 export function setCurrentFileList(fileList: FileListInfo | null): void {
-	fileListSessionState.currentFileList = fileList;
+	writeSession({
+		...readSession(),
+		currentFileList: fileList,
+		selectedFileIndex: -1,
+		selectedFileIndices: new Set<number>(),
+		sortDirection: 'none',
+	});
 
-	fileListSessionState.selectedFileIndex = -1;
-	fileListSessionState.selectedFileIndices = new Set<number>();
-	fileListSessionState.sortDirection = 'none';
 	fileListRevision += 1;
 }
 
 export function setSelectedIndex(index: number): void {
-	fileListSessionState.selectedFileIndex = index;
+	updateFileListSession((session) => ({ ...session, selectedFileIndex: index }));
 }
 
 export function getCurrentFileList(): FileListInfo | null {
-	return fileListSessionState.currentFileList;
+	return readSession().currentFileList;
 }
 
 export function getSelectedFileIndex(): number {
-	return fileListSessionState.selectedFileIndex;
+	return readSession().selectedFileIndex;
 }
 
 export function getSelectedFileIndices(): Set<number> {
-	return new Set(fileListSessionState.selectedFileIndices);
+	return new Set(readSession().selectedFileIndices);
 }
 
 export function getSelectedFiles(): AudioFile[] {
@@ -128,53 +156,68 @@ export function getSelectedFiles(): AudioFile[] {
 }
 
 export function setSelectedFileIndices(indices: Set<number> | number[]): void {
-	fileListSessionState.selectedFileIndices = new Set(indices);
+	updateFileListSession((session) => ({
+		...session,
+		selectedFileIndices: new Set(indices),
+	}));
 }
 
 export function addToSelectedIndices(index: number): void {
-	fileListSessionState.selectedFileIndices = new Set(fileListSessionState.selectedFileIndices);
-	fileListSessionState.selectedFileIndices.add(index);
+	updateFileListSession((session) => {
+		const selectedFileIndices = new Set(session.selectedFileIndices);
+		selectedFileIndices.add(index);
+		return { ...session, selectedFileIndices };
+	});
 }
 
 export function removeFromSelectedIndices(index: number): void {
-	fileListSessionState.selectedFileIndices = new Set(fileListSessionState.selectedFileIndices);
-	fileListSessionState.selectedFileIndices.delete(index);
+	updateFileListSession((session) => {
+		const selectedFileIndices = new Set(session.selectedFileIndices);
+		selectedFileIndices.delete(index);
+		return { ...session, selectedFileIndices };
+	});
 }
 
 export function clearSelectedIndices(): void {
-	fileListSessionState.selectedFileIndices = new Set<number>();
+	updateFileListSession((session) => ({
+		...session,
+		selectedFileIndices: new Set<number>(),
+	}));
 }
 
 export function getSortDirection(): FileListSortDirection {
-	return fileListSessionState.sortDirection;
+	return readSession().sortDirection;
 }
 
 export function setSortDirection(direction: FileListSortDirection): void {
-	fileListSessionState.sortDirection = direction;
+	updateFileListSession((session) => ({ ...session, sortDirection: direction }));
 }
 
 /** Legacy test/helper aliases; UI state uses the explicit direction. */
 export function getSortAscending(): boolean {
-	return fileListSessionState.sortDirection !== 'descending';
+	return readSession().sortDirection !== 'descending';
 }
 
 export function setSortAscending(ascending: boolean): void {
-	fileListSessionState.sortDirection = ascending ? 'ascending' : 'descending';
+	updateFileListSession((session) => ({
+		...session,
+		sortDirection: ascending ? 'ascending' : 'descending',
+	}));
 }
 
 export function setOrderLocked(locked: boolean): void {
-	if (fileListSessionState.orderLocked === locked) {
+	if (readSession().orderLocked === locked) {
 		return;
 	}
 
-	fileListSessionState.orderLocked = locked;
+	updateFileListSession((session) => ({ ...session, orderLocked: locked }));
 	for (const listener of [...orderLockListeners]) {
 		listener(locked);
 	}
 }
 
 export function isOrderLocked(): boolean {
-	return fileListSessionState.orderLocked;
+	return readSession().orderLocked;
 }
 
 export function onOrderLockChange(listener: OrderLockListener): () => void {

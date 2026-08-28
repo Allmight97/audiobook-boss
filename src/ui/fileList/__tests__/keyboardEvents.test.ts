@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
-import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../state.svelte';
+import { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } from '../state';
 
 const context = vi.hoisted(() => ({
 	clearSelectionActionMock: vi.fn(),

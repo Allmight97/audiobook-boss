@@ -91,7 +91,7 @@ vi.mock('../../metadataForm', async (importOriginal) => {
 	};
 });
 
-vi.mock('../../fileList/state.svelte', () => ({
+vi.mock('../../fileList/state', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),

@@ -12,11 +12,11 @@ export {
 	getSelectedFiles,
 	isOrderLocked,
 	onOrderLockChange,
-} from './state.svelte';
+} from './state';
 
 export {
 	persistPendingMetadataDraftsForCurrentSelection,
 	stageMetadataToSelection,
 } from './metadataStaging';
 
-export { readCombinedSizeText } from './viewState.svelte';
+export { readCombinedSizeText } from './viewState';

@@ -1,8 +1,29 @@
 <script lang="ts">
 	import { readCombinedSizeText } from '../fileList';
-	import { inspectorState } from '../fileList/inspectorState.svelte';
+	import { fileListAtomRegistry, fileListSessionAtom } from '../fileList/state';
+	import { getInspectorState, inspectorAtom } from '../fileList/inspectorState';
 
-	const combinedSizeText = $derived(readCombinedSizeText());
+	const fileListSessionStore = {
+		subscribe(run: (value: unknown) => void) {
+			return fileListAtomRegistry.subscribe(fileListSessionAtom, run, { immediate: true });
+		},
+	};
+	const inspectorStore = {
+		subscribe(run: (value: unknown) => void) {
+			return fileListAtomRegistry.subscribe(inspectorAtom, run, { immediate: true });
+		},
+	};
+
+	const session = $fileListSessionStore;
+	const inspectorSnapshot = $inspectorStore;
+	const inspectorState = $derived.by(() => {
+		inspectorSnapshot;
+		return getInspectorState();
+	});
+	const combinedSizeText = $derived.by(() => {
+		session;
+		return readCombinedSizeText();
+	});
 </script>
 
 <section

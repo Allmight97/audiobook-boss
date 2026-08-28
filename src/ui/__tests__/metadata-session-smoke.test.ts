@@ -87,7 +87,7 @@ vi.mock('../tagPreview', () => ({
 
 // Keep the REAL fileList metadata staging chain, but pin its private state and
 // selection reads so the scenario stays deterministic.
-vi.mock('../fileList/state.svelte', () => ({
+vi.mock('../fileList/state', () => ({
 	getCurrentFileList: context.getCurrentFileListMock,
 	getSelectedFileIndices: vi.fn(() => new Set<number>()),
 	getSortAscending: vi.fn(() => true),

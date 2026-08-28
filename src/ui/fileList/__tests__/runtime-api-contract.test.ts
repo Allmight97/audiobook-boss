@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import * as fileList from '..';
-import { setCurrentFileList } from '../state.svelte';
+import { setCurrentFileList } from '../state';
 
 const EXPECTED_FILE_LIST_EXPORTS = [
 	'FileListIsland',

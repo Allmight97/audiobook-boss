@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../../types/audio';
 import { removeFile, reorderFiles } from '../actions';
-import { setCurrentFileList } from '../state.svelte';
+import { setCurrentFileList } from '../state';
 import {
 	displayedArtistForFile,
 	displayedTitleForFile,
 	readFileListSelectedIndices,
 	readFileListViewFiles,
-} from '../viewState.svelte';
+} from '../viewState';
 import {
 	cacheMetadataForFile,
 	clearMetadataSession,

@@ -10,7 +10,7 @@ import {
 	setCurrentFileList,
 	setSelectedFileIndices,
 	setSelectedIndex,
-} from '../fileList/state.svelte';
+} from '../fileList/state';
 import { jobControlsState } from '../jobControls/state.svelte';
 
 type Deferred<T> = {

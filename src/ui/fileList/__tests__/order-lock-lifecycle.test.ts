@@ -6,8 +6,8 @@ import {
 	onOrderLockChange,
 	setCurrentFileList,
 	setOrderLocked,
-} from '../state.svelte';
-import { readFileListControlsSnapshot, readFileListOrderLockVisible } from '../viewState.svelte';
+} from '../state';
+import { readFileListControlsSnapshot, readFileListOrderLockVisible } from '../viewState';
 
 // Mock modules that actions.ts imports but aren't relevant to lock behavior
 vi.mock('../../metadataForm', () => ({
