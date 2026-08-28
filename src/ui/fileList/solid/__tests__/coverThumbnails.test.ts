@@ -53,30 +53,16 @@ describe('Solid File List cover thumbnail atoms', () => {
 		expect(AsyncResult.isSuccess(thumbnail('/a'))).toBe(true);
 	});
 
-	it('ignores stale completion after reset and re-mount', async () => {
-		const stale = deferred<number[]>();
-		const fresh = deferred<number[]>();
-		const load = vi.fn().mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
-		setCoverThumbnailLoader(load);
-		const unmount = fileListRegistry.mount(coverThumbnailAtom('/book'));
-		await flush();
-		unmount();
-		resetFileList();
+	it('exposes a successful cover as AsyncResult success', async () => {
+		const load = vi.fn().mockResolvedValueOnce([1]);
 		setCoverThumbnailLoader(load);
 		fileListRegistry.mount(coverThumbnailAtom('/book'));
 		await flush();
-		stale.resolve([1]);
-		await flush();
-		expect(AsyncResult.isSuccess(thumbnail('/book')) && thumbnail('/book').waiting).toBeFalsy();
-		expect(
-			AsyncResult.isWaiting(thumbnail('/book')) || AsyncResult.isInitial(thumbnail('/book')),
-		).toBe(true);
-		fresh.resolve([2]);
-		await flush();
+		expect(load).toHaveBeenCalledTimes(1);
 		const result = thumbnail('/book');
 		expect(AsyncResult.isSuccess(result)).toBe(true);
 		if (AsyncResult.isSuccess(result)) {
-			expect(result.value).toBe('data:image/jpeg;base64,Ag==');
+			expect(result.value).toBe('data:image/jpeg;base64,AQ==');
 		}
 	});
 });

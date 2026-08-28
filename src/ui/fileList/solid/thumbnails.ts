@@ -10,38 +10,42 @@ export type CoverThumbnailLoader = (
 	signal: AbortSignal,
 ) => Promise<ReadonlyArray<number> | null | undefined>;
 
+type CoverThumbnailLoaderState = { readonly load: CoverThumbnailLoader };
+
 const defaultLoader: CoverThumbnailLoader = async (path) =>
 	tauriClient.readAudioCoverThumbnail(path);
 
-export const coverThumbnailLoaderAtom = Atom.make<CoverThumbnailLoader>(defaultLoader).pipe(
+const INITIAL_LOADER: CoverThumbnailLoaderState = { load: defaultLoader };
+
+export const coverThumbnailLoaderAtom = Atom.make<CoverThumbnailLoaderState>(INITIAL_LOADER).pipe(
 	Atom.keepAlive,
 );
 
 let activeCount = 0;
 const waiters: Array<() => void> = [];
 
-function acquireSlot(): Effect.Effect<void> {
-	return Effect.suspend(() => {
-		if (activeCount < FILE_LIST_COVER_THUMBNAIL_CONCURRENCY) {
+function acquireSlot(signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const abort = (): void => {
+			const index = waiters.indexOf(start);
+			if (index >= 0) waiters.splice(index, 1);
+			reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+		};
+		const start = (): void => {
+			signal.removeEventListener('abort', abort);
 			activeCount += 1;
-			return Effect.succeed(undefined);
+			resolve();
+		};
+		if (signal.aborted) {
+			abort();
+			return;
 		}
-		return Effect.callback<void>((resume, signal) => {
-			const wake = (): void => {
-				if (signal.aborted) return;
-				activeCount += 1;
-				resume(Effect.succeed(undefined));
-			};
-			waiters.push(wake);
-			signal.addEventListener(
-				'abort',
-				() => {
-					const index = waiters.indexOf(wake);
-					if (index >= 0) waiters.splice(index, 1);
-				},
-				{ once: true },
-			);
-		});
+		signal.addEventListener('abort', abort, { once: true });
+		if (activeCount < FILE_LIST_COVER_THUMBNAIL_CONCURRENCY) {
+			start();
+			return;
+		}
+		waiters.push(start);
 	});
 }
 
@@ -52,26 +56,32 @@ function releaseSlot(): void {
 }
 
 export function setCoverThumbnailLoader(loader: CoverThumbnailLoader): void {
-	fileListRegistry.set(coverThumbnailLoaderAtom, loader);
+	fileListRegistry.set(coverThumbnailLoaderAtom, { load: loader });
 }
 
 export function resetCoverThumbnailRuntime(): void {
 	activeCount = 0;
 	waiters.length = 0;
-	fileListRegistry.set(coverThumbnailLoaderAtom, defaultLoader);
+	fileListRegistry.set(coverThumbnailLoaderAtom, INITIAL_LOADER);
 }
 
 export const coverThumbnailAtom = Atom.family((path: string) =>
-	Atom.make((get) => {
-		const loader = get(coverThumbnailLoaderAtom);
-		return Effect.acquireRelease(acquireSlot(), () => Effect.sync(releaseSlot)).pipe(
-			Effect.flatMap(() =>
-				Effect.tryPromise({
-					try: (signal) => loader(path, signal),
-					catch: (cause) => cause,
-				}),
-			),
-			Effect.map((bytes) => (bytes ? coverArtBytesToDataUrl(Array.from(bytes)) : null)),
-		);
-	}),
+	Atom.make(() =>
+		Effect.tryPromise({
+			try: async (signal) => {
+				const loader = fileListRegistry.get(coverThumbnailLoaderAtom).load;
+				await acquireSlot(signal);
+				try {
+					const bytes = await loader(path, signal);
+					if (signal.aborted) {
+						throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+					}
+					return bytes ? coverArtBytesToDataUrl(Array.from(bytes)) : null;
+				} finally {
+					releaseSlot();
+				}
+			},
+			catch: (cause) => cause,
+		}),
+	),
 );
