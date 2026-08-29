@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
 import { StatusPanelRuntime } from '../runtime';
+import { SINGLE_COMPLETION_HOLD_MS } from '../domain/stateMachine';
 import { resetStatusPanelViewState, getStatusView } from '../view';
 
 function setupDom() {
@@ -36,6 +37,10 @@ describe('StatusPanel queue snapshot', () => {
 	beforeEach(() => {
 		setupDom();
 		resetStatusPanelViewState();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('initializes queued items in order', () => {
@@ -106,5 +111,41 @@ describe('StatusPanel queue snapshot', () => {
 		});
 		expect(status).not.toHaveProperty('currentFile');
 		expect(status).not.toHaveProperty('etaSeconds');
+	});
+
+	it('does not resurrect a locally cancelled run when a late queue snapshot arrives', () => {
+		vi.useFakeTimers();
+		const controller = new StatusPanelRuntime();
+		controller.applyProgress({
+			operation_kind: 'processingBatch',
+			input_index: 0,
+			job_id: 'job-0',
+			stage: 'converting',
+			percentage: 25,
+			message: 'Converting',
+		});
+		controller.requestCancelAll();
+
+		expect(getStatusView().jobItems.map((item) => item.status)).toEqual(['cancelled']);
+		expect(getStatusView().statusText).toBe('Cancelled');
+
+		controller.applyQueueSnapshot({
+			operation_kind: 'processingBatch',
+			items: [
+				{ input_index: 0, file_path: '/books/a.m4b' },
+				{ input_index: 1, file_path: '/books/b.m4b' },
+			],
+			max_concurrent: 2,
+		});
+
+		expect(getStatusView().jobItems.map((item) => item.status)).toEqual(['cancelled']);
+		expect(getStatusView().jobItems).toHaveLength(1);
+		expect(getStatusView().statusText).toBe('Cancelled');
+
+		vi.advanceTimersByTime(SINGLE_COMPLETION_HOLD_MS);
+
+		expect(getStatusView().jobItems).toEqual([]);
+		expect(getStatusView().isProcessing).toBe(false);
+		expect(getStatusView().statusText).toBe('Idle');
 	});
 });

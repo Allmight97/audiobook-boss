@@ -82,6 +82,7 @@ export class StatusPanelRuntime {
 					this.model = {
 						...this.model,
 						isProcessing,
+						...(isProcessing ? { cancellationLatched: false } : {}),
 					};
 				},
 				updateArtThumbnail: () => this.coverArt.syncForCurrentList(),
@@ -113,10 +114,13 @@ export class StatusPanelRuntime {
 	}
 
 	public applyQueueSnapshot(event: ProcessingQueueEvent): void {
+		const transition = applyQueueSnapshot(this.model, event, Date.now());
+		if (transition.model === this.model && transition.intents.length === 0) {
+			return;
+		}
 		this.clearBatchCompletionTimeout();
 		this.clearSingleCompletionTimeout();
 
-		const transition = applyQueueSnapshot(this.model, event, Date.now());
 		this.model = transition.model;
 		this.renderModel();
 	}

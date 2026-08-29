@@ -480,6 +480,41 @@ describe('statusPanel state machine', () => {
 		expect(lateProgress.model.jobProgress.get('idx:0')?.status).toBe('cancelled');
 	});
 
+	it('ignores late queue snapshots after local cancellation is latched', () => {
+		let result = applyProgress(
+			createStatusPanelModel(),
+			{
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				job_id: 'job-0',
+				stage: 'converting',
+				percentage: 25,
+				message: 'Converting',
+			},
+			1_000,
+		);
+		result = applyCancellation(result.model, 1_100);
+
+		const lateQueue = applyQueueSnapshot(
+			result.model,
+			{
+				operation_kind: 'processingBatch',
+				items: [
+					{ input_index: 0, file_path: '/books/a.m4b' },
+					{ input_index: 1, file_path: '/books/b.m4b' },
+				],
+				max_concurrent: 2,
+			},
+			1_200,
+		);
+
+		expect(lateQueue.model).toBe(result.model);
+		expect(lateQueue.intents).toEqual([]);
+		expect(lateQueue.model.currentStatus.stage).toBe('cancelled');
+		expect(lateQueue.model.jobProgress.get('idx:0')?.status).toBe('cancelled');
+		expect(lateQueue.model.jobProgress.has('idx:1')).toBe(false);
+	});
+
 	it('repairs rows from command results for skipped, cancelled, and failed terminal statuses', () => {
 		const snapshot: ProcessingQueueEvent = {
 			operation_kind: 'processingBatch',

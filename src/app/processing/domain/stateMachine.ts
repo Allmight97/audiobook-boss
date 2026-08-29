@@ -85,6 +85,10 @@ export function applyQueueSnapshot(
 	event: ProcessingQueueEvent,
 	now: number,
 ): StatusPanelReducerResult {
+	if (model.cancellationLatched) {
+		return { model, intents: [] };
+	}
+
 	const queueSnapshot = buildQueueSnapshotState(event.items, now);
 	const next: StatusPanelModel = {
 		jobProgress: new Map(queueSnapshot.jobProgress),
