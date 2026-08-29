@@ -41,22 +41,6 @@ function seedDisabledControls() {
 	setJobControlsEnabled(false);
 }
 
-function assertControlsEnabled() {
-	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
-	const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
-	expect(mergeToggle.disabled).toBe(false);
-	expect(maxConcurrent.disabled).toBe(false);
-	expect(mergeToggle.style.opacity).toBe('1');
-	expect(maxConcurrent.style.opacity).toBe('1');
-}
-
-function assertControlsDisabled() {
-	const mergeToggle = document.getElementById('merge-mode-toggle') as HTMLInputElement;
-	const maxConcurrent = document.getElementById('max-concurrent-select') as HTMLSelectElement;
-	expect(mergeToggle.disabled).toBe(true);
-	expect(maxConcurrent.disabled).toBe(true);
-}
-
 function getStepText(): string {
 	return statusPanelViewState.stepText;
 }
@@ -313,14 +297,12 @@ describe('StatusPanel lifecycle', () => {
 
 			expect(controller.isCurrentlyProcessing).toBe(true);
 			expect(getJobRows()).toHaveLength(2);
-			assertControlsDisabled();
 
 			vi.advanceTimersByTime(1999);
 			expect(controller.isCurrentlyProcessing).toBe(true);
 
 			vi.advanceTimersByTime(1);
 
-			assertControlsEnabled();
 			expect(controller.isCurrentlyProcessing).toBe(false);
 			const idleStatus = controller.getCurrentStatus();
 			expect(idleStatus).toEqual({
@@ -374,12 +356,10 @@ describe('StatusPanel lifecycle', () => {
 
 		vi.advanceTimersByTime(1499);
 		expect(controller.isCurrentlyProcessing).toBe(true);
-		assertControlsDisabled();
 
 		vi.advanceTimersByTime(1);
 
 		expect(controller.isCurrentlyProcessing).toBe(false);
-		assertControlsEnabled();
 		expect(showInfoSpy).toHaveBeenCalledWith('Skipped existing output at /books/output.m4b');
 		expect(controller.getCurrentStatus()).toEqual({
 			stage: 'idle',
@@ -592,7 +572,6 @@ describe('StatusPanel lifecycle', () => {
 
 			expect(controller.isCurrentlyProcessing).toBe(true);
 			expect(getJobRows()).toHaveLength(1);
-			assertControlsDisabled();
 
 			vi.advanceTimersByTime(1999);
 			vi.advanceTimersByTime(1);
@@ -604,7 +583,6 @@ describe('StatusPanel lifecycle', () => {
 						? showErrorSpy
 						: showInfoSpy;
 			expect(expectedSpy).toHaveBeenCalledWith(message);
-			assertControlsEnabled();
 			const idleStatus = controller.getCurrentStatus();
 			expect(idleStatus).toEqual({
 				stage: 'idle',

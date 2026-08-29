@@ -20,10 +20,9 @@
 
 ## Private Cluster
 
-- Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
-  `viewState.svelte.ts`, `events.ts`, `selection.ts`,
-  `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
-  `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+- Files: `actions.ts`, `state.svelte.ts`, `viewState.svelte.ts`,
+  `pointerReorder.ts`, `selection.ts`, `metadataStaging.ts`,
+  `appendResult.ts`, `coverThumbnails.svelte.ts`, `__tests__/`.
 
 ## Preferred Path
 
