@@ -98,18 +98,6 @@
 			"assist": {
 				"enabled": false
 			}
-		},
-		{
-			"includes": ["**/*.svelte"],
-			"formatter": {
-				"enabled": false
-			},
-			"linter": {
-				"enabled": false
-			},
-			"assist": {
-				"enabled": false
-			}
 		}
 	]
 }

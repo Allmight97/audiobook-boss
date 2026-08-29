@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ModalController as BareModalController } from './modal.svelte';
+import { ModalController as BareModalController } from './modal';
 
 async function flushMicrotasks(): Promise<void> {
 	await new Promise<void>((resolve) => queueMicrotask(resolve));

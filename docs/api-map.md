@@ -211,7 +211,8 @@ snapshots) are the only scoping.
   Carries the full sorted operation list.
 
 Source: `src-tauri/src/work_runtime/` (types in `types.rs`, emission in
-`runtime.rs`). Consumer: `src/ui/workCenter/state.svelte.ts` only.
+`runtime.rs`). Consumer: `src/app/workOperations` through
+`src/ui/workCenter/WorkCenterView.tsx`.
 
 ### Foreground / Direct Progress Events (Status Panel)
 

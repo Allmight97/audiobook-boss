@@ -11,7 +11,7 @@ import {
 	initializeEncoderPanelLogic,
 } from '../encoderPanel/logic';
 import { encodingRequestConfigAtom, publishEncodingRequestConfig } from '../encoderPanel/requestConfig';
-import { encoderPanelState, subscribeEncoderPanel } from '../encoderPanel/state.svelte';
+import { encoderPanelState, subscribeEncoderPanel } from '../encoderPanel/state';
 import {
 	bitrateModeLabel,
 	channelLabel,

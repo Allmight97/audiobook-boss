@@ -93,11 +93,13 @@ function packageImportHits(
 }
 
 describe('frontend toolchain layout', () => {
-	it('keeps TypeScript 7 in @typescript/native and the 6.x require() shim in the typescript slot', () => {
+	it('keeps TypeScript 7 in both @typescript/native and the typescript slot', () => {
 		const pkg = readPackageManifest();
 		expect(pkg.devDependencies['@typescript/native']).toMatch(/^npm:typescript@7\./);
-		expect(pkg.devDependencies.typescript).toMatch(/^npm:@typescript\/typescript6@/);
-		expect(pkg.scripts['check:svelte']).toContain('--tsgo');
+		expect(pkg.devDependencies.typescript).toMatch(/^npm:typescript@7\./);
+		expect(pkg.scripts['check:svelte']).toBeUndefined();
+		expect(pkg.devDependencies.svelte).toBeUndefined();
+		expect(pkg.devDependencies['@testing-library/svelte']).toBeUndefined();
 	});
 
 	it('keeps CI and Codex Bun pins locked to package.json packageManager', () => {
@@ -126,10 +128,17 @@ describe('frontend toolchain layout', () => {
 		);
 	});
 
-	it('keeps bun.lock @typescript/old on real TypeScript 6, not the wrapper', () => {
+	it('does not keep a TypeScript 6 compiler in bun.lock', () => {
 		const lock = readFileSync(path.join(repoRoot, 'bun.lock'), 'utf8');
-		expect(lock).toContain('"@typescript/old": ["typescript@6.');
-		expect(lock).not.toMatch(/"@typescript\/old": \["@typescript\/typescript6/);
+		expect(lock).not.toContain('"@typescript/old": ["typescript@6.');
+		expect(lock).not.toMatch(/"@typescript\/typescript6@/);
+	});
+
+	it('has no leftover Svelte sources under src/', () => {
+		const svelteSources = collectSourceFiles(path.join(repoRoot, 'src')).filter((file) =>
+			/\.svelte(?:\.ts)?$/.test(file),
+		);
+		expect(svelteSources).toEqual([]);
 	});
 
 	it('lets only appEffect.ts import the effect package root', () => {

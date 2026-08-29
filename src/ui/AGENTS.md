@@ -16,10 +16,10 @@ output, and tags blocks inline and imports `encodingWorkbench.css`.
 
 Rules for both:
 
-- Compose existing public UI islands only. Do not import private
-  `state.svelte.ts`, logic modules, or event handlers from the owners they
+- Compose existing public UI views only. Do not import private
+  state modules, logic modules, or event handlers from the owners they
   arrange (encoder, output, tag preview, cover-art, metadata
-  form/lookup/save/artifacts, file management).
+  form/lookup, file management).
 - Do not move owner truth into a shell: processing-request, Status Panel, Work
   Center, file-management, metadata, and cover-art truth stay in their owners.
 - Preserve `leftColumn` height behavior: the input workflow flexes, the

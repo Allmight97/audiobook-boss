@@ -3,9 +3,8 @@ import {
 	clearFileListCoverThumbnails,
 	MAX_FILE_LIST_COVER_THUMBNAIL_CACHE_ENTRIES,
 	getFileListCoverThumbnailState,
-	removeFileListCoverThumbnail,
 	scheduleFileListCoverThumbnails,
-} from '../coverThumbnails.svelte';
+} from '../coverThumbnails';
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
 function deferred<T>(): Deferred<T> {
@@ -56,20 +55,6 @@ describe('FileList cover thumbnail scheduler', () => {
 		fresh.resolve([2]);
 		await flush();
 		expect(getFileListCoverThumbnailState('/book')).toMatchObject({ status: 'ready' });
-	});
-
-	it('fetches fresh bytes after a ready thumbnail is removed and re-added', async () => {
-		const load = vi.fn().mockResolvedValueOnce([1]).mockResolvedValueOnce([2]);
-		scheduleFileListCoverThumbnails(['/book'], load);
-		await flush();
-		removeFileListCoverThumbnail('/book');
-		scheduleFileListCoverThumbnails(['/book'], load);
-		await flush();
-		expect(load).toHaveBeenCalledTimes(2);
-		expect(getFileListCoverThumbnailState('/book')).toMatchObject({
-			status: 'ready',
-			dataUrl: 'data:image/jpeg;base64,Ag==',
-		});
 	});
 
 	it('keeps the terminal thumbnail cache bounded even when every path is visible', async () => {

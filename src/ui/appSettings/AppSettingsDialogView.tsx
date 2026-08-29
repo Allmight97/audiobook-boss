@@ -14,7 +14,7 @@ import {
 	subscribeProductionSettingsDialog,
 } from '../../app/appSettings';
 import { Dialog } from '../../lib/ui/Dialog';
-import { readFdkAfterburner } from '../encoderPanel/state.svelte';
+import { readFdkAfterburner } from '../encoderPanel/state';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;

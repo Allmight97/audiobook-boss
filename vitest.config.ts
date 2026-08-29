@@ -1,9 +1,8 @@
 import { defineConfig } from 'vitest/config';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
 import solid from 'vite-plugin-solid';
 
 export default defineConfig({
-	plugins: [svelte(), solid({ include: ['/**/*.tsx'] })],
+	plugins: [solid({ include: ['/**/*.tsx'] })],
 	test: {
 		// Use jsdom for DOM testing (statusPanel, fileList, etc.)
 		environment: 'jsdom',

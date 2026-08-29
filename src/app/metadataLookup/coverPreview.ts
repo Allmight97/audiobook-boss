@@ -2,7 +2,7 @@ import {
 	createCoverArtPreviewScheduler,
 	DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES,
 	type CoverArtPreviewState,
-} from '../../lib/media/coverArtPreviewScheduler.svelte';
+} from '../../lib/media/coverArtPreviewScheduler';
 
 export const MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES = DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES;
 

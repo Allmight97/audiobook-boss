@@ -13,7 +13,6 @@ on:
       - package.json
       - bun.lock
       - bunfig.toml
-      - svelte.config.js
       - tsconfig.json
       - vite.config.ts
   workflow_dispatch:
@@ -24,7 +23,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: Typecheck + svelte-check (clean install)
+    name: Typecheck (clean install)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -33,4 +32,3 @@ jobs:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bun run check:svelte

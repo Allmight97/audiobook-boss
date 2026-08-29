@@ -1,30 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
-import type { AudioFile, FileListInfo } from '../../../types/audio';
-import { applyMetadataIntentPatch, type MetadataIntentPatch } from '../../../types/metadataIntent';
+import { Effect, runAppEffect } from '../../lib/effect/appEffect';
+import type { AudioFile, FileListInfo } from '../../types/audio';
+import { applyMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
 	AudiobookMetadata,
 	MetadataLookupResponse,
 	OnlineMetadataResult,
-} from '../../../types/metadata';
+} from '../../types/metadata';
 import {
 	fetchMetadataLookupCoverPreview,
 	clearMetadataLookupCoverPreviewCache,
 	scheduleMetadataLookupCoverPreviews,
-} from '../metadataLookupCoverPreview.svelte';
+} from './coverPreview';
 import {
 	makeMetadataLookupWorkflowServicesLayer,
 	MetadataLookupWorkflowFailed,
 	metadataLookupWorkflowExecution,
 	runMetadataLookupWorkflow,
 	type MetadataLookupWorkflowServices,
-} from '../metadataLookupWorkflow';
+} from './workflow';
 import type {
 	MetadataLookupQueueItem,
 	MetadataLookupQueueState,
 	MetadataLookupState,
-} from '../state.svelte';
+} from './state';
 
 function audioFile(path: string, isValid = true): AudioFile {
 	return {

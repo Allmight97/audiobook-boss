@@ -5,7 +5,7 @@ import {
 	refreshRuntimeSettingsCapabilities,
 	runtimeSettingsCapabilitiesState,
 	setRuntimeSettingsCapabilities,
-} from '../runtimeSettingsCapabilities.svelte';
+} from '../runtimeSettingsCapabilities';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({

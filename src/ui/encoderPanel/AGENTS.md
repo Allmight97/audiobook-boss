@@ -18,10 +18,9 @@
 
 ## Private Cluster
 - Files: `EncoderView.tsx`, `encoderView.css`, `autoResolutionHints.ts`,
-  `logic.ts`, `state.svelte.ts`, `view.ts`, `__tests__/`.
-- `EncoderView.tsx` is the mounted Solid renderer and reads
-  `state.svelte.ts` through a revision-counter bridge; encoder request truth
-  stays in the rune store until slice 9 removes `.svelte.ts` sources.
+  `logic.ts`, `state.ts`, `view.ts`.
+- `EncoderView.tsx` is the mounted Solid renderer and reads `state.ts`
+  through a revision-counter plus `subscribeEncoderPanel`.
 - The `estimated-size` span in `EncoderView.tsx` is the only consumer of
   Output Plan's `estimatedSizeTextAtom`. Keep `~ 12.3 MB` / `~ --- MB` in this
   header; do not move the span into the Output block.
@@ -38,7 +37,7 @@
 - Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
 - Keep App Settings hydration/persistence coordination behind
   `applyEncodingDefaults` and `readEncoderDefaultsFromState`; do not let other
-  panels reach into `state.svelte.ts`.
+  panels reach into `state.ts`.
 - Keep estimated-size display derived from Output Plan; do not mirror encoder
   request config into an Output-owned size cache.
 - Keep UI labels and hints frontend-owned; do not reintroduce local
@@ -47,4 +46,4 @@
 ## Breaking-Change Triggers
 - Adding, removing, or renaming a Public API Strip export.
 - Moving encoder/sample-rate request truth out of this cluster.
-- Letting another panel import `state.svelte.ts`, `logic.ts`, or other private internals to build process payloads.
+- Letting another panel import `state.ts`, `logic.ts`, or other private internals to build process payloads.

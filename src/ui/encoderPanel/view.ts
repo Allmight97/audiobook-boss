@@ -1,4 +1,4 @@
-import { encoderPanelState } from './state.svelte';
+import { encoderPanelState } from './state';
 
 export function encoderLabel(value: string): string {
 	switch (value) {

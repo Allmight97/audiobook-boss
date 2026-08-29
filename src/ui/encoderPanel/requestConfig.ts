@@ -1,6 +1,6 @@
 import type { EncodingRequestConfig } from '../../types/audio';
 import { Atom } from '../../app/runtime/reactivity';
-import { readEncodingRequestConfig } from './state.svelte';
+import { readEncodingRequestConfig } from './state';
 
 export const encodingRequestConfigAtom = Atom.make<EncodingRequestConfig>(
 	readEncodingRequestConfig(),

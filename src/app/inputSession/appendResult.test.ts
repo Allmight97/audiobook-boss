@@ -4,7 +4,7 @@ import {
 	buildFileListAppendResult,
 	collectUniqueFiles,
 	normalizeFileListInfo,
-} from '../fileList/appendResult';
+} from './appendResult';
 
 function file(path: string, options: Partial<AudioFile> = {}): AudioFile {
 	return {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
 import { EncoderView } from '../encoderPanel/EncoderView';
-import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state.svelte';
+import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state';
 import { readEncodingRequestConfig } from '../encoderPanel';
 import { renderAutoResolutionHints } from '../encoderPanel/autoResolutionHints';
 import {
@@ -11,11 +11,10 @@ import {
 import {
 	runtimeSettingsCapabilitiesState,
 	setRuntimeSettingsCapabilities,
-} from '../runtimeSettingsCapabilities.svelte';
+} from '../runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	getRuntimeSettingsCapabilitiesMock: vi.fn(),
-	getCurrentFileListMock: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({
@@ -24,12 +23,6 @@ vi.mock('../../lib/tauri/client', () => ({
 		openFile: vi.fn(),
 		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 	},
-}));
-
-vi.mock('../fileList', () => ({
-	getCurrentFileList: context.getCurrentFileListMock,
-	isOrderLocked: vi.fn(() => false),
-	onOrderLockChange: vi.fn(() => () => undefined),
 }));
 
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
@@ -47,11 +40,6 @@ const waitForEncoderOptions = async (): Promise<void> => {
 describe('encoder panel behavior controls', () => {
 	beforeEach(() => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-		context.getCurrentFileListMock.mockReset();
-		context.getCurrentFileListMock.mockReturnValue({
-			files: [{ path: '/books/a.m4b', isValid: true }],
-			totalDuration: 3600,
-		});
 		resetEncoderPanelState();
 		setRuntimeSettingsCapabilities(null);
 		runtimeSettingsCapabilitiesState.loading = false;

@@ -1,5 +1,6 @@
 import { AtomRegistry } from './reactivity';
 import { seedProcessing } from '../processing';
+import { resetRemoteSource } from '../remoteSource';
 import { bindWorkOperationsRegistry, disposeWorkCenter } from '../workOperations';
 
 export type AppRuntime = {
@@ -14,6 +15,7 @@ export function createAppRuntime(): AppRuntime {
 	return {
 		registry,
 		dispose(): void {
+			resetRemoteSource();
 			disposeWorkCenter();
 			bindWorkOperationsRegistry(null);
 			registry.dispose();

@@ -6,7 +6,7 @@ import {
 } from '../../app/appSettings';
 import { AppSettingsDialogView } from '../appSettings/AppSettingsDialogView';
 import { readFdkAfterburner } from '../encoderPanel';
-import { resetEncoderPanelState } from '../encoderPanel/state.svelte';
+import { resetEncoderPanelState } from '../encoderPanel/state';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {

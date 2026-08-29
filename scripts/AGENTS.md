@@ -8,10 +8,10 @@ commands over invoking internals directly.
 
 - Convenience commands: `package.json` scripts.
 - Frontend clean-install alarm (`.github/workflows/ci.yml`) runs after relevant
-  frontend/dependency/config pushes to `main`: frozen install, typecheck, and
-  `check:svelte`. It catches undeclared dependencies that a warm checkout can
-  conceal; it is not a PR gate or broad test route. Rust and generated-binding
-  proof stay local/release-owned through the commands below.
+  frontend/dependency/config pushes to `main`: frozen install and typecheck.
+  It catches undeclared dependencies that a warm checkout can conceal; it is
+  not a PR gate or broad test route. Rust and generated-binding proof stay
+  local/release-owned through the commands below.
 - There is no repo-owned verification runner and no default broad review route.
   Run native commands directly, one at a time, only for the touched owner or
   explicit risk surface. Report the command, elapsed time when meaningful, exit
@@ -48,9 +48,8 @@ commands over invoking internals directly.
 - Docs/guidance only: `git diff --check` plus stale-reference searches for the
   edited terms.
 - Formatting/linting when formatting or style is in scope:
-  `bun run fmt:check`, `bun run lint:check` (TS/JSON via Biome),
-  `bun run check:svelte` (Svelte type/diagnostic check — Biome's linter is off for
-  `.svelte`), or `cargo fmt --all -- --check`.
+  `bun run fmt:check`, `bun run lint:check` (TS/JSON via Biome), or
+  `cargo fmt --all -- --check`.
 - Rust lint: for a touched core owner, package-select with
   `cargo clippy -p abb-<owner>-core --all-targets` — this avoids pulling
   `src-tauri`'s gdk/gtk GUI libs, which core crates build without and which are
@@ -117,20 +116,18 @@ commands over invoking internals directly.
   domain logic through filtered broad-crate tests when a core crate can own it.
 - Do not recreate custom runner aliases without explicit repo-owner approval.
 - New scripts need an obvious public command, package script, or usage header.
-- TypeScript 7 lives in `@typescript/native`; the `typescript` slot stays the
-  TypeScript 6 `require()` shim for `svelte-check --tsgo`. Do not collapse
-  them, and do not import `typescript` from ABB `src/` or `scripts/` (parse
-  without the compiler API). The runtime-boundary text scanner is for this
-  window only. Replace it when TypeScript 7.1's API and svelte-check can type
-  `.svelte` files without the TypeScript 6 shim. Do not grow it toward AST
-  completeness. Rationale: `docs/DECISIONS.md` 2026-08-27
-  TypeScript 7 / Effect 4. Proof:
+- TypeScript 7 lives in `@typescript/native` and in the `typescript` slot.
+  Do not import `typescript` from ABB `src/` or `scripts/` (parse without
+  the compiler API). The runtime-boundary text scanner stays a text scan;
+  do not grow it toward AST completeness. Rationale: `docs/DECISIONS.md`
+  2026-08-27 TypeScript 7 / Effect 4. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
   The no-import tripwires match `from 'typescript'` / `from 'effect'` so
   ordinary multiline named imports count; do not require the binding list
   to sit on one line. Effect imports are allowed only in
   `src/lib/effect/appEffect.ts`. The tripwire stays in `scripts/` so it does
-  not pull Node types into the frontend `tsconfig`.
+  not pull Node types into the frontend `tsconfig`. The tripwire also
+  rejects leftover `.svelte` / `.svelte.ts` sources under `src/`.
 - Bun version truth is `package.json#packageManager`. When it changes, set
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install

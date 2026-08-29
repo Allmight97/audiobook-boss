@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
 import { EncoderView } from '../encoderPanel/EncoderView';
-import { resetEncoderPanelState } from '../encoderPanel/state.svelte';
+import { resetEncoderPanelState } from '../encoderPanel/state';
 import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
@@ -9,7 +9,7 @@ import {
 import {
 	runtimeSettingsCapabilitiesState,
 	setRuntimeSettingsCapabilities,
-} from '../runtimeSettingsCapabilities.svelte';
+} from '../runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	getRuntimeSettingsCapabilitiesMock: vi.fn(),

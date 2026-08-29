@@ -6,7 +6,7 @@ import {
 	loadMetadataLookupCoverBytes,
 	MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES,
 	scheduleMetadataLookupCoverPreviews,
-} from '../metadataLookupCoverPreview.svelte';
+} from './coverPreview';
 
 type Deferred<T> = {
 	promise: Promise<T>;

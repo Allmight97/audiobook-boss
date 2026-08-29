@@ -14,7 +14,7 @@ import { seedProcessing } from '../processing';
 import { resetRemoteSource } from '../remoteSource';
 import { bindWorkOperationsRegistry, disposeWorkCenter } from '../workOperations';
 import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
-import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state.svelte';
+import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state';
 import { metadataCapabilityAtom, metadataEditorAtom } from '../metadataSession/atoms';
 import { clearMetadataSession } from '../metadataSession/cache';
 import { createEmptyFormState } from '../metadataSession/fields';

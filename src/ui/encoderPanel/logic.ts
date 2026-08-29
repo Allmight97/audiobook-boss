@@ -7,13 +7,13 @@ import {
 	setEncoderSettingsCapabilities,
 	type BitrateModeSelection,
 	type VbrLevel,
-} from './state.svelte';
+} from './state';
 import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 import { persistEncoderDefaults } from '../appSettings/persistence';
-import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
+import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {

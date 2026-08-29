@@ -1,6 +1,5 @@
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import solid from 'vite-plugin-solid';
 
@@ -21,7 +20,7 @@ function removeCrossoriginPlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-	plugins: [tailwindcss(), svelte(), solid({ include: ['/**/*.tsx'] }), removeCrossoriginPlugin()],
+	plugins: [tailwindcss(), solid({ include: ['/**/*.tsx'] }), removeCrossoriginPlugin()],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//

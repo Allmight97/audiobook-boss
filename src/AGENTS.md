@@ -20,9 +20,10 @@
   `src/ui/remoteSource`. It may coordinate account state, library display,
   selection, and acquired-file import handoff through Input's public strip.
   Provider secrets and raw provider payloads stay backend-only.
-- Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
+- Keep business logic in `.ts` modules and keep Solid views focused on
+  rendering and interaction.
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
-- Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.
+- Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in owner CSS.
 - Route UI done evidence through targeted tests for deterministic behavior and external browser-agent or human review when visual/UX judgment is the actual acceptance surface.
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load IPC, patch intent, or boundary
@@ -57,7 +58,7 @@
 
 - Runtime modules do not call command/event invokers directly from `src/lib/generated/tauri.ts`.
 - Do not hand-edit `src/lib/generated/tauri.ts`; regenerate or sync bindings through the standard scripts.
-- Keep runtime entry surfaces declarative: avoid new imperative DOM orchestration in `src/App.svelte`, `src/main.ts`, and `src/lib/**`.
+- Keep runtime entry surfaces declarative: avoid new imperative DOM orchestration in `src/ui/App.tsx`, `src/main.ts`, and `src/lib/**`.
 - UI-affecting changes are not “done” from static inspection alone; they must leave targeted test coverage or explicit visual/UX review evidence for the user-facing outcome.
 - Follow root Hard Invariants for boundary behavior; do not add hidden or caller-side substitute logic in frontend flows.
 - Keep TypeScript boundaries type-safe; avoid introducing new `any` escape paths in runtime IPC/state flows.
@@ -79,6 +80,6 @@
 
 - Tauri runtime calls are centralized through `tauriClient`.
 - Metadata and IPC changes align with `src/lib/tauri/AGENTS.md` invariants.
-- Global theme/base and shared shell/layout/dialog/form primitives resolve through `src/styles.css`; component-owned styling changes stay with the owning Svelte surface.
+- Global theme/base and shared shell/layout/dialog/form primitives resolve through `src/styles.css`; component-owned styling changes stay with the owning Solid view.
 - UI-facing changes have targeted tests and, when needed, explicit visual/UX review evidence for the touched surface.
 - Validation matches scope with direct commands from `README.md` and `scripts/AGENTS.md`.

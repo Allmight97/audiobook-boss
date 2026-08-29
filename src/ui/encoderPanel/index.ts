@@ -20,4 +20,4 @@ export {
 	readEncoderDefaultsFromState,
 	readEncodingRequestConfig,
 	readFdkAfterburner,
-} from './state.svelte';
+} from './state';
