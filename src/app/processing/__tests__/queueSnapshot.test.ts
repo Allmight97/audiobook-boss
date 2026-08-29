@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
-import { StatusPanelRuntime } from '../controller';
-import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
+import { StatusPanelRuntime } from '../runtime';
+import { resetStatusPanelViewState, getStatusView } from '../view';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -19,7 +19,7 @@ function setupDom() {
 }
 
 function getJobRows(): string[] {
-	return statusPanelViewState.jobItems.map((item) => {
+	return getStatusView().jobItems.map((item) => {
 		const percentage =
 			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
 		return `${item.label} • ${item.statusText}${percentage}`;
@@ -52,8 +52,8 @@ describe('StatusPanel queue snapshot', () => {
 		controller.applyQueueSnapshot(snapshot);
 
 		expect(getJobRows()).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
-		expect(statusPanelViewState.statusText).toBe('Analyzing');
-		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 2 files');
+		expect(getStatusView().statusText).toBe('Analyzing');
+		expect(getStatusView().stepText).toBe('Current Step: Queued 2 files');
 		const status = controller.getCurrentStatus();
 		expect(status).toEqual({
 			stage: 'analyzing',
@@ -88,7 +88,7 @@ describe('StatusPanel queue snapshot', () => {
 
 		expect(getJobRows()).toHaveLength(1);
 		expect(getJobRows()[0]).toContain('Converting (45.0%)');
-		expect(statusPanelViewState.stepText).toBe('Current Step: working');
+		expect(getStatusView().stepText).toBe('Current Step: working');
 
 		controller.applyQueueSnapshot(snapshot);
 
@@ -97,7 +97,7 @@ describe('StatusPanel queue snapshot', () => {
 			'beta.m4b • Queued • #2 of 3',
 			'alpha.m4b • Queued • #3 of 3',
 		]);
-		expect(statusPanelViewState.stepText).toBe('Current Step: Queued 3 files');
+		expect(getStatusView().stepText).toBe('Current Step: Queued 3 files');
 		const status = controller.getCurrentStatus();
 		expect(status).toEqual({
 			stage: 'analyzing',

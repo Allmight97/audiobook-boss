@@ -24,7 +24,7 @@
   TERMINALIZATION order (never submission sequence — a just-finished
   long-running operation must survive its own prune). Running/accepted
   operations are never pruned. The frontend purge tombstone
-  (`PURGED_OPERATION_TOMBSTONE_CAP` in `src/ui/workCenter/state.svelte.ts`)
+  (`PURGED_OPERATION_TOMBSTONE_CAP` in `src/app/workOperations/runtime.ts`)
   must stay strictly larger than this cap; a contract test pins the
   relationship — keep both sites and that test in sync.
 - Use `processing::run` as the processing executor boundary. Do not import audio

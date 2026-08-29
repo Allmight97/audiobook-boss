@@ -8,7 +8,7 @@ import type {
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
-} from '../remoteSource';
+} from '../../ui/remoteSource';
 import {
 	isTerminalOperationStatus,
 	replaceOperations,
@@ -17,6 +17,14 @@ import {
 } from './model';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
+import { Atom, AtomRegistry } from '../runtime/reactivity';
+
+export type WorkOperationsView = {
+	readonly initialized: boolean;
+	readonly operations: ReadonlyArray<OperationSnapshot>;
+	readonly cancelPendingByOperationId: Readonly<Record<string, boolean>>;
+	readonly errorMessage: string | null;
+};
 
 interface WorkCenterState extends WorkCenterModel {
 	initialized: boolean;
@@ -24,16 +32,40 @@ interface WorkCenterState extends WorkCenterModel {
 	errorMessage: string | null;
 }
 
-export const workCenterState = $state<WorkCenterState>({
+export const PURGED_OPERATION_TOMBSTONE_CAP = 64;
+
+export const workOperationsViewAtom = Atom.make<WorkOperationsView>({
 	initialized: false,
 	operations: [],
 	cancelPendingByOperationId: {},
 	errorMessage: null,
-});
+}).pipe(Atom.keepAlive);
+
+export const workCenterState: WorkCenterState = {
+	initialized: false,
+	operations: [],
+	cancelPendingByOperationId: {},
+	errorMessage: null,
+};
+
+let boundRegistry: AtomRegistry.AtomRegistry | null = null;
+
+export function bindWorkOperationsRegistry(registry: AtomRegistry.AtomRegistry | null): void {
+	boundRegistry = registry;
+	commit();
+}
+
+function commit(): void {
+	boundRegistry?.set(workOperationsViewAtom, {
+		initialized: workCenterState.initialized,
+		operations: workCenterState.operations,
+		cancelPendingByOperationId: workCenterState.cancelPendingByOperationId,
+		errorMessage: workCenterState.errorMessage,
+	});
+}
 
 let initializationPromise: Promise<void> | null = null;
 let subscriptions: SubscriptionGroup | null = null;
-const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 const purgedOperationIds = new Set<string>();
 const purgedOperationOrder: string[] = [];
 
@@ -51,6 +83,7 @@ export function initializeWorkCenter(): Promise<void> {
 	if (!isTauriRuntimeAvailable()) {
 		workCenterState.initialized = true;
 		workCenterState.errorMessage = null;
+		commit();
 		return Promise.resolve();
 	}
 
@@ -76,6 +109,7 @@ export function initializeWorkCenter(): Promise<void> {
 		applyOperationListSnapshot(list);
 		workCenterState.initialized = true;
 		workCenterState.errorMessage = null;
+		commit();
 	})().catch((error) => {
 		group.dispose();
 		if (subscriptions === group) {
@@ -83,6 +117,7 @@ export function initializeWorkCenter(): Promise<void> {
 		}
 		workCenterState.errorMessage = `Failed to initialize Work Center: ${toUserMessage(error)}`;
 		initializationPromise = null;
+		commit();
 		throw error;
 	});
 
@@ -102,17 +137,20 @@ export function disposeWorkCenter(): void {
 	subscriptions = null;
 	initializationPromise = null;
 	workCenterState.initialized = false;
+	commit();
 }
 
 export function applyOperationSnapshot(snapshot: OperationSnapshot): void {
 	const model = upsertOperation(workCenterState, snapshot);
 	workCenterState.operations = model.operations;
+	commit();
 	void purgeRemoteSessionsForTerminalOperation(snapshot);
 }
 
 export function applyOperationListSnapshot(list: OperationListSnapshot): void {
 	const model = replaceOperations(workCenterState, list);
 	workCenterState.operations = model.operations;
+	commit();
 	for (const operation of workCenterState.operations) {
 		void purgeRemoteSessionsForTerminalOperation(operation);
 	}
@@ -123,15 +161,18 @@ export async function cancelWorkOperation(operationId: OperationId): Promise<voi
 		...workCenterState.cancelPendingByOperationId,
 		[operationId]: true,
 	};
+	commit();
 	try {
 		const snapshot = await tauriClient.cancelWorkOperation(operationId);
 		applyOperationSnapshot(snapshot);
 	} catch (error) {
 		workCenterState.errorMessage = `Failed to cancel operation: ${toUserMessage(error)}`;
+		commit();
 	} finally {
 		const next = { ...workCenterState.cancelPendingByOperationId };
 		delete next[operationId];
 		workCenterState.cancelPendingByOperationId = next;
+		commit();
 	}
 }
 
@@ -141,6 +182,7 @@ export async function openChildSource(child: { sourcePath?: string | null }): Pr
 		await tauriClient.openPath(child.sourcePath);
 	} catch (error) {
 		workCenterState.errorMessage = `Failed to open source file: ${toUserMessage(error)}`;
+		commit();
 	}
 }
 

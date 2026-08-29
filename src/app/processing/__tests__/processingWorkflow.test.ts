@@ -5,7 +5,7 @@ import {
 	startProcessing,
 	type ProcessingWorkflowContext,
 	type ProcessingWorkflowServices,
-} from '../processingWorkflow';
+} from '../workflow';
 import {
 	defaultEncoderSettings,
 	type AudioFile,
@@ -18,13 +18,13 @@ import {
 } from '../../../types/audio';
 import type { AcquisitionJob } from '../../../types/remoteSource';
 import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
-import type { OutputPlanReviewResult } from '../../outputPanel';
+import type { OutputPlanReviewResult } from '../../outputPlan';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
 	supplementalAssetsByInputIdForProcessing,
-} from '../../remoteSource';
-import { removeRemoteSourceSupplementalAssets } from '../../remoteSource/sessionAssets.svelte';
+} from '../../../ui/remoteSource';
+import { removeRemoteSourceSupplementalAssets } from '../../../ui/remoteSource/sessionAssets.svelte';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
@@ -284,30 +284,20 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
 	});
 
-	it('uses natural filename sort as the submitted processing order', async () => {
-		const { setCurrentFileList, setSelectedFileIndices, setSelectedIndex } = await import(
-			'../../fileList/state.svelte'
-		);
-		const { toggleFileSort } = await import('../../fileList/actions');
-		const { getCurrentFileList: readRealFileList } = await import('../../fileList');
-		setCurrentFileList({
-			files: [
-				audioFile('/books/10 - Last Chapter.mp3', { inputId: 'tenth' }),
-				audioFile('/books/2 - Early Chapter.mp3', { inputId: 'second' }),
-			],
-			selectedDecoders: [null, null],
-			totalDuration: 2,
-			totalSize: 2,
-			validCount: 2,
-			invalidCount: 0,
-		});
-		setSelectedFileIndices([]);
-		setSelectedIndex(-1);
-		await toggleFileSort();
-
+	it('submits files in the current file-list order', async () => {
 		const ctx = workflowContext();
 		const { services } = workflowServices({
-			getCurrentFileList: vi.fn(() => readRealFileList()),
+			getCurrentFileList: vi.fn(() => ({
+				files: [
+					audioFile('/books/2 - Early Chapter.mp3', { inputId: 'second' }),
+					audioFile('/books/10 - Last Chapter.mp3', { inputId: 'tenth' }),
+				],
+				selectedDecoders: [null, null],
+				totalDuration: 2,
+				totalSize: 2,
+				validCount: 2,
+				invalidCount: 0,
+			})),
 		});
 		await runWithServices(ctx, services);
 

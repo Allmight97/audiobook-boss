@@ -1,9 +1,9 @@
+export { StatusPanelView } from './StatusPanelView';
 export {
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
+	readProcessingRequestConfig,
 	triggerCancelAllFromStatusPanel,
 	triggerProcessFromStatusPanel,
-} from './controller';
-export { updateStatusPanelConcurrencyStatus } from './runtimeApi';
-export { default as StatusPanelIsland } from './StatusPanelIsland.svelte';
+} from '../../app/processing';

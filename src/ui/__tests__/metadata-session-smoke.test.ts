@@ -16,8 +16,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings, type FileListInfo } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { WorkSubmissionAccepted } from '../../types/workRuntime';
-import type { ProcessingWorkflowServices } from '../statusPanel/processingWorkflow';
-import type { ProcessingStatus } from '../statusPanel/state';
+import type { ProcessingWorkflowServices } from '../../app/processing';
+import type { ProcessingStatus } from '../../app/processing/state';
 
 const context = vi.hoisted(() => ({
 	saveMetadataBatchMock: vi.fn(),
@@ -349,7 +349,7 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 		};
 
 		const { makeProcessingWorkflowServicesLayer, startProcessing } = await import(
-			'../statusPanel/processingWorkflow'
+			'../../app/processing'
 		);
 		const reviewOutputPlan: ProcessingWorkflowServices['runOutputPlanReviewWorkflow'] = vi.fn(
 			async ({ payload, metadataIntentByPath, previewSeconds }) => ({

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
 import { STAGES } from '../../../types/events';
-import { StatusPanelRuntime } from '../controller';
-import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
+import { StatusPanelRuntime } from '../runtime';
+import { resetStatusPanelViewState, getStatusView } from '../view';
 
 function setupDom() {
 	document.body.innerHTML = `
@@ -20,7 +20,7 @@ function setupDom() {
 }
 
 function getJobRows(): string[] {
-	return statusPanelViewState.jobItems.map((item) => {
+	return getStatusView().jobItems.map((item) => {
 		const percentage =
 			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
 		return `${item.label} • ${item.statusText}${percentage}`;
@@ -75,8 +75,8 @@ describe('StatusPanel aggregate progress', () => {
 			percentage: 75,
 			message: 'Halfway',
 		});
-		expect(statusPanelViewState.progressPercentage).toBe(75);
-		expect(statusPanelViewState.statusText).toBe('Converting');
+		expect(getStatusView().progressPercentage).toBe(75);
+		expect(getStatusView().statusText).toBe('Converting');
 		expect(getJobRows()).toEqual([
 			'alpha.m4b • Converting (50.0%)',
 			'beta.m4b • Completed (100.0%)',
@@ -109,8 +109,8 @@ describe('StatusPanel aggregate progress', () => {
 			percentage: 33.3,
 			message: 'Queued 2 files',
 		});
-		expect(statusPanelViewState.progressPercentage).toBe(33.3);
-		expect(statusPanelViewState.statusText).toBe('Analyzing');
+		expect(getStatusView().progressPercentage).toBe(33.3);
+		expect(getStatusView().statusText).toBe('Analyzing');
 		expect(getJobRows()).toEqual([
 			'alpha.m4b • Completed (100.0%)',
 			'beta.m4b • Queued • #2 of 3',

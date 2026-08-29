@@ -7,7 +7,7 @@ const { purgeMock, releaseMock } = vi.hoisted(() => ({
 	releaseMock: vi.fn(),
 }));
 
-vi.mock('../../remoteSource/sessionAssets.svelte', () => ({
+vi.mock('../../../ui/remoteSource', () => ({
 	purgeRemoteSourceSessionsForInputIds: purgeMock,
 	releaseRemoteSourceSessionRetainers: releaseMock,
 }));
@@ -17,8 +17,8 @@ import {
 	disposeWorkCenter,
 	initializeWorkCenter,
 	openChildSource,
-} from '../state.svelte';
-import { workCenterState } from '../state.svelte';
+} from '../runtime';
+import { workCenterState } from '../runtime';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;

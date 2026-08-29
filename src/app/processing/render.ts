@@ -1,4 +1,4 @@
-import { getMaxConcurrentStatus } from '../jobControls';
+import { concurrencyViewAtom } from '../appSettings';
 import { formatEtaRemaining, formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
 import {
@@ -9,8 +9,9 @@ import {
 	setStatusPanelStatusText,
 	setStatusPanelStepColor,
 	setStatusPanelStepText,
-} from './viewState.svelte';
+} from './view';
 import type { JobListItem } from './viewTypes';
+import { tryProcessingRegistry } from './registry';
 
 export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
 	setStatusPanelProgressPercentage(status.percentage);
@@ -25,8 +26,9 @@ export function renderStatus(status: ProcessingStatus, isProcessing: boolean): v
 }
 
 export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
-	const { effective, selection } = getMaxConcurrentStatus();
-	const suffix = selection === 'auto' ? ' (Auto)' : '';
+	const concurrency = tryProcessingRegistry()?.get(concurrencyViewAtom);
+	const effective = concurrency?.effective ?? null;
+	const suffix = concurrency?.selection === 'auto' ? ' (Auto)' : '';
 
 	if (effective === null) {
 		setStatusPanelConcurrencyText('Max jobs: —');

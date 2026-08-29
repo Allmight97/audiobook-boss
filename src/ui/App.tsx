@@ -17,7 +17,11 @@ import { MergeModeToggle } from './jobControls/MergeModeToggle';
 import { FileInspectorView } from './leftColumn/FileInspectorView';
 import { MetadataLookupView } from './metadataLookup/MetadataLookupView';
 import { MetadataManagerView } from './metadataManager/MetadataManagerView';
+import { PreviewAudioControls } from './previewAudio/PreviewAudioControls';
+import { StatusPanelView } from './statusPanel/StatusPanelView';
 import { TagPreviewView } from './tagPreview/TagPreviewView';
+import { WorkCenterView } from './workCenter/WorkCenterView';
+import { initializeWorkCenter } from '../app/workOperations';
 import './encodingWorkbench/encodingWorkbench.css';
 
 export function App(): JSX.Element {
@@ -32,6 +36,7 @@ export function App(): JSX.Element {
 			}
 		});
 		void hydrateConcurrency({});
+		void initializeWorkCenter();
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {
 			if ((event.metaKey || event.ctrlKey) && event.key === 's') {
@@ -96,12 +101,15 @@ export function App(): JSX.Element {
 							>
 								<div class="workbench-block-header tags-header">
 									<h3>Tags Preview</h3>
+									<PreviewAudioControls variant="compact" />
 								</div>
 								<TagPreviewView variant="workbench" />
 							</div>
 						</section>
 					</div>
 				</div>
+				<StatusPanelView />
+				<WorkCenterView />
 			</div>
 			<MetadataLookupView />
 			<AppSettingsDialogView />

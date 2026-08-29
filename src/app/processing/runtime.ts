@@ -1,8 +1,8 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { getCurrentFileList, setFileOrderLocked } from '../fileList';
-import { setJobControlsEnabled } from '../jobControls';
+import { inputViewAtom, setOrderLockedAtom } from '../inputSession';
+import { setConcurrencyControlsEnabledAtom } from '../appSettings';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
-import { startProcessing as startProcessingAction } from './processingWorkflow';
+import { startProcessing as startProcessingAction } from './workflow';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
 import type { AggregateProgress, ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
@@ -32,7 +32,26 @@ import {
 	type StatusPanelModel,
 	workKindFromOperationKind,
 } from './domain/stateMachine';
-import { pushTransientStatusMessage, showError, showInfo, showSuccess } from './viewState.svelte';
+import { pushTransientStatusMessage, showError, showInfo, showSuccess } from './view';
+import { fileListFromInput } from './input';
+import { tryProcessingRegistry } from './registry';
+
+function readCurrentFileList() {
+	const registry = tryProcessingRegistry();
+	if (!registry) {
+		return null;
+	}
+	return fileListFromInput(registry.get(inputViewAtom));
+}
+
+function unlockWorkbench(): void {
+	const registry = tryProcessingRegistry();
+	if (!registry) {
+		return;
+	}
+	registry.set(setConcurrencyControlsEnabledAtom, true);
+	registry.set(setOrderLockedAtom, false);
+}
 
 export class StatusPanelRuntime {
 	private readonly progressSubscription = createProgressSubscription({
@@ -159,8 +178,7 @@ export class StatusPanelRuntime {
 		this.updateStatus(this.model.currentStatus);
 		this.updateConcurrencyIndicator();
 
-		setJobControlsEnabled(true);
-		setFileOrderLocked(false);
+		unlockWorkbench();
 		this.coverArt.reset();
 	}
 
@@ -185,7 +203,7 @@ export class StatusPanelRuntime {
 	}
 
 	private buildInferredProgressLabel(event: ProcessingProgressEvent): string {
-		const fileList = getCurrentFileList();
+		const fileList = readCurrentFileList();
 		const workKind = workKindFromOperationKind(event.operation_kind);
 		if (workKind === 'merge' && fileList?.files?.length) {
 			const firstValidFile = fileList.files.find((file) => file.isValid);
@@ -223,7 +241,7 @@ export class StatusPanelRuntime {
 	}
 
 	private buildMergeOutputLabel(): string {
-		const fileList = getCurrentFileList();
+		const fileList = readCurrentFileList();
 		const firstValidPath = fileList?.files.find((file) => file.isValid)?.path;
 		return firstValidPath
 			? (buildQueueLabels([firstValidPath])[0] ?? firstValidPath)
@@ -334,8 +352,7 @@ export class StatusPanelRuntime {
 		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
 		this.updateStatus(this.model.currentStatus);
 		this.updateConcurrencyIndicator();
-		setJobControlsEnabled(true);
-		setFileOrderLocked(false);
+		unlockWorkbench();
 		this.coverArt.reset();
 	}
 
@@ -390,11 +407,11 @@ export class StatusPanelRuntime {
 	}
 
 	private findFilePathByCurrentFile(currentFile: string): string | null {
-		return findFilePathByCurrentFileService(getCurrentFileList(), currentFile);
+		return findFilePathByCurrentFileService(readCurrentFileList(), currentFile);
 	}
 
 	private findFilePathByIndex(index: number): string | null {
-		return findFilePathByIndexService(getCurrentFileList(), index);
+		return findFilePathByIndexService(readCurrentFileList(), index);
 	}
 }
 

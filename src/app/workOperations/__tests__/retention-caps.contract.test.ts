@@ -19,7 +19,7 @@ describe('terminal-retention caps contract', () => {
 			/const TERMINAL_OPERATIONS_CAP: usize = (\d+);/,
 		);
 		const frontendCap = await constantFrom(
-			'src/ui/workCenter/state.svelte.ts',
+			'src/app/workOperations/runtime.ts',
 			/const PURGED_OPERATION_TOMBSTONE_CAP = (\d+);/,
 		);
 		expect(frontendCap).toBeGreaterThan(backendCap);

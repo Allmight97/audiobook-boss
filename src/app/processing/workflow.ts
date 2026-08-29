@@ -17,22 +17,15 @@ import {
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
 import type { tauriClient } from '../../lib/tauri/client';
-import type {
-	getCurrentFileList,
-	getSelectedFileIndex,
-	getSelectedFileIndices,
-	setFileOrderLocked,
-	stageMetadataToSelection,
-} from '../fileList';
-import type { getJobType, setJobControlsEnabled } from '../jobControls';
-import type { hasDirtyMetadataFields, readMetadataForm } from '../metadataForm';
+import type { FileListInfo, JobType } from '../../types/audio';
+import type { AudiobookMetadata } from '../../types/metadata';
 import type {
 	cacheMetadataForFile,
 	collectActionableMetadataIntent,
 	getMetadataForFile,
 	stageMetadataIntentPatch,
 } from '../metadataSession';
-import type { runOutputPlanReviewWorkflow } from '../outputPanel';
+import type { runOutputPlanReviewWorkflow } from '../outputPlan';
 import {
 	buildMetadataIntentByPath,
 	buildProcessPayload,
@@ -41,14 +34,14 @@ import {
 	stagePendingMetadataIntent,
 	validInputIds,
 	validInputFilePaths,
-} from './processingWorkflowPreparation';
+} from './workflowPreparation';
 import {
 	purgeRemoteSourceSessionsForInputIds,
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
-} from '../remoteSource';
+} from '../../ui/remoteSource';
 import type { openGeneratedPreviewIfSingle } from './preview';
-import type { readProcessingRequestConfig } from './processingConfig';
+import type { readProcessingRequestConfig } from './config';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -57,20 +50,23 @@ type StatusPanelFeedbackService = {
 };
 
 export interface ProcessingWorkflowServices {
-	getCurrentFileList: typeof getCurrentFileList;
-	getSelectedFileIndex: typeof getSelectedFileIndex;
-	getSelectedFileIndices: typeof getSelectedFileIndices;
+	getCurrentFileList: () => FileListInfo | null;
+	getSelectedFileIndex: () => number;
+	getSelectedFileIndices: () => Set<number>;
 	readProcessingRequestConfig: typeof readProcessingRequestConfig;
-	getJobType: typeof getJobType;
-	hasDirtyMetadataFields: typeof hasDirtyMetadataFields;
-	readMetadataForm: typeof readMetadataForm;
+	getJobType: () => JobType;
+	hasDirtyMetadataFields: () => boolean;
+	readMetadataForm: (options?: {
+		mode?: 'single' | 'multi';
+		onlyDirty?: boolean;
+	}) => Partial<AudiobookMetadata>;
 	collectActionableMetadataIntent: typeof collectActionableMetadataIntent;
 	getMetadataForFile: typeof getMetadataForFile;
 	cacheMetadataForFile: typeof cacheMetadataForFile;
 	stageMetadataIntentPatch: typeof stageMetadataIntentPatch;
-	stageMetadataToSelection: typeof stageMetadataToSelection;
-	setJobControlsEnabled: typeof setJobControlsEnabled;
-	setFileOrderLocked: typeof setFileOrderLocked;
+	stageMetadataToSelection: (options?: { showStatus?: boolean }) => Promise<boolean>;
+	setJobControlsEnabled: (enabled: boolean) => void;
+	setFileOrderLocked: (locked: boolean) => void;
 	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
 	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
@@ -505,7 +501,7 @@ export function startProcessing(
 ): Promise<void> {
 	return (async () => {
 		const workflowLayer =
-			layer ?? (await import('./processingWorkflow.deps')).ProcessingWorkflowLive;
+			layer ?? (await import('./workflow.deps')).ProcessingWorkflowLive;
 		return runAppEffect(
 			processingWorkflowProgram(context, options).pipe(Effect.provide(workflowLayer)),
 		);

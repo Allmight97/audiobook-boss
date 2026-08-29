@@ -8,6 +8,11 @@ export {
 	removeMetadataForFile,
 	stageMetadataIntentPatch,
 } from './cache';
+export {
+	commitPreparedMetadataDrafts,
+	prepareMetadataDrafts,
+	readUncachedMetadataSnapshot,
+} from './staging';
 export type { MetadataStageResult } from './cache';
 export { buildMetadataDraftIntent } from './draft';
 export type { MetadataDraft, MetadataDraftField } from './draft';
@@ -23,6 +28,8 @@ export {
 	metadataCapabilityAtom,
 	metadataEditorAtom,
 	metadataViewAtom,
+	readEditorHasDirtyMetadata,
+	readEditorMetadata,
 	saveMetadataAtom,
 	setCoverDragOverAtom,
 	setCoverHoveredAtom,
@@ -32,6 +39,7 @@ export {
 	setMetadataFieldValueAtom,
 } from './atoms';
 export type { MetadataEditorState, MetadataView } from './atoms';
+export { hasDirtyMetadataFields, readMetadataForm } from './form';
 export { COVER_ART_IMAGE_EXTENSION_HINTS } from './cover';
 export type { CoverArtMessage } from './cover';
 export { calculateTSOA, projectTagPreviewValues } from './tags';

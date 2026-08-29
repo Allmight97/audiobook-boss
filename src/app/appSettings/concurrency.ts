@@ -10,6 +10,7 @@ import { resolveStartupDefaults } from './startupDefaults';
 
 export type ConcurrencyView = {
 	readonly selection: string;
+	readonly effective: number | null;
 	readonly effectiveLabel: string;
 	readonly controlsEnabled: boolean;
 	readonly allowAuto: boolean;
@@ -19,6 +20,7 @@ export type ConcurrencyView = {
 function emptyConcurrency(): ConcurrencyView {
 	return {
 		selection: 'auto',
+		effective: null,
 		effectiveLabel: '',
 		controlsEnabled: true,
 		allowAuto: true,
@@ -69,6 +71,7 @@ export const hydrateConcurrencyAtom = Atom.fn(
 				get.set(concurrencyViewAtom, {
 					...current,
 					selection,
+					effective,
 					allowAuto: capabilities?.allowAuto ?? true,
 					fixedOptions: capabilities?.fixedOptions ?? [],
 					effectiveLabel: labelFor(selection, effective),
@@ -105,6 +108,7 @@ export const setConcurrencySelectionAtom = Atom.fn((value: string, get) => {
 			get.set(concurrencyViewAtom, {
 				...get(concurrencyViewAtom),
 				selection,
+				effective,
 				effectiveLabel: labelFor(selection, effective),
 			});
 		},
@@ -118,3 +122,13 @@ export const setConcurrencySelectionAtom = Atom.fn((value: string, get) => {
 		),
 	);
 }).pipe(Atom.keepAlive);
+
+export const setConcurrencyControlsEnabledAtom = Atom.fnSync(
+	(enabled: boolean, get) => {
+		const current = get(concurrencyViewAtom);
+		const next = { ...current, controlsEnabled: enabled };
+		get.set(concurrencyViewAtom, next);
+		return next;
+	},
+	{ initialValue: emptyConcurrency() },
+).pipe(Atom.keepAlive);

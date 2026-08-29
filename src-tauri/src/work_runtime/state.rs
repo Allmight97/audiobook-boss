@@ -58,7 +58,7 @@ fn push_operation_log(
 /// pruned). Keeps unbounded history from growing forever while every
 /// currently-active operation stays visible. The frontend Work Center
 /// tombstone (`PURGED_OPERATION_TOMBSTONE_CAP` in
-/// `src/ui/workCenter/state.svelte.ts`) must stay larger than this cap so an
+/// `src/app/workOperations/runtime.ts`) must stay larger than this cap so an
 /// operation pruned here can never be re-delivered after its frontend
 /// dedupe entry has been evicted.
 const TERMINAL_OPERATIONS_CAP: usize = 20;

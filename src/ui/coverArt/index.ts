@@ -2,7 +2,7 @@ import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { getJobType } from '../jobControls';
+import { readJobType as readInputJobType } from '../../app/inputSession';
 import { getCurrentFileList, getSelectedFiles } from '../fileList';
 import { stageMetadataIntentPatch } from '../metadataSession';
 import {
@@ -29,7 +29,7 @@ import {
 let coverArtMessageTimeoutId: number | null = null;
 
 function readJobType() {
-	return getJobType();
+	return readInputJobType();
 }
 
 export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;

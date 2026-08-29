@@ -1,19 +1,21 @@
+import type { AtomRegistry } from '../runtime/reactivity';
+import { Atom } from '../runtime/reactivity';
 import type { JobListItem } from './viewTypes';
 
-type StatusPanelViewState = {
-	coverArtDataUrl: string | null;
-	jobItems: JobListItem[];
-	progressPercentage: number;
-	statusText: string;
-	statusTextLockUntilEpochMs: number;
-	stepText: string;
-	stepColor: string;
-	concurrencyText: string;
-	isProcessing: boolean;
-	cancelAllPending: boolean;
+export type StatusView = {
+	readonly coverArtDataUrl: string | null;
+	readonly jobItems: ReadonlyArray<JobListItem>;
+	readonly progressPercentage: number;
+	readonly statusText: string;
+	readonly statusTextLockUntilEpochMs: number;
+	readonly stepText: string;
+	readonly stepColor: string;
+	readonly concurrencyText: string;
+	readonly isProcessing: boolean;
+	readonly cancelAllPending: boolean;
 };
 
-const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
+const DEFAULT_STATUS_VIEW: StatusView = {
 	coverArtDataUrl: null,
 	jobItems: [],
 	progressPercentage: 0,
@@ -27,13 +29,34 @@ const DEFAULT_STATUS_PANEL_VIEW_STATE: StatusPanelViewState = {
 };
 
 const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
+
+export const statusViewAtom = Atom.make<StatusView>(DEFAULT_STATUS_VIEW).pipe(Atom.keepAlive);
+
+let snapshot: StatusView = DEFAULT_STATUS_VIEW;
+let boundRegistry: AtomRegistry.AtomRegistry | null = null;
 let statusMessageLockTimeoutId: number | null = null;
 let statusBeforeUserMessageLock: string | null = null;
 let queuedStatusAfterUserMessageLock: string | null = null;
 
-export const statusPanelViewState = $state<StatusPanelViewState>({
-	...DEFAULT_STATUS_PANEL_VIEW_STATE,
-});
+export function bindStatusViewRegistry(registry: AtomRegistry.AtomRegistry | null): void {
+	boundRegistry = registry;
+	if (registry) {
+		registry.set(statusViewAtom, snapshot);
+	}
+}
+
+function commit(): void {
+	boundRegistry?.set(statusViewAtom, snapshot);
+}
+
+function patch(next: Partial<StatusView>): void {
+	snapshot = { ...snapshot, ...next };
+	commit();
+}
+
+export function getStatusView(): StatusView {
+	return snapshot;
+}
 
 function normalizeStatusLockTtlMs(ttlMs: number): number {
 	if (!Number.isFinite(ttlMs)) return 0;
@@ -41,7 +64,7 @@ function normalizeStatusLockTtlMs(ttlMs: number): number {
 }
 
 export function isStatusPanelUserMessageLockActive(nowMs: number = Date.now()): boolean {
-	return statusPanelViewState.statusTextLockUntilEpochMs > nowMs;
+	return snapshot.statusTextLockUntilEpochMs > nowMs;
 }
 
 export function clearStatusPanelUserMessageLock(): void {
@@ -50,14 +73,15 @@ export function clearStatusPanelUserMessageLock(): void {
 		statusMessageLockTimeoutId = null;
 	}
 
-	statusPanelViewState.statusTextLockUntilEpochMs = 0;
 	const restoredStatus = queuedStatusAfterUserMessageLock ?? statusBeforeUserMessageLock;
-	if (restoredStatus !== null) {
-		statusPanelViewState.statusText = restoredStatus;
-	}
-
+	snapshot = {
+		...snapshot,
+		statusTextLockUntilEpochMs: 0,
+		statusText: restoredStatus ?? snapshot.statusText,
+	};
 	statusBeforeUserMessageLock = null;
 	queuedStatusAfterUserMessageLock = null;
+	commit();
 }
 
 export function pushStatusPanelUserMessageLock(
@@ -65,7 +89,7 @@ export function pushStatusPanelUserMessageLock(
 	ttlMs: number = DEFAULT_USER_STATUS_LOCK_TTL_MS,
 ): void {
 	if (!isStatusPanelUserMessageLockActive()) {
-		statusBeforeUserMessageLock = statusPanelViewState.statusText;
+		statusBeforeUserMessageLock = snapshot.statusText;
 		queuedStatusAfterUserMessageLock = null;
 	}
 
@@ -75,8 +99,12 @@ export function pushStatusPanelUserMessageLock(
 	}
 
 	const lockTtlMs = normalizeStatusLockTtlMs(ttlMs);
-	statusPanelViewState.statusText = value;
-	statusPanelViewState.statusTextLockUntilEpochMs = lockTtlMs > 0 ? Date.now() + lockTtlMs : 0;
+	snapshot = {
+		...snapshot,
+		statusText: value,
+		statusTextLockUntilEpochMs: lockTtlMs > 0 ? Date.now() + lockTtlMs : 0,
+	};
+	commit();
 
 	if (lockTtlMs > 0) {
 		statusMessageLockTimeoutId = window.setTimeout(() => {
@@ -86,15 +114,15 @@ export function pushStatusPanelUserMessageLock(
 }
 
 export function setStatusPanelCoverArtDataUrl(dataUrl: string | null): void {
-	statusPanelViewState.coverArtDataUrl = dataUrl;
+	patch({ coverArtDataUrl: dataUrl });
 }
 
 export function setStatusPanelJobItems(items: JobListItem[]): void {
-	statusPanelViewState.jobItems = items;
+	patch({ jobItems: items });
 }
 
 export function setStatusPanelProgressPercentage(value: number): void {
-	statusPanelViewState.progressPercentage = value;
+	patch({ progressPercentage: value });
 }
 
 export function setStatusPanelStatusText(value: string): void {
@@ -102,32 +130,32 @@ export function setStatusPanelStatusText(value: string): void {
 		queuedStatusAfterUserMessageLock = value;
 		return;
 	}
-	if (statusPanelViewState.statusTextLockUntilEpochMs > 0) {
+	if (snapshot.statusTextLockUntilEpochMs > 0) {
 		clearStatusPanelUserMessageLock();
 	}
-	statusPanelViewState.statusText = value;
 	queuedStatusAfterUserMessageLock = null;
 	statusBeforeUserMessageLock = null;
+	patch({ statusText: value });
 }
 
 export function setStatusPanelStepText(value: string): void {
-	statusPanelViewState.stepText = value;
+	patch({ stepText: value });
 }
 
 export function setStatusPanelStepColor(value: string): void {
-	statusPanelViewState.stepColor = value;
+	patch({ stepColor: value });
 }
 
 export function setStatusPanelConcurrencyText(value: string): void {
-	statusPanelViewState.concurrencyText = value;
+	patch({ concurrencyText: value });
 }
 
 export function setStatusPanelIsProcessing(isProcessing: boolean): void {
-	statusPanelViewState.isProcessing = isProcessing;
+	patch({ isProcessing });
 }
 
 export function setStatusPanelCancelAllPending(isPending: boolean): void {
-	statusPanelViewState.cancelAllPending = isPending;
+	patch({ cancelAllPending: isPending });
 }
 
 export function showError(message: string): void {
@@ -142,7 +170,7 @@ export function showSuccess(message: string): void {
 
 export function showInfo(message: string): void {
 	setStatusPanelStepText(message);
-	setStatusPanelStepColor(DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor);
+	setStatusPanelStepColor(DEFAULT_STATUS_VIEW.stepColor);
 }
 
 export function pushTransientStatusMessage(message: string, ttlMs?: number): void {
@@ -154,22 +182,12 @@ export function clearTransientStatusMessageLock(): void {
 }
 
 export function resetStatusPanelViewState(): void {
-	statusPanelViewState.coverArtDataUrl = DEFAULT_STATUS_PANEL_VIEW_STATE.coverArtDataUrl;
-	statusPanelViewState.jobItems = [...DEFAULT_STATUS_PANEL_VIEW_STATE.jobItems];
-	statusPanelViewState.progressPercentage = DEFAULT_STATUS_PANEL_VIEW_STATE.progressPercentage;
-	statusPanelViewState.statusText = DEFAULT_STATUS_PANEL_VIEW_STATE.statusText;
-	statusPanelViewState.statusTextLockUntilEpochMs =
-		DEFAULT_STATUS_PANEL_VIEW_STATE.statusTextLockUntilEpochMs;
-	statusPanelViewState.stepText = DEFAULT_STATUS_PANEL_VIEW_STATE.stepText;
-	statusPanelViewState.stepColor = DEFAULT_STATUS_PANEL_VIEW_STATE.stepColor;
-	statusPanelViewState.concurrencyText = DEFAULT_STATUS_PANEL_VIEW_STATE.concurrencyText;
-	statusPanelViewState.isProcessing = DEFAULT_STATUS_PANEL_VIEW_STATE.isProcessing;
-	statusPanelViewState.cancelAllPending = DEFAULT_STATUS_PANEL_VIEW_STATE.cancelAllPending;
-
+	snapshot = { ...DEFAULT_STATUS_VIEW, jobItems: [] };
 	if (statusMessageLockTimeoutId !== null) {
 		window.clearTimeout(statusMessageLockTimeoutId);
 		statusMessageLockTimeoutId = null;
 	}
 	statusBeforeUserMessageLock = null;
 	queuedStatusAfterUserMessageLock = null;
+	commit();
 }

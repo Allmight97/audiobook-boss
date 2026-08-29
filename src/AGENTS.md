@@ -26,7 +26,7 @@
 - Audiobook Boss is desktop-only, so alternate viewport review is out of scope unless a task explicitly asks for it.
 - When touching metadata save/load IPC, patch intent, or boundary
   normalization, open `src/lib/tauri/AGENTS.md` first; when touching
-  metadata-save lifecycle display, also open `src/ui/workCenter/AGENTS.md`.
+  metadata-save lifecycle display, also open `src/app/workOperations/AGENTS.md`.
 - When touching Effect workflow owners or the AppEffect kernel, open
   `src/lib/effect/AGENTS.md` first.
 - Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.

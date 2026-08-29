@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { setJobTypeAtom } from '../../app/inputSession';
+import { createTestAppRuntime } from '../../app/runtime/harness';
+import type { AppRuntime } from '../../app/runtime';
 import {
 	clearCoverArt,
 	getCurrentCoverArt,
@@ -7,7 +10,6 @@ import {
 	refreshCoverArtDisplay,
 	setCustomCoverArt,
 } from '../coverArt';
-import { jobControlsState } from '../jobControls/state.svelte';
 import {
 	setCurrentFileList,
 	setSelectedFileIndices,
@@ -40,12 +42,19 @@ function makeFileList(files: AudioFile[]): FileListInfo {
 }
 
 describe('coverArt owner integration', () => {
+	let runtime: AppRuntime;
+
 	beforeEach(() => {
+		runtime = createTestAppRuntime();
 		clearMetadataSession();
-		jobControlsState.jobType = 'batch';
+		runtime.registry.set(setJobTypeAtom, 'batch');
 		setCurrentFileList(makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]));
 		setSelectedFileIndices([0]);
 		setSelectedIndex(0);
+	});
+
+	afterEach(() => {
+		runtime.dispose();
 	});
 
 	it('commits custom cover art to the selected batch file only', () => {
@@ -75,7 +84,7 @@ describe('coverArt owner integration', () => {
 	});
 
 	it('commits merge cover art to the first valid file regardless of selection', () => {
-		jobControlsState.jobType = 'merge';
+		runtime.registry.set(setJobTypeAtom, 'merge');
 		setSelectedFileIndices([1]);
 		setSelectedIndex(1);
 
@@ -89,7 +98,7 @@ describe('coverArt owner integration', () => {
 	});
 
 	it('does not clear staged merge cover art during non-explicit panel resets', () => {
-		jobControlsState.jobType = 'merge';
+		runtime.registry.set(setJobTypeAtom, 'merge');
 
 		setCustomCoverArt([9, 8, 7]);
 		clearCoverArt();

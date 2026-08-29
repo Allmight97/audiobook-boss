@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings, type ProcessPayload } from '../../../types/audio';
 import type { MetadataIntentPatch } from '../../../types/metadataIntent';
 import type { ProcessingStatus } from '../state';
-import { startProcessing } from '../processingWorkflow';
-import * as viewState from '../viewState.svelte';
+import { startProcessing as startProcessingRaw, makeProcessingWorkflowServicesLayer } from '../workflow';
+import type { ProcessingWorkflowServices } from '../workflow';
+import { openGeneratedPreviewIfSingle } from '../preview';
+import * as viewState from '../view';
 
 const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
@@ -46,32 +48,6 @@ vi.mock('../../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../../fileList/state.svelte', () => ({
-	getCurrentFileList: context.getCurrentFileListMock,
-	getSelectedFileIndex: context.getSelectedFileIndexMock,
-	getSelectedFileIndices: context.getSelectedFileIndicesMock,
-	isOrderLocked: vi.fn(() => false),
-	onOrderLockChange: vi.fn(() => () => undefined),
-}));
-
-vi.mock('../processingConfig', () => ({
-	readProcessingRequestConfig: context.readProcessingRequestConfigMock,
-}));
-
-vi.mock('../../outputPanel', () => ({
-	runOutputPlanReviewWorkflow: context.runOutputPlanReviewWorkflowMock,
-}));
-
-vi.mock('../../jobControls', () => ({
-	getJobType: context.getJobTypeMock,
-	setJobControlsEnabled: vi.fn(),
-}));
-
-vi.mock('../../metadataForm', () => ({
-	readMetadataForm: context.readMetadataFormMock,
-	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
-}));
-
 vi.mock('../../metadataSession', () => ({
 	getMetadataForFile: context.getMetadataForFileMock,
 	cacheMetadataForFile: context.cacheMetadataForFileMock,
@@ -111,15 +87,7 @@ vi.mock('../../metadataSession', () => ({
 	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
-vi.mock('../../fileList/actions', () => ({
-	setFileOrderLocked: vi.fn(),
-}));
-
-vi.mock('../../fileList/metadataStaging', () => ({
-	stageMetadataToSelection: context.stageMetadataToSelectionMock,
-}));
-
-vi.mock('../viewState.svelte', () => ({
+vi.mock('../view', () => ({
 	showError: vi.fn(),
 }));
 
@@ -134,6 +102,56 @@ function processingContext() {
 		handleCancellation: vi.fn(),
 		resetToIdle: vi.fn(),
 	};
+}
+
+function collectStoredIntent(filePaths: readonly string[]) {
+	const collected: Record<string, Record<string, { op: string }>> = {};
+	for (const filePath of filePaths) {
+		const patch = context.storedIntentPatches[filePath];
+		if (patch && Object.values(patch).some((intent) => intent && intent.op !== 'noop')) {
+			collected[filePath] = patch;
+		}
+	}
+	return Object.keys(collected).length > 0 ? collected : null;
+}
+
+function stagingServices(): ProcessingWorkflowServices {
+	return {
+		getCurrentFileList: context.getCurrentFileListMock,
+		getSelectedFileIndex: context.getSelectedFileIndexMock,
+		getSelectedFileIndices: context.getSelectedFileIndicesMock,
+		readProcessingRequestConfig: context.readProcessingRequestConfigMock,
+		getJobType: context.getJobTypeMock,
+		hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
+		readMetadataForm: context.readMetadataFormMock,
+		collectActionableMetadataIntent:
+			collectStoredIntent as ProcessingWorkflowServices['collectActionableMetadataIntent'],
+		getMetadataForFile: context.getMetadataForFileMock,
+		cacheMetadataForFile: context.cacheMetadataForFileMock,
+		stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
+		stageMetadataToSelection: context.stageMetadataToSelectionMock,
+		setJobControlsEnabled: vi.fn(),
+		setFileOrderLocked: vi.fn(),
+		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
+		readAudioMetadata: context.readAudioMetadataMock,
+		processAudiobookFiles: context.processAudiobookFilesMock,
+		submitProcessingOperation: context.submitProcessingOperationMock,
+		runOutputPlanReviewWorkflow: context.runOutputPlanReviewWorkflowMock,
+		openGeneratedPreviewIfSingle,
+		feedback: { showError: viewState.showError },
+		console,
+	};
+}
+
+function startProcessing(
+	ctx: ReturnType<typeof processingContext>,
+	options?: { previewSeconds?: number },
+) {
+	return startProcessingRaw(
+		ctx,
+		options,
+		makeProcessingWorkflowServicesLayer(stagingServices()),
+	);
 }
 
 describe('startProcessing metadata staging', () => {

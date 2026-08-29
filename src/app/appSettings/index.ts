@@ -1,6 +1,7 @@
 export {
 	concurrencyViewAtom,
 	hydrateConcurrencyAtom,
+	setConcurrencyControlsEnabledAtom,
 	setConcurrencySelectionAtom,
 	settingsCapabilityAtom,
 } from './concurrency';

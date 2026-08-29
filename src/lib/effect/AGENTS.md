@@ -23,8 +23,8 @@ Keep Effect private to workflow owners:
   synchronous wrappers where callers already rely on them.
 - Workflow owners expose a local service interface, service tag, live layer
   (co-located in the workflow file with `satisfies`), typed errors, program,
-  and Promise bridge. `ProcessingWorkflow` keeps live deps in
-  `processingWorkflow.deps.ts` (dynamic-imported) to preserve the file-list
+  and Promise bridge. Processing keeps live deps in
+  `src/app/processing/workflow.deps.ts` (dynamic-imported) to preserve the
   cycle break.
 - Dependencies are injected through service objects so tests can provide fake
   layers without Svelte rendering or live Tauri.
