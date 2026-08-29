@@ -64,8 +64,8 @@ vi.mock('../statusPanel/index', () => ({
 }));
 
 vi.mock('../outputPanel', () => ({
-	updateOutputPath: vi.fn(),
-	updateEstimatedSize: vi.fn(),
+	runOutputPlanReviewWorkflow: vi.fn(),
+	readOutputRequestConfig: vi.fn(),
 }));
 
 vi.mock('../coverArt', () => ({
@@ -302,8 +302,6 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 				artist: 'Author Person',
 				album: 'Looked Up Title',
 			})),
-			updateOutputPath: vi.fn(),
-			updateEstimatedSize: vi.fn(),
 			clearCoverArt: vi.fn(),
 			setCoverArt: vi.fn(),
 			setCustomCoverArt: vi.fn(),
@@ -381,7 +379,6 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 			vi.fn(async () => acceptedProcessingSubmission());
 
 		const layer = makeProcessingWorkflowServicesLayer({
-			updateOutputPath: vi.fn(),
 			getCurrentFileList: () => smokeFileList(),
 			getSelectedFileIndex: () => 0,
 			getSelectedFileIndices: () => new Set([0]),

@@ -1,17 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Effect, runAppEffect } from '../../../lib/effect/appEffect';
+import { Effect, runAppEffect } from '../../lib/effect/appEffect';
 import {
 	defaultEncoderSettings,
 	type ProcessPayload,
 	type ProcessingPreflightPlan,
-} from '../../../types/audio';
-import type { MetadataIntentPatch } from '../../../types/metadataIntent';
+} from '../../types/audio';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
 	makeOutputPlanWorkflowServicesLayer,
 	outputPathPreviewBody,
 	outputPlanReviewBody,
 	type OutputPlanWorkflowServices,
-} from '../outputPlanWorkflow';
+} from './workflow';
+import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
 
 function payload(overrides: Partial<ProcessPayload> = {}): ProcessPayload {
 	return {
@@ -48,42 +49,18 @@ function plan(overrides: Partial<ProcessingPreflightPlan> = {}): ProcessingPrefl
 }
 
 function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
-	const state = {
-		outputDirectory: '/tmp/out',
-		previewText: '',
-		previewTitle: '',
-	};
+	const preview = { text: '', title: '' };
 	let latestRequestId = 0;
 	const services: OutputPlanWorkflowServices = {
-		getState: vi.fn(() => state as ReturnType<OutputPlanWorkflowServices['getState']>),
-		readOutputPathPreviewMetadataDraft: vi.fn(() => ({
-			title: 'A',
-			album: 'A',
-			artist: 'Author',
-			composer: '',
-			genre: '',
-			description: '',
-			series: '',
-			subseries: '',
-		})),
 		updateMetadataIntentWarnings: vi.fn(async () => undefined),
-		buildOutputPathPreviewContext: vi.fn(() => ({
-			outputDirectory: state.outputDirectory,
-			sourcePath: '/books/a.m4b',
-		})),
 		beginOutputPreviewRequest: vi.fn(() => {
 			latestRequestId += 1;
 			return latestRequestId;
 		}),
 		isLatestOutputPreviewRequest: vi.fn((requestId) => requestId === latestRequestId),
-		getOutputNamingConfig: vi.fn(() => ({
-			preset: 'absDefault' as const,
-			includeYear: false,
-			customTemplate: undefined,
-		})),
 		setOutputPreview: vi.fn((text: string, title = text) => {
-			state.previewText = text;
-			state.previewTitle = title;
+			preview.text = text;
+			preview.title = title;
 		}),
 		showOutputError: vi.fn(),
 		previewOutputPath: vi.fn(async () => '/tmp/out/a.m4b'),
@@ -94,17 +71,35 @@ function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
 	};
 
 	return {
-		state,
+		preview,
 		services,
 		layer: makeOutputPlanWorkflowServicesLayer(services),
 	};
 }
 
+const previewContext = {
+	outputDirectory: '/tmp/out',
+	sourcePath: '/books/a.m4b',
+	outputNaming: { preset: 'absDefault' as const, includeYear: false, customTemplate: undefined },
+	metadataDraft: {
+		title: 'A',
+		album: 'A',
+		artist: 'Author',
+		composer: '',
+		genre: '',
+		description: '',
+		series: '',
+		subseries: '',
+	},
+};
+
 describe('OutputPlanWorkflow', () => {
 	it('updates output preview from the output artifact boundary', async () => {
 		const harness = makeHarness();
 
-		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
+		await runAppEffect(
+			outputPathPreviewBody('final', previewContext).pipe(Effect.provide(harness.layer)),
+		);
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -113,18 +108,21 @@ describe('OutputPlanWorkflow', () => {
 				outputKind: 'final',
 			}),
 		);
-		expect(harness.state.previewText).toBe('/tmp/out/a.m4b');
+		expect(harness.preview.text).toBe('/tmp/out/a.m4b');
 	});
 
 	it('reports missing output directory without crossing the boundary', async () => {
 		const harness = makeHarness();
-		harness.state.outputDirectory = '';
 
-		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
+		await runAppEffect(
+			outputPathPreviewBody('final', { ...previewContext, outputDirectory: '' }).pipe(
+				Effect.provide(harness.layer),
+			),
+		);
 
 		expect(harness.services.previewOutputPath).not.toHaveBeenCalled();
-		expect(harness.state.previewText).toBe('Select output directory...');
-		expect(harness.state.previewTitle).toBe('No directory selected');
+		expect(harness.preview.text).toBe(EMPTY_PREVIEW_TEXT);
+		expect(harness.preview.title).toBe(EMPTY_PREVIEW_TITLE);
 	});
 
 	it('ignores stale preview responses', async () => {
@@ -132,7 +130,9 @@ describe('OutputPlanWorkflow', () => {
 			isLatestOutputPreviewRequest: vi.fn(() => false),
 		});
 
-		await runAppEffect(outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)));
+		await runAppEffect(
+			outputPathPreviewBody('preview', previewContext).pipe(Effect.provide(harness.layer)),
+		);
 
 		expect(harness.services.previewOutputPath).toHaveBeenCalled();
 		expect(harness.services.setOutputPreview).not.toHaveBeenCalled();
@@ -146,7 +146,9 @@ describe('OutputPlanWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(outputPathPreviewBody('preview').pipe(Effect.provide(harness.layer)));
+		await runAppEffect(
+			outputPathPreviewBody('preview', previewContext).pipe(Effect.provide(harness.layer)),
+		);
 
 		expect(harness.services.console.error).toHaveBeenCalledWith(
 			'Metadata preview validation failed:',
@@ -156,7 +158,7 @@ describe('OutputPlanWorkflow', () => {
 			'Failed to validate metadata preview.',
 		);
 		expect(harness.services.previewOutputPath).toHaveBeenCalled();
-		expect(harness.state.previewText).toBe('/tmp/out/a.m4b');
+		expect(harness.preview.text).toBe('/tmp/out/a.m4b');
 	});
 
 	it('surfaces preview failures without throwing to UI callers', async () => {
@@ -167,9 +169,11 @@ describe('OutputPlanWorkflow', () => {
 			}),
 		});
 
-		await runAppEffect(outputPathPreviewBody('final').pipe(Effect.provide(harness.layer)));
+		await runAppEffect(
+			outputPathPreviewBody('final', previewContext).pipe(Effect.provide(harness.layer)),
+		);
 
-		expect(harness.state.previewText).toBe(
+		expect(harness.preview.text).toBe(
 			'Output preview unavailable. Fix metadata/template and retry.',
 		);
 		expect(harness.services.showOutputError).toHaveBeenCalledWith(

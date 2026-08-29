@@ -14,7 +14,7 @@ import {
 	getMetadataForFile,
 	stageMetadataIntentPatch,
 } from '../metadataSession';
-import { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
+import { runOutputPlanReviewWorkflow } from '../outputPanel';
 import {
 	makeProcessingWorkflowServicesLayer,
 	type ProcessingWorkflowServices,
@@ -24,7 +24,6 @@ import { openGeneratedPreviewIfSingle } from './preview';
 import { readProcessingRequestConfig } from './processingConfig';
 
 const liveProcessingWorkflowServices = {
-	updateOutputPath,
 	getCurrentFileList,
 	getSelectedFileIndex,
 	getSelectedFileIndices,

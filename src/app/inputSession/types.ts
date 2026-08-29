@@ -36,6 +36,7 @@ export type InputView = {
 	readonly showSortButton: boolean;
 	readonly showClearButton: boolean;
 	readonly showRestoreImportOrder: boolean;
+	readonly totalDurationSeconds: number;
 };
 
 export type ImportIntent =

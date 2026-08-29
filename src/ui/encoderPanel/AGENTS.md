@@ -2,8 +2,9 @@
 
 ## Public API Strip
 - Import encoder request configuration from `src/ui/encoderPanel`.
-- Exports: `applyEncodingDefaults`, `readEncoderDefaultsFromState`,
-  `readEncodingRequestConfig`, `readFdkAfterburner`, `setFdkAfterburner`.
+- Exports: `applyEncodingDefaults`, `encodingRequestConfigAtom`,
+  `readEncoderDefaultsFromState`, `readEncodingRequestConfig`,
+  `readFdkAfterburner`, `setFdkAfterburner`.
 - `readFdkAfterburner`/`setFdkAfterburner` exist for the App Settings dialog,
   which owns the afterburner control; the panel keeps the request-truth
   carrier and persistence rails and renders no afterburner UI.
@@ -11,11 +12,9 @@
   Runtime Settings Capabilities encoder slice from App Settings hydration. It
   lazily imports `logic.ts` so the index stays side-effect-light for config
   consumers; keep new strip entries in that shape.
-- Known temporary seam: `src/ui/outputPanel/index.ts` imports
-  `setEncoderEstimatedSizeListener` from `logic.ts` directly instead of through
-  this strip, because routing it through the lazy index would make
-  `initOutputPanel()` async. Slice 6 deletes this seam with the Svelte output
-  panel; do not add further direct `logic.ts` importers.
+- `encodingRequestConfigAtom` is the reactive request-configuration strip
+  Output Plan reads for the derived estimate. Publish into that atom; do not
+  make Output sample `readEncodingRequestConfig()` or keep a mirrored size.
 
 ## Private Cluster
 - Files: `EncoderView.tsx`, `encoderView.css`, `autoResolutionHints.ts`,
@@ -23,10 +22,9 @@
 - `EncoderView.tsx` is the mounted Solid renderer and reads
   `state.svelte.ts` through a revision-counter bridge; encoder request truth
   stays in the rune store until slice 9 removes `.svelte.ts` sources.
-- The `estimated-size` span in `EncoderView.tsx` renders a literal em dash. That
-  value is output-panel truth (`readEstimatedSizeText`) and stays unwired on
-  purpose until slice 6 moves the output panel to atoms; wiring it through
-  `state.svelte.ts` would re-couple this cluster to the displaced output module.
+- The `estimated-size` span in `EncoderView.tsx` is the only consumer of
+  Output Plan's `estimatedSizeTextAtom`. Keep `~ 12.3 MB` / `~ --- MB` in this
+  header; do not move the span into the Output block.
 - The cluster owns audio encoder UI state, resolved encoder availability,
   sample-rate/channel state, and encoding request configuration truth.
   Selectable validity facts for encoder options, bitrate modes, bitrates, VBR
@@ -41,7 +39,8 @@
 - Keep App Settings hydration/persistence coordination behind
   `applyEncodingDefaults` and `readEncoderDefaultsFromState`; do not let other
   panels reach into `state.svelte.ts`.
-- Keep estimated-size updates derived from encoder state; do not mirror encoder/sample-rate state into output or status panels.
+- Keep estimated-size display derived from Output Plan; do not mirror encoder
+  request config into an Output-owned size cache.
 - Keep UI labels and hints frontend-owned; do not reintroduce local
   accept/reject matrices for settings that Rust validates.
 

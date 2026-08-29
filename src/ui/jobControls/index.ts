@@ -2,7 +2,6 @@ import { tauriClient } from '../../lib/tauri/client';
 import type { ConcurrencyPreference } from '../../types/appSettings';
 import type { JobType, MaxConcurrentJobsCapabilities } from '../../types/audio';
 import { jobControlsState, notifyJobControls } from './state.svelte';
-import { updateOutputPath } from '../outputPanel';
 import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
 import { refreshCoverArtDisplay } from '../coverArt';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
@@ -22,7 +21,7 @@ function initializeMaxConcurrentControl(): void {
 }
 
 export function handleMergeModeChange(checked: boolean): void {
-	setJobType(checked ? 'merge' : 'batch', true);
+	setJobType(checked ? 'merge' : 'batch');
 }
 
 export function handleMaxConcurrentSelectionChange(value: string): void {
@@ -31,16 +30,13 @@ export function handleMaxConcurrentSelectionChange(value: string): void {
 	void pushMaxConcurrentToBackend(value, true, previousSelection);
 }
 
-function setJobType(jobType: JobType, emitChangeEvent: boolean): void {
+function setJobType(jobType: JobType): void {
 	jobControlsState.jobType = jobType;
 	refreshCoverArtDisplay();
-	if (emitChangeEvent) {
-		updateOutputPath('final');
-	}
 }
 
 export function setJobTypeSelection(jobType: JobType): void {
-	setJobType(jobType, false);
+	setJobType(jobType);
 }
 
 // Read current value

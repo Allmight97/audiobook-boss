@@ -58,8 +58,6 @@ export interface MetadataLookupWorkflowServices {
 		mode?: 'single' | 'multi';
 		includeCoverArt?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	updateOutputPath: (kind: string) => void;
-	updateEstimatedSize: () => void;
 	clearCoverArt: () => void;
 	setCoverArt: (coverArtBytes: number[] | null) => void;
 	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
@@ -124,11 +122,6 @@ export type MetadataLookupWorkflowFailed = InstanceType<typeof kit.Failed>;
 
 const workflowSync = kit.trySync;
 const workflowPromise = kit.tryPromise;
-
-function refreshOutputForMetadataChange(services: MetadataLookupWorkflowServices): void {
-	services.updateOutputPath('final');
-	services.updateEstimatedSize();
-}
 
 function setStatus(
 	services: MetadataLookupWorkflowServices,
@@ -249,8 +242,6 @@ async function applyResult(
 			coverArtFailed = true;
 		}
 	}
-	refreshOutputForMetadataChange(services);
-
 	if (mode === 'queue') {
 		if (current) {
 			const queueState: QueueItemState = {

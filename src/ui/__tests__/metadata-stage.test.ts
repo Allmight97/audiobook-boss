@@ -34,11 +34,6 @@ vi.mock('../../lib/tauri/client', () => ({
 	},
 }));
 
-vi.mock('../outputPanel', () => ({
-	updateEstimatedSize: vi.fn(),
-	updateOutputPath: vi.fn(),
-}));
-
 vi.mock('../statusPanel', () => ({
 	initStatusPanel: vi.fn(),
 	isStatusPanelProcessing: vi.fn(() => false),

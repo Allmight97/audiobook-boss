@@ -39,11 +39,6 @@ vi.mock('../../metadataSession', () => ({
 	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
-vi.mock('../../outputPanel', () => ({
-	updateEstimatedSize: vi.fn(),
-	updateOutputPath: vi.fn(),
-}));
-
 vi.mock('../events', () => ({
 	initFileListEvents: vi.fn(),
 	setupDragStartHandlers: vi.fn(),

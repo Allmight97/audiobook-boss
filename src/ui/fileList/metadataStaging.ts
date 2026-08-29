@@ -14,15 +14,9 @@ import {
 	stageMetadataIntentPatch,
 	validateMetadataDraft,
 } from '../metadataSession';
-import { updateEstimatedSize, updateOutputPath } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { getSelectedFiles } from './state.svelte';
 import { getCurrentFileList } from './state.svelte';
-
-function refreshOutputForMetadataChange(): void {
-	updateOutputPath('final');
-	updateEstimatedSize();
-}
 
 function setStatusMessage(message: string): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: 2_500 });
@@ -151,7 +145,6 @@ export function commitPreparedMetadataDrafts(
 	if (prepared.kind === 'single') {
 		if (stageMetadataIntentPatch(prepared.filePath, prepared.intentPatch) !== 'staged') return true;
 		resetDirtyState();
-		refreshOutputForMetadataChange();
 		return true;
 	}
 	for (const [path, metadata] of Object.entries(prepared.pendingCacheByPath)) {
@@ -166,7 +159,6 @@ export function commitPreparedMetadataDrafts(
 	);
 	if (stageResults[0] === 'noop') return true;
 	resetDirtyState();
-	refreshOutputForMetadataChange();
 	return true;
 }
 

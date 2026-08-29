@@ -4,10 +4,13 @@ import {
 	hydrateConcurrencyAtom,
 	openProductionSettingsDialog,
 } from '../app/appSettings';
+import { applyOutputDefaultsFromSettings } from '../app/outputPlan';
 import { saveMetadataAtom } from '../app/metadataSession';
 import { useAtomSet } from '../app/runtime/solid';
 import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
+import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
 import { EncoderView } from './encoderPanel/EncoderView';
+import { OutputView } from './outputPanel/OutputView';
 import { FileImportView } from './fileImport/FileImportView';
 import { ConcurrencyControl } from './jobControls/ConcurrencyControl';
 import { MergeModeToggle } from './jobControls/MergeModeToggle';
@@ -20,9 +23,14 @@ import './encodingWorkbench/encodingWorkbench.css';
 export function App(): JSX.Element {
 	const saveMetadata = useAtomSet(() => saveMetadataAtom);
 	const hydrateConcurrency = useAtomSet(() => hydrateConcurrencyAtom);
+	const applyOutputDefaults = useAtomSet(() => applyOutputDefaultsFromSettings);
 
 	onMount(() => {
-		void hydrateAppSettingsProduction();
+		void hydrateAppSettingsProduction().then((defaults) => {
+			if (defaults) {
+				applyOutputDefaults(defaults.outputDefaults);
+			}
+		});
 		void hydrateConcurrency({});
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {
@@ -66,7 +74,7 @@ export function App(): JSX.Element {
 				<div class="panel right-column-panel encoding-workbench-panel">
 					<div class="encoding-workbench-frame">
 						<section
-							class="encoding-workbench encoding-workbench-encoder-tags"
+							class="encoding-workbench"
 							aria-label="Encoding, output, and tags"
 							data-testid="encoding-workbench"
 						>
@@ -75,6 +83,12 @@ export function App(): JSX.Element {
 								data-testid="encoding-workbench-encoder"
 							>
 								<EncoderView />
+							</div>
+							<div
+								class="workbench-block workbench-block-output"
+								data-testid="encoding-workbench-output"
+							>
+								<OutputView />
 							</div>
 							<div
 								class="workbench-block workbench-block-tags"
@@ -91,6 +105,7 @@ export function App(): JSX.Element {
 			</div>
 			<MetadataLookupView />
 			<AppSettingsDialogView />
+			<CollisionDialogView />
 		</div>
 	);
 }

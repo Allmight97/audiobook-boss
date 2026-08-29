@@ -1,28 +1,32 @@
 # Output Panel
 
+## Scope
+
+- Solid Output workbench view under `src/ui/outputPanel/`.
+- Output directory, naming, path preview, estimate, and collision review truth
+  live in `src/app/outputPlan`. This owner renders that view and re-exports the
+  submit/hydration strip processing still composes.
+
 ## Public API Strip
-- Import output panel runtime symbols from `src/ui/outputPanel`; do not reach into private files.
-- Authoritative runtime export surface = `index.ts`, pinned by
-  `__tests__/runtime-api-contract.test.ts`. Treat that test as the source of
-  truth instead of a hand-listed export set here.
-- External Svelte consumers read estimated size through `readEstimatedSizeText()`
-  inside reactive markup (`$derived(...)`).
+
+- Import from `src/ui/outputPanel`. The runtime export surface is `index.ts`,
+  pinned by `__tests__/runtime-api-contract.test.ts`.
+- Exports: `OutputView`, `applyOutputDefaultsFromSettings`,
+  `readOutputDefaultsFromState`, `readOutputRequestConfig`,
+  `runOutputPlanReviewWorkflow`.
 
 ## Private Cluster
-- Files: `OutputPanelIsland.svelte`, `actions.ts`, `preview.ts`, `state.svelte.ts`, `outputPlanWorkflow.ts`, `__tests__/`.
-- The cluster owns output directory, output naming, output-path preview, estimated-size display, tag preview display, collision review, and output-plan preflight.
 
-## Allowed Agent Edits Without Escalation
-- Change internals when focused output panel tests stay green; run targeted
-  Vitest files when proving UI behavior and generated-binding/Public API Strip/runtime
-  contract checks when runtime surfaces change.
-- Keep process-boundary output config reads behind `readOutputRequestConfig`.
-- Keep App Settings hydration/persistence coordination behind
-  `applyOutputDefaultsFromSettings` and `readOutputDefaultsFromState`; do not
-  let other panels reach into `state.svelte.ts`.
-- Read encoder panel config through its Public API Strip only for derived display, such as estimated size.
+- Files: `OutputView.tsx`, `outputView.css`.
+
+## Cross-Strip Coupling
+
+- `OutputView` reads `outputViewAtom` and mounts `outputPathPreviewAtom`.
+- Estimated size is rendered in the encoder header from
+  `estimatedSizeTextAtom`; do not add a second estimate readout here.
 
 ## Breaking-Change Triggers
+
 - Adding, removing, or renaming a Public API Strip export.
-- Reintroducing encoder/sample-rate process truth into this cluster.
-- Letting another panel import `state.svelte.ts`, `preview.ts`, or workflow internals to build process payloads.
+- Reintroducing a poke API (`updateOutputPath`, `updateEstimatedSize`) or a
+  local output store.

@@ -230,6 +230,7 @@ function toInputView(session: InputSessionState): InputView {
 		showSortButton: files.length > 1,
 		showClearButton: files.length > 0,
 		showRestoreImportOrder: differs && !locked,
+		totalDurationSeconds: session.fileList?.totalDuration ?? 0,
 	};
 }
 

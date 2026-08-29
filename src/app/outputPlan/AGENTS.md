@@ -1,0 +1,55 @@
+# Output Plan
+
+## Scope
+
+- Owns output directory, naming, path preview, encoded-size estimate, and
+  collision review under `src/app/outputPlan/`.
+- Solid views live in `src/ui/outputPanel` and `src/ui/collisionDialog`. They
+  render this owner; they do not keep a second plan store.
+
+## Public API Strip
+
+- Import Output Plan runtime symbols from `src/app/outputPlan`.
+- Workbench callers that only need the composed UI strip import
+  `src/ui/outputPanel` instead.
+- `index.ts` is the export surface. Do not import `atoms.ts`, `workflow.ts`,
+  `collision.ts`, or `previewDraft.ts` from outside this owner.
+
+## Hard Invariants
+
+- Estimated size is a derived view of public Input duration
+  (`inputViewAtom.totalDurationSeconds`) and the encoder strip's reactive
+  `encodingRequestConfigAtom`. Do not read private Input/encoder atoms, sample
+  `readEncodingRequestConfig()`, or cache a mirrored byte size.
+- Keep `estimateEncodedSizeBytes` as: non-positive duration → 0; bytes =
+  `durationSeconds * bitrateKbps * 1000 / 8`; ×1.5 when `channels === 'stereo'`;
+  ×1.03 overhead; `Math.round`. Encoder's separate `Est: ~60 kbps` VBR hint is
+  not an input. The encoder header is the only estimate consumer and keeps
+  `~ 12.3 MB` / `~ --- MB` (`formatEstimatedSizeText`).
+- Path preview is a reactive Effect on public Input, Metadata, output
+  directory, naming preset, year, and the **committed** template. Live template
+  typing updates the input immediately and commits after 150 ms. Do not preview
+  on every keystroke. Native path authority, metadata-intent validation, and
+  request-id stale suppression stay in the preview workflow.
+- Collision review is a separate preflight/review workflow
+  (`runOutputPlanReviewWorkflow`). Do not fold it into path-preview freshness.
+- App Settings hydration passes resolved `outputDefaults` through
+  `applyOutputDefaultsFromSettings`. This owner applies its own defaults.
+- Submit composition stays at `readOutputRequestConfig()` /
+  `readProcessingRequestConfig()`. Those are getters, not poke APIs. Do not
+  restore `updateOutputPath` or `updateEstimatedSize`.
+
+## Testing
+
+- `estimate.test.ts` pins the byte formula and empty-session placeholder.
+- `outputPlan.test.ts` pins hydration, derived estimate, template debounce,
+  preview draft/source-path projection, and collision resolve/cancel.
+- `workflow.test.ts` pins stale preview suppression and review approve /
+  cancel / hard-block.
+
+## Breaking-Change Triggers
+
+- Adding, removing, or renaming a public export.
+- Reading private Input, Metadata, file-list, or encoder state to build
+  preview, estimate, or submit config.
+- Moving the estimate formula or the encoder-header estimate span.

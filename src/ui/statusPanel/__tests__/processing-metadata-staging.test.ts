@@ -20,7 +20,6 @@ const context = vi.hoisted(() => ({
 	getSelectedFileIndexMock: vi.fn(),
 	getSelectedFileIndicesMock: vi.fn(),
 	readProcessingRequestConfigMock: vi.fn(),
-	updateOutputPathMock: vi.fn(),
 	runOutputPlanReviewWorkflowMock: vi.fn(),
 	getJobTypeMock: vi.fn(),
 	readMetadataFormMock: vi.fn(),
@@ -60,7 +59,6 @@ vi.mock('../processingConfig', () => ({
 }));
 
 vi.mock('../../outputPanel', () => ({
-	updateOutputPath: context.updateOutputPathMock,
 	runOutputPlanReviewWorkflow: context.runOutputPlanReviewWorkflowMock,
 }));
 
@@ -150,7 +148,6 @@ describe('startProcessing metadata staging', () => {
 		context.getSelectedFileIndexMock.mockReset();
 		context.getSelectedFileIndicesMock.mockReset();
 		context.readProcessingRequestConfigMock.mockReset();
-		context.updateOutputPathMock.mockReset();
 		context.runOutputPlanReviewWorkflowMock.mockReset();
 		context.getJobTypeMock.mockReset();
 		context.readMetadataFormMock.mockReset();
@@ -639,8 +636,6 @@ describe('startProcessing metadata staging', () => {
 
 		expect(context.openPathMock).toHaveBeenCalledTimes(1);
 		expect(context.openPathMock).toHaveBeenCalledWith('/tmp/out/one.preview.m4b');
-		expect(context.updateOutputPathMock).toHaveBeenNthCalledWith(1, 'preview');
-		expect(context.updateOutputPathMock).toHaveBeenLastCalledWith('final');
 	});
 
 	it('does not auto-open preview when multiple successful preview paths are returned', async () => {

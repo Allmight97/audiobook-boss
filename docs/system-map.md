@@ -121,7 +121,7 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 
 | Strip | Entry | Owns |
 | --- | --- | --- |
-| Output Panel | `src/ui/outputPanel` | Output directory, naming presets, path preview, estimated-size display reads, and `OutputPanelIsland`. |
+| Output Plan | `src/app/outputPlan` | Output directory, naming, path preview, derived estimate, and collision review. Solid views: `src/ui/outputPanel`, `src/ui/collisionDialog`. |
 | File List | `src/ui/fileList` | Pre-processing file list session, mutations, metadata staging hooks, `readCombinedSizeText()`, and `FileListIsland` rendering. |
 | File Import | `src/ui/fileImport` | Drag/drop, picker, and import-analysis workflow; composes `FileListIsland`. |
 | Status Panel | `src/ui/statusPanel` | Processing launch controls, concurrency display, and foreground preview progress rendering. |

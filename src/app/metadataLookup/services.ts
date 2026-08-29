@@ -79,8 +79,6 @@ export function makeProductionLookupServices(
 				coverArtRemovalRequested: editor.cover.coverArtRemovalRequested,
 			});
 		},
-		updateOutputPath: () => undefined,
-		updateEstimatedSize: () => undefined,
 		clearCoverArt: () => {
 			get.set(clearCoverArtAtom, undefined);
 		},

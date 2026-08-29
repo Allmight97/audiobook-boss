@@ -1,4 +1,6 @@
 import { createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
+import { estimatedSizeTextAtom } from '../../app/outputPlan';
+import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
 import {
 	handleBitrateModeChange,
 	handleBitrateValueChange,
@@ -8,6 +10,7 @@ import {
 	handleSampleRateSelectionChange,
 	initializeEncoderPanelLogic,
 } from '../encoderPanel/logic';
+import { encodingRequestConfigAtom, publishEncodingRequestConfig } from '../encoderPanel/requestConfig';
 import { encoderPanelState, subscribeEncoderPanel } from '../encoderPanel/state.svelte';
 import {
 	bitrateModeLabel,
@@ -23,6 +26,8 @@ import './encoderView.css';
 
 export function EncoderView(): JSX.Element {
 	const [revision, setRevision] = createSignal(0);
+	const estimatedSizeText = useAtomValue(() => estimatedSizeTextAtom);
+	const setEncodingRequestConfig = useAtomSet(() => encodingRequestConfigAtom);
 	const state = () => {
 		revision();
 		return encoderPanelState;
@@ -30,6 +35,7 @@ export function EncoderView(): JSX.Element {
 
 	function bump(): void {
 		setRevision((value) => value + 1);
+		publishEncodingRequestConfig(setEncodingRequestConfig);
 	}
 
 	onMount(() => {
@@ -71,7 +77,7 @@ export function EncoderView(): JSX.Element {
 				<span class="inline-info">
 					(
 					<span id="estimated-size" data-testid="estimated-size">
-						—
+						{estimatedSizeText()}
 					</span>
 					)
 				</span>

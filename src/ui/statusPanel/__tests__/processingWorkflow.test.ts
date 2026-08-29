@@ -203,7 +203,6 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 			}),
 		);
 	const services: ProcessingWorkflowServices = {
-		updateOutputPath: vi.fn(),
 		getCurrentFileList: vi.fn(() => fileList()),
 		getSelectedFileIndex: vi.fn(() => 0),
 		getSelectedFileIndices: vi.fn(() => new Set([0])),
@@ -283,7 +282,6 @@ describe('ProcessingWorkflow', () => {
 		expect(services.setJobControlsEnabled).toHaveBeenLastCalledWith(true);
 		expect(services.setFileOrderLocked).toHaveBeenLastCalledWith(false);
 		expect(ctx.setBatchCompletionMessage).toHaveBeenLastCalledWith(null);
-		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
 	it('uses natural filename sort as the submitted processing order', async () => {
@@ -384,7 +382,6 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.startProgressListener).not.toHaveBeenCalled();
 		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
 		expect(services.submitProcessingOperation).not.toHaveBeenCalled();
-		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
 	it('routes structured cancellation failures to cancellation handling instead of error reset', async () => {
@@ -405,7 +402,6 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.handleCancellation).toHaveBeenCalledTimes(1);
 		expect(ctx.resetToIdle).not.toHaveBeenCalled();
 		expect(feedback.showError).not.toHaveBeenCalled();
-		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
 	it('surfaces failed processing commands through typed workflow failure handling', async () => {
@@ -426,7 +422,6 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.handleCancellation).not.toHaveBeenCalled();
 		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
 		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
-		expect(services.updateOutputPath).toHaveBeenLastCalledWith('final');
 	});
 
 	it('keeps retained remote-source sessions when submission fails without a pending purge', async () => {

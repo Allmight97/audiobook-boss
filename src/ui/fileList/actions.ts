@@ -1,5 +1,4 @@
 import type { AudioFile, FileListInfo } from '../../types/audio';
-import { updateEstimatedSize } from '../outputPanel';
 import { pushStatusPanelTransientStatus } from '../statusPanel';
 import { clearMetadataSession, removeMetadataForFile } from '../metadataSession';
 import {
@@ -53,10 +52,6 @@ import {
 	scheduleFileListCoverThumbnails,
 } from './coverThumbnails.svelte';
 
-function refreshOutputForFileListChange(): void {
-	updateEstimatedSize();
-}
-
 function setTransientStatusMessage(message: string, timeoutMs: number = 2000): void {
 	pushStatusPanelTransientStatus(message, { ttlMs: timeoutMs });
 }
@@ -91,7 +86,6 @@ export function displayFileList(fileListInfo: FileListInfo): void {
 	setCurrentFileList(normalizedFileListInfo);
 	resetImportOrder(normalizedFileListInfo.files);
 
-	refreshOutputForFileListChange();
 
 	selectSoleImportedFile(normalizedFileListInfo);
 	void purgeRemoteSourceSessionsForInputIds(previousInputIds);
@@ -123,7 +117,6 @@ export function appendFileList(
 	setSelectedIndex(selectedIndex);
 	setSelectedFileIndices(selectedIndices);
 
-	refreshOutputForFileListChange();
 	return appendResult;
 }
 
@@ -245,7 +238,6 @@ export async function removeFile(index: number): Promise<void> {
 
 	reindexSelectionAfterRemoval(index);
 
-	refreshOutputForFileListChange();
 }
 
 export function recalculateTotals(): void {
@@ -327,7 +319,6 @@ export function moveFileUp(index: number): void {
 
 	swapSelectionIndices(index, index - 1);
 
-	refreshOutputForFileListChange();
 }
 
 export function moveFileDown(index: number): void {
@@ -347,7 +338,6 @@ export function moveFileDown(index: number): void {
 
 	swapSelectionIndices(index, index + 1);
 
-	refreshOutputForFileListChange();
 }
 
 export async function toggleFileSort(): Promise<void> {
@@ -392,7 +382,6 @@ export async function toggleFileSort(): Promise<void> {
 	);
 	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
 
-	refreshOutputForFileListChange();
 }
 
 export function clearAllFiles(): void {
@@ -409,7 +398,6 @@ export function clearAllFiles(): void {
 
 	clearSelection();
 	setSelectedIndex(-1);
-	refreshOutputForFileListChange();
 	void purgeRemoteSourceSessionsForInputIds(inputIds);
 }
 
@@ -431,7 +419,6 @@ export function reorderFiles(fromIndex: number, toIndex: number): void {
 
 	reindexSelectionAfterMove(fromIndex, toIndex);
 
-	refreshOutputForFileListChange();
 }
 
 /** Restore the original arrival order captured by display/append. */
@@ -468,5 +455,4 @@ export async function restoreImportOrder(): Promise<void> {
 		nextFiles.flatMap((file, index) => (selectedPaths.has(file.path) ? [index] : [])),
 	);
 	setSelectedIndex(selectedPath ? nextFiles.findIndex((file) => file.path === selectedPath) : -1);
-	refreshOutputForFileListChange();
 }

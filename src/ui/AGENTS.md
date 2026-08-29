@@ -11,9 +11,8 @@ These directories arrange existing public islands and own no business state:
 - `leftColumn/` — arranges the input workflow and selected-file inspector zones.
 - `metadataManager/` — right-column metadata composition.
 
-`encodingWorkbench/` is now stylesheet-only: `src/ui/App.tsx` composes the
-encoder and tags blocks inline and imports `encodingWorkbench.css`. Slice 6
-decides whether the output block restores a shell here.
+`encodingWorkbench/` is stylesheet-only: `src/ui/App.tsx` composes the encoder,
+output, and tags blocks inline and imports `encodingWorkbench.css`.
 
 Rules for both:
 

@@ -32,7 +32,7 @@ import type {
 	getMetadataForFile,
 	stageMetadataIntentPatch,
 } from '../metadataSession';
-import type { runOutputPlanReviewWorkflow, updateOutputPath } from '../outputPanel';
+import type { runOutputPlanReviewWorkflow } from '../outputPanel';
 import {
 	buildMetadataIntentByPath,
 	buildProcessPayload,
@@ -57,7 +57,6 @@ type StatusPanelFeedbackService = {
 };
 
 export interface ProcessingWorkflowServices {
-	updateOutputPath: typeof updateOutputPath;
 	getCurrentFileList: typeof getCurrentFileList;
 	getSelectedFileIndex: typeof getSelectedFileIndex;
 	getSelectedFileIndices: typeof getSelectedFileIndices;
@@ -386,13 +385,10 @@ export function processingWorkflowProgram(
 		previewSeconds?: number;
 	},
 ): AppEffect<void, never, ProcessingWorkflowServicesId> {
-	const outputKind = options?.previewSeconds == null ? 'final' : 'preview';
-
 	return Effect.gen(function* () {
 		const services = yield* ProcessingWorkflowServicesTag;
 
 		yield* Effect.sync(() => {
-			services.updateOutputPath(outputKind);
 			services.console.log('StatusPanel: Starting processing...');
 			context.setBatchCompletionMessage(null);
 		});
@@ -495,12 +491,6 @@ export function processingWorkflowProgram(
 			Effect.gen(function* () {
 				const services = yield* ProcessingWorkflowServicesTag;
 				yield* handleWorkflowError(services, context, error);
-			}),
-		),
-		Effect.ensuring(
-			Effect.gen(function* () {
-				const services = yield* ProcessingWorkflowServicesTag;
-				yield* Effect.sync(() => services.updateOutputPath('final'));
 			}),
 		),
 	);

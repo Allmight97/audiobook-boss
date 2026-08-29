@@ -9,6 +9,9 @@ import { resetMetadataLookupState } from '../metadataLookup';
 import { lookupViewAtom } from '../metadataLookup/atoms';
 import { createMetadataLookupState } from '../metadataLookup/state';
 import { clearMetadataLookupCoverPreviewCache } from '../metadataLookup/coverPreview';
+import { resetCollisionDialog, seedOutputPlan } from '../outputPlan';
+import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
+import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state.svelte';
 import { metadataCapabilityAtom, metadataEditorAtom } from '../metadataSession/atoms';
 import { clearMetadataSession } from '../metadataSession/cache';
 import { createEmptyFormState } from '../metadataSession/fields';
@@ -45,6 +48,12 @@ export function createTestAppRuntime(
 	resetMetadataLookupState();
 	clearMetadataLookupCoverPreviewCache();
 	resetProductionSettingsDialog();
+	resetCollisionDialog();
+	seedOutputPlan(runtime.registry);
+	runtime.registry.set(encodingRequestConfigAtom, readEncodingRequestConfig());
+	const unsubscribeEncoder = subscribeEncoderPanel(() => {
+		runtime.registry.set(encodingRequestConfigAtom, readEncodingRequestConfig());
+	});
 	runtime.registry.set(lookupViewAtom, createMetadataLookupState());
 	runtime.registry.set(concurrencyViewAtom, {
 		selection: 'auto',
@@ -62,5 +71,12 @@ export function createTestAppRuntime(
 	if (options.settings) {
 		runtime.registry.set(settingsCapabilityAtom, options.settings);
 	}
-	return runtime;
+	const dispose = runtime.dispose.bind(runtime);
+	return {
+		...runtime,
+		dispose(): void {
+			unsubscribeEncoder();
+			dispose();
+		},
+	};
 }

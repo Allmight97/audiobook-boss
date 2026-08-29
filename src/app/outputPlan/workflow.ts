@@ -9,36 +9,29 @@ import { tauriClient } from '../../lib/tauri/client';
 import type {
 	CollisionPolicy,
 	OutputKind,
+	OutputNamingConfig,
 	ProcessPayload,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { openCollisionDialog } from '../collisionDialog/state.svelte';
-import {
-	buildOutputPathPreviewContext,
-	readOutputPathPreviewMetadataDraft,
-	type OutputPathPreviewMetadataDraft,
-	showOutputError,
-	updateMetadataIntentWarnings,
-} from './preview';
-import {
-	beginOutputPreviewRequest,
-	getOutputNamingConfig,
-	getState,
-	isLatestOutputPreviewRequest,
-	setOutputPreview,
-} from './state.svelte';
+import { validateMetadataDraft } from '../metadataSession';
+import { openCollisionDialog } from './collision';
+import type { OutputPathPreviewMetadataDraft } from './types';
+import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
+
+export type OutputPathPreviewContext = {
+	readonly outputDirectory: string;
+	readonly sourcePath?: string;
+	readonly outputNaming: OutputNamingConfig;
+	readonly metadataDraft: OutputPathPreviewMetadataDraft;
+};
 
 export interface OutputPlanWorkflowServices {
-	getState: typeof getState;
-	readOutputPathPreviewMetadataDraft: () => OutputPathPreviewMetadataDraft;
-	updateMetadataIntentWarnings: typeof updateMetadataIntentWarnings;
-	buildOutputPathPreviewContext: typeof buildOutputPathPreviewContext;
-	beginOutputPreviewRequest: typeof beginOutputPreviewRequest;
-	isLatestOutputPreviewRequest: typeof isLatestOutputPreviewRequest;
-	getOutputNamingConfig: typeof getOutputNamingConfig;
-	setOutputPreview: typeof setOutputPreview;
-	showOutputError: typeof showOutputError;
+	updateMetadataIntentWarnings: (metadata: OutputPathPreviewMetadataDraft) => Promise<void>;
+	beginOutputPreviewRequest: () => number;
+	isLatestOutputPreviewRequest: (requestId: number) => boolean;
+	setOutputPreview: (text: string, title?: string) => void;
+	showOutputError: (message: string) => void;
 	previewOutputPath: typeof tauriClient.previewOutputPath;
 	preflightProcessingPlan: typeof tauriClient.preflightProcessingPlan;
 	openCollisionDialog: (plan: ProcessingPreflightPlan) => Promise<CollisionPolicy | null>;
@@ -58,15 +51,11 @@ export type OutputPlanReviewResult =
 	| { status: 'blocked'; message: string; plan: ProcessingPreflightPlan }
 	| { status: 'cancelled' };
 
-export type OutputPlanWorkflowAction =
-	| { type: 'previewOutputPath'; outputKind: OutputKind }
-	| { type: 'reviewForProcessing'; request: OutputPlanReviewRequest };
-
-export type OutputPlanWorkflowServicesId = 'OutputPanel/OutputPlanWorkflowServices';
+export type OutputPlanWorkflowServicesId = 'OutputPlan/OutputPlanWorkflowServices';
 export type OutputPlanWorkflowLayer = AppLayer<OutputPlanWorkflowServicesId>;
 
 const kit = makeWorkflowKit(
-	'OutputPanel/OutputPlanWorkflowServices',
+	'OutputPlan/OutputPlanWorkflowServices',
 	'OutputPlanWorkflowFailed',
 )<OutputPlanWorkflowServices>();
 
@@ -77,26 +66,6 @@ export function makeOutputPlanWorkflowServicesLayer(
 ): OutputPlanWorkflowLayer {
 	return kit.makeLive(services);
 }
-
-const liveOutputPlanWorkflowServices = {
-	getState,
-	readOutputPathPreviewMetadataDraft,
-	updateMetadataIntentWarnings,
-	buildOutputPathPreviewContext,
-	beginOutputPreviewRequest,
-	isLatestOutputPreviewRequest,
-	getOutputNamingConfig,
-	setOutputPreview,
-	showOutputError,
-	previewOutputPath: tauriClient.previewOutputPath,
-	preflightProcessingPlan: tauriClient.preflightProcessingPlan,
-	openCollisionDialog,
-	console,
-} satisfies OutputPlanWorkflowServices;
-
-export const OutputPlanWorkflowLive = makeOutputPlanWorkflowServicesLayer(
-	liveOutputPlanWorkflowServices,
-);
 
 export const OutputPlanWorkflowFailed = kit.Failed;
 export type OutputPlanWorkflowFailed = InstanceType<typeof kit.Failed>;
@@ -117,16 +86,15 @@ function approvePayload(payload: ProcessPayload, plan: ProcessingPreflightPlan):
 }
 
 export function outputPathPreviewBody(
-	outputKind: Parameters<OutputPlanWorkflowServices['previewOutputPath']>[0]['outputKind'],
+	outputKind: OutputKind,
+	context: OutputPathPreviewContext,
 	reservedRequestId?: number,
 ): AppEffect<void, OutputPlanWorkflowFailed, OutputPlanWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* OutputPlanWorkflowServicesTag;
-		const state = services.getState();
-		const previewMetadataDraft = services.readOutputPathPreviewMetadataDraft();
 
 		yield* workflowPromise(
-			() => services.updateMetadataIntentWarnings(previewMetadataDraft),
+			() => services.updateMetadataIntentWarnings(context.metadataDraft),
 			'Failed to validate metadata intent for output preview.',
 		).pipe(
 			Effect.catch((error) =>
@@ -137,21 +105,19 @@ export function outputPathPreviewBody(
 			),
 		);
 
-		if (!state.outputDirectory) {
-			services.setOutputPreview('Select output directory...', 'No directory selected');
+		if (!context.outputDirectory) {
+			services.setOutputPreview(EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE);
 			return;
 		}
 
-		const previewContext = services.buildOutputPathPreviewContext();
 		const requestId = reservedRequestId ?? services.beginOutputPreviewRequest();
-
 		const previewPath = yield* workflowPromise(
 			() =>
 				services.previewOutputPath({
-					outputDir: previewContext.outputDirectory,
-					metadata: previewMetadataDraft,
-					outputNaming: services.getOutputNamingConfig(),
-					sourcePath: previewContext.sourcePath,
+					outputDir: context.outputDirectory,
+					metadata: context.metadataDraft,
+					outputNaming: context.outputNaming,
+					sourcePath: context.sourcePath,
 					outputKind,
 				}),
 			'Output preview failed.',
@@ -244,14 +210,27 @@ export function outputPlanReviewBody(
 	});
 }
 
+export async function updateMetadataIntentWarnings(
+	metadata: OutputPathPreviewMetadataDraft,
+): Promise<void> {
+	await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
+}
+
+export function showOutputError(message: string): void {
+	console.error('Output Plan Error:', message);
+}
+
 export async function runOutputPathPreviewWorkflow(
-	outputKind: Parameters<OutputPlanWorkflowServices['previewOutputPath']>[0]['outputKind'],
+	outputKind: OutputKind,
+	context: OutputPathPreviewContext,
 	layer?: OutputPlanWorkflowLayer,
 	reservedRequestId?: number,
 ): Promise<void> {
 	const workflowLayer = layer ?? OutputPlanWorkflowLive;
 	return runAppEffect(
-		outputPathPreviewBody(outputKind, reservedRequestId).pipe(Effect.provide(workflowLayer)),
+		outputPathPreviewBody(outputKind, context, reservedRequestId).pipe(
+			Effect.provide(workflowLayer),
+		),
 	);
 }
 
@@ -262,3 +241,15 @@ export async function runOutputPlanReviewWorkflow(
 	const workflowLayer = layer ?? OutputPlanWorkflowLive;
 	return runAppEffect(outputPlanReviewBody(request).pipe(Effect.provide(workflowLayer)));
 }
+
+export const OutputPlanWorkflowLive = makeOutputPlanWorkflowServicesLayer({
+	updateMetadataIntentWarnings,
+	beginOutputPreviewRequest: () => 0,
+	isLatestOutputPreviewRequest: () => true,
+	setOutputPreview: () => undefined,
+	showOutputError,
+	previewOutputPath: tauriClient.previewOutputPath,
+	preflightProcessingPlan: tauriClient.preflightProcessingPlan,
+	openCollisionDialog,
+	console,
+});

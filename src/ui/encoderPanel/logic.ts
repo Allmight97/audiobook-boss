@@ -94,15 +94,6 @@ const fdkAvailabilityHint = (): string => {
 	return `Using external FDK AAC${pathSegment}. ${afterburnerSegment}`;
 };
 
-let estimatedSizeListener: () => void = () => undefined;
-
-export function setEncoderEstimatedSizeListener(listener: () => void): void {
-	estimatedSizeListener = listener;
-}
-
-const syncOutputSizingFromEncoderState = (): void => {
-	estimatedSizeListener();
-};
 
 const updateAutoOptionLabel = (): void => {
 	if (encoderPanelState.flavor === 'auto' && encoderPanelState.availability) {
@@ -259,7 +250,6 @@ const syncEncoderState = (): void => {
 
 export const syncAfterStateChange = (): void => {
 	syncEncoderState();
-	syncOutputSizingFromEncoderState();
 };
 
 const persistCurrentEncoderDefaults = (): void => {
@@ -268,7 +258,6 @@ const persistCurrentEncoderDefaults = (): void => {
 
 export const syncEncoderPanelAfterAvailabilityChange = (): void => {
 	syncEncoderState();
-	syncOutputSizingFromEncoderState();
 	debugLog('Encoder panel ready');
 };
 
@@ -287,7 +276,6 @@ const hydrateEncoderAvailability = async (): Promise<void> => {
 export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
 	resetAutoResolutionHints();
-	syncOutputSizingFromEncoderState();
 	void hydrateEncoderAvailability();
 };
 

@@ -169,8 +169,6 @@ function makeHarness(options?: {
 	) as MetadataLookupWorkflowServices['selectFile'] & ReturnType<typeof vi.fn>;
 	const applyMetadataToForm = vi.fn();
 	const readMetadataForm = vi.fn(options?.readMetadataForm ?? (() => ({ title: 'Patched Title' })));
-	const updateOutputPath = vi.fn();
-	const updateEstimatedSize = vi.fn();
 	const clearCoverArt = vi.fn();
 	const setCoverArt = vi.fn();
 	const setCustomCoverArt = vi.fn();
@@ -197,8 +195,6 @@ function makeHarness(options?: {
 		selectFile,
 		applyMetadataToForm,
 		readMetadataForm,
-		updateOutputPath,
-		updateEstimatedSize,
 		clearCoverArt,
 		setCoverArt,
 		setCustomCoverArt,
@@ -226,8 +222,6 @@ function makeHarness(options?: {
 			selectFile,
 			applyMetadataToForm,
 			readMetadataForm,
-			updateOutputPath,
-			updateEstimatedSize,
 			clearCoverArt,
 			setCoverArt,
 			setCustomCoverArt,
@@ -445,7 +439,6 @@ describe('MetadataLookupWorkflow', () => {
 			{ mode: 'single', markDirty: true },
 		);
 		expect(harness.mocks.stageMetadataIntentPatch).not.toHaveBeenCalled();
-		expect(harness.mocks.updateOutputPath).toHaveBeenCalledWith('final');
 		expect(harness.lookupState.statusMessage).toBe('Metadata applied to form.');
 	});
 
