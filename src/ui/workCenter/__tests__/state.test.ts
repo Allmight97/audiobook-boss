@@ -7,7 +7,7 @@ const { purgeMock, releaseMock } = vi.hoisted(() => ({
 	releaseMock: vi.fn(),
 }));
 
-vi.mock('../../remoteSource/sessionAssets.svelte', () => ({
+vi.mock('../../remoteSource', () => ({
 	purgeRemoteSourceSessionsForInputIds: purgeMock,
 	releaseRemoteSourceSessionRetainers: releaseMock,
 }));

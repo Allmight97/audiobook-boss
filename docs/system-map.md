@@ -131,7 +131,7 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | Metadata Session | `src/ui/metadataSession` | Per-file metadata cache truth, pending draft/intent staging (`stageMetadataIntentPatch`), draft validation adaptation, and the metadata batch-save workflow. |
 | Metadata Lookup | `src/ui/metadataLookup` | Lookup modal workflow, queue advancement, safe cover preview, and result application through Metadata Session staging. |
 | Tag Preview | `src/ui/tagPreview` | TSOA calculation and tag preview grid rendering from metadata form preview reads. |
-| Remote Source | `src/ui/remoteSource` | Session-asset coordination for imported remote-source inputs; public strip is session-assets only. |
+| Remote Source | `src/app/remoteSource` | Account/acquisition workflow, Input handoff, and session-asset retain/purge. Solid dialog: `src/ui/remoteSource`. |
 
 Exact export lists live in each strip's nearest `AGENTS.md`.
 

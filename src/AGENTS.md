@@ -16,9 +16,10 @@
 - Runtime settings controls consume backend capability facts for selectable
   accept/reject rules; do not add frontend-owned encoder/concurrency option
   matrices when a Rust owner validates the setting.
-- Remote acquisition UI lives under `src/ui/remoteSource`; it may coordinate
-  account state, library display, selection, and acquired-file import handoff,
-  but provider secrets and raw provider payloads stay backend-only.
+- Remote acquisition lives under `src/app/remoteSource` with a Solid dialog in
+  `src/ui/remoteSource`. It may coordinate account state, library display,
+  selection, and acquired-file import handoff through Input's public strip.
+  Provider secrets and raw provider payloads stay backend-only.
 - Keep business logic in `.ts`/`.svelte.ts` modules and keep Svelte components focused on rendering and interaction.
 - Use `src/types/*` for boundary-safe frontend typing when crossing TS↔Rust surfaces.
 - Keep `src/styles.css` limited to the global base layer: Tailwind import, shared `@theme` tokens, shared shell/layout/dialog/form primitives, and truly app-wide rules. Component-specific visual styling should live in Svelte markup via utilities or in narrowly scoped component styles.

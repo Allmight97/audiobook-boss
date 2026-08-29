@@ -3,10 +3,11 @@ import { logAppError } from '../../lib/tauri/appError';
 import { tauriClient } from '../../lib/tauri/client';
 import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource';
 
-let supplementalAssetsByInputId = $state<Record<string, SupplementalProcessingAsset[]>>({});
-let jobIdsByInputId = $state<Record<string, string>>({});
-let retainedInputIdCounts = $state<Record<string, number>>({});
-let pendingPurgeInputIds = $state<Record<string, true>>({});
+let supplementalAssetsByInputId: Record<string, SupplementalProcessingAsset[]> = {};
+let jobIdsByInputId: Record<string, string> = {};
+let retainedInputIdCounts: Record<string, number> = {};
+let pendingPurgeInputIds: Record<string, true> = {};
+let seenInputIds = new Set<string>();
 
 export type CompanionAssetSummary = {
 	text: string;
@@ -42,13 +43,13 @@ export function registerRemoteSourceSupplementalAssets(
 	for (const materialized of job.materializedFiles) {
 		const importedFile = findImportedFileByPath(fileList.files, materialized.path);
 		if (!importedFile?.inputId) continue;
-		nextJobs[importedFile.inputId as string] = job.jobId;
+		nextJobs[importedFile.inputId] = job.jobId;
 
 		const assets = job.supplementalAssets
 			.filter((asset) => asset.titleId === materialized.titleId)
 			.map((asset) => toProcessingAsset(asset, importedFile.inputId as string));
 		if (assets.length > 0) {
-			next[importedFile.inputId as string] = assets;
+			next[importedFile.inputId] = assets;
 		}
 	}
 
@@ -224,4 +225,23 @@ export async function purgeRemoteSourceSessionsForInputIds(
 		}
 	}
 	removeRemoteSourceSupplementalAssets(purgeableIds);
+}
+
+export async function reconcileRemoteSourceSessionsWithInput(
+	files: readonly Pick<AudioFile, 'inputId'>[],
+): Promise<void> {
+	const current = new Set(uniqueInputIds(files.map((file) => file.inputId)));
+	const removed = [...seenInputIds].filter((inputId) => !current.has(inputId));
+	seenInputIds = current;
+	if (removed.length > 0) {
+		await purgeRemoteSourceSessionsForInputIds(removed);
+	}
+}
+
+export function resetRemoteSourceSessionAssets(): void {
+	supplementalAssetsByInputId = {};
+	jobIdsByInputId = {};
+	retainedInputIdCounts = {};
+	pendingPurgeInputIds = {};
+	seenInputIds = new Set();
 }

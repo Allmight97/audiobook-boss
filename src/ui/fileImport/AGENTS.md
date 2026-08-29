@@ -24,9 +24,9 @@
   backend-provided support metadata and pass local paths to backend discovery,
   but must not keep a separate supported-audio allowlist.
 - Keep cover-art drop handling as a distinct path before file-list import.
-- If a future remote acquisition or local-import bridge reuses this behavior,
-  extract the shared import path behind a named Public API instead of duplicating
-  analysis and metadata-staging logic.
+- Compose `RemoteSourceAcquireView` next to the Import from Library button.
+  Subscribe to `remoteSourceLifetimeAtom` so remote session purge tracks Input
+  file identity. Do not import `fileListSessionState` for that handoff.
 
 ## Hard Invariants
 

@@ -13,14 +13,13 @@ const EXPECTED_REMOTE_SOURCE_EXPORTS = [
 ] as const;
 
 const FORBIDDEN_REMOTE_SOURCE_IMPORTS = [
-	'remoteSource/sessionAssets.svelte',
-	'remoteSource/acquisitionWorkflow',
-	'remoteSource/acquisitionState.svelte',
-	'remoteSource/state.svelte',
-	'remoteSource/RemoteSourceAcquireIsland.svelte',
-	'remoteSource/RemoteSourceAcquireDialog.svelte',
-	'remoteSource/acquisitionAccount',
-	'remoteSource/remoteSourceSelection',
+	'remoteSource/sessionAssets',
+	'remoteSource/workflow',
+	'remoteSource/state',
+	'remoteSource/RemoteSourceAcquireView',
+	'app/remoteSource/sessionAssets',
+	'app/remoteSource/workflow',
+	'app/remoteSource/state',
 ] as const;
 
 const statusPanelSources = import.meta.glob<string>('../**/*.{ts,svelte}', {

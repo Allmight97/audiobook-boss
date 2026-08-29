@@ -115,7 +115,7 @@ snapshots) are the only scoping.
   `logout_remote_source_account`
   - Rust: `src-tauri/src/commands/remote_source.rs`
   - Core owner: `src-tauri/src/remote_source/`
-  - Frontend: `src/ui/remoteSource/` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/remoteSource/` through `src/lib/tauri/client.ts`
   - Use: provider-neutral source availability and backend-owned auth/account lifecycle. Frontend state must not hold provider credentials, tokens, cookies, license blobs, or raw provider responses.
 
 - `load_remote_source_library`, `start_remote_source_acquisition`,
@@ -124,7 +124,7 @@ snapshots) are the only scoping.
   - Rust: `src-tauri/src/commands/remote_source.rs`
   - Core owner: `src-tauri/src/remote_source/`
   - Private provider cluster: `src-tauri/src/remote_source/providers/audible/`
-  - Frontend: `src/ui/remoteSource/` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/remoteSource/` through `src/lib/tauri/client.ts`
   - Use: library scan, acquisition job status, local materialized audio handoff
     into the Local Audio Import Boundary, Supplemental Asset tracking, and
     cleanup/purge of ABB-owned acquisition session storage. Processing receives

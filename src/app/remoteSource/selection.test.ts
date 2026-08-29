@@ -5,7 +5,7 @@ import {
 	toggledRemoteTitleSelection,
 	toggledSupplementalPdfPreference,
 	visibleRemoteTitles,
-} from './remoteSourceSelection';
+} from './selection';
 
 function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 	return {

@@ -11,16 +11,19 @@ import {
 	nativeDropTargetAtPoint,
 } from '../../app/inputSession/nativeIngress';
 import { applyCoverArtDropAtom } from '../../app/metadataSession';
+import { openRemoteSourceAcquireAtom, remoteSourceLifetimeAtom } from '../../app/remoteSource';
 import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
-import { openRemoteSourceAcquire } from '../remoteSource/state.svelte';
 import { FileListView } from '../fileList/FileListView';
+import { RemoteSourceAcquireView } from '../remoteSource/RemoteSourceAcquireView';
 
 export function FileImportView(): JSX.Element {
 	const view = useAtomValue(() => inputViewAtom);
 	const capability = useAtomValue(() => inputCapabilityAtom);
 	const importIntent = useAtomSet(() => importIntentAtom);
+	const openRemoteSourceAcquire = useAtomSet(() => openRemoteSourceAcquireAtom);
+	useAtomValue(() => remoteSourceLifetimeAtom);
 	const applyCoverArtDrop = useAtomSet(() => applyCoverArtDropAtom);
 	const hydrateSupportText = useAtomSet(() => hydrateSupportTextAtom);
 	const setDragOver = useAtomSet(() => setDragOverAtom);
@@ -99,7 +102,7 @@ export function FileImportView(): JSX.Element {
 					id="acquire-audiobooks-btn"
 					class="btn-pill btn-pill-secondary"
 					type="button"
-					onClick={() => openRemoteSourceAcquire()}
+					onClick={() => openRemoteSourceAcquire(undefined)}
 				>
 					Import from Library
 				</button>
@@ -117,6 +120,7 @@ export function FileImportView(): JSX.Element {
 					fileManagementContainer = element;
 				}}
 			/>
+			<RemoteSourceAcquireView />
 		</>
 	);
 }
