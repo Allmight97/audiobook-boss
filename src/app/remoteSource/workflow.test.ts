@@ -64,7 +64,7 @@ function library(): RemoteLibraryResponse {
 	};
 }
 
-function runningJob(): AcquisitionJob {
+function runningJob(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob {
 	return {
 		jobId: 'remote-job-1',
 		providerId: 'audible',
@@ -72,7 +72,7 @@ function runningJob(): AcquisitionJob {
 		progress: {
 			stage: 'download',
 			percentage: 10,
-			message: 'Downloading.',
+			message: 'Downloading audiobook.',
 			bytesDownloaded: undefined,
 			bytesTotal: undefined,
 			currentTitleId: 'B000000001',
@@ -83,7 +83,24 @@ function runningJob(): AcquisitionJob {
 		materializedFiles: [],
 		supplementalAssets: [],
 		diagnostics: [],
+		...overrides,
 	};
+}
+
+function downloadingJob(): AcquisitionJob {
+	return runningJob({
+		progress: {
+			stage: 'download',
+			percentage: 40,
+			message: 'Downloading audiobook.',
+			bytesDownloaded: 78_105_334,
+			bytesTotal: 156_210_669,
+			currentTitleId: 'B000000001',
+			currentItemIndex: 1,
+			totalItems: 1,
+			terminal: false,
+		},
+	});
 }
 
 function terminalJob(): AcquisitionJob {
@@ -204,6 +221,52 @@ describe('remote source acquisition workflow', () => {
 			],
 		});
 		expect(remoteSourceState.statusMessage).toBe('1 acquired title imported.');
+	});
+
+	it('publishes polled getAcquisitionStatus download progress before the job terminals', async () => {
+		const published: Array<{
+			readonly stage: string;
+			readonly percentage: number;
+			readonly message: string;
+			readonly bytesDownloaded?: number;
+			readonly bytesTotal?: number;
+		}> = [];
+		let polls = 0;
+		const services = makeServices({
+			getAcquisitionStatus: vi.fn(async () => {
+				polls += 1;
+				if (polls === 1) {
+					return downloadingJob();
+				}
+				return terminalJob();
+			}),
+		});
+		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
+
+		await runRemoteSourceWorkflow(
+			makeRemoteSourceWorkflowServicesLayer(services),
+			{ type: 'acquireSelected' },
+			() => {
+				const progress = remoteSourceState.activeJob?.progress;
+				if (!progress) return;
+				published.push({
+					stage: progress.stage,
+					percentage: progress.percentage,
+					message: progress.message,
+					bytesDownloaded: progress.bytesDownloaded,
+					bytesTotal: progress.bytesTotal,
+				});
+			},
+		);
+
+		expect(published).toContainEqual({
+			stage: 'download',
+			percentage: 40,
+			message: 'Downloading audiobook.',
+			bytesDownloaded: 78_105_334,
+			bytesTotal: 156_210_669,
+		});
+		expect(services.getAcquisitionStatus).toHaveBeenCalled();
 	});
 
 	it('purges staged remote files when Input import is blocked by an order lock', async () => {

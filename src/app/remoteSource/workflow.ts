@@ -22,7 +22,12 @@ import {
 	type AcquisitionJobWithProgress,
 } from './display';
 import { registerRemoteSourceSupplementalAssets } from './sessionAssets';
-import { patchRemoteSourceState, remoteSourceState, setAcquisitionError } from './state';
+import {
+	patchRemoteSourceState,
+	remoteSourceState,
+	setAcquisitionError,
+	subscribeRemoteSourceState,
+} from './state';
 import type { RemoteInputHandoffResult } from './types';
 
 export interface RemoteSourceWorkflowServices {
@@ -325,6 +330,13 @@ export function remoteSourceWorkflowExecution(
 export async function runRemoteSourceWorkflow(
 	layer: RemoteSourceWorkflowLayer,
 	action: RemoteSourceWorkflowAction,
+	onStateChange?: () => void,
 ): Promise<void> {
-	await runAppEffect(remoteSourceWorkflowExecution(action).pipe(Effect.provide(layer)));
+	const unsubscribe = onStateChange ? subscribeRemoteSourceState(onStateChange) : undefined;
+	try {
+		await runAppEffect(remoteSourceWorkflowExecution(action).pipe(Effect.provide(layer)));
+	} finally {
+		unsubscribe?.();
+		onStateChange?.();
+	}
 }

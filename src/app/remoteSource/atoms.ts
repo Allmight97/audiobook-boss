@@ -37,8 +37,7 @@ export const runRemoteSourceActionAtom = Atom.fn((action: RemoteSourceWorkflowAc
 	);
 	return Effect.tryPromise({
 		try: async () => {
-			await runRemoteSourceWorkflow(layer, action);
-			publishRemoteSourceView(get);
+			await runRemoteSourceWorkflow(layer, action, () => publishRemoteSourceView(get));
 		},
 		catch: (cause) => cause,
 	}).pipe(

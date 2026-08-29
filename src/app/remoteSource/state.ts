@@ -8,6 +8,21 @@ import {
 
 export let remoteSourceState: RemoteSourceState = createInitialRemoteSourceState();
 
+const remoteSourceStateListeners = new Set<() => void>();
+
+export function subscribeRemoteSourceState(listener: () => void): () => void {
+	remoteSourceStateListeners.add(listener);
+	return () => {
+		remoteSourceStateListeners.delete(listener);
+	};
+}
+
+function notifyRemoteSourceStateListeners(): void {
+	for (const listener of remoteSourceStateListeners) {
+		listener();
+	}
+}
+
 export function snapshotRemoteSourceView(): RemoteSourceView {
 	return snapshotRemoteSourceState(remoteSourceState);
 }
@@ -18,10 +33,9 @@ export function resetRemoteSourceState(): void {
 
 export function setAcquisitionError(cause: unknown, fallback: string): void {
 	logAppError(fallback, cause);
-	remoteSourceState = {
-		...remoteSourceState,
+	patchRemoteSourceState({
 		statusMessage: toUserMessage(cause, { fallback, suppressUnknown: true }),
-	};
+	});
 }
 
 export function patchRemoteSourceState(patch: Partial<RemoteSourceState>): void {
@@ -32,4 +46,5 @@ export function patchRemoteSourceState(patch: Partial<RemoteSourceState>): void 
 			? new Set(patch.selectedTitleIds)
 			: remoteSourceState.selectedTitleIds,
 	};
+	notifyRemoteSourceStateListeners();
 }
