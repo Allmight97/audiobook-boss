@@ -27,6 +27,28 @@ import { createEmptyFormState, replaceField } from '../metadataSession/fields';
 import { createEmptyTagPreviewValues } from '../metadataSession/tags';
 import type { MetadataView } from '../metadataSession';
 
+function sessionWithDuration(totalDuration: number) {
+	return {
+		...emptyInputSession(),
+		fileList: {
+			files: [
+				{
+					path: '/books/a.m4b',
+					isValid: true,
+					duration: totalDuration,
+					size: 1024,
+					format: 'm4b',
+				},
+			],
+			selectedDecoders: [null],
+			totalDuration,
+			totalSize: 1024,
+			validCount: 1,
+			invalidCount: 0,
+		},
+	};
+}
+
 function emptyInputView(overrides: Partial<InputView> = {}): InputView {
 	return {
 		files: [],
@@ -107,30 +129,46 @@ describe('output plan public view', () => {
 
 	it('derives the encoder-header estimate from public Input duration and encoder request config', () => {
 		const runtime = createTestAppRuntime();
-		runtime.registry.set(inputSessionAtom, {
-			...emptyInputSession(),
-			fileList: {
-				files: [
-					{
-						path: '/books/a.m4b',
-						isValid: true,
-						duration: 100,
-						size: 1024,
-						format: 'm4b',
-					},
-				],
-				selectedDecoders: [null],
-				totalDuration: 100,
-				totalSize: 1024,
-				validCount: 1,
-				invalidCount: 0,
-			},
-		});
+		runtime.registry.set(inputSessionAtom, sessionWithDuration(100));
 		runtime.registry.set(encodingRequestConfigAtom, {
-			encoderSettings: { ...defaultEncoderSettings(), bitrateKbps: 64, channels: 'stereo' },
+			encoderSettings: {
+				...defaultEncoderSettings(),
+				bitrateMode: { mode: 'cbr' },
+				bitrateKbps: 64,
+				channels: 'stereo',
+			},
 			sampleRate: 'auto',
 		});
 		expect(runtime.registry.get(estimatedSizeTextAtom)).toBe('~ 1.2 MB');
+		runtime.dispose();
+	});
+
+	it('changes the encoder-header size when FDK VBR quality changes encoded bitrate', () => {
+		const runtime = createTestAppRuntime();
+		runtime.registry.set(inputSessionAtom, sessionWithDuration(100));
+		const stickyBitrateKbps = 64;
+		runtime.registry.set(encodingRequestConfigAtom, {
+			encoderSettings: {
+				...defaultEncoderSettings(),
+				bitrateMode: { mode: 'vbr', value: 1 },
+				bitrateKbps: stickyBitrateKbps,
+				channels: 'auto',
+			},
+			sampleRate: 'auto',
+		});
+		const quality1 = runtime.registry.get(estimatedSizeTextAtom);
+		runtime.registry.set(encodingRequestConfigAtom, {
+			encoderSettings: {
+				...defaultEncoderSettings(),
+				bitrateMode: { mode: 'vbr', value: 5 },
+				bitrateKbps: stickyBitrateKbps,
+				channels: 'auto',
+			},
+			sampleRate: 'auto',
+		});
+		const quality5 = runtime.registry.get(estimatedSizeTextAtom);
+		expect(quality1).toBe('~ 402.3 KB');
+		expect(quality5).toBe('~ 1.2 MB');
 		runtime.dispose();
 	});
 

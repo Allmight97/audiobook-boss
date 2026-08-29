@@ -4,6 +4,7 @@ import {
 	encoderPanelState,
 	notifyEncoderPanel,
 	readEncoderDefaultsFromState,
+	readEncodingRequestConfig,
 	setEncoderSettingsCapabilities,
 	type BitrateModeSelection,
 	type VbrLevel,
@@ -14,6 +15,7 @@ import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
 import { persistEncoderDefaults } from '../appSettings/persistence';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities';
+import { estimateKbpsFromRequest } from './requestConfig';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
@@ -25,13 +27,6 @@ const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	fdk_he_aac: 'HE-AAC v1',
 	aac_at: 'AAC-LC',
 	native_aac: 'AAC-LC',
-};
-const VBR_BITRATE_ESTIMATES: Record<number, number> = {
-	1: 32,
-	2: 48,
-	3: 60,
-	4: 72,
-	5: 96,
 };
 const NATIVE_AAC_WARNING =
 	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
@@ -189,16 +184,13 @@ const updateQualityVisibility = (): void => {
 };
 
 const updateEstimatedBitrate = (): void => {
+	const estimate = estimateKbpsFromRequest(readEncodingRequestConfig());
 	if (encoderPanelState.bitrateModeSelection === 'vbr') {
-		const estimate =
-			VBR_BITRATE_ESTIMATES[encoderPanelState.qualityValue] ??
-			VBR_BITRATE_ESTIMATES[encoderPanelState.capabilities?.vbrLevelDefault ?? 3] ??
-			encoderPanelState.bitrateValue;
 		encoderPanelState.estimatedBitrateText = `Est: ~${estimate} kbps`;
 		return;
 	}
 
-	encoderPanelState.estimatedBitrateText = `Target: ${encoderPanelState.bitrateValue} kbps`;
+	encoderPanelState.estimatedBitrateText = `Target: ${estimate} kbps`;
 };
 
 const getDisabledEncoderOptions = (

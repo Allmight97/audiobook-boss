@@ -1,7 +1,10 @@
 import type { OutputDefaults } from '../../types/appSettings';
 import type { OutputRequestConfig } from '../../types/audio';
 import { persistOutputDefaults } from '../../ui/appSettings';
-import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
+import {
+	encodingEstimateBitrateKbpsAtom,
+	encodingRequestConfigAtom,
+} from '../../ui/encoderPanel/requestConfig';
 import { Effect } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import { Atom, AtomRegistry } from '../runtime/reactivity';
@@ -43,7 +46,7 @@ export const estimatedSizeTextAtom = Atom.make((get): string => {
 	const input = get(inputViewAtom);
 	const request = get(encodingRequestConfigAtom);
 	return formatEstimatedSizeText(input.hasFiles, input.totalDurationSeconds, {
-		bitrateKbps: request.encoderSettings.bitrateKbps,
+		bitrateKbps: get(encodingEstimateBitrateKbpsAtom),
 		channels: request.encoderSettings.channels,
 	});
 }).pipe(Atom.keepAlive);

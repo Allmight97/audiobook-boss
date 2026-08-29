@@ -2,9 +2,9 @@
 
 ## Public API Strip
 - Import encoder request configuration from `src/ui/encoderPanel`.
-- Exports: `applyEncodingDefaults`, `encodingRequestConfigAtom`,
-  `readEncoderDefaultsFromState`, `readEncodingRequestConfig`,
-  `readFdkAfterburner`, `setFdkAfterburner`.
+- Exports: `applyEncodingDefaults`, `encodingEstimateBitrateKbpsAtom`,
+  `encodingRequestConfigAtom`, `readEncoderDefaultsFromState`,
+  `readEncodingRequestConfig`, `readFdkAfterburner`, `setFdkAfterburner`.
 - `readFdkAfterburner`/`setFdkAfterburner` exist for the App Settings dialog,
   which owns the afterburner control; the panel keeps the request-truth
   carrier and persistence rails and renders no afterburner UI.
@@ -13,8 +13,11 @@
   lazily imports `logic.ts` so the index stays side-effect-light for config
   consumers; keep new strip entries in that shape.
 - `encodingRequestConfigAtom` is the reactive request-configuration strip
-  Output Plan reads for the derived estimate. Publish into that atom; do not
-  make Output sample `readEncodingRequestConfig()` or keep a mirrored size.
+  Output Plan reads for channels and CBR/CVBR `bitrateKbps`. VBR quality does
+  not change that request field. `encodingEstimateBitrateKbpsAtom` is the
+  reactive numeric bitrate behind the `Est: ~60 kbps` line. Output Plan reads
+  that number for the header size. Do not parse the Est: label. Do not sample
+  `readEncodingRequestConfig()` or keep a mirrored size.
 
 ## Private Cluster
 - Files: `EncoderView.tsx`, `encoderView.css`, `autoResolutionHints.ts`,

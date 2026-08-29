@@ -18,13 +18,15 @@
 ## Hard Invariants
 
 - Estimated size is a derived view of public Input duration
-  (`inputViewAtom.totalDurationSeconds`) and the encoder strip's reactive
-  `encodingRequestConfigAtom`. Do not read private Input/encoder atoms, sample
-  `readEncodingRequestConfig()`, or cache a mirrored byte size.
+  (`inputViewAtom.totalDurationSeconds`), encoder `encodingRequestConfigAtom`
+  channels, and encoder `encodingEstimateBitrateKbpsAtom`. Do not read private
+  Input/encoder atoms, sample `readEncodingRequestConfig()`, parse the encoder
+  `Est: ~60 kbps` label, or cache a mirrored byte size.
 - Keep `estimateEncodedSizeBytes` as: non-positive duration → 0; bytes =
   `durationSeconds * bitrateKbps * 1000 / 8`; ×1.5 when `channels === 'stereo'`;
-  ×1.03 overhead; `Math.round`. Encoder's separate `Est: ~60 kbps` VBR hint is
-  not an input. The encoder header is the only estimate consumer and keeps
+  ×1.03 overhead; `Math.round`. On FDK VBR, `bitrateKbps` is the encoder
+  numeric estimate atom, not the sticky request `encoderSettings.bitrateKbps`.
+  The encoder header is the only estimate consumer and keeps
   `~ 12.3 MB` / `~ --- MB` (`formatEstimatedSizeText`).
 - Path preview is a reactive Effect on public Input, Metadata, output
   directory, naming preset, year, and the **committed** template. Live template
@@ -42,8 +44,9 @@
 ## Testing
 
 - `estimate.test.ts` pins the byte formula and empty-session placeholder.
-- `outputPlan.test.ts` pins hydration, derived estimate, template debounce,
-  preview draft/source-path projection, and collision resolve/cancel.
+- `outputPlan.test.ts` pins hydration, derived estimate (including FDK VBR
+  quality vs sticky request `bitrateKbps`), template debounce, preview
+  draft/source-path projection, and collision resolve/cancel.
 - `workflow.test.ts` pins stale preview suppression and review approve /
   cancel / hard-block.
 
