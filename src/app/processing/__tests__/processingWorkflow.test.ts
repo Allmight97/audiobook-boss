@@ -24,7 +24,7 @@ import {
 	registerRemoteSourceSupplementalAssets,
 	supplementalAssetsByInputIdForProcessing,
 } from '../../../ui/remoteSource';
-import { removeRemoteSourceSupplementalAssets } from '../../../ui/remoteSource/sessionAssets.svelte';
+import { removeRemoteSourceSupplementalAssets } from '../../remoteSource/sessionAssets';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {

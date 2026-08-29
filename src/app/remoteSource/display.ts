@@ -93,7 +93,3 @@ export function titleAvailability(title: RemoteTitle): RemoteTitleAvailability {
 export function isTitleAcquirable(title: RemoteTitle): boolean {
 	return titleAvailability(title).acquirable;
 }
-
-export function delay(ms: number): Promise<void> {
-	return new Promise((resolve) => window.setTimeout(resolve, ms));
-}

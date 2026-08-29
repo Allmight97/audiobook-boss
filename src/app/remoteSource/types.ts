@@ -1,15 +1,15 @@
+import type { FileListInfo } from '../../types/audio';
 import type { ProviderId, RemoteSourceAccountState, RemoteTitle } from '../../types/remoteSource';
-import { logAppError, toUserMessage } from '../../lib/tauri/appError';
-import type { AcquisitionJobWithProgress } from './remoteSourceAcquireDialogHelpers';
+import type { AcquisitionJobWithProgress } from './display';
 
 export const remoteSourceProviderId: ProviderId = 'audible';
 
-/**
- * Provider-neutral acquisition dialog state shape.
- * The owning Svelte component creates this via $state() so each
- * component instance / test render gets isolated reactive state.
- */
-export interface AcquisitionState {
+export type RemoteInputHandoffResult =
+	| { readonly status: 'imported'; readonly fileList: FileListInfo | null }
+	| { readonly status: 'blocked'; readonly message: string }
+	| { readonly status: 'failed'; readonly message: string };
+
+export type AcquisitionState = {
 	isBusy: boolean;
 	didHydrateOpenDialog: boolean;
 	accountState: RemoteSourceAccountState | null;
@@ -23,7 +23,13 @@ export interface AcquisitionState {
 	statusMessage: string;
 	activeJob: AcquisitionJobWithProgress | null;
 	lastJob: AcquisitionJobWithProgress | null;
-}
+};
+
+export type RemoteSourceState = AcquisitionState & {
+	isOpen: boolean;
+};
+
+export type RemoteSourceView = RemoteSourceState;
 
 export function createInitialAcquisitionState(): AcquisitionState {
 	return {
@@ -43,7 +49,18 @@ export function createInitialAcquisitionState(): AcquisitionState {
 	};
 }
 
-export function setAcquisitionError(s: AcquisitionState, cause: unknown, fallback: string): void {
-	logAppError(fallback, cause);
-	s.statusMessage = toUserMessage(cause, { fallback, suppressUnknown: true });
+export function createInitialRemoteSourceState(): RemoteSourceState {
+	return {
+		...createInitialAcquisitionState(),
+		isOpen: false,
+	};
+}
+
+export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
+	return {
+		...state,
+		selectedTitleIds: new Set(state.selectedTitleIds),
+		includePdfByTitleId: { ...state.includePdfByTitleId },
+		titles: [...state.titles],
+	};
 }

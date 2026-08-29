@@ -1,5 +1,5 @@
 import type { RemoteTitle } from '../../types/remoteSource';
-import { isTitleAcquirable } from './remoteSourceAcquireDialogHelpers';
+import { isTitleAcquirable } from './display';
 
 export type RemoteTitleFilterOptions = {
 	titleFilter: string;

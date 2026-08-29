@@ -11,6 +11,7 @@ import { createMetadataLookupState } from '../metadataLookup/state';
 import { clearMetadataLookupCoverPreviewCache } from '../metadataLookup/coverPreview';
 import { resetCollisionDialog, seedOutputPlan } from '../outputPlan';
 import { seedProcessing } from '../processing';
+import { resetRemoteSource } from '../remoteSource';
 import { bindWorkOperationsRegistry, disposeWorkCenter } from '../workOperations';
 import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
 import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state.svelte';
@@ -49,6 +50,7 @@ export function createTestAppRuntime(
 	clearMetadataSession();
 	resetMetadataLookupState();
 	clearMetadataLookupCoverPreviewCache();
+	resetRemoteSource();
 	resetProductionSettingsDialog();
 	resetCollisionDialog();
 	seedOutputPlan(runtime.registry);
