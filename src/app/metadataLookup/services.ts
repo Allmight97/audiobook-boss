@@ -81,7 +81,6 @@ export function makeProductionLookupServices(
 		},
 		updateOutputPath: () => undefined,
 		updateEstimatedSize: () => undefined,
-		updateTagPreview: () => undefined,
 		clearCoverArt: () => {
 			get.set(clearCoverArtAtom, undefined);
 		},

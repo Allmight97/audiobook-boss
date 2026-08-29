@@ -33,7 +33,6 @@ const context = vi.hoisted(() => ({
 	resetDirtyStateMock: vi.fn(),
 	updateEstimatedSizeMock: vi.fn(),
 	updateOutputPathMock: vi.fn(),
-	updateTagPreviewMock: vi.fn(),
 	clearCoverArtMock: vi.fn(),
 	getHasCustomCoverArtMock: vi.fn(() => false),
 	refreshCoverArtDisplayMock: vi.fn(),
@@ -81,10 +80,6 @@ vi.mock('../../metadataForm', () => ({
 vi.mock('../../outputPanel', () => ({
 	updateEstimatedSize: context.updateEstimatedSizeMock,
 	updateOutputPath: context.updateOutputPathMock,
-}));
-
-vi.mock('../../tagPreview', () => ({
-	updateTagPreview: context.updateTagPreviewMock,
 }));
 
 vi.mock('../../coverArt', () => ({
@@ -144,7 +139,6 @@ describe('file list reorder behavior', () => {
 		context.resetDirtyStateMock.mockReset();
 		context.updateEstimatedSizeMock.mockReset();
 		context.updateOutputPathMock.mockReset();
-		context.updateTagPreviewMock.mockReset();
 		context.validateMetadataDraftMock.mockReset();
 		context.validateMetadataDraftMock.mockImplementation(
 			async (metadata: Record<string, unknown>) => {

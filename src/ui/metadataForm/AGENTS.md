@@ -3,7 +3,7 @@
 ## Scope
 
 - Applies to metadata text-field state, multi-select field actions, dirty-field
-  reads, metadata-form preview values, validation warning display state, and
+  reads, validation warning display state, and
   `MetadataFormFieldsIsland` rendering under `src/ui/metadataForm/`.
 
 ## Public API Strip
@@ -17,18 +17,15 @@
   `readMetadataFormViewSnapshot()`.
 - Runtime callers apply series/subseries validation warning state through
   `applyMetadataFormValidationWarnings(metadata, errors)`.
-- Tag Preview reads form-derived tag inputs through
-  `readMetadataFormPreviewValues()`.
 - Async metadata transitions guard prepare -> commit work with
   `readMetadataFormRevision()` so stale validation cannot reset newer edits.
 
 ## Private Cluster
 
-- Files: `MetadataFormFieldsIsland.svelte`, `index.ts`,
-  `previewState.svelte.ts`, `state.svelte.ts`, `__tests__/`.
+- Files: `MetadataFormFieldsIsland.svelte`, `index.ts`, `state.svelte.ts`,
+  `__tests__/`.
 - The cluster owns form field state, multi-select action state, warning display
-  state, form-to-draft reads, form population, dirty-state tracking, and preview
-  value publication for Tag Preview.
+  state, form-to-draft reads, form population, and dirty-state tracking.
 
 ## Hard Invariants
 
@@ -51,7 +48,7 @@
 ## Breaking-Change Triggers
 
 - Adding, removing, or renaming a Public API Strip export.
-- Letting another owner import `state.svelte.ts` or `previewState.svelte.ts`
-  except through the documented strip.
+- Letting another owner import `state.svelte.ts` except through the documented
+  strip.
 - Moving validation warning display rules out of Metadata Form without a new
   owner decision.

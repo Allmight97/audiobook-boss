@@ -72,18 +72,6 @@ vi.mock('../../metadataForm', async (importOriginal) => {
 	return {
 		...actual,
 		readMetadataFormViewSnapshot: vi.fn(() => ({ mode: 'single', selectionCount: 1 })),
-		readMetadataFormPreviewValues: vi.fn(() => ({
-			title: '',
-			author: '',
-			narrator: '',
-			series: '',
-			seriesPart: '',
-			subseries: '',
-			subseriesPart: '',
-			year: '',
-			genre: '',
-		})),
-		initMetadataFormEvents: vi.fn(),
 		readMetadataForm: vi.fn(() => ({})),
 		resetDirtyState: context.resetDirtyStateMock,
 		onMetadataFormFieldInput: vi.fn(),

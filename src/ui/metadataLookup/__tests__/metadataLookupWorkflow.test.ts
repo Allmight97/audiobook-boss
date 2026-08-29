@@ -171,7 +171,6 @@ function makeHarness(options?: {
 	const readMetadataForm = vi.fn(options?.readMetadataForm ?? (() => ({ title: 'Patched Title' })));
 	const updateOutputPath = vi.fn();
 	const updateEstimatedSize = vi.fn();
-	const updateTagPreview = vi.fn();
 	const clearCoverArt = vi.fn();
 	const setCoverArt = vi.fn();
 	const setCustomCoverArt = vi.fn();
@@ -200,7 +199,6 @@ function makeHarness(options?: {
 		readMetadataForm,
 		updateOutputPath,
 		updateEstimatedSize,
-		updateTagPreview,
 		clearCoverArt,
 		setCoverArt,
 		setCustomCoverArt,
@@ -230,7 +228,6 @@ function makeHarness(options?: {
 			readMetadataForm,
 			updateOutputPath,
 			updateEstimatedSize,
-			updateTagPreview,
 			clearCoverArt,
 			setCoverArt,
 			setCustomCoverArt,

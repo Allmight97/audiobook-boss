@@ -6,12 +6,6 @@ import {
 	refreshCoverArtDisplay,
 } from '../coverArt';
 import {
-	resetMetadataFormPreviewState,
-	setMetadataFormPreviewValueByInputId,
-} from './previewState.svelte';
-// Explicit cross-strip read surface: tag preview renders from these values.
-export { readMetadataFormPreviewValues } from './previewState.svelte';
-import {
 	getMetadataFieldDefinitionByActionId,
 	getMetadataFieldDefinitionByInputId,
 	getMetadataFormRevision,
@@ -30,8 +24,6 @@ import {
 	type MetadataFieldAction,
 	type MetadataFormMode,
 } from './state.svelte';
-import { updateTagPreview } from '../tagPreview';
-
 export type MetadataFormValidationWarnings = {
 	byField?: {
 		series_part?: string;
@@ -74,17 +66,6 @@ export function readMetadataFormRevision(): number {
 	return getMetadataFormRevision();
 }
 
-export function initMetadataFormEvents(): void {
-	resetMetadataFormPreviewState();
-	for (const field of METADATA_FIELD_DEFINITIONS) {
-		setMetadataFormPreviewValueByInputId(
-			field.inputId,
-			metadataFormState.fields[field.inputId].value,
-		);
-	}
-	updateTagPreview();
-}
-
 export function onMetadataFormFieldInput(inputId: string): void {
 	const field = getMetadataFieldDefinitionByInputId(inputId);
 	if (!field) return;
@@ -92,14 +73,11 @@ export function onMetadataFormFieldInput(inputId: string): void {
 	const value = readFieldValue(field.inputId);
 	setMetadataFormFieldValue(field.inputId, value);
 	markDirty(field.inputId);
-	setMetadataFormPreviewValueByInputId(field.inputId, value);
 
 	if (metadataFormState.mode === 'multi') {
 		const actionValue: MetadataFieldAction = value.trim() ? 'keep' : 'blank';
 		setMetadataFormFieldAction(field.inputId, actionValue);
 	}
-
-	updateTagPreview();
 }
 
 export function onMetadataFormActionSelectChange(actionId: string): void {
@@ -112,10 +90,7 @@ export function onMetadataFormActionSelectChange(actionId: string): void {
 	if (metadataFormState.fields[field.inputId].action === 'blank') {
 		setMetadataFormFieldValue(field.inputId, '');
 		markDirty(field.inputId);
-		setMetadataFormPreviewValueByInputId(field.inputId, '');
 	}
-
-	updateTagPreview();
 }
 
 export function resetDirtyState(): void {
@@ -152,12 +127,10 @@ export function populateMetadataFormSingle(metadata: Partial<AudiobookMetadata>)
 
 		setMetadataFormFieldValue(field.inputId, value);
 		setMetadataFormFieldMixed(field.inputId, false);
-		setMetadataFormPreviewValueByInputId(field.inputId, value);
 	}
 
 	refreshCoverArtDisplay();
 	resetDirtyState();
-	updateTagPreview();
 }
 
 export function populateMetadataFormMulti(
@@ -173,7 +146,6 @@ export function populateMetadataFormMulti(
 		if (!hasMetadata) {
 			setMetadataFormFieldValue(field.inputId, '');
 			setMetadataFormFieldMixed(field.inputId, false);
-			setMetadataFormPreviewValueByInputId(field.inputId, '');
 			continue;
 		}
 
@@ -191,18 +163,15 @@ export function populateMetadataFormMulti(
 			const value = values[0] ?? '';
 			setMetadataFormFieldValue(field.inputId, value);
 			setMetadataFormFieldMixed(field.inputId, false);
-			setMetadataFormPreviewValueByInputId(field.inputId, value);
 			continue;
 		}
 
 		setMetadataFormFieldValue(field.inputId, '');
 		setMetadataFormFieldMixed(field.inputId, true);
-		setMetadataFormPreviewValueByInputId(field.inputId, '');
 	}
 
 	refreshCoverArtDisplay();
 	resetDirtyState();
-	updateTagPreview();
 }
 
 export function applyMetadataToForm(
@@ -229,7 +198,6 @@ export function applyMetadataToForm(
 
 		setMetadataFormFieldValue(field.inputId, value);
 		setMetadataFormFieldMixed(field.inputId, false);
-		setMetadataFormPreviewValueByInputId(field.inputId, value);
 		if (shouldMarkDirty) {
 			setMetadataFormFieldDirty(field.inputId, true);
 		}
@@ -237,8 +205,6 @@ export function applyMetadataToForm(
 			setMetadataFormFieldAction(field.inputId, value.trim() ? 'keep' : 'blank');
 		}
 	}
-
-	updateTagPreview();
 }
 
 function updateSeriesPartWarning(

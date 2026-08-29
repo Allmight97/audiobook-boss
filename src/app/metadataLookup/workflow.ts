@@ -60,7 +60,6 @@ export interface MetadataLookupWorkflowServices {
 	}) => Partial<AudiobookMetadata>;
 	updateOutputPath: (kind: string) => void;
 	updateEstimatedSize: () => void;
-	updateTagPreview: () => void;
 	clearCoverArt: () => void;
 	setCoverArt: (coverArtBytes: number[] | null) => void;
 	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
@@ -251,7 +250,6 @@ async function applyResult(
 		}
 	}
 	refreshOutputForMetadataChange(services);
-	services.updateTagPreview();
 
 	if (mode === 'queue') {
 		if (current) {

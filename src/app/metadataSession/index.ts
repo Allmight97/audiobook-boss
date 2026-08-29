@@ -35,5 +35,6 @@ export type { MetadataEditorState, MetadataView } from './atoms';
 export { COVER_ART_IMAGE_EXTENSION_HINTS } from './cover';
 export type { CoverArtMessage } from './cover';
 export { calculateTSOA, projectTagPreviewValues } from './tags';
+export type { TagField, TagPreviewValues } from './tags';
 export { METADATA_FIELD_DEFINITIONS } from './fields';
 export type { MetadataFieldId, MetadataFormMode, MetadataFormState } from './fields';

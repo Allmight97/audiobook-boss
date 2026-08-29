@@ -48,7 +48,6 @@ vi.mock('../metadataForm', () => ({
 	hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 	resetDirtyState: context.resetDirtyStateMock,
 	applyMetadataToForm: vi.fn(),
-	initMetadataFormEvents: vi.fn(),
 	onMetadataFormFieldInput: vi.fn(),
 	onMetadataFormActionSelectChange: vi.fn(),
 }));
@@ -76,13 +75,6 @@ vi.mock('../coverArt', () => ({
 	refreshCoverArtDisplay: vi.fn(),
 	getCurrentCoverArt: vi.fn(() => null),
 	readCoverArtSessionRevision: vi.fn(() => 0),
-}));
-
-vi.mock('../tagPreview', () => ({
-	updateTagPreview: vi.fn(),
-	initTagPreview: vi.fn(),
-	calculateTSOA: vi.fn(() => ''),
-	TagPreviewIsland: {},
 }));
 
 // Keep the REAL fileList metadata staging chain, but pin its private state and
@@ -312,7 +304,6 @@ describe('metadata session smoke (edit→save and lookup→save through one seam
 			})),
 			updateOutputPath: vi.fn(),
 			updateEstimatedSize: vi.fn(),
-			updateTagPreview: vi.fn(),
 			clearCoverArt: vi.fn(),
 			setCoverArt: vi.fn(),
 			setCustomCoverArt: vi.fn(),
