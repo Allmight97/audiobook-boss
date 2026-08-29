@@ -500,8 +500,7 @@ export function startProcessing(
 	layer?: ProcessingWorkflowLayer,
 ): Promise<void> {
 	return (async () => {
-		const workflowLayer =
-			layer ?? (await import('./workflow.deps')).ProcessingWorkflowLive;
+		const workflowLayer = layer ?? (await import('./workflow.deps')).ProcessingWorkflowLive;
 		return runAppEffect(
 			processingWorkflowProgram(context, options).pipe(Effect.provide(workflowLayer)),
 		);

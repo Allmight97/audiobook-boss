@@ -71,7 +71,12 @@ export function StatusPanelView(): JSX.Element {
 							<img
 								src={dataUrl()}
 								alt="Cover Art"
-								style={{ width: '100%', height: '100%', 'object-fit': 'cover', 'border-radius': '0.25rem' }}
+								style={{
+									width: '100%',
+									height: '100%',
+									'object-fit': 'cover',
+									'border-radius': '0.25rem',
+								}}
 							/>
 						)}
 					</Show>
@@ -95,11 +100,7 @@ export function StatusPanelView(): JSX.Element {
 							style={{ width: `${view().progressPercentage}%` }}
 						/>
 					</div>
-					<div
-						id="step-text"
-						class="text-xs muted-text mt-0.5"
-						style={{ color: view().stepColor }}
-					>
+					<div id="step-text" class="text-xs muted-text mt-0.5" style={{ color: view().stepColor }}>
 						{view().stepText}
 					</div>
 					<div id="concurrency-status" class="text-xs muted-text mt-1">
@@ -107,7 +108,7 @@ export function StatusPanelView(): JSX.Element {
 					</div>
 					<Show when={items().length > 0}>
 						<div class="queue-summary-row" id="queue-summary">
-							<div class="queue-chip-group" aria-label="Queue status summary">
+							<section class="queue-chip-group" aria-label="Queue status summary">
 								<Show when={activeChip()}>
 									{(label) => (
 										<span class="queue-chip is-active" data-testid="queue-chip-active">
@@ -135,7 +136,7 @@ export function StatusPanelView(): JSX.Element {
 										{cancelledCount()} cancelled
 									</span>
 								</Show>
-							</div>
+							</section>
 							<button
 								id="queue-toggle-button"
 								class="queue-toggle-button"
@@ -162,9 +163,7 @@ export function StatusPanelView(): JSX.Element {
 										id={`cancel-${item.key}`}
 										class="job-cancel-button"
 										type="button"
-										disabled={
-											view().cancelAllPending || !item.canCancel || !item.cancelId
-										}
+										disabled={view().cancelAllPending || !item.canCancel || !item.cancelId}
 										onClick={() => triggerCancelAllFromStatusPanel()}
 									>
 										Cancel

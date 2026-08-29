@@ -64,8 +64,8 @@ export function OutputView(): JSX.Element {
 						<div class="relative group">
 							<div class="info-icon">i</div>
 							<div class="info-popover">
-								ABS Default keeps Audiobookshelf-compatible paths. Custom Template stores your
-								draft template.
+								ABS Default keeps Audiobookshelf-compatible paths. Custom Template stores your draft
+								template.
 							</div>
 						</div>
 					</div>

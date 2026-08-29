@@ -10,7 +10,10 @@ import {
 	handleSampleRateSelectionChange,
 	initializeEncoderPanelLogic,
 } from '../encoderPanel/logic';
-import { encodingRequestConfigAtom, publishEncodingRequestConfig } from '../encoderPanel/requestConfig';
+import {
+	encodingRequestConfigAtom,
+	publishEncodingRequestConfig,
+} from '../encoderPanel/requestConfig';
 import { encoderPanelState, subscribeEncoderPanel } from '../encoderPanel/state';
 import {
 	bitrateModeLabel,

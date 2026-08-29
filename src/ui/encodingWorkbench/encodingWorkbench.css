@@ -57,6 +57,6 @@
 	overflow: visible;
 }
 
-.workbench-block-tags [data-testid='preview-audio-controls'] {
+.workbench-block-tags [data-testid="preview-audio-controls"] {
 	margin-left: auto;
 }

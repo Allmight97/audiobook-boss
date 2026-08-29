@@ -1,9 +1,6 @@
 import { For, Show, type JSX } from 'solid-js';
 import { formatEtaRemaining } from '../../lib/format/eta';
-import {
-	cancelWorkOperation,
-	workOperationsViewAtom,
-} from '../../app/workOperations';
+import { cancelWorkOperation, workOperationsViewAtom } from '../../app/workOperations';
 import { openChildSource } from '../../app/workOperations';
 import { useAtomValue } from '../../app/runtime/solid';
 import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
@@ -60,7 +57,7 @@ export function WorkCenterView(): JSX.Element {
 	const view = useAtomValue(() => workOperationsViewAtom);
 
 	return (
-		<div class="panel work-center" aria-label="Work Center">
+		<section class="panel work-center" aria-label="Work Center">
 			<div class="work-center-header">
 				<div>
 					<h3>Work Center</h3>
@@ -81,8 +78,7 @@ export function WorkCenterView(): JSX.Element {
 				<div class="work-operation-list">
 					<For each={view().operations}>
 						{(operation) => {
-							const queuePosition = () =>
-								acceptedQueuePosition(operation, view().operations);
+							const queuePosition = () => acceptedQueuePosition(operation, view().operations);
 							return (
 								<section class={`work-operation is-${operation.status}`}>
 									<div class="work-operation-topline">
@@ -95,9 +91,7 @@ export function WorkCenterView(): JSX.Element {
 										<div class="work-operation-actions">
 											<span class={`work-status is-${operation.status}`}>
 												{operationStatusLabel(operation.status)}
-												<Show when={queuePosition()}>
-													{(position) => <> #{position()}</>}
-												</Show>
+												<Show when={queuePosition()}>{(position) => <> #{position()}</>}</Show>
 											</span>
 											<button
 												class="work-action-button"
@@ -136,7 +130,7 @@ export function WorkCenterView(): JSX.Element {
 										{summaryText(operation)}
 									</div>
 									<Show when={operation.logTail.length > 0}>
-										<div class="work-log-tail" aria-label="Recent operation activity">
+										<div class="work-log-tail" role="log" aria-label="Recent operation activity">
 											<For each={operation.logTail}>{(entry) => <div>{entry.message}</div>}</For>
 										</div>
 									</Show>
@@ -144,18 +138,13 @@ export function WorkCenterView(): JSX.Element {
 										<For each={operation.children}>
 											{(child) => (
 												<div class={`work-child-row is-${child.status}`}>
-													<span
-														class="work-child-label"
-														title={child.sourcePath ?? child.label}
-													>
+													<span class="work-child-label" title={child.sourcePath ?? child.label}>
 														{child.label}
 													</span>
 													<span class="work-child-status">
 														{childStatusLabel(child.status)}
 														<Show
-															when={
-																child.status === 'running' && child.progress.etaSeconds != null
-															}
+															when={child.status === 'running' && child.progress.etaSeconds != null}
 														>
 															<> · {formatEtaRemaining(child.progress.etaSeconds ?? 0)}</>
 														</Show>
@@ -180,6 +169,6 @@ export function WorkCenterView(): JSX.Element {
 					</For>
 				</div>
 			</Show>
-		</div>
+		</section>
 	);
 }

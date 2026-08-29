@@ -6,8 +6,6 @@ export const encodingRequestConfigAtom = Atom.make<EncodingRequestConfig>(
 	readEncodingRequestConfig(),
 ).pipe(Atom.keepAlive);
 
-export function publishEncodingRequestConfig(
-	set: (config: EncodingRequestConfig) => void,
-): void {
+export function publishEncodingRequestConfig(set: (config: EncodingRequestConfig) => void): void {
 	set(readEncodingRequestConfig());
 }

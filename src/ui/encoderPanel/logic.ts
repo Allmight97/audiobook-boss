@@ -94,7 +94,6 @@ const fdkAvailabilityHint = (): string => {
 	return `Using external FDK AAC${pathSegment}. ${afterburnerSegment}`;
 };
 
-
 const updateAutoOptionLabel = (): void => {
 	if (encoderPanelState.flavor === 'auto' && encoderPanelState.availability) {
 		encoderPanelState.autoOptionLabel = autoOptionLabel(resolveEffectiveEncoder('auto'));

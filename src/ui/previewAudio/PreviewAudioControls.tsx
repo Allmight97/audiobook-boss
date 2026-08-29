@@ -5,7 +5,9 @@ import './previewAudioControls.css';
 
 const PREVIEW_DURATIONS = [15, 30, 45, 60] as const;
 
-export function PreviewAudioControls(props: { readonly variant?: 'default' | 'compact' }): JSX.Element {
+export function PreviewAudioControls(props: {
+	readonly variant?: 'default' | 'compact';
+}): JSX.Element {
 	const startProcessing = useAtomSet(() => startProcessingAtom);
 	const [previewDuration, setPreviewDuration] = createSignal(30);
 	const [open, setOpen] = createSignal(false);

@@ -80,7 +80,10 @@ export function CollisionDialogView(): JSX.Element {
 				<div id="collision-dialog-results" class="app-modal-results">
 					<For each={view().outputs}>
 						{(output) => (
-							<div class="app-modal-result collision-dialog-result" data-testid="collision-dialog-item">
+							<div
+								class="app-modal-result collision-dialog-result"
+								data-testid="collision-dialog-item"
+							>
 								<div class="collision-dialog-paths">
 									<div class="collision-dialog-filename" title={output.resolvedPath}>
 										{pathBasename(output.resolvedPath, { fallback: 'path' })}
@@ -94,7 +97,8 @@ export function CollisionDialogView(): JSX.Element {
 										class="collision-dialog-summary"
 										title={output.collision?.detail ?? undefined}
 									>
-										{formatOutputKind(output.kind)} • {formatKind(output.collision?.kind ?? 'existing_file')}
+										{formatOutputKind(output.kind)} •{' '}
+										{formatKind(output.collision?.kind ?? 'existing_file')}
 									</div>
 								</Show>
 							</div>

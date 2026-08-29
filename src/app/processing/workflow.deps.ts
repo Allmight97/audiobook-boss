@@ -84,7 +84,8 @@ const liveProcessingWorkflowServices = {
 	},
 	validateMetadataIntentPatch: (patch) =>
 		processingRegistry().get(metadataCapabilityAtom).validateMetadataIntentPatch(patch),
-	readAudioMetadata: (path) => processingRegistry().get(metadataCapabilityAtom).readAudioMetadata(path),
+	readAudioMetadata: (path) =>
+		processingRegistry().get(metadataCapabilityAtom).readAudioMetadata(path),
 	processAudiobookFiles: tauriClient.processAudiobookFiles,
 	submitProcessingOperation: tauriClient.submitProcessingOperation,
 	runOutputPlanReviewWorkflow,

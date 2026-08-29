@@ -13,9 +13,8 @@ import { bindStatusViewRegistry, resetStatusPanelViewState, statusViewAtom } fro
 export { statusViewAtom };
 export type { StatusView } from './view';
 
-export const startProcessingAtom = Atom.fn(
-	(options: { previewSeconds?: number } | undefined) =>
-		Effect.promise(() => initStatusPanel().startProcessing(options)),
+export const startProcessingAtom = Atom.fn((options: { previewSeconds?: number } | undefined) =>
+	Effect.promise(() => initStatusPanel().startProcessing(options)),
 ).pipe(Atom.keepAlive);
 
 export function seedProcessing(registry: AtomRegistry.AtomRegistry): void {

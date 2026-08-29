@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultEncoderSettings, type ProcessPayload } from '../../../types/audio';
 import type { MetadataIntentPatch } from '../../../types/metadataIntent';
 import type { ProcessingStatus } from '../state';
-import { startProcessing as startProcessingRaw, makeProcessingWorkflowServicesLayer } from '../workflow';
+import {
+	startProcessing as startProcessingRaw,
+	makeProcessingWorkflowServicesLayer,
+} from '../workflow';
 import type { ProcessingWorkflowServices } from '../workflow';
 import { openGeneratedPreviewIfSingle } from '../preview';
 import * as viewState from '../view';
@@ -147,11 +150,7 @@ function startProcessing(
 	ctx: ReturnType<typeof processingContext>,
 	options?: { previewSeconds?: number },
 ) {
-	return startProcessingRaw(
-		ctx,
-		options,
-		makeProcessingWorkflowServicesLayer(stagingServices()),
-	);
+	return startProcessingRaw(ctx, options, makeProcessingWorkflowServicesLayer(stagingServices()));
 }
 
 describe('startProcessing metadata staging', () => {
