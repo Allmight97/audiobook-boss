@@ -1,5 +1,8 @@
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
+import { settingsCapabilityAtom, concurrencyViewAtom } from '../appSettings/concurrency';
+import { resetProductionSettingsDialog } from '../appSettings/dialog';
 import { inputCapabilityAtom, inputSessionAtom } from '../inputSession/atoms';
 import { emptyInputSession } from '../inputSession/types';
 import { resetMetadataLookupState } from '../metadataLookup';
@@ -29,7 +32,11 @@ function emptyMetadataEditor() {
 }
 
 export function createTestAppRuntime(
-	options: { readonly input?: InputCapability; readonly metadata?: MetadataCapability } = {},
+	options: {
+		readonly input?: InputCapability;
+		readonly metadata?: MetadataCapability;
+		readonly settings?: SettingsCapability;
+	} = {},
 ): AppRuntime {
 	const runtime = createAppRuntime();
 	runtime.registry.set(inputSessionAtom, emptyInputSession());
@@ -37,12 +44,23 @@ export function createTestAppRuntime(
 	clearMetadataSession();
 	resetMetadataLookupState();
 	clearMetadataLookupCoverPreviewCache();
+	resetProductionSettingsDialog();
 	runtime.registry.set(lookupViewAtom, createMetadataLookupState());
+	runtime.registry.set(concurrencyViewAtom, {
+		selection: 'auto',
+		effectiveLabel: '',
+		controlsEnabled: true,
+		allowAuto: true,
+		fixedOptions: [],
+	});
 	if (options.input) {
 		runtime.registry.set(inputCapabilityAtom, options.input);
 	}
 	if (options.metadata) {
 		runtime.registry.set(metadataCapabilityAtom, options.metadata);
+	}
+	if (options.settings) {
+		runtime.registry.set(settingsCapabilityAtom, options.settings);
 	}
 	return runtime;
 }

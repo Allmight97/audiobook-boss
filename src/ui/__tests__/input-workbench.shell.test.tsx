@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
@@ -137,11 +137,10 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: ['/books/alpha.m4b', '/books/bravo.m4b'],
 		});
+		const listbox = await screen.findByRole('listbox', { name: 'Audio files' });
 		await waitFor(() => {
-			expect(screen.getAllByRole('option')).toHaveLength(2);
+			expect(within(listbox).getAllByRole('option')).toHaveLength(2);
 		});
-
-		const listbox = screen.getByRole('listbox', { name: 'Audio files' });
 		await fireEvent.keyDown(listbox, { key: 'ArrowDown' });
 		await waitFor(() => {
 			expect(runtime?.registry.get(inputViewAtom).selectedIndices).toEqual([0]);

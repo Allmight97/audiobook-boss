@@ -1,15 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
-import JobControlsIsland from '../../jobControls/JobControlsIsland.svelte';
 import { tauriClient } from '../../../lib/tauri/client';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
-import {
-	handleMaxConcurrentSelectionChange,
-	handleMergeModeChange,
-	initJobControls,
-	setJobControlsEnabled,
-	setJobTypeSelection,
-} from '../../jobControls';
+import { initJobControls, setJobControlsEnabled, setJobTypeSelection } from '../../jobControls';
 import { StatusPanelRuntime } from '../controller';
 import { resetStatusPanelViewState, statusPanelViewState } from '../viewState.svelte';
 
@@ -25,10 +17,6 @@ function setupDom() {
     <div class="art-thumbnail"></div>
     <div id="job-list"></div>
   `;
-	render(JobControlsIsland, {
-		onMergeModeChange: handleMergeModeChange,
-		onMaxConcurrentSelectionChange: handleMaxConcurrentSelectionChange,
-	});
 }
 
 async function flushAsync(): Promise<void> {

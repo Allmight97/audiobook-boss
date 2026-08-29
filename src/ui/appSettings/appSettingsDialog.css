@@ -1,0 +1,74 @@
+.app-settings-section {
+	margin-top: 1rem;
+}
+
+.app-settings-section:first-child {
+	margin-top: 0;
+}
+
+.app-settings-section-title {
+	margin: 0 0 0.35rem;
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--text-primary);
+}
+
+.app-settings-path-row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+	margin-top: 0.5rem;
+}
+
+.app-settings-path-input {
+	flex: 1;
+	min-width: 0;
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+}
+
+.app-settings-status {
+	margin-top: 0.5rem;
+	font-size: 0.76rem;
+	color: var(--text-secondary);
+}
+
+.app-settings-status-error {
+	color: var(--danger, #e5484d);
+}
+
+.app-settings-startup-options {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	margin-top: 0.5rem;
+	font-size: 0.78rem;
+	color: var(--text-primary);
+}
+
+.app-settings-radio {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	cursor: pointer;
+}
+
+.app-settings-summary {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.3rem 1rem;
+	margin: 0.5rem 0 0;
+	font-size: 0.78rem;
+}
+
+.app-settings-summary dt {
+	color: var(--text-secondary);
+}
+
+.app-settings-summary dd {
+	margin: 0;
+	color: var(--text-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

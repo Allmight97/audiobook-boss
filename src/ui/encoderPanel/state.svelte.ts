@@ -55,11 +55,25 @@ const createDefaultState = () => ({
 	},
 });
 
-export const encoderPanelState = $state(createDefaultState());
+export const encoderPanelState = createDefaultState();
+
+const encoderListeners = new Set<() => void>();
+
+export function subscribeEncoderPanel(listener: () => void): () => void {
+	encoderListeners.add(listener);
+	return () => {
+		encoderListeners.delete(listener);
+	};
+}
+
+export function notifyEncoderPanel(): void {
+	for (const listener of encoderListeners) listener();
+}
 
 export function resetEncoderPanelState(): void {
 	const defaults = createDefaultState();
 	Object.assign(encoderPanelState, defaults);
+	notifyEncoderPanel();
 }
 
 function bitrateModeSelectionFromSettings(settings: EncoderSettings): BitrateModeSelection {
@@ -186,6 +200,7 @@ export function applyEncoderDefaults(defaults: EncoderDefaults): void {
 		defaults.sampleRate,
 		encoderPanelState.capabilities,
 	);
+	notifyEncoderPanel();
 }
 
 function rangeOptions(min: number, max: number): number[] {
@@ -249,6 +264,7 @@ export function setEncoderSettingsCapabilities(
 		}
 	}
 	setEncoderAvailability(capabilities?.availability ?? null);
+	notifyEncoderPanel();
 }
 
 export function setEncoderAvailability(availability: EncoderAvailability | null): void {
@@ -257,13 +273,16 @@ export function setEncoderAvailability(availability: EncoderAvailability | null)
 
 export function setSampleRateAutoHint(value: string): void {
 	encoderPanelState.sampleRateAutoHint = value;
+	notifyEncoderPanel();
 }
 
 export function setChannelsAutoHint(value: string): void {
 	encoderPanelState.channelsAutoHint = value;
+	notifyEncoderPanel();
 }
 
 export function resetAutoHints(): void {
 	encoderPanelState.sampleRateAutoHint = DEFAULT_SAMPLE_RATE_HINT;
 	encoderPanelState.channelsAutoHint = DEFAULT_CHANNELS_HINT;
+	notifyEncoderPanel();
 }

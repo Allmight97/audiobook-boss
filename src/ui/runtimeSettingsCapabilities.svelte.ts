@@ -1,11 +1,11 @@
 import { tauriClient } from '../lib/tauri/client';
 import type { RuntimeSettingsCapabilities } from '../types/audio';
 
-export const runtimeSettingsCapabilitiesState = $state({
+export const runtimeSettingsCapabilitiesState = {
 	capabilities: null as RuntimeSettingsCapabilities | null,
 	loadError: null as unknown,
 	loading: false,
-});
+};
 
 let pendingLoad: Promise<RuntimeSettingsCapabilities | null> | null = null;
 let latestLoadId = 0;

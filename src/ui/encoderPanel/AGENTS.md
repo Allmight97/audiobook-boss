@@ -8,14 +8,25 @@
   which owns the afterburner control; the panel keeps the request-truth
   carrier and persistence rails and renders no afterburner UI.
 - `applyEncodingDefaults(defaults, capabilities)` accepts an already-loaded
-  Runtime Settings Capabilities encoder slice from App Settings hydration.
-- Composition-only UI shells may import `EncoderWorkbenchIsland.svelte`; do not
-  use the main encoder index for renderer exports because it must stay
-  side-effect-light for config consumers.
+  Runtime Settings Capabilities encoder slice from App Settings hydration. It
+  lazily imports `logic.ts` so the index stays side-effect-light for config
+  consumers; keep new strip entries in that shape.
+- Known temporary seam: `src/ui/outputPanel/index.ts` imports
+  `setEncoderEstimatedSizeListener` from `logic.ts` directly instead of through
+  this strip, because routing it through the lazy index would make
+  `initOutputPanel()` async. Slice 6 deletes this seam with the Svelte output
+  panel; do not add further direct `logic.ts` importers.
 
 ## Private Cluster
-- Files: `EncoderWorkbenchIsland.svelte`, `autoResolutionHints.ts`, `logic.ts`,
-  `state.svelte.ts`, `view.ts`, `__tests__/`.
+- Files: `EncoderView.tsx`, `encoderView.css`, `autoResolutionHints.ts`,
+  `logic.ts`, `state.svelte.ts`, `view.ts`, `__tests__/`.
+- `EncoderView.tsx` is the mounted Solid renderer and reads
+  `state.svelte.ts` through a revision-counter bridge; encoder request truth
+  stays in the rune store until slice 9 removes `.svelte.ts` sources.
+- The `estimated-size` span in `EncoderView.tsx` renders a literal em dash. That
+  value is output-panel truth (`readEstimatedSizeText`) and stays unwired on
+  purpose until slice 6 moves the output panel to atoms; wiring it through
+  `state.svelte.ts` would re-couple this cluster to the displaced output module.
 - The cluster owns audio encoder UI state, resolved encoder availability,
   sample-rate/channel state, and encoding request configuration truth.
   Selectable validity facts for encoder options, bitrate modes, bitrates, VBR

@@ -16,6 +16,10 @@
 	grid-template-columns: minmax(0, 1fr);
 }
 
+.encoding-workbench-encoder-tags {
+	grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+}
+
 .workbench-block {
 	min-width: 0;
 	min-height: 0;

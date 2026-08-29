@@ -1,8 +1,8 @@
-import { updateEstimatedSize } from '../outputPanel';
 import {
 	applyEncoderDefaults,
 	bitrateModeSelectionFromKind,
 	encoderPanelState,
+	notifyEncoderPanel,
 	readEncoderDefaultsFromState,
 	setEncoderSettingsCapabilities,
 	type BitrateModeSelection,
@@ -12,7 +12,7 @@ import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
-import { persistEncoderDefaults } from '../appSettings';
+import { persistEncoderDefaults } from '../appSettings/persistence';
 import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
 
 const DEBUG = import.meta.env.DEV;
@@ -94,8 +94,14 @@ const fdkAvailabilityHint = (): string => {
 	return `Using external FDK AAC${pathSegment}. ${afterburnerSegment}`;
 };
 
+let estimatedSizeListener: () => void = () => undefined;
+
+export function setEncoderEstimatedSizeListener(listener: () => void): void {
+	estimatedSizeListener = listener;
+}
+
 const syncOutputSizingFromEncoderState = (): void => {
-	updateEstimatedSize();
+	estimatedSizeListener();
 };
 
 const updateAutoOptionLabel = (): void => {
@@ -248,6 +254,7 @@ const syncEncoderState = (): void => {
 	updateEstimatedBitrate();
 	updateAutoOptionLabel();
 	updateAvailabilityHint();
+	notifyEncoderPanel();
 };
 
 export const syncAfterStateChange = (): void => {

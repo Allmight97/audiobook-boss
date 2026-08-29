@@ -5,8 +5,10 @@ import type { OutputDefaults } from '../../types/appSettings';
 import { applyOutputDefaults, loadInitialState } from './state.svelte';
 import { resetOutputPanelActions } from './actions';
 import { updateOutputPath, updateEstimatedSize, updateNamingOptionState } from './preview';
+import { setEncoderEstimatedSizeListener } from '../encoderPanel/logic';
 
 export function initOutputPanel(): void {
+	setEncoderEstimatedSizeListener(updateEstimatedSize);
 	resetOutputPanelActions();
 	loadInitialState();
 	updateNamingOptionState();

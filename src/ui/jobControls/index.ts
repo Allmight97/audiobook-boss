@@ -1,8 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import type { ConcurrencyPreference } from '../../types/appSettings';
 import type { JobType, MaxConcurrentJobsCapabilities } from '../../types/audio';
-import { flushSync } from 'svelte';
-import { jobControlsState } from './state.svelte';
+import { jobControlsState, notifyJobControls } from './state.svelte';
 import { updateOutputPath } from '../outputPanel';
 import { updateStatusPanelConcurrencyStatus } from '../statusPanel';
 import { refreshCoverArtDisplay } from '../coverArt';
@@ -71,9 +70,8 @@ export async function applyMaxConcurrentPreference(
 }
 
 export function setJobControlsEnabled(enabled: boolean): void {
-	flushSync(() => {
-		jobControlsState.controlsEnabled = enabled;
-	});
+	jobControlsState.controlsEnabled = enabled;
+	notifyJobControls();
 }
 
 function updateMaxConcurrentIndicator(): void {
