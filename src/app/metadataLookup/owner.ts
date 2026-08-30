@@ -3,9 +3,8 @@ import type { InputOwner } from '../inputSession/owner';
 import type { MetadataOwner } from '../metadataSession/owner';
 import { makeProductionLookupServices } from './services';
 import {
+	createMetadataLookupQueueState,
 	createMetadataLookupState,
-	metadataLookupState,
-	resetMetadataLookupState,
 	snapshotMetadataLookupState,
 	type MetadataLookupApplyMode,
 	type MetadataLookupSource,
@@ -34,15 +33,25 @@ export function createMetadataLookupOwner(deps: {
 	readonly input: InputOwner;
 	readonly metadata: MetadataOwner;
 }): MetadataLookupOwner {
-	const [view, setView] = createSignal(createMetadataLookupState());
+	const lookupState = createMetadataLookupState();
+	const queueState = createMetadataLookupQueueState();
+	const [view, setView] = createSignal(snapshotMetadataLookupState(lookupState));
 	const [previewRevision, setPreviewRevision] = createSignal(0);
 
 	function publish(): void {
-		setView(snapshotMetadataLookupState());
+		setView(snapshotMetadataLookupState(lookupState));
 	}
 
 	function services() {
-		return makeProductionLookupServices(deps, publish);
+		return makeProductionLookupServices(
+			{
+				input: deps.input,
+				metadata: deps.metadata,
+				lookupState,
+				queueState,
+			},
+			publish,
+		);
 	}
 
 	return {
@@ -59,30 +68,31 @@ export function createMetadataLookupOwner(deps: {
 			}
 		},
 		setTitleQuery(value) {
-			metadataLookupState.titleQuery = value;
+			lookupState.titleQuery = value;
 			publish();
 		},
 		setAuthorQuery(value) {
-			metadataLookupState.authorQuery = value;
+			lookupState.authorQuery = value;
 			publish();
 		},
 		setSource(value) {
-			metadataLookupState.source = value;
+			lookupState.source = value;
 			publish();
 		},
 		setApplyMode(value) {
-			metadataLookupState.applyMode = value;
+			lookupState.applyMode = value;
 			publish();
 		},
 		setReplaceCover(value) {
-			metadataLookupState.replaceCoverArt = value;
+			lookupState.replaceCoverArt = value;
 			publish();
 		},
 		bumpPreview() {
 			setPreviewRevision((value) => value + 1);
 		},
 		reset() {
-			resetMetadataLookupState();
+			Object.assign(lookupState, createMetadataLookupState());
+			Object.assign(queueState, createMetadataLookupQueueState());
 			setPreviewRevision(0);
 			publish();
 		},

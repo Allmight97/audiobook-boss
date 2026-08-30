@@ -1,12 +1,8 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { OperationId } from '../../types/workRuntime';
 import {
-	bindWorkOperationsPublisher,
-	cancelWorkOperation,
-	disposeWorkCenter,
-	initializeWorkCenter,
-	openChildSource,
-	snapshotWorkOperationsView,
+	createWorkOperationsSession,
+	emptyWorkOperationsView,
 	type WorkOperationsView,
 } from './runtime';
 
@@ -19,23 +15,23 @@ export type WorkOperationsOwner = {
 };
 
 export function createWorkOperationsOwner(): WorkOperationsOwner {
-	const [view, setView] = createSignal(snapshotWorkOperationsView());
-	bindWorkOperationsPublisher(setView);
+	const [view, setView] = createSignal(emptyWorkOperationsView());
+	const session = createWorkOperationsSession(setView);
 
 	return {
 		view,
 		initialize() {
-			return initializeWorkCenter();
+			return session.initialize();
 		},
 		cancel(operationId) {
-			return cancelWorkOperation(operationId);
+			return session.cancel(operationId);
 		},
 		openSource(child) {
-			return openChildSource(child);
+			return session.openSource(child);
 		},
 		reset() {
-			disposeWorkCenter();
-			setView(snapshotWorkOperationsView());
+			session.dispose();
+			setView(emptyWorkOperationsView());
 		},
 	};
 }

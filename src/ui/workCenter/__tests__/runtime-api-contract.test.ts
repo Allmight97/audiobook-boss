@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as workCenter from '..';
 
-const EXPECTED_WORK_CENTER_EXPORTS = [
-	'WorkCenterView',
-	'initializeWorkCenter',
-	'workCenterState',
-] as const;
+const EXPECTED_WORK_CENTER_EXPORTS = ['WorkCenterView'] as const;
 
 describe('Work Center public API contract', () => {
 	it('pins the work center public export strip', () => {

@@ -11,13 +11,8 @@ export {
 	subscribeMetadataLookupCoverPreviews,
 } from './coverPreview';
 export {
-	clearMetadataLookupQueue,
+	createMetadataLookupQueueState,
 	createMetadataLookupState,
-	metadataLookupQueueState,
-	metadataLookupState,
-	resetMetadataLookupState,
-	setMetadataLookupQueue,
-	setMetadataLookupQueueIndex,
 	snapshotMetadataLookupState,
 } from './state';
 export type {

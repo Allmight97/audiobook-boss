@@ -4,14 +4,13 @@
 
 - Solid Work Center view under `src/ui/workCenter/`.
 - WorkRuntime snapshots, cancel, source-open, and purge tombstones live in
-  `src/app/workOperations`. This owner renders that view and re-exports the
-  leftover UI strip.
+  `src/app/workOperations`. This owner renders that view.
 
 ## Public API Strip
 
 - Import from `src/ui/workCenter`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- Exports: `WorkCenterView`, `initializeWorkCenter`, `workCenterState`.
+- Exports: `WorkCenterView`.
 
 ## Private Cluster
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
 import type { OperationSnapshot } from '../../../types/workRuntime';
+import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
 
 const { purgeMock, releaseMock } = vi.hoisted(() => ({
 	purgeMock: vi.fn(),
@@ -11,14 +12,6 @@ vi.mock('../../../ui/remoteSource', () => ({
 	purgeRemoteSourceSessionsForInputIds: purgeMock,
 	releaseRemoteSourceSessionRetainers: releaseMock,
 }));
-
-import {
-	applyOperationSnapshot,
-	disposeWorkCenter,
-	initializeWorkCenter,
-	openChildSource,
-} from '../runtime';
-import { workCenterState } from '../runtime';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -93,19 +86,20 @@ function completedMergeOperation(operationId: string): OperationSnapshot {
 }
 
 describe('Work Center state', () => {
+	let session: WorkOperationsSession;
+
 	beforeEach(() => {
 		purgeMock.mockReset();
 		purgeMock.mockResolvedValue(undefined);
 		releaseMock.mockReset();
 		releaseMock.mockReturnValue([]);
-		disposeWorkCenter();
-		workCenterState.errorMessage = null;
+		session = createWorkOperationsSession(() => undefined);
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = undefined;
-		disposeWorkCenter();
+		session.dispose();
 	});
 
 	it('disposes registered listeners when initial operation listing fails', async () => {
@@ -117,14 +111,14 @@ describe('Work Center state', () => {
 			.mockResolvedValueOnce(listUnlisten);
 		vi.spyOn(tauriClient, 'listWorkOperations').mockRejectedValueOnce(new Error('list failed'));
 
-		await expect(initializeWorkCenter()).rejects.toThrow('list failed');
+		await expect(session.initialize()).rejects.toThrow('list failed');
 
 		expect(snapshotUnlisten).toHaveBeenCalledTimes(1);
 		expect(listUnlisten).toHaveBeenCalledTimes(1);
 	});
 
 	it('purges completed merge operation source ids even when the merge child has no input id', async () => {
-		applyOperationSnapshot(completedMergeOperation('op-merge-purge'));
+		session.applyOperationSnapshot(completedMergeOperation('op-merge-purge'));
 		await Promise.resolve();
 
 		expect(releaseMock).toHaveBeenCalledWith(['input-1', 'input-2']);
@@ -140,8 +134,8 @@ describe('Work Center state', () => {
 		);
 		const snapshot = completedMergeOperation('op-merge-race');
 
-		applyOperationSnapshot(snapshot);
-		applyOperationSnapshot(snapshot);
+		session.applyOperationSnapshot(snapshot);
+		session.applyOperationSnapshot(snapshot);
 		await Promise.resolve();
 
 		expect(releaseMock).toHaveBeenCalledTimes(1);
@@ -152,9 +146,9 @@ describe('Work Center state', () => {
 	it('surfaces source-open rejection without leaving an unhandled promise', async () => {
 		vi.spyOn(tauriClient, 'openPath').mockRejectedValueOnce('source application unavailable');
 
-		await expect(openChildSource({ sourcePath: '/tmp/book.m4b' })).resolves.toBeUndefined();
+		await expect(session.openSource({ sourcePath: '/tmp/book.m4b' })).resolves.toBeUndefined();
 
-		expect(workCenterState.errorMessage).toBe(
+		expect(session.view().errorMessage).toBe(
 			'Failed to open source file: source application unavailable',
 		);
 	});
@@ -171,16 +165,22 @@ describe('Work Center state', () => {
 			listDeferred.promise as ReturnType<typeof tauriClient.listWorkOperations>,
 		);
 
-		const initPromise = initializeWorkCenter();
-		// Flush microtasks so both listeners register and init parks on listWorkOperations.
+		const initPromise = session.initialize();
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		disposeWorkCenter();
+		session.dispose();
 		listDeferred.resolve({ operations: [] });
 		await initPromise.catch(() => {});
 
-		// Dispose won the race: listeners torn down, state not marked initialized.
 		expect(snapshotUnlisten).toHaveBeenCalledTimes(1);
 		expect(listUnlisten).toHaveBeenCalledTimes(1);
-		expect(workCenterState.initialized).toBe(false);
+		expect(session.view().initialized).toBe(false);
+	});
+
+	it('does not share operation snapshots across sessions', () => {
+		const other = createWorkOperationsSession(() => undefined);
+		session.applyOperationSnapshot(completedMergeOperation('op-isolation'));
+		expect(session.view().operations).toHaveLength(1);
+		expect(other.view().operations).toEqual([]);
+		other.dispose();
 	});
 });

@@ -57,31 +57,9 @@ export function createMetadataLookupQueueState(): MetadataLookupQueueState {
 	};
 }
 
-export const metadataLookupState = createMetadataLookupState();
-export const metadataLookupQueueState = createMetadataLookupQueueState();
-
-export function resetMetadataLookupState(): void {
-	Object.assign(metadataLookupState, createMetadataLookupState());
-	Object.assign(metadataLookupQueueState, createMetadataLookupQueueState());
-}
-
-export function setMetadataLookupQueue(queue: MetadataLookupQueueItem[]): void {
-	metadataLookupQueueState.queue = queue;
-	metadataLookupQueueState.index = 0;
-}
-
-export function clearMetadataLookupQueue(): void {
-	metadataLookupQueueState.queue = [];
-	metadataLookupQueueState.index = 0;
-}
-
-export function setMetadataLookupQueueIndex(index: number): void {
-	metadataLookupQueueState.index = index;
-}
-
-export function snapshotMetadataLookupState(): MetadataLookupState {
+export function snapshotMetadataLookupState(state: MetadataLookupState): MetadataLookupState {
 	return {
-		...metadataLookupState,
-		results: [...metadataLookupState.results],
+		...state,
+		results: [...state.results],
 	};
 }

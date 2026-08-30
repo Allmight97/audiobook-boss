@@ -3,28 +3,32 @@ import type { AudiobookMetadata } from '../../types/metadata';
 import type { InputOwner } from '../inputSession/owner';
 import type { MetadataOwner } from '../metadataSession/owner';
 import { getMetadataForFile, stageMetadataIntentPatch } from '../metadataSession';
-import {
-	clearMetadataLookupQueue,
-	metadataLookupQueueState,
-	metadataLookupState,
-	setMetadataLookupQueue,
-	setMetadataLookupQueueIndex,
-} from './state';
+import type { MetadataLookupQueueState, MetadataLookupState } from './state';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
 export function makeProductionLookupServices(
 	deps: {
 		readonly input: InputOwner;
 		readonly metadata: MetadataOwner;
+		readonly lookupState: MetadataLookupState;
+		readonly queueState: MetadataLookupQueueState;
 	},
 	publishView?: () => void,
 ): MetadataLookupWorkflowServices {
 	return {
-		getLookupState: () => metadataLookupState,
-		getQueueState: () => metadataLookupQueueState,
-		setMetadataLookupQueue,
-		clearMetadataLookupQueue,
-		setMetadataLookupQueueIndex,
+		getLookupState: () => deps.lookupState,
+		getQueueState: () => deps.queueState,
+		setMetadataLookupQueue(queue) {
+			deps.queueState.queue = queue;
+			deps.queueState.index = 0;
+		},
+		clearMetadataLookupQueue() {
+			deps.queueState.queue = [];
+			deps.queueState.index = 0;
+		},
+		setMetadataLookupQueueIndex(index) {
+			deps.queueState.index = index;
+		},
 		getSelectedFileIndices: () => new Set(deps.input.session().selectedIndices ?? []),
 		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
 		getMetadataForFile,

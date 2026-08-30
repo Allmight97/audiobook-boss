@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render } from '@solidjs/testing-library';
-import { afterEach, describe, expect, it } from 'vitest';
-import { metadataLookupState } from '../../../app/metadataLookup/state';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider } from '../../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../../app/runtime/harness';
 import type { AppRuntime } from '../../../app/runtime';
@@ -33,6 +32,8 @@ describe('MetadataLookupView modal wiring', () => {
 			bubbles: true,
 		});
 
-		expect(metadataLookupState.isOpen).toBe(false);
+		await vi.waitFor(() => {
+			expect(runtime!.lookup.view().isOpen).toBe(false);
+		});
 	});
 });
