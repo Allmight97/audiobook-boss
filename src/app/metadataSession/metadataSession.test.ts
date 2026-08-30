@@ -201,6 +201,50 @@ describe('metadata session selection and save', () => {
 		expect(runtime.metadata.view().cover.hasCustomCoverArt).toBe(false);
 	});
 
+	it('does not commit process staging when selection changes during validation', async () => {
+		let releaseValidate: (() => void) | undefined;
+		let validateCalls = 0;
+		const metadata = fakeMetadata({
+			validateMetadataIntentPatch: vi.fn(async (patch) => {
+				validateCalls += 1;
+				if (validateCalls === 1) {
+					await new Promise<void>((resolve) => {
+						releaseValidate = resolve;
+					});
+				}
+				return {
+					isValid: true,
+					metadataPatch: patch,
+					fieldErrors: [],
+				};
+			}),
+		});
+		runtime = createTestAppRuntime({ metadata });
+		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list(files),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({
+			inputId: 'meta-title',
+			value: 'Edited Alpha',
+		});
+		const stagePromise = runtime.metadata.stageCurrentSelectionForProcess();
+		runtime.input.replaceSession({
+			...runtime.input.session(),
+			selectedIndices: [1],
+			selectedAnchor: 1,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		releaseValidate?.();
+		expect(await stagePromise).toBe(false);
+		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.title).toBeUndefined();
+		expect(getMetadataForFile('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+	});
+
 	it('blocks selection change while a metadata save is in progress', async () => {
 		let releaseSave: (() => void) | undefined;
 		const metadata = fakeMetadata({

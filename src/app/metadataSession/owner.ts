@@ -102,6 +102,7 @@ export type MetadataOwner = {
 	applyCoverArtDrop(paths: ReadonlyArray<string>): Promise<boolean>;
 	applyLookupMetadata(metadata: Partial<AudiobookMetadata>): void;
 	applyDraftValidation(validation: MetadataDraftValidation): void;
+	stageCurrentSelectionForProcess(): Promise<boolean>;
 	save(): Promise<void>;
 	readHasDirtyMetadata(): boolean;
 	readMetadata(): Partial<AudiobookMetadata>;
@@ -727,6 +728,42 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					? current.statusMessage
 					: (validation.errors.first ?? current.statusMessage),
 			});
+		},
+		async stageCurrentSelectionForProcess() {
+			const start = editor();
+			const captured = {
+				selectionKey: start.selectionKey,
+				formRevision: start.formRevision,
+				coverRevision: start.coverRevision,
+			};
+			const session = deps.input.session();
+			const selectedFiles = selectedFilesFromSession(session);
+			let prepared: Awaited<ReturnType<typeof prepareMetadataDrafts>>;
+			try {
+				prepared = await prepareMetadataDrafts({
+					form: start.form,
+					cover: start.cover,
+					selectedFiles,
+					validate: (patch) => capability().validateMetadataIntentPatch(patch),
+					readUncachedMetadata: (file) =>
+						readUncachedMetadataSnapshot(file, (path) => capability().readAudioMetadata(path)),
+				});
+			} catch {
+				return false;
+			}
+			if (!prepared.ok) {
+				applyValidationFailure(prepared.message);
+				return false;
+			}
+			const latest = editor();
+			if (
+				latest.selectionKey !== captured.selectionKey ||
+				latest.formRevision !== captured.formRevision ||
+				latest.coverRevision !== captured.coverRevision
+			) {
+				return false;
+			}
+			return commitPreparedMetadataDrafts(prepared.prepared);
 		},
 		async save() {
 			const session = deps.input.session();

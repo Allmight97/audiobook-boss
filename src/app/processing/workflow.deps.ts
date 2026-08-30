@@ -4,10 +4,7 @@ import { fileListFromInput } from './input';
 import {
 	cacheMetadataForFile,
 	collectActionableMetadataIntent,
-	commitPreparedMetadataDrafts,
 	getMetadataForFile,
-	prepareMetadataDrafts,
-	readUncachedMetadataSnapshot,
 	stageMetadataIntentPatch,
 } from '../metadataSession';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
@@ -38,31 +35,15 @@ const liveProcessingWorkflowServices = {
 	cacheMetadataForFile,
 	stageMetadataIntentPatch,
 	async stageMetadataToSelection(options?: { showStatus?: boolean }): Promise<boolean> {
-		const view = boundProcessingInput()?.view();
 		const metadata = liveMetadata();
-		if (!view || !metadata) {
+		if (!metadata) {
 			return false;
 		}
-		const current = metadata.view();
-		const capability = metadata.capability();
-		const selectedFiles = view.selectedIndices
-			.map((index) => view.files[index])
-			.filter((file) => file != null);
-		const prepared = await prepareMetadataDrafts({
-			form: current.form,
-			cover: current.cover,
-			selectedFiles,
-			validate: (patch) => capability.validateMetadataIntentPatch(patch),
-			readUncachedMetadata: (file) =>
-				readUncachedMetadataSnapshot(file, (path) => capability.readAudioMetadata(path)),
-		});
-		if (!prepared.ok) {
-			if (options?.showStatus) {
-				showError(prepared.message);
-			}
-			return false;
+		const staged = await metadata.stageCurrentSelectionForProcess();
+		if (!staged && options?.showStatus) {
+			showError('Fix metadata validation errors before processing.');
 		}
-		return commitPreparedMetadataDrafts(prepared.prepared);
+		return staged;
 	},
 	setJobControlsEnabled: (enabled) => {
 		boundProcessingSettings()?.setControlsEnabled(enabled);
