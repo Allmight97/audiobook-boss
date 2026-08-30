@@ -4,7 +4,6 @@ import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
-import { concurrencyViewAtom, hydrateConcurrencyAtom, setConcurrencySelectionAtom } from './index';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 	return {
@@ -59,11 +58,9 @@ describe('app settings concurrency', () => {
 	it('hydrates auto selection and the effective backend count', async () => {
 		const settings = fakeSettings();
 		runtime = createTestAppRuntime({ settings });
-		runtime.registry.set(hydrateConcurrencyAtom, {});
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(concurrencyViewAtom).effectiveLabel).toBe('Auto → 4');
-		});
-		expect(runtime.registry.get(concurrencyViewAtom)).toMatchObject({
+		await runtime.settings.hydrateConcurrency();
+		expect(runtime.settings.concurrency().effectiveLabel).toBe('Auto → 4');
+		expect(runtime.settings.concurrency()).toMatchObject({
 			selection: 'auto',
 			effectiveLabel: 'Auto → 4',
 			allowAuto: true,
@@ -79,13 +76,9 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createTestAppRuntime({ settings });
-		runtime.registry.set(hydrateConcurrencyAtom, {});
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(concurrencyViewAtom).effectiveLabel).toBe('Auto → 4');
-		});
-		runtime.registry.set(setConcurrencySelectionAtom, '3');
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(concurrencyViewAtom).selection).toBe('auto');
-		});
+		await runtime.settings.hydrateConcurrency();
+		expect(runtime.settings.concurrency().effectiveLabel).toBe('Auto → 4');
+		await runtime.settings.setConcurrencySelection('3');
+		expect(runtime.settings.concurrency().selection).toBe('auto');
 	});
 });

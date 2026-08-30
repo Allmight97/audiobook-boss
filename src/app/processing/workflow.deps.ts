@@ -1,6 +1,5 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { setConcurrencyControlsEnabledAtom } from '../appSettings';
-import { boundProcessingInput, boundProcessingMetadata } from './bind';
+import { boundProcessingInput, boundProcessingMetadata, boundProcessingSettings } from './bind';
 import { fileListFromInput } from './input';
 import {
 	cacheMetadataForFile,
@@ -12,7 +11,6 @@ import {
 	stageMetadataIntentPatch,
 } from '../metadataSession';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
-import { processingRegistry } from './registry';
 import { makeProcessingWorkflowServicesLayer, type ProcessingWorkflowServices } from './workflow';
 import { showError } from './view';
 import { openGeneratedPreviewIfSingle } from './preview';
@@ -67,7 +65,7 @@ const liveProcessingWorkflowServices = {
 		return commitPreparedMetadataDrafts(prepared.prepared);
 	},
 	setJobControlsEnabled: (enabled) => {
-		processingRegistry().set(setConcurrencyControlsEnabledAtom, enabled);
+		boundProcessingSettings()?.setControlsEnabled(enabled);
 	},
 	setFileOrderLocked: (locked) => {
 		boundProcessingInput()?.setOrderLocked(locked);

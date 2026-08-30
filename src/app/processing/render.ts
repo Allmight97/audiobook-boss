@@ -1,4 +1,4 @@
-import { concurrencyViewAtom } from '../appSettings';
+import { boundProcessingSettings } from './bind';
 import { formatEtaRemaining, formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
 import {
@@ -11,7 +11,6 @@ import {
 	setStatusPanelStepText,
 } from './view';
 import type { JobListItem } from './viewTypes';
-import { tryProcessingRegistry } from './registry';
 
 export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
 	setStatusPanelProgressPercentage(status.percentage);
@@ -26,7 +25,7 @@ export function renderStatus(status: ProcessingStatus, isProcessing: boolean): v
 }
 
 export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
-	const concurrency = tryProcessingRegistry()?.get(concurrencyViewAtom);
+	const concurrency = boundProcessingSettings()?.concurrency();
 	const effective = concurrency?.effective ?? null;
 	const suffix = concurrency?.selection === 'auto' ? ' (Auto)' : '';
 

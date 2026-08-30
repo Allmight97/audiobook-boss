@@ -1,10 +1,10 @@
 import { For, type JSX } from 'solid-js';
-import { concurrencyViewAtom, setConcurrencySelectionAtom } from '../../app/appSettings';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 
 export function ConcurrencyControl(): JSX.Element {
-	const view = useAtomValue(() => concurrencyViewAtom);
-	const setSelection = useAtomSet(() => setConcurrencySelectionAtom);
+	const settings = useAppRuntime().settings;
+	const view = settings.concurrency;
+	const setSelection = settings.setConcurrencySelection;
 
 	return (
 		<div class="flex items-center gap-1" title="Concurrent Jobs">

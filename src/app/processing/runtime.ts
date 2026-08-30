@@ -1,6 +1,6 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import { boundProcessingInput } from './bind';
-import { setConcurrencyControlsEnabledAtom } from '../appSettings';
+import { boundProcessingSettings } from './bind';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './workflow';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
@@ -46,11 +46,7 @@ function readCurrentFileList() {
 }
 
 function unlockWorkbench(): void {
-	const registry = tryProcessingRegistry();
-	if (!registry) {
-		return;
-	}
-	registry.set(setConcurrencyControlsEnabledAtom, true);
+	boundProcessingSettings()?.setControlsEnabled(true);
 	boundProcessingInput()?.setOrderLocked(false);
 }
 

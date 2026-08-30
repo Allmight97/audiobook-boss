@@ -1,3 +1,5 @@
+export { createSettingsOwner } from './owner';
+export type { ConcurrencyView, SettingsOwner, SettingsOwnerDeps } from './owner';
 export {
 	concurrencyViewAtom,
 	hydrateConcurrencyAtom,

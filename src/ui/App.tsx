@@ -1,11 +1,6 @@
 import { onCleanup, onMount, type JSX } from 'solid-js';
-import {
-	hydrateAppSettingsProduction,
-	hydrateConcurrencyAtom,
-	openProductionSettingsDialog,
-} from '../app/appSettings';
+import { hydrateAppSettingsProduction, openProductionSettingsDialog } from '../app/appSettings';
 import { useAppRuntime } from '../app/runtime';
-import { useAtomSet } from '../app/runtime/solid';
 import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
 import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
 import { EncoderView } from './encoderPanel/EncoderView';
@@ -26,7 +21,7 @@ import './encodingWorkbench/encodingWorkbench.css';
 export function App(): JSX.Element {
 	const runtime = useAppRuntime();
 	const saveMetadata = runtime.metadata.save;
-	const hydrateConcurrency = useAtomSet(() => hydrateConcurrencyAtom);
+	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
 	const applyOutputDefaults = runtime.output.applyDefaults;
 
 	onMount(() => {
@@ -35,7 +30,7 @@ export function App(): JSX.Element {
 				applyOutputDefaults(defaults.outputDefaults);
 			}
 		});
-		void hydrateConcurrency({});
+		void hydrateConcurrency();
 		void initializeWorkCenter();
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {

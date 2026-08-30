@@ -1,6 +1,7 @@
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
+import type { SettingsOwner } from '../appSettings/owner';
 import type { InputOwner } from '../inputSession/owner';
 import type { MetadataOwner } from '../metadataSession/owner';
 import type { OutputPlanOwner } from '../outputPlan/owner';
@@ -18,6 +19,7 @@ export type AppRuntime = {
 	readonly metadata: MetadataOwner;
 	readonly output: OutputPlanOwner;
 	readonly remoteSource: RemoteSourceOwner;
+	readonly settings: SettingsOwner;
 	readonly registry: AtomRegistry.AtomRegistry;
 	dispose(): void;
 };
