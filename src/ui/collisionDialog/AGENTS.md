@@ -3,8 +3,8 @@
 ## Scope
 
 - Solid collision-review dialog under `src/ui/collisionDialog/`.
-- Collision open/choose/cancel truth lives in `src/app/outputPlan`. This owner
-  renders that view.
+- Collision open/choose/cancel truth lives on the Output owner. This view
+  reads it through `useAppRuntime().output`.
 
 ## Public API Strip
 

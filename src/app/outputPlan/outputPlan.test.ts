@@ -14,13 +14,7 @@ import {
 	resetOutputPlanTimers,
 	type OutputPlanOwner,
 } from '.';
-import {
-	cancelCollisionDialog,
-	chooseCollisionPolicy,
-	getCollisionView,
-	openCollisionDialog,
-	resetCollisionDialog,
-} from './collision';
+import type { CollisionView } from './collision';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import { createEmptyCoverUiState } from '../metadataSession/cover';
 import { createEmptyFormState, replaceField } from '../metadataSession/fields';
@@ -174,7 +168,6 @@ describe('output plan public view', () => {
 		runtime?.dispose();
 		runtime = undefined;
 		resetOutputPlanTimers();
-		resetCollisionDialog();
 	});
 
 	it('hydrates output defaults through the public strip without a preview poke API', () => {
@@ -311,32 +304,42 @@ describe('output path preview projection', () => {
 });
 
 describe('collision review', () => {
+	let runtime: ReturnType<typeof createTestAppRuntime> | undefined;
+
 	afterEach(() => {
-		resetCollisionDialog();
+		runtime?.dispose();
+		runtime = undefined;
 	});
 
+	function collision(): CollisionView {
+		return runtime!.output.collision();
+	}
+
 	it('cancel resolves null and closes the dialog', async () => {
-		const result = openCollisionDialog(collisionPlan());
-		cancelCollisionDialog();
+		runtime = createTestAppRuntime();
+		const result = runtime.output.openCollisionReview(collisionPlan());
+		runtime.output.cancelCollisionReview();
 		await expect(result).resolves.toBeNull();
-		expect(getCollisionView().isOpen).toBe(false);
-		expect(getCollisionView().outputs).toEqual([]);
+		expect(collision().isOpen).toBe(false);
+		expect(collision().outputs).toEqual([]);
 	});
 
 	it('opening a second dialog resolves the first as cancelled', async () => {
-		const first = openCollisionDialog(collisionPlan());
-		const second = openCollisionDialog(collisionPlan());
+		runtime = createTestAppRuntime();
+		const first = runtime.output.openCollisionReview(collisionPlan());
+		const second = runtime.output.openCollisionReview(collisionPlan());
 		await expect(first).resolves.toBeNull();
-		chooseCollisionPolicy('rename_new');
+		runtime.output.chooseCollisionPolicy('rename_new');
 		await expect(second).resolves.toBe('rename_new');
-		expect(getCollisionView().isOpen).toBe(false);
+		expect(collision().isOpen).toBe(false);
 	});
 
 	it('exposes only collided outputs', () => {
-		openCollisionDialog(collisionPlan());
-		expect(getCollisionView().outputs).toHaveLength(1);
-		expect(getCollisionView().outputs[0]?.inputPath).toBe('/books/b.m4b');
-		expect(getCollisionView().body).toBe(
+		runtime = createTestAppRuntime();
+		void runtime.output.openCollisionReview(collisionPlan());
+		expect(collision().outputs).toHaveLength(1);
+		expect(collision().outputs[0]?.inputPath).toBe('/books/b.m4b');
+		expect(collision().body).toBe(
 			'1 file with the same name already exists in the target output folder. How do you want to resolve the conflict?',
 		);
 	});

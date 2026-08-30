@@ -15,7 +15,7 @@ import type {
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { validateMetadataDraft, type MetadataDraftValidation } from '../metadataSession';
-import { openCollisionDialog } from './collision';
+import { boundOutputOwner } from './bind';
 import type { OutputPathPreviewMetadataDraft } from './types';
 import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
 
@@ -252,6 +252,7 @@ export const OutputPlanWorkflowLive = makeOutputPlanWorkflowServicesLayer({
 	showOutputError,
 	previewOutputPath: tauriClient.previewOutputPath,
 	preflightProcessingPlan: tauriClient.preflightProcessingPlan,
-	openCollisionDialog,
+	openCollisionDialog: (plan) =>
+		boundOutputOwner()?.openCollisionReview(plan) ?? Promise.resolve(null),
 	console,
 });

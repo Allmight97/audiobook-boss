@@ -1,10 +1,5 @@
-import { createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
-import {
-	cancelCollisionDialog,
-	chooseCollisionPolicy,
-	getCollisionView,
-	subscribeCollisionView,
-} from '../../app/outputPlan';
+import { For, Show, type JSX } from 'solid-js';
+import { useAppRuntime } from '../../app/runtime';
 import { pathBasename } from '../../lib/path/basename';
 import { Button, Dialog } from '../foundation';
 import type { OutputCollisionKind, PlannedOutput } from '../../types/audio';
@@ -41,21 +36,14 @@ function parentPath(path: string): string {
 }
 
 export function CollisionDialogView(): JSX.Element {
-	const [revision, setRevision] = createSignal(0);
-	const view = () => {
-		revision();
-		return getCollisionView();
-	};
-
-	onMount(() => {
-		onCleanup(subscribeCollisionView(() => setRevision((value) => value + 1)));
-	});
+	const output = useAppRuntime().output;
+	const view = output.collision;
 
 	return (
 		<Dialog
 			id="collision-dialog-modal"
 			open={view().isOpen}
-			onClose={cancelCollisionDialog}
+			onClose={() => output.cancelCollisionReview()}
 			labelledBy="collision-dialog-title"
 			testId="collision-dialog-modal"
 		>
@@ -64,7 +52,7 @@ export function CollisionDialogView(): JSX.Element {
 				<Button
 					id="collision-dialog-close"
 					data-testid="collision-dialog-close"
-					onClick={cancelCollisionDialog}
+					onClick={() => output.cancelCollisionReview()}
 				>
 					Cancel
 				</Button>
@@ -77,26 +65,26 @@ export function CollisionDialogView(): JSX.Element {
 
 				<div id="collision-dialog-results" class="app-modal-results">
 					<For each={view().outputs}>
-						{(output) => (
+						{(outputItem) => (
 							<div
 								class="app-modal-result collision-dialog-result"
 								data-testid="collision-dialog-item"
 							>
 								<div class="collision-dialog-paths">
-									<div class="collision-dialog-filename" title={output.resolvedPath}>
-										{pathBasename(output.resolvedPath, { fallback: 'path' })}
+									<div class="collision-dialog-filename" title={outputItem.resolvedPath}>
+										{pathBasename(outputItem.resolvedPath, { fallback: 'path' })}
 									</div>
-									<div class="collision-dialog-parent-path" title={output.resolvedPath}>
-										{parentPath(output.resolvedPath)}
+									<div class="collision-dialog-parent-path" title={outputItem.resolvedPath}>
+										{parentPath(outputItem.resolvedPath)}
 									</div>
 								</div>
-								<Show when={output.collision && output.collision.kind !== 'existing_file'}>
+								<Show when={outputItem.collision && outputItem.collision.kind !== 'existing_file'}>
 									<div
 										class="collision-dialog-summary"
-										title={output.collision?.detail ?? undefined}
+										title={outputItem.collision?.detail ?? undefined}
 									>
-										{formatOutputKind(output.kind)} •{' '}
-										{formatKind(output.collision?.kind ?? 'existing_file')}
+										{formatOutputKind(outputItem.kind)} •{' '}
+										{formatKind(outputItem.collision?.kind ?? 'existing_file')}
 									</div>
 								</Show>
 							</div>
@@ -110,7 +98,7 @@ export function CollisionDialogView(): JSX.Element {
 							id="collision-dialog-replace"
 							tone="primary"
 							data-testid="collision-dialog-replace"
-							onClick={() => chooseCollisionPolicy('replace_existing')}
+							onClick={() => output.chooseCollisionPolicy('replace_existing')}
 						>
 							Overwrite Existing
 						</Button>
@@ -119,7 +107,7 @@ export function CollisionDialogView(): JSX.Element {
 						<Button
 							id="collision-dialog-skip"
 							data-testid="collision-dialog-skip"
-							onClick={() => chooseCollisionPolicy('skip_existing')}
+							onClick={() => output.chooseCollisionPolicy('skip_existing')}
 						>
 							Skip Existing
 						</Button>
@@ -128,7 +116,7 @@ export function CollisionDialogView(): JSX.Element {
 						<Button
 							id="collision-dialog-rename"
 							data-testid="collision-dialog-rename"
-							onClick={() => chooseCollisionPolicy('rename_new')}
+							onClick={() => output.chooseCollisionPolicy('rename_new')}
 						>
 							Keep Existing
 						</Button>
@@ -137,7 +125,7 @@ export function CollisionDialogView(): JSX.Element {
 						<Button
 							id="collision-dialog-cancel"
 							data-testid="collision-dialog-cancel"
-							onClick={cancelCollisionDialog}
+							onClick={() => output.cancelCollisionReview()}
 						>
 							Cancel
 						</Button>

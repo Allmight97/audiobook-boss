@@ -1,38 +1,71 @@
 import { cleanup, render } from '@solidjs/testing-library';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	productionSettingsDialogState,
-	resetProductionSettingsDialog,
-} from '../../app/appSettings';
+import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
+import { createTestAppRuntime } from '../../app/runtime/harness';
+import type { AppRuntime } from '../../app/runtime';
 import { AppSettingsDialogView } from '../appSettings/AppSettingsDialogView';
 import { readFdkAfterburner } from '../encoderPanel';
 import { applyEncoderDefaults, resetEncoderPanelState } from '../encoderPanel/state';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
-		getAppSettings: vi.fn(),
+		getAppSettings: vi.fn().mockResolvedValue({
+			maxConcurrentJobs: { mode: 'auto' },
+			encoderDefaults: {
+				settings: {
+					encoderType: 'auto',
+					bitrateKbps: 64,
+					bitrateMode: { mode: 'vbr', value: 3 },
+					channels: 'auto',
+					afterburner: true,
+				},
+				sampleRate: 'auto',
+			},
+			outputDefaults: {
+				outputNaming: {
+					preset: 'absDefault',
+					includeYear: false,
+				},
+			},
+			toolchain: {},
+			startupBehavior: 'rememberLastState',
+		}),
 		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 		resetAppSettings: vi.fn(),
 		openFile: vi.fn(),
-		getRuntimeSettingsCapabilities: vi.fn(),
+		getRuntimeSettingsCapabilities: vi.fn().mockResolvedValue({
+			encoder: { availability: null },
+			maxConcurrentJobs: { allowAuto: true, fixedOptions: [1, 2, 4] },
+		}),
 	},
 }));
 
 describe('App Settings afterburner control', () => {
+	let runtime: AppRuntime | undefined;
+
 	afterEach(() => {
 		cleanup();
-		resetProductionSettingsDialog();
+		runtime?.dispose();
+		runtime = undefined;
+		resetEncoderPanelState();
 	});
 
 	beforeEach(() => {
 		resetEncoderPanelState();
-		resetProductionSettingsDialog();
-		productionSettingsDialogState.isOpen = true;
-		productionSettingsDialogState.loading = false;
 	});
 
+	async function renderOpenDialog(): Promise<void> {
+		runtime = createTestAppRuntime();
+		await runtime.settings.openDialog();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<AppSettingsDialogView />
+			</AppRuntimeProvider>
+		));
+	}
+
 	it('owns the afterburner toggle and applies it to the encoder request truth', async () => {
-		render(() => <AppSettingsDialogView />);
+		await renderOpenDialog();
 
 		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
 		expect(checkbox).not.toBeNull();
@@ -48,7 +81,7 @@ describe('App Settings afterburner control', () => {
 	});
 
 	it('reflects encoder hydration after the dialog has already mounted', async () => {
-		render(() => <AppSettingsDialogView />);
+		await renderOpenDialog();
 
 		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
 		expect(checkbox?.checked).toBe(true);

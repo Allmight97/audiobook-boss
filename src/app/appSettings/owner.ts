@@ -1,10 +1,15 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { ConcurrencyPreference } from '../../types/appSettings';
+import type {
+	ConcurrencyPreference,
+	PinnedDefaults,
+	StartupBehavior,
+} from '../../types/appSettings';
 import type { MaxConcurrentJobsCapabilities } from '../../types/audio';
 import {
 	liveSettingsCapability,
 	type SettingsCapability,
 } from '../../lib/tauri/capabilities/settings';
+import { createSettingsDialog, type AppSettingsDialogState } from './dialog';
 import { resolveStartupDefaults } from './startupDefaults';
 
 export type ConcurrencyView = {
@@ -19,12 +24,25 @@ export type ConcurrencyView = {
 export type SettingsOwner = {
 	readonly concurrency: Accessor<ConcurrencyView>;
 	readonly capability: Accessor<SettingsCapability>;
+	readonly dialog: Accessor<AppSettingsDialogState>;
 	hydrateConcurrency(input?: {
 		readonly preference?: ConcurrencyPreference;
 		readonly capabilities?: MaxConcurrentJobsCapabilities | null;
 	}): Promise<void>;
 	setConcurrencySelection(value: string): Promise<void>;
 	setControlsEnabled(enabled: boolean): void;
+	openDialog(): Promise<void>;
+	closeDialog(): void;
+	setDialogOpen(open: boolean): void;
+	browseForFfmpegBinary(): Promise<void>;
+	clearFfmpegPathDraft(): void;
+	setFfmpegPathDraft(value: string): void;
+	saveToolchainPreference(): Promise<void>;
+	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
+	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
+	resetAllAppSettings(): Promise<void>;
+	setFdkAfterburner(enabled: boolean): void;
+	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
 	reset(): void;
 };
 
@@ -57,10 +75,12 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner {
 	const [concurrency, setConcurrency] = createSignal(emptyConcurrency());
 	const [capability] = createSignal(deps.capability ?? liveSettingsCapability);
+	const dialog = createSettingsDialog({ capability: () => capability() });
 
 	return {
 		concurrency,
 		capability,
+		dialog: dialog.state,
 		async hydrateConcurrency(input = {}) {
 			try {
 				const runtime = await capability().getRuntimeSettingsCapabilities();
@@ -113,7 +133,44 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		setControlsEnabled(enabled) {
 			setConcurrency({ ...concurrency(), controlsEnabled: enabled });
 		},
+		openDialog() {
+			return dialog.open();
+		},
+		closeDialog() {
+			dialog.close();
+		},
+		setDialogOpen(open) {
+			dialog.setOpen(open);
+		},
+		browseForFfmpegBinary() {
+			return dialog.browseForFfmpegBinary();
+		},
+		clearFfmpegPathDraft() {
+			dialog.clearFfmpegPathDraft();
+		},
+		setFfmpegPathDraft(value) {
+			dialog.setFfmpegPathDraft(value);
+		},
+		saveToolchainPreference() {
+			return dialog.saveToolchainPreference();
+		},
+		saveCurrentSettingsAsPinnedDefaults() {
+			return dialog.saveCurrentSettingsAsPinnedDefaults();
+		},
+		setStartupBehavior(behavior) {
+			return dialog.setStartupBehavior(behavior);
+		},
+		resetAllAppSettings() {
+			return dialog.resetAllAppSettings();
+		},
+		setFdkAfterburner(enabled) {
+			dialog.setFdkAfterburner(enabled);
+		},
+		bindAfterReset(apply) {
+			dialog.bindAfterReset(apply);
+		},
 		reset() {
+			dialog.reset();
 			setConcurrency(emptyConcurrency());
 		},
 	};

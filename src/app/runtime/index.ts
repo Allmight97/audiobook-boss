@@ -1,5 +1,4 @@
 import { createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
-import { bindAfterSettingsReset } from '../appSettings';
 import { createSettingsOwner } from '../appSettings/owner';
 import { createMetadataLookupOwner } from '../metadataLookup/owner';
 import { createMetadataOwner } from '../metadataSession/owner';
@@ -58,7 +57,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 		processingHolder.current = processing;
 		const remoteSource = createRemoteSourceOwner({ input });
 		const workOperations = createWorkOperationsOwner();
-		bindAfterSettingsReset((defaults) => {
+		settings.bindAfterReset((defaults) => {
 			output.applyDefaults(defaults.outputDefaults);
 			void settings.hydrateConcurrency({ preference: defaults.maxConcurrentJobs });
 		});
@@ -84,7 +83,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			runtime.lookup.reset();
 			runtime.metadata.reset();
 			runtime.input.reset();
-			bindAfterSettingsReset(undefined);
 			disposeRoot();
 		},
 	};

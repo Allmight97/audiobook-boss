@@ -14,9 +14,9 @@
   `AppSettingsDialogView.test.tsx`, `appSettingsDialog.css`, `AGENTS.md`.
 - `persistence.ts` is the durable write path through `tauriClient`; the encoder
   and output panels call it to persist their own defaults.
-- `AppSettingsDialogView.tsx` renders `src/app/appSettings/dialog.ts` state and
-  holds no settings truth. Cmd+, is wired in `src/ui/App.tsx` through
-  `openProductionSettingsDialog`.
+- `AppSettingsDialogView.tsx` reads Settings `dialog` through
+  `useAppRuntime()` and holds no settings truth. Cmd+, is wired in
+  `src/ui/App.tsx` through `settings.openDialog`.
 - The dialog owns the user FFmpeg/FDK path preference, the FDK afterburner
   toggle (via the encoder panel's `readFdkAfterburner`/`setFdkAfterburner`
   strip), startup-behavior toggle, pin-current-as-defaults capture, and

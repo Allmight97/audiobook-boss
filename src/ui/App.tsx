@@ -1,5 +1,5 @@
 import { onCleanup, onMount, type JSX } from 'solid-js';
-import { hydrateAppSettingsProduction, openProductionSettingsDialog } from '../app/appSettings';
+import { hydrateAppSettingsProduction } from '../app/appSettings';
 import { useAppRuntime } from '../app/runtime';
 import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
 import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
@@ -21,6 +21,7 @@ export function App(): JSX.Element {
 	const runtime = useAppRuntime();
 	const saveMetadata = runtime.metadata.save;
 	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
+	const openSettings = runtime.settings.openDialog;
 	const applyOutputDefaults = runtime.output.applyDefaults;
 	const initializeWork = runtime.workOperations.initialize;
 
@@ -40,7 +41,7 @@ export function App(): JSX.Element {
 			}
 			if ((event.metaKey || event.ctrlKey) && event.key === ',') {
 				event.preventDefault();
-				void openProductionSettingsDialog();
+				void openSettings();
 			}
 		}
 		window.addEventListener('keydown', handleGlobalKeyDown);

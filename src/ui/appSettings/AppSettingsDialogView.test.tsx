@@ -1,11 +1,9 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
-import {
-	productionSettingsDialogState,
-	resetProductionSettingsDialog,
-	setProductionSettingsDialogOpen,
-} from '../../app/appSettings';
+import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
+import { createTestAppRuntime } from '../../app/runtime/harness';
+import type { AppRuntime } from '../../app/runtime';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
 const context = vi.hoisted(() => ({
@@ -51,23 +49,37 @@ function settingsFixture(): AppSettings {
 }
 
 describe('AppSettingsDialogView', () => {
+	let runtime: AppRuntime | undefined;
+
 	afterEach(() => {
 		cleanup();
-		resetProductionSettingsDialog();
+		runtime?.dispose();
+		runtime = undefined;
 	});
 
 	beforeEach(() => {
 		vi.clearAllMocks();
 		context.getAppSettingsMock.mockResolvedValue(settingsFixture());
 		context.resetAppSettingsMock.mockResolvedValue(settingsFixture());
-		resetProductionSettingsDialog();
-		productionSettingsDialogState.isOpen = true;
-		productionSettingsDialogState.loading = false;
-		productionSettingsDialogState.settings = settingsFixture();
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue({
+			encoder: { availability: null },
+			maxConcurrentJobs: { allowAuto: true, fixedOptions: [1, 2, 4] },
+		});
 	});
 
+	async function renderOpenDialog(): Promise<AppRuntime> {
+		runtime = createTestAppRuntime();
+		await runtime.settings.openDialog();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<AppSettingsDialogView />
+			</AppRuntimeProvider>
+		));
+		return runtime;
+	}
+
 	it('requires a second activation before resetting all settings', async () => {
-		render(() => <AppSettingsDialogView />);
+		await renderOpenDialog();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
 		expect(context.resetAppSettingsMock).not.toHaveBeenCalled();
@@ -78,7 +90,7 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('returns to idle when the confirm step is cancelled', async () => {
-		render(() => <AppSettingsDialogView />);
+		await renderOpenDialog();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
 		await fireEvent.click(screen.getByTestId('app-settings-reset-cancel'));
@@ -89,7 +101,7 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('returns to idle when a click lands outside the reset row', async () => {
-		render(() => <AppSettingsDialogView />);
+		await renderOpenDialog();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
 		await fireEvent.click(screen.getByRole('heading', { name: 'App Settings' }));
@@ -98,13 +110,17 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('closes on Escape after opening post-mount, even with focus outside the dialog', async () => {
-		resetProductionSettingsDialog();
-		render(() => <AppSettingsDialogView />);
-		expect(productionSettingsDialogState.isOpen).toBe(false);
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<AppSettingsDialogView />
+			</AppRuntimeProvider>
+		));
+		expect(runtime.settings.dialog().isOpen).toBe(false);
 
-		setProductionSettingsDialogOpen(true);
+		await runtime.settings.openDialog();
 		await fireEvent.keyDown(document.body, { key: 'Escape' });
 
-		expect(productionSettingsDialogState.isOpen).toBe(false);
+		expect(runtime.settings.dialog().isOpen).toBe(false);
 	});
 });

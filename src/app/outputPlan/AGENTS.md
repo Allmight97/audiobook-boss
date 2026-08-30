@@ -37,7 +37,9 @@
   forwards `MetadataDraftValidation` through the injected
   `onMetadataValidation` dep. Do not add a Metadata setter here.
 - Collision review is a separate preflight/review workflow
-  (`runOutputPlanReviewWorkflow`). Do not fold it into path-preview freshness.
+  (`runOutputPlanReviewWorkflow`) whose view and pending choice live on the
+  Output owner. Views use `useAppRuntime().output`. Do not fold review into
+  path-preview freshness.
 - App Settings hydration passes resolved `outputDefaults` through
   `applyDefaults` on the bound owner.
 - Submit composition stays at `readOutputRequestConfig()` /

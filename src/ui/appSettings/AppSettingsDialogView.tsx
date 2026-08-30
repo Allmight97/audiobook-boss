@@ -1,18 +1,6 @@
-import { createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
-import {
-	browseForFfmpegBinary,
-	clearFfmpegPathDraft,
-	closeProductionSettingsDialog,
-	productionSettingsDialogState,
-	resetAllAppSettings,
-	saveCurrentSettingsAsPinnedDefaults,
-	saveToolchainPreference,
-	setFfmpegPathDraft,
-	setProductionFdkAfterburner,
-	setStartupBehavior,
-	subscribeProductionSettingsDialog,
-} from '../../app/appSettings';
+import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
 import { readFdkAfterburner, subscribeEncoderPanel } from '../encoderPanel';
 import './appSettingsDialog.css';
@@ -66,14 +54,11 @@ function formatFdkSource(source: string): string {
 }
 
 export function AppSettingsDialogView(): JSX.Element {
-	const [revision, setRevision] = createSignal(0);
+	const settings = useAppRuntime().settings;
+	const state = settings.dialog;
 	const [resetConfirming, setResetConfirming] = createSignal(false);
+	const [afterburnerRevision, setAfterburnerRevision] = createSignal(0);
 	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
-
-	const state = () => {
-		revision();
-		return productionSettingsDialogState;
-	};
 
 	function cancelResetConfirm(): void {
 		clearTimeout(resetConfirmTimeout);
@@ -89,7 +74,7 @@ export function AppSettingsDialogView(): JSX.Element {
 
 	function confirmReset(): void {
 		cancelResetConfirm();
-		void resetAllAppSettings();
+		void settings.resetAllAppSettings();
 	}
 
 	function handleWindowClickForResetConfirm(event: MouseEvent): void {
@@ -101,17 +86,16 @@ export function AppSettingsDialogView(): JSX.Element {
 		cancelResetConfirm();
 	}
 
+	createEffect(() => {
+		if (!state().isOpen) cancelResetConfirm();
+	});
+
 	onMount(() => {
-		const unsubscribeSettings = subscribeProductionSettingsDialog(() => {
-			setRevision((value) => value + 1);
-			if (!productionSettingsDialogState.isOpen) cancelResetConfirm();
-		});
 		const unsubscribeEncoder = subscribeEncoderPanel(() => {
-			setRevision((value) => value + 1);
+			setAfterburnerRevision((value) => value + 1);
 		});
 		window.addEventListener('click', handleWindowClickForResetConfirm, true);
 		onCleanup(() => {
-			unsubscribeSettings();
 			unsubscribeEncoder();
 			window.removeEventListener('click', handleWindowClickForResetConfirm, true);
 			cancelResetConfirm();
@@ -121,7 +105,7 @@ export function AppSettingsDialogView(): JSX.Element {
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
 	const afterburner = () => {
-		revision();
+		afterburnerRevision();
 		return readFdkAfterburner();
 	};
 
@@ -129,7 +113,7 @@ export function AppSettingsDialogView(): JSX.Element {
 		<Dialog
 			id="app-settings-modal"
 			open={state().isOpen}
-			onClose={closeProductionSettingsDialog}
+			onClose={() => settings.closeDialog()}
 			labelledBy="app-settings-title"
 			testId="app-settings-modal"
 		>
@@ -138,7 +122,7 @@ export function AppSettingsDialogView(): JSX.Element {
 				<Button
 					id="app-settings-close"
 					data-testid="app-settings-close"
-					onClick={closeProductionSettingsDialog}
+					onClick={() => settings.closeDialog()}
 				>
 					Close
 				</Button>
@@ -159,22 +143,25 @@ export function AppSettingsDialogView(): JSX.Element {
 								type="text"
 								placeholder="/opt/homebrew/bin/ffmpeg"
 								value={state().ffmpegPathDraft}
-								onInput={(event) => setFfmpegPathDraft(event.currentTarget.value)}
+								onInput={(event) => settings.setFfmpegPathDraft(event.currentTarget.value)}
 							/>
 							<Button
 								data-testid="app-settings-ffmpeg-browse"
-								onClick={() => void browseForFfmpegBinary()}
+								onClick={() => void settings.browseForFfmpegBinary()}
 							>
 								Browse…
 							</Button>
-							<Button data-testid="app-settings-ffmpeg-clear" onClick={clearFfmpegPathDraft}>
+							<Button
+								data-testid="app-settings-ffmpeg-clear"
+								onClick={() => settings.clearFfmpegPathDraft()}
+							>
 								Clear
 							</Button>
 							<Button
 								tone="primary"
 								data-testid="app-settings-ffmpeg-save"
 								disabled={state().saveState === 'saving'}
-								onClick={() => void saveToolchainPreference()}
+								onClick={() => void settings.saveToolchainPreference()}
 							>
 								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
 							</Button>
@@ -204,7 +191,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								data-testid="app-settings-afterburner-checkbox"
 								checked={afterburner()}
 								onChange={(event) =>
-									setProductionFdkAfterburner(Boolean(event.currentTarget.checked))
+									settings.setFdkAfterburner(Boolean(event.currentTarget.checked))
 								}
 							/>
 							<span class="option-label">FDK Afterburner</span>
@@ -235,7 +222,7 @@ export function AppSettingsDialogView(): JSX.Element {
 												value="rememberLastState"
 												data-testid="app-settings-startup-last"
 												checked={startupBehavior() === 'rememberLastState'}
-												onChange={() => void setStartupBehavior('rememberLastState')}
+												onChange={() => void settings.setStartupBehavior('rememberLastState')}
 											/>
 											Remember my last settings
 										</label>
@@ -247,7 +234,7 @@ export function AppSettingsDialogView(): JSX.Element {
 												data-testid="app-settings-startup-pinned"
 												checked={startupBehavior() === 'pinnedDefaults'}
 												disabled={!pinnedDefaults()}
-												onChange={() => void setStartupBehavior('pinnedDefaults')}
+												onChange={() => void settings.setStartupBehavior('pinnedDefaults')}
 											/>
 											Use my pinned defaults
 											<Show when={!pinnedDefaults()}>
@@ -259,7 +246,7 @@ export function AppSettingsDialogView(): JSX.Element {
 										<Button
 											data-testid="app-settings-pin-defaults"
 											disabled={state().startupSaveState === 'saving'}
-											onClick={() => void saveCurrentSettingsAsPinnedDefaults()}
+											onClick={() => void settings.saveCurrentSettingsAsPinnedDefaults()}
 										>
 											Use current settings as defaults
 										</Button>

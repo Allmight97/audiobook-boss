@@ -8,12 +8,18 @@ import {
 	type Accessor,
 } from 'solid-js';
 import type { OutputDefaults } from '../../types/appSettings';
-import type { EncodingRequestConfig, OutputRequestConfig } from '../../types/audio';
+import type {
+	CollisionPolicy,
+	EncodingRequestConfig,
+	OutputRequestConfig,
+	ProcessingPreflightPlan,
+} from '../../types/audio';
 import { persistOutputDefaults } from '../../ui/appSettings';
 import { Effect, runAppEffect } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import type { InputOwner } from '../inputSession';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
+import { createCollisionReview, type CollisionView } from './collision';
 import { formatEstimatedSizeText } from './estimate';
 import { bindOutputOwner, boundOutputOwner } from './bind';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
@@ -37,11 +43,15 @@ const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
 	readonly estimatedSizeText: Accessor<string>;
+	readonly collision: Accessor<CollisionView>;
 	applyDefaults(defaults: OutputDefaults): void;
 	browseDirectory(): Promise<void>;
 	selectNamingPreset(value: string): void;
 	setAbsIncludeYear(value: boolean): void;
 	editNamingTemplate(value: string): void;
+	openCollisionReview(plan: ProcessingPreflightPlan): Promise<CollisionPolicy | null>;
+	chooseCollisionPolicy(policy: CollisionPolicy): void;
+	cancelCollisionReview(): void;
 	readRequestConfig(): OutputRequestConfig;
 	readDefaults(): OutputDefaults;
 	reset(): void;
@@ -66,6 +76,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const [previewTitle, setPreviewTitle] = createSignal(empty.previewTitle);
 	let latestPreviewRequestId = empty.latestPreviewRequestId;
 	let templatePreviewTimer: ReturnType<typeof setTimeout> | null = null;
+	const collisionReview = createCollisionReview();
 
 	const estimatedSizeText = createMemo(() => {
 		const input = deps.input.view();
@@ -193,6 +204,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const owner: OutputPlanOwner = {
 		view,
 		estimatedSizeText,
+		collision: collisionReview.view,
 		applyDefaults(defaults) {
 			clearTemplatePreviewTimer();
 			const directory = defaults.outputDirectory ?? '';
@@ -237,6 +249,15 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			setNamingTemplate(value);
 			scheduleCommittedTemplate();
 		},
+		openCollisionReview(plan) {
+			return collisionReview.open(plan);
+		},
+		chooseCollisionPolicy(policy) {
+			collisionReview.choose(policy);
+		},
+		cancelCollisionReview() {
+			collisionReview.cancel();
+		},
 		readRequestConfig() {
 			const directory = outputDirectory();
 			if (!directory) {
@@ -254,6 +275,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			};
 		},
 		reset() {
+			collisionReview.reset();
 			clearTemplatePreviewTimer();
 			const next = emptyOutputPlan();
 			latestPreviewRequestId = next.latestPreviewRequestId;
