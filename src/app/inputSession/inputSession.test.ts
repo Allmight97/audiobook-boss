@@ -151,3 +151,31 @@ describe('input session selection gate', () => {
 		expect(gate).toHaveBeenCalledTimes(3);
 	});
 });
+
+describe('input session support text hydrate', () => {
+	let runtime: AppRuntime | undefined;
+
+	afterEach(() => {
+		runtime?.dispose();
+		runtime = undefined;
+	});
+
+	it('does not restore a stale session when support text lookup fails after import', async () => {
+		let rejectMetadata: (error: Error) => void;
+		const metadataPromise = new Promise<SupportedAudioImportMetadata>((_resolve, reject) => {
+			rejectMetadata = reject;
+		});
+		const input = fakeInput({
+			getSupportedAudioImportMetadata: vi.fn(async () => metadataPromise),
+		});
+		runtime = createTestAppRuntime({ input });
+
+		const hydratePromise = runtime.input.hydrateSupportText();
+		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/chapter.m4b'] });
+		rejectMetadata!(new Error('lookup failed'));
+		await hydratePromise;
+
+		expect(runtime.input.view().files).toHaveLength(1);
+		expect(runtime.input.view().files[0]?.path).toBe('/books/chapter.m4b');
+	});
+});

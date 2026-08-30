@@ -74,16 +74,13 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			commit({ ...next, orderLocked: session().orderLocked });
 		},
 		async hydrateSupportText() {
-			const current = session();
 			try {
 				const metadata = await capability().getSupportedAudioImportMetadata();
 				commit({
 					...session(),
-					supportText: metadata.supportText || current.supportText,
+					supportText: metadata.supportText || session().supportText,
 				});
-			} catch {
-				commit(current);
-			}
+			} catch {}
 		},
 		async selectFile(command) {
 			if (!command.skipPersistPrevious && deps.beforeSelectionChange) {
