@@ -167,6 +167,11 @@ function displayCover(cover: CoverUiState, bytes: number[] | null): CoverUiState
 	};
 }
 
+type CoverLoadContext = {
+	readonly selectionKey: string;
+	readonly hydrateRequestId: number;
+};
+
 function toView(editor: MetadataEditorState): MetadataView {
 	return {
 		form: editor.form,
@@ -185,6 +190,21 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const isForegroundProcessing =
 		deps.isForegroundProcessing ?? (() => getStatusView().isProcessing);
 	let coverMessageTimeoutId: number | null = null;
+
+	function readCoverLoadContext(state: MetadataEditorState): CoverLoadContext {
+		return {
+			selectionKey: state.selectionKey,
+			hydrateRequestId: state.hydrateRequestId,
+		};
+	}
+
+	function coverLoadStillValid(context: CoverLoadContext): boolean {
+		const latest = editor();
+		return (
+			latest.selectionKey === context.selectionKey &&
+			latest.hydrateRequestId === context.hydrateRequestId
+		);
+	}
 
 	function commit(next: MetadataEditorState): void {
 		setEditor(next);
@@ -265,7 +285,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		return true;
 	}
 
-	function applyLoadedCoverArt(bytes: number[]): void {
+	function applyLoadedCoverArt(bytes: number[], loadContext?: CoverLoadContext): void {
+		if (loadContext && !coverLoadStillValid(loadContext)) {
+			return;
+		}
 		const current = editor();
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
@@ -575,6 +598,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			);
 		},
 		async loadCoverArtFromPicker() {
+			const loadContext = readCoverLoadContext(editor());
 			try {
 				const selectedFile = await capability().openFile({
 					title: 'Select Cover Art Image',
@@ -582,7 +606,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				});
 				if (!selectedFile) return;
 				const imageData = await capability().loadCoverArtFile(selectedFile);
-				applyLoadedCoverArt(imageData);
+				applyLoadedCoverArt(imageData, loadContext);
 			} catch (error) {
 				console.error('Failed to open file dialog:', error);
 				surfaceCoverFailure(
@@ -616,6 +640,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return null;
 			}
 			const normalized = parsed.toString();
+			const loadContext = readCoverLoadContext(editor());
 			commit(
 				bumpCover(editor(), {
 					urlInputValue: normalized,
@@ -625,7 +650,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			);
 			try {
 				const imageData = await capability().loadCoverArtFromUrl(normalized);
-				applyLoadedCoverArt(imageData);
+				if (!coverLoadStillValid(loadContext)) {
+					commit(bumpCover(editor(), { isLoading: false, message: { kind: 'hidden' } }));
+					return null;
+				}
+				applyLoadedCoverArt(imageData, loadContext);
 				commit(
 					bumpCover(editor(), {
 						isLoading: false,
@@ -649,9 +678,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			if (!imageFile) {
 				return false;
 			}
+			const loadContext = readCoverLoadContext(editor());
 			try {
 				const imageData = await capability().loadCoverArtFile(imageFile);
-				applyLoadedCoverArt(imageData);
+				applyLoadedCoverArt(imageData, loadContext);
 				return true;
 			} catch (error) {
 				console.error('Failed to load cover art file:', error);

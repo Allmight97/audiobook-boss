@@ -5,7 +5,11 @@ import type { MetadataSaveBatchResult } from '../../types/metadata';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
-import { getMetadataForFile, stageMetadataIntentPatch } from './index';
+import {
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+	stageMetadataIntentPatch,
+} from './index';
 
 function file(path: string, title: string): FileListInfo['files'][number] {
 	return {
@@ -162,6 +166,39 @@ describe('metadata session selection and save', () => {
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Edited Alpha');
 		expect(runtime.metadata.view().statusMessage).toMatch(/validate metadata/i);
 		expect(metadata.readAudioMetadata).not.toHaveBeenCalledWith('/books/beta.m4b');
+	});
+
+	it('drops a late cover URL load when selection changes before the bytes arrive', async () => {
+		let resolveUrlLoad: ((value: number[]) => void) | undefined;
+		const metadata = fakeMetadata({
+			loadCoverArtFromUrl: vi.fn(
+				() =>
+					new Promise<number[]>((resolve) => {
+						resolveUrlLoad = resolve;
+					}),
+			),
+		});
+		runtime = createTestAppRuntime({ metadata });
+		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list(files),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		const loadPromise = runtime.metadata.loadCoverArtFromUrl('https://example.com/cover.jpg');
+		runtime.input.replaceSession({
+			...runtime.input.session(),
+			selectedIndices: [1],
+			selectedAnchor: 1,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		resolveUrlLoad?.([9, 9, 9]);
+		await loadPromise;
+		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.cover_art).toBeUndefined();
+		expect(getMetadataIntentPatchForFile('/books/alpha.m4b')?.cover_art).toBeUndefined();
+		expect(runtime.metadata.view().cover.hasCustomCoverArt).toBe(false);
 	});
 
 	it('blocks selection change while a metadata save is in progress', async () => {
