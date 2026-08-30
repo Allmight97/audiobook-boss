@@ -6,7 +6,6 @@ const EXPECTED_WORK_CENTER_EXPORTS = [
 	'WorkCenterView',
 	'initializeWorkCenter',
 	'workCenterState',
-	'workOperationsViewAtom',
 ] as const;
 
 describe('Work Center public API contract', () => {

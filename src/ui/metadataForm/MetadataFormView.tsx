@@ -1,8 +1,6 @@
 import { For, type JSX } from 'solid-js';
-import { runLookupActionAtom } from '../../app/metadataLookup';
 import { METADATA_FIELD_DEFINITIONS } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
-import { useAtomSet } from '../../app/runtime/solid';
 import './metadataForm.css';
 
 const FIELD_SPAN_CLASS = {
@@ -18,7 +16,7 @@ export function MetadataFormView(): JSX.Element {
 	const setFieldValue = metadata.setFieldValue;
 	const setFieldAction = metadata.setFieldAction;
 	const saveMetadata = metadata.save;
-	const openLookup = useAtomSet(() => runLookupActionAtom);
+	const openLookup = useAppRuntime().lookup.run;
 	const form = () => view().form;
 
 	return (

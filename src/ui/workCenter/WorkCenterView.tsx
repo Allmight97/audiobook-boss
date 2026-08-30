@@ -1,8 +1,6 @@
 import { For, Show, type JSX } from 'solid-js';
 import { formatEtaRemaining } from '../../lib/format/eta';
-import { cancelWorkOperation, workOperationsViewAtom } from '../../app/workOperations';
-import { openChildSource } from '../../app/workOperations';
-import { useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
 import './workCenterView.css';
 
@@ -54,7 +52,8 @@ function summaryText(operation: OperationSnapshot): string {
 }
 
 export function WorkCenterView(): JSX.Element {
-	const view = useAtomValue(() => workOperationsViewAtom);
+	const workOperations = useAppRuntime().workOperations;
+	const view = workOperations.view;
 
 	return (
 		<section class="panel work-center" aria-label="Work Center">
@@ -100,7 +99,7 @@ export function WorkCenterView(): JSX.Element {
 													!canCancel(operation) ||
 													Boolean(view().cancelPendingByOperationId[operation.operationId])
 												}
-												onClick={() => void cancelWorkOperation(operation.operationId)}
+												onClick={() => void workOperations.cancel(operation.operationId)}
 											>
 												Cancel
 											</button>
@@ -154,7 +153,7 @@ export function WorkCenterView(): JSX.Element {
 															class="work-child-source"
 															type="button"
 															title="Open source file"
-															onClick={() => void openChildSource(child)}
+															onClick={() => void workOperations.openSource(child)}
 														>
 															Source
 														</button>

@@ -1,21 +1,11 @@
 import { createEffect, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
 import {
-	bumpLookupPreviewAtom,
 	cancelMetadataLookupCoverPreviewSchedule,
 	getMetadataLookupCoverPreviewState,
-	lookupPreviewRevisionAtom,
-	lookupViewAtom,
-	runLookupActionAtom,
 	scheduleMetadataLookupCoverPreviews,
-	setLookupApplyModeAtom,
-	setLookupAuthorQueryAtom,
-	setLookupReplaceCoverArtAtom,
-	setLookupSourceAtom,
-	setLookupTitleQueryAtom,
 	subscribeMetadataLookupCoverPreviews,
 } from '../../app/metadataLookup';
 import { useAppRuntime } from '../../app/runtime';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
 import { Dialog } from '../../lib/ui/Dialog';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import './metadataLookup.css';
@@ -62,7 +52,7 @@ function LookupCoverThumb(props: {
 	readonly coverUrl: string | null | undefined;
 	readonly title: string;
 }): JSX.Element {
-	const previewRevision = useAtomValue(() => lookupPreviewRevisionAtom);
+	const previewRevision = useAppRuntime().lookup.previewRevision;
 	const previewState = () => {
 		previewRevision();
 		return getMetadataLookupCoverPreviewState(props.coverUrl);
@@ -96,20 +86,21 @@ function LookupCoverThumb(props: {
 }
 
 export function MetadataLookupView(): JSX.Element {
-	const view = useAtomValue(() => lookupViewAtom);
-	const runLookup = useAtomSet(() => runLookupActionAtom);
-	const setTitleQuery = useAtomSet(() => setLookupTitleQueryAtom);
-	const setAuthorQuery = useAtomSet(() => setLookupAuthorQueryAtom);
-	const setSource = useAtomSet(() => setLookupSourceAtom);
-	const setApplyMode = useAtomSet(() => setLookupApplyModeAtom);
-	const setReplaceCover = useAtomSet(() => setLookupReplaceCoverArtAtom);
-	const bumpPreview = useAtomSet(() => bumpLookupPreviewAtom);
+	const lookup = useAppRuntime().lookup;
+	const view = lookup.view;
+	const runLookup = lookup.run;
+	const setTitleQuery = lookup.setTitleQuery;
+	const setAuthorQuery = lookup.setAuthorQuery;
+	const setSource = lookup.setSource;
+	const setApplyMode = lookup.setApplyMode;
+	const setReplaceCover = lookup.setReplaceCover;
+	const bumpPreview = lookup.bumpPreview;
 	const capability = useAppRuntime().metadata.capability;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
 
 	onMount(() => {
 		void runLookup({ type: 'init' });
-		onCleanup(subscribeMetadataLookupCoverPreviews(() => bumpPreview(undefined)));
+		onCleanup(subscribeMetadataLookupCoverPreviews(() => bumpPreview()));
 	});
 
 	createEffect(() => {

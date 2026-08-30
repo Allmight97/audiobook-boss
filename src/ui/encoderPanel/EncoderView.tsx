@@ -1,6 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
 import { useAppRuntime } from '../../app/runtime';
-import { useAtomSet } from '../../app/runtime/solid';
 import { renderAutoResolutionHints } from './autoResolutionHints';
 import {
 	handleBitrateModeChange,
@@ -11,10 +10,6 @@ import {
 	handleSampleRateSelectionChange,
 	initializeEncoderPanelLogic,
 } from '../encoderPanel/logic';
-import {
-	encodingRequestConfigAtom,
-	publishEncodingRequestConfig,
-} from '../encoderPanel/requestConfig';
 import { encoderPanelState, subscribeEncoderPanel } from '../encoderPanel/state';
 import {
 	bitrateModeLabel,
@@ -32,7 +27,6 @@ export function EncoderView(): JSX.Element {
 	const [revision, setRevision] = createSignal(0);
 	const runtime = useAppRuntime();
 	const estimatedSizeText = runtime.output.estimatedSizeText;
-	const setEncodingRequestConfig = useAtomSet(() => encodingRequestConfigAtom);
 	const state = () => {
 		revision();
 		return encoderPanelState;
@@ -40,7 +34,6 @@ export function EncoderView(): JSX.Element {
 
 	function bump(): void {
 		setRevision((value) => value + 1);
-		publishEncodingRequestConfig(setEncodingRequestConfig);
 	}
 
 	createEffect(() => {

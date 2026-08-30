@@ -4,13 +4,13 @@ export {
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
 	resetProcessing,
-	seedProcessing,
-	startProcessingAtom,
-	statusViewAtom,
 	triggerCancelAllFromStatusPanel,
 	triggerProcessFromStatusPanel,
 } from './atoms';
+export { createProcessingOwner } from './owner';
+export type { ProcessingOwner } from './owner';
 export type { StatusView } from './view';
+export { getStatusView } from './view';
 export { readProcessingRequestConfig } from './config';
 export type { JobListItem } from './viewTypes';
 export {

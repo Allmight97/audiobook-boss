@@ -201,6 +201,7 @@ function makeHarness(options?: {
 			error: consoleError,
 			warn: consoleWarn,
 		},
+		publishView: vi.fn(),
 	} satisfies MetadataLookupWorkflowServices;
 
 	return {
@@ -223,6 +224,7 @@ function makeHarness(options?: {
 			queueMicrotask,
 			consoleError,
 			consoleWarn,
+			publishView: services.publishView,
 		},
 	};
 }
@@ -313,6 +315,24 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.statusVariant).toBe('error');
 		expect(harness.lookupState.isOpen).toBe(true);
 		expect(harness.mocks.searchOnlineMetadata).not.toHaveBeenCalled();
+	});
+
+	it('publishes the open dialog before awaiting the provider search', async () => {
+		const request = createDeferred<ReturnType<typeof lookupResponse>>();
+		const harness = makeHarness({
+			searchOnlineMetadata: () => request.promise,
+		});
+
+		const opening = runMetadataLookupWorkflow(harness.layer, { type: 'open' });
+		await flushAsync();
+
+		expect(harness.lookupState.isOpen).toBe(true);
+		expect(harness.mocks.publishView).toHaveBeenCalled();
+		expect(harness.lookupState.hasSearched).toBe(false);
+
+		request.resolve(lookupResponse());
+		await opening;
+		expect(harness.lookupState.hasSearched).toBe(true);
 	});
 
 	it('opens a selected-file queue and immediately searches the first item', async () => {

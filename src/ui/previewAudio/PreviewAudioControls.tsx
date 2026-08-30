@@ -1,6 +1,5 @@
 import { createSignal, onCleanup, onMount, type JSX } from 'solid-js';
-import { startProcessingAtom } from '../../app/processing';
-import { useAtomSet } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 import './previewAudioControls.css';
 
 const PREVIEW_DURATIONS = [15, 30, 45, 60] as const;
@@ -8,7 +7,7 @@ const PREVIEW_DURATIONS = [15, 30, 45, 60] as const;
 export function PreviewAudioControls(props: {
 	readonly variant?: 'default' | 'compact';
 }): JSX.Element {
-	const startProcessing = useAtomSet(() => startProcessingAtom);
+	const startProcessing = useAppRuntime().processing.start;
 	const [previewDuration, setPreviewDuration] = createSignal(30);
 	const [open, setOpen] = createSignal(false);
 	let dropdown: HTMLDivElement | undefined;

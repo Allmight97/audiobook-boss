@@ -59,6 +59,21 @@ describe('app runtime', () => {
 		dispose = undefined;
 	});
 
+	it('isolates lookup and processing owners across disposed runtimes', () => {
+		const first = createAppRuntime();
+		first.lookup.setTitleQuery('stale lookup');
+		expect(first.lookup.view().titleQuery).toBe('stale lookup');
+		expect(first.processing.status().statusText).toBe('Idle');
+		first.dispose();
+
+		const second = createAppRuntime();
+		dispose = () => second.dispose();
+		expect(second.lookup.view().titleQuery).toBe('');
+		expect(second.lookup.view().isOpen).toBe(false);
+		expect(second.processing.status().isProcessing).toBe(false);
+		expect(second.workOperations.view().operations).toEqual([]);
+	});
+
 	it('disposes Solid session state so later runtimes do not share it', () => {
 		const first = createAppRuntime();
 		first.input.replaceSession({

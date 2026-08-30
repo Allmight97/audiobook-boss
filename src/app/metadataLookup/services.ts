@@ -12,21 +12,11 @@ import {
 } from './state';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
-export type LookupServiceGet = Record<string, never>;
-
-let boundInput: InputOwner | undefined;
-let boundMetadata: MetadataOwner | undefined;
-
-export function bindLookupInput(input: InputOwner | undefined): void {
-	boundInput = input;
-}
-
-export function bindLookupMetadata(metadata: MetadataOwner | undefined): void {
-	boundMetadata = metadata;
-}
-
 export function makeProductionLookupServices(
-	_get: LookupServiceGet,
+	deps: {
+		readonly input: InputOwner;
+		readonly metadata: MetadataOwner;
+	},
 	publishView?: () => void,
 ): MetadataLookupWorkflowServices {
 	return {
@@ -35,36 +25,26 @@ export function makeProductionLookupServices(
 		setMetadataLookupQueue,
 		clearMetadataLookupQueue,
 		setMetadataLookupQueueIndex,
-		getSelectedFileIndices: () => new Set(boundInput?.session().selectedIndices ?? []),
-		getCurrentFileList: (): FileListInfo | null => boundInput?.session().fileList ?? null,
+		getSelectedFileIndices: () => new Set(deps.input.session().selectedIndices ?? []),
+		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
 		getMetadataForFile,
 		stageMetadataIntentPatch,
 		selectFile: async (index, modifiers, options) => {
-			await boundInput?.selectFile({
+			await deps.input.selectFile({
 				index,
 				modifiers: modifiers ?? { multi: false, range: false },
 				skipPersistPrevious: options?.skipPersistPrevious,
 			});
 		},
 		applyMetadataToForm: (metadata: Partial<AudiobookMetadata>) => {
-			boundMetadata?.applyLookupMetadata(metadata);
+			deps.metadata.applyLookupMetadata(metadata);
 		},
-		readMetadataForm: () => boundMetadata?.readMetadata() ?? {},
+		readMetadataForm: () => deps.metadata.readMetadata() ?? {},
 		setCustomCoverArt: (coverArtBytes) => {
-			boundMetadata?.setCustomCoverArt(coverArtBytes);
+			deps.metadata.setCustomCoverArt(coverArtBytes);
 		},
-		searchOnlineMetadata: (args) => {
-			if (!boundMetadata) {
-				return Promise.reject(new Error('Metadata owner is not mounted'));
-			}
-			return boundMetadata.capability().searchOnlineMetadata(args);
-		},
-		loadCoverArtFromUrl: (url) => {
-			if (!boundMetadata) {
-				return Promise.reject(new Error('Metadata owner is not mounted'));
-			}
-			return boundMetadata.capability().loadCoverArtFromUrl(url);
-		},
+		searchOnlineMetadata: (args) => deps.metadata.capability().searchOnlineMetadata(args),
+		loadCoverArtFromUrl: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
 		focusElementById: (id) => {
 			const element = document.getElementById(id);
 			if (element instanceof HTMLElement) {

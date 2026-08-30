@@ -1,5 +1,3 @@
-import type { AtomRegistry } from '../runtime/reactivity';
-import { Atom } from '../runtime/reactivity';
 import type { JobListItem } from './viewTypes';
 
 export type StatusView = {
@@ -15,7 +13,7 @@ export type StatusView = {
 	readonly cancelAllPending: boolean;
 };
 
-const DEFAULT_STATUS_VIEW: StatusView = {
+export const DEFAULT_STATUS_VIEW: StatusView = {
 	coverArtDataUrl: null,
 	jobItems: [],
 	progressPercentage: 0,
@@ -30,23 +28,21 @@ const DEFAULT_STATUS_VIEW: StatusView = {
 
 const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
 
-export const statusViewAtom = Atom.make<StatusView>(DEFAULT_STATUS_VIEW).pipe(Atom.keepAlive);
+type StatusPublisher = (view: StatusView) => void;
 
 let snapshot: StatusView = DEFAULT_STATUS_VIEW;
-let boundRegistry: AtomRegistry.AtomRegistry | null = null;
+let publisher: StatusPublisher | null = null;
 let statusMessageLockTimeoutId: number | null = null;
 let statusBeforeUserMessageLock: string | null = null;
 let queuedStatusAfterUserMessageLock: string | null = null;
 
-export function bindStatusViewRegistry(registry: AtomRegistry.AtomRegistry | null): void {
-	boundRegistry = registry;
-	if (registry) {
-		registry.set(statusViewAtom, snapshot);
-	}
+export function bindStatusPublisher(next: StatusPublisher | null): void {
+	publisher = next;
+	next?.(snapshot);
 }
 
 function commit(): void {
-	boundRegistry?.set(statusViewAtom, snapshot);
+	publisher?.(snapshot);
 }
 
 function patch(next: Partial<StatusView>): void {

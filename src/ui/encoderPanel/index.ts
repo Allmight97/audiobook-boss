@@ -15,7 +15,7 @@ export async function setFdkAfterburner(enabled: boolean): Promise<void> {
 	logic.setFdkAfterburner(enabled);
 }
 
-export { encodingEstimateBitrateKbpsAtom, encodingRequestConfigAtom } from './requestConfig';
+export { estimateKbpsFromRequest } from './requestConfig';
 export {
 	readEncoderDefaultsFromState,
 	readEncodingRequestConfig,

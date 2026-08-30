@@ -1,11 +1,6 @@
 import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
-import {
-	startProcessingAtom,
-	statusViewAtom,
-	triggerCancelAllFromStatusPanel,
-	type JobListItem,
-} from '../../app/processing';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import type { JobListItem } from '../../app/processing';
+import { useAppRuntime } from '../../app/runtime';
 import type { EventStage } from '../../types/events';
 import './statusPanelView.css';
 
@@ -49,8 +44,9 @@ function activeChipLabel(items: ReadonlyArray<JobListItem>): string | null {
 }
 
 export function StatusPanelView(): JSX.Element {
-	const view = useAtomValue(() => statusViewAtom);
-	const startProcessing = useAtomSet(() => startProcessingAtom);
+	const processing = useAppRuntime().processing;
+	const view = processing.status;
+	const startProcessing = processing.start;
 	const [queueExpanded, setQueueExpanded] = createSignal(false);
 	const items = createMemo(() => view().jobItems);
 	const activeChip = createMemo(() => activeChipLabel(items()));
@@ -164,7 +160,7 @@ export function StatusPanelView(): JSX.Element {
 										class="job-cancel-button"
 										type="button"
 										disabled={view().cancelAllPending || !item.canCancel || !item.cancelId}
-										onClick={() => triggerCancelAllFromStatusPanel()}
+										onClick={() => processing.cancelAll()}
 									>
 										Cancel
 									</button>
@@ -187,7 +183,7 @@ export function StatusPanelView(): JSX.Element {
 						class="btn-pill btn-pill-secondary"
 						type="button"
 						disabled={view().cancelAllPending || !view().isProcessing || !canCancelForeground()}
-						onClick={() => triggerCancelAllFromStatusPanel()}
+						onClick={() => processing.cancelAll()}
 					>
 						Cancel
 					</button>

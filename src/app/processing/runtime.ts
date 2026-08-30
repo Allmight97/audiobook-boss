@@ -32,15 +32,16 @@ import {
 	type StatusPanelModel,
 	workKindFromOperationKind,
 } from './domain/stateMachine';
-import { pushTransientStatusMessage, showError, showInfo, showSuccess } from './view';
+import {
+	pushTransientStatusMessage,
+	resetStatusPanelViewState,
+	showError,
+	showInfo,
+	showSuccess,
+} from './view';
 import { fileListFromInput } from './input';
-import { tryProcessingRegistry } from './registry';
 
 function readCurrentFileList() {
-	const registry = tryProcessingRegistry();
-	if (!registry) {
-		return null;
-	}
 	const view = boundProcessingInput()?.view();
 	return view ? fileListFromInput(view) : null;
 }
@@ -439,4 +440,10 @@ export function pushStatusPanelTransientStatus(
 	options?: { ttlMs?: number },
 ): void {
 	pushTransientStatusMessage(message, options?.ttlMs);
+}
+
+export function resetStatusPanelRuntime(): void {
+	statusPanelInstance?.resetToIdle();
+	statusPanelInstance = null;
+	resetStatusPanelViewState();
 }

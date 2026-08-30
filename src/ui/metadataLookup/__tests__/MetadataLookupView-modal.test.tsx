@@ -1,10 +1,6 @@
 import { cleanup, fireEvent, render } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
-import { lookupViewAtom } from '../../../app/metadataLookup';
-import {
-	metadataLookupState,
-	snapshotMetadataLookupState,
-} from '../../../app/metadataLookup/state';
+import { metadataLookupState } from '../../../app/metadataLookup/state';
 import { AppRuntimeProvider } from '../../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../../app/runtime/harness';
 import type { AppRuntime } from '../../../app/runtime';
@@ -30,8 +26,7 @@ describe('MetadataLookupView modal wiring', () => {
 				<MetadataLookupView />
 			</AppRuntimeProvider>
 		));
-		metadataLookupState.isOpen = true;
-		runtime.registry.set(lookupViewAtom, snapshotMetadataLookupState());
+		await runtime.lookup.run({ type: 'open' });
 
 		await fireEvent.keyDown(document.getElementById('metadata-lookup-close') as Element, {
 			key: 'Escape',

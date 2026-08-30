@@ -15,7 +15,6 @@ import { PreviewAudioControls } from './previewAudio/PreviewAudioControls';
 import { StatusPanelView } from './statusPanel/StatusPanelView';
 import { TagPreviewView } from './tagPreview/TagPreviewView';
 import { WorkCenterView } from './workCenter/WorkCenterView';
-import { initializeWorkCenter } from '../app/workOperations';
 import './encodingWorkbench/encodingWorkbench.css';
 
 export function App(): JSX.Element {
@@ -23,6 +22,7 @@ export function App(): JSX.Element {
 	const saveMetadata = runtime.metadata.save;
 	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
 	const applyOutputDefaults = runtime.output.applyDefaults;
+	const initializeWork = runtime.workOperations.initialize;
 
 	onMount(() => {
 		void hydrateAppSettingsProduction().then((defaults) => {
@@ -31,7 +31,7 @@ export function App(): JSX.Element {
 			}
 		});
 		void hydrateConcurrency();
-		void initializeWorkCenter();
+		void initializeWork();
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {
 			if ((event.metaKey || event.ctrlKey) && event.key === 's') {

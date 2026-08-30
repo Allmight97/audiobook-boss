@@ -1,15 +1,14 @@
 import type { ProcessingRequestConfig } from '../../types/audio';
-import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
 import { readOutputRequestConfig } from '../outputPlan';
-import { tryProcessingRegistry } from './registry';
+import { boundProcessingEncoding } from './bind';
 
 export function readProcessingRequestConfig(): ProcessingRequestConfig {
-	const registry = tryProcessingRegistry();
-	if (!registry) {
-		throw new Error('Output directory not selected');
+	const encoding = boundProcessingEncoding()?.();
+	if (!encoding) {
+		throw new Error('Processing runtime is not bound');
 	}
 	return {
-		...registry.get(encodingRequestConfigAtom),
+		...encoding,
 		...readOutputRequestConfig(),
 	};
 }

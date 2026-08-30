@@ -17,7 +17,6 @@ import {
 } from './model';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
-import { Atom, type AtomRegistry } from '../runtime/reactivity';
 
 export type WorkOperationsView = {
 	readonly initialized: boolean;
@@ -34,13 +33,6 @@ interface WorkCenterState extends WorkCenterModel {
 
 export const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 
-export const workOperationsViewAtom = Atom.make<WorkOperationsView>({
-	initialized: false,
-	operations: [],
-	cancelPendingByOperationId: {},
-	errorMessage: null,
-}).pipe(Atom.keepAlive);
-
 export const workCenterState: WorkCenterState = {
 	initialized: false,
 	operations: [],
@@ -48,20 +40,26 @@ export const workCenterState: WorkCenterState = {
 	errorMessage: null,
 };
 
-let boundRegistry: AtomRegistry.AtomRegistry | null = null;
+type WorkOperationsPublisher = (view: WorkOperationsView) => void;
 
-export function bindWorkOperationsRegistry(registry: AtomRegistry.AtomRegistry | null): void {
-	boundRegistry = registry;
-	commit();
-}
+let publisher: WorkOperationsPublisher | null = null;
 
-function commit(): void {
-	boundRegistry?.set(workOperationsViewAtom, {
+export function snapshotWorkOperationsView(): WorkOperationsView {
+	return {
 		initialized: workCenterState.initialized,
 		operations: workCenterState.operations,
 		cancelPendingByOperationId: workCenterState.cancelPendingByOperationId,
 		errorMessage: workCenterState.errorMessage,
-	});
+	};
+}
+
+export function bindWorkOperationsPublisher(next: WorkOperationsPublisher | null): void {
+	publisher = next;
+	next?.(snapshotWorkOperationsView());
+}
+
+function commit(): void {
+	publisher?.(snapshotWorkOperationsView());
 }
 
 let initializationPromise: Promise<void> | null = null;
@@ -137,6 +135,9 @@ export function disposeWorkCenter(): void {
 	subscriptions = null;
 	initializationPromise = null;
 	workCenterState.initialized = false;
+	workCenterState.operations = [];
+	workCenterState.cancelPendingByOperationId = {};
+	workCenterState.errorMessage = null;
 	commit();
 }
 
