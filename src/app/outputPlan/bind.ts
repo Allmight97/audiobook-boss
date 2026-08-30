@@ -42,7 +42,3 @@ export function resetOutputPlan(): void {
 	resetOutputPlanTimers();
 	boundOutput?.reset();
 }
-
-export function seedOutputPlan(_registry?: unknown): void {
-	resetOutputPlan();
-}

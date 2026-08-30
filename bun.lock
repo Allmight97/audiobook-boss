@@ -5,7 +5,6 @@
     "": {
       "name": "audiobook-boss",
       "dependencies": {
-        "@effect/atom-solid": "4.0.0-rc.112",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-dialog": "^2.7.2",
         "@tauri-apps/plugin-opener": "^2.5.4",
@@ -114,8 +113,6 @@
     "@csstools/css-syntax-patches-for-csstree": ["@csstools/css-syntax-patches-for-csstree@1.1.3", "", { "peerDependencies": { "css-tree": "^3.2.1" }, "optionalPeers": ["css-tree"] }, "sha512-SH60bMfrRCJF3morcdk57WklujF4Jr/EsQUzqkarfHXEFcAR1gg7fS/chAE922Sehgzc1/+Tz5H3Ypa1HiEKrg=="],
 
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@4.0.0", "", {}, "sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA=="],
-
-    "@effect/atom-solid": ["@effect/atom-solid@4.0.0-rc.112", "", { "peerDependencies": { "effect": "^4.0.0-rc.112", "solid-js": ">=1.9.14 <2.0.0" } }, "sha512-hp2KW9VnV/sWkWjNkJl5DPilFM6fe6eVG1JOjsADtXNYmPAdzBtkAysCwaC6UKpPdK3x0551QW4k31bKv6xTvg=="],
 
     "@exodus/bytes": ["@exodus/bytes@1.15.0", "", { "peerDependencies": { "@noble/hashes": "^1.8.0 || ^2.0.0" }, "optionalPeers": ["@noble/hashes"] }, "sha512-UY0nlA+feH81UGSHv92sLEPLCeZFjXOuHhrIo0HQydScuQc8s0A7kL/UdgwgDq8g8ilksmuoF35YVTNphV2aBQ=="],
 

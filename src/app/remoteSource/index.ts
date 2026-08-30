@@ -1,6 +1,5 @@
-export { createRemoteSourceOwner } from './owner';
+export { createRemoteSourceOwner, resetRemoteSource } from './owner';
 export type { RemoteSourceOwner } from './owner';
-export { resetRemoteSource } from './atoms';
 export {
 	cancelRemoteSourceCoverPreviewSchedule,
 	clearRemoteSourceCoverPreviewCache,

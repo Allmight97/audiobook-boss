@@ -9,7 +9,6 @@ import type { OutputPlanOwner } from '../outputPlan/owner';
 import type { ProcessingOwner } from '../processing/owner';
 import type { RemoteSourceOwner } from '../remoteSource/owner';
 import type { WorkOperationsOwner } from '../workOperations/owner';
-import type { AtomRegistry } from './reactivity';
 
 export type RuntimeCapabilities = {
 	readonly input?: InputCapability;
@@ -26,6 +25,5 @@ export type AppRuntime = {
 	readonly settings: SettingsOwner;
 	readonly processing: ProcessingOwner;
 	readonly workOperations: WorkOperationsOwner;
-	readonly registry: AtomRegistry.AtomRegistry;
 	dispose(): void;
 };

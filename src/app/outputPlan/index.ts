@@ -4,7 +4,6 @@ export {
 	readOutputRequestConfig,
 	resetOutputPlan,
 	resetOutputPlanTimers,
-	seedOutputPlan,
 } from './bind';
 export { createOutputOwner } from './owner';
 export type { OutputOwnerDeps, OutputPlanOwner } from './owner';

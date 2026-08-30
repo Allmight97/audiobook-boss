@@ -26,6 +26,13 @@ export type RemoteSourceOwner = {
 	reset(): void;
 };
 
+export function resetRemoteSource(): void {
+	invalidateRemoteSourceWorkflows();
+	resetRemoteSourceState();
+	resetRemoteSourceSessionAssets();
+	clearRemoteSourceCoverPreviewCache();
+}
+
 export function createRemoteSourceOwner(deps: { readonly input: InputOwner }): RemoteSourceOwner {
 	const [view, setView] = createSignal(snapshotRemoteSourceView());
 
@@ -67,10 +74,7 @@ export function createRemoteSourceOwner(deps: { readonly input: InputOwner }): R
 			void reconcileRemoteSourceSessionsWithInput(files);
 		},
 		reset() {
-			invalidateRemoteSourceWorkflows();
-			resetRemoteSourceState();
-			resetRemoteSourceSessionAssets();
-			clearRemoteSourceCoverPreviewCache();
+			resetRemoteSource();
 			publish();
 		},
 	};

@@ -1,5 +1,4 @@
 import { createContext, useContext, type JSX } from 'solid-js';
-import { RegistryContext } from './solid';
 import type { AppRuntime } from './types';
 
 const AppRuntimeContext = createContext<AppRuntime>();
@@ -9,11 +8,7 @@ export function AppRuntimeProvider(props: {
 	readonly children: JSX.Element;
 }): JSX.Element {
 	return (
-		<AppRuntimeContext.Provider value={props.runtime}>
-			<RegistryContext.Provider value={props.runtime.registry}>
-				{props.children}
-			</RegistryContext.Provider>
-		</AppRuntimeContext.Provider>
+		<AppRuntimeContext.Provider value={props.runtime}>{props.children}</AppRuntimeContext.Provider>
 	);
 }
 

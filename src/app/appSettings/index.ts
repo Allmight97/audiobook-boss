@@ -1,13 +1,6 @@
 export { createSettingsOwner } from './owner';
 export type { ConcurrencyView, SettingsOwner, SettingsOwnerDeps } from './owner';
 export {
-	concurrencyViewAtom,
-	hydrateConcurrencyAtom,
-	setConcurrencyControlsEnabledAtom,
-	setConcurrencySelectionAtom,
-	settingsCapabilityAtom,
-} from './concurrency';
-export {
 	bindAfterSettingsReset,
 	browseForFfmpegBinary,
 	clearFfmpegPathDraft,

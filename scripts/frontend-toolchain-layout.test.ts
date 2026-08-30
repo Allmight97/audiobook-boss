@@ -146,22 +146,17 @@ describe('frontend toolchain layout', () => {
 		expect(packageImportHits(importsEffectPackageRoot, new Set([allowed]))).toEqual([]);
 	});
 
-	it('lets only the ABB workflow and reactivity seams import the effect package family', () => {
-		const allowed = new Set([
-			path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts')),
-			path.normalize(path.join(repoRoot, 'src/app/runtime/reactivity.ts')),
-		]);
-		expect(packageImportHits(importsEffectPackage, allowed)).toEqual([]);
+	it('lets only appEffect.ts import the effect package family', () => {
+		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
+		expect(packageImportHits(importsEffectPackage, new Set([allowed]))).toEqual([]);
 	});
 
-	it('lets only the runtime reactivity seam import effect/unstable/reactivity', () => {
-		const allowed = path.normalize(path.join(repoRoot, 'src/app/runtime/reactivity.ts'));
-		expect(packageImportHits(importsEffectReactivity, new Set([allowed]))).toEqual([]);
+	it('does not import effect/unstable/reactivity from ABB src/ or scripts/', () => {
+		expect(packageImportHits(importsEffectReactivity)).toEqual([]);
 	});
 
-	it('lets only the Solid integration seam import @effect/atom-solid', () => {
-		const allowed = path.normalize(path.join(repoRoot, 'src/app/runtime/solid.ts'));
-		expect(packageImportHits(importsAtomSolid, new Set([allowed]))).toEqual([]);
+	it('does not import @effect/atom-solid from ABB src/ or scripts/', () => {
+		expect(packageImportHits(importsAtomSolid)).toEqual([]);
 	});
 
 	it('treats Effect package root and subpath specifiers as the same family', () => {

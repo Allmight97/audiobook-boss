@@ -10,13 +10,11 @@ import { createRemoteSourceOwner } from '../remoteSource/owner';
 import { createWorkOperationsOwner } from '../workOperations/owner';
 import { estimateKbpsFromRequest } from '../../ui/encoderPanel/requestConfig';
 import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state';
-import { AtomRegistry } from './reactivity';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
 export type { AppRuntime, RuntimeCapabilities } from './types';
 
 export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRuntime {
-	const registry = AtomRegistry.make();
 	let disposeRoot = (): void => {};
 	const runtime = createRoot((dispose) => {
 		disposeRoot = dispose;
@@ -74,7 +72,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 	});
 	return {
 		...runtime,
-		registry,
 		dispose(): void {
 			runtime.workOperations.reset();
 			runtime.processing.reset();
@@ -85,7 +82,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			runtime.metadata.reset();
 			runtime.input.reset();
 			bindAfterSettingsReset(undefined);
-			registry.dispose();
 			disposeRoot();
 		},
 	};

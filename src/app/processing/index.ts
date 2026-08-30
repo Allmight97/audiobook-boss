@@ -3,10 +3,10 @@ export {
 	initStatusPanel,
 	isStatusPanelProcessing,
 	pushStatusPanelTransientStatus,
-	resetProcessing,
+	resetStatusPanelRuntime as resetProcessing,
 	triggerCancelAllFromStatusPanel,
 	triggerProcessFromStatusPanel,
-} from './atoms';
+} from './runtime';
 export { createProcessingOwner } from './owner';
 export type { ProcessingOwner } from './owner';
 export type { StatusView } from './view';

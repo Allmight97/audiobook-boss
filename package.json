@@ -35,7 +35,6 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
-		"@effect/atom-solid": "4.0.0-rc.112",
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.2",
 		"@tauri-apps/plugin-opener": "^2.5.4",
