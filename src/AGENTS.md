@@ -42,7 +42,7 @@
   deleting the class would make the same layout or visual rules reappear across
   at least two UI owners. Keep one-owner styling local.
 - For broad UI redesign work, decide or update tokens and the primitive kit
-  first, then rebuild owner islands on top of that kit. Do not deepen around
+  first, then rebuild owner views on top of that kit. Do not deepen around
   today's duplicated styles before the redesign unless the primitive already
   has stable multi-owner use.
 - The design lab (`lab.html` + `src/lab/`, dev-only: served by the Vite dev

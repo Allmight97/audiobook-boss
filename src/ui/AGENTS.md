@@ -6,7 +6,7 @@ only the rules shared by the thin composition shells that have none.
 
 ## Composition-only Shells
 
-These directories arrange existing public islands and own no business state:
+These directories arrange existing public views and own no business state:
 
 - `leftColumn/` — arranges the input workflow and selected-file inspector zones.
 - `metadataManager/` — right-column metadata composition.

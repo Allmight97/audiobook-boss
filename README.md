@@ -70,7 +70,7 @@ default broad review route.
 - Verification is owner-scoped. Run the smallest native command that proves the
   touched owner, then escalate only when the change crosses owners or a safety,
   data, or contract invariant requires it.
-- Frontend checks: `bun run typecheck`, `bun run check:svelte`,
+- Frontend checks: `bun run typecheck`,
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
 - Focused Rust loops:
@@ -88,7 +88,7 @@ default broad review route.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review path.
 - CI: GitHub automatically runs Pages for `site/**` and a path-narrowed
-  frontend clean-install alarm (frozen install, typecheck, svelte-check) after
+  frontend clean-install alarm (frozen install, typecheck) after
   relevant `main` pushes. It is an alarm, not a PR gate. Rust tests and
   generated-binding checks stay local or release-owned; an empty PR check list
   does not mean those proofs ran on GitHub.

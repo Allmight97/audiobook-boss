@@ -85,7 +85,7 @@ snapshots) are the only scoping.
 - `get_app_settings`, `update_app_settings`, `reset_app_settings`
   - Rust: `src-tauri/src/commands/app_settings.rs`
   - Core owner: `src-tauri/src/app_settings/`
-  - Frontend: `src/ui/appSettings/` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/appSettings` through `src/lib/tauri/client.ts`. Persistence strip: `src/ui/appSettings`.
   - Use: durable preference hydration and persistence for existing controls.
     Runtime-coupled values, such as max concurrency, are accepted by their
     runtime owner first and then persisted as settings truth.
@@ -105,7 +105,7 @@ snapshots) are the only scoping.
 - `get_supported_audio_import_metadata`, `discover_audio_import_paths`, `take_opened_audio_files`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/audio/imports.rs`, `src-tauri/src/audio/path_validation.rs`, `src-tauri/src/opened_audio.rs`
-  - Frontend: `src/ui/fileImport/importAnalysisWorkflow.ts` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/inputSession` through `src/lib/tauri/client.ts`
   - Use: local audio import metadata, recursive folder/file discovery, and OS-opened audio drain for the Local Audio Import Boundary
 
 ### Remote Source Acquisition
@@ -155,7 +155,7 @@ snapshots) are the only scoping.
 - `preflight_processing_plan`
   - Rust: `src-tauri/src/commands/audio.rs`
   - Core helpers: `src-tauri/src/processing/plan.rs`
-  - Frontend: `src/ui/outputPanel/outputPlanWorkflow.ts` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/outputPlan` through `src/lib/tauri/client.ts`
   - Use: shared, side-effect-free preflight planning used by the output-plan review step that precedes both the direct `process_audiobook_files` and WorkRuntime `submit_processing_operation` paths
 
 ### Work Runtime (Work Center) — Background Operations
@@ -164,7 +164,7 @@ snapshots) are the only scoping.
   - Rust: `src-tauri/src/commands/work_runtime.rs`
   - Owner: `src-tauri/src/work_runtime/` (operation identity, immutable accepted submissions, operation snapshots, operation-scoped cancellation, Work Center event truth)
   - Executor boundary: wraps `crate::processing::run`; operation terminal status is derived from the canonical `abb_processing_core::classify_run_terminal` classifier, not a parallel rule
-  - Frontend: `src/ui/workCenter/` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/workOperations` through `src/lib/tauri/client.ts`. Solid view: `src/ui/workCenter/WorkCenterView.tsx`.
   - Use: accept long-running batch/merge processing as background operations, return the file list to drafting immediately after acceptance, and surface multiple operations with independent cancellation
   - Classification: **background**. Final (non-preview) submissions only. Preview uses `process_audiobook_files` (direct).
 
@@ -177,7 +177,7 @@ snapshots) are the only scoping.
       processing goes through `submit_processing_operation` (WorkRuntime).
     - Cancellation is operation-scoped only (`cancel_work_operation`). There is no
       foreground/direct cancel command; the preview lane has none.
-  - Frontend: `src/ui/statusPanel/` through `src/lib/tauri/client.ts`
+  - Frontend: `src/app/processing` through `src/lib/tauri/client.ts`. Solid view: `src/ui/statusPanel/StatusPanelView.tsx`.
 
 ### Metadata
 
@@ -225,14 +225,16 @@ Source: `src-tauri/src/work_runtime/` (types in `types.rs`, emission in
   foreground-only emission as `processing-progress`.
 
 Source: `src-tauri/src/processing/progress/` (types in `mod.rs`, emission via
-`ProgressEmitter` in `emitter.rs`). Consumer: `src/ui/statusPanel/events.ts`
-and `src/ui/statusPanel/domain/stateMachine.ts`.
+`ProgressEmitter` in `emitter.rs`). Consumer:
+`src/app/processing/services/progressSubscription.ts` and
+`src/app/processing/domain/stateMachine.ts`.
 
 ### OS Signal Events
 
 - `opened-audio-files`: OS-opened local audio signal.
 
-Source: `src-tauri/src/opened_audio.rs`. Consumer: `src/ui/fileImport/handlers.ts`.
+Source: `src-tauri/src/opened_audio.rs`. Consumer:
+`src/ui/fileImport/FileImportView.tsx` through `src/app/inputSession`.
 
 Rust event export: `src-tauri/src/ipc_contract.rs`.
 Frontend event contract: `src/types/events.ts`, `src/types/workRuntime.ts`.

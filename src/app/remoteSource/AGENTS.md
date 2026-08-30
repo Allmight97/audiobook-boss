@@ -21,9 +21,11 @@
 - Closing the dialog does not cancel an in-flight acquisition. Polling and
   selected hidden titles survive ordinary close. App disposal and native
   cancel/purge remain the cleanup authorities.
-- `runRemoteSourceActionAtom` must publish `remoteSourceViewAtom` on each
-  acquisition poll patch. Waiting until the Effect completes hides live
-  `getAcquisitionStatus` progress from the Solid dialog.
+- `runRemoteSourceActionAtom` publishes `remoteSourceViewAtom` on each
+  acquisition poll patch. `RemoteSourceAcquireView` shows the progress bar
+  and Cancel only when `job().progress` is present. A running job without
+  that snapshot hides both. Do not treat the dialog as a working live
+  progress UX.
 - Materialized audio becomes a normal Input session through
   `importIntentAtom`. Do not call `handleImportedAudioPaths` or
   `getCurrentFileList`. If Input import is blocked or fails, purge the staged
@@ -42,7 +44,8 @@
 - `sessionAssets.test.ts` pins input-id rekey, companion summaries that omit
   paths, retainer deferral, and shared-job purge.
 - `workflow.test.ts` pins successful Input handoff, blocked-import purge,
-  close-does-not-cancel, and live `getAcquisitionStatus` download progress.
+  close-does-not-cancel, and atom publish of polled `getAcquisitionStatus`
+  snapshots.
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
 - `selection.test.ts` pins filter/selection policy.
 - `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent.

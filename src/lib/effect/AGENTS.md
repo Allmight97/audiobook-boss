@@ -16,7 +16,7 @@ Keep Effect private to workflow owners:
 - Only `src/lib/effect/appEffect.ts` imports the `effect` package. Owners and
   tests import `Effect`, `Context`, `Data`, and `Layer` from that file. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`. The tripwire
-  lives in scripts so the frontend `tsconfig` stays Vite/Svelte types. It
+  lives in scripts so the frontend `tsconfig` stays Vite/Solid types. It
   matches `from 'effect'` and `from 'effect/...'` so ordinary multiline named
   imports count; do not require the binding list to sit on one line.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
@@ -27,7 +27,7 @@ Keep Effect private to workflow owners:
   `src/app/processing/workflow.deps.ts` (dynamic-imported) to preserve the
   cycle break.
 - Dependencies are injected through service objects so tests can provide fake
-  layers without Svelte rendering or live Tauri.
+  layers without Solid rendering or live Tauri.
 - State and event outputs stay explicit in the owner contract.
 - Public API Strip impact is stated by the wrapper: if callers do not need new
   symbols or changed return types, keep the existing public API stable.
@@ -67,7 +67,7 @@ const kit = makeWorkflowKit(
 Workflow tests should run the Effect program directly with fake services:
 
 - Build a small `makeHarness` helper in the owner test file.
-- Provide dependencies through the owner service layer, not through Svelte
+- Provide dependencies through the owner service layer, not through Solid
   rendering or live Tauri.
 - Prefer assertions on public workflow outcomes: visible status, state writes,
   cleanup, terminal results, user-safe errors, and typed workflow errors.
@@ -79,7 +79,7 @@ Workflow tests should run the Effect program directly with fake services:
 ## Finding Workflow Owners
 
 Workflow owners live in `*Workflow*.ts` files beside their `__tests__/`; find the
-current set by searching the tree (e.g. `rg -l "Workflow" src/ui --glob '*Workflow*.ts'`)
+current set by searching the tree (e.g. `rg -l "Workflow" src/app --glob '*Workflow*.ts'`)
 rather than from a hand-maintained list that rots as owners move. Each owner
 co-locates its service interface, service tag, live layer (`satisfies`), program,
 and Promise bridge, and is exercised by a focused Vitest file next to it
