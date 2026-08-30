@@ -124,12 +124,11 @@ commands over invoking internals directly.
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
   The no-import tripwires match `from 'typescript'` and the full `effect`
   package family, so ordinary multiline named imports count; do not require
-  the binding list to sit on one line. Workflow APIs enter through
-  `src/lib/effect/appEffect.ts`; unstable reactivity and the Solid binding
-  enter through `src/app/runtime/reactivity.ts` and
-  `src/app/runtime/solid.ts`. The tripwire stays in `scripts/` so it does not
-  pull Node types into the frontend `tsconfig`. It also rejects leftover
-  `.svelte` / `.svelte.ts` sources under `src/`.
+  the binding list to sit on one line.   Workflow APIs enter through
+  `src/lib/effect/appEffect.ts`. The tripwire also rejects leftover
+  `.svelte` / `.svelte.ts` sources under `src/` and leftover Tailwind or
+  foundation-internal imports. The tripwire stays in `scripts/` so it does not
+  pull Node types into the frontend `tsconfig`.
 - Bun version truth is `package.json#packageManager`. When it changes, set
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install

@@ -20,4 +20,5 @@ export {
 	readEncoderDefaultsFromState,
 	readEncodingRequestConfig,
 	readFdkAfterburner,
+	subscribeEncoderPanel,
 } from './state';

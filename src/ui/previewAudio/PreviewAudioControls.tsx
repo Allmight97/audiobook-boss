@@ -1,5 +1,6 @@
 import { createSignal, onCleanup, onMount, type JSX } from 'solid-js';
 import { useAppRuntime } from '../../app/runtime';
+import { Button } from '../foundation';
 import './previewAudioControls.css';
 
 const PREVIEW_DURATIONS = [15, 30, 45, 60] as const;
@@ -30,18 +31,18 @@ export function PreviewAudioControls(props: {
 			class={`split-button${props.variant === 'compact' ? ' split-button-compact' : ''}`}
 			data-testid="preview-audio-controls"
 		>
-			<button
+			<Button
 				id="preview-button"
-				class="btn-pill btn-pill-primary split-main"
-				type="button"
+				tone="primary"
+				class="split-main"
 				onClick={() => void startProcessing({ previewSeconds: previewDuration() })}
 			>
 				Preview Audio
-			</button>
-			<button
+			</Button>
+			<Button
 				id="preview-dropdown-toggle"
-				class="btn-pill btn-pill-primary split-caret"
-				type="button"
+				tone="primary"
+				class="split-caret"
 				ref={toggle}
 				onClick={(event) => {
 					event.stopPropagation();
@@ -49,7 +50,7 @@ export function PreviewAudioControls(props: {
 				}}
 			>
 				▼
-			</button>
+			</Button>
 			<div id="preview-dropdown" class={`split-dropdown${open() ? ' open' : ''}`} ref={dropdown}>
 				{PREVIEW_DURATIONS.map((duration) => (
 					<button

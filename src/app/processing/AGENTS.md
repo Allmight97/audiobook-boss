@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Owns preview submit, processing request composition, Status Panel runtime,
-  and the status view atom under `src/app/processing/`.
+- Owns preview submit, processing request composition, and Status Panel
+  runtime under `src/app/processing/`.
 - Solid views live in `src/ui/statusPanel` and `src/ui/previewAudio`. They
   render this owner; they do not keep a second status or preview store.
 
@@ -17,14 +17,12 @@
 
 ## Hard Invariants
 
-- Compose submit config at `readProcessingRequestConfig()` from public
-  `encodingRequestConfigAtom` and Output `readOutputRequestConfig()`. Those are
-  getters, not poke APIs. Do not restore `updateOutputPath` or
-  `updateEstimatedSize`.
-- File-list and job-type truth come from Input (`inputViewAtom`, `jobTypeAtom`).
-  Concurrency enable/disable uses `setConcurrencyControlsEnabledAtom`. Metadata
-  staging uses the Metadata public strip. Do not read leftover file-list or
-  job-control stores.
+- Compose submit config at `readProcessingRequestConfig()` from public encoder
+  request config and Output `readOutputRequestConfig()`. Those are getters, not
+  poke APIs. Do not restore `updateOutputPath` or `updateEstimatedSize`.
+- File-list and job-type truth come from Input. Concurrency enable/disable uses
+  Settings. Metadata staging uses the Metadata public strip. Do not read
+  leftover file-list or job-control stores.
 - Preview execution is direct `process_audiobook_files` with `previewSeconds`.
   It does not enter WorkRuntime. Background batch/merge submits through
   WorkRuntime; Status Panel is not a WorkRuntime consumer.
@@ -34,7 +32,7 @@
   `ProcessCommandResult`) for preview completion. Do not re-derive terminal
   precedence from per-job rows.
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.
-  Submit goes through `startProcessingAtom`.
+  Submit goes through Processing `start`.
 
 ## Testing
 

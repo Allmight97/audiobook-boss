@@ -44,13 +44,11 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
 		"@solidjs/testing-library": "0.8.10",
-		"@tailwindcss/vite": "^4.3.3",
 		"@tauri-apps/cli": "^2.11.4",
 		"@testing-library/jest-dom": "^6.10.0",
 		"@testing-library/user-event": "^14.6.5",
 		"@typescript/native": "npm:typescript@7.0.2",
 		"jsdom": "^29.1.1",
-		"tailwindcss": "^4.3.3",
 		"typescript": "npm:typescript@7.0.2",
 		"vite": "^8.2.2",
 		"vite-plugin-solid": "2.11.14",

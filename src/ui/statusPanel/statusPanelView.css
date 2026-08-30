@@ -29,9 +29,39 @@
 	font-size: 0.75rem;
 }
 
+.status-cover-image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 0.25rem;
+}
+
 .progress-details {
 	flex: 1;
 	min-width: 0;
+}
+
+.status-progress-header {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 0.125rem;
+}
+
+.status-progress-label,
+.status-text {
+	font-size: var(--text-xs);
+}
+
+.status-text {
+	font-weight: 600;
+}
+
+.status-step {
+	margin-top: 0.125rem;
+}
+
+.status-concurrency {
+	margin-top: var(--space-1);
 }
 
 .status-actions {
@@ -40,7 +70,7 @@
 	gap: 0.5rem;
 }
 
-.progress-bar-fg {
+.status-progress .abb-progress-fill {
 	position: relative;
 	height: 100%;
 	border-radius: 9999px;
@@ -52,7 +82,7 @@
 	transition: width 0.3s ease-in-out;
 }
 
-.progress-bar-fg::after {
+.status-progress .abb-progress-fill::after {
 	content: "";
 	position: absolute;
 	inset: 0;

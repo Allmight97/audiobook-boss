@@ -8,12 +8,11 @@
 
 ## Preferred Path
 
-- Dispatch `importIntentAtom` for pick-files, pick-folder, path import, and
+- Dispatch Input `importIntent` for pick-files, pick-folder, path import, and
   opened-file drain. Do not add a parallel import workflow in this folder.
-- Cover-art native drops dispatch `applyCoverArtDropAtom`.
+- Cover-art native drops dispatch Metadata `applyCoverArtDrop`.
 - Compose `RemoteSourceAcquireView` next to the Import from Library button.
-  Subscribe to `remoteSourceLifetimeAtom` so remote session purge tracks Input
-  file identity.
+  Remote session purge tracks Input file identity through Remote Source.
 
 ## Hard Invariants
 
@@ -25,5 +24,5 @@
 ## Done Criteria
 
 - UI-facing changes prove visible error/status behavior through Input Session
-  public atoms.
+  public reads and intents.
 - Run targeted Vitest files when proving import UI changes.

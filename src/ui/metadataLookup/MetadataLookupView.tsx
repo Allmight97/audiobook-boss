@@ -6,7 +6,7 @@ import {
 	subscribeMetadataLookupCoverPreviews,
 } from '../../app/metadataLookup';
 import { useAppRuntime } from '../../app/runtime';
-import { Dialog } from '../../lib/ui/Dialog';
+import { Button, CoverThumb, Dialog } from '../foundation';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import './metadataLookup.css';
 
@@ -63,7 +63,7 @@ function LookupCoverThumb(props: {
 	};
 
 	return (
-		<div class="app-cover-thumb" role="presentation">
+		<CoverThumb>
 			{props.coverUrl ? (
 				previewState().status === 'ready' ? (
 					<img
@@ -81,7 +81,7 @@ function LookupCoverThumb(props: {
 			) : (
 				<span>No Art</span>
 			)}
-		</div>
+		</CoverThumb>
 	);
 }
 
@@ -135,19 +135,13 @@ export function MetadataLookupView(): JSX.Element {
 			testId="metadata-lookup-modal"
 			restoreFocus={restoreFocus()}
 		>
-			<div class="app-modal-header">
+			<Dialog.Header>
 				<h3 id="metadata-lookup-title">Find Metadata Online</h3>
-				<button
-					id="metadata-lookup-close"
-					class="btn-pill btn-pill-secondary"
-					data-testid="metadata-lookup-close"
-					type="button"
-					onClick={close}
-				>
+				<Button id="metadata-lookup-close" data-testid="metadata-lookup-close" onClick={close}>
 					Close
-				</button>
-			</div>
-			<div class="app-modal-body">
+				</Button>
+			</Dialog.Header>
+			<Dialog.Body>
 				<div class="app-modal-controls">
 					<div class="app-modal-field app-modal-field-stack">
 						<div class="app-modal-field">
@@ -210,7 +204,7 @@ export function MetadataLookupView(): JSX.Element {
 						</select>
 					</div>
 					<div class="app-modal-field app-modal-field-toggle">
-						<label class="checkbox-label text-xs mb-0">
+						<label class="checkbox-label tight">
 							<input
 								type="checkbox"
 								id="metadata-lookup-cover-toggle"
@@ -222,62 +216,61 @@ export function MetadataLookupView(): JSX.Element {
 						</label>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button
+						<Button
 							id="metadata-lookup-search-btn"
-							class="btn-pill btn-pill-primary"
+							tone="primary"
 							data-testid="metadata-lookup-search-btn"
-							type="button"
 							onClick={() => void runLookup({ type: 'search' })}
 						>
 							Search
-						</button>
+						</Button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button
+						<Button
 							id="metadata-lookup-skip-btn"
-							class="btn-pill btn-pill-secondary"
 							data-testid="metadata-lookup-skip-btn"
-							type="button"
 							disabled={!view().skipEnabled}
 							onClick={() => void runLookup({ type: 'skipQueueItem' })}
 						>
 							Skip
-						</button>
+						</Button>
 					</div>
 				</div>
-				<div id="metadata-lookup-context" class="metadata-lookup-context text-xs muted-text">
+				<div id="metadata-lookup-context" class="metadata-lookup-context muted-text">
 					{view().queueContext}
 				</div>
-				<div
+				<Dialog.Status
 					id="metadata-lookup-status"
-					class="metadata-lookup-status app-modal-status text-xs"
-					classList={{
-						'is-error': view().statusVariant === 'error',
-						'is-success': view().statusVariant === 'success',
-					}}
+					tone={
+						view().statusVariant === 'error'
+							? 'error'
+							: view().statusVariant === 'success'
+								? 'success'
+								: 'neutral'
+					}
+					class="metadata-lookup-status"
 				>
 					{view().statusMessage}
-				</div>
+				</Dialog.Status>
 				<div id="metadata-lookup-results" class="app-modal-results">
 					{view().hasSearched && view().results.length === 0 && (
 						<div class="app-modal-empty muted-text">
 							<p>No online matches found across Audnexus and OpenLibrary.</p>
-							<p class="text-xs" style={{ 'margin-top': '0.5rem' }}>
+							<p class="metadata-lookup-empty-hint">
 								Older CD-era or rare audiobook editions may not be indexed. Use manual entry to
 								finish metadata for this file.
 							</p>
-							<button
+							<Button
 								id="metadata-lookup-manual-entry-btn"
-								class="btn-pill btn-pill-secondary mt-2"
+								class="metadata-lookup-manual-entry"
 								data-testid="metadata-lookup-manual-entry-btn"
-								type="button"
 								onClick={() => {
 									setRestoreFocus(false);
 									void runLookup({ type: 'manualEntry' });
 								}}
 							>
 								Use Manual Entry
-							</button>
+							</Button>
 						</div>
 					)}
 					<For each={view().results}>
@@ -307,20 +300,18 @@ export function MetadataLookupView(): JSX.Element {
 									</span>
 								</div>
 								<div class="metadata-lookup-actions">
-									<button
-										type="button"
-										class="btn-pill btn-pill-secondary"
+									<Button
 										data-index={index()}
 										onClick={() => void runLookup({ type: 'applyResult', index: index() })}
 									>
 										Use Metadata
-									</button>
+									</Button>
 								</div>
 							</div>
 						)}
 					</For>
 				</div>
-			</div>
+			</Dialog.Body>
 		</Dialog>
 	);
 }

@@ -6,6 +6,7 @@
 - Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
   `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
   `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
+  `subscribeRemoteSourceSupplementalAssets`,
   `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
 - Do not re-export acquisition workflow symbols or private session-asset
   helpers such as `supplementalAssetsForInputIds` from the index.

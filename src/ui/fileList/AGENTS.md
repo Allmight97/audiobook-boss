@@ -19,10 +19,12 @@
 
 ## Preferred Path
 
-- `FileListView` reads `inputViewAtom` and dispatches Input Session intents.
+- `FileListView` reads Input `view` and dispatches Input Session intents.
 - Cover thumbnails are a presentation cache, not list truth.
-- Remote session purge tracks Input file identity through
-  `remoteSourceLifetimeAtom`. Do not dual-purge from this view.
+- PDF companion chips subscribe to `subscribeRemoteSourceSupplementalAssets`.
+  Do not assume an Input publish also rerenders supplemental assets.
+- Remote session purge tracks Input file identity through Remote Source. Do
+  not dual-purge from this view.
 
 ## Hard Invariants
 

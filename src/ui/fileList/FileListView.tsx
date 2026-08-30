@@ -2,7 +2,11 @@ import { displayedTitleForFile, formatFileDetails } from '../../app/inputSession
 import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
-import { hasSupplementalAssetsForInputId } from '../remoteSource';
+import { Button } from '../foundation';
+import {
+	hasSupplementalAssetsForInputId,
+	subscribeRemoteSourceSupplementalAssets,
+} from '../remoteSource';
 import { createSignal, createEffect, For, onCleanup, type JSX } from 'solid-js';
 import {
 	clearFileListCoverThumbnails,
@@ -32,6 +36,7 @@ export function FileListView(props: {
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
 	const [thumbnailRevision, setThumbnailRevision] = createSignal(0);
+	const [assetRevision, setAssetRevision] = createSignal(0);
 	const [dragState, setDragState] = createSignal<FileListDragState>({
 		draggedIndex: null,
 		hoveredIndex: null,
@@ -48,6 +53,9 @@ export function FileListView(props: {
 
 	onCleanup(() => reorderHandlers.dispose());
 	onCleanup(subscribeCoverThumbnails(() => setThumbnailRevision((revision) => revision + 1)));
+	onCleanup(
+		subscribeRemoteSourceSupplementalAssets(() => setAssetRevision((revision) => revision + 1)),
+	);
 
 	createEffect(() => {
 		const validPaths = view()
@@ -76,6 +84,11 @@ export function FileListView(props: {
 
 	function isSelected(index: number): boolean {
 		return view().selectedIndices.includes(index);
+	}
+
+	function hasCompanion(inputId: string | undefined): boolean {
+		assetRevision();
+		return hasSupplementalAssetsForInputId(inputId);
 	}
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
@@ -118,14 +131,14 @@ export function FileListView(props: {
 
 	return (
 		<>
-			<div class="flex flex-col gap-2 mb-2">
-				<div class="flex items-center justify-end gap-2">
-					<div class="flex items-center gap-2 mr-auto self-center pl-1">
-						<span class="text-xs muted-text italic" id="file-count-display">
+			<div class="file-list-toolbar">
+				<div class="file-list-toolbar-row">
+					<div class="file-list-meta">
+						<span class="muted-text file-list-meta-text" id="file-count-display">
 							{view().fileCount} {view().fileCount === 1 ? 'file' : 'files'}
 						</span>
 						<span
-							class="text-xs muted-text italic"
+							class="muted-text file-list-meta-text"
 							id="file-order-lock"
 							style={{ display: view().orderLocked ? 'inline' : 'none' }}
 							data-testid="file-order-lock"
@@ -133,10 +146,8 @@ export function FileListView(props: {
 							Order locked while processing
 						</span>
 					</div>
-					<button
+					<Button
 						id="sort-toggle-btn"
-						class="btn-pill btn-pill-secondary"
-						type="button"
 						style={{ display: view().showSortButton ? 'block' : 'none' }}
 						disabled={view().orderLocked}
 						aria-label={`Sort files ${view().sortDirection === 'ascending' ? 'descending' : 'ascending'}`}
@@ -144,7 +155,7 @@ export function FileListView(props: {
 						onClick={() => toggleSort()}
 					>
 						{view().sortLabel}
-					</button>
+					</Button>
 					<span id="file-sort-status" class="sr-only" aria-live="polite">
 						{view().sortDirection === 'ascending'
 							? 'Files sorted from A to Z.'
@@ -152,30 +163,26 @@ export function FileListView(props: {
 								? 'Files sorted from Z to A.'
 								: 'Files are in import order.'}
 					</span>
-					<button
+					<Button
 						id="restore-import-order-btn"
-						class="btn-pill btn-pill-secondary"
-						type="button"
 						style={{ display: view().showRestoreImportOrder ? 'block' : 'none' }}
 						disabled={view().orderLocked}
 						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
-					</button>
-					<button
+					</Button>
+					<Button
 						id="clear-files-btn"
-						class="btn-pill btn-pill-secondary"
-						type="button"
 						style={{ display: view().showClearButton ? 'block' : 'none' }}
 						disabled={view().orderLocked}
 						onClick={() => clearAllFiles()}
 					>
 						Clear
-					</button>
+					</Button>
 				</div>
 			</div>
 			<section
-				class="file-management-container mb-3"
+				class="file-management-container"
 				aria-label="File list"
 				ref={(element) => props.fileManagementRef?.(element)}
 			>
@@ -187,10 +194,10 @@ export function FileListView(props: {
 					aria-label="Add audio files"
 					onClick={() => props.onHeaderClick()}
 				>
-					<span class="text-sm muted-text">
+					<span class="muted-text file-list-drop-hint">
 						Drop files or folders here, click to choose files, or use Add Folder
 					</span>
-					<span class="text-xs muted-text mt-1">{view().supportText}</span>
+					<span class="muted-text file-list-support">{view().supportText}</span>
 				</button>
 				<div
 					class="file-list-content"
@@ -251,13 +258,15 @@ export function FileListView(props: {
 												);
 											})()}
 										</div>
-										<div class={`file-status ${file.isValid ? 'text-green-500' : 'text-red-500'}`}>
+										<div
+											class={`file-status ${file.isValid ? 'file-status-valid' : 'file-status-invalid'}`}
+										>
 											{file.isValid ? '✓' : '✗'}
 										</div>
 										<div class="file-info">
 											<div class="file-name-row">
 												<div class="file-name">{displayedTitleForFile(file)}</div>
-												{hasSupplementalAssetsForInputId(file.inputId) ? (
+												{hasCompanion(file.inputId) ? (
 													<span class="companion-chip" title="Supplemental PDF attached">
 														PDF
 													</span>

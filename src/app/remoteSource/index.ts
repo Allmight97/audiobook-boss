@@ -25,6 +25,7 @@ export type { CompanionAssetSummary } from './sessionAssets';
 export {
 	companionSummaryForInputIds,
 	hasSupplementalAssetsForInputId,
+	subscribeRemoteSourceSupplementalAssets,
 	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
 	releaseRemoteSourceSessionRetainers,

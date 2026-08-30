@@ -1,6 +1,7 @@
 import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
 import type { JobListItem } from '../../app/processing';
 import { useAppRuntime } from '../../app/runtime';
+import { Button, Progress } from '../foundation';
 import type { EventStage } from '../../types/events';
 import './statusPanelView.css';
 
@@ -63,43 +64,30 @@ export function StatusPanelView(): JSX.Element {
 			<div class="status-panel-content">
 				<div class="art-thumbnail">
 					<Show when={view().coverArtDataUrl} fallback={<span>Art</span>}>
-						{(dataUrl) => (
-							<img
-								src={dataUrl()}
-								alt="Cover Art"
-								style={{
-									width: '100%',
-									height: '100%',
-									'object-fit': 'cover',
-									'border-radius': '0.25rem',
-								}}
-							/>
-						)}
+						{(dataUrl) => <img src={dataUrl()} alt="Cover Art" class="status-cover-image" />}
 					</Show>
 				</div>
 				<div class="progress-details">
-					<div class="flex justify-between mb-0.5">
-						<span class="text-xs">
+					<div class="status-progress-header">
+						<span class="status-progress-label">
 							Progress:{' '}
 							<span class="property-value" id="percentage-processed">
 								{view().progressPercentage.toFixed(1)}%
 							</span>
 						</span>
-						<span id="status-text" class="text-xs font-semibold">
+						<span id="status-text" class="status-text">
 							{view().statusText}
 						</span>
 					</div>
-					<div class="app-progress-track">
-						<div
-							id="progress-bar"
-							class="app-progress-fill progress-bar-fg"
-							style={{ width: `${view().progressPercentage}%` }}
-						/>
-					</div>
-					<div id="step-text" class="text-xs muted-text mt-0.5" style={{ color: view().stepColor }}>
+					<Progress
+						value={view().progressPercentage}
+						fillId="progress-bar"
+						class="status-progress"
+					/>
+					<div id="step-text" class="muted-text status-step" style={{ color: view().stepColor }}>
 						{view().stepText}
 					</div>
-					<div id="concurrency-status" class="text-xs muted-text mt-1">
+					<div id="concurrency-status" class="muted-text status-concurrency">
 						{view().concurrencyText}
 					</div>
 					<Show when={items().length > 0}>
@@ -170,23 +158,20 @@ export function StatusPanelView(): JSX.Element {
 					</div>
 				</div>
 				<div class="status-actions">
-					<button
+					<Button
 						id="process-button"
-						class="btn-pill btn-pill-primary"
-						type="button"
+						tone="primary"
 						onClick={() => void startProcessing(undefined)}
 					>
 						Start Processing
-					</button>
-					<button
+					</Button>
+					<Button
 						id="cancel-all-button"
-						class="btn-pill btn-pill-secondary"
-						type="button"
 						disabled={view().cancelAllPending || !view().isProcessing || !canCancelForeground()}
 						onClick={() => processing.cancelAll()}
 					>
 						Cancel
-					</button>
+					</Button>
 				</div>
 			</div>
 		</div>

@@ -11,9 +11,9 @@
 ## Public API Strip
 
 - Import session-asset coordination from `src/ui/remoteSource`.
-- Import acquire intents, view atoms, and the Input handoff result type from
+- Import acquire intents and the Input handoff result type from
   `src/app/remoteSource`.
-- `index.ts` is the export surface. Do not import `atoms.ts`, `workflow.ts`,
+- `index.ts` is the export surface. Do not import `workflow.ts`,
   `sessionAssets.ts`, or `state.ts` from outside this owner.
 
 ## Hard Invariants
@@ -21,20 +21,21 @@
 - Closing the dialog does not cancel an in-flight acquisition. Polling and
   selected hidden titles survive ordinary close. App disposal and native
   cancel/purge remain the cleanup authorities.
-- `runRemoteSourceActionAtom` publishes `remoteSourceViewAtom` on each
-  acquisition poll patch. Native jobs provide a progress snapshot from job
-  creation; `RemoteSourceAcquireView` renders its live percentage and Cancel.
+- Acquisition poll patches publish through the Remote Source owner view.
+  Native jobs provide a progress snapshot from job creation;
+  `RemoteSourceAcquireView` renders its live percentage and Cancel.
+  File List and the inspector subscribe to `subscribeRemoteSourceSupplementalAssets`
+  so PDF chips update after Input has already published the new files.
   Cancellation and app disposal invalidate the active acquisition generation
   so late Promise completions cannot overwrite terminal or reset state.
 - Materialized audio becomes a normal Input session through
-  `importIntentAtom`. Do not call `handleImportedAudioPaths` or
+  Input `importIntent`. Do not call `handleImportedAudioPaths` or
   `getCurrentFileList`. If Input import is blocked or fails, purge the staged
   remote session immediately.
 - Supplemental assets are keyed by the imported file `inputId`, not by
   provider path after handoff. Do not add a second file-list store.
-- `remoteSourceLifetimeAtom` purges sessions for input ids that leave the
-  public Input view. File Import must mount that atom so the subscription
-  stays alive.
+- Remote Source purges sessions for input ids that leave the public Input
+  view. File Import keeps that lifetime subscription alive.
 - Frontend state may hold provider-neutral account, title, job, and
   diagnostic text. It must not persist credentials, tokens, cookies, license
   material, or raw provider payloads.
@@ -44,12 +45,12 @@
 - `sessionAssets.test.ts` pins input-id rekey, companion summaries that omit
   paths, retainer deferral, and shared-job purge.
 - `workflow.test.ts` pins successful Input handoff, blocked-import purge,
-  close-does-not-cancel, and atom publish of polled `getAcquisitionStatus`
+  close-does-not-cancel, and publication of polled `getAcquisitionStatus`
   snapshots.
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
 - `selection.test.ts` pins filter/selection policy.
 - `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and
-  the polled Atom-to-Solid progress path.
+  the polled owner-to-Solid progress path.
 
 ## Breaking-Change Triggers
 

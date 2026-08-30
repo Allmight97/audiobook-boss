@@ -31,7 +31,7 @@ export function OutputView(): JSX.Element {
 					</div>
 					<button
 						id="output-dir-browse"
-						class="btn-pill btn-pill-primary-soft output-browse-button"
+						class="output-browse-button"
 						type="button"
 						onClick={() => void browse()}
 					>
@@ -40,20 +40,20 @@ export function OutputView(): JSX.Element {
 				</div>
 
 				<div class="output-options-panel">
-					<div class="path-option-row flex items-center gap-2">
-						<label for="output-naming-preset" class="text-xs mt-0">
+					<div class="path-option-row">
+						<label for="output-naming-preset" class="output-option-label">
 							Naming preset
 						</label>
 						<select
 							id="output-naming-preset"
-							class="w-auto min-w-40"
+							class="output-preset-select"
 							value={view().namingPreset}
 							onChange={(event) => selectPreset(event.currentTarget.value)}
 						>
 							<option value="absDefault">ABS Default</option>
 							<option value="customTemplate">Custom Template</option>
 						</select>
-						<div class="relative group">
+						<div class="group">
 							<div class="info-icon">i</div>
 							<div class="info-popover">
 								ABS Default keeps Audiobookshelf-compatible paths. Custom Template stores your draft
@@ -62,13 +62,13 @@ export function OutputView(): JSX.Element {
 						</div>
 					</div>
 					<div class="path-option-row" id="output-template-row" hidden={view().templateRowHidden}>
-						<label for="output-template-input" class="text-xs mt-0">
+						<label for="output-template-input" class="output-option-label">
 							Template
 						</label>
 						<input
 							id="output-template-input"
 							type="text"
-							class="w-full"
+							class="output-template-input"
 							value={view().namingTemplate}
 							placeholder={CUSTOM_TEMPLATE_PLACEHOLDER}
 							onInput={(event) => editTemplate(event.currentTarget.value)}
@@ -77,7 +77,7 @@ export function OutputView(): JSX.Element {
 						/>
 					</div>
 					<div class="path-option-row" id="output-abs-options">
-						<label class="checkbox-label text-xs mt-0">
+						<label class="checkbox-label tight">
 							<input
 								type="checkbox"
 								id="output-abs-include-year"
@@ -86,7 +86,7 @@ export function OutputView(): JSX.Element {
 							/>
 							Include year segment (YYYY)
 						</label>
-						<span id="output-abs-hint" class="text-xs muted-text" hidden={view().absHintHidden}>
+						<span id="output-abs-hint" class="muted-text" hidden={view().absHintHidden}>
 							{view().absHintText}
 						</span>
 					</div>

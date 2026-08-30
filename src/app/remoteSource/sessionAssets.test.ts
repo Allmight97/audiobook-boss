@@ -129,6 +129,17 @@ describe('remote source session assets', () => {
 		resetRemoteSourceSessionAssets();
 	});
 
+	it('notifies subscribers when supplemental assets are registered', async () => {
+		const module = await import('./sessionAssets');
+		const listener = vi.fn();
+		const unsubscribe = module.subscribeRemoteSourceSupplementalAssets(listener);
+
+		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		unsubscribe();
+	});
+
 	it('rekeys provider supplemental assets to the imported file input id', async () => {
 		const module = await import('./sessionAssets');
 

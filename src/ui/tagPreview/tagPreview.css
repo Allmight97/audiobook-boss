@@ -2,6 +2,10 @@
 	min-width: 0;
 }
 
+.tag-grid-full {
+	margin-bottom: var(--space-2);
+}
+
 .tag-compact-table {
 	overflow: hidden;
 	border: 1px solid var(--border-primary);

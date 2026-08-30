@@ -30,11 +30,15 @@ export function makeProductionLookupServices(
 		getMetadataForFile,
 		stageMetadataIntentPatch,
 		selectFile: async (index, modifiers, options) => {
-			await deps.input.selectFile({
+			const changed = await deps.input.selectFile({
 				index,
 				modifiers: modifiers ?? { multi: false, range: false },
 				skipPersistPrevious: options?.skipPersistPrevious,
 			});
+			if (changed === false) {
+				return;
+			}
+			await deps.metadata.hydrateSelection(document.activeElement);
 		},
 		applyMetadataToForm: (metadata: Partial<AudiobookMetadata>) => {
 			deps.metadata.applyLookupMetadata(metadata);

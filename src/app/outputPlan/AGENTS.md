@@ -10,19 +10,17 @@
 ## Public API Strip
 
 - Import Output Plan runtime symbols from `src/app/outputPlan`.
-  `createOutputOwner` is the Solid plan factory. Atom helpers stay exported
-  for the leftover UI/runtime path.
+  `createOutputOwner` is the Solid plan factory.
 - Workbench callers that only need the composed UI strip import
   `src/ui/outputPanel` instead.
-- `index.ts` is the export surface. Do not import `atoms.ts`, `owner.ts`,
-  `bind.ts`, `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside
-  this owner.
+- `index.ts` is the export surface. Do not import `owner.ts`, `bind.ts`,
+  `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside this owner.
 
 ## Hard Invariants
 
 - Estimated size is a derived view of public Input duration
   (`input.view().totalDurationSeconds`), encoder `encodingRequest` channels,
-  and `encodingEstimateKbps`. Do not read private Input/encoder atoms, sample
+  and `encodingEstimateKbps`. Do not read private Input/encoder state, sample
   `readEncodingRequestConfig()`, parse the encoder `Est: ~60 kbps` label, or
   cache a mirrored byte size.
 - Keep `estimateEncodedSizeBytes` as: non-positive duration → 0; bytes =
@@ -41,9 +39,7 @@
 - Collision review is a separate preflight/review workflow
   (`runOutputPlanReviewWorkflow`). Do not fold it into path-preview freshness.
 - App Settings hydration passes resolved `outputDefaults` through
-  `applyDefaults` on the bound owner. `applyOutputDefaultsFromSettings` remains
-  for the leftover Atom UI/runtime path and forwards to the bound owner when
-  one exists.
+  `applyDefaults` on the bound owner.
 - Submit composition stays at `readOutputRequestConfig()` /
   `readProcessingRequestConfig()`. Those are getters, not poke APIs. Do not
   restore `updateOutputPath` or `updateEstimatedSize`.
@@ -55,7 +51,7 @@
 - `outputPlan.test.ts` pins hydration, derived estimate (including FDK VBR
   quality vs sticky request `bitrateKbps`), template debounce, preview
   draft/source-path projection, and collision resolve/cancel. Duration comes
-  from `runtime.input.replaceSession`, not `inputSessionAtom`.
+  from `runtime.input.replaceSession`.
 - `workflow.test.ts` pins stale preview suppression and review approve /
   cancel / hard-block.
 

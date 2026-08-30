@@ -21,9 +21,9 @@
 
 ## Cross-Strip Coupling
 
-- `OutputView` reads `outputViewAtom` and mounts `outputPathPreviewAtom`.
-- Estimated size is rendered in the encoder header from
-  `estimatedSizeTextAtom`; do not add a second estimate readout here.
+- `OutputView` reads Output Plan `view`.
+- Estimated size is rendered in the encoder header from Output Plan. Do not
+  add a second estimate readout here.
 
 ## Breaking-Change Triggers
 

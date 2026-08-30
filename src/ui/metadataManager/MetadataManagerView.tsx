@@ -27,13 +27,17 @@ export function MetadataManagerView(): JSX.Element {
 			</div>
 			<div
 				id="metadata-selection-count"
-				class="text-xs muted-text mb-2"
+				class="muted-text metadata-selection-count"
 				hidden={snapshot().mode !== 'multi' || snapshot().selectionCount <= 1}
 			>
 				{snapshot().selectionCount} files selected
 			</div>
 			<Show when={view().statusMessage}>
-				<p class="text-xs muted-text mb-2" data-testid="metadata-status-message" role="status">
+				<p
+					class="muted-text metadata-status-message"
+					data-testid="metadata-status-message"
+					role="status"
+				>
 					{view().statusMessage}
 				</p>
 			</Show>

@@ -9,6 +9,7 @@ const EXPECTED_REMOTE_SOURCE_EXPORTS = [
 	'registerRemoteSourceSupplementalAssets',
 	'releaseRemoteSourceSessionRetainers',
 	'retainRemoteSourceSessionsForInputIds',
+	'subscribeRemoteSourceSupplementalAssets',
 	'supplementalAssetsByInputIdForProcessing',
 ] as const;
 

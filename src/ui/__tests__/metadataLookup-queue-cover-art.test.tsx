@@ -246,7 +246,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		await importAndSelectAll(runtime);
 		await userEvent.click(document.getElementById('metadata-lookup-btn') as HTMLElement);
 		await waitFor(() => {
-			expect(document.querySelector('.app-modal-empty')?.textContent ?? '').toContain(
+			expect(document.body.textContent ?? '').toContain(
 				'Older CD-era or rare audiobook editions may not be indexed.',
 			);
 		});
@@ -278,7 +278,9 @@ describe('metadata lookup queue cover art isolation', () => {
 		await waitFor(() => {
 			expect(getStatusText()).toBe('Search failed. Check your query and try again.');
 		});
-		expect(document.querySelector('.app-modal-empty')).toBeNull();
+		expect(document.body.textContent ?? '').not.toContain(
+			'Older CD-era or rare audiobook editions may not be indexed.',
+		);
 		expect(document.getElementById('metadata-lookup-manual-entry-btn')).toBeNull();
 		expect(document.querySelector("#metadata-lookup-results button[data-index='0']")).toBeNull();
 	});

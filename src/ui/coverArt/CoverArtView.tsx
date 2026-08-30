@@ -61,12 +61,12 @@ export function CoverArtView(): JSX.Element {
 	const hasImage = () => Boolean(cover().imageDataUrl);
 
 	return (
-		<div class="col-span-1 flex flex-col items-center">
-			<span class="text-xs font-medium mb-1">Cover Art</span>
+		<div class="cover-art">
+			<span class="cover-art-label">Cover Art</span>
 			{/* biome-ignore lint/a11y/useSemanticElements: cover drop target plus nested clear control */}
 			<div
 				id="cover-art-area"
-				class="cover-art-area mb-1"
+				class="cover-art-area"
 				classList={{
 					'has-image': hasImage(),
 					loading: cover().isLoading,
@@ -96,7 +96,7 @@ export function CoverArtView(): JSX.Element {
 					src={cover().imageDataUrl ?? ''}
 					alt="Book Cover Art"
 					id="cover-art-img"
-					classList={{ hidden: !hasImage() }}
+					hidden={!hasImage()}
 				/>
 				<div class="cover-art-loading" id="cover-art-loading">
 					Loading...

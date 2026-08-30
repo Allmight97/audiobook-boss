@@ -6,7 +6,7 @@ import {
 	subscribeCollisionView,
 } from '../../app/outputPlan';
 import { pathBasename } from '../../lib/path/basename';
-import { Dialog } from '../../lib/ui/Dialog';
+import { Button, Dialog } from '../foundation';
 import type { OutputCollisionKind, PlannedOutput } from '../../types/audio';
 import './collisionDialog.css';
 
@@ -59,21 +59,19 @@ export function CollisionDialogView(): JSX.Element {
 			labelledBy="collision-dialog-title"
 			testId="collision-dialog-modal"
 		>
-			<div class="app-modal-header">
+			<Dialog.Header>
 				<h3 id="collision-dialog-title">{view().title}</h3>
-				<button
+				<Button
 					id="collision-dialog-close"
-					class="btn-pill btn-pill-secondary"
 					data-testid="collision-dialog-close"
-					type="button"
 					onClick={cancelCollisionDialog}
 				>
 					Cancel
-				</button>
-			</div>
+				</Button>
+			</Dialog.Header>
 
-			<div class="app-modal-body">
-				<p id="collision-dialog-body" class="text-xs muted-text">
+			<Dialog.Body>
+				<p id="collision-dialog-body" class="muted-text">
 					{view().body}
 				</p>
 
@@ -108,51 +106,44 @@ export function CollisionDialogView(): JSX.Element {
 
 				<div class="app-modal-controls collision-dialog-controls">
 					<div class="app-modal-field app-modal-field-button">
-						<button
+						<Button
 							id="collision-dialog-replace"
-							class="btn-pill btn-pill-primary"
+							tone="primary"
 							data-testid="collision-dialog-replace"
-							type="button"
 							onClick={() => chooseCollisionPolicy('replace_existing')}
 						>
 							Overwrite Existing
-						</button>
+						</Button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button
+						<Button
 							id="collision-dialog-skip"
-							class="btn-pill btn-pill-secondary"
 							data-testid="collision-dialog-skip"
-							type="button"
 							onClick={() => chooseCollisionPolicy('skip_existing')}
 						>
 							Skip Existing
-						</button>
+						</Button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button
+						<Button
 							id="collision-dialog-rename"
-							class="btn-pill btn-pill-secondary"
 							data-testid="collision-dialog-rename"
-							type="button"
 							onClick={() => chooseCollisionPolicy('rename_new')}
 						>
 							Keep Existing
-						</button>
+						</Button>
 					</div>
 					<div class="app-modal-field app-modal-field-button">
-						<button
+						<Button
 							id="collision-dialog-cancel"
-							class="btn-pill btn-pill-secondary"
 							data-testid="collision-dialog-cancel"
-							type="button"
 							onClick={cancelCollisionDialog}
 						>
 							Cancel
-						</button>
+						</Button>
 					</div>
 				</div>
-			</div>
+			</Dialog.Body>
 		</Dialog>
 	);
 }

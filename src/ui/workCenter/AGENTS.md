@@ -11,8 +11,7 @@
 
 - Import from `src/ui/workCenter`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- Exports: `WorkCenterView`, `initializeWorkCenter`, `workCenterState`,
-  `workOperationsViewAtom`.
+- Exports: `WorkCenterView`, `initializeWorkCenter`, `workCenterState`.
 
 ## Private Cluster
 
@@ -20,8 +19,8 @@
 
 ## Cross-Strip Coupling
 
-- `WorkCenterView` reads `workOperationsViewAtom` and calls
-  `cancelWorkOperation` / `openChildSource`.
+- `WorkCenterView` reads Work Operations `view` and calls
+  `workOperations.cancel`.
 - Do not add a local operation store or subscribe to `processing-progress`.
 
 ## Breaking-Change Triggers

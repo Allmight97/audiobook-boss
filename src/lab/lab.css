@@ -142,3 +142,23 @@
 	font-family: var(--font-mono);
 	font-size: var(--text-sm);
 }
+
+.lab code {
+	font-size: var(--text-xs);
+}
+
+.lab-control {
+	max-width: 200px;
+}
+
+.lab-progress {
+	flex: 1;
+}
+
+.lab-cover-large {
+	--cover-thumb-size: 6rem;
+}
+
+.lab-empty-action {
+	margin-top: var(--space-2);
+}

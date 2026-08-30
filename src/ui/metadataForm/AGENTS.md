@@ -15,7 +15,7 @@
 
 ## Hard Invariants
 
-- Do not add a parallel form store beside `metadataViewAtom`.
+- Do not add a parallel form store beside Metadata Session.
 - Metadata Form does not own intent staging, backend validation, lookup queue
   truth, or cover-art bytes.
 

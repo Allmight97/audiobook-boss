@@ -1,5 +1,29 @@
+.metadata-form-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	column-gap: 0.75rem;
+	row-gap: 0.375rem;
+}
+
+.metadata-span-1 {
+	grid-column: span 1;
+}
+
+.metadata-span-2 {
+	grid-column: span 2;
+}
+
+.metadata-span-3 {
+	grid-column: span 3;
+}
+
+.metadata-span-4 {
+	grid-column: span 4;
+}
+
 .warning-text {
 	margin-top: 0.25rem;
+	font-size: var(--text-xs);
 	color: #d97706;
 }
 

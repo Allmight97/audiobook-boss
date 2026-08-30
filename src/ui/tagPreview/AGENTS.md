@@ -17,7 +17,7 @@
 
 ## Cross-Strip Coupling
 
-- `TagPreviewView` reads `metadataViewAtom.tags` from Metadata Session.
+- `TagPreviewView` reads Metadata Session `view().tags`.
 - TSOA calculation and tag-field projection live in
   `src/app/metadataSession/tags.ts`. Do not add a local tag store, refresh
   function, or listener that copies those values.

@@ -1,4 +1,5 @@
 import { createSignal, For, type JSX } from 'solid-js';
+import { Button, CoverThumb, Dialog, Progress } from '../ui/foundation';
 import './lab.css';
 
 const colorTokens = [
@@ -55,35 +56,25 @@ export function Lab(): JSX.Element {
 			<header class="lab-header panel">
 				<div>
 					<h2>ABB design lab</h2>
-					<p class="text-xs muted-text">
-						Dev-only rendering surface for tokens and primitives (#412 slice 1). Not part of the app
-						build — open at /lab.html on the Vite dev server.
+					<p class="muted-text">
+						Dev-only rendering surface for tokens and primitives. Not part of the app build. Open at
+						/lab.html on the Vite dev server.
 					</p>
 				</div>
 				<fieldset class="lab-density">
 					<legend>Density</legend>
-					<button
-						class="btn-pill"
-						classList={{
-							'btn-pill-primary': density() === 'comfortable',
-							'btn-pill-secondary': density() !== 'comfortable',
-						}}
-						type="button"
+					<Button
+						tone={density() === 'comfortable' ? 'primary' : 'secondary'}
 						onClick={() => setDensity('comfortable')}
 					>
 						Comfortable
-					</button>
-					<button
-						class="btn-pill"
-						classList={{
-							'btn-pill-primary': density() === 'compact',
-							'btn-pill-secondary': density() !== 'compact',
-						}}
-						type="button"
+					</Button>
+					<Button
+						tone={density() === 'compact' ? 'primary' : 'secondary'}
 						onClick={() => setDensity('compact')}
 					>
 						Compact
-					</button>
+					</Button>
 				</fieldset>
 			</header>
 
@@ -94,7 +85,7 @@ export function Lab(): JSX.Element {
 						{(token) => (
 							<div class="lab-swatch">
 								<div class="lab-swatch-chip" style={{ background: `var(${token})` }} />
-								<code class="text-xs">{token}</code>
+								<code>{token}</code>
 							</div>
 						)}
 					</For>
@@ -105,33 +96,33 @@ export function Lab(): JSX.Element {
 				<h3>Scale tokens</h3>
 				<div class="lab-scale-grid">
 					<div>
-						<h4 class="text-xs muted-text">Spacing</h4>
+						<h4 class="muted-text">Spacing</h4>
 						<For each={spaceTokens}>
 							{(token) => (
 								<div class="lab-space-row">
-									<code class="text-xs">{token}</code>
+									<code>{token}</code>
 									<div class="lab-space-bar" style={{ width: `var(${token})` }} />
 								</div>
 							)}
 						</For>
 					</div>
 					<div>
-						<h4 class="text-xs muted-text">Type</h4>
+						<h4 class="muted-text">Type</h4>
 						<For each={typeTokens}>
 							{(token) => (
 								<div style={{ 'font-size': `var(${token})` }}>
-									Aa — the quick brown fox <code class="text-xs">{token}</code>
+									Aa — the quick brown fox <code>{token}</code>
 								</div>
 							)}
 						</For>
 					</div>
 					<div>
-						<h4 class="text-xs muted-text">Radius</h4>
+						<h4 class="muted-text">Radius</h4>
 						<div class="lab-radius-row">
 							<For each={radiusTokens}>
 								{(token) => (
 									<div class="lab-radius-chip" style={{ 'border-radius': `var(${token})` }}>
-										<code class="text-xs">{token.replace('--radius-', '')}</code>
+										<code>{token.replace('--radius-', '')}</code>
 									</div>
 								)}
 							</For>
@@ -143,40 +134,32 @@ export function Lab(): JSX.Element {
 			<section class="panel lab-section">
 				<h3>Buttons and form controls</h3>
 				<div class="lab-row">
-					<button class="btn-pill btn-pill-primary" type="button">
-						Primary
-					</button>
-					<button class="btn-pill btn-pill-secondary" type="button">
-						Secondary
-					</button>
-					<button class="btn-pill btn-pill-secondary" type="button" disabled>
-						Disabled
-					</button>
-					<label class="checkbox-label text-xs mb-0">
+					<Button tone="primary">Primary</Button>
+					<Button>Secondary</Button>
+					<Button disabled>Disabled</Button>
+					<label class="checkbox-label tight">
 						<input type="checkbox" checked />
 						<span class="option-label">Checkbox label</span>
 					</label>
-					<input type="text" placeholder="Text input" style={{ 'max-width': '200px' }} />
-					<select style={{ 'max-width': '200px' }}>
+					<input type="text" placeholder="Text input" class="lab-control" />
+					<select class="lab-control">
 						<option>Select option</option>
 					</select>
 				</div>
 			</section>
 
 			<section class="panel lab-section">
-				<h3>Progress (app-progress-track / app-progress-fill)</h3>
+				<h3>Progress</h3>
 				<div class="lab-stack">
 					<For each={progressStops}>
 						{(stop) => (
 							<div class="lab-progress-row">
-								<code class="text-xs lab-progress-label">{stop}%</code>
-								<div class="app-progress-track" style={{ flex: '1' }}>
-									<div class="app-progress-fill" style={{ width: `${stop}%` }} />
-								</div>
+								<code class="lab-progress-label">{stop}%</code>
+								<Progress value={stop} class="lab-progress" />
 							</div>
 						)}
 					</For>
-					<p class="text-xs muted-text">
+					<p class="muted-text">
 						One track height for Status Panel, Work Center, and Remote Source. Status Panel layers
 						its shimmer fill locally on the same primitive.
 					</p>
@@ -184,31 +167,29 @@ export function Lab(): JSX.Element {
 			</section>
 
 			<section class="panel lab-section">
-				<h3>Cover thumbnail (app-cover-thumb)</h3>
+				<h3>Cover thumbnail</h3>
 				<div class="lab-row">
-					<div class="app-cover-thumb">
+					<CoverThumb>
 						<span>No Art</span>
-					</div>
-					<div class="app-cover-thumb">
+					</CoverThumb>
+					<CoverThumb>
 						<span>Loading…</span>
-					</div>
-					<div class="app-cover-thumb" style={{ '--cover-thumb-size': '6rem' }}>
+					</CoverThumb>
+					<CoverThumb class="lab-cover-large">
 						<span>6rem via token</span>
-					</div>
+					</CoverThumb>
 				</div>
 			</section>
 
 			<section class="panel lab-section">
-				<h3>Modal status and empty state</h3>
+				<h3>Dialog status and empty state</h3>
 				<div class="lab-stack">
-					<div class="app-modal-status text-xs">Neutral status message.</div>
-					<div class="app-modal-status is-error text-xs">Something failed — error variant.</div>
-					<div class="app-modal-status is-success text-xs">Applied — success variant.</div>
+					<Dialog.Status>Neutral status message.</Dialog.Status>
+					<Dialog.Status tone="error">Something failed — error variant.</Dialog.Status>
+					<Dialog.Status tone="success">Applied — success variant.</Dialog.Status>
 					<div class="app-modal-empty">
 						<p>Empty state body copy teaching the surface.</p>
-						<button class="btn-pill btn-pill-secondary mt-2" type="button">
-							Suggested action
-						</button>
+						<Button class="lab-empty-action">Suggested action</Button>
 					</div>
 				</div>
 			</section>
@@ -224,8 +205,8 @@ export function Lab(): JSX.Element {
 							</div>
 						)}
 					</For>
-					<p class="text-xs muted-text">
-						Row height, padding, and text size read the density tokens — flip the switch above.
+					<p class="muted-text">
+						Row height, padding, and text size read the density tokens. Flip the switch above.
 					</p>
 				</div>
 			</section>

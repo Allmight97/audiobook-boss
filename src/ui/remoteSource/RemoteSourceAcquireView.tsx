@@ -17,7 +17,7 @@ import {
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
 import { tauriClient } from '../../lib/tauri/client';
-import { Dialog } from '../../lib/ui/Dialog';
+import { Button, CoverThumb, Dialog, Progress } from '../foundation';
 import type { RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
 
@@ -35,11 +35,7 @@ function RemoteTitleCover(props: {
 	};
 
 	return (
-		<div
-			class="app-cover-thumb remote-title-cover"
-			role="presentation"
-			data-testid="remote-title-cover"
-		>
+		<CoverThumb class="remote-title-cover" testId="remote-title-cover">
 			<Show
 				when={props.title.coverUrl}
 				fallback={<span data-testid="remote-title-cover-missing">No Art</span>}
@@ -63,7 +59,7 @@ function RemoteTitleCover(props: {
 					/>
 				</Show>
 			</Show>
-		</div>
+		</CoverThumb>
 	);
 }
 
@@ -120,32 +116,25 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			labelledBy="remote-source-title"
 			testId="remote-source-modal"
 		>
-			<div class="app-modal-header">
+			<Dialog.Header>
 				<h3 id="remote-source-title">Acquire Audiobooks</h3>
 				<div class="remote-source-header-actions">
 					<Show when={view().accountState?.status === 'connected'}>
-						<button
-							class="btn-pill btn-pill-secondary"
-							disabled={view().isBusy}
-							type="button"
-							onClick={() => void runAction({ type: 'logout' })}
-						>
+						<Button disabled={view().isBusy} onClick={() => void runAction({ type: 'logout' })}>
 							Logout
-						</button>
+						</Button>
 					</Show>
-					<button
+					<Button
 						id="remote-source-close"
-						class="btn-pill btn-pill-secondary"
 						data-testid="remote-source-close"
-						type="button"
 						onClick={() => close()}
 					>
 						Close
-					</button>
+					</Button>
 				</div>
-			</div>
+			</Dialog.Header>
 
-			<div class="app-modal-body">
+			<Dialog.Body>
 				<div class="app-modal-controls">
 					<div class="app-modal-field">
 						<label for="remote-source-provider">Source</label>
@@ -159,14 +148,13 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						fallback={
 							<>
 								<div class="app-modal-field app-modal-field-button">
-									<button
-										class="btn-pill btn-pill-primary"
+									<Button
+										tone="primary"
 										disabled={view().isBusy}
-										type="button"
 										onClick={() => void runAction({ type: 'startAuth' })}
 									>
 										Connect Audible
-									</button>
+									</Button>
 								</div>
 								<div class="app-modal-field remote-source-handoff">
 									<label for="remote-source-handoff">Auth Handoff</label>
@@ -179,37 +167,32 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									/>
 								</div>
 								<div class="app-modal-field app-modal-field-button">
-									<button
-										class="btn-pill btn-pill-secondary"
+									<Button
 										disabled={view().isBusy}
-										type="button"
 										onClick={() => void runAction({ type: 'completeAuth' })}
 									>
 										Complete Auth
-									</button>
+									</Button>
 								</div>
 							</>
 						}
 					>
 						<div class="app-modal-field app-modal-field-button">
-							<button
-								class="btn-pill btn-pill-secondary"
+							<Button
 								disabled={view().isBusy}
-								type="button"
 								onClick={() => void runAction({ type: 'loadLibrary' })}
 							>
 								Refresh Library
-							</button>
+							</Button>
 						</div>
 						<div class="app-modal-field app-modal-field-button">
-							<button
-								class="btn-pill btn-pill-primary"
+							<Button
+								tone="primary"
 								disabled={view().isBusy || view().selectedTitleIds.size === 0}
-								type="button"
 								onClick={() => void runAction({ type: 'acquireSelected' })}
 							>
 								Acquire Selected
-							</button>
+							</Button>
 						</div>
 						<div class="app-modal-field remote-source-filter">
 							<label for="remote-source-filter">Filter</label>
@@ -222,7 +205,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							/>
 						</div>
 						<div class="app-modal-field app-modal-field-toggle remote-source-pdf-filter">
-							<label class="checkbox-label text-xs mb-0">
+							<label class="checkbox-label tight">
 								<input
 									type="checkbox"
 									checked={view().showSupplementalPdfOnly}
@@ -234,7 +217,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							</label>
 						</div>
 						<div class="app-modal-field app-modal-field-toggle remote-source-availability-filter">
-							<label class="checkbox-label text-xs mb-0">
+							<label class="checkbox-label tight">
 								<input
 									type="checkbox"
 									checked={view().hideUnavailableTitles}
@@ -249,9 +232,9 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				</div>
 
 				<Show when={view().statusMessage}>
-					<div class="remote-source-status app-modal-status text-xs" aria-live="polite">
+					<Dialog.Status class="remote-source-status" live="polite">
 						{view().statusMessage}
-					</div>
+					</Dialog.Status>
 				</Show>
 
 				<Show when={view().accountState?.status === 'connected'}>
@@ -275,19 +258,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						<Show when={job().progress}>
 							{(progress) => (
 								<div class="remote-progress" role="status" aria-live="polite">
-									<div
-										class="app-progress-track"
-										role="progressbar"
-										aria-label="Acquisition progress"
-										aria-valuemin={0}
-										aria-valuemax={100}
-										aria-valuenow={Math.round(progressPercent(job()))}
-									>
-										<span
-											class="app-progress-fill"
-											style={{ width: `${progressPercent(job())}%` }}
-										/>
-									</div>
+									<Progress value={progressPercent(job())} label="Acquisition progress" />
 									<div class="remote-progress-copy">
 										<span>{progressTitleLabel(progress(), view().titles)}</span>
 										<span>{Math.round(progressPercent(job()))}%</span>
@@ -296,13 +267,12 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										{(label) => <p class="remote-progress-bytes">{label()}</p>}
 									</Show>
 									<Show when={!isAcquisitionTerminal(job())}>
-										<button
-											class="btn-pill btn-pill-secondary remote-progress-cancel"
-											type="button"
+										<Button
+											class="remote-progress-cancel"
 											onClick={() => void runAction({ type: 'cancelActiveAcquisition' })}
 										>
 											Cancel Acquisition
-										</button>
+										</Button>
 									</Show>
 								</div>
 							)}
@@ -380,7 +350,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						</For>
 					</div>
 				</Show>
-			</div>
+			</Dialog.Body>
 		</Dialog>
 	);
 }

@@ -1,5 +1,6 @@
 import { For, type JSX } from 'solid-js';
 import { useAppRuntime } from '../../app/runtime';
+import './jobControls.css';
 
 export function ConcurrencyControl(): JSX.Element {
 	const settings = useAppRuntime().settings;
@@ -7,15 +8,11 @@ export function ConcurrencyControl(): JSX.Element {
 	const setSelection = settings.setConcurrencySelection;
 
 	return (
-		<div class="flex items-center gap-1" title="Concurrent Jobs">
-			<span class="text-xs muted-text whitespace-nowrap">Number of Jobs:</span>
+		<div class="concurrency-control" title="Concurrent Jobs">
+			<span class="concurrency-label">Number of Jobs:</span>
 			<select
 				id="max-concurrent-select"
-				class="text-xs w-14 px-1 py-0.5"
-				style={{
-					height: '24px',
-					opacity: view().controlsEnabled ? 1 : 0.5,
-				}}
+				class="concurrency-select"
 				value={view().selection}
 				disabled={!view().controlsEnabled}
 				onChange={(event) => void setSelection(event.currentTarget.value)}
@@ -27,7 +24,7 @@ export function ConcurrencyControl(): JSX.Element {
 			</select>
 			<span
 				id="max-concurrent-effective"
-				class="text-xs muted-text"
+				class="concurrency-effective"
 				aria-live="polite"
 				data-testid="max-concurrent-effective"
 			>

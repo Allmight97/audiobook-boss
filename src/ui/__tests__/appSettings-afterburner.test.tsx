@@ -6,7 +6,7 @@ import {
 } from '../../app/appSettings';
 import { AppSettingsDialogView } from '../appSettings/AppSettingsDialogView';
 import { readFdkAfterburner } from '../encoderPanel';
-import { resetEncoderPanelState } from '../encoderPanel/state';
+import { applyEncoderDefaults, resetEncoderPanelState } from '../encoderPanel/state';
 
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
@@ -44,6 +44,28 @@ describe('App Settings afterburner control', () => {
 
 		await vi.waitFor(() => {
 			expect(readFdkAfterburner()).toBe(false);
+		});
+	});
+
+	it('reflects encoder hydration after the dialog has already mounted', async () => {
+		render(() => <AppSettingsDialogView />);
+
+		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
+		expect(checkbox?.checked).toBe(true);
+
+		applyEncoderDefaults({
+			settings: {
+				encoderType: 'auto',
+				bitrateKbps: 64,
+				bitrateMode: { mode: 'vbr', value: 3 },
+				channels: 'auto',
+				afterburner: false,
+			},
+			sampleRate: 'auto',
+		});
+
+		await vi.waitFor(() => {
+			expect(checkbox?.checked).toBe(false);
 		});
 	});
 });

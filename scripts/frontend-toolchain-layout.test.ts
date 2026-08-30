@@ -159,6 +159,39 @@ describe('frontend toolchain layout', () => {
 		expect(packageImportHits(importsAtomSolid)).toEqual([]);
 	});
 
+	it('does not import Tailwind packages from ABB src/ or scripts/', () => {
+		const hits = packageImportHits((source) =>
+			/\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"](?:tailwindcss|@tailwindcss\/vite)(?:\/[^'"]*)?['"]/.test(
+				source,
+			),
+		);
+		expect(hits).toEqual([]);
+	});
+
+	it('keeps Tailwind out of package.json', () => {
+		const pkg = readPackageManifest();
+		expect(pkg.devDependencies.tailwindcss).toBeUndefined();
+		expect(pkg.devDependencies['@tailwindcss/vite']).toBeUndefined();
+	});
+
+	it('does not import foundation internals from outside foundation', () => {
+		const foundationRoot = path.normalize(path.join(repoRoot, 'src/ui/foundation'));
+		const hits: string[] = [];
+		for (const file of collectSourceFiles(path.join(repoRoot, 'src'))) {
+			const normalized = path.normalize(file);
+			if (normalized.startsWith(`${foundationRoot}${path.sep}`)) continue;
+			const source = readFileSync(file, 'utf8');
+			if (
+				/\b(?:from\s+|import\s*\(\s*)['"][^'"]*ui\/foundation\/internal(?:\/[^'"]*)?['"]/.test(
+					source,
+				)
+			) {
+				hits.push(path.relative(repoRoot, file));
+			}
+		}
+		expect(hits).toEqual([]);
+	});
+
 	it('treats Effect package root and subpath specifiers as the same family', () => {
 		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
 		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);

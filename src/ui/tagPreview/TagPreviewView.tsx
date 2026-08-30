@@ -68,7 +68,7 @@ export function TagPreviewView(props: { readonly variant?: 'full' | 'workbench' 
 			</button>
 		</div>
 	) : (
-		<div class="tag-grid mb-2">
+		<div class="tag-grid tag-grid-full">
 			<div class="tag-column">
 				<For each={leftRows}>
 					{(row) => (

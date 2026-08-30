@@ -1,3 +1,12 @@
+.metadata-lookup-empty-hint {
+	margin-top: var(--space-2);
+	font-size: var(--text-xs);
+}
+
+.metadata-lookup-manual-entry {
+	margin-top: var(--space-2);
+}
+
 .metadata-lookup-details {
 	min-width: 0;
 }

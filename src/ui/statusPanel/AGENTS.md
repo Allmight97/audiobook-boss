@@ -3,9 +3,8 @@
 ## Scope
 
 - Solid Status Panel view under `src/ui/statusPanel/`.
-- Preview submit, status runtime, and the status view atom live in
-  `src/app/processing`. This owner renders that view and re-exports the leftover
-  UI strip processing callers still import.
+- Preview submit and status runtime live in `src/app/processing`. This owner
+  renders that view.
 
 ## Public API Strip
 
@@ -21,8 +20,8 @@
 
 ## Cross-Strip Coupling
 
-- `StatusPanelView` reads `statusViewAtom` and submits through
-  `startProcessingAtom`.
+- `StatusPanelView` reads Processing `status` and submits through
+  `processing.start`.
 - Do not add a local status store or restore `updateStatusPanelConcurrencyStatus`.
 
 ## Breaking-Change Triggers

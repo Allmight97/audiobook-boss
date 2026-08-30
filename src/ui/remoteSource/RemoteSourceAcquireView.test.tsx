@@ -87,7 +87,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 
-	it('renders polled acquisition progress published through the Atom action', async () => {
+	it('renders polled acquisition progress published through the owner view', async () => {
 		const terminalStatus = createDeferred<AcquisitionJob>();
 		vi.spyOn(tauriClient, 'startRemoteSourceAcquisition').mockResolvedValue(acquisitionJob(10));
 		vi.spyOn(tauriClient, 'getRemoteSourceAcquisitionStatus')

@@ -6,8 +6,10 @@ import {
 import { useAppRuntime } from '../../app/runtime';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
+import { Button } from '../foundation';
 import { FileListView } from '../fileList/FileListView';
 import { RemoteSourceAcquireView } from '../remoteSource/RemoteSourceAcquireView';
+import './fileImport.css';
 
 export function FileImportView(): JSX.Element {
 	const runtime = useAppRuntime();
@@ -83,27 +85,17 @@ export function FileImportView(): JSX.Element {
 
 	return (
 		<>
-			<div class="flex items-center justify-end gap-2 mb-2">
-				<button
-					id="add-folder-btn"
-					class="btn-pill btn-pill-secondary"
-					type="button"
-					onClick={() => importIntent({ type: 'pickFolder' })}
-				>
+			<div class="file-import-actions">
+				<Button id="add-folder-btn" onClick={() => importIntent({ type: 'pickFolder' })}>
 					Add Folder
-				</button>
-				<button
-					id="acquire-audiobooks-btn"
-					class="btn-pill btn-pill-secondary"
-					type="button"
-					onClick={() => openRemoteSourceAcquire()}
-				>
+				</Button>
+				<Button id="acquire-audiobooks-btn" onClick={() => openRemoteSourceAcquire()}>
 					Import from Library
-				</button>
+				</Button>
 			</div>
 			<Show when={view().errorMessage}>
 				{(message) => (
-					<div id="file-import-error" class="error-message mb-3" style={{ display: 'block' }}>
+					<div id="file-import-error" class="file-import-error">
 						{message()}
 					</div>
 				)}

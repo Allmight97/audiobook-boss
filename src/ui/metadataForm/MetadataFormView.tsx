@@ -1,13 +1,14 @@
 import { For, type JSX } from 'solid-js';
 import { METADATA_FIELD_DEFINITIONS } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
+import { Button } from '../foundation';
 import './metadataForm.css';
 
 const FIELD_SPAN_CLASS = {
-	1: 'col-span-1',
-	2: 'col-span-2',
-	3: 'col-span-3',
-	4: 'col-span-4',
+	1: 'metadata-span-1',
+	2: 'metadata-span-2',
+	3: 'metadata-span-3',
+	4: 'metadata-span-4',
 } as const;
 
 export function MetadataFormView(): JSX.Element {
@@ -22,7 +23,7 @@ export function MetadataFormView(): JSX.Element {
 	return (
 		<>
 			<div
-				class="grid grid-cols-4 gap-x-3 gap-y-1.5"
+				class="metadata-form-grid"
 				onInput={(event) => {
 					const target = event.target;
 					if (
@@ -88,7 +89,7 @@ export function MetadataFormView(): JSX.Element {
 								{field.inputId === 'meta-series-part' && (
 									<div
 										id="meta-series-part-warning"
-										class="text-xs warning-text"
+										class="warning-text"
 										hidden={!form().seriesPartWarning.visible}
 									>
 										{form().seriesPartWarning.message}
@@ -97,7 +98,7 @@ export function MetadataFormView(): JSX.Element {
 								{field.inputId === 'meta-subseries-part' && (
 									<div
 										id="meta-subseries-part-warning"
-										class="text-xs warning-text"
+										class="warning-text"
 										hidden={!form().subseriesPartWarning.visible}
 									>
 										{form().subseriesPartWarning.message}
@@ -109,25 +110,22 @@ export function MetadataFormView(): JSX.Element {
 				</For>
 			</div>
 			<div class="metadata-apply-row">
-				<button
+				<Button
 					id="metadata-lookup-btn"
-					class="btn-pill btn-pill-secondary"
 					data-testid="metadata-lookup-btn"
-					type="button"
 					onClick={() => void openLookup({ type: 'open' })}
 				>
 					Find Metadata
-				</button>
-				<button
+				</Button>
+				<Button
 					id="metadata-save-btn"
-					class="btn-pill btn-pill-primary"
+					tone="primary"
 					data-testid="metadata-save-btn"
-					type="button"
 					disabled={view().saveInProgress}
 					onClick={() => void saveMetadata()}
 				>
 					Save All Changes
-				</button>
+				</Button>
 			</div>
 		</>
 	);

@@ -8,8 +8,11 @@ import { createProcessingOwner } from '../processing/owner';
 import { createInputOwner } from '../inputSession/owner';
 import { createRemoteSourceOwner } from '../remoteSource/owner';
 import { createWorkOperationsOwner } from '../workOperations/owner';
-import { estimateKbpsFromRequest } from '../../ui/encoderPanel/requestConfig';
-import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state';
+import {
+	estimateKbpsFromRequest,
+	readEncodingRequestConfig,
+	subscribeEncoderPanel,
+} from '../../ui/encoderPanel';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
 export type { AppRuntime, RuntimeCapabilities } from './types';

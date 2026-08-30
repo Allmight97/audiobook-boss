@@ -75,15 +75,13 @@
   owner-UI rebuilds (Slice 3) before the owner settles v3's open forks.
 - The Vite dev server (`bun run dev`, port 1420) exposes three distinct
   surfaces; do not conflate them. Each has one alignment obligation: the lab
-  tracks `src/styles.css` in the same change (contract below); the v3 mock
-  tracks direction decisions banked in #412; the app changes only in Slice 3:
-  - `/` — the current app UI, unchanged until Slice 3.
-  - `/lab.html` — the design lab: renders every token and `src/styles.css`
-    primitive with a density switch. It is ingredients, not screens, and not
-    the new design — it wears whatever values `styles.css` currently holds.
-    The locked direction gets encoded here first (tokens/primitive skins)
-    before any owner-UI rebuild. Contract: `src/AGENTS.md` → Design-System
-    Primitives. Dev-only; not in the app build.
+  tracks `src/ui/foundation` in the same change; the v3 mock tracks direction
+  decisions banked in #412; the app shell changes only in Slice 3:
+  - `/` — the current app UI. Shared chrome already comes from the foundation.
+    Owner rebuilds wait for Slice 3.
+  - `/lab.html` — the design lab: renders foundation tokens and primitives
+    with a density switch. Ingredients, not screens. Contract:
+    `src/ui/foundation/AGENTS.md`. Dev-only; not in the app build.
   - `/docs/design/ui-directions-v3.html` — standalone interactive mock of the
     target direction (B1×B2 hybrid) with live open-fork toggles. Reference
     artifact for owner reaction, not code to import. Lineage:

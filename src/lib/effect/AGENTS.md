@@ -15,11 +15,8 @@ Keep Effect workflow APIs private to workflow owners:
 
 - Only `src/lib/effect/appEffect.ts` imports the `effect` package root. Owners
   and tests import `Effect`, `Context`, `Data`, and `Layer` from that file.
-  Effect Atom reactivity is a separate runtime seam:
-  `src/app/runtime/reactivity.ts` is the only direct
-  `effect/unstable/reactivity` importer and `src/app/runtime/solid.ts` is the
-  only direct `@effect/atom-solid` importer. Proof: `bun run test --
-  scripts/frontend-toolchain-layout.test.ts`.
+  Do not import `effect/unstable/reactivity` or `@effect/atom-solid`. Proof:
+  `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
 - Workflow owners expose a local service interface, service tag, live layer

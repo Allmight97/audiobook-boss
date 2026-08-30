@@ -2,6 +2,7 @@ export type { CompanionAssetSummary } from '../../app/remoteSource';
 export {
 	companionSummaryForInputIds,
 	hasSupplementalAssetsForInputId,
+	subscribeRemoteSourceSupplementalAssets,
 	purgeRemoteSourceSessionsForInputIds,
 	registerRemoteSourceSupplementalAssets,
 	releaseRemoteSourceSessionRetainers,

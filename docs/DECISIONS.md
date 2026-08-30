@@ -1,16 +1,25 @@
 # Decisions
 
-## 2026-08-29 - Solid Renderer And Effect Atom Runtime (#468)
+## 2026-08-30 - Native CSS UI Foundation (#470)
 
-- Outcome: Solid is ABB's only desktop renderer. Solid owns screen-local
-  interaction; owner view atoms carry durable cross-component state; Effect
-  owns effectful workflows; one app-lifetime registry composes and disposes
-  the frontend runtime.
+- Outcome: Shared visual behavior crosses `src/ui/foundation`. Native CSS is
+  the only styling language. Tailwind and parallel styling substrates are gone.
+- Evidence: `src/ui/foundation/index.ts`, `package.json`, `vite.config.ts`,
+  `scripts/frontend-toolchain-layout.test.ts`.
+- Guardrail: do not reintroduce a utility catalog, CSS-in-JS, CSS Modules, or
+  a second public class language beside the typed primitives and semantic
+  tokens.
+
+## 2026-08-29 - Solid Renderer And Runtime-Scoped Owners (#468)
+
+- Outcome: Solid is ABB's only desktop renderer. Runtime-scoped Solid owners
+  hold frontend session truth. Effect owns effectful workflows. One disposable
+  application runtime composes those owners and is provided through Solid
+  context.
 - Evidence: `package.json`, `src/main.tsx`, `src/app/runtime/`, and
   `scripts/frontend-toolchain-layout.test.ts`.
-- Guardrail: workflow Effect, unstable reactivity, and the Solid binding enter
-  through their three ABB seams; renderers consume owner Public API Strips
-  rather than writable private atoms.
+- Guardrail: do not reintroduce Effect Atom, a process-wide owner singleton,
+  or registry binders. Views consume owner Public API Strips.
 
 ## 2026-08-27 - TypeScript 7 / Effect 4 Frontend Toolchain (#462)
 

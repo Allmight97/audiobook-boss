@@ -1,11 +1,21 @@
-import type { JSX } from 'solid-js';
+import { createSignal, onCleanup, type JSX } from 'solid-js';
 import { toInspectorViewFromInput } from '../../app/inputSession/inspector';
 import { useAppRuntime } from '../../app/runtime';
-import { companionSummaryForInputIds } from '../remoteSource';
+import {
+	companionSummaryForInputIds,
+	subscribeRemoteSourceSupplementalAssets,
+} from '../remoteSource';
 
 export function FileInspectorView(): JSX.Element {
+	const [assetRevision, setAssetRevision] = createSignal(0);
 	const view = useAppRuntime().input.view;
-	const inspector = () => toInspectorViewFromInput(view(), companionSummaryForInputIds);
+	onCleanup(
+		subscribeRemoteSourceSupplementalAssets(() => setAssetRevision((revision) => revision + 1)),
+	);
+	const inspector = () => {
+		assetRevision();
+		return toInspectorViewFromInput(view(), companionSummaryForInputIds);
+	};
 
 	return (
 		<section
@@ -29,7 +39,7 @@ export function FileInspectorView(): JSX.Element {
 					)}
 				</span>
 			</div>
-			<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+			<div class="inspector-properties">
 				<span class="property-label">Bitrate:</span>
 				<span class="property-value">{inspector().bitrateText}</span>
 				<span class="property-label">Sample Rate:</span>

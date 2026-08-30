@@ -13,8 +13,8 @@ import {
 	setStartupBehavior,
 	subscribeProductionSettingsDialog,
 } from '../../app/appSettings';
-import { Dialog } from '../../lib/ui/Dialog';
-import { readFdkAfterburner } from '../encoderPanel/state';
+import { Button, Dialog } from '../foundation';
+import { readFdkAfterburner, subscribeEncoderPanel } from '../encoderPanel';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
@@ -102,13 +102,17 @@ export function AppSettingsDialogView(): JSX.Element {
 	}
 
 	onMount(() => {
-		const unsubscribe = subscribeProductionSettingsDialog(() => {
+		const unsubscribeSettings = subscribeProductionSettingsDialog(() => {
 			setRevision((value) => value + 1);
 			if (!productionSettingsDialogState.isOpen) cancelResetConfirm();
 		});
+		const unsubscribeEncoder = subscribeEncoderPanel(() => {
+			setRevision((value) => value + 1);
+		});
 		window.addEventListener('click', handleWindowClickForResetConfirm, true);
 		onCleanup(() => {
-			unsubscribe();
+			unsubscribeSettings();
+			unsubscribeEncoder();
 			window.removeEventListener('click', handleWindowClickForResetConfirm, true);
 			cancelResetConfirm();
 		});
@@ -116,6 +120,10 @@ export function AppSettingsDialogView(): JSX.Element {
 
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
+	const afterburner = () => {
+		revision();
+		return readFdkAfterburner();
+	};
 
 	return (
 		<Dialog
@@ -125,26 +133,21 @@ export function AppSettingsDialogView(): JSX.Element {
 			labelledBy="app-settings-title"
 			testId="app-settings-modal"
 		>
-			<div class="app-modal-header">
+			<Dialog.Header>
 				<h3 id="app-settings-title">App Settings</h3>
-				<button
+				<Button
 					id="app-settings-close"
-					class="btn-pill btn-pill-secondary"
 					data-testid="app-settings-close"
-					type="button"
 					onClick={closeProductionSettingsDialog}
 				>
 					Close
-				</button>
-			</div>
-			<div class="app-modal-body">
-				<Show
-					when={!state().loading}
-					fallback={<p class="text-xs muted-text">Loading settings…</p>}
-				>
+				</Button>
+			</Dialog.Header>
+			<Dialog.Body>
+				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
 					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
-						<p class="text-xs muted-text">
+						<p class="muted-text">
 							Point AudioBook Boss at an FFmpeg binary built with libfdk_aac to unlock the FDK
 							HE-AAC encoder. The path is validated before it is used.
 						</p>
@@ -158,31 +161,23 @@ export function AppSettingsDialogView(): JSX.Element {
 								value={state().ffmpegPathDraft}
 								onInput={(event) => setFfmpegPathDraft(event.currentTarget.value)}
 							/>
-							<button
-								class="btn-pill btn-pill-secondary"
+							<Button
 								data-testid="app-settings-ffmpeg-browse"
-								type="button"
 								onClick={() => void browseForFfmpegBinary()}
 							>
 								Browse…
-							</button>
-							<button
-								class="btn-pill btn-pill-secondary"
-								data-testid="app-settings-ffmpeg-clear"
-								type="button"
-								onClick={clearFfmpegPathDraft}
-							>
+							</Button>
+							<Button data-testid="app-settings-ffmpeg-clear" onClick={clearFfmpegPathDraft}>
 								Clear
-							</button>
-							<button
-								class="btn-pill btn-pill-primary"
+							</Button>
+							<Button
+								tone="primary"
 								data-testid="app-settings-ffmpeg-save"
-								type="button"
 								disabled={state().saveState === 'saving'}
 								onClick={() => void saveToolchainPreference()}
 							>
 								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
-							</button>
+							</Button>
 						</div>
 						<Show when={state().saveState === 'error'}>
 							<p
@@ -207,14 +202,14 @@ export function AppSettingsDialogView(): JSX.Element {
 								type="checkbox"
 								id="app-settings-afterburner"
 								data-testid="app-settings-afterburner-checkbox"
-								checked={readFdkAfterburner()}
+								checked={afterburner()}
 								onChange={(event) =>
 									setProductionFdkAfterburner(Boolean(event.currentTarget.checked))
 								}
 							/>
 							<span class="option-label">FDK Afterburner</span>
 						</label>
-						<p class="text-xs muted-text">
+						<p class="muted-text">
 							Extra encoding effort for slightly higher quality on the FDK encoder. Leave on unless
 							encode speed matters more than quality.
 						</p>
@@ -224,7 +219,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							<>
 								<section class="app-settings-section">
 									<h4 class="app-settings-section-title">Startup settings</h4>
-									<p class="text-xs muted-text">
+									<p class="muted-text">
 										The encoder, output, and job controls save as you change them. This chooses what
 										the app restores on launch.
 									</p>
@@ -256,20 +251,18 @@ export function AppSettingsDialogView(): JSX.Element {
 											/>
 											Use my pinned defaults
 											<Show when={!pinnedDefaults()}>
-												<span class="text-xs muted-text">(pin defaults first)</span>
+												<span class="muted-text">(pin defaults first)</span>
 											</Show>
 										</label>
 									</div>
 									<div class="app-settings-path-row">
-										<button
-											class="btn-pill btn-pill-secondary"
+										<Button
 											data-testid="app-settings-pin-defaults"
-											type="button"
 											disabled={state().startupSaveState === 'saving'}
 											onClick={() => void saveCurrentSettingsAsPinnedDefaults()}
 										>
 											Use current settings as defaults
-										</button>
+										</Button>
 									</div>
 									<Show when={state().startupSaveState === 'error'}>
 										<p
@@ -318,10 +311,7 @@ export function AppSettingsDialogView(): JSX.Element {
 												</button>
 											}
 										>
-											<span
-												class="text-xs muted-text"
-												data-testid="app-settings-reset-confirm-prompt"
-											>
+											<span class="muted-text" data-testid="app-settings-reset-confirm-prompt">
 												Reset all settings?
 											</span>
 											<button
@@ -346,7 +336,7 @@ export function AppSettingsDialogView(): JSX.Element {
 						)}
 					</Show>
 				</Show>
-			</div>
+			</Dialog.Body>
 		</Dialog>
 	);
 }

@@ -17,8 +17,8 @@
 
 ## Cross-Strip Coupling
 
-- Uses the shared `Dialog` primitive. Do not add a second modal stack or a
-  local collision store.
+- Import `Dialog` from `src/ui/foundation`. Do not add a second modal stack or
+  a local collision store.
 
 ## Breaking-Change Triggers
 

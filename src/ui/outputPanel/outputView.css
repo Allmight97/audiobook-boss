@@ -44,17 +44,33 @@
 	color: var(--text-primary);
 }
 
-.btn-pill-primary-soft {
+.output-browse-button {
+	margin-top: 0;
+	padding: 0.375rem 0.75rem;
+	border: 1px solid transparent;
+	border-radius: 9999px;
 	background-color: #6ba3f7;
 	color: #ffffff;
+	font-size: 0.8125rem;
+	font-weight: 600;
 }
 
-.btn-pill-primary-soft:hover {
+.output-browse-button:hover {
 	background-color: #5b93e7;
 }
 
-.output-browse-button {
-	padding: 0.375rem 0.75rem;
+.output-option-label {
+	margin-top: 0;
+	font-size: var(--text-xs);
+}
+
+.output-preset-select {
+	width: auto;
+	min-width: 10rem;
+}
+
+.output-template-input {
+	width: 100%;
 }
 
 .output-options-panel {

@@ -1,6 +1,5 @@
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
-import tailwindcss from '@tailwindcss/vite';
 import solid from 'vite-plugin-solid';
 
 // @ts-expect-error process is a nodejs global
@@ -20,7 +19,7 @@ function removeCrossoriginPlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-	plugins: [tailwindcss(), solid({ include: ['/**/*.tsx'] }), removeCrossoriginPlugin()],
+	plugins: [solid({ include: ['/**/*.tsx'] }), removeCrossoriginPlugin()],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//

@@ -8,6 +8,18 @@ let jobIdsByInputId: Record<string, string> = {};
 let retainedInputIdCounts: Record<string, number> = {};
 let pendingPurgeInputIds: Record<string, true> = {};
 let seenInputIds = new Set<string>();
+const supplementalListeners = new Set<() => void>();
+
+function notifySupplementalAssets(): void {
+	for (const listener of supplementalListeners) listener();
+}
+
+export function subscribeRemoteSourceSupplementalAssets(listener: () => void): () => void {
+	supplementalListeners.add(listener);
+	return () => {
+		supplementalListeners.delete(listener);
+	};
+}
 
 export type CompanionAssetSummary = {
 	text: string;
@@ -55,6 +67,7 @@ export function registerRemoteSourceSupplementalAssets(
 
 	supplementalAssetsByInputId = next;
 	jobIdsByInputId = nextJobs;
+	notifySupplementalAssets();
 }
 
 export function supplementalAssetsForInputIds(
@@ -179,6 +192,7 @@ function removeRemoteSourceSupplementalAssets(inputIds: readonly (string | undef
 	jobIdsByInputId = nextJobs;
 	retainedInputIdCounts = nextRetained;
 	pendingPurgeInputIds = nextPending;
+	notifySupplementalAssets();
 }
 
 function registeredInputIdsForJob(jobId: string): string[] {
@@ -242,4 +256,5 @@ export function resetRemoteSourceSessionAssets(): void {
 	retainedInputIdCounts = {};
 	pendingPurgeInputIds = {};
 	seenInputIds = new Set();
+	notifySupplementalAssets();
 }

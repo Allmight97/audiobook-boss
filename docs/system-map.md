@@ -65,8 +65,10 @@ ownership or verification.
 ## Core Truth Boundaries
 
 - UI code routes runtime commands/events through `src/lib/tauri/client.ts`.
-- `src/app/runtime/` owns one app-lifetime Effect Atom registry, the Solid
-  provider, exact-version reactivity/binding seams, and disposal.
+- `src/app/runtime/` owns one disposable Solid application runtime and
+  context. Views take owners from that context.
+- `src/ui/foundation/` owns shared visual behavior: typed Solid primitives
+  and public semantic CSS tokens. Native CSS is the only styling language.
 - Multi-boundary frontend orchestration lives in named Effect workflow owners;
   Solid views dispatch intent and render state.
 - `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
@@ -123,12 +125,13 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 
 | Strip | Entry | Owns |
 | --- | --- | --- |
-| App Runtime | `src/app/runtime` | One app-lifetime Atom registry, Solid provider, compatibility seams, test harness, and disposal. |
+| App Runtime | `src/app/runtime` | Disposable Solid runtime, owner modules, context, test harness, and disposal. |
+| UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, theme, and density. |
 | Output Plan | `src/app/outputPlan` | Output directory, naming, path preview, derived estimate, and collision review. Solid views: `src/ui/outputPanel`, `src/ui/collisionDialog`. |
 | Input Session | `src/app/inputSession` | File-list session, import analysis, selection, order, and inspector projection. Solid views: `src/ui/fileList` (`FileListView`), `src/ui/fileImport`. |
 | File List | `src/ui/fileList` | `FileListView`, pointer reorder, and cover thumbnails. List truth stays in Input Session. |
 | File Import | `src/ui/fileImport` | Picker, drop, opened-file drain, and Remote dialog mount. Composes `FileListView`. |
-| Status Panel | `src/app/processing` | Preview submit, status runtime, and `statusViewAtom`. Solid view: `src/ui/statusPanel` (`StatusPanelView`). |
+| Status Panel | `src/app/processing` | Preview submit and status runtime. Solid view: `src/ui/statusPanel` (`StatusPanelView`). |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
 | App Settings | `src/app/appSettings` | Settings hydration, dialog state, and durable preference coordination. Persistence + dialog view: `src/ui/appSettings`. |
 | Metadata Form | `src/ui/metadataForm` | `MetadataFormView` text fields. Form truth stays in Metadata Session. |
