@@ -21,7 +21,7 @@ function harnessFailure(message: string, cause: unknown): HarnessWorkflowFailed 
 }
 
 describe('AppEffect kernel', () => {
-	it('runs Svelte-callable promise bridges with provided workflow services', async () => {
+	it('runs UI-callable promise bridges with provided workflow services', async () => {
 		const NumberService = makeWorkflowServiceTag<'test/NumberService', { value: number }>(
 			'test/NumberService',
 		);
