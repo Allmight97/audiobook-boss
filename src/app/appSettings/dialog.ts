@@ -1,8 +1,8 @@
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveSettingsCapability } from '../../lib/tauri/capabilities/settings';
-import type { AppSettings, StartupBehavior } from '../../types/appSettings';
+import type { AppSettings, PinnedDefaults, StartupBehavior } from '../../types/appSettings';
 import type { EncoderAvailability } from '../../types/audio';
-import { setFdkAfterburner } from '../../ui/encoderPanel/logic';
+import { setFdkAfterburner } from '../../ui/encoderPanel';
 import { hydrateAppSettingsProduction } from './hydrate';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -34,6 +34,14 @@ function createInitialState(): AppSettingsDialogState {
 }
 
 export const productionSettingsDialogState: AppSettingsDialogState = createInitialState();
+
+let afterSettingsReset: ((defaults: PinnedDefaults) => void) | undefined;
+
+export function bindAfterSettingsReset(
+	apply: ((defaults: PinnedDefaults) => void) | undefined,
+): void {
+	afterSettingsReset = apply;
+}
 
 const listeners = new Set<() => void>();
 
@@ -188,7 +196,10 @@ export async function resetAllAppSettings(): Promise<void> {
 	notify();
 	try {
 		await liveSettingsCapability.resetAppSettings();
-		await hydrateAppSettingsProduction();
+		const defaults = await hydrateAppSettingsProduction();
+		if (defaults) {
+			afterSettingsReset?.(defaults);
+		}
 		productionSettingsDialogState.saveState = 'saved';
 	} catch (error) {
 		productionSettingsDialogState.saveState = 'error';

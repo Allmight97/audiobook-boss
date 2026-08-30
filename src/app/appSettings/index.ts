@@ -6,6 +6,7 @@ export {
 	settingsCapabilityAtom,
 } from './concurrency';
 export {
+	bindAfterSettingsReset,
 	browseForFfmpegBinary,
 	clearFfmpegPathDraft,
 	closeProductionSettingsDialog,

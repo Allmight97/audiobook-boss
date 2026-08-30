@@ -20,6 +20,7 @@ export function MergeModeToggle(): JSX.Element {
 					type="checkbox"
 					id="merge-mode-toggle"
 					checked={jobType() === 'merge'}
+					disabled={input.view().orderLocked}
 					onChange={(event) => setJobType(event.currentTarget.checked ? 'merge' : 'batch')}
 				/>
 				<span class="option-label">Merge files into one audiobook</span>

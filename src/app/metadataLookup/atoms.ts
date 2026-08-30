@@ -28,7 +28,9 @@ function publishLookupView(get: {
 }
 
 export const runLookupActionAtom = Atom.fn((action: MetadataLookupWorkflowAction, get) => {
-	const layer = makeMetadataLookupWorkflowServicesLayer(makeProductionLookupServices(get as never));
+	const layer = makeMetadataLookupWorkflowServicesLayer(
+		makeProductionLookupServices(get as never, () => publishLookupView(get)),
+	);
 	return Effect.tryPromise({
 		try: async () => {
 			await runMetadataLookupWorkflow(layer, action);

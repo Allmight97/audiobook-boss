@@ -56,7 +56,6 @@ export const hydrateConcurrencyAtom = Atom.fn(
 		get,
 	) => {
 		const capability = get(settingsCapabilityAtom);
-		const current = get(concurrencyViewAtom);
 		return Effect.tryPromise({
 			try: async () => {
 				const runtime = await capability.getRuntimeSettingsCapabilities();
@@ -68,8 +67,9 @@ export const hydrateConcurrencyAtom = Atom.fn(
 					selection === 'auto'
 						? await capability.setMaxConcurrentJobs(null)
 						: await capability.setMaxConcurrentJobs(Number.parseInt(selection, 10));
+				const latest = get(concurrencyViewAtom);
 				get.set(concurrencyViewAtom, {
-					...current,
+					...latest,
 					selection,
 					effective,
 					allowAuto: capabilities?.allowAuto ?? true,

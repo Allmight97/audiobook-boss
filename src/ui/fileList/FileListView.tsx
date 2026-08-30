@@ -1,7 +1,9 @@
 import { displayedTitleForFile, formatFileDetails } from '../../app/inputSession';
 import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
+import { metadataViewAtom } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
+import { useAtomValue } from '../../app/runtime/solid';
 import { hasSupplementalAssetsForInputId } from '../remoteSource';
 import { createSignal, createEffect, For, onCleanup, type JSX } from 'solid-js';
 import {
@@ -18,6 +20,7 @@ export function FileListView(props: {
 	readonly fileManagementRef?: (element: HTMLElement | null) => void;
 }): JSX.Element {
 	const input = useAppRuntime().input;
+	const metadataView = useAtomValue(() => metadataViewAtom);
 	const view = input.view;
 	const capability = input.capability;
 	const selectFile = input.selectFile;
@@ -77,6 +80,7 @@ export function FileListView(props: {
 	}
 
 	function handleFileListClick(index: number, event: MouseEvent): void {
+		if (metadataView().saveInProgress) return;
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
@@ -92,6 +96,7 @@ export function FileListView(props: {
 			selectedAnchor: view().selectedAnchor,
 		});
 		if (!command) return;
+		if (metadataView().saveInProgress) return;
 		event.preventDefault();
 		if (command.type === 'navigate') {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {

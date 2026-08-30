@@ -67,6 +67,7 @@ export interface MetadataLookupWorkflowServices {
 	focusElementById: (id: string) => void;
 	queueMicrotask: (callback: () => void) => void;
 	console: Pick<Console, 'error' | 'warn'>;
+	publishView?: () => void;
 }
 
 export type MetadataLookupWorkflowServicesId = 'MetadataLookup/WorkflowServices';
@@ -333,6 +334,7 @@ async function openWorkflow(services: MetadataLookupWorkflowServices): Promise<v
 	state.replaceCoverArt = false;
 
 	showModal(services);
+	services.publishView?.();
 	if (services.getQueueState().queue.length > 0) {
 		await runSearch(services);
 	}

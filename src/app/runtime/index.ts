@@ -1,6 +1,11 @@
 import { createRoot } from 'solid-js';
+import {
+	bindAfterSettingsReset,
+	hydrateConcurrencyAtom,
+} from '../appSettings';
 import { bindLookupInput } from '../metadataLookup';
 import { bindMetadataInput } from '../metadataSession';
+import { applyOutputDefaultsFromSettings } from '../outputPlan';
 import { bindProcessingInput, seedProcessing } from '../processing';
 import { createInputOwner } from '../inputSession/owner';
 import { createRemoteSourceOwner } from '../remoteSource/owner';
@@ -22,6 +27,12 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 		bindLookupInput(input);
 		bindProcessingInput(input);
 		const remoteSource = createRemoteSourceOwner({ input });
+		bindAfterSettingsReset((defaults) => {
+			registry.set(applyOutputDefaultsFromSettings, defaults.outputDefaults);
+			registry.set(hydrateConcurrencyAtom, {
+				preference: defaults.maxConcurrentJobs,
+			});
+		});
 		return { input, remoteSource };
 	});
 	return {
@@ -34,6 +45,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			bindMetadataInput(undefined);
 			bindLookupInput(undefined);
 			bindProcessingInput(undefined);
+			bindAfterSettingsReset(undefined);
 			disposeWorkCenter();
 			bindWorkOperationsRegistry(null);
 			registry.dispose();

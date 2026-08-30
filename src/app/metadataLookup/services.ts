@@ -38,6 +38,7 @@ export function bindLookupInput(input: InputOwner | undefined): void {
 
 export function makeProductionLookupServices(
 	get: LookupServiceGet,
+	publishView?: () => void,
 ): MetadataLookupWorkflowServices {
 	return {
 		getLookupState: () => metadataLookupState,
@@ -101,5 +102,6 @@ export function makeProductionLookupServices(
 		},
 		queueMicrotask,
 		console,
+		publishView,
 	};
 }

@@ -79,6 +79,8 @@ export function cancelCollisionDialog(): void {
 }
 
 export function resetCollisionDialog(): void {
+	const resolve = pendingResolve;
 	pendingResolve = null;
 	publish(emptyCollisionView());
+	resolve?.(null);
 }
