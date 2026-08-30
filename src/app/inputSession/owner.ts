@@ -59,9 +59,18 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	const [jobType, setJobTypeSignal] = createSignal<JobType>('batch');
 	const [capability] = createSignal(deps.capability ?? liveInputCapability);
 	const view = createMemo(() => toInputView(session()));
+	let selectionTransitionTicket = 0;
 
 	function commit(next: InputSessionState): void {
 		setSession(next);
+	}
+
+	function beginSelectionTransition(): number {
+		return ++selectionTransitionTicket;
+	}
+
+	function isLatestSelectionTransition(ticket: number): boolean {
+		return ticket === selectionTransitionTicket;
 	}
 
 	return {
@@ -83,30 +92,42 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			} catch {}
 		},
 		async selectFile(command) {
+			const ticket = beginSelectionTransition();
 			if (!command.skipPersistPrevious && deps.beforeSelectionChange) {
 				const allowed = await deps.beforeSelectionChange();
 				if (allowed === false) {
 					return false;
 				}
 			}
+			if (!isLatestSelectionTransition(ticket)) {
+				return false;
+			}
 			commit(selectFileInSession(session(), command.index, command.modifiers));
 			return true;
 		},
 		async selectAll() {
+			const ticket = beginSelectionTransition();
 			if (deps.beforeSelectionChange) {
 				const allowed = await deps.beforeSelectionChange();
 				if (allowed === false) {
 					return;
 				}
 			}
+			if (!isLatestSelectionTransition(ticket)) {
+				return;
+			}
 			commit(selectAllInSession(session()));
 		},
 		async clearSelection() {
+			const ticket = beginSelectionTransition();
 			if (deps.beforeSelectionChange) {
 				const allowed = await deps.beforeSelectionChange();
 				if (allowed === false) {
 					return;
 				}
+			}
+			if (!isLatestSelectionTransition(ticket)) {
+				return;
 			}
 			commit(clearSelectionInSession(session()));
 		},
@@ -121,11 +142,15 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			commit(removeFileFromSession(session(), index).session);
 		},
 		async clearAllFiles() {
+			const ticket = beginSelectionTransition();
 			if (deps.beforeSelectionChange) {
 				const allowed = await deps.beforeSelectionChange();
 				if (allowed === false) {
 					return;
 				}
+			}
+			if (!isLatestSelectionTransition(ticket)) {
+				return;
 			}
 			commit(clearAllFilesFromSession(session()));
 		},

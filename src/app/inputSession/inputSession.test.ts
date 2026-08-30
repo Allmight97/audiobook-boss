@@ -152,6 +152,33 @@ describe('input session selection gate', () => {
 	});
 });
 
+describe('input session selection transition ticket', () => {
+	it('ignores a stale gate answer when a newer selection completes first', async () => {
+		let resolveFirstGate: (allowed: boolean) => void;
+		const firstGate = new Promise<boolean>((resolve) => {
+			resolveFirstGate = resolve;
+		});
+		let gateCall = 0;
+		const gate = vi.fn(async () => {
+			gateCall += 1;
+			if (gateCall === 1) {
+				return firstGate;
+			}
+			return true;
+		});
+		const owner = createInputOwner({ beforeSelectionChange: gate });
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b'), audioFile('/c')], [0]));
+
+		const first = owner.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await owner.selectFile({ index: 2, modifiers: { multi: false, range: false } });
+		resolveFirstGate!(true);
+		const firstResult = await first;
+
+		expect(firstResult).toBe(false);
+		expect(owner.session().selectedIndices).toEqual([2]);
+	});
+});
+
 describe('input session support text hydrate', () => {
 	let runtime: AppRuntime | undefined;
 
