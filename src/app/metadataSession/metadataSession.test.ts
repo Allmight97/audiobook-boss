@@ -3,7 +3,6 @@ import type { FileListInfo } from '../../types/audio';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
-import { inputSessionAtom } from '../inputSession/atoms';
 import { emptyInputSession } from '../inputSession/types';
 import {
 	getMetadataForFile,
@@ -83,7 +82,7 @@ describe('metadata session selection and save', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha')];
-		runtime.registry.set(inputSessionAtom, {
+		runtime.input.replaceSession({
 			...emptyInputSession(),
 			fileList: list(files),
 			selectedIndices: [0],
@@ -102,7 +101,7 @@ describe('metadata session selection and save', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
-		runtime.registry.set(inputSessionAtom, {
+		runtime.input.replaceSession({
 			...emptyInputSession(),
 			fileList: list(files),
 			selectedIndices: [0],
@@ -118,8 +117,8 @@ describe('metadata session selection and save', () => {
 			inputId: 'meta-title',
 			value: 'Edited Alpha',
 		});
-		runtime.registry.set(inputSessionAtom, {
-			...runtime.registry.get(inputSessionAtom),
+		runtime.input.replaceSession({
+			...runtime.input.session(),
 			selectedIndices: [1],
 			selectedAnchor: 1,
 		});
@@ -136,7 +135,7 @@ describe('metadata session selection and save', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha')];
-		runtime.registry.set(inputSessionAtom, {
+		runtime.input.replaceSession({
 			...emptyInputSession(),
 			fileList: list(files),
 			selectedIndices: [0],

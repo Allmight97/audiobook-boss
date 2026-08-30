@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
-import { inputCapabilityAtom } from '../../app/inputSession/atoms';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
 
@@ -64,10 +63,9 @@ describe('Solid import tracer shell', () => {
 
 	it('renders an analyzed local import row from picker intent', async () => {
 		const user = userEvent.setup();
-		runtime = createAppRuntime();
-		runtime.registry.set(inputCapabilityAtom, fakeInput());
+		runtime = createAppRuntime({ input: fakeInput() });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<App />
 			</AppRuntimeProvider>
 		));

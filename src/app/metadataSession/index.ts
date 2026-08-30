@@ -19,6 +19,7 @@ export type { MetadataDraft, MetadataDraftField } from './draft';
 export { validateMetadataDraft } from './validation';
 export type { MetadataDraftValidation, ValidateMetadataIntentPatch } from './validation';
 export {
+	bindMetadataInput,
 	applyCoverArtDropAtom,
 	applyLookupMetadataAtom,
 	clearCoverArtAtom,

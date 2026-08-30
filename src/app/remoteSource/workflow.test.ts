@@ -15,6 +15,14 @@ import { remoteSourceState } from './state';
 
 const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
 
+function createDeferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+}
+
 function fileList(): FileListInfo {
 	return {
 		files: [
@@ -324,5 +332,31 @@ describe('remote source acquisition workflow', () => {
 
 		expect(services.cancelAcquisition).toHaveBeenCalledWith('remote-job-1');
 		expect(remoteSourceState.statusMessage).toBe('Cancelled.');
+	});
+
+	it('does not let a late acquisition poll overwrite native cancellation', async () => {
+		const latePoll = createDeferred<AcquisitionJob>();
+		const services = makeServices({
+			getAcquisitionStatus: vi.fn(() => latePoll.promise),
+		});
+		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
+
+		const acquisition = runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+			type: 'acquireSelected',
+		});
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
+
+		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+			type: 'cancelActiveAcquisition',
+		});
+		expect(remoteSourceState.activeJob?.status).toBe('cancelled');
+		expect(remoteSourceState.isBusy).toBe(false);
+
+		latePoll.resolve(downloadingJob());
+		await acquisition;
+
+		expect(remoteSourceState.activeJob?.status).toBe('cancelled');
+		expect(remoteSourceState.activeJob?.progress?.percentage).toBe(10);
+		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
 	});
 });

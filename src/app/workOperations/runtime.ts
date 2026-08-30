@@ -17,7 +17,7 @@ import {
 } from './model';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
-import { Atom, AtomRegistry } from '../runtime/reactivity';
+import { Atom, type AtomRegistry } from '../runtime/reactivity';
 
 export type WorkOperationsView = {
 	readonly initialized: boolean;

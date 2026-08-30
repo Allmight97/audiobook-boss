@@ -1,3 +1,4 @@
+export { bindProcessingInput } from './bind';
 export {
 	initStatusPanel,
 	isStatusPanelProcessing,

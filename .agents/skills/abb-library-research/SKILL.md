@@ -83,4 +83,6 @@ Pattern files: `references/pattern-<library>-<topic>.md` only after repeated nee
 
 - Installed or registry-packaged source over current upstream documentation
 - `src/lib/tauri/*` is the Tauri IPC boundary
-- Effect stays private to owning workflows until boundary changes
+- Effect workflow APIs stay private to owning workflows;
+  `effect/unstable/reactivity` and `@effect/atom-solid` stay behind
+  `src/app/runtime/reactivity.ts` and `src/app/runtime/solid.ts`

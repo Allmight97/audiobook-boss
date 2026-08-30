@@ -4,13 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
-import {
-	importIntentAtom,
-	inputCapabilityAtom,
-	inputViewAtom,
-	jobTypeAtom,
-	setOrderLockedAtom,
-} from '../../app/inputSession';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
 
@@ -77,10 +70,9 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	};
 }
 
-function renderApp(runtime: AppRuntime, input: InputCapability) {
-	runtime.registry.set(inputCapabilityAtom, input);
+function renderApp(runtime: AppRuntime) {
 	return render(() => (
-		<AppRuntimeProvider registry={runtime.registry}>
+		<AppRuntimeProvider runtime={runtime}>
 			<App />
 		</AppRuntimeProvider>
 	));
@@ -99,11 +91,11 @@ describe('Solid input workbench', () => {
 
 	it('renders input workflow before the inspector and keeps merge independent of the list', async () => {
 		const user = userEvent.setup();
-		runtime = createAppRuntime();
 		const input = fakeInput({
 			openFiles: vi.fn(async () => ['/tmp/file1.mp3']),
 		});
-		renderApp(runtime, input);
+		runtime = createAppRuntime({ input });
+		renderApp(runtime);
 
 		const shell = screen.getByTestId('left-column');
 		const workflow = screen.getByTestId('input-workflow-panel');
@@ -116,24 +108,24 @@ describe('Solid input workbench', () => {
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await screen.findByRole('option', { name: 'file1.mp3' });
-		expect(runtime.registry.get(inputViewAtom).files).toHaveLength(1);
-		expect(runtime.registry.get(jobTypeAtom)).toBe('batch');
+		expect(runtime.input.view().files).toHaveLength(1);
+		expect(runtime.input.jobType()).toBe('batch');
 
 		await user.click(screen.getByLabelText('Merge files into one audiobook'));
-		expect(runtime.registry.get(jobTypeAtom)).toBe('merge');
-		expect(runtime.registry.get(inputViewAtom).files).toHaveLength(1);
-		expect(runtime.registry.get(inputViewAtom).selectedIndices).toEqual([0]);
+		expect(runtime.input.jobType()).toBe('merge');
+		expect(runtime.input.view().files).toHaveLength(1);
+		expect(runtime.input.view().selectedIndices).toEqual([0]);
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {
-		runtime = createAppRuntime();
 		const input = fakeInput({
 			analyzeAudioFiles: vi.fn(async () =>
 				analyzedList([analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')]),
 			),
 		});
-		renderApp(runtime, input);
-		runtime.registry.set(importIntentAtom, {
+		runtime = createAppRuntime({ input });
+		renderApp(runtime);
+		void runtime.input.importIntent({
 			type: 'importPaths',
 			paths: ['/books/alpha.m4b', '/books/bravo.m4b'],
 		});
@@ -143,21 +135,21 @@ describe('Solid input workbench', () => {
 		});
 		await fireEvent.keyDown(listbox, { key: 'ArrowDown' });
 		await waitFor(() => {
-			expect(runtime?.registry.get(inputViewAtom).selectedIndices).toEqual([0]);
+			expect(runtime?.input.view().selectedIndices).toEqual([0]);
 		});
 
 		await fireEvent.keyDown(document.body, { key: 'ArrowDown' });
-		expect(runtime.registry.get(inputViewAtom).selectedIndices).toEqual([0]);
+		expect(runtime.input.view().selectedIndices).toEqual([0]);
 
 		await fireEvent.keyDown(listbox, { key: 'a', ctrlKey: true });
 		await waitFor(() => {
-			expect(runtime?.registry.get(inputViewAtom).selectedIndices).toEqual([0, 1]);
+			expect(runtime?.input.view().selectedIndices).toEqual([0, 1]);
 		});
 	});
 
 	it('routes cover-art drops away from import and imports file-area drops', async () => {
-		runtime = createAppRuntime();
 		const input = fakeInput();
+		runtime = createAppRuntime({ input });
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
@@ -174,7 +166,7 @@ describe('Solid input workbench', () => {
 				toJSON: () => ({}),
 			}) as DOMRect;
 
-		renderApp(runtime, input);
+		renderApp(runtime);
 		await waitFor(() => {
 			expect(listeners.drop).toBeTypeOf('function');
 		});
@@ -205,14 +197,14 @@ describe('Solid input workbench', () => {
 	});
 
 	it('blocks import while order is locked and surfaces the lock banner', async () => {
-		runtime = createAppRuntime();
 		const input = fakeInput();
-		renderApp(runtime, input);
-		runtime.registry.set(setOrderLockedAtom, true);
+		runtime = createAppRuntime({ input });
+		renderApp(runtime);
+		runtime.input.setOrderLocked(true);
 		await waitFor(() => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 		});
-		runtime.registry.set(importIntentAtom, { type: 'importPaths', paths: ['/tmp/file1.mp3'] });
+		void runtime.input.importIntent({ type: 'importPaths', paths: ['/tmp/file1.mp3'] });
 		await waitFor(() => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 			expect(screen.getByText(/Wait for completion to add files/)).toBeInTheDocument();

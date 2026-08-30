@@ -86,23 +86,68 @@ export const ORDER_LOCKED_IMPORT_MESSAGE =
 export const STAGED_FILES_REMOVED_SUFFIX =
 	'Staged remote files were removed; retry acquisition after processing completes.';
 
+let workflowGeneration = 0;
+let acquisitionGeneration = 0;
+
+type IsCurrent = () => boolean;
+
+export function invalidateRemoteSourceWorkflows(): void {
+	workflowGeneration += 1;
+	acquisitionGeneration += 1;
+}
+
+function beginAcquisition(): number {
+	acquisitionGeneration += 1;
+	return acquisitionGeneration;
+}
+
+function invalidateAcquisition(): void {
+	acquisitionGeneration += 1;
+}
+
+function patchWhenCurrent(
+	isCurrent: IsCurrent,
+	patch: Parameters<typeof patchRemoteSourceState>[0],
+): boolean {
+	if (!isCurrent()) return false;
+	patchRemoteSourceState(patch);
+	return true;
+}
+
+function setAcquisitionErrorWhenCurrent(
+	isCurrent: IsCurrent,
+	cause: unknown,
+	fallback: string,
+): void {
+	if (isCurrent()) {
+		setAcquisitionError(cause, fallback);
+	}
+}
+
 function asProgressJob(job: AcquisitionJob): AcquisitionJobWithProgress {
 	return job;
 }
 
-async function refreshAccountState(services: RemoteSourceWorkflowServices): Promise<void> {
+async function refreshAccountState(
+	services: RemoteSourceWorkflowServices,
+	isCurrent: IsCurrent,
+): Promise<void> {
 	const accountState = await services.getAccountState();
-	patchRemoteSourceState({ accountState });
+	patchWhenCurrent(isCurrent, { accountState });
 }
 
-async function loadLibrary(services: RemoteSourceWorkflowServices): Promise<void> {
-	patchRemoteSourceState({ isBusy: true });
+async function loadLibrary(
+	services: RemoteSourceWorkflowServices,
+	isCurrent: IsCurrent,
+): Promise<void> {
+	patchWhenCurrent(isCurrent, { isBusy: true });
 	try {
 		const library = await services.loadLibrary();
+		if (!isCurrent()) return;
 		const selectableTitleIds = new Set(
 			library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
 		);
-		patchRemoteSourceState({
+		patchWhenCurrent(isCurrent, {
 			titles: library.titles,
 			selectedTitleIds: new Set(
 				[...remoteSourceState.selectedTitleIds].filter((titleId) =>
@@ -118,27 +163,32 @@ async function loadLibrary(services: RemoteSourceWorkflowServices): Promise<void
 					: `${library.titles.length} Audible titles loaded.`,
 		});
 	} catch (cause) {
-		setAcquisitionError(cause, 'Failed to load Audible library.');
+		setAcquisitionErrorWhenCurrent(isCurrent, cause, 'Failed to load Audible library.');
 	} finally {
-		patchRemoteSourceState({ isBusy: false });
+		patchWhenCurrent(isCurrent, { isBusy: false });
 	}
 }
 
 async function pollAcquisitionToTerminal(
 	services: RemoteSourceWorkflowServices,
 	initialJob: AcquisitionJobWithProgress,
-): Promise<AcquisitionJobWithProgress> {
+	isCurrent: IsCurrent,
+): Promise<AcquisitionJobWithProgress | null> {
 	let currentJob = initialJob;
-	while (!isAcquisitionTerminal(currentJob)) {
+	while (isCurrent() && !isAcquisitionTerminal(currentJob)) {
 		await services.sleep(acquisitionPollDelayMs);
+		if (!isCurrent()) return null;
 		currentJob = asProgressJob(await services.getAcquisitionStatus(currentJob.jobId));
-		patchRemoteSourceState({
-			activeJob: currentJob,
-			lastJob: currentJob,
-			statusMessage: statusFromAcquisitionJob(currentJob),
-		});
+		if (
+			!patchWhenCurrent(isCurrent, {
+				activeJob: currentJob,
+				lastJob: currentJob,
+				statusMessage: statusFromAcquisitionJob(currentJob),
+			})
+		)
+			return null;
 	}
-	return currentJob;
+	return isCurrent() ? currentJob : null;
 }
 
 function fileListHasPath(fileList: FileListInfo | null, path: string): boolean {
@@ -148,10 +198,12 @@ function fileListHasPath(fileList: FileListInfo | null, path: string): boolean {
 async function finishAcquisitionJob(
 	services: RemoteSourceWorkflowServices,
 	job: AcquisitionJobWithProgress,
+	isCurrent: IsCurrent,
 ): Promise<void> {
+	if (!isCurrent()) return;
 	const materializedPaths = job.materializedFiles.map((file) => file.path);
 	if (materializedPaths.length === 0) {
-		patchRemoteSourceState({
+		patchWhenCurrent(isCurrent, {
 			statusMessage:
 				uniqueDiagnosticMessage(job.diagnostics) ||
 				'Audible acquisition did not materialize an importable file.',
@@ -160,10 +212,12 @@ async function finishAcquisitionJob(
 	}
 
 	const importResult = await services.importMaterializedPaths(materializedPaths);
+	if (!isCurrent()) return;
 	if (importResult.status !== 'imported') {
 		await services.purgeSession(job.jobId);
+		if (!isCurrent()) return;
 		const cleanedJob = withClearedHandoffJob(job);
-		patchRemoteSourceState({
+		patchWhenCurrent(isCurrent, {
 			activeJob: cleanedJob,
 			lastJob: cleanedJob,
 			statusMessage: `${importResult.message} ${STAGED_FILES_REMOVED_SUFFIX}`,
@@ -176,8 +230,9 @@ async function finishAcquisitionJob(
 	);
 	if (!importedAny) {
 		await services.purgeSession(job.jobId);
+		if (!isCurrent()) return;
 		const cleanedJob = withClearedHandoffJob(job);
-		patchRemoteSourceState({
+		patchWhenCurrent(isCurrent, {
 			activeJob: cleanedJob,
 			lastJob: cleanedJob,
 			statusMessage: `${importResult.fileList ? 'Acquired titles were not added to the input session.' : 'Input session had no files after import.'} ${STAGED_FILES_REMOVED_SUFFIX}`,
@@ -185,8 +240,9 @@ async function finishAcquisitionJob(
 		return;
 	}
 
+	if (!isCurrent()) return;
 	registerRemoteSourceSupplementalAssets(job, importResult.fileList);
-	patchRemoteSourceState({
+	patchWhenCurrent(isCurrent, {
 		statusMessage: `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`,
 	});
 }
@@ -194,55 +250,71 @@ async function finishAcquisitionJob(
 async function runAction(
 	services: RemoteSourceWorkflowServices,
 	action: RemoteSourceWorkflowAction,
+	isWorkflowCurrent: IsCurrent,
 ): Promise<void> {
 	switch (action.type) {
 		case 'hydrateOpenDialog': {
-			patchRemoteSourceState({ isBusy: true, didHydrateOpenDialog: true });
+			patchWhenCurrent(isWorkflowCurrent, { isBusy: true, didHydrateOpenDialog: true });
 			try {
-				await refreshAccountState(services);
+				await refreshAccountState(services, isWorkflowCurrent);
+				if (!isWorkflowCurrent()) return;
 				if (remoteSourceState.accountState?.status === 'connected') {
-					await loadLibrary(services);
+					await loadLibrary(services, isWorkflowCurrent);
 				}
 			} catch (cause) {
-				setAcquisitionError(cause, 'Failed to load remote source state.');
+				setAcquisitionErrorWhenCurrent(
+					isWorkflowCurrent,
+					cause,
+					'Failed to load remote source state.',
+				);
 			} finally {
-				patchRemoteSourceState({ isBusy: false });
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
 			}
 			return;
 		}
 		case 'startAuth': {
-			patchRemoteSourceState({ isBusy: true });
+			patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 			try {
 				const response = await services.startAuth();
-				patchRemoteSourceState({ statusMessage: response.message });
+				if (!patchWhenCurrent(isWorkflowCurrent, { statusMessage: response.message })) return;
 				await services.openAuthorizationUrl(response.authorizationUrl);
 			} catch (cause) {
-				setAcquisitionError(cause, 'Failed to start Audible auth.');
+				setAcquisitionErrorWhenCurrent(isWorkflowCurrent, cause, 'Failed to start Audible auth.');
 			} finally {
-				patchRemoteSourceState({ isBusy: false });
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
 			}
 			return;
 		}
 		case 'completeAuth': {
-			patchRemoteSourceState({ isBusy: true });
+			patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 			try {
 				const accountState = await services.completeAuth(
 					remoteSourceState.handoffPath.trim() || undefined,
 				);
-				patchRemoteSourceState({ accountState, statusMessage: 'Audible connected.' });
-				await loadLibrary(services);
+				if (
+					!patchWhenCurrent(isWorkflowCurrent, {
+						accountState,
+						statusMessage: 'Audible connected.',
+					})
+				)
+					return;
+				await loadLibrary(services, isWorkflowCurrent);
 			} catch (cause) {
-				setAcquisitionError(cause, 'Failed to complete Audible auth.');
+				setAcquisitionErrorWhenCurrent(
+					isWorkflowCurrent,
+					cause,
+					'Failed to complete Audible auth.',
+				);
 			} finally {
-				patchRemoteSourceState({ isBusy: false });
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
 			}
 			return;
 		}
 		case 'logout': {
-			patchRemoteSourceState({ isBusy: true });
+			patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 			try {
 				const accountState = await services.logout();
-				patchRemoteSourceState({
+				patchWhenCurrent(isWorkflowCurrent, {
 					accountState,
 					titles: [],
 					selectedTitleIds: new Set(),
@@ -252,47 +324,62 @@ async function runAction(
 					statusMessage: 'Audible disconnected.',
 				});
 			} catch (cause) {
-				setAcquisitionError(cause, 'Failed to disconnect Audible.');
+				setAcquisitionErrorWhenCurrent(isWorkflowCurrent, cause, 'Failed to disconnect Audible.');
 			} finally {
-				patchRemoteSourceState({ isBusy: false });
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
 			}
 			return;
 		}
 		case 'loadLibrary': {
-			await loadLibrary(services);
+			await loadLibrary(services, isWorkflowCurrent);
 			return;
 		}
 		case 'acquireSelected': {
+			const generation = beginAcquisition();
+			const isAcquisitionCurrent = () =>
+				isWorkflowCurrent() && acquisitionGeneration === generation;
 			if (remoteSourceState.selectedTitleIds.size === 0) {
-				patchRemoteSourceState({ statusMessage: 'Select at least one Audible title.' });
+				patchWhenCurrent(isAcquisitionCurrent, {
+					statusMessage: 'Select at least one Audible title.',
+				});
 				return;
 			}
-			patchRemoteSourceState({
+			patchWhenCurrent(isAcquisitionCurrent, {
 				isBusy: true,
 				activeJob: null,
 				lastJob: null,
 				statusMessage: 'Starting Audible acquisition.',
 			});
 			try {
-				const startedJob = asProgressJob(
-					await services.startAcquisition(
-						[...remoteSourceState.selectedTitleIds].map((titleId) => ({
-							titleId,
-							includeSupplementalPdf: remoteSourceState.includePdfByTitleId[titleId] ?? false,
-						})),
-					),
+				const selections = [...remoteSourceState.selectedTitleIds].map((titleId) => ({
+					titleId,
+					includeSupplementalPdf: remoteSourceState.includePdfByTitleId[titleId] ?? false,
+				}));
+				const startedJob = asProgressJob(await services.startAcquisition(selections));
+				if (
+					!patchWhenCurrent(isAcquisitionCurrent, {
+						activeJob: startedJob,
+						lastJob: startedJob,
+						statusMessage: statusFromAcquisitionJob(startedJob),
+					})
+				)
+					return;
+				const terminalJob = await pollAcquisitionToTerminal(
+					services,
+					startedJob,
+					isAcquisitionCurrent,
 				);
-				patchRemoteSourceState({
-					activeJob: startedJob,
-					lastJob: startedJob,
-					statusMessage: statusFromAcquisitionJob(startedJob),
-				});
-				const terminalJob = await pollAcquisitionToTerminal(services, startedJob);
-				await finishAcquisitionJob(services, terminalJob);
+				if (terminalJob) {
+					await finishAcquisitionJob(services, terminalJob, isAcquisitionCurrent);
+				}
 			} catch (cause) {
-				setAcquisitionError(cause, 'Failed to acquire selected Audible titles.');
+				setAcquisitionErrorWhenCurrent(
+					isAcquisitionCurrent,
+					cause,
+					'Failed to acquire selected Audible titles.',
+				);
 			} finally {
-				patchRemoteSourceState({ isBusy: false });
+				patchWhenCurrent(isAcquisitionCurrent, { isBusy: false });
 			}
 			return;
 		}
@@ -301,13 +388,20 @@ async function runAction(
 			if (!activeJob || isAcquisitionTerminal(activeJob)) return;
 			try {
 				const cancelledJob = asProgressJob(await services.cancelAcquisition(activeJob.jobId));
-				patchRemoteSourceState({
+				if (!isWorkflowCurrent()) return;
+				invalidateAcquisition();
+				patchWhenCurrent(isWorkflowCurrent, {
 					activeJob: cancelledJob,
 					lastJob: cancelledJob,
 					statusMessage: statusFromAcquisitionJob(cancelledJob),
+					isBusy: false,
 				});
 			} catch (cause) {
-				setAcquisitionError(cause, 'Failed to cancel Audible acquisition.');
+				setAcquisitionErrorWhenCurrent(
+					isWorkflowCurrent,
+					cause,
+					'Failed to cancel Audible acquisition.',
+				);
 			}
 			return;
 		}
@@ -320,10 +414,14 @@ async function runAction(
 
 export function remoteSourceWorkflowExecution(
 	action: RemoteSourceWorkflowAction,
+	isCurrent: IsCurrent,
 ): AppEffect<void, RemoteSourceWorkflowFailed, RemoteSourceWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* RemoteSourceWorkflowServicesTag;
-		yield* workflowPromise(() => runAction(services, action), 'Remote source workflow failed.');
+		yield* workflowPromise(
+			() => runAction(services, action, isCurrent),
+			'Remote source workflow failed.',
+		);
 	});
 }
 
@@ -332,11 +430,17 @@ export async function runRemoteSourceWorkflow(
 	action: RemoteSourceWorkflowAction,
 	onStateChange?: () => void,
 ): Promise<void> {
+	const generation = workflowGeneration;
+	const isCurrent = () => workflowGeneration === generation;
 	const unsubscribe = onStateChange ? subscribeRemoteSourceState(onStateChange) : undefined;
 	try {
-		await runAppEffect(remoteSourceWorkflowExecution(action).pipe(Effect.provide(layer)));
+		await runAppEffect(
+			remoteSourceWorkflowExecution(action, isCurrent).pipe(Effect.provide(layer)),
+		);
 	} finally {
 		unsubscribe?.();
-		onStateChange?.();
+		if (isCurrent()) {
+			onStateChange?.();
+		}
 	}
 }

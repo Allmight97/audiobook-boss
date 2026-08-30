@@ -2,15 +2,11 @@ import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } f
 import {
 	bytesLabel,
 	cancelRemoteSourceCoverPreviewSchedule,
-	closeRemoteSourceAcquireAtom,
 	getRemoteSourceCoverPreviewState,
 	isAcquisitionTerminal,
 	isTitleAcquirable,
-	patchRemoteSourceViewAtom,
 	progressPercent,
 	progressTitleLabel,
-	remoteSourceViewAtom,
-	runRemoteSourceActionAtom,
 	scheduleRemoteSourceCoverPreviews,
 	selectedRemoteTitleSummaryText,
 	subscribeRemoteSourceCoverPreviews,
@@ -19,7 +15,7 @@ import {
 	toggledSupplementalPdfPreference,
 	visibleRemoteTitles,
 } from '../../app/remoteSource';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 import { tauriClient } from '../../lib/tauri/client';
 import { Dialog } from '../../lib/ui/Dialog';
 import type { RemoteTitle } from '../../types/remoteSource';
@@ -72,10 +68,11 @@ function RemoteTitleCover(props: {
 }
 
 export function RemoteSourceAcquireView(): JSX.Element {
-	const view = useAtomValue(() => remoteSourceViewAtom);
-	const runAction = useAtomSet(() => runRemoteSourceActionAtom);
-	const close = useAtomSet(() => closeRemoteSourceAcquireAtom);
-	const patchView = useAtomSet(() => patchRemoteSourceViewAtom);
+	const remoteSource = useAppRuntime().remoteSource;
+	const view = remoteSource.view;
+	const runAction = remoteSource.runAction;
+	const close = remoteSource.close;
+	const patchView = remoteSource.patch;
 	const [previewRevision, setPreviewRevision] = createSignal(0);
 
 	onMount(() => {
@@ -119,7 +116,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 		<Dialog
 			id="remote-source-modal"
 			open={view().isOpen}
-			onClose={() => close(undefined)}
+			onClose={() => close()}
 			labelledBy="remote-source-title"
 			testId="remote-source-modal"
 		>
@@ -141,7 +138,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						class="btn-pill btn-pill-secondary"
 						data-testid="remote-source-close"
 						type="button"
-						onClick={() => close(undefined)}
+						onClick={() => close()}
 					>
 						Close
 					</button>

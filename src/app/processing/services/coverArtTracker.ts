@@ -1,9 +1,8 @@
 import { tauriClient } from '../../../lib/tauri/client';
 import type { FileListInfo } from '../../../types/audio';
 import { coverArtBytesToDataUrl } from '../../../lib/media/coverArtDataUrl';
-import { inputViewAtom } from '../../inputSession';
+import { boundProcessingInput } from '../bind';
 import { fileListFromInput } from '../input';
-import { tryProcessingRegistry } from '../registry';
 import { setStatusPanelCoverArtDataUrl } from '../view';
 
 export interface CoverArtTracker {
@@ -40,11 +39,8 @@ async function readCoverArtDataUrl(filePath: string): Promise<string | null> {
 }
 
 function defaultFileListReader(): FileListInfo | null {
-	const registry = tryProcessingRegistry();
-	if (!registry) {
-		return null;
-	}
-	return fileListFromInput(registry.get(inputViewAtom));
+	const view = boundProcessingInput()?.view();
+	return view ? fileListFromInput(view) : null;
 }
 
 export function createCoverArtTracker(deps: CoverArtTrackerDeps = {}): CoverArtTracker {

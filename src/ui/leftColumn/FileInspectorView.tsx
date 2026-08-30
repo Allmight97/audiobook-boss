@@ -1,11 +1,10 @@
 import type { JSX } from 'solid-js';
-import { inputViewAtom } from '../../app/inputSession';
 import { toInspectorViewFromInput } from '../../app/inputSession/inspector';
-import { useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 import { companionSummaryForInputIds } from '../remoteSource';
 
 export function FileInspectorView(): JSX.Element {
-	const view = useAtomValue(() => inputViewAtom);
+	const view = useAppRuntime().input.view;
 	const inspector = () => toInspectorViewFromInput(view(), companionSummaryForInputIds);
 
 	return (

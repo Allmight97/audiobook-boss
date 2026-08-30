@@ -1,32 +1,28 @@
 import { createEffect, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import {
-	hydrateSupportTextAtom,
-	importIntentAtom,
-	inputCapabilityAtom,
-	inputViewAtom,
-	setDragOverAtom,
-} from '../../app/inputSession';
-import {
 	nativeDropLooksLikeCoverArt,
 	nativeDropTargetAtPoint,
 } from '../../app/inputSession/nativeIngress';
 import { applyCoverArtDropAtom } from '../../app/metadataSession';
-import { openRemoteSourceAcquireAtom, remoteSourceLifetimeAtom } from '../../app/remoteSource';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
+import { useAtomSet } from '../../app/runtime/solid';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 import { FileListView } from '../fileList/FileListView';
 import { RemoteSourceAcquireView } from '../remoteSource/RemoteSourceAcquireView';
 
 export function FileImportView(): JSX.Element {
-	const view = useAtomValue(() => inputViewAtom);
-	const capability = useAtomValue(() => inputCapabilityAtom);
-	const importIntent = useAtomSet(() => importIntentAtom);
-	const openRemoteSourceAcquire = useAtomSet(() => openRemoteSourceAcquireAtom);
-	useAtomValue(() => remoteSourceLifetimeAtom);
+	const runtime = useAppRuntime();
+	const view = runtime.input.view;
+	const capability = runtime.input.capability;
+	const importIntent = runtime.input.importIntent;
+	const openRemoteSourceAcquire = runtime.remoteSource.open;
 	const applyCoverArtDrop = useAtomSet(() => applyCoverArtDropAtom);
-	const hydrateSupportText = useAtomSet(() => hydrateSupportTextAtom);
-	const setDragOver = useAtomSet(() => setDragOverAtom);
+	const hydrateSupportText = runtime.input.hydrateSupportText;
+	const setDragOver = runtime.input.setDragOver;
+	createEffect(() => {
+		runtime.remoteSource.reconcileWithInput(view().files);
+	});
 	let fileManagementContainer: HTMLElement | null = null;
 	let deferredOpenedDrain = false;
 
@@ -41,7 +37,7 @@ export function FileImportView(): JSX.Element {
 	}
 
 	onMount(() => {
-		hydrateSupportText(undefined);
+		void hydrateSupportText();
 		const subscriptions = createSubscriptionGroup();
 		void subscriptions.add(
 			capability().listenDragEnter(() => {
@@ -102,7 +98,7 @@ export function FileImportView(): JSX.Element {
 					id="acquire-audiobooks-btn"
 					class="btn-pill btn-pill-secondary"
 					type="button"
-					onClick={() => openRemoteSourceAcquire(undefined)}
+					onClick={() => openRemoteSourceAcquire()}
 				>
 					Import from Library
 				</button>

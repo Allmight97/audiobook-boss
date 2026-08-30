@@ -23,7 +23,7 @@ describe('MetadataLookupView modal wiring', () => {
 	it('routes Escape through the same close callback the Close button uses', async () => {
 		runtime = createTestAppRuntime();
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<button type="button" id="lookup-invoker">
 					Open
 				</button>

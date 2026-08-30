@@ -122,7 +122,7 @@ export function WorkCenterView(): JSX.Element {
 													operation.status === 'running' && operation.progress.etaSeconds != null
 												}
 											>
-												<> · {formatEtaRemaining(operation.progress.etaSeconds ?? 0)}</>
+												· {formatEtaRemaining(operation.progress.etaSeconds ?? 0)}
 											</Show>
 										</span>
 									</div>
@@ -146,7 +146,7 @@ export function WorkCenterView(): JSX.Element {
 														<Show
 															when={child.status === 'running' && child.progress.etaSeconds != null}
 														>
-															<> · {formatEtaRemaining(child.progress.etaSeconds ?? 0)}</>
+															· {formatEtaRemaining(child.progress.etaSeconds ?? 0)}
 														</Show>
 													</span>
 													<Show when={child.sourcePath}>

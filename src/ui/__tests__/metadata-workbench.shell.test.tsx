@@ -96,7 +96,7 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 
 function renderApp(runtime: AppRuntime) {
 	return render(() => (
-		<AppRuntimeProvider registry={runtime.registry}>
+		<AppRuntimeProvider runtime={runtime}>
 			<App />
 		</AppRuntimeProvider>
 	));

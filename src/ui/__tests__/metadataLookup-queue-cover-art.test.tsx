@@ -6,7 +6,6 @@ import { getMetadataForFile } from '../../app/metadataSession';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
-import { inputSessionAtom, selectAllAtom } from '../../app/inputSession/atoms';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { App } from '../App';
@@ -132,9 +131,9 @@ async function importAndSelectAll(runtime: AppRuntime): Promise<void> {
 	}
 	await userEvent.click(addButton);
 	await waitFor(() => {
-		expect(runtime.registry.get(inputSessionAtom).fileList?.files.length).toBe(2);
+		expect(runtime.input.view().files.length).toBe(2);
 	});
-	runtime.registry.set(selectAllAtom, undefined);
+	runtime.input.selectAll();
 }
 
 describe('metadata lookup queue cover art isolation', () => {
@@ -150,7 +149,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<App />
 			</AppRuntimeProvider>
 		));
@@ -187,7 +186,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<App />
 			</AppRuntimeProvider>
 		));
@@ -216,7 +215,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<App />
 			</AppRuntimeProvider>
 		));
@@ -240,7 +239,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		});
 		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<App />
 			</AppRuntimeProvider>
 		));
@@ -270,7 +269,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		});
 		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<App />
 			</AppRuntimeProvider>
 		));

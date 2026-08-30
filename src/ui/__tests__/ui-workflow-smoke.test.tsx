@@ -221,7 +221,7 @@ describe('UI Workflow Smoke Test', () => {
 		const runtime = createTestAppRuntime();
 		const user = userEvent.setup();
 		render(() => (
-			<AppRuntimeProvider registry={runtime.registry}>
+			<AppRuntimeProvider runtime={runtime}>
 				<App />
 			</AppRuntimeProvider>
 		));

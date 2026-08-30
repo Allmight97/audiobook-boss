@@ -1,3 +1,4 @@
+export { bindLookupInput } from './services';
 export {
 	bumpLookupPreviewAtom,
 	lookupPreviewRevisionAtom,

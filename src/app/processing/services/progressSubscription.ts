@@ -1,5 +1,9 @@
 import { tauriClient } from '../../../lib/tauri/client';
-import { EVENTS, type ProcessingProgressEvent, type ProcessingQueueEvent } from '../../../types/events';
+import {
+	EVENTS,
+	type ProcessingProgressEvent,
+	type ProcessingQueueEvent,
+} from '../../../types/events';
 import {
 	createSubscriptionGroup,
 	type SubscriptionGroup,

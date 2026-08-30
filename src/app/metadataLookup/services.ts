@@ -2,9 +2,7 @@ import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import { inputSessionAtom } from '../inputSession/atoms';
-import { selectFileInSession } from '../inputSession/selection';
-import type { InputSessionState } from '../inputSession/types';
+import type { InputOwner } from '../inputSession/owner';
 import {
 	getMetadataForFile,
 	metadataCapabilityAtom,
@@ -24,15 +22,19 @@ import {
 import type { MetadataLookupWorkflowServices } from './workflow';
 
 export type LookupServiceGet = {
-	(atom: typeof inputSessionAtom): InputSessionState;
 	(atom: typeof metadataEditorAtom): MetadataEditorState;
 	(atom: typeof metadataCapabilityAtom): MetadataCapability;
 	readonly set: {
-		(atom: typeof inputSessionAtom, value: InputSessionState): void;
 		(atom: typeof metadataEditorAtom, value: MetadataEditorState): void;
 		(atom: typeof setCustomCoverArtAtom, value: number[]): void;
 	};
 };
+
+let boundInput: InputOwner | undefined;
+
+export function bindLookupInput(input: InputOwner | undefined): void {
+	boundInput = input;
+}
 
 export function makeProductionLookupServices(
 	get: LookupServiceGet,
@@ -43,19 +45,15 @@ export function makeProductionLookupServices(
 		setMetadataLookupQueue,
 		clearMetadataLookupQueue,
 		setMetadataLookupQueueIndex,
-		getSelectedFileIndices: () => new Set(get(inputSessionAtom).selectedIndices),
-		getCurrentFileList: (): FileListInfo | null => get(inputSessionAtom).fileList,
+		getSelectedFileIndices: () => new Set(boundInput?.session().selectedIndices ?? []),
+		getCurrentFileList: (): FileListInfo | null => boundInput?.session().fileList ?? null,
 		getMetadataForFile,
 		stageMetadataIntentPatch,
 		selectFile: (index, modifiers) => {
-			get.set(
-				inputSessionAtom,
-				selectFileInSession(
-					get(inputSessionAtom),
-					index,
-					modifiers ?? { multi: false, range: false },
-				),
-			);
+			boundInput?.selectFile({
+				index,
+				modifiers: modifiers ?? { multi: false, range: false },
+			});
 		},
 		applyMetadataToForm: (metadata: Partial<AudiobookMetadata>, options) => {
 			const editor = get(metadataEditorAtom);

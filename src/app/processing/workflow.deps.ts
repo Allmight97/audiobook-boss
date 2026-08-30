@@ -1,6 +1,7 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { setConcurrencyControlsEnabledAtom } from '../appSettings';
-import { inputViewAtom, jobTypeAtom, setOrderLockedAtom } from '../inputSession';
+import { boundProcessingInput } from './bind';
+import { fileListFromInput } from './input';
 import {
 	cacheMetadataForFile,
 	collectActionableMetadataIntent,
@@ -15,7 +16,6 @@ import {
 	stageMetadataIntentPatch,
 } from '../metadataSession';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
-import { fileListFromInput } from './input';
 import { processingRegistry } from './registry';
 import { makeProcessingWorkflowServicesLayer, type ProcessingWorkflowServices } from './workflow';
 import { showError } from './view';
@@ -23,7 +23,8 @@ import { openGeneratedPreviewIfSingle } from './preview';
 import { readProcessingRequestConfig } from './config';
 
 function liveFileList() {
-	return fileListFromInput(processingRegistry().get(inputViewAtom));
+	const view = boundProcessingInput()?.view();
+	return view ? fileListFromInput(view) : null;
 }
 
 function liveEditor() {
@@ -32,10 +33,10 @@ function liveEditor() {
 
 const liveProcessingWorkflowServices = {
 	getCurrentFileList: liveFileList,
-	getSelectedFileIndex: () => processingRegistry().get(inputViewAtom).selectedAnchor,
-	getSelectedFileIndices: () => new Set(processingRegistry().get(inputViewAtom).selectedIndices),
+	getSelectedFileIndex: () => boundProcessingInput()?.view().selectedAnchor ?? -1,
+	getSelectedFileIndices: () => new Set(boundProcessingInput()?.view().selectedIndices ?? []),
 	readProcessingRequestConfig,
-	getJobType: () => processingRegistry().get(jobTypeAtom),
+	getJobType: () => boundProcessingInput()?.jobType() ?? 'batch',
 	hasDirtyMetadataFields: () => {
 		const editor = liveEditor();
 		return hasDirtyMetadataFields(editor.form, editor.cover);
@@ -54,7 +55,10 @@ const liveProcessingWorkflowServices = {
 	stageMetadataIntentPatch,
 	async stageMetadataToSelection(options?: { showStatus?: boolean }): Promise<boolean> {
 		const registry = processingRegistry();
-		const view = registry.get(inputViewAtom);
+		const view = boundProcessingInput()?.view();
+		if (!view) {
+			return false;
+		}
 		const editor = liveEditor();
 		const capability = registry.get(metadataCapabilityAtom);
 		const selectedFiles = view.selectedIndices
@@ -80,7 +84,7 @@ const liveProcessingWorkflowServices = {
 		processingRegistry().set(setConcurrencyControlsEnabledAtom, enabled);
 	},
 	setFileOrderLocked: (locked) => {
-		processingRegistry().set(setOrderLockedAtom, locked);
+		boundProcessingInput()?.setOrderLocked(locked);
 	},
 	validateMetadataIntentPatch: (patch) =>
 		processingRegistry().get(metadataCapabilityAtom).validateMetadataIntentPatch(patch),

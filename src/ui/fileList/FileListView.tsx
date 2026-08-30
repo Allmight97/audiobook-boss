@@ -1,22 +1,8 @@
-import {
-	clearAllFilesAtom,
-	clearSelectionAtom,
-	displayedTitleForFile,
-	formatFileDetails,
-	inputCapabilityAtom,
-	inputViewAtom,
-	moveFileAtom,
-	removeFileAtom,
-	reorderFilesAtom,
-	restoreImportOrderAtom,
-	selectAllAtom,
-	selectFileAtom,
-	toggleSortAtom,
-} from '../../app/inputSession';
+import { displayedTitleForFile, formatFileDetails } from '../../app/inputSession';
 import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
+import { useAppRuntime } from '../../app/runtime';
 import { hasSupplementalAssetsForInputId } from '../remoteSource';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
 import { createSignal, createEffect, For, onCleanup, type JSX } from 'solid-js';
 import {
 	clearFileListCoverThumbnails,
@@ -31,17 +17,18 @@ export function FileListView(props: {
 	readonly onHeaderClick: () => void;
 	readonly fileManagementRef?: (element: HTMLElement | null) => void;
 }): JSX.Element {
-	const view = useAtomValue(() => inputViewAtom);
-	const capability = useAtomValue(() => inputCapabilityAtom);
-	const selectFile = useAtomSet(() => selectFileAtom);
-	const selectAll = useAtomSet(() => selectAllAtom);
-	const clearSelection = useAtomSet(() => clearSelectionAtom);
-	const removeFile = useAtomSet(() => removeFileAtom);
-	const moveFile = useAtomSet(() => moveFileAtom);
-	const reorderFiles = useAtomSet(() => reorderFilesAtom);
-	const toggleSort = useAtomSet(() => toggleSortAtom);
-	const restoreImportOrder = useAtomSet(() => restoreImportOrderAtom);
-	const clearAllFiles = useAtomSet(() => clearAllFilesAtom);
+	const input = useAppRuntime().input;
+	const view = input.view;
+	const capability = input.capability;
+	const selectFile = input.selectFile;
+	const selectAll = input.selectAll;
+	const clearSelection = input.clearSelection;
+	const removeFile = input.removeFile;
+	const moveFile = input.moveFile;
+	const reorderFiles = input.reorderFiles;
+	const toggleSort = input.toggleSort;
+	const restoreImportOrder = input.restoreImportOrder;
+	const clearAllFiles = input.clearAllFiles;
 	const [thumbnailRevision, setThumbnailRevision] = createSignal(0);
 	const [dragState, setDragState] = createSignal<FileListDragState>({
 		draggedIndex: null,
@@ -114,10 +101,10 @@ export function FileListView(props: {
 			return;
 		}
 		if (command.type === 'selectAll') {
-			selectAll(undefined);
+			selectAll();
 			return;
 		}
-		clearSelection(undefined);
+		clearSelection();
 	}
 
 	const drag = () => {
@@ -150,7 +137,7 @@ export function FileListView(props: {
 						disabled={view().orderLocked}
 						aria-label={`Sort files ${view().sortDirection === 'ascending' ? 'descending' : 'ascending'}`}
 						aria-describedby="file-sort-status"
-						onClick={() => toggleSort(undefined)}
+						onClick={() => toggleSort()}
 					>
 						{view().sortLabel}
 					</button>
@@ -167,7 +154,7 @@ export function FileListView(props: {
 						type="button"
 						style={{ display: view().showRestoreImportOrder ? 'block' : 'none' }}
 						disabled={view().orderLocked}
-						onClick={() => restoreImportOrder(undefined)}
+						onClick={() => restoreImportOrder()}
 					>
 						Restore import order
 					</button>
@@ -177,7 +164,7 @@ export function FileListView(props: {
 						type="button"
 						style={{ display: view().showClearButton ? 'block' : 'none' }}
 						disabled={view().orderLocked}
-						onClick={() => clearAllFiles(undefined)}
+						onClick={() => clearAllFiles()}
 					>
 						Clear
 					</button>

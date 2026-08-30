@@ -1,6 +1,6 @@
 import { Effect } from '../../lib/effect/appEffect';
 import { Atom } from '../runtime/reactivity';
-import { inputViewAtom } from '../inputSession';
+import { inputViewAtom } from '../inputSession/atoms';
 import { clearRemoteSourceCoverPreviewCache } from './coverPreview';
 import { makeProductionRemoteSourceServices } from './services';
 import {
@@ -9,6 +9,7 @@ import {
 } from './sessionAssets';
 import { patchRemoteSourceState, resetRemoteSourceState, snapshotRemoteSourceView } from './state';
 import {
+	invalidateRemoteSourceWorkflows,
 	makeRemoteSourceWorkflowServicesLayer,
 	runRemoteSourceWorkflow,
 	type RemoteSourceWorkflowAction,
@@ -68,6 +69,7 @@ export const patchRemoteSourceViewAtom = Atom.fnSync(
 ).pipe(Atom.keepAlive);
 
 export function resetRemoteSource(): void {
+	invalidateRemoteSourceWorkflows();
 	resetRemoteSourceState();
 	resetRemoteSourceSessionAssets();
 	clearRemoteSourceCoverPreviewCache();

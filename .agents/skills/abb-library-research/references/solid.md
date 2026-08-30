@@ -2,14 +2,20 @@
 
 - ABB packages: `solid-js`, `@effect/atom-solid`, `vite-plugin-solid`,
   `@solidjs/testing-library`
-- Upstream: `https://github.com/solidjs/solid.git`
+- Upstreams:
+  - `solid-js`: `https://github.com/solidjs/solid.git`
+  - `@effect/atom-solid`: `https://github.com/Effect-TS/effect.git`
+    (`packages/atom/solid`)
+  - `vite-plugin-solid`: `https://github.com/solidjs/vite-plugin-solid.git`
+  - `@solidjs/testing-library`:
+    `https://github.com/solidjs/solid-testing-library.git`
 - Context7: `/solidjs/solid` or `/websites/docs_solidjs_com`
 
 Resolve installed versions from `bun.lock` (do not cache them here).
 
 ## Use For
 
-- Solid 1.9 rendering, signals, effects, and component tests.
+- Solid rendering, signals, effects, and component tests.
 - Effect Atom Solid bindings (`useAtomValue`, `useAtomSet`) and the
   `@effect/atom-solid` peer range against `solid-js`.
 - Verifying whether ABB UI behavior follows current Solid patterns.
@@ -33,5 +39,7 @@ Resolve installed versions from `bun.lock` (do not cache them here).
   `@effect/atom-solid` versions.
 - Verify owner conventions in the nearest `src/app/<owner>/index.ts` strip
   and Solid view before changing state shape.
+- Keep direct `effect/unstable/reactivity` and `@effect/atom-solid` imports in
+  `src/app/runtime/reactivity.ts` and `src/app/runtime/solid.ts`.
 - Use targeted frontend tests for deterministic behavior and browser/human
   review for visual UX claims.

@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-08-29 - Solid Renderer And Effect Atom Runtime (#468)
+
+- Outcome: Solid is ABB's only desktop renderer. Solid owns screen-local
+  interaction; owner view atoms carry durable cross-component state; Effect
+  owns effectful workflows; one app-lifetime registry composes and disposes
+  the frontend runtime.
+- Evidence: `package.json`, `src/main.tsx`, `src/app/runtime/`, and
+  `scripts/frontend-toolchain-layout.test.ts`.
+- Guardrail: workflow Effect, unstable reactivity, and the Solid binding enter
+  through their three ABB seams; renderers consume owner Public API Strips
+  rather than writable private atoms.
+
 ## 2026-08-27 - TypeScript 7 / Effect 4 Frontend Toolchain (#462)
 
 - Outcome: ABB's frontend compiler is TypeScript 7 via `@typescript/native`

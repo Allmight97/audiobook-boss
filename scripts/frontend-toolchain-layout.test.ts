@@ -146,6 +146,14 @@ describe('frontend toolchain layout', () => {
 		expect(packageImportHits(importsEffectPackageRoot, new Set([allowed]))).toEqual([]);
 	});
 
+	it('lets only the ABB workflow and reactivity seams import the effect package family', () => {
+		const allowed = new Set([
+			path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts')),
+			path.normalize(path.join(repoRoot, 'src/app/runtime/reactivity.ts')),
+		]);
+		expect(packageImportHits(importsEffectPackage, allowed)).toEqual([]);
+	});
+
 	it('lets only the runtime reactivity seam import effect/unstable/reactivity', () => {
 		const allowed = path.normalize(path.join(repoRoot, 'src/app/runtime/reactivity.ts'));
 		expect(packageImportHits(importsEffectReactivity, new Set([allowed]))).toEqual([]);

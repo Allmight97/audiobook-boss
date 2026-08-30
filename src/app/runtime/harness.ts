@@ -3,15 +3,12 @@ import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import { settingsCapabilityAtom, concurrencyViewAtom } from '../appSettings/concurrency';
 import { resetProductionSettingsDialog } from '../appSettings/dialog';
-import { inputCapabilityAtom, inputSessionAtom } from '../inputSession/atoms';
-import { emptyInputSession } from '../inputSession/types';
 import { resetMetadataLookupState } from '../metadataLookup';
 import { lookupViewAtom } from '../metadataLookup/atoms';
 import { createMetadataLookupState } from '../metadataLookup/state';
 import { clearMetadataLookupCoverPreviewCache } from '../metadataLookup/coverPreview';
 import { resetCollisionDialog, seedOutputPlan } from '../outputPlan';
 import { seedProcessing } from '../processing';
-import { resetRemoteSource } from '../remoteSource';
 import { bindWorkOperationsRegistry, disposeWorkCenter } from '../workOperations';
 import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
 import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state';
@@ -44,13 +41,10 @@ export function createTestAppRuntime(
 		readonly settings?: SettingsCapability;
 	} = {},
 ): AppRuntime {
-	const runtime = createAppRuntime();
-	runtime.registry.set(inputSessionAtom, emptyInputSession());
-	runtime.registry.set(metadataEditorAtom, emptyMetadataEditor());
+	const runtime = createAppRuntime(options);
 	clearMetadataSession();
 	resetMetadataLookupState();
 	clearMetadataLookupCoverPreviewCache();
-	resetRemoteSource();
 	resetProductionSettingsDialog();
 	resetCollisionDialog();
 	seedOutputPlan(runtime.registry);
@@ -69,9 +63,7 @@ export function createTestAppRuntime(
 		allowAuto: true,
 		fixedOptions: [],
 	});
-	if (options.input) {
-		runtime.registry.set(inputCapabilityAtom, options.input);
-	}
+	runtime.registry.set(metadataEditorAtom, emptyMetadataEditor());
 	if (options.metadata) {
 		runtime.registry.set(metadataCapabilityAtom, options.metadata);
 	}

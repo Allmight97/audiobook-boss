@@ -1,5 +1,5 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { inputViewAtom, setOrderLockedAtom } from '../inputSession';
+import { boundProcessingInput } from './bind';
 import { setConcurrencyControlsEnabledAtom } from '../appSettings';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction } from './workflow';
@@ -41,7 +41,8 @@ function readCurrentFileList() {
 	if (!registry) {
 		return null;
 	}
-	return fileListFromInput(registry.get(inputViewAtom));
+	const view = boundProcessingInput()?.view();
+	return view ? fileListFromInput(view) : null;
 }
 
 function unlockWorkbench(): void {
@@ -50,7 +51,7 @@ function unlockWorkbench(): void {
 		return;
 	}
 	registry.set(setConcurrencyControlsEnabledAtom, true);
-	registry.set(setOrderLockedAtom, false);
+	boundProcessingInput()?.setOrderLocked(false);
 }
 
 export class StatusPanelRuntime {

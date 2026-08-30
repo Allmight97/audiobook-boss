@@ -14,6 +14,11 @@ These directories arrange existing public views and own no business state:
 `encodingWorkbench/` is stylesheet-only: `src/ui/App.tsx` composes the encoder,
 output, and tags blocks inline and imports `encodingWorkbench.css`.
 
+`src/ui/App.tsx` is the integration root and may compose a concrete owner view
+when that owner's index intentionally exposes a nonvisual API. This exception
+is rendering-only: application state and intents still cross `src/app/<owner>`
+Public API Strips.
+
 Rules for both:
 
 - Compose existing public UI views only. Do not import private

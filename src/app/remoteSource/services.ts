@@ -1,21 +1,16 @@
-import { importIntentAtom, inputViewAtom } from '../inputSession';
-import type { ImportIntent, InputView } from '../inputSession';
+import type { InputView } from '../inputSession';
 import { tauriClient } from '../../lib/tauri/client';
-import { Effect } from '../../lib/effect/appEffect';
 import { remoteSourceProviderId, type RemoteInputHandoffResult } from './types';
 import { ORDER_LOCKED_IMPORT_MESSAGE } from './workflow';
 import type { RemoteSourceWorkflowServices } from './workflow';
 
-export type RemoteSourceServiceGet = {
-	(atom: typeof inputViewAtom): InputView;
-	readonly setResult: (
-		atom: typeof importIntentAtom,
-		value: ImportIntent,
-	) => Effect.Effect<unknown, unknown>;
+export type RemoteSourceInputBridge = {
+	readonly inputView: () => InputView;
+	readonly importPaths: (paths: readonly string[]) => Promise<void>;
 };
 
 export function makeProductionRemoteSourceServices(
-	get: RemoteSourceServiceGet,
+	bridge: RemoteSourceInputBridge,
 ): RemoteSourceWorkflowServices {
 	return {
 		getAccountState: () => tauriClient.getRemoteSourceAccountState(remoteSourceProviderId),
@@ -36,25 +31,23 @@ export function makeProductionRemoteSourceServices(
 		getAcquisitionStatus: (jobId) => tauriClient.getRemoteSourceAcquisitionStatus(jobId),
 		cancelAcquisition: (jobId) => tauriClient.cancelRemoteSourceAcquisition(jobId),
 		purgeSession: (jobId) => tauriClient.purgeRemoteSourceSession(jobId),
-		importMaterializedPaths: (paths) => importMaterializedPathsThroughInput(get, paths),
+		importMaterializedPaths: (paths) => importMaterializedPathsThroughInput(bridge, paths),
 		sleep: (ms) => new Promise((resolve) => window.setTimeout(resolve, ms)),
 	};
 }
 
 async function importMaterializedPathsThroughInput(
-	get: RemoteSourceServiceGet,
+	bridge: RemoteSourceInputBridge,
 	paths: readonly string[],
 ): Promise<RemoteInputHandoffResult> {
-	const view = get(inputViewAtom);
+	const view = bridge.inputView();
 	if (view.orderLocked) {
 		return { status: 'blocked', message: ORDER_LOCKED_IMPORT_MESSAGE };
 	}
 
 	try {
-		await Effect.runPromise(
-			get.setResult(importIntentAtom, { type: 'importPaths', paths: [...paths] }),
-		);
-		const after = get(inputViewAtom);
+		await bridge.importPaths(paths);
+		const after = bridge.inputView();
 		if (
 			after.errorMessage &&
 			!paths.some((path) => after.files.some((file) => file.path === path))

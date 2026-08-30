@@ -1,15 +1,16 @@
 import { createEffect, type JSX } from 'solid-js';
 import { hydrateMetadataSelectionAtom, metadataViewAtom } from '../../app/metadataSession';
-import { inputViewAtom, jobTypeAtom } from '../../app/inputSession';
+import { useAppRuntime } from '../../app/runtime';
 import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
-import { CoverArtView } from '../coverArt/CoverArtView';
-import { MetadataFormView } from '../metadataForm/MetadataFormView';
+import { CoverArtView } from '../coverArt';
+import { MetadataFormView } from '../metadataForm';
 import './metadataManager.css';
 
 export function MetadataManagerView(): JSX.Element {
+	const input = useAppRuntime().input;
 	const view = useAtomValue(() => metadataViewAtom);
-	const inputView = useAtomValue(() => inputViewAtom);
-	const jobType = useAtomValue(() => jobTypeAtom);
+	const inputView = input.view;
+	const jobType = input.jobType;
 	const hydrate = useAtomSet(() => hydrateMetadataSelectionAtom);
 
 	createEffect(() => {

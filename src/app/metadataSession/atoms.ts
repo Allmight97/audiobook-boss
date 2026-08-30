@@ -8,8 +8,8 @@ import {
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
 import { Atom } from '../runtime/reactivity';
-import { inputSessionAtom, jobTypeAtom } from '../inputSession/atoms';
-import type { InputSessionState } from '../inputSession/types';
+import type { InputOwner } from '../inputSession/owner';
+import { emptyInputSession, type InputSessionState } from '../inputSession/types';
 import {
 	cacheMetadataForFile,
 	clearMetadataSession,
@@ -151,6 +151,20 @@ function scheduleCoverMessageClear(getSet: (cover: Partial<CoverUiState>) => voi
 	}, 4000);
 }
 
+let boundInput: InputOwner | undefined;
+
+export function bindMetadataInput(input: InputOwner | undefined): void {
+	boundInput = input;
+}
+
+function readInputSession(): InputSessionState {
+	return boundInput?.session() ?? emptyInputSession();
+}
+
+function readJobType(): JobType {
+	return boundInput?.jobType() ?? 'batch';
+}
+
 export const metadataCapabilityAtom = Atom.make<MetadataCapability>(liveMetadataCapability).pipe(
 	Atom.keepAlive,
 );
@@ -233,8 +247,8 @@ function commitCoverToOwners(
 
 export const hydrateMetadataSelectionAtom = Atom.fn((activeElement: Element | null, get) => {
 	const capability = get(metadataCapabilityAtom);
-	const session = get(inputSessionAtom);
-	const jobType = get(jobTypeAtom);
+	const session = readInputSession();
+	const jobType = readJobType();
 	const editor = get(metadataEditorAtom);
 	const selectedFiles = selectedFilesFromSession(session);
 	const nextKey = selectionKeyFor(selectedFiles);
@@ -386,8 +400,6 @@ export const hydrateMetadataSelectionAtom = Atom.fn((activeElement: Element | nu
 
 type MetadataAtomGet = {
 	(atom: typeof metadataEditorAtom): MetadataEditorState;
-	(atom: typeof inputSessionAtom): InputSessionState;
-	(atom: typeof jobTypeAtom): JobType;
 	readonly set: (atom: typeof metadataEditorAtom, value: MetadataEditorState) => void;
 };
 
@@ -436,13 +448,13 @@ function autoLoadCoverIfNeeded(
 			...existing,
 			cover_art: metadata.cover_art || existing.cover_art,
 		});
-		const session = get(inputSessionAtom);
+		const session = readInputSession();
 		const selected = selectedFilesFromSession(session);
 		get.set(
 			metadataEditorAtom,
 			bumpCover(
 				current,
-				refreshCoverFromOwners(get(jobTypeAtom), session.fileList, selected, current.cover),
+				refreshCoverFromOwners(readJobType(), session.fileList, selected, current.cover),
 			),
 		);
 	});
@@ -487,15 +499,15 @@ export const setCoverUrlInputAtom = Atom.fnSync((value: string, get) => {
 
 function applyLoadedCoverArt(get: MetadataAtomGet, bytes: number[]): void {
 	const editor = get(metadataEditorAtom);
-	const session = get(inputSessionAtom);
+	const session = readInputSession();
 	const selected = selectedFilesFromSession(session);
-	const committed = commitCoverToOwners(get(jobTypeAtom), session.fileList, selected, bytes, false);
+	const committed = commitCoverToOwners(readJobType(), session.fileList, selected, bytes, false);
 	if (!committed) {
 		get.set(
 			metadataEditorAtom,
 			bumpCover(
 				editor,
-				refreshCoverFromOwners(get(jobTypeAtom), session.fileList, selected, editor.cover),
+				refreshCoverFromOwners(readJobType(), session.fileList, selected, editor.cover),
 			),
 		);
 		return;
@@ -519,9 +531,9 @@ export const setCustomCoverArtAtom = Atom.fnSync((coverArtBytes: number[] | null
 
 export const clearCoverArtAtom = Atom.fnSync((_: undefined, get) => {
 	const editor = get(metadataEditorAtom);
-	const session = get(inputSessionAtom);
+	const session = readInputSession();
 	const selected = selectedFilesFromSession(session);
-	commitCoverToOwners(get(jobTypeAtom), session.fileList, selected, null, true);
+	commitCoverToOwners(readJobType(), session.fileList, selected, null, true);
 	get.set(
 		metadataEditorAtom,
 		bumpCover(editor, {
@@ -671,7 +683,7 @@ export const applyLookupMetadataAtom = Atom.fnSync((metadata: Partial<AudiobookM
 
 export const saveMetadataAtom = Atom.fn((_: undefined, get) => {
 	const capability = get(metadataCapabilityAtom);
-	const session = get(inputSessionAtom);
+	const session = readInputSession();
 	const editor = get(metadataEditorAtom);
 	if (!session.fileList?.files.length) {
 		console.log('No files loaded - nothing to save');

@@ -43,7 +43,7 @@ describe('MetadataLookup cover preview', () => {
 		const metadata = fakeMetadata();
 		runtime = createTestAppRuntime({ metadata });
 		render(() => (
-			<AppRuntimeProvider registry={runtime!.registry}>
+			<AppRuntimeProvider runtime={runtime!}>
 				<button id="metadata-lookup-btn" type="button">
 					Open
 				</button>

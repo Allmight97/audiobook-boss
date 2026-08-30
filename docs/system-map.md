@@ -65,6 +65,8 @@ ownership or verification.
 ## Core Truth Boundaries
 
 - UI code routes runtime commands/events through `src/lib/tauri/client.ts`.
+- `src/app/runtime/` owns one app-lifetime Effect Atom registry, the Solid
+  provider, exact-version reactivity/binding seams, and disposal.
 - Multi-boundary frontend orchestration lives in named Effect workflow owners;
   Solid views dispatch intent and render state.
 - `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
@@ -121,6 +123,7 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 
 | Strip | Entry | Owns |
 | --- | --- | --- |
+| App Runtime | `src/app/runtime` | One app-lifetime Atom registry, Solid provider, compatibility seams, test harness, and disposal. |
 | Output Plan | `src/app/outputPlan` | Output directory, naming, path preview, derived estimate, and collision review. Solid views: `src/ui/outputPanel`, `src/ui/collisionDialog`. |
 | Input Session | `src/app/inputSession` | File-list session, import analysis, selection, order, and inspector projection. Solid views: `src/ui/fileList` (`FileListView`), `src/ui/fileImport`. |
 | File List | `src/ui/fileList` | `FileListView`, pointer reorder, and cover thumbnails. List truth stays in Input Session. |
@@ -134,7 +137,8 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 | Tag Preview | `src/ui/tagPreview` | `TagPreviewView`. TSOA and tag projection live in `src/app/metadataSession/tags.ts`. |
 | Remote Source | `src/app/remoteSource` | Account/acquisition workflow, Input handoff, and session-asset retain/purge. Solid dialog: `src/ui/remoteSource`. |
 
-Exact export lists live in each strip's nearest `AGENTS.md`.
+Each strip's `index.ts` is exact export truth. Nearest `AGENTS.md` files record
+only owner boundaries and recurring traps that are not cheap to infer from it.
 
 Boundary-aligned Rust core crates under `crates/abb-*-core` are testing and
 packaging surfaces for pure domain logic inside these owners. They are not new

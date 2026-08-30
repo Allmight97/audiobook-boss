@@ -11,14 +11,15 @@ Use `AppEffect` for frontend workflow owners that coordinate async work,
 dependencies, typed failures, cleanup, cancellation/lifetime handoff, or
 multi-service orchestration.
 
-Keep Effect private to workflow owners:
+Keep Effect workflow APIs private to workflow owners:
 
-- Only `src/lib/effect/appEffect.ts` imports the `effect` package. Owners and
-  tests import `Effect`, `Context`, `Data`, and `Layer` from that file. Proof:
-  `bun run test -- scripts/frontend-toolchain-layout.test.ts`. The tripwire
-  lives in scripts so the frontend `tsconfig` stays Vite/Solid types. It
-  matches `from 'effect'` and `from 'effect/...'` so ordinary multiline named
-  imports count; do not require the binding list to sit on one line.
+- Only `src/lib/effect/appEffect.ts` imports the `effect` package root. Owners
+  and tests import `Effect`, `Context`, `Data`, and `Layer` from that file.
+  Effect Atom reactivity is a separate runtime seam:
+  `src/app/runtime/reactivity.ts` is the only direct
+  `effect/unstable/reactivity` importer and `src/app/runtime/solid.ts` is the
+  only direct `@effect/atom-solid` importer. Proof: `bun run test --
+  scripts/frontend-toolchain-layout.test.ts`.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
 - Workflow owners expose a local service interface, service tag, live layer
@@ -96,5 +97,3 @@ explicitly accepts a public API change.
   fake-layer tests.
 - Plain local UI state, pure transforms, and single-boundary event handlers can
   stay vanilla TypeScript when Effect would not clarify ownership or testing.
-- Manual cover-art file, URL, drop, and clear loading remains vanilla in
-  `src/ui/coverArt/index.ts` until that flow proves it needs a workflow owner.

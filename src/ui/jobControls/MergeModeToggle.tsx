@@ -1,10 +1,10 @@
 import type { JSX } from 'solid-js';
-import { jobTypeAtom, setJobTypeAtom } from '../../app/inputSession';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 
 export function MergeModeToggle(): JSX.Element {
-	const jobType = useAtomValue(() => jobTypeAtom);
-	const setJobType = useAtomSet(() => setJobTypeAtom);
+	const input = useAppRuntime().input;
+	const jobType = input.jobType;
+	const setJobType = input.setJobType;
 
 	return (
 		<div class="flex items-center gap-1.5">

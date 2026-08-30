@@ -22,10 +22,10 @@
   selected hidden titles survive ordinary close. App disposal and native
   cancel/purge remain the cleanup authorities.
 - `runRemoteSourceActionAtom` publishes `remoteSourceViewAtom` on each
-  acquisition poll patch. `RemoteSourceAcquireView` shows the progress bar
-  and Cancel only when `job().progress` is present. A running job without
-  that snapshot hides both. Do not treat the dialog as a working live
-  progress UX.
+  acquisition poll patch. Native jobs provide a progress snapshot from job
+  creation; `RemoteSourceAcquireView` renders its live percentage and Cancel.
+  Cancellation and app disposal invalidate the active acquisition generation
+  so late Promise completions cannot overwrite terminal or reset state.
 - Materialized audio becomes a normal Input session through
   `importIntentAtom`. Do not call `handleImportedAudioPaths` or
   `getCurrentFileList`. If Input import is blocked or fails, purge the staged
@@ -48,7 +48,8 @@
   snapshots.
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
 - `selection.test.ts` pins filter/selection policy.
-- `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent.
+- `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and
+  the polled Atom-to-Solid progress path.
 
 ## Breaking-Change Triggers
 

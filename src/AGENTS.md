@@ -10,9 +10,10 @@
 ## Preferred Path
 
 - Route every runtime Tauri command/event through `src/lib/tauri/client.ts` (`tauriClient`).
-- Route durable preference hydration and persistence through
-  `src/ui/appSettings`; existing control owners keep their runtime request
-  truth and expose documented public helpers for App Settings to call.
+- Route durable preference hydration through `src/app/appSettings` and
+  persistence through `src/ui/appSettings`; existing control owners keep their
+  runtime request truth and expose documented public helpers for App Settings
+  to call.
 - Runtime settings controls consume backend capability facts for selectable
   accept/reject rules; do not add frontend-owned encoder/concurrency option
   matrices when a Rust owner validates the setting.
@@ -31,6 +32,9 @@
   metadata-save lifecycle display, also open `src/app/workOperations/AGENTS.md`.
 - When touching Effect workflow owners or the AppEffect kernel, open
   `src/lib/effect/AGENTS.md` first.
+- Keep direct Effect Atom reactivity and Solid-binding imports behind
+  `src/app/runtime/reactivity.ts` and `src/app/runtime/solid.ts`; validate that
+  boundary with `scripts/frontend-toolchain-layout.test.ts`.
 - Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.
 
 ## Design-System Primitives

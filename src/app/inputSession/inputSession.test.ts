@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import { importIntentAtom, inputViewAtom } from './atoms';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { AppRuntime } from '../runtime';
@@ -60,11 +59,9 @@ describe('input session import tracer', () => {
 	it('imports a local file through the capability and exposes a renderer-ready row', async () => {
 		const input = fakeInput();
 		runtime = createTestAppRuntime({ input });
-		runtime.registry.set(importIntentAtom, { type: 'pickFiles' });
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(inputViewAtom).files).toHaveLength(1);
-		});
-		const view = runtime.registry.get(inputViewAtom);
+		await runtime.input.importIntent({ type: 'pickFiles' });
+		const view = runtime.input.view();
+		expect(view.files).toHaveLength(1);
 		expect(view.files[0]?.path).toBe('/books/chapter.m4b');
 		expect(view.selectedIndices).toEqual([0]);
 		expect(view.errorMessage).toBe('');
@@ -78,12 +75,8 @@ describe('input session import tracer', () => {
 			}),
 		});
 		runtime = createTestAppRuntime({ input });
-		runtime.registry.set(importIntentAtom, { type: 'importPaths', paths: ['/books/chapter.m4b'] });
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(inputViewAtom).errorMessage).toBe(
-				'Failed to analyze files. Please try again.',
-			);
-		});
-		expect(runtime.registry.get(inputViewAtom).files).toHaveLength(0);
+		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/chapter.m4b'] });
+		expect(runtime.input.view().errorMessage).toBe('Failed to analyze files. Please try again.');
+		expect(runtime.input.view().files).toHaveLength(0);
 	});
 });

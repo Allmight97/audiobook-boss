@@ -1,5 +1,5 @@
 import { Effect } from '../../lib/effect/appEffect';
-import { Atom, AtomRegistry } from '../runtime/reactivity';
+import { Atom, type AtomRegistry } from '../runtime/reactivity';
 import { bindProcessingRegistry } from './registry';
 import {
 	initStatusPanel,

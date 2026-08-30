@@ -7,8 +7,8 @@ import {
 } from '../../ui/encoderPanel/requestConfig';
 import { Effect } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
-import { Atom, AtomRegistry } from '../runtime/reactivity';
-import { inputViewAtom } from '../inputSession';
+import { Atom, type AtomRegistry } from '../runtime/reactivity';
+import { inputViewAtom } from '../inputSession/atoms';
 import { metadataViewAtom } from '../metadataSession';
 import { formatEstimatedSizeText } from './estimate';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
