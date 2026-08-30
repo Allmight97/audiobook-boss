@@ -93,6 +93,7 @@ __pycache__/
 /.artifacts/*
 !/.artifacts/harness/
 !/.artifacts/harness/.gitkeep
+/.audit/
 
 # Generated human-facing artifacts belong under .artifacts, not docs canon
 /docs/artifacts/

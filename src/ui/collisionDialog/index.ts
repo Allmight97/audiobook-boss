@@ -1,0 +1,1 @@
+export { CollisionDialogView } from './CollisionDialogView';

@@ -1,4 +1,4 @@
-import type { TagField } from './state.svelte';
+import type { TagField } from '../../app/metadataSession';
 
 export type TagRow = {
 	field: TagField;

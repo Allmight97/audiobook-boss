@@ -1,36 +1,28 @@
 # Work Center
 
+## Scope
+
+- Solid Work Center view under `src/ui/workCenter/`.
+- WorkRuntime snapshots, cancel, source-open, and purge tombstones live in
+  `src/app/workOperations`. This owner renders that view.
+
 ## Public API Strip
 
-- `WorkCenterIsland`
-- `initializeWorkCenter`
-- `workCenterState`
+- Import from `src/ui/workCenter`. The runtime export surface is `index.ts`,
+  pinned by `__tests__/runtime-api-contract.test.ts`.
+- Exports: `WorkCenterView`.
 
-## Ownership
+## Private Cluster
 
-- Own the frontend read model for WorkRuntime operations, operation-level cancel
-  actions, and source actions.
-- Consume Tauri only through `src/lib/tauri/client.ts`.
-- Do not own processing submission preparation, metadata staging, output plan
-  review, provider auth, or remote materializer details.
+- Files: `WorkCenterView.tsx`, `workCenterView.css`.
 
-## Lifecycle Truth
+## Cross-Strip Coupling
 
-- Work Center renders **only** backend-authored WorkRuntime snapshot events
-  (`work-operation-snapshot`, `work-operation-list-snapshot`). These snapshots
-  carry in-flight progress detail, child-job state, cancellability, and
-  terminal summaries.
-- Work Center does **not** subscribe to `processing-progress` events, import
-  `ProcessingProgressEvent`, or apply client-authored progress overlays for accepted
-  background operations. The `OperationSnapshot` is the sole progress source.
-- Terminal operation status is backend-canonical through
-  `abb_processing_core::classify_run_terminal`. Work Center does not
-  recalculate success, mixed, failed, skipped, or cancelled outcomes.
+- `WorkCenterView` reads Work Operations `view` and calls
+  `workOperations.cancel`.
+- Do not add a local operation store or subscribe to `processing-progress`.
 
-## Guardrails
+## Breaking-Change Triggers
 
-- Keep multi-operation state in `model.ts`/`state.svelte.ts`; the Svelte
-  component should render and dispatch actions only.
-- Do not push singleton queue logic back into StatusPanel.
-- Never reintroduce `processing-progress` overlay consumption for background
-  operations.
+- Adding, removing, or renaming a Public API Strip export.
+- Reintroducing client-authored progress overlays for background operations.

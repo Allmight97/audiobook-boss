@@ -12,7 +12,9 @@
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"noEmit": true,
-		"types": ["vite/client", "svelte"],
+		"jsx": "preserve",
+		"jsxImportSource": "solid-js",
+		"types": ["vite/client"],
 
 		/* Linting */
 		"strict": true,

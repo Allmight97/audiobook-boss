@@ -55,7 +55,7 @@ function collectSourceFiles(root: string): string[] {
 		const stat = statSync(fullPath);
 		if (stat.isDirectory()) {
 			files.push(...collectSourceFiles(fullPath));
-		} else if (/\.(ts|svelte)$/.test(entry)) {
+		} else if (/\.(ts|tsx|svelte)$/.test(entry)) {
 			files.push(fullPath);
 		}
 	}

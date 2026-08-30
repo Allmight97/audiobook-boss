@@ -1,5 +1,5 @@
 import type { AudioFile } from '../../types/audio';
-import { resetAutoHints, setChannelsAutoHint, setSampleRateAutoHint } from './state.svelte';
+import { resetAutoHints, setChannelsAutoHint, setSampleRateAutoHint } from './state';
 
 const UNKNOWN_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const UNKNOWN_CHANNELS_HINT = 'Auto -> source audio';

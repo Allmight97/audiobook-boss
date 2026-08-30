@@ -1,14 +1,13 @@
 import { defineConfig } from 'vitest/config';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { svelteTesting } from '@testing-library/svelte/vite';
+import solid from 'vite-plugin-solid';
 
 export default defineConfig({
-	plugins: [svelte(), svelteTesting()],
+	plugins: [solid({ include: ['/**/*.tsx'] })],
 	test: {
 		// Use jsdom for DOM testing (statusPanel, fileList, etc.)
 		environment: 'jsdom',
 
-		include: ['src/**/*.test.ts', 'src/**/*.spec.ts', 'scripts/**/*.test.ts'],
+		include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts', 'scripts/**/*.test.ts'],
 		environmentMatchGlobs: [['scripts/**', 'node']],
 
 		// Global setup for Tauri mocks
@@ -19,6 +18,6 @@ export default defineConfig({
 	},
 
 	resolve: {
-		conditions: ['browser'],
+		conditions: ['development', 'browser'],
 	},
 });

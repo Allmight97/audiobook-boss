@@ -269,6 +269,7 @@ describe('check-tauri-runtime-boundary.ts', () => {
 		try {
 			writeFileSync(
 				path.join(repoRoot, 'src/ui/templateInvoke.ts'),
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: scanner fixture needs literal template syntax.
 				'`${window.__TAURI_INVOKE("process_audiobook_files")}`;\n',
 			);
 

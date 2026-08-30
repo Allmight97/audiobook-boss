@@ -15,8 +15,10 @@ export async function setFdkAfterburner(enabled: boolean): Promise<void> {
 	logic.setFdkAfterburner(enabled);
 }
 
+export { estimateKbpsFromRequest } from './requestConfig';
 export {
 	readEncoderDefaultsFromState,
 	readEncodingRequestConfig,
 	readFdkAfterburner,
-} from './state.svelte';
+	subscribeEncoderPanel,
+} from './state';

@@ -1,0 +1,36 @@
+.abb-progress {
+	position: relative;
+	height: var(--progress-h);
+	overflow: hidden;
+	border-radius: var(--radius-pill);
+	background: var(--progress-bg);
+}
+
+.abb-progress-fill {
+	height: 100%;
+	border-radius: inherit;
+	background: var(--progress-fg);
+	transition: width var(--dur-base) var(--ease-out);
+}
+
+.abb-cover {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--cover-thumb-size);
+	height: var(--cover-thumb-size);
+	flex-shrink: 0;
+	overflow: hidden;
+	border: 1px solid var(--border-secondary);
+	border-radius: var(--radius-md);
+	background: var(--bg-drag-area);
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+	text-align: center;
+}
+
+.abb-cover img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}

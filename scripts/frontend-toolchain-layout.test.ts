@@ -50,8 +50,24 @@ function importsTypescriptPackage(source: string): boolean {
 	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]typescript['"]/.test(source);
 }
 
+function importsEffectPackageRoot(source: string): boolean {
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect['"]/.test(source);
+}
+
 function importsEffectPackage(source: string): boolean {
 	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect(?:\/[^'"]*)?['"]/.test(
+		source,
+	);
+}
+
+function importsEffectReactivity(source: string): boolean {
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect\/unstable\/reactivity(?:\/[^'"]*)?['"]/.test(
+		source,
+	);
+}
+
+function importsAtomSolid(source: string): boolean {
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]@effect\/atom-solid(?:\/[^'"]*)?['"]/.test(
 		source,
 	);
 }
@@ -77,11 +93,13 @@ function packageImportHits(
 }
 
 describe('frontend toolchain layout', () => {
-	it('keeps TypeScript 7 in @typescript/native and the 6.x require() shim in the typescript slot', () => {
+	it('keeps TypeScript 7 in both @typescript/native and the typescript slot', () => {
 		const pkg = readPackageManifest();
 		expect(pkg.devDependencies['@typescript/native']).toMatch(/^npm:typescript@7\./);
-		expect(pkg.devDependencies.typescript).toMatch(/^npm:@typescript\/typescript6@/);
-		expect(pkg.scripts['check:svelte']).toContain('--tsgo');
+		expect(pkg.devDependencies.typescript).toMatch(/^npm:typescript@7\./);
+		expect(pkg.scripts['check:svelte']).toBeUndefined();
+		expect(pkg.devDependencies.svelte).toBeUndefined();
+		expect(pkg.devDependencies['@testing-library/svelte']).toBeUndefined();
 	});
 
 	it('keeps CI and Codex Bun pins locked to package.json packageManager', () => {
@@ -110,20 +128,77 @@ describe('frontend toolchain layout', () => {
 		);
 	});
 
-	it('keeps bun.lock @typescript/old on real TypeScript 6, not the wrapper', () => {
+	it('does not keep a TypeScript 6 compiler in bun.lock', () => {
 		const lock = readFileSync(path.join(repoRoot, 'bun.lock'), 'utf8');
-		expect(lock).toContain('"@typescript/old": ["typescript@6.');
-		expect(lock).not.toMatch(/"@typescript\/old": \["@typescript\/typescript6/);
+		expect(lock).not.toContain('"@typescript/old": ["typescript@6.');
+		expect(lock).not.toMatch(/"@typescript\/typescript6@/);
 	});
 
-	it('lets only appEffect.ts import the effect package', () => {
+	it('has no leftover Svelte sources under src/', () => {
+		const svelteSources = collectSourceFiles(path.join(repoRoot, 'src')).filter((file) =>
+			/\.svelte(?:\.ts)?$/.test(file),
+		);
+		expect(svelteSources).toEqual([]);
+	});
+
+	it('lets only appEffect.ts import the effect package root', () => {
+		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
+		expect(packageImportHits(importsEffectPackageRoot, new Set([allowed]))).toEqual([]);
+	});
+
+	it('lets only appEffect.ts import the effect package family', () => {
 		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
 		expect(packageImportHits(importsEffectPackage, new Set([allowed]))).toEqual([]);
 	});
 
-	it('treats Effect package root and subpath specifiers as the same boundary', () => {
+	it('does not import effect/unstable/reactivity from ABB src/ or scripts/', () => {
+		expect(packageImportHits(importsEffectReactivity)).toEqual([]);
+	});
+
+	it('does not import @effect/atom-solid from ABB src/ or scripts/', () => {
+		expect(packageImportHits(importsAtomSolid)).toEqual([]);
+	});
+
+	it('does not import Tailwind packages from ABB src/ or scripts/', () => {
+		const hits = packageImportHits((source) =>
+			/\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"](?:tailwindcss|@tailwindcss\/vite)(?:\/[^'"]*)?['"]/.test(
+				source,
+			),
+		);
+		expect(hits).toEqual([]);
+	});
+
+	it('keeps Tailwind out of package.json', () => {
+		const pkg = readPackageManifest();
+		expect(pkg.devDependencies.tailwindcss).toBeUndefined();
+		expect(pkg.devDependencies['@tailwindcss/vite']).toBeUndefined();
+	});
+
+	it('does not import foundation internals from outside foundation', () => {
+		const foundationRoot = path.normalize(path.join(repoRoot, 'src/ui/foundation'));
+		const hits: string[] = [];
+		for (const file of collectSourceFiles(path.join(repoRoot, 'src'))) {
+			const normalized = path.normalize(file);
+			if (normalized.startsWith(`${foundationRoot}${path.sep}`)) continue;
+			const source = readFileSync(file, 'utf8');
+			if (
+				/\b(?:from\s+|import\s*\(\s*)['"][^'"]*ui\/foundation\/internal(?:\/[^'"]*)?['"]/.test(
+					source,
+				)
+			) {
+				hits.push(path.relative(repoRoot, file));
+			}
+		}
+		expect(hits).toEqual([]);
+	});
+
+	it('treats Effect package root and subpath specifiers as the same family', () => {
 		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
 		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);
+		expect(importsEffectPackageRoot("import { Effect } from 'effect'")).toBe(true);
+		expect(importsEffectPackageRoot("import { Atom } from 'effect/unstable/reactivity'")).toBe(
+			false,
+		);
 		expect(importsEffectPackage("import { something } from './effect'")).toBe(false);
 	});
 

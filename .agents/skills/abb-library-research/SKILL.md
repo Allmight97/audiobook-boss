@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: Resolve ABB external-library/API uncertainty for Effect, Svelte, Tauri, Specta, or tauri-specta when implementation, IPC contracts, codegen, resolved-version behavior, or upstream changes affect the work. Ground answers in lockfiles and exact package source; use focused documentation or primary-source discovery only as needed.
+description: Resolve ABB external-library/API uncertainty for Effect, Solid, Tauri, Specta, or tauri-specta when implementation, IPC contracts, codegen, resolved-version behavior, or upstream changes affect the work. Ground answers in lockfiles and exact package source; use focused documentation or primary-source discovery only as needed.
 ---
 
 # ABB Library Research
@@ -75,7 +75,7 @@ live resolution. No broad surveys unless asked.
 
 `references/source-retrieval.md` for exceptional upstream clones.
 
-Route cards: `effect.md`, `svelte.md`, `tauri.md`, `tauri-plugins.md`, `specta.md`, `tauri-specta.md`.
+Route cards: `effect.md`, `solid.md`, `tauri.md`, `tauri-plugins.md`, `specta.md`, `tauri-specta.md`.
 
 Pattern files: `references/pattern-<library>-<topic>.md` only after repeated need.
 
@@ -83,4 +83,5 @@ Pattern files: `references/pattern-<library>-<topic>.md` only after repeated nee
 
 - Installed or registry-packaged source over current upstream documentation
 - `src/lib/tauri/*` is the Tauri IPC boundary
-- Effect stays private to owning workflows until boundary changes
+- Effect workflow APIs stay private to owning workflows. Do not import
+  `effect/unstable/reactivity` or `@effect/atom-solid`.

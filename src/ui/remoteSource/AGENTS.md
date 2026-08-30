@@ -6,41 +6,26 @@
 - Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
   `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
   `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
+  `subscribeRemoteSourceSupplementalAssets`,
   `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
-- Do not re-export acquisition workflow symbols, islands, or private
-  `sessionAssets.svelte` helpers such as `supplementalAssetsForInputIds` from
-  the index.
+- Do not re-export acquisition workflow symbols or private session-asset
+  helpers such as `supplementalAssetsForInputIds` from the index.
+- The acquire dialog is `RemoteSourceAcquireView.tsx`. File Import composes
+  it. Import acquire intents from `src/app/remoteSource`.
 
 ## Private Cluster
 
-- Files: `sessionAssets.svelte.ts`, `acquisitionWorkflow.ts`,
-  `RemoteSourceAcquireIsland.svelte`, `RemoteSourceAcquireDialog.svelte`,
-  `acquisitionState.svelte.ts`, `acquisitionAccount.ts`, `remoteSourceSelection.ts`,
-  `state.svelte.ts`, `__tests__/`.
+- Files: `RemoteSourceAcquireView.tsx`, `remoteSourceAcquire.css`.
 
-`src/ui/remoteSource` owns frontend coordination for remote-source acquisition
-surfaces.
-
-The frontend may display provider-neutral account, title, acquisition, and
-diagnostic state. It must not persist provider credentials, tokens, cookies,
-license material, raw provider responses, or protected intermediates in Svelte
-state.
+Owner truth lives in `src/app/remoteSource`. This directory renders it and
+re-exports the session-asset strip for Processing, File List, and inspector
+callers.
 
 Remote source IPC must route through `src/lib/tauri/client.ts`. Materialized
-audio imports through the existing file-import workflow; processing remains
-user-triggered.
-
-Supplemental Assets are tracked by the imported file's `inputId`. Do not key
-them only by path after file-list import, and do not pass them to audio
-processing except through the explicit processing payload map.
+audio imports through Input Session; processing remains user-triggered.
 
 ## Shape
 
-Svelte components own rendering and event wiring. Account/workflow controllers
-own UI-side effects. Pure display and selection policy belongs in helper
-modules with targeted tests.
-
-Good helper candidates: title filtering and facets, selected-title summaries,
-progress and byte labels, availability predicates, and diagnostic de-duplication.
-Do not move provider session lifecycle, credential, materialization, or cleanup
-truth into UI helpers.
+Solid owns rendering and event wiring. Effect owns account/acquisition
+workflows. Pure display and selection policy belong in
+`src/app/remoteSource` helpers.

@@ -6,18 +6,25 @@ only the rules shared by the thin composition shells that have none.
 
 ## Composition-only Shells
 
-These directories arrange existing public islands and own no business state:
+These directories arrange existing public views and own no business state:
 
 - `leftColumn/` — arranges the input workflow and selected-file inspector zones.
-- `encodingWorkbench/` — right-column encoder/output/tags composition.
 - `metadataManager/` — right-column metadata composition.
 
-Rules for all three:
+`encodingWorkbench/` is stylesheet-only: `src/ui/App.tsx` composes the encoder,
+output, and tags blocks inline and imports `encodingWorkbench.css`.
 
-- Compose existing public UI islands only. Do not import private
-  `state.svelte.ts`, logic modules, or event handlers from the owners they
+`src/ui/App.tsx` is the integration root and may compose a concrete owner view
+when that owner's index intentionally exposes a nonvisual API. This exception
+is rendering-only: application state and intents still cross `src/app/<owner>`
+Public API Strips.
+
+Rules for both:
+
+- Compose existing public UI views only. Do not import private
+  state modules, logic modules, or event handlers from the owners they
   arrange (encoder, output, tag preview, cover-art, metadata
-  form/lookup/save/artifacts, file management).
+  form/lookup, file management).
 - Do not move owner truth into a shell: processing-request, Status Panel, Work
   Center, file-management, metadata, and cover-art truth stay in their owners.
 - Preserve `leftColumn` height behavior: the input workflow flexes, the

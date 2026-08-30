@@ -9,7 +9,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 ### Changed
 
 - Updated the frontend toolchain to TypeScript 7 and Effect 4 RC, with Bun
-  1.4.0 required for the supported Svelte diagnostic setup. This is a patch
+  1.4.0 required for the supported frontend diagnostic setup. This is a patch
   release because the migration preserves ABB's existing user-facing feature
   and IPC behavior while improving dependency and runtime foundations.
 

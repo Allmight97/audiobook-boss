@@ -1,0 +1,70 @@
+.split-button {
+	position: relative;
+	display: inline-flex;
+}
+
+.split-button-compact {
+	flex-shrink: 0;
+	max-width: 100%;
+}
+
+.split-main {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-right: none;
+}
+
+.split-button-compact .split-main {
+	min-width: 0;
+	padding: 0.35rem 0.6rem;
+	overflow: hidden;
+	font-size: 0.7rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.split-caret {
+	padding: 0.25rem 0.35rem;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	font-size: 0.6rem;
+}
+
+.split-button-compact .split-caret {
+	padding: 0.2rem 0.275rem;
+}
+
+.split-dropdown {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	z-index: 20;
+	display: none;
+	min-width: 6.25rem;
+	margin-top: 2px;
+	overflow: hidden;
+	border: 1px solid var(--border-secondary);
+	border-radius: 0.375rem;
+	background: var(--bg-panel);
+	box-shadow: var(--shadow-md);
+}
+
+.split-dropdown.open {
+	display: block;
+}
+
+.split-option {
+	display: block;
+	width: 100%;
+	padding: 0.35rem 0.5rem;
+	border: none;
+	background: none;
+	color: var(--text-secondary);
+	font-size: 0.75rem;
+	text-align: left;
+}
+
+.split-option:hover {
+	background: var(--bg-input);
+	color: var(--text-primary);
+}

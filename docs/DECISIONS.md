@@ -1,23 +1,39 @@
 # Decisions
 
+## 2026-08-30 - Native CSS UI Foundation (#470)
+
+- Outcome: Shared visual behavior crosses `src/ui/foundation`. Native CSS is
+  the only styling language. Tailwind and parallel styling substrates are gone.
+- Evidence: `src/ui/foundation/index.ts`, `package.json`, `vite.config.ts`,
+  `scripts/frontend-toolchain-layout.test.ts`.
+- Guardrail: do not reintroduce a utility catalog, CSS-in-JS, CSS Modules, or
+  a second public class language beside the typed primitives and semantic
+  tokens.
+
+## 2026-08-29 - Solid Renderer And Runtime-Scoped Owners (#468)
+
+- Outcome: Solid is ABB's only desktop renderer. Runtime-scoped Solid owners
+  hold frontend session truth. Effect owns effectful workflows. One disposable
+  application runtime composes those owners and is provided through Solid
+  context.
+- Evidence: `package.json`, `src/main.tsx`, `src/app/runtime/`, and
+  `scripts/frontend-toolchain-layout.test.ts`.
+- Guardrail: do not reintroduce Effect Atom, a process-wide owner singleton,
+  or registry binders. Views consume owner Public API Strips.
+
 ## 2026-08-27 - TypeScript 7 / Effect 4 Frontend Toolchain (#462)
 
-- Outcome: ABB's frontend compiler is TypeScript 7 via `@typescript/native`.
-  The `typescript` package slot is `@typescript/typescript6` only because
-  `svelte-check@4.7.6` still `require()`s a TypeScript 6 compiler API even
-  with `--tsgo`. ABB-owned code does not import `typescript`. Bun is `1.4.0`
-  because `1.3.14` cannot resolve that nested alias graph. Effect is an exact
-  v4 RC pin (`4.0.0-rc.112` at landing), not a range. Workflow owners consume
-  Effect only through `src/lib/effect/appEffect.ts`.
+- Outcome: ABB's frontend compiler is TypeScript 7 via `@typescript/native`
+  and the `typescript` package slot. ABB-owned code does not import
+  `typescript`. Bun is `1.4.0`. Effect is an exact v4 RC pin
+  (`4.0.0-rc.112` at landing), not a range. Workflow owners consume Effect
+  only through `src/lib/effect/appEffect.ts`.
 - Evidence: `package.json`, `bun.lock`, `.github/workflows/ci.yml`,
   `scripts/check-tauri-runtime-boundary.ts`.
-- Guardrail: drop the TypeScript 6 shim when svelte-check can type `.svelte`
-  files against TypeScript 7 alone. Do not put TypeScript 7 in the
-  `typescript` slot before that; `svelte-check` will refuse to start. The
-  runtime-boundary check is a text scan for this window, not an AST
-  parser. Replace it when TypeScript 7.1's programmatic API and a svelte-check
-  that types `.svelte` on that API exist. Do not grow it toward AST
-  completeness in the meantime.
+- Guardrail: do not reintroduce a TypeScript 6 shim or `svelte-check`. The
+  runtime-boundary check is a text scan, not an AST parser. Do not grow it
+  toward AST completeness. Replace it when TypeScript 7.1's programmatic API
+  exists and a focused owner needs that parser.
 
 ## 2026-08-27 - Dependency Resolution And Release-Age Policy
 
@@ -41,8 +57,8 @@
   baseline; do not re-audit its individual package ages.
 - Guardrail: retain the split reqwest 0.12 Audible boundary, exact Specta RC
   pins, Tauri API override, and vendored FFmpeg provenance. RustCrypto majors
-  and TypeScript 7/jsdom 30/jest-dom 7/prettier-plugin-svelte 4 are dedicated
-  migrations, not routine refreshes. Evidence: `Cargo.toml`,
+  and TypeScript 7/jsdom 30/jest-dom 7 are dedicated migrations, not routine
+  refreshes. Evidence: `Cargo.toml`,
   `src-tauri/Cargo.toml`, `package.json`, `bunfig.toml`, and
   `.github/dependabot.yml`.
 
@@ -80,7 +96,7 @@
 ## 2026-08-11 - Hosted Proof Is One Clean-Frontend Alarm (#450)
 
 - Outcome: GitHub automatically runs only Pages publication and a
-  path-narrowed frontend frozen-install/type/Svelte alarm. Rust tests and
+  path-narrowed frontend frozen-install/typecheck alarm. Rust tests and
   generated-binding verification stay explicit local or release checks.
 - Evidence: the clean frontend runner caught an undeclared `@types/node`
   dependency hidden by a warm checkout; hosted core tests had no unique catch,
@@ -215,7 +231,7 @@
   layout-less PCM containers open with an unspecified channel layout; fixed at
   the owning boundary in `src-tauri/src/audio/processor/streams.rs`.
 - CI posture: one narrow tripwire workflow (`.github/workflows/ci.yml`) on
-  push to `main` — typecheck + clean-install svelte-check, generated-binding
+  push to `main` — frozen install + typecheck, generated-binding
   drift, core-crate Nextest. Deliberately not a broad app gate; local checks
   remain the default evidence trail. The opencode reviewer workflow was
   removed (no API key, zero successful runs).

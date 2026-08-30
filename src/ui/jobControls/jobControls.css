@@ -1,0 +1,29 @@
+.merge-mode {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+.concurrency-control {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.concurrency-label,
+.concurrency-effective {
+	font-size: var(--text-xs);
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.concurrency-select {
+	width: 3.5rem;
+	height: 24px;
+	padding: 0.125rem 0.25rem;
+	font-size: var(--text-xs);
+}
+
+.concurrency-select:disabled {
+	opacity: 0.5;
+}

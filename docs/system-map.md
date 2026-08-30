@@ -65,8 +65,12 @@ ownership or verification.
 ## Core Truth Boundaries
 
 - UI code routes runtime commands/events through `src/lib/tauri/client.ts`.
+- `src/app/runtime/` owns one disposable Solid application runtime and
+  context. Views take owners from that context.
+- `src/ui/foundation/` owns shared visual behavior: typed Solid primitives
+  and public semantic CSS tokens. Native CSS is the only styling language.
 - Multi-boundary frontend orchestration lives in named Effect workflow owners;
-  Svelte/UI modules dispatch intent and render state.
+  Solid views dispatch intent and render state.
 - `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
 - Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
 - Processing plans are built before execution and reviewed before jobs run.
@@ -121,19 +125,23 @@ Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/e
 
 | Strip | Entry | Owns |
 | --- | --- | --- |
-| Output Panel | `src/ui/outputPanel` | Output directory, naming presets, path preview, estimated-size display reads, and `OutputPanelIsland`. |
-| File List | `src/ui/fileList` | Pre-processing file list session, mutations, metadata staging hooks, `readCombinedSizeText()`, and `FileListIsland` rendering. |
-| File Import | `src/ui/fileImport` | Drag/drop, picker, and import-analysis workflow; composes `FileListIsland`. |
-| Status Panel | `src/ui/statusPanel` | Processing launch controls, concurrency display, and foreground preview progress rendering. |
+| App Runtime | `src/app/runtime` | Disposable Solid runtime, owner modules, context, test harness, and disposal. |
+| UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, theme, and density. |
+| Output Plan | `src/app/outputPlan` | Output directory, naming, path preview, derived estimate, and collision review. Solid views: `src/ui/outputPanel`, `src/ui/collisionDialog`. |
+| Input Session | `src/app/inputSession` | File-list session, import analysis, selection, order, and inspector projection. Solid views: `src/ui/fileList` (`FileListView`), `src/ui/fileImport`. |
+| File List | `src/ui/fileList` | `FileListView`, pointer reorder, and cover thumbnails. List truth stays in Input Session. |
+| File Import | `src/ui/fileImport` | Picker, drop, opened-file drain, and Remote dialog mount. Composes `FileListView`. |
+| Status Panel | `src/app/processing` | Preview submit and status runtime. Solid view: `src/ui/statusPanel` (`StatusPanelView`). |
 | Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
-| App Settings | `src/ui/appSettings` | Settings hydration, durable preference coordination, and the settings dialog (FFmpeg/FDK path, startup behavior, pinned defaults). |
-| Metadata Form | `src/ui/metadataForm` | Metadata text-field state, multi-select actions, dirty reads, validation warning display, and `MetadataFormFieldsIsland`. |
-| Metadata Session | `src/ui/metadataSession` | Per-file metadata cache truth, pending draft/intent staging (`stageMetadataIntentPatch`), draft validation adaptation, and the metadata batch-save workflow. |
-| Metadata Lookup | `src/ui/metadataLookup` | Lookup modal workflow, queue advancement, safe cover preview, and result application through Metadata Session staging. |
-| Tag Preview | `src/ui/tagPreview` | TSOA calculation and tag preview grid rendering from metadata form preview reads. |
-| Remote Source | `src/ui/remoteSource` | Session-asset coordination for imported remote-source inputs; public strip is session-assets only. |
+| App Settings | `src/app/appSettings` | Settings hydration, dialog state, and durable preference coordination. Persistence + dialog view: `src/ui/appSettings`. |
+| Metadata Form | `src/ui/metadataForm` | `MetadataFormView` text fields. Form truth stays in Metadata Session. |
+| Metadata Session | `src/app/metadataSession` | Per-file metadata cache, pending draft/intent staging (`stageMetadataIntentPatch`), cover, tags, and batch-save. |
+| Metadata Lookup | `src/app/metadataLookup` | Lookup workflow, queue, and cover-preview scheduling. Solid dialog: `src/ui/metadataLookup` (`MetadataLookupView`). |
+| Tag Preview | `src/ui/tagPreview` | `TagPreviewView`. TSOA and tag projection live in `src/app/metadataSession/tags.ts`. |
+| Remote Source | `src/app/remoteSource` | Account/acquisition workflow, Input handoff, and session-asset retain/purge. Solid dialog: `src/ui/remoteSource`. |
 
-Exact export lists live in each strip's nearest `AGENTS.md`.
+Each strip's `index.ts` is exact export truth. Nearest `AGENTS.md` files record
+only owner boundaries and recurring traps that are not cheap to infer from it.
 
 Boundary-aligned Rust core crates under `crates/abb-*-core` are testing and
 packaging surfaces for pure domain logic inside these owners. They are not new

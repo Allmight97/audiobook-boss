@@ -1,19 +1,21 @@
-import { updateEstimatedSize } from '../outputPanel';
 import {
 	applyEncoderDefaults,
 	bitrateModeSelectionFromKind,
 	encoderPanelState,
+	notifyEncoderPanel,
 	readEncoderDefaultsFromState,
+	readEncodingRequestConfig,
 	setEncoderSettingsCapabilities,
 	type BitrateModeSelection,
 	type VbrLevel,
-} from './state.svelte';
+} from './state';
 import type { EncoderFlavor } from '../../types/encoder';
 import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 import type { EncoderDefaults } from '../../types/appSettings';
 import { resetAutoResolutionHints } from './autoResolutionHints';
-import { persistEncoderDefaults } from '../appSettings';
-import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities.svelte';
+import { persistEncoderDefaults } from '../appSettings/persistence';
+import { loadRuntimeSettingsCapabilities } from '../runtimeSettingsCapabilities';
+import { estimateKbpsFromRequest } from './requestConfig';
 
 const DEBUG = import.meta.env.DEV;
 const debugLog = (...args: unknown[]): void => {
@@ -25,13 +27,6 @@ const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	fdk_he_aac: 'HE-AAC v1',
 	aac_at: 'AAC-LC',
 	native_aac: 'AAC-LC',
-};
-const VBR_BITRATE_ESTIMATES: Record<number, number> = {
-	1: 32,
-	2: 48,
-	3: 60,
-	4: 72,
-	5: 96,
 };
 const NATIVE_AAC_WARNING =
 	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
@@ -92,10 +87,6 @@ const fdkAvailabilityHint = (): string => {
 		? 'Afterburner on.'
 		: 'Afterburner off.';
 	return `Using external FDK AAC${pathSegment}. ${afterburnerSegment}`;
-};
-
-const syncOutputSizingFromEncoderState = (): void => {
-	updateEstimatedSize();
 };
 
 const updateAutoOptionLabel = (): void => {
@@ -193,16 +184,13 @@ const updateQualityVisibility = (): void => {
 };
 
 const updateEstimatedBitrate = (): void => {
+	const estimate = estimateKbpsFromRequest(readEncodingRequestConfig());
 	if (encoderPanelState.bitrateModeSelection === 'vbr') {
-		const estimate =
-			VBR_BITRATE_ESTIMATES[encoderPanelState.qualityValue] ??
-			VBR_BITRATE_ESTIMATES[encoderPanelState.capabilities?.vbrLevelDefault ?? 3] ??
-			encoderPanelState.bitrateValue;
 		encoderPanelState.estimatedBitrateText = `Est: ~${estimate} kbps`;
 		return;
 	}
 
-	encoderPanelState.estimatedBitrateText = `Target: ${encoderPanelState.bitrateValue} kbps`;
+	encoderPanelState.estimatedBitrateText = `Target: ${estimate} kbps`;
 };
 
 const getDisabledEncoderOptions = (
@@ -248,11 +236,11 @@ const syncEncoderState = (): void => {
 	updateEstimatedBitrate();
 	updateAutoOptionLabel();
 	updateAvailabilityHint();
+	notifyEncoderPanel();
 };
 
 export const syncAfterStateChange = (): void => {
 	syncEncoderState();
-	syncOutputSizingFromEncoderState();
 };
 
 const persistCurrentEncoderDefaults = (): void => {
@@ -261,7 +249,6 @@ const persistCurrentEncoderDefaults = (): void => {
 
 export const syncEncoderPanelAfterAvailabilityChange = (): void => {
 	syncEncoderState();
-	syncOutputSizingFromEncoderState();
 	debugLog('Encoder panel ready');
 };
 
@@ -280,7 +267,6 @@ const hydrateEncoderAvailability = async (): Promise<void> => {
 export const initializeEncoderPanelLogic = (): void => {
 	debugLog('Initializing encoder panel...');
 	resetAutoResolutionHints();
-	syncOutputSizingFromEncoderState();
 	void hydrateEncoderAvailability();
 };
 
@@ -347,8 +333,6 @@ export const handleBitrateValueChange = (event: Event): void => {
 	persistCurrentEncoderDefaults();
 };
 
-// App Settings entrypoint (dialog owns the control): the panel keeps the
-// afterburner request-truth carrier and its persistence rails.
 export const setFdkAfterburner = (enabled: boolean): void => {
 	encoderPanelState.fdkAfterburner = enabled;
 	syncAfterStateChange();

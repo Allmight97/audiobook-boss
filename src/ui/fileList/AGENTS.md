@@ -2,62 +2,42 @@
 
 ## Scope
 
-- Applies to current file-list state, append/dedupe results, selection/order
-  mutation, metadata draft staging for current selections, totals, and output
-  refresh triggers under `src/ui/fileList/`.
-- FileList owns pre-processing workbench state after backend import analysis has
-  returned `FileListInfo`.
+- Applies to the Solid file-list view, pointer reorder, and cover thumbnails
+  under `src/ui/fileList/`. List truth, selection, and import live in
+  `src/app/inputSession`.
 
 ## Public API Strip
 
-- Import file list runtime symbols from `src/ui/fileList`; do not reach into private files.
-- Authoritative runtime export surface = `index.ts`, pinned by
-  `__tests__/runtime-api-contract.test.ts`. Treat that test as the source of
-  truth instead of a hand-listed export set here.
-- Do **not** export `fileListSessionState`, selection internals, or event
-  handlers from the index. Cross-module reads use `readX()` accessors from
-  `viewState.svelte.ts` inside component `$derived(...)`.
+- Import `FileListView` from `src/ui/fileList`.
+- Do not reintroduce `fileListSessionState` or a second file list beside
+  Input Session.
 
 ## Private Cluster
 
-- Files: `FileListIsland.svelte`, `actions.ts`, `state.svelte.ts`,
-  `viewState.svelte.ts`, `events.ts`, `selection.ts`,
-  `metadataStaging.ts`, `metadataPanel.ts`, `appendResult.ts`,
-  `inspectorState.svelte.ts`, `keyboardNavigation.ts`, `__tests__/`.
+- Files: `FileListView.tsx`, `fileList.css`, `pointerReorder.ts`,
+  `coverThumbnails.ts`.
 
 ## Preferred Path
 
-- Keep append/dedupe calculation in `appendResult.ts`. Import workflows may
-  consume the returned outcome, but should not independently decide whether an
-  analyzed import was duplicate-only.
-- Keep metadata draft staging in `metadataStaging.ts`; selection/order actions
-  call it before changing selection when dirty drafts must be preserved.
-- Keep `actions.ts` focused on visible FileList mutations: display, append,
-  select, reorder, remove, clear, lock, totals, and output refresh.
-- `FileListIsland.svelte` owns list rendering; `FileImportIsland` composes it
-  and owns import/drop/picker workflow.
-- Preserve `FileListInfo` truth from the backend. Do not add frontend-owned
-  audio importability or supported-extension allowlists.
+- `FileListView` reads Input `view` and dispatches Input Session intents.
+  Row click, keyboard Select all, Escape clear-highlight, and toolbar Clear
+  go through the awaitable `selectFile`, `selectAll`, `clearSelection`, and
+  `clearAllFiles` intents so the metadata draft gate can run.
+- Cover thumbnails are a presentation cache, not list truth.
+- PDF companion chips subscribe to `subscribeRemoteSourceSupplementalAssets`.
+  Do not assume an Input publish also rerenders supplemental assets.
+- Remote session purge tracks Input file identity through Remote Source. Do
+  not dual-purge from this view.
 
 ## Hard Invariants
 
-- Adding files must preserve pending metadata drafts before mutating the visible
-  list.
-- Duplicate-only imports must not mutate the list and must surface one visible
-  status path.
-- Selection/order changes must preserve the selected file identity when moving
-  or appending files.
-- Cover-art preview/commit ownership is mode-keyed through `coverArt/coverOwner.ts`
-  (merge → first valid input; batch → exactly one selected valid file; batch
-  multi-select ignores cover-art commits); selection flows call
-  `refreshCoverArtDisplay()` rather than gating on a global custom-cover flag.
-- FileList mutations that can affect processing requests must refresh output
-  estimates or previews through the output panel public surface.
+- Do not add a parallel file-list store.
+- Do not apply selection or list membership in this view. Every
+  selection-changing list action dispatches the Input intents above.
+- Preserve listbox-scoped keyboard handling and pointer-reorder cleanup
+  already owned by Input Session + `pointerReorder.ts`.
 
 ## Done Criteria
 
-- Append/dedupe changes have focused tests against `appendResult.ts` and at
-  least one workflow-level import/FileList behavior test.
-- Selection, order, metadata staging, and output-refresh behavior stay covered
-  by targeted Vitest tests.
-- Run targeted Vitest files when proving FileList workflow changes.
+- Thumbnail and pointer-reorder changes have focused Vitest coverage.
+- List mutation behavior is proved in `src/app/inputSession`.

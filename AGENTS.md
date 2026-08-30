@@ -57,7 +57,7 @@
   1. Pure domain logic → its owning `abb-*-core` crate.
   2. Runtime, command ingress, job/progress lifecycle, error/settings envelope → the `audiobook-boss` runtime crate.
   3. TS↔Rust contract shape/parity → the contract/binding tier (commands boundary + contract tests).
-  4. DOM, Svelte island, or UI-state behavior → Vitest + jsdom under `src/`.
+  4. DOM, Solid view, or UI-state behavior → Vitest + jsdom under `src/`.
 - Commands, verification scope, and local test placement live in `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` — do not restate them here.
 - Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.
 
@@ -72,24 +72,22 @@
 
 - Roadmap, locked direction synthesis, and resume procedure live in issue #412
   (the agent handoff comment there is the canonical resume doc). Do not start
-  island rebuilds (Slice 3) before the owner settles v3's open forks.
+  owner-UI rebuilds (Slice 3) before the owner settles v3's open forks.
 - The Vite dev server (`bun run dev`, port 1420) exposes three distinct
   surfaces; do not conflate them. Each has one alignment obligation: the lab
-  tracks `src/styles.css` in the same change (contract below); the v3 mock
-  tracks direction decisions banked in #412; the app changes only in Slice 3:
-  - `/` — the current app UI, unchanged until Slice 3.
-  - `/lab.html` — the design lab: renders every token and `src/styles.css`
-    primitive with a density switch. It is ingredients, not screens, and not
-    the new design — it wears whatever values `styles.css` currently holds.
-    The locked direction gets encoded here first (tokens/primitive skins)
-    before any island rebuild. Contract: `src/AGENTS.md` → Design-System
-    Primitives. Dev-only; not in the app build.
+  tracks `src/ui/foundation` in the same change; the v3 mock tracks direction
+  decisions banked in #412; the app shell changes only in Slice 3:
+  - `/` — the current app UI. Shared chrome already comes from the foundation.
+    Owner rebuilds wait for Slice 3.
+  - `/lab.html` — the design lab: renders foundation tokens and primitives
+    with a density switch. Ingredients, not screens. Contract:
+    `src/ui/foundation/AGENTS.md`. Dev-only; not in the app build.
   - `/docs/design/ui-directions-v3.html` — standalone interactive mock of the
     target direction (B1×B2 hybrid) with live open-fork toggles. Reference
     artifact for owner reaction, not code to import. Lineage:
     `docs/design/README.md`.
 - Redesign sequencing is lab-first: token/primitive values change and are
-  screenshot-verified in the lab before islands are rebuilt on top of them.
+  screenshot-verified in the lab before owner UIs are rebuilt on top of them.
 
 ## Planning And Capture
 

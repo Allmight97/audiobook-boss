@@ -1,10 +1,11 @@
-export type { CompanionAssetSummary } from './sessionAssets.svelte';
+export type { CompanionAssetSummary } from '../../app/remoteSource';
 export {
 	companionSummaryForInputIds,
 	hasSupplementalAssetsForInputId,
+	subscribeRemoteSourceSupplementalAssets,
 	purgeRemoteSourceSessionsForInputIds,
+	registerRemoteSourceSupplementalAssets,
 	releaseRemoteSourceSessionRetainers,
 	retainRemoteSourceSessionsForInputIds,
-	registerRemoteSourceSupplementalAssets,
 	supplementalAssetsByInputIdForProcessing,
-} from './sessionAssets.svelte';
+} from '../../app/remoteSource';

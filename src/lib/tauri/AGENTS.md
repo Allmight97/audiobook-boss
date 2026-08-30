@@ -10,14 +10,14 @@
 
 ## Frontend Utility Surface
 - `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that
-  UI islands may import directly from `src/lib/tauri/*`. They are not IPC
+  Solid views may import directly from `src/lib/tauri/*`. They are not IPC
   command/event adapters and not `tauriClient` methods.
 - `appError.ts` is the single owner of error normalization and presentation:
   `normalizeAppError`, `toUserMessage`, `isCancellation`, `isAppErrorCategory`,
   `logAppError`, `unwrapGeneratedResult`. Derive user-facing messages and
-  cancellation here; do not re-derive cancellation by ad-hoc regex in islands.
+  cancellation here; do not re-derive cancellation by ad-hoc regex in views.
 - `subscriptionGroup.ts` (`createSubscriptionGroup`) is the single owner of Tauri
-  event-unlisten teardown and the dispose / late-arrival race. Islands collect
+  event-unlisten teardown and the dispose / late-arrival race. Views collect
   unlisteners through a group, not bespoke arrays/flags.
 - These utilities are NOT pinned by `src/lib/tauri-public-api.contract.test.ts`
   (which guards the `tauriClient` IPC strip); each carries its own focused module
