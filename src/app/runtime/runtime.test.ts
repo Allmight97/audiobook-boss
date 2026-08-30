@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
+import type { ProcessingPreflightPlan } from '../../types/audio';
 import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
 import { patchRemoteSourceState, snapshotRemoteSourceView } from '../remoteSource/state';
@@ -51,12 +52,74 @@ function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowSe
 	};
 }
 
+function collisionPlan(): ProcessingPreflightPlan {
+	return {
+		jobType: 'batch',
+		previewSeconds: undefined,
+		collisionPolicy: 'fail',
+		planSignature: 'sig-isolation',
+		outputs: [
+			{
+				inputIndex: 0,
+				inputPath: '/books/a.m4b',
+				kind: 'final',
+				requestedPath: '/tmp/out/a.m4b',
+				resolvedPath: '/tmp/out/a.m4b',
+				renameCandidate: undefined,
+				collision: {
+					kind: 'existing_file',
+					conflictingPath: '/tmp/out/a.m4b',
+					detail: 'An existing file already occupies the destination path.',
+				},
+				action: 'review_required',
+			},
+		],
+	};
+}
+
 describe('app runtime', () => {
 	let dispose: (() => void) | undefined;
 
 	afterEach(() => {
 		dispose?.();
 		dispose = undefined;
+	});
+
+	it('does not share collision, settings-dialog, lookup, or work-operations state across live runtimes', () => {
+		const first = createAppRuntime();
+		const second = createAppRuntime();
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		void first.output.openCollisionReview(collisionPlan());
+		void first.settings.openDialog();
+		first.lookup.setTitleQuery('stale lookup');
+
+		expect(first.output.collision().isOpen).toBe(true);
+		expect(second.output.collision().isOpen).toBe(false);
+		expect(first.settings.dialog().isOpen).toBe(true);
+		expect(second.settings.dialog().isOpen).toBe(false);
+		expect(first.lookup.view().titleQuery).toBe('stale lookup');
+		expect(second.lookup.view().titleQuery).toBe('');
+		expect(first.workOperations.view().operations).toEqual([]);
+		expect(second.workOperations.view().operations).toEqual([]);
+
+		first.dispose();
+		expect(second.output.collision().isOpen).toBe(false);
+		expect(second.settings.dialog().isOpen).toBe(false);
+		expect(second.lookup.view().titleQuery).toBe('');
+
+		const third = createAppRuntime();
+		dispose = () => {
+			second.dispose();
+			third.dispose();
+		};
+		expect(third.output.collision().isOpen).toBe(false);
+		expect(third.settings.dialog().isOpen).toBe(false);
+		expect(third.lookup.view().titleQuery).toBe('');
+		expect(third.workOperations.view().operations).toEqual([]);
 	});
 
 	it('isolates lookup and processing owners across disposed runtimes', () => {
