@@ -5,6 +5,7 @@ import {
 	type EncodingRequestConfig,
 	type ProcessingPreflightPlan,
 } from '../../types/audio';
+import { tauriClient } from '../../lib/tauri/client';
 import { createTestAppRuntime } from '../runtime/harness';
 import { emptyInputSession } from '../inputSession/types';
 import type { InputView } from '../inputSession';
@@ -241,8 +242,15 @@ describe('output plan public view', () => {
 		expect(mounted.owner.estimatedSizeText()).toBe('~ --- MB');
 	});
 
-	it('commits a typed template only after the 150 ms debounce', () => {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	it('reads live naming template on submit before preview debounce completes', async () => {
+		const previewOutputPath = vi
+			.spyOn(tauriClient, 'previewOutputPath')
+			.mockResolvedValue('/books/out/preview.m4b');
+		vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
+			isValid: true,
+			metadataPatch: {},
+			fieldErrors: [],
+		});
 		runtime = createTestAppRuntime();
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
@@ -253,15 +261,63 @@ describe('output plan public view', () => {
 				customTemplate: '{old}',
 			},
 		});
-		mounted.owner.selectNamingPreset('customTemplate');
+		await vi.waitFor(() => expect(previewOutputPath).toHaveBeenCalled());
+		previewOutputPath.mockClear();
+
 		mounted.owner.editNamingTemplate('{author}/{title}');
 		expect(mounted.owner.view().namingTemplate).toBe('{author}/{title}');
-		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{old}');
-		vi.advanceTimersByTime(149);
-		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{old}');
-		vi.advanceTimersByTime(1);
 		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
-		vi.useRealTimers();
+		await Promise.resolve();
+		expect(previewOutputPath).not.toHaveBeenCalled();
+
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(previewOutputPath).not.toHaveBeenCalled();
+		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
+
+		await vi.waitFor(
+			() =>
+				expect(previewOutputPath.mock.calls.at(-1)?.[0]?.outputNaming?.customTemplate).toBe(
+					'{author}/{title}',
+				),
+			{ timeout: 500 },
+		);
+		previewOutputPath.mockRestore();
+	});
+
+	it('re-reads output path preview when series part changes', async () => {
+		const previewOutputPath = vi
+			.spyOn(tauriClient, 'previewOutputPath')
+			.mockResolvedValue('/books/out/preview.m4b');
+		vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
+			isValid: true,
+			metadataPatch: {},
+			fieldErrors: [],
+		});
+		runtime = createTestAppRuntime();
+		runtime.input.replaceSession(sessionWithDuration(100));
+		let form = createEmptyFormState();
+		form = replaceField(form, 'meta-series-part', { value: '1' });
+		const [metadataView, setMetadataView] = createSignal<MetadataView>({
+			form,
+			cover: createEmptyCoverUiState(),
+			tags: createEmptyTagPreviewValues(),
+			saveInProgress: false,
+			focusedFieldId: null,
+			statusMessage: '',
+		});
+		mounted = mountOutput(runtime, { metadataView });
+		mounted.owner.applyDefaults({
+			outputDirectory: '/books/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await vi.waitFor(() => expect(previewOutputPath).toHaveBeenCalled());
+		expect(previewOutputPath.mock.calls.at(-1)?.[0]?.metadata.series_part).toBe('1');
+		const callsBefore = previewOutputPath.mock.calls.length;
+		form = replaceField(metadataView().form, 'meta-series-part', { value: '2' });
+		setMetadataView((current) => ({ ...current, form }));
+		await vi.waitFor(() => expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore));
+		expect(previewOutputPath.mock.calls.at(-1)?.[0]?.metadata.series_part).toBe('2');
+		previewOutputPath.mockRestore();
 	});
 });
 

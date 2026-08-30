@@ -11,6 +11,7 @@ import type { OutputDefaults } from '../../types/appSettings';
 import type {
 	CollisionPolicy,
 	EncodingRequestConfig,
+	OutputNamingConfig,
 	OutputRequestConfig,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
@@ -126,6 +127,11 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		});
 	}
 
+	function outputNamingForSubmit(): OutputNamingConfig {
+		const state = plan();
+		return outputNamingFromPlan({ ...state, previewTemplate: state.namingTemplate });
+	}
+
 	function clearTemplatePreviewTimer(): void {
 		if (templatePreviewTimer) {
 			clearTimeout(templatePreviewTimer);
@@ -151,7 +157,9 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			draft.composer,
 			draft.date,
 			draft.series,
+			draft.series_part,
 			draft.subseries,
+			draft.subseries_part,
 			String(draft.cover_art?.length ?? 0),
 		].join('\0');
 	});
@@ -265,13 +273,13 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			}
 			return {
 				outputDirectory: directory,
-				outputNaming: outputNamingFromPlan(plan()),
+				outputNaming: outputNamingForSubmit(),
 			};
 		},
 		readDefaults() {
 			return {
 				outputDirectory: outputDirectory() || undefined,
-				outputNaming: outputNamingFromPlan(plan()),
+				outputNaming: outputNamingForSubmit(),
 			};
 		},
 		reset() {
