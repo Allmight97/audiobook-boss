@@ -118,10 +118,10 @@ export function FileListView(props: {
 			return;
 		}
 		if (command.type === 'selectAll') {
-			selectAll();
+			void selectAll();
 			return;
 		}
-		clearSelection();
+		void clearSelection();
 	}
 
 	const drag = () => {
@@ -175,7 +175,7 @@ export function FileListView(props: {
 						id="clear-files-btn"
 						style={{ display: view().showClearButton ? 'block' : 'none' }}
 						disabled={view().orderLocked}
-						onClick={() => clearAllFiles()}
+						onClick={() => void clearAllFiles()}
 					>
 						Clear
 					</Button>

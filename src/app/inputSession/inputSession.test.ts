@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
+import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { AppRuntime } from '../runtime';
+import { createInputOwner } from './owner';
+import { emptyInputSession, type InputSessionState } from './types';
 
 const metadata: SupportedAudioImportMetadata = {
 	formats: [{ extension: 'm4b', label: 'M4B' }],
@@ -28,6 +30,41 @@ function analyzedFile(path: string): FileListInfo {
 		totalSize: 1024,
 		validCount: 1,
 		invalidCount: 0,
+	};
+}
+
+function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
+	return {
+		path,
+		inputId: path,
+		isValid: true,
+		duration: 60,
+		size: 1024,
+		format: 'm4b',
+		...overrides,
+	};
+}
+
+function sessionWith(files: AudioFile[], selected: number[] = []): InputSessionState {
+	const fileList: FileListInfo = {
+		files,
+		selectedDecoders: files.map(() => null),
+		totalDuration: files.length * 60,
+		totalSize: files.length * 1024,
+		validCount: files.length,
+		invalidCount: 0,
+	};
+	const importOrdinalByPath: Record<string, number> = {};
+	files.forEach((entry, index) => {
+		importOrdinalByPath[entry.path] = index;
+	});
+	return {
+		...emptyInputSession(),
+		fileList,
+		selectedIndices: selected,
+		selectedAnchor: selected[selected.length - 1] ?? -1,
+		importOrdinalByPath,
+		nextImportOrdinal: files.length,
 	};
 }
 
@@ -78,5 +115,39 @@ describe('input session import tracer', () => {
 		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/chapter.m4b'] });
 		expect(runtime.input.view().errorMessage).toBe('Failed to analyze files. Please try again.');
 		expect(runtime.input.view().files).toHaveLength(0);
+	});
+});
+
+describe('input session selection gate', () => {
+	it('blocks selectAll, clearSelection, and clearAllFiles when the gate returns false', async () => {
+		const gate = vi.fn(async () => false);
+		const owner = createInputOwner({ beforeSelectionChange: gate });
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [0]));
+
+		await owner.selectAll();
+		expect(owner.session().selectedIndices).toEqual([0]);
+
+		await owner.clearSelection();
+		expect(owner.session().selectedIndices).toEqual([0]);
+
+		await owner.clearAllFiles();
+		expect(owner.session().fileList?.files).toHaveLength(2);
+		expect(gate).toHaveBeenCalledTimes(3);
+	});
+
+	it('allows selectAll, clearSelection, and clearAllFiles when the gate returns true', async () => {
+		const gate = vi.fn(async () => true);
+		const owner = createInputOwner({ beforeSelectionChange: gate });
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [0]));
+
+		await owner.selectAll();
+		expect(owner.session().selectedIndices).toEqual([0, 1]);
+
+		await owner.clearSelection();
+		expect(owner.session().selectedIndices).toEqual([]);
+
+		await owner.clearAllFiles();
+		expect(owner.session().fileList).toBeNull();
+		expect(gate).toHaveBeenCalledTimes(3);
 	});
 });

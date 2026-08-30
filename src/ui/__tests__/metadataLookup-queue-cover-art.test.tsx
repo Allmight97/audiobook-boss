@@ -133,7 +133,7 @@ async function importAndSelectAll(runtime: AppRuntime): Promise<void> {
 	await waitFor(() => {
 		expect(runtime.input.view().files.length).toBe(2);
 	});
-	runtime.input.selectAll();
+	await runtime.input.selectAll();
 }
 
 describe('metadata lookup queue cover art isolation', () => {

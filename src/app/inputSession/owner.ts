@@ -34,11 +34,11 @@ export type InputOwner = {
 		readonly modifiers: SelectionModifiers;
 		readonly skipPersistPrevious?: boolean;
 	}): Promise<boolean>;
-	selectAll(): void;
-	clearSelection(): void;
+	selectAll(): Promise<void>;
+	clearSelection(): Promise<void>;
 	setDragOver(isDragOver: boolean): void;
 	removeFile(index: number): void;
-	clearAllFiles(): void;
+	clearAllFiles(): Promise<void>;
 	moveFile(command: { readonly index: number; readonly direction: 'up' | 'down' }): void;
 	reorderFiles(command: { readonly fromIndex: number; readonly toIndex: number }): void;
 	toggleSort(): void;
@@ -95,10 +95,22 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			commit(selectFileInSession(session(), command.index, command.modifiers));
 			return true;
 		},
-		selectAll() {
+		async selectAll() {
+			if (deps.beforeSelectionChange) {
+				const allowed = await deps.beforeSelectionChange();
+				if (allowed === false) {
+					return;
+				}
+			}
 			commit(selectAllInSession(session()));
 		},
-		clearSelection() {
+		async clearSelection() {
+			if (deps.beforeSelectionChange) {
+				const allowed = await deps.beforeSelectionChange();
+				if (allowed === false) {
+					return;
+				}
+			}
 			commit(clearSelectionInSession(session()));
 		},
 		setDragOver(isDragOver) {
@@ -111,7 +123,13 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		removeFile(index) {
 			commit(removeFileFromSession(session(), index).session);
 		},
-		clearAllFiles() {
+		async clearAllFiles() {
+			if (deps.beforeSelectionChange) {
+				const allowed = await deps.beforeSelectionChange();
+				if (allowed === false) {
+					return;
+				}
+			}
 			commit(clearAllFilesFromSession(session()));
 		},
 		moveFile(command) {
