@@ -122,8 +122,6 @@ function sampleRateSelectionFromConfig(
 		: 'auto';
 }
 
-// Live request truth for the App Settings dialog's afterburner control:
-// what the next encode will use, regardless of hydration source.
 export function readFdkAfterburner(): boolean {
 	return encoderPanelState.fdkAfterburner;
 }

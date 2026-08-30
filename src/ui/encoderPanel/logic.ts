@@ -333,8 +333,6 @@ export const handleBitrateValueChange = (event: Event): void => {
 	persistCurrentEncoderDefaults();
 };
 
-// App Settings entrypoint (dialog owns the control): the panel keeps the
-// afterburner request-truth carrier and its persistence rails.
 export const setFdkAfterburner = (enabled: boolean): void => {
 	encoderPanelState.fdkAfterburner = enabled;
 	syncAfterStateChange();
