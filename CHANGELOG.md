@@ -4,6 +4,30 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-30
+
+### Changed
+
+- Rebuilt the desktop UI on Solid and a native CSS foundation. The audiobook
+  workflow, IPC, and encoding behavior stay the same; shared chrome now uses
+  foundation tokens and primitives instead of Svelte and Tailwind.
+- Acquire Audiobooks uses a dedicated toolbar and a wider dialog so Source,
+  Refresh, Acquire, Filter, and the PDF/availability toggles sit as sibling
+  fields.
+- Cover Art Load and App Settings Reset/Confirm/Cancel use the shared
+  foundation Button.
+
+### Fixed
+
+- Encoder Quality and Bitrate no longer occupy layout space when the other
+  control is shown.
+- The file-list reorder grip no longer picks up the foundation button look.
+- File selection, cover loads, metadata staging, and output naming no longer
+  apply stale answers after a newer user action.
+- Imported files stay in the list when support-text lookup fails.
+- Audible acquire progress updates while the job is still running, and Status
+  Panel cancel stays latched across late queue snapshots.
+
 ## [1.3.6] - 2026-08-28
 
 ### Changed
