@@ -5,6 +5,7 @@ import {
 	companionSummaryForInputIds,
 	subscribeRemoteSourceSupplementalAssets,
 } from '../remoteSource';
+import './leftColumn.css';
 
 export function FileInspectorView(): JSX.Element {
 	const [assetRevision, setAssetRevision] = createSignal(0);

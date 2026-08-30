@@ -16,6 +16,7 @@ import { StatusPanelView } from './statusPanel/StatusPanelView';
 import { TagPreviewView } from './tagPreview/TagPreviewView';
 import { WorkCenterView } from './workCenter/WorkCenterView';
 import './encodingWorkbench/encodingWorkbench.css';
+import './leftColumn/leftColumn.css';
 
 export function App(): JSX.Element {
 	const runtime = useAppRuntime();
