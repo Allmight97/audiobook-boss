@@ -41,6 +41,10 @@
 	min-width: 0;
 }
 
+.encoder-field-stack select[hidden] {
+	display: none;
+}
+
 .encoder-workbench-panel select {
 	margin-top: 0;
 	min-height: 1.95rem;

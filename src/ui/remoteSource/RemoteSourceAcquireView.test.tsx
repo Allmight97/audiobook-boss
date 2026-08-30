@@ -120,4 +120,56 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		terminalStatus.resolve(acquisitionJob(100, true));
 		await vi.waitFor(() => expect(runtime!.remoteSource.view().isBusy).toBe(false));
 	});
+
+	it('keeps connected toolbar actions and Filter as sibling fields on the dialog panel', () => {
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		runtime.remoteSource.patch({
+			isOpen: true,
+			didHydrateOpenDialog: true,
+			accountState: { providerId: 'audible', status: 'connected' },
+			titles: [remoteTitle()],
+		});
+
+		const dialog = screen.getByRole('dialog', { name: 'Acquire Audiobooks' });
+		expect(dialog.classList.contains('abb-dialog')).toBe(true);
+		expect(dialog.querySelector('.app-modal-controls')).toBeNull();
+
+		const toolbar = dialog.querySelector('.remote-source-toolbar');
+		expect(toolbar).not.toBeNull();
+		const fieldLabels = [...toolbar!.querySelectorAll(':scope > .remote-source-toolbar-field')].map(
+			(field) => {
+				const labeled = field.querySelector('label[for]');
+				if (labeled) {
+					return labeled.textContent?.trim() ?? '';
+				}
+				const button = field.querySelector('button');
+				if (button) {
+					return button.textContent?.trim() ?? '';
+				}
+				return field.querySelector('.option-label')?.textContent?.trim() ?? '';
+			},
+		);
+		expect(fieldLabels).toEqual([
+			'Source',
+			'Refresh Library',
+			'Acquire Selected',
+			'Filter',
+			'Supplemental PDF only',
+			'Hide unavailable',
+		]);
+
+		const filterField = toolbar!.querySelector('.remote-source-filter');
+		const acquireField = screen
+			.getByRole('button', { name: 'Acquire Selected' })
+			.closest('.remote-source-toolbar-field');
+		expect(filterField).not.toBeNull();
+		expect(filterField).not.toBe(acquireField);
+		expect(filterField?.contains(screen.getByLabelText('Filter'))).toBe(true);
+		expect(filterField?.previousElementSibling).toBe(acquireField);
+	});
 });

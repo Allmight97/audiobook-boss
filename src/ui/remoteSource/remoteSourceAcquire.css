@@ -3,13 +3,50 @@
 	gap: 0.5rem;
 }
 
-#remote-source-modal .app-modal-dialog {
+#remote-source-modal .abb-dialog {
 	width: min(62rem, calc(100vw - 2rem));
+}
+
+.remote-source-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem;
+}
+
+.remote-source-toolbar-field {
+	min-width: 0;
+}
+
+.remote-source-provider {
+	flex: 0 1 14rem;
+}
+
+.remote-source-toolbar-button,
+.remote-source-toolbar-toggle {
+	flex: 0 0 auto;
 }
 
 .remote-source-filter,
 .remote-source-handoff {
-	grid-column: span 2;
+	flex: 1 1 16rem;
+}
+
+.remote-source-provider select,
+.remote-source-filter input[type="search"],
+.remote-source-handoff input {
+	width: 100%;
+	min-width: 0;
+}
+
+.remote-source-filter input[type="search"] {
+	padding: 0.35rem 0.5rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	box-shadow: var(--shadow-sm);
+	background-color: var(--bg-input);
+	color: var(--text-primary);
+	font-size: 0.8125rem;
 }
 
 .remote-selection-summary {
@@ -145,8 +182,10 @@
 }
 
 @media (max-width: 720px) {
+	.remote-source-provider,
 	.remote-source-filter,
-	.remote-source-handoff {
-		grid-column: auto;
+	.remote-source-handoff,
+	.remote-source-toolbar-button {
+		flex: 1 1 100%;
 	}
 }

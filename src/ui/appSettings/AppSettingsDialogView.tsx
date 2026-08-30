@@ -288,34 +288,31 @@ export function AppSettingsDialogView(): JSX.Element {
 										<Show
 											when={resetConfirming()}
 											fallback={
-												<button
+												<Button
 													data-testid="app-settings-reset"
-													type="button"
 													disabled={state().saveState === 'saving'}
 													onClick={requestResetConfirm}
 												>
 													Reset all settings to defaults
-												</button>
+												</Button>
 											}
 										>
 											<span class="muted-text" data-testid="app-settings-reset-confirm-prompt">
 												Reset all settings?
 											</span>
-											<button
+											<Button
 												data-testid="app-settings-reset-confirm"
-												type="button"
 												disabled={state().saveState === 'saving'}
 												onClick={confirmReset}
 											>
 												Reset
-											</button>
-											<button
+											</Button>
+											<Button
 												data-testid="app-settings-reset-cancel"
-												type="button"
 												onClick={cancelResetConfirm}
 											>
 												Cancel
-											</button>
+											</Button>
 										</Show>
 									</div>
 								</section>

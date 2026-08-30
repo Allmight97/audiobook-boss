@@ -156,7 +156,7 @@ export function EncoderView(): JSX.Element {
 					<div class="encoder-field-stack">
 						<select
 							id="output-quality"
-							classList={{ hidden: !state().showQuality }}
+							hidden={!state().showQuality}
 							data-testid="quality-select"
 							value={state().qualityValue}
 							onChange={wrap(handleQualityValueChange)}
@@ -169,7 +169,7 @@ export function EncoderView(): JSX.Element {
 						</select>
 						<select
 							id="output-bitrate"
-							classList={{ hidden: state().showQuality }}
+							hidden={state().showQuality}
 							data-testid="bitrate-select"
 							value={state().bitrateValue}
 							onChange={wrap(handleBitrateValueChange)}

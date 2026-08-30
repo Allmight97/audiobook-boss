@@ -223,10 +223,21 @@
 	align-items: center;
 	justify-content: center;
 	width: 1.25rem;
+	height: 1.5rem;
 	flex: 0 0 1.25rem;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
 	color: var(--text-muted);
+	font: inherit;
+	font-weight: 400;
+	line-height: 1;
 	cursor: grab;
 	user-select: none;
+	white-space: nowrap;
 }
 
 .companion-chip {

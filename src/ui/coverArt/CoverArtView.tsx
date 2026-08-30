@@ -1,6 +1,7 @@
 import { onCleanup, onMount, type JSX } from 'solid-js';
 import type { CoverArtMessage } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
+import { Button } from '../foundation';
 import './coverArt.css';
 
 function coverMessageText(message: CoverArtMessage): string {
@@ -131,16 +132,15 @@ export function CoverArtView(): JSX.Element {
 						void loadFromUrl(cover().urlInputValue);
 					}}
 				/>
-				<button
+				<Button
 					id="cover-art-url-load-btn"
 					data-testid="cover-art-url-load-btn"
 					class="cover-art-url-load-btn"
-					type="button"
 					disabled={cover().isLoading}
 					onClick={() => void loadFromUrl(cover().urlInputValue)}
 				>
 					Load
-				</button>
+				</Button>
 			</div>
 			<div
 				id="cover-art-url-message"

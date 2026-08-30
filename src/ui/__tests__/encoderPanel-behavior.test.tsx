@@ -264,11 +264,27 @@ describe('encoder panel behavior controls', () => {
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
+		await vi.waitFor(() => {
+			expect(document.getElementById('output-quality')?.hidden).toBe(false);
+			expect(document.getElementById('output-bitrate')?.hidden).toBe(true);
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Quality');
+		});
+
 		const encoderSelect = document.getElementById('adv-encoder') as HTMLSelectElement;
 		changeSelectValue(encoderSelect, 'native_aac');
 
 		await vi.waitFor(() => {
-			expect(document.getElementById('output-quality')?.classList.contains('hidden')).toBe(true);
+			expect(document.getElementById('output-quality')?.hidden).toBe(true);
+			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate');
+		});
+
+		changeSelectValue(encoderSelect, 'aac_at');
+
+		await vi.waitFor(() => {
+			expect(document.getElementById('output-quality')?.hidden).toBe(true);
+			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate');
 		});
 
 		const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement;

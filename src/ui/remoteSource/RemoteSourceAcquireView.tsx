@@ -135,8 +135,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			</Dialog.Header>
 
 			<Dialog.Body>
-				<div class="app-modal-controls">
-					<div class="app-modal-field">
+				<div class="remote-source-toolbar">
+					<div class="remote-source-toolbar-field remote-source-provider">
 						<label for="remote-source-provider">Source</label>
 						<select id="remote-source-provider" disabled>
 							<option>Audible</option>
@@ -147,7 +147,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						when={view().accountState?.status === 'connected'}
 						fallback={
 							<>
-								<div class="app-modal-field app-modal-field-button">
+								<div class="remote-source-toolbar-field remote-source-toolbar-button">
 									<Button
 										tone="primary"
 										disabled={view().isBusy}
@@ -156,7 +156,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										Connect Audible
 									</Button>
 								</div>
-								<div class="app-modal-field remote-source-handoff">
+								<div class="remote-source-toolbar-field remote-source-handoff">
 									<label for="remote-source-handoff">Auth Handoff</label>
 									<input
 										id="remote-source-handoff"
@@ -166,7 +166,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										onInput={(event) => patchView({ handoffPath: event.currentTarget.value })}
 									/>
 								</div>
-								<div class="app-modal-field app-modal-field-button">
+								<div class="remote-source-toolbar-field remote-source-toolbar-button">
 									<Button
 										disabled={view().isBusy}
 										onClick={() => void runAction({ type: 'completeAuth' })}
@@ -177,7 +177,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							</>
 						}
 					>
-						<div class="app-modal-field app-modal-field-button">
+						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
 								disabled={view().isBusy}
 								onClick={() => void runAction({ type: 'loadLibrary' })}
@@ -185,7 +185,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								Refresh Library
 							</Button>
 						</div>
-						<div class="app-modal-field app-modal-field-button">
+						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
 								tone="primary"
 								disabled={view().isBusy || view().selectedTitleIds.size === 0}
@@ -194,7 +194,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								Acquire Selected
 							</Button>
 						</div>
-						<div class="app-modal-field remote-source-filter">
+						<div class="remote-source-toolbar-field remote-source-filter">
 							<label for="remote-source-filter">Filter</label>
 							<input
 								id="remote-source-filter"
@@ -204,7 +204,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								onInput={(event) => patchView({ titleFilter: event.currentTarget.value })}
 							/>
 						</div>
-						<div class="app-modal-field app-modal-field-toggle remote-source-pdf-filter">
+						<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-pdf-filter">
 							<label class="checkbox-label tight">
 								<input
 									type="checkbox"
@@ -216,7 +216,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								<span class="option-label">Supplemental PDF only</span>
 							</label>
 						</div>
-						<div class="app-modal-field app-modal-field-toggle remote-source-availability-filter">
+						<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-availability-filter">
 							<label class="checkbox-label tight">
 								<input
 									type="checkbox"

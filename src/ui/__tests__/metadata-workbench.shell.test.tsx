@@ -125,6 +125,14 @@ describe('metadata workbench shell', () => {
 			);
 		});
 		expect(screen.getByTestId('cover-art-area')).toBeTruthy();
+		const loadButton = screen.getByTestId('cover-art-url-load-btn');
+		const findMetadata = screen.getByTestId('metadata-lookup-btn');
+		expect(loadButton.className.split(/\s+/)).toEqual(
+			expect.arrayContaining(['abb-button', 'abb-button-secondary', 'cover-art-url-load-btn']),
+		);
+		expect(findMetadata.className.split(/\s+/)).toEqual(
+			expect.arrayContaining(['abb-button', 'abb-button-secondary']),
+		);
 		expect(screen.queryByTestId('metadata-artifacts')).toBeNull();
 		const clearButton = document.getElementById('cover-art-clear-btn') as HTMLButtonElement;
 		expect(clearButton.tabIndex).toBe(0);
