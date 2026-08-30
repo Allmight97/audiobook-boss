@@ -1,9 +1,7 @@
 import { displayedTitleForFile, formatFileDetails } from '../../app/inputSession';
 import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
-import { metadataViewAtom } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
-import { useAtomValue } from '../../app/runtime/solid';
 import { hasSupplementalAssetsForInputId } from '../remoteSource';
 import { createSignal, createEffect, For, onCleanup, type JSX } from 'solid-js';
 import {
@@ -19,8 +17,9 @@ export function FileListView(props: {
 	readonly onHeaderClick: () => void;
 	readonly fileManagementRef?: (element: HTMLElement | null) => void;
 }): JSX.Element {
-	const input = useAppRuntime().input;
-	const metadataView = useAtomValue(() => metadataViewAtom);
+	const runtime = useAppRuntime();
+	const input = runtime.input;
+	const metadataView = runtime.metadata.view;
 	const view = input.view;
 	const capability = input.capability;
 	const selectFile = input.selectFile;
@@ -84,7 +83,7 @@ export function FileListView(props: {
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
 		if (event.shiftKey) window.getSelection()?.removeAllRanges();
-		selectFile({
+		void selectFile({
 			index,
 			modifiers: { multi: event.metaKey || event.ctrlKey, range: event.shiftKey },
 		});
@@ -102,7 +101,7 @@ export function FileListView(props: {
 			if (view().selectedIndices.length === 1 && view().selectedIndices[0] === command.index) {
 				return;
 			}
-			selectFile({ index: command.index, modifiers: { multi: false, range: false } });
+			void selectFile({ index: command.index, modifiers: { multi: false, range: false } });
 			return;
 		}
 		if (command.type === 'selectAll') {

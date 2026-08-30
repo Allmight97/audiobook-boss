@@ -29,7 +29,11 @@ export type InputOwner = {
 	readonly capability: Accessor<InputCapability>;
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
-	selectFile(command: { readonly index: number; readonly modifiers: SelectionModifiers }): boolean;
+	selectFile(command: {
+		readonly index: number;
+		readonly modifiers: SelectionModifiers;
+		readonly skipPersistPrevious?: boolean;
+	}): Promise<boolean>;
 	selectAll(): void;
 	clearSelection(): void;
 	setDragOver(isDragOver: boolean): void;
@@ -81,10 +85,12 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 				commit(current);
 			}
 		},
-		selectFile(command) {
-			const allowed = deps.beforeSelectionChange?.();
-			if (allowed === false) {
-				return false;
+		async selectFile(command) {
+			if (!command.skipPersistPrevious && deps.beforeSelectionChange) {
+				const allowed = await deps.beforeSelectionChange();
+				if (allowed === false) {
+					return false;
+				}
 			}
 			commit(selectFileInSession(session(), command.index, command.modifiers));
 			return true;

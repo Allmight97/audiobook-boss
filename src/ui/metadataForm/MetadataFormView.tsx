@@ -1,13 +1,8 @@
 import { For, type JSX } from 'solid-js';
 import { runLookupActionAtom } from '../../app/metadataLookup';
-import {
-	METADATA_FIELD_DEFINITIONS,
-	metadataViewAtom,
-	saveMetadataAtom,
-	setMetadataFieldActionAtom,
-	setMetadataFieldValueAtom,
-} from '../../app/metadataSession';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { METADATA_FIELD_DEFINITIONS } from '../../app/metadataSession';
+import { useAppRuntime } from '../../app/runtime';
+import { useAtomSet } from '../../app/runtime/solid';
 import './metadataForm.css';
 
 const FIELD_SPAN_CLASS = {
@@ -18,10 +13,11 @@ const FIELD_SPAN_CLASS = {
 } as const;
 
 export function MetadataFormView(): JSX.Element {
-	const view = useAtomValue(() => metadataViewAtom);
-	const setFieldValue = useAtomSet(() => setMetadataFieldValueAtom);
-	const setFieldAction = useAtomSet(() => setMetadataFieldActionAtom);
-	const saveMetadata = useAtomSet(() => saveMetadataAtom);
+	const metadata = useAppRuntime().metadata;
+	const view = metadata.view;
+	const setFieldValue = metadata.setFieldValue;
+	const setFieldAction = metadata.setFieldAction;
+	const saveMetadata = metadata.save;
 	const openLookup = useAtomSet(() => runLookupActionAtom);
 	const form = () => view().form;
 
@@ -130,7 +126,7 @@ export function MetadataFormView(): JSX.Element {
 					data-testid="metadata-save-btn"
 					type="button"
 					disabled={view().saveInProgress}
-					onClick={() => void saveMetadata(undefined)}
+					onClick={() => void saveMetadata()}
 				>
 					Save All Changes
 				</button>

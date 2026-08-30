@@ -1,6 +1,7 @@
-import { createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
-import { estimatedSizeTextAtom } from '../../app/outputPlan';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { createEffect, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
+import { useAppRuntime } from '../../app/runtime';
+import { useAtomSet } from '../../app/runtime/solid';
+import { renderAutoResolutionHints } from './autoResolutionHints';
 import {
 	handleBitrateModeChange,
 	handleBitrateValueChange,
@@ -29,7 +30,8 @@ import './encoderView.css';
 
 export function EncoderView(): JSX.Element {
 	const [revision, setRevision] = createSignal(0);
-	const estimatedSizeText = useAtomValue(() => estimatedSizeTextAtom);
+	const runtime = useAppRuntime();
+	const estimatedSizeText = runtime.output.estimatedSizeText;
 	const setEncodingRequestConfig = useAtomSet(() => encodingRequestConfigAtom);
 	const state = () => {
 		revision();
@@ -40,6 +42,15 @@ export function EncoderView(): JSX.Element {
 		setRevision((value) => value + 1);
 		publishEncodingRequestConfig(setEncodingRequestConfig);
 	}
+
+	createEffect(() => {
+		const inputView = runtime.input.view();
+		const selected = inputView.selectedIndices
+			.map((index) => inputView.files[index])
+			.filter((file): file is NonNullable<(typeof inputView.files)[number]> => Boolean(file));
+		renderAutoResolutionHints(selected);
+		bump();
+	});
 
 	onMount(() => {
 		onCleanup(subscribeEncoderPanel(bump));

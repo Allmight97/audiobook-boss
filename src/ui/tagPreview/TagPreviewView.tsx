@@ -1,11 +1,10 @@
 import { createSignal, For, type JSX } from 'solid-js';
-import { metadataViewAtom } from '../../app/metadataSession';
-import { useAtomValue } from '../../app/runtime/solid';
+import { useAppRuntime } from '../../app/runtime';
 import { compactRows, leftRows, rightRows } from './rows';
 import './tagPreview.css';
 
 export function TagPreviewView(props: { readonly variant?: 'full' | 'workbench' }): JSX.Element {
-	const view = useAtomValue(() => metadataViewAtom);
+	const view = useAppRuntime().metadata.view;
 	const [showAllTags, setShowAllTags] = createSignal(false);
 	const tags = () => view().tags;
 	const variant = () => props.variant ?? 'full';

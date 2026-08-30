@@ -4,8 +4,7 @@ import {
 	hydrateConcurrencyAtom,
 	openProductionSettingsDialog,
 } from '../app/appSettings';
-import { applyOutputDefaultsFromSettings } from '../app/outputPlan';
-import { saveMetadataAtom } from '../app/metadataSession';
+import { useAppRuntime } from '../app/runtime';
 import { useAtomSet } from '../app/runtime/solid';
 import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
 import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
@@ -25,9 +24,10 @@ import { initializeWorkCenter } from '../app/workOperations';
 import './encodingWorkbench/encodingWorkbench.css';
 
 export function App(): JSX.Element {
-	const saveMetadata = useAtomSet(() => saveMetadataAtom);
+	const runtime = useAppRuntime();
+	const saveMetadata = runtime.metadata.save;
 	const hydrateConcurrency = useAtomSet(() => hydrateConcurrencyAtom);
-	const applyOutputDefaults = useAtomSet(() => applyOutputDefaultsFromSettings);
+	const applyOutputDefaults = runtime.output.applyDefaults;
 
 	onMount(() => {
 		void hydrateAppSettingsProduction().then((defaults) => {
@@ -41,7 +41,7 @@ export function App(): JSX.Element {
 		function handleGlobalKeyDown(event: KeyboardEvent): void {
 			if ((event.metaKey || event.ctrlKey) && event.key === 's') {
 				event.preventDefault();
-				void saveMetadata(undefined);
+				void saveMetadata();
 			}
 			if ((event.metaKey || event.ctrlKey) && event.key === ',') {
 				event.preventDefault();

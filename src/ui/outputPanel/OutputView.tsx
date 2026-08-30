@@ -1,23 +1,15 @@
 import type { JSX } from 'solid-js';
-import {
-	browseOutputDirectoryAtom,
-	CUSTOM_TEMPLATE_PLACEHOLDER,
-	editNamingTemplateAtom,
-	outputPathPreviewAtom,
-	outputViewAtom,
-	selectNamingPresetAtom,
-	setAbsIncludeYearAtom,
-} from '../../app/outputPlan';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import { CUSTOM_TEMPLATE_PLACEHOLDER } from '../../app/outputPlan';
+import { useAppRuntime } from '../../app/runtime';
 import './outputView.css';
 
 export function OutputView(): JSX.Element {
-	const view = useAtomValue(() => outputViewAtom);
-	useAtomValue(() => outputPathPreviewAtom);
-	const browse = useAtomSet(() => browseOutputDirectoryAtom);
-	const selectPreset = useAtomSet(() => selectNamingPresetAtom);
-	const setYear = useAtomSet(() => setAbsIncludeYearAtom);
-	const editTemplate = useAtomSet(() => editNamingTemplateAtom);
+	const output = useAppRuntime().output;
+	const view = output.view;
+	const browse = output.browseDirectory;
+	const selectPreset = output.selectNamingPreset;
+	const setYear = output.setAbsIncludeYear;
+	const editTemplate = output.editNamingTemplate;
 
 	return (
 		<div class="output-panel output-panel-workbench" data-testid="output-panel">
@@ -41,7 +33,7 @@ export function OutputView(): JSX.Element {
 						id="output-dir-browse"
 						class="btn-pill btn-pill-primary-soft output-browse-button"
 						type="button"
-						onClick={() => void browse(undefined)}
+						onClick={() => void browse()}
 					>
 						Browse…
 					</button>

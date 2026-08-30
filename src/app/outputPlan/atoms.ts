@@ -22,6 +22,7 @@ import {
 	type OutputPlanState,
 	type OutputView,
 } from './types';
+import { boundOutputOwner } from './bind';
 import {
 	makeOutputPlanWorkflowServicesLayer,
 	outputPathPreviewBody,
@@ -139,6 +140,7 @@ export const applyOutputDefaultsFromSettings = Atom.fnSync((defaults: OutputDefa
 		previewTemplate: namingTemplate,
 		absIncludeYear,
 	});
+	boundOutputOwner()?.applyDefaults(defaults);
 	return defaults;
 }).pipe(Atom.keepAlive);
 
@@ -195,6 +197,10 @@ export const editNamingTemplateAtom = Atom.fnSync((namingTemplate: string, get) 
 }).pipe(Atom.keepAlive);
 
 export function readOutputDefaultsFromState(): OutputDefaults {
+	const owner = boundOutputOwner();
+	if (owner) {
+		return owner.readDefaults();
+	}
 	return {
 		outputDirectory: planSnapshot.outputDirectory || undefined,
 		outputNaming: outputNamingFromPlan(planSnapshot),
@@ -202,6 +208,10 @@ export function readOutputDefaultsFromState(): OutputDefaults {
 }
 
 export function readOutputRequestConfig(): OutputRequestConfig {
+	const owner = boundOutputOwner();
+	if (owner) {
+		return owner.readRequestConfig();
+	}
 	if (!planSnapshot.outputDirectory) {
 		throw new Error('Output directory not selected');
 	}
@@ -214,6 +224,7 @@ export function readOutputRequestConfig(): OutputRequestConfig {
 export function resetOutputPlan(): void {
 	clearTemplatePreviewTimer();
 	planSnapshot = emptyOutputPlan();
+	boundOutputOwner()?.reset();
 }
 
 export function seedOutputPlan(registry: AtomRegistry.AtomRegistry): void {
@@ -227,6 +238,7 @@ export function seedOutputPlan(registry: AtomRegistry.AtomRegistry): void {
 	registry.set(absIncludeYearAtom, empty.absIncludeYear);
 	registry.set(outputPreviewTextAtom, empty.previewText);
 	registry.set(outputPreviewTitleAtom, empty.previewTitle);
+	boundOutputOwner()?.reset();
 }
 
 export function resetOutputPlanTimers(): void {

@@ -18,6 +18,8 @@ export { buildMetadataDraftIntent } from './draft';
 export type { MetadataDraft, MetadataDraftField } from './draft';
 export { validateMetadataDraft } from './validation';
 export type { MetadataDraftValidation, ValidateMetadataIntentPatch } from './validation';
+export { createMetadataOwner } from './owner';
+export type { MetadataEditorState, MetadataOwner, MetadataView } from './owner';
 export {
 	bindMetadataInput,
 	applyCoverArtDropAtom,
@@ -39,7 +41,6 @@ export {
 	setMetadataFieldActionAtom,
 	setMetadataFieldValueAtom,
 } from './atoms';
-export type { MetadataEditorState, MetadataView } from './atoms';
 export { hasDirtyMetadataFields, readMetadataForm } from './form';
 export { COVER_ART_IMAGE_EXTENSION_HINTS } from './cover';
 export type { CoverArtMessage } from './cover';

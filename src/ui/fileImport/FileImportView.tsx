@@ -3,9 +3,7 @@ import {
 	nativeDropLooksLikeCoverArt,
 	nativeDropTargetAtPoint,
 } from '../../app/inputSession/nativeIngress';
-import { applyCoverArtDropAtom } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
-import { useAtomSet } from '../../app/runtime/solid';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 import { FileListView } from '../fileList/FileListView';
@@ -17,7 +15,7 @@ export function FileImportView(): JSX.Element {
 	const capability = runtime.input.capability;
 	const importIntent = runtime.input.importIntent;
 	const openRemoteSourceAcquire = runtime.remoteSource.open;
-	const applyCoverArtDrop = useAtomSet(() => applyCoverArtDropAtom);
+	const applyCoverArtDrop = runtime.metadata.applyCoverArtDrop;
 	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
 	createEffect(() => {

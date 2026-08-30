@@ -14,7 +14,7 @@ import type {
 	ProcessingPreflightPlan,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { validateMetadataDraft } from '../metadataSession';
+import { validateMetadataDraft, type MetadataDraftValidation } from '../metadataSession';
 import { openCollisionDialog } from './collision';
 import type { OutputPathPreviewMetadataDraft } from './types';
 import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
@@ -212,8 +212,10 @@ export function outputPlanReviewBody(
 
 export async function updateMetadataIntentWarnings(
 	metadata: OutputPathPreviewMetadataDraft,
+	onMetadataValidation?: (validation: MetadataDraftValidation) => void,
 ): Promise<void> {
-	await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
+	const validation = await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
+	onMetadataValidation?.(validation);
 }
 
 export function showOutputError(message: string): void {

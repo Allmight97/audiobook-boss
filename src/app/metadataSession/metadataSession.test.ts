@@ -1,17 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import type { MetadataSaveBatchResult } from '../../types/metadata';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
-import {
-	getMetadataForFile,
-	hydrateMetadataSelectionAtom,
-	metadataEditorAtom,
-	saveMetadataAtom,
-	setMetadataFieldValueAtom,
-	stageMetadataIntentPatch,
-} from './index';
+import { getMetadataForFile, stageMetadataIntentPatch } from './index';
 
 function file(path: string, title: string): FileListInfo['files'][number] {
 	return {
@@ -88,12 +82,8 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		runtime.registry.set(hydrateMetadataSelectionAtom, null);
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(metadataEditorAtom).form.fields['meta-title'].value).toBe(
-				'Alpha',
-			);
-		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha');
 		expect(metadata.readAudioMetadata).toHaveBeenCalledWith('/books/alpha.m4b');
 	});
 
@@ -107,13 +97,9 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		runtime.registry.set(hydrateMetadataSelectionAtom, null);
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(metadataEditorAtom).form.fields['meta-title'].value).toBe(
-				'Alpha',
-			);
-		});
-		runtime.registry.set(setMetadataFieldValueAtom, {
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha');
+		runtime.metadata.setFieldValue({
 			inputId: 'meta-title',
 			value: 'Edited Alpha',
 		});
@@ -122,12 +108,8 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [1],
 			selectedAnchor: 1,
 		});
-		runtime.registry.set(hydrateMetadataSelectionAtom, null);
-		await vi.waitFor(() => {
-			expect(runtime?.registry.get(metadataEditorAtom).form.fields['meta-title'].value).toBe(
-				'Beta',
-			);
-		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Beta');
 		expect(getMetadataForFile('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
 
@@ -142,15 +124,89 @@ describe('metadata session selection and save', () => {
 			selectedAnchor: 0,
 		});
 		stageMetadataIntentPatch('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
-		runtime.registry.set(saveMetadataAtom, undefined);
-		await vi.waitFor(() => {
-			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
-		});
+		await runtime.metadata.save();
+		expect(metadata.saveMetadataBatch).toHaveBeenCalled();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalledWith([
 			{
 				filePath: '/books/alpha.m4b',
 				metadataPatch: { title: { op: 'set', value: 'Saved' } },
 			},
 		]);
+	});
+
+	it('fails hydration when draft validation transport fails', async () => {
+		const metadata = fakeMetadata({
+			validateMetadataIntentPatch: vi.fn(async () => {
+				throw new Error('lookup transport down');
+			}),
+		});
+		runtime = createTestAppRuntime({ metadata });
+		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list(files),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({
+			inputId: 'meta-title',
+			value: 'Edited Alpha',
+		});
+		runtime.input.replaceSession({
+			...runtime.input.session(),
+			selectedIndices: [1],
+			selectedAnchor: 1,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Edited Alpha');
+		expect(runtime.metadata.view().statusMessage).toMatch(/validate metadata/i);
+		expect(metadata.readAudioMetadata).not.toHaveBeenCalledWith('/books/beta.m4b');
+	});
+
+	it('blocks selection change while a metadata save is in progress', async () => {
+		let releaseSave: (() => void) | undefined;
+		const metadata = fakeMetadata({
+			saveMetadataBatch: vi.fn(
+				() =>
+					new Promise<MetadataSaveBatchResult>((resolve) => {
+						releaseSave = () =>
+							resolve({
+								results: [
+									{
+										inputIndex: 0,
+										filePath: '/books/alpha.m4b',
+										status: 'success',
+										message: 'ok',
+									},
+								],
+								summary: {
+									succeeded: 1,
+									failed: 0,
+									cancelled: 0,
+									skipped: 0,
+									total: 1,
+								},
+							});
+					}),
+			),
+		});
+		runtime = createTestAppRuntime({ metadata });
+		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list(files),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		stageMetadataIntentPatch('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		const save = runtime.metadata.save();
+		await vi.waitFor(() => {
+			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
+		});
+		expect(runtime.metadata.view().saveInProgress).toBe(true);
+		expect(await runtime.metadata.canChangeSelection()).toBe(false);
+		releaseSave?.();
+		await save;
 	});
 });

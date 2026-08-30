@@ -1,15 +1,6 @@
 import { onCleanup, onMount, type JSX } from 'solid-js';
-import {
-	clearCoverArtAtom,
-	loadCoverArtFromPickerAtom,
-	loadCoverArtFromUrlAtom,
-	metadataViewAtom,
-	setCoverDragOverAtom,
-	setCoverHoveredAtom,
-	setCoverUrlInputAtom,
-	type CoverArtMessage,
-} from '../../app/metadataSession';
-import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
+import type { CoverArtMessage } from '../../app/metadataSession';
+import { useAppRuntime } from '../../app/runtime';
 import './coverArt.css';
 
 function coverMessageText(message: CoverArtMessage): string {
@@ -23,18 +14,19 @@ function isTextInput(target: EventTarget | null): boolean {
 }
 
 export function CoverArtView(): JSX.Element {
-	const view = useAtomValue(() => metadataViewAtom);
-	const setHovered = useAtomSet(() => setCoverHoveredAtom);
-	const setDragOver = useAtomSet(() => setCoverDragOverAtom);
-	const setUrlInput = useAtomSet(() => setCoverUrlInputAtom);
-	const loadFromPicker = useAtomSet(() => loadCoverArtFromPickerAtom);
-	const loadFromUrl = useAtomSet(() => loadCoverArtFromUrlAtom);
-	const clearCover = useAtomSet(() => clearCoverArtAtom);
+	const metadata = useAppRuntime().metadata;
+	const view = metadata.view;
+	const setHovered = metadata.setCoverHovered;
+	const setDragOver = metadata.setCoverDragOver;
+	const setUrlInput = metadata.setCoverUrlInput;
+	const loadFromPicker = metadata.loadCoverArtFromPicker;
+	const loadFromUrl = metadata.loadCoverArtFromUrl;
+	const clearCover = metadata.clearCoverArt;
 
 	function handleAreaKeyDown(event: KeyboardEvent): void {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
-			void loadFromPicker(undefined);
+			void loadFromPicker();
 		}
 	}
 
@@ -83,7 +75,7 @@ export function CoverArtView(): JSX.Element {
 				data-testid="cover-art-area"
 				role="button"
 				tabIndex={0}
-				onClick={() => void loadFromPicker(undefined)}
+				onClick={() => void loadFromPicker()}
 				onKeyDown={handleAreaKeyDown}
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => {
@@ -117,7 +109,7 @@ export function CoverArtView(): JSX.Element {
 					tabIndex={hasImage() ? 0 : -1}
 					onClick={(event) => {
 						event.stopPropagation();
-						clearCover(undefined);
+						clearCover();
 					}}
 				>
 					✕

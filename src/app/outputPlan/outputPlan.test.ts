@@ -1,19 +1,19 @@
+import { createRoot, createSignal, type Accessor } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defaultEncoderSettings, type ProcessingPreflightPlan } from '../../types/audio';
+import {
+	defaultEncoderSettings,
+	type EncodingRequestConfig,
+	type ProcessingPreflightPlan,
+} from '../../types/audio';
 import { createTestAppRuntime } from '../runtime/harness';
-import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
-import { inputSessionAtom } from '../inputSession/atoms';
 import { emptyInputSession } from '../inputSession/types';
 import type { InputView } from '../inputSession';
 import {
-	applyOutputDefaultsFromSettings,
-	editNamingTemplateAtom,
-	estimatedSizeTextAtom,
-	outputViewAtom,
+	createOutputOwner,
 	readOutputRequestConfig,
 	resetOutputPlanTimers,
-	selectNamingPresetAtom,
-} from './atoms';
+	type OutputPlanOwner,
+} from '.';
 import {
 	cancelCollisionDialog,
 	chooseCollisionPolicy,
@@ -25,7 +25,7 @@ import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraf
 import { createEmptyCoverUiState } from '../metadataSession/cover';
 import { createEmptyFormState, replaceField } from '../metadataSession/fields';
 import { createEmptyTagPreviewValues } from '../metadataSession/tags';
-import type { MetadataView } from '../metadataSession';
+import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 
 function sessionWithDuration(totalDuration: number) {
 	return {
@@ -71,6 +71,24 @@ function emptyInputView(overrides: Partial<InputView> = {}): InputView {
 	};
 }
 
+function emptyMetadataView(): MetadataView {
+	return {
+		form: createEmptyFormState(),
+		cover: createEmptyCoverUiState(),
+		tags: createEmptyTagPreviewValues(),
+		saveInProgress: false,
+		focusedFieldId: null,
+		statusMessage: '',
+	};
+}
+
+function defaultEncodingRequest(): EncodingRequestConfig {
+	return {
+		encoderSettings: defaultEncoderSettings(),
+		sampleRate: 'auto',
+	};
+}
+
 function collisionPlan(): ProcessingPreflightPlan {
 	return {
 		jobType: 'batch',
@@ -106,58 +124,110 @@ function collisionPlan(): ProcessingPreflightPlan {
 	};
 }
 
+type MountedOutput = {
+	readonly owner: OutputPlanOwner;
+	readonly setEncodingRequest: (config: EncodingRequestConfig) => void;
+	readonly setEncodingEstimateKbps: (kbps: number) => void;
+	dispose(): void;
+};
+
+function mountOutput(
+	runtime: ReturnType<typeof createTestAppRuntime>,
+	overrides: {
+		readonly encodingRequest?: EncodingRequestConfig;
+		readonly encodingEstimateKbps?: number;
+		readonly metadataView?: Accessor<MetadataView>;
+		readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
+	} = {},
+): MountedOutput {
+	return createRoot((dispose) => {
+		const [encodingRequest, setEncodingRequest] = createSignal(
+			overrides.encodingRequest ?? defaultEncodingRequest(),
+		);
+		const [encodingEstimateKbps, setEncodingEstimateKbps] = createSignal(
+			overrides.encodingEstimateKbps ?? 64,
+		);
+		const owner = createOutputOwner({
+			input: runtime.input,
+			metadataView: overrides.metadataView ?? emptyMetadataView,
+			encodingRequest,
+			encodingEstimateKbps,
+			onMetadataValidation: overrides.onMetadataValidation,
+		});
+		return {
+			owner,
+			setEncodingRequest,
+			setEncodingEstimateKbps,
+			dispose,
+		};
+	});
+}
+
 describe('output plan public view', () => {
+	let runtime: ReturnType<typeof createTestAppRuntime> | undefined;
+	let mounted: MountedOutput | undefined;
+
 	afterEach(() => {
+		vi.useRealTimers();
+		mounted?.dispose();
+		mounted = undefined;
+		runtime?.dispose();
+		runtime = undefined;
 		resetOutputPlanTimers();
 		resetCollisionDialog();
 	});
 
 	it('hydrates output defaults through the public strip without a preview poke API', () => {
-		const runtime = createTestAppRuntime();
-		runtime.registry.set(applyOutputDefaultsFromSettings, {
+		runtime = createTestAppRuntime();
+		mounted = mountOutput(runtime);
+		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
 			outputNaming: { preset: 'absDefault', includeYear: true },
 		});
-		const view = runtime.registry.get(outputViewAtom);
+		const view = mounted.owner.view();
 		expect(view.outputDirectory).toBe('/books/out');
 		expect(view.absIncludeYear).toBe(true);
 		expect(view.absHintHidden).toBe(false);
 		expect(view.absHintText).toContain('YYYY');
 		expect(readOutputRequestConfig().outputDirectory).toBe('/books/out');
-		runtime.dispose();
 	});
 
 	it('derives the encoder-header estimate from public Input duration and encoder request config', () => {
-		const runtime = createTestAppRuntime();
-		runtime.registry.set(inputSessionAtom, sessionWithDuration(100));
-		runtime.registry.set(encodingRequestConfigAtom, {
-			encoderSettings: {
-				...defaultEncoderSettings(),
-				bitrateMode: { mode: 'cbr' },
-				bitrateKbps: 64,
-				channels: 'stereo',
+		runtime = createTestAppRuntime();
+		runtime.input.replaceSession(sessionWithDuration(100));
+		mounted = mountOutput(runtime, {
+			encodingRequest: {
+				encoderSettings: {
+					...defaultEncoderSettings(),
+					bitrateMode: { mode: 'cbr' },
+					bitrateKbps: 64,
+					channels: 'stereo',
+				},
+				sampleRate: 'auto',
 			},
-			sampleRate: 'auto',
+			encodingEstimateKbps: 64,
 		});
-		expect(runtime.registry.get(estimatedSizeTextAtom)).toBe('~ 1.2 MB');
-		runtime.dispose();
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.2 MB');
 	});
 
 	it('changes the encoder-header size when FDK VBR quality changes encoded bitrate', () => {
-		const runtime = createTestAppRuntime();
-		runtime.registry.set(inputSessionAtom, sessionWithDuration(100));
+		runtime = createTestAppRuntime();
+		runtime.input.replaceSession(sessionWithDuration(100));
 		const stickyBitrateKbps = 64;
-		runtime.registry.set(encodingRequestConfigAtom, {
-			encoderSettings: {
-				...defaultEncoderSettings(),
-				bitrateMode: { mode: 'vbr', value: 1 },
-				bitrateKbps: stickyBitrateKbps,
-				channels: 'auto',
+		mounted = mountOutput(runtime, {
+			encodingRequest: {
+				encoderSettings: {
+					...defaultEncoderSettings(),
+					bitrateMode: { mode: 'vbr', value: 1 },
+					bitrateKbps: stickyBitrateKbps,
+					channels: 'auto',
+				},
+				sampleRate: 'auto',
 			},
-			sampleRate: 'auto',
+			encodingEstimateKbps: 32,
 		});
-		const quality1 = runtime.registry.get(estimatedSizeTextAtom);
-		runtime.registry.set(encodingRequestConfigAtom, {
+		const quality1 = mounted.owner.estimatedSizeText();
+		mounted.setEncodingRequest({
 			encoderSettings: {
 				...defaultEncoderSettings(),
 				bitrateMode: { mode: 'vbr', value: 5 },
@@ -166,22 +236,23 @@ describe('output plan public view', () => {
 			},
 			sampleRate: 'auto',
 		});
-		const quality5 = runtime.registry.get(estimatedSizeTextAtom);
+		mounted.setEncodingEstimateKbps(96);
+		const quality5 = mounted.owner.estimatedSizeText();
 		expect(quality1).toBe('~ 402.3 KB');
 		expect(quality5).toBe('~ 1.2 MB');
-		runtime.dispose();
 	});
 
 	it('keeps the empty estimate placeholder when Input has no files', () => {
-		const runtime = createTestAppRuntime();
-		expect(runtime.registry.get(estimatedSizeTextAtom)).toBe('~ --- MB');
-		runtime.dispose();
+		runtime = createTestAppRuntime();
+		mounted = mountOutput(runtime);
+		expect(mounted.owner.estimatedSizeText()).toBe('~ --- MB');
 	});
 
 	it('commits a typed template only after the 150 ms debounce', () => {
-		vi.useFakeTimers();
-		const runtime = createTestAppRuntime();
-		runtime.registry.set(applyOutputDefaultsFromSettings, {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		runtime = createTestAppRuntime();
+		mounted = mountOutput(runtime);
+		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
 			outputNaming: {
 				preset: 'customTemplate',
@@ -189,16 +260,15 @@ describe('output plan public view', () => {
 				customTemplate: '{old}',
 			},
 		});
-		runtime.registry.set(selectNamingPresetAtom, 'customTemplate');
-		runtime.registry.set(editNamingTemplateAtom, '{author}/{title}');
-		expect(runtime.registry.get(outputViewAtom).namingTemplate).toBe('{author}/{title}');
+		mounted.owner.selectNamingPreset('customTemplate');
+		mounted.owner.editNamingTemplate('{author}/{title}');
+		expect(mounted.owner.view().namingTemplate).toBe('{author}/{title}');
 		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{old}');
 		vi.advanceTimersByTime(149);
 		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{old}');
 		vi.advanceTimersByTime(1);
 		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
 		vi.useRealTimers();
-		runtime.dispose();
 	});
 });
 

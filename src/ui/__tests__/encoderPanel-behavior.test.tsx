@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
+import type { AppRuntime } from '../../app/runtime';
+import { createTestAppRuntime } from '../../app/runtime/harness';
+import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { EncoderView } from '../encoderPanel/EncoderView';
 import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state';
 import { readEncodingRequestConfig } from '../encoderPanel';
@@ -38,6 +41,23 @@ const waitForEncoderOptions = async (): Promise<void> => {
 };
 
 describe('encoder panel behavior controls', () => {
+	let runtime: AppRuntime | undefined;
+
+	afterEach(() => {
+		runtime?.dispose();
+		runtime = undefined;
+	});
+
+	function renderEncoder() {
+		runtime?.dispose();
+		runtime = createTestAppRuntime();
+		return render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<EncoderView />
+			</AppRuntimeProvider>
+		));
+	}
+
 	beforeEach(() => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
 		resetEncoderPanelState();
@@ -59,7 +79,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -84,7 +104,7 @@ describe('encoder panel behavior controls', () => {
 		const { initializeEncoderPanelLogic, setFdkAfterburner } = await import(
 			'../encoderPanel/logic'
 		);
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -126,7 +146,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -161,7 +181,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -212,7 +232,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -240,7 +260,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -280,7 +300,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
@@ -311,7 +331,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -340,7 +360,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -368,7 +388,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
@@ -397,7 +417,7 @@ describe('encoder panel behavior controls', () => {
 		);
 
 		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		render(() => <EncoderView />);
+		renderEncoder();
 		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {

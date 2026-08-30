@@ -173,16 +173,13 @@ export const metadataEditorAtom = Atom.make<MetadataEditorState>(emptyEditor()).
 	Atom.keepAlive,
 );
 
-export const metadataViewAtom = Atom.make((get): MetadataView => {
-	const editor = get(metadataEditorAtom);
-	return {
-		form: editor.form,
-		cover: editor.cover,
-		tags: projectTagPreviewValues(readMetadataFormPreviewValues(editor.form)),
-		saveInProgress: editor.saveInProgress,
-		focusedFieldId: editor.focusedFieldId,
-		statusMessage: editor.statusMessage,
-	};
+export const metadataViewAtom = Atom.make<MetadataView>({
+	form: createEmptyFormState(),
+	cover: createEmptyCoverUiState(),
+	tags: projectTagPreviewValues(readMetadataFormPreviewValues(createEmptyFormState())),
+	saveInProgress: false,
+	focusedFieldId: null,
+	statusMessage: '',
 }).pipe(Atom.keepAlive);
 
 function syncRemovedFiles(sessionFiles: ReadonlyArray<AudioFile>): void {

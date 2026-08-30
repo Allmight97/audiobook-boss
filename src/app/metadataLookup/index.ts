@@ -1,4 +1,4 @@
-export { bindLookupInput } from './services';
+export { bindLookupInput, bindLookupMetadata } from './services';
 export {
 	bumpLookupPreviewAtom,
 	lookupPreviewRevisionAtom,

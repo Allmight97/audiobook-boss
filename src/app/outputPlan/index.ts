@@ -13,6 +13,8 @@ export {
 	selectNamingPresetAtom,
 	setAbsIncludeYearAtom,
 } from './atoms';
+export { createOutputOwner } from './owner';
+export type { OutputOwnerDeps, OutputPlanOwner } from './owner';
 export {
 	cancelCollisionDialog,
 	chooseCollisionPolicy,

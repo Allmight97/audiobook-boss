@@ -1,4 +1,4 @@
-export { bindProcessingInput } from './bind';
+export { bindProcessingInput, bindProcessingMetadata } from './bind';
 export {
 	initStatusPanel,
 	isStatusPanelProcessing,

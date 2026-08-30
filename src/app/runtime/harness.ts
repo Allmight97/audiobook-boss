@@ -8,7 +8,7 @@ import { lookupViewAtom } from '../metadataLookup/atoms';
 import { createMetadataLookupState } from '../metadataLookup/state';
 import { clearMetadataLookupCoverPreviewCache } from '../metadataLookup/coverPreview';
 import { resetCollisionDialog, seedOutputPlan } from '../outputPlan';
-import { seedProcessing } from '../processing';
+import { resetProcessing, seedProcessing } from '../processing';
 import { bindWorkOperationsRegistry, disposeWorkCenter } from '../workOperations';
 import { encodingRequestConfigAtom } from '../../ui/encoderPanel/requestConfig';
 import { readEncodingRequestConfig, subscribeEncoderPanel } from '../../ui/encoderPanel/state';
@@ -48,6 +48,7 @@ export function createTestAppRuntime(
 	resetProductionSettingsDialog();
 	resetCollisionDialog();
 	seedOutputPlan(runtime.registry);
+	resetProcessing();
 	seedProcessing(runtime.registry);
 	bindWorkOperationsRegistry(runtime.registry);
 	runtime.registry.set(encodingRequestConfigAtom, readEncodingRequestConfig());

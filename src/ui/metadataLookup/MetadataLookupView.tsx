@@ -14,7 +14,7 @@ import {
 	setLookupTitleQueryAtom,
 	subscribeMetadataLookupCoverPreviews,
 } from '../../app/metadataLookup';
-import { metadataCapabilityAtom } from '../../app/metadataSession';
+import { useAppRuntime } from '../../app/runtime';
 import { useAtomSet, useAtomValue } from '../../app/runtime/solid';
 import { Dialog } from '../../lib/ui/Dialog';
 import type { OnlineMetadataResult } from '../../types/metadata';
@@ -104,7 +104,7 @@ export function MetadataLookupView(): JSX.Element {
 	const setApplyMode = useAtomSet(() => setLookupApplyModeAtom);
 	const setReplaceCover = useAtomSet(() => setLookupReplaceCoverArtAtom);
 	const bumpPreview = useAtomSet(() => bumpLookupPreviewAtom);
-	const capability = useAtomValue(() => metadataCapabilityAtom);
+	const capability = useAppRuntime().metadata.capability;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
 
 	onMount(() => {

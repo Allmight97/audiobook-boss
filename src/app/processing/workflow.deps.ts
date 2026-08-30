@@ -1,17 +1,13 @@
 import { tauriClient } from '../../lib/tauri/client';
 import { setConcurrencyControlsEnabledAtom } from '../appSettings';
-import { boundProcessingInput } from './bind';
+import { boundProcessingInput, boundProcessingMetadata } from './bind';
 import { fileListFromInput } from './input';
 import {
 	cacheMetadataForFile,
 	collectActionableMetadataIntent,
 	commitPreparedMetadataDrafts,
 	getMetadataForFile,
-	hasDirtyMetadataFields,
-	metadataCapabilityAtom,
-	metadataEditorAtom,
 	prepareMetadataDrafts,
-	readMetadataForm,
 	readUncachedMetadataSnapshot,
 	stageMetadataIntentPatch,
 } from '../metadataSession';
@@ -27,8 +23,8 @@ function liveFileList() {
 	return view ? fileListFromInput(view) : null;
 }
 
-function liveEditor() {
-	return processingRegistry().get(metadataEditorAtom);
+function liveMetadata() {
+	return boundProcessingMetadata();
 }
 
 const liveProcessingWorkflowServices = {
@@ -37,36 +33,26 @@ const liveProcessingWorkflowServices = {
 	getSelectedFileIndices: () => new Set(boundProcessingInput()?.view().selectedIndices ?? []),
 	readProcessingRequestConfig,
 	getJobType: () => boundProcessingInput()?.jobType() ?? 'batch',
-	hasDirtyMetadataFields: () => {
-		const editor = liveEditor();
-		return hasDirtyMetadataFields(editor.form, editor.cover);
-	},
-	readMetadataForm: (options) => {
-		const editor = liveEditor();
-		return readMetadataForm(editor.form, {
-			...options,
-			coverArtBytes: editor.cover.currentCoverArt,
-			coverArtRemovalRequested: editor.cover.coverArtRemovalRequested,
-		});
-	},
+	hasDirtyMetadataFields: () => liveMetadata()?.readHasDirtyMetadata() ?? false,
+	readMetadataForm: () => liveMetadata()?.readMetadata() ?? {},
 	collectActionableMetadataIntent,
 	getMetadataForFile,
 	cacheMetadataForFile,
 	stageMetadataIntentPatch,
 	async stageMetadataToSelection(options?: { showStatus?: boolean }): Promise<boolean> {
-		const registry = processingRegistry();
 		const view = boundProcessingInput()?.view();
-		if (!view) {
+		const metadata = liveMetadata();
+		if (!view || !metadata) {
 			return false;
 		}
-		const editor = liveEditor();
-		const capability = registry.get(metadataCapabilityAtom);
+		const current = metadata.view();
+		const capability = metadata.capability();
 		const selectedFiles = view.selectedIndices
 			.map((index) => view.files[index])
 			.filter((file) => file != null);
 		const prepared = await prepareMetadataDrafts({
-			form: editor.form,
-			cover: editor.cover,
+			form: current.form,
+			cover: current.cover,
 			selectedFiles,
 			validate: (patch) => capability.validateMetadataIntentPatch(patch),
 			readUncachedMetadata: (file) =>
@@ -86,10 +72,20 @@ const liveProcessingWorkflowServices = {
 	setFileOrderLocked: (locked) => {
 		boundProcessingInput()?.setOrderLocked(locked);
 	},
-	validateMetadataIntentPatch: (patch) =>
-		processingRegistry().get(metadataCapabilityAtom).validateMetadataIntentPatch(patch),
-	readAudioMetadata: (path) =>
-		processingRegistry().get(metadataCapabilityAtom).readAudioMetadata(path),
+	validateMetadataIntentPatch: (patch) => {
+		const metadata = liveMetadata();
+		if (!metadata) {
+			return Promise.reject(new Error('Metadata owner is not mounted'));
+		}
+		return metadata.capability().validateMetadataIntentPatch(patch);
+	},
+	readAudioMetadata: (path) => {
+		const metadata = liveMetadata();
+		if (!metadata) {
+			return Promise.reject(new Error('Metadata owner is not mounted'));
+		}
+		return metadata.capability().readAudioMetadata(path);
+	},
 	processAudiobookFiles: tauriClient.processAudiobookFiles,
 	submitProcessingOperation: tauriClient.submitProcessingOperation,
 	runOutputPlanReviewWorkflow,
