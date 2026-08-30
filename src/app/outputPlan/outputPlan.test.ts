@@ -246,7 +246,7 @@ describe('output plan public view', () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')
 			.mockResolvedValue('/books/out/preview.m4b');
-		vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
+		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
 			isValid: true,
 			metadataPatch: {},
 			fieldErrors: [],
@@ -275,20 +275,21 @@ describe('output plan public view', () => {
 		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
 
 		await vi.waitFor(
-			() =>
-				expect(previewOutputPath.mock.calls.at(-1)?.[0]?.outputNaming?.customTemplate).toBe(
-					'{author}/{title}',
-				),
+			() => {
+				const lastCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
+				expect(lastCall?.[0]?.outputNaming?.customTemplate).toBe('{author}/{title}');
+			},
 			{ timeout: 500 },
 		);
 		previewOutputPath.mockRestore();
+		validatePatch.mockRestore();
 	});
 
 	it('re-reads output path preview when series part changes', async () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')
 			.mockResolvedValue('/books/out/preview.m4b');
-		vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
+		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
 			isValid: true,
 			metadataPatch: {},
 			fieldErrors: [],
@@ -311,13 +312,16 @@ describe('output plan public view', () => {
 			outputNaming: { preset: 'absDefault', includeYear: false },
 		});
 		await vi.waitFor(() => expect(previewOutputPath).toHaveBeenCalled());
-		expect(previewOutputPath.mock.calls.at(-1)?.[0]?.metadata.series_part).toBe('1');
+		const firstCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
+		expect(firstCall?.[0]?.metadata?.series_part).toBe('1');
 		const callsBefore = previewOutputPath.mock.calls.length;
 		form = replaceField(metadataView().form, 'meta-series-part', { value: '2' });
 		setMetadataView((current) => ({ ...current, form }));
 		await vi.waitFor(() => expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore));
-		expect(previewOutputPath.mock.calls.at(-1)?.[0]?.metadata.series_part).toBe('2');
+		const lastCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
+		expect(lastCall?.[0]?.metadata?.series_part).toBe('2');
 		previewOutputPath.mockRestore();
+		validatePatch.mockRestore();
 	});
 });
 
