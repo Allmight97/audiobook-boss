@@ -162,7 +162,7 @@ export function companionSummaryForInputIds(
 	};
 }
 
-export function removeRemoteSourceSupplementalAssets(
+function removeRemoteSourceSupplementalAssets(
 	inputIds: readonly (string | undefined)[],
 ): void {
 	const next = { ...supplementalAssetsByInputId };

@@ -14,8 +14,7 @@
 - Import acquire intents, view atoms, and the Input handoff result type from
   `src/app/remoteSource`.
 - `index.ts` is the export surface. Do not import `atoms.ts`, `workflow.ts`,
-  `sessionAssets.ts`, or `state.ts` from outside this owner except existing
-  processing tests that still call `removeRemoteSourceSupplementalAssets`.
+  `sessionAssets.ts`, or `state.ts` from outside this owner.
 
 ## Hard Invariants
 

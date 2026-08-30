@@ -24,7 +24,7 @@ import {
 	registerRemoteSourceSupplementalAssets,
 	supplementalAssetsByInputIdForProcessing,
 } from '../../../ui/remoteSource';
-import { removeRemoteSourceSupplementalAssets } from '../../remoteSource/sessionAssets';
+import { resetRemoteSourceSessionAssets } from '../../remoteSource';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
@@ -248,7 +248,7 @@ async function runWithServices(
 describe('ProcessingWorkflow', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		removeRemoteSourceSupplementalAssets(['current-input-1']);
+		resetRemoteSourceSessionAssets();
 	});
 
 	it('coordinates approved processing through injected services without changing the public runtime API', async () => {

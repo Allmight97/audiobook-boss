@@ -1,5 +1,5 @@
-import { listenForProgressEvents, listenForQueueEvents } from '../events';
-import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
+import { tauriClient } from '../../../lib/tauri/client';
+import { EVENTS, type ProcessingProgressEvent, type ProcessingQueueEvent } from '../../../types/events';
 import {
 	createSubscriptionGroup,
 	type SubscriptionGroup,
@@ -34,6 +34,22 @@ interface CreateProgressSubscriptionOptions {
 
 function getDefaultEventTarget(): BeforeUnloadTarget | undefined {
 	return typeof window === 'undefined' ? undefined : window;
+}
+
+async function listenForProgressEvents(
+	onProgress: (event: ProcessingProgressEvent) => void,
+): Promise<Unlisten> {
+	return tauriClient.listen(EVENTS.PROGRESS, (event) => {
+		onProgress(event.payload);
+	});
+}
+
+async function listenForQueueEvents(
+	onQueue: (event: ProcessingQueueEvent) => void,
+): Promise<Unlisten> {
+	return tauriClient.listen(EVENTS.QUEUE, (event) => {
+		onQueue(event.payload);
+	});
 }
 
 export function createProgressSubscription({

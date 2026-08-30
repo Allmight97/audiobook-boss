@@ -6,7 +6,6 @@ import { inputSessionAtom } from '../inputSession/atoms';
 import { selectFileInSession } from '../inputSession/selection';
 import type { InputSessionState } from '../inputSession/types';
 import {
-	clearCoverArtAtom,
 	getMetadataForFile,
 	metadataCapabilityAtom,
 	metadataEditorAtom,
@@ -31,7 +30,6 @@ export type LookupServiceGet = {
 	readonly set: {
 		(atom: typeof inputSessionAtom, value: InputSessionState): void;
 		(atom: typeof metadataEditorAtom, value: MetadataEditorState): void;
-		(atom: typeof clearCoverArtAtom, value: undefined): void;
 		(atom: typeof setCustomCoverArtAtom, value: number[]): void;
 	};
 };
@@ -79,10 +77,6 @@ export function makeProductionLookupServices(
 				coverArtRemovalRequested: editor.cover.coverArtRemovalRequested,
 			});
 		},
-		clearCoverArt: () => {
-			get.set(clearCoverArtAtom, undefined);
-		},
-		setCoverArt: () => undefined,
 		setCustomCoverArt: (coverArtBytes) => {
 			if (!coverArtBytes || coverArtBytes.length === 0) return;
 			get.set(setCustomCoverArtAtom, coverArtBytes);
@@ -99,7 +93,6 @@ export function makeProductionLookupServices(
 				coverRevision: editor.coverRevision + 1,
 			});
 		},
-		refreshCoverArtDisplay: () => undefined,
 		searchOnlineMetadata: (args) => get(metadataCapabilityAtom).searchOnlineMetadata(args),
 		loadCoverArtFromUrl: (url) => get(metadataCapabilityAtom).loadCoverArtFromUrl(url),
 		focusElementById: (id) => {

@@ -9,7 +9,6 @@ export {
 	inputCapabilityAtom,
 	inputViewAtom,
 	jobTypeAtom,
-	readJobType,
 	moveFileAtom,
 	removeFileAtom,
 	reorderFilesAtom,

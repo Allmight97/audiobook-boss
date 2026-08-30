@@ -33,13 +33,7 @@ export const inputSessionAtom = Atom.make<InputSessionState>(emptyInputSession()
 	Atom.keepAlive,
 );
 
-let jobTypeSnapshot: JobType = 'batch';
-
 export const jobTypeAtom = Atom.make<JobType>('batch').pipe(Atom.keepAlive);
-
-export function readJobType(): JobType {
-	return jobTypeSnapshot;
-}
 
 export const inputViewAtom = Atom.make((get): InputView => toInputView(get(inputSessionAtom))).pipe(
 	Atom.keepAlive,
@@ -186,7 +180,6 @@ export const setOrderLockedAtom = Atom.fnSync(
 
 export const setJobTypeAtom = Atom.fnSync(
 	(jobType: JobType, get) => {
-		jobTypeSnapshot = jobType;
 		get.set(jobTypeAtom, jobType);
 		return jobType;
 	},

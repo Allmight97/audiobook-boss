@@ -18,7 +18,6 @@ import {
 	buildQueueMetadataPatch,
 	deriveAuthorQueryFromFile,
 	deriveTitleQueryFromFile,
-	getApplyMode,
 	mapResultToMetadata,
 	persistQueueMetadata,
 	resetResults,
@@ -58,10 +57,7 @@ export interface MetadataLookupWorkflowServices {
 		mode?: 'single' | 'multi';
 		includeCoverArt?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	clearCoverArt: () => void;
-	setCoverArt: (coverArtBytes: number[] | null) => void;
 	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
-	refreshCoverArtDisplay: () => void;
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;
@@ -150,7 +146,6 @@ async function advanceQueue(
 	if (queue.length === 0) return;
 
 	if (index >= queue.length - 1) {
-		services.refreshCoverArtDisplay();
 		setStatus(
 			services,
 			options.coverArtFailed ? 'Queue complete, but cover art failed to load.' : 'Queue complete.',
@@ -161,8 +156,6 @@ async function advanceQueue(
 
 	const nextIndex = index + 1;
 	const nextItem = queue[nextIndex];
-
-	services.refreshCoverArtDisplay();
 
 	if (nextItem) {
 		await services.selectFile(
@@ -220,7 +213,7 @@ async function applyResult(
 	}
 
 	const metadata = mapResultToMetadata(result);
-	const mode = getApplyMode(services);
+	const mode = services.getLookupState().applyMode;
 
 	const current = queue[services.getQueueState().index];
 	if (current) {

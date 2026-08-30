@@ -6,7 +6,6 @@ import { buildMetadataDraftIntent } from '../metadataSession';
 import { clearMetadataLookupCoverPreviewCache } from './coverPreview';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
-export type ApplyMode = 'current' | 'queue';
 export type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
 
 export type QueueItemState = {
@@ -69,10 +68,6 @@ export function updateApplyModeOptions(services: MetadataLookupWorkflowServices)
 	state.isQueueMode = multi;
 	state.applyMode = multi ? 'queue' : 'current';
 	state.skipEnabled = multi;
-}
-
-export function getApplyMode(services: MetadataLookupWorkflowServices): ApplyMode {
-	return services.getLookupState().applyMode;
 }
 
 export function resetResults(services: MetadataLookupWorkflowServices): void {

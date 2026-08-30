@@ -169,10 +169,7 @@ function makeHarness(options?: {
 	) as MetadataLookupWorkflowServices['selectFile'] & ReturnType<typeof vi.fn>;
 	const applyMetadataToForm = vi.fn();
 	const readMetadataForm = vi.fn(options?.readMetadataForm ?? (() => ({ title: 'Patched Title' })));
-	const clearCoverArt = vi.fn();
-	const setCoverArt = vi.fn();
 	const setCustomCoverArt = vi.fn();
-	const refreshCoverArtDisplay = vi.fn();
 	const searchOnlineMetadata = vi.fn(
 		options?.searchOnlineMetadata ?? (async () => lookupResponse()),
 	);
@@ -195,10 +192,7 @@ function makeHarness(options?: {
 		selectFile,
 		applyMetadataToForm,
 		readMetadataForm,
-		clearCoverArt,
-		setCoverArt,
 		setCustomCoverArt,
-		refreshCoverArtDisplay,
 		searchOnlineMetadata,
 		loadCoverArtFromUrl,
 		focusElementById,
@@ -222,10 +216,7 @@ function makeHarness(options?: {
 			selectFile,
 			applyMetadataToForm,
 			readMetadataForm,
-			clearCoverArt,
-			setCoverArt,
 			setCustomCoverArt,
-			refreshCoverArtDisplay,
 			searchOnlineMetadata,
 			loadCoverArtFromUrl,
 			focusElementById,
@@ -592,7 +583,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.statusMessage).toBe('Skipped. Found 1 results.');
 	});
 
-	it('restores current cover art at queue completion', async () => {
+	it('reports queue complete after the last skip', async () => {
 		const harness = makeHarness({
 			queueState: {
 				queue: [
@@ -605,8 +596,6 @@ describe('MetadataLookupWorkflow', () => {
 
 		await runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' });
 
-		expect(harness.mocks.refreshCoverArtDisplay).toHaveBeenCalledTimes(1);
-		expect(harness.mocks.setCoverArt).not.toHaveBeenCalled();
 		expect(harness.lookupState.statusMessage).toBe('Queue complete.');
 	});
 
