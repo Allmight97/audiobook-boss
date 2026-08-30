@@ -20,6 +20,9 @@
 ## Preferred Path
 
 - `FileListView` reads Input `view` and dispatches Input Session intents.
+  Row click, keyboard Select all, Escape clear-highlight, and toolbar Clear
+  go through the awaitable `selectFile`, `selectAll`, `clearSelection`, and
+  `clearAllFiles` intents so the metadata draft gate can run.
 - Cover thumbnails are a presentation cache, not list truth.
 - PDF companion chips subscribe to `subscribeRemoteSourceSupplementalAssets`.
   Do not assume an Input publish also rerenders supplemental assets.
@@ -29,6 +32,8 @@
 ## Hard Invariants
 
 - Do not add a parallel file-list store.
+- Do not apply selection or list membership in this view. Every
+  selection-changing list action dispatches the Input intents above.
 - Preserve listbox-scoped keyboard handling and pointer-reorder cleanup
   already owned by Input Session + `pointerReorder.ts`.
 
