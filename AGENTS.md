@@ -63,6 +63,7 @@
 - Commands, verification scope, and local test placement live in `crates/AGENTS.md`, `scripts/AGENTS.md`, and each surface `AGENTS.md` — do not restate them here.
 - Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.
 - UI behavior also needs visual/human review where static tests cannot prove UX.
+- Live app drive / user-visible GUI proof uses `.agents/skills/verify-audiobook-boss`.
 - Owned import/export surface changes update the nearest `AGENTS.md` and its contract test.
 - Release/version/changelog/tag/DMG work uses the `release` skill.
 

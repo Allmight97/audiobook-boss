@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify AudioBook Boss"
+  short_description: "Drive the live desktop app and capture proof"
+  default_prompt: "Use $verify-audiobook-boss to drive the live AudioBook Boss desktop GUI the way a user does and capture evidence."
