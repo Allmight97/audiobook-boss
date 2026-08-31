@@ -1,14 +1,14 @@
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import type { SettingsOwner } from '../appSettings/owner';
-import type { InputOwner } from '../inputSession/owner';
-import type { MetadataLookupOwner } from '../metadataLookup/owner';
-import type { MetadataOwner } from '../metadataSession/owner';
-import type { OutputPlanOwner } from '../outputPlan/owner';
-import type { ProcessingOwner } from '../processing/owner';
-import type { RemoteSourceOwner } from '../remoteSource/owner';
-import type { WorkOperationsOwner } from '../workOperations/owner';
+import type { SettingsOwner } from '../appSettings';
+import type { InputOwner } from '../inputSession';
+import type { MetadataLookupOwner } from '../metadataLookup';
+import type { MetadataOwner } from '../metadataSession';
+import type { OutputPlanOwner } from '../outputPlan';
+import type { ProcessingOwner } from '../processing';
+import type { RemoteSourceOwner } from '../remoteSource';
+import type { WorkOperationsOwner } from '../workOperations';
 
 export type RuntimeCapabilities = {
 	readonly input?: InputCapability;

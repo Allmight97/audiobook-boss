@@ -1,7 +1,7 @@
 import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import type { InputOwner } from '../inputSession/owner';
-import type { MetadataOwner } from '../metadataSession/owner';
+import type { InputOwner } from '../inputSession';
+import type { MetadataOwner } from '../metadataSession';
 import { getMetadataForFile, stageMetadataIntentPatch } from '../metadataSession';
 import type { MetadataLookupQueueState, MetadataLookupState } from './state';
 import type { MetadataLookupWorkflowServices } from './workflow';

@@ -10,12 +10,12 @@ dispatch intent; they do not keep parallel business state.
 
 - Treat each owner as a deep module. `index.ts` is its exact Public API Strip;
   import from the owner root and do not reach into private state, workflow,
-  cache, binder, or helper files. App Runtime composition currently imports
-  constructors and owner types from each `owner.ts`; cross-owner production
-  modules import sibling owner types the same way; runtime isolation tests
-  still import Remote Source `state.ts` to prove module-global reset. Inspect
-  those call sites, do not add another private-file caller, and do not copy
-  that pattern.
+  cache, binder, or helper files. App Runtime composition and cross-owner
+  production modules use those owner roots. Existing isolation tests and
+  compatibility harnesses may still reach private files to prove module-global
+  state that an owning lifetime migration has not yet removed; inspect those
+  call sites, do not add another private-file caller, and do not copy that
+  pattern.
 - Prefer a small `view()` / accessor surface plus semantic intents such as
   import, select, stage, review, submit, cancel, or persist. Do not expose raw
   setters, refresh/poke functions, or one accessor per implementation field.

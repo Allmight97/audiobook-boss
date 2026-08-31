@@ -1,6 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { InputOwner } from '../inputSession/owner';
-import type { MetadataOwner } from '../metadataSession/owner';
+import type { InputOwner } from '../inputSession';
+import type { MetadataOwner } from '../metadataSession';
 import { makeProductionLookupServices } from './services';
 import {
 	createMetadataLookupQueueState,

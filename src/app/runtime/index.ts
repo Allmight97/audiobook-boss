@@ -1,12 +1,12 @@
 import { createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
-import { createSettingsOwner } from '../appSettings/owner';
-import { createMetadataLookupOwner } from '../metadataLookup/owner';
-import { createMetadataOwner } from '../metadataSession/owner';
-import { createOutputOwner } from '../outputPlan/owner';
-import { createProcessingOwner } from '../processing/owner';
-import { createInputOwner } from '../inputSession/owner';
-import { createRemoteSourceOwner } from '../remoteSource/owner';
-import { createWorkOperationsOwner } from '../workOperations/owner';
+import { createSettingsOwner } from '../appSettings';
+import { createInputOwner } from '../inputSession';
+import { createMetadataLookupOwner } from '../metadataLookup';
+import { createMetadataOwner } from '../metadataSession';
+import { createOutputOwner } from '../outputPlan';
+import { createProcessingOwner } from '../processing';
+import { createRemoteSourceOwner } from '../remoteSource';
+import { createWorkOperationsOwner } from '../workOperations';
 import {
 	estimateKbpsFromRequest,
 	readEncodingRequestConfig,

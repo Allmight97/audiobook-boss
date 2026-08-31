@@ -280,7 +280,7 @@ export const tauriClient = {
 	processAudiobookFiles: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds?: number | null;
+		previewSeconds: number;
 	}): Promise<ProcessCommandResult> => commandSpecs.process_audiobook_files(args),
 	submitProcessingOperation: (
 		args: SubmitProcessingOperationRequest,
