@@ -10,6 +10,9 @@
   `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
 - Do not re-export acquisition workflow symbols or private session-asset
   helpers such as `supplementalAssetsForInputIds` from the index.
+- These non-view session-asset exports are current #471 compatibility rails.
+  Do not add callers; after migration, nonvisual consumers import the App
+  Runtime Remote Source owner and this UI index exposes the dialog view.
 - The acquire dialog is `RemoteSourceAcquireView.tsx`. File Import composes
   it. Import acquire intents from `src/app/remoteSource`.
 
@@ -17,9 +20,9 @@
 
 - Files: `RemoteSourceAcquireView.tsx`, `remoteSourceAcquire.css`.
 
-Owner truth lives in `src/app/remoteSource`. This directory renders it and
-re-exports the session-asset strip for Processing, File List, and inspector
-callers.
+Owner truth lives in `src/app/remoteSource`. This directory renders it. The
+current session-asset re-exports for Processing, File List, and inspector
+callers are removed by #471 rather than preserved as a second public seam.
 
 Remote source IPC must route through `src/lib/tauri/client.ts`. Materialized
 audio imports through Input Session; processing remains user-triggered.

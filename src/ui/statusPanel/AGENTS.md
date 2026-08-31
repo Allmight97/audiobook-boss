@@ -13,6 +13,9 @@
 - Exports: `StatusPanelView`, `initStatusPanel`, `isStatusPanelProcessing`,
   `pushStatusPanelTransientStatus`, `readProcessingRequestConfig`,
   `triggerCancelAllFromStatusPanel`, `triggerProcessFromStatusPanel`.
+- The non-view names are #471 compatibility re-exports over process-wide
+  Processing state. Do not add callers; the target index exports the view while
+  callers use the runtime Processing owner.
 
 ## Private Cluster
 

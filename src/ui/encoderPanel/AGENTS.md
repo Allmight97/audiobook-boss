@@ -1,51 +1,61 @@
 # Encoder Panel
 
-## Public API Strip
-- Import encoder request configuration from `src/ui/encoderPanel`.
+## Scope
+
+- `EncoderView.tsx` is the Solid encoder view and owns markup, interaction
+  wiring, labels, and owner-local CSS.
+- Encoder/sample-rate/channel request truth is still module-global in this
+  directory. That is a current #471 migration gap, not the target owner shape.
+
+## Current Compatibility Strip
+
+- Import the retained encoder strip from `src/ui/encoderPanel` only where
+  current code still requires it.
 - Exports: `applyEncodingDefaults`, `estimateKbpsFromRequest`,
   `readEncoderDefaultsFromState`, `readEncodingRequestConfig`,
   `readFdkAfterburner`, `setFdkAfterburner`, `subscribeEncoderPanel`.
-- `readFdkAfterburner`/`setFdkAfterburner` exist for the App Settings dialog,
-  which owns the afterburner control; the panel keeps the request-truth
-  carrier and persistence rails and renders no afterburner UI.
-- `applyEncodingDefaults(defaults, capabilities)` accepts an already-loaded
-  Runtime Settings Capabilities encoder slice from App Settings hydration. It
-  lazily imports `logic.ts` so the index stays side-effect-light for config
-  consumers; keep new strip entries in that shape.
-- `readEncodingRequestConfig` is the request-configuration strip Output Plan
-  reads for channels and CBR/CVBR `bitrateKbps`. VBR quality does not change
-  that request field. `estimateKbpsFromRequest` is the numeric bitrate behind
-  the `Est: ~60 kbps` line. Do not parse the Est: label. Do not keep a
-  mirrored size.
+- Do not add callers to `subscribeEncoderPanel`, `state.ts`,
+  `runtimeSettingsCapabilities.ts`, or the read/apply global functions. Issue
+  #471 removes those rails after introducing the runtime owner.
+
+## Target Owner Boundary
+
+- #471 creates `src/app/encodingConfig`. It owns runtime capabilities, current
+  encoder/sample-rate/channel intent, request/default projections, automatic
+  resolution hints, and estimate facts for one App Runtime.
+- `EncoderView` reads and dispatches through `useAppRuntime().encoding`.
+  Processing and Output receive that owner from App Runtime rather than reading
+  this UI index.
+- App Settings hands defaults to, and reads accepted defaults from, the owner.
+  Automatic persistence/failure state belongs to App Settings (#421), not this
+  view.
+- Two live runtimes must be able to hold different encoder requests without a
+  shared listener, capability cache, hydration promise, or reset.
 
 ## Private Cluster
-- Files: `EncoderView.tsx`, `encoderView.css`, `autoResolutionHints.ts`,
-  `logic.ts`, `state.ts`, `view.ts`.
-- `EncoderView.tsx` is the mounted Solid renderer and reads `state.ts`
-  through a revision-counter plus `subscribeEncoderPanel`.
-- The `estimated-size` span in `EncoderView.tsx` is the only consumer of
-  Output Plan's estimated-size text. Keep `~ 12.3 MB` / `~ --- MB` in this
-  header; do not move the span into the Output block.
-- The cluster owns audio encoder UI state, resolved encoder availability,
-  sample-rate/channel state, and encoding request configuration truth.
-  Selectable validity facts for encoder options, bitrate modes, bitrates, VBR
-  levels, sample rates, and channels come from the backend Runtime Settings
-  Capabilities contract.
 
-## Allowed Agent Edits Without Escalation
-- Change internals when focused encoder panel tests stay green; run targeted
-  Vitest files when proving UI behavior and generated-binding/Public API Strip/runtime
-  contract checks when runtime surfaces change.
-- Keep process-boundary encoding config reads behind `readEncodingRequestConfig`.
-- Keep App Settings hydration/persistence coordination behind
-  `applyEncodingDefaults` and `readEncoderDefaultsFromState`; do not let other
-  panels reach into `state.ts`.
-- Keep estimated-size display derived from Output Plan; do not mirror encoder
-  request config into an Output-owned size cache.
-- Keep UI labels and hints frontend-owned; do not reintroduce local
-  accept/reject matrices for settings that Rust validates.
+- Current files: `EncoderView.tsx`, `encoderView.css`,
+  `autoResolutionHints.ts`, `logic.ts`, `requestConfig.ts`, `state.ts`,
+  `view.ts`.
+- The `estimated-size` span in `EncoderView.tsx` is the only consumer of Output
+  Plan's estimated-size text. Keep `~ 12.3 MB` / `~ --- MB` in this header;
+  do not move the span into Output.
+- Selectable validity facts come from backend Runtime Settings Capabilities;
+  the view does not reproduce accept/reject tables.
 
-## Breaking-Change Triggers
-- Adding, removing, or renaming a Public API Strip export.
-- Moving encoder/sample-rate request truth out of this cluster.
-- Letting another panel import `state.ts`, `logic.ts`, or other private internals to build process payloads.
+## Invariants
+
+- Keep request-shaped encoder settings explicit. VBR quality is not the sticky
+  CBR/CVBR `bitrateKbps` field, and estimate code must not parse the
+  `Est: ~60 kbps` label.
+- UI labels and hints stay frontend-owned; encoder availability and accepted
+  setting facts stay backend-owned.
+- Hydration applies values without persisting them. User intents may persist
+  only through the App Settings owner contract.
+
+## Done Criteria
+
+- Current changes use focused Encoder view/config tests and runtime-boundary
+  checks when request shapes change.
+- The #471 migration proves two live App Runtimes isolate requests and deletes
+  compatibility globals/re-exports instead of keeping aliases.

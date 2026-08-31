@@ -23,9 +23,13 @@
   Row click, keyboard Select all, Escape clear-highlight, and toolbar Clear
   go through the awaitable `selectFile`, `selectAll`, `clearSelection`, and
   `clearAllFiles` intents so the metadata draft gate can run.
-- Cover thumbnails are a presentation cache, not list truth.
-- PDF companion chips subscribe to `subscribeRemoteSourceSupplementalAssets`.
-  Do not assume an Input publish also rerenders supplemental assets.
+- Cover thumbnails are a presentation resource, not list truth. The current
+  module cache/listeners are a #471 lifetime gap; the target resource is scoped
+  to each `FileListView` and disposed with it. Do not add module resets or
+  callers to `coverThumbnails.ts`.
+- PDF companion chips observe the runtime Remote Source owner. The current
+  `subscribeRemoteSourceSupplementalAssets` call is a #471 compatibility rail;
+  do not assume an Input publish also rerenders supplemental assets.
 - Remote session purge tracks Input file identity through Remote Source. Do
   not dual-purge from this view.
 
@@ -41,3 +45,5 @@
 
 - Thumbnail and pointer-reorder changes have focused Vitest coverage.
 - List mutation behavior is proved in `src/app/inputSession`.
+- Lifetime migration proves two mounted File List views cannot cancel, clear,
+  or publish thumbnail state into one another.

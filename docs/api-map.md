@@ -78,6 +78,24 @@ snapshots) are the only scoping.
 - Generated bindings in `src/lib/generated/tauri.ts` are committed for drift detection, not used as the main hand-authored runtime seam.
 - Progress and queue events flow Rust -> frontend through tauri-specta events, normalized at the `tauriClient` boundary.
 
+## Error And Diagnostic Contract
+
+- Command failures cross as `CommandResult<T>` / `AppErrorEnvelope`. The
+  frontend unwraps generated results and normalizes categories, cancellation,
+  safe logging, and user messages in `src/lib/tauri/appError.ts`; views do not
+  classify errors by string matching.
+- User-correctable metadata and preflight problems return structured validation
+  or review data through their owning commands rather than generic failure text.
+- Expected provider partial failure returns usable results plus typed
+  diagnostics when the requested contract can still be satisfied. It hard-fails
+  at the owner when it cannot; callers do not substitute another provider or
+  manual path invisibly.
+- Background cancellation and completion are WorkRuntime snapshot truth.
+  Foreground preview consumes the backend `RunTerminalClass`; neither UI path
+  derives a second terminal precedence from row counts or log text.
+- `log_frontend` and native logs are bounded support evidence, not alternate IPC
+  payloads, progress channels, or terminal classifiers.
+
 ## Tauri Commands
 
 ### App Settings
@@ -85,7 +103,10 @@ snapshots) are the only scoping.
 - `get_app_settings`, `update_app_settings`, `reset_app_settings`
   - Rust: `src-tauri/src/commands/app_settings.rs`
   - Core owner: `src-tauri/src/app_settings/`
-  - Frontend: `src/app/appSettings` through `src/lib/tauri/client.ts`. Persistence strip: `src/ui/appSettings`.
+  - Frontend owner: `src/app/appSettings` through `src/lib/tauri/client.ts`.
+    Automatic persistence still routes through the temporary
+    `src/ui/appSettings` strip; #421 moves it and its failure state into the
+    owner.
   - Use: durable preference hydration and persistence for existing controls.
     Runtime-coupled values, such as max concurrency, are accepted by their
     runtime owner first and then persisted as settings truth.
@@ -133,7 +154,7 @@ snapshots) are the only scoping.
 
 - `validate_encoder_settings`
   - Rust: `src-tauri/src/commands/audio.rs`
-  - Core helpers: `src-tauri/src/audio/settings_encoder.rs`, `src-tauri/src/audio/toolchain.rs`
+  - Core helpers: `src-tauri/src/audio/settings_encoder.rs`, `src-tauri/src/audio/toolchain/mod.rs`
   - Frontend: encoder validation via `src/lib/tauri/client.ts`
 
 - `get_runtime_settings_capabilities`

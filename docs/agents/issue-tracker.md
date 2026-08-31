@@ -1,6 +1,8 @@
-# Issue tracker: GitHub
+# Issue Tracker: GitHub
 
-Issues for this repo live as GitHub issues on `Allmight97/audiobook-boss`. Use the `gh` CLI for all operations.
+Issues for this repo live on `Allmight97/audiobook-boss`. Use the authenticated
+GitHub connector when the agent has it; otherwise use the `gh` CLI. The issue
+body is the mutable plan interface either way.
 
 ## Conventions
 
@@ -37,14 +39,15 @@ Issues are durable work surfaces, not planning transcripts. Bodies must be resum
 Use this shape for substantial engineering work:
 
 ```md
-## Owning invariant
-
-> One sentence: what truth this work enforces everywhere.
-
-## Current state
+## Current state and next action
 
 - What is true in `main` today, with file-path evidence when load-bearing
 - Where the invariant currently fails, if it does
+- The single next action or decision
+
+## Owning invariant
+
+> One sentence: what truth this work enforces everywhere.
 
 ## Plan
 
@@ -64,6 +67,10 @@ Omit `Open forks` when the decision is locked. Include library versions only
 when they change implementation choices.
 
 Omit: restructure dates, skill names, scout provenance, "verified via research", superseded-framing appendices, and source-ladder narration.
+
+When work lands, rewrite the issue around the resulting state or close it with
+the proof and residual work. A closed flag does not make a stale body safe to
+follow, and an open issue must not retain a next action that already happened.
 
 Use `docs/ubiquitous-language.md` vocabulary. Prefer module and seam names over file paths unless a path is load-bearing for verification.
 

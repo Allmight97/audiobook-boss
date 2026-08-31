@@ -1,5 +1,21 @@
 # Decisions
 
+This ledger contains operative, durable choices that still change future
+behavior. Update or remove an entry when the implementation and decision move;
+git history and closed issues own superseded chronology.
+
+## 2026-08-31 - One Owner Per Kind Of Repository Truth
+
+- Outcome: `docs/system-map.md` is the architecture/state/control orientation
+  door; code, manifests, generated contracts, and executed proof own current
+  behavior; `AGENTS.md` owns operating invariants; open GitHub issues own
+  mutable plans; this ledger owns durable rationale. Closed issues and merged
+  branches are history, not current instructions.
+- Evidence: `docs/system-map.md`, root and `src/app/AGENTS.md`,
+  `docs/agents/issue-tracker.md`.
+- Guardrail: keep each meaning in one owner, delete superseded plan pointers,
+  and never cache mutable issue state as permanent architecture.
+
 ## 2026-08-30 - Native CSS UI Foundation (#470)
 
 - Outcome: Shared visual behavior crosses `src/ui/foundation`. Native CSS is
@@ -145,6 +161,67 @@
   distributable DMG use `bundled-ffmpeg-portable`; local development, tests,
   app builds, and developer installs use `bundled-ffmpeg`.
 
+## 2026-08-09 - FileList Sort Changes Processing Order
+
+- Outcome: filename sorting rewrites the queue using natural numeric basename order; FileList retains path-keyed arrival ordinals and exposes Restore import order when visible order diverges.
+- Evidence: `src/app/inputSession/order.ts` plus
+  `src/app/inputSession/inputSession.workbench.test.ts` and payload-order tests.
+- Guardrail: selection follows file identity, manual reorder clears the sort claim, and `aria-sort` reflects the actual queue order.
+
+## 2026-08-09 - Frontend Failures Enter Local Dev Logs Through One Boundary
+
+- Outcome: webview errors and unhandled rejections reach the local captured dev log through the bounded `log_frontend` Runtime Boundary command.
+- Evidence: `src/lib/frontendLogBridge.ts`, `src-tauri/src/commands/frontend_log.rs`, and `scripts/dev-log-analysis.test.ts`.
+- Guardrail: forward only a short sanitized error name/category and message; arbitrary rejection values, provider payloads, and secrets do not cross the boundary.
+
+## 2026-07-04 - Encoder Settings Carry No Inert Knobs
+
+- `EncoderSettings` has no `threads` or `twoloop` field: AAC encoders (native
+  `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, and FFmpeg's native
+  coder default is already twoloop — both knobs were end-to-end no-ops.
+- The in-process engine refuses `FdkHeAac` with a typed error; FDK is owned
+  exclusively by the external FFmpeg adapter (evidence: adapter routing in
+  `processor/adapter.rs`, encoder guard in `processor/encoder/context.rs`).
+- Guardrail: reintroducing an encoder knob requires evidence it changes output
+  for at least one shipped encoder path.
+
+## 2026-07-04 - Resampler Tail Is Bounded And Flushed At File Boundaries
+
+- The frame pipeline sizes resampler output frames from current swr delay plus
+  input samples scaled to the output rate, then streams EOF flush frames through
+  the accumulator/encoder; with rate conversion active, skipping the flush
+  silently drops end-of-file audio.
+- Evidence: inline swr-tail and upsample backlog tests in
+  `frame_pipeline.rs` plus the rate-converted media-lane test.
+- Guardrail: any new resample site must either reuse this pipeline or both size
+  output buffers from swr delay and flush its own swr delay before reporting a
+  file complete.
+
+## 2026-07-04 - MP4 Artifact Tags Must Not Depend On Bare Remux
+
+- External FDK finalization remuxes for chapters/cover, then rewrites
+  MP4-family tag truth through mp4ameta. Native finalization already muxes
+  chapters/cover in-process and keeps its direct mp4ameta metadata write.
+- Evidence: the FFmpeg mov muxer drops dict keys outside its known-atom table
+  (`series`, `series-part`, iTunes freeform mirrors, `sort_album`), so the
+  external FDK adapter's remux-only finalize lost those tags; pinned by
+  `artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route`
+  (ABB readback + external `ffprobe` proof).
+- Guardrail: an encoder path may not write MP4-family artifact tag truth through
+  the FFmpeg dictionary alone.
+
+## 2026-07-04 - Series Edits Validate Effective Round-Trip Shape
+
+- Series/subseries writes preserve representable partials (`Series; Subseries`
+  without parts), but reject touched orphan shapes that cannot round-trip
+  (`series-part` without `series`, or `subseries-part` without the complete
+  primary series + primary part + subseries chain).
+- Evidence: `abb-metadata-core` source-aware write-plan tests and
+  `metadata_ops` partial-subseries field-op proof.
+- Guardrail: inherited odd tags from external files do not block unrelated
+  saves or processing; strict shape validation applies when intent touches the
+  series family.
+
 ## 2026-07-02 - Artifact Drawer Removed; Clear Path Stays Contractual
 
 - Outcome: the "Embedded artifacts" inspect/clear drawer (1.3.0, #281) was
@@ -152,10 +229,10 @@
   form; re-ideation captured in #411. The backend artifact clear path,
   `stageMetadataIntentPatch` explicit clears, the draft-field exclusion, and
   the media-execution round-trip proof are all retained and pinned by the
-  Metadata Session contract test.
-- Evidence: `src/ui/metadataSession/__tests__/runtime-api-contract.test.ts`
-  (artifact preservation + explicit clears); `src/ui/metadataArtifacts/`
-  deleted.
+  Metadata Session and artifact tests.
+- Evidence: `src/app/metadataSession/draft.ts` and
+  `src-tauri/tests/cases/integration_media_execution_tests.rs`
+  (`artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent`).
 - Guardrail: artifact fields never enter `METADATA_DRAFT_FIELDS`; any future
   artifact surface reuses the Metadata Session clear path rather than new
   staging mechanics.
@@ -179,23 +256,20 @@
   `platform.rs`; resolution and codec validation stay platform-neutral in
   `toolchain/mod.rs`.
 
-## 2026-07-02 - metadataSession Owner Strip
+## 2026-07-02 - Metadata Session Owner Strip
 
-- Outcome: frontend metadata cache/pending-intent/validation/save truth
-  consolidated under `src/ui/metadataSession` (absorbs the six `src/ui` root
-  loose files + `src/ui/core/`); outcome-shaped strip (30 scattered exports →
-  12) pinned by `__tests__/runtime-api-contract.test.ts`. `tagPreview.ts` and
-  `metadataLookup.ts` folded into their own owners' `index.ts` ("three
-  destinies"); tagPreview's reach into metadataForm private preview state
-  replaced by the public `readMetadataFormPreviewValues()` accessor.
-- Evidence: `src/ui/metadataSession/index.ts`,
-  `src/ui/__tests__/metadata-session-smoke.test.ts` (edit→save and
-  lookup-apply→save through real session state).
+- Outcome: frontend metadata cache, draft/intent staging, validation, save,
+  cover, and tag-projection truth live under `src/app/metadataSession`.
+  Metadata Form and Tag Preview are thin Solid views; Metadata Lookup applies
+  through the Metadata Session interface rather than a parallel staging path.
+- Evidence: `src/app/metadataSession/index.ts`,
+  `src/app/metadataSession/metadataSession.test.ts`, and
+  `src/ui/__tests__/ui-workflow-smoke.test.tsx`.
 - Guardrail: pending markers are created only via `stageMetadataIntentPatch`
   (save workflow clears on success; lifecycle clears via
   `removeMetadataForFile`/`clearMetadataSession`); no caller-side
-  merge/equality staging logic returns. Live workflow services on the
-  fileList/statusPanel cycles capture imports lazily, never by value.
+  merge/equality staging logic or parallel form/tag store returns. Issue #471
+  owns moving the remaining cache maps onto the runtime-scoped owner.
 
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
 
@@ -216,7 +290,7 @@
 - Guardrail: opencode reviewer workflow removed (no key, zero successful
   runs); restore from git history only with a working OpenCode API key.
 
-## 2026-07-01 - Media Execution Lane Added; Narrow Tripwire CI (#341 / #407)
+## 2026-07-01 - Media Execution Lane Added (#341 / #407)
 
 - Outcome: media-execution route decided as `add`. The smallest maintained
   real-media lane lives in
@@ -225,19 +299,15 @@
   path, headless `ProcessingContext`. Proves import→process→valid M4B +
   truthful duration, metadata save→re-read from the artifact, and
   cancellation→typed terminal error with no artifact/staging residue. It runs
-  in the normal `audiobook-boss --test all_tests` suite (~1s).
+  in the normal `audiobook-boss --test all_tests` suite; current adapter and
+  fixture coverage is owned by the test and `scripts/AGENTS.md`.
 - Evidence: the lane's first run caught a real user-facing bug — WAV inputs
   failed native processing ("Resample failed: Input changed") because
   layout-less PCM containers open with an unspecified channel layout; fixed at
   the owning boundary in `src-tauri/src/audio/processor/streams.rs`.
-- CI posture: one narrow tripwire workflow (`.github/workflows/ci.yml`) on
-  push to `main` — frozen install + typecheck, generated-binding
-  drift, core-crate Nextest. Deliberately not a broad app gate; local checks
-  remain the default evidence trail. The opencode reviewer workflow was
-  removed (no API key, zero successful runs).
 - Guardrail: never commit media fixtures; keep the lane's runtime budget ~1s
-  by shrinking fixtures, not by weakening assertions. Widen CI only with a
-  recorded owner decision.
+  by shrinking fixtures, not by weakening assertions. Hosted proof remains the
+  separate clean-frontend alarm recorded by the 2026-08-11 decision.
 
 ## 2026-06-26 - Backend Is the Single Source of Processing Lifecycle Truth (PR-4 / #376)
 
@@ -253,7 +323,7 @@
   Status Panel's TS terminal-precedence re-derivation with `RunTerminalClass`.
 - Evidence: `src-tauri/src/work_runtime/`, `commands/metadata/save_batch.rs`,
   `crates/abb-processing-core/src/lib.rs` (`classify_run_terminal`),
-  `src/ui/statusPanel/domain/stateMachineHelpers.ts` (`feedbackFromResult`).
+  `src/app/processing/domain/stateMachineHelpers.ts` (`feedbackFromResult`).
   Reinforces the 2026-06-07 terminal-truth decision (single `classify_run_terminal`).
 - Intentional alignment: the backend classifies `success + skipped` as `mixed` (not
   `success`); the preview toast now follows that verdict. Named here so it is read as
@@ -283,13 +353,11 @@
 ## 2026-06-24 - AGENTS Public-Surface List Policy
 
 - Nested `AGENTS.md` files keep an enumerated Public API Strip export list only
-  where no test guards the surface. Where a contract test pins the runtime exports
-  (`src/lib/tauri`, and `src/ui/{fileList,outputPanel,statusPanel}` via
-  `__tests__/runtime-api-contract.test.ts`), the doc points at `index.ts` + that
-  test instead of restating symbols.
-- Alternatives worth revisiting later: pointerize every surface once each owner has
-  a guarding contract test; or generate the lists from `index.ts`/bindings so docs
-  cannot drift at all.
+  where no code/test surface makes the interface cheap to inspect. Frontend
+  owners treat `index.ts` as exact export truth; where a contract test pins the
+  surface, guidance points at both instead of restating names.
+- Evidence: `src/app/AGENTS.md`, `src/lib/tauri/AGENTS.md`, and the focused
+  `runtime-api-contract.test.ts` files under retained UI strips.
 - Guardrail: a hand-listed surface that disagrees with `index.ts` or its contract
   test is worse than no list — prefer the test as the source of truth.
 
@@ -297,8 +365,9 @@
 
 - Style and stale-cleanup guidance (unused symbols, formatting, `any`) moved out of
   always-loaded `AGENTS.md` prose to deterministic tools the docs point at: Biome
-  (`lint:check`), `tsc` (`typecheck`), `cargo clippy`, and new `svelte-check`
-  (`check:svelte`) for the previously unlinted `.svelte` surface.
+  (`lint:check` / `fmt:check`), `tsc` (`typecheck`), focused Vitest, and
+  `cargo clippy`. Renderer-specific absence/layout rules are owned by
+  `scripts/frontend-toolchain-layout.test.ts`.
 - Rust lint posture is centralized in root `Cargo.toml` `[workspace.lints]` at
   warn-level (members opt in with `[lints] workspace = true`); the CI gate is
   `cargo clippy --workspace --all-targets -- -D warnings`. Warn-level avoids gating
@@ -350,7 +419,8 @@
 ## 2026-06-01 - Custom Runner Ablation
 
 - The custom verification runner and aliases were removed from current repo guidance.
-- Agents use direct Cargo/Nextest/Vitest/build/check commands and record gaps in #341 before adding replacement infrastructure.
+- Agents use direct Cargo/Nextest/Vitest/build/check commands selected from
+  `scripts/AGENTS.md`; a new helper needs measured value for a current owner.
 - Deleted runner-era scripts must not be recreated without measured value over direct native tool output.
 - Guardrail: future AX helpers must prove value over native tool output before becoming repo-local scripts.
 
@@ -362,10 +432,10 @@
 - Use one package/target-selected Nextest command at a time for broad Rust
   review: each core crate, `audiobook-boss --lib`, and
   `audiobook-boss --test all_tests`.
-- Committed/generated audio media fixtures are not part of the current test suite.
-- Media execution tests remain absent pending issue #341 reassessment. Do not add
-  FFmpeg/audio/container tests back until behavior, fixtures, runtime cost, and
-  owner boundary are redesigned explicitly.
+- Real-media integration stays in the runtime shell's synthesized-fixture media
+  lane recorded by the 2026-07-01 decision; core packages keep pure owner logic.
+- Guardrail: do not widen a core package into a new product owner or pull runtime
+  adapters inward merely to make a test convenient.
 
 ## 2026-05-31 - Remote Source Acquisition Runtime
 
@@ -374,27 +444,12 @@
 - Supplemental PDFs attach to imported file-list `inputId`s and are copied only after matching final batch M4B success through output-artifact-owned naming/collision behavior.
 - Guardrail: provider-private failures surface as typed diagnostics or failed acquisition status, not silent or undeclared degradation.
 
-## 2026-05-28 - Bun Stable Runtime
-
-- Use Bun `1.3.14` stable via `packageManager`.
-- Refresh: `bun upgrade --stable`.
-- Validate Bun changes with direct test/build commands; use `.agents/skills/release` for packaging/release work.
-- Script tests run through Vitest via `bun run test`.
-
 ## 2026-05-27 - Metadata Intent Validation
 
 - Rust owns metadata intent validation and returns field errors as data for UI preflight.
 - TypeScript compiles explicit `set | clear | noop` intent.
 - Publication-date normalization and series/subseries slash rejection stay out of TypeScript.
 - Output-preview warning validation is non-blocking; save/process workflows still block on validation before persisting or executing metadata intent.
-
-## 2026-05-26 - App Settings And Concurrency
-
-- Serialize settings writes inside `app_settings`.
-- On settings update/reset failure, roll back live `JobRegistry` concurrency, not stale persisted preference.
-- Hydrate settings per UI owner; one owner failure must not block other owners.
-- If settings acceptance succeeds but `getMaxConcurrentJobs` fails, keep accepted UI state.
-- Guardrail: do not widen settings patches into cross-registry filesystem transactions without a separate design.
 
 ## 2026-05-27 - Metadata/Audio Dependency Scope
 
@@ -408,62 +463,10 @@
 - UI controls do not own independent encoder/concurrency accept/reject tables.
 - App Settings stores preferences; Audio owns encoder validity; JobRegistry owns concurrency bounds.
 
-## 2026-07-04 - Encoder Settings Carry No Inert Knobs
+## 2026-05-26 - App Settings And Concurrency
 
-- `EncoderSettings` has no `threads` or `twoloop` field: AAC encoders (native
-  `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, and FFmpeg's native
-  coder default is already twoloop — both knobs were end-to-end no-ops.
-- The in-process engine refuses `FdkHeAac` with a typed error; FDK is owned
-  exclusively by the external FFmpeg adapter (evidence: adapter routing in
-  `processor/adapter.rs`, encoder guard in `processor/encoder/context.rs`).
-- Guardrail: reintroducing an encoder knob requires evidence it changes output
-  for at least one shipped encoder path.
-
-## 2026-07-04 - Resampler Tail Is Bounded And Flushed At File Boundaries
-
-- The frame pipeline sizes resampler output frames from current swr delay plus
-  input samples scaled to the output rate, then streams EOF flush frames through
-  the accumulator/encoder; with rate conversion active, skipping the flush
-  silently drops end-of-file audio.
-- Evidence: inline swr-tail and upsample backlog tests in
-  `frame_pipeline.rs` plus the rate-converted media-lane test.
-- Guardrail: any new resample site must either reuse this pipeline or both size
-  output buffers from swr delay and flush its own swr delay before reporting a
-  file complete.
-
-## 2026-07-04 - MP4 Artifact Tags Must Not Depend On Bare Remux
-
-- External FDK finalization remuxes for chapters/cover, then rewrites
-  MP4-family tag truth through mp4ameta. Native finalization already muxes
-  chapters/cover in-process and keeps its direct mp4ameta metadata write.
-- Evidence: the FFmpeg mov muxer drops dict keys outside its known-atom table
-  (`series`, `series-part`, iTunes freeform mirrors, `sort_album`), so the
-  external FDK adapter's remux-only finalize lost those tags; pinned by
-  `artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route`
-  (ABB readback + external `ffprobe` proof).
-- Guardrail: an encoder path may not write MP4-family artifact tag truth through
-  the FFmpeg dictionary alone.
-
-## 2026-07-04 - Series Edits Validate Effective Round-Trip Shape
-
-- Series/subseries writes preserve representable partials (`Series; Subseries`
-  without parts), but reject touched orphan shapes that cannot round-trip
-  (`series-part` without `series`, or `subseries-part` without the complete
-  primary series + primary part + subseries chain).
-- Evidence: `abb-metadata-core` source-aware write-plan tests and
-  `metadata_ops` partial-subseries field-op proof.
-- Guardrail: inherited odd tags from external files do not block unrelated
-  saves or processing; strict shape validation applies when intent touches the
-  series family.
-
-## 2026-08-09 - FileList Sort Changes Processing Order
-
-- Outcome: filename sorting rewrites the queue using natural numeric basename order; FileList retains path-keyed arrival ordinals and exposes Restore import order when visible order diverges.
-- Evidence: `src/ui/fileList/actions.ts` plus reorder, restore-order, selection, and payload-order tests.
-- Guardrail: selection follows file identity, manual reorder clears the sort claim, and `aria-sort` reflects the actual queue order.
-
-## 2026-08-09 - Frontend Failures Enter Local Dev Logs Through One Boundary
-
-- Outcome: webview errors and unhandled rejections reach the local captured dev log through the bounded `log_frontend` Runtime Boundary command.
-- Evidence: `src/lib/frontendLogBridge.ts`, `src-tauri/src/commands/frontend_log.rs`, and `scripts/dev-log-analysis.test.ts`.
-- Guardrail: forward only a short sanitized error name/category and message; arbitrary rejection values, provider payloads, and secrets do not cross the boundary.
+- Serialize settings writes inside `app_settings`.
+- On settings update/reset failure, roll back live `JobRegistry` concurrency, not stale persisted preference.
+- Hydrate settings per UI owner; one owner failure must not block other owners.
+- If settings acceptance succeeds but `getMaxConcurrentJobs` fails, keep accepted UI state.
+- Guardrail: do not widen settings patches into cross-registry filesystem transactions without a separate design.

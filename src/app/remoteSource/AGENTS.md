@@ -15,6 +15,9 @@
   `src/app/remoteSource`.
 - `index.ts` is the export surface. Do not import `workflow.ts`,
   `sessionAssets.ts`, or `state.ts` from outside this owner.
+- State/listeners, workflow generation counters, cover-preview scheduling, and
+  Supplemental Asset maps are still module-global. #471 moves all of them onto
+  each Remote Source owner; do not add a global, reset call, or UI re-export.
 
 ## Hard Invariants
 
@@ -24,8 +27,10 @@
 - Acquisition poll patches publish through the Remote Source owner view.
   Native jobs provide a progress snapshot from job creation;
   `RemoteSourceAcquireView` renders its live percentage and Cancel.
-  File List and the inspector subscribe to `subscribeRemoteSourceSupplementalAssets`
-  so PDF chips update after Input has already published the new files.
+  File List and the inspector observe Supplemental Assets through the composed
+  Remote Source owner so PDF chips update after Input has already published the
+  new files. The current `subscribeRemoteSourceSupplementalAssets` export is a
+  #471 compatibility rail, not the target interface.
   Cancellation and app disposal invalidate the active acquisition generation
   so late Promise completions cannot overwrite terminal or reset state.
 - Materialized audio becomes a normal Input session through
@@ -51,9 +56,12 @@
 - `selection.test.ts` pins filter/selection policy.
 - `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and
   the polled owner-to-Solid progress path.
+- #471 adds two-runtime proof for state, workflow generations, cover previews,
+  Supplemental Assets, retainers, and purge; disposing A cannot cancel, purge,
+  reset, or publish into B.
 
 ## Breaking-Change Triggers
 
-- Adding, removing, or renaming a public session-asset export.
+- Adding a caller to the public session-asset compatibility exports.
 - Dual-writing `fileListSessionState` or adding a parallel remote file list.
 - Cancelling acquisition from dialog close.

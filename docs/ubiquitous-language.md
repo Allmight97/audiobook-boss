@@ -32,6 +32,7 @@ prefer local prose or delete it.
 | **Terminal Outcome** | Final per-job status after backend ambiguity resolves: `success`, `skipped`, `cancelled`, or `failed`. | progress stage |
 | **Terminal Truth** | Backend-owned final report used by UI completion state. | optimistic UI |
 | **Artifact Truth** | Final files, tags, paths, and terminal results that actually exist after processing or metadata operations complete. | expected output |
+| **Diagnostic** | Typed, user-safe explanation that accompanies a usable degraded result or an owned failure. It informs a decision without silently changing the requested contract. | warning-string fallback |
 
 ## Metadata And Output
 
@@ -52,6 +53,9 @@ prefer local prose or delete it.
 | **Public API Strip** | The symbols callers may use from an owned module. Everything else is private even if technically importable. | everything pub |
 | **Private Cluster** | Implementation files behind a Public API Strip. | helper grab bag |
 | **Module Owner** | The single module responsible for a product rule or invariant. | shared responsibility |
+| **App Runtime** | One disposable Solid composition root that creates frontend session owners, injects their dependencies, exposes them through context, and disposes them together. | process-wide owner registry |
+| **Session Truth** | Mutable draft/runtime state held by one App Runtime owner for that runtime's lifetime. A second live runtime cannot observe or reset it. | module-global mirror |
+| **Owner Intent** | Semantic mutation exposed by a Public API Strip—such as import, stage, review, submit, cancel, or persist—rather than a raw setter or refresh/poke call. | implementation setter |
 | **Public API Set** | Current owned API set: Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, WorkRuntime, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime. | generic modules |
 | **Reach-Through** | Import or dependency crossing into another module's Private Cluster. Treat as a bug, ownership smear, or contract gap. | shortcut |
 | **Contract Test** | Test that pins behavior visible through a Public API Strip. | helper existence test |

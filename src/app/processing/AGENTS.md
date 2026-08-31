@@ -14,12 +14,18 @@
   `src/ui/statusPanel` instead.
 - `index.ts` is the export surface. Do not import `runtime.ts`, `workflow.ts`,
   `view.ts`, `config.ts`, `domain/`, or `services/` from outside this owner.
+- `bindProcessing*`, `initStatusPanel`, the trigger functions, and the module
+  status view are #471 compatibility rails. Do not add callers; the target
+  interface exposes status and semantic start/cancel intents on each runtime's
+  Processing owner.
 
 ## Hard Invariants
 
-- Compose submit config at `readProcessingRequestConfig()` from public encoder
-  request config and Output `readOutputRequestConfig()`. Those are getters, not
-  poke APIs. Do not restore `updateOutputPath` or `updateEstimatedSize`.
+- Compose submit config inside the runtime Processing owner from injected
+  Encoding Configuration and Output owners. Current
+  `readProcessingRequestConfig()` / `readOutputRequestConfig()` globals are
+  migration getters, not poke APIs or a target dependency seam. Do not restore
+  `updateOutputPath` or `updateEstimatedSize`.
 - File-list and job-type truth come from Input. Concurrency enable/disable uses
   Settings. Metadata staging uses the Metadata public strip. Do not read
   leftover file-list or job-control stores.

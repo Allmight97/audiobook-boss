@@ -6,8 +6,10 @@
 - Cargo commands run from the repository root workspace.
 - Script and verification command map: `scripts/AGENTS.md`. ABB currently uses direct native commands, not a custom verification runner.
 - Runtime command/event index only: `docs/api-map.md`.
-- Architecture ownership and product spine: `docs/system-map.md`.
+- Architecture ownership, state/control model, context ladder, and agent change
+  loop: `docs/system-map.md`.
 - Canonical terms: `docs/ubiquitous-language.md`.
+- Frontend session/workflow owner rules: `src/app/AGENTS.md`.
 - When work crosses file-handle, external-process, temp-artifact, replacement,
   or cleanup ownership, use `.agents/skills/resource-lifetime-audit`; nearest
   local `AGENTS.md` files supply the current owners and invariants.
@@ -68,38 +70,21 @@
 - Owned import/export surface changes update the nearest `AGENTS.md` and its contract test.
 - Release/version/changelog/tag/DMG work uses the `release` skill.
 
-## UI Redesign In Flight (ephemeral — delete this section when #412 ships)
-
-- Roadmap, locked direction synthesis, and resume procedure live in issue #412
-  (the agent handoff comment there is the canonical resume doc). Do not start
-  owner-UI rebuilds (Slice 3) before the owner settles v3's open forks.
-- The Vite dev server (`bun run dev`, port 1420) exposes three distinct
-  surfaces; do not conflate them. Each has one alignment obligation: the lab
-  tracks `src/ui/foundation` in the same change; the v3 mock tracks direction
-  decisions banked in #412; the app shell changes only in Slice 3:
-  - `/` — the current app UI. Shared chrome already comes from the foundation.
-    Owner rebuilds wait for Slice 3.
-  - `/lab.html` — the design lab: renders foundation tokens and primitives
-    with a density switch. Ingredients, not screens. Contract:
-    `src/ui/foundation/AGENTS.md`. Dev-only; not in the app build.
-  - `/docs/design/ui-directions-v3.html` — standalone interactive mock of the
-    target direction (B1×B2 hybrid) with live open-fork toggles. Reference
-    artifact for owner reaction, not code to import. Lineage:
-    `docs/design/README.md`.
-- Redesign sequencing is lab-first: token/primitive values change and are
-  screenshot-verified in the lab before owner UIs are rebuilt on top of them.
-
 ## Planning And Capture
 
 - **Default durable capture:** GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
 - Ephemeral planning: chat and OS-temp handoffs — not repo files.
 - `docs/specs/<task>.md` only when the user explicitly wants a repo-local active spec instead of an issue; it is temporary work state — delete or distill enduring rules into canon when done.
 - Issue bodies are resume-ready plans, not planning transcripts.
+- Open issues own mutable current/next work. Closed issues, merged branches, and
+  chat are history until live evidence makes them relevant again.
 
 ## Decisions
 
 - Log only durable, non-obvious architecture, design, or organizational choices that change future behavior, in `docs/DECISIONS.md`.
 - Prefer title + outcome + evidence path/command/concrete repo fact + at most one guardrail line. No essays, PR recaps, or process logs.
+- Keep only operative decisions. Rewrite or remove superseded implementation
+  facts; git history owns the chronology.
 
 ## Done
 
