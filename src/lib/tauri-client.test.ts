@@ -283,7 +283,7 @@ describe('tauriClient nullish adapters', () => {
 					cover_art: { op: 'clear' },
 				},
 			},
-			previewSeconds: undefined,
+			previewSeconds: 30,
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
@@ -301,7 +301,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.payload.outputNaming).toBeNull();
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
 		expect(args.metadata['/books/a.m4b']?.cover_art).toEqual({ op: 'clear' });
-		expect(args.previewSeconds).toBeNull();
+		expect(args.previewSeconds).toBe(30);
 		expect(result.jobType).toBe('batch');
 		expect(result.summary).toEqual({ total: 1, succeeded: 1, cancelled: 0, failed: 0 });
 		expect(result.results).toHaveLength(1);
@@ -412,7 +412,7 @@ describe('tauriClient nullish adapters', () => {
 					artist: { op: 'set', value: 'Author X' },
 				},
 			},
-			previewSeconds: undefined,
+			previewSeconds: 30,
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
@@ -518,7 +518,7 @@ describe('tauriClient nullish adapters', () => {
 				outputNaming: undefined,
 			},
 			metadataIntent: null,
-			previewSeconds: undefined,
+			previewSeconds: 30,
 		});
 
 		expect(result.summary).toEqual({ total: 2, succeeded: 1, cancelled: 0, failed: 1 });

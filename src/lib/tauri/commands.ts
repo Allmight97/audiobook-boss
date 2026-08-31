@@ -292,13 +292,13 @@ export const commandSpecs = {
 	process_audiobook_files: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds?: number | null;
+		previewSeconds: number;
 	}) =>
 		runGeneratedCommand(
 			generatedCommands.processAudiobookFiles(
 				denormalizeProcessPayload(args.payload),
 				compileMetadataIntentMap(args.metadataIntent),
-				args.previewSeconds ?? null,
+				args.previewSeconds,
 			),
 			normalizeProcessResult,
 		),

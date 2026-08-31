@@ -183,10 +183,19 @@ pub async fn set_max_concurrent_jobs(
     Ok(registry.update_max_concurrent(desired).await?)
 }
 
-/// Processes audiobook files with configurable encoder settings.
+fn require_preview_seconds(preview_seconds: Option<f64>) -> Result<f64, AppError> {
+    preview_seconds.ok_or_else(|| {
+        AppError::InvalidInput(
+            "Direct processing requires a preview duration; submit final processing through WorkRuntime"
+                .to_string(),
+        )
+    })
+}
+
+/// Processes a direct preview with configurable encoder settings.
 ///
-/// Supports parallel batch processing via the JobRegistry.
-/// Multiple invocations can run concurrently up to the configured limit.
+/// Final batch and merge work must enter through WorkRuntime so it has durable
+/// operation identity, snapshots, and operation-scoped cancellation.
 #[tauri::command]
 #[specta::specta]
 pub async fn process_audiobook_files(
@@ -196,6 +205,8 @@ pub async fn process_audiobook_files(
     metadata: Option<HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> CommandResult<ProcessCommandResult> {
+    let preview_seconds = require_preview_seconds(preview_seconds)?;
+
     if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
         registry.reset_global_cancel();
     }
@@ -216,7 +227,24 @@ pub async fn process_audiobook_files(
         workspace_root,
         payload,
         metadata,
-        preview_seconds,
+        Some(preview_seconds),
     )
     .await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::require_preview_seconds;
+    use crate::errors::AppError;
+
+    #[test]
+    fn direct_processing_requires_preview_duration() {
+        match require_preview_seconds(None) {
+            Err(AppError::InvalidInput(message)) => assert_eq!(
+                message,
+                "Direct processing requires a preview duration; submit final processing through WorkRuntime"
+            ),
+            result => panic!("expected invalid-input error, got {result:?}"),
+        }
+    }
 }

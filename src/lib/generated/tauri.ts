@@ -103,10 +103,10 @@ export const commands = {
 	/**  Updates the maximum concurrent jobs setting (requires idle state) */
 	setMaxConcurrentJobs: (maxConcurrent: number | null) => typedError<number, AppErrorEnvelope>(__TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent })),
 	/**
-	 *  Processes audiobook files with configurable encoder settings.
+	 *  Processes a direct preview with configurable encoder settings.
 	 *
-	 *  Supports parallel batch processing via the JobRegistry.
-	 *  Multiple invocations can run concurrently up to the configured limit.
+	 *  Final batch and merge work must enter through WorkRuntime so it has durable
+	 *  operation identity, snapshots, and operation-scoped cancellation.
 	 */
 	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
 	submitProcessingOperation: (request: SubmitProcessingOperationRequest) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),

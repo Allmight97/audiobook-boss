@@ -1,8 +1,8 @@
 import { createEffect, createSignal, type Accessor } from 'solid-js';
 import type { EncodingRequestConfig } from '../../types/audio';
-import type { SettingsOwner } from '../appSettings/owner';
-import type { InputOwner } from '../inputSession/owner';
-import type { MetadataOwner } from '../metadataSession/owner';
+import type { SettingsOwner } from '../appSettings';
+import type { InputOwner } from '../inputSession';
+import type { MetadataOwner } from '../metadataSession';
 import {
 	bindProcessingEncoding,
 	bindProcessingInput,

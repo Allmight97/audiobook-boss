@@ -7,8 +7,8 @@ import {
 	liveMetadataCapability,
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
-import type { InputOwner } from '../inputSession/owner';
-import { getStatusView } from '../processing/view';
+import type { InputOwner } from '../inputSession';
+import { getStatusView } from '../processing';
 import {
 	cacheMetadataForFile,
 	clearMetadataSession,

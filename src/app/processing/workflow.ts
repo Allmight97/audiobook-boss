@@ -214,7 +214,7 @@ function processingCommand(
 	request: {
 		payload: ProcessPayload;
 		metadataIntentByPath: MetadataIntentByPath | null;
-		previewSeconds?: number;
+		previewSeconds: number;
 	},
 ): AppEffect<ProcessCommandResult, ProcessingWorkflowError> {
 	return Effect.tryPromise({

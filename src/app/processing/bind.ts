@@ -1,7 +1,7 @@
 import type { EncodingRequestConfig } from '../../types/audio';
-import type { SettingsOwner } from '../appSettings/owner';
-import type { InputOwner } from '../inputSession/owner';
-import type { MetadataOwner } from '../metadataSession/owner';
+import type { SettingsOwner } from '../appSettings';
+import type { InputOwner } from '../inputSession';
+import type { MetadataOwner } from '../metadataSession';
 
 let boundInput: InputOwner | undefined;
 let boundMetadata: MetadataOwner | undefined;

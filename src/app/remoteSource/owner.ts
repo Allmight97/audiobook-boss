@@ -1,6 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile } from '../../types/audio';
-import type { InputOwner } from '../inputSession/owner';
+import type { InputOwner } from '../inputSession';
 import { clearRemoteSourceCoverPreviewCache } from './coverPreview';
 import { makeProductionRemoteSourceServices } from './services';
 import {
