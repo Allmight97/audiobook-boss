@@ -9,7 +9,7 @@ doctest = false
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 
 [lints]
 workspace = true
