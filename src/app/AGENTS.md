@@ -33,12 +33,9 @@ dispatch intent; they do not keep parallel business state.
 - Disposal invalidates async generations and subscriptions before late results
   can publish. A remount or a second live runtime must not see or reset a
   sibling runtime's state.
-- Issue [#471](https://github.com/Allmight97/audiobook-boss/issues/471) owns the
-  current plan for remaining Processing, Encoding Configuration, Remote Source,
-  Output, Metadata, Metadata Lookup preview, and File List thumbnail lifetime
-  exceptions. It creates `src/app/encodingConfig`; that path is a target, not a
-  current import. Read the issue when touching those stores and do not copy
-  their bind/subscribe/global shape into new work.
+- Some owners still expose module-global compatibility rails or presentation
+  caches. Inspect live call sites before changing them, do not add callers, and
+  do not copy their bind/subscribe/global shape into new work.
 
 ## Workflow And Failure Shape
 
@@ -52,7 +49,7 @@ dispatch intent; they do not keep parallel business state.
   diagnostics and backend terminal verdicts.
 - Automatic persistence is an App Settings intent with observable durability
   state, not a UI utility. `src/ui/appSettings/persistence.ts` is a current
-  exception owned by #421; do not add callers or another swallow-and-warn path.
+  exception; do not add callers or another swallow-and-warn path.
 - Publish observable state through the owner view and existing runtime/log
   surfaces. Do not add a shadow event bus or log-derived state machine.
 
@@ -63,4 +60,4 @@ dispatch intent; they do not keep parallel business state.
 - Focused owner tests prove semantic outcomes and lifetime races through the
   public interface. Add App Runtime two-instance proof when isolation changes.
 - Update a nested owner `AGENTS.md` only for non-obvious local invariants or
-  public-surface changes; keep current execution state in the owning issue.
+  public-surface changes; keep mutable execution state out of instructions.

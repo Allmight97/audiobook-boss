@@ -5,7 +5,7 @@
 - `EncoderView.tsx` is the Solid encoder view and owns markup, interaction
   wiring, labels, and owner-local CSS.
 - Encoder/sample-rate/channel request truth is still module-global in this
-  directory. That is a current #471 migration gap, not the target owner shape.
+  directory. That is a current lifetime gap, not the target owner shape.
 
 ## Current Compatibility Strip
 
@@ -15,19 +15,18 @@
   `readEncoderDefaultsFromState`, `readEncodingRequestConfig`,
   `readFdkAfterburner`, `setFdkAfterburner`, `subscribeEncoderPanel`.
 - Do not add callers to `subscribeEncoderPanel`, `state.ts`,
-  `runtimeSettingsCapabilities.ts`, or the read/apply global functions. Issue
-  #471 removes those rails after introducing the runtime owner.
+  `runtimeSettingsCapabilities.ts`, or the read/apply global functions. New
+  callers use a runtime-scoped owner composed by App Runtime.
 
-## Target Owner Boundary
+## Required Owner Boundary
 
-- #471 creates `src/app/encodingConfig`. It owns runtime capabilities, current
-  encoder/sample-rate/channel intent, request/default projections, automatic
-  resolution hints, and estimate facts for one App Runtime.
-- `EncoderView` reads and dispatches through `useAppRuntime().encoding`.
-  Processing and Output receive that owner from App Runtime rather than reading
+- Runtime capabilities, current encoder/sample-rate/channel intent,
+  request/default projections, automatic resolution hints, and estimate facts
+  belong to one runtime-scoped frontend owner, not this view directory.
+- Processing and Output receive that owner from App Runtime rather than reading
   this UI index.
 - App Settings hands defaults to, and reads accepted defaults from, the owner.
-  Automatic persistence/failure state belongs to App Settings (#421), not this
+  Automatic persistence/failure state belongs to App Settings, not this
   view.
 - Two live runtimes must be able to hold different encoder requests without a
   shared listener, capability cache, hydration promise, or reset.
@@ -57,5 +56,5 @@
 
 - Current changes use focused Encoder view/config tests and runtime-boundary
   checks when request shapes change.
-- The #471 migration proves two live App Runtimes isolate requests and deletes
-  compatibility globals/re-exports instead of keeping aliases.
+- A lifetime migration proves two live App Runtimes isolate requests and
+  deletes compatibility globals/re-exports instead of keeping aliases.

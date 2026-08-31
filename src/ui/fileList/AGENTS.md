@@ -24,11 +24,11 @@
   go through the awaitable `selectFile`, `selectAll`, `clearSelection`, and
   `clearAllFiles` intents so the metadata draft gate can run.
 - Cover thumbnails are a presentation resource, not list truth. The current
-  module cache/listeners are a #471 lifetime gap; the target resource is scoped
+  module cache/listeners are a lifetime gap; the target resource is scoped
   to each `FileListView` and disposed with it. Do not add module resets or
   callers to `coverThumbnails.ts`.
 - PDF companion chips observe the runtime Remote Source owner. The current
-  `subscribeRemoteSourceSupplementalAssets` call is a #471 compatibility rail;
+  `subscribeRemoteSourceSupplementalAssets` call is a compatibility rail;
   do not assume an Input publish also rerenders supplemental assets.
 - Remote session purge tracks Input file identity through Remote Source. Do
   not dual-purge from this view.

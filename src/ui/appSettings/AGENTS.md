@@ -12,7 +12,7 @@
 - `src/ui/appSettings` currently exports `persistAppSettingsPatch`,
   `persistConcurrencyPreference`, `persistEncoderDefaults`, and
   `persistOutputDefaults` from `persistence.ts`.
-- Those helpers swallow failure after `console.warn`. This is a confirmed #421
+- Those helpers swallow failure after `console.warn`. This is a confirmed
   gap. Do not add callers or treat silent automatic persistence as the target
   contract.
 
@@ -23,9 +23,9 @@
   capture, and reset coordination live in `src/app/appSettings`.
 - Views and sibling owners dispatch semantic Settings intents. They do not call
   `tauriClient.updateAppSettings` or import a UI persistence helper.
-- #421 selects and proves the observable failure outcome. Default: retain an
-  accepted runtime value, publish that it is not yet durable, and allow retry;
-  restore only when the runtime owner also rejected the value.
+- Persistence failure must be observable through App Settings and have an
+  owner-level retry or restore outcome proved through its public interface;
+  views do not decide that policy independently.
 
 ## Startup / Pinned-Defaults Semantics
 

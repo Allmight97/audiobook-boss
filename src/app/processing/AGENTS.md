@@ -15,9 +15,8 @@
 - `index.ts` is the export surface. Do not import `runtime.ts`, `workflow.ts`,
   `view.ts`, `config.ts`, `domain/`, or `services/` from outside this owner.
 - `bindProcessing*`, `initStatusPanel`, the trigger functions, and the module
-  status view are #471 compatibility rails. Do not add callers; the target
-  interface exposes status and semantic start/cancel intents on each runtime's
-  Processing owner.
+  status view are compatibility rails. Do not add callers; new callers use
+  status and semantic start/cancel intents on their runtime's Processing owner.
 
 ## Hard Invariants
 
@@ -32,6 +31,9 @@
 - Preview execution is direct `process_audiobook_files` with `previewSeconds`.
   It does not enter WorkRuntime. Background batch/merge submits through
   WorkRuntime; Status Panel is not a WorkRuntime consumer.
+- `processing-progress` and `processing-queue` are direct-preview events with
+  no operation-id discriminator. Do not consume them as background-operation
+  state; Work Operations consumes WorkRuntime snapshots instead.
 - Foreground cancel settles the local render only. Operation-scoped cancel
   lives in Work Operations.
 - Consume the backend-owned terminal verdict (`RunTerminalClass` on

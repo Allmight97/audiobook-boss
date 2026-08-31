@@ -110,16 +110,18 @@ default broad review route.
 ## Project Operation
 
 - Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
-- Grey-box module work is governed by the Public API Set in [docs/ubiquitous-language.md](docs/ubiquitous-language.md): Tauri Runtime Boundary, Processing Plan, Output Artifact Plan / Commit, Metadata Outcome Plan, WorkRuntime, Status Panel Runtime, Audio Engine Deep Module, App Settings, and RemoteSourceRuntime.
-- For substantial planning and alignment, start from the owner and task frame in `docs/system-map.md`; use global `grill-me` when action-changing forks remain. Default durable capture is GitHub issues (`docs/agents/issue-tracker.md`). Use `docs/specs/` only when explicitly requested. Session handoffs belong in OS temp, not the repo. External presentation artifacts belong under `/Users/jstar/Documents/Codex/artifacts/audiobook-boss`.
+- Load [docs/system-map.md](docs/system-map.md) only for repository onboarding,
+  unclear ownership, or work crossing frontend/backend or multiple product
+  owners. Its job is topology, not command inventory, local rules, or mutable
+  plan state.
+- For substantial planning and alignment, start from the owning interface; use global `grill-me` when action-changing forks remain. Default durable capture is GitHub issues (`docs/agents/issue-tracker.md`). Use `docs/specs/` only when explicitly requested. Session handoffs belong in OS temp, not the repo. External presentation artifacts belong under `/Users/jstar/Documents/Codex/artifacts/audiobook-boss`.
 - For external library/API behavior, use `.agents/skills/abb-library-research` as the control plane for lockfile versions, installed or registry-packaged source, Context7, exact public package docs, and exceptional ephemeral upstream retrieval.
-- For the product/system shape, state/control model, owner map, and source-of-truth
-  ladder, use [docs/system-map.md](docs/system-map.md); use
-  [docs/ubiquitous-language.md](docs/ubiquitous-language.md) for canonical terms.
-- For a quick runtime boundary index, use [docs/api-map.md](docs/api-map.md), then verify in code before changing contracts or behavior.
+- Discover the current runtime command/event surface in
+  `src-tauri/src/ipc_contract.rs`, generated bindings, and
+  `src/lib/tauri/client.ts`; the nearest owner `AGENTS.md` defines any
+  non-obvious behavior-changing terminology.
 - UI work is not done from static inspection alone. Use targeted tests for deterministic behavior and browser-agent or human review for visual/UX outcomes.
 - Current behavior lives in code, manifests, generated contracts, and executed
   proof. `AGENTS.md` owns operating invariants, `docs/DECISIONS.md` owns durable
-  rationale, and open GitHub issues own mutable plans—not current behavior.
-  The conflict/load order is mapped in [docs/system-map.md](docs/system-map.md).
-  `.artifacts/` is temporary local state only.
+  rationale, and open GitHub issues are mutable candidate plans—not current
+  behavior. `.artifacts/` is temporary local state only.

@@ -14,7 +14,7 @@
 - Route every runtime Tauri command/event through `src/lib/tauri/client.ts` (`tauriClient`).
 - Route durable preference hydration and automatic persistence through
   `src/app/appSettings`; owning controls expose semantic accepted values for
-  Settings to persist. `src/ui/appSettings` is a current #421 compatibility
+  Settings to persist. `src/ui/appSettings` is a current compatibility
   strip with hidden failure semantics—do not add callers.
 - Runtime settings controls consume backend capability facts for selectable
   accept/reject rules; do not add frontend-owned encoder/concurrency option
@@ -38,9 +38,9 @@
   `src/lib/effect/AGENTS.md` first.
 - New or migrated session truth belongs to an owner composed by App Runtime and
   consumed from Solid context. Presentation resources belong to their owner or
-  view instance. Issue #471 tracks remaining module-global/lifetime
-  exceptions; they are not precedent. Do not reintroduce Effect Atom or add a
-  process-wide owner singleton. Proof:
+  view instance. Existing module-global/lifetime exceptions are not precedent;
+  verify their current call sites before changing them and do not add another.
+  Do not reintroduce Effect Atom or add a process-wide owner singleton. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
 - Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.
 

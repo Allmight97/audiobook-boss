@@ -19,6 +19,9 @@
 
 - Own operation identity, immutable accepted submissions, operation snapshots,
   operation-scoped cancellation, and Work Center event truth.
+- Accepted background work emits `work-operation-snapshot` and
+  `work-operation-list-snapshot`, never the direct-preview
+  `processing-progress` or `processing-queue` window events.
 - Terminal-operation retention: `WorkRuntimeState` keeps at most
   `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
   TERMINALIZATION order (never submission sequence — a just-finished

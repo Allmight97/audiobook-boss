@@ -1,5 +1,5 @@
 /**
- * UI Workflow Smoke Test (docs/ubiquitous-language.md).
+ * High-value UI workflow smoke test through mocked Tauri boundaries.
  *
  * Keep this as one golden-path composition proof. Owner tests cover their
  * isolated branches; this test protects the user workflow that joins them at

@@ -19,8 +19,10 @@
   async commands.
 - Keep provider-specific lookup code inside its command family and service
   modules; command functions should not grow into HTTP clients or mappers.
-- Provider degradation behavior must be explicit in the command response and
-  covered by focused tests.
+- Metadata lookup provider degradation is owned by
+  `metadata_lookup/service.rs`: preserve usable results plus typed diagnostics
+  when the selected contract can still be satisfied, and hard-fail otherwise.
+  Cover the response behavior with focused tests.
 
 ## Hard Invariants
 

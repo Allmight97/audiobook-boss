@@ -16,9 +16,9 @@
 - `index.ts` is the export surface. Do not import `owner.ts`, `bind.ts`,
   `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside this owner.
 - `applyOutputDefaultsFromSettings`, `readOutputDefaultsFromState`, and
-  `readOutputRequestConfig` still resolve the last bound owner. They are #471
-  compatibility exports: do not add callers. The target interface exposes
-  those intents/reads on the Output owner held by App Runtime.
+  `readOutputRequestConfig` still resolve the last bound owner. They are
+  compatibility exports: do not add callers. New callers use the Output owner
+  held by App Runtime.
 
 ## Hard Invariants
 
@@ -53,8 +53,8 @@
   getters use the live naming box
   (`namingTemplate`), not the 150 ms committed `previewTemplate`. Preview stays
   on the committed copy. They are getters, not poke APIs. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`; #471 removes their last-bound
-  lookup rather than preserving an alias.
+  `updateOutputPath` or `updateEstimatedSize`, or preserve the last-bound lookup
+  through a new alias.
 
 ## Testing
 

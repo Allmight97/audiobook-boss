@@ -6,15 +6,17 @@ git history and closed issues own superseded chronology.
 
 ## 2026-08-31 - One Owner Per Kind Of Repository Truth
 
-- Outcome: `docs/system-map.md` is the architecture/state/control orientation
-  door; code, manifests, generated contracts, and executed proof own current
-  behavior; `AGENTS.md` owns operating invariants; open GitHub issues own
-  mutable plans; this ledger owns durable rationale. Closed issues and merged
-  branches are history, not current instructions.
+- Outcome: root `AGENTS.md` is the always-loaded operating and routing
+  interface. `docs/system-map.md` is a conditional cross-owner topology for
+  onboarding, unclear ownership, and multi-owner work—not an API inventory,
+  glossary, or second implementation spec. Code, manifests, generated
+  contracts, and executed proof show current behavior; local `AGENTS.md` files
+  own path-specific invariants; this ledger owns durable rationale; open issues
+  are fallible candidate plans.
 - Evidence: `docs/system-map.md`, root and `src/app/AGENTS.md`,
   `docs/agents/issue-tracker.md`.
-- Guardrail: keep each meaning in one owner, delete superseded plan pointers,
-  and never cache mutable issue state as permanent architecture.
+- Guardrail: keep each meaning in one owner, prefer live interfaces over prose
+  inventories, and never cache mutable issue state as permanent architecture.
 
 ## 2026-08-30 - Native CSS UI Foundation (#470)
 
@@ -268,8 +270,9 @@ git history and closed issues own superseded chronology.
 - Guardrail: pending markers are created only via `stageMetadataIntentPatch`
   (save workflow clears on success; lifecycle clears via
   `removeMetadataForFile`/`clearMetadataSession`); no caller-side
-  merge/equality staging logic or parallel form/tag store returns. Issue #471
-  owns moving the remaining cache maps onto the runtime-scoped owner.
+  merge/equality staging logic or parallel form/tag store returns. Remaining
+  cache maps are compatibility state; new or migrated maps belong to the
+  runtime-scoped owner and require isolation proof.
 
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
 

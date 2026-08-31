@@ -1,8 +1,9 @@
 # Issue Tracker: GitHub
 
 Issues for this repo live on `Allmight97/audiobook-boss`. Use the authenticated
-GitHub connector when the agent has it; otherwise use the `gh` CLI. The issue
-body is the mutable plan interface either way.
+GitHub connector when the agent has it; otherwise use the `gh` CLI. An issue
+body is a mutable candidate plan and may lag `main`; verify its claims before
+acting.
 
 ## Conventions
 
@@ -72,7 +73,9 @@ When work lands, rewrite the issue around the resulting state or close it with
 the proof and residual work. A closed flag does not make a stale body safe to
 follow, and an open issue must not retain a next action that already happened.
 
-Use `docs/ubiquitous-language.md` vocabulary. Prefer module and seam names over file paths unless a path is load-bearing for verification.
+Use terminology from the owning interface and nearest `AGENTS.md`. Prefer
+module and seam names over file paths unless a path is load-bearing for
+verification.
 
 For large work that needs vertical slices, publish the parent issue first. Use
 `to-issues` only when the user asks for the breakdown.

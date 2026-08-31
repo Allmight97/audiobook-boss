@@ -14,7 +14,7 @@
 - Exports: `OutputView`, `applyOutputDefaultsFromSettings`,
   `readOutputDefaultsFromState`, `readOutputRequestConfig`,
   `runOutputPlanReviewWorkflow`.
-- The non-view exports are #471 compatibility re-exports. Do not add callers;
+- The non-view exports are compatibility re-exports. Do not add callers;
   after migration this index exports the view and any genuinely view-owned
   types only. Processing and Settings use `runtime.output` directly.
 
