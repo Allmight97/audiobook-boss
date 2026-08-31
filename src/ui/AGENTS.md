@@ -1,8 +1,9 @@
 # UI Surface Directives
 
-Each UI owner under `src/ui/<owner>/` keeps its own nested `AGENTS.md` where it
-has real state, lifecycle, or contract truth (closest file wins). This file owns
-only the rules shared by the thin composition shells that have none.
+Each UI surface under `src/ui/<owner>/` keeps its own nested `AGENTS.md` where
+it has view-local interaction, presentation-resource lifetime, or contract
+truth (closest file wins). Application session/workflow truth lives under
+`src/app`; this file owns only rules shared by thin composition shells.
 
 ## Composition-only Shells
 
@@ -14,10 +15,10 @@ These directories arrange existing public views and own no business state:
 `encodingWorkbench/` is stylesheet-only: `src/ui/App.tsx` composes the encoder,
 output, and tags blocks inline and imports `encodingWorkbench.css`.
 
-`src/ui/App.tsx` is the integration root and may compose a concrete owner view
-when that owner's index intentionally exposes a nonvisual API. This exception
-is rendering-only: application state and intents still cross `src/app/<owner>`
-Public API Strips.
+`src/ui/App.tsx` is the rendering integration root. It composes public views;
+application state and intents cross `src/app/<owner>` Public API Strips through
+App Runtime context. Compatibility re-exports called out in nested guidance
+are current migration gaps, not an API pattern for new work.
 
 Rules for both:
 

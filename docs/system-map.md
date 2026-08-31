@@ -1,180 +1,119 @@
 # Audiobook Boss System Map
 
-This file is the compact product/system shape for Audiobook Boss. It is not a
-full architecture spec. Use it to orient work before opening the owning code,
-then verify behavior in code and tests.
+Read this map only for repository onboarding, unclear ownership, or a change
+that crosses frontend/backend or multiple product owners. For an ordinary
+local change, start with root `AGENTS.md`, the nearest nested `AGENTS.md`, and
+the owning code and tests.
+
+ABB is a local, single-user Tauri application. One owner holds each product
+truth, views dispatch semantic intent, typed interfaces cross seams, and Rust
+owns durable artifact and operation truth.
 
 ## Product Spine
 
 Audiobook Boss turns messy audiobook inputs plus user intent into organized,
 tagged, compatible M4B outputs.
 
-The product workflow is:
-
 ```text
 Import -> Inspect -> Decide -> Preflight -> Process -> Verify
 ```
 
-- **Import**: bring files into the app through drag/drop or picker flows.
-- **Inspect**: probe audio, chapters, metadata, cover art, duration, and compatibility.
-- **Decide**: choose metadata, naming, destination, encoder, and skip/overwrite policy.
-- **Preflight**: check paths, collisions, output plans, and tool availability before work starts.
-- **Process**: run jobs, emit progress, handle cancellation, skip, failure, and success.
-- **Verify**: report terminal truth and leave trustworthy output artifacts on disk.
+- **Import:** discover or materialize local audio, then validate and analyze it.
+- **Inspect:** probe audio, chapters, metadata, cover art, and compatibility.
+- **Decide:** stage metadata, naming, destination, encoder, and collision intent.
+- **Preflight:** resolve paths, capabilities, collisions, and the execution plan.
+- **Process:** accept work, run jobs, publish progress, and settle cancellation or failure.
+- **Verify:** report backend terminal truth and leave trustworthy artifacts on disk.
 
-## Layer Model
+## Control Loop
 
-Use these layers to locate ownership before changing behavior:
+```text
+User intent
+  -> Solid view
+  -> App Runtime owner                   session truth + semantic intent
+  -> private Effect workflow             async coordination + typed failure
+  -> tauriClient                         TS/Rust adaptation
+  -> thin Tauri command                  ingress validation
+  -> Rust domain/runtime owner           policy + lifecycle authority
+  -> explicit plan                       resolved work before side effects
+  -> direct preview | WorkRuntime        foreground probe | accepted operation
+  -> Audio / Metadata / Output owners    owned side effects
+  -> snapshots + artifact readback
+  -> Solid view renders terminal truth
+```
 
-| Layer | Owns |
-| --- | --- |
-| Product intent | What the user believes they asked the app to do. |
-| UI state | Selected files, edits, visible status, and enabled actions. |
-| Frontend workflow coordination | Effect workflow owners for multi-boundary async orchestration, typed workflow errors, fakeable services, and terminal UI outcomes. |
-| IPC contract | Command, event, and payload shapes crossing TS <-> Rust. |
-| Backend lifecycle | Operation identity, queue/progress events, cancellation, skipping, terminal summaries, and finalization. |
-| Artifact truth | Final files, tags, paths, and terminal results on disk. |
+Remote Source materializes provider-owned titles into ABB-owned staged local
+files, then hands them to the normal Input owner. It is not a hidden processing
+path.
 
-## Boundary Rule
+Preview and accepted work are deliberately different lanes. Direct preview
+uses `process_audiobook_files` and foreground progress events; it has no backend
+cancel command. Final processing and metadata batch save use WorkRuntime,
+operation-scoped cancellation, and backend-authored operation snapshots. The
+nearest Processing and WorkRuntime guidance owns the exact event rules.
 
-UI expresses intent and renders truth. Rust produces durable truth. The IPC
-boundary prevents the two from drifting.
+## Owner Topology
 
-## Design Bias
-
-ABB favors owned boundaries that make truthful decisions close to the domain
-they govern.
-
-Prefer:
-
-- outcome requests over caller-selected strategy paths
-- artifact and container truth over labels, suffixes, or optimistic UI state
-- explicit compatibility policy over silent workaround behavior
-- small public subsystem surfaces over scattered helper knowledge
-- verification that demonstrates user-visible truth, not just internal path selection
-
-This is a bias, not a command to collapse subsystems into fewer files. Private
-strategy modules are healthy when each owns a coherent mechanism and the public
-boundary owns the rule callers depend on.
-
-Use this bias to reduce caller knowledge, stale compatibility lore, duplicated
-routing rules, and false facades. Do not use it to create generic managers,
-controllers, routers, or facades that merely rename complexity without improving
-ownership or verification.
-
-## Core Truth Boundaries
-
-- UI code routes runtime commands/events through `src/lib/tauri/client.ts`.
-- `src/app/runtime/` owns one disposable Solid application runtime and
-  context. Views take owners from that context.
-- `src/ui/foundation/` owns shared visual behavior: typed Solid primitives
-  and public semantic CSS tokens. Native CSS is the only styling language.
-- Multi-boundary frontend orchestration lives in named Effect workflow owners;
-  Solid views dispatch intent and render state.
-- `tauriClient` adapts generated bindings from `src/lib/generated/tauri.ts`.
-- Rust commands are registered in `src-tauri/src/ipc_contract.rs` and implemented under `src-tauri/src/commands/`.
-- Processing plans are built before execution and reviewed before jobs run.
-- Backend lifecycle vocabulary and event emission live under `processing` as a
-  sub-owner with a small public API; it is not a standalone Grey-Box Public API.
-- Audio engine execution owns media inspection, decoder/toolchain selection,
-  encode/mux/staging behavior, and media-integrity facts behind a small public
-  API.
-- `abb-media-core` packages backend-neutral media facts, error kinds, progress,
-  and provenance vocabulary for owners that must classify media without leaking
-  FFmpeg, AAXClean, provider payloads, or metadata-tool details.
-- Runtime settings controls render backend-owned capability facts for selectable
-  encoder and concurrency settings; UI labels stay frontend-owned, but
-  accept/reject facts stay with Audio Engine and Job Registry.
-- Remote source acquisition materializes provider-owned titles into local staged
-  files before normal file-list import; provider auth, sessions, acquisition
-  jobs, Supplemental Assets, and purge behavior stay behind `RemoteSourceRuntime`.
-- Run orchestration owns dispatch and side effects; terminal outcome helpers own final status normalization.
-- WorkRuntime (`src-tauri/src/work_runtime/`) owns Work Center operation truth:
-  operation identity, immutable accepted submissions, operation snapshots, and
-  operation-scoped cancellation. It wraps `processing::run` as the executor and
-  derives operation terminal status from the canonical
-  `abb_processing_core::classify_run_terminal` classifier, never a parallel rule.
-- Metadata intent is compiled at the TS boundary and preserved through Rust writes and readback.
-- Processing adapters produce media artifacts; final results report what actually happened.
-
-## Grey-Box Public APIs
-
-Use these as the current durable ownership map for architecture work:
-
-In general architecture language, each entry is being shaped toward a **deep
-module**: a small interface hiding substantial implementation complexity. In
-ABB repo language, a **Grey-Box Module** is the stricter working form of that
-idea: Public API Strip (the allowed import/export surface), Private Cluster,
-nested ownership rules, narrow boundary checks, and contract tests.
-
-| Public API | Owns |
-| --- | --- |
-| Tauri Runtime Boundary | Frontend runtime calls, payload normalization, generated-binding adaptation, and event listener setup. |
-| Processing Plan | Preflight and execution planning before jobs run. |
-| Output Artifact Plan / Commit | Requested/resolved artifact paths, collision review, parent directory creation, and final artifact commit truth. |
-| Metadata Outcome Plan | Metadata intent validation/normalization, metadata intent projection, source hydration, naming-safe metadata, write plans, and cover-art passthrough policy. |
-| WorkRuntime | Accepted background operation identity, immutable accepted inputs, operation snapshots, operation-scoped cancellation, and Work Center event truth. |
-| Status Panel Runtime | Processing launch controls plus foreground preview progress/results rendered as truthful user-visible status. |
-| Audio Engine Deep Module | Local audio import metadata/discovery, media inspection, decoder/toolchain selection, audio execution, encode/mux/staging internals, cleanup, and media execution facts. |
-| App Settings | Durable preference schema, defaults, validation, JSON storage under Tauri app config, and settings IPC commands. |
-| RemoteSourceRuntime | Provider registry/capabilities, backend-only account auth, secret vault access, library scan, acquisition jobs, staged materialized source files, Supplemental Assets, and remote-source cleanup/purge behavior. |
-
-Each Public API has a nearest nested `AGENTS.md` that lists the allowed import/export surface, private cluster, edit rules, and breaking-change triggers.
-
-### Frontend Owner Strips
-
-| Strip | Entry | Owns |
+| Owner | Path | Truth owned |
 | --- | --- | --- |
-| App Runtime | `src/app/runtime` | Disposable Solid runtime, owner modules, context, test harness, and disposal. |
+| App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, disposal, test harness. |
+| Frontend owners | `src/app/<owner>` | Runtime-scoped draft/session state and semantic intents. Each `index.ts` is its live export truth. |
+| Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, theme, and density. |
-| Output Plan | `src/app/outputPlan` | Output directory, naming, path preview, derived estimate, and collision review. Solid views: `src/ui/outputPanel`, `src/ui/collisionDialog`. |
-| Input Session | `src/app/inputSession` | File-list session, import analysis, selection, order, and inspector projection. Solid views: `src/ui/fileList` (`FileListView`), `src/ui/fileImport`. |
-| File List | `src/ui/fileList` | `FileListView`, pointer reorder, and cover thumbnails. List truth stays in Input Session. |
-| File Import | `src/ui/fileImport` | Picker, drop, opened-file drain, and Remote dialog mount. Composes `FileListView`. |
-| Status Panel | `src/app/processing` | Preview submit and status runtime. Solid view: `src/ui/statusPanel` (`StatusPanelView`). |
-| Encoder Panel | `src/ui/encoderPanel` | Encoder settings UI and encoding request config reads. |
-| App Settings | `src/app/appSettings` | Settings hydration, dialog state, and durable preference coordination. Persistence + dialog view: `src/ui/appSettings`. |
-| Metadata Form | `src/ui/metadataForm` | `MetadataFormView` text fields. Form truth stays in Metadata Session. |
-| Metadata Session | `src/app/metadataSession` | Per-file metadata cache, pending draft/intent staging (`stageMetadataIntentPatch`), cover, tags, and batch-save. |
-| Metadata Lookup | `src/app/metadataLookup` | Lookup workflow, queue, and cover-preview scheduling. Solid dialog: `src/ui/metadataLookup` (`MetadataLookupView`). |
-| Tag Preview | `src/ui/tagPreview` | `TagPreviewView`. TSOA and tag projection live in `src/app/metadataSession/tags.ts`. |
-| Remote Source | `src/app/remoteSource` | Account/acquisition workflow, Input handoff, and session-asset retain/purge. Solid dialog: `src/ui/remoteSource`. |
+| Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
+| Command ingress | `src-tauri/src/commands` | Thin validation/adaptation into Rust owners. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
+| Processing | `src-tauri/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
+| WorkRuntime | `src-tauri/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
+| Audio Engine | `src-tauri/src/audio` | Import facts, inspection, toolchain selection, media execution, staging, cleanup, and integrity facts. |
+| Metadata Outcome | `src-tauri/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
+| Output Artifact | `src-tauri/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
+| App Settings | `src-tauri/src/app_settings` + `src/app/appSettings` | Durable preferences plus frontend hydration, accepted-value coordination, and durability state. |
+| Remote Source | `src-tauri/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
+| Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an existing owner; not additional product owners. |
 
-Each strip's `index.ts` is exact export truth. Nearest `AGENTS.md` files record
-only owner boundaries and recurring traps that are not cheap to infer from it.
+Callers cross an owner's Public API Strip—the allowed import/export surface
+named by its nearest `AGENTS.md`. They do not reach into private state, helpers,
+generated invokers, provider payloads, or filesystem mechanisms.
 
-Boundary-aligned Rust core crates under `crates/abb-*-core` are testing and
-packaging surfaces for pure domain logic inside these owners. They are not new
-Grey-Box Public APIs. `abb-media-core` is the first backend-neutral media
-contract package; media execution still belongs to Audio Engine. `src-tauri`
-remains the runtime shell for IPC, filesystem, keychain, FFmpeg/audio execution,
-generated bindings, and cross-boundary verification.
+## State And Lifetime
 
-Backend Lifecycle is a named sub-owner inside `processing`, not its own
-Grey-Box Public API. It provides `OperationKind`, progress/queue event
-vocabulary, job cancellation checks, and shared terminal-summary vocabulary.
-WorkRuntime owns accepted background operation identity, snapshots, and
-operation-scoped cancellation for Work Center operations.
+| State | Lifetime and owner | Rule |
+| --- | --- | --- |
+| Screen interaction | Solid view instance | Keep disclosure, focus, and transient input local. |
+| Presentation resource | View instance, or an owner-private resource when workflows share it | Dispose listeners, cancellation, caches, and late completions with that instance. |
+| Session truth | One App Runtime owner | Read through its view/accessor and change through semantic intent. Never mirror it in another writable store. |
+| Workflow transient state | Private Effect workflow | Publish typed outcomes through the owner; do not expose live Effect programs. |
+| Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
+| Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation-scoped cancellation. |
+| Durable preference | Rust App Settings store | Runtime owner accepts behavior before persistence records it. |
+| Artifact truth | Metadata, Audio, Output, and final disk readback | Success follows commit/finalization and any load-bearing verification. |
+| Provider secret/session | Backend Remote Source + OS credential store | Never cross into frontend state, logs, processing payloads, or metadata. |
 
-## Core Invariants
+## Where Truth Lives
+
+| Question | Read |
+| --- | --- |
+| What does the product do? | `README.md` and the Product Spine above. |
+| Who owns this behavior? | Owner topology above, then its public module and nearest `AGENTS.md`. |
+| What crosses TS and Rust? | `src-tauri/src/ipc_contract.rs`, generated bindings, and `src/lib/tauri/client.ts`. |
+| Why was a durable choice made? | The relevant entry in `docs/DECISIONS.md`; do not load the ledger without a decision question. |
+| What might be worked next? | A relevant open issue, verified against `main`, the owning interface, and tests. Issue state is evidence, not authority. |
+| Which command proves it? | `scripts/AGENTS.md`, the nearest owner guidance, and live package scripts. |
+| What happened in a run? | Typed results, Work Center/Status Panel, artifact readback, then run-scoped logs as supporting evidence. |
+
+When sources disagree, determine which source owns the question. Code and
+executed proof show observed behavior; guidance states protected invariants; a
+decision records durable rationale; an issue proposes mutable work. Reconcile a
+mismatch instead of blending the sources.
+
+## Cross-Owner Invariants
 
 - Every processing job has exactly one terminal outcome: `success`, `skipped`, `cancelled`, or `failed`.
 - UI renders backend terminal truth; it does not invent final status.
-- Metadata `set`, `clear`, and `preserve` intent stays distinct across the boundary.
-- Path validation remains active for file inputs, output locations, and artifact writes.
-- External provider partial failure stays explicit through typed diagnostics or terminal failure at the owning command.
-- Generated bindings are not hand-edited.
-
-## Task Frame
-
-For meaningful work, identify:
-
-- user/product outcome
-- layer touched
-- owned truth
-- boundaries involved
-- invariants protected
-- done evidence
-
-Use [docs/api-map.md](api-map.md) for the runtime command/event index and
-[docs/ubiquitous-language.md](ubiquitous-language.md) for canonical terms.
+- Metadata `set`, `clear`, and `noop` intent remains distinct across the runtime boundary.
+- Input, output, and artifact paths remain validated at their owning ingress, plan, or commit seam.
+- Accepted WorkRuntime submissions keep stable identity and immutable accepted inputs.
+- External-provider partial failure remains typed and explicit at the owning command.
+- Generated bindings are regenerated, never hand-edited.
+- Session truth has one runtime owner; module globals and view stores do not become a second copy.
+- Final success follows output commit/finalization and truthful cleanup semantics.

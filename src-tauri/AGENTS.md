@@ -27,8 +27,10 @@
 - Offload CPU-bound encoding and heavy synchronous work via `tokio::task::spawn_blocking` (or equivalent blocking-safe path).
 - Keep TS↔Rust command contracts aligned through generated bindings and drift checks.
 - Run final batch/merge processing through `submit_processing_operation`
-  (WorkRuntime); `process_audiobook_files` is preview-only. Use dedicated
-  auxiliary commands for non-processing tasks.
+  (WorkRuntime). `process_audiobook_files` is the direct-preview command;
+  `src-tauri/src/processing/AGENTS.md` owns the remaining ingress hole for
+  omitted `preview_seconds`. Use dedicated auxiliary commands for
+  non-processing tasks.
 - Use Clippy signal for code-shape drift; treat `too_many_lines`/`too_many_arguments` as prompts to re-check cohesion. Run command and workspace lint posture: `scripts/AGENTS.md` and root `Cargo.toml` `[workspace.lints]`.
 - Consult `docs/unsafe-code-register.md` before changing production Rust `unsafe`
   and update it when unsafe scope, purpose, or blast radius changes.

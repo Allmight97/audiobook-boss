@@ -1,6 +1,9 @@
-# Issue tracker: GitHub
+# Issue Tracker: GitHub
 
-Issues for this repo live as GitHub issues on `Allmight97/audiobook-boss`. Use the `gh` CLI for all operations.
+Issues for this repo live on `Allmight97/audiobook-boss`. Use the authenticated
+GitHub connector when the agent has it; otherwise use the `gh` CLI. An issue
+body is a mutable candidate plan and may lag `main`; verify its claims before
+acting.
 
 ## Conventions
 
@@ -37,14 +40,15 @@ Issues are durable work surfaces, not planning transcripts. Bodies must be resum
 Use this shape for substantial engineering work:
 
 ```md
-## Owning invariant
-
-> One sentence: what truth this work enforces everywhere.
-
-## Current state
+## Current state and next action
 
 - What is true in `main` today, with file-path evidence when load-bearing
 - Where the invariant currently fails, if it does
+- The single next action or decision
+
+## Owning invariant
+
+> One sentence: what truth this work enforces everywhere.
 
 ## Plan
 
@@ -65,7 +69,13 @@ when they change implementation choices.
 
 Omit: restructure dates, skill names, scout provenance, "verified via research", superseded-framing appendices, and source-ladder narration.
 
-Use `docs/ubiquitous-language.md` vocabulary. Prefer module and seam names over file paths unless a path is load-bearing for verification.
+When work lands, rewrite the issue around the resulting state or close it with
+the proof and residual work. A closed flag does not make a stale body safe to
+follow, and an open issue must not retain a next action that already happened.
+
+Use terminology from the owning interface and nearest `AGENTS.md`. Prefer
+module and seam names over file paths unless a path is load-bearing for
+verification.
 
 For large work that needs vertical slices, publish the parent issue first. Use
 `to-issues` only when the user asks for the breakdown.

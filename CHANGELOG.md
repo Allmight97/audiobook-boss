@@ -4,6 +4,12 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Compacted repository agent guidance: root `AGENTS.md` is the always-loaded
+  routing surface, the system map is conditional cross-owner topology, and
+  live contracts own command/event discovery instead of a prose inventory.
+
 ## [1.4.0] - 2026-08-30
 
 ### Changed

@@ -15,6 +15,10 @@
   `src/ui/outputPanel` instead.
 - `index.ts` is the export surface. Do not import `owner.ts`, `bind.ts`,
   `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside this owner.
+- `applyOutputDefaultsFromSettings`, `readOutputDefaultsFromState`, and
+  `readOutputRequestConfig` still resolve the last bound owner. They are
+  compatibility exports: do not add callers. New callers use the Output owner
+  held by App Runtime.
 
 ## Hard Invariants
 
@@ -42,14 +46,15 @@
   (`runOutputPlanReviewWorkflow`) whose view and pending choice live on the
   Output owner. Views use `useAppRuntime().output`. Do not fold review into
   path-preview freshness.
-- App Settings hydration passes resolved `outputDefaults` through
-  `applyDefaults` on the bound owner.
-- Submit composition stays at `readOutputRequestConfig()` /
-  `readProcessingRequestConfig()`. Those getters use the live naming box
+- App Settings hydration passes resolved `outputDefaults` to the runtime's
+  Output owner.
+- Submit composition reads the runtime's Output owner. The current
+  `readOutputRequestConfig()` / `readProcessingRequestConfig()` compatibility
+  getters use the live naming box
   (`namingTemplate`), not the 150 ms committed `previewTemplate`. Preview stays
   on the committed copy. They are getters, not poke APIs. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`.
-  `readOutputRequestConfig` reads the latest bound `OutputPlanOwner`.
+  `updateOutputPath` or `updateEstimatedSize`, or preserve the last-bound lookup
+  through a new alias.
 
 ## Testing
 

@@ -3,6 +3,8 @@
 ## Scope
 
 - Applies to frontend runtime and UI work under `src/`.
+- Application owner interfaces, state lifetime, and workflow shape live in
+  `src/app/AGENTS.md`; read it before changing frontend session truth.
 - IPC adapters live under `src/lib/tauri/AGENTS.md`; canonical metadata
   intent validation and normalization live in the Rust Metadata Outcome
   boundary.
@@ -10,10 +12,10 @@
 ## Preferred Path
 
 - Route every runtime Tauri command/event through `src/lib/tauri/client.ts` (`tauriClient`).
-- Route durable preference hydration through `src/app/appSettings` and
-  persistence through `src/ui/appSettings`; existing control owners keep their
-  runtime request truth and expose documented public helpers for App Settings
-  to call.
+- Route durable preference hydration and automatic persistence through
+  `src/app/appSettings`; owning controls expose semantic accepted values for
+  Settings to persist. `src/ui/appSettings` is a current compatibility
+  strip with hidden failure semantics—do not add callers.
 - Runtime settings controls consume backend capability facts for selectable
   accept/reject rules; do not add frontend-owned encoder/concurrency option
   matrices when a Rust owner validates the setting.
@@ -34,8 +36,11 @@
   metadata-save lifecycle display, also open `src/app/workOperations/AGENTS.md`.
 - When touching Effect workflow owners or the AppEffect kernel, open
   `src/lib/effect/AGENTS.md` first.
-- Views take runtime owners from Solid context. Do not reintroduce Effect Atom
-  or a process-wide owner singleton. Proof:
+- New or migrated session truth belongs to an owner composed by App Runtime and
+  consumed from Solid context. Presentation resources belong to their owner or
+  view instance. Existing module-global/lifetime exceptions are not precedent;
+  verify their current call sites before changing them and do not add another.
+  Do not reintroduce Effect Atom or add a process-wide owner singleton. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
 - Treat hard-to-scan or hard-to-test component scripts as a signal to extract helpers at user-facing behavior boundaries.
 
@@ -53,7 +58,7 @@
 
 - Runtime modules do not call command/event invokers directly from `src/lib/generated/tauri.ts`.
 - Do not hand-edit `src/lib/generated/tauri.ts`; regenerate or sync bindings through the standard scripts.
-- Keep runtime entry surfaces declarative: avoid new imperative DOM orchestration in `src/ui/App.tsx`, `src/main.ts`, and `src/lib/**`.
+- Keep runtime entry surfaces declarative: avoid new imperative DOM orchestration in `src/ui/App.tsx`, `src/main.tsx`, and `src/lib/**`.
 - UI-affecting changes are not “done” from static inspection alone; they must leave targeted test coverage or explicit visual/UX review evidence for the user-facing outcome.
 - Follow root Hard Invariants for boundary behavior; do not add hidden or caller-side substitute logic in frontend flows.
 - Keep TypeScript boundaries type-safe; avoid introducing new `any` escape paths in runtime IPC/state flows.
