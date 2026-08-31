@@ -78,7 +78,6 @@ __pycache__/
 
 # Local AI/editor settings
 .cursor/
-.btca/
 .learnings/
 
 # Perf run artifacts (generated locally/CI)

@@ -21,9 +21,6 @@
 - Root owns repo-wide posture, proof, and cross-cutting invariants; local
   `AGENTS.md` files own path-specific surfaces and traps; skills own reusable
   procedures. Keep each meaning in one of those owners.
-- `CLAUDE.md` files are Claude Code import stubs only. Keep `AGENTS.md`
-  canonical; update the matching `AGENTS.md`, not the sibling `CLAUDE.md`,
-  unless the user explicitly asks for Claude-specific behavior.
 - External-library research routes through
   `.agents/skills/abb-library-research`. Do not commit upstream source
   snapshots as research material. Build provenance explicitly owned by ABB,
