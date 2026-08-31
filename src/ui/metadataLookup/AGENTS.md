@@ -18,9 +18,10 @@
   an action must load from app-owned state scheduling, not hover, focus, or
   scroll triggers.
 - Provider-controlled remote media URLs must not be rendered directly into DOM
-  attributes. Cover previews route through the Tauri cover-art loader and
-  render only app-owned data URLs from backend-validated bytes via
-  `src/lib/media/coverArtDataUrl.ts`.
+  attributes. Cover previews route through `CoverCapability.previewFromUrl`
+  (JPEG data URL, no stash). Apply stages through
+  `CoverCapability.stageFromUrl` (handle + data URL). Do not reconstruct
+  cover data URLs from byte arrays.
 
 ## Private Cluster
 

@@ -60,6 +60,7 @@ export interface ProcessingWorkflowServices {
 		mode?: 'single' | 'multi';
 		onlyDirty?: boolean;
 	}) => Partial<AudiobookMetadata>;
+	readCoverIntent: () => MetadataIntentPatch;
 	collectActionableMetadataIntent: typeof collectActionableMetadataIntent;
 	getMetadataForFile: typeof getMetadataForFile;
 	cacheMetadataForFile: typeof cacheMetadataForFile;

@@ -160,7 +160,6 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			draft.series_part,
 			draft.subseries,
 			draft.subseries_part,
-			String(draft.cover_art?.length ?? 0),
 		].join('\0');
 	});
 

@@ -7,6 +7,7 @@ import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { fakeCoverCapability, JPEG_DATA_URL } from '../../test/fixtures/coverCapability';
 import { MetadataLookupView } from '../metadataLookup/MetadataLookupView';
 
 function analyzedFile(path: string): FileListInfo['files'][number] {
@@ -41,7 +42,6 @@ function fakeInput(): InputCapability {
 			supportText: 'Supports M4B audio files',
 		})),
 		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
@@ -62,8 +62,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 			summary: { succeeded: 0, failed: 0, cancelled: 0, skipped: 0, total: 0 },
 		})),
 		openFile: vi.fn(async () => null),
-		loadCoverArtFile: vi.fn(async () => []),
-		loadCoverArtFromUrl: vi.fn(async () => [0xff, 0xd8, 0xff]),
 		searchOnlineMetadata: vi.fn(async () => ({
 			results: [
 				{
@@ -109,7 +107,10 @@ describe('MetadataLookup cover preview', () => {
 
 	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		const cover = fakeCoverCapability({
+			previewFromUrl: vi.fn(async () => ({ handleId: null, dataUrl: JPEG_DATA_URL })),
+		});
+		runtime = createTestAppRuntime({ input: fakeInput(), metadata, cover });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<button id="metadata-lookup-btn" type="button">
@@ -124,10 +125,10 @@ describe('MetadataLookup cover preview', () => {
 
 		await waitFor(() => {
 			expect(metadata.searchOnlineMetadata).toHaveBeenCalled();
-			expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith(
+			expect(cover.previewFromUrl).toHaveBeenCalledWith(
 				'https://covers.example.com/private-cover.jpg',
 			);
-			expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith(
+			expect(cover.previewFromUrl).toHaveBeenCalledWith(
 				'https://covers.example.com/loopback-cover.jpg',
 			);
 		});

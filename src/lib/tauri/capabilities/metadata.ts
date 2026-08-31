@@ -24,8 +24,6 @@ export interface MetadataCapability {
 	validateMetadataIntentPatch(patch: MetadataIntentPatch): Promise<MetadataIntentValidationResult>;
 	saveMetadataBatch(items: ReadonlyArray<MetadataSaveRequest>): Promise<MetadataSaveBatchResult>;
 	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
-	loadCoverArtFile(filePath: string): Promise<number[]>;
-	loadCoverArtFromUrl(url: string): Promise<number[]>;
 	searchOnlineMetadata(args: {
 		query: string;
 		sources: MetadataSource[] | null;
@@ -49,7 +47,5 @@ export const liveMetadataCapability: MetadataCapability = {
 					}
 				: undefined,
 		),
-	loadCoverArtFile: (filePath) => tauriClient.loadCoverArtFile(filePath),
-	loadCoverArtFromUrl: (url) => tauriClient.loadCoverArtFromUrl(url),
 	searchOnlineMetadata: (args) => tauriClient.searchOnlineMetadata(args),
 };

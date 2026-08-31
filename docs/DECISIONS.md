@@ -1,5 +1,22 @@
 # Decisions
 
+## 2026-08-31 - Cover IPC Uses Handles And JPEG Data URLs
+
+- Outcome: Cover bytes stay off the Tauri JSON command channel. Display
+  crosses as a JPEG data URL. Commit crosses as a `cover-*` stash handle
+  hydrated to `PatchOp<Vec<u8>>` at command ingress. Preview-from-URL does
+  not stash. CoverCapability is the frontend port for thumbnail / preview /
+  stage; this PR does not rewire Processing/Output/Work to capability ports.
+  Stash is process-memory, 256 entries, fail-closed when full — silent
+  eviction would drop staged covers before save. This PR does not add a
+  custom WebView URI scheme (WKWebView vs WebKitGTK diverge; macOS primary
+  + Linux CI).
+- Evidence: `src-tauri/src/metadata/cover_session.rs`,
+  `src/lib/tauri/capabilities/cover.ts`, `preview_cover_art_from_url`.
+- Guardrail: empty `number[]` / empty `Vec<u8>` must not mean clear. Unchanged
+  embedded cover stays `noop`, not `Set(original bytes)`. Handles do not
+  survive app restart.
+
 ## 2026-08-30 - Native CSS UI Foundation (#470)
 
 - Outcome: Shared visual behavior crosses `src/ui/foundation`. Native CSS is

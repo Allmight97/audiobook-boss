@@ -28,6 +28,7 @@ const context = vi.hoisted(() => ({
 	runOutputPlanReviewWorkflowMock: vi.fn(),
 	getJobTypeMock: vi.fn(),
 	readMetadataFormMock: vi.fn(),
+	readCoverIntentMock: vi.fn(() => ({})),
 	hasDirtyMetadataFieldsMock: vi.fn(),
 	// Session-strip fakes: stored patches live here; the collect fake applies
 	// the real actionable/path filter so payload-level pins stay meaningful.
@@ -70,18 +71,25 @@ vi.mock('../../metadataSession', () => ({
 			metadata &&
 				Object.entries(metadata).some(([key, value]) => value !== undefined && key !== 'cover_art'),
 		),
-	validateMetadataDraft: async (metadata: Record<string, unknown>) => {
+	validateMetadataDraft: async (
+		metadata: Record<string, unknown>,
+		_validate?: unknown,
+		coverIntent: Record<string, unknown> = {},
+	) => {
 		const first = context.seriesPartValidationErrorMock() ?? null;
 		return {
-			intentPatch: Object.fromEntries(
-				Object.entries(metadata).map(([key, value]) => [
-					key,
-					(typeof value === 'string' && value.trim().length === 0) ||
-					(Array.isArray(value) && value.length === 0)
-						? { op: 'clear' }
-						: { op: 'set', value },
-				]),
-			),
+			intentPatch: {
+				...Object.fromEntries(
+					Object.entries(metadata).map(([key, value]) => [
+						key,
+						(typeof value === 'string' && value.trim().length === 0) ||
+						(Array.isArray(value) && value.length === 0)
+							? { op: 'clear' }
+							: { op: 'set', value },
+					]),
+				),
+				...coverIntent,
+			},
 			ok: first == null,
 			errors: { first, byField: {} },
 			result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
@@ -127,6 +135,7 @@ function stagingServices(): ProcessingWorkflowServices {
 		getJobType: context.getJobTypeMock,
 		hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 		readMetadataForm: context.readMetadataFormMock,
+		readCoverIntent: context.readCoverIntentMock,
 		collectActionableMetadataIntent:
 			collectStoredIntent as ProcessingWorkflowServices['collectActionableMetadataIntent'],
 		getMetadataForFile: context.getMetadataForFileMock,
@@ -168,6 +177,8 @@ describe('startProcessing metadata staging', () => {
 		context.runOutputPlanReviewWorkflowMock.mockReset();
 		context.getJobTypeMock.mockReset();
 		context.readMetadataFormMock.mockReset();
+		context.readCoverIntentMock.mockReset();
+		context.readCoverIntentMock.mockReturnValue({});
 		context.hasDirtyMetadataFieldsMock.mockReset();
 		context.storedIntentPatches = {};
 		context.getMetadataForFileMock.mockReset();
@@ -408,7 +419,8 @@ describe('startProcessing metadata staging', () => {
 
 	it('stages cover-art clear intent even when no text fields are dirty', async () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
-		context.readMetadataFormMock.mockReturnValue({ cover_art: [] });
+		context.readMetadataFormMock.mockReturnValue({});
+		context.readCoverIntentMock.mockReturnValue({ cover_art: { op: 'clear' } });
 		context.getMetadataForFileMock.mockReturnValue({});
 		context.storedIntentPatches = { '/books/a.m4b': { cover_art: { op: 'clear' } } };
 
@@ -433,13 +445,15 @@ describe('startProcessing metadata staging', () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({
 			title: 'Selected Row Title',
-			cover_art: [7, 7, 7],
+		});
+		context.readCoverIntentMock.mockReturnValue({
+			cover_art: { op: 'set', value: 'cover-1' },
 		});
 		context.getMetadataForFileMock.mockReturnValue({});
 		context.storedIntentPatches = {
 			'/books/a.m4b': {
 				title: { op: 'set', value: 'Selected Row Title' },
-				cover_art: { op: 'set', value: [7, 7, 7] },
+				cover_art: { op: 'set', value: 'cover-1' },
 			},
 		};
 
@@ -447,7 +461,7 @@ describe('startProcessing metadata staging', () => {
 
 		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a.m4b', {
 			title: { op: 'set', value: 'Selected Row Title' },
-			cover_art: { op: 'set', value: [7, 7, 7] },
+			cover_art: { op: 'set', value: 'cover-1' },
 		});
 		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalledWith(
 			'/books/b.m4b',
@@ -458,7 +472,7 @@ describe('startProcessing metadata staging', () => {
 				metadataIntentByPath: {
 					'/books/a.m4b': {
 						title: { op: 'set', value: 'Selected Row Title' },
-						cover_art: { op: 'set', value: [7, 7, 7] },
+						cover_art: { op: 'set', value: 'cover-1' },
 					},
 				},
 			}),
@@ -468,7 +482,7 @@ describe('startProcessing metadata staging', () => {
 				metadataIntent: {
 					'/books/a.m4b': {
 						title: { op: 'set', value: 'Selected Row Title' },
-						cover_art: { op: 'set', value: [7, 7, 7] },
+						cover_art: { op: 'set', value: 'cover-1' },
 					},
 				},
 			}),

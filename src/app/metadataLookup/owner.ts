@@ -1,4 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
+import type { CoverCapability } from '../../lib/tauri/capabilities/cover';
 import type { InputOwner } from '../inputSession/owner';
 import type { MetadataOwner } from '../metadataSession/owner';
 import { makeProductionLookupServices } from './services';
@@ -32,6 +33,7 @@ export type MetadataLookupOwner = {
 export function createMetadataLookupOwner(deps: {
 	readonly input: InputOwner;
 	readonly metadata: MetadataOwner;
+	readonly cover: CoverCapability;
 }): MetadataLookupOwner {
 	const lookupState = createMetadataLookupState();
 	const queueState = createMetadataLookupQueueState();
@@ -47,6 +49,7 @@ export function createMetadataLookupOwner(deps: {
 			{
 				input: deps.input,
 				metadata: deps.metadata,
+				cover: deps.cover,
 				lookupState,
 				queueState,
 			},

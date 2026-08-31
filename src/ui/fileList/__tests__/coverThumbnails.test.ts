@@ -22,9 +22,9 @@ describe('FileList cover thumbnail scheduler', () => {
 	beforeEach(() => clearFileListCoverThumbnails());
 
 	it('bounds loading to two paths and dedupes duplicate paths', async () => {
-		const requests: Array<Deferred<number[] | null>> = [];
+		const requests: Array<Deferred<string | null>> = [];
 		const load = vi.fn(() => {
-			const request = deferred<number[] | null>();
+			const request = deferred<string | null>();
 			requests.push(request);
 			return request.promise;
 		});
@@ -32,27 +32,27 @@ describe('FileList cover thumbnail scheduler', () => {
 		await flush();
 		expect(load).toHaveBeenCalledTimes(2);
 		expect(getFileListCoverThumbnailState('/c').status).toBe('queued');
-		requests[0].resolve([1]);
+		requests[0].resolve('data:image/jpeg;base64,a');
 		await flush();
 		expect(load).toHaveBeenCalledTimes(3);
-		requests[1].resolve([2]);
-		requests[2].resolve([3]);
+		requests[1].resolve('data:image/jpeg;base64,b');
+		requests[2].resolve('data:image/jpeg;base64,c');
 		await flush();
 	});
 
 	it('ignores stale completion after clear and re-add', async () => {
-		const stale = deferred<number[]>();
-		const fresh = deferred<number[]>();
+		const stale = deferred<string>();
+		const fresh = deferred<string>();
 		const load = vi.fn().mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
 		scheduleFileListCoverThumbnails(['/book'], load);
 		await flush();
 		clearFileListCoverThumbnails();
 		scheduleFileListCoverThumbnails(['/book'], load);
 		await flush();
-		stale.resolve([1]);
+		stale.resolve('data:image/jpeg;base64,stale');
 		await flush();
 		expect(getFileListCoverThumbnailState('/book').status).toBe('loading');
-		fresh.resolve([2]);
+		fresh.resolve('data:image/jpeg;base64,fresh');
 		await flush();
 		expect(getFileListCoverThumbnailState('/book')).toMatchObject({ status: 'ready' });
 	});
@@ -62,7 +62,7 @@ describe('FileList cover thumbnail scheduler', () => {
 			{ length: MAX_FILE_LIST_COVER_THUMBNAIL_CACHE_ENTRIES + 1 },
 			(_, index) => `/book-${index}`,
 		);
-		scheduleFileListCoverThumbnails(paths, async () => [1]);
+		scheduleFileListCoverThumbnails(paths, async () => 'data:image/jpeg;base64,thumb');
 		for (let index = 0; index < 150; index += 1) await Promise.resolve();
 
 		expect(getFileListCoverThumbnailState(paths[0]).status).toBe('idle');

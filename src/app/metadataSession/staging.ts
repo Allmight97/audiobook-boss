@@ -8,6 +8,7 @@ import {
 	stageMetadataIntentPatch,
 } from './cache';
 import type { CoverUiState } from './cover';
+import { coverIntentFromUi } from './cover';
 import {
 	hasDirtyMetadataFields,
 	readMetadataForm,
@@ -64,10 +65,12 @@ async function prepareSingleSelectionMetadata(
 	}
 	const metadata = readMetadataForm(options.form, {
 		mode: 'single',
-		coverArtBytes: options.cover.currentCoverArt,
-		coverArtRemovalRequested: options.cover.coverArtRemovalRequested,
 	});
-	const validation = await validateMetadataDraft(metadata, options.validate);
+	const validation = await validateMetadataDraft(
+		metadata,
+		options.validate,
+		coverIntentFromUi(options.cover),
+	);
 	if (!validation.ok) {
 		return { ok: false, message: validation.errors.first ?? 'Metadata validation failed.' };
 	}

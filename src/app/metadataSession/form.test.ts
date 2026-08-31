@@ -9,7 +9,7 @@ import {
 } from './form';
 
 describe('metadata form projection', () => {
-	it('maps single-mode fields including album alias and cover bytes', () => {
+	it('maps single-mode fields including album alias without cover bytes', () => {
 		const form = populateMetadataFormSingle({
 			title: 'Title',
 			artist: 'Author',
@@ -24,7 +24,6 @@ describe('metadata form projection', () => {
 		});
 		const metadata = readMetadataForm(form, {
 			mode: 'single',
-			coverArtBytes: [1, 2, 3],
 		});
 		expect(metadata).toMatchObject({
 			title: 'Title',
@@ -32,15 +31,12 @@ describe('metadata form projection', () => {
 			artist: 'Author',
 			composer: 'Narrator',
 			date: '2024-07',
-			cover_art: [1, 2, 3],
 		});
+		expect(metadata.cover_art).toBeUndefined();
 	});
 
-	it('emits empty cover_art when removal is requested', () => {
-		const metadata = readMetadataForm(createEmptyFormState(), {
-			coverArtRemovalRequested: true,
-		});
-		expect(metadata.cover_art).toEqual([]);
+	it('treats cover removal as dirty without emitting cover bytes on the form', () => {
+		expect(readMetadataForm(createEmptyFormState()).cover_art).toBeUndefined();
 		expect(
 			hasDirtyMetadataFields(createEmptyFormState(), {
 				...createEmptyCoverUiState(),
@@ -55,7 +51,6 @@ describe('metadata form projection', () => {
 		const metadata = readMetadataForm(form, {
 			mode: 'multi',
 			onlyDirty: true,
-			coverArtBytes: [1, 2, 3],
 			coverArtRemovalRequested: true,
 		});
 		expect(metadata.date).toBeUndefined();

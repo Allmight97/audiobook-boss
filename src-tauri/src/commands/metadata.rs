@@ -2,8 +2,10 @@ use crate::audio::{validate_input_audio_path, validate_input_image_path};
 use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
 use crate::metadata::{
-    optimize_cover_art, read_audio_cover_thumbnail as read_embedded_cover_thumbnail, read_metadata,
-    AudiobookMetadata, MetadataIntentPatch, MetadataIntentValidationResult,
+    cover_art_view_for_display, optimize_cover_art,
+    read_audio_cover_thumbnail as read_embedded_cover_thumbnail, read_metadata, stage_cover_art,
+    AudiobookMetadata, CoverArtView, CoverStash, IpcMetadataIntentPatch,
+    IpcMetadataIntentValidationResult,
 };
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
@@ -27,7 +29,9 @@ pub async fn read_audio_metadata(file_path: String) -> CommandResult<AudiobookMe
     let result: Result<AudiobookMetadata> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
-        read_metadata(validated_path.to_string_lossy().as_ref())
+        let mut metadata = read_metadata(validated_path.to_string_lossy().as_ref())?;
+        metadata.cover_art = None;
+        Ok(metadata)
     })
     .await
     .map_err(|e| AppError::General(format!("Metadata read task failed: {e}")))?;
@@ -38,11 +42,13 @@ pub async fn read_audio_metadata(file_path: String) -> CommandResult<AudiobookMe
 /// Reads an audio file's embedded cover as a bounded JPEG thumbnail.
 #[tauri::command]
 #[specta::specta]
-pub async fn read_audio_cover_thumbnail(file_path: String) -> CommandResult<Option<Vec<u8>>> {
-    let result: Result<Option<Vec<u8>>> = tokio::task::spawn_blocking(move || {
+pub async fn read_audio_cover_thumbnail(file_path: String) -> CommandResult<Option<CoverArtView>> {
+    let result: Result<Option<CoverArtView>> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
-        read_embedded_cover_thumbnail(&validated_path)
+        Ok(read_embedded_cover_thumbnail(&validated_path)?
+            .as_deref()
+            .map(cover_art_view_for_display))
     })
     .await
     .map_err(|error| AppError::General(format!("Cover thumbnail read task failed: {error}")))?;
@@ -60,8 +66,10 @@ pub async fn read_audio_cover_thumbnail(file_path: String) -> CommandResult<Opti
 #[specta::specta]
 pub async fn save_metadata_to_file(
     file_path: String,
-    metadata_patch: MetadataIntentPatch,
+    metadata_patch: IpcMetadataIntentPatch,
+    stash: tauri::State<'_, CoverStash>,
 ) -> CommandResult<()> {
+    let metadata_patch = metadata_patch.into_core(&stash)?;
     let result: Result<()> = tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&file_path);
         let validated_path = validate_input_audio_path(&path)?;
@@ -81,15 +89,19 @@ pub async fn save_metadata_to_file(
 #[tauri::command]
 #[specta::specta]
 pub fn validate_metadata_intent_patch(
-    metadata_patch: MetadataIntentPatch,
-) -> CommandResult<MetadataIntentValidationResult> {
-    Ok(crate::metadata::validate_metadata_intent_patch(
-        &metadata_patch,
+    metadata_patch: IpcMetadataIntentPatch,
+) -> CommandResult<IpcMetadataIntentValidationResult> {
+    let cover_art = metadata_patch.cover_art.clone();
+    let core_patch = metadata_patch.into_core_skipping_cover();
+    Ok(IpcMetadataIntentPatch::from_validated(
+        crate::metadata::validate_metadata_intent_patch(&core_patch),
+        cover_art,
     ))
 }
 
-/// Writes cover art to an M4B file
-/// Accepts file path and base64-encoded image data
+/// Writes cover art to an M4B file.
+/// Idle command: production frontend stages through [`load_cover_art_file`] /
+/// [`load_cover_art_from_url`] and hydrates handles at save/process ingress.
 #[tauri::command]
 #[specta::specta]
 pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> CommandResult<()> {
@@ -99,37 +111,52 @@ pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> CommandResult<
     Ok(())
 }
 
-/// Loads image file from disk and returns as byte array
-/// Supports common image formats: jpg, jpeg, png, webp
+/// Loads an image file, optimizes it to JPEG, and stages the bytes for commit.
 #[tauri::command]
 #[specta::specta]
-pub async fn load_cover_art_file(file_path: String) -> CommandResult<Vec<u8>> {
+pub async fn load_cover_art_file(
+    file_path: String,
+    stash: tauri::State<'_, CoverStash>,
+) -> CommandResult<CoverArtView> {
     use std::fs;
 
     let path = PathBuf::from(&file_path);
     let validated_path = validate_input_image_path(&path)?;
 
-    // Read file contents using the validated canonical path
     let image_data = fs::read(&validated_path).map_err(AppError::Io)?;
-
-    // Validate it's not empty
     if image_data.is_empty() {
         return Err(AppError::InvalidInput("Image file appears to be empty".to_string()).into());
     }
 
-    // Optimize cover art: resize, flatten transparency, convert to JPEG
-    // Format validation is handled by with_guessed_format() in optimize_cover_art (#32)
     let optimized = optimize_cover_art(&image_data)?;
-
-    Ok(optimized)
+    Ok(stage_cover_art(&stash, optimized)?)
 }
 
-/// Loads cover art from a remote URL and returns optimized image bytes
-/// HTTPS-only with size and content-type validation for safety.
-/// Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
+/// Fetches cover art from a remote URL, optimizes it, and stages the bytes for commit.
+///
+/// HTTPS-only with size and content-type validation. SSRF protection blocks
+/// private/loopback/link-local IPs. Lookup and library grids must use
+/// [`preview_cover_art_from_url`] so preview traffic cannot evict staged covers.
 #[tauri::command]
 #[specta::specta]
-pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
+pub async fn load_cover_art_from_url(
+    url: String,
+    stash: tauri::State<'_, CoverStash>,
+) -> CommandResult<CoverArtView> {
+    let optimized = fetch_optimized_cover_from_url(url).await?;
+    Ok(stage_cover_art(&stash, optimized)?)
+}
+
+/// Fetches and optimizes remote cover art for display only. Does not stage a
+/// commit handle. Same HTTPS/SSRF policy as [`load_cover_art_from_url`].
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_cover_art_from_url(url: String) -> CommandResult<CoverArtView> {
+    let optimized = fetch_optimized_cover_from_url(url).await?;
+    Ok(cover_art_view_for_display(&optimized))
+}
+
+async fn fetch_optimized_cover_from_url(url: String) -> Result<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
     let url_for_log = validated_url.as_str().to_string();
     let client = cover_art_http_client()?;
@@ -143,13 +170,14 @@ pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
         return Err(AppError::InvalidInput(format!(
             "Image request failed with status {}",
             response.status()
-        ))
-        .into());
+        )));
     }
 
     if let Some(content_length) = response.content_length() {
         if content_length > COVER_ART_MAX_DOWNLOAD_BYTES as u64 {
-            return Err(AppError::InvalidInput("Image exceeds 10 MB limit".to_string()).into());
+            return Err(AppError::InvalidInput(
+                "Image exceeds 10 MB limit".to_string(),
+            ));
         }
     }
 
@@ -165,8 +193,7 @@ pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
         if !is_supported_image_content_type(content_type.as_str()) {
             return Err(AppError::InvalidInput(
                 "Unsupported image format. Use JPEG, PNG, or WebP.".to_string(),
-            )
-            .into());
+            ));
         }
     }
 
@@ -176,17 +203,20 @@ pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
         AppError::General("Failed to read image data".to_string())
     })? {
         if downloaded.len() + chunk.len() > COVER_ART_MAX_DOWNLOAD_BYTES {
-            return Err(AppError::InvalidInput("Image exceeds 10 MB limit".to_string()).into());
+            return Err(AppError::InvalidInput(
+                "Image exceeds 10 MB limit".to_string(),
+            ));
         }
         downloaded.extend_from_slice(&chunk);
     }
 
     if downloaded.is_empty() {
-        return Err(AppError::InvalidInput("Image response was empty".to_string()).into());
+        return Err(AppError::InvalidInput(
+            "Image response was empty".to_string(),
+        ));
     }
 
-    let optimized = optimize_cover_art(&downloaded)?;
-    Ok(optimized)
+    optimize_cover_art(&downloaded)
 }
 
 static COVER_ART_HTTP_CLIENT: OnceLock<std::result::Result<reqwest::Client, String>> =

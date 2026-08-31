@@ -19,23 +19,31 @@ export const commands = {
 	 */
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
 	/**
-	 *  Writes cover art to an M4B file
-	 *  Accepts file path and base64-encoded image data
+	 *  Writes cover art to an M4B file.
+	 *  Idle command: production frontend stages through [`load_cover_art_file`] /
+	 *  [`load_cover_art_from_url`] and hydrates handles at save/process ingress.
 	 */
 	writeCoverArt: (filePath: string, coverData: number[]) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("write_cover_art", { filePath, coverData })),
+	/**  Loads an image file, optimizes it to JPEG, and stages the bytes for commit. */
+	loadCoverArtFile: (filePath: string) => typedError<CoverArtView, AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_file", { filePath })),
 	/**
-	 *  Loads image file from disk and returns as byte array
-	 *  Supports common image formats: jpg, jpeg, png, webp
+	 *  Fetches cover art from a remote URL, optimizes it, and stages the bytes for commit.
+	 *
+	 *  HTTPS-only with size and content-type validation. SSRF protection blocks
+	 *  private/loopback/link-local IPs. Lookup and library grids must use
+	 *  [`preview_cover_art_from_url`] so preview traffic cannot evict staged covers.
 	 */
-	loadCoverArtFile: (filePath: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_file", { filePath })),
+	loadCoverArtFromUrl: (url: string) => typedError<CoverArtView, AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
 	/**
-	 *  Loads cover art from a remote URL and returns optimized image bytes
-	 *  HTTPS-only with size and content-type validation for safety.
-	 *  Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
+	 *  Fetches and optimizes remote cover art for display only. Does not stage a
+	 *  commit handle. Same HTTPS/SSRF policy as [`load_cover_art_from_url`].
 	 */
-	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
+	previewCoverArtFromUrl: (url: string) => typedError<CoverArtView, AppErrorEnvelope>(__TAURI_INVOKE("preview_cover_art_from_url", { url })),
 	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
-	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
+	readAudioCoverThumbnail: (filePath: string) => typedError<{
+	handleId: string | null,
+	dataUrl: string,
+} | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Validates and normalizes metadata intent without writing files. */
 	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch) => typedError<MetadataIntentValidationResult, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
 	/**
@@ -295,6 +303,11 @@ export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
 
+export type CoverArtView = {
+	handleId: string | null,
+	dataUrl: string,
+};
+
 /**  Machine-readable decoder identity paired with the friendly display label. */
 export type DecoderSelection = {
 	/**  Stable decoder identifier used for routing and comparisons. */
@@ -445,7 +458,7 @@ export type MetadataIntentPatch = {
 	subseries?: PatchOp<string>,
 	subseries_part?: PatchOp<string>,
 	album_sort?: AlbumSortPatchOp,
-	cover_art?: PatchOp<number[]>,
+	cover_art?: PatchOp<string>,
 	comment?: PatchOp<string>,
 	track?: PatchOp<[number, number | null]>,
 	disk?: PatchOp<[number, number | null]>,

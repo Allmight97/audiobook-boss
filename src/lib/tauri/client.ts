@@ -202,6 +202,8 @@ export const tauriClient = {
 		filePath: string,
 	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
 		commandSpecs.read_audio_cover_thumbnail({ filePath }),
+	previewCoverArtFromUrl: (url: string): Promise<CommandResult<'preview_cover_art_from_url'>> =>
+		commandSpecs.preview_cover_art_from_url({ url }),
 	validateMetadataIntentPatch: (
 		metadataIntent: MetadataIntentPatch,
 	): Promise<MetadataIntentValidationResult> =>

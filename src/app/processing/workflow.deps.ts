@@ -30,6 +30,7 @@ const liveProcessingWorkflowServices = {
 	getJobType: () => boundProcessingInput()?.jobType() ?? 'batch',
 	hasDirtyMetadataFields: () => liveMetadata()?.readHasDirtyMetadata() ?? false,
 	readMetadataForm: () => liveMetadata()?.readMetadata() ?? {},
+	readCoverIntent: () => liveMetadata()?.readCoverIntent() ?? {},
 	collectActionableMetadataIntent,
 	getMetadataForFile,
 	cacheMetadataForFile,

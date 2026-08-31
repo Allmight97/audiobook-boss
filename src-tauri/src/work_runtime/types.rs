@@ -190,7 +190,7 @@ pub struct WorkSubmissionAccepted {
     pub snapshot: OperationSnapshot,
 }
 
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitProcessingOperationRequest {
     pub payload: ProcessPayload,

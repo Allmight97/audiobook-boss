@@ -181,9 +181,13 @@ snapshots) are the only scoping.
 
 ### Metadata
 
-- `read_audio_metadata`, `read_audio_cover_thumbnail`, `validate_metadata_intent_patch`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
+- `read_audio_metadata`, `read_audio_cover_thumbnail`, `preview_cover_art_from_url`, `validate_metadata_intent_patch`, `save_metadata_to_file`, `save_metadata_batch`, `write_cover_art`, `load_cover_art_file`, `load_cover_art_from_url`
   - Rust: `src-tauri/src/commands/metadata.rs`
   - Core helpers: `src-tauri/src/metadata/`, `src-tauri/src/audio/path_validation.rs`
+  - Cover bytes do not round-trip as JSON `number[]`. `read_audio_metadata`
+    omits `cover_art`. Thumbnails and URL previews return a JPEG data URL
+    (`CoverArtView`, no stash handle). File/URL stage commands return a
+    stash handle plus data URL; save/process hydrate the handle at ingress.
   - Classification: `save_metadata_batch` is a **WorkRuntime `MetadataSave` operation**
     rendered by the Work Center. The command still returns `MetadataSaveBatchResult`
     synchronously (the frontend clears pending drafts only for files that succeeded),

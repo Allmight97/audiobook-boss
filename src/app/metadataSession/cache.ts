@@ -6,8 +6,14 @@ import {
 	mergeMetadataDraftIntents,
 } from './draft';
 
+export type CachedCoverDisplay =
+	| { status: 'staged'; handleId: string; dataUrl: string }
+	| { status: 'embedded'; dataUrl: string }
+	| { status: 'cleared' };
+
 const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
 const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
+const coverDisplayByFile = new Map<string, CachedCoverDisplay>();
 const pendingSavePaths = new Set<string>();
 
 const isNullish = (value: unknown): value is null | undefined => value == null;
@@ -65,6 +71,21 @@ export function getMetadataForFile(filePath: string): Partial<AudiobookMetadata>
 	return metadataByFile.get(filePath);
 }
 
+export function cacheCoverDisplayForFile(
+	filePath: string,
+	display: CachedCoverDisplay | null,
+): void {
+	if (!display) {
+		coverDisplayByFile.delete(filePath);
+		return;
+	}
+	coverDisplayByFile.set(filePath, display);
+}
+
+export function getCoverDisplayForFile(filePath: string): CachedCoverDisplay | undefined {
+	return coverDisplayByFile.get(filePath);
+}
+
 export function isUsableMetadataCache(
 	metadata: Partial<AudiobookMetadata> | undefined,
 ): metadata is Partial<AudiobookMetadata> {
@@ -91,14 +112,27 @@ export function stageMetadataIntentPatch(
 	}
 	const existing = metadataByFile.get(filePath) ?? {};
 	const merged = applyMetadataDraftIntent(existing, intentPatch);
-	if (metadataEqualsNullish(existing, merged)) {
+	const existingIntent = metadataIntentByFile.get(filePath) ?? {};
+	const incomingCover = coverIntentKey(intentPatch);
+	const coverChanged = incomingCover !== 'noop' && incomingCover !== coverIntentKey(existingIntent);
+	if (metadataEqualsNullish(existing, merged) && !coverChanged) {
 		return 'unchanged';
 	}
 	metadataByFile.set(filePath, merged);
-	const existingIntent = metadataIntentByFile.get(filePath) ?? {};
 	metadataIntentByFile.set(filePath, mergeMetadataDraftIntents(existingIntent, intentPatch));
 	pendingSavePaths.add(filePath);
 	return 'staged';
+}
+
+function coverIntentKey(patch: MetadataIntentPatch): string {
+	const cover = patch.cover_art;
+	if (!cover || cover.op === 'noop') {
+		return 'noop';
+	}
+	if (cover.op === 'clear') {
+		return 'clear';
+	}
+	return `set:${cover.value}`;
 }
 
 export function getMetadataIntentPatchForFile(filePath: string): MetadataIntentPatch | undefined {
@@ -132,11 +166,13 @@ export function clearPendingMetadataForFile(filePath: string): void {
 export function removeMetadataForFile(filePath: string): void {
 	metadataByFile.delete(filePath);
 	metadataIntentByFile.delete(filePath);
+	coverDisplayByFile.delete(filePath);
 	pendingSavePaths.delete(filePath);
 }
 
 export function clearMetadataSession(): void {
 	metadataByFile.clear();
 	metadataIntentByFile.clear();
+	coverDisplayByFile.clear();
 	pendingSavePaths.clear();
 }

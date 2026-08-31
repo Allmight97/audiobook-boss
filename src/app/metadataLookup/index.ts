@@ -5,7 +5,6 @@ export {
 	clearMetadataLookupCoverPreviewCache,
 	fetchMetadataLookupCoverPreview,
 	getMetadataLookupCoverPreviewState,
-	loadMetadataLookupCoverBytes,
 	MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES,
 	scheduleMetadataLookupCoverPreviews,
 	subscribeMetadataLookupCoverPreviews,

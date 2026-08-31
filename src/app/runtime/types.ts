@@ -1,3 +1,4 @@
+import type { CoverCapability } from '../../lib/tauri/capabilities/cover';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
@@ -14,6 +15,7 @@ export type RuntimeCapabilities = {
 	readonly input?: InputCapability;
 	readonly metadata?: MetadataCapability;
 	readonly settings?: SettingsCapability;
+	readonly cover?: CoverCapability;
 };
 
 export type AppRuntime = {
@@ -25,5 +27,6 @@ export type AppRuntime = {
 	readonly settings: SettingsOwner;
 	readonly processing: ProcessingOwner;
 	readonly workOperations: WorkOperationsOwner;
+	readonly cover: CoverCapability;
 	dispose(): void;
 };

@@ -5,6 +5,7 @@ import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/aud
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
+import { fakeCoverCapability } from '../../test/fixtures/coverCapability';
 import { App } from '../App';
 
 const metadata: SupportedAudioImportMetadata = {
@@ -44,7 +45,6 @@ function fakeInput(): InputCapability {
 		analyzeAudioFiles: vi.fn(async () => analyzedFile('/books/chapter.m4b')),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
@@ -63,7 +63,7 @@ describe('Solid import tracer shell', () => {
 
 	it('renders an analyzed local import row from picker intent', async () => {
 		const user = userEvent.setup();
-		runtime = createAppRuntime({ input: fakeInput() });
+		runtime = createAppRuntime({ input: fakeInput(), cover: fakeCoverCapability() });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />

@@ -16,6 +16,7 @@ import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import type { WorkSubmissionAccepted } from '../../types/workRuntime';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import { JPEG_DATA_URL, stagedCoverView } from '../../test/fixtures/coverCapability';
 import { App } from '../App';
 
 const native = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ const native = vi.hoisted(() => ({
 	openFile: vi.fn(),
 	loadCoverArtFile: vi.fn(),
 	loadCoverArtFromUrl: vi.fn(),
+	previewCoverArtFromUrl: vi.fn(),
 	searchOnlineMetadata: vi.fn(),
 	getAppSettings: vi.fn(),
 	updateAppSettings: vi.fn(),
@@ -54,7 +56,8 @@ vi.mock('../../lib/tauri/client', () => ({ tauriClient: native }));
 
 const INPUT_PATH = '/library/Dune.m4b';
 const OUTPUT_DIRECTORY = '/exports/audiobooks';
-const COVER_BYTES = [9, 8, 7, 6];
+const COVER_HANDLE = 'cover-1';
+const COVER_VIEW = stagedCoverView(COVER_HANDLE, JPEG_DATA_URL);
 
 function fileList(): FileListInfo {
 	return {
@@ -191,7 +194,6 @@ describe('UI Workflow Smoke Test', () => {
 		native.readAudioMetadata.mockResolvedValue({
 			title: 'Dune (old tags)',
 			artist: 'Old Author',
-			cover_art: [1, 1, 1],
 		});
 		native.validateMetadataIntentPatch.mockImplementation(
 			async (metadataPatch: MetadataIntentPatch) => ({
@@ -200,7 +202,11 @@ describe('UI Workflow Smoke Test', () => {
 				fieldErrors: [],
 			}),
 		);
-		native.loadCoverArtFromUrl.mockResolvedValue(COVER_BYTES);
+		native.loadCoverArtFromUrl.mockResolvedValue(COVER_VIEW);
+		native.previewCoverArtFromUrl.mockResolvedValue({
+			handleId: null,
+			dataUrl: JPEG_DATA_URL,
+		});
 		native.searchOnlineMetadata.mockResolvedValue({
 			results: [lookupResult()],
 			diagnostics: [],
@@ -315,7 +321,7 @@ describe('UI Workflow Smoke Test', () => {
 						series_part: { op: 'set', value: '1' },
 						subseries: { op: 'set', value: 'Dune Saga' },
 						subseries_part: { op: 'set', value: '1' },
-						cover_art: { op: 'set', value: COVER_BYTES },
+						cover_art: { op: 'set', value: COVER_HANDLE },
 					},
 				},
 				previewSeconds: undefined,

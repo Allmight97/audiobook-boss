@@ -1,7 +1,7 @@
 // EXCEPTION: requires private API access (URL validation + resolver internals)
 
 use super::{is_supported_image_content_type, validate_cover_art_url, BogonFilteringResolver};
-use crate::metadata::{MetadataIntentPatch, PatchOp};
+use crate::metadata::{IpcMetadataIntentPatch, PatchOp};
 use reqwest::dns::Name;
 use reqwest::dns::Resolve;
 
@@ -35,7 +35,7 @@ fn supported_image_content_types() {
 
 #[test]
 fn validate_metadata_intent_patch_command_returns_field_errors_as_data() {
-    let result = super::validate_metadata_intent_patch(MetadataIntentPatch {
+    let result = super::validate_metadata_intent_patch(IpcMetadataIntentPatch {
         date: PatchOp::Set("not a date".to_string()),
         ..Default::default()
     })

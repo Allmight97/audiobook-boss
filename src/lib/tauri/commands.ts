@@ -169,6 +169,8 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.loadCoverArtFile(args.filePath)),
 	load_cover_art_from_url: (args: { url: string }) =>
 		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
+	preview_cover_art_from_url: (args: { url: string }) =>
+		runGeneratedCommand(generatedCommands.previewCoverArtFromUrl(args.url)),
 	read_audio_cover_thumbnail: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
 	validate_metadata_intent_patch: (args: { metadataIntent: MetadataIntentPatch }) =>

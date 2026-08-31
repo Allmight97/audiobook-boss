@@ -1,6 +1,6 @@
 import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { getMetadataForFile, getMetadataIntentPatchForFile } from './cache';
+import { getCoverDisplayForFile, getMetadataIntentPatchForFile } from './cache';
+import type { CachedCoverDisplay } from './cache';
 
 export function firstValidFilePath(fileList: FileListInfo | null): string | null {
 	if (!fileList?.files.length) {
@@ -27,49 +27,42 @@ export function resolveCoverOwnerPaths(
 	return [validSelected[0].path];
 }
 
-function coverBytesEqual(left: number[] | null, right: number[] | null): boolean {
-	if (left === right) {
-		return true;
+export type EffectiveCover = CachedCoverDisplay | { status: 'unknown' };
+
+export function effectiveCoverForFile(filePath: string): EffectiveCover {
+	const intentPatch = getMetadataIntentPatchForFile(filePath);
+	const intentCover = intentPatch?.cover_art;
+	if (intentCover?.op === 'clear') {
+		return { status: 'cleared' };
 	}
-	if (!left || !right || left.length !== right.length) {
+	const cached = getCoverDisplayForFile(filePath);
+	if (intentCover?.op === 'set') {
+		if (cached?.status === 'staged' && cached.handleId === intentCover.value) {
+			return cached;
+		}
+		return {
+			status: 'staged',
+			handleId: intentCover.value,
+			dataUrl: cached?.status === 'staged' ? cached.dataUrl : '',
+		};
+	}
+	if (cached) {
+		return cached;
+	}
+	return { status: 'unknown' };
+}
+
+function coversMatch(left: EffectiveCover, right: EffectiveCover): boolean {
+	if (left.status !== right.status) {
 		return false;
 	}
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index] !== right[index]) {
-			return false;
-		}
+	if (left.status === 'staged' && right.status === 'staged') {
+		return left.handleId === right.handleId;
+	}
+	if (left.status === 'embedded' && right.status === 'embedded') {
+		return left.dataUrl === right.dataUrl;
 	}
 	return true;
-}
-
-export function effectiveCoverForFile(filePath: string): number[] | null {
-	const intentPatch = getMetadataIntentPatchForFile(filePath);
-	const intentCover = readCoverArtFromIntentPatch(intentPatch);
-	if (intentCover !== undefined) {
-		return intentCover;
-	}
-
-	const stored = getMetadataForFile(filePath)?.cover_art;
-	if (stored && stored.length > 0) {
-		return stored;
-	}
-
-	return null;
-}
-
-function readCoverArtFromIntentPatch(
-	intentPatch: MetadataIntentPatch | undefined,
-): number[] | null | undefined {
-	if (!intentPatch?.cover_art) {
-		return undefined;
-	}
-	if (intentPatch.cover_art.op === 'clear') {
-		return null;
-	}
-	if (intentPatch.cover_art.op === 'set') {
-		return intentPatch.cover_art.value.length > 0 ? intentPatch.cover_art.value : null;
-	}
-	return undefined;
 }
 
 export function resolveCoverDisplayPath(
@@ -87,8 +80,8 @@ export function resolveCoverDisplayPath(
 	}
 	if (validSelected.length > 1) {
 		const covers = validSelected.map((file) => effectiveCoverForFile(file.path));
-		const firstCover = covers[0] ?? null;
-		const allSame = covers.every((cover) => coverBytesEqual(cover, firstCover));
+		const firstCover = covers[0] ?? { status: 'unknown' as const };
+		const allSame = covers.every((cover) => coversMatch(cover, firstCover));
 		return allSame ? (validSelected[0]?.path ?? null) : null;
 	}
 

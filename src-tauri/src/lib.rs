@@ -135,6 +135,7 @@ pub fn run() {
         .manage(job_registry)
         .manage(work_runtime)
         .manage(opened_audio::OpenedAudioFileQueue::default())
+        .manage(metadata::CoverStash::default())
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);

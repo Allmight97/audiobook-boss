@@ -7,7 +7,7 @@ use crate::audio::{
 };
 use crate::commands::CommandResult;
 use crate::errors::AppError;
-use crate::metadata::{MetadataIntentPatch, NamingMetadata};
+use crate::metadata::{hydrate_intent_map, CoverStash, IpcMetadataIntentPatch, NamingMetadata};
 use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::{
     build_output_path_preview, derive_output_artifact_path, OutputKind, OutputNamingConfig,
@@ -159,9 +159,11 @@ pub fn preview_output_path(
 #[specta::specta]
 pub fn preflight_processing_plan(
     payload: ProcessPayload,
-    metadata: Option<HashMap<String, MetadataIntentPatch>>,
+    metadata: Option<HashMap<String, IpcMetadataIntentPatch>>,
     preview_seconds: Option<f64>,
+    stash: tauri::State<'_, CoverStash>,
 ) -> CommandResult<ProcessingPreflightPlan> {
+    let metadata = hydrate_intent_map(metadata, &stash)?;
     Ok(run::preflight_payload(payload, metadata, preview_seconds)?)
 }
 
@@ -192,8 +194,9 @@ pub async fn set_max_concurrent_jobs(
 pub async fn process_audiobook_files(
     window: tauri::Window,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
+    stash: tauri::State<'_, CoverStash>,
     payload: ProcessPayload,
-    metadata: Option<HashMap<String, MetadataIntentPatch>>,
+    metadata: Option<HashMap<String, IpcMetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> CommandResult<ProcessCommandResult> {
     if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
@@ -209,6 +212,7 @@ pub async fn process_audiobook_files(
             ))
         })?;
     let workspace_root = audio::processing_workspace_root(&cache_dir);
+    let metadata = hydrate_intent_map(metadata, &stash)?;
 
     Ok(run::process_payload(
         window,

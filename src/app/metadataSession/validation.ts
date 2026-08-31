@@ -31,8 +31,12 @@ export interface MetadataDraftValidation {
 export async function validateMetadataDraft(
 	metadata: Partial<AudiobookMetadata>,
 	validate: ValidateMetadataIntentPatch,
+	coverIntent: MetadataIntentPatch = {},
 ): Promise<MetadataDraftValidation> {
-	const result = await validate(buildMetadataDraftIntent(metadata));
+	const result = await validate({
+		...buildMetadataDraftIntent(metadata),
+		...coverIntent,
+	});
 	const byField: Partial<Record<MetadataIntentValidationField, string>> = {};
 	for (const error of result.fieldErrors) {
 		if (byField[error.field] === undefined) {

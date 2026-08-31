@@ -1,7 +1,7 @@
 use crate::audio::validate_input_audio_path;
 use crate::commands::CommandResult;
 use crate::errors::{sanitize_path_str_for_display, AppError, AppErrorEnvelope, Result};
-use crate::metadata::MetadataIntentPatch;
+use crate::metadata::{CoverStash, IpcMetadataIntentPatch};
 use crate::processing::{
     CancellationChecker, EventStage, OperationKind, OperationResultSummary, ProcessResultStatus,
     ProgressEvent,
@@ -16,7 +16,7 @@ const METADATA_SAVE_CANCELLED_MESSAGE: &str = "Metadata save cancelled.";
 #[serde(rename_all = "camelCase")]
 pub struct MetadataSaveRequest {
     pub file_path: String,
-    pub metadata_patch: MetadataIntentPatch,
+    pub metadata_patch: IpcMetadataIntentPatch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -83,6 +83,7 @@ pub async fn save_metadata_batch(
     window: tauri::Window,
     runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
+    stash: tauri::State<'_, CoverStash>,
     items: Vec<MetadataSaveRequest>,
 ) -> CommandResult<MetadataSaveBatchResult> {
     if items.is_empty() {
@@ -126,7 +127,8 @@ pub async fn save_metadata_batch(
     let progress_runtime = (*runtime).clone();
     let progress_window = window.clone();
     let progress_operation_id = operation_id.clone();
-    let result = save_metadata_batch_impl(items, cancellation, |progress| {
+    let stash = (*stash).clone();
+    let result = save_metadata_batch_impl(items, stash, cancellation, |progress| {
         progress_runtime.record_metadata_save_progress(
             &progress_window,
             &progress_operation_id,
@@ -195,6 +197,7 @@ fn cancelled_metadata_save_batch(items: Vec<MetadataSaveRequest>) -> MetadataSav
 
 async fn save_metadata_batch_impl<F>(
     items: Vec<MetadataSaveRequest>,
+    stash: CoverStash,
     cancellation: CancellationChecker,
     mut emit_progress: F,
 ) -> Result<MetadataSaveBatchResult>
@@ -237,7 +240,8 @@ where
         let metadata_patch = item.metadata_patch;
         let item_result = tokio::task::spawn_blocking({
             let file_path = file_path.clone();
-            move || save_metadata_item(&file_path, metadata_patch)
+            let stash = stash.clone();
+            move || save_metadata_item(&file_path, metadata_patch, &stash)
         })
         .await
         .map_err(|error| AppError::General(format!("Metadata save task failed: {error}")))?;
@@ -285,11 +289,16 @@ where
     Ok(MetadataSaveBatchResult::new(results))
 }
 
-fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> Result<()> {
+fn save_metadata_item(
+    file_path: &str,
+    metadata_patch: IpcMetadataIntentPatch,
+    stash: &CoverStash,
+) -> Result<()> {
     let path = PathBuf::from(file_path);
     let validated_path = validate_input_audio_path(&path)?;
     log::info!("Saving metadata to: {}", validated_path.display());
 
+    let metadata_patch = metadata_patch.into_core(stash)?;
     crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
 
     log::info!("Metadata saved to: {}", validated_path.display());
@@ -335,11 +344,11 @@ fn metadata_save_child_terminals(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metadata::PatchOp;
+    use crate::metadata::{IpcMetadataIntentPatch, PatchOp};
     use crate::processing::JobRegistry;
 
-    fn title_patch(title: &str) -> MetadataIntentPatch {
-        MetadataIntentPatch {
+    fn title_patch(title: &str) -> IpcMetadataIntentPatch {
+        IpcMetadataIntentPatch {
             title: PatchOp::Set(title.to_string()),
             ..Default::default()
         }
@@ -362,7 +371,10 @@ mod tests {
         let (job_id, _permit) = registry.register_job().await.expect("register job");
         let cancellation = registry.cancellation_checker(job_id).await;
 
-        let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
+        let result =
+            save_metadata_batch_impl(items, CoverStash::default(), cancellation, |event| {
+                progress.push(event)
+            })
             .await
             .expect("batch should report per-file failures");
 
@@ -398,7 +410,10 @@ mod tests {
         registry.cancel_all();
         let mut progress = Vec::new();
 
-        let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
+        let result =
+            save_metadata_batch_impl(items, CoverStash::default(), cancellation, |event| {
+                progress.push(event)
+            })
             .await
             .expect("cancelled batch should return terminal item results");
 

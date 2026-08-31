@@ -16,7 +16,6 @@ import {
 	visibleRemoteTitles,
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
-import { tauriClient } from '../../lib/tauri/client';
 import { Button, CoverThumb, Dialog, Progress } from '../foundation';
 import type { RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
@@ -64,7 +63,8 @@ function RemoteTitleCover(props: {
 }
 
 export function RemoteSourceAcquireView(): JSX.Element {
-	const remoteSource = useAppRuntime().remoteSource;
+	const runtime = useAppRuntime();
+	const remoteSource = runtime.remoteSource;
 	const view = remoteSource.view;
 	const runAction = remoteSource.runAction;
 	const close = remoteSource.close;
@@ -96,7 +96,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 		});
 		scheduleRemoteSourceCoverPreviews(
 			visible.map((title) => title.coverUrl),
-			(url) => tauriClient.loadCoverArtFromUrl(url),
+			async (url) => (await runtime.cover.previewFromUrl(url)).dataUrl,
 		);
 		onCleanup(() => cancelRemoteSourceCoverPreviewSchedule());
 	});

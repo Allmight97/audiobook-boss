@@ -57,21 +57,14 @@ export function getMetadataLookupCoverPreviewState(
 
 export function scheduleMetadataLookupCoverPreviews(
 	coverUrls: ReadonlyArray<string | null | undefined>,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+	loadCoverPreview: (url: string) => Promise<string>,
 ): void {
-	metadataLookupCoverPreviewScheduler.schedule(coverUrls, loadCoverArtFromUrl);
-}
-
-export async function loadMetadataLookupCoverBytes(
-	coverUrl: string,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): Promise<number[]> {
-	return metadataLookupCoverPreviewScheduler.loadBytes(coverUrl, loadCoverArtFromUrl);
+	metadataLookupCoverPreviewScheduler.schedule(coverUrls, loadCoverPreview);
 }
 
 export async function fetchMetadataLookupCoverPreview(
 	coverUrl: string,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+	loadCoverPreview: (url: string) => Promise<string>,
 ): Promise<void> {
-	await metadataLookupCoverPreviewScheduler.fetch(coverUrl, loadCoverArtFromUrl);
+	await metadataLookupCoverPreviewScheduler.fetch(coverUrl, loadCoverPreview);
 }

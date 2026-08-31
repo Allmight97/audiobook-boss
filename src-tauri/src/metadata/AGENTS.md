@@ -6,6 +6,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Import metadata boundary symbols from `crate::metadata`, not private child modules.
 - Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,
   `MetadataIntentValidationResult`, `validate_metadata_intent_patch`.
+- Cover session (IPC): `CoverStash`, `CoverArtView`, `IpcMetadataIntentPatch`,
+  `IpcMetadataIntentValidationResult`.
+  Display and commit handles live here; `Vec<u8>` stays off the JSON command
+  channel. Hydrate handles into core `MetadataIntentPatch` at command ingress
+  before Metadata Outcome. Stash is process-memory, 256 entries, fail-closed
+  when full (no silent eviction). Preview-from-URL does not insert. Handles
+  do not survive app restart.
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
@@ -35,7 +42,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Private Cluster
 - Files: `intent_plan.rs`, `contract_tests.rs`, `field_schema.rs`, `metadata_ops.rs`,
-  `metadata_sinks.rs`; `mod.rs` owns the public re-export strip.
+  `metadata_sinks.rs`, `cover_session.rs`; `mod.rs` owns the public re-export strip.
 - `field_schema` + `metadata_ops` own container-neutral tag mapping, read aliases,
   clear groups, and field op planning (fan-outs, track/disk tuples). Container
   adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops only.

@@ -6,6 +6,8 @@ import type {
 	OnlineMetadataResult,
 } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import type { CoverArtView } from '../../lib/tauri/capabilities/cover';
+import { stagedCoverHandle } from '../../lib/tauri/capabilities/cover';
 import type { MetadataStageResult } from '../metadataSession';
 import {
 	Effect,
@@ -27,7 +29,6 @@ import {
 	type QueueCoverState,
 	type QueueItemState,
 } from './workflowDomain';
-import { loadMetadataLookupCoverBytes } from './coverPreview';
 import type {
 	MetadataLookupQueueItem,
 	MetadataLookupQueueState,
@@ -57,13 +58,13 @@ export interface MetadataLookupWorkflowServices {
 		mode?: 'single' | 'multi';
 		includeCoverArt?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
+	setStagedCover: (view: CoverArtView) => void;
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;
 		limit?: number | null;
 	}) => Promise<MetadataLookupResponse>;
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>;
+	stageCoverFromUrl: (url: string) => Promise<CoverArtView>;
 	focusElementById: (id: string) => void;
 	queueMicrotask: (callback: () => void) => void;
 	console: Pick<Console, 'error' | 'warn'>;
@@ -101,7 +102,7 @@ type SearchStatusOptions = {
 };
 
 type CoverArtApplyResult =
-	| { readonly status: 'applied'; readonly bytes: number[] }
+	| { readonly status: 'applied'; readonly handleId: string; readonly dataUrl: string }
 	| { readonly status: 'failed' }
 	| { readonly status: 'notRequested' };
 
@@ -191,12 +192,13 @@ async function applyCoverArt(
 ): Promise<CoverArtApplyResult> {
 	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
-		const coverBytes = await loadMetadataLookupCoverBytes(
-			result.coverUrl,
-			services.loadCoverArtFromUrl,
-		);
-		services.setCustomCoverArt(coverBytes);
-		return { status: 'applied', bytes: coverBytes };
+		const view = await services.stageCoverFromUrl(result.coverUrl);
+		const handleId = stagedCoverHandle(view);
+		if (!handleId) {
+			return { status: 'failed' };
+		}
+		services.setStagedCover(view);
+		return { status: 'applied', handleId, dataUrl: view.dataUrl };
 	} catch (error) {
 		services.console.warn('Failed to load cover art from lookup:', error);
 		return { status: 'failed' };
@@ -230,8 +232,12 @@ async function applyResult(
 	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
 		const coverArtResult = await applyCoverArt(services, result);
-		if (coverArtResult.status === 'applied' && coverArtResult.bytes.length > 0) {
-			queueCoverState = { intent: 'replace', bytes: coverArtResult.bytes };
+		if (coverArtResult.status === 'applied') {
+			queueCoverState = {
+				intent: 'replace',
+				handleId: coverArtResult.handleId,
+				dataUrl: coverArtResult.dataUrl,
+			};
 		} else if (coverArtResult.status === 'failed') {
 			coverArtFailed = true;
 		}

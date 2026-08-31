@@ -1,5 +1,6 @@
 import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
+import type { CoverCapability } from '../../lib/tauri/capabilities/cover';
 import type { InputOwner } from '../inputSession/owner';
 import type { MetadataOwner } from '../metadataSession/owner';
 import { getMetadataForFile, stageMetadataIntentPatch } from '../metadataSession';
@@ -10,6 +11,7 @@ export function makeProductionLookupServices(
 	deps: {
 		readonly input: InputOwner;
 		readonly metadata: MetadataOwner;
+		readonly cover: CoverCapability;
 		readonly lookupState: MetadataLookupState;
 		readonly queueState: MetadataLookupQueueState;
 	},
@@ -48,11 +50,11 @@ export function makeProductionLookupServices(
 			deps.metadata.applyLookupMetadata(metadata);
 		},
 		readMetadataForm: () => deps.metadata.readMetadata() ?? {},
-		setCustomCoverArt: (coverArtBytes) => {
-			deps.metadata.setCustomCoverArt(coverArtBytes);
+		setStagedCover: (view) => {
+			deps.metadata.setStagedCover(view);
 		},
 		searchOnlineMetadata: (args) => deps.metadata.capability().searchOnlineMetadata(args),
-		loadCoverArtFromUrl: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
+		stageCoverFromUrl: (url) => deps.cover.stageFromUrl(url),
 		focusElementById: (id) => {
 			const element = document.getElementById(id);
 			if (element instanceof HTMLElement) {

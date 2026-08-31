@@ -5,6 +5,7 @@ import type { MetadataSaveBatchResult } from '../../types/metadata';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
+import { fakeCoverCapability, stagedCoverView } from '../../test/fixtures/coverCapability';
 import {
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
@@ -61,8 +62,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 			},
 		})),
 		openFile: vi.fn(async () => null),
-		loadCoverArtFile: vi.fn(async () => [1, 2, 3]),
-		loadCoverArtFromUrl: vi.fn(async () => [1, 2, 3]),
 		searchOnlineMetadata: vi.fn(async () => ({ results: [], diagnostics: [] })),
 		...overrides,
 	};
@@ -168,17 +167,18 @@ describe('metadata session selection and save', () => {
 		expect(metadata.readAudioMetadata).not.toHaveBeenCalledWith('/books/beta.m4b');
 	});
 
-	it('drops a late cover URL load when selection changes before the bytes arrive', async () => {
-		let resolveUrlLoad: ((value: number[]) => void) | undefined;
-		const metadata = fakeMetadata({
-			loadCoverArtFromUrl: vi.fn(
+	it('drops a late cover URL load when selection changes before the cover view arrives', async () => {
+		let resolveUrlLoad: ((value: ReturnType<typeof stagedCoverView>) => void) | undefined;
+		const cover = fakeCoverCapability({
+			stageFromUrl: vi.fn(
 				() =>
-					new Promise<number[]>((resolve) => {
+					new Promise<ReturnType<typeof stagedCoverView>>((resolve) => {
 						resolveUrlLoad = resolve;
 					}),
 			),
 		});
-		runtime = createTestAppRuntime({ metadata });
+		const metadata = fakeMetadata();
+		runtime = createTestAppRuntime({ metadata, cover });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -194,7 +194,7 @@ describe('metadata session selection and save', () => {
 			selectedAnchor: 1,
 		});
 		await runtime.metadata.hydrateSelection(null);
-		resolveUrlLoad?.([9, 9, 9]);
+		resolveUrlLoad?.(stagedCoverView('cover-late'));
 		await loadPromise;
 		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.cover_art).toBeUndefined();
 		expect(getMetadataIntentPatchForFile('/books/alpha.m4b')?.cover_art).toBeUndefined();

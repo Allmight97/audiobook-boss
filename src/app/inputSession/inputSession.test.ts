@@ -76,7 +76,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		analyzeAudioFiles: vi.fn(async () => analyzedFile('/books/chapter.m4b')),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),

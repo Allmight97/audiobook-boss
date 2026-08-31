@@ -10,11 +10,13 @@ import {
 const metadataSessionMocks = vi.hoisted(() => ({
 	getMetadataForFile: vi.fn(),
 	getMetadataIntentPatchForFile: vi.fn(),
+	getCoverDisplayForFile: vi.fn(),
 }));
 
 vi.mock('./cache', () => ({
 	getMetadataForFile: metadataSessionMocks.getMetadataForFile,
 	getMetadataIntentPatchForFile: metadataSessionMocks.getMetadataIntentPatchForFile,
+	getCoverDisplayForFile: metadataSessionMocks.getCoverDisplayForFile,
 }));
 
 function makeFile(path: string, isValid = true): AudioFile {
@@ -39,6 +41,7 @@ describe('coverOwner', () => {
 	beforeEach(() => {
 		metadataSessionMocks.getMetadataForFile.mockReset();
 		metadataSessionMocks.getMetadataIntentPatchForFile.mockReset();
+		metadataSessionMocks.getCoverDisplayForFile.mockReset();
 	});
 
 	it('resolves merge owner to the first valid input file', () => {
@@ -75,31 +78,42 @@ describe('coverOwner', () => {
 		).toEqual([]);
 	});
 
-	it('prefers intent patch cover art over stored metadata', () => {
+	it('prefers a staged cover handle over an embedded display cache', () => {
 		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
-			cover_art: { op: 'set', value: [9, 9, 9] },
+			cover_art: { op: 'set', value: 'cover-9' },
 		});
-		metadataSessionMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
+		metadataSessionMocks.getCoverDisplayForFile.mockReturnValue({
+			status: 'staged',
+			handleId: 'cover-9',
+			dataUrl: 'data:image/jpeg;base64,abc',
+		});
 
-		expect(effectiveCoverForFile('/books/a.m4b')).toEqual([9, 9, 9]);
+		expect(effectiveCoverForFile('/books/a.m4b')).toEqual({
+			status: 'staged',
+			handleId: 'cover-9',
+			dataUrl: 'data:image/jpeg;base64,abc',
+		});
 	});
 
-	it('treats intent clear as no cover art', () => {
+	it('treats intent clear as cleared cover art', () => {
 		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
 			cover_art: { op: 'clear' },
 		});
-		metadataSessionMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
+		metadataSessionMocks.getCoverDisplayForFile.mockReturnValue({
+			status: 'embedded',
+			dataUrl: 'data:image/jpeg;base64,abc',
+		});
 
-		expect(effectiveCoverForFile('/books/a.m4b')).toBeNull();
+		expect(effectiveCoverForFile('/books/a.m4b')).toEqual({ status: 'cleared' });
 	});
 
 	it('returns null display path when batch multi-select covers differ', () => {
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
 		metadataSessionMocks.getMetadataIntentPatchForFile.mockImplementation((path: string) => {
 			if (path === '/books/a.m4b') {
-				return { cover_art: { op: 'set', value: [1] } };
+				return { cover_art: { op: 'set', value: 'cover-a' } };
 			}
-			return { cover_art: { op: 'set', value: [2] } };
+			return { cover_art: { op: 'set', value: 'cover-b' } };
 		});
 		metadataSessionMocks.getMetadataForFile.mockReturnValue({});
 
@@ -114,7 +128,7 @@ describe('coverOwner', () => {
 	it('returns first selected path when batch multi-select covers match', () => {
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
 		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
-			cover_art: { op: 'set', value: [1, 2, 3] },
+			cover_art: { op: 'set', value: 'cover-shared' },
 		});
 		metadataSessionMocks.getMetadataForFile.mockReturnValue({});
 

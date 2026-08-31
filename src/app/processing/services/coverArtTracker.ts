@@ -1,6 +1,5 @@
 import { tauriClient } from '../../../lib/tauri/client';
 import type { FileListInfo } from '../../../types/audio';
-import { coverArtBytesToDataUrl } from '../../../lib/media/coverArtDataUrl';
 import { boundProcessingInput } from '../bind';
 import { fileListFromInput } from '../input';
 import { setStatusPanelCoverArtDataUrl } from '../view';
@@ -29,13 +28,8 @@ function findFirstValidFilePath(fileList: FileListInfo | null): string | null {
 }
 
 async function readCoverArtDataUrl(filePath: string): Promise<string | null> {
-	const metadata = await tauriClient.readAudioMetadata(filePath);
-
-	if (!metadata.cover_art || metadata.cover_art.length === 0) {
-		return null;
-	}
-
-	return coverArtBytesToDataUrl(metadata.cover_art);
+	const view = await tauriClient.readAudioCoverThumbnail(filePath);
+	return view?.dataUrl ?? null;
 }
 
 function defaultFileListReader(): FileListInfo | null {

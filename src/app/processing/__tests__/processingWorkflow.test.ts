@@ -210,6 +210,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		getJobType: getJobTypeMock,
 		hasDirtyMetadataFields: vi.fn(() => false),
 		readMetadataForm: vi.fn(() => ({})),
+		readCoverIntent: vi.fn(() => ({})),
 		collectActionableMetadataIntent: vi.fn(() => null),
 		getMetadataForFile: vi.fn(() => undefined),
 		cacheMetadataForFile: vi.fn(),

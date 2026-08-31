@@ -23,7 +23,9 @@
   Row click, keyboard Select all, Escape clear-highlight, and toolbar Clear
   go through the awaitable `selectFile`, `selectAll`, `clearSelection`, and
   `clearAllFiles` intents so the metadata draft gate can run.
-- Cover thumbnails are a presentation cache, not list truth.
+- Cover thumbnails are a presentation cache, not list truth. Loaders return
+  JPEG data URLs from `CoverCapability.thumbnail`; they do not stash a commit
+  handle.
 - PDF companion chips subscribe to `subscribeRemoteSourceSupplementalAssets`.
   Do not assume an Input publish also rerenders supplemental assets.
 - Remote session purge tracks Input file identity through Remote Source. Do

@@ -1,11 +1,24 @@
 use crate::audio;
 use crate::commands::CommandResult;
 use crate::errors::AppError;
+use crate::metadata::{hydrate_intent_map, CoverStash, IpcMetadataIntentPatch};
+use crate::processing::ProcessPayload;
 use crate::work_runtime::{
     OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
     WorkSubmissionAccepted,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tauri::Manager;
+
+#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename = "SubmitProcessingOperationRequest", rename_all = "camelCase")]
+pub struct IpcSubmitProcessingOperationRequest {
+    pub payload: ProcessPayload,
+    pub metadata: Option<HashMap<String, IpcMetadataIntentPatch>>,
+    pub preview_seconds: Option<f64>,
+    pub title: Option<String>,
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -13,7 +26,8 @@ pub async fn submit_processing_operation(
     window: tauri::Window,
     runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
-    request: SubmitProcessingOperationRequest,
+    stash: tauri::State<'_, CoverStash>,
+    request: IpcSubmitProcessingOperationRequest,
 ) -> CommandResult<WorkSubmissionAccepted> {
     if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
         registry.reset_global_cancel();
@@ -28,6 +42,12 @@ pub async fn submit_processing_operation(
             ))
         })?;
     let workspace_root = audio::processing_workspace_root(&cache_dir);
+    let request = SubmitProcessingOperationRequest {
+        payload: request.payload,
+        metadata: hydrate_intent_map(request.metadata, &stash)?,
+        preview_seconds: request.preview_seconds,
+        title: request.title,
+    };
 
     Ok(runtime
         .submit_processing_operation(window, registry.inner().clone(), workspace_root, request)

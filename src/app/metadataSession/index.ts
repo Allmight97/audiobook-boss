@@ -1,7 +1,9 @@
 export {
 	cacheMetadataForFile,
+	cacheCoverDisplayForFile,
 	clearMetadataSession,
 	collectActionableMetadataIntent,
+	getCoverDisplayForFile,
 	getMetadataForFile,
 	getMetadataIntentPatchForFile,
 	isUsableMetadataCache,
@@ -21,7 +23,7 @@ export type { MetadataDraftValidation, ValidateMetadataIntentPatch } from './val
 export { createMetadataOwner } from './owner';
 export type { MetadataEditorState, MetadataOwner, MetadataView } from './owner';
 export { hasDirtyMetadataFields, readMetadataForm } from './form';
-export { COVER_ART_IMAGE_EXTENSION_HINTS } from './cover';
+export { COVER_ART_IMAGE_EXTENSION_HINTS, coverIntentFromUi } from './cover';
 export type { CoverArtMessage } from './cover';
 export { calculateTSOA, projectTagPreviewValues } from './tags';
 export type { TagField, TagPreviewValues } from './tags';

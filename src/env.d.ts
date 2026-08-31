@@ -4,5 +4,5 @@ interface TauriInternals {
 
 interface Window {
 	__TAURI_INTERNALS__?: TauriInternals;
-	currentCoverArt?: number[];
+	currentCoverHandle?: string | null;
 }

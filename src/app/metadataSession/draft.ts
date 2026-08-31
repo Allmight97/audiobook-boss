@@ -19,7 +19,6 @@ export const METADATA_DRAFT_FIELDS = [
 	'series_part',
 	'subseries',
 	'subseries_part',
-	'cover_art',
 ] as const;
 
 export type MetadataDraftField = (typeof METADATA_DRAFT_FIELDS)[number];

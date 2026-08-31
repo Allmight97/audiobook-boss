@@ -1,8 +1,13 @@
 import { createMemo, createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import { toUserMessage } from '../../lib/tauri/appError';
+import {
+	liveCoverCapability,
+	stagedCoverHandle,
+	type CoverArtView,
+	type CoverCapability,
+} from '../../lib/tauri/capabilities/cover';
 import {
 	liveMetadataCapability,
 	type MetadataCapability,
@@ -11,6 +16,7 @@ import type { InputOwner } from '../inputSession/owner';
 import { getStatusView } from '../processing/view';
 import {
 	cacheMetadataForFile,
+	cacheCoverDisplayForFile,
 	clearMetadataSession,
 	clearPendingMetadataForFile,
 	getMetadataForFile,
@@ -23,6 +29,7 @@ import {
 import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_ART_IMAGE_EXTENSION_HINT_PATTERN,
+	coverIntentFromUi,
 	createEmptyCoverUiState,
 	formatCoverArtError,
 	parseCoverArtUrl,
@@ -95,7 +102,7 @@ export type MetadataOwner = {
 	setCoverHovered(hovered: boolean): void;
 	setCoverDragOver(dragOver: boolean): void;
 	setCoverUrlInput(value: string): void;
-	setCustomCoverArt(coverArtBytes: number[] | null): void;
+	setStagedCover(view: CoverArtView): void;
 	clearCoverArt(): void;
 	loadCoverArtFromPicker(): Promise<void>;
 	loadCoverArtFromUrl(rawInput: string): Promise<string | null>;
@@ -106,12 +113,14 @@ export type MetadataOwner = {
 	save(): Promise<void>;
 	readHasDirtyMetadata(): boolean;
 	readMetadata(): Partial<AudiobookMetadata>;
+	readCoverIntent(): ReturnType<typeof coverIntentFromUi>;
 	reset(): void;
 };
 
 export type MetadataOwnerDeps = {
 	readonly input: InputOwner;
 	readonly capability?: MetadataCapability;
+	readonly cover?: CoverCapability;
 	readonly isForegroundProcessing?: () => boolean;
 };
 
@@ -160,12 +169,58 @@ function selectedFilesFromSession(session: {
 		.filter((file): file is AudioFile => Boolean(file));
 }
 
-function displayCover(cover: CoverUiState, bytes: number[] | null): CoverUiState {
+function displayCover(
+	cover: CoverUiState,
+	next: {
+		readonly handleId: string | null;
+		readonly dataUrl: string | null;
+		readonly custom: boolean;
+		readonly removal: boolean;
+	},
+): CoverUiState {
 	return {
 		...cover,
-		currentCoverArt: bytes,
-		imageDataUrl: bytes && bytes.length > 0 ? coverArtBytesToDataUrl(bytes) : null,
+		currentCoverHandle: next.handleId,
+		imageDataUrl: next.dataUrl,
+		hasCustomCoverArt: next.custom,
+		coverArtRemovalRequested: next.removal,
 	};
+}
+
+function coverUiFromEffective(
+	cover: CoverUiState,
+	effective: ReturnType<typeof effectiveCoverForFile>,
+): CoverUiState {
+	if (effective.status === 'cleared') {
+		return displayCover(cover, {
+			handleId: null,
+			dataUrl: null,
+			custom: false,
+			removal: true,
+		});
+	}
+	if (effective.status === 'staged') {
+		return displayCover(cover, {
+			handleId: effective.handleId,
+			dataUrl: effective.dataUrl || null,
+			custom: true,
+			removal: false,
+		});
+	}
+	if (effective.status === 'embedded') {
+		return displayCover(cover, {
+			handleId: null,
+			dataUrl: effective.dataUrl,
+			custom: false,
+			removal: false,
+		});
+	}
+	return displayCover(cover, {
+		handleId: null,
+		dataUrl: null,
+		custom: false,
+		removal: false,
+	});
 }
 
 type CoverLoadContext = {
@@ -187,6 +242,7 @@ function toView(editor: MetadataEditorState): MetadataView {
 export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const [editor, setEditor] = createSignal(emptyEditor());
 	const [capability] = createSignal(deps.capability ?? liveMetadataCapability);
+	const [coverCapability] = createSignal(deps.cover ?? liveCoverCapability);
 	const view = createMemo(() => toView(editor()));
 	const isForegroundProcessing =
 		deps.isForegroundProcessing ?? (() => getStatusView().isProcessing);
@@ -262,12 +318,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	): CoverUiState {
 		const displayPath = resolveCoverDisplayPath(jobType, fileList, [...selectedFiles]);
 		if (!displayPath) {
-			return displayCover(cover, null);
+			return coverUiFromEffective(cover, { status: 'unknown' });
 		}
-		return displayCover(cover, effectiveCoverForFile(displayPath));
+		return coverUiFromEffective(cover, effectiveCoverForFile(displayPath));
 	}
 
-	function commitCoverToOwners(coverArtBytes: number[] | null, markRemoval: boolean): boolean {
+	function commitCoverToOwners(view: CoverArtView | null, markRemoval: boolean): boolean {
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		const ownerPaths = resolveCoverOwnerPaths(deps.input.jobType(), session.fileList, [
@@ -276,24 +332,30 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		if (ownerPaths.length === 0) {
 			return false;
 		}
+		const handleId = view ? stagedCoverHandle(view) : null;
 		const intentPatch =
-			markRemoval || !coverArtBytes || coverArtBytes.length === 0
+			markRemoval || !handleId
 				? { cover_art: { op: 'clear' as const } }
-				: { cover_art: { op: 'set' as const, value: [...coverArtBytes] } };
+				: { cover_art: { op: 'set' as const, value: handleId } };
+		const display =
+			markRemoval || !handleId || !view
+				? ({ status: 'cleared' } as const)
+				: { status: 'staged' as const, handleId, dataUrl: view.dataUrl };
 		for (const filePath of ownerPaths) {
 			stageMetadataIntentPatch(filePath, intentPatch);
+			cacheCoverDisplayForFile(filePath, display);
 		}
 		return true;
 	}
 
-	function applyLoadedCoverArt(bytes: number[], loadContext?: CoverLoadContext): void {
+	function applyLoadedCoverArt(view: CoverArtView, loadContext?: CoverLoadContext): void {
 		if (loadContext && !coverLoadStillValid(loadContext)) {
 			return;
 		}
 		const current = editor();
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
-		if (!commitCoverToOwners(bytes, false)) {
+		if (!stagedCoverHandle(view) || !commitCoverToOwners(view, false)) {
 			commit(
 				bumpCover(
 					current,
@@ -303,11 +365,15 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return;
 		}
 		commit(
-			bumpCover(current, {
-				...displayCover(current.cover, bytes),
-				hasCustomCoverArt: true,
-				coverArtRemovalRequested: false,
-			}),
+			bumpCover(
+				current,
+				displayCover(current.cover, {
+					handleId: view.handleId,
+					dataUrl: view.dataUrl,
+					custom: true,
+					removal: false,
+				}),
+			),
 		);
 	}
 
@@ -350,14 +416,9 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		commit({
 			...bumpForm(
 				current,
-				applyMetadataFormValidationWarnings(
-					current.form,
-					readMetadataForm(current.form, {
-						coverArtBytes: current.cover.currentCoverArt,
-						coverArtRemovalRequested: current.cover.coverArtRemovalRequested,
-					}),
-					{ byField: {} },
-				),
+				applyMetadataFormValidationWarnings(current.form, readMetadataForm(current.form), {
+					byField: {},
+				}),
 			),
 			statusMessage: message,
 		});
@@ -380,14 +441,14 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return;
 		}
 		if (
-			effectiveCoverForFile(targetPath) !== null ||
+			effectiveCoverForFile(targetPath).status !== 'unknown' ||
 			getMetadataIntentPatchForFile(targetPath)?.cover_art
 		) {
 			return;
 		}
-		let metadata: Partial<AudiobookMetadata> | null;
+		let thumbnail: CoverArtView | null;
 		try {
-			metadata = await capability().readAudioMetadata(targetPath);
+			thumbnail = await coverCapability().thumbnail(targetPath);
 		} catch (error) {
 			if (editor().hydrateRequestId !== hydrateRequestId) {
 				return;
@@ -402,7 +463,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		}
 		const latest = editor();
 		if (
-			!metadata ||
+			!thumbnail ||
 			latest.hydrateRequestId !== hydrateRequestId ||
 			latest.autoCoverRequestId !== autoCoverRequestId ||
 			latest.cover.hasCustomCoverArt ||
@@ -410,11 +471,9 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		) {
 			return;
 		}
-		const existing = getMetadataForFile(targetPath) ?? {};
-		cacheMetadataForFile(targetPath, {
-			...metadata,
-			...existing,
-			cover_art: metadata.cover_art || existing.cover_art,
+		cacheCoverDisplayForFile(targetPath, {
+			status: 'embedded',
+			dataUrl: thumbnail.dataUrl,
 		});
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
@@ -512,7 +571,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 			if (selectedFiles.length === 0) {
 				next = bumpForm(next, populateMetadataFormSingle({}));
-				next = bumpCover(next, displayCover(createEmptyCoverUiState(), null));
+				next = bumpCover(next, createEmptyCoverUiState());
 				commit(next);
 				return;
 			}
@@ -579,20 +638,23 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const current = editor();
 			commit({ ...current, cover: { ...current.cover, urlInputValue: value } });
 		},
-		setCustomCoverArt(coverArtBytes) {
-			if (!coverArtBytes || coverArtBytes.length === 0) {
+		setStagedCover(view) {
+			if (!stagedCoverHandle(view)) {
 				return;
 			}
-			applyLoadedCoverArt(coverArtBytes);
+			applyLoadedCoverArt(view);
 		},
 		clearCoverArt() {
 			const current = editor();
 			commitCoverToOwners(null, true);
 			commit(
 				bumpCover(current, {
-					...displayCover(createEmptyCoverUiState(), null),
-					coverArtRemovalRequested: true,
-					hasCustomCoverArt: false,
+					...displayCover(createEmptyCoverUiState(), {
+						handleId: null,
+						dataUrl: null,
+						custom: false,
+						removal: true,
+					}),
 					urlInputValue: '',
 					message: { kind: 'hidden' },
 				}),
@@ -606,8 +668,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					filters: [{ name: 'Image Files', extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS] }],
 				});
 				if (!selectedFile) return;
-				const imageData = await capability().loadCoverArtFile(selectedFile);
-				applyLoadedCoverArt(imageData, loadContext);
+				const view = await coverCapability().stageFromFile(selectedFile);
+				applyLoadedCoverArt(view, loadContext);
 			} catch (error) {
 				console.error('Failed to open file dialog:', error);
 				surfaceCoverFailure(
@@ -650,12 +712,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				}),
 			);
 			try {
-				const imageData = await capability().loadCoverArtFromUrl(normalized);
+				const view = await coverCapability().stageFromUrl(normalized);
 				if (!coverLoadStillValid(loadContext)) {
 					commit(bumpCover(editor(), { isLoading: false, message: { kind: 'hidden' } }));
 					return null;
 				}
-				applyLoadedCoverArt(imageData, loadContext);
+				applyLoadedCoverArt(view, loadContext);
 				commit(
 					bumpCover(editor(), {
 						isLoading: false,
@@ -681,8 +743,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			}
 			const loadContext = readCoverLoadContext(editor());
 			try {
-				const imageData = await capability().loadCoverArtFile(imageFile);
-				applyLoadedCoverArt(imageData, loadContext);
+				const view = await coverCapability().stageFromFile(imageFile);
+				applyLoadedCoverArt(view, loadContext);
 				return true;
 			} catch (error) {
 				console.error('Failed to load cover art file:', error);
@@ -708,10 +770,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const current = editor();
 			const nextForm = applyMetadataFormValidationWarnings(
 				current.form,
-				readMetadataForm(current.form, {
-					coverArtBytes: current.cover.currentCoverArt,
-					coverArtRemovalRequested: current.cover.coverArtRemovalRequested,
-				}),
+				readMetadataForm(current.form),
 				{
 					byField: {
 						series_part: validation.errors.byField.series_part,
@@ -866,10 +925,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 		readMetadata() {
 			const current = editor();
-			return readMetadataForm(current.form, {
-				coverArtBytes: current.cover.currentCoverArt,
-				coverArtRemovalRequested: current.cover.coverArtRemovalRequested,
-			});
+			return readMetadataForm(current.form);
+		},
+		readCoverIntent() {
+			return coverIntentFromUi(editor().cover);
 		},
 		reset() {
 			if (coverMessageTimeoutId !== null) {

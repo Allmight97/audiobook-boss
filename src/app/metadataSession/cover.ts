@@ -1,3 +1,5 @@
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
+
 export type CoverArtMessage =
 	| { readonly kind: 'hidden' }
 	| { readonly kind: 'error'; readonly text: string }
@@ -12,7 +14,7 @@ export type CoverUiState = {
 	readonly urlInputValue: string;
 	readonly hasCustomCoverArt: boolean;
 	readonly coverArtRemovalRequested: boolean;
-	readonly currentCoverArt: number[] | null;
+	readonly currentCoverHandle: string | null;
 };
 
 export function createEmptyCoverUiState(): CoverUiState {
@@ -25,7 +27,7 @@ export function createEmptyCoverUiState(): CoverUiState {
 		urlInputValue: '',
 		hasCustomCoverArt: false,
 		coverArtRemovalRequested: false,
-		currentCoverArt: null,
+		currentCoverHandle: null,
 	};
 }
 
@@ -58,4 +60,14 @@ export function formatCoverArtError(message: string, fallback: string): string {
 		return 'Invalid image URL.';
 	}
 	return raw;
+}
+
+export function coverIntentFromUi(cover: CoverUiState): MetadataIntentPatch {
+	if (cover.coverArtRemovalRequested) {
+		return { cover_art: { op: 'clear' } };
+	}
+	if (cover.hasCustomCoverArt && cover.currentCoverHandle) {
+		return { cover_art: { op: 'set', value: cover.currentCoverHandle } };
+	}
+	return {};
 }

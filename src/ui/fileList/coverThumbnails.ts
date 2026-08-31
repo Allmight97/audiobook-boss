@@ -1,4 +1,3 @@
-import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import {
 	createBoundedGenerationQueue,
 	type BoundedGenerationQueue,
@@ -13,13 +12,11 @@ export type FileListCoverThumbnailState =
 	| { status: 'ready'; dataUrl: string }
 	| { status: 'absent' }
 	| { status: 'error' };
-export type FileListCoverThumbnailLoader = (
-	path: string,
-) => Promise<ReadonlyArray<number> | null | undefined>;
+export type FileListCoverThumbnailLoader = (path: string) => Promise<string | null | undefined>;
 
 const thumbnailByPath: Record<string, FileListCoverThumbnailState> = {};
 const listeners = new Set<() => void>();
-const inflightByPath = new Map<string, Promise<ReadonlyArray<number> | null | undefined>>();
+const inflightByPath = new Map<string, Promise<string | null | undefined>>();
 const cacheOrder: string[] = [];
 const thumbnailQueue: BoundedGenerationQueue = createBoundedGenerationQueue(
 	FILE_LIST_COVER_THUMBNAIL_CONCURRENCY,
@@ -97,14 +94,14 @@ function startThumbnailFetch(
 	loadThumbnail: FileListCoverThumbnailLoader,
 	generation: number,
 	onComplete: () => void,
-): Promise<ReadonlyArray<number> | null | undefined> {
+): Promise<string | null | undefined> {
 	writeThumbnail(path, { status: 'loading' });
-	let promise!: Promise<ReadonlyArray<number> | null | undefined>;
+	let promise!: Promise<string | null | undefined>;
 	const load = loadThumbnail(path);
 	promise = load
-		.then((bytes) => {
-			if (thumbnailQueue.isCurrent(path, generation)) commitThumbnail(path, bytes);
-			return bytes;
+		.then((dataUrl) => {
+			if (thumbnailQueue.isCurrent(path, generation)) commitThumbnail(path, dataUrl);
+			return dataUrl;
 		})
 		.catch((error) => {
 			if (thumbnailQueue.isCurrent(path, generation)) {
@@ -125,12 +122,12 @@ function startThumbnailFetch(
 
 function attachInflightCompletion(
 	path: string,
-	inflight: Promise<ReadonlyArray<number> | null | undefined>,
+	inflight: Promise<string | null | undefined>,
 	generation: number,
 ): void {
 	void inflight
-		.then((bytes) => {
-			if (thumbnailQueue.isCurrent(path, generation)) commitThumbnail(path, bytes);
+		.then((dataUrl) => {
+			if (thumbnailQueue.isCurrent(path, generation)) commitThumbnail(path, dataUrl);
 		})
 		.catch((error) => {
 			if (thumbnailQueue.isCurrent(path, generation)) {
@@ -142,13 +139,8 @@ function attachInflightCompletion(
 		});
 }
 
-function commitThumbnail(path: string, bytes: ReadonlyArray<number> | null | undefined): void {
-	writeThumbnail(
-		path,
-		bytes
-			? { status: 'ready', dataUrl: coverArtBytesToDataUrl(Array.from(bytes)) }
-			: { status: 'absent' },
-	);
+function commitThumbnail(path: string, dataUrl: string | null | undefined): void {
+	writeThumbnail(path, dataUrl ? { status: 'ready', dataUrl } : { status: 'absent' });
 	touchCacheEntry(path);
 	pruneThumbnailCache();
 }

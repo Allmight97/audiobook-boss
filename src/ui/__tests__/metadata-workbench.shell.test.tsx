@@ -7,6 +7,7 @@ import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { fakeCoverCapability, JPEG_DATA_URL } from '../../test/fixtures/coverCapability';
 import { App } from '../App';
 
 const support: SupportedAudioImportMetadata = {
@@ -51,7 +52,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		),
 		getSupportedAudioImportMetadata: vi.fn(async () => support),
 		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
@@ -87,8 +87,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 			},
 		})),
 		openFile: vi.fn(async () => '/covers/art.png'),
-		loadCoverArtFile: vi.fn(async () => [0x89, 0x50, 0x4e, 0x47]),
-		loadCoverArtFromUrl: vi.fn(async () => [0x89, 0x50]),
 		searchOnlineMetadata: vi.fn(async () => ({ results: [], diagnostics: [] })),
 		...overrides,
 	};
@@ -113,7 +111,13 @@ describe('metadata workbench shell', () => {
 
 	it('composes cover and form zones and keeps cover clear keyboard-reachable', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createTestAppRuntime({
+			input: fakeInput(),
+			metadata,
+			cover: fakeCoverCapability({
+				thumbnail: vi.fn(async () => ({ handleId: null, dataUrl: JPEG_DATA_URL })),
+			}),
+		});
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -143,7 +147,13 @@ describe('metadata workbench shell', () => {
 
 	it('edits a title and saves through the native metadata capability', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createTestAppRuntime({
+			input: fakeInput(),
+			metadata,
+			cover: fakeCoverCapability({
+				thumbnail: vi.fn(async () => ({ handleId: null, dataUrl: JPEG_DATA_URL })),
+			}),
+		});
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -162,7 +172,13 @@ describe('metadata workbench shell', () => {
 
 	it('saves from the global shortcut', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createTestAppRuntime({
+			input: fakeInput(),
+			metadata,
+			cover: fakeCoverCapability({
+				thumbnail: vi.fn(async () => ({ handleId: null, dataUrl: JPEG_DATA_URL })),
+			}),
+		});
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {

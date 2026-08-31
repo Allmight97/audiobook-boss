@@ -317,7 +317,9 @@ describe('output plan public view', () => {
 		const callsBefore = previewOutputPath.mock.calls.length;
 		form = replaceField(metadataView().form, 'meta-series-part', { value: '2' });
 		setMetadataView((current) => ({ ...current, form }));
-		await vi.waitFor(() => expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore));
+		await vi.waitFor(() =>
+			expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore),
+		);
 		const lastCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
 		expect(lastCall?.[0]?.metadata?.series_part).toBe('2');
 		previewOutputPath.mockRestore();
@@ -349,7 +351,7 @@ describe('output path preview projection', () => {
 		form = replaceField(form, 'meta-author', { value: 'Herbert' });
 		const view: MetadataView = {
 			form,
-			cover: { ...createEmptyCoverUiState(), currentCoverArt: [1, 2, 3] },
+			cover: createEmptyCoverUiState(),
 			tags: { ...createEmptyTagPreviewValues(), title: 'Dune', artist: 'Herbert' },
 			saveInProgress: false,
 			focusedFieldId: null,
@@ -359,7 +361,7 @@ describe('output path preview projection', () => {
 		expect(draft.title).toBe('Dune');
 		expect(draft.artist).toBe('Herbert');
 		expect(draft.album).toBe('Dune');
-		expect(draft.cover_art).toEqual([1, 2, 3]);
+		expect(draft.cover_art).toBeUndefined();
 	});
 });
 

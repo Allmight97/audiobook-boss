@@ -95,7 +95,7 @@ export function MetadataLookupView(): JSX.Element {
 	const setApplyMode = lookup.setApplyMode;
 	const setReplaceCover = lookup.setReplaceCover;
 	const bumpPreview = lookup.bumpPreview;
-	const capability = useAppRuntime().metadata.capability;
+	const capability = useAppRuntime().cover;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
 
 	onMount(() => {
@@ -111,7 +111,7 @@ export function MetadataLookupView(): JSX.Element {
 		}
 		scheduleMetadataLookupCoverPreviews(
 			state.results.map((result) => result.coverUrl),
-			(url) => capability().loadCoverArtFromUrl(url),
+			async (url) => (await capability.previewFromUrl(url)).dataUrl,
 		);
 	});
 

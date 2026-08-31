@@ -106,7 +106,12 @@ function stageSingleSelectionMetadata(
 		const selectedFileIndex = services.getSelectedFileIndex();
 		const formMetadata = services.readMetadataForm({ mode: 'single' });
 		const validation = yield* workflowPromise(
-			() => validateMetadataDraft(formMetadata, services.validateMetadataIntentPatch),
+			() =>
+				validateMetadataDraft(
+					formMetadata,
+					services.validateMetadataIntentPatch,
+					services.readCoverIntent(),
+				),
 			'Failed to validate metadata intent for processing.',
 		);
 		if (!validation.ok) {

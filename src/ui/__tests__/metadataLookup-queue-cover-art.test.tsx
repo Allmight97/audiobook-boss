@@ -2,12 +2,21 @@ import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import { getMetadataForFile } from '../../app/metadataSession';
+import {
+	getCoverDisplayForFile,
+	getMetadataForFile,
+	getMetadataIntentPatchForFile,
+} from '../../app/metadataSession';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import {
+	fakeCoverCapability,
+	JPEG_DATA_URL,
+	stagedCoverView,
+} from '../../test/fixtures/coverCapability';
 import { App } from '../App';
 
 const support: SupportedAudioImportMetadata = {
@@ -71,7 +80,6 @@ function fakeInput(): InputCapability {
 		),
 		getSupportedAudioImportMetadata: vi.fn(async () => support),
 		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async () => () => undefined),
 		listenDragEnter: vi.fn(async () => () => undefined),
 		listenDragLeave: vi.fn(async () => () => undefined),
@@ -83,7 +91,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 	return {
 		readAudioMetadata: vi.fn(async (filePath) => ({
 			title: filePath.includes('beta') ? 'Beta Existing' : 'Alpha Existing',
-			cover_art: filePath.includes('beta') ? [2, 2, 2] : [1, 1, 1],
 		})),
 		validateMetadataIntentPatch: vi.fn(async (patch) => ({
 			isValid: true,
@@ -106,8 +113,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 			},
 		})),
 		openFile: vi.fn(async () => null),
-		loadCoverArtFile: vi.fn(async () => []),
-		loadCoverArtFromUrl: vi.fn(async () => [9, 9, 9]),
 		searchOnlineMetadata: vi.fn(async () => ({
 			results: [lookupResult()],
 			diagnostics: [],
@@ -136,6 +141,13 @@ async function importAndSelectAll(runtime: AppRuntime): Promise<void> {
 	await runtime.input.selectAll();
 }
 
+function lookupCover() {
+	return fakeCoverCapability({
+		stageFromUrl: vi.fn(async () => stagedCoverView('cover-1')),
+		previewFromUrl: vi.fn(async () => ({ handleId: null, dataUrl: JPEG_DATA_URL })),
+	});
+}
+
 describe('metadata lookup queue cover art isolation', () => {
 	let runtime: AppRuntime | undefined;
 
@@ -147,7 +159,8 @@ describe('metadata lookup queue cover art isolation', () => {
 
 	it('does not wipe previously replaced art when queue advances', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		const cover = lookupCover();
+		runtime = createTestAppRuntime({ input: fakeInput(), metadata, cover });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -174,17 +187,23 @@ describe('metadata lookup queue cover art isolation', () => {
 			expect(getStatusText()).toContain('Metadata applied.');
 		});
 		expect(getContextText()).toContain('beta.m4b');
-		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(getMetadataForFile('/books/alpha.m4b')).toEqual(
+		expect(cover.stageFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
+		expect(getMetadataIntentPatchForFile('/books/alpha.m4b')).toEqual(
 			expect.objectContaining({
-				cover_art: [9, 9, 9],
+				cover_art: { op: 'set', value: 'cover-1' },
 			}),
 		);
+		expect(getCoverDisplayForFile('/books/alpha.m4b')).toEqual({
+			status: 'staged',
+			handleId: 'cover-1',
+			dataUrl: JPEG_DATA_URL,
+		});
 	});
 
 	it('preserves existing cover art when replace toggle is disabled', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		const cover = lookupCover();
+		runtime = createTestAppRuntime({ input: fakeInput(), metadata, cover });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -203,17 +222,14 @@ describe('metadata lookup queue cover art isolation', () => {
 		await waitFor(() => {
 			expect(getStatusText()).toContain('Metadata applied.');
 		});
-		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(getMetadataForFile('/books/alpha.m4b')).toEqual(
-			expect.objectContaining({
-				cover_art: [1, 1, 1],
-			}),
-		);
+		expect(cover.previewFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
+		expect(cover.stageFromUrl).not.toHaveBeenCalled();
+		expect(getMetadataIntentPatchForFile('/books/alpha.m4b')?.cover_art).toBeUndefined();
 	});
 
 	it('does not mutate metadata when skipping queue item', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createTestAppRuntime({ input: fakeInput(), metadata, cover: lookupCover() });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -237,7 +253,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		const metadata = fakeMetadata({
 			searchOnlineMetadata: vi.fn(async () => ({ results: [], diagnostics: [] })),
 		});
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createTestAppRuntime({ input: fakeInput(), metadata, cover: lookupCover() });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -267,7 +283,7 @@ describe('metadata lookup queue cover art isolation', () => {
 				throw new Error('all sources failed');
 			}),
 		});
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createTestAppRuntime({ input: fakeInput(), metadata, cover: lookupCover() });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />

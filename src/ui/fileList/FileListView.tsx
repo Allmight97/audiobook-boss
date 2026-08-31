@@ -25,7 +25,6 @@ export function FileListView(props: {
 	const input = runtime.input;
 	const metadataView = runtime.metadata.view;
 	const view = input.view;
-	const capability = input.capability;
 	const selectFile = input.selectFile;
 	const selectAll = input.selectAll;
 	const clearSelection = input.clearSelection;
@@ -65,9 +64,10 @@ export function FileListView(props: {
 			clearFileListCoverThumbnails();
 			return;
 		}
-		scheduleFileListCoverThumbnails(validPaths, (path) =>
-			capability().readAudioCoverThumbnail(path),
-		);
+		scheduleFileListCoverThumbnails(validPaths, async (path) => {
+			const thumbnail = await runtime.cover.thumbnail(path);
+			return thumbnail?.dataUrl ?? null;
+		});
 	});
 
 	createEffect(() => {

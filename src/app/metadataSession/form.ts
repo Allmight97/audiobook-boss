@@ -299,13 +299,11 @@ export function readMetadataForm(
 		readonly mode?: MetadataFormMode;
 		readonly onlyDirty?: boolean;
 		readonly includeCoverArt?: boolean;
-		readonly coverArtBytes?: number[] | null;
 		readonly coverArtRemovalRequested?: boolean;
 	},
 ): Partial<AudiobookMetadata> {
 	const mode = options?.mode ?? form.mode;
 	const onlyDirty = options?.onlyDirty ?? false;
-	const includeCoverArt = options?.includeCoverArt ?? true;
 	const metadata: Partial<AudiobookMetadata> = {};
 	const setMetadataValue = <K extends keyof AudiobookMetadata>(
 		key: K,
@@ -369,17 +367,6 @@ export function readMetadataForm(
 		setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
 		if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
 			metadata.album = raw;
-		}
-	}
-
-	if (mode === 'single' && includeCoverArt) {
-		if (options?.coverArtRemovalRequested) {
-			metadata.cover_art = [];
-		} else {
-			const coverBytes = options?.coverArtBytes;
-			if (coverBytes && coverBytes.length > 0) {
-				metadata.cover_art = coverBytes;
-			}
 		}
 	}
 

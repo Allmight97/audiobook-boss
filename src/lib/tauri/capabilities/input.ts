@@ -24,7 +24,6 @@ export interface InputCapability {
 	analyzeAudioFiles(paths: ReadonlyArray<string>): Promise<FileListInfo>;
 	getSupportedAudioImportMetadata(): Promise<SupportedAudioImportMetadata>;
 	takeOpenedAudioFiles(): Promise<string[]>;
-	readAudioCoverThumbnail(path: string): Promise<ReadonlyArray<number> | null | undefined>;
 	listenDragDrop(handler: (payload: NativeDropPayload) => void): Promise<InputUnlisten>;
 	listenDragEnter(handler: () => void): Promise<InputUnlisten>;
 	listenDragLeave(handler: () => void): Promise<InputUnlisten>;
@@ -48,7 +47,6 @@ export const liveInputCapability: InputCapability = {
 	analyzeAudioFiles: (paths) => tauriClient.analyzeAudioFiles([...paths]),
 	getSupportedAudioImportMetadata: () => tauriClient.getSupportedAudioImportMetadata(),
 	takeOpenedAudioFiles: () => tauriClient.takeOpenedAudioFiles(),
-	readAudioCoverThumbnail: (path) => tauriClient.readAudioCoverThumbnail(path),
 	listenDragDrop: (handler) =>
 		tauriClient.listen('tauri://drag-drop', (event) => {
 			handler(event.payload);

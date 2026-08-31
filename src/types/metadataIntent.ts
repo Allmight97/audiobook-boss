@@ -36,7 +36,9 @@ export type MetadataIntentValueMap = Pick<AudiobookMetadata, MetadataIntentField
 export type MetadataPositionValue = [number, number | null];
 type MetadataIntentValue<K extends MetadataIntentField> = K extends 'track' | 'disk'
 	? MetadataPositionValue
-	: NonNullable<MetadataIntentValueMap[K]>;
+	: K extends 'cover_art'
+		? string
+		: NonNullable<MetadataIntentValueMap[K]>;
 
 type MetadataSetClearNoopIntent<K extends MetadataIntentField> =
 	| {
@@ -84,8 +86,8 @@ function normalizeStringInput(value: string): string {
 	return value.trim();
 }
 
-function isNumberArray(value: unknown): value is number[] {
-	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
+function isCoverHandle(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0;
 }
 
 function isPositionValue(value: unknown): value is [number, number | null | undefined] {
@@ -157,6 +159,9 @@ export function applyMetadataIntentPatch(
 		if (intent.op === 'recompute') {
 			continue;
 		}
+		if (key === 'cover_art') {
+			continue;
+		}
 		(next as Record<MetadataIntentField, unknown>)[key] = intent.value;
 	}
 	return next;
@@ -171,6 +176,12 @@ export function buildMetadataIntentPatchFromMetadata(
 			continue;
 		}
 		const key = rawKey;
+		if (key === 'cover_art') {
+			if (isCoverHandle(value)) {
+				setMetadataIntent(patch, key, { op: 'set', value });
+			}
+			continue;
+		}
 		if (value == null) {
 			setMetadataIntent(patch, key, { op: 'clear' });
 			continue;
@@ -185,17 +196,6 @@ export function buildMetadataIntentPatchFromMetadata(
 				continue;
 			}
 			setMetadataIntent(patch, key, { op: 'set', value: trimmed });
-			continue;
-		}
-		if (key === 'cover_art') {
-			if (!isNumberArray(value)) {
-				continue;
-			}
-			setMetadataIntent(
-				patch,
-				key,
-				value.length === 0 ? { op: 'clear' } : { op: 'set', value: [...value] },
-			);
 			continue;
 		}
 		if (key === 'track' || key === 'disk') {

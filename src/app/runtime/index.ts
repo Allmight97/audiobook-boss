@@ -12,11 +12,13 @@ import {
 	readEncodingRequestConfig,
 	subscribeEncoderPanel,
 } from '../../ui/encoderPanel';
+import { liveCoverCapability } from '../../lib/tauri/capabilities/cover';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
 export type { AppRuntime, RuntimeCapabilities } from './types';
 
 export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRuntime {
+	const cover = capabilities.cover ?? liveCoverCapability;
 	let disposeRoot = (): void => {};
 	const runtime = createRoot((dispose) => {
 		disposeRoot = dispose;
@@ -30,6 +32,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 		const metadata = createMetadataOwner({
 			input,
 			capability: capabilities.metadata,
+			cover,
 			isForegroundProcessing: () => processingHolder.current?.isProcessing() ?? false,
 		});
 		selectionGate.check = () => metadata.canChangeSelection();
@@ -47,7 +50,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			encodingEstimateKbps,
 			onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
 		});
-		const lookup = createMetadataLookupOwner({ input, metadata });
+		const lookup = createMetadataLookupOwner({ input, metadata, cover });
 		const processing = createProcessingOwner({
 			input,
 			metadata,
@@ -70,10 +73,12 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			settings,
 			processing,
 			workOperations,
+			cover,
 		};
 	});
 	return {
 		...runtime,
+		cover,
 		dispose(): void {
 			runtime.workOperations.reset();
 			runtime.processing.reset();

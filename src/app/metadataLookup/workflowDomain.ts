@@ -2,11 +2,13 @@ import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { buildMetadataDraftIntent } from '../metadataSession';
+import { buildMetadataDraftIntent, cacheCoverDisplayForFile } from '../metadataSession';
 import { clearMetadataLookupCoverPreviewCache } from './coverPreview';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
-export type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
+export type QueueCoverState =
+	| { intent: 'keep' }
+	| { intent: 'replace'; handleId: string; dataUrl: string };
 
 export type QueueItemState = {
 	metadataPatch: MetadataIntentPatch;
@@ -93,7 +95,12 @@ export function persistQueueMetadata(
 	if (!file.isValid) return;
 	const intentPatch: MetadataIntentPatch = { ...state.metadataPatch };
 	if (state.cover.intent === 'replace') {
-		intentPatch.cover_art = { op: 'set', value: state.cover.bytes };
+		intentPatch.cover_art = { op: 'set', value: state.cover.handleId };
+		cacheCoverDisplayForFile(file.path, {
+			status: 'staged',
+			handleId: state.cover.handleId,
+			dataUrl: state.cover.dataUrl,
+		});
 	}
 
 	services.stageMetadataIntentPatch(file.path, intentPatch);

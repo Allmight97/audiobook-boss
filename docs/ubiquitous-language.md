@@ -37,7 +37,9 @@ prefer local prose or delete it.
 
 | Term | Definition | Avoid |
 | --- | --- | --- |
-| **Metadata Intent Patch** | Explicit patch-op payload preserving whether a field is set, cleared, or left alone. | raw metadata object |
+| **Metadata Intent Patch** | Explicit patch-op payload preserving whether a field is set, cleared, or left alone. IPC `cover_art` set values are Cover Handles, not bytes. | raw metadata object |
+| **Cover Handle** | Opaque `cover-*` id for bytes held in the Rust CoverStash until save/process hydrates them into `PatchOp<Vec<u8>>`. Display uses a JPEG data URL. | cover bytes over JSON `number[]` |
+| **CoverCapability** | Frontend port for thumbnail, URL preview (no stash), and file/URL staging (handle + data URL). | Input/Metadata cover methods |
 | **Patch Op** | A metadata action: `set`, `clear`, or `noop`. | magic empty value |
 | **Metadata Outcome Plan** | Backend plan that validates/normalizes metadata intent, then produces effective metadata, naming metadata, write instructions, and cover-art policy. | metadata helper chain |
 | **Processing Preflight Plan** | Backend preview of how a processing request will execute before the long-running job starts. | dry guess |

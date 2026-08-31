@@ -5,6 +5,7 @@ import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/aud
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
+import { fakeCoverCapability } from '../../test/fixtures/coverCapability';
 import { App } from '../App';
 
 const metadata: SupportedAudioImportMetadata = {
@@ -56,7 +57,6 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
 		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async (handler) => {
 			listeners.drop = handler;
 			return () => {
@@ -94,7 +94,7 @@ describe('Solid input workbench', () => {
 		const input = fakeInput({
 			openFiles: vi.fn(async () => ['/tmp/file1.mp3']),
 		});
-		runtime = createAppRuntime({ input });
+		runtime = createAppRuntime({ input, cover: fakeCoverCapability() });
 		renderApp(runtime);
 
 		const shell = screen.getByTestId('left-column');
@@ -123,7 +123,7 @@ describe('Solid input workbench', () => {
 				analyzedList([analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')]),
 			),
 		});
-		runtime = createAppRuntime({ input });
+		runtime = createAppRuntime({ input, cover: fakeCoverCapability() });
 		renderApp(runtime);
 		void runtime.input.importIntent({
 			type: 'importPaths',
@@ -149,7 +149,7 @@ describe('Solid input workbench', () => {
 
 	it('routes cover-art drops away from import and imports file-area drops', async () => {
 		const input = fakeInput();
-		runtime = createAppRuntime({ input });
+		runtime = createAppRuntime({ input, cover: fakeCoverCapability() });
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
@@ -198,7 +198,7 @@ describe('Solid input workbench', () => {
 
 	it('blocks import while order is locked and surfaces the lock banner', async () => {
 		const input = fakeInput();
-		runtime = createAppRuntime({ input });
+		runtime = createAppRuntime({ input, cover: fakeCoverCapability() });
 		renderApp(runtime);
 		runtime.input.setOrderLocked(true);
 		await waitFor(() => {

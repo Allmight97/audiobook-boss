@@ -57,7 +57,7 @@ export function getRemoteSourceCoverPreviewState(
 
 export function scheduleRemoteSourceCoverPreviews(
 	coverUrls: ReadonlyArray<string | null | undefined>,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+	loadCoverPreview: (url: string) => Promise<string>,
 ): void {
-	remoteSourceCoverPreviewScheduler.schedule(coverUrls, loadCoverArtFromUrl);
+	remoteSourceCoverPreviewScheduler.schedule(coverUrls, loadCoverPreview);
 }

@@ -19,7 +19,16 @@ describe('metadata intent patch helpers', () => {
 		expect(patch).toEqual({
 			title: { op: 'clear' },
 			date: { op: 'clear' },
-			cover_art: { op: 'clear' },
+		});
+	});
+
+	it('compiles cover handle set operations as strings, not byte arrays', () => {
+		expect(
+			compileMetadataIntentPatch({
+				cover_art: { op: 'set', value: 'cover-1' },
+			}),
+		).toEqual({
+			cover_art: { op: 'set', value: 'cover-1' },
 		});
 	});
 
@@ -31,7 +40,6 @@ describe('metadata intent patch helpers', () => {
 
 		expect(patch).toEqual({
 			date: { op: 'clear' },
-			cover_art: { op: 'clear' },
 		});
 	});
 
@@ -134,6 +142,28 @@ describe('metadata intent patch helpers', () => {
 			series: { op: 'set', value: 'Series A' },
 		});
 		expect(hasActionableMetadataIntentPatch(merged)).toBe(true);
+	});
+
+	it('builds cover set intent from a staged handle, not byte arrays', () => {
+		expect(
+			buildMetadataIntentPatchFromMetadata({
+				cover_art: 'cover-1' as unknown as never,
+			}),
+		).toEqual({
+			cover_art: { op: 'set', value: 'cover-1' },
+		});
+		expect(
+			buildMetadataIntentPatchFromMetadata({
+				cover_art: [],
+			}),
+		).toEqual({});
+		expect(
+			compileMetadataIntentPatch({
+				cover_art: { op: 'set', value: 'cover-1' },
+			}),
+		).toEqual({
+			cover_art: { op: 'set', value: 'cover-1' },
+		});
 	});
 
 	it('preserves publication dates for backend validation and normalization', () => {

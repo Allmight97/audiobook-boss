@@ -41,10 +41,5 @@ export function previewDraftFromMetadataView(view: MetadataView): OutputPathPrev
 		draft.album = draft.title ?? '';
 	}
 
-	const cover = view.cover.currentCoverArt;
-	if (cover && cover.length > 0 && !view.cover.coverArtRemovalRequested) {
-		draft.cover_art = cover;
-	}
-
 	return draft;
 }

@@ -6,7 +6,13 @@
 - Public-strip tests must pin an independent expected surface. Do not derive the
   expected method, command, or event list from `commands.ts` or generated
   bindings.
-- Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
+- Runtime UI and owners call capability ports (`CoverCapability`,
+  `MetadataCapability`, `InputCapability`) or `tauriClient` through those
+  adapters. Generated command/event invokers stay private to `src/lib/tauri`.
+- Cover display and staging live on `capabilities/cover.ts` (`CoverCapability`).
+  Do not send cover bytes through JSON `number[]`. Preview-from-URL does not
+  stash; stage-from-file/URL returns a handle. IPC adapters stay in this
+  cluster; do not add a parallel tauri-wire/conduit crate.
 
 ## Frontend Utility Surface
 - `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that
@@ -24,7 +30,7 @@
   test (`appError.test.ts`, `subscriptionGroup.test.ts`).
 
 ## Private Cluster
-- Files: `client.ts`, `commands.ts`, `normalizers.ts`, `AGENTS.md`.
+- Files: `client.ts`, `commands.ts`, `normalizers.ts`, `capabilities/`, `AGENTS.md`.
 - Generated bindings live at `src/lib/generated/tauri.ts`; do not hand-edit them.
 
 ## Allowed Agent Edits Without Escalation
