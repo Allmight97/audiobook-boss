@@ -105,10 +105,12 @@ port_in_use() {
 
 process_matching() {
 	local pattern="$1"
-	ps -axo pid=,command= 2>/dev/null | awk -v pat="$pattern" '
-		index($0, pat) {
-			print
-		}
+	ps -axo pid=,command= 2>/dev/null | awk -v pat="$pattern" -v self="$$" '
+		$1 == self { next }
+		$2 ~ /(^|\/)awk$/ { next }
+		index($0, "verify-abb") { next }
+		index($0, "-v pat=") { next }
+		index($0, pat) { print }
 	' || true
 }
 
@@ -261,9 +263,10 @@ cmd_doctor() {
 
 	local audible
 	audible="$(audible_session_state)"
-	local config_dir
-	config_dir="$(macos_config_dir)"
-	local settings_file="$config_dir/app-settings.json"
+	local settings_file="macos_only"
+	if is_macos; then
+		settings_file="$(macos_config_dir)/app-settings.json"
+	fi
 
 	local report
 	report="$(python3 - "$live_possible" "$live_status" "$reason" "$(os_name)" "$(os_arch)" "$bun_ver" "$rustc_ver" "$dotnet_ver" "$audible" "$settings_file" <<'PY'
