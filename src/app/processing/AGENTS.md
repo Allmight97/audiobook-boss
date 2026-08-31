@@ -29,8 +29,10 @@
   Settings. Metadata staging uses the Metadata public strip. Do not read
   leftover file-list or job-control stores.
 - Preview execution is direct `process_audiobook_files` with `previewSeconds`.
-  It does not enter WorkRuntime. Background batch/merge submits through
-  WorkRuntime; Status Panel is not a WorkRuntime consumer.
+  It does not enter WorkRuntime. Do not call that command with omitted
+  `previewSeconds`; ingress still accepts it as a direct final run. Background
+  batch/merge submits through WorkRuntime; Status Panel is not a WorkRuntime
+  consumer.
 - `processing-progress` and `processing-queue` are direct-preview events with
   no operation-id discriminator. Do not consume them as background-operation
   state; Work Operations consumes WorkRuntime snapshots instead.

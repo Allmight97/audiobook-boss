@@ -28,10 +28,13 @@
 
 ## Progress / Stage Evolution
 
-- `processing-progress` and `processing-queue` are emitted only by the direct
-  foreground preview lane. They have no operation-id discriminator. Accepted
+- `processing-progress` and `processing-queue` are emitted by
+  `process_audiobook_files`. They have no operation-id discriminator. Accepted
   background work publishes WorkRuntime snapshot events instead; do not mix the
-  two event families.
+  two event families. Product callers pass `preview_seconds` for that command.
+  Ingress still accepts `None` and then runs as direct final processing without
+  WorkRuntime identity, snapshots, or operation-scoped cancellation. Do not add
+  callers to that hole.
 - Wire-stage authority is the Rust `EventStage` enum in `progress/mod.rs` (specta-generated into
   `src/lib/generated/tauri.ts`); event payload is `ProgressEvent` (same file). Emitters:
   `progress/emitter.rs` (`emit_event`, `emit_cancelled`) and
