@@ -1,7 +1,1 @@
-{
-	"plugins": {
-		"svelte": {
-			"enabled": true
-		}
-	}
-}
+{}
