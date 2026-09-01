@@ -7,9 +7,10 @@ import {
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
+	computeOutputPathPreview,
 	makeOutputPlanWorkflowServicesLayer,
-	outputPathPreviewBody,
 	outputPlanReviewBody,
+	PREVIEW_UNAVAILABLE_TEXT,
 	type OutputPlanWorkflowServices,
 } from './workflow';
 import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
@@ -49,29 +50,13 @@ function plan(overrides: Partial<ProcessingPreflightPlan> = {}): ProcessingPrefl
 }
 
 function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
-	const preview = { text: '', title: '' };
-	let latestRequestId = 0;
 	const services: OutputPlanWorkflowServices = {
-		updateMetadataIntentWarnings: vi.fn(async () => undefined),
-		beginOutputPreviewRequest: vi.fn(() => {
-			latestRequestId += 1;
-			return latestRequestId;
-		}),
-		isLatestOutputPreviewRequest: vi.fn((requestId) => requestId === latestRequestId),
-		setOutputPreview: vi.fn((text: string, title = text) => {
-			preview.text = text;
-			preview.title = title;
-		}),
-		showOutputError: vi.fn(),
-		previewOutputPath: vi.fn(async () => '/tmp/out/a.m4b'),
 		preflightProcessingPlan: vi.fn(async () => plan()),
 		openCollisionDialog: vi.fn(async () => null),
-		console: { error: vi.fn() },
 		...overrides,
 	};
 
 	return {
-		preview,
 		services,
 		layer: makeOutputPlanWorkflowServicesLayer(services),
 	};
@@ -95,90 +80,51 @@ const previewContext = {
 
 describe('OutputPlanWorkflow', () => {
 	it('updates output preview from the output artifact boundary', async () => {
-		const harness = makeHarness();
+		const previewOutputPath = vi.fn(async () => '/tmp/out/a.m4b');
 
-		await runAppEffect(
-			outputPathPreviewBody('final', previewContext).pipe(Effect.provide(harness.layer)),
-		);
+		const result = await computeOutputPathPreview('final', previewContext, previewOutputPath);
 
-		expect(harness.services.previewOutputPath).toHaveBeenCalledWith(
+		expect(previewOutputPath).toHaveBeenCalledWith(
 			expect.objectContaining({
 				outputDir: '/tmp/out',
 				sourcePath: '/books/a.m4b',
 				outputKind: 'final',
 			}),
 		);
-		expect(harness.preview.text).toBe('/tmp/out/a.m4b');
+		expect(result).toEqual({ ok: true, text: '/tmp/out/a.m4b', title: '/tmp/out/a.m4b' });
 	});
 
 	it('reports missing output directory without crossing the boundary', async () => {
-		const harness = makeHarness();
+		const previewOutputPath = vi.fn(async () => '/tmp/out/a.m4b');
 
-		await runAppEffect(
-			outputPathPreviewBody('final', { ...previewContext, outputDirectory: '' }).pipe(
-				Effect.provide(harness.layer),
-			),
+		const result = await computeOutputPathPreview(
+			'final',
+			{ ...previewContext, outputDirectory: '' },
+			previewOutputPath,
 		);
 
-		expect(harness.services.previewOutputPath).not.toHaveBeenCalled();
-		expect(harness.preview.text).toBe(EMPTY_PREVIEW_TEXT);
-		expect(harness.preview.title).toBe(EMPTY_PREVIEW_TITLE);
-	});
-
-	it('ignores stale preview responses', async () => {
-		const harness = makeHarness({
-			isLatestOutputPreviewRequest: vi.fn(() => false),
+		expect(previewOutputPath).not.toHaveBeenCalled();
+		expect(result).toEqual({
+			ok: true,
+			text: EMPTY_PREVIEW_TEXT,
+			title: EMPTY_PREVIEW_TITLE,
 		});
-
-		await runAppEffect(
-			outputPathPreviewBody('preview', previewContext).pipe(Effect.provide(harness.layer)),
-		);
-
-		expect(harness.services.previewOutputPath).toHaveBeenCalled();
-		expect(harness.services.setOutputPreview).not.toHaveBeenCalled();
-	});
-
-	it('logs metadata warning validation failures without blocking preview', async () => {
-		const cause = new Error('validation transport failed');
-		const harness = makeHarness({
-			updateMetadataIntentWarnings: vi.fn(async () => {
-				throw cause;
-			}),
-		});
-
-		await runAppEffect(
-			outputPathPreviewBody('preview', previewContext).pipe(Effect.provide(harness.layer)),
-		);
-
-		expect(harness.services.console.error).toHaveBeenCalledWith(
-			'Metadata preview validation failed:',
-			cause,
-		);
-		expect(harness.services.showOutputError).toHaveBeenCalledWith(
-			'Failed to validate metadata preview.',
-		);
-		expect(harness.services.previewOutputPath).toHaveBeenCalled();
-		expect(harness.preview.text).toBe('/tmp/out/a.m4b');
 	});
 
 	it('surfaces preview failures without throwing to UI callers', async () => {
 		const cause = new Error('template invalid');
-		const harness = makeHarness({
-			previewOutputPath: vi.fn(async () => {
-				throw cause;
-			}),
+		const previewOutputPath = vi.fn(async () => {
+			throw cause;
 		});
 
-		await runAppEffect(
-			outputPathPreviewBody('final', previewContext).pipe(Effect.provide(harness.layer)),
-		);
+		const result = await computeOutputPathPreview('final', previewContext, previewOutputPath);
 
-		expect(harness.preview.text).toBe(
-			'Output preview unavailable. Fix metadata/template and retry.',
-		);
-		expect(harness.services.showOutputError).toHaveBeenCalledWith(
-			`Rust preview failed: ${String(cause)}`,
-		);
+		expect(result).toEqual({
+			ok: false,
+			text: PREVIEW_UNAVAILABLE_TEXT,
+			title: PREVIEW_UNAVAILABLE_TEXT,
+			cause,
+		});
 	});
 
 	it('approves clean preflight without collision review', async () => {

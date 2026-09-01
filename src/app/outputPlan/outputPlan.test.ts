@@ -317,11 +317,73 @@ describe('output plan public view', () => {
 		const callsBefore = previewOutputPath.mock.calls.length;
 		form = replaceField(metadataView().form, 'meta-series-part', { value: '2' });
 		setMetadataView((current) => ({ ...current, form }));
-		await vi.waitFor(() => expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore));
+		await vi.waitFor(() =>
+			expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore),
+		);
 		const lastCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
 		expect(lastCall?.[0]?.metadata?.series_part).toBe('2');
 		previewOutputPath.mockRestore();
 		validatePatch.mockRestore();
+	});
+
+	it('keeps the latest in-flight path preview and ignores a stale slower answer', async () => {
+		let resolveFirst: ((path: string) => void) | undefined;
+		const previewOutputPath = vi.spyOn(tauriClient, 'previewOutputPath');
+		previewOutputPath
+			.mockImplementationOnce(
+				() =>
+					new Promise<string>((resolve) => {
+						resolveFirst = resolve;
+					}),
+			)
+			.mockResolvedValue('/books/out/second.m4b');
+		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
+			isValid: true,
+			metadataPatch: {},
+			fieldErrors: [],
+		});
+		runtime = createTestAppRuntime();
+		mounted = mountOutput(runtime);
+		const owner = mounted.owner;
+		owner.applyDefaults({
+			outputDirectory: '/books/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await vi.waitFor(() => expect(previewOutputPath).toHaveBeenCalledTimes(1));
+		owner.setAbsIncludeYear(true);
+		await vi.waitFor(() => expect(owner.view().previewText).toBe('/books/out/second.m4b'));
+		resolveFirst?.('/books/out/stale.m4b');
+		await Promise.resolve();
+		expect(owner.view().previewText).toBe('/books/out/second.m4b');
+		previewOutputPath.mockRestore();
+		validatePatch.mockRestore();
+	});
+
+	it('still previews the path when metadata validation fails', async () => {
+		const previewOutputPath = vi
+			.spyOn(tauriClient, 'previewOutputPath')
+			.mockResolvedValue('/books/out/preview.m4b');
+		const validatePatch = vi
+			.spyOn(tauriClient, 'validateMetadataIntentPatch')
+			.mockRejectedValue(new Error('validation transport failed'));
+		const errors: string[] = [];
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+			errors.push(String(args[0]));
+		});
+		runtime = createTestAppRuntime();
+		mounted = mountOutput(runtime);
+		const owner = mounted.owner;
+		owner.applyDefaults({
+			outputDirectory: '/books/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await vi.waitFor(() => expect(owner.view().previewText).toBe('/books/out/preview.m4b'));
+		expect(errors.some((message) => message.includes('Metadata preview validation failed'))).toBe(
+			true,
+		);
+		previewOutputPath.mockRestore();
+		validatePatch.mockRestore();
+		errorSpy.mockRestore();
 	});
 });
 

@@ -16,7 +16,6 @@ import type {
 	ProcessingPreflightPlan,
 } from '../../types/audio';
 import { persistOutputDefaults } from '../../ui/appSettings';
-import { Effect, runAppEffect } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import type { InputOwner } from '../inputSession';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
@@ -33,8 +32,7 @@ import {
 	type OutputView,
 } from './types';
 import {
-	makeOutputPlanWorkflowServicesLayer,
-	outputPathPreviewBody,
+	computeOutputPathPreview,
 	showOutputError,
 	updateMetadataIntentWarnings as applyMetadataIntentWarnings,
 } from './workflow';
@@ -188,24 +186,24 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			metadataDraft: previewDraftFromMetadataView(metadata),
 		};
 
-		const layer = makeOutputPlanWorkflowServicesLayer({
-			updateMetadataIntentWarnings: (draft) =>
-				applyMetadataIntentWarnings(draft, deps.onMetadataValidation),
-			beginOutputPreviewRequest: () => requestId,
-			isLatestOutputPreviewRequest: (id) => id === latestPreviewRequestId,
-			setOutputPreview: (text, title = text) => {
-				setPreviewText(text);
-				setPreviewTitle(title);
+		void applyMetadataIntentWarnings(context.metadataDraft, deps.onMetadataValidation).catch(
+			(error) => {
+				console.error('Metadata preview validation failed:', error);
+				showOutputError('Failed to validate metadata preview.');
 			},
-			showOutputError,
-			previewOutputPath: tauriClient.previewOutputPath,
-			preflightProcessingPlan: tauriClient.preflightProcessingPlan,
-			openCollisionDialog: () => Promise.resolve(null),
-			console,
-		});
+		);
 
-		void runAppEffect(
-			outputPathPreviewBody('final', context, requestId).pipe(Effect.provide(layer)),
+		void computeOutputPathPreview('final', context, tauriClient.previewOutputPath).then(
+			(preview) => {
+				if (requestId !== latestPreviewRequestId) {
+					return;
+				}
+				setPreviewText(preview.text);
+				setPreviewTitle(preview.title);
+				if (!preview.ok) {
+					showOutputError(`Rust preview failed: ${String(preview.cause)}`);
+				}
+			},
 		);
 	});
 
