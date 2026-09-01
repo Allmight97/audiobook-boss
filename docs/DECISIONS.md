@@ -4,6 +4,25 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-01 - Stay On Solid 1.9; Narrow Effect Off Import And Remote Source
+
+- Outcome: Keep Solid `1.9.15` + `vite-plugin-solid`. Do not adopt Solid 2
+  until `solid-js` and `@solidjs/web` are a 2.0.0 release (or later) that
+  satisfies bunfig's 10-day `minimumReleaseAge` **and** `@solidjs/testing-library`
+  declares a peer range that matches that version under npm semver
+  (`1.0.0-beta.2` peers are `>=2.0.0`, which does not match `2.0.0-rc.4`).
+  Effect stays for Processing and Output collision review. Input import and
+  Remote Source are not Effect owners. Output path preview is plain async plus
+  an owner request-id, not an Effect Layer.
+- Evidence: spike PR #479 on `2.0.0-rc.4` / `@solidjs/vite-plugin` `3.0.0-next.36`
+  / testing-library `1.0.0-beta.2`. Install needed a one-shot age exception.
+  Staged writes required `ownedWrite`, eager owner snapshots, and test
+  `flush()`. `createRoot` is parent-owned. Solid 2 async memo can drop stale
+  preview answers, but that does not remove Processing Layer/~25-field DI.
+- Guardrail: reevaluate only when those package versions land. Do not adopt
+  `@effect/atom-solid` or `effect/unstable/reactivity` as a Solid/Effect
+  bridge.
+
 ## 2026-08-31 - One Owner Per Kind Of Repository Truth
 
 - Outcome: root `AGENTS.md` is the always-loaded operating and routing

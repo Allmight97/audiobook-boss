@@ -46,7 +46,8 @@ dispatch intent; they do not keep parallel business state.
 
 - Use the AppEffect kernel for multi-boundary async work, typed failure,
   cancellation/lifetime handoff, or injected external dependencies. Read
-  `src/lib/effect/AGENTS.md` before changing that shape.
+  `src/lib/effect/AGENTS.md` before changing that shape. Generation-gated
+  async (Remote Source) and Result-mapping import (Input) stay vanilla.
 - Keep Effect programs and live layers private to the workflow owner. Public
   owner entrypoints return Promise or synchronous domain outcomes.
 - Runtime calls route through `tauriClient`. Normalize user-facing errors and

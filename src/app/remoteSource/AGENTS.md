@@ -14,7 +14,9 @@
 - Import acquire intents and the Input handoff result type from
   `src/app/remoteSource`.
 - `index.ts` is the export surface. Do not import `workflow.ts`,
-  `sessionAssets.ts`, or `state.ts` from outside this owner.
+  `sessionAssets.ts`, or `state.ts` from outside this owner. Acquisition
+  callers pass a `RemoteSourceWorkflowServices` object to
+  `runRemoteSourceWorkflow`. There is no workflow Layer factory on this strip.
 - State/listeners, workflow generation counters, cover-preview scheduling, and
   Supplemental Asset maps are still module-global compatibility state. Do not
   add callers, a reset API, another global, or a UI re-export; new state belongs
