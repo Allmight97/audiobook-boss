@@ -179,6 +179,28 @@ describe('input session selection transition ticket', () => {
 	});
 });
 
+describe('input session overlapping import', () => {
+	it('does not let a stale drainOpened completion wipe a later lock error', async () => {
+		let resolveOpened: ((paths: string[]) => void) | undefined;
+		const opened = new Promise<string[]>((resolve) => {
+			resolveOpened = resolve;
+		});
+		const input = fakeInput({
+			takeOpenedAudioFiles: vi.fn(async () => opened),
+		});
+		const owner = createInputOwner({ capability: input });
+		const drain = owner.importIntent({ type: 'drainOpened' });
+		owner.setOrderLocked(true);
+		await owner.importIntent({ type: 'importPaths', paths: ['/tmp/file1.mp3'] });
+		expect(owner.view().errorMessage).toMatch(/Wait for completion to add files/);
+		resolveOpened?.([]);
+		await drain;
+		expect(owner.view().errorMessage).toMatch(/Wait for completion to add files/);
+		expect(owner.view().orderLocked).toBe(true);
+		expect(input.analyzeAudioFiles).not.toHaveBeenCalled();
+	});
+});
+
 describe('input session support text hydrate', () => {
 	let runtime: AppRuntime | undefined;
 

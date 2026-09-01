@@ -59,6 +59,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	const [capability] = createSignal(deps.capability ?? liveInputCapability);
 	const view = createMemo(() => toInputView(session()));
 	let selectionTransitionTicket = 0;
+	let importTicket = 0;
 
 	function commit(next: InputSessionState): void {
 		setSession(next);
@@ -78,7 +79,11 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		jobType,
 		capability,
 		async importIntent(intent) {
+			const ticket = ++importTicket;
 			const next = await runImportIntent(capability(), session(), intent);
+			if (ticket !== importTicket) {
+				return;
+			}
 			commit({ ...next, orderLocked: session().orderLocked });
 		},
 		async hydrateSupportText() {
