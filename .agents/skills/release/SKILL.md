@@ -22,10 +22,26 @@ description: Audiobook Boss release workflow for deciding whether changes need a
   and concrete risk surface before release work, or skip it when the accepted
   change has already been verified and the owner asks to avoid rerunning tests.
 
+## First Move
+
+Before bumping a version, writing changelog, tagging, or building an artifact:
+
+1. State the user-visible impact in one line from the accepted change.
+2. Apply the Decision Rule. If a version is needed, choose it from that line:
+   patch restores or fixes behavior, minor adds a capability, major breaks a
+   contract. Spoken "patch", "minor", or "major" is not the version. If the
+   user's word and the line disagree, stop and name the recommended `x.y.z`.
+3. Name the artifact: host-tuned `/Applications/AudioBook Boss.app`, portable
+   DMG, or both. Mixed "local" plus "DMG" plus "this machine" wording is this
+   choice, not a host-tuned DMG. Then pick the matching lane below.
+
+This step is complete when the version or no-bump decision and the lane are
+stated.
+
 ## Lane Selection
 
-Use the user's wording to choose exactly one lane unless they explicitly ask for
-a combined lane.
+After the first move names the artifact, choose exactly one lane unless the
+owner asked for both.
 
 | User wording | Lane | Meaning |
 | --- | --- | --- |
@@ -48,9 +64,9 @@ When in doubt, name the impact and choose the smallest honest release scope. Do 
 
 ## Execute The Lane
 
-After choosing a lane, read
-[`references/execution.md`](references/execution.md) for the current version,
-changelog, build, install, tag, and publication sequence. Reconcile it with
+After the first move is complete, read
+[`references/execution.md`](references/execution.md) for the changelog, bump,
+build, install, tag, and publication sequence. Reconcile it with
 `scripts/AGENTS.md` and the live package scripts before running commands.
 
 ## Final Verification

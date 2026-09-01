@@ -9,6 +9,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Compacted repository agent guidance: root `AGENTS.md` is the always-loaded
   routing surface, the system map is conditional cross-owner topology, and
   live contracts own command/event discovery instead of a prose inventory.
+- Release skill first move now chooses patch/minor/major from the accepted
+  change and names the host-tuned `.app` vs portable DMG before any bump
+  or build.
 
 ## [1.4.1] - 2026-08-31
 

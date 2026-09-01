@@ -1,8 +1,9 @@
 # Release Execution
 
-Read this reference only after selecting the release lane. Before running a
-command, confirm it against `scripts/AGENTS.md` and the live package scripts;
-the repository environment owns command truth.
+Read this reference only after the first move has stated the version or
+no-bump decision and the lane. Before running a command, confirm it against
+`scripts/AGENTS.md` and the live package scripts; the repository environment
+owns command truth.
 
 ## Version And Changelog
 
@@ -65,7 +66,7 @@ tagging or publishing.
 
 ## Public Release
 
-1. Confirm the intended version and impact category.
+1. Use the version and impact already stated in the first move.
 2. Write the matching `CHANGELOG.md` section and run the version bump script.
 3. Run `bun run audit` so both Rust and JavaScript dependency graphs report
    before public packaging; any failure blocks the release. Run additional
