@@ -59,7 +59,8 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	const [capability] = createSignal(deps.capability ?? liveInputCapability);
 	const view = createMemo(() => toInputView(session()));
 	let selectionTransitionTicket = 0;
-	let importTicket = 0;
+	let importQueue: Promise<void> = Promise.resolve();
+	let importEpoch = 0;
 
 	function commit(next: InputSessionState): void {
 		setSession(next);
@@ -79,12 +80,22 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		jobType,
 		capability,
 		async importIntent(intent) {
-			const ticket = ++importTicket;
-			const next = await runImportIntent(capability(), session(), intent);
-			if (ticket !== importTicket) {
-				return;
-			}
-			commit({ ...next, orderLocked: session().orderLocked });
+			const epoch = importEpoch;
+			const run = importQueue.then(async () => {
+				if (epoch !== importEpoch) {
+					return;
+				}
+				const next = await runImportIntent(capability(), session(), intent);
+				if (epoch !== importEpoch) {
+					return;
+				}
+				commit({ ...next, orderLocked: session().orderLocked });
+			});
+			importQueue = run.then(
+				() => undefined,
+				() => undefined,
+			);
+			await run;
 		},
 		async hydrateSupportText() {
 			try {
@@ -180,6 +191,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			commit(next);
 		},
 		reset() {
+			importEpoch += 1;
 			commit(emptyInputSession());
 			setJobTypeSignal('batch');
 		},

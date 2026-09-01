@@ -191,13 +191,37 @@ describe('input session overlapping import', () => {
 		const owner = createInputOwner({ capability: input });
 		const drain = owner.importIntent({ type: 'drainOpened' });
 		owner.setOrderLocked(true);
-		await owner.importIntent({ type: 'importPaths', paths: ['/tmp/file1.mp3'] });
-		expect(owner.view().errorMessage).toMatch(/Wait for completion to add files/);
+		const locked = owner.importIntent({ type: 'importPaths', paths: ['/tmp/file1.mp3'] });
 		resolveOpened?.([]);
 		await drain;
+		await locked;
 		expect(owner.view().errorMessage).toMatch(/Wait for completion to add files/);
 		expect(owner.view().orderLocked).toBe(true);
 		expect(input.analyzeAudioFiles).not.toHaveBeenCalled();
+	});
+
+	it('keeps an in-flight path import when a later drainOpened returns no files', async () => {
+		let resolveAnalyze: ((list: FileListInfo) => void) | undefined;
+		const analyzing = new Promise<FileListInfo>((resolve) => {
+			resolveAnalyze = resolve;
+		});
+		const input = fakeInput({
+			analyzeAudioFiles: vi.fn(async () => analyzing),
+			takeOpenedAudioFiles: vi.fn(async () => []),
+		});
+		const owner = createInputOwner({ capability: input });
+		const importing = owner.importIntent({
+			type: 'importPaths',
+			paths: ['/books/chapter.m4b'],
+		});
+		await vi.waitFor(() => expect(input.analyzeAudioFiles).toHaveBeenCalled());
+		const drain = owner.importIntent({ type: 'drainOpened' });
+		resolveAnalyze?.(analyzedFile('/books/chapter.m4b'));
+		await importing;
+		await drain;
+		expect(owner.view().files).toHaveLength(1);
+		expect(owner.view().files[0]?.path).toBe('/books/chapter.m4b');
+		expect(owner.view().errorMessage).toBe('');
 	});
 });
 

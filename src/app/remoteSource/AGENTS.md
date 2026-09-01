@@ -59,11 +59,16 @@
 - `selection.test.ts` pins filter/selection policy.
 - `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and
   the polled owner-to-Solid progress path.
+- `runtime-api-contract.test.ts` pins the `src/app/remoteSource` public export
+  strip with a handwritten expected list. Do not generate that list from
+  `index.ts`. Processing's `remote-source-boundary.test.ts` pins the UI
+  session-asset strip, not this owner root.
 - When lifetime ownership changes, add two-runtime proof covering the affected
   state or resource: disposing A cannot cancel, purge, reset, or publish into B.
 
 ## Breaking-Change Triggers
 
+- Adding, removing, or renaming a public export.
 - Adding a caller to the public session-asset compatibility exports.
 - Dual-writing `fileListSessionState` or adding a parallel remote file list.
 - Cancelling acquisition from dialog close.

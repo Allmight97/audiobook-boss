@@ -37,7 +37,9 @@ dispatch intent; they do not keep parallel business state.
   writable store. Capability and validation facts stay with their Rust owner.
 - Disposal invalidates async generations and subscriptions before late results
   can publish. A remount or a second live runtime must not see or reset a
-  sibling runtime's state.
+  sibling runtime's state. Input `importIntent` serializes overlapping intents
+  on that owner so a later no-op cannot drop an in-flight successful import;
+  `reset` invalidates queued imports.
 - Some owners still expose module-global compatibility rails or presentation
   caches. Inspect live call sites before changing them, do not add callers, and
   do not copy their bind/subscribe/global shape into new work.
