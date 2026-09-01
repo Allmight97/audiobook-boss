@@ -5,7 +5,6 @@ import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
 import { patchRemoteSourceState, snapshotRemoteSourceView } from '../remoteSource/state';
 import {
-	makeRemoteSourceWorkflowServicesLayer,
 	runRemoteSourceWorkflow,
 	type RemoteSourceWorkflowServices,
 } from '../remoteSource/workflow';
@@ -165,7 +164,7 @@ describe('app runtime', () => {
 		const lateStatus = createDeferred<AcquisitionJob>();
 		const services = remoteServices(lateStatus.promise);
 		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
-		const acquisition = runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		const acquisition = runRemoteSourceWorkflow(services, {
 			type: 'acquireSelected',
 		});
 		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));

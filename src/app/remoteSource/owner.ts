@@ -11,7 +11,6 @@ import { patchRemoteSourceState, resetRemoteSourceState, snapshotRemoteSourceVie
 import type { RemoteSourceView } from './types';
 import {
 	invalidateRemoteSourceWorkflows,
-	makeRemoteSourceWorkflowServicesLayer,
 	runRemoteSourceWorkflow,
 	type RemoteSourceWorkflowAction,
 } from './workflow';
@@ -62,9 +61,8 @@ export function createRemoteSourceOwner(deps: { readonly input: InputOwner }): R
 			publish();
 		},
 		async runAction(action) {
-			const layer = makeRemoteSourceWorkflowServicesLayer(services());
 			try {
-				await runRemoteSourceWorkflow(layer, action, publish);
+				await runRemoteSourceWorkflow(services(), action, publish);
 			} catch (error) {
 				console.error('Remote source workflow failed:', error);
 				publish();

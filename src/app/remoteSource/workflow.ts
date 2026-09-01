@@ -5,13 +5,7 @@ import type {
 	RemoteLibraryResponse,
 	RemoteSourceAccountState,
 } from '../../types/remoteSource';
-import {
-	Effect,
-	type AppEffect,
-	type AppLayer,
-	makeWorkflowKit,
-	runAppEffect,
-} from '../../lib/effect/appEffect';
+import type { RemoteInputHandoffResult } from './types';
 import {
 	acquisitionPollDelayMs,
 	isAcquisitionTerminal,
@@ -28,7 +22,6 @@ import {
 	setAcquisitionError,
 	subscribeRemoteSourceState,
 } from './state';
-import type { RemoteInputHandoffResult } from './types';
 
 export interface RemoteSourceWorkflowServices {
 	getAccountState: () => Promise<RemoteSourceAccountState>;
@@ -49,27 +42,6 @@ export interface RemoteSourceWorkflowServices {
 	importMaterializedPaths: (paths: readonly string[]) => Promise<RemoteInputHandoffResult>;
 	sleep: (ms: number) => Promise<void>;
 }
-
-export type RemoteSourceWorkflowServicesId = 'RemoteSource/WorkflowServices';
-export type RemoteSourceWorkflowLayer = AppLayer<RemoteSourceWorkflowServicesId>;
-
-const kit = makeWorkflowKit(
-	'RemoteSource/WorkflowServices',
-	'RemoteSourceWorkflowFailed',
-)<RemoteSourceWorkflowServices>();
-
-export const RemoteSourceWorkflowServicesTag = kit.Tag;
-
-export function makeRemoteSourceWorkflowServicesLayer(
-	services: RemoteSourceWorkflowServices,
-): RemoteSourceWorkflowLayer {
-	return kit.makeLive(services);
-}
-
-export const RemoteSourceWorkflowFailed = kit.Failed;
-export type RemoteSourceWorkflowFailed = InstanceType<typeof kit.Failed>;
-
-const workflowPromise = kit.tryPromise;
 
 export type RemoteSourceWorkflowAction =
 	| { readonly type: 'hydrateOpenDialog' }
@@ -412,21 +384,8 @@ async function runAction(
 	}
 }
 
-export function remoteSourceWorkflowExecution(
-	action: RemoteSourceWorkflowAction,
-	isCurrent: IsCurrent,
-): AppEffect<void, RemoteSourceWorkflowFailed, RemoteSourceWorkflowServicesId> {
-	return Effect.gen(function* () {
-		const services = yield* RemoteSourceWorkflowServicesTag;
-		yield* workflowPromise(
-			() => runAction(services, action, isCurrent),
-			'Remote source workflow failed.',
-		);
-	});
-}
-
 export async function runRemoteSourceWorkflow(
-	layer: RemoteSourceWorkflowLayer,
+	services: RemoteSourceWorkflowServices,
 	action: RemoteSourceWorkflowAction,
 	onStateChange?: () => void,
 ): Promise<void> {
@@ -434,9 +393,7 @@ export async function runRemoteSourceWorkflow(
 	const isCurrent = () => workflowGeneration === generation;
 	const unsubscribe = onStateChange ? subscribeRemoteSourceState(onStateChange) : undefined;
 	try {
-		await runAppEffect(
-			remoteSourceWorkflowExecution(action, isCurrent).pipe(Effect.provide(layer)),
-		);
+		await runAction(services, action, isCurrent);
 	} finally {
 		unsubscribe?.();
 		if (isCurrent()) {

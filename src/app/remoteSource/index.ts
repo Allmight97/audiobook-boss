@@ -36,8 +36,4 @@ export {
 export { remoteSourceProviderId } from './types';
 export type { RemoteInputHandoffResult, RemoteSourceView } from './types';
 export type { RemoteSourceWorkflowAction, RemoteSourceWorkflowServices } from './workflow';
-export {
-	makeRemoteSourceWorkflowServicesLayer,
-	ORDER_LOCKED_IMPORT_MESSAGE,
-	runRemoteSourceWorkflow,
-} from './workflow';
+export { ORDER_LOCKED_IMPORT_MESSAGE, runRemoteSourceWorkflow } from './workflow';

@@ -4,7 +4,6 @@ import type { AcquisitionJob, RemoteLibraryResponse, RemoteTitle } from '../../t
 import { supplementalAssetsForInputIds } from './sessionAssets';
 import { patchRemoteSourceState, resetRemoteSourceState } from './state';
 import {
-	makeRemoteSourceWorkflowServicesLayer,
 	ORDER_LOCKED_IMPORT_MESSAGE,
 	runRemoteSourceWorkflow,
 	STAGED_FILES_REMOVED_SUFFIX,
@@ -206,7 +205,7 @@ describe('remote source acquisition workflow', () => {
 		const services = makeServices();
 		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await runRemoteSourceWorkflow(services, {
 			type: 'acquireSelected',
 		});
 
@@ -251,21 +250,17 @@ describe('remote source acquisition workflow', () => {
 		});
 		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
 
-		await runRemoteSourceWorkflow(
-			makeRemoteSourceWorkflowServicesLayer(services),
-			{ type: 'acquireSelected' },
-			() => {
-				const progress = remoteSourceState.activeJob?.progress;
-				if (!progress) return;
-				published.push({
-					stage: progress.stage,
-					percentage: progress.percentage,
-					message: progress.message,
-					bytesDownloaded: progress.bytesDownloaded,
-					bytesTotal: progress.bytesTotal,
-				});
-			},
-		);
+		await runRemoteSourceWorkflow(services, { type: 'acquireSelected' }, () => {
+			const progress = remoteSourceState.activeJob?.progress;
+			if (!progress) return;
+			published.push({
+				stage: progress.stage,
+				percentage: progress.percentage,
+				message: progress.message,
+				bytesDownloaded: progress.bytesDownloaded,
+				bytesTotal: progress.bytesTotal,
+			});
+		});
 
 		expect(published).toContainEqual({
 			stage: 'download',
@@ -286,7 +281,7 @@ describe('remote source acquisition workflow', () => {
 		});
 		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await runRemoteSourceWorkflow(services, {
 			type: 'acquireSelected',
 		});
 
@@ -313,7 +308,7 @@ describe('remote source acquisition workflow', () => {
 			selectedTitleIds: new Set(['B000000001']),
 		});
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await runRemoteSourceWorkflow(services, {
 			type: 'acquireSelected',
 		});
 
@@ -326,7 +321,7 @@ describe('remote source acquisition workflow', () => {
 		const services = makeServices();
 		patchRemoteSourceState({ activeJob: runningJob() });
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await runRemoteSourceWorkflow(services, {
 			type: 'cancelActiveAcquisition',
 		});
 
@@ -341,12 +336,12 @@ describe('remote source acquisition workflow', () => {
 		});
 		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
 
-		const acquisition = runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		const acquisition = runRemoteSourceWorkflow(services, {
 			type: 'acquireSelected',
 		});
 		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await runRemoteSourceWorkflow(services, {
 			type: 'cancelActiveAcquisition',
 		});
 		expect(remoteSourceState.activeJob?.status).toBe('cancelled');

@@ -1,6 +1,5 @@
 import { createMemo, createSignal, type Accessor } from 'solid-js';
 import type { JobType } from '../../types/audio';
-import { runAppEffect } from '../../lib/effect/appEffect';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import { toInputView } from './display';
 import { runImportIntent } from './importWorkflow';
@@ -79,7 +78,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		jobType,
 		capability,
 		async importIntent(intent) {
-			const next = await runAppEffect(runImportIntent(capability(), session(), intent));
+			const next = await runImportIntent(capability(), session(), intent);
 			commit({ ...next, orderLocked: session().orderLocked });
 		},
 		async hydrateSupportText() {
