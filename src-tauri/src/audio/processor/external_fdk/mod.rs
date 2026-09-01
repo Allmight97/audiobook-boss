@@ -9,7 +9,7 @@ use crate::audio::toolchain::ValidatedExternalToolchain;
 use crate::audio::CleanupGuard;
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
-use crate::metadata::merge_passthrough_cover_art;
+use crate::metadata::prepare_output_cover_art;
 use crate::metadata::{finalize_artifact_metadata, AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 use std::path::PathBuf;
@@ -62,7 +62,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
         passthrough::collect_passthrough_metadata(&valid_files, context.preview.is_some()),
     );
 
-    let effective_metadata = merge_passthrough_cover_art(metadata, passthrough.as_ref());
+    let (effective_metadata, passthrough) = prepare_output_cover_art(metadata, passthrough)?;
     let ui = context.new_emitter();
     ui.emit_analyzing_start("Preparing external FDK job...");
     ui.emit_analyzing_end("External FDK toolchain validated.");

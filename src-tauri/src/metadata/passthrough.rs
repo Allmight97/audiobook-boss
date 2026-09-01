@@ -75,6 +75,34 @@ pub(crate) fn merge_passthrough_cover_art(
     }
 }
 
+/// Merge source and explicit cover, then make the winning bytes write-ready once.
+///
+/// JPEG already at or under the write target is left untouched. PNG and oversized
+/// JPEG go through `optimize_cover_art` so both encoder paths mux MJPEG and
+/// mp4ameta writes the same JPEG `covr`. Passthrough cover bytes are dropped after
+/// they have been adopted so remux cannot re-select the raw original.
+pub(crate) fn prepare_output_cover_art(
+    metadata: Option<AudiobookMetadata>,
+    passthrough: Option<PassthroughMetadata>,
+) -> Result<(Option<AudiobookMetadata>, Option<PassthroughMetadata>)> {
+    let mut metadata = merge_passthrough_cover_art(metadata, passthrough.as_ref());
+    if let Some(cover) = metadata.as_mut().and_then(|value| value.cover_art.as_mut()) {
+        if !cover.is_empty() {
+            *cover = crate::metadata::prepare_cover_art_for_write(cover)?;
+        }
+    }
+    let passthrough = if metadata
+        .as_ref()
+        .and_then(|value| value.cover_art.as_ref())
+        .is_some_and(|bytes| !bytes.is_empty())
+    {
+        passthrough.and_then(PassthroughMetadata::without_cover_art)
+    } else {
+        passthrough
+    };
+    Ok((metadata, passthrough))
+}
+
 fn synthesize_chapters_from_files(files: &[PassthroughSource]) -> Vec<ChapterSpec> {
     let mut chapters = Vec::new();
     let mut offset_ms: i64 = 0;
@@ -235,7 +263,9 @@ fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{merge_passthrough_cover_art, ChapterSpec, PassthroughMetadata};
+    use super::{
+        merge_passthrough_cover_art, prepare_output_cover_art, ChapterSpec, PassthroughMetadata,
+    };
     use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 
     #[test]
@@ -358,5 +388,39 @@ mod tests {
             .expect("metadata remains");
 
         assert_eq!(merged.cover_art, Some(vec![9]));
+    }
+
+    #[test]
+    fn prepare_output_cover_art_drops_passthrough_cover_after_adopting_jpeg() {
+        let jpeg = {
+            use image::{DynamicImage, ImageBuffer, ImageFormat};
+            use std::io::Cursor;
+            let image =
+                DynamicImage::ImageRgb8(ImageBuffer::from_pixel(64, 64, image::Rgb([1, 2, 3])));
+            let mut source = Cursor::new(Vec::new());
+            image
+                .write_to(&mut source, ImageFormat::Jpeg)
+                .expect("fixture jpeg");
+            source.into_inner()
+        };
+        let passthrough = PassthroughMetadata {
+            chapters: vec![ChapterSpec {
+                title: Some("Chapter 1".to_string()),
+                start_ms: 0,
+                end_ms: 1_000,
+            }],
+            cover_art: Some(jpeg.clone()),
+        };
+
+        let (metadata, passthrough) = prepare_output_cover_art(None, Some(passthrough))
+            .expect("write-ready cover should prepare");
+
+        assert_eq!(
+            metadata.expect("cover adopted onto metadata").cover_art,
+            Some(jpeg)
+        );
+        let passthrough = passthrough.expect("chapters remain");
+        assert_eq!(passthrough.chapters.len(), 1);
+        assert_eq!(passthrough.cover_art, None);
     }
 }

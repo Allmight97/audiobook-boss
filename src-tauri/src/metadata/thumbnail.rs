@@ -1,3 +1,4 @@
+use super::cover_art::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
 use super::reader;
 use crate::errors::{AppError, Result};
 use std::io::Cursor;
@@ -23,6 +24,34 @@ pub(crate) fn optimize_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {
         COVER_ART_MAX_INPUT_DIMENSION,
         image::Limits::default().max_alloc,
     )
+}
+
+/// Write-side cover contract: keep a JPEG that already meets the target, convert once otherwise.
+pub(crate) fn prepare_cover_art_for_write(bytes: &[u8]) -> Result<Vec<u8>> {
+    if cover_art_meets_write_target(bytes) {
+        log::info!(
+            "cover_art_plan decision=passthrough format=jpeg bytes={}",
+            bytes.len()
+        );
+        return Ok(bytes.to_vec());
+    }
+    let prepared = optimize_cover_art(bytes)?;
+    log::info!(
+        "cover_art_plan decision=optimize input_bytes={} output_bytes={}",
+        bytes.len(),
+        prepared.len()
+    );
+    Ok(prepared)
+}
+
+fn cover_art_meets_write_target(bytes: &[u8]) -> bool {
+    matches!(detect_cover_art_format(bytes), Some(CoverFormat::Jpeg))
+        && detect_image_dimensions(bytes, CoverFormat::Jpeg).is_some_and(|(width, height)| {
+            width > 0
+                && height > 0
+                && (width as u32) <= COVER_ART_MAX_DIMENSION
+                && (height as u32) <= COVER_ART_MAX_DIMENSION
+        })
 }
 
 fn render_cover_thumbnail(cover_art: Option<Vec<u8>>) -> Result<Option<Vec<u8>>> {
@@ -116,9 +145,25 @@ fn flatten_transparency_to_white(img: image::DynamicImage) -> image::DynamicImag
 
 #[cfg(test)]
 mod tests {
-    use super::{render_cover_thumbnail, THUMBNAIL_MAX_ENCODED_BYTES};
+    use super::{
+        prepare_cover_art_for_write, render_cover_thumbnail, COVER_ART_MAX_DIMENSION,
+        THUMBNAIL_MAX_ENCODED_BYTES,
+    };
     use image::{DynamicImage, GenericImageView, ImageBuffer, ImageFormat, Rgba};
     use std::io::Cursor;
+
+    fn encode_fixture(width: u32, height: u32, format: ImageFormat) -> Vec<u8> {
+        let image = DynamicImage::ImageRgb8(ImageBuffer::from_pixel(
+            width,
+            height,
+            image::Rgb([12, 34, 56]),
+        ));
+        let mut source = Cursor::new(Vec::new());
+        image
+            .write_to(&mut source, format)
+            .expect("fixture image should encode");
+        source.into_inner()
+    }
 
     #[test]
     fn renders_embedded_cover_as_a_bounded_opaque_jpeg() {
@@ -184,5 +229,39 @@ mod tests {
         let error =
             render_cover_thumbnail(Some(source.into_inner())).expect_err("oversized dimensions");
         assert!(error.to_string().contains("Failed to decode image"));
+    }
+
+    #[test]
+    fn prepare_cover_art_for_write_converts_png_to_jpeg_once() {
+        let png = encode_fixture(240, 240, ImageFormat::Png);
+        let prepared = prepare_cover_art_for_write(&png).expect("png should convert");
+        assert_eq!(
+            image::guess_format(&prepared).expect("prepared format"),
+            ImageFormat::Jpeg
+        );
+        let decoded = image::load_from_memory(&prepared).expect("prepared jpeg should decode");
+        assert!(decoded.width() <= COVER_ART_MAX_DIMENSION);
+        assert!(decoded.height() <= COVER_ART_MAX_DIMENSION);
+    }
+
+    #[test]
+    fn prepare_cover_art_for_write_leaves_target_jpeg_untouched() {
+        let jpeg = encode_fixture(240, 240, ImageFormat::Jpeg);
+        let prepared = prepare_cover_art_for_write(&jpeg).expect("target jpeg should pass through");
+        assert_eq!(prepared, jpeg);
+    }
+
+    #[test]
+    fn prepare_cover_art_for_write_resizes_oversized_jpeg() {
+        let jpeg = encode_fixture(1200, 1200, ImageFormat::Jpeg);
+        let prepared = prepare_cover_art_for_write(&jpeg).expect("oversized jpeg should convert");
+        assert_ne!(prepared, jpeg);
+        assert_eq!(
+            image::guess_format(&prepared).expect("prepared format"),
+            ImageFormat::Jpeg
+        );
+        let decoded = image::load_from_memory(&prepared).expect("prepared jpeg should decode");
+        assert!(decoded.width() <= COVER_ART_MAX_DIMENSION);
+        assert!(decoded.height() <= COVER_ART_MAX_DIMENSION);
     }
 }

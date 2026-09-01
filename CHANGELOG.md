@@ -10,6 +10,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   routing surface, the system map is conditional cross-owner topology, and
   live contracts own command/event discovery instead of a prose inventory.
 
+## [1.4.1] - 2026-08-31
+
+### Fixed
+
+- Processing no longer fails when a source audiobook embeds PNG cover art.
+  JPEG already at the write target is left untouched. Other covers, including
+  large PNG art, are converted once before mux.
+
 ## [1.4.0] - 2026-08-30
 
 ### Changed

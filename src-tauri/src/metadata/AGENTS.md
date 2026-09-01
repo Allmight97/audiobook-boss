@@ -41,6 +41,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   adapters (`ffmpeg_dict`, `mp4ameta_bridge`, `reader`) apply ops only.
 - `cover_art` and `media_type` stay sink-owned outside the neutral field-op loop
   (encode-path embed vs mp4 artwork; unconditional audiobook media type).
+  Write-ready cover bytes are prepared once after merge by
+  `prepare_output_cover_art`: JPEG already at the write target is left
+  untouched; other covers go through `optimize_cover_art` before native mux,
+  remux, or mp4ameta.
 - `AlbumSortWriteAction` stays on `MetadataWritePlan`; do not fold album_sort into
   generic field set/clear ops.
 - Track/disk are read-compatible passthrough fields: excluded from

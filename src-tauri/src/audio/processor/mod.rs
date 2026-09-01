@@ -18,7 +18,7 @@ use crate::audio::settings_encoder::EncoderSettings;
 use crate::audio::AudioFile;
 use crate::errors::Result;
 use crate::metadata::{
-    extract_passthrough_metadata, merge_passthrough_cover_art, AudiobookMetadata,
+    extract_passthrough_metadata, prepare_output_cover_art, AudiobookMetadata,
     CoverArtPassthroughPolicy, PassthroughSource,
 };
 use crate::processing::ProcessingContext;
@@ -182,7 +182,8 @@ fn process_audiobook_with_context(
     let passthrough_metadata = cover_art_passthrough
         .apply_to_passthrough(extract_passthrough_metadata(&passthrough_sources).into_option());
 
-    let effective_metadata = merge_passthrough_cover_art(metadata, passthrough_metadata.as_ref());
+    let (effective_metadata, passthrough_metadata) =
+        prepare_output_cover_art(metadata, passthrough_metadata)?;
 
     // Metrics accumulation (estimates)
     for file in &files {
