@@ -32,14 +32,15 @@
 		"bindings:check:runtime-boundary": "bun scripts/check-tauri-runtime-boundary.ts",
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"update:rc": "bun update effect solid-js --minimum-release-age 172800"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.2",
 		"@tauri-apps/plugin-opener": "^2.5.4",
 		"effect": "rc",
-		"solid-js": "1.9.15"
+		"solid-js": "next"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
