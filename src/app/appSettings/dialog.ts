@@ -58,13 +58,15 @@ export type SettingsDialog = {
 export function createSettingsDialog(deps: {
 	readonly capability: () => SettingsCapability;
 }): SettingsDialog {
-	const [state, setState] = createSignal(createInitialState());
+	let dialog = createInitialState();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let afterSettingsReset: ((defaults: PinnedDefaults) => void) | undefined;
 
 	function update(mutator: (draft: AppSettingsDialogState) => void): void {
-		const next = { ...state() };
+		const next = { ...dialog };
 		mutator(next);
-		setState(next);
+		dialog = next;
+		bump((n) => n + 1);
 	}
 
 	async function refreshEncoderAvailability(): Promise<void> {
@@ -105,7 +107,10 @@ export function createSettingsDialog(deps: {
 	}
 
 	return {
-		state,
+		state: () => {
+			rev();
+			return dialog;
+		},
 		async open() {
 			update((draft) => {
 				draft.isOpen = true;
@@ -151,7 +156,7 @@ export function createSettingsDialog(deps: {
 				draft.saveState = 'saving';
 				draft.saveError = '';
 			});
-			const draftPath = state().ffmpegPathDraft.trim();
+			const draftPath = dialog.ffmpegPathDraft.trim();
 			try {
 				const settings = await deps.capability().updateAppSettings({
 					toolchain: { externalFfmpegPath: draftPath.length > 0 ? draftPath : undefined },
@@ -242,7 +247,8 @@ export function createSettingsDialog(deps: {
 		},
 		reset() {
 			afterSettingsReset = undefined;
-			setState(createInitialState());
+			dialog = createInitialState();
+			bump((n) => n + 1);
 		},
 	};
 }

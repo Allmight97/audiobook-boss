@@ -73,27 +73,37 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 }
 
 export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner {
-	const [concurrency, setConcurrency] = createSignal(emptyConcurrency());
-	const [capability] = createSignal(deps.capability ?? liveSettingsCapability);
-	const dialog = createSettingsDialog({ capability: () => capability() });
+	let concurrency = emptyConcurrency();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	const capabilityValue = deps.capability ?? liveSettingsCapability;
+	const capability: Accessor<SettingsCapability> = () => capabilityValue;
+	const dialog = createSettingsDialog({ capability: () => capabilityValue });
+
+	function commitConcurrency(next: ConcurrencyView): void {
+		concurrency = next;
+		bump((n) => n + 1);
+	}
 
 	return {
-		concurrency,
+		concurrency: () => {
+			rev();
+			return concurrency;
+		},
 		capability,
 		dialog: dialog.state,
 		async hydrateConcurrency(input = {}) {
 			try {
-				const runtime = await capability().getRuntimeSettingsCapabilities();
-				const source = await resolveStartupDefaults(capability());
+				const runtime = await capabilityValue.getRuntimeSettingsCapabilities();
+				const source = await resolveStartupDefaults(capabilityValue);
 				const capabilities = input.capabilities ?? runtime.maxConcurrentJobs ?? null;
 				const preference = input.preference ?? source.maxConcurrentJobs;
 				const selection = preference.mode === 'fixed' ? String(preference.value) : 'auto';
 				const effective =
 					selection === 'auto'
-						? await capability().setMaxConcurrentJobs(null)
-						: await capability().setMaxConcurrentJobs(Number.parseInt(selection, 10));
-				const latest = concurrency();
-				setConcurrency({
+						? await capabilityValue.setMaxConcurrentJobs(null)
+						: await capabilityValue.setMaxConcurrentJobs(Number.parseInt(selection, 10));
+				const latest = concurrency;
+				commitConcurrency({
 					...latest,
 					selection,
 					effective,
@@ -106,32 +116,32 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 			}
 		},
 		async setConcurrencySelection(value) {
-			const previous = concurrency().selection;
-			setConcurrency({ ...concurrency(), selection: value });
+			const previous = concurrency.selection;
+			commitConcurrency({ ...concurrency, selection: value });
 			try {
 				const preference = preferenceFromSelection(value);
-				const settings = await capability().updateAppSettings({ maxConcurrentJobs: preference });
+				const settings = await capabilityValue.updateAppSettings({ maxConcurrentJobs: preference });
 				const accepted = settings.maxConcurrentJobs;
 				const selection = accepted.mode === 'fixed' ? String(accepted.value) : 'auto';
 				let effective: number | null = null;
 				try {
-					effective = await capability().getMaxConcurrentJobs();
+					effective = await capabilityValue.getMaxConcurrentJobs();
 				} catch {
 					effective = accepted.mode === 'fixed' ? accepted.value : null;
 				}
-				setConcurrency({
-					...concurrency(),
+				commitConcurrency({
+					...concurrency,
 					selection,
 					effective,
 					effectiveLabel: labelFor(selection, effective),
 				});
 			} catch (error) {
 				console.warn('Failed to update max concurrency:', error);
-				setConcurrency({ ...concurrency(), selection: previous });
+				commitConcurrency({ ...concurrency, selection: previous });
 			}
 		},
 		setControlsEnabled(enabled) {
-			setConcurrency({ ...concurrency(), controlsEnabled: enabled });
+			commitConcurrency({ ...concurrency, controlsEnabled: enabled });
 		},
 		openDialog() {
 			return dialog.open();
@@ -171,7 +181,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		reset() {
 			dialog.reset();
-			setConcurrency(emptyConcurrency());
+			commitConcurrency(emptyConcurrency());
 		},
 	};
 }

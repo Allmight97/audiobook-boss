@@ -1,4 +1,6 @@
-import { onCleanup, onMount, type JSX } from 'solid-js';
+import { onSettled } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import type { CoverArtMessage } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
@@ -53,9 +55,9 @@ export function CoverArtView(): JSX.Element {
 		}
 	}
 
-	onMount(() => {
+	onSettled(() => {
 		window.addEventListener('paste', handleWindowPaste);
-		onCleanup(() => window.removeEventListener('paste', handleWindowPaste));
+		return () => window.removeEventListener('paste', handleWindowPaste);
 	});
 
 	const cover = () => view().cover;
@@ -65,17 +67,20 @@ export function CoverArtView(): JSX.Element {
 		<div class="cover-art">
 			<span class="cover-art-label">Cover Art</span>
 			{/* biome-ignore lint/a11y/useSemanticElements: cover drop target plus nested clear control */}
+			{/* biome-ignore lint/a11y/useFocusableInteractive: Solid 2 JSX types expose tabindex, not tabIndex */}
 			<div
 				id="cover-art-area"
-				class="cover-art-area"
-				classList={{
-					'has-image': hasImage(),
-					loading: cover().isLoading,
-					'drag-over': cover().isDragOver,
-				}}
+				class={[
+					'cover-art-area',
+					{
+						'has-image': hasImage(),
+						loading: cover().isLoading,
+						'drag-over': cover().isDragOver,
+					},
+				]}
 				data-testid="cover-art-area"
 				role="button"
-				tabIndex={0}
+				tabindex={0}
 				onClick={() => void loadFromPicker()}
 				onKeyDown={handleAreaKeyDown}
 				onMouseEnter={() => setHovered(true)}
@@ -107,7 +112,7 @@ export function CoverArtView(): JSX.Element {
 					class="cover-art-clear-btn"
 					id="cover-art-clear-btn"
 					aria-label="Clear cover art"
-					tabIndex={hasImage() ? 0 : -1}
+					tabindex={hasImage() ? 0 : -1}
 					onClick={(event) => {
 						event.stopPropagation();
 						clearCover();
@@ -144,12 +149,14 @@ export function CoverArtView(): JSX.Element {
 			</div>
 			<div
 				id="cover-art-url-message"
-				class="cover-art-url-message"
-				classList={{
-					visible: cover().message.kind !== 'hidden',
-					'is-error': cover().message.kind === 'error',
-					'is-success': cover().message.kind === 'success',
-				}}
+				class={[
+					'cover-art-url-message',
+					{
+						visible: cover().message.kind !== 'hidden',
+						'is-error': cover().message.kind === 'error',
+						'is-success': cover().message.kind === 'success',
+					},
+				]}
 				role="status"
 				aria-live="polite"
 			>

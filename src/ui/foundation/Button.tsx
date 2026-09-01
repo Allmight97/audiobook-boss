@@ -1,4 +1,5 @@
-import { splitProps, type JSX } from 'solid-js';
+import { omit } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 
 export type ButtonTone = 'primary' | 'secondary';
 
@@ -8,24 +9,21 @@ export type ButtonProps = {
 } & JSX.ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function Button(props: ButtonProps): JSX.Element {
-	const [local, rest] = splitProps(props, [
-		'tone',
-		'busy',
-		'class',
-		'disabled',
-		'type',
-		'children',
-	]);
-	const tone = () => local.tone ?? 'secondary';
+	const rest = omit(props, 'tone', 'busy', 'class', 'disabled', 'type', 'children');
+	const tone = () => props.tone ?? 'secondary';
 	return (
 		<button
 			{...rest}
-			type={local.type ?? 'button'}
-			disabled={local.disabled || local.busy}
-			aria-busy={local.busy || undefined}
-			class={`abb-button ${tone() === 'primary' ? 'abb-button-primary' : 'abb-button-secondary'}${local.class ? ` ${local.class}` : ''}`}
+			type={props.type ?? 'button'}
+			disabled={props.disabled || props.busy}
+			aria-busy={props.busy ? 'true' : undefined}
+			class={[
+				'abb-button',
+				tone() === 'primary' ? 'abb-button-primary' : 'abb-button-secondary',
+				props.class,
+			]}
 		>
-			{local.children}
+			{props.children}
 		</button>
 	);
 }

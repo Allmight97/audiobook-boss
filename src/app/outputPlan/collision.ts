@@ -34,24 +34,33 @@ export type CollisionReview = {
 };
 
 export function createCollisionReview(): CollisionReview {
-	const [view, setView] = createSignal(emptyCollisionView());
+	let collision = emptyCollisionView();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let pendingResolve: ((policy: CollisionPolicy | null) => void) | null = null;
+
+	function publish(next: CollisionView): void {
+		collision = next;
+		bump((n) => n + 1);
+	}
 
 	function settle(policy: CollisionPolicy | null): void {
 		const resolve = pendingResolve;
 		pendingResolve = null;
-		setView(emptyCollisionView());
+		publish(emptyCollisionView());
 		resolve?.(policy);
 	}
 
 	return {
-		view,
+		view: () => {
+			rev();
+			return collision;
+		},
 		open(plan) {
 			if (pendingResolve) {
 				pendingResolve(null);
 			}
 			const outputs = plan.outputs.filter((output) => output.collision != null);
-			setView({
+			publish({
 				isOpen: true,
 				outputs,
 				title: 'Resolve Existing File Conflicts',

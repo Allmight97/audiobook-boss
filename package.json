@@ -33,9 +33,10 @@
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"update:rc": "bun update effect solid-js --minimum-release-age 0"
+		"update:rc": "bun update effect solid-js @solidjs/web --minimum-release-age 0"
 	},
 	"dependencies": {
+		"@solidjs/web": "next",
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.2",
 		"@tauri-apps/plugin-opener": "^2.5.4",
@@ -44,7 +45,8 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
-		"@solidjs/testing-library": "0.8.10",
+		"@solidjs/testing-library": "1.0.0-beta.2",
+		"@solidjs/vite-plugin": "3.0.0-next.36",
 		"@tauri-apps/cli": "^2.11.4",
 		"@testing-library/jest-dom": "^6.10.0",
 		"@testing-library/user-event": "^14.6.5",
@@ -52,7 +54,6 @@
 		"jsdom": "^29.1.1",
 		"typescript": "npm:typescript@7.0.2",
 		"vite": "^8.2.2",
-		"vite-plugin-solid": "2.11.14",
 		"vitest": "^4.1.11"
 	},
 	"overrides": {

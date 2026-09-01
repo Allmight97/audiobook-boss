@@ -1,4 +1,6 @@
-import { onCleanup, onMount, type JSX } from 'solid-js';
+import { onSettled } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { hydrateAppSettingsProduction } from '../app/appSettings';
 import { useAppRuntime } from '../app/runtime';
 import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
@@ -26,7 +28,7 @@ export function App(): JSX.Element {
 	const applyOutputDefaults = runtime.output.applyDefaults;
 	const initializeWork = runtime.workOperations.initialize;
 
-	onMount(() => {
+	onSettled(() => {
 		void hydrateAppSettingsProduction().then((defaults) => {
 			if (defaults) {
 				applyOutputDefaults(defaults.outputDefaults);
@@ -46,7 +48,7 @@ export function App(): JSX.Element {
 			}
 		}
 		window.addEventListener('keydown', handleGlobalKeyDown);
-		onCleanup(() => window.removeEventListener('keydown', handleGlobalKeyDown));
+		return () => window.removeEventListener('keydown', handleGlobalKeyDown);
 	});
 
 	return (

@@ -1,4 +1,6 @@
-import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
+import { For, Show, createMemo, createSignal } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import type { JobListItem } from '../../app/processing';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Progress } from '../foundation';
@@ -125,7 +127,7 @@ export function StatusPanelView(): JSX.Element {
 								id="queue-toggle-button"
 								class="queue-toggle-button"
 								type="button"
-								aria-expanded={queueExpanded()}
+								aria-expanded={queueExpanded() ? 'true' : 'false'}
 								aria-controls="job-list"
 								onClick={() => setQueueExpanded(!queueExpanded())}
 							>

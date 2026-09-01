@@ -1,4 +1,6 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { createEffect, createSignal, For, onSettled, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import {
 	bytesLabel,
 	cancelRemoteSourceCoverPreviewSchedule,
@@ -71,35 +73,52 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const patchView = remoteSource.patch;
 	const [previewRevision, setPreviewRevision] = createSignal(0);
 
-	onMount(() => {
-		onCleanup(subscribeRemoteSourceCoverPreviews(() => setPreviewRevision((value) => value + 1)));
-	});
+	onSettled(() =>
+		subscribeRemoteSourceCoverPreviews(() => setPreviewRevision((value) => value + 1)),
+	);
 
-	createEffect(() => {
-		const current = view();
-		if (current.isOpen && !current.didHydrateOpenDialog) {
-			patchView({ didHydrateOpenDialog: true });
-			void runAction({ type: 'hydrateOpenDialog' });
-		}
-	});
+	createEffect(
+		() => {
+			const current = view();
+			return current.isOpen && !current.didHydrateOpenDialog;
+		},
+		(shouldHydrate) => {
+			if (shouldHydrate) {
+				patchView({ didHydrateOpenDialog: true });
+				void runAction({ type: 'hydrateOpenDialog' });
+			}
+		},
+	);
 
-	createEffect(() => {
-		const current = view();
-		if (!current.isOpen || current.accountState?.status !== 'connected') {
-			cancelRemoteSourceCoverPreviewSchedule();
-			return;
-		}
-		const visible = visibleRemoteTitles(current.titles, {
-			titleFilter: current.titleFilter,
-			showSupplementalPdfOnly: current.showSupplementalPdfOnly,
-			hideUnavailableTitles: current.hideUnavailableTitles,
-		});
-		scheduleRemoteSourceCoverPreviews(
-			visible.map((title) => title.coverUrl),
-			(url) => tauriClient.loadCoverArtFromUrl(url),
-		);
-		onCleanup(() => cancelRemoteSourceCoverPreviewSchedule());
-	});
+	createEffect(
+		() => {
+			const current = view();
+			return {
+				isOpen: current.isOpen,
+				connected: current.accountState?.status === 'connected',
+				titles: current.titles,
+				titleFilter: current.titleFilter,
+				showSupplementalPdfOnly: current.showSupplementalPdfOnly,
+				hideUnavailableTitles: current.hideUnavailableTitles,
+			};
+		},
+		(current) => {
+			if (!current.isOpen || !current.connected) {
+				cancelRemoteSourceCoverPreviewSchedule();
+				return;
+			}
+			const visible = visibleRemoteTitles(current.titles, {
+				titleFilter: current.titleFilter,
+				showSupplementalPdfOnly: current.showSupplementalPdfOnly,
+				hideUnavailableTitles: current.hideUnavailableTitles,
+			});
+			scheduleRemoteSourceCoverPreviews(
+				visible.map((title) => title.coverUrl),
+				(url) => tauriClient.loadCoverArtFromUrl(url),
+			);
+			return () => cancelRemoteSourceCoverPreviewSchedule();
+		},
+	);
 
 	const visibleTitles = () =>
 		visibleRemoteTitles(view().titles, {
@@ -289,16 +308,19 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					>
 						<For each={visibleTitles()}>
 							{(title) => (
+								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 JSX types expose tabindex, not tabIndex
 								<div
-									class="remote-title-row"
-									classList={{
-										selected: view().selectedTitleIds.has(title.titleId),
-										unavailable: !isTitleAcquirable(title),
-									}}
+									class={[
+										'remote-title-row',
+										{
+											selected: view().selectedTitleIds.has(title.titleId),
+											unavailable: !isTitleAcquirable(title),
+										},
+									]}
 									role="option"
-									tabIndex={-1}
-									aria-selected={view().selectedTitleIds.has(title.titleId)}
-									aria-disabled={!isTitleAcquirable(title)}
+									tabindex={-1}
+									aria-selected={view().selectedTitleIds.has(title.titleId) ? 'true' : 'false'}
+									aria-disabled={!isTitleAcquirable(title) ? 'true' : undefined}
 								>
 									<RemoteTitleCover title={title} revision={previewRevision()} />
 									<button

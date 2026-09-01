@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
+import { flush } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetRemoteSource } from '../../app/remoteSource';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
@@ -78,6 +79,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		runtime.remoteSource.open();
+		flush();
 
 		await fireEvent.keyDown(document.getElementById('remote-source-close') as Element, {
 			key: 'Escape',
@@ -107,6 +109,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			titles: [remoteTitle()],
 			selectedTitleIds: new Set(['B000000001']),
 		});
+		flush();
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Acquire Selected' }));
 		await vi.waitFor(() =>
@@ -134,6 +137,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			accountState: { providerId: 'audible', status: 'connected' },
 			titles: [remoteTitle()],
 		});
+		flush();
 
 		const dialog = screen.getByRole('dialog', { name: 'Acquire Audiobooks' });
 		expect(dialog.classList.contains('abb-dialog')).toBe(true);

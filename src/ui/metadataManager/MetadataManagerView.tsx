@@ -1,4 +1,6 @@
-import { createEffect, Show, untrack, type JSX } from 'solid-js';
+import { createEffect, Show, untrack } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { useAppRuntime } from '../../app/runtime';
 import { CoverArtView } from '../coverArt';
 import { MetadataFormView } from '../metadataForm';
@@ -10,13 +12,17 @@ export function MetadataManagerView(): JSX.Element {
 	const jobType = runtime.input.jobType;
 	const view = runtime.metadata.view;
 
-	createEffect(() => {
-		inputView();
-		jobType();
-		untrack(() => {
-			void runtime.metadata.hydrateSelection(document.activeElement);
-		});
-	});
+	createEffect(
+		() => ({
+			input: inputView(),
+			jobType: jobType(),
+		}),
+		() => {
+			untrack(() => {
+				void runtime.metadata.hydrateSelection(document.activeElement);
+			});
+		},
+	);
 
 	const snapshot = () => view().form;
 

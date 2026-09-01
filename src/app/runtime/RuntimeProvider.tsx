@@ -1,4 +1,6 @@
-import { onCleanup, type JSX } from 'solid-js';
+import { onCleanup } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { AppRuntimeProvider } from './context';
 import { createAppRuntime } from './index';
 

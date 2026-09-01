@@ -1,4 +1,4 @@
-import { createRoot, createSignal, type Accessor } from 'solid-js';
+import { createRoot, createSignal, flush, runWithOwner, type Accessor } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	defaultEncoderSettings,
@@ -135,27 +135,29 @@ function mountOutput(
 		readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 	} = {},
 ): MountedOutput {
-	return createRoot((dispose) => {
-		const [encodingRequest, setEncodingRequest] = createSignal(
-			overrides.encodingRequest ?? defaultEncodingRequest(),
-		);
-		const [encodingEstimateKbps, setEncodingEstimateKbps] = createSignal(
-			overrides.encodingEstimateKbps ?? 64,
-		);
-		const owner = createOutputOwner({
-			input: runtime.input,
-			metadataView: overrides.metadataView ?? emptyMetadataView,
-			encodingRequest,
-			encodingEstimateKbps,
-			onMetadataValidation: overrides.onMetadataValidation,
-		});
-		return {
-			owner,
-			setEncodingRequest,
-			setEncodingEstimateKbps,
-			dispose,
-		};
-	});
+	return runWithOwner(null, () =>
+		createRoot((dispose) => {
+			const [encodingRequest, setEncodingRequest] = createSignal(
+				overrides.encodingRequest ?? defaultEncodingRequest(),
+			);
+			const [encodingEstimateKbps, setEncodingEstimateKbps] = createSignal(
+				overrides.encodingEstimateKbps ?? 64,
+			);
+			const owner = createOutputOwner({
+				input: runtime.input,
+				metadataView: overrides.metadataView ?? emptyMetadataView,
+				encodingRequest,
+				encodingEstimateKbps,
+				onMetadataValidation: overrides.onMetadataValidation,
+			});
+			return {
+				owner,
+				setEncodingRequest,
+				setEncodingEstimateKbps,
+				dispose,
+			};
+		}),
+	);
 }
 
 describe('output plan public view', () => {
@@ -231,6 +233,7 @@ describe('output plan public view', () => {
 			sampleRate: 'auto',
 		});
 		mounted.setEncodingEstimateKbps(96);
+		flush();
 		const quality5 = mounted.owner.estimatedSizeText();
 		expect(quality1).toBe('~ 402.3 KB');
 		expect(quality5).toBe('~ 1.2 MB');

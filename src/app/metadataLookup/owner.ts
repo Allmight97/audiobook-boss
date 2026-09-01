@@ -35,11 +35,13 @@ export function createMetadataLookupOwner(deps: {
 }): MetadataLookupOwner {
 	const lookupState = createMetadataLookupState();
 	const queueState = createMetadataLookupQueueState();
-	const [view, setView] = createSignal(snapshotMetadataLookupState(lookupState));
-	const [previewRevision, setPreviewRevision] = createSignal(0);
+	let snapshot = snapshotMetadataLookupState(lookupState);
+	let previewRevision = 0;
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
 
 	function publish(): void {
-		setView(snapshotMetadataLookupState(lookupState));
+		snapshot = snapshotMetadataLookupState(lookupState);
+		bump((n) => n + 1);
 	}
 
 	function services() {
@@ -55,8 +57,14 @@ export function createMetadataLookupOwner(deps: {
 	}
 
 	return {
-		view,
-		previewRevision,
+		view: () => {
+			rev();
+			return snapshot;
+		},
+		previewRevision: () => {
+			rev();
+			return previewRevision;
+		},
 		async run(action) {
 			const layer = makeMetadataLookupWorkflowServicesLayer(services());
 			try {
@@ -88,12 +96,13 @@ export function createMetadataLookupOwner(deps: {
 			publish();
 		},
 		bumpPreview() {
-			setPreviewRevision((value) => value + 1);
+			previewRevision += 1;
+			bump((n) => n + 1);
 		},
 		reset() {
 			Object.assign(lookupState, createMetadataLookupState());
 			Object.assign(queueState, createMetadataLookupQueueState());
-			setPreviewRevision(0);
+			previewRevision = 0;
 			publish();
 		},
 	};

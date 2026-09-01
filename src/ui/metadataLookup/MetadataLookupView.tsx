@@ -1,4 +1,6 @@
-import { createEffect, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
+import { createEffect, createSignal, For, onSettled } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import {
 	cancelMetadataLookupCoverPreviewSchedule,
 	getMetadataLookupCoverPreviewState,
@@ -98,22 +100,30 @@ export function MetadataLookupView(): JSX.Element {
 	const capability = useAppRuntime().metadata.capability;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
 
-	onMount(() => {
+	onSettled(() => {
 		void runLookup({ type: 'init' });
-		onCleanup(subscribeMetadataLookupCoverPreviews(() => bumpPreview()));
+		return subscribeMetadataLookupCoverPreviews(() => bumpPreview());
 	});
 
-	createEffect(() => {
-		const state = view();
-		if (!state.isOpen || !state.hasSearched) {
-			cancelMetadataLookupCoverPreviewSchedule();
-			return;
-		}
-		scheduleMetadataLookupCoverPreviews(
-			state.results.map((result) => result.coverUrl),
-			(url) => capability().loadCoverArtFromUrl(url),
-		);
-	});
+	createEffect(
+		() => {
+			const state = view();
+			return {
+				isOpen: state.isOpen,
+				hasSearched: state.hasSearched,
+				coverUrls: state.results.map((result) => result.coverUrl),
+			};
+		},
+		(state) => {
+			if (!state.isOpen || !state.hasSearched) {
+				cancelMetadataLookupCoverPreviewSchedule();
+				return;
+			}
+			scheduleMetadataLookupCoverPreviews(state.coverUrls, (url) =>
+				capability().loadCoverArtFromUrl(url),
+			);
+		},
+	);
 
 	function handleQueryKeyDown(event: KeyboardEvent): void {
 		if (event.key !== 'Enter') return;
@@ -293,8 +303,10 @@ export function MetadataLookupView(): JSX.Element {
 										{formatDurationHours(result.durationSeconds ?? null)}
 									</div>
 									<span
-										class="metadata-lookup-source"
-										classList={{ 'is-secondary-source': result.source === 'openlibrary' }}
+										class={[
+											'metadata-lookup-source',
+											{ 'is-secondary-source': result.source === 'openlibrary' },
+										]}
 									>
 										{sourceLabel(result)}
 									</span>

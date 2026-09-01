@@ -1,4 +1,6 @@
-import { createSignal, onCleanup, onMount, type JSX } from 'solid-js';
+import { createSignal, onSettled } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
 import './previewAudioControls.css';
@@ -14,7 +16,7 @@ export function PreviewAudioControls(props: {
 	let dropdown: HTMLDivElement | undefined;
 	let toggle: HTMLButtonElement | undefined;
 
-	onMount(() => {
+	onSettled(() => {
 		function handleWindowClick(event: MouseEvent): void {
 			if (!open()) return;
 			const target = event.target;
@@ -23,7 +25,7 @@ export function PreviewAudioControls(props: {
 			setOpen(false);
 		}
 		window.addEventListener('click', handleWindowClick);
-		onCleanup(() => window.removeEventListener('click', handleWindowClick));
+		return () => window.removeEventListener('click', handleWindowClick);
 	});
 
 	return (

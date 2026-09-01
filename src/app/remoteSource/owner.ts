@@ -33,10 +33,12 @@ export function resetRemoteSource(): void {
 }
 
 export function createRemoteSourceOwner(deps: { readonly input: InputOwner }): RemoteSourceOwner {
-	const [view, setView] = createSignal(snapshotRemoteSourceView());
+	let snapshot = snapshotRemoteSourceView();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
 
 	function publish(): void {
-		setView(snapshotRemoteSourceView());
+		snapshot = snapshotRemoteSourceView();
+		bump((n) => n + 1);
 	}
 
 	function services() {
@@ -47,7 +49,10 @@ export function createRemoteSourceOwner(deps: { readonly input: InputOwner }): R
 	}
 
 	return {
-		view,
+		view: () => {
+			rev();
+			return snapshot;
+		},
 		open() {
 			patchRemoteSourceState({ isOpen: true });
 			publish();

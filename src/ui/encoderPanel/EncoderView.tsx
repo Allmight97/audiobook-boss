@@ -1,4 +1,6 @@
-import { createEffect, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
+import { createEffect, createSignal, For, onSettled } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { useAppRuntime } from '../../app/runtime';
 import { renderAutoResolutionHints } from './autoResolutionHints';
 import {
@@ -36,19 +38,22 @@ export function EncoderView(): JSX.Element {
 		setRevision((value) => value + 1);
 	}
 
-	createEffect(() => {
-		const inputView = runtime.input.view();
-		const selected = inputView.selectedIndices
-			.map((index) => inputView.files[index])
-			.filter((file): file is NonNullable<(typeof inputView.files)[number]> => Boolean(file));
-		renderAutoResolutionHints(selected);
-		bump();
-	});
+	createEffect(
+		() => runtime.input.view(),
+		(inputView) => {
+			const selected = inputView.selectedIndices
+				.map((index) => inputView.files[index])
+				.filter((file): file is NonNullable<(typeof inputView.files)[number]> => Boolean(file));
+			renderAutoResolutionHints(selected);
+			bump();
+		},
+	);
 
-	onMount(() => {
-		onCleanup(subscribeEncoderPanel(bump));
+	onSettled(() => {
+		const unsubscribe = subscribeEncoderPanel(bump);
 		initializeEncoderPanelLogic();
 		bump();
+		return unsubscribe;
 	});
 
 	function wrap(handler: (event: Event) => void) {

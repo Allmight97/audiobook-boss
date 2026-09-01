@@ -1,4 +1,6 @@
-import { createSignal, For, type JSX } from 'solid-js';
+import { createSignal, For } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { Button, CoverThumb, Dialog, Progress } from '../ui/foundation';
 import './lab.css';
 
@@ -199,7 +201,7 @@ export function Lab(): JSX.Element {
 				<div class="lab-stack">
 					<For each={densityRows}>
 						{(name, index) => (
-							<div class="lab-density-row" classList={{ 'lab-density-row-sel': index() === 1 }}>
+							<div class={['lab-density-row', { 'lab-density-row-sel': index() === 1 }]}>
 								<span>{name}</span>
 								<span class="muted-text lab-mono">00:{18 + index()}:45</span>
 							</div>

@@ -1,4 +1,6 @@
-import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { createEffect, createSignal, onSettled, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
@@ -86,20 +88,23 @@ export function AppSettingsDialogView(): JSX.Element {
 		cancelResetConfirm();
 	}
 
-	createEffect(() => {
-		if (!state().isOpen) cancelResetConfirm();
-	});
+	createEffect(
+		() => state().isOpen,
+		(isOpen) => {
+			if (!isOpen) cancelResetConfirm();
+		},
+	);
 
-	onMount(() => {
+	onSettled(() => {
 		const unsubscribeEncoder = subscribeEncoderPanel(() => {
 			setAfterburnerRevision((value) => value + 1);
 		});
 		window.addEventListener('click', handleWindowClickForResetConfirm, true);
-		onCleanup(() => {
+		return () => {
 			unsubscribeEncoder();
 			window.removeEventListener('click', handleWindowClickForResetConfirm, true);
 			cancelResetConfirm();
-		});
+		};
 	});
 
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
@@ -307,10 +312,7 @@ export function AppSettingsDialogView(): JSX.Element {
 											>
 												Reset
 											</Button>
-											<Button
-												data-testid="app-settings-reset-cancel"
-												onClick={cancelResetConfirm}
-											>
+											<Button data-testid="app-settings-reset-cancel" onClick={cancelResetConfirm}>
 												Cancel
 											</Button>
 										</Show>

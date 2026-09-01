@@ -15,11 +15,19 @@ export type WorkOperationsOwner = {
 };
 
 export function createWorkOperationsOwner(): WorkOperationsOwner {
-	const [view, setView] = createSignal(emptyWorkOperationsView());
-	const session = createWorkOperationsSession(setView);
+	let snapshot = emptyWorkOperationsView();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	function publish(next: WorkOperationsView): void {
+		snapshot = next;
+		bump((n) => n + 1);
+	}
+	const session = createWorkOperationsSession(publish);
 
 	return {
-		view,
+		view: () => {
+			rev();
+			return snapshot;
+		},
 		initialize() {
 			return session.initialize();
 		},
@@ -31,7 +39,7 @@ export function createWorkOperationsOwner(): WorkOperationsOwner {
 		},
 		reset() {
 			session.dispose();
-			setView(emptyWorkOperationsView());
+			publish(emptyWorkOperationsView());
 		},
 	};
 }

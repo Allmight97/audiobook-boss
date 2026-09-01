@@ -40,21 +40,31 @@ export function createProcessingOwner(deps: {
 	readonly settings: SettingsOwner;
 	readonly encodingRequest: Accessor<EncodingRequestConfig>;
 }): ProcessingOwner {
-	const [status, setStatus] = createSignal(DEFAULT_STATUS_VIEW);
-	bindStatusPublisher(setStatus);
+	let status = DEFAULT_STATUS_VIEW;
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	function publish(next: StatusView): void {
+		status = next;
+		bump((n) => n + 1);
+	}
+	bindStatusPublisher(publish);
 	bindProcessingInput(deps.input);
 	bindProcessingMetadata(deps.metadata);
 	bindProcessingSettings(deps.settings);
 	bindProcessingEncoding(() => deps.encodingRequest());
 	resetStatusPanelViewState();
 	initStatusPanel();
-	createEffect(() => {
-		deps.settings.concurrency();
-		renderConcurrencyStatus();
-	});
+	createEffect(
+		() => deps.settings.concurrency(),
+		() => {
+			renderConcurrencyStatus();
+		},
+	);
 
 	return {
-		status,
+		status: () => {
+			rev();
+			return status;
+		},
 		start(options) {
 			return initStatusPanel().startProcessing(options);
 		},
@@ -69,7 +79,7 @@ export function createProcessingOwner(deps: {
 		},
 		reset() {
 			resetStatusPanelRuntime();
-			setStatus(getStatusView());
+			publish(getStatusView());
 		},
 	};
 }
