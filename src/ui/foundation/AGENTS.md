@@ -3,8 +3,9 @@
 ## Current state
 
 Shared visual behavior crosses `src/ui/foundation/index.ts`. Native CSS is the
-only styling language. Next action: change tokens or primitives here, then
-update `src/lab` in the same change.
+only styling language. Next action: change tokens or primitives here.
+ProductionRoot and the Vite mock-runtime are the visual references; do not
+add a second catalog.
 
 ## Public API Strip
 
@@ -32,5 +33,5 @@ update `src/lab` in the same change.
 
 ## Proof
 
-- `bun run test -- src/ui/foundation src/lab/Lab.test.tsx`
+- `bun run test -- src/ui/foundation`
 - `bun run test -- scripts/frontend-toolchain-layout.test.ts`

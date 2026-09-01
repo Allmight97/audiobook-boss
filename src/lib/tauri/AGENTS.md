@@ -7,6 +7,9 @@
   expected method, command, or event list from `commands.ts` or generated
   bindings.
 - Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
+- Browser mock-runtime lives in `src/mock/` and intercepts invoke/events with
+  `@tauri-apps/api/mocks`. Do not put mock handlers in `client.ts` or
+  `src/main.tsx`.
 
 ## Frontend Utility Surface
 - `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that

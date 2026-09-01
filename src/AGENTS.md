@@ -50,9 +50,9 @@
   `src/ui/foundation/AGENTS.md` before adding a primitive or token.
 - Owner CSS consumes public semantic tokens. It does not import another
   owner's CSS or foundation internals.
-- The design lab (`lab.html` + `src/lab/`, Vite dev only) renders the retained
-  foundation vocabulary. Update the lab in the same change as a token or
-  primitive.
+- Browser mock-runtime (`bun run ui:mock`) mounts `ProductionRoot` against
+  official Tauri mocks. It is not a token catalog and must stay out of
+  `src/main.tsx`.
 
 ## Hard Invariants
 

@@ -69,6 +69,7 @@ commands over invoking internals directly.
   pasted terminal output. These are latest-run entrypoints; the five newest
   run-scoped artifacts remain under `.logs/runs/<run-id>/`.
 - Frontend owner: `bun run test -- <owner test files>`.
+- Browser UI mock (no Rust): `bun run ui:mock`.
 - Frontend type validation: `bun run typecheck`.
 - IPC/generated binding changes:
   `bash scripts/check-generated-bindings.sh --mode local`, then the contract

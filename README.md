@@ -67,6 +67,9 @@ default broad review route.
 
 - Core dev: `bun run app:dev:log` (bundled FFmpeg). `bun run build` is the
   frontend production bundle only.
+- Browser UI mock (no Rust): `bun run ui:mock` mounts the real
+  `ProductionRoot` on http://localhost:1420 with official Tauri `mockIPC`.
+  It does not write files, call Audible, or change production `src/main.tsx`.
 - Verification is owner-scoped. Run the smallest native command that proves the
   touched owner, then escalate only when the change crosses owners or a safety,
   data, or contract invariant requires it.

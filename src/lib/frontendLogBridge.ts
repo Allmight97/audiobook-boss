@@ -71,7 +71,7 @@ function sendLogFrontend(level: FrontendLogLevel, scope: string, message: string
 			})
 			.catch(() => undefined);
 	} catch {
-		// Plain Vite and the design lab have no Tauri backend.
+		// Plain Vite and the ui:mock runtime have no Rust backend.
 	}
 }
 
