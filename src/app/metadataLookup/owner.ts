@@ -37,11 +37,12 @@ export function createMetadataLookupOwner(deps: {
 	const queueState = createMetadataLookupQueueState();
 	let snapshot = snapshotMetadataLookupState(lookupState);
 	let previewRevision = 0;
-	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
+	const [previewRev, bumpPreviewRev] = createSignal(0, { ownedWrite: true });
 
 	function publish(): void {
 		snapshot = snapshotMetadataLookupState(lookupState);
-		bump((n) => n + 1);
+		bumpView((n) => n + 1);
 	}
 
 	function services() {
@@ -58,11 +59,11 @@ export function createMetadataLookupOwner(deps: {
 
 	return {
 		view: () => {
-			rev();
+			viewRev();
 			return snapshot;
 		},
 		previewRevision: () => {
-			rev();
+			previewRev();
 			return previewRevision;
 		},
 		async run(action) {
@@ -97,12 +98,13 @@ export function createMetadataLookupOwner(deps: {
 		},
 		bumpPreview() {
 			previewRevision += 1;
-			bump((n) => n + 1);
+			bumpPreviewRev((n) => n + 1);
 		},
 		reset() {
 			Object.assign(lookupState, createMetadataLookupState());
 			Object.assign(queueState, createMetadataLookupQueueState());
 			previewRevision = 0;
+			bumpPreviewRev((n) => n + 1);
 			publish();
 		},
 	};

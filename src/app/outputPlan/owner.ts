@@ -46,10 +46,9 @@ const EMPTY_PREVIEW_RESULT: OutputPathPreviewResult = {
 	title: EMPTY_PREVIEW_TITLE,
 };
 
-type OutputPlanBag = {
+type PreviewPlanBag = {
 	outputDirectory: string;
 	namingPreset: OutputPlanState['namingPreset'];
-	namingTemplate: string;
 	previewTemplate: string;
 	absIncludeYear: boolean;
 };
@@ -81,22 +80,40 @@ export type OutputOwnerDeps = {
 
 export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const empty = emptyOutputPlan();
-	let plan: OutputPlanBag = {
+	let previewPlan: PreviewPlanBag = {
 		outputDirectory: empty.outputDirectory,
 		namingPreset: empty.namingPreset,
-		namingTemplate: empty.namingTemplate,
 		previewTemplate: empty.previewTemplate,
 		absIncludeYear: empty.absIncludeYear,
 	};
-	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	let namingTemplate = empty.namingTemplate;
+	const [previewRev, bumpPreview] = createSignal(0, { ownedWrite: true });
+	const [formRev, bumpForm] = createSignal(0, { ownedWrite: true });
 	const [previewText, setPreviewText] = createSignal(empty.previewText);
 	const [previewTitle, setPreviewTitle] = createSignal(empty.previewTitle);
 	let templatePreviewTimer: ReturnType<typeof setTimeout> | null = null;
 	const collisionReview = createCollisionReview();
 
-	function commitPlan(next: OutputPlanBag): void {
-		plan = next;
-		bump((n) => n + 1);
+	function commitPreviewPlan(next: PreviewPlanBag): void {
+		previewPlan = next;
+		bumpPreview((n) => n + 1);
+	}
+
+	function commitLiveTemplate(next: string): void {
+		namingTemplate = next;
+		bumpForm((n) => n + 1);
+	}
+
+	function namingFields(): OutputPlanState {
+		return {
+			outputDirectory: previewPlan.outputDirectory,
+			namingPreset: previewPlan.namingPreset,
+			namingTemplate,
+			previewTemplate: previewPlan.previewTemplate,
+			absIncludeYear: previewPlan.absIncludeYear,
+			previewText: EMPTY_PREVIEW_TEXT,
+			previewTitle: EMPTY_PREVIEW_TITLE,
+		};
 	}
 
 	const estimatedSizeText = createMemo(() => {
@@ -109,14 +126,15 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	});
 
 	const view: Accessor<OutputView> = () => {
-		rev();
-		const directory = plan.outputDirectory;
-		const preset = plan.namingPreset;
-		const year = plan.absIncludeYear;
+		formRev();
+		previewRev();
+		const directory = previewPlan.outputDirectory;
+		const preset = previewPlan.namingPreset;
+		const year = previewPlan.absIncludeYear;
 		return {
 			outputDirectory: directory,
 			namingPreset: preset,
-			namingTemplate: plan.namingTemplate,
+			namingTemplate,
 			absIncludeYear: year,
 			previewText: previewText(),
 			previewTitle: previewTitle(),
@@ -128,24 +146,21 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		};
 	};
 
-	function persistPlan(overrides: Partial<OutputPlanBag> = {}): void {
-		const next = { ...plan, ...overrides };
+	function persistPlan(overrides: Partial<PreviewPlanBag> = {}): void {
+		const next = { ...previewPlan, ...overrides };
 		void persistOutputDefaults({
 			outputDirectory: next.outputDirectory || undefined,
 			outputNaming: outputNamingFromPlan({
+				...namingFields(),
 				...next,
-				previewText: previewText(),
-				previewTitle: previewTitle(),
 			}),
 		});
 	}
 
 	function outputNamingForSubmit(): OutputNamingConfig {
 		return outputNamingFromPlan({
-			...plan,
-			previewTemplate: plan.namingTemplate,
-			previewText: previewText(),
-			previewTitle: previewTitle(),
+			...namingFields(),
+			previewTemplate: namingTemplate,
 		});
 	}
 
@@ -160,7 +175,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		clearTemplatePreviewTimer();
 		templatePreviewTimer = setTimeout(() => {
 			templatePreviewTimer = null;
-			commitPlan({ ...plan, previewTemplate: plan.namingTemplate });
+			commitPreviewPlan({ ...previewPlan, previewTemplate: namingTemplate });
 			persistPlan();
 		}, TEMPLATE_PREVIEW_DEBOUNCE_MS);
 	}
@@ -182,11 +197,11 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	});
 
 	const previewContext = createMemo(() => {
-		rev();
-		const directory = plan.outputDirectory;
-		const preset = plan.namingPreset;
-		const year = plan.absIncludeYear;
-		const committed = plan.previewTemplate;
+		previewRev();
+		const directory = previewPlan.outputDirectory;
+		const preset = previewPlan.namingPreset;
+		const year = previewPlan.absIncludeYear;
+		const committed = previewPlan.previewTemplate;
 		const input = deps.input.view();
 		metadataDraftKey();
 		const metadata = untrack(() => deps.metadataView());
@@ -240,10 +255,10 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		applyDefaults(defaults) {
 			clearTemplatePreviewTimer();
 			const template = defaults.outputNaming.customTemplate ?? '';
-			commitPlan({
+			commitLiveTemplate(template);
+			commitPreviewPlan({
 				outputDirectory: defaults.outputDirectory ?? '',
 				namingPreset: defaults.outputNaming.preset,
-				namingTemplate: template,
 				previewTemplate: template,
 				absIncludeYear: defaults.outputNaming.includeYear,
 			});
@@ -257,7 +272,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 					return;
 				}
 				clearTemplatePreviewTimer();
-				commitPlan({ ...plan, outputDirectory: selectedPath });
+				commitPreviewPlan({ ...previewPlan, outputDirectory: selectedPath });
 				persistPlan({ outputDirectory: selectedPath });
 			} catch (cause) {
 				console.error('Error selecting directory:', cause);
@@ -267,16 +282,16 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		selectNamingPreset(value) {
 			clearTemplatePreviewTimer();
 			const preset = value === 'customTemplate' ? 'customTemplate' : 'absDefault';
-			commitPlan({ ...plan, namingPreset: preset });
+			commitPreviewPlan({ ...previewPlan, namingPreset: preset });
 			persistPlan({ namingPreset: preset });
 		},
 		setAbsIncludeYear(value) {
 			clearTemplatePreviewTimer();
-			commitPlan({ ...plan, absIncludeYear: value });
+			commitPreviewPlan({ ...previewPlan, absIncludeYear: value });
 			persistPlan({ absIncludeYear: value });
 		},
 		editNamingTemplate(value) {
-			commitPlan({ ...plan, namingTemplate: value });
+			commitLiveTemplate(value);
 			scheduleCommittedTemplate();
 		},
 		openCollisionReview(plan) {
@@ -289,7 +304,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			collisionReview.cancel();
 		},
 		readRequestConfig() {
-			const directory = plan.outputDirectory;
+			const directory = previewPlan.outputDirectory;
 			if (!directory) {
 				throw new Error('Output directory not selected');
 			}
@@ -300,7 +315,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		},
 		readDefaults() {
 			return {
-				outputDirectory: plan.outputDirectory || undefined,
+				outputDirectory: previewPlan.outputDirectory || undefined,
 				outputNaming: outputNamingForSubmit(),
 			};
 		},
@@ -308,10 +323,10 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			collisionReview.reset();
 			clearTemplatePreviewTimer();
 			const next = emptyOutputPlan();
-			commitPlan({
+			commitLiveTemplate(next.namingTemplate);
+			commitPreviewPlan({
 				outputDirectory: next.outputDirectory,
 				namingPreset: next.namingPreset,
-				namingTemplate: next.namingTemplate,
 				previewTemplate: next.previewTemplate,
 				absIncludeYear: next.absIncludeYear,
 			});

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, type Accessor } from 'solid-js';
+import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
 import type { EncodingRequestConfig } from '../../types/audio';
 import type { SettingsOwner } from '../appSettings';
 import type { InputOwner } from '../inputSession';
@@ -56,7 +56,9 @@ export function createProcessingOwner(deps: {
 	createEffect(
 		() => deps.settings.concurrency(),
 		() => {
-			renderConcurrencyStatus();
+			untrack(() => {
+				renderConcurrencyStatus();
+			});
 		},
 	);
 
