@@ -33,7 +33,7 @@
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"update:rc": "bun update effect solid-js --minimum-release-age 172800"
+		"update:rc": "bun update effect solid-js --minimum-release-age 0"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.11.1",

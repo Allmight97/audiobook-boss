@@ -170,7 +170,7 @@
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
 
-    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.4", "", {}, "sha512-l7P0g8+2pnNscaIPOGDMhv0boaidGAsvR8QN66JySIWNMvVnuq2ayv7ZnvP+IR00DJC+RqCNnnTG/UCdxf+h8g=="],
+    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.5", "", {}, "sha512-Ks+97LbyN2vYqPEHWpy2YY+MYgoSCge0kHOUFN/Bzdz1Ex/M9Is1HIyBZGBVhf5y35394List5WWlU44yEnm4w=="],
 
     "@solidjs/testing-library": ["@solidjs/testing-library@0.8.10", "", { "dependencies": { "@testing-library/dom": "^10.4.0" }, "peerDependencies": { "@solidjs/router": ">=0.9.0", "solid-js": ">=1.0.0" }, "optionalPeers": ["@solidjs/router"] }, "sha512-qdeuIerwyq7oQTIrrKvV0aL9aFeuwTd86VYD3afdq5HYEwoox1OBTJy4y8A3TFZr8oAR0nujYgCzY/8wgHGfeQ=="],
 
@@ -450,7 +450,7 @@
 
     "siginfo": ["siginfo@2.0.0", "", {}, "sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g=="],
 
-    "solid-js": ["solid-js@2.0.0-rc.4", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.4", "csstype": "^3.1.0", "seroval": "~1.5.4", "seroval-plugins": "~1.5.4" } }, "sha512-hSkDmtduesjFtvzjNyqLphrqiSvhSD5+njkPQUR+9YEoR60MMWtuv36SbLL4OucI0Ronof3Jc+AsUp0oWffwMg=="],
+    "solid-js": ["solid-js@2.0.0-rc.5", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.5", "csstype": "^3.1.0", "seroval": "~1.5.4", "seroval-plugins": "~1.5.4" } }, "sha512-AI9ndOlUtXXeFf0/MUADM5HfMYwXtxfitIayOkjBCZl67ZyD4ct5+4kqv0EF2xeyIrUwlsrFTuKpHs54BNA6iw=="],
 
     "solid-refresh": ["solid-refresh@0.6.3", "", { "dependencies": { "@babel/generator": "^7.23.6", "@babel/helper-module-imports": "^7.22.15", "@babel/types": "^7.23.6" }, "peerDependencies": { "solid-js": "^1.3" } }, "sha512-F3aPsX6hVw9ttm5LYlth8Q15x6MlI/J3Dn+o3EQyRTtTxidepSTwAYdozt01/YA+7ObcciagGEyXIopGZzQtbA=="],
 
