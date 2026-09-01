@@ -7,11 +7,9 @@
 
 ## Workflow Owner Shape
 
-Use `AppEffect` for frontend workflow owners that coordinate typed failures,
-Layer-injected dependencies, cleanup/lifetime handoff, or multi-service
-orchestration. Do not wrap generation-gated async or Result-mapping
-single-boundary work in Effect: Input import (`runImportIntent`) and Remote
-Source (`runRemoteSourceWorkflow`) stay injectable vanilla TypeScript.
+Use `AppEffect` for frontend workflow owners that coordinate async work,
+dependencies, typed failures, cleanup, cancellation/lifetime handoff, or
+multi-service orchestration.
 
 Keep Effect workflow APIs private to workflow owners:
 
@@ -78,14 +76,12 @@ Workflow tests should run the Effect program directly with fake services:
 
 ## Finding Workflow Owners
 
-Effect workflow owners live in `*Workflow*.ts` files that import the AppEffect
-kernel; find the current set by searching the tree (e.g.
-`rg -l "makeWorkflowKit" src/app`) rather than from a hand-maintained list.
-Each Effect owner co-locates its service interface, service tag, live layer
-(`satisfies`), program, and Promise bridge, and is exercised by a focused
-Vitest file next to it (`bun run test -- <owner test file>`). Files named
-`*Workflow*.ts` that do not import the kernel (Input import, Remote Source)
-are vanilla injectable async, not AppEffect owners.
+Workflow owners live in `*Workflow*.ts` files beside their `__tests__/`; find the
+current set by searching the tree (e.g. `rg -l "Workflow" src/app --glob '*Workflow*.ts'`)
+rather than from a hand-maintained list that rots as owners move. Each owner
+co-locates its service interface, service tag, live layer (`satisfies`), program,
+and Promise bridge, and is exercised by a focused Vitest file next to it
+(`bun run test -- <owner test file>`).
 
 Public API Strip impact for these owners is intentionally narrow: callers keep
 existing UI/runtime Promise or synchronous wrapper shapes unless a milestone

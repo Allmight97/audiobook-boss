@@ -37,9 +37,7 @@ dispatch intent; they do not keep parallel business state.
   writable store. Capability and validation facts stay with their Rust owner.
 - Disposal invalidates async generations and subscriptions before late results
   can publish. A remount or a second live runtime must not see or reset a
-  sibling runtime's state. Input `importIntent` serializes overlapping intents
-  on that owner so a later no-op cannot drop an in-flight successful import;
-  `reset` invalidates queued imports.
+  sibling runtime's state.
 - Some owners still expose module-global compatibility rails or presentation
   caches. Inspect live call sites before changing them, do not add callers, and
   do not copy their bind/subscribe/global shape into new work.
@@ -48,8 +46,7 @@ dispatch intent; they do not keep parallel business state.
 
 - Use the AppEffect kernel for multi-boundary async work, typed failure,
   cancellation/lifetime handoff, or injected external dependencies. Read
-  `src/lib/effect/AGENTS.md` before changing that shape. Generation-gated
-  async (Remote Source) and Result-mapping import (Input) stay vanilla.
+  `src/lib/effect/AGENTS.md` before changing that shape.
 - Keep Effect programs and live layers private to the workflow owner. Public
   owner entrypoints return Promise or synchronous domain outcomes.
 - Runtime calls route through `tauriClient`. Normalize user-facing errors and

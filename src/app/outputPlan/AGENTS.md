@@ -37,13 +37,11 @@
   directory, naming preset, year, and the **committed** template. Live template
   typing updates the input immediately and commits after 150 ms. Do not preview
   on every keystroke. Preview retriggers when Metadata series or subseries part
-  changes, not only title, album, or artist. Native path authority is
-  `computeOutputPathPreview` (plain async over Tauri `previewOutputPath`).
-  Stale in-flight answers are suppressed by a request-id on this owner, not
-  Effect. Metadata-intent validation is a separate apply path that must not
-  block the path preview or write through it. Preview validation forwards
-  `MetadataDraftValidation` through the injected `onMetadataValidation` dep.
-  Do not add a Metadata setter here.
+  changes, not only title, album, or artist. Native path authority,
+  metadata-intent validation, and request-id stale suppression stay in the
+  preview workflow. Preview validation forwards `MetadataDraftValidation`
+  through the injected `onMetadataValidation` dep. Do not add a Metadata setter
+  here.
 - Collision review is a separate preflight/review workflow
   (`runOutputPlanReviewWorkflow`) whose view and pending choice live on the
   Output owner. Views use `useAppRuntime().output`. Do not fold review into
@@ -63,12 +61,11 @@
 - `estimate.test.ts` pins the byte formula and empty-session placeholder.
 - `outputPlan.test.ts` pins hydration, derived estimate (including FDK VBR
   quality vs sticky request `bitrateKbps`), live submit naming vs 150 ms
-  preview debounce, series-part preview retrigger, overlapping in-flight
-  preview freshness, validation that does not block path preview, preview
-  draft/source-path projection, and collision resolve/cancel. Duration comes
-  from `runtime.input.replaceSession`.
-- `workflow.test.ts` pins `computeOutputPathPreview` outcomes and review
-  approve / cancel / hard-block.
+  preview debounce, series-part preview retrigger, preview draft/source-path
+  projection, and collision resolve/cancel. Duration comes from
+  `runtime.input.replaceSession`.
+- `workflow.test.ts` pins stale preview suppression and review approve /
+  cancel / hard-block.
 
 ## Breaking-Change Triggers
 
