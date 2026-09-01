@@ -3,3 +3,8 @@
 # published supply-chain compromises while leaving the committed lockfile flow
 # unchanged. Blanket policy per docs/DECISIONS.md 2026-08-27.
 minimumReleaseAge = 864000
+# BRANCH-SCOPED (cursor/solid2-effect-spike-36fc): effect v4 RC tracking spike
+# exempts `effect` so this branch adopts each published RC immediately.
+# CONTRADICTS the blanket no-family-tiers rule above — drop before merging to
+# main.
+minimumReleaseAgeExcludes = ["effect"]
