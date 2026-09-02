@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
 import type { ProcessingPreflightPlan } from '../../types/audio';
+import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
 import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
@@ -147,6 +148,40 @@ describe('app runtime', () => {
 		expect(second.lookup.view().isOpen).toBe(false);
 		expect(second.processing.status().isProcessing).toBe(false);
 		expect(second.workOperations.view().operations).toEqual([]);
+	});
+
+	it('keeps lookup cover preview cancellation and cache isolated across runtimes', async () => {
+		const firstLoad = createDeferred<number[]>();
+		const first = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				loadCoverArtFromUrl: () => firstLoad.promise,
+			},
+		});
+		const second = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				loadCoverArtFromUrl: async () => [0xff, 0xd8, 0xff],
+			},
+		});
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		first.lookup.scheduleCoverPreviews(['https://covers.example/first.jpg']);
+		second.lookup.scheduleCoverPreviews(['https://covers.example/second.jpg']);
+		await vi.waitFor(() =>
+			expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe(
+				'ready',
+			),
+		);
+
+		first.dispose();
+		firstLoad.resolve([0xff, 0xd8, 0xff]);
+		await Promise.resolve();
+		expect(first.lookup.coverPreview('https://covers.example/first.jpg').status).toBe('idle');
+		expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 
 	it('disposes Solid session state so later runtimes do not share it', () => {

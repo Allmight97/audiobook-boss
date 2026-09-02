@@ -1,12 +1,6 @@
 import { createEffect, createSignal, For, onSettled } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import {
-	cancelMetadataLookupCoverPreviewSchedule,
-	getMetadataLookupCoverPreviewState,
-	scheduleMetadataLookupCoverPreviews,
-	subscribeMetadataLookupCoverPreviews,
-} from '../../app/metadataLookup';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverThumb, Dialog } from '../foundation';
 import type { OnlineMetadataResult } from '../../types/metadata';
@@ -54,11 +48,8 @@ function LookupCoverThumb(props: {
 	readonly coverUrl: string | null | undefined;
 	readonly title: string;
 }): JSX.Element {
-	const previewRevision = useAppRuntime().lookup.previewRevision;
-	const previewState = () => {
-		previewRevision();
-		return getMetadataLookupCoverPreviewState(props.coverUrl);
-	};
+	const coverPreview = useAppRuntime().lookup.coverPreview;
+	const previewState = () => coverPreview(props.coverUrl);
 	const readyUrl = () => {
 		const state = previewState();
 		return state.status === 'ready' ? state.dataUrl : '';
@@ -96,13 +87,10 @@ export function MetadataLookupView(): JSX.Element {
 	const setSource = lookup.setSource;
 	const setApplyMode = lookup.setApplyMode;
 	const setReplaceCover = lookup.setReplaceCover;
-	const bumpPreview = lookup.bumpPreview;
-	const capability = useAppRuntime().metadata.capability;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
 
 	onSettled(() => {
 		void runLookup({ type: 'init' });
-		return subscribeMetadataLookupCoverPreviews(() => bumpPreview());
 	});
 
 	createEffect(
@@ -116,12 +104,11 @@ export function MetadataLookupView(): JSX.Element {
 		},
 		(state) => {
 			if (!state.isOpen || !state.hasSearched) {
-				cancelMetadataLookupCoverPreviewSchedule();
+				lookup.cancelCoverPreviews();
 				return;
 			}
-			scheduleMetadataLookupCoverPreviews(state.coverUrls, (url) =>
-				capability().loadCoverArtFromUrl(url),
-			);
+			lookup.scheduleCoverPreviews(state.coverUrls);
+			return () => lookup.cancelCoverPreviews();
 		},
 	);
 

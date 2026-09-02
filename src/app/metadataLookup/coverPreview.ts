@@ -8,70 +8,42 @@ export const MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES = DEFAULT_COVER_ART_PREVI
 
 export type MetadataLookupCoverPreviewState = CoverArtPreviewState;
 
-const metadataLookupCoverPreviewByUrl: Record<string, MetadataLookupCoverPreviewState> = {};
-const previewListeners = new Set<() => void>();
+export type MetadataLookupCoverPreviews = {
+	clear(): void;
+	cancel(): void;
+	getState(coverUrl: string | null | undefined): MetadataLookupCoverPreviewState;
+	schedule(coverUrls: ReadonlyArray<string | null | undefined>): void;
+	loadBytes(coverUrl: string): Promise<number[]>;
+	fetch(coverUrl: string): Promise<void>;
+};
 
-function notifyPreviewChanged(): void {
-	for (const listener of previewListeners) {
-		listener();
-	}
-}
+export function createMetadataLookupCoverPreviews(deps: {
+	readonly loadCoverArtFromUrl: (url: string) => Promise<number[]>;
+	readonly onChange: () => void;
+}): MetadataLookupCoverPreviews {
+	const previewByUrl: Record<string, MetadataLookupCoverPreviewState> = {};
+	const reactivePreviewByUrl = new Proxy(previewByUrl, {
+		set(target, key, value) {
+			Reflect.set(target, key, value);
+			deps.onChange();
+			return true;
+		},
+		deleteProperty(target, key) {
+			Reflect.deleteProperty(target, key);
+			deps.onChange();
+			return true;
+		},
+	});
+	const scheduler = createCoverArtPreviewScheduler(reactivePreviewByUrl, {
+		failureLogMessage: 'Failed to load metadata lookup cover preview:',
+	});
 
-export function subscribeMetadataLookupCoverPreviews(listener: () => void): () => void {
-	previewListeners.add(listener);
-	return () => {
-		previewListeners.delete(listener);
+	return {
+		clear: () => scheduler.clear(),
+		cancel: () => scheduler.cancel(),
+		getState: (coverUrl) => scheduler.getState(coverUrl),
+		schedule: (coverUrls) => scheduler.schedule(coverUrls, deps.loadCoverArtFromUrl),
+		loadBytes: (coverUrl) => scheduler.loadBytes(coverUrl, deps.loadCoverArtFromUrl),
+		fetch: (coverUrl) => scheduler.fetch(coverUrl, deps.loadCoverArtFromUrl),
 	};
-}
-
-const reactivePreviewByUrl = new Proxy(metadataLookupCoverPreviewByUrl, {
-	set(target, key, value) {
-		Reflect.set(target, key, value);
-		notifyPreviewChanged();
-		return true;
-	},
-	deleteProperty(target, key) {
-		Reflect.deleteProperty(target, key);
-		notifyPreviewChanged();
-		return true;
-	},
-});
-
-const metadataLookupCoverPreviewScheduler = createCoverArtPreviewScheduler(reactivePreviewByUrl, {
-	failureLogMessage: 'Failed to load metadata lookup cover preview:',
-});
-
-export function clearMetadataLookupCoverPreviewCache(): void {
-	metadataLookupCoverPreviewScheduler.clear();
-}
-
-export function cancelMetadataLookupCoverPreviewSchedule(): void {
-	metadataLookupCoverPreviewScheduler.cancel();
-}
-
-export function getMetadataLookupCoverPreviewState(
-	coverUrl: string | null | undefined,
-): MetadataLookupCoverPreviewState {
-	return metadataLookupCoverPreviewScheduler.getState(coverUrl);
-}
-
-export function scheduleMetadataLookupCoverPreviews(
-	coverUrls: ReadonlyArray<string | null | undefined>,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): void {
-	metadataLookupCoverPreviewScheduler.schedule(coverUrls, loadCoverArtFromUrl);
-}
-
-export async function loadMetadataLookupCoverBytes(
-	coverUrl: string,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): Promise<number[]> {
-	return metadataLookupCoverPreviewScheduler.loadBytes(coverUrl, loadCoverArtFromUrl);
-}
-
-export async function fetchMetadataLookupCoverPreview(
-	coverUrl: string,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): Promise<void> {
-	await metadataLookupCoverPreviewScheduler.fetch(coverUrl, loadCoverArtFromUrl);
 }

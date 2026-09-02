@@ -17,9 +17,10 @@
 - Metadata lookup is a decision surface: visible result data needed to choose
   an action must load from app-owned state scheduling, not hover, focus, or
   scroll triggers.
-- The current cover-preview cache, listeners, and scheduler are module-global.
-  New preview resources belong to each Metadata Lookup owner; do not add direct
-  imports, reset calls, or another shared cache.
+- Cover-preview cache, listeners, and scheduler belong to the runtime Metadata
+  Lookup owner. The view reads `coverPreview` and dispatches
+  `scheduleCoverPreviews` / `cancelCoverPreviews`. Do not import private
+  preview modules or restore `bumpPreview`.
 - Provider-controlled remote media URLs must not be rendered directly into DOM
   attributes. Cover previews route through the Tauri cover-art loader and
   render only app-owned data URLs from backend-validated bytes via
@@ -35,5 +36,4 @@
 - Preview scheduler and apply workflow stay covered by
   `src/app/metadataLookup` tests. Dialog focus/containment stays covered by
   the view modal test.
-- A preview-lifetime migration adds two-runtime proof: cancelling, clearing, or
-  disposing A cannot change B's cover state or schedule.
+- Two-runtime preview isolation is owned by `src/app/runtime/runtime.test.ts`.

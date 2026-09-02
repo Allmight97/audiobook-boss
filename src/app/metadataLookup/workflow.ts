@@ -27,7 +27,6 @@ import {
 	type QueueCoverState,
 	type QueueItemState,
 } from './workflowDomain';
-import { loadMetadataLookupCoverBytes } from './coverPreview';
 import type {
 	MetadataLookupQueueItem,
 	MetadataLookupQueueState,
@@ -64,6 +63,8 @@ export interface MetadataLookupWorkflowServices {
 		limit?: number | null;
 	}) => Promise<MetadataLookupResponse>;
 	loadCoverArtFromUrl: (url: string) => Promise<number[]>;
+	loadLookupCoverBytes: (url: string) => Promise<number[]>;
+	clearCoverPreviews: () => void;
 	focusElementById: (id: string) => void;
 	queueMicrotask: (callback: () => void) => void;
 	console: Pick<Console, 'error' | 'warn'>;
@@ -191,10 +192,7 @@ async function applyCoverArt(
 ): Promise<CoverArtApplyResult> {
 	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
-		const coverBytes = await loadMetadataLookupCoverBytes(
-			result.coverUrl,
-			services.loadCoverArtFromUrl,
-		);
+		const coverBytes = await services.loadLookupCoverBytes(result.coverUrl);
 		services.setCustomCoverArt(coverBytes);
 		return { status: 'applied', bytes: coverBytes };
 	} catch (error) {

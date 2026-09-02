@@ -1,6 +1,10 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
+import {
+	createMetadataLookupCoverPreviews,
+	type MetadataLookupCoverPreviewState,
+} from './coverPreview';
 import { makeProductionLookupServices } from './services';
 import {
 	createMetadataLookupQueueState,
@@ -18,14 +22,15 @@ import {
 
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
-	readonly previewRevision: Accessor<number>;
+	coverPreview(coverUrl: string | null | undefined): MetadataLookupCoverPreviewState;
+	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
+	cancelCoverPreviews(): void;
 	run(action: MetadataLookupWorkflowAction): Promise<void>;
 	setTitleQuery(value: string): void;
 	setAuthorQuery(value: string): void;
 	setSource(value: MetadataLookupSource): void;
 	setApplyMode(value: MetadataLookupApplyMode): void;
 	setReplaceCover(value: boolean): void;
-	bumpPreview(): void;
 	reset(): void;
 };
 
@@ -36,9 +41,12 @@ export function createMetadataLookupOwner(deps: {
 	const lookupState = createMetadataLookupState();
 	const queueState = createMetadataLookupQueueState();
 	let snapshot = snapshotMetadataLookupState(lookupState);
-	let previewRevision = 0;
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
-	const [previewRev, bumpPreviewRev] = createSignal(0, { ownedWrite: true });
+	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
+	const previews = createMetadataLookupCoverPreviews({
+		loadCoverArtFromUrl: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
+		onChange: () => bumpPreviews((revision) => revision + 1),
+	});
 
 	function publish(): void {
 		snapshot = snapshotMetadataLookupState(lookupState);
@@ -52,6 +60,7 @@ export function createMetadataLookupOwner(deps: {
 				metadata: deps.metadata,
 				lookupState,
 				queueState,
+				coverPreviews: previews,
 			},
 			publish,
 		);
@@ -62,9 +71,15 @@ export function createMetadataLookupOwner(deps: {
 			viewRev();
 			return snapshot;
 		},
-		previewRevision: () => {
+		coverPreview(coverUrl) {
 			previewRev();
-			return previewRevision;
+			return previews.getState(coverUrl);
+		},
+		scheduleCoverPreviews(coverUrls) {
+			previews.schedule(coverUrls);
+		},
+		cancelCoverPreviews() {
+			previews.cancel();
 		},
 		async run(action) {
 			const layer = makeMetadataLookupWorkflowServicesLayer(services());
@@ -96,15 +111,10 @@ export function createMetadataLookupOwner(deps: {
 			lookupState.replaceCoverArt = value;
 			publish();
 		},
-		bumpPreview() {
-			previewRevision += 1;
-			bumpPreviewRev((n) => n + 1);
-		},
 		reset() {
+			previews.clear();
 			Object.assign(lookupState, createMetadataLookupState());
 			Object.assign(queueState, createMetadataLookupQueueState());
-			previewRevision = 0;
-			bumpPreviewRev((n) => n + 1);
 			publish();
 		},
 	};

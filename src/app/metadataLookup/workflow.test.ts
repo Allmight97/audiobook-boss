@@ -8,11 +8,7 @@ import type {
 	MetadataLookupResponse,
 	OnlineMetadataResult,
 } from '../../types/metadata';
-import {
-	fetchMetadataLookupCoverPreview,
-	clearMetadataLookupCoverPreviewCache,
-	scheduleMetadataLookupCoverPreviews,
-} from './coverPreview';
+import { createMetadataLookupCoverPreviews } from './coverPreview';
 import {
 	makeMetadataLookupWorkflowServicesLayer,
 	MetadataLookupWorkflowFailed,
@@ -174,6 +170,10 @@ function makeHarness(options?: {
 		options?.searchOnlineMetadata ?? (async () => lookupResponse()),
 	);
 	const loadCoverArtFromUrl = vi.fn(options?.loadCoverArtFromUrl ?? (async () => [9, 9, 9]));
+	const previews = createMetadataLookupCoverPreviews({
+		loadCoverArtFromUrl,
+		onChange: () => undefined,
+	});
 	const focusElementById = vi.fn();
 	const queueMicrotask = vi.fn((callback: () => void) => callback());
 	const consoleError = vi.fn();
@@ -195,6 +195,8 @@ function makeHarness(options?: {
 		setCustomCoverArt,
 		searchOnlineMetadata,
 		loadCoverArtFromUrl,
+		loadLookupCoverBytes: (url) => previews.loadBytes(url),
+		clearCoverPreviews: () => previews.clear(),
 		focusElementById,
 		queueMicrotask,
 		console: {
@@ -209,6 +211,7 @@ function makeHarness(options?: {
 		lookupState,
 		queueState,
 		metadataByFile,
+		previews,
 		mocks: {
 			setMetadataLookupQueue,
 			clearMetadataLookupQueue,
@@ -231,7 +234,6 @@ function makeHarness(options?: {
 
 describe('MetadataLookupWorkflow', () => {
 	it('reuses cached lookup cover bytes when applying metadata', async () => {
-		clearMetadataLookupCoverPreviewCache();
 		const result = lookupResult({ coverUrl: 'https://example.com/cover.jpg' });
 		const harness = makeHarness({
 			lookupState: { results: [result], replaceCoverArt: true, isOpen: true },
@@ -242,7 +244,7 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl: async () => [9, 9, 9],
 		});
 
-		await fetchMetadataLookupCoverPreview(result.coverUrl!, harness.mocks.loadCoverArtFromUrl);
+		await harness.previews.fetch(result.coverUrl!);
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
@@ -250,7 +252,6 @@ describe('MetadataLookupWorkflow', () => {
 	});
 
 	it('does not reuse cached lookup cover bytes for a different URL at the same result index', async () => {
-		clearMetadataLookupCoverPreviewCache();
 		const firstCoverUrl = 'https://example.com/first.jpg';
 		const secondCoverUrl = 'https://example.com/second.jpg';
 		const result = lookupResult({ coverUrl: secondCoverUrl });
@@ -266,7 +267,7 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl,
 		});
 
-		await fetchMetadataLookupCoverPreview(firstCoverUrl, harness.mocks.loadCoverArtFromUrl);
+		await harness.previews.fetch(firstCoverUrl);
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith(secondCoverUrl);
@@ -274,7 +275,6 @@ describe('MetadataLookupWorkflow', () => {
 	});
 
 	it('joins an in-flight eager lookup cover preview when applying metadata', async () => {
-		clearMetadataLookupCoverPreviewCache();
 		const result = lookupResult({ coverUrl: 'https://example.com/in-flight.jpg' });
 		const request = createDeferred<number[]>();
 		const loadCoverArtFromUrl = vi.fn(() => request.promise);
@@ -287,7 +287,7 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl,
 		});
 
-		scheduleMetadataLookupCoverPreviews([result.coverUrl!], harness.mocks.loadCoverArtFromUrl);
+		harness.previews.schedule([result.coverUrl!]);
 		await flushAsync();
 		const pendingApply = runMetadataLookupWorkflow(harness.layer, {
 			type: 'applyResult',

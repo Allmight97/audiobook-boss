@@ -1,7 +1,6 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
-import { clearMetadataLookupCoverPreviewCache } from '../../app/metadataLookup/coverPreview';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
@@ -104,7 +103,6 @@ describe('MetadataLookup cover preview', () => {
 		cleanup();
 		runtime?.dispose();
 		runtime = undefined;
-		clearMetadataLookupCoverPreviewCache();
 	});
 
 	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {

@@ -1,11 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
-	cancelMetadataLookupCoverPreviewSchedule,
-	clearMetadataLookupCoverPreviewCache,
-	getMetadataLookupCoverPreviewState,
-	loadMetadataLookupCoverBytes,
+	createMetadataLookupCoverPreviews,
 	MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES,
-	scheduleMetadataLookupCoverPreviews,
+	type MetadataLookupCoverPreviews,
 } from './coverPreview';
 
 type Deferred<T> = {
@@ -32,11 +29,16 @@ async function flushAsync(): Promise<void> {
 	await Promise.resolve();
 }
 
-describe('metadata lookup cover preview scheduler', () => {
-	beforeEach(() => {
-		clearMetadataLookupCoverPreviewCache();
+function makePreviews(
+	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
+): MetadataLookupCoverPreviews {
+	return createMetadataLookupCoverPreviews({
+		loadCoverArtFromUrl,
+		onChange: () => undefined,
 	});
+}
 
+describe('metadata lookup cover preview scheduler', () => {
 	it('bounds eager preview concurrency', async () => {
 		const requests: Array<Deferred<number[]>> = [];
 		const loadCoverArtFromUrl = vi.fn((url: string) => {
@@ -44,15 +46,17 @@ describe('metadata lookup cover preview scheduler', () => {
 			requests.push(request);
 			return request.promise.then(() => [url.length]);
 		});
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews(
-			['https://example.com/1.jpg', 'https://example.com/2.jpg', 'https://example.com/3.jpg'],
-			loadCoverArtFromUrl,
-		);
+		previews.schedule([
+			'https://example.com/1.jpg',
+			'https://example.com/2.jpg',
+			'https://example.com/3.jpg',
+		]);
 		await flushAsync();
 
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(2);
-		expect(getMetadataLookupCoverPreviewState('https://example.com/3.jpg').status).toBe('queued');
+		expect(previews.getState('https://example.com/3.jpg').status).toBe('queued');
 
 		requests[0].resolve([1]);
 		await flushAsync();
@@ -67,11 +71,9 @@ describe('metadata lookup cover preview scheduler', () => {
 
 	it('dedupes duplicate cover URLs', async () => {
 		const loadCoverArtFromUrl = vi.fn(async () => [1, 2, 3]);
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews(
-			['https://example.com/shared.jpg', 'https://example.com/shared.jpg'],
-			loadCoverArtFromUrl,
-		);
+		previews.schedule(['https://example.com/shared.jpg', 'https://example.com/shared.jpg']);
 		await flushAsync();
 
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
@@ -83,24 +85,23 @@ describe('metadata lookup cover preview scheduler', () => {
 		const loadCoverArtFromUrl = vi.fn((url: string) =>
 			url.includes('first') ? first.promise : second.promise,
 		);
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews(['https://example.com/first.jpg'], loadCoverArtFromUrl);
+		previews.schedule(['https://example.com/first.jpg']);
 		await flushAsync();
-		cancelMetadataLookupCoverPreviewSchedule();
-		scheduleMetadataLookupCoverPreviews(['https://example.com/second.jpg'], loadCoverArtFromUrl);
+		previews.cancel();
+		previews.schedule(['https://example.com/second.jpg']);
 		await flushAsync();
 
 		first.resolve([1]);
 		await flushAsync();
 
-		expect(getMetadataLookupCoverPreviewState('https://example.com/first.jpg').status).toBe('idle');
+		expect(previews.getState('https://example.com/first.jpg').status).toBe('idle');
 
 		second.resolve([2]);
 		await flushAsync();
 
-		expect(getMetadataLookupCoverPreviewState('https://example.com/second.jpg').status).toBe(
-			'ready',
-		);
+		expect(previews.getState('https://example.com/second.jpg').status).toBe('ready');
 	});
 
 	it('keeps stale in-flight requests counted against the concurrency limit', async () => {
@@ -110,20 +111,16 @@ describe('metadata lookup cover preview scheduler', () => {
 			requests.push(request);
 			return request.promise.then(() => [url.length]);
 		});
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews(
-			['https://example.com/stale-1.jpg', 'https://example.com/stale-2.jpg'],
-			loadCoverArtFromUrl,
-		);
+		previews.schedule(['https://example.com/stale-1.jpg', 'https://example.com/stale-2.jpg']);
 		await flushAsync();
-		cancelMetadataLookupCoverPreviewSchedule();
-		scheduleMetadataLookupCoverPreviews(['https://example.com/fresh.jpg'], loadCoverArtFromUrl);
+		previews.cancel();
+		previews.schedule(['https://example.com/fresh.jpg']);
 		await flushAsync();
 
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(2);
-		expect(getMetadataLookupCoverPreviewState('https://example.com/fresh.jpg').status).toBe(
-			'queued',
-		);
+		expect(previews.getState('https://example.com/fresh.jpg').status).toBe('queued');
 
 		requests[0].resolve([1]);
 		await flushAsync();
@@ -140,80 +137,101 @@ describe('metadata lookup cover preview scheduler', () => {
 		const request = createDeferred<number[]>();
 		const loadCoverArtFromUrl = vi.fn(() => request.promise);
 		const coverUrl = 'https://example.com/same-visible.jpg';
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews([coverUrl], loadCoverArtFromUrl);
+		previews.schedule([coverUrl]);
 		await flushAsync();
-		cancelMetadataLookupCoverPreviewSchedule();
-		scheduleMetadataLookupCoverPreviews([coverUrl], loadCoverArtFromUrl);
+		previews.cancel();
+		previews.schedule([coverUrl]);
 		await flushAsync();
 
 		request.resolve([7, 7, 7]);
 		await flushAsync();
 
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
-		expect(getMetadataLookupCoverPreviewState(coverUrl).status).toBe('ready');
+		expect(previews.getState(coverUrl).status).toBe('ready');
 	});
 
 	it('does not repopulate cache after clear while request is in flight', async () => {
 		const request = createDeferred<number[]>();
 		const loadCoverArtFromUrl = vi.fn(() => request.promise);
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews(['https://example.com/clear.jpg'], loadCoverArtFromUrl);
+		previews.schedule(['https://example.com/clear.jpg']);
 		await flushAsync();
-		clearMetadataLookupCoverPreviewCache();
+		previews.clear();
 
 		request.resolve([9]);
 		await flushAsync();
 
-		expect(getMetadataLookupCoverPreviewState('https://example.com/clear.jpg').status).toBe('idle');
+		expect(previews.getState('https://example.com/clear.jpg').status).toBe('idle');
 	});
 
 	it('caps cached previews by pruning the oldest ready entries', async () => {
 		const loadCoverArtFromUrl = vi.fn(async (url: string) => [url.length]);
+		const previews = makePreviews(loadCoverArtFromUrl);
 		const urls = Array.from(
 			{ length: MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES + 1 },
 			(_, index) => `https://example.com/cache-${index}.jpg`,
 		);
 
 		for (const url of urls) {
-			await loadMetadataLookupCoverBytes(url, loadCoverArtFromUrl);
+			await previews.loadBytes(url);
 		}
 		await flushAsync();
 
-		expect(getMetadataLookupCoverPreviewState(urls[0]).status).toBe('idle');
-		expect(getMetadataLookupCoverPreviewState(urls[urls.length - 1]).status).toBe('ready');
+		expect(previews.getState(urls[0]).status).toBe('idle');
+		expect(previews.getState(urls[urls.length - 1]).status).toBe('ready');
 	});
 
 	it('keeps scheduled visible previews ready when the visible list exceeds the cache cap', async () => {
 		const loadCoverArtFromUrl = vi.fn(async (url: string) => [url.length]);
+		const previews = makePreviews(loadCoverArtFromUrl);
 		const urls = Array.from(
 			{ length: MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES + 1 },
 			(_, index) => `https://example.com/visible-${index}.jpg`,
 		);
 
-		scheduleMetadataLookupCoverPreviews(urls, loadCoverArtFromUrl);
+		previews.schedule(urls);
 		for (let index = 0; index < urls.length; index += 1) {
 			await flushAsync();
 		}
 
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(urls.length);
-		expect(getMetadataLookupCoverPreviewState(urls[0]).status).toBe('ready');
-		expect(getMetadataLookupCoverPreviewState(urls[urls.length - 1]).status).toBe('ready');
+		expect(previews.getState(urls[0]).status).toBe('ready');
+		expect(previews.getState(urls[urls.length - 1]).status).toBe('ready');
 	});
 
 	it('lets apply join an in-flight preview request', async () => {
 		const request = createDeferred<number[]>();
 		const loadCoverArtFromUrl = vi.fn(() => request.promise);
+		const previews = makePreviews(loadCoverArtFromUrl);
 
-		scheduleMetadataLookupCoverPreviews(['https://example.com/apply.jpg'], loadCoverArtFromUrl);
+		previews.schedule(['https://example.com/apply.jpg']);
 		await flushAsync();
-		const bytesPromise = loadMetadataLookupCoverBytes(
-			'https://example.com/apply.jpg',
-			loadCoverArtFromUrl,
-		);
+		const bytesPromise = previews.loadBytes('https://example.com/apply.jpg');
 
 		request.resolve([4, 5, 6]);
 		await expect(bytesPromise).resolves.toEqual([4, 5, 6]);
 		expect(loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps cancellation and cache state isolated across preview instances', async () => {
+		const firstLoad = createDeferred<number[]>();
+		const first = makePreviews(() => firstLoad.promise);
+		const second = makePreviews(async () => [0xff, 0xd8, 0xff]);
+
+		first.schedule(['https://covers.example/first.jpg']);
+		second.schedule(['https://covers.example/second.jpg']);
+		await flushAsync();
+
+		expect(second.getState('https://covers.example/second.jpg').status).toBe('ready');
+
+		first.clear();
+		firstLoad.resolve([0xff, 0xd8, 0xff]);
+		await flushAsync();
+
+		expect(first.getState('https://covers.example/first.jpg').status).toBe('idle');
+		expect(second.getState('https://covers.example/second.jpg').status).toBe('ready');
 	});
 });
