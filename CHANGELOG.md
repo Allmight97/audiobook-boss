@@ -13,6 +13,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   change and names the host-tuned `.app` vs portable DMG before any bump
   or build.
 
+## [1.4.2-spike.1] - 2026-09-02
+
+### Changed
+
+- Frontend session owners now run on Solid 2 RC and Effect v4 RC. Encoding,
+  Processing, and Lookup cover previews are runtime-scoped. Audiobook
+  workflows, IPC, and encoding behavior stay the same. This is a spike
+  pre-release, not a public 1.4.2.
+
 ## [1.4.1] - 2026-08-31
 
 ### Fixed
