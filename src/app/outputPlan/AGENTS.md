@@ -49,12 +49,12 @@
 - App Settings hydration passes resolved `outputDefaults` to the runtime's
   Output owner.
 - Submit composition reads the runtime's Output owner. The current
-  `readOutputRequestConfig()` / `readProcessingRequestConfig()` compatibility
-  getters use the live naming box
+  `readOutputRequestConfig()` compatibility getter uses the live naming box
   (`namingTemplate`), not the 150 ms committed `previewTemplate`. Preview stays
-  on the committed copy. They are getters, not poke APIs. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`, or preserve the last-bound lookup
-  through a new alias.
+  on the committed copy. Processing submit closes over `output.readRequestConfig()`
+  on the injected owner rather than this getter. It is a getter, not a poke API.
+  Do not restore `updateOutputPath` or `updateEstimatedSize`, or preserve the
+  last-bound lookup through a new alias.
 
 ## Testing
 

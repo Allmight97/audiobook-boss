@@ -8,7 +8,6 @@ import {
 } from '../workflow';
 import type { ProcessingWorkflowServices } from '../workflow';
 import { openGeneratedPreviewIfSingle } from '../preview';
-import * as viewState from '../view';
 
 const context = vi.hoisted(() => ({
 	preflightProcessingPlanMock: vi.fn(),
@@ -90,9 +89,7 @@ vi.mock('../../metadataSession', () => ({
 	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
-vi.mock('../view', () => ({
-	showError: vi.fn(),
-}));
+const showError = vi.fn();
 
 function processingContext() {
 	return {
@@ -145,7 +142,7 @@ function stagingServices(): ProcessingWorkflowServices {
 		},
 		runOutputPlanReviewWorkflow: context.runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle,
-		feedback: { showError: viewState.showError },
+		feedback: { showError },
 		console,
 	};
 }
@@ -181,6 +178,7 @@ describe('startProcessing metadata staging', () => {
 		context.stageMetadataToSelectionMock.mockReset();
 		context.seriesPartValidationErrorMock.mockReset();
 		context.subseriesPartValidationErrorMock.mockReset();
+		showError.mockReset();
 
 		context.getCurrentFileListMock.mockReturnValue({
 			files: [
@@ -348,7 +346,7 @@ describe('startProcessing metadata staging', () => {
 			showStatus: false,
 		});
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
-		expect(viewState.showError).toHaveBeenCalledWith(
+		expect(showError).toHaveBeenCalledWith(
 			'Fix metadata validation errors before processing.',
 		);
 	});
@@ -362,7 +360,7 @@ describe('startProcessing metadata staging', () => {
 
 		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
-		expect(viewState.showError).toHaveBeenCalledWith('Series part must be a number');
+		expect(showError).toHaveBeenCalledWith('Series part must be a number');
 	});
 
 	it('aborts non-merge processing instead of retargeting dirty edits from an invalid row', async () => {
@@ -378,13 +376,13 @@ describe('startProcessing metadata staging', () => {
 		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ title: 'Should Not Retarget' });
-		vi.mocked(viewState.showError).mockClear();
+		vi.mocked(showError).mockClear();
 
 		await startProcessing(processingContext());
 
 		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
-		expect(viewState.showError).toHaveBeenCalledWith(
+		expect(showError).toHaveBeenCalledWith(
 			'Select a valid input file before processing metadata edits.',
 		);
 	});
@@ -588,11 +586,11 @@ describe('startProcessing metadata staging', () => {
 		});
 
 		const ctx = processingContext();
-		vi.mocked(viewState.showError).mockClear();
+		vi.mocked(showError).mockClear();
 
 		await startProcessing(ctx);
 
-		expect(viewState.showError).not.toHaveBeenCalled();
+		expect(showError).not.toHaveBeenCalled();
 		expect(ctx.handleCancellation).toHaveBeenCalledTimes(1);
 		expect(ctx.resetToIdle).not.toHaveBeenCalled();
 	});

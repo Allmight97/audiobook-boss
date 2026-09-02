@@ -92,6 +92,7 @@ describe('app runtime', () => {
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
 		first.encoding.select('encoder', 'native_aac');
+		first.processing.pushTransientStatus('first runtime only');
 		first.remoteSource.patch({ isOpen: true, statusMessage: 'first runtime only' });
 
 		expect(first.output.collision().isOpen).toBe(true);
@@ -102,6 +103,8 @@ describe('app runtime', () => {
 		expect(second.lookup.view().titleQuery).toBe('');
 		expect(first.encoding.request().encoderSettings.encoderType).toBe('native_aac');
 		expect(second.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(first.processing.status().statusText).toBe('first runtime only');
+		expect(second.processing.status().statusText).toBe('Idle');
 		expect(first.remoteSource.view().isOpen).toBe(true);
 		expect(second.remoteSource.view().isOpen).toBe(false);
 		expect(second.remoteSource.view().statusMessage).toBe('');
@@ -109,10 +112,12 @@ describe('app runtime', () => {
 		expect(second.workOperations.view().operations).toEqual([]);
 
 		first.dispose();
+		first.processing.pushTransientStatus('after dispose');
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
 		expect(second.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(second.processing.status().statusText).toBe('Idle');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
 		const third = createAppRuntime();
@@ -124,6 +129,7 @@ describe('app runtime', () => {
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
 		expect(third.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 		expect(third.workOperations.view().operations).toEqual([]);
 	});

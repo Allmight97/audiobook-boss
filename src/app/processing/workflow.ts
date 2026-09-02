@@ -37,7 +37,6 @@ import {
 	validInputFilePaths,
 } from './workflowPreparation';
 import type { openGeneratedPreviewIfSingle } from './preview';
-import type { readProcessingRequestConfig } from './config';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -49,7 +48,7 @@ export interface ProcessingWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
 	getSelectedFileIndex: () => number;
 	getSelectedFileIndices: () => Set<number>;
-	readProcessingRequestConfig: typeof readProcessingRequestConfig;
+	readProcessingRequestConfig: () => ProcessingRequestConfig;
 	getJobType: () => JobType;
 	hasDirtyMetadataFields: () => boolean;
 	readMetadataForm: (options?: {

@@ -1,5 +1,4 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { boundProcessingInput, boundProcessingMetadata, boundProcessingSettings } from './bind';
 import { fileListFromInput } from './input';
 import {
 	cacheMetadataForFile,
@@ -7,76 +6,65 @@ import {
 	getMetadataForFile,
 	stageMetadataIntentPatch,
 } from '../metadataSession';
-import { runOutputPlanReviewWorkflow } from '../outputPlan';
+import { runOutputPlanReviewWorkflow, type OutputPlanOwner } from '../outputPlan';
 import { makeProcessingWorkflowServicesLayer, type ProcessingWorkflowServices } from './workflow';
-import { showError } from './view';
 import { openGeneratedPreviewIfSingle } from './preview';
-import { readProcessingRequestConfig } from './config';
+import type { EncodingOwner } from '../encoding';
+import type { InputOwner } from '../inputSession';
+import type { MetadataOwner } from '../metadataSession';
+import type { SettingsOwner } from '../appSettings';
 import type { RemoteSourceOwner } from '../remoteSource';
 
-function liveFileList() {
-	const view = boundProcessingInput()?.view();
-	return view ? fileListFromInput(view) : null;
-}
+export type ProcessingWorkflowLiveDeps = {
+	readonly input: InputOwner;
+	readonly metadata: MetadataOwner;
+	readonly settings: SettingsOwner;
+	readonly encoding: Pick<EncodingOwner, 'request'>;
+	readonly output: Pick<OutputPlanOwner, 'readRequestConfig'>;
+	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
+	readonly showError: (message: string) => void;
+};
 
-function liveMetadata() {
-	return boundProcessingMetadata();
-}
-
-export function makeProcessingWorkflowLive(
-	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>,
-) {
-	const services = {
-		getCurrentFileList: liveFileList,
-		getSelectedFileIndex: () => boundProcessingInput()?.view().selectedAnchor ?? -1,
-		getSelectedFileIndices: () => new Set(boundProcessingInput()?.view().selectedIndices ?? []),
-		readProcessingRequestConfig,
-		getJobType: () => boundProcessingInput()?.jobType() ?? 'batch',
-		hasDirtyMetadataFields: () => liveMetadata()?.readHasDirtyMetadata() ?? false,
-		readMetadataForm: () => liveMetadata()?.readMetadata() ?? {},
+export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
+	const services: ProcessingWorkflowServices = {
+		getCurrentFileList: () => fileListFromInput(deps.input.view()),
+		getSelectedFileIndex: () => deps.input.view().selectedAnchor,
+		getSelectedFileIndices: () => new Set(deps.input.view().selectedIndices),
+		readProcessingRequestConfig: () => ({
+			...deps.encoding.request(),
+			...deps.output.readRequestConfig(),
+		}),
+		getJobType: () => deps.input.jobType(),
+		hasDirtyMetadataFields: () => deps.metadata.readHasDirtyMetadata(),
+		readMetadataForm: () => deps.metadata.readMetadata(),
 		collectActionableMetadataIntent,
 		getMetadataForFile,
 		cacheMetadataForFile,
 		stageMetadataIntentPatch,
-		async stageMetadataToSelection(options?: { showStatus?: boolean }): Promise<boolean> {
-			const metadata = liveMetadata();
-			if (!metadata) {
-				return false;
-			}
-			const staged = await metadata.stageCurrentSelectionForProcess();
+		async stageMetadataToSelection(options) {
+			const staged = await deps.metadata.stageCurrentSelectionForProcess();
 			if (!staged && options?.showStatus) {
-				showError('Fix metadata validation errors before processing.');
+				deps.showError('Fix metadata validation errors before processing.');
 			}
 			return staged;
 		},
 		setJobControlsEnabled: (enabled) => {
-			boundProcessingSettings()?.setControlsEnabled(enabled);
+			deps.settings.setControlsEnabled(enabled);
 		},
 		setFileOrderLocked: (locked) => {
-			boundProcessingInput()?.setOrderLocked(locked);
+			deps.input.setOrderLocked(locked);
 		},
-		validateMetadataIntentPatch: (patch) => {
-			const metadata = liveMetadata();
-			if (!metadata) {
-				return Promise.reject(new Error('Metadata owner is not mounted'));
-			}
-			return metadata.capability().validateMetadataIntentPatch(patch);
-		},
-		readAudioMetadata: (path) => {
-			const metadata = liveMetadata();
-			if (!metadata) {
-				return Promise.reject(new Error('Metadata owner is not mounted'));
-			}
-			return metadata.capability().readAudioMetadata(path);
-		},
+		validateMetadataIntentPatch: (patch) =>
+			deps.metadata.capability().validateMetadataIntentPatch(patch),
+		readAudioMetadata: (path) => deps.metadata.capability().readAudioMetadata(path),
 		processAudiobookFiles: tauriClient.processAudiobookFiles,
 		submitProcessingOperation: tauriClient.submitProcessingOperation,
-		remoteSource,
+		remoteSource: deps.remoteSource,
 		runOutputPlanReviewWorkflow,
 		openGeneratedPreviewIfSingle,
-		feedback: { showError },
+		feedback: { showError: deps.showError },
 		console,
-	} satisfies ProcessingWorkflowServices;
+	};
 
 	return makeProcessingWorkflowServicesLayer(services);
 }

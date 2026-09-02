@@ -8,7 +8,6 @@ import {
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
 import type { InputOwner } from '../inputSession';
-import { getStatusView } from '../processing';
 import {
 	cacheMetadataForFile,
 	clearMetadataSession,
@@ -193,8 +192,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		rev();
 		return toView(editor);
 	};
-	const isForegroundProcessing =
-		deps.isForegroundProcessing ?? (() => getStatusView().isProcessing);
+	const isForegroundProcessing = deps.isForegroundProcessing ?? (() => false);
 	let coverMessageTimeoutId: number | null = null;
 
 	function readCoverLoadContext(state: MetadataEditorState): CoverLoadContext {

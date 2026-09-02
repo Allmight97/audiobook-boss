@@ -1,11 +1,14 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import { boundProcessingInput } from './bind';
-import { boundProcessingSettings } from './bind';
+import type { FileListInfo, ProcessCommandResult } from '../../types/audio';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction, type ProcessingWorkflowLayer } from './workflow';
-import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
+import {
+	renderConcurrencyStatus,
+	renderJobList,
+	renderStatus,
+	type ConcurrencyRead,
+} from './render';
 import type { AggregateProgress, ProcessingStatus } from './state';
-import type { ProcessCommandResult } from '../../types/audio';
 import { calculateAggregateProgressAndStage } from './domain/aggregate';
 import { buildJobKey as buildJobKeyDomain } from './domain/jobKeys';
 import { createCoverArtTracker } from './services/coverArtTracker';
@@ -32,37 +35,43 @@ import {
 	type StatusPanelModel,
 	workKindFromOperationKind,
 } from './domain/stateMachine';
-import {
-	pushTransientStatusMessage,
-	resetStatusPanelViewState,
-	showError,
-	showInfo,
-	showSuccess,
-} from './view';
-import { fileListFromInput } from './input';
+import type { StatusViewStore } from './view';
 
-function readCurrentFileList() {
-	const view = boundProcessingInput()?.view();
-	return view ? fileListFromInput(view) : null;
-}
-
-function unlockWorkbench(): void {
-	boundProcessingSettings()?.setControlsEnabled(true);
-	boundProcessingInput()?.setOrderLocked(false);
-}
+export type StatusPanelRuntimeDeps = {
+	readonly view: StatusViewStore;
+	readonly getCurrentFileList?: () => FileListInfo | null;
+	readonly unlockWorkbench?: () => void;
+	readonly concurrency?: () => ConcurrencyRead | undefined;
+	readonly workflowLayer?: ProcessingWorkflowLayer;
+};
 
 export class StatusPanelRuntime {
+	private readonly view: StatusViewStore;
+	private readonly readCurrentFileList: () => FileListInfo | null;
+	private readonly unlockWorkbench: () => void;
+	private readonly readConcurrency: () => ConcurrencyRead | undefined;
+	private readonly workflowLayer?: ProcessingWorkflowLayer;
 	private readonly progressSubscription = createProgressSubscription({
 		onProgress: (event) => this.updateProgress(event),
 		onQueue: (event) => this.handleQueueSnapshot(event),
 	});
-	private readonly coverArt = createCoverArtTracker();
+	private readonly coverArt;
 	private model: StatusPanelModel;
 	private batchCompletionTimeout?: number;
 	private singleCompletionTimeout?: number;
 	private pendingRender = false;
 
-	constructor(private readonly workflowLayer?: ProcessingWorkflowLayer) {
+	constructor(deps: StatusPanelRuntimeDeps) {
+		this.view = deps.view;
+		this.readCurrentFileList = deps.getCurrentFileList ?? (() => null);
+		this.unlockWorkbench = deps.unlockWorkbench ?? (() => undefined);
+		this.readConcurrency = deps.concurrency ?? (() => undefined);
+		this.workflowLayer = deps.workflowLayer;
+		this.coverArt = createCoverArtTracker({
+			getCurrentFileList: () => this.readCurrentFileList(),
+			displayCoverArt: (dataUrl) => this.view.setCoverArtDataUrl(dataUrl),
+			resetArtThumbnail: () => this.view.setCoverArtDataUrl(null),
+		});
 		this.model = createStatusPanelModel();
 		this.renderModel();
 		this.updateConcurrencyIndicator();
@@ -157,7 +166,7 @@ export class StatusPanelRuntime {
 		}
 
 		if (this.model.jobProgress.size === 0) {
-			showInfo('Processing was cancelled.');
+			this.view.showInfo('Processing was cancelled.');
 			this.resetToIdle();
 			return;
 		}
@@ -176,12 +185,14 @@ export class StatusPanelRuntime {
 		this.clearSingleCompletionTimeout();
 
 		this.pendingRender = false;
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderJobList(this.view, this.model.jobProgress, this.model.queueOrder, (id) =>
+			this.cancelJob(id),
+		);
 
 		this.updateStatus(this.model.currentStatus);
 		this.updateConcurrencyIndicator();
 
-		unlockWorkbench();
+		this.unlockWorkbench();
 		this.coverArt.reset();
 	}
 
@@ -206,7 +217,7 @@ export class StatusPanelRuntime {
 	}
 
 	private buildInferredProgressLabel(event: ProcessingProgressEvent): string {
-		const fileList = readCurrentFileList();
+		const fileList = this.readCurrentFileList();
 		const workKind = workKindFromOperationKind(event.operation_kind);
 		if (workKind === 'merge' && fileList?.files?.length) {
 			const firstValidFile = fileList.files.find((file) => file.isValid);
@@ -244,7 +255,7 @@ export class StatusPanelRuntime {
 	}
 
 	private buildMergeOutputLabel(): string {
-		const fileList = readCurrentFileList();
+		const fileList = this.readCurrentFileList();
 		const firstValidPath = fileList?.files.find((file) => file.isValid)?.path;
 		return firstValidPath
 			? (buildQueueLabels([firstValidPath])[0] ?? firstValidPath)
@@ -329,14 +340,16 @@ export class StatusPanelRuntime {
 	}
 
 	private renderModel(): void {
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderJobList(this.view, this.model.jobProgress, this.model.queueOrder, (id) =>
+			this.cancelJob(id),
+		);
 		const { aggregate } = this.calculateAggregateProgressAndStage();
 		this.updateConcurrencyIndicator(aggregate);
 		this.updateStatus(this.model.currentStatus);
 	}
 
 	private updateConcurrencyIndicator(aggregate?: AggregateProgress): void {
-		renderConcurrencyStatus(aggregate);
+		renderConcurrencyStatus(this.view, this.readConcurrency(), aggregate);
 	}
 
 	private updateStatus(status: ProcessingStatus): void {
@@ -344,7 +357,7 @@ export class StatusPanelRuntime {
 			...this.model,
 			currentStatus: status,
 		};
-		renderStatus(status, this.model.isProcessing);
+		renderStatus(this.view, status, this.model.isProcessing);
 	}
 
 	private applyIdleSideEffects(): void {
@@ -352,20 +365,22 @@ export class StatusPanelRuntime {
 		this.clearBatchCompletionTimeout();
 		this.clearSingleCompletionTimeout();
 		this.pendingRender = false;
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderJobList(this.view, this.model.jobProgress, this.model.queueOrder, (id) =>
+			this.cancelJob(id),
+		);
 		this.updateStatus(this.model.currentStatus);
 		this.updateConcurrencyIndicator();
-		unlockWorkbench();
+		this.unlockWorkbench();
 		this.coverArt.reset();
 	}
 
 	private showCompletionFeedback(feedbackResult: StatusPanelCompletionFeedback): void {
 		if (feedbackResult.kind === 'success') {
-			showSuccess(feedbackResult.message);
+			this.view.showSuccess(feedbackResult.message);
 		} else if (feedbackResult.kind === 'error') {
-			showError(feedbackResult.message);
+			this.view.showError(feedbackResult.message);
 		} else {
-			showInfo(feedbackResult.message);
+			this.view.showInfo(feedbackResult.message);
 		}
 	}
 
@@ -389,7 +404,9 @@ export class StatusPanelRuntime {
 	private flushRender(): void {
 		this.pendingRender = false;
 
-		renderJobList(this.model.jobProgress, this.model.queueOrder, (id) => this.cancelJob(id));
+		renderJobList(this.view, this.model.jobProgress, this.model.queueOrder, (id) =>
+			this.cancelJob(id),
+		);
 		const { aggregate } = this.calculateAggregateProgressAndStage();
 		this.updateConcurrencyIndicator(aggregate);
 		this.updateStatus(this.model.currentStatus);
@@ -410,41 +427,10 @@ export class StatusPanelRuntime {
 	}
 
 	private findFilePathByCurrentFile(currentFile: string): string | null {
-		return findFilePathByCurrentFileService(readCurrentFileList(), currentFile);
+		return findFilePathByCurrentFileService(this.readCurrentFileList(), currentFile);
 	}
 
 	private findFilePathByIndex(index: number): string | null {
-		return findFilePathByIndexService(readCurrentFileList(), index);
+		return findFilePathByIndexService(this.readCurrentFileList(), index);
 	}
-}
-
-let statusPanelInstance: StatusPanelRuntime | null = null;
-
-export function initStatusPanel(): StatusPanelRuntime {
-	if (!statusPanelInstance) {
-		statusPanelInstance = new StatusPanelRuntime();
-	}
-	return statusPanelInstance;
-}
-export function isStatusPanelProcessing(): boolean {
-	return Boolean(statusPanelInstance?.isCurrentlyProcessing);
-}
-export function triggerProcessFromStatusPanel(options?: { previewSeconds?: number }): void {
-	void initStatusPanel().startProcessing(options);
-}
-export function triggerCancelAllFromStatusPanel(): void {
-	if (!statusPanelInstance?.isCurrentlyProcessing) return;
-	void statusPanelInstance?.requestCancelAll();
-}
-export function pushStatusPanelTransientStatus(
-	message: string,
-	options?: { ttlMs?: number },
-): void {
-	pushTransientStatusMessage(message, options?.ttlMs);
-}
-
-export function resetStatusPanelRuntime(): void {
-	statusPanelInstance?.resetToIdle();
-	statusPanelInstance = null;
-	resetStatusPanelViewState();
 }

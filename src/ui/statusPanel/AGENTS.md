@@ -10,12 +10,8 @@
 
 - Import from `src/ui/statusPanel`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- Exports: `StatusPanelView`, `initStatusPanel`, `isStatusPanelProcessing`,
-  `pushStatusPanelTransientStatus`, `readProcessingRequestConfig`,
-  `triggerCancelAllFromStatusPanel`, `triggerProcessFromStatusPanel`.
-- The non-view names are compatibility re-exports over process-wide
-  Processing state. Do not add callers; the target index exports the view while
-  callers use the runtime Processing owner.
+- Export only `StatusPanelView`. Callers use the runtime Processing owner for
+  status and start/cancel.
 
 ## Private Cluster
 

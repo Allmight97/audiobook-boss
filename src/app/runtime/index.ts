@@ -60,6 +60,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				metadata,
 				settings,
 				encoding,
+				output,
 				remoteSource,
 			});
 			processingHolder.current = processing;
