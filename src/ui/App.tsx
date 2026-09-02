@@ -5,7 +5,7 @@ import { hydrateAppSettingsProduction } from '../app/appSettings';
 import { useAppRuntime } from '../app/runtime';
 import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
 import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
-import { EncoderView } from './encoderPanel/EncoderView';
+import { EncoderView } from './encoderPanel';
 import { OutputView } from './outputPanel/OutputView';
 import { FileImportView } from './fileImport/FileImportView';
 import { ConcurrencyControl } from './jobControls/ConcurrencyControl';
@@ -26,12 +26,14 @@ export function App(): JSX.Element {
 	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
 	const openSettings = runtime.settings.openDialog;
 	const applyOutputDefaults = runtime.output.applyDefaults;
+	const applyEncodingDefaults = runtime.encoding.applyDefaults;
 	const initializeWork = runtime.workOperations.initialize;
 
 	onSettled(() => {
 		void hydrateAppSettingsProduction().then((defaults) => {
 			if (defaults) {
 				applyOutputDefaults(defaults.outputDefaults);
+				applyEncodingDefaults(defaults.encoderDefaults);
 			}
 		});
 		void hydrateConcurrency();

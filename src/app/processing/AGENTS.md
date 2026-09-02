@@ -21,10 +21,11 @@
 ## Hard Invariants
 
 - Compose submit config inside the runtime Processing owner from injected
-  Encoding Configuration and Output owners. Current
-  `readProcessingRequestConfig()` / `readOutputRequestConfig()` globals are
-  migration getters, not poke APIs or a target dependency seam. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`.
+  Encoding Configuration and Output owners. Encoding request comes from the
+  runtime Encoding owner. Current `readProcessingRequestConfig()` /
+  `readOutputRequestConfig()` globals are migration getters, not poke APIs
+  or a target dependency seam. Do not restore `updateOutputPath` or
+  `updateEstimatedSize`.
 - File-list and job-type truth come from Input. Concurrency enable/disable uses
   Settings. Metadata staging uses the Metadata public strip. Do not read
   leftover file-list or job-control stores.

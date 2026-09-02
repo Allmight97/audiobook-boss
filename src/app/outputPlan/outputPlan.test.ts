@@ -146,8 +146,10 @@ function mountOutput(
 			const owner = createOutputOwner({
 				input: runtime.input,
 				metadataView: overrides.metadataView ?? emptyMetadataView,
-				encodingRequest,
-				encodingEstimateKbps,
+				encoding: {
+					request: encodingRequest,
+					estimateKbps: encodingEstimateKbps,
+				},
 				onMetadataValidation: overrides.onMetadataValidation,
 			});
 			return {

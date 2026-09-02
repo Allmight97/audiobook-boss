@@ -9,13 +9,13 @@ import {
 import type { OutputDefaults } from '../../types/appSettings';
 import type {
 	CollisionPolicy,
-	EncodingRequestConfig,
 	OutputNamingConfig,
 	OutputRequestConfig,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
 import { persistOutputDefaults } from '../../ui/appSettings';
 import { tauriClient } from '../../lib/tauri/client';
+import type { EncodingOwner } from '../encoding';
 import type { InputOwner } from '../inputSession';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 import { createCollisionReview, type CollisionView } from './collision';
@@ -73,8 +73,7 @@ export type OutputPlanOwner = {
 export type OutputOwnerDeps = {
 	readonly input: InputOwner;
 	readonly metadataView: Accessor<MetadataView>;
-	readonly encodingRequest: Accessor<EncodingRequestConfig>;
-	readonly encodingEstimateKbps: Accessor<number>;
+	readonly encoding: Pick<EncodingOwner, 'request' | 'estimateKbps'>;
 	readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 };
 
@@ -118,9 +117,9 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 
 	const estimatedSizeText = createMemo(() => {
 		const input = deps.input.view();
-		const request = deps.encodingRequest();
+		const request = deps.encoding.request();
 		return formatEstimatedSizeText(input.hasFiles, input.totalDurationSeconds, {
-			bitrateKbps: deps.encodingEstimateKbps(),
+			bitrateKbps: deps.encoding.estimateKbps(),
 			channels: request.encoderSettings.channels,
 		});
 	});

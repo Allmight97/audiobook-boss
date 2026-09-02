@@ -33,7 +33,7 @@
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"update:rc": "bun update effect solid-js @solidjs/web --minimum-release-age 0"
+		"update:rc": "bun update effect solid-js @solidjs/web @solidjs/vite-plugin @solidjs/testing-library --minimum-release-age 0"
 	},
 	"dependencies": {
 		"@solidjs/web": "next",
@@ -45,8 +45,8 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
-		"@solidjs/testing-library": "1.0.0-beta.2",
-		"@solidjs/vite-plugin": "3.0.0-next.36",
+		"@solidjs/testing-library": "1.0.0-beta.3",
+		"@solidjs/vite-plugin": "3.0.0-next.38",
 		"@tauri-apps/cli": "^2.11.4",
 		"@testing-library/jest-dom": "^6.10.0",
 		"@testing-library/user-event": "^14.6.5",

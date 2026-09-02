@@ -1,5 +1,6 @@
-import { createMemo, createRoot, createSignal, onCleanup, runWithOwner } from 'solid-js';
+import { createRoot, runWithOwner } from 'solid-js';
 import { createSettingsOwner } from '../appSettings';
+import { createEncodingOwner } from '../encoding';
 import { createInputOwner } from '../inputSession';
 import { createMetadataLookupOwner } from '../metadataLookup';
 import { createMetadataOwner } from '../metadataSession';
@@ -7,11 +8,6 @@ import { createOutputOwner } from '../outputPlan';
 import { createProcessingOwner } from '../processing';
 import { createRemoteSourceOwner } from '../remoteSource';
 import { createWorkOperationsOwner } from '../workOperations';
-import {
-	estimateKbpsFromRequest,
-	readEncodingRequestConfig,
-	subscribeEncoderPanel,
-} from '../../ui/encoderPanel';
 import type { AppRuntime, RuntimeCapabilities } from './types';
 
 export type { AppRuntime, RuntimeCapabilities } from './types';
@@ -35,18 +31,23 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				isForegroundProcessing: () => processingHolder.current?.isProcessing() ?? false,
 			});
 			selectionGate.check = () => metadata.canChangeSelection();
-			const [encodingRequest, setEncodingRequest] = createSignal(readEncodingRequestConfig());
-			onCleanup(
-				subscribeEncoderPanel(() => {
-					setEncodingRequest(readEncodingRequestConfig());
-				}),
-			);
-			const encodingEstimateKbps = createMemo(() => estimateKbpsFromRequest(encodingRequest()));
+			const encoding = createEncodingOwner({
+				input,
+				loadCapabilities: async () =>
+					(await settings.capability().getRuntimeSettingsCapabilities()).encoder ?? null,
+				persistDefaults: (defaults) => {
+					void settings
+						.capability()
+						.updateAppSettings({ encoderDefaults: defaults })
+						.catch((error: unknown) => {
+							console.warn('Failed to persist encoder defaults:', error);
+						});
+				},
+			});
 			const output = createOutputOwner({
 				input,
 				metadataView: metadata.view,
-				encodingRequest,
-				encodingEstimateKbps,
+				encoding,
 				onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
 			});
 			const lookup = createMetadataLookupOwner({ input, metadata });
@@ -58,19 +59,21 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				input,
 				metadata,
 				settings,
-				encodingRequest,
+				encoding,
 				remoteSource,
 			});
 			processingHolder.current = processing;
 			const workOperations = createWorkOperationsOwner({ remoteSource });
 			settings.bindAfterReset((defaults) => {
 				output.applyDefaults(defaults.outputDefaults);
+				encoding.applyDefaults(defaults.encoderDefaults);
 				void settings.hydrateConcurrency({ preference: defaults.maxConcurrentJobs });
 			});
 			return {
 				input,
 				metadata,
 				lookup,
+				encoding,
 				output,
 				remoteSource,
 				settings,
@@ -91,6 +94,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			runtime.remoteSource.reset();
 			runtime.settings.reset();
 			runtime.output.reset();
+			runtime.encoding.reset();
 			runtime.lookup.reset();
 			runtime.metadata.reset();
 			runtime.input.reset();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AudioFile } from '../../../types/audio';
-import { channelCountToLabel, resolveAutoResolutionHints } from '../autoResolutionHints';
+import type { AudioFile } from '../../types/audio';
+import { channelCountToLabel, resolveAutoResolutionHints } from './hints';
 
 const makeFile = (overrides: Partial<AudioFile>): AudioFile => ({
 	path: '/books/input.m4b',

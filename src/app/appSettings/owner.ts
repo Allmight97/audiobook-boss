@@ -41,7 +41,6 @@ export type SettingsOwner = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	setFdkAfterburner(enabled: boolean): void;
 	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
 	reset(): void;
 };
@@ -172,9 +171,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		resetAllAppSettings() {
 			return dialog.resetAllAppSettings();
-		},
-		setFdkAfterburner(enabled) {
-			dialog.setFdkAfterburner(enabled);
 		},
 		bindAfterReset(apply) {
 			dialog.bindAfterReset(apply);

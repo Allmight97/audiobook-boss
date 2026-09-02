@@ -1,4 +1,3 @@
-import type { EncodingRequestConfig } from '../../types/audio';
 import type { SettingsOwner } from '../appSettings';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
@@ -6,7 +5,6 @@ import type { MetadataOwner } from '../metadataSession';
 let boundInput: InputOwner | undefined;
 let boundMetadata: MetadataOwner | undefined;
 let boundSettings: SettingsOwner | undefined;
-let boundEncoding: (() => EncodingRequestConfig) | undefined;
 
 export function bindProcessingInput(input: InputOwner | undefined): void {
 	boundInput = input;
@@ -30,12 +28,4 @@ export function boundProcessingMetadata(): MetadataOwner | undefined {
 
 export function boundProcessingSettings(): SettingsOwner | undefined {
 	return boundSettings;
-}
-
-export function bindProcessingEncoding(read: (() => EncodingRequestConfig) | undefined): void {
-	boundEncoding = read;
-}
-
-export function boundProcessingEncoding(): (() => EncodingRequestConfig) | undefined {
-	return boundEncoding;
 }

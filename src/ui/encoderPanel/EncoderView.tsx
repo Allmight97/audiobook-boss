@@ -1,81 +1,19 @@
-import { createEffect, createSignal, For, onSettled } from 'solid-js';
+import { For } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
-import { renderAutoResolutionHints } from './autoResolutionHints';
-import {
-	handleBitrateModeChange,
-	handleBitrateValueChange,
-	handleChannelsSelectionChange,
-	handleFlavorChange,
-	handleQualityValueChange,
-	handleSampleRateSelectionChange,
-	initializeEncoderPanelLogic,
-} from '../encoderPanel/logic';
-import { encoderPanelState, subscribeEncoderPanel } from '../encoderPanel/state';
-import {
-	bitrateModeLabel,
-	channelLabel,
-	channelsDetailText,
-	encoderLabel,
-	encoderOptionDisabled,
-	qualityLabel,
-	sampleRateDetailText,
-	sampleRateLabel,
-} from '../encoderPanel/view';
+import type { EncodingField } from '../../app/encoding';
 import './encoderView.css';
 
 export function EncoderView(): JSX.Element {
-	const [revision, setRevision] = createSignal(0);
 	const runtime = useAppRuntime();
+	const view = runtime.encoding.view;
 	const estimatedSizeText = runtime.output.estimatedSizeText;
-	const state = () => {
-		revision();
-		return encoderPanelState;
-	};
 
-	function bump(): void {
-		setRevision((value) => value + 1);
-	}
-
-	createEffect(
-		() => runtime.input.view(),
-		(inputView) => {
-			const selected = inputView.selectedIndices
-				.map((index) => inputView.files[index])
-				.filter((file): file is NonNullable<(typeof inputView.files)[number]> => Boolean(file));
-			renderAutoResolutionHints(selected);
-			bump();
-		},
-	);
-
-	onSettled(() => {
-		const unsubscribe = subscribeEncoderPanel(bump);
-		initializeEncoderPanelLogic();
-		bump();
-		return unsubscribe;
-	});
-
-	function wrap(handler: (event: Event) => void) {
+	function bind(field: EncodingField) {
 		return (event: Event) => {
-			handler(event);
-			bump();
+			runtime.encoding.select(field, (event.currentTarget as HTMLSelectElement).value);
 		};
-	}
-
-	function optionLabel(encoderOption: string): string {
-		state();
-		return encoderLabel(encoderOption);
-	}
-
-	function sampleHint(): string {
-		state();
-		return sampleRateDetailText();
-	}
-
-	function channelHint(): string {
-		state();
-		return channelsDetailText();
 	}
 
 	return (
@@ -101,35 +39,31 @@ export function EncoderView(): JSX.Element {
 						<select
 							id="adv-encoder"
 							data-testid="encoder-select"
-							value={state().flavor}
-							disabled={state().encoderOptions.length === 0}
-							onChange={wrap(handleFlavorChange)}
+							value={view().flavor}
+							disabled={view().flavorDisabled}
+							onChange={bind('encoder')}
 						>
-							{state().encoderOptions.length === 0 ? (
-								<option value="auto">Loading…</option>
-							) : (
-								<For each={state().encoderOptions}>
-									{(encoderOption) => (
-										<option value={encoderOption} disabled={encoderOptionDisabled(encoderOption)}>
-											{optionLabel(encoderOption)}
-										</option>
-									)}
-								</For>
-							)}
+							<For each={view().flavorOptions}>
+								{(option) => (
+									<option value={option.value} disabled={option.disabled}>
+										{option.label}
+									</option>
+								)}
+							</For>
 						</select>
 						<p
 							id="encoder-availability-hint"
 							class="field-hint"
 							data-testid="encoder-availability-hint"
 						>
-							{state().availabilityHint}
+							{view().availabilityHint}
 						</p>
 					</div>
 				</div>
 				<div class="encoder-field-row">
 					<span class="label">Profile</span>
 					<div class="profile-display profile-display-workbench" data-testid="profile-display">
-						<span id="encoder-profile-display">{state().profileDisplay}</span>
+						<span id="encoder-profile-display">{view().profileDisplay}</span>
 						<span class="readonly-badge">read-only</span>
 					</div>
 				</div>
@@ -138,17 +72,14 @@ export function EncoderView(): JSX.Element {
 					<select
 						id="adv-bitrate-mode"
 						data-testid="bitrate-mode-select"
-						value={state().bitrateModeSelection}
-						disabled={state().bitrateModeOptions.length === 0}
-						onChange={wrap(handleBitrateModeChange)}
+						value={view().bitrateMode}
+						disabled={view().bitrateModeDisabled}
+						onChange={bind('bitrateMode')}
 					>
-						<For each={state().bitrateModeOptions}>
-							{(bitrateModeOption) => (
-								<option
-									value={bitrateModeOption}
-									disabled={!state().bitrateModeAvailability[bitrateModeOption]}
-								>
-									{bitrateModeLabel(bitrateModeOption)}
+						<For each={view().bitrateModeOptions}>
+							{(option) => (
+								<option value={option.value} disabled={option.disabled}>
+									{option.label}
 								</option>
 							)}
 						</For>
@@ -156,35 +87,33 @@ export function EncoderView(): JSX.Element {
 				</div>
 				<div class="encoder-field-row">
 					<label for="output-quality" id="quality-bitrate-label">
-						{state().qualityBitrateLabel}
+						{view().qualityBitrateLabel}
 					</label>
 					<div class="encoder-field-stack">
 						<select
 							id="output-quality"
-							hidden={!state().showQuality}
+							hidden={!view().showQuality}
 							data-testid="quality-select"
-							value={state().qualityValue}
-							onChange={wrap(handleQualityValueChange)}
+							value={view().quality}
+							onChange={bind('quality')}
 						>
-							<For each={state().qualityOptions}>
-								{(qualityOption) => (
-									<option value={qualityOption}>{qualityLabel(qualityOption)}</option>
-								)}
+							<For each={view().qualityOptions}>
+								{(option) => <option value={option.value}>{option.label}</option>}
 							</For>
 						</select>
 						<select
 							id="output-bitrate"
-							hidden={state().showQuality}
+							hidden={view().showQuality}
 							data-testid="bitrate-select"
-							value={state().bitrateValue}
-							onChange={wrap(handleBitrateValueChange)}
+							value={view().bitrate}
+							onChange={bind('bitrate')}
 						>
-							<For each={state().bitrateOptions}>
-								{(bitrateOption) => <option value={bitrateOption}>{bitrateOption} kbps</option>}
+							<For each={view().bitrateOptions}>
+								{(option) => <option value={option.value}>{option.label}</option>}
 							</For>
 						</select>
 						<p id="estimated-bitrate" class="field-hint" data-testid="estimated-bitrate">
-							{state().estimatedBitrateText}
+							{view().estimatedBitrateText}
 						</p>
 					</div>
 				</div>
@@ -194,14 +123,12 @@ export function EncoderView(): JSX.Element {
 						<select
 							id="output-samplerate"
 							data-testid="samplerate-select"
-							value={state().sampleRateSelection}
-							disabled={state().sampleRateOptions.length === 0}
-							onChange={wrap(handleSampleRateSelectionChange)}
+							value={view().sampleRate}
+							disabled={view().sampleRateDisabled}
+							onChange={bind('sampleRate')}
 						>
-							<For each={state().sampleRateOptions}>
-								{(sampleRateOption) => (
-									<option value={sampleRateOption}>{sampleRateLabel(sampleRateOption)}</option>
-								)}
+							<For each={view().sampleRateOptions}>
+								{(option) => <option value={option.value}>{option.label}</option>}
 							</For>
 						</select>
 						<p
@@ -209,7 +136,7 @@ export function EncoderView(): JSX.Element {
 							class="field-hint"
 							data-testid="auto-samplerate-hint"
 						>
-							{sampleHint()}
+							{view().sampleRateHint}
 						</p>
 					</div>
 				</div>
@@ -219,18 +146,16 @@ export function EncoderView(): JSX.Element {
 						<select
 							id="output-channels"
 							data-testid="channels-select"
-							value={state().channelsSelection}
-							disabled={state().channelOptions.length === 0}
-							onChange={wrap(handleChannelsSelectionChange)}
+							value={view().channels}
+							disabled={view().channelsDisabled}
+							onChange={bind('channels')}
 						>
-							<For each={state().channelOptions}>
-								{(channelOption) => (
-									<option value={channelOption}>{channelLabel(channelOption)}</option>
-								)}
+							<For each={view().channelOptions}>
+								{(option) => <option value={option.value}>{option.label}</option>}
 							</For>
 						</select>
 						<p id="output-channels-effective" class="field-hint" data-testid="auto-channels-hint">
-							{channelHint()}
+							{view().channelsHint}
 						</p>
 					</div>
 				</div>

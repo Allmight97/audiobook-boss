@@ -1,15 +1,11 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
-import type { EncodingRequestConfig } from '../../types/audio';
 import type { SettingsOwner } from '../appSettings';
+import type { EncodingOwner } from '../encoding';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
 import type { RemoteSourceOwner } from '../remoteSource';
-import {
-	bindProcessingEncoding,
-	bindProcessingInput,
-	bindProcessingMetadata,
-	bindProcessingSettings,
-} from './bind';
+import { bindProcessingInput, bindProcessingMetadata, bindProcessingSettings } from './bind';
+import { setProcessingEncodingReader } from './config';
 import { renderConcurrencyStatus } from './render';
 import { pushStatusPanelTransientStatus, StatusPanelRuntime } from './runtime';
 import { makeProcessingWorkflowLive } from './workflow.deps';
@@ -34,7 +30,7 @@ export function createProcessingOwner(deps: {
 	readonly input: InputOwner;
 	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
-	readonly encodingRequest: Accessor<EncodingRequestConfig>;
+	readonly encoding: Pick<EncodingOwner, 'request'>;
 	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 }): ProcessingOwner {
 	let status = DEFAULT_STATUS_VIEW;
@@ -47,7 +43,7 @@ export function createProcessingOwner(deps: {
 	bindProcessingInput(deps.input);
 	bindProcessingMetadata(deps.metadata);
 	bindProcessingSettings(deps.settings);
-	bindProcessingEncoding(() => deps.encodingRequest());
+	setProcessingEncodingReader(() => deps.encoding.request());
 	resetStatusPanelViewState();
 	const statusRuntime = new StatusPanelRuntime(makeProcessingWorkflowLive(deps.remoteSource));
 	createEffect(

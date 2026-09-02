@@ -1,9 +1,14 @@
-import type { ProcessingRequestConfig } from '../../types/audio';
+import type { EncodingRequestConfig, ProcessingRequestConfig } from '../../types/audio';
 import { readOutputRequestConfig } from '../outputPlan';
-import { boundProcessingEncoding } from './bind';
+
+let readEncoding: (() => EncodingRequestConfig) | undefined;
+
+export function setProcessingEncodingReader(read: (() => EncodingRequestConfig) | undefined): void {
+	readEncoding = read;
+}
 
 export function readProcessingRequestConfig(): ProcessingRequestConfig {
-	const encoding = boundProcessingEncoding()?.();
+	const encoding = readEncoding?.();
 	if (!encoding) {
 		throw new Error('Processing runtime is not bound');
 	}

@@ -4,7 +4,6 @@ import type { JSX } from '@solidjs/web';
 import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
-import { readFdkAfterburner, subscribeEncoderPanel } from '../encoderPanel';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
@@ -56,10 +55,11 @@ function formatFdkSource(source: string): string {
 }
 
 export function AppSettingsDialogView(): JSX.Element {
-	const settings = useAppRuntime().settings;
+	const runtime = useAppRuntime();
+	const settings = runtime.settings;
+	const encoding = runtime.encoding;
 	const state = settings.dialog;
 	const [resetConfirming, setResetConfirming] = createSignal(false);
-	const [afterburnerRevision, setAfterburnerRevision] = createSignal(0);
 	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function cancelResetConfirm(): void {
@@ -96,12 +96,8 @@ export function AppSettingsDialogView(): JSX.Element {
 	);
 
 	onSettled(() => {
-		const unsubscribeEncoder = subscribeEncoderPanel(() => {
-			setAfterburnerRevision((value) => value + 1);
-		});
 		window.addEventListener('click', handleWindowClickForResetConfirm, true);
 		return () => {
-			unsubscribeEncoder();
 			window.removeEventListener('click', handleWindowClickForResetConfirm, true);
 			cancelResetConfirm();
 		};
@@ -109,10 +105,7 @@ export function AppSettingsDialogView(): JSX.Element {
 
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
-	const afterburner = () => {
-		afterburnerRevision();
-		return readFdkAfterburner();
-	};
+	const afterburner = () => encoding.view().afterburner;
 
 	return (
 		<Dialog
@@ -166,7 +159,9 @@ export function AppSettingsDialogView(): JSX.Element {
 								tone="primary"
 								data-testid="app-settings-ffmpeg-save"
 								disabled={state().saveState === 'saving'}
-								onClick={() => void settings.saveToolchainPreference()}
+								onClick={() =>
+									void settings.saveToolchainPreference().then(() => encoding.reloadCapabilities())
+								}
 							>
 								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
 							</Button>
@@ -195,9 +190,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								id="app-settings-afterburner"
 								data-testid="app-settings-afterburner-checkbox"
 								checked={afterburner()}
-								onChange={(event) =>
-									settings.setFdkAfterburner(Boolean(event.currentTarget.checked))
-								}
+								onChange={(event) => encoding.setAfterburner(Boolean(event.currentTarget.checked))}
 							/>
 							<span class="option-label">FDK Afterburner</span>
 						</label>

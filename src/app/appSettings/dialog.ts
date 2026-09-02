@@ -3,7 +3,6 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import type { AppSettings, PinnedDefaults, StartupBehavior } from '../../types/appSettings';
 import type { EncoderAvailability } from '../../types/audio';
-import { setFdkAfterburner as applyFdkAfterburner } from '../../ui/encoderPanel';
 import { hydrateAppSettingsProduction } from './hydrate';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -50,7 +49,6 @@ export type SettingsDialog = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	setFdkAfterburner(enabled: boolean): void;
 	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
 	reset(): void;
 };
@@ -238,9 +236,6 @@ export function createSettingsDialog(deps: {
 				});
 			}
 			await reloadDialogData();
-		},
-		setFdkAfterburner(enabled) {
-			applyFdkAfterburner(enabled);
 		},
 		bindAfterReset(apply) {
 			afterSettingsReset = apply;

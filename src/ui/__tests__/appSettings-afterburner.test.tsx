@@ -1,44 +1,46 @@
 import { cleanup, render } from '@solidjs/testing-library';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
 import { AppSettingsDialogView } from '../appSettings/AppSettingsDialogView';
-import { readFdkAfterburner } from '../encoderPanel';
-import { applyEncoderDefaults, resetEncoderPanelState } from '../encoderPanel/state';
 
-vi.mock('../../lib/tauri/client', () => ({
-	tauriClient: {
-		getAppSettings: vi.fn().mockResolvedValue({
-			maxConcurrentJobs: { mode: 'auto' },
-			encoderDefaults: {
-				settings: {
-					encoderType: 'auto',
-					bitrateKbps: 64,
-					bitrateMode: { mode: 'vbr', value: 3 },
-					channels: 'auto',
-					afterburner: true,
+vi.mock('../../lib/tauri/client', async () => {
+	const { runtimeSettingsCapabilitiesFixture } = await import(
+		'../../test/fixtures/runtimeSettingsCapabilities'
+	);
+	return {
+		tauriClient: {
+			getAppSettings: vi.fn().mockResolvedValue({
+				maxConcurrentJobs: { mode: 'auto' },
+				encoderDefaults: {
+					settings: {
+						encoderType: 'auto',
+						bitrateKbps: 64,
+						bitrateMode: { mode: 'vbr', value: 3 },
+						channels: 'auto',
+						afterburner: true,
+					},
+					sampleRate: 'auto',
 				},
-				sampleRate: 'auto',
-			},
-			outputDefaults: {
-				outputNaming: {
-					preset: 'absDefault',
-					includeYear: false,
+				outputDefaults: {
+					outputNaming: {
+						preset: 'absDefault',
+						includeYear: false,
+					},
 				},
-			},
-			toolchain: {},
-			startupBehavior: 'rememberLastState',
-		}),
-		updateAppSettings: vi.fn().mockResolvedValue(undefined),
-		resetAppSettings: vi.fn(),
-		openFile: vi.fn(),
-		getRuntimeSettingsCapabilities: vi.fn().mockResolvedValue({
-			encoder: { availability: null },
-			maxConcurrentJobs: { allowAuto: true, fixedOptions: [1, 2, 4] },
-		}),
-	},
-}));
+				toolchain: {},
+				startupBehavior: 'rememberLastState',
+			}),
+			updateAppSettings: vi.fn().mockResolvedValue(undefined),
+			resetAppSettings: vi.fn(),
+			openFile: vi.fn(),
+			getRuntimeSettingsCapabilities: vi
+				.fn()
+				.mockResolvedValue(runtimeSettingsCapabilitiesFixture()),
+		},
+	};
+});
 
 describe('App Settings afterburner control', () => {
 	let runtime: AppRuntime | undefined;
@@ -47,11 +49,6 @@ describe('App Settings afterburner control', () => {
 		cleanup();
 		runtime?.dispose();
 		runtime = undefined;
-		resetEncoderPanelState();
-	});
-
-	beforeEach(() => {
-		resetEncoderPanelState();
 	});
 
 	async function renderOpenDialog(): Promise<void> {
@@ -70,13 +67,13 @@ describe('App Settings afterburner control', () => {
 		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
 		expect(checkbox).not.toBeNull();
 		expect(checkbox?.checked).toBe(true);
-		expect(readFdkAfterburner()).toBe(true);
+		expect(runtime!.encoding.view().afterburner).toBe(true);
 
 		checkbox!.checked = false;
 		checkbox!.dispatchEvent(new Event('change', { bubbles: true }));
 
 		await vi.waitFor(() => {
-			expect(readFdkAfterburner()).toBe(false);
+			expect(runtime!.encoding.view().afterburner).toBe(false);
 		});
 	});
 
@@ -86,7 +83,7 @@ describe('App Settings afterburner control', () => {
 		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
 		expect(checkbox?.checked).toBe(true);
 
-		applyEncoderDefaults({
+		runtime!.encoding.applyDefaults({
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,

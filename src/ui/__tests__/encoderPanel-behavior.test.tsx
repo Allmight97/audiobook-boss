@@ -4,17 +4,11 @@ import type { AppRuntime } from '../../app/runtime';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { EncoderView } from '../encoderPanel/EncoderView';
-import { encoderPanelState, resetEncoderPanelState } from '../encoderPanel/state';
-import { readEncodingRequestConfig } from '../encoderPanel';
-import { renderAutoResolutionHints } from '../encoderPanel/autoResolutionHints';
+import { emptyInputSession } from '../../app/inputSession/types';
 import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
 } from '../../test/fixtures/runtimeSettingsCapabilities';
-import {
-	runtimeSettingsCapabilitiesState,
-	setRuntimeSettingsCapabilities,
-} from '../runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	getRuntimeSettingsCapabilitiesMock: vi.fn(),
@@ -60,9 +54,6 @@ describe('encoder panel behavior controls', () => {
 
 	beforeEach(() => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-		resetEncoderPanelState();
-		setRuntimeSettingsCapabilities(null);
-		runtimeSettingsCapabilitiesState.loading = false;
 	});
 
 	it('renders no afterburner control; the App Settings dialog owns it', async () => {
@@ -78,9 +69,7 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
 		expect(document.getElementById('fdk-options')).toBeNull();
@@ -101,15 +90,11 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic, setFdkAfterburner } = await import(
-			'../encoderPanel/logic'
-		);
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
-			const config = readEncodingRequestConfig();
+			const config = runtime!.encoding.request();
 			expect(config.encoderSettings.encoderType).toBe('auto');
 			expect(config.encoderSettings.afterburner).toBe(true);
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
@@ -117,10 +102,10 @@ describe('encoder panel behavior controls', () => {
 			);
 		});
 
-		setFdkAfterburner(false);
+		runtime!.encoding.setAfterburner(false);
 
 		await vi.waitFor(() => {
-			const config = readEncodingRequestConfig();
+			const config = runtime!.encoding.request();
 			expect(config.encoderSettings.encoderType).toBe('auto');
 			expect(config.encoderSettings.afterburner).toBe(false);
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
@@ -145,9 +130,7 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
@@ -180,19 +163,29 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
-		renderAutoResolutionHints([
-			{
-				path: '/books/source.m4b',
-				isValid: true,
-				sampleRate: 44100,
-				channels: 2,
+		runtime!.input.replaceSession({
+			...emptyInputSession(),
+			fileList: {
+				files: [
+					{
+						path: '/books/source.m4b',
+						isValid: true,
+						sampleRate: 44100,
+						channels: 2,
+					},
+				],
+				selectedDecoders: [null],
+				totalDuration: 0,
+				totalSize: 0,
+				validCount: 1,
+				invalidCount: 0,
 			},
-		]);
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
 
 		await vi.waitFor(() => {
 			expect(document.querySelector('[data-testid="auto-samplerate-hint"]')?.textContent).toBe(
@@ -216,9 +209,7 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('retains the session afterburner opt-out across re-init', async () => {
-		encoderPanelState.flavor = 'fdk_he_aac';
-		encoderPanelState.fdkAfterburner = false;
+	it('retains the session afterburner opt-out across a capability reload', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -231,18 +222,13 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
+		runtime!.encoding.setAfterburner(false);
+		await runtime!.encoding.reloadCapabilities();
 
 		await vi.waitFor(() => {
-			expect(encoderPanelState.fdkAfterburner).toBe(false);
-		});
-
-		initializeEncoderPanelLogic();
-		await vi.waitFor(() => {
-			expect(encoderPanelState.fdkAfterburner).toBe(false);
+			expect(runtime!.encoding.request().encoderSettings.afterburner).toBe(false);
 		});
 	});
 
@@ -259,9 +245,7 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
@@ -291,14 +275,14 @@ describe('encoder panel behavior controls', () => {
 		changeSelectValue(bitrateSelect, '48');
 
 		await vi.waitFor(() => {
-			expect(readEncodingRequestConfig().encoderSettings.bitrateKbps).toBe(48);
+			expect(runtime!.encoding.request().encoderSettings.bitrateKbps).toBe(48);
 		});
 
 		const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
 		changeSelectValue(channelsSelect, 'stereo');
 
 		await vi.waitFor(() => {
-			expect(readEncodingRequestConfig().encoderSettings.channels).toBe('stereo');
+			expect(runtime!.encoding.request().encoderSettings.channels).toBe('stereo');
 		});
 	});
 
@@ -315,9 +299,7 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 		await waitForEncoderOptions();
 
 		const qualitySelect = document.getElementById('output-quality') as HTMLSelectElement;
@@ -346,16 +328,14 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
 				'Using external FDK AAC via /opt/homebrew/.../bin/ffmpeg. Afterburner on.',
 			);
 			expect(document.body.textContent).not.toContain('Toolchain');
-			expect(readEncodingRequestConfig()).toMatchObject({
+			expect(runtime!.encoding.request()).toMatchObject({
 				encoderSettings: expect.any(Object),
 				sampleRate: expect.anything(),
 			});
@@ -375,9 +355,7 @@ describe('encoder panel behavior controls', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -390,7 +368,22 @@ describe('encoder panel behavior controls', () => {
 	});
 
 	it('normalizes a session-selected unavailable Apple AAC flavor back to auto', async () => {
-		encoderPanelState.flavor = 'aac_at';
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		renderEncoder();
+		await waitForEncoderOptions();
+		runtime!.encoding.select('encoder', 'aac_at');
+
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -402,10 +395,7 @@ describe('encoder panel behavior controls', () => {
 				},
 			}),
 		);
-
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		renderEncoder();
-		initializeEncoderPanelLogic();
+		await runtime!.encoding.reloadCapabilities();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -414,12 +404,27 @@ describe('encoder panel behavior controls', () => {
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
 				'Auto will use Native AAC (FFmpeg).',
 			);
-			expect(readEncodingRequestConfig().encoderSettings.encoderType).toBe('auto');
+			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
 		});
 	});
 
 	it('normalizes a session-selected unavailable native AAC flavor back to auto', async () => {
-		encoderPanelState.flavor = 'native_aac';
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		renderEncoder();
+		await waitForEncoderOptions();
+		runtime!.encoding.select('encoder', 'native_aac');
+
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -431,10 +436,7 @@ describe('encoder panel behavior controls', () => {
 				},
 			}),
 		);
-
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
-		renderEncoder();
-		initializeEncoderPanelLogic();
+		await runtime!.encoding.reloadCapabilities();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -443,7 +445,7 @@ describe('encoder panel behavior controls', () => {
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toBe(
 				'Auto will use Apple AAC.',
 			);
-			expect(readEncodingRequestConfig().encoderSettings.encoderType).toBe('auto');
+			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
 		});
 	});
 });

@@ -23,10 +23,10 @@
 ## Hard Invariants
 
 - Estimated size is a derived view of public Input duration
-  (`input.view().totalDurationSeconds`), encoder `encodingRequest` channels,
-  and `encodingEstimateKbps`. Do not read private Input/encoder state, sample
-  `readEncodingRequestConfig()`, parse the encoder `Est: ~60 kbps` label, or
-  cache a mirrored byte size.
+  (`input.view().totalDurationSeconds`), Encoding owner `request` channels,
+  and `estimateKbps`. Do not read private Input/encoder state, sample a UI
+  encoder getter, parse the encoder `Est: ~60 kbps` label, or cache a mirrored
+  byte size.
 - Keep `estimateEncodedSizeBytes` as: non-positive duration → 0; bytes =
   `durationSeconds * bitrateKbps * 1000 / 8`; ×1.5 when `channels === 'stereo'`;
   ×1.03 overhead;   `Math.round`. On FDK VBR, `bitrateKbps` is the injected

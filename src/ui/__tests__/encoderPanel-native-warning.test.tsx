@@ -4,15 +4,10 @@ import type { AppRuntime } from '../../app/runtime';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { EncoderView } from '../encoderPanel/EncoderView';
-import { resetEncoderPanelState } from '../encoderPanel/state';
 import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
 } from '../../test/fixtures/runtimeSettingsCapabilities';
-import {
-	runtimeSettingsCapabilitiesState,
-	setRuntimeSettingsCapabilities,
-} from '../runtimeSettingsCapabilities';
 
 const context = vi.hoisted(() => ({
 	getRuntimeSettingsCapabilitiesMock: vi.fn(),
@@ -51,9 +46,6 @@ describe('encoder panel native AAC warning', () => {
 
 	beforeEach(() => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-		resetEncoderPanelState();
-		setRuntimeSettingsCapabilities(null);
-		runtimeSettingsCapabilitiesState.loading = false;
 	});
 
 	it('shows native AAC quality warning when auto resolves to native AAC', async () => {
@@ -69,9 +61,7 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
@@ -95,9 +85,7 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
@@ -120,9 +108,7 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
@@ -147,9 +133,7 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
@@ -179,9 +163,7 @@ describe('encoder panel native AAC warning', () => {
 			}),
 		);
 
-		const { initializeEncoderPanelLogic } = await import('../encoderPanel/logic');
 		renderEncoder();
-		initializeEncoderPanelLogic();
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
