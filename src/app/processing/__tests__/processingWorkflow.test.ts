@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { tauriClient } from '../../../lib/tauri/client';
 import {
 	makeProcessingWorkflowServicesLayer,
 	startProcessing,
@@ -16,15 +15,8 @@ import {
 	type ProcessPayload,
 	type JobType,
 } from '../../../types/audio';
-import type { AcquisitionJob } from '../../../types/remoteSource';
 import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
 import type { OutputPlanReviewResult } from '../../outputPlan';
-import {
-	purgeRemoteSourceSessionsForInputIds,
-	registerRemoteSourceSupplementalAssets,
-	supplementalAssetsByInputIdForProcessing,
-} from '../../../ui/remoteSource';
-import { resetRemoteSourceSessionAssets } from '../../remoteSource';
 
 function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
@@ -45,7 +37,7 @@ function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile 
 
 function fileList(paths = ['/books/a.m4b']): FileListInfo {
 	return {
-		files: paths.map((path) => audioFile(path)),
+		files: paths.map((path, index) => audioFile(path, { inputId: `input-${index + 1}` })),
 		selectedDecoders: paths.map(() => null),
 		totalDuration: paths.length,
 		totalSize: paths.length,
@@ -137,46 +129,6 @@ function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted 
 	};
 }
 
-function acquisitionJobWithPdf(): AcquisitionJob {
-	return {
-		jobId: 'remote-job-1',
-		providerId: 'audible',
-		status: 'validated',
-		progress: {
-			stage: 'importHandoff',
-			percentage: 100,
-			message: 'Ready for import.',
-			bytesDownloaded: undefined,
-			bytesTotal: undefined,
-			currentTitleId: 'B000000001',
-			currentItemIndex: 1,
-			totalItems: 1,
-			terminal: true,
-		},
-		materializedFiles: [
-			{
-				inputId: 'provider-input-1',
-				titleId: 'B000000001',
-				path: '/session/book.m4b',
-				sizeBytes: 1024,
-				sha256: 'audio-sha',
-			},
-		],
-		supplementalAssets: [
-			{
-				assetId: 'pdf-1',
-				inputId: 'provider-input-1',
-				titleId: 'B000000001',
-				path: '/session/book.pdf',
-				fileName: 'Being You - A New Science of Consciousness - Supplemental PDF.pdf',
-				sizeBytes: 32,
-				sha256: 'pdf-sha',
-			},
-		],
-		diagnostics: [],
-	};
-}
-
 function workflowContext(): ProcessingWorkflowContext {
 	return {
 		updateStatus: vi.fn(),
@@ -202,6 +154,10 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 				plan: preflightPlan(payload),
 			}),
 		);
+	const remoteSource: ProcessingWorkflowServices['remoteSource'] = {
+		processingAssets: vi.fn(() => undefined),
+		withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
+	};
 	const services: ProcessingWorkflowServices = {
 		getCurrentFileList: vi.fn(() => fileList()),
 		getSelectedFileIndex: vi.fn(() => 0),
@@ -225,6 +181,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		readAudioMetadata: vi.fn(async () => ({})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
 		submitProcessingOperation: vi.fn(async () => acceptedSubmission(getJobTypeMock())),
+		remoteSource,
 		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
 		feedback,
@@ -248,7 +205,6 @@ async function runWithServices(
 describe('ProcessingWorkflow', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		resetRemoteSourceSessionAssets();
 	});
 
 	it('coordinates approved processing through injected services without changing the public runtime API', async () => {
@@ -276,6 +232,10 @@ describe('ProcessingWorkflow', () => {
 			metadataIntent: null,
 			previewSeconds: undefined,
 		});
+		expect(services.remoteSource.withSubmissionRetention).toHaveBeenCalledWith(
+			['input-1'],
+			expect.any(Function),
+		);
 		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
 		expect(ctx.reconcileProcessResult).not.toHaveBeenCalled();
 		expect(ctx.setProcessingState).toHaveBeenLastCalledWith(false);
@@ -320,11 +280,27 @@ describe('ProcessingWorkflow', () => {
 			validCount: 1,
 			invalidCount: 0,
 		};
-		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
+		const supplementalAssetsByInputId = {
+			'current-input-1': [
+				{
+					assetId: 'pdf-1',
+					inputId: 'current-input-1',
+					titleId: 'B000000001',
+					path: '/session/book.pdf',
+					fileName: 'Being You - A New Science of Consciousness - Supplemental PDF.pdf',
+					sizeBytes: 32,
+					sha256: 'pdf-sha',
+				},
+			],
+		};
 		const ctx = workflowContext();
 		const { services } = workflowServices({
 			getCurrentFileList: vi.fn(() => currentFileList),
 			getJobType: vi.fn((): JobType => 'batch'),
+			remoteSource: {
+				processingAssets: vi.fn(() => supplementalAssetsByInputId),
+				withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
+			},
 		});
 
 		await runWithServices(ctx, services);
@@ -412,70 +388,5 @@ describe('ProcessingWorkflow', () => {
 		expect(ctx.handleCancellation).not.toHaveBeenCalled();
 		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
 		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
-	});
-
-	it('keeps retained remote-source sessions when submission fails without a pending purge', async () => {
-		const currentFileList: FileListInfo = {
-			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
-			selectedDecoders: [null],
-			totalDuration: 1,
-			totalSize: 1,
-			validCount: 1,
-			invalidCount: 0,
-		};
-		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
-		const purgeSpy = vi.spyOn(tauriClient, 'purgeRemoteSourceSession').mockResolvedValue(undefined);
-		const ctx = workflowContext();
-		const { services, feedback } = workflowServices({
-			getCurrentFileList: vi.fn(() => currentFileList),
-			getJobType: vi.fn((): JobType => 'batch'),
-			submitProcessingOperation: vi.fn(async () => {
-				throw {
-					code: 'decoder_unavailable',
-					category: 'toolchain',
-					message: 'Decoder unavailable.',
-					detail: null,
-				};
-			}),
-		});
-
-		await runWithServices(ctx, services);
-
-		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
-		expect(purgeSpy).not.toHaveBeenCalled();
-		expect(supplementalAssetsByInputIdForProcessing(['current-input-1'])).toBeDefined();
-	});
-
-	it('purges retained remote-source sessions that were pending purge when submission fails', async () => {
-		const currentFileList: FileListInfo = {
-			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
-			selectedDecoders: [null],
-			totalDuration: 1,
-			totalSize: 1,
-			validCount: 1,
-			invalidCount: 0,
-		};
-		registerRemoteSourceSupplementalAssets(acquisitionJobWithPdf(), currentFileList);
-		const purgeSpy = vi.spyOn(tauriClient, 'purgeRemoteSourceSession').mockResolvedValue(undefined);
-		const ctx = workflowContext();
-		const { services, feedback } = workflowServices({
-			getCurrentFileList: vi.fn(() => currentFileList),
-			getJobType: vi.fn((): JobType => 'batch'),
-			submitProcessingOperation: vi.fn(async () => {
-				await purgeRemoteSourceSessionsForInputIds(['current-input-1']);
-				throw {
-					code: 'decoder_unavailable',
-					category: 'toolchain',
-					message: 'Decoder unavailable.',
-					detail: null,
-				};
-			}),
-		});
-
-		await runWithServices(ctx, services);
-
-		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
-		expect(purgeSpy).toHaveBeenCalledWith('remote-job-1');
-		expect(supplementalAssetsByInputIdForProcessing(['current-input-1'])).toBeUndefined();
 	});
 });

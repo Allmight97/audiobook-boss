@@ -2,34 +2,22 @@
 
 ## Public API Strip
 
-- Import session-asset coordination from `src/ui/remoteSource`.
-- Exports: `companionSummaryForInputIds`, `hasSupplementalAssetsForInputId`,
-  `purgeRemoteSourceSessionsForInputIds`, `releaseRemoteSourceSessionRetainers`,
-  `retainRemoteSourceSessionsForInputIds`, `registerRemoteSourceSupplementalAssets`,
-  `subscribeRemoteSourceSupplementalAssets`,
-  `supplementalAssetsByInputIdForProcessing`, `CompanionAssetSummary` (type).
-- Do not re-export acquisition workflow symbols or private session-asset
-  helpers such as `supplementalAssetsForInputIds` from the index.
-- These non-view session-asset exports are current compatibility rails.
-  Do not add callers; after migration, nonvisual consumers import the App
-  Runtime Remote Source owner and this UI index exposes the dialog view.
-- The acquire dialog is `RemoteSourceAcquireView.tsx`. File Import composes
-  it. Import acquire intents from `src/app/remoteSource`.
+- Export only `RemoteSourceAcquireView` from `src/ui/remoteSource`.
+- File Import composes the acquire dialog through this index.
+- Nonvisual consumers use the composed App Runtime Remote Source owner; do not
+  re-export owner state, workflows, session assets, or cache controls here.
 
 ## Private Cluster
 
 - Files: `RemoteSourceAcquireView.tsx`, `remoteSourceAcquire.css`.
 
-Owner truth lives in `src/app/remoteSource`. This directory renders it. The
-current session-asset re-exports for Processing, File List, and inspector
-callers must be removed rather than preserved as a second public seam when
-their remaining callers migrate.
+Owner truth lives in `src/app/remoteSource`. This directory renders it.
 
 Remote source IPC must route through `src/lib/tauri/client.ts`. Materialized
 audio imports through Input Session; processing remains user-triggered.
 
 ## Shape
 
-Solid owns rendering and event wiring. Effect owns account/acquisition
-workflows. Pure display and selection policy belong in
+Solid owns rendering and event wiring. The app owner owns plain-async
+account/acquisition workflows. Pure display and selection policy belong in
 `src/app/remoteSource` helpers.

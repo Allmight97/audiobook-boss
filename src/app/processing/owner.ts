@@ -3,6 +3,7 @@ import type { EncodingRequestConfig } from '../../types/audio';
 import type { SettingsOwner } from '../appSettings';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
+import type { RemoteSourceOwner } from '../remoteSource';
 import {
 	bindProcessingEncoding,
 	bindProcessingInput,
@@ -10,13 +11,8 @@ import {
 	bindProcessingSettings,
 } from './bind';
 import { renderConcurrencyStatus } from './render';
-import {
-	initStatusPanel,
-	isStatusPanelProcessing,
-	pushStatusPanelTransientStatus,
-	resetStatusPanelRuntime,
-	triggerCancelAllFromStatusPanel,
-} from './runtime';
+import { pushStatusPanelTransientStatus, StatusPanelRuntime } from './runtime';
+import { makeProcessingWorkflowLive } from './workflow.deps';
 import {
 	bindStatusPublisher,
 	DEFAULT_STATUS_VIEW,
@@ -39,6 +35,7 @@ export function createProcessingOwner(deps: {
 	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
 	readonly encodingRequest: Accessor<EncodingRequestConfig>;
+	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 }): ProcessingOwner {
 	let status = DEFAULT_STATUS_VIEW;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
@@ -52,7 +49,7 @@ export function createProcessingOwner(deps: {
 	bindProcessingSettings(deps.settings);
 	bindProcessingEncoding(() => deps.encodingRequest());
 	resetStatusPanelViewState();
-	initStatusPanel();
+	const statusRuntime = new StatusPanelRuntime(makeProcessingWorkflowLive(deps.remoteSource));
 	createEffect(
 		() => deps.settings.concurrency(),
 		() => {
@@ -68,19 +65,19 @@ export function createProcessingOwner(deps: {
 			return status;
 		},
 		start(options) {
-			return initStatusPanel().startProcessing(options);
+			return statusRuntime.startProcessing(options);
 		},
 		cancelAll() {
-			triggerCancelAllFromStatusPanel();
+			statusRuntime.requestCancelAll();
 		},
 		isProcessing() {
-			return isStatusPanelProcessing();
+			return statusRuntime.isCurrentlyProcessing;
 		},
 		pushTransientStatus(message, options) {
 			pushStatusPanelTransientStatus(message, options);
 		},
 		reset() {
-			resetStatusPanelRuntime();
+			statusRuntime.resetToIdle();
 			publish(getStatusView());
 		},
 	};

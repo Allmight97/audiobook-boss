@@ -4,13 +4,13 @@ import type {
 	JobType,
 	ProcessPayload,
 	ProcessingRequestConfig,
+	SupplementalProcessingAsset,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { isUsableMetadataCache, validateMetadataDraft } from '../metadataSession';
 import type { OutputPlanReviewResult } from '../outputPlan';
 import type { ProcessingWorkflowFailed } from './workflow';
 import type { ProcessingWorkflowServices } from './workflow';
-import { supplementalAssetsByInputIdForProcessing } from '../../ui/remoteSource';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 
@@ -36,6 +36,7 @@ export function buildProcessPayload(
 	inputIds: (string | undefined)[],
 	processingRequestConfig: ProcessingRequestConfig,
 	jobType: JobType,
+	supplementalAssetsByInputId?: Record<string, SupplementalProcessingAsset[]>,
 ): ProcessPayload {
 	return {
 		inputFiles: filePaths,
@@ -45,7 +46,7 @@ export function buildProcessPayload(
 		sampleRate: processingRequestConfig.sampleRate,
 		jobType,
 		outputNaming: processingRequestConfig.outputNaming,
-		supplementalAssetsByInputId: supplementalAssetsByInputIdForProcessing(inputIds),
+		supplementalAssetsByInputId,
 	};
 }
 

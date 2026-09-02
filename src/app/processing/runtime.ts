@@ -2,7 +2,7 @@ import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/
 import { boundProcessingInput } from './bind';
 import { boundProcessingSettings } from './bind';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
-import { startProcessing as startProcessingAction } from './workflow';
+import { startProcessing as startProcessingAction, type ProcessingWorkflowLayer } from './workflow';
 import { renderConcurrencyStatus, renderJobList, renderStatus } from './render';
 import type { AggregateProgress, ProcessingStatus } from './state';
 import type { ProcessCommandResult } from '../../types/audio';
@@ -62,7 +62,7 @@ export class StatusPanelRuntime {
 	private singleCompletionTimeout?: number;
 	private pendingRender = false;
 
-	constructor() {
+	constructor(private readonly workflowLayer?: ProcessingWorkflowLayer) {
 		this.model = createStatusPanelModel();
 		this.renderModel();
 		this.updateConcurrencyIndicator();
@@ -94,6 +94,7 @@ export class StatusPanelRuntime {
 				resetToIdle: () => this.resetToIdle(),
 			},
 			options,
+			this.workflowLayer,
 		);
 	}
 

@@ -3,11 +3,7 @@ import type { AcquisitionJob } from '../../types/remoteSource';
 import type { ProcessingPreflightPlan } from '../../types/audio';
 import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
-import { patchRemoteSourceState, snapshotRemoteSourceView } from '../remoteSource/state';
-import {
-	runRemoteSourceWorkflow,
-	type RemoteSourceWorkflowServices,
-} from '../remoteSource/workflow';
+import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -84,7 +80,7 @@ describe('app runtime', () => {
 		dispose = undefined;
 	});
 
-	it('does not share collision, settings-dialog, lookup, or work-operations state across live runtimes', () => {
+	it('does not share product-owner state across live runtimes', () => {
 		const first = createAppRuntime();
 		const second = createAppRuntime();
 		dispose = () => {
@@ -95,6 +91,7 @@ describe('app runtime', () => {
 		void first.output.openCollisionReview(collisionPlan());
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
+		first.remoteSource.patch({ isOpen: true, statusMessage: 'first runtime only' });
 
 		expect(first.output.collision().isOpen).toBe(true);
 		expect(second.output.collision().isOpen).toBe(false);
@@ -102,6 +99,9 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
+		expect(first.remoteSource.view().isOpen).toBe(true);
+		expect(second.remoteSource.view().isOpen).toBe(false);
+		expect(second.remoteSource.view().statusMessage).toBe('');
 		expect(first.workOperations.view().operations).toEqual([]);
 		expect(second.workOperations.view().operations).toEqual([]);
 
@@ -109,6 +109,7 @@ describe('app runtime', () => {
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
+		expect(second.remoteSource.view().isOpen).toBe(false);
 
 		const third = createAppRuntime();
 		dispose = () => {
@@ -118,6 +119,7 @@ describe('app runtime', () => {
 		expect(third.output.collision().isOpen).toBe(false);
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
+		expect(third.remoteSource.view().isOpen).toBe(false);
 		expect(third.workOperations.view().operations).toEqual([]);
 	});
 
@@ -152,19 +154,22 @@ describe('app runtime', () => {
 
 	it('resets Remote Source module state on dispose so a remount does not keep the dialog open', () => {
 		const runtime = createAppRuntime();
-		patchRemoteSourceState({ isOpen: true, statusMessage: 'stale remote' });
-		expect(snapshotRemoteSourceView().isOpen).toBe(true);
+		runtime.remoteSource.patch({ isOpen: true, statusMessage: 'stale remote' });
+		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		runtime.dispose();
-		expect(snapshotRemoteSourceView().isOpen).toBe(false);
-		expect(snapshotRemoteSourceView().statusMessage).toBe('');
+		expect(runtime.remoteSource.view().isOpen).toBe(false);
+		expect(runtime.remoteSource.view().statusMessage).toBe('');
 	});
 
 	it('keeps late Remote Source polling from repopulating state after disposal', async () => {
-		const runtime = createAppRuntime();
 		const lateStatus = createDeferred<AcquisitionJob>();
 		const services = remoteServices(lateStatus.promise);
-		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
-		const acquisition = runRemoteSourceWorkflow(services, {
+		const runtime = createAppRuntime({ remoteSource: { services } });
+		const other = createAppRuntime();
+		dispose = () => other.dispose();
+		other.remoteSource.patch({ isOpen: true, statusMessage: 'other runtime' });
+		runtime.remoteSource.patch({ selectedTitleIds: new Set(['B000000001']) });
+		const acquisition = runtime.remoteSource.runAction({
 			type: 'acquireSelected',
 		});
 		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
@@ -173,7 +178,9 @@ describe('app runtime', () => {
 		lateStatus.resolve(runningJob());
 		await acquisition;
 
-		expect(snapshotRemoteSourceView().activeJob).toBeNull();
-		expect(snapshotRemoteSourceView().statusMessage).toBe('');
+		expect(runtime.remoteSource.view().activeJob).toBeNull();
+		expect(runtime.remoteSource.view().statusMessage).toBe('');
+		expect(other.remoteSource.view().isOpen).toBe(true);
+		expect(other.remoteSource.view().statusMessage).toBe('other runtime');
 	});
 });

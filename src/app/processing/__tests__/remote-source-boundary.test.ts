@@ -1,23 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import * as remoteSource from '../../../ui/remoteSource';
+import * as remoteSourceUi from '../../../ui/remoteSource';
 
-const EXPECTED_REMOTE_SOURCE_EXPORTS = [
-	'companionSummaryForInputIds',
-	'hasSupplementalAssetsForInputId',
-	'purgeRemoteSourceSessionsForInputIds',
-	'registerRemoteSourceSupplementalAssets',
-	'releaseRemoteSourceSessionRetainers',
-	'retainRemoteSourceSessionsForInputIds',
-	'subscribeRemoteSourceSupplementalAssets',
-	'supplementalAssetsByInputIdForProcessing',
-] as const;
+const EXPECTED_REMOTE_SOURCE_UI_EXPORTS = ['RemoteSourceAcquireView'] as const;
 
 const FORBIDDEN_REMOTE_SOURCE_IMPORTS = [
 	'remoteSource/sessionAssets',
 	'remoteSource/workflow',
 	'remoteSource/state',
 	'remoteSource/RemoteSourceAcquireView',
+	'ui/remoteSource',
 	'app/remoteSource/sessionAssets',
 	'app/remoteSource/workflow',
 	'app/remoteSource/state',
@@ -40,14 +32,10 @@ function productionProcessingSources(): [string, string][] {
 }
 
 describe('Processing remoteSource Public API Strip boundary', () => {
-	it('pins the remoteSource public export strip', () => {
-		expect(Object.keys(remoteSource).sort()).toEqual([...EXPECTED_REMOTE_SOURCE_EXPORTS].sort());
-	});
-
-	it('does not export private sessionAssets helpers or acquisition workflow symbols', () => {
-		expect(remoteSource).not.toHaveProperty('supplementalAssetsForInputIds');
-		expect(remoteSource).not.toHaveProperty('removeRemoteSourceSupplementalAssets');
-		expect(remoteSource).not.toHaveProperty('purgeSuccessfulRemoteSourceSessions');
+	it('pins the Remote Source UI to its visual export strip', () => {
+		expect(Object.keys(remoteSourceUi).sort()).toEqual(
+			[...EXPECTED_REMOTE_SOURCE_UI_EXPORTS].sort(),
+		);
 	});
 
 	it('keeps production processing code on the remoteSource public import surface', () => {

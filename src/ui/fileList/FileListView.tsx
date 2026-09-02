@@ -3,10 +3,6 @@ import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigat
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
-import {
-	hasSupplementalAssetsForInputId,
-	subscribeRemoteSourceSupplementalAssets,
-} from '../remoteSource';
 import { createSignal, createEffect, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
@@ -25,6 +21,7 @@ export function FileListView(props: {
 }): JSX.Element {
 	const runtime = useAppRuntime();
 	const input = runtime.input;
+	const remoteSource = runtime.remoteSource;
 	const metadataView = runtime.metadata.view;
 	const view = input.view;
 	const capability = input.capability;
@@ -38,7 +35,6 @@ export function FileListView(props: {
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
 	const [thumbnailRevision, setThumbnailRevision] = createSignal(0);
-	const [assetRevision, setAssetRevision] = createSignal(0);
 	const [dragState, setDragState] = createSignal<FileListDragState>({
 		draggedIndex: null,
 		hoveredIndex: null,
@@ -55,9 +51,6 @@ export function FileListView(props: {
 
 	onCleanup(() => reorderHandlers.dispose());
 	onCleanup(subscribeCoverThumbnails(() => setThumbnailRevision((revision) => revision + 1)));
-	onCleanup(
-		subscribeRemoteSourceSupplementalAssets(() => setAssetRevision((revision) => revision + 1)),
-	);
 
 	createEffect(
 		() => {
@@ -96,8 +89,7 @@ export function FileListView(props: {
 	}
 
 	function hasCompanion(inputId: string | undefined): boolean {
-		assetRevision();
-		return hasSupplementalAssetsForInputId(inputId);
+		return remoteSource.hasCompanions(inputId);
 	}
 
 	function handleFileListClick(index: number, event: MouseEvent): void {

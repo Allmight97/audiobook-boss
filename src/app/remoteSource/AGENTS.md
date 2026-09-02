@@ -10,15 +10,14 @@
 
 ## Public API Strip
 
-- Import session-asset coordination from `src/ui/remoteSource`.
-- Import acquire intents and the Input handoff result type from
-  `src/app/remoteSource`.
-- `index.ts` is the export surface. Do not import `workflow.ts`,
-  `sessionAssets.ts`, or `state.ts` from outside this owner.
-- State/listeners, workflow generation counters, cover-preview scheduling, and
-  Supplemental Asset maps are still module-global compatibility state. Do not
-  add callers, a reset API, another global, or a UI re-export; new state belongs
-  to each Remote Source owner.
+- Import `createRemoteSourceOwner`, owner types, and pure display/selection
+  policy from `src/app/remoteSource`.
+- `index.ts` is the export surface. `workflow.ts`, `sessionAssets.ts`,
+  `coverPreview.ts`, and `state.ts` are private implementation modules.
+- Each `RemoteSourceOwner` instance owns its state, workflow generations,
+  cover-preview scheduler/cache, Supplemental Asset maps, and purge
+  coordination. Do not add module-global compatibility state or raw
+  retain/release/purge exports.
 
 ## Hard Invariants
 
@@ -30,8 +29,7 @@
   `RemoteSourceAcquireView` renders its live percentage and Cancel.
   File List and the inspector observe Supplemental Assets through the composed
   Remote Source owner so PDF chips update after Input has already published the
-  new files. The current `subscribeRemoteSourceSupplementalAssets` export is a
-  compatibility rail, not the target interface.
+  new files.
   Cancellation and app disposal invalidate the active acquisition generation
   so late Promise completions cannot overwrite terminal or reset state.
 - Materialized audio becomes a normal Input session through
@@ -39,7 +37,9 @@
   `getCurrentFileList`. If Input import is blocked or fails, purge the staged
   remote session immediately.
 - Supplemental assets are keyed by the imported file `inputId`, not by
-  provider path after handoff. Do not add a second file-list store.
+  provider path after handoff. Processing uses `processingAssets` and
+  `withSubmissionRetention`; Work Operations reports terminal Input facts with
+  `settleTerminalWork`. Callers do not sequence raw retain/release/purge.
 - Remote Source purges sessions for input ids that leave the public Input
   view. File Import keeps that lifetime subscription alive.
 - Frontend state may hold provider-neutral account, title, job, and
@@ -49,10 +49,10 @@
 ## Testing
 
 - `sessionAssets.test.ts` pins input-id rekey, companion summaries that omit
-  paths, retainer deferral, and shared-job purge.
+  paths, retainer deferral, shared-job purge, cleanup failure, and isolation.
 - `workflow.test.ts` pins successful Input handoff, blocked-import purge,
   close-does-not-cancel, and publication of polled `getAcquisitionStatus`
-  snapshots.
+  snapshots through owner instances, plus owner and cover-cache isolation.
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
 - `selection.test.ts` pins filter/selection policy.
 - `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and
@@ -62,6 +62,6 @@
 
 ## Breaking-Change Triggers
 
-- Adding a caller to the public session-asset compatibility exports.
+- Exporting raw session-asset, workflow-state, cache, or listener controls.
 - Dual-writing `fileListSessionState` or adding a parallel remote file list.
 - Cancelling acquisition from dialog close.

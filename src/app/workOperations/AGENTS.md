@@ -29,8 +29,9 @@
   mixed, failed, skipped, or cancelled outcomes.
 - `PURGED_OPERATION_TOMBSTONE_CAP` must stay strictly larger than backend
   `TERMINAL_OPERATIONS_CAP`. The contract test pins both sites.
-- Consume Remote supplemental retain/purge through the Remote public strip.
-  Do not import private Remote session files.
+- Keep terminal Input projection and the operation-id tombstone here, then call
+  the injected Remote Source owner's `settleTerminalWork` once. Do not import
+  private Remote session files or reproduce retain/release/purge sequencing.
 - Do not own processing submission, metadata staging, output-plan review, or
   provider auth.
 

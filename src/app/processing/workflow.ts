@@ -26,6 +26,7 @@ import type {
 	stageMetadataIntentPatch,
 } from '../metadataSession';
 import type { runOutputPlanReviewWorkflow } from '../outputPlan';
+import type { RemoteSourceOwner } from '../remoteSource';
 import {
 	buildMetadataIntentByPath,
 	buildProcessPayload,
@@ -35,11 +36,6 @@ import {
 	validInputIds,
 	validInputFilePaths,
 } from './workflowPreparation';
-import {
-	purgeRemoteSourceSessionsForInputIds,
-	releaseRemoteSourceSessionRetainers,
-	retainRemoteSourceSessionsForInputIds,
-} from '../../ui/remoteSource';
 import type { openGeneratedPreviewIfSingle } from './preview';
 import type { readProcessingRequestConfig } from './config';
 import type { ProcessingStatus } from './state';
@@ -71,6 +67,7 @@ export interface ProcessingWorkflowServices {
 	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
+	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: StatusPanelFeedbackService;
@@ -228,25 +225,6 @@ function processingCommand(
 	});
 }
 
-function submitProcessingCommand(
-	services: ProcessingWorkflowServices,
-	request: {
-		payload: ProcessPayload;
-		metadataIntentByPath: MetadataIntentByPath | null;
-		previewSeconds?: number;
-	},
-): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
-	return Effect.tryPromise({
-		try: () =>
-			services.submitProcessingOperation({
-				payload: request.payload,
-				metadataIntent: request.metadataIntentByPath,
-				previewSeconds: request.previewSeconds,
-			}),
-		catch: toProcessingWorkflowError,
-	});
-}
-
 function submitRetainedProcessingCommand(
 	services: ProcessingWorkflowServices,
 	request: {
@@ -255,24 +233,16 @@ function submitRetainedProcessingCommand(
 		inputIds: readonly (string | undefined)[];
 	},
 ): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
-	return Effect.gen(function* () {
-		yield* Effect.sync(() => retainRemoteSourceSessionsForInputIds(request.inputIds));
-		return yield* submitProcessingCommand(services, request).pipe(
-			Effect.catch((error) =>
-				Effect.tryPromise({
-					try: async () => {
-						const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(request.inputIds);
-						if (pendingPurgeInputIds.length > 0) {
-							await purgeRemoteSourceSessionsForInputIds(pendingPurgeInputIds);
-						}
-					},
-					catch: () => undefined,
-				}).pipe(
-					Effect.catch(() => Effect.succeed(undefined)),
-					Effect.flatMap(() => Effect.fail(error)),
-				),
+	return Effect.tryPromise({
+		try: () =>
+			services.remoteSource.withSubmissionRetention(request.inputIds, () =>
+				services.submitProcessingOperation({
+					payload: request.payload,
+					metadataIntent: request.metadataIntentByPath,
+					previewSeconds: undefined,
+				}),
 			),
-		);
+		catch: toProcessingWorkflowError,
 	});
 }
 
@@ -440,6 +410,7 @@ export function processingWorkflowProgram(
 			inputIds,
 			processingRequestConfig,
 			jobType,
+			services.remoteSource.processingAssets(inputIds),
 		);
 		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
 
@@ -499,10 +470,8 @@ export function startProcessing(
 	},
 	layer?: ProcessingWorkflowLayer,
 ): Promise<void> {
-	return (async () => {
-		const workflowLayer = layer ?? (await import('./workflow.deps')).ProcessingWorkflowLive;
-		return runAppEffect(
-			processingWorkflowProgram(context, options).pipe(Effect.provide(workflowLayer)),
-		);
-	})();
+	if (!layer) {
+		return Promise.reject(new Error('Processing workflow requires its runtime owner layer.'));
+	}
+	return runAppEffect(processingWorkflowProgram(context, options).pipe(Effect.provide(layer)));
 }

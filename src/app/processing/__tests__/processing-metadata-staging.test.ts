@@ -139,6 +139,10 @@ function stagingServices(): ProcessingWorkflowServices {
 		readAudioMetadata: context.readAudioMetadataMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
 		submitProcessingOperation: context.submitProcessingOperationMock,
+		remoteSource: {
+			processingAssets: vi.fn(() => undefined),
+			withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
+		},
 		runOutputPlanReviewWorkflow: context.runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle,
 		feedback: { showError: viewState.showError },

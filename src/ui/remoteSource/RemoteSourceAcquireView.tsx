@@ -1,35 +1,27 @@
-import { createEffect, createSignal, For, onSettled, Show } from 'solid-js';
+import { createEffect, For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import {
 	bytesLabel,
-	cancelRemoteSourceCoverPreviewSchedule,
-	getRemoteSourceCoverPreviewState,
 	isAcquisitionTerminal,
 	isTitleAcquirable,
 	progressPercent,
 	progressTitleLabel,
-	scheduleRemoteSourceCoverPreviews,
 	selectedRemoteTitleSummaryText,
-	subscribeRemoteSourceCoverPreviews,
 	titleAvailability,
 	toggledRemoteTitleSelection,
 	toggledSupplementalPdfPreference,
 	visibleRemoteTitles,
 } from '../../app/remoteSource';
 import { useAppRuntime } from '../../app/runtime';
-import { tauriClient } from '../../lib/tauri/client';
 import { Button, CoverThumb, Dialog, Progress } from '../foundation';
 import type { RemoteTitle } from '../../types/remoteSource';
 import './remoteSourceAcquire.css';
 
-function RemoteTitleCover(props: {
-	readonly title: RemoteTitle;
-	readonly revision: number;
-}): JSX.Element {
+function RemoteTitleCover(props: { readonly title: RemoteTitle }): JSX.Element {
+	const coverPreview = useAppRuntime().remoteSource.coverPreview;
 	const previewState = () => {
-		props.revision;
-		return getRemoteSourceCoverPreviewState(props.title.coverUrl);
+		return coverPreview(props.title.coverUrl);
 	};
 	const readyUrl = () => {
 		const state = previewState();
@@ -71,11 +63,6 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const runAction = remoteSource.runAction;
 	const close = remoteSource.close;
 	const patchView = remoteSource.patch;
-	const [previewRevision, setPreviewRevision] = createSignal(0);
-
-	onSettled(() =>
-		subscribeRemoteSourceCoverPreviews(() => setPreviewRevision((value) => value + 1)),
-	);
 
 	createEffect(
 		() => {
@@ -104,7 +91,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 		},
 		(current) => {
 			if (!current.isOpen || !current.connected) {
-				cancelRemoteSourceCoverPreviewSchedule();
+				remoteSource.cancelCoverPreviews();
 				return;
 			}
 			const visible = visibleRemoteTitles(current.titles, {
@@ -112,11 +99,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				showSupplementalPdfOnly: current.showSupplementalPdfOnly,
 				hideUnavailableTitles: current.hideUnavailableTitles,
 			});
-			scheduleRemoteSourceCoverPreviews(
-				visible.map((title) => title.coverUrl),
-				(url) => tauriClient.loadCoverArtFromUrl(url),
-			);
-			return () => cancelRemoteSourceCoverPreviewSchedule();
+			remoteSource.scheduleCoverPreviews(visible.map((title) => title.coverUrl));
+			return () => remoteSource.cancelCoverPreviews();
 		},
 	);
 
@@ -322,7 +306,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									aria-selected={view().selectedTitleIds.has(title.titleId) ? 'true' : 'false'}
 									aria-disabled={!isTitleAcquirable(title) ? 'true' : undefined}
 								>
-									<RemoteTitleCover title={title} revision={previewRevision()} />
+									<RemoteTitleCover title={title} />
 									<button
 										type="button"
 										class="remote-title-button"

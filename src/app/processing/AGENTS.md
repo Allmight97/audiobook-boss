@@ -42,13 +42,17 @@
   precedence from per-job rows.
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.
   Submit goes through Processing `start`.
+- Supplemental payload assets come from the injected Remote Source owner.
+  Background submission runs inside its `withSubmissionRetention` operation;
+  Processing must not reproduce retain/release/purge ordering.
 
 ## Testing
 
 - Workflow tests inject `makeProcessingWorkflowServicesLayer`; they do not mock
   leftover file-list or job-control modules.
-- `remote-source-boundary.test.ts` pins the Remote public strip this owner
-  consumes. Do not import private Remote session or acquisition files here.
+- `remote-source-boundary.test.ts` pins the visual Remote UI strip and proves
+  production Processing does not import UI or private Remote implementation
+  files.
 - Status UI strip is pinned by `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`.
 
 ## Breaking-Change Triggers

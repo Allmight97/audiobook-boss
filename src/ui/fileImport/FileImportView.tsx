@@ -10,7 +10,7 @@ import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 import { Button } from '../foundation';
 import { FileListView } from '../fileList/FileListView';
-import { RemoteSourceAcquireView } from '../remoteSource/RemoteSourceAcquireView';
+import { RemoteSourceAcquireView } from '../remoteSource';
 import './fileImport.css';
 
 export function FileImportView(): JSX.Element {
@@ -25,7 +25,7 @@ export function FileImportView(): JSX.Element {
 	createEffect(
 		() => view().files,
 		(files) => {
-			runtime.remoteSource.reconcileWithInput(files);
+			void runtime.remoteSource.reconcileWithInput(files);
 		},
 	);
 	let fileManagementContainer: HTMLElement | null = null;

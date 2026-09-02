@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resetRemoteSource } from '../../app/remoteSource';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
@@ -63,7 +62,6 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		cleanup();
 		runtime?.dispose();
 		runtime = undefined;
-		resetRemoteSource();
 		vi.restoreAllMocks();
 		document.body.innerHTML = '';
 	});

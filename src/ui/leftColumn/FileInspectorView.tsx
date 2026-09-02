@@ -1,23 +1,14 @@
-import { createSignal, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { toInspectorViewFromInput } from '../../app/inputSession/inspector';
 import { useAppRuntime } from '../../app/runtime';
-import {
-	companionSummaryForInputIds,
-	subscribeRemoteSourceSupplementalAssets,
-} from '../remoteSource';
 import './leftColumn.css';
 
 export function FileInspectorView(): JSX.Element {
-	const [assetRevision, setAssetRevision] = createSignal(0);
-	const view = useAppRuntime().input.view;
-	onCleanup(
-		subscribeRemoteSourceSupplementalAssets(() => setAssetRevision((revision) => revision + 1)),
-	);
+	const runtime = useAppRuntime();
+	const view = runtime.input.view;
 	const inspector = () => {
-		assetRevision();
-		return toInspectorViewFromInput(view(), companionSummaryForInputIds);
+		return toInspectorViewFromInput(view(), runtime.remoteSource.companionSummary);
 	};
 
 	return (

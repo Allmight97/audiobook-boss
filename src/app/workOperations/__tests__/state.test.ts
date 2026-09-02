@@ -3,15 +3,7 @@ import { tauriClient } from '../../../lib/tauri/client';
 import type { OperationSnapshot } from '../../../types/workRuntime';
 import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
 
-const { purgeMock, releaseMock } = vi.hoisted(() => ({
-	purgeMock: vi.fn(),
-	releaseMock: vi.fn(),
-}));
-
-vi.mock('../../../ui/remoteSource', () => ({
-	purgeRemoteSourceSessionsForInputIds: purgeMock,
-	releaseRemoteSourceSessionRetainers: releaseMock,
-}));
+const settleRemoteSourceMock = vi.fn();
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -89,11 +81,11 @@ describe('Work Center state', () => {
 	let session: WorkOperationsSession;
 
 	beforeEach(() => {
-		purgeMock.mockReset();
-		purgeMock.mockResolvedValue(undefined);
-		releaseMock.mockReset();
-		releaseMock.mockReturnValue([]);
-		session = createWorkOperationsSession(() => undefined);
+		settleRemoteSourceMock.mockReset();
+		settleRemoteSourceMock.mockResolvedValue(undefined);
+		session = createWorkOperationsSession(() => undefined, {
+			remoteSource: { settleTerminalWork: settleRemoteSourceMock },
+		});
 	});
 
 	afterEach(() => {
@@ -121,13 +113,15 @@ describe('Work Center state', () => {
 		session.applyOperationSnapshot(completedMergeOperation('op-merge-purge'));
 		await Promise.resolve();
 
-		expect(releaseMock).toHaveBeenCalledWith(['input-1', 'input-2']);
-		expect(purgeMock).toHaveBeenCalledWith(['input-1', 'input-2']);
+		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
+			inputIds: ['input-1', 'input-2'],
+			completedInputIds: ['input-1', 'input-2'],
+		});
 	});
 
 	it('claims terminal operation purge before awaiting so duplicate terminal snapshots do not race', async () => {
 		let resolvePurge!: () => void;
-		purgeMock.mockReturnValueOnce(
+		settleRemoteSourceMock.mockReturnValueOnce(
 			new Promise<void>((resolve) => {
 				resolvePurge = resolve;
 			}),
@@ -138,8 +132,7 @@ describe('Work Center state', () => {
 		session.applyOperationSnapshot(snapshot);
 		await Promise.resolve();
 
-		expect(releaseMock).toHaveBeenCalledTimes(1);
-		expect(purgeMock).toHaveBeenCalledTimes(1);
+		expect(settleRemoteSourceMock).toHaveBeenCalledTimes(1);
 		resolvePurge();
 	});
 
@@ -177,7 +170,9 @@ describe('Work Center state', () => {
 	});
 
 	it('does not share operation snapshots across sessions', () => {
-		const other = createWorkOperationsSession(() => undefined);
+		const other = createWorkOperationsSession(() => undefined, {
+			remoteSource: { settleTerminalWork: vi.fn(async () => undefined) },
+		});
 		session.applyOperationSnapshot(completedMergeOperation('op-isolation'));
 		expect(session.view().operations).toHaveLength(1);
 		expect(other.view().operations).toEqual([]);
