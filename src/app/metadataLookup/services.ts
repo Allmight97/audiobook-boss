@@ -2,7 +2,6 @@ import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
-import { getMetadataForFile, stageMetadataIntentPatch } from '../metadataSession';
 import type { MetadataLookupCoverPreviews } from './coverPreview';
 import type { MetadataLookupQueueState, MetadataLookupState } from './state';
 import type { MetadataLookupWorkflowServices } from './workflow';
@@ -33,8 +32,8 @@ export function makeProductionLookupServices(
 		},
 		getSelectedFileIndices: () => new Set(deps.input.session().selectedIndices ?? []),
 		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
-		getMetadataForFile,
-		stageMetadataIntentPatch,
+		getMetadataForFile: (path) => deps.metadata.readCached(path),
+		stageMetadataIntentPatch: (path, patch) => deps.metadata.stageIntent(path, patch),
 		selectFile: async (index, modifiers, options) => {
 			const changed = await deps.input.selectFile({
 				index,

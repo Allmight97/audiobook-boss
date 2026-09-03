@@ -9,8 +9,8 @@
 ## Public API Strip
 
 - Import `MetadataLookupView` from `src/ui/metadataLookup`.
-- Result application stages through the Metadata Session strip
-  (`stageMetadataIntentPatch`). Do not add a lookup-private staging path.
+- Result application stages through the runtime Metadata owner
+  (`stageIntent`). Do not add a lookup-private staging path.
 
 ## Hard Invariants
 

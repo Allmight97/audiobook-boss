@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import { defaultEncoderSettings, type ProcessingPreflightPlan } from '../../types/audio';
+import { defaultEncoderSettings, type FileListInfo, type ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { tauriClient } from '../../lib/tauri/client';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
@@ -47,6 +47,27 @@ function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowSe
 		purgeSession: vi.fn(),
 		importMaterializedPaths: vi.fn(),
 		sleep: vi.fn(async () => undefined),
+	};
+}
+
+function metadataFileList(path: string, title: string): FileListInfo {
+	return {
+		files: [
+			{
+				path,
+				inputId: path,
+				isValid: true,
+				duration: 60,
+				size: 1024,
+				format: 'm4b',
+				tagTitle: title,
+			},
+		],
+		selectedDecoders: [null],
+		totalDuration: 60,
+		totalSize: 1024,
+		validCount: 1,
+		invalidCount: 0,
 	};
 }
 
@@ -307,5 +328,66 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 		expect(other.remoteSource.view().isOpen).toBe(true);
 		expect(other.remoteSource.view().statusMessage).toBe('other runtime');
+	});
+
+	it('keeps metadata cache and process intents isolated across live runtimes', async () => {
+		const firstRead = vi.fn(async () => ({
+			title: 'First Alpha',
+			artist: 'Author',
+			cover_art: [1],
+		}));
+		const secondRead = vi.fn(async () => ({
+			title: 'Second Alpha',
+			artist: 'Author',
+			cover_art: [2],
+		}));
+		const first = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				readAudioMetadata: firstRead,
+			},
+		});
+		const second = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				readAudioMetadata: secondRead,
+			},
+		});
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		const files = metadataFileList('/books/alpha.m4b', 'Alpha');
+		first.input.replaceSession({
+			...emptyInputSession(),
+			fileList: files,
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await first.metadata.hydrateSelection(null);
+		first.metadata.stageIntent('/books/alpha.m4b', {
+			title: { op: 'set', value: 'Staged On A' },
+		});
+		expect(first.metadata.readCached('/books/alpha.m4b')?.title).toBe('Staged On A');
+		expect(await first.metadata.intentsForProcess(['/books/alpha.m4b'])).toEqual({
+			'/books/alpha.m4b': { title: { op: 'set', value: 'Staged On A' } },
+		});
+
+		second.input.replaceSession({
+			...emptyInputSession(),
+			fileList: files,
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await second.metadata.hydrateSelection(null);
+		expect(secondRead).toHaveBeenCalledWith('/books/alpha.m4b');
+		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
+		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
+
+		first.dispose();
+		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
+		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
+		expect(second.metadata.view().form.fields['meta-title'].value).toBe('Second Alpha');
 	});
 });

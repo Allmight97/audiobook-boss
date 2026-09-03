@@ -1,6 +1,6 @@
 import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { getMetadataForFile, getMetadataIntentPatchForFile } from './cache';
+import type { MetadataCache } from './cache';
 
 export function firstValidFilePath(fileList: FileListInfo | null): string | null {
 	if (!fileList?.files.length) {
@@ -42,14 +42,14 @@ function coverBytesEqual(left: number[] | null, right: number[] | null): boolean
 	return true;
 }
 
-export function effectiveCoverForFile(filePath: string): number[] | null {
-	const intentPatch = getMetadataIntentPatchForFile(filePath);
+export function effectiveCoverForFile(filePath: string, cache: MetadataCache): number[] | null {
+	const intentPatch = cache.getMetadataIntentPatchForFile(filePath);
 	const intentCover = readCoverArtFromIntentPatch(intentPatch);
 	if (intentCover !== undefined) {
 		return intentCover;
 	}
 
-	const stored = getMetadataForFile(filePath)?.cover_art;
+	const stored = cache.getMetadataForFile(filePath)?.cover_art;
 	if (stored && stored.length > 0) {
 		return stored;
 	}
@@ -76,6 +76,7 @@ export function resolveCoverDisplayPath(
 	jobType: JobType,
 	fileList: FileListInfo | null,
 	selectedFiles: AudioFile[],
+	cache: MetadataCache,
 ): string | null {
 	if (jobType === 'merge') {
 		return firstValidFilePath(fileList);
@@ -86,7 +87,7 @@ export function resolveCoverDisplayPath(
 		return validSelected[0]?.path ?? null;
 	}
 	if (validSelected.length > 1) {
-		const covers = validSelected.map((file) => effectiveCoverForFile(file.path));
+		const covers = validSelected.map((file) => effectiveCoverForFile(file.path, cache));
 		const firstCover = covers[0] ?? null;
 		const allSame = covers.every((cover) => coverBytesEqual(cover, firstCover));
 		return allSame ? (validSelected[0]?.path ?? null) : null;

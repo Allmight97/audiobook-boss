@@ -5,11 +5,7 @@ import type { MetadataSaveBatchResult } from '../../types/metadata';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
-import {
-	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	stageMetadataIntentPatch,
-} from './index';
+import * as metadataSessionApi from './index';
 
 function file(path: string, title: string): FileListInfo['files'][number] {
 	return {
@@ -114,7 +110,7 @@ describe('metadata session selection and save', () => {
 		});
 		await runtime.metadata.hydrateSelection(null);
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Beta');
-		expect(getMetadataForFile('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
 
 	it('saves staged intent through the metadata capability', async () => {
@@ -127,7 +123,7 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		stageMetadataIntentPatch('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
 		await runtime.metadata.save();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalled();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalledWith([
@@ -196,8 +192,8 @@ describe('metadata session selection and save', () => {
 		await runtime.metadata.hydrateSelection(null);
 		resolveUrlLoad?.([9, 9, 9]);
 		await loadPromise;
-		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.cover_art).toBeUndefined();
-		expect(getMetadataIntentPatchForFile('/books/alpha.m4b')?.cover_art).toBeUndefined();
+		expect(await runtime.metadata.intentsForProcess(['/books/beta.m4b'])).toBeNull();
+		expect(await runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
 		expect(runtime.metadata.view().cover.hasCustomCoverArt).toBe(false);
 	});
 
@@ -241,8 +237,8 @@ describe('metadata session selection and save', () => {
 		await runtime.metadata.hydrateSelection(null);
 		releaseValidate?.();
 		expect(await stagePromise).toBe(false);
-		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.title).toBeUndefined();
-		expect(getMetadataForFile('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+		expect(await runtime.metadata.intentsForProcess(['/books/beta.m4b'])).toBeNull();
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
 
 	it('blocks selection change while a metadata save is in progress', async () => {
@@ -280,7 +276,7 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		stageMetadataIntentPatch('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
 		const save = runtime.metadata.save();
 		await vi.waitFor(() => {
 			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
@@ -289,5 +285,79 @@ describe('metadata session selection and save', () => {
 		expect(await runtime.metadata.canChangeSelection()).toBe(false);
 		releaseSave?.();
 		await save;
+	});
+
+	it('drops cached tags when a path is removed so re-import reads native metadata again', async () => {
+		let alphaTitle = 'Alpha';
+		const readAudioMetadata = vi.fn(async (filePath: string) => ({
+			title: filePath.includes('alpha') ? alphaTitle : 'Beta',
+			artist: 'Author',
+			cover_art: [1],
+		}));
+		const metadata = fakeMetadata({ readAudioMetadata });
+		runtime = createTestAppRuntime({ metadata });
+		const alpha = file('/books/alpha.m4b', 'Alpha');
+		const beta = file('/books/beta.m4b', 'Beta');
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([alpha, beta]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha');
+
+		runtime.input.removeFile(0);
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toBeUndefined();
+
+		alphaTitle = 'Alpha From Disk';
+		readAudioMetadata.mockClear();
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([alpha, beta]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(readAudioMetadata).toHaveBeenCalledWith('/books/alpha.m4b');
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha From Disk');
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha From Disk');
+	});
+
+	it('intentsForProcess loads native tags when cache only contains cover art', async () => {
+		const readAudioMetadata = vi.fn(async (filePath: string) => {
+			const count = readAudioMetadata.mock.calls.filter(([path]) => path === filePath).length;
+			if (count === 1) {
+				return { cover_art: [1, 2, 3] };
+			}
+			return { title: 'Loaded From Disk' };
+		});
+		const metadata = fakeMetadata({ readAudioMetadata });
+		runtime = createTestAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ cover_art: [1, 2, 3] });
+
+		await expect(runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).resolves.toBeNull();
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ title: 'Loaded From Disk' });
+		expect(readAudioMetadata).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not export process-global cache helpers', () => {
+		expect(metadataSessionApi).not.toHaveProperty('cacheMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('getMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('getMetadataIntentPatchForFile');
+		expect(metadataSessionApi).not.toHaveProperty('stageMetadataIntentPatch');
+		expect(metadataSessionApi).not.toHaveProperty('collectActionableMetadataIntent');
+		expect(metadataSessionApi).not.toHaveProperty('clearPendingMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('removeMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('clearMetadataSession');
+		expect(metadataSessionApi).not.toHaveProperty('isUsableMetadataCache');
 	});
 });

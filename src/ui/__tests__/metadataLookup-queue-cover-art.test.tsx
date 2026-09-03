@@ -2,7 +2,6 @@ import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import { getMetadataForFile } from '../../app/metadataSession';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
@@ -175,7 +174,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		});
 		expect(getContextText()).toContain('beta.m4b');
 		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(getMetadataForFile('/books/alpha.m4b')).toEqual(
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual(
 			expect.objectContaining({
 				cover_art: [9, 9, 9],
 			}),
@@ -204,7 +203,7 @@ describe('metadata lookup queue cover art isolation', () => {
 			expect(getStatusText()).toContain('Metadata applied.');
 		});
 		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(getMetadataForFile('/books/alpha.m4b')).toEqual(
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual(
 			expect.objectContaining({
 				cover_art: [1, 1, 1],
 			}),
@@ -220,7 +219,7 @@ describe('metadata lookup queue cover art isolation', () => {
 			</AppRuntimeProvider>
 		));
 		await importAndSelectAll(runtime);
-		const before = getMetadataForFile('/books/alpha.m4b');
+		const before = runtime.metadata.readCached('/books/alpha.m4b');
 		await userEvent.click(document.getElementById('metadata-lookup-btn') as HTMLElement);
 		await waitFor(() => {
 			expect(document.getElementById('metadata-lookup-skip-btn')).toBeTruthy();
@@ -230,7 +229,7 @@ describe('metadata lookup queue cover art isolation', () => {
 			expect(getStatusText()).toContain('Skipped.');
 		});
 		expect(getContextText()).toContain('beta.m4b');
-		expect(getMetadataForFile('/books/alpha.m4b')).toEqual(before);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual(before);
 	});
 
 	it('shows manual-entry CTA when search returns no results and focuses metadata title', async () => {

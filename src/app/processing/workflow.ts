@@ -19,18 +19,11 @@ import {
 import type { tauriClient } from '../../lib/tauri/client';
 import type { FileListInfo, JobType } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import type {
-	cacheMetadataForFile,
-	collectActionableMetadataIntent,
-	getMetadataForFile,
-	stageMetadataIntentPatch,
-} from '../metadataSession';
+import type { MetadataStageResult } from '../metadataSession';
 import type { runOutputPlanReviewWorkflow } from '../outputPlan';
 import type { RemoteSourceOwner } from '../remoteSource';
 import {
-	buildMetadataIntentByPath,
 	buildProcessPayload,
-	ensureBatchMetadataLoaded,
 	reviewOutputPlan,
 	stagePendingMetadataIntent,
 	validInputIds,
@@ -55,15 +48,14 @@ export interface ProcessingWorkflowServices {
 		mode?: 'single' | 'multi';
 		onlyDirty?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	collectActionableMetadataIntent: typeof collectActionableMetadataIntent;
-	getMetadataForFile: typeof getMetadataForFile;
-	cacheMetadataForFile: typeof cacheMetadataForFile;
-	stageMetadataIntentPatch: typeof stageMetadataIntentPatch;
+	stageIntent: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
+	intentsForProcess: (
+		filePaths: readonly string[],
+	) => Promise<Record<string, MetadataIntentPatch> | null>;
 	stageMetadataToSelection: (options?: { showStatus?: boolean }) => Promise<boolean>;
 	setJobControlsEnabled: (enabled: boolean) => void;
 	setFileOrderLocked: (locked: boolean) => void;
 	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
-	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
 	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
@@ -413,9 +405,14 @@ export function processingWorkflowProgram(
 			jobType,
 			services.remoteSource.processingAssets(inputIds),
 		);
-		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
-
-		const metadataIntentByPath = buildMetadataIntentByPath(services, processPayload);
+		const intentPaths =
+			processPayload.jobType === 'merge'
+				? processPayload.inputFiles.slice(0, 1)
+				: processPayload.inputFiles;
+		const metadataIntentByPath = yield* workflowPromise(
+			() => services.intentsForProcess(intentPaths),
+			'Failed to load batch metadata.',
+		);
 		const reviewResult = yield* reviewOutputPlan(
 			services,
 			{

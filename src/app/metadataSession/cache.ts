@@ -6,10 +6,6 @@ import {
 	mergeMetadataDraftIntents,
 } from './draft';
 
-const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
-const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
-const pendingSavePaths = new Set<string>();
-
 const isNullish = (value: unknown): value is null | undefined => value == null;
 
 function metadataValuesEqual(a: unknown, b: unknown): boolean {
@@ -57,14 +53,6 @@ function metadataEqualsNullish(
 	return true;
 }
 
-export function cacheMetadataForFile(filePath: string, metadata: Partial<AudiobookMetadata>): void {
-	metadataByFile.set(filePath, metadata);
-}
-
-export function getMetadataForFile(filePath: string): Partial<AudiobookMetadata> | undefined {
-	return metadataByFile.get(filePath);
-}
-
 export function isUsableMetadataCache(
 	metadata: Partial<AudiobookMetadata> | undefined,
 ): metadata is Partial<AudiobookMetadata> {
@@ -82,61 +70,85 @@ export function isUsableMetadataCache(
 
 export type MetadataStageResult = 'staged' | 'unchanged' | 'noop';
 
-export function stageMetadataIntentPatch(
-	filePath: string,
-	intentPatch: MetadataIntentPatch,
-): MetadataStageResult {
-	if (!hasActionableMetadataDraftIntent(intentPatch)) {
-		return 'noop';
+export function createMetadataCache() {
+	const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
+	const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
+	const pendingSavePaths = new Set<string>();
+
+	function removeMetadataForFile(filePath: string): void {
+		metadataByFile.delete(filePath);
+		metadataIntentByFile.delete(filePath);
+		pendingSavePaths.delete(filePath);
 	}
-	const existing = metadataByFile.get(filePath) ?? {};
-	const merged = applyMetadataDraftIntent(existing, intentPatch);
-	if (metadataEqualsNullish(existing, merged)) {
-		return 'unchanged';
-	}
-	metadataByFile.set(filePath, merged);
-	const existingIntent = metadataIntentByFile.get(filePath) ?? {};
-	metadataIntentByFile.set(filePath, mergeMetadataDraftIntents(existingIntent, intentPatch));
-	pendingSavePaths.add(filePath);
-	return 'staged';
+
+	return {
+		cacheMetadataForFile(filePath: string, metadata: Partial<AudiobookMetadata>): void {
+			metadataByFile.set(filePath, metadata);
+		},
+		getMetadataForFile(filePath: string): Partial<AudiobookMetadata> | undefined {
+			return metadataByFile.get(filePath);
+		},
+		stageMetadataIntentPatch(
+			filePath: string,
+			intentPatch: MetadataIntentPatch,
+		): MetadataStageResult {
+			if (!hasActionableMetadataDraftIntent(intentPatch)) {
+				return 'noop';
+			}
+			const existing = metadataByFile.get(filePath) ?? {};
+			const merged = applyMetadataDraftIntent(existing, intentPatch);
+			if (metadataEqualsNullish(existing, merged)) {
+				return 'unchanged';
+			}
+			metadataByFile.set(filePath, merged);
+			const existingIntent = metadataIntentByFile.get(filePath) ?? {};
+			metadataIntentByFile.set(filePath, mergeMetadataDraftIntents(existingIntent, intentPatch));
+			pendingSavePaths.add(filePath);
+			return 'staged';
+		},
+		getMetadataIntentPatchForFile(filePath: string): MetadataIntentPatch | undefined {
+			return metadataIntentByFile.get(filePath);
+		},
+		collectActionableMetadataIntent(
+			filePaths: readonly string[],
+		): Record<string, MetadataIntentPatch> | null {
+			const collected: Record<string, MetadataIntentPatch> = {};
+			for (const filePath of filePaths) {
+				const patch = metadataIntentByFile.get(filePath);
+				if (patch && hasActionableMetadataDraftIntent(patch)) {
+					collected[filePath] = patch;
+				}
+			}
+			return Object.keys(collected).length > 0 ? collected : null;
+		},
+		getPendingMetadataIntentEntries(): Array<[string, MetadataIntentPatch]> {
+			return Array.from(pendingSavePaths)
+				.map((filePath) => [filePath, metadataIntentByFile.get(filePath)] as const)
+				.filter((entry): entry is [string, MetadataIntentPatch] => Boolean(entry[1]));
+		},
+		clearPendingMetadataForFile(filePath: string): void {
+			pendingSavePaths.delete(filePath);
+			metadataIntentByFile.delete(filePath);
+		},
+		removeMetadataForFile,
+		dropRemovedPaths(livePaths: ReadonlySet<string>): void {
+			const known = new Set([
+				...metadataByFile.keys(),
+				...metadataIntentByFile.keys(),
+				...pendingSavePaths,
+			]);
+			for (const filePath of known) {
+				if (!livePaths.has(filePath)) {
+					removeMetadataForFile(filePath);
+				}
+			}
+		},
+		clear(): void {
+			metadataByFile.clear();
+			metadataIntentByFile.clear();
+			pendingSavePaths.clear();
+		},
+	};
 }
 
-export function getMetadataIntentPatchForFile(filePath: string): MetadataIntentPatch | undefined {
-	return metadataIntentByFile.get(filePath);
-}
-
-export function collectActionableMetadataIntent(
-	filePaths: readonly string[],
-): Record<string, MetadataIntentPatch> | null {
-	const collected: Record<string, MetadataIntentPatch> = {};
-	for (const filePath of filePaths) {
-		const patch = metadataIntentByFile.get(filePath);
-		if (patch && hasActionableMetadataDraftIntent(patch)) {
-			collected[filePath] = patch;
-		}
-	}
-	return Object.keys(collected).length > 0 ? collected : null;
-}
-
-export function getPendingMetadataIntentEntries(): Array<[string, MetadataIntentPatch]> {
-	return Array.from(pendingSavePaths)
-		.map((filePath) => [filePath, metadataIntentByFile.get(filePath)] as const)
-		.filter((entry): entry is [string, MetadataIntentPatch] => Boolean(entry[1]));
-}
-
-export function clearPendingMetadataForFile(filePath: string): void {
-	pendingSavePaths.delete(filePath);
-	metadataIntentByFile.delete(filePath);
-}
-
-export function removeMetadataForFile(filePath: string): void {
-	metadataByFile.delete(filePath);
-	metadataIntentByFile.delete(filePath);
-	pendingSavePaths.delete(filePath);
-}
-
-export function clearMetadataSession(): void {
-	metadataByFile.clear();
-	metadataIntentByFile.clear();
-	pendingSavePaths.clear();
-}
+export type MetadataCache = ReturnType<typeof createMetadataCache>;

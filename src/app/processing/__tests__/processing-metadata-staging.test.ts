@@ -18,7 +18,6 @@ const context = vi.hoisted(() => ({
 		metadataPatch: {},
 		fieldErrors: [],
 	})),
-	readAudioMetadataMock: vi.fn(),
 	openPathMock: vi.fn(),
 	getCurrentFileListMock: vi.fn(),
 	getSelectedFileIndexMock: vi.fn(),
@@ -28,12 +27,9 @@ const context = vi.hoisted(() => ({
 	getJobTypeMock: vi.fn(),
 	readMetadataFormMock: vi.fn(),
 	hasDirtyMetadataFieldsMock: vi.fn(),
-	// Session-strip fakes: stored patches live here; the collect fake applies
-	// the real actionable/path filter so payload-level pins stay meaningful.
 	storedIntentPatches: {} as Record<string, Record<string, { op: string; value?: unknown }>>,
-	getMetadataForFileMock: vi.fn(),
-	cacheMetadataForFileMock: vi.fn(),
-	stageMetadataIntentPatchMock: vi.fn(() => 'staged' as const),
+	stageIntentMock: vi.fn(() => 'staged' as const),
+	intentsForProcessMock: vi.fn(),
 	stageMetadataToSelectionMock: vi.fn(),
 	seriesPartValidationErrorMock: vi.fn(),
 	subseriesPartValidationErrorMock: vi.fn(),
@@ -45,30 +41,11 @@ vi.mock('../../../lib/tauri/client', () => ({
 		processAudiobookFiles: context.processAudiobookFilesMock,
 		submitProcessingOperation: context.submitProcessingOperationMock,
 		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
-		readAudioMetadata: context.readAudioMetadataMock,
 		openPath: context.openPathMock,
 	},
 }));
 
 vi.mock('../../metadataSession', () => ({
-	getMetadataForFile: context.getMetadataForFileMock,
-	cacheMetadataForFile: context.cacheMetadataForFileMock,
-	stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
-	collectActionableMetadataIntent: (filePaths: readonly string[]) => {
-		const collected: Record<string, Record<string, { op: string }>> = {};
-		for (const filePath of filePaths) {
-			const patch = context.storedIntentPatches[filePath];
-			if (patch && Object.values(patch).some((intent) => intent && intent.op !== 'noop')) {
-				collected[filePath] = patch;
-			}
-		}
-		return Object.keys(collected).length > 0 ? collected : null;
-	},
-	isUsableMetadataCache: (metadata: Record<string, unknown> | undefined) =>
-		Boolean(
-			metadata &&
-				Object.entries(metadata).some(([key, value]) => value !== undefined && key !== 'cover_art'),
-		),
 	validateMetadataDraft: async (metadata: Record<string, unknown>) => {
 		const first = context.seriesPartValidationErrorMock() ?? null;
 		return {
@@ -86,7 +63,6 @@ vi.mock('../../metadataSession', () => ({
 			result: { isValid: first == null, metadataPatch: {}, fieldErrors: [] },
 		};
 	},
-	metadataSaveInProgress: { subscribe: vi.fn() },
 }));
 
 const showError = vi.fn();
@@ -104,17 +80,6 @@ function processingContext() {
 	};
 }
 
-function collectStoredIntent(filePaths: readonly string[]) {
-	const collected: Record<string, Record<string, { op: string }>> = {};
-	for (const filePath of filePaths) {
-		const patch = context.storedIntentPatches[filePath];
-		if (patch && Object.values(patch).some((intent) => intent && intent.op !== 'noop')) {
-			collected[filePath] = patch;
-		}
-	}
-	return Object.keys(collected).length > 0 ? collected : null;
-}
-
 function stagingServices(): ProcessingWorkflowServices {
 	return {
 		getCurrentFileList: context.getCurrentFileListMock,
@@ -124,16 +89,12 @@ function stagingServices(): ProcessingWorkflowServices {
 		getJobType: context.getJobTypeMock,
 		hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 		readMetadataForm: context.readMetadataFormMock,
-		collectActionableMetadataIntent:
-			collectStoredIntent as ProcessingWorkflowServices['collectActionableMetadataIntent'],
-		getMetadataForFile: context.getMetadataForFileMock,
-		cacheMetadataForFile: context.cacheMetadataForFileMock,
-		stageMetadataIntentPatch: context.stageMetadataIntentPatchMock,
+		stageIntent: context.stageIntentMock,
+		intentsForProcess: context.intentsForProcessMock as ProcessingWorkflowServices['intentsForProcess'],
 		stageMetadataToSelection: context.stageMetadataToSelectionMock,
 		setJobControlsEnabled: vi.fn(),
 		setFileOrderLocked: vi.fn(),
 		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
-		readAudioMetadata: context.readAudioMetadataMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
 		submitProcessingOperation: context.submitProcessingOperationMock,
 		remoteSource: {
@@ -160,7 +121,6 @@ describe('startProcessing metadata staging', () => {
 		context.processAudiobookFilesMock.mockReset();
 		context.submitProcessingOperationMock.mockReset();
 		context.validateMetadataIntentPatchMock.mockClear();
-		context.readAudioMetadataMock.mockReset();
 		context.openPathMock.mockReset();
 		context.getCurrentFileListMock.mockReset();
 		context.getSelectedFileIndexMock.mockReset();
@@ -171,10 +131,19 @@ describe('startProcessing metadata staging', () => {
 		context.readMetadataFormMock.mockReset();
 		context.hasDirtyMetadataFieldsMock.mockReset();
 		context.storedIntentPatches = {};
-		context.getMetadataForFileMock.mockReset();
-		context.cacheMetadataForFileMock.mockReset();
-		context.stageMetadataIntentPatchMock.mockReset();
-		context.stageMetadataIntentPatchMock.mockReturnValue('staged');
+		context.stageIntentMock.mockReset();
+		context.stageIntentMock.mockReturnValue('staged');
+		context.intentsForProcessMock.mockReset();
+		context.intentsForProcessMock.mockImplementation(async (filePaths: readonly string[]) => {
+			const collected: Record<string, Record<string, { op: string }>> = {};
+			for (const filePath of filePaths) {
+				const patch = context.storedIntentPatches[filePath];
+				if (patch && Object.values(patch).some((intent) => intent && intent.op !== 'noop')) {
+					collected[filePath] = patch;
+				}
+			}
+			return Object.keys(collected).length > 0 ? collected : null;
+		});
 		context.stageMetadataToSelectionMock.mockReset();
 		context.seriesPartValidationErrorMock.mockReset();
 		context.subseriesPartValidationErrorMock.mockReset();
@@ -196,7 +165,6 @@ describe('startProcessing metadata staging', () => {
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		context.getJobTypeMock.mockReturnValue('merge');
-		context.getMetadataForFileMock.mockReturnValue(undefined);
 		context.preflightProcessingPlanMock.mockImplementation(async ({ payload, previewSeconds }) => ({
 			jobType: payload.jobType ?? 'merge',
 			previewSeconds: previewSeconds ?? undefined,
@@ -268,31 +236,16 @@ describe('startProcessing metadata staging', () => {
 				errors: [],
 			},
 		});
-		context.readAudioMetadataMock.mockResolvedValue({});
 		context.seriesPartValidationErrorMock.mockReturnValue(null);
 		context.subseriesPartValidationErrorMock.mockReturnValue(null);
 	});
 
-	it('loads batch metadata when cache only contains cover art', async () => {
+	it('asks the metadata owner for batch process intents', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
-		context.getMetadataForFileMock.mockImplementation((filePath: string) => {
-			if (filePath === '/books/a.m4b') {
-				return { cover_art: [1, 2, 3] };
-			}
-			if (filePath === '/books/b.m4b') {
-				return { title: 'Already Loaded' };
-			}
-			return undefined;
-		});
-		context.readAudioMetadataMock.mockResolvedValue({ title: 'Loaded From Disk' });
 
 		await startProcessing(processingContext());
 
-		expect(context.readAudioMetadataMock).toHaveBeenCalledTimes(1);
-		expect(context.readAudioMetadataMock).toHaveBeenCalledWith('/books/a.m4b');
-		expect(context.cacheMetadataForFileMock).toHaveBeenCalledWith('/books/a.m4b', {
-			title: 'Loaded From Disk',
-		});
+		expect(context.intentsForProcessMock).toHaveBeenCalledWith(['/books/a.m4b', '/books/b.m4b']);
 	});
 
 	it('does not snapshot empty metadata when no dirty form edits exist', async () => {
@@ -302,7 +255,7 @@ describe('startProcessing metadata staging', () => {
 		await startProcessing(processingContext());
 
 		expect(context.readMetadataFormMock).not.toHaveBeenCalled();
-		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.stageIntentMock).not.toHaveBeenCalled();
 		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntent: null,
@@ -316,12 +269,11 @@ describe('startProcessing metadata staging', () => {
 		context.storedIntentPatches = {
 			'/books/a.m4b': { title: { op: 'set', value: 'Edited Title' } },
 		};
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Edited Title' });
 
 		await startProcessing(processingContext());
 
 		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
-		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a.m4b', {
+		expect(context.stageIntentMock).toHaveBeenCalledWith('/books/a.m4b', {
 			title: { op: 'set', value: 'Edited Title' },
 		});
 		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
@@ -358,7 +310,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.stageIntentMock).not.toHaveBeenCalled();
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
 		expect(showError).toHaveBeenCalledWith('Series part must be a number');
 	});
@@ -380,7 +332,7 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalled();
+		expect(context.stageIntentMock).not.toHaveBeenCalled();
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
 		expect(showError).toHaveBeenCalledWith(
 			'Select a valid input file before processing metadata edits.',
@@ -390,13 +342,12 @@ describe('startProcessing metadata staging', () => {
 	it('stages clear intent for dirty-but-empty metadata in merge payload', async () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ title: '   ' });
-		context.getMetadataForFileMock.mockReturnValue({ title: '' });
 		context.storedIntentPatches = { '/books/a.m4b': { title: { op: 'clear' } } };
 
 		await startProcessing(processingContext());
 
 		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
-		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a.m4b', {
+		expect(context.stageIntentMock).toHaveBeenCalledWith('/books/a.m4b', {
 			title: { op: 'clear' },
 		});
 		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
@@ -411,13 +362,12 @@ describe('startProcessing metadata staging', () => {
 	it('stages cover-art clear intent even when no text fields are dirty', async () => {
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(true);
 		context.readMetadataFormMock.mockReturnValue({ cover_art: [] });
-		context.getMetadataForFileMock.mockReturnValue({});
 		context.storedIntentPatches = { '/books/a.m4b': { cover_art: { op: 'clear' } } };
 
 		await startProcessing(processingContext());
 
 		expect(context.readMetadataFormMock).toHaveBeenCalledWith({ mode: 'single' });
-		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a.m4b', {
+		expect(context.stageIntentMock).toHaveBeenCalledWith('/books/a.m4b', {
 			cover_art: { op: 'clear' },
 		});
 		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
@@ -437,7 +387,6 @@ describe('startProcessing metadata staging', () => {
 			title: 'Selected Row Title',
 			cover_art: [7, 7, 7],
 		});
-		context.getMetadataForFileMock.mockReturnValue({});
 		context.storedIntentPatches = {
 			'/books/a.m4b': {
 				title: { op: 'set', value: 'Selected Row Title' },
@@ -447,11 +396,11 @@ describe('startProcessing metadata staging', () => {
 
 		await startProcessing(processingContext());
 
-		expect(context.stageMetadataIntentPatchMock).toHaveBeenCalledWith('/books/a.m4b', {
+		expect(context.stageIntentMock).toHaveBeenCalledWith('/books/a.m4b', {
 			title: { op: 'set', value: 'Selected Row Title' },
 			cover_art: { op: 'set', value: [7, 7, 7] },
 		});
-		expect(context.stageMetadataIntentPatchMock).not.toHaveBeenCalledWith(
+		expect(context.stageIntentMock).not.toHaveBeenCalledWith(
 			'/books/b.m4b',
 			expect.anything(),
 		);
@@ -480,7 +429,6 @@ describe('startProcessing metadata staging', () => {
 	it('keeps batch metadata intent entries, including clear-intent values', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.storedIntentPatches = {
 			'/books/a.m4b': { title: { op: 'clear' } },
 			'/books/b.m4b': { series: { op: 'set', value: 'Series B' } },
@@ -501,7 +449,6 @@ describe('startProcessing metadata staging', () => {
 	it('does not build a synchronous batch failure summary after background submission', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.storedIntentPatches = {};
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'batch',
@@ -534,7 +481,6 @@ describe('startProcessing metadata staging', () => {
 	it('does not build a synchronous mixed batch summary after background submission', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.storedIntentPatches = {};
 		context.processAudiobookFilesMock.mockResolvedValue({
 			jobType: 'batch',
@@ -576,7 +522,6 @@ describe('startProcessing metadata staging', () => {
 	it('treats structured cancellation errors as cancellation instead of failures', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.storedIntentPatches = {};
 		context.submitProcessingOperationMock.mockRejectedValueOnce({
 			code: 'cancelled',
@@ -598,7 +543,6 @@ describe('startProcessing metadata staging', () => {
 	it('filters batch metadata intent to active input files only', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.storedIntentPatches = {
 			'/books/a.m4b': { title: { op: 'set', value: 'Active A' } },
 			'/books/b.m4b': { series: { op: 'set', value: 'Active B' } },
@@ -620,7 +564,6 @@ describe('startProcessing metadata staging', () => {
 	it('sends null batch metadata intent when all stored entries are empty objects', async () => {
 		context.getJobTypeMock.mockReturnValue('batch');
 		context.hasDirtyMetadataFieldsMock.mockReturnValue(false);
-		context.getMetadataForFileMock.mockReturnValue({ title: 'Already Loaded' });
 		context.storedIntentPatches = {
 			'/books/a.m4b': {},
 			'/books/b.m4b': {},
