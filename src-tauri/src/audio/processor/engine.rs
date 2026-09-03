@@ -2,14 +2,18 @@
 
 use std::path::Path;
 use std::sync::Once;
+use std::time::Instant;
 
 use ffmpeg_next as ff;
 
 use crate::audio::cleanup::CleanupGuard;
+use crate::audio::processor::encoder::{
+    append_in_process_encoding_log_best_effort, InProcessEncoderRunLog,
+};
 use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::SampleRateConfig;
-use crate::errors::{sanitize_path_for_display, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::ProcessingContext;
 
 /// ffmpeg-next based processor
@@ -99,6 +103,18 @@ impl FfmpegNextProcessor {
         metadata: Option<&crate::metadata::AudiobookMetadata>,
         passthrough: Option<&crate::metadata::PassthroughMetadata>,
     ) -> Result<()> {
+        let started = Instant::now();
+        let result = Self::execute_pipeline(plan, context, metadata, passthrough);
+        append_in_process_encoding_run(plan, context, started.elapsed(), &result);
+        result
+    }
+
+    fn execute_pipeline(
+        plan: &MediaProcessingPlan,
+        context: &ProcessingContext,
+        metadata: Option<&crate::metadata::AudiobookMetadata>,
+        passthrough: Option<&crate::metadata::PassthroughMetadata>,
+    ) -> Result<()> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
         INIT.call_once(|| {
@@ -163,6 +179,43 @@ impl FfmpegNextProcessor {
 
         Ok(())
     }
+}
+
+fn append_in_process_encoding_run(
+    plan: &MediaProcessingPlan,
+    context: &ProcessingContext,
+    elapsed: std::time::Duration,
+    result: &Result<()>,
+) {
+    let availability = crate::audio::detect_encoder_availability();
+    let resolved_encoder =
+        crate::audio::resolve_encoder_type(&plan.encoder_settings, &availability);
+    let status = match result {
+        Ok(()) => "success",
+        Err(AppError::Cancellation(_)) => "cancelled",
+        Err(_) => "failed",
+    };
+    let status_detail = match result {
+        Ok(()) => None,
+        Err(error) => Some(error.to_string()),
+    };
+
+    append_in_process_encoding_log_best_effort(&InProcessEncoderRunLog {
+        status,
+        status_detail: status_detail.as_deref(),
+        elapsed,
+        resolved_encoder,
+        encoder_settings: &plan.encoder_settings,
+        sample_rate: &plan.sample_rate,
+        session_id: context.session.id(),
+        job_id: context.job_id.as_deref(),
+        input_index: context.input_index,
+        operation_kind: format!("{:?}", context.operation_kind),
+        preview: context.preview.is_some(),
+        temp_output: &plan.output_path,
+        input_paths: &plan.input_file_paths,
+        target_duration_seconds: plan.total_duration,
+    });
 }
 
 /// Helper to determine the target sample rate and channel count based on plan settings and input probe.

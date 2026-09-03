@@ -20,5 +20,6 @@ mod write;
 
 // Re-export public API (crate-internal)
 // Note: create_audio_encoder is internal to this module
+pub(crate) use common::{append_in_process_encoding_log_best_effort, InProcessEncoderRunLog};
 pub(crate) use context::setup_encoder;
 pub(crate) use write::{encode_and_write_frame, finalize_encoding};

@@ -68,6 +68,12 @@ commands over invoking internals directly.
   session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
   pasted terminal output. These are latest-run entrypoints; the five newest
   run-scoped artifacts remain under `.logs/runs/<run-id>/`.
+  The wrapper sets `RUST_LOG=audiobook_boss_lib=info,tauri=warn,wry=warn` unless
+  you override it. For extra Rust debug lines in the same captured run:
+  `ABB_DEV_RUST_LOG='audiobook_boss_lib=debug,tauri=warn,wry=warn' bun run app:dev:log`.
+  For audio-pipeline debug only:
+  `ABB_DEV_RUST_LOG='audiobook_boss_lib::audio=debug,audiobook_boss_lib=info,tauri=warn,wry=warn' bun run app:dev:log`.
+  To keep a `RUST_LOG` already in the shell: `ABB_DEV_USE_EXISTING_RUST_LOG=1 bun run app:dev:log`.
 - Frontend owner: `bun run test -- <owner test files>`.
 - Frontend type validation: `bun run typecheck`.
 - IPC/generated binding changes:
