@@ -20,7 +20,7 @@ export type ProcessingWorkflowLiveDeps = {
 	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
 	readonly encoding: Pick<EncodingOwner, 'request'>;
-	readonly output: Pick<OutputPlanOwner, 'readRequestConfig'>;
+	readonly output: Pick<OutputPlanOwner, 'readRequestConfig' | 'openCollisionReview'>;
 	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 	readonly showError: (message: string) => void;
 };
@@ -60,7 +60,7 @@ export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 		processAudiobookFiles: tauriClient.processAudiobookFiles,
 		submitProcessingOperation: tauriClient.submitProcessingOperation,
 		remoteSource: deps.remoteSource,
-		runOutputPlanReviewWorkflow,
+		runOutputPlanReviewWorkflow: (request) => runOutputPlanReviewWorkflow(request, deps.output),
 		openGeneratedPreviewIfSingle,
 		feedback: { showError: deps.showError },
 		console,

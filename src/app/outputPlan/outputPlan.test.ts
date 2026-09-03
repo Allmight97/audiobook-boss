@@ -9,12 +9,7 @@ import { tauriClient } from '../../lib/tauri/client';
 import { createTestAppRuntime } from '../runtime/harness';
 import { emptyInputSession } from '../inputSession/types';
 import type { InputView } from '../inputSession';
-import {
-	createOutputOwner,
-	readOutputRequestConfig,
-	resetOutputPlanTimers,
-	type OutputPlanOwner,
-} from '.';
+import { createOutputOwner, type OutputPlanOwner } from '.';
 import type { CollisionView } from './collision';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import { createEmptyCoverUiState } from '../metadataSession/cover';
@@ -172,7 +167,6 @@ describe('output plan public view', () => {
 		mounted = undefined;
 		runtime?.dispose();
 		runtime = undefined;
-		resetOutputPlanTimers();
 	});
 
 	it('hydrates output defaults through the public strip without a preview poke API', () => {
@@ -187,7 +181,7 @@ describe('output plan public view', () => {
 		expect(view.absIncludeYear).toBe(true);
 		expect(view.absHintHidden).toBe(false);
 		expect(view.absHintText).toContain('YYYY');
-		expect(readOutputRequestConfig().outputDirectory).toBe('/books/out');
+		expect(mounted.owner.readRequestConfig().outputDirectory).toBe('/books/out');
 	});
 
 	it('derives the encoder-header estimate from public Input duration and encoder request config', () => {
@@ -271,13 +265,13 @@ describe('output plan public view', () => {
 
 		mounted.owner.editNamingTemplate('{author}/{title}');
 		expect(mounted.owner.view().namingTemplate).toBe('{author}/{title}');
-		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
+		expect(mounted.owner.readRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
 		await Promise.resolve();
 		expect(previewOutputPath).not.toHaveBeenCalled();
 
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(previewOutputPath).not.toHaveBeenCalled();
-		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
+		expect(mounted.owner.readRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
 
 		await vi.waitFor(
 			() => {

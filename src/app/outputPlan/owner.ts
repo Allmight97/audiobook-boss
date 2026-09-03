@@ -20,7 +20,6 @@ import type { InputOwner } from '../inputSession';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 import { createCollisionReview, type CollisionView } from './collision';
 import { formatEstimatedSizeText } from './estimate';
-import { bindOutputOwner, boundOutputOwner } from './bind';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import {
 	emptyOutputPlan,
@@ -334,12 +333,8 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		},
 	};
 
-	bindOutputOwner(owner);
 	onCleanup(() => {
 		clearTemplatePreviewTimer();
-		if (boundOutputOwner() === owner) {
-			bindOutputOwner(undefined);
-		}
 	});
 
 	return owner;

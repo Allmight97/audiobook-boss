@@ -13,12 +13,8 @@
   `createOutputOwner` is the Solid plan factory.
 - Workbench callers that only need the composed UI strip import
   `src/ui/outputPanel` instead.
-- `index.ts` is the export surface. Do not import `owner.ts`, `bind.ts`,
+- `index.ts` is the export surface. Do not import `owner.ts`,
   `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside this owner.
-- `applyOutputDefaultsFromSettings`, `readOutputDefaultsFromState`, and
-  `readOutputRequestConfig` still resolve the last bound owner. They are
-  compatibility exports: do not add callers. New callers use the Output owner
-  held by App Runtime.
 
 ## Hard Invariants
 
@@ -48,13 +44,11 @@
   path-preview freshness.
 - App Settings hydration passes resolved `outputDefaults` to the runtime's
   Output owner.
-- Submit composition reads the runtime's Output owner. The current
-  `readOutputRequestConfig()` compatibility getter uses the live naming box
-  (`namingTemplate`), not the 150 ms committed `previewTemplate`. Preview stays
-  on the committed copy. Processing submit closes over `output.readRequestConfig()`
-  on the injected owner rather than this getter. It is a getter, not a poke API.
-  Do not restore `updateOutputPath` or `updateEstimatedSize`, or preserve the
-  last-bound lookup through a new alias.
+- Processing submit and collision review use the injected Output owner
+  (`readRequestConfig`, `openCollisionReview`). `readRequestConfig()` uses the
+  live naming box (`namingTemplate`), not the 150 ms committed
+  `previewTemplate`. Preview stays on the committed copy. Do not restore
+  `updateOutputPath` or `updateEstimatedSize`, or a last-writer owner lookup.
 
 ## Testing
 
@@ -66,6 +60,9 @@
   `runtime.input.replaceSession`.
 - `workflow.test.ts` pins stale preview suppression and review approve /
   cancel / hard-block.
+- `runtime-api-contract.test.ts` pins this owner's public export strip.
+- Two-runtime request and collision isolation lives in
+  `src/app/runtime/runtime.test.ts`.
 
 ## Breaking-Change Triggers
 

@@ -25,7 +25,7 @@ export type ProcessingOwnerDeps = {
 	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
 	readonly encoding: Pick<EncodingOwner, 'request'>;
-	readonly output: Pick<OutputPlanOwner, 'readRequestConfig'>;
+	readonly output: Pick<OutputPlanOwner, 'readRequestConfig' | 'openCollisionReview'>;
 	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 };
 

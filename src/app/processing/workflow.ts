@@ -67,7 +67,9 @@ export interface ProcessingWorkflowServices {
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
 	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
-	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
+	runOutputPlanReviewWorkflow: (
+		request: Parameters<typeof runOutputPlanReviewWorkflow>[0],
+	) => ReturnType<typeof runOutputPlanReviewWorkflow>;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: StatusPanelFeedbackService;
 	console: Pick<Console, 'error' | 'log' | 'warn'>;

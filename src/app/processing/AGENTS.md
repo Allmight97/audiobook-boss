@@ -24,8 +24,10 @@
 
 - Compose submit config inside the runtime Processing owner from injected
   Encoding Configuration and Output owners (`encoding.request()` +
-  `output.readRequestConfig()`). Do not restore `updateOutputPath`,
-  `updateEstimatedSize`, or a process-wide encoding/output getter.
+  `output.readRequestConfig()`). Collision review calls
+  `runOutputPlanReviewWorkflow(request, output)` with that same owner.
+  Do not restore `updateOutputPath`, `updateEstimatedSize`, or a
+  process-wide encoding/output getter.
 - File-list and job-type truth come from Input. Concurrency enable/disable uses
   Settings. Metadata staging uses the Metadata public strip. Do not read
   leftover file-list or job-control stores.

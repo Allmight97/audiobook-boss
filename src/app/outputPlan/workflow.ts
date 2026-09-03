@@ -15,7 +15,7 @@ import type {
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { validateMetadataDraft, type MetadataDraftValidation } from '../metadataSession';
-import { boundOutputOwner } from './bind';
+import type { OutputPlanOwner } from './owner';
 import type { OutputPathPreviewMetadataDraft } from './types';
 import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
 
@@ -191,16 +191,25 @@ export function showOutputError(message: string): void {
 	console.error('Output Plan Error:', message);
 }
 
-export async function runOutputPlanReviewWorkflow(
-	request: OutputPlanReviewRequest,
-	layer?: OutputPlanWorkflowLayer,
-): Promise<OutputPlanReviewResult> {
-	const workflowLayer = layer ?? OutputPlanWorkflowLive;
-	return runAppEffect(outputPlanReviewBody(request).pipe(Effect.provide(workflowLayer)));
+type OutputPlanReviewServices =
+	| OutputPlanWorkflowLayer
+	| Pick<OutputPlanOwner, 'openCollisionReview'>;
+
+function isCollisionReviewOwner(
+	services: OutputPlanReviewServices,
+): services is Pick<OutputPlanOwner, 'openCollisionReview'> {
+	return 'openCollisionReview' in services;
 }
 
-export const OutputPlanWorkflowLive = makeOutputPlanWorkflowServicesLayer({
-	preflightProcessingPlan: tauriClient.preflightProcessingPlan,
-	openCollisionDialog: (plan) =>
-		boundOutputOwner()?.openCollisionReview(plan) ?? Promise.resolve(null),
-});
+export async function runOutputPlanReviewWorkflow(
+	request: OutputPlanReviewRequest,
+	services: OutputPlanReviewServices,
+): Promise<OutputPlanReviewResult> {
+	const workflowLayer = isCollisionReviewOwner(services)
+		? makeOutputPlanWorkflowServicesLayer({
+				preflightProcessingPlan: tauriClient.preflightProcessingPlan,
+				openCollisionDialog: (plan) => services.openCollisionReview(plan),
+			})
+		: services;
+	return runAppEffect(outputPlanReviewBody(request).pipe(Effect.provide(workflowLayer)));
+}

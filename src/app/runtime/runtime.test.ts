@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { ProcessingPreflightPlan } from '../../types/audio';
+import { defaultEncoderSettings, type ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { tauriClient } from '../../lib/tauri/client';
+import { runOutputPlanReviewWorkflow } from '../outputPlan';
 import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
 import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
@@ -133,6 +135,83 @@ describe('app runtime', () => {
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 		expect(third.workOperations.view().operations).toEqual([]);
+	});
+
+	it('keeps output request config and collision review isolated across live runtimes', async () => {
+		const first = createAppRuntime();
+		const second = createAppRuntime();
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		first.output.applyDefaults({
+			outputDirectory: '/first/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: false,
+				customTemplate: '{first}',
+			},
+		});
+		second.output.applyDefaults({
+			outputDirectory: '/second/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: true,
+				customTemplate: '{second}',
+			},
+		});
+
+		expect(first.output.readRequestConfig()).toEqual({
+			outputDirectory: '/first/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: false,
+				customTemplate: '{first}',
+			},
+		});
+		expect(second.output.readRequestConfig()).toEqual({
+			outputDirectory: '/second/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: true,
+				customTemplate: '{second}',
+			},
+		});
+
+		const preflight = vi
+			.spyOn(tauriClient, 'preflightProcessingPlan')
+			.mockResolvedValue(collisionPlan());
+		const pending = runOutputPlanReviewWorkflow(
+			{
+				payload: {
+					inputFiles: ['/books/a.m4b'],
+					outputDir: '/tmp/out',
+					settings: defaultEncoderSettings(),
+					sampleRate: 'auto',
+					jobType: 'merge',
+					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
+				},
+				metadataIntentByPath: null,
+			},
+			first.output,
+		);
+		await vi.waitFor(() => expect(first.output.collision().isOpen).toBe(true));
+		expect(second.output.collision().isOpen).toBe(false);
+
+		first.output.cancelCollisionReview();
+		await expect(pending).resolves.toEqual({ status: 'cancelled' });
+
+		first.dispose();
+		expect(second.output.readRequestConfig()).toEqual({
+			outputDirectory: '/second/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: true,
+				customTemplate: '{second}',
+			},
+		});
+		preflight.mockRestore();
 	});
 
 	it('isolates lookup and processing owners across disposed runtimes', () => {
