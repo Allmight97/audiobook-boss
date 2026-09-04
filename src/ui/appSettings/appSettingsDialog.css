@@ -27,6 +27,87 @@
 	font-size: 0.78rem;
 }
 
+.app-settings-category-picker {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+
+.app-settings-category-summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	width: 100%;
+	margin-top: 0;
+	padding: 0.35rem 0.5rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	box-shadow: var(--shadow-sm);
+	background-color: var(--bg-input);
+	color: var(--text-primary);
+	font-weight: 400;
+	text-align: left;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.app-settings-category-summary:hover {
+	border-color: var(--accent-primary);
+	background-color: var(--bg-hover);
+}
+
+.app-settings-category-summary:focus {
+	outline: 2px solid transparent;
+	outline-offset: 2px;
+	border-color: var(--border-focus);
+	box-shadow: var(--shadow-focus);
+}
+
+.app-settings-category-summary > span:first-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.app-settings-category-caret {
+	flex-shrink: 0;
+	font-size: 0.6rem;
+	color: var(--text-muted);
+}
+
+.app-settings-category-menu {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	left: 0;
+	z-index: 20;
+	display: none;
+	margin-top: 2px;
+	overflow: hidden;
+	border: 1px solid var(--border-secondary);
+	border-radius: 0.375rem;
+	background: var(--bg-panel);
+	box-shadow: var(--shadow-md);
+}
+
+.app-settings-category-menu.open {
+	display: block;
+}
+
+.app-settings-category-option {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	padding: 0.4rem 0.55rem;
+	color: var(--text-primary);
+	font-size: 0.78rem;
+	cursor: pointer;
+}
+
+.app-settings-category-option:hover {
+	background: var(--bg-input);
+}
+
 .app-settings-status {
 	margin-top: 0.5rem;
 	font-size: 0.76rem;

@@ -40,6 +40,12 @@ or infer provider-private Audible internals.
 - `providers/indexer/` owns Indexer connection persistence, release
   search/grab, and the first Prowlarr HTTP adapter. Indexer grabs do not create
   acquisition jobs or materialize files into Input.
+- Indexer credentials are scoped to the normalized server URL in the vault;
+  connection JSON never contains a key. Save persists changed JSON before
+  changing that URL's key, and reports partial persistence if the vault fails.
+  A failed save must never pair one server with another server's key.
+- Connection Test accepts a draft without persisting it. An omitted draft key
+  resolves only from that draft URL's vault slot; a new URL requires its own key.
 
 No provider secrets, license blobs, raw provider responses, or protected
 intermediates may cross the public strip or generated TypeScript boundary.

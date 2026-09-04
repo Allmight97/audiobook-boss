@@ -30,6 +30,21 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 	};
 }
 
+function release(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
+	return {
+		providerId: 'indexer',
+		guid: 'release-1',
+		indexerId: 1,
+		title: 'Example Release',
+		indexer: 'Example',
+		sizeBytes: 100,
+		protocol: 'torrent',
+		seeders: 0,
+		categories: [{ id: 3030, name: 'Audio/Audiobook' }],
+		...overrides,
+	};
+}
+
 describe('remote source selection policy', () => {
 	it('filters visible titles by title, author, and narrator text after facet filters', () => {
 		const unavailablePdfTitle = remoteTitle({
@@ -133,6 +148,7 @@ describe('remote source selection policy', () => {
 				sizeBytes: 100,
 				protocol: 'torrent',
 				seeders: 10,
+				categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 			},
 			{
 				providerId: 'indexer',
@@ -143,10 +159,44 @@ describe('remote source selection policy', () => {
 				sizeBytes: 200,
 				protocol: 'usenet',
 				seeders: undefined,
+				categories: [{ id: 3000, name: 'Audio' }],
 			},
 		];
 
-		expect(visibleRemoteReleases(releases, { releaseFilter: 'way' })).toHaveLength(1);
-		expect(visibleRemoteReleases(releases, { releaseFilter: 'usenet' })).toHaveLength(1);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'way' }).map((item) => item.guid),
+		).toEqual(['a']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'usenet' }).map((item) => item.guid),
+		).toEqual(['b']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'nzb' }).map((item) => item.guid),
+		).toEqual(['b']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'audiobook' }).map((item) => item.guid),
+		).toEqual(['a']);
+	});
+
+	it('orders visible releases by seeders descending and keeps that order under filter', () => {
+		const releases: RemoteRelease[] = [
+			release({ guid: 'tpb-25', title: 'Starsight 25', indexer: 'The Pirate Bay', seeders: 25 }),
+			release({ guid: 'tpb-4', title: 'Starsight 4', indexer: 'The Pirate Bay', seeders: 4 }),
+			release({
+				guid: 'nzbgeek',
+				title: 'Starsight NZB',
+				indexer: 'NZBGeek',
+				protocol: 'usenet',
+				seeders: undefined,
+			}),
+			release({ guid: 'mam-72', title: 'Starsight 72', indexer: 'MyAnonamouse', seeders: 72 }),
+		];
+
+		expect(visibleRemoteReleases(releases, { releaseFilter: '' }).map((item) => item.guid)).toEqual(
+			['mam-72', 'tpb-25', 'tpb-4', 'nzbgeek'],
+		);
+		expect(releases.map((item) => item.guid)).toEqual(['tpb-25', 'tpb-4', 'nzbgeek', 'mam-72']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'pirate' }).map((item) => item.guid),
+		).toEqual(['tpb-25', 'tpb-4']);
 	});
 });

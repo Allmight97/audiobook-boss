@@ -207,8 +207,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		setStartupBehavior(behavior) {
 			return dialog.setStartupBehavior(behavior);
 		},
-		resetAllAppSettings() {
-			return dialog.resetAllAppSettings();
+		async resetAllAppSettings() {
+			await dialog.resetAllAppSettings();
+			const accepted = dialog.state().settings;
+			if (accepted) commitDefaultLane(accepted.defaultAcquisitionLane ?? 'audible');
 		},
 		bindAfterReset(apply) {
 			dialog.bindAfterReset(apply);

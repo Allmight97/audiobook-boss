@@ -1,5 +1,5 @@
 import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
-import { isTitleAcquirable } from './display';
+import { isTitleAcquirable, releaseProtocolLabel } from './display';
 
 export type RemoteTitleFilterOptions = {
 	titleFilter: string;
@@ -39,14 +39,30 @@ export function visibleRemoteReleases(
 	options: RemoteReleaseFilterOptions,
 ): RemoteRelease[] {
 	const normalizedFilter = options.releaseFilter.trim().toLowerCase();
-	if (!normalizedFilter) return releases;
+	const visible = normalizedFilter
+		? releases.filter((release) =>
+				[
+					release.title,
+					release.indexer,
+					release.protocol,
+					releaseProtocolLabel(release.protocol),
+					...(release.categories ?? []).map((category) => category.name),
+				]
+					.join(' ')
+					.toLowerCase()
+					.includes(normalizedFilter),
+			)
+		: [...releases];
 
-	return releases.filter((release) =>
-		[release.title, release.indexer, release.protocol]
-			.join(' ')
-			.toLowerCase()
-			.includes(normalizedFilter),
-	);
+	return visible.sort(compareReleasesBySeedersDesc);
+}
+
+function compareReleasesBySeedersDesc(left: RemoteRelease, right: RemoteRelease): number {
+	const seederDelta = (right.seeders ?? 0) - (left.seeders ?? 0);
+	if (seederDelta !== 0) return seederDelta;
+	const titleDelta = left.title.localeCompare(right.title);
+	if (titleDelta !== 0) return titleDelta;
+	return left.guid.localeCompare(right.guid);
 }
 
 export function toggledRemoteTitleSelection(

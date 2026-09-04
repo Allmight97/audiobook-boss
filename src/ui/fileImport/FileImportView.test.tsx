@@ -95,9 +95,15 @@ describe('FileImportView import split button', () => {
 			</AppRuntimeProvider>
 		));
 
+		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+		expect(runtime.remoteSource.view().providerId).toBe('indexer');
+		runtime.remoteSource.close();
+		expect(runtime.remoteSource.view().isOpen).toBe(false);
 		await fireEvent.click(document.getElementById('import-split-caret') as Element);
 		await fireEvent.click(screen.getByTestId('import-lane-audible'));
 
+		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		expect(runtime.remoteSource.view().providerId).toBe('audible');
+		expect(document.getElementById('import-split-caret')).toHaveAttribute('aria-expanded', 'false');
 	});
 });

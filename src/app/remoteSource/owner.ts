@@ -111,7 +111,9 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			state.patch({
 				isOpen: true,
 				providerId: providerIdFromLane(lane),
-				...laneSelectionResetPatch(),
+				...(state.current().providerId !== providerIdFromLane(lane)
+					? { ...laneSelectionResetPatch(), accountState: null }
+					: {}),
 				didHydrateOpenDialog: false,
 			});
 		},
@@ -164,8 +166,11 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		patchIndexerConnectionSettings(patch) {
 			indexerConnection.patch(patch);
 		},
-		saveIndexerConnectionSettings() {
-			return indexerConnection.save();
+		async saveIndexerConnectionSettings() {
+			const saved = await indexerConnection.save();
+			if (saved && state.current().isOpen && state.current().providerId === 'indexer') {
+				await this.runAction({ type: 'refreshAccount' });
+			}
 		},
 		testIndexerConnection() {
 			return indexerConnection.testConnection();

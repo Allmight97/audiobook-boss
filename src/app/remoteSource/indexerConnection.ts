@@ -10,7 +10,7 @@ export type IndexerConnectionTestState = 'idle' | 'testing' | 'success' | 'error
 
 export type IndexerConnectionSettingsView = {
 	baseUrlDraft: string;
-	categoryIdDraft: number;
+	categoryIdsDraft: number[];
 	apiKeyDraft: string;
 	apiKeyConfigured: boolean;
 	saveState: IndexerConnectionSaveState;
@@ -24,13 +24,15 @@ export type IndexerConnectionServices = {
 	updateIndexerConnection: (
 		update: RemoteIndexerConnectionUpdate,
 	) => Promise<RemoteIndexerConnection>;
-	testIndexerConnection: () => Promise<{ ok: boolean; message: string }>;
+	testIndexerConnection: (
+		update: RemoteIndexerConnectionUpdate,
+	) => Promise<{ ok: boolean; message: string }>;
 };
 
 function createInitialView(): IndexerConnectionSettingsView {
 	return {
 		baseUrlDraft: '',
-		categoryIdDraft: 3030,
+		categoryIdsDraft: [3030],
 		apiKeyDraft: '',
 		apiKeyConfigured: false,
 		saveState: 'idle',
@@ -45,7 +47,7 @@ function applyConnectionToDraft(
 	connection: RemoteIndexerConnection,
 ): void {
 	draft.baseUrlDraft = connection.baseUrl ?? '';
-	draft.categoryIdDraft = connection.categoryId;
+	draft.categoryIdsDraft = [...connection.categoryIds];
 	draft.apiKeyConfigured = connection.apiKeyConfigured;
 	draft.apiKeyDraft = '';
 }
@@ -56,11 +58,13 @@ export function createIndexerConnectionSettings(deps: {
 	readonly view: Accessor<IndexerConnectionSettingsView>;
 	load(): Promise<void>;
 	patch(patch: Partial<IndexerConnectionSettingsView>): void;
-	save(): Promise<void>;
+	save(): Promise<boolean>;
 	testConnection(): Promise<void>;
 	reset(): void;
 } {
 	const [view, setView] = createSignal(createInitialView());
+	let draftRevision = 0;
+	let lifetimeRevision = 0;
 
 	function update(mutator: (draft: IndexerConnectionSettingsView) => void): void {
 		const next = { ...view() };
@@ -68,11 +72,23 @@ export function createIndexerConnectionSettings(deps: {
 		setView(next);
 	}
 
+	function draftUpdate(): RemoteIndexerConnectionUpdate {
+		const current = view();
+		const apiKey = current.apiKeyDraft.trim();
+		return {
+			baseUrl: current.baseUrlDraft.trim(),
+			categoryIds: [...current.categoryIdsDraft],
+			...(apiKey ? { apiKey } : {}),
+		};
+	}
+
 	return {
 		view,
 		async load() {
+			const revision = ++draftRevision;
 			try {
 				const connection = await deps.services().getIndexerConnection();
+				if (revision !== draftRevision) return;
 				update((draft) => {
 					applyConnectionToDraft(draft, connection);
 					draft.saveState = 'idle';
@@ -81,6 +97,7 @@ export function createIndexerConnectionSettings(deps: {
 					draft.testMessage = '';
 				});
 			} catch (cause) {
+				if (revision !== draftRevision) return;
 				update((draft) => {
 					draft.saveState = 'error';
 					draft.saveError = toUserMessage(cause, {
@@ -90,52 +107,66 @@ export function createIndexerConnectionSettings(deps: {
 			}
 		},
 		patch(patch) {
+			draftRevision += 1;
 			update((draft) => {
 				Object.assign(draft, patch);
+				draft.saveState = 'idle';
+				draft.saveError = '';
+				draft.testState = 'idle';
+				draft.testMessage = '';
 			});
 		},
 		async save() {
-			const current = view();
+			const lifetime = lifetimeRevision;
+			const revision = ++draftRevision;
+			const connectionUpdate = draftUpdate();
 			update((draft) => {
 				draft.saveState = 'saving';
 				draft.saveError = '';
+				draft.testState = 'idle';
+				draft.testMessage = '';
 			});
 			try {
-				const trimmedUrl = current.baseUrlDraft.trim();
-				const connectionUpdate: RemoteIndexerConnectionUpdate = {
-					baseUrl: trimmedUrl.length > 0 ? trimmedUrl : '',
-					categoryId: current.categoryIdDraft,
-				};
-				const trimmedKey = current.apiKeyDraft.trim();
-				if (trimmedKey.length > 0) {
-					connectionUpdate.apiKey = trimmedKey;
-				}
 				const connection = await deps.services().updateIndexerConnection(connectionUpdate);
+				if (lifetime !== lifetimeRevision) return false;
+				if (revision !== draftRevision) {
+					update((draft) => {
+						draft.apiKeyConfigured = connection.apiKeyConfigured;
+					});
+					return true;
+				}
 				update((draft) => {
 					applyConnectionToDraft(draft, connection);
 					draft.saveState = 'saved';
 				});
+				return true;
 			} catch (cause) {
+				if (lifetime !== lifetimeRevision) return false;
 				update((draft) => {
 					draft.saveState = 'error';
 					draft.saveError = toUserMessage(cause, {
 						fallback: 'Failed to save Indexer connection settings.',
 					});
 				});
+				return false;
 			}
 		},
 		async testConnection() {
+			const revision = draftRevision;
+			const connectionUpdate = draftUpdate();
 			update((draft) => {
 				draft.testState = 'testing';
 				draft.testMessage = '';
 			});
 			try {
-				const result = await deps.services().testIndexerConnection();
+				const result = await deps.services().testIndexerConnection(connectionUpdate);
+				if (revision !== draftRevision) return;
 				update((draft) => {
 					draft.testState = result.ok ? 'success' : 'error';
 					draft.testMessage = result.message;
 				});
 			} catch (cause) {
+				if (revision !== draftRevision) return;
 				update((draft) => {
 					draft.testState = 'error';
 					draft.testMessage = toUserMessage(cause, {
@@ -145,6 +176,8 @@ export function createIndexerConnectionSettings(deps: {
 			}
 		},
 		reset() {
+			lifetimeRevision += 1;
+			draftRevision += 1;
 			setView(createInitialView());
 		},
 	};

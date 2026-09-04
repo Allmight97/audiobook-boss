@@ -17,5 +17,5 @@ export {
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
-export { laneFromProviderId, providerIdFromLane } from './types';
+export { providerIdFromLane } from './types';
 export type { RemoteSourceView } from './types';

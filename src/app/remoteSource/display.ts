@@ -66,11 +66,11 @@ export function formatReleaseSizeBytes(sizeBytes: number): string {
 export function releaseProtocolLabel(protocol: 'usenet' | 'torrent' | 'unknown'): string {
 	switch (protocol) {
 		case 'usenet':
-			return 'Usenet';
+			return 'nzb';
 		case 'torrent':
-			return 'Torrent';
+			return 'torrent';
 		default:
-			return 'Unknown';
+			return 'unknown';
 	}
 }
 

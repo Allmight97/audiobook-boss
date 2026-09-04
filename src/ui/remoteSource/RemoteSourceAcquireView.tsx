@@ -113,6 +113,13 @@ export function RemoteSourceAcquireView(): JSX.Element {
 		void runAction({ type: 'selectLane', lane });
 	}
 
+	function submitIndexerSearchOnEnter(event: KeyboardEvent): void {
+		if (event.key !== 'Enter') return;
+		event.preventDefault();
+		if (view().isBusy) return;
+		void runAction({ type: 'searchReleases' });
+	}
+
 	return (
 		<Dialog
 			id="remote-source-modal"
@@ -255,6 +262,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								placeholder="Author"
 								value={view().indexerAuthorQuery}
 								onInput={(event) => patchView({ indexerAuthorQuery: event.currentTarget.value })}
+								onKeyDown={submitIndexerSearchOnEnter}
 							/>
 						</div>
 						<div class="remote-source-toolbar-field remote-source-indexer-title">
@@ -266,6 +274,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								placeholder="Title"
 								value={view().indexerTitleQuery}
 								onInput={(event) => patchView({ indexerTitleQuery: event.currentTarget.value })}
+								onKeyDown={submitIndexerSearchOnEnter}
 							/>
 						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
@@ -290,7 +299,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
-								disabled={view().isBusy || !view().selectedReleaseGuid}
+								disabled={view().isBusy || !view().selectedRelease}
 								onClick={() => void runAction({ type: 'grabSelectedRelease' })}
 							>
 								Grab
@@ -447,8 +456,15 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							{(release) => (
 								<ReleaseRow
 									release={release}
-									selected={view().selectedReleaseGuid === release.guid}
-									onSelect={() => patchView({ selectedReleaseGuid: release.guid })}
+									selected={
+										view().selectedRelease?.guid === release.guid &&
+										view().selectedRelease?.indexerId === release.indexerId
+									}
+									onSelect={() =>
+										patchView({
+											selectedRelease: { guid: release.guid, indexerId: release.indexerId },
+										})
+									}
 								/>
 							)}
 						</For>
@@ -466,6 +482,7 @@ function ReleaseRow(props: {
 }): JSX.Element {
 	const seedersLabel = () =>
 		props.release.seeders == null ? null : `${props.release.seeders} seeders`;
+	const indexerLabel = () => props.release.indexer.trim();
 
 	return (
 		<div
@@ -478,9 +495,23 @@ function ReleaseRow(props: {
 			<button type="button" class="remote-release-button" onClick={() => props.onSelect()}>
 				<span class="remote-release-title">{props.release.title}</span>
 				<span class="remote-release-meta">
-					{props.release.indexer} · {releaseProtocolLabel(props.release.protocol)} ·{' '}
-					{formatReleaseSizeBytes(props.release.sizeBytes)}
-					<Show when={seedersLabel()}>{(label) => ` · ${label()}`}</Show>
+					<span class={`remote-release-tag remote-release-tag-${props.release.protocol}`}>
+						{releaseProtocolLabel(props.release.protocol)}
+					</span>
+					<For each={props.release.categories ?? []}>
+						{(category) => (
+							<span class="remote-release-tag remote-release-tag-category">{category.name}</span>
+						)}
+					</For>
+					<Show when={indexerLabel()}>
+						{(indexer) => (
+							<span class="remote-release-tag remote-release-tag-indexer">{indexer()}</span>
+						)}
+					</Show>
+					<span class="remote-release-facts">
+						{formatReleaseSizeBytes(props.release.sizeBytes)}
+						<Show when={seedersLabel()}>{(label) => ` · ${label()}`}</Show>
+					</span>
 				</span>
 			</button>
 		</div>

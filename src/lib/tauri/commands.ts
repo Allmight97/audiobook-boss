@@ -279,8 +279,13 @@ export const commandSpecs = {
 			),
 			normalizeNullish,
 		),
-	test_remote_source_indexer_connection: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.testRemoteSourceIndexerConnection(), normalizeNullish),
+	test_remote_source_indexer_connection: (args: { update: RemoteIndexerConnectionUpdate }) =>
+		runGeneratedCommand(
+			generatedCommands.testRemoteSourceIndexerConnection(
+				denormalizeNullish(args.update) as GeneratedRemoteIndexerConnectionUpdate,
+			),
+			normalizeNullish,
+		),
 	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
 		runGeneratedCommand(generatedCommands.validateEncoderSettings(args.settings)),
 	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>

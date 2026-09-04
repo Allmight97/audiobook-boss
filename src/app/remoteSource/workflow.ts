@@ -55,6 +55,7 @@ export interface RemoteSourceWorkflowServices {
 
 export type RemoteSourceWorkflowAction =
 	| { readonly type: 'hydrateOpenDialog' }
+	| { readonly type: 'refreshAccount' }
 	| { readonly type: 'selectLane'; readonly lane: AcquisitionLane }
 	| { readonly type: 'startAuth' }
 	| { readonly type: 'completeAuth' }
@@ -78,9 +79,16 @@ export const STAGED_FILES_REMOVED_SUFFIX =
 
 type IsCurrent = () => boolean;
 
-function selectedRelease(releases: RemoteRelease[], guid: string | null): RemoteRelease | null {
-	if (!guid) return null;
-	return releases.find((release) => release.guid === guid) ?? null;
+function selectedRelease(
+	releases: RemoteRelease[],
+	selected: RemoteSourceState['selectedRelease'],
+): RemoteRelease | null {
+	if (!selected) return null;
+	return (
+		releases.find(
+			(release) => release.guid === selected.guid && release.indexerId === selected.indexerId,
+		) ?? null
+	);
 }
 
 export function createRemoteSourceWorkflow(deps: {
@@ -123,7 +131,9 @@ export function createRemoteSourceWorkflow(deps: {
 
 	async function refreshAccountState(providerId: ProviderId, isCurrent: IsCurrent): Promise<void> {
 		const accountState = await deps.services.getAccountState(providerId);
-		patchWhenCurrent(isCurrent, { accountState });
+		if (deps.state.current().providerId === providerId) {
+			patchWhenCurrent(isCurrent, { accountState });
+		}
 	}
 
 	async function loadLibrary(providerId: ProviderId, isCurrent: IsCurrent): Promise<void> {
@@ -234,6 +244,10 @@ export function createRemoteSourceWorkflow(deps: {
 		isWorkflowCurrent: IsCurrent,
 	): Promise<void> {
 		switch (action.type) {
+			case 'refreshAccount': {
+				await refreshAccountState(deps.state.current().providerId, isWorkflowCurrent);
+				return;
+			}
 			case 'hydrateOpenDialog': {
 				patchWhenCurrent(isWorkflowCurrent, { isBusy: true, didHydrateOpenDialog: true });
 				try {
@@ -359,7 +373,7 @@ export function createRemoteSourceWorkflow(deps: {
 				}
 				patchWhenCurrent(isWorkflowCurrent, {
 					isBusy: true,
-					selectedReleaseGuid: null,
+					selectedRelease: null,
 					statusMessage: 'Searching Indexer releases.',
 				});
 				try {
@@ -389,7 +403,7 @@ export function createRemoteSourceWorkflow(deps: {
 			}
 			case 'grabSelectedRelease': {
 				const current = deps.state.current();
-				const release = selectedRelease(current.releases, current.selectedReleaseGuid);
+				const release = selectedRelease(current.releases, current.selectedRelease);
 				if (!release) {
 					patchWhenCurrent(isWorkflowCurrent, {
 						statusMessage: 'Select a release before grabbing.',

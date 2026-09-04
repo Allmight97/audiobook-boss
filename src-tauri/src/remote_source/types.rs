@@ -127,6 +127,13 @@ pub enum RemoteReleaseProtocol {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub struct RemoteReleaseCategory {
+    pub id: u32,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoteRelease {
     pub provider_id: ProviderId,
     pub guid: String,
@@ -136,6 +143,8 @@ pub struct RemoteRelease {
     pub size_bytes: u64,
     pub protocol: RemoteReleaseProtocol,
     pub seeders: Option<u32>,
+    #[serde(default)]
+    pub categories: Vec<RemoteReleaseCategory>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -173,7 +182,7 @@ pub struct RemoteReleaseGrabResponse {
 #[serde(rename_all = "camelCase")]
 pub struct RemoteIndexerConnection {
     pub base_url: Option<String>,
-    pub category_id: u32,
+    pub category_ids: Vec<u32>,
     pub api_key_configured: bool,
 }
 
@@ -181,7 +190,7 @@ pub struct RemoteIndexerConnection {
 #[serde(rename_all = "camelCase")]
 pub struct RemoteIndexerConnectionUpdate {
     pub base_url: Option<String>,
-    pub category_id: Option<u32>,
+    pub category_ids: Option<Vec<u32>>,
     pub api_key: Option<String>,
     pub clear_api_key: Option<bool>,
 }

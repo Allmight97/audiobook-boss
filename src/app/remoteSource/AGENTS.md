@@ -11,7 +11,7 @@
 ## Public API Strip
 
 - Import session-asset coordination from `src/ui/remoteSource`.
-- Import acquire intents, lane helpers (`providerIdFromLane`, `laneFromProviderId`),
+- Import acquire intents, lane helper (`providerIdFromLane`),
   release/title filter helpers, and the Input handoff result type from
   `src/app/remoteSource`.
 - `RemoteSourceOwner`: `open({ lane? })`, `selectLane`, `view`, workflow
@@ -47,6 +47,8 @@
   provider path after handoff. Do not add a second file-list store.
 - Remote Source purges sessions for input ids that leave the public Input
   view. File Import keeps that lifetime subscription alive.
+- Release selection is the `(indexerId, guid)` pair; GUID alone is not unique
+  across indexers. Grab queues externally and never calls the Input handoff.
 - Frontend state may hold provider-neutral account, title, job, and
   diagnostic text. It must not persist credentials, tokens, cookies, license
   material, or raw provider payloads.
@@ -57,12 +59,16 @@
   paths, retainer deferral, and shared-job purge.
 - `workflow.test.ts` pins successful Input handoff, blocked-import purge,
   close-does-not-cancel, lane switch without cancelling Audible jobs, Indexer
-  grab success/failure, unconfigured Indexer hydrate, `open({ lane })` reset
-  patch semantics, and publication of polled `getAcquisitionStatus` snapshots.
+  grab success/failure, unconfigured Indexer hydrate, same-lane reopen preservation and cross-lane reset
+  semantics, and publication of polled `getAcquisitionStatus` snapshots.
+- `indexerConnection.test.ts` pins draft-only Test, write-only key behavior, successful
+  Save refreshing open Indexer account state, and delayed loading preserving edits.
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
-- `selection.test.ts` pins filter/selection policy.
-- `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and
-  the polled owner-to-Solid progress path.
+- `selection.test.ts` pins filter/selection policy and Indexer release seeder
+  order.
+- `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent,
+  the polled owner-to-Solid progress path, Indexer release protocol/category
+  tags, and Enter-to-search on the author and title fields.
 - When lifetime ownership changes, add two-runtime proof covering the affected
   state or resource: disposing A cannot cancel, purge, reset, or publish into B.
 

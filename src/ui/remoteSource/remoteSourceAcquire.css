@@ -226,21 +226,59 @@
 	cursor: pointer;
 }
 
-.remote-release-title,
-.remote-release-meta {
+.remote-release-title {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.remote-release-title {
 	font-size: 0.85rem;
 	font-weight: 600;
 }
 
 .remote-release-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem;
 	color: var(--text-muted);
 	font-size: 0.75rem;
+}
+
+.remote-release-tag {
+	display: inline-flex;
+	align-items: center;
+	padding: 1px 5px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	color: #fff;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	line-height: 1.45;
+	white-space: nowrap;
+}
+
+.remote-release-tag-torrent {
+	border-color: #00853d;
+	background: #00853d;
+}
+
+.remote-release-tag-usenet {
+	border-color: #17b1d9;
+	background: #17b1d9;
+}
+
+.remote-release-tag-unknown,
+.remote-release-tag-indexer {
+	border-color: #595959;
+	background: #595959;
+}
+
+.remote-release-tag-category {
+	border-color: #e66000;
+	background: #e66000;
+}
+
+.remote-release-facts {
+	margin-left: 0.15rem;
 }
 
 @media (max-width: 720px) {

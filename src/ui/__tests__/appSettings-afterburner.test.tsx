@@ -40,12 +40,12 @@ vi.mock('../../lib/tauri/client', () => ({
 		}),
 		getRemoteSourceIndexerConnection: vi.fn().mockResolvedValue({
 			baseUrl: null,
-			categoryId: 3030,
+			categoryIds: [3030],
 			apiKeyConfigured: false,
 		}),
 		updateRemoteSourceIndexerConnection: vi.fn().mockResolvedValue({
 			baseUrl: null,
-			categoryId: 3030,
+			categoryIds: [3030],
 			apiKeyConfigured: false,
 		}),
 		testRemoteSourceIndexerConnection: vi.fn().mockResolvedValue({

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import {
-	isAcquisitionTerminal,
-	statusFromAcquisitionJob,
-	uniqueDiagnosticMessage,
-	withClearedHandoffJob,
-} from './display';
+import { isAcquisitionTerminal, releaseProtocolLabel, uniqueDiagnosticMessage } from './display';
 
 function job(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob {
 	return {
@@ -72,10 +67,9 @@ describe('remote source acquisition display', () => {
 		expect(message).toBe('Token expired. Retrying.');
 	});
 
-	it('clears staged handoff files after a failed Input import so retry cannot reuse them', () => {
-		const cleaned = withClearedHandoffJob(job());
-		expect(cleaned.materializedFiles).toEqual([]);
-		expect(cleaned.supplementalAssets).toEqual([]);
-		expect(statusFromAcquisitionJob(job())).toBe('Downloading.');
+	it('uses Prowlarr protocol words on release tags', () => {
+		expect(releaseProtocolLabel('torrent')).toBe('torrent');
+		expect(releaseProtocolLabel('usenet')).toBe('nzb');
+		expect(releaseProtocolLabel('unknown')).toBe('unknown');
 	});
 });

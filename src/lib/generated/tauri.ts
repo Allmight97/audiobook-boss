@@ -74,7 +74,7 @@ export const commands = {
 	grabRemoteSourceRelease: (request: RemoteReleaseGrabRequest) => typedError<RemoteReleaseGrabResponse, AppErrorEnvelope>(__TAURI_INVOKE("grab_remote_source_release", { request })),
 	getRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_indexer_connection")),
 	updateRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("update_remote_source_indexer_connection", { update })),
-	testRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection")),
+	testRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection", { update })),
 	/**  Validates encoder settings (no side effects) */
 	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	/**  Returns backend-owned runtime settings capabilities for UI controls. */
@@ -786,7 +786,7 @@ export type RemoteAuthStartResponse = {
 
 export type RemoteIndexerConnection = {
 	baseUrl: string | null,
-	categoryId: number,
+	categoryIds: number[],
 	apiKeyConfigured: boolean,
 };
 
@@ -797,7 +797,7 @@ export type RemoteIndexerConnectionTestResult = {
 
 export type RemoteIndexerConnectionUpdate = {
 	baseUrl: string | null,
-	categoryId: number | null,
+	categoryIds: number[] | null,
 	apiKey: string | null,
 	clearApiKey: boolean | null,
 };
@@ -817,6 +817,12 @@ export type RemoteRelease = {
 	sizeBytes: number,
 	protocol: RemoteReleaseProtocol,
 	seeders: number | null,
+	categories?: RemoteReleaseCategory[],
+};
+
+export type RemoteReleaseCategory = {
+	id: number,
+	name: string,
 };
 
 export type RemoteReleaseGrabRequest = {

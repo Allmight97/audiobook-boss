@@ -14,8 +14,10 @@ use crate::remote_source::types::{
 };
 use crate::remote_source::vault::SecretVault;
 
-use connection::{get_connection, update_connection, API_KEY_VAULT_KEY};
-use prowlarr::{build_search_params_with_category, ProwlarrSearchOutcome};
+use connection::{
+    api_key_vault_key, draft_credentials, get_connection, read_api_key, update_connection,
+};
+use prowlarr::{build_search_params, ProwlarrSearchOutcome};
 
 pub(in crate::remote_source) use prowlarr::ReqwestProwlarrAdapter;
 
@@ -96,7 +98,7 @@ impl IndexerProvider {
     ) -> Result<RemoteReleaseSearchResponse> {
         let connection = get_connection(config_dir, vault)?;
         let (base_url, api_key) = require_connection(&connection, vault)?;
-        let params = build_search_params_with_category(&request, connection.category_id)?;
+        let params = build_search_params(&request, &connection.category_ids)?;
         let outcome = adapter.search(&base_url, &api_key, &params).await?;
         Ok(map_search_outcome(outcome))
     }
@@ -125,9 +127,9 @@ impl IndexerProvider {
         config_dir: &Path,
         vault: &dyn SecretVault,
         adapter: &ReqwestProwlarrAdapter,
+        update: RemoteIndexerConnectionUpdate,
     ) -> Result<crate::remote_source::types::RemoteIndexerConnectionTestResult> {
-        let connection = get_connection(config_dir, vault)?;
-        let (base_url, api_key) = require_connection(&connection, vault)?;
+        let (base_url, api_key) = draft_credentials(config_dir, vault, update)?;
         let outcome = adapter.system_status(&base_url, &api_key).await?;
         Ok(
             crate::remote_source::types::RemoteIndexerConnectionTestResult {
@@ -137,8 +139,14 @@ impl IndexerProvider {
         )
     }
 
-    pub(in crate::remote_source) fn logout(vault: &dyn SecretVault) -> Result<()> {
-        vault.delete_secret(API_KEY_VAULT_KEY)
+    pub(in crate::remote_source) fn logout(
+        config_dir: &Path,
+        vault: &dyn SecretVault,
+    ) -> Result<()> {
+        if let Some(url) = get_connection(config_dir, vault)?.base_url {
+            vault.delete_secret(&api_key_vault_key(&url))?;
+        }
+        Ok(())
     }
 }
 
@@ -149,7 +157,7 @@ fn require_connection(
     let base_url = connection.base_url.clone().ok_or_else(|| {
         AppError::InvalidInput("Configure Indexer URL in Settings before continuing.".to_string())
     })?;
-    let api_key = vault.get_secret(API_KEY_VAULT_KEY)?.ok_or_else(|| {
+    let api_key = read_api_key(vault, Some(&base_url))?.ok_or_else(|| {
         AppError::InvalidInput(
             "Configure Indexer API key in Settings before continuing.".to_string(),
         )
@@ -201,7 +209,7 @@ mod tests {
 
     impl SecretVault for TestVault {
         fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-            assert_eq!(key, API_KEY_VAULT_KEY);
+            assert!(key.starts_with("indexer.api_key:"));
             Ok(self.secret.clone())
         }
 
@@ -215,14 +223,44 @@ mod tests {
     }
 
     #[test]
-    fn account_state_reports_needs_auth_when_unconfigured() {
-        let temp = TempDir::new().expect("temp dir");
-        let vault = TestVault::default();
-
-        let state = IndexerProvider::account_state(temp.path(), &vault).expect("state");
-
-        assert_eq!(state.provider_id, ProviderId::Indexer);
-        assert_eq!(state.status, RemoteAccountStatus::NeedsAuth);
-        assert!(state.account.is_none());
+    fn account_state_requires_both_url_and_current_host_key() {
+        for (url, secret, expected) in [
+            (None, None, RemoteAccountStatus::NeedsAuth),
+            (
+                Some("http://indexer.test"),
+                None,
+                RemoteAccountStatus::NeedsAuth,
+            ),
+            (None, Some("key"), RemoteAccountStatus::NeedsAuth),
+            (
+                Some("http://indexer.test"),
+                Some("key"),
+                RemoteAccountStatus::Connected,
+            ),
+        ] {
+            let temp = TempDir::new().expect("temporary config directory");
+            let vault = TestVault {
+                secret: secret.map(|key| SecretString::from(key.to_string())),
+            };
+            update_connection(
+                temp.path(),
+                &vault,
+                RemoteIndexerConnectionUpdate {
+                    base_url: url.map(str::to_string),
+                    api_key: None,
+                    clear_api_key: None,
+                    category_ids: None,
+                },
+            )
+            .expect("save account configuration");
+            let state =
+                IndexerProvider::account_state(temp.path(), &vault).expect("read account state");
+            assert_eq!(state.provider_id, ProviderId::Indexer);
+            assert_eq!(state.status, expected);
+            assert_eq!(
+                state.account.is_some(),
+                expected == RemoteAccountStatus::Connected
+            );
+        }
     }
 }

@@ -1,4 +1,13 @@
-import { createEffect, createSignal, onCleanup, onMount, Show, untrack, type JSX } from 'solid-js';
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	onCleanup,
+	onMount,
+	Show,
+	untrack,
+	type JSX,
+} from 'solid-js';
 
 import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
@@ -7,6 +16,77 @@ import { readFdkAfterburner, subscribeEncoderPanel } from '../encoderPanel';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
+
+const INDEXER_CATEGORY_OPTIONS: ReadonlyArray<{ readonly id: number; readonly label: string }> = [
+	{ id: 3030, label: 'Audiobooks (3030)' },
+	{ id: 3000, label: 'Audio (3000)' },
+];
+
+function indexerCategorySummary(selected: readonly number[]): string {
+	const labels = INDEXER_CATEGORY_OPTIONS.filter((option) => selected.includes(option.id)).map(
+		(option) => option.label,
+	);
+	return labels.length > 0 ? labels.join(', ') : 'Audiobooks (3030)';
+}
+
+function toggledIndexerCategories(selected: readonly number[], id: number): number[] {
+	const next = selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
+	return next.length > 0 ? next : [3030];
+}
+
+function IndexerCategoryPicker(props: {
+	readonly selected: readonly number[];
+	readonly onChange: (ids: number[]) => void;
+}): JSX.Element {
+	const [open, setOpen] = createSignal(false);
+	let root: HTMLDivElement | undefined;
+
+	onMount(() => {
+		function handleWindowClick(event: MouseEvent): void {
+			if (!open()) return;
+			const target = event.target;
+			if (target instanceof Node && root?.contains(target)) return;
+			setOpen(false);
+		}
+		window.addEventListener('click', handleWindowClick);
+		onCleanup(() => window.removeEventListener('click', handleWindowClick));
+	});
+
+	return (
+		<div class="app-settings-category-picker" ref={root}>
+			<button
+				id="app-settings-indexer-category"
+				type="button"
+				class="app-settings-path-input app-settings-category-summary"
+				data-testid="app-settings-indexer-category"
+				aria-haspopup="listbox"
+				aria-expanded={open() ? 'true' : 'false'}
+				onClick={() => setOpen(!open())}
+			>
+				<span>{indexerCategorySummary(props.selected)}</span>
+				<span class="app-settings-category-caret" aria-hidden="true">
+					▼
+				</span>
+			</button>
+			<div
+				class={`app-settings-category-menu${open() ? ' open' : ''}`}
+				role="listbox"
+				aria-multiselectable="true"
+			>
+				{INDEXER_CATEGORY_OPTIONS.map((option) => (
+					<label class="app-settings-category-option">
+						<input
+							type="checkbox"
+							checked={props.selected.includes(option.id)}
+							onChange={() => props.onChange(toggledIndexerCategories(props.selected, option.id))}
+						/>
+						{option.label}
+					</label>
+				))}
+			</div>
+		</div>
+	);
+}
 
 function formatConcurrency(settings: Pick<AppSettings, 'maxConcurrentJobs'>): string {
 	const preference = settings.maxConcurrentJobs;
@@ -59,6 +139,7 @@ export function AppSettingsDialogView(): JSX.Element {
 	const settings = runtime.settings;
 	const remoteSource = runtime.remoteSource;
 	const state = settings.dialog;
+	const isOpen = createMemo(() => state().isOpen);
 	const indexerConnection = remoteSource.indexerConnection;
 	const [resetConfirming, setResetConfirming] = createSignal(false);
 	const [afterburnerRevision, setAfterburnerRevision] = createSignal(0);
@@ -91,7 +172,7 @@ export function AppSettingsDialogView(): JSX.Element {
 	}
 
 	createEffect(() => {
-		if (!state().isOpen) {
+		if (!isOpen()) {
 			cancelResetConfirm();
 			return;
 		}
@@ -253,7 +334,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								<section class="app-settings-section">
 									<h4 class="app-settings-section-title">Indexer connection</h4>
 									<p class="muted-text">
-										Configure your Indexer URL, API key, and audiobook category. The API key is
+										Configure your Indexer URL, API key, and audiobook categories. The API key is
 										stored securely and is never shown again after save.
 									</p>
 									<div class="app-settings-path-row">
@@ -276,23 +357,13 @@ export function AppSettingsDialogView(): JSX.Element {
 									</div>
 									<div class="app-settings-path-row">
 										<label class="app-settings-field-label" for="app-settings-indexer-category">
-											Category
+											Categories
 										</label>
-										<input
-											id="app-settings-indexer-category"
-											class="app-settings-path-input app-settings-number-input"
-											data-testid="app-settings-indexer-category"
-											type="number"
-											min="0"
-											value={String(indexerConnection().categoryIdDraft)}
-											onInput={(event) => {
-												const parsed = Number.parseInt(event.currentTarget.value, 10);
-												if (!Number.isNaN(parsed)) {
-													remoteSource.patchIndexerConnectionSettings({
-														categoryIdDraft: parsed,
-													});
-												}
-											}}
+										<IndexerCategoryPicker
+											selected={indexerConnection().categoryIdsDraft}
+											onChange={(categoryIdsDraft) =>
+												remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
+											}
 										/>
 									</div>
 									<div class="app-settings-path-row">

@@ -31,7 +31,7 @@ export type AcquisitionState = {
 	indexerTitleQuery: string;
 	releases: RemoteRelease[];
 	releaseFilter: string;
-	selectedReleaseGuid: string | null;
+	selectedRelease: Pick<RemoteRelease, 'guid' | 'indexerId'> | null;
 	statusMessage: string;
 	activeJob: AcquisitionJobWithProgress | null;
 	lastJob: AcquisitionJobWithProgress | null;
@@ -45,10 +45,6 @@ export type RemoteSourceView = RemoteSourceState;
 
 export function providerIdFromLane(lane: AcquisitionLane): ProviderId {
 	return lane;
-}
-
-export function laneFromProviderId(providerId: ProviderId): AcquisitionLane {
-	return providerId === 'indexer' ? 'indexer' : 'audible';
 }
 
 export function createInitialAcquisitionState(): AcquisitionState {
@@ -69,7 +65,7 @@ export function createInitialAcquisitionState(): AcquisitionState {
 		indexerTitleQuery: '',
 		releases: [],
 		releaseFilter: '',
-		selectedReleaseGuid: null,
+		selectedRelease: null,
 		statusMessage: '',
 		activeJob: null,
 		lastJob: null,
@@ -105,7 +101,7 @@ export function laneSelectionResetPatch(): Partial<AcquisitionState> {
 		indexerTitleQuery: '',
 		releases: [],
 		releaseFilter: '',
-		selectedReleaseGuid: null,
+		selectedRelease: null,
 		statusMessage: '',
 	};
 }

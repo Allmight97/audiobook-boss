@@ -135,6 +135,7 @@ pub fn update_remote_source_indexer_connection(
 #[specta::specta]
 pub async fn test_remote_source_indexer_connection(
     runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    update: RemoteIndexerConnectionUpdate,
 ) -> CommandResult<RemoteIndexerConnectionTestResult> {
-    Ok(runtime.test_indexer_connection().await?)
+    Ok(runtime.test_indexer_connection(update).await?)
 }

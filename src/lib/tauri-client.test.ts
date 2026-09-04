@@ -91,6 +91,22 @@ describe('tauriClient nullish adapters', () => {
 		vi.clearAllMocks();
 	});
 
+	it('sends draft Indexer Test values through IPC without persisting them', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({ ok: true, message: 'Connected to Indexer.' });
+		const { tauriClient } = await import('./tauri/client');
+		await expect(
+			tauriClient.testRemoteSourceIndexerConnection({
+				baseUrl: 'http://indexer.test',
+				categoryIds: [3030, 3000],
+			}),
+		).resolves.toEqual({ ok: true, message: 'Connected to Indexer.' });
+		expect(mockInvoke).toHaveBeenCalledExactlyOnceWith('test_remote_source_indexer_connection', {
+			update: { baseUrl: 'http://indexer.test', categoryIds: [3030, 3000] },
+		});
+	});
+
 	it('compiles metadata intent patch on save before denormalization', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);

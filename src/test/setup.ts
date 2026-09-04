@@ -20,7 +20,6 @@ import type {
 	OperationSnapshot,
 	ProcessCommandResult,
 	RemoteIndexerConnection,
-	RemoteIndexerConnectionTestResult,
 	SupportedAudioImportMetadata,
 	WorkSubmissionAccepted,
 } from '../lib/generated/tauri';
@@ -140,8 +139,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
 				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
-			case 'update_app_settings':
-				return Promise.resolve(_args);
 			case 'read_audio_cover_thumbnail':
 				return Promise.resolve(null);
 			case 'analyze_audio_files':
@@ -385,30 +382,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 			case 'get_remote_source_indexer_connection':
 				return Promise.resolve({
 					baseUrl: null,
-					categoryId: 3030,
+					categoryIds: [3030],
 					apiKeyConfigured: false,
 				} satisfies RemoteIndexerConnection);
-			case 'update_remote_source_indexer_connection': {
-				const args = _args as
-					| {
-							update?: {
-								baseUrl?: string | null;
-								categoryId?: number;
-								apiKey?: string;
-							};
-					  }
-					| undefined;
-				return Promise.resolve({
-					baseUrl: args?.update?.baseUrl ?? null,
-					categoryId: args?.update?.categoryId ?? 3030,
-					apiKeyConfigured: Boolean(args?.update?.apiKey),
-				} satisfies RemoteIndexerConnection);
-			}
-			case 'test_remote_source_indexer_connection':
-				return Promise.resolve({
-					ok: true,
-					message: 'Indexer connection test succeeded.',
-				} satisfies RemoteIndexerConnectionTestResult);
+
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}

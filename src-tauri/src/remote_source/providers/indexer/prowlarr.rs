@@ -7,24 +7,17 @@ use serde::Deserialize;
 
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
-    ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseProtocol,
-    RemoteReleaseSearchRequest, RemoteSourceDiagnostic,
+    ProviderId, RemoteAcquisitionFailureKind, RemoteRelease, RemoteReleaseCategory,
+    RemoteReleaseProtocol, RemoteReleaseSearchRequest, RemoteSourceDiagnostic,
 };
 
 pub(super) const PROWLARR_USER_AGENT: &str = "audiobook-boss/indexer";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ProwlarrSearchType {
-    Search,
-    Book,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ProwlarrSearchParams {
     pub query: String,
-    pub search_type: ProwlarrSearchType,
-    pub category_id: u32,
+    pub category_ids: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +48,8 @@ impl ReqwestProwlarrAdapter {
         let client = Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .user_agent(PROWLARR_USER_AGENT)
-            .redirect(reqwest::redirect::Policy::limited(3))
+            // X-Api-Key belongs only to the configured server.
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| {
                 AppError::General(format!("Failed to configure Indexer HTTP client: {error}"))
@@ -134,6 +128,7 @@ impl ReqwestProwlarrAdapter {
 
 pub(super) fn build_search_params(
     request: &RemoteReleaseSearchRequest,
+    category_ids: &[u32],
 ) -> Result<ProwlarrSearchParams> {
     let author = trim_optional(request.author.as_deref());
     let title = trim_optional(request.title.as_deref());
@@ -145,35 +140,20 @@ pub(super) fn build_search_params(
         ));
     }
 
-    if author.is_some() || title.is_some() {
-        let mut parts = Vec::new();
-        if let Some(author) = author {
-            parts.push(format!("{{Author:{author}}}"));
-        }
-        if let Some(title) = title {
-            parts.push(format!("{{Title:{title}}}"));
-        }
-        Ok(ProwlarrSearchParams {
-            query: parts.join(" "),
-            search_type: ProwlarrSearchType::Book,
-            category_id: connection::DEFAULT_CATEGORY_ID,
-        })
-    } else {
-        Ok(ProwlarrSearchParams {
-            query: query.expect("validated above"),
-            search_type: ProwlarrSearchType::Search,
-            category_id: connection::DEFAULT_CATEGORY_ID,
-        })
-    }
-}
+    let joined = [author, title, query]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ");
 
-pub(super) fn build_search_params_with_category(
-    request: &RemoteReleaseSearchRequest,
-    category_id: u32,
-) -> Result<ProwlarrSearchParams> {
-    let mut params = build_search_params(request)?;
-    params.category_id = category_id;
-    Ok(params)
+    Ok(ProwlarrSearchParams {
+        query: joined,
+        category_ids: if category_ids.is_empty() {
+            vec![connection::DEFAULT_CATEGORY_ID]
+        } else {
+            category_ids.to_vec()
+        },
+    })
 }
 
 fn trim_optional(value: Option<&str>) -> Option<String> {
@@ -188,14 +168,10 @@ fn build_search_url(base_url: &str, params: &ProwlarrSearchParams) -> Result<Url
     {
         let mut query = url.query_pairs_mut();
         query.append_pair("query", &params.query);
-        query.append_pair(
-            "type",
-            match params.search_type {
-                ProwlarrSearchType::Search => "search",
-                ProwlarrSearchType::Book => "book",
-            },
-        );
-        query.append_pair("categories", &params.category_id.to_string());
+        query.append_pair("type", "search");
+        for category_id in &params.category_ids {
+            query.append_pair("categories", &category_id.to_string());
+        }
     }
     Ok(url)
 }
@@ -249,11 +225,15 @@ async fn parse_system_status_response(
         .ok()
         .and_then(|raw| raw.version.filter(|value| !value.trim().is_empty()));
 
-    Ok(ProwlarrSystemStatusOutcome {
-        ok: true,
-        message: version
-            .map(|value| format!("Connected to Indexer (version {value})."))
-            .unwrap_or_else(|| "Connected to Indexer.".to_string()),
+    Ok(match version {
+        Some(version) => ProwlarrSystemStatusOutcome {
+            ok: true,
+            message: format!("Connected to Indexer (version {version})."),
+        },
+        None => ProwlarrSystemStatusOutcome {
+            ok: false,
+            message: "Indexer returned an unexpected system status response. Check the URL and reverse-proxy configuration.".to_string(),
+        },
     })
 }
 
@@ -356,7 +336,42 @@ fn map_release(
             .seeders
             .filter(|value| *value >= 0)
             .map(|value| value as u32),
+        categories: map_categories(raw.categories),
     })
+}
+
+fn map_categories(entries: Vec<ProwlarrCategoryEntry>) -> Vec<RemoteReleaseCategory> {
+    let mut categories: Vec<RemoteReleaseCategory> = entries
+        .into_iter()
+        .filter_map(|entry| {
+            let (id, name) = match entry {
+                ProwlarrCategoryEntry::Object { id, name } => (id, name),
+                ProwlarrCategoryEntry::Id(id) => (id, None),
+            };
+            if id == 0 {
+                return None;
+            }
+            Some(RemoteReleaseCategory {
+                id,
+                name: category_display_name(id, name.as_deref())?,
+            })
+        })
+        .collect();
+    categories.sort_by_key(|category| category.id);
+    categories.dedup_by(|left, right| left.id == right.id);
+    categories
+}
+
+fn category_display_name(id: u32, name: Option<&str>) -> Option<String> {
+    let trimmed = name.map(str::trim).filter(|value| !value.is_empty());
+    if let Some(name) = trimmed {
+        return Some(name.to_string());
+    }
+    match id {
+        3030 => Some("Audio/Audiobook".to_string()),
+        3000 => Some("Audio".to_string()),
+        _ => None,
+    }
 }
 
 fn map_protocol(protocol: Option<&str>) -> RemoteReleaseProtocol {
@@ -415,6 +430,19 @@ struct ProwlarrReleaseRaw {
     protocol: Option<String>,
     #[serde(default)]
     seeders: Option<i64>,
+    #[serde(default)]
+    categories: Vec<ProwlarrCategoryEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ProwlarrCategoryEntry {
+    Object {
+        id: u32,
+        #[serde(default)]
+        name: Option<String>,
+    },
+    Id(u32),
 }
 
 use super::connection;
@@ -423,7 +451,6 @@ use super::connection;
 mod tests {
     use super::*;
     use std::net::SocketAddr;
-    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -437,6 +464,7 @@ mod tests {
         method: String,
         path_and_query: String,
         body: String,
+        api_key: Option<String>,
     }
 
     fn local_client(host: &str, addr: SocketAddr) -> Client {
@@ -454,12 +482,32 @@ mod tests {
             .await
             .expect("request should arrive")
             .expect("accept request");
-        let mut buffer = vec![0_u8; 8192];
-        let bytes = timeout(LOCAL_TIMEOUT, stream.read(&mut buffer))
-            .await
-            .expect("request bytes should arrive")
-            .expect("read request");
-        let request = String::from_utf8_lossy(&buffer[..bytes]).to_string();
+        let request = timeout(LOCAL_TIMEOUT, async {
+            let mut buffer = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 2048];
+                let count = stream.read(&mut chunk).await.expect("read request");
+                assert!(count > 0, "request ended early");
+                buffer.extend_from_slice(&chunk[..count]);
+                let text = String::from_utf8_lossy(&buffer);
+                if let Some((headers, body)) = text.split_once("\r\n\r\n") {
+                    let length = headers
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().expect("content length"))
+                        })
+                        .unwrap_or(0);
+                    if body.len() >= length {
+                        break text.into_owned();
+                    }
+                }
+                assert!(buffer.len() < 16384, "unexpectedly large test request");
+            }
+        })
+        .await
+        .expect("request bytes should arrive");
         timeout(LOCAL_TIMEOUT, stream.write_all(response))
             .await
             .expect("response should write")
@@ -475,7 +523,13 @@ mod tests {
             .nth(1)
             .unwrap_or_default()
             .to_string();
+        let api_key = request.lines().find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("x-api-key")
+                .then(|| value.trim().to_string())
+        });
         CapturedRequest {
+            api_key,
             method,
             path_and_query,
             body,
@@ -490,51 +544,191 @@ mod tests {
         (listener, addr)
     }
 
-    #[test]
-    fn build_search_params_uses_book_query_for_structured_author_title() {
-        let params = build_search_params(&RemoteReleaseSearchRequest {
-            author: Some(" Brandon Sanderson ".to_string()),
-            title: Some(" The Way of Kings ".to_string()),
-            query: None,
-        })
-        .expect("params");
+    #[tokio::test]
+    async fn production_client_does_not_forward_api_keys_on_redirect() {
+        let (origin, origin_addr) = start_listener().await;
+        let (destination, destination_addr) = start_listener().await;
+        let response = format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://{destination_addr}/redirected\r\nContent-Length: 0\r\n\r\n"
+        );
+        let origin_server =
+            tokio::spawn(async move { serve_one(&origin, response.as_bytes()).await });
+        let mut destination_server = tokio::spawn(async move {
+            let body = r#"{"version":"1.2.3"}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            serve_one(&destination, response.as_bytes()).await
+        });
+        let adapter = ReqwestProwlarrAdapter::new().expect("production client");
+        let result = timeout(
+            LOCAL_TIMEOUT,
+            adapter.system_status(
+                &format!("http://{origin_addr}"),
+                &SecretString::from("origin-only-key".to_string()),
+            ),
+        )
+        .await
+        .expect("connection test should finish")
+        .expect("connection test response");
+        let request = origin_server.await.expect("origin server");
+        assert_eq!(request.api_key.as_deref(), Some("origin-only-key"));
+        let followed = timeout(Duration::from_millis(30), &mut destination_server)
+            .await
+            .is_ok();
+        destination_server.abort();
+        assert!(
+            !followed,
+            "redirect destination must never receive the origin API key"
+        );
+        assert!(!result.ok, "redirect must not count as a valid connection");
+    }
 
-        assert_eq!(params.search_type, ProwlarrSearchType::Book);
+    #[tokio::test]
+    async fn system_status_requires_valid_service_response() {
+        for (status, body, expected) in [
+            ("200 OK", r#"{"version":"1.2.3"}"#, true),
+            ("200 OK", "<html>Login</html>", false),
+            ("200 OK", "{}", false),
+            ("200 OK", r#"{"version":" "}"#, false),
+            ("401 Unauthorized", "{}", false),
+            ("500 Internal Server Error", "error", false),
+        ] {
+            let (listener, addr) = start_listener().await;
+            let response = format!(
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            let server =
+                tokio::spawn(async move { serve_one(&listener, response.as_bytes()).await });
+            let adapter = ReqwestProwlarrAdapter::with_client(local_client("indexer.test", addr));
+            let result = adapter
+                .system_status(
+                    "http://indexer.test/proxy",
+                    &SecretString::from("key".to_string()),
+                )
+                .await
+                .expect("status");
+            let request = server.await.expect("server");
+            assert_eq!(request.api_key.as_deref(), Some("key"));
+            assert_eq!(request.method, "GET");
+            assert_eq!(request.path_and_query, "/proxy/api/v1/system/status");
+            assert_eq!(result.ok, expected, "status={status}, body={body}");
+        }
+    }
+
+    #[test]
+    fn search_params_accept_optional_fields_and_reject_empty_input() {
+        for (author, title, query, expected) in [
+            (
+                Some(" Brandon Sanderson "),
+                Some(" The Way of Kings "),
+                None,
+                "Brandon Sanderson The Way of Kings",
+            ),
+            (Some("David Crouse"), None, None, "David Crouse"),
+            (None, Some("Way of Kings"), None, "Way of Kings"),
+            (None, None, Some(" way of kings "), "way of kings"),
+        ] {
+            let params = build_search_params(
+                &RemoteReleaseSearchRequest {
+                    author: author.map(str::to_string),
+                    title: title.map(str::to_string),
+                    query: query.map(str::to_string),
+                },
+                &[3000, 3030],
+            )
+            .expect("params");
+            assert_eq!(params.query, expected);
+            assert_eq!(params.category_ids, [3000, 3030]);
+        }
+        assert!(build_search_params(
+            &RemoteReleaseSearchRequest {
+                author: Some(" ".to_string()),
+                title: None,
+                query: None,
+            },
+            &[]
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn map_categories_accepts_named_objects_and_bare_ids() {
+        let categories = map_categories(vec![
+            ProwlarrCategoryEntry::Id(3000),
+            ProwlarrCategoryEntry::Object {
+                id: 3030,
+                name: Some("Audio/Audiobook".to_string()),
+            },
+            ProwlarrCategoryEntry::Id(3030),
+            ProwlarrCategoryEntry::Id(100047),
+            ProwlarrCategoryEntry::Object {
+                id: 100043,
+                name: None,
+            },
+        ]);
+
         assert_eq!(
-            params.query,
-            "{Author:Brandon Sanderson} {Title:The Way of Kings}"
+            categories,
+            vec![
+                RemoteReleaseCategory {
+                    id: 3000,
+                    name: "Audio".to_string(),
+                },
+                RemoteReleaseCategory {
+                    id: 3030,
+                    name: "Audio/Audiobook".to_string(),
+                },
+            ]
         );
     }
 
     #[test]
-    fn build_search_params_uses_search_type_for_freeform_query() {
-        let params = build_search_params(&RemoteReleaseSearchRequest {
-            author: None,
-            title: None,
-            query: Some("way of kings".to_string()),
-        })
-        .expect("params");
+    fn map_categories_keeps_named_indexer_specific_categories() {
+        let categories = map_categories(vec![ProwlarrCategoryEntry::Object {
+            id: 100047,
+            name: Some("Audiobooks".to_string()),
+        }]);
 
-        assert_eq!(params.search_type, ProwlarrSearchType::Search);
-        assert_eq!(params.query, "way of kings");
+        assert_eq!(
+            categories,
+            vec![RemoteReleaseCategory {
+                id: 100047,
+                name: "Audiobooks".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn search_url_repeats_categories_for_each_id() {
+        let url = build_search_url(
+            "http://indexer.test",
+            &ProwlarrSearchParams {
+                query: "kings".to_string(),
+                category_ids: vec![3030, 3000],
+            },
+        )
+        .expect("url");
+        let query = url.query().expect("query");
+
+        assert!(query.contains("categories=3030"));
+        assert!(query.contains("categories=3000"));
     }
 
     #[tokio::test]
     async fn search_maps_query_and_category_without_indexer_ids() {
         let (listener, addr) = start_listener().await;
         let host = "prowlarr.test";
-        let captured = Arc::new(Mutex::new(CapturedRequest::default()));
-        let captured_task = Arc::clone(&captured);
-        let body = br#"[{"guid":"abc","indexerId":7,"title":"Book Title","indexer":"Example","size":1234,"protocol":"torrent","seeders":12}]"#;
+        let body = br#"[{"guid":"abc","indexerId":7,"title":"Book Title","indexer":"Example","size":1234,"protocol":"torrent","seeders":12,"categories":[{"id":3030,"name":"Audio/Audiobook"}]}]"#;
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
             body.len()
         );
         let mut response_bytes = response.into_bytes();
         response_bytes.extend_from_slice(body);
-        tokio::spawn(async move {
-            *captured_task.lock().expect("lock") = serve_one(&listener, &response_bytes).await;
-        });
+        let server = tokio::spawn(async move { serve_one(&listener, &response_bytes).await });
 
         let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
         let outcome = adapter
@@ -543,14 +737,14 @@ mod tests {
                 &SecretString::from("secret-key".to_string()),
                 &ProwlarrSearchParams {
                     query: "way of kings".to_string(),
-                    search_type: ProwlarrSearchType::Search,
-                    category_id: 3030,
+                    category_ids: vec![3030],
                 },
             )
             .await
             .expect("search");
 
-        let request = captured.lock().expect("lock").clone();
+        let request = server.await.expect("server");
+        assert_eq!(request.api_key.as_deref(), Some("secret-key"));
         assert_eq!(request.method, "GET");
         assert!(request
             .path_and_query
@@ -565,8 +759,13 @@ mod tests {
         assert!(!request.path_and_query.contains("indexerIds"));
         assert_eq!(outcome.releases.len(), 1);
         assert_eq!(outcome.releases[0].guid, "abc");
+        assert_eq!(outcome.releases[0].indexer, "Example");
+        assert_eq!(outcome.releases[0].indexer_id, 7);
         assert_eq!(outcome.releases[0].protocol, RemoteReleaseProtocol::Torrent);
         assert_eq!(outcome.releases[0].seeders, Some(12));
+        assert_eq!(outcome.releases[0].categories.len(), 1);
+        assert_eq!(outcome.releases[0].categories[0].id, 3030);
+        assert_eq!(outcome.releases[0].categories[0].name, "Audio/Audiobook");
         assert!(outcome.diagnostics.is_empty());
     }
 
@@ -586,8 +785,7 @@ mod tests {
                 &SecretString::from("bad-key".to_string()),
                 &ProwlarrSearchParams {
                     query: "test".to_string(),
-                    search_type: ProwlarrSearchType::Search,
-                    category_id: 3030,
+                    category_ids: vec![3030],
                 },
             )
             .await
@@ -605,13 +803,9 @@ mod tests {
     async fn grab_posts_guid_and_indexer_id() {
         let (listener, addr) = start_listener().await;
         let host = "prowlarr.test";
-        let captured = Arc::new(Mutex::new(CapturedRequest::default()));
-        let captured_task = Arc::clone(&captured);
         let response =
             b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
-        tokio::spawn(async move {
-            *captured_task.lock().expect("lock") = serve_one(&listener, response).await;
-        });
+        let server = tokio::spawn(async move { serve_one(&listener, response).await });
 
         let adapter = ReqwestProwlarrAdapter::with_client(local_client(host, addr));
         let outcome = adapter
@@ -624,10 +818,14 @@ mod tests {
             .await
             .expect("grab");
 
-        let request = captured.lock().expect("lock").clone();
+        let request = server.await.expect("server");
+        assert_eq!(request.api_key.as_deref(), Some("secret-key"));
         assert_eq!(request.method, "POST");
         assert_eq!(request.path_and_query, "/api/v1/search");
-        assert_eq!(request.body, "{\"guid\":\"release-guid\",\"indexerId\":42}");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&request.body).expect("grab request JSON"),
+            serde_json::json!({"guid":"release-guid", "indexerId":42})
+        );
         assert!(outcome.accepted);
     }
 

@@ -53,7 +53,9 @@ export function makeProductionIndexerConnectionServices() {
 		updateIndexerConnection: (
 			update: Parameters<typeof tauriClient.updateRemoteSourceIndexerConnection>[0],
 		) => tauriClient.updateRemoteSourceIndexerConnection(update),
-		testIndexerConnection: () => tauriClient.testRemoteSourceIndexerConnection(),
+		testIndexerConnection: (
+			update: Parameters<typeof tauriClient.updateRemoteSourceIndexerConnection>[0],
+		) => tauriClient.testRemoteSourceIndexerConnection(update),
 	};
 }
 

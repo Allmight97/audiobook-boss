@@ -136,7 +136,9 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.abort_all_acquisition_tasks();
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
-            RemoteProviderId::Indexer => IndexerProvider::logout(self.inner.vault.as_ref())?,
+            RemoteProviderId::Indexer => {
+                IndexerProvider::logout(&self.inner.config_dir, self.inner.vault.as_ref())?
+            }
         }
         self.inner
             .lifecycle
@@ -204,11 +206,13 @@ impl RemoteSourceRuntime {
 
     pub async fn test_indexer_connection(
         &self,
+        update: types::RemoteIndexerConnectionUpdate,
     ) -> Result<types::RemoteIndexerConnectionTestResult> {
         IndexerProvider::test_connection(
             &self.inner.config_dir,
             self.inner.vault.as_ref(),
             &self.inner.indexer_adapter,
+            update,
         )
         .await
     }
@@ -322,6 +326,29 @@ mod tests {
             supplemental_assets: Vec::new(),
             diagnostics: Vec::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn indexer_grab_lane_cannot_create_acquisition_jobs() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let result = runtime
+            .start_acquisition(RemoteAcquisitionPlan {
+                provider_id: RemoteProviderId::Indexer,
+                selections: Vec::new(),
+            })
+            .await;
+        assert!(result
+            .expect_err("Indexer acquisition must be rejected")
+            .to_string()
+            .contains("Indexer grabs do not create acquisition jobs"));
+        assert!(runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .is_empty());
     }
 
     #[test]

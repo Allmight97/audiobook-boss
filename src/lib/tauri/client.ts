@@ -271,8 +271,10 @@ export const tauriClient = {
 		update: RemoteIndexerConnectionUpdate,
 	): Promise<RemoteIndexerConnection> =>
 		commandSpecs.update_remote_source_indexer_connection({ update }),
-	testRemoteSourceIndexerConnection: (): Promise<RemoteIndexerConnectionTestResult> =>
-		commandSpecs.test_remote_source_indexer_connection(),
+	testRemoteSourceIndexerConnection: (
+		update: RemoteIndexerConnectionUpdate,
+	): Promise<RemoteIndexerConnectionTestResult> =>
+		commandSpecs.test_remote_source_indexer_connection({ update }),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
 	): Promise<CommandResult<'validate_encoder_settings'>> =>

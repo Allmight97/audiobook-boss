@@ -6,6 +6,7 @@ import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeS
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
+import { tauriClient } from '../../lib/tauri/client';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -132,5 +133,68 @@ describe('AppSettingsDialogView', () => {
 			defaultAcquisitionLane: 'indexer',
 		});
 		expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer');
+	});
+
+	it('lets the user enable both audiobook categories from the collapsed picker', async () => {
+		await renderOpenDialog();
+
+		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
+			'Audiobooks (3030)',
+		);
+		await fireEvent.click(screen.getByTestId('app-settings-indexer-category'));
+		const audio = screen.getByRole('checkbox', { name: 'Audio (3000)' }) as HTMLInputElement;
+		audio.checked = true;
+		audio.dispatchEvent(new Event('change', { bubbles: true }));
+
+		expect(runtime!.remoteSource.indexerConnection().categoryIdsDraft).toEqual([3030, 3000]);
+		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
+			'Audiobooks (3030), Audio (3000)',
+		);
+	});
+
+	it('keeps Indexer drafts when another Settings field changes', async () => {
+		const getConnection = vi
+			.spyOn(tauriClient, 'getRemoteSourceIndexerConnection')
+			.mockResolvedValue({
+				baseUrl: 'http://saved:9696',
+				categoryIds: [3030],
+				apiKeyConfigured: true,
+			});
+		const r = await renderOpenDialog();
+		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
+		await fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
+		await fireEvent.input(screen.getByLabelText('API key'), { target: { value: 'draft-secret' } });
+		getConnection.mockClear();
+		await fireEvent.input(screen.getByTestId('app-settings-ffmpeg-path'), {
+			target: { value: '/tmp/ffmpeg' },
+		});
+		expect(getConnection).not.toHaveBeenCalled();
+		expect(screen.getByLabelText('URL')).toHaveValue('http://draft:9696');
+		expect(screen.getByLabelText('API key')).toHaveValue('draft-secret');
+		expect(r.remoteSource.indexerConnection().apiKeyDraft).toBe('draft-secret');
+	});
+
+	it('dispatches Test for the current connection draft without saving or clearing the password', async () => {
+		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockResolvedValue({
+			baseUrl: 'http://saved:9696',
+			categoryIds: [3030],
+			apiKeyConfigured: true,
+		});
+		const r = await renderOpenDialog();
+		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
+		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
+		const save = vi.spyOn(r.remoteSource, 'saveIndexerConnectionSettings');
+		const key = screen.getByLabelText('API key');
+		expect(key).toHaveAttribute('type', 'password');
+		await fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
+		await fireEvent.input(key, { target: { value: 'draft-secret' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+		expect(test).toHaveBeenCalledOnce();
+		expect(save).not.toHaveBeenCalled();
+		expect(r.remoteSource.indexerConnection()).toMatchObject({
+			baseUrlDraft: 'http://draft:9696',
+			apiKeyDraft: 'draft-secret',
+		});
+		expect(key).toHaveValue('draft-secret');
 	});
 });

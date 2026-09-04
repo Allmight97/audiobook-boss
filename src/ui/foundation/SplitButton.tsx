@@ -68,6 +68,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 				id={props.caretId}
 				tone={tone()}
 				class="abb-split-caret"
+				aria-expanded={open()}
 				ref={toggle}
 				onClick={(event) => {
 					event.stopPropagation();
@@ -79,6 +80,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 			<div
 				id={props.dropdownId}
 				class={`abb-split-dropdown${open() ? ' open' : ''}`}
+				hidden={!open()}
 				ref={dropdown}
 			>
 				{props.children({ close })}

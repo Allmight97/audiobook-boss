@@ -13,6 +13,34 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   change and names the host-tuned `.app` vs portable DMG before any bump
   or build.
 
+## [1.5.0] - 2026-09-04
+
+### Added
+
+- Indexer search and Grab alongside Audible in Acquire Audiobooks. Search by
+  author, title, or both, filter results, and send a selected release to your
+  configured download client. Grab does not import downloaded files into ABB.
+- Import source picker and a configurable default acquisition source.
+- Indexer connection settings with a write-only API key, audiobook categories,
+  and a Test action that checks the current form without saving it.
+
+### Changed
+
+- Indexer results show protocol, named categories, and indexer tags, ordered by
+  seeders. Filtering preserves that order; Enter submits author/title searches.
+
+### Fixed
+
+- Saving an Indexer connection updates an already-open Acquire dialog.
+  Unrelated Settings edits preserve connection drafts, and Reset All immediately
+  restores the default Import source.
+- Grab preserves the selected indexer when multiple results share a release ID.
+- Connection tests reject invalid server responses. API keys are scoped to their
+  server URL, and API requests do not follow redirects, so keys stay with the
+  configured server.
+- Closing and reopening Acquire preserves selection in the same source;
+  accepted Audible downloads continue through source changes.
+
 ## [1.4.1] - 2026-08-31
 
 ### Fixed

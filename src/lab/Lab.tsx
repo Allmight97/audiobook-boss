@@ -1,5 +1,5 @@
 import { createSignal, For, type JSX } from 'solid-js';
-import { Button, CoverThumb, Dialog, Progress } from '../ui/foundation';
+import { Button, CoverThumb, Dialog, Progress, SplitButton } from '../ui/foundation';
 import './lab.css';
 
 const colorTokens = [
@@ -40,6 +40,8 @@ const densityRows = [
 ] as const;
 
 export function Lab(): JSX.Element {
+	const [importSource, setImportSource] = createSignal('Audible');
+	const [lastImport, setLastImport] = createSignal('None');
 	const [density, setDensityState] = createSignal<'comfortable' | 'compact'>('comfortable');
 
 	function setDensity(next: 'comfortable' | 'compact'): void {
@@ -145,6 +147,32 @@ export function Lab(): JSX.Element {
 					<select class="lab-control">
 						<option>Select option</option>
 					</select>
+				</div>
+			</section>
+
+			<section class="panel lab-section">
+				<h3>Split button</h3>
+				<div class="lab-row">
+					<SplitButton
+						mainLabel={`Import ${importSource()}`}
+						onMainClick={() => setLastImport(importSource())}
+					>
+						{({ close }) => (
+							<For each={['Audible', 'Indexer']}>
+								{(source) => (
+									<SplitButton.Option
+										onClick={() => {
+											setImportSource(source);
+											close();
+										}}
+									>
+										{source}
+									</SplitButton.Option>
+								)}
+							</For>
+						)}
+					</SplitButton>
+					<span aria-live="polite">Last import: {lastImport()}</span>
 				</div>
 			</section>
 

@@ -25,7 +25,7 @@
   `tauriClient.updateAppSettings` or import a UI persistence helper.
 - Default acquisition lane and Indexer connection fields dispatch through
   `src/app/appSettings` and `src/app/remoteSource` owner intents respectively.
-  Indexer URL/category persist via Remote Source IPC; the API key is write-only
+  Indexer URL/categories persist via Remote Source IPC; the API key is write-only
   in the Settings panel.
 - Persistence failure must be observable through App Settings and have an
   owner-level retry or restore outcome proved through its public interface;

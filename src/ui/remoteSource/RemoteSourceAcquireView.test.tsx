@@ -9,6 +9,7 @@ import type {
 	AcquisitionJob,
 	RemoteSourceProviderCapabilities,
 	RemoteTitle,
+	RemoteRelease,
 } from '../../types/remoteSource';
 import { RemoteSourceAcquireView } from './RemoteSourceAcquireView';
 
@@ -161,7 +162,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		await vi.waitFor(() => expect(runtime!.remoteSource.view().isBusy).toBe(false));
 	});
 
-	it('keeps connected toolbar actions and Filter as sibling fields on the dialog panel', async () => {
+	it('exposes Audible controls and filters connected library titles', async () => {
 		runtime = createTestAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -178,42 +179,18 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		});
 		await Promise.resolve();
 
-		const dialog = screen.getByRole('dialog', { name: 'Acquire Audiobooks' });
-		expect(dialog.classList.contains('abb-dialog')).toBe(true);
-		expect(dialog.querySelector('.app-modal-controls')).toBeNull();
-
-		const toolbar = dialog.querySelector('.remote-source-toolbar');
-		expect(toolbar).not.toBeNull();
-		const fieldLabels = [...toolbar!.querySelectorAll(':scope > .remote-source-toolbar-field')].map(
-			(field) => {
-				const labeled = field.querySelector('label[for]');
-				if (labeled) {
-					return labeled.textContent?.trim() ?? '';
-				}
-				const button = field.querySelector('button');
-				if (button) {
-					return button.textContent?.trim() ?? '';
-				}
-				return field.querySelector('.option-label')?.textContent?.trim() ?? '';
-			},
-		);
-		expect(fieldLabels).toEqual([
-			'Source',
-			'Refresh Library',
-			'Acquire Selected',
-			'Filter',
-			'Supplemental PDF only',
-			'Hide unavailable',
-		]);
-
-		const filterField = toolbar!.querySelector('.remote-source-filter');
-		const acquireField = screen
-			.getByRole('button', { name: 'Acquire Selected' })
-			.closest('.remote-source-toolbar-field');
-		expect(filterField).not.toBeNull();
-		expect(filterField).not.toBe(acquireField);
-		expect(filterField?.contains(screen.getByLabelText('Filter'))).toBe(true);
-		expect(filterField?.previousElementSibling).toBe(acquireField);
+		expect(screen.getByLabelText('Source')).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Refresh Library' })).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Acquire Selected' })).toBeDisabled();
+		expect(screen.getByRole('checkbox', { name: 'Supplemental PDF only' })).not.toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Hide unavailable' })).not.toBeChecked();
+		expect(
+			screen.getByRole('option', { name: new RegExp(remoteTitle().title) }),
+		).toBeInTheDocument();
+		await fireEvent.input(screen.getByLabelText('Filter'), {
+			target: { value: 'no matching book' },
+		});
+		expect(screen.queryByText(remoteTitle().title)).not.toBeInTheDocument();
 	});
 
 	it('switches source lanes from the enabled provider control', async () => {
@@ -269,5 +246,111 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(screen.queryByTestId('remote-indexer-settings-needed')).not.toBeInTheDocument();
 		expect(screen.getByTestId('remote-source-indexer-author')).toBeEnabled();
 		expect(screen.getByRole('button', { name: 'Search' })).toBeEnabled();
+	});
+
+	it('searches indexer releases when Enter is pressed in the author or title field', async () => {
+		runtime = createTestAppRuntime();
+		const runAction = vi.spyOn(runtime.remoteSource, 'runAction');
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		runtime.remoteSource.patch({
+			isOpen: true,
+			didHydrateOpenDialog: true,
+			providerId: 'indexer',
+			providers: providerCapabilities(),
+			accountState: { providerId: 'indexer', status: 'connected' },
+		});
+		await Promise.resolve();
+		runAction.mockClear();
+
+		await fireEvent.keyDown(screen.getByTestId('remote-source-indexer-author'), { key: 'Enter' });
+		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
+
+		runAction.mockClear();
+		await fireEvent.keyDown(screen.getByTestId('remote-source-indexer-title'), { key: 'Enter' });
+		expect(runAction).toHaveBeenCalledWith({ type: 'searchReleases' });
+	});
+
+	it('paints protocol, category, and indexer as release tags', async () => {
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		runtime.remoteSource.patch({
+			isOpen: true,
+			didHydrateOpenDialog: true,
+			providerId: 'indexer',
+			providers: providerCapabilities(),
+			accountState: { providerId: 'indexer', status: 'connected' },
+			releases: [
+				{
+					providerId: 'indexer',
+					guid: 'extinction-1',
+					indexerId: 7,
+					title: 'Extinction by David Crouse [ENG / M4B]',
+					indexer: 'MyAnonymouse',
+					sizeBytes: 550_000_000,
+					protocol: 'torrent',
+					seeders: 72,
+					categories: [{ id: 3030, name: 'Audio/Audiobook' }],
+				},
+			],
+		});
+		await Promise.resolve();
+
+		expect(screen.getByText('torrent')).toHaveClass('remote-release-tag-torrent');
+		expect(screen.getByText('Audio/Audiobook')).toHaveClass('remote-release-tag-category');
+		expect(screen.getByText('MyAnonymouse')).toHaveClass('remote-release-tag-indexer');
+		expect(screen.getByText(/72 seeders/)).toBeInTheDocument();
+	});
+
+	it('grabs the clicked indexer when release GUIDs match across indexers', async () => {
+		const releases: RemoteRelease[] = [7, 8].map((indexerId) => ({
+			providerId: 'indexer',
+			guid: 'same-guid',
+			indexerId,
+			title: `Release from ${indexerId}`,
+			indexer: `Indexer ${indexerId}`,
+			sizeBytes: 1000,
+			protocol: 'torrent',
+			seeders: 10,
+			categories: [],
+		}));
+		const grab = vi.spyOn(tauriClient, 'grabRemoteSourceRelease').mockResolvedValue({
+			providerId: 'indexer',
+			accepted: true,
+			message: 'Queued externally.',
+			diagnostics: [],
+		});
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		runtime.remoteSource.patch({
+			isOpen: true,
+			didHydrateOpenDialog: true,
+			providerId: 'indexer',
+			providers: providerCapabilities(),
+			accountState: { providerId: 'indexer', status: 'connected' },
+			releases,
+		});
+		await fireEvent.click(screen.getByRole('button', { name: /Release from 8/ }));
+		expect(screen.getByRole('option', { name: /Release from 7/ })).toHaveAttribute(
+			'aria-selected',
+			'false',
+		);
+		expect(screen.getByRole('option', { name: /Release from 8/ })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		await fireEvent.click(screen.getByRole('button', { name: 'Grab' }));
+		await vi.waitFor(() => expect(grab).toHaveBeenCalledWith({ release: releases[1] }));
 	});
 });

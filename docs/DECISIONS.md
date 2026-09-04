@@ -23,7 +23,7 @@ git history and closed issues own superseded chronology.
   Indexer lane is provider-neutral in UX (`Indexer`, not Prowlarr). Prowlarr is
   the first backend adapter under `providers/indexer/`. Grab success means
   Prowlarr accepted the release for the configured download client; ABB does not
-  poll downloads or auto-import grabbed files. Indexer URL/category persist as
+  poll downloads or auto-import grabbed files. Indexer URL/categories persist as
   non-secret settings; the API key is vault-backed and write-only across IPC.
 - Evidence: `ProviderId::Indexer`, `search_remote_source_releases`,
   `grab_remote_source_release`, indexer connection commands in
