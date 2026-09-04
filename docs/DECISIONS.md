@@ -4,6 +4,18 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-04 - One Checkout Per Solid Major
+
+- Outcome: `main` and product branches stay on Solid 1.9. Solid 2 stays on
+  `cursor/solid2-effect-spike-36fc` in a separate worktree until formal
+  adoption. Git does not isolate `node_modules`; one folder cannot hold both
+  lockfiles.
+- Evidence: each checkout's `package.json` `solid-js` pin; product worktrees
+  stay on `main` or branches from it; the spike stays on
+  `cursor/solid2-effect-spike-36fc`.
+- Guardrail: upgrade Solid and merge its lockfile only in the spike worktree
+  until adoption; check each Solid-major branch out in its own folder.
+
 ## 2026-08-31 - One Owner Per Kind Of Repository Truth
 
 - Outcome: root `AGENTS.md` is the always-loaded operating and routing
