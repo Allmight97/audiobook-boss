@@ -57,11 +57,13 @@ describe('Indexer connection owner intents', () => {
 			.mockResolvedValue({ providerId: 'indexer', status: 'connected' });
 		runtime = createTestAppRuntime();
 		const owner = runtime.remoteSource;
-		owner.patch({
-			isOpen: true,
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
+		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValueOnce({
 			providerId: 'indexer',
-			accountState: { providerId: 'indexer', status: 'needsAuth' },
+			status: 'needsAuth',
 		});
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().accountState?.status).toBe('needsAuth');
 		owner.patchIndexerConnectionSettings({ baseUrlDraft: configured.baseUrl!, apiKeyDraft: 'key' });
 		await owner.saveIndexerConnectionSettings();
 		expect(account).toHaveBeenCalledWith('indexer');
@@ -119,11 +121,13 @@ describe('Indexer connection owner intents', () => {
 		});
 		runtime = createTestAppRuntime();
 		const owner = runtime.remoteSource;
-		owner.patch({
-			isOpen: true,
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
+		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValueOnce({
 			providerId: 'indexer',
-			accountState: { providerId: 'indexer', status: 'needsAuth' },
+			status: 'needsAuth',
 		});
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().accountState?.status).toBe('needsAuth');
 		owner.patchIndexerConnectionSettings({
 			baseUrlDraft: configured.baseUrl!,
 			apiKeyDraft: 'first-key',

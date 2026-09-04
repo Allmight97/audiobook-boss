@@ -275,14 +275,15 @@ describe('remote source acquisition workflow', () => {
 	it('rekeys supplemental PDFs through the Input file list after a successful handoff', async () => {
 		const services = makeServices();
 		const owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		await owner.runAction({
 			type: 'acquireSelected',
 		});
 
 		expect(services.startAcquisition).toHaveBeenCalledWith('audible', [
-			{ titleId: 'B000000001', includeSupplementalPdf: false },
+			{ titleId: 'B000000001', includeSupplementalPdf: true },
 		]);
 		expect(services.importMaterializedPaths).toHaveBeenCalledWith(['/session/book.m4b']);
 		expect(services.purgeSession).not.toHaveBeenCalled();
@@ -332,7 +333,8 @@ describe('remote source acquisition workflow', () => {
 			}),
 		});
 		owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 		await owner.runAction({ type: 'acquireSelected' });
 
 		expect(published).toContainEqual({
@@ -353,7 +355,8 @@ describe('remote source acquisition workflow', () => {
 			})),
 		});
 		const owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		await owner.runAction({
 			type: 'acquireSelected',
@@ -380,10 +383,8 @@ describe('remote source acquisition workflow', () => {
 			}),
 		});
 		owner = makeOwner(services);
-		owner.patch({
-			isOpen: true,
-			selectedTitleIds: new Set(['B000000001']),
-		});
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		await owner.runAction({
 			type: 'acquireSelected',
@@ -395,9 +396,13 @@ describe('remote source acquisition workflow', () => {
 	});
 
 	it('cancels only through the explicit cancel action', async () => {
-		const services = makeServices();
+		const poll = createDeferred<AcquisitionJob>();
+		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
 		const owner = makeOwner(services);
-		owner.patch({ activeJob: runningJob() });
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		const acquiring = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
 
 		await owner.runAction({
 			type: 'cancelActiveAcquisition',
@@ -405,6 +410,8 @@ describe('remote source acquisition workflow', () => {
 
 		expect(services.cancelAcquisition).toHaveBeenCalledWith('remote-job-1');
 		expect(owner.view().statusMessage).toBe('Cancelled.');
+		poll.resolve(runningJob());
+		await acquiring;
 	});
 
 	it('does not let a late acquisition poll overwrite native cancellation', async () => {
@@ -413,7 +420,8 @@ describe('remote source acquisition workflow', () => {
 			getAcquisitionStatus: vi.fn(() => latePoll.promise),
 		});
 		const owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		const acquisition = owner.runAction({
 			type: 'acquireSelected',
@@ -437,8 +445,10 @@ describe('remote source acquisition workflow', () => {
 	it('keeps acquisition state and supplemental assets isolated across owners', async () => {
 		const first = makeOwner(makeServices());
 		const second = makeOwner(makeServices());
-		first.patch({ selectedTitleIds: new Set(['B000000001']) });
-		second.patch({ selectedTitleIds: new Set(['B000000001']), isOpen: true });
+		await first.open();
+		first.toggleTitle('B000000001');
+		await second.open();
+		second.toggleTitle('B000000001');
 
 		await first.runAction({ type: 'acquireSelected' });
 		await second.runAction({ type: 'acquireSelected' });
@@ -456,8 +466,10 @@ describe('remote source acquisition workflow', () => {
 		const secondServices = makeServices();
 		const first = makeOwner(firstServices);
 		const second = makeOwner(secondServices);
-		first.patch({ selectedTitleIds: new Set(['B000000001']) });
-		second.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await first.open();
+		first.toggleTitle('B000000001');
+		await second.open();
+		second.toggleTitle('B000000001');
 		await first.runAction({ type: 'acquireSelected' });
 		await second.runAction({ type: 'acquireSelected' });
 		await first.reconcileWithInput(fileList().files);
@@ -497,11 +509,8 @@ describe('remote source acquisition workflow', () => {
 	it('searches indexer releases from author, title, or both without requiring both', async () => {
 		const services = makeServices();
 		const owner = makeOwner(services);
-		owner.patch({
-			providerId: 'indexer',
-			accountState: { providerId: 'indexer', status: 'connected' },
-			indexerAuthorQuery: 'David Crouse',
-		});
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerAuthorQuery: 'David Crouse' });
 
 		await owner.runAction({ type: 'searchReleases' });
 		expect(services.searchReleases).toHaveBeenCalledWith({
@@ -510,7 +519,7 @@ describe('remote source acquisition workflow', () => {
 			query: undefined,
 		});
 
-		owner.patch({ indexerAuthorQuery: '', indexerTitleQuery: 'Way of Kings' });
+		owner.editSearch({ indexerAuthorQuery: '', indexerTitleQuery: 'Way of Kings' });
 		await owner.runAction({ type: 'searchReleases' });
 		expect(services.searchReleases).toHaveBeenCalledWith({
 			author: undefined,
@@ -518,7 +527,7 @@ describe('remote source acquisition workflow', () => {
 			query: undefined,
 		});
 
-		owner.patch({
+		owner.editSearch({
 			indexerAuthorQuery: 'Brandon Sanderson',
 			indexerTitleQuery: 'The Way of Kings',
 		});
@@ -535,11 +544,15 @@ describe('remote source acquisition workflow', () => {
 		const owner = makeOwner(services);
 		const first = indexerRelease({ indexerId: 1 });
 		const chosen = indexerRelease({ indexerId: 2 });
-		owner.patch({
+		vi.mocked(services.searchReleases).mockResolvedValue({
 			providerId: 'indexer',
 			releases: [first, chosen],
-			selectedRelease: { guid: chosen.guid, indexerId: chosen.indexerId },
+			diagnostics: [],
 		});
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		await owner.runAction({ type: 'searchReleases' });
+		owner.selectRelease(chosen);
 		await owner.runAction({ type: 'grabSelectedRelease' });
 		expect(services.grabRelease).toHaveBeenCalledExactlyOnceWith({ release: chosen });
 		expect(services.startAcquisition).not.toHaveBeenCalled();
@@ -564,11 +577,10 @@ describe('remote source acquisition workflow', () => {
 			});
 			const owner = makeOwner(services);
 			const release = indexerRelease();
-			owner.patch({
-				providerId: 'indexer',
-				releases: [release],
-				selectedRelease: { guid: release.guid, indexerId: release.indexerId },
-			});
+			await owner.open({ lane: 'indexer' });
+			owner.editSearch({ indexerTitleQuery: 'Example' });
+			await owner.runAction({ type: 'searchReleases' });
+			owner.selectRelease(release);
 			await owner.runAction({ type: 'grabSelectedRelease' });
 			expect(owner.view().statusMessage).toContain(
 				outcome === 'error' ? 'Failed to grab release.' : 'No download client',
@@ -586,8 +598,7 @@ describe('remote source acquisition workflow', () => {
 			})),
 		});
 		const owner = makeOwner(services);
-		owner.open({ lane: 'indexer' });
-		await owner.runAction({ type: 'hydrateOpenDialog' });
+		await owner.open({ lane: 'indexer' });
 		expect(owner.view().accountState?.status).toBe('needsAuth');
 		expect(services.loadLibrary).not.toHaveBeenCalled();
 		expect(owner.view().isBusy).toBe(false);
@@ -597,11 +608,9 @@ describe('remote source acquisition workflow', () => {
 		const poll = createDeferred<AcquisitionJob>();
 		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
 		const owner = makeOwner(services);
-		owner.patch({
-			selectedTitleIds: new Set(['B000000001']),
-			releases: [indexerRelease()],
-			releaseFilter: 'old',
-		});
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		owner.editSearch({ releaseFilter: 'old' });
 		const acquiring = owner.runAction({ type: 'acquireSelected' });
 		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
 		await owner.selectLane('indexer');
@@ -616,13 +625,14 @@ describe('remote source acquisition workflow', () => {
 		expect(owner.view().providerId).toBe('indexer');
 	});
 
-	it('preserves selection on ordinary reopen and resets it when opening another lane', () => {
+	it('preserves selection on ordinary reopen and resets it when opening another lane', async () => {
 		const owner = makeOwner(makeServices());
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 		owner.close();
-		owner.open({ lane: 'audible' });
+		await owner.open({ lane: 'audible' });
 		expect([...owner.view().selectedTitleIds]).toEqual(['B000000001']);
-		owner.open({ lane: 'indexer' });
+		await owner.open({ lane: 'indexer' });
 		expect(owner.view().selectedTitleIds.size).toBe(0);
 		expect(owner.view().providerId).toBe('indexer');
 	});

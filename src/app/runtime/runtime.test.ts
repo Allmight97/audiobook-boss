@@ -151,7 +151,7 @@ describe('app runtime', () => {
 
 	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {
 		const runtime = createAppRuntime();
-		runtime.remoteSource.patch({ isOpen: true, statusMessage: 'stale remote' });
+		void runtime.remoteSource.open();
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		runtime.dispose();
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
@@ -164,8 +164,31 @@ describe('app runtime', () => {
 		const runtime = createAppRuntime({ remoteSource: { services } });
 		const other = createAppRuntime();
 		dispose = () => other.dispose();
-		other.remoteSource.patch({ isOpen: true, statusMessage: 'other runtime' });
-		runtime.remoteSource.patch({ selectedTitleIds: new Set(['B000000001']) });
+		void other.remoteSource.open();
+		other.remoteSource.editSearch({ titleFilter: 'other runtime' });
+		vi.mocked(services.getAccountState).mockResolvedValue({
+			providerId: 'audible',
+			status: 'connected',
+		});
+		vi.mocked(services.loadLibrary).mockResolvedValue({
+			providerId: 'audible',
+			diagnostics: [],
+			titles: [
+				{
+					providerId: 'audible',
+					titleId: 'B000000001',
+					title: 'Book',
+					authors: [],
+					narrators: [],
+					supplementalPdfAvailable: false,
+					acquired: false,
+					availability: { acquirable: true, status: 'available', label: 'Available' },
+					unsupportedReasons: [],
+				},
+			],
+		});
+		await runtime.remoteSource.open();
+		runtime.remoteSource.toggleTitle('B000000001');
 		const acquisition = runtime.remoteSource.runAction({
 			type: 'acquireSelected',
 		});
@@ -178,6 +201,6 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().activeJob).toBeNull();
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 		expect(other.remoteSource.view().isOpen).toBe(true);
-		expect(other.remoteSource.view().statusMessage).toBe('other runtime');
+		expect(other.remoteSource.view().titleFilter).toBe('other runtime');
 	});
 });

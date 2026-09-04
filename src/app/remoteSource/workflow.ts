@@ -249,7 +249,7 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'hydrateOpenDialog': {
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true, didHydrateOpenDialog: true });
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 				try {
 					const providers = await deps.services.listProviders();
 					if (!patchWhenCurrent(isWorkflowCurrent, { providers })) return;

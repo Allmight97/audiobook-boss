@@ -16,7 +16,6 @@ export type RemoteInputHandoffResult =
 
 export type AcquisitionState = {
 	isBusy: boolean;
-	didHydrateOpenDialog: boolean;
 	providerId: ProviderId;
 	providers: RemoteSourceProviderCapabilities[];
 	accountState: RemoteSourceAccountState | null;
@@ -50,7 +49,6 @@ export function providerIdFromLane(lane: AcquisitionLane): ProviderId {
 export function createInitialAcquisitionState(): AcquisitionState {
 	return {
 		isBusy: false,
-		didHydrateOpenDialog: false,
 		providerId: 'audible',
 		providers: [],
 		accountState: null,
