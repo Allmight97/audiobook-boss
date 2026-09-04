@@ -54,6 +54,26 @@ export function withClearedHandoffJob(job: AcquisitionJobWithProgress): Acquisit
 	};
 }
 
+export function formatReleaseSizeBytes(sizeBytes: number): string {
+	if (sizeBytes <= 0) return 'Unknown size';
+	const mb = sizeBytes / (1024 * 1024);
+	if (mb >= 1024) {
+		return `${(mb / 1024).toFixed(1)} GB`;
+	}
+	return `${mb.toFixed(1)} MB`;
+}
+
+export function releaseProtocolLabel(protocol: 'usenet' | 'torrent' | 'unknown'): string {
+	switch (protocol) {
+		case 'usenet':
+			return 'Usenet';
+		case 'torrent':
+			return 'Torrent';
+		default:
+			return 'Unknown';
+	}
+}
+
 export function bytesLabel(progress: AcquisitionProgress): string | null {
 	if (progress.bytesDownloaded == null) return null;
 	const downloadedMb = progress.bytesDownloaded / (1024 * 1024);

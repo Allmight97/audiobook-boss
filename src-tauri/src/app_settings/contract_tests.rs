@@ -369,3 +369,43 @@ fn invalid_pinned_defaults_are_rejected_by_shared_validators() {
     let reloaded = get_app_settings(temp.path()).expect("reload settings");
     assert_eq!(reloaded.pinned_defaults, None, "rejected pin is not stored");
 }
+
+#[test]
+fn default_acquisition_lane_defaults_to_audible_and_persists() {
+    let temp = TempDir::new().expect("temp dir");
+
+    let settings = get_app_settings(temp.path()).expect("load defaults");
+    assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
+
+    let updated = update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            default_acquisition_lane: Some(AcquisitionLane::Indexer),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("update lane");
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+
+    assert_eq!(updated.default_acquisition_lane, AcquisitionLane::Indexer);
+    assert_eq!(reloaded.default_acquisition_lane, AcquisitionLane::Indexer);
+}
+
+#[test]
+fn settings_file_without_default_acquisition_lane_loads_with_default() {
+    let temp = TempDir::new().expect("temp dir");
+    let legacy = serde_json::json!({
+        "maxConcurrentJobs": {"mode": "auto"},
+        "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
+        "outputDefaults": serde_json::to_value(OutputDefaults::default()).expect("output json"),
+    });
+    std::fs::write(
+        temp.path().join("app-settings.json"),
+        serde_json::to_string_pretty(&legacy).expect("legacy json"),
+    )
+    .expect("write legacy settings");
+
+    let settings = get_app_settings(temp.path()).expect("load legacy settings");
+
+    assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
+}

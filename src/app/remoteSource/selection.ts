@@ -1,10 +1,14 @@
-import type { RemoteTitle } from '../../types/remoteSource';
+import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import { isTitleAcquirable } from './display';
 
 export type RemoteTitleFilterOptions = {
 	titleFilter: string;
 	showSupplementalPdfOnly: boolean;
 	hideUnavailableTitles: boolean;
+};
+
+export type RemoteReleaseFilterOptions = {
+	releaseFilter: string;
 };
 
 export function visibleRemoteTitles(
@@ -24,6 +28,21 @@ export function visibleRemoteTitles(
 
 	return facetTitles.filter((title) =>
 		[title.title, title.authors.join(' '), title.narrators.join(' ')]
+			.join(' ')
+			.toLowerCase()
+			.includes(normalizedFilter),
+	);
+}
+
+export function visibleRemoteReleases(
+	releases: RemoteRelease[],
+	options: RemoteReleaseFilterOptions,
+): RemoteRelease[] {
+	const normalizedFilter = options.releaseFilter.trim().toLowerCase();
+	if (!normalizedFilter) return releases;
+
+	return releases.filter((release) =>
+		[release.title, release.indexer, release.protocol]
 			.join(' ')
 			.toLowerCase()
 			.includes(normalizedFilter),

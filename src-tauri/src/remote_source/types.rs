@@ -6,6 +6,14 @@ pub use abb_remote_source_core::AcquisitionProgress;
 #[serde(rename_all = "camelCase")]
 pub enum ProviderId {
     Audible,
+    Indexer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RemoteAuthFlow {
+    ExternalBrowserHandoff,
+    ApiKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -14,12 +22,6 @@ pub struct AccountRef {
     pub provider_id: ProviderId,
     pub account_id: String,
     pub display_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum RemoteAuthFlow {
-    ExternalBrowserHandoff,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -33,6 +35,8 @@ pub struct RemoteSourceProviderCapabilities {
     pub supports_typeahead_filter: bool,
     pub supports_supplemental_pdf: bool,
     pub supports_materialized_audio: bool,
+    pub supports_release_search: bool,
+    pub supports_release_grab: bool,
     pub supports_refresh: bool,
     pub requires_live_session: bool,
     pub known_unsupported_reasons: Vec<RemoteAcquisitionFailureKind>,
@@ -115,6 +119,82 @@ pub struct RemoteLibraryResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub enum RemoteReleaseProtocol {
+    Usenet,
+    Torrent,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteRelease {
+    pub provider_id: ProviderId,
+    pub guid: String,
+    pub indexer_id: i64,
+    pub title: String,
+    pub indexer: String,
+    pub size_bytes: u64,
+    pub protocol: RemoteReleaseProtocol,
+    pub seeders: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteReleaseSearchRequest {
+    pub author: Option<String>,
+    pub title: Option<String>,
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteReleaseSearchResponse {
+    pub provider_id: ProviderId,
+    pub releases: Vec<RemoteRelease>,
+    pub diagnostics: Vec<RemoteSourceDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteReleaseGrabRequest {
+    pub release: RemoteRelease,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteReleaseGrabResponse {
+    pub provider_id: ProviderId,
+    pub accepted: bool,
+    pub message: String,
+    pub diagnostics: Vec<RemoteSourceDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteIndexerConnection {
+    pub base_url: Option<String>,
+    pub category_id: u32,
+    pub api_key_configured: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteIndexerConnectionUpdate {
+    pub base_url: Option<String>,
+    pub category_id: Option<u32>,
+    pub api_key: Option<String>,
+    pub clear_api_key: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteIndexerConnectionTestResult {
+    pub ok: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct AcquisitionSelection {
     pub title_id: String,
     pub include_supplemental_pdf: bool,
@@ -153,6 +233,9 @@ pub enum RemoteAcquisitionFailureKind {
     ProtectedSourcePurgeFailed,
     ValidationFailed,
     SupplementalPdfFailed,
+    IndexerConnectionRequired,
+    ReleaseSearchFailed,
+    ReleaseGrabFailed,
     Cancelled,
 }
 

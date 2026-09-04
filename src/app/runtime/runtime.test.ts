@@ -3,12 +3,7 @@ import type { AcquisitionJob } from '../../types/remoteSource';
 import type { ProcessingPreflightPlan } from '../../types/audio';
 import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
-import { patchRemoteSourceState, snapshotRemoteSourceView } from '../remoteSource/state';
-import {
-	makeRemoteSourceWorkflowServicesLayer,
-	runRemoteSourceWorkflow,
-	type RemoteSourceWorkflowServices,
-} from '../remoteSource/workflow';
+import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -37,12 +32,15 @@ function runningJob(): AcquisitionJob {
 
 function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowServices {
 	return {
+		listProviders: vi.fn(async () => []),
 		getAccountState: vi.fn(),
 		startAuth: vi.fn(),
 		openAuthorizationUrl: vi.fn(),
 		completeAuth: vi.fn(),
 		logout: vi.fn(),
 		loadLibrary: vi.fn(),
+		searchReleases: vi.fn(),
+		grabRelease: vi.fn(),
 		startAcquisition: vi.fn(async () => runningJob()),
 		getAcquisitionStatus: vi.fn(() => status),
 		cancelAcquisition: vi.fn(),
@@ -151,21 +149,24 @@ describe('app runtime', () => {
 		expect(second.input.view().errorMessage).toBe('');
 	});
 
-	it('resets Remote Source module state on dispose so a remount does not keep the dialog open', () => {
+	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {
 		const runtime = createAppRuntime();
-		patchRemoteSourceState({ isOpen: true, statusMessage: 'stale remote' });
-		expect(snapshotRemoteSourceView().isOpen).toBe(true);
+		runtime.remoteSource.patch({ isOpen: true, statusMessage: 'stale remote' });
+		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		runtime.dispose();
-		expect(snapshotRemoteSourceView().isOpen).toBe(false);
-		expect(snapshotRemoteSourceView().statusMessage).toBe('');
+		expect(runtime.remoteSource.view().isOpen).toBe(false);
+		expect(runtime.remoteSource.view().statusMessage).toBe('');
 	});
 
 	it('keeps late Remote Source polling from repopulating state after disposal', async () => {
-		const runtime = createAppRuntime();
 		const lateStatus = createDeferred<AcquisitionJob>();
 		const services = remoteServices(lateStatus.promise);
-		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
-		const acquisition = runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		const runtime = createAppRuntime({ remoteSource: { services } });
+		const other = createAppRuntime();
+		dispose = () => other.dispose();
+		other.remoteSource.patch({ isOpen: true, statusMessage: 'other runtime' });
+		runtime.remoteSource.patch({ selectedTitleIds: new Set(['B000000001']) });
+		const acquisition = runtime.remoteSource.runAction({
 			type: 'acquireSelected',
 		});
 		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
@@ -174,7 +175,9 @@ describe('app runtime', () => {
 		lateStatus.resolve(runningJob());
 		await acquisition;
 
-		expect(snapshotRemoteSourceView().activeJob).toBeNull();
-		expect(snapshotRemoteSourceView().statusMessage).toBe('');
+		expect(runtime.remoteSource.view().activeJob).toBeNull();
+		expect(runtime.remoteSource.view().statusMessage).toBe('');
+		expect(other.remoteSource.view().isOpen).toBe(true);
+		expect(other.remoteSource.view().statusMessage).toBe('other runtime');
 	});
 });

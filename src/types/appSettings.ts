@@ -1,4 +1,5 @@
 import type {
+	AcquisitionLane as GeneratedAcquisitionLane,
 	AppSettings as GeneratedAppSettings,
 	AppSettingsPatch as GeneratedAppSettingsPatch,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
@@ -11,6 +12,7 @@ import type { EncoderSettings, OutputNamingConfig } from './audio';
 import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
+export type AcquisitionLane = GeneratedAcquisitionLane;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
@@ -39,5 +41,6 @@ export type AppSettingsPatch = Partial<{
 		| null;
 	toolchain: ToolchainPreferences | null;
 	startupBehavior: StartupBehavior | null;
+	defaultAcquisitionLane: AcquisitionLane | null;
 	pinnedDefaults: PinnedDefaults | null;
 }>;

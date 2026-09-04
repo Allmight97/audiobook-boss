@@ -6,10 +6,6 @@ import type {
 	OperationSnapshot,
 } from '../../types/workRuntime';
 import {
-	purgeRemoteSourceSessionsForInputIds,
-	releaseRemoteSourceSessionRetainers,
-} from '../../ui/remoteSource';
-import {
 	isTerminalOperationStatus,
 	replaceOperations,
 	upsertOperation,
@@ -70,6 +66,12 @@ function isTauriRuntimeAvailable(): boolean {
 
 export function createWorkOperationsSession(
 	publish: (view: WorkOperationsView) => void,
+	deps: {
+		readonly settleTerminalWork?: (input: {
+			readonly inputIds: readonly string[];
+			readonly completedInputIds: readonly string[];
+		}) => Promise<void>;
+	} = {},
 ): WorkOperationsSession {
 	const state = emptyWorkCenterState();
 	let initializationPromise: Promise<void> | null = null;
@@ -112,7 +114,6 @@ export function createWorkOperationsSession(
 				: operation.children
 						.map((child) => child.inputId)
 						.filter((inputId): inputId is string => Boolean(inputId));
-		const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(operationInputIds);
 		const completedInputIds =
 			operation.status === 'completed'
 				? operationInputIds
@@ -120,12 +121,14 @@ export function createWorkOperationsSession(
 						.filter((child) => child.status === 'completed')
 						.map((child) => child.inputId)
 						.filter((inputId): inputId is string => Boolean(inputId));
-		const purgeInputIds = Array.from(new Set([...completedInputIds, ...pendingPurgeInputIds]));
-		if (purgeInputIds.length === 0) {
+		if (operationInputIds.length === 0 && completedInputIds.length === 0) {
 			return;
 		}
 
-		await purgeRemoteSourceSessionsForInputIds(purgeInputIds);
+		await deps.settleTerminalWork?.({
+			inputIds: operationInputIds,
+			completedInputIds,
+		});
 	}
 
 	function applyOperationSnapshot(next: OperationSnapshot): void {

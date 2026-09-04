@@ -9,7 +9,7 @@ update `src/lab` in the same change.
 ## Public API Strip
 
 - Import from `src/ui/foundation`.
-- Exports: `Button`, `CoverThumb`, `Dialog`, `Progress`, and their prop types.
+- Exports: `Button`, `CoverThumb`, `Dialog`, `Progress`, `SplitButton`, and their prop types.
 - Public semantic tokens live on `:root` in `internal/tokens.css`. Owner CSS
   may consume those custom properties. It may not import this private cluster.
 

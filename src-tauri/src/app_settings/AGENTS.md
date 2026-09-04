@@ -4,7 +4,7 @@
 
 - Import durable settings behavior from `crate::app_settings`, not private child
   modules.
-- Types: `AppSettings`, `AppSettingsPatch`, `EncoderDefaults`,
+- Types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`, `EncoderDefaults`,
   `OutputDefaults`, `ConcurrencyPreference`, `ToolchainPreferences`,
   `StartupBehavior`, `PinnedDefaults`.
 - Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`.

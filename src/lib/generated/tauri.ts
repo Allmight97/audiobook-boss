@@ -70,6 +70,11 @@ export const commands = {
 	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
 	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
 	purgeRemoteSourceSession: (jobId: string) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("purge_remote_source_session", { jobId })),
+	searchRemoteSourceReleases: (request: RemoteReleaseSearchRequest) => typedError<RemoteReleaseSearchResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_remote_source_releases", { request })),
+	grabRemoteSourceRelease: (request: RemoteReleaseGrabRequest) => typedError<RemoteReleaseGrabResponse, AppErrorEnvelope>(__TAURI_INVOKE("grab_remote_source_release", { request })),
+	getRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_indexer_connection")),
+	updateRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("update_remote_source_indexer_connection", { update })),
+	testRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection")),
 	/**  Validates encoder settings (no side effects) */
 	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	/**  Returns backend-owned runtime settings capabilities for UI controls. */
@@ -142,6 +147,8 @@ export type AcquisitionJob = {
 	diagnostics: RemoteSourceDiagnostic[],
 };
 
+export type AcquisitionLane = "audible" | "indexer";
+
 export type AcquisitionPlan = {
 	providerId: ProviderId,
 	selections: AcquisitionSelection[],
@@ -186,6 +193,7 @@ export type AppSettings = {
 	toolchain?: ToolchainPreferences,
 	startupBehavior?: StartupBehavior,
 	pinnedDefaults?: PinnedDefaults | null,
+	defaultAcquisitionLane?: AcquisitionLane,
 };
 
 export type AppSettingsPatch = {
@@ -199,6 +207,7 @@ export type AppSettingsPatch = {
 	 *  back to `RememberLastState`, never unpinning.
 	 */
 	pinnedDefaults: PinnedDefaults | null,
+	defaultAcquisitionLane: AcquisitionLane | null,
 };
 
 /**  Read-only chapter facts discovered while analyzing one audio file. */
@@ -734,7 +743,7 @@ export type ProgressSnapshot = {
 	etaSeconds: number | null,
 };
 
-export type ProviderId = "audible";
+export type ProviderId = "audible" | "indexer";
 
 /**  Batch queue snapshot for frontend communication */
 export type QueueEvent = {
@@ -757,7 +766,7 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  staging source could not be purged. Non-blocking: the startup session
  *  sweep removes it on next launch.
  */
-"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "cancelled";
+"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
@@ -766,7 +775,7 @@ export type RemoteAuthCompletionRequest = {
 	responseUrlHandoffPath: string | null,
 };
 
-export type RemoteAuthFlow = "externalBrowserHandoff";
+export type RemoteAuthFlow = "externalBrowserHandoff" | "apiKey";
 
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
@@ -775,9 +784,63 @@ export type RemoteAuthStartResponse = {
 	message: string,
 };
 
+export type RemoteIndexerConnection = {
+	baseUrl: string | null,
+	categoryId: number,
+	apiKeyConfigured: boolean,
+};
+
+export type RemoteIndexerConnectionTestResult = {
+	ok: boolean,
+	message: string,
+};
+
+export type RemoteIndexerConnectionUpdate = {
+	baseUrl: string | null,
+	categoryId: number | null,
+	apiKey: string | null,
+	clearApiKey: boolean | null,
+};
+
 export type RemoteLibraryResponse = {
 	providerId: ProviderId,
 	titles: RemoteTitle[],
+	diagnostics: RemoteSourceDiagnostic[],
+};
+
+export type RemoteRelease = {
+	providerId: ProviderId,
+	guid: string,
+	indexerId: number,
+	title: string,
+	indexer: string,
+	sizeBytes: number,
+	protocol: RemoteReleaseProtocol,
+	seeders: number | null,
+};
+
+export type RemoteReleaseGrabRequest = {
+	release: RemoteRelease,
+};
+
+export type RemoteReleaseGrabResponse = {
+	providerId: ProviderId,
+	accepted: boolean,
+	message: string,
+	diagnostics: RemoteSourceDiagnostic[],
+};
+
+export type RemoteReleaseProtocol = "usenet" | "torrent" | "unknown";
+
+export type RemoteReleaseSearchRequest = {
+	author: string | null,
+	title: string | null,
+	query: string | null,
+};
+
+export type RemoteReleaseSearchResponse = {
+	providerId: ProviderId,
+	releases: RemoteRelease[],
 	diagnostics: RemoteSourceDiagnostic[],
 };
 
@@ -803,6 +866,8 @@ export type RemoteSourceProviderCapabilities = {
 	supportsTypeaheadFilter: boolean,
 	supportsSupplementalPdf: boolean,
 	supportsMaterializedAudio: boolean,
+	supportsReleaseSearch: boolean,
+	supportsReleaseGrab: boolean,
 	supportsRefresh: boolean,
 	requiresLiveSession: boolean,
 	knownUnsupportedReasons: RemoteAcquisitionFailureKind[],

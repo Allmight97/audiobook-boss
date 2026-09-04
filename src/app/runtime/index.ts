@@ -48,15 +48,19 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
 		});
 		const lookup = createMetadataLookupOwner({ input, metadata });
+		const remoteSource = createRemoteSourceOwner({
+			...capabilities.remoteSource,
+			input,
+		});
 		const processing = createProcessingOwner({
 			input,
 			metadata,
 			settings,
 			encodingRequest,
+			remoteSource,
 		});
 		processingHolder.current = processing;
-		const remoteSource = createRemoteSourceOwner({ input });
-		const workOperations = createWorkOperationsOwner();
+		const workOperations = createWorkOperationsOwner({ remoteSource });
 		settings.bindAfterReset((defaults) => {
 			output.applyDefaults(defaults.outputDefaults);
 			void settings.hydrateConcurrency({ preference: defaults.maxConcurrentJobs });

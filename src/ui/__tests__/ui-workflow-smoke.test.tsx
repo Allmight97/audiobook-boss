@@ -120,6 +120,7 @@ function appSettings(): AppSettings {
 		},
 		toolchain: {},
 		startupBehavior: 'rememberLastState',
+		defaultAcquisitionLane: 'audible',
 	};
 }
 

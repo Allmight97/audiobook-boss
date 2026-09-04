@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { OperationId } from '../../types/workRuntime';
+import type { RemoteSourceOwner } from '../remoteSource';
 import {
 	createWorkOperationsSession,
 	emptyWorkOperationsView,
@@ -14,9 +15,13 @@ export type WorkOperationsOwner = {
 	reset(): void;
 };
 
-export function createWorkOperationsOwner(): WorkOperationsOwner {
+export function createWorkOperationsOwner(deps: {
+	readonly remoteSource: Pick<RemoteSourceOwner, 'settleTerminalWork'>;
+}): WorkOperationsOwner {
 	const [view, setView] = createSignal(emptyWorkOperationsView());
-	const session = createWorkOperationsSession(setView);
+	const session = createWorkOperationsSession(setView, {
+		settleTerminalWork: (input) => deps.remoteSource.settleTerminalWork(input),
+	});
 
 	return {
 		view,

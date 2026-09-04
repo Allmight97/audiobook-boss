@@ -5,6 +5,9 @@ import {
 	type OutputDefaults as GeneratedOutputDefaults,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 	type RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
+	type RemoteIndexerConnectionUpdate as GeneratedRemoteIndexerConnectionUpdate,
+	type RemoteReleaseGrabRequest as GeneratedRemoteReleaseGrabRequest,
+	type RemoteReleaseSearchRequest as GeneratedRemoteReleaseSearchRequest,
 } from '../generated/tauri';
 import type {
 	EncoderSettings,
@@ -22,6 +25,9 @@ import type {
 	AcquisitionPlan,
 	ProviderId,
 	RemoteAuthCompletionRequest,
+	RemoteIndexerConnectionUpdate,
+	RemoteReleaseGrabRequest,
+	RemoteReleaseSearchRequest,
 } from '../../types/remoteSource';
 import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
@@ -120,6 +126,7 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 					outputDefaults: toGeneratedOutputDefaults(patch.pinnedDefaults.outputDefaults),
 				}
 			: null,
+		defaultAcquisitionLane: patch.defaultAcquisitionLane ?? null,
 	};
 }
 
@@ -249,6 +256,31 @@ export const commandSpecs = {
 		),
 	purge_remote_source_session: (args: { jobId: string }) =>
 		runGeneratedCommand(generatedCommands.purgeRemoteSourceSession(args.jobId)),
+	search_remote_source_releases: (args: { request: RemoteReleaseSearchRequest }) =>
+		runGeneratedCommand(
+			generatedCommands.searchRemoteSourceReleases(
+				denormalizeNullish(args.request) as GeneratedRemoteReleaseSearchRequest,
+			),
+			normalizeNullish,
+		),
+	grab_remote_source_release: (args: { request: RemoteReleaseGrabRequest }) =>
+		runGeneratedCommand(
+			generatedCommands.grabRemoteSourceRelease(
+				denormalizeNullish(args.request) as GeneratedRemoteReleaseGrabRequest,
+			),
+			normalizeNullish,
+		),
+	get_remote_source_indexer_connection: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.getRemoteSourceIndexerConnection(), normalizeNullish),
+	update_remote_source_indexer_connection: (args: { update: RemoteIndexerConnectionUpdate }) =>
+		runGeneratedCommand(
+			generatedCommands.updateRemoteSourceIndexerConnection(
+				denormalizeNullish(args.update) as GeneratedRemoteIndexerConnectionUpdate,
+			),
+			normalizeNullish,
+		),
+	test_remote_source_indexer_connection: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.testRemoteSourceIndexerConnection(), normalizeNullish),
 	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
 		runGeneratedCommand(generatedCommands.validateEncoderSettings(args.settings)),
 	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>

@@ -10,6 +10,7 @@ import { applyEncoderDefaults, resetEncoderPanelState } from '../encoderPanel/st
 vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		getAppSettings: vi.fn().mockResolvedValue({
+			defaultAcquisitionLane: 'audible',
 			maxConcurrentJobs: { mode: 'auto' },
 			encoderDefaults: {
 				settings: {
@@ -36,6 +37,20 @@ vi.mock('../../lib/tauri/client', () => ({
 		getRuntimeSettingsCapabilities: vi.fn().mockResolvedValue({
 			encoder: { availability: null },
 			maxConcurrentJobs: { allowAuto: true, fixedOptions: [1, 2, 4] },
+		}),
+		getRemoteSourceIndexerConnection: vi.fn().mockResolvedValue({
+			baseUrl: null,
+			categoryId: 3030,
+			apiKeyConfigured: false,
+		}),
+		updateRemoteSourceIndexerConnection: vi.fn().mockResolvedValue({
+			baseUrl: null,
+			categoryId: 3030,
+			apiKeyConfigured: false,
+		}),
+		testRemoteSourceIndexerConnection: vi.fn().mockResolvedValue({
+			ok: true,
+			message: 'Indexer connection test succeeded.',
 		}),
 	},
 }));

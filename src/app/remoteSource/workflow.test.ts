@@ -1,17 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
-import type { AcquisitionJob, RemoteLibraryResponse, RemoteTitle } from '../../types/remoteSource';
-import { supplementalAssetsForInputIds } from './sessionAssets';
-import { patchRemoteSourceState, resetRemoteSourceState } from './state';
+import type {
+	AcquisitionJob,
+	RemoteLibraryResponse,
+	RemoteRelease,
+	RemoteSourceProviderCapabilities,
+	RemoteTitle,
+} from '../../types/remoteSource';
+import type { InputOwner } from '../inputSession';
+import { createRemoteSourceOwner, type RemoteSourceOwner } from './owner';
 import {
-	makeRemoteSourceWorkflowServicesLayer,
 	ORDER_LOCKED_IMPORT_MESSAGE,
-	runRemoteSourceWorkflow,
 	STAGED_FILES_REMOVED_SUFFIX,
 	type RemoteSourceWorkflowServices,
 } from './workflow';
-import { resetRemoteSourceSessionAssets } from './sessionAssets';
-import { remoteSourceState } from './state';
 
 const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
 
@@ -151,31 +153,92 @@ function terminalJob(): AcquisitionJob {
 	};
 }
 
+function providerCapabilities(): RemoteSourceProviderCapabilities[] {
+	return [
+		{
+			providerId: 'audible',
+			label: 'Audible',
+			authFlow: 'externalBrowserHandoff',
+			supportsLibraryScan: true,
+			supportsPagedScan: false,
+			supportsTypeaheadFilter: true,
+			supportsSupplementalPdf: true,
+			supportsMaterializedAudio: true,
+			supportsReleaseSearch: false,
+			supportsReleaseGrab: false,
+			supportsRefresh: true,
+			requiresLiveSession: true,
+			knownUnsupportedReasons: [],
+		},
+		{
+			providerId: 'indexer',
+			label: 'Indexer',
+			authFlow: 'apiKey',
+			supportsLibraryScan: false,
+			supportsPagedScan: false,
+			supportsTypeaheadFilter: false,
+			supportsSupplementalPdf: false,
+			supportsMaterializedAudio: false,
+			supportsReleaseSearch: true,
+			supportsReleaseGrab: true,
+			supportsRefresh: false,
+			requiresLiveSession: false,
+			knownUnsupportedReasons: ['indexerConnectionRequired'],
+		},
+	];
+}
+
+function indexerRelease(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
+	return {
+		providerId: 'indexer',
+		guid: 'release-guid-1',
+		indexerId: 7,
+		title: 'Example Release',
+		indexer: 'Example Indexer',
+		sizeBytes: 1_024_000_000,
+		protocol: 'torrent',
+		seeders: 12,
+		...overrides,
+	};
+}
+
 function makeServices(
 	overrides: Partial<RemoteSourceWorkflowServices> = {},
 ): RemoteSourceWorkflowServices {
 	return {
-		getAccountState: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		listProviders: vi.fn(async () => providerCapabilities()),
+		getAccountState: vi.fn(async (providerId) => ({
+			providerId,
 			status: 'connected' as const,
 		})),
-		startAuth: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		startAuth: vi.fn(async (providerId) => ({
+			providerId,
 			authorizationUrl: 'https://example.test/auth',
 			handoffPathHint: '/tmp/handoff',
 			message: 'Open Audible to continue.',
 		})),
 		openAuthorizationUrl: vi.fn(async () => undefined),
-		completeAuth: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		completeAuth: vi.fn(async (providerId) => ({
+			providerId,
 			status: 'connected' as const,
 		})),
-		logout: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		logout: vi.fn(async (providerId) => ({
+			providerId,
 			status: 'needsAuth' as const,
 		})),
 		loadLibrary: vi.fn(async () => library()),
-		startAcquisition: vi.fn(async () => runningJob()),
+		searchReleases: vi.fn(async () => ({
+			providerId: 'indexer' as const,
+			releases: [indexerRelease()],
+			diagnostics: [],
+		})),
+		grabRelease: vi.fn(async () => ({
+			providerId: 'indexer' as const,
+			accepted: true,
+			message: 'Release sent to Indexer.',
+			diagnostics: [],
+		})),
+		startAcquisition: vi.fn(async (_providerId, _selections) => runningJob()),
 		getAcquisitionStatus: vi.fn(async () => terminalJob()),
 		cancelAcquisition: vi.fn(async () => ({
 			...runningJob(),
@@ -196,26 +259,33 @@ function makeServices(
 	};
 }
 
-describe('remote source acquisition workflow', () => {
-	beforeEach(() => {
-		resetRemoteSourceState();
-		resetRemoteSourceSessionAssets();
+function makeOwner(
+	services: RemoteSourceWorkflowServices,
+	loadCoverArtFromUrl?: (url: string) => Promise<number[]>,
+): RemoteSourceOwner {
+	return createRemoteSourceOwner({
+		services,
+		input: {} as InputOwner,
+		loadCoverArtFromUrl,
 	});
+}
 
+describe('remote source acquisition workflow', () => {
 	it('rekeys supplemental PDFs through the Input file list after a successful handoff', async () => {
 		const services = makeServices();
-		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
+		const owner = makeOwner(services);
+		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await owner.runAction({
 			type: 'acquireSelected',
 		});
 
-		expect(services.startAcquisition).toHaveBeenCalledWith([
+		expect(services.startAcquisition).toHaveBeenCalledWith('audible', [
 			{ titleId: 'B000000001', includeSupplementalPdf: false },
 		]);
 		expect(services.importMaterializedPaths).toHaveBeenCalledWith(['/session/book.m4b']);
 		expect(services.purgeSession).not.toHaveBeenCalled();
-		expect(supplementalAssetsForInputIds(['current-input-1'])).toEqual({
+		expect(owner.processingAssets(['current-input-1'])).toEqual({
 			'current-input-1': [
 				{
 					assetId: 'pdf-1',
@@ -228,7 +298,7 @@ describe('remote source acquisition workflow', () => {
 				},
 			],
 		});
-		expect(remoteSourceState.statusMessage).toBe('1 acquired title imported.');
+		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
 	});
 
 	it('publishes polled getAcquisitionStatus download progress before the job terminals', async () => {
@@ -240,32 +310,29 @@ describe('remote source acquisition workflow', () => {
 			readonly bytesTotal?: number;
 		}> = [];
 		let polls = 0;
+		let owner!: RemoteSourceOwner;
 		const services = makeServices({
 			getAcquisitionStatus: vi.fn(async () => {
 				polls += 1;
 				if (polls === 1) {
 					return downloadingJob();
 				}
+				const progress = owner.view().activeJob?.progress;
+				if (progress) {
+					published.push({
+						stage: progress.stage,
+						percentage: progress.percentage,
+						message: progress.message,
+						bytesDownloaded: progress.bytesDownloaded,
+						bytesTotal: progress.bytesTotal,
+					});
+				}
 				return terminalJob();
 			}),
 		});
-		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
-
-		await runRemoteSourceWorkflow(
-			makeRemoteSourceWorkflowServicesLayer(services),
-			{ type: 'acquireSelected' },
-			() => {
-				const progress = remoteSourceState.activeJob?.progress;
-				if (!progress) return;
-				published.push({
-					stage: progress.stage,
-					percentage: progress.percentage,
-					message: progress.message,
-					bytesDownloaded: progress.bytesDownloaded,
-					bytesTotal: progress.bytesTotal,
-				});
-			},
-		);
+		owner = makeOwner(services);
+		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.runAction({ type: 'acquireSelected' });
 
 		expect(published).toContainEqual({
 			stage: 'download',
@@ -284,54 +351,58 @@ describe('remote source acquisition workflow', () => {
 				message: ORDER_LOCKED_IMPORT_MESSAGE,
 			})),
 		});
-		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
+		const owner = makeOwner(services);
+		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await owner.runAction({
 			type: 'acquireSelected',
 		});
 
 		expect(services.purgeSession).toHaveBeenCalledWith('remote-job-1');
-		expect(supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
-		expect(remoteSourceState.activeJob?.materializedFiles).toEqual([]);
-		expect(remoteSourceState.statusMessage).toContain(STAGED_FILES_REMOVED_SUFFIX);
+		expect(owner.processingAssets(['current-input-1'])).toBeUndefined();
+		expect(owner.view().activeJob?.materializedFiles).toEqual([]);
+		expect(owner.view().statusMessage).toContain(STAGED_FILES_REMOVED_SUFFIX);
 	});
 
 	it('does not call native cancel when the dialog closes during an in-flight acquisition', async () => {
 		let polls = 0;
+		let owner!: RemoteSourceOwner;
 		const services = makeServices({
 			getAcquisitionStatus: vi.fn(async () => {
 				polls += 1;
 				if (polls === 1) {
-					patchRemoteSourceState({ isOpen: false, didHydrateOpenDialog: false });
+					owner.close();
 					return runningJob();
 				}
 				return terminalJob();
 			}),
 		});
-		patchRemoteSourceState({
+		owner = makeOwner(services);
+		owner.patch({
 			isOpen: true,
 			selectedTitleIds: new Set(['B000000001']),
 		});
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await owner.runAction({
 			type: 'acquireSelected',
 		});
 
 		expect(services.cancelAcquisition).not.toHaveBeenCalled();
-		expect(remoteSourceState.isOpen).toBe(false);
+		expect(owner.view().isOpen).toBe(false);
 		expect(services.importMaterializedPaths).toHaveBeenCalled();
 	});
 
 	it('cancels only through the explicit cancel action', async () => {
 		const services = makeServices();
-		patchRemoteSourceState({ activeJob: runningJob() });
+		const owner = makeOwner(services);
+		owner.patch({ activeJob: runningJob() });
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await owner.runAction({
 			type: 'cancelActiveAcquisition',
 		});
 
 		expect(services.cancelAcquisition).toHaveBeenCalledWith('remote-job-1');
-		expect(remoteSourceState.statusMessage).toBe('Cancelled.');
+		expect(owner.view().statusMessage).toBe('Cancelled.');
 	});
 
 	it('does not let a late acquisition poll overwrite native cancellation', async () => {
@@ -339,24 +410,85 @@ describe('remote source acquisition workflow', () => {
 		const services = makeServices({
 			getAcquisitionStatus: vi.fn(() => latePoll.promise),
 		});
-		patchRemoteSourceState({ selectedTitleIds: new Set(['B000000001']) });
+		const owner = makeOwner(services);
+		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
 
-		const acquisition = runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		const acquisition = owner.runAction({
 			type: 'acquireSelected',
 		});
 		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
 
-		await runRemoteSourceWorkflow(makeRemoteSourceWorkflowServicesLayer(services), {
+		await owner.runAction({
 			type: 'cancelActiveAcquisition',
 		});
-		expect(remoteSourceState.activeJob?.status).toBe('cancelled');
-		expect(remoteSourceState.isBusy).toBe(false);
+		expect(owner.view().activeJob?.status).toBe('cancelled');
+		expect(owner.view().isBusy).toBe(false);
 
 		latePoll.resolve(downloadingJob());
 		await acquisition;
 
-		expect(remoteSourceState.activeJob?.status).toBe('cancelled');
-		expect(remoteSourceState.activeJob?.progress?.percentage).toBe(10);
+		expect(owner.view().activeJob?.status).toBe('cancelled');
+		expect(owner.view().activeJob?.progress?.percentage).toBe(10);
 		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
+	});
+
+	it('keeps acquisition state and supplemental assets isolated across owners', async () => {
+		const first = makeOwner(makeServices());
+		const second = makeOwner(makeServices());
+		first.patch({ selectedTitleIds: new Set(['B000000001']) });
+		second.patch({ selectedTitleIds: new Set(['B000000001']), isOpen: true });
+
+		await first.runAction({ type: 'acquireSelected' });
+		await second.runAction({ type: 'acquireSelected' });
+		expect(first.hasCompanions('current-input-1')).toBe(true);
+		expect(second.hasCompanions('current-input-1')).toBe(true);
+
+		first.reset();
+		expect(first.hasCompanions('current-input-1')).toBe(false);
+		expect(second.hasCompanions('current-input-1')).toBe(true);
+		expect(second.view().isOpen).toBe(true);
+	});
+
+	it('keeps retain, reconcile, and purge sequencing isolated across owners', async () => {
+		const firstServices = makeServices();
+		const secondServices = makeServices();
+		const first = makeOwner(firstServices);
+		const second = makeOwner(secondServices);
+		first.patch({ selectedTitleIds: new Set(['B000000001']) });
+		second.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await first.runAction({ type: 'acquireSelected' });
+		await second.runAction({ type: 'acquireSelected' });
+		await first.reconcileWithInput(fileList().files);
+		await second.reconcileWithInput(fileList().files);
+
+		await first.withSubmissionRetention(['current-input-1'], async () => 'accepted');
+		await first.reconcileWithInput([]);
+		await second.reconcileWithInput([]);
+
+		expect(firstServices.purgeSession).not.toHaveBeenCalled();
+		expect(secondServices.purgeSession).toHaveBeenCalledWith('remote-job-1');
+		await first.settleTerminalWork({
+			inputIds: ['current-input-1'],
+			completedInputIds: [],
+		});
+		expect(firstServices.purgeSession).toHaveBeenCalledWith('remote-job-1');
+	});
+
+	it('keeps cover preview cancellation and cache state isolated across owners', async () => {
+		const firstLoad = createDeferred<number[]>();
+		const first = makeOwner(makeServices(), () => firstLoad.promise);
+		const second = makeOwner(makeServices(), async () => [0xff, 0xd8, 0xff]);
+
+		first.scheduleCoverPreviews(['https://covers.example/first.jpg']);
+		second.scheduleCoverPreviews(['https://covers.example/second.jpg']);
+		await vi.waitFor(() =>
+			expect(second.coverPreview('https://covers.example/second.jpg').status).toBe('ready'),
+		);
+
+		first.reset();
+		firstLoad.resolve([0xff, 0xd8, 0xff]);
+		await Promise.resolve();
+		expect(first.coverPreview('https://covers.example/first.jpg').status).toBe('idle');
+		expect(second.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 });

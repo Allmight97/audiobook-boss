@@ -1,6 +1,11 @@
 import type { InputView } from '../inputSession';
 import { tauriClient } from '../../lib/tauri/client';
-import { remoteSourceProviderId, type RemoteInputHandoffResult } from './types';
+import type {
+	ProviderId,
+	RemoteReleaseGrabRequest,
+	RemoteReleaseSearchRequest,
+} from '../../types/remoteSource';
+import type { RemoteInputHandoffResult } from './types';
 import { ORDER_LOCKED_IMPORT_MESSAGE } from './workflow';
 import type { RemoteSourceWorkflowServices } from './workflow';
 
@@ -13,19 +18,25 @@ export function makeProductionRemoteSourceServices(
 	bridge: RemoteSourceInputBridge,
 ): RemoteSourceWorkflowServices {
 	return {
-		getAccountState: () => tauriClient.getRemoteSourceAccountState(remoteSourceProviderId),
-		startAuth: () => tauriClient.startRemoteSourceAuth(remoteSourceProviderId),
+		listProviders: () => tauriClient.listRemoteSourceProviders(),
+		getAccountState: (providerId: ProviderId) =>
+			tauriClient.getRemoteSourceAccountState(providerId),
+		startAuth: (providerId: ProviderId) => tauriClient.startRemoteSourceAuth(providerId),
 		openAuthorizationUrl: (url) => tauriClient.openUrl(url),
-		completeAuth: (responseUrlHandoffPath) =>
+		completeAuth: (providerId, responseUrlHandoffPath) =>
 			tauriClient.completeRemoteSourceAuth({
-				providerId: remoteSourceProviderId,
+				providerId,
 				responseUrlHandoffPath,
 			}),
-		logout: () => tauriClient.logoutRemoteSourceAccount(remoteSourceProviderId),
-		loadLibrary: () => tauriClient.loadRemoteSourceLibrary(remoteSourceProviderId),
-		startAcquisition: (selections) =>
+		logout: (providerId: ProviderId) => tauriClient.logoutRemoteSourceAccount(providerId),
+		loadLibrary: (providerId: ProviderId) => tauriClient.loadRemoteSourceLibrary(providerId),
+		searchReleases: (request: RemoteReleaseSearchRequest) =>
+			tauriClient.searchRemoteSourceReleases(request),
+		grabRelease: (request: RemoteReleaseGrabRequest) =>
+			tauriClient.grabRemoteSourceRelease(request),
+		startAcquisition: (providerId, selections) =>
 			tauriClient.startRemoteSourceAcquisition({
-				providerId: remoteSourceProviderId,
+				providerId,
 				selections: [...selections],
 			}),
 		getAcquisitionStatus: (jobId) => tauriClient.getRemoteSourceAcquisitionStatus(jobId),
@@ -33,6 +44,16 @@ export function makeProductionRemoteSourceServices(
 		purgeSession: (jobId) => tauriClient.purgeRemoteSourceSession(jobId),
 		importMaterializedPaths: (paths) => importMaterializedPathsThroughInput(bridge, paths),
 		sleep: (ms) => new Promise((resolve) => window.setTimeout(resolve, ms)),
+	};
+}
+
+export function makeProductionIndexerConnectionServices() {
+	return {
+		getIndexerConnection: () => tauriClient.getRemoteSourceIndexerConnection(),
+		updateIndexerConnection: (
+			update: Parameters<typeof tauriClient.updateRemoteSourceIndexerConnection>[0],
+		) => tauriClient.updateRemoteSourceIndexerConnection(update),
+		testIndexerConnection: () => tauriClient.testRemoteSourceIndexerConnection(),
 	};
 }
 

@@ -1,31 +1,16 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
+import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
-const context = vi.hoisted(() => ({
-	getAppSettingsMock: vi.fn(),
-	updateAppSettingsMock: vi.fn(),
-	resetAppSettingsMock: vi.fn(),
-	openFileMock: vi.fn(),
-	getRuntimeSettingsCapabilitiesMock: vi.fn(),
-}));
-
-vi.mock('../../lib/tauri/client', () => ({
-	tauriClient: {
-		getAppSettings: context.getAppSettingsMock,
-		updateAppSettings: context.updateAppSettingsMock,
-		resetAppSettings: context.resetAppSettingsMock,
-		openFile: context.openFileMock,
-		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
-	},
-}));
-
-function settingsFixture(): AppSettings {
+function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 	return {
+		defaultAcquisitionLane: 'audible',
 		maxConcurrentJobs: { mode: 'auto' },
 		encoderDefaults: {
 			settings: {
@@ -45,11 +30,31 @@ function settingsFixture(): AppSettings {
 		},
 		toolchain: {},
 		startupBehavior: 'rememberLastState',
+		...overrides,
+	};
+}
+
+function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapability {
+	return {
+		getAppSettings: vi.fn(async () => settingsFixture()),
+		updateAppSettings: vi.fn(async (patch) =>
+			settingsFixture({
+				defaultAcquisitionLane:
+					patch.defaultAcquisitionLane ?? settingsFixture().defaultAcquisitionLane,
+			}),
+		),
+		resetAppSettings: vi.fn(async () => settingsFixture()),
+		openFile: vi.fn(async () => null),
+		getMaxConcurrentJobs: vi.fn(async () => 4),
+		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
+		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),
+		...overrides,
 	};
 }
 
 describe('AppSettingsDialogView', () => {
 	let runtime: AppRuntime | undefined;
+	let settings: SettingsCapability;
 
 	afterEach(() => {
 		cleanup();
@@ -57,18 +62,11 @@ describe('AppSettingsDialogView', () => {
 		runtime = undefined;
 	});
 
-	beforeEach(() => {
-		vi.clearAllMocks();
-		context.getAppSettingsMock.mockResolvedValue(settingsFixture());
-		context.resetAppSettingsMock.mockResolvedValue(settingsFixture());
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue({
-			encoder: { availability: null },
-			maxConcurrentJobs: { allowAuto: true, fixedOptions: [1, 2, 4] },
-		});
-	});
-
-	async function renderOpenDialog(): Promise<AppRuntime> {
-		runtime = createTestAppRuntime();
+	async function renderOpenDialog(
+		overrides: Partial<SettingsCapability> = {},
+	): Promise<AppRuntime> {
+		settings = fakeSettings(overrides);
+		runtime = createTestAppRuntime({ settings });
 		await runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -82,11 +80,11 @@ describe('AppSettingsDialogView', () => {
 		await renderOpenDialog();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
-		expect(context.resetAppSettingsMock).not.toHaveBeenCalled();
+		expect(settings.resetAppSettings).not.toHaveBeenCalled();
 		expect(screen.getByTestId('app-settings-reset-confirm-prompt')).toBeInTheDocument();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
-		expect(context.resetAppSettingsMock).toHaveBeenCalledTimes(1);
+		expect(settings.resetAppSettings).toHaveBeenCalledTimes(1);
 	});
 
 	it('returns to idle when the confirm step is cancelled', async () => {
@@ -95,7 +93,7 @@ describe('AppSettingsDialogView', () => {
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
 		await fireEvent.click(screen.getByTestId('app-settings-reset-cancel'));
 
-		expect(context.resetAppSettingsMock).not.toHaveBeenCalled();
+		expect(settings.resetAppSettings).not.toHaveBeenCalled();
 		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
 		expect(screen.getByTestId('app-settings-reset')).toBeInTheDocument();
 	});
@@ -110,7 +108,8 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('closes on Escape after opening post-mount, even with focus outside the dialog', async () => {
-		runtime = createTestAppRuntime();
+		settings = fakeSettings();
+		runtime = createTestAppRuntime({ settings });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<AppSettingsDialogView />
@@ -122,5 +121,16 @@ describe('AppSettingsDialogView', () => {
 		await fireEvent.keyDown(document.body, { key: 'Escape' });
 
 		expect(runtime.settings.dialog().isOpen).toBe(false);
+	});
+
+	it('persists default acquisition lane when the Indexer radio is selected', async () => {
+		await renderOpenDialog();
+
+		await fireEvent.click(screen.getByTestId('app-settings-default-lane-indexer'));
+
+		expect(settings.updateAppSettings).toHaveBeenCalledWith({
+			defaultAcquisitionLane: 'indexer',
+		});
+		expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer');
 	});
 });

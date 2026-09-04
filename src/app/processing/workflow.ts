@@ -35,11 +35,7 @@ import {
 	validInputIds,
 	validInputFilePaths,
 } from './workflowPreparation';
-import {
-	purgeRemoteSourceSessionsForInputIds,
-	releaseRemoteSourceSessionRetainers,
-	retainRemoteSourceSessionsForInputIds,
-} from '../../ui/remoteSource';
+import type { RemoteSourceOwner } from '../remoteSource';
 import type { openGeneratedPreviewIfSingle } from './preview';
 import type { readProcessingRequestConfig } from './config';
 import type { ProcessingStatus } from './state';
@@ -75,6 +71,7 @@ export interface ProcessingWorkflowServices {
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: StatusPanelFeedbackService;
 	console: Pick<Console, 'error' | 'log' | 'warn'>;
+	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 }
 
 export type ProcessingWorkflowServicesId = 'StatusPanel/ProcessingWorkflowServices';
@@ -228,25 +225,6 @@ function processingCommand(
 	});
 }
 
-function submitProcessingCommand(
-	services: ProcessingWorkflowServices,
-	request: {
-		payload: ProcessPayload;
-		metadataIntentByPath: MetadataIntentByPath | null;
-		previewSeconds?: number;
-	},
-): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
-	return Effect.tryPromise({
-		try: () =>
-			services.submitProcessingOperation({
-				payload: request.payload,
-				metadataIntent: request.metadataIntentByPath,
-				previewSeconds: request.previewSeconds,
-			}),
-		catch: toProcessingWorkflowError,
-	});
-}
-
 function submitRetainedProcessingCommand(
 	services: ProcessingWorkflowServices,
 	request: {
@@ -255,24 +233,15 @@ function submitRetainedProcessingCommand(
 		inputIds: readonly (string | undefined)[];
 	},
 ): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
-	return Effect.gen(function* () {
-		yield* Effect.sync(() => retainRemoteSourceSessionsForInputIds(request.inputIds));
-		return yield* submitProcessingCommand(services, request).pipe(
-			Effect.catch((error) =>
-				Effect.tryPromise({
-					try: async () => {
-						const pendingPurgeInputIds = releaseRemoteSourceSessionRetainers(request.inputIds);
-						if (pendingPurgeInputIds.length > 0) {
-							await purgeRemoteSourceSessionsForInputIds(pendingPurgeInputIds);
-						}
-					},
-					catch: () => undefined,
-				}).pipe(
-					Effect.catch(() => Effect.succeed(undefined)),
-					Effect.flatMap(() => Effect.fail(error)),
-				),
+	return Effect.tryPromise({
+		try: () =>
+			services.remoteSource.withSubmissionRetention(request.inputIds, () =>
+				services.submitProcessingOperation({
+					payload: request.payload,
+					metadataIntent: request.metadataIntentByPath,
+				}),
 			),
-		);
+		catch: toProcessingWorkflowError,
 	});
 }
 
@@ -440,6 +409,7 @@ export function processingWorkflowProgram(
 			inputIds,
 			processingRequestConfig,
 			jobType,
+			services.remoteSource.processingAssets(inputIds),
 		);
 		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
 

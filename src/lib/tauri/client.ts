@@ -39,7 +39,14 @@ import type {
 	ProviderId,
 	RemoteAuthCompletionRequest,
 	RemoteAuthStartResponse,
+	RemoteIndexerConnection,
+	RemoteIndexerConnectionTestResult,
+	RemoteIndexerConnectionUpdate,
 	RemoteLibraryResponse,
+	RemoteReleaseGrabRequest,
+	RemoteReleaseGrabResponse,
+	RemoteReleaseSearchRequest,
+	RemoteReleaseSearchResponse,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
@@ -251,6 +258,21 @@ export const tauriClient = {
 		commandSpecs.cancel_remote_source_acquisition({ jobId }),
 	purgeRemoteSourceSession: (jobId: string): Promise<void> =>
 		commandSpecs.purge_remote_source_session({ jobId }).then(() => undefined),
+	searchRemoteSourceReleases: (
+		request: RemoteReleaseSearchRequest,
+	): Promise<RemoteReleaseSearchResponse> =>
+		commandSpecs.search_remote_source_releases({ request }),
+	grabRemoteSourceRelease: (
+		request: RemoteReleaseGrabRequest,
+	): Promise<RemoteReleaseGrabResponse> => commandSpecs.grab_remote_source_release({ request }),
+	getRemoteSourceIndexerConnection: (): Promise<RemoteIndexerConnection> =>
+		commandSpecs.get_remote_source_indexer_connection(),
+	updateRemoteSourceIndexerConnection: (
+		update: RemoteIndexerConnectionUpdate,
+	): Promise<RemoteIndexerConnection> =>
+		commandSpecs.update_remote_source_indexer_connection({ update }),
+	testRemoteSourceIndexerConnection: (): Promise<RemoteIndexerConnectionTestResult> =>
+		commandSpecs.test_remote_source_indexer_connection(),
 	validateEncoderSettings: (
 		settings: EncoderSettings,
 	): Promise<CommandResult<'validate_encoder_settings'>> =>

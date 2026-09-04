@@ -1,11 +1,15 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resetRemoteSource } from '../../app/remoteSource';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createTestAppRuntime } from '../../app/runtime/harness';
 import type { AppRuntime } from '../../app/runtime';
 import { tauriClient } from '../../lib/tauri/client';
-import type { AcquisitionJob, RemoteTitle } from '../../types/remoteSource';
+import type {
+	AcquisitionJob,
+	RemoteSourceProviderCapabilities,
+	RemoteTitle,
+} from '../../types/remoteSource';
 import { RemoteSourceAcquireView } from './RemoteSourceAcquireView';
 
 function createDeferred<T>() {
@@ -36,6 +40,41 @@ function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
 	};
 }
 
+function providerCapabilities(): RemoteSourceProviderCapabilities[] {
+	return [
+		{
+			providerId: 'audible',
+			label: 'Audible',
+			authFlow: 'externalBrowserHandoff',
+			supportsLibraryScan: true,
+			supportsPagedScan: false,
+			supportsTypeaheadFilter: true,
+			supportsSupplementalPdf: true,
+			supportsMaterializedAudio: true,
+			supportsReleaseSearch: false,
+			supportsReleaseGrab: false,
+			supportsRefresh: true,
+			requiresLiveSession: true,
+			knownUnsupportedReasons: [],
+		},
+		{
+			providerId: 'indexer',
+			label: 'Indexer',
+			authFlow: 'apiKey',
+			supportsLibraryScan: false,
+			supportsPagedScan: false,
+			supportsTypeaheadFilter: false,
+			supportsSupplementalPdf: false,
+			supportsMaterializedAudio: false,
+			supportsReleaseSearch: true,
+			supportsReleaseGrab: true,
+			supportsRefresh: false,
+			requiresLiveSession: false,
+			knownUnsupportedReasons: ['indexerConnectionRequired'],
+		},
+	];
+}
+
 function remoteTitle(): RemoteTitle {
 	return {
 		providerId: 'audible',
@@ -62,7 +101,6 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		cleanup();
 		runtime?.dispose();
 		runtime = undefined;
-		resetRemoteSource();
 		vi.restoreAllMocks();
 		document.body.innerHTML = '';
 	});
@@ -78,6 +116,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		runtime.remoteSource.open();
+		await Promise.resolve();
 
 		await fireEvent.keyDown(document.getElementById('remote-source-close') as Element, {
 			key: 'Escape',
@@ -107,6 +146,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			titles: [remoteTitle()],
 			selectedTitleIds: new Set(['B000000001']),
 		});
+		await Promise.resolve();
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Acquire Selected' }));
 		await vi.waitFor(() =>
@@ -121,7 +161,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		await vi.waitFor(() => expect(runtime!.remoteSource.view().isBusy).toBe(false));
 	});
 
-	it('keeps connected toolbar actions and Filter as sibling fields on the dialog panel', () => {
+	it('keeps connected toolbar actions and Filter as sibling fields on the dialog panel', async () => {
 		runtime = createTestAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -131,9 +171,12 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		runtime.remoteSource.patch({
 			isOpen: true,
 			didHydrateOpenDialog: true,
+			providerId: 'audible',
+			providers: providerCapabilities(),
 			accountState: { providerId: 'audible', status: 'connected' },
 			titles: [remoteTitle()],
 		});
+		await Promise.resolve();
 
 		const dialog = screen.getByRole('dialog', { name: 'Acquire Audiobooks' });
 		expect(dialog.classList.contains('abb-dialog')).toBe(true);
@@ -171,5 +214,60 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(filterField).not.toBe(acquireField);
 		expect(filterField?.contains(screen.getByLabelText('Filter'))).toBe(true);
 		expect(filterField?.previousElementSibling).toBe(acquireField);
+	});
+
+	it('switches source lanes from the enabled provider control', async () => {
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue(providerCapabilities());
+		vi.spyOn(tauriClient, 'getRemoteSourceAccountState').mockResolvedValue({
+			providerId: 'indexer',
+			status: 'needsAuth',
+			message: 'Configure Indexer URL and API key in Settings before searching.',
+		});
+
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		runtime.remoteSource.patch({
+			isOpen: true,
+			didHydrateOpenDialog: true,
+			providerId: 'audible',
+			providers: providerCapabilities(),
+			accountState: { providerId: 'audible', status: 'connected' },
+			titles: [remoteTitle()],
+		});
+		await Promise.resolve();
+
+		const user = userEvent.setup();
+		await user.selectOptions(screen.getByTestId('remote-source-provider'), 'indexer');
+		await Promise.resolve();
+
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('indexer'), {
+			timeout: 2000,
+		});
+		expect(screen.getByTestId('remote-indexer-settings-needed')).toBeInTheDocument();
+	});
+
+	it('shows indexer search controls when the lane is connected', async () => {
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		runtime.remoteSource.patch({
+			isOpen: true,
+			didHydrateOpenDialog: true,
+			providerId: 'indexer',
+			providers: providerCapabilities(),
+			accountState: { providerId: 'indexer', status: 'connected' },
+		});
+		await Promise.resolve();
+
+		expect(screen.queryByTestId('remote-indexer-settings-needed')).not.toBeInTheDocument();
+		expect(screen.getByTestId('remote-source-indexer-author')).toBeEnabled();
+		expect(screen.getByRole('button', { name: 'Search' })).toBeEnabled();
 	});
 });

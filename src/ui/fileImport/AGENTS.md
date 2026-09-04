@@ -11,8 +11,10 @@
 - Dispatch Input `importIntent` for pick-files, pick-folder, path import, and
   opened-file drain. Do not add a parallel import workflow in this folder.
 - Cover-art native drops dispatch Metadata `applyCoverArtDrop`.
-- Compose `RemoteSourceAcquireView` next to the Import from Library button.
-  Remote session purge tracks Input file identity through Remote Source.
+- Compose `RemoteSourceAcquireView` next to the Import split button. Main click
+  opens `settings.defaultAcquisitionLane`; caret picks Audible or Indexer via
+  `remoteSource.open({ lane })`. Remote session purge tracks Input file identity
+  through Remote Source.
 
 ## Hard Invariants
 

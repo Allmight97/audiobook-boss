@@ -1,5 +1,6 @@
-import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js';
-import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
+import { createEffect, createSignal, onCleanup, onMount, Show, untrack, type JSX } from 'solid-js';
+
+import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
 import { readFdkAfterburner, subscribeEncoderPanel } from '../encoderPanel';
@@ -54,8 +55,11 @@ function formatFdkSource(source: string): string {
 }
 
 export function AppSettingsDialogView(): JSX.Element {
-	const settings = useAppRuntime().settings;
+	const runtime = useAppRuntime();
+	const settings = runtime.settings;
+	const remoteSource = runtime.remoteSource;
 	const state = settings.dialog;
+	const indexerConnection = remoteSource.indexerConnection;
 	const [resetConfirming, setResetConfirming] = createSignal(false);
 	const [afterburnerRevision, setAfterburnerRevision] = createSignal(0);
 	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -87,7 +91,13 @@ export function AppSettingsDialogView(): JSX.Element {
 	}
 
 	createEffect(() => {
-		if (!state().isOpen) cancelResetConfirm();
+		if (!state().isOpen) {
+			cancelResetConfirm();
+			return;
+		}
+		untrack(() => {
+			void remoteSource.loadIndexerConnectionSettings();
+		});
 	});
 
 	onMount(() => {
@@ -104,6 +114,7 @@ export function AppSettingsDialogView(): JSX.Element {
 
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
+	const defaultAcquisitionLane = (): AcquisitionLane => settings.defaultAcquisitionLane();
 	const afterburner = () => {
 		afterburnerRevision();
 		return readFdkAfterburner();
@@ -204,6 +215,152 @@ export function AppSettingsDialogView(): JSX.Element {
 					<Show when={state().settings}>
 						{(_) => (
 							<>
+								<section class="app-settings-section">
+									<h4 class="app-settings-section-title">Import</h4>
+									<p class="muted-text">
+										Choose which source the Import button opens by default. Use the caret to pick
+										the other source any time.
+									</p>
+									<div
+										class="app-settings-startup-options"
+										role="radiogroup"
+										aria-label="Default acquisition lane"
+									>
+										<label class="app-settings-radio">
+											<input
+												type="radio"
+												name="app-settings-default-acquisition-lane"
+												value="audible"
+												data-testid="app-settings-default-lane-audible"
+												checked={defaultAcquisitionLane() === 'audible'}
+												onChange={() => void settings.setDefaultAcquisitionLane('audible')}
+											/>
+											Audible
+										</label>
+										<label class="app-settings-radio">
+											<input
+												type="radio"
+												name="app-settings-default-acquisition-lane"
+												value="indexer"
+												data-testid="app-settings-default-lane-indexer"
+												checked={defaultAcquisitionLane() === 'indexer'}
+												onChange={() => void settings.setDefaultAcquisitionLane('indexer')}
+											/>
+											Indexer
+										</label>
+									</div>
+								</section>
+								<section class="app-settings-section">
+									<h4 class="app-settings-section-title">Indexer connection</h4>
+									<p class="muted-text">
+										Configure your Indexer URL, API key, and audiobook category. The API key is
+										stored securely and is never shown again after save.
+									</p>
+									<div class="app-settings-path-row">
+										<label class="app-settings-field-label" for="app-settings-indexer-url">
+											URL
+										</label>
+										<input
+											id="app-settings-indexer-url"
+											class="app-settings-path-input"
+											data-testid="app-settings-indexer-url"
+											type="text"
+											placeholder="http://192.168.0.20:9696"
+											value={indexerConnection().baseUrlDraft}
+											onInput={(event) =>
+												remoteSource.patchIndexerConnectionSettings({
+													baseUrlDraft: event.currentTarget.value,
+												})
+											}
+										/>
+									</div>
+									<div class="app-settings-path-row">
+										<label class="app-settings-field-label" for="app-settings-indexer-category">
+											Category
+										</label>
+										<input
+											id="app-settings-indexer-category"
+											class="app-settings-path-input app-settings-number-input"
+											data-testid="app-settings-indexer-category"
+											type="number"
+											min="0"
+											value={String(indexerConnection().categoryIdDraft)}
+											onInput={(event) => {
+												const parsed = Number.parseInt(event.currentTarget.value, 10);
+												if (!Number.isNaN(parsed)) {
+													remoteSource.patchIndexerConnectionSettings({
+														categoryIdDraft: parsed,
+													});
+												}
+											}}
+										/>
+									</div>
+									<div class="app-settings-path-row">
+										<label class="app-settings-field-label" for="app-settings-indexer-api-key">
+											API key
+										</label>
+										<input
+											id="app-settings-indexer-api-key"
+											class="app-settings-path-input"
+											data-testid="app-settings-indexer-api-key"
+											type="password"
+											placeholder={
+												indexerConnection().apiKeyConfigured
+													? 'Replace stored API key'
+													: 'Enter API key'
+											}
+											value={indexerConnection().apiKeyDraft}
+											onInput={(event) =>
+												remoteSource.patchIndexerConnectionSettings({
+													apiKeyDraft: event.currentTarget.value,
+												})
+											}
+										/>
+									</div>
+									<div class="app-settings-path-row">
+										<Button
+											tone="primary"
+											data-testid="app-settings-indexer-save"
+											disabled={indexerConnection().saveState === 'saving'}
+											onClick={() => void remoteSource.saveIndexerConnectionSettings()}
+										>
+											{indexerConnection().saveState === 'saving' ? 'Saving…' : 'Save'}
+										</Button>
+										<Button
+											data-testid="app-settings-indexer-test"
+											disabled={indexerConnection().testState === 'testing'}
+											onClick={() => void remoteSource.testIndexerConnection()}
+										>
+											{indexerConnection().testState === 'testing' ? 'Testing…' : 'Test'}
+										</Button>
+									</div>
+									<Show when={indexerConnection().saveState === 'error'}>
+										<p
+											class="app-settings-status app-settings-status-error"
+											data-testid="app-settings-indexer-save-error"
+										>
+											{indexerConnection().saveError}
+										</p>
+									</Show>
+									<Show
+										when={
+											indexerConnection().testState === 'success' ||
+											indexerConnection().testState === 'error'
+										}
+									>
+										<p
+											class={`app-settings-status${indexerConnection().testState === 'error' ? ' app-settings-status-error' : ''}`}
+											data-testid="app-settings-indexer-test-status"
+										>
+											{indexerConnection().testMessage}
+										</p>
+									</Show>
+									<Show when={indexerConnection().apiKeyConfigured}>
+										<p class="muted-text" data-testid="app-settings-indexer-key-configured">
+											An API key is configured. Enter a new key only to replace it.
+										</p>
+									</Show>
+								</section>
 								<section class="app-settings-section">
 									<h4 class="app-settings-section-title">Startup settings</h4>
 									<p class="muted-text">
@@ -307,10 +464,7 @@ export function AppSettingsDialogView(): JSX.Element {
 											>
 												Reset
 											</Button>
-											<Button
-												data-testid="app-settings-reset-cancel"
-												onClick={cancelResetConfirm}
-											>
+											<Button data-testid="app-settings-reset-cancel" onClick={cancelResetConfirm}>
 												Cancel
 											</Button>
 										</Show>

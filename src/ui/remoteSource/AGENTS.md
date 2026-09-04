@@ -14,7 +14,9 @@
   Do not add callers; after migration, nonvisual consumers import the App
   Runtime Remote Source owner and this UI index exposes the dialog view.
 - The acquire dialog is `RemoteSourceAcquireView.tsx`. File Import composes
-  it. Import acquire intents from `src/app/remoteSource`.
+  it. Import acquire intents and lane selection import from `src/app/remoteSource`.
+  The Source control switches Audible library mode vs Indexer search/grab mode
+  in one dialog instance.
 
 ## Private Cluster
 

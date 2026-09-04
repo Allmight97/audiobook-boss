@@ -3,10 +3,12 @@ import type { EncodingRequestConfig } from '../../types/audio';
 import type { SettingsOwner } from '../appSettings';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
+import type { RemoteSourceOwner } from '../remoteSource';
 import {
 	bindProcessingEncoding,
 	bindProcessingInput,
 	bindProcessingMetadata,
+	bindProcessingRemoteSource,
 	bindProcessingSettings,
 } from './bind';
 import { renderConcurrencyStatus } from './render';
@@ -39,6 +41,7 @@ export function createProcessingOwner(deps: {
 	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
 	readonly encodingRequest: Accessor<EncodingRequestConfig>;
+	readonly remoteSource: RemoteSourceOwner;
 }): ProcessingOwner {
 	const [status, setStatus] = createSignal(DEFAULT_STATUS_VIEW);
 	bindStatusPublisher(setStatus);
@@ -46,6 +49,7 @@ export function createProcessingOwner(deps: {
 	bindProcessingMetadata(deps.metadata);
 	bindProcessingSettings(deps.settings);
 	bindProcessingEncoding(() => deps.encodingRequest());
+	bindProcessingRemoteSource(deps.remoteSource);
 	resetStatusPanelViewState();
 	initStatusPanel();
 	createEffect(() => {

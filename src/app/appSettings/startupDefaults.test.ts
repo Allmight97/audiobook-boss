@@ -37,6 +37,7 @@ const lastUsed: AppSettings = {
 	},
 	toolchain: {},
 	startupBehavior: 'rememberLastState',
+	defaultAcquisitionLane: 'audible',
 };
 
 const pinned: PinnedDefaults = {

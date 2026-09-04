@@ -8,56 +8,38 @@ export const MAX_REMOTE_SOURCE_PREVIEW_CACHE_ENTRIES = DEFAULT_COVER_ART_PREVIEW
 
 export type RemoteSourceCoverPreviewState = CoverArtPreviewState;
 
-const remoteSourceCoverPreviewByUrl: Record<string, RemoteSourceCoverPreviewState> = {};
-const previewListeners = new Set<() => void>();
+export type RemoteSourceCoverPreviews = {
+	clear(): void;
+	cancel(): void;
+	getState(coverUrl: string | null | undefined): RemoteSourceCoverPreviewState;
+	schedule(coverUrls: ReadonlyArray<string | null | undefined>): void;
+};
 
-function notifyPreviewChanged(): void {
-	for (const listener of previewListeners) {
-		listener();
-	}
-}
+export function createRemoteSourceCoverPreviews(deps: {
+	readonly loadCoverArtFromUrl: (url: string) => Promise<number[]>;
+	readonly onChange: () => void;
+}): RemoteSourceCoverPreviews {
+	const previewByUrl: Record<string, RemoteSourceCoverPreviewState> = {};
+	const reactivePreviewByUrl = new Proxy(previewByUrl, {
+		set(target, key, value) {
+			Reflect.set(target, key, value);
+			deps.onChange();
+			return true;
+		},
+		deleteProperty(target, key) {
+			Reflect.deleteProperty(target, key);
+			deps.onChange();
+			return true;
+		},
+	});
+	const scheduler = createCoverArtPreviewScheduler(reactivePreviewByUrl, {
+		failureLogMessage: 'Failed to load remote source cover preview:',
+	});
 
-export function subscribeRemoteSourceCoverPreviews(listener: () => void): () => void {
-	previewListeners.add(listener);
-	return () => {
-		previewListeners.delete(listener);
+	return {
+		clear: () => scheduler.clear(),
+		cancel: () => scheduler.cancel(),
+		getState: (coverUrl) => scheduler.getState(coverUrl),
+		schedule: (coverUrls) => scheduler.schedule(coverUrls, deps.loadCoverArtFromUrl),
 	};
-}
-
-const reactivePreviewByUrl = new Proxy(remoteSourceCoverPreviewByUrl, {
-	set(target, key, value) {
-		Reflect.set(target, key, value);
-		notifyPreviewChanged();
-		return true;
-	},
-	deleteProperty(target, key) {
-		Reflect.deleteProperty(target, key);
-		notifyPreviewChanged();
-		return true;
-	},
-});
-
-const remoteSourceCoverPreviewScheduler = createCoverArtPreviewScheduler(reactivePreviewByUrl, {
-	failureLogMessage: 'Failed to load remote source cover preview:',
-});
-
-export function clearRemoteSourceCoverPreviewCache(): void {
-	remoteSourceCoverPreviewScheduler.clear();
-}
-
-export function cancelRemoteSourceCoverPreviewSchedule(): void {
-	remoteSourceCoverPreviewScheduler.cancel();
-}
-
-export function getRemoteSourceCoverPreviewState(
-	coverUrl: string | null | undefined,
-): RemoteSourceCoverPreviewState {
-	return remoteSourceCoverPreviewScheduler.getState(coverUrl);
-}
-
-export function scheduleRemoteSourceCoverPreviews(
-	coverUrls: ReadonlyArray<string | null | undefined>,
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): void {
-	remoteSourceCoverPreviewScheduler.schedule(coverUrls, loadCoverArtFromUrl);
 }

@@ -143,6 +143,10 @@ function stagingServices(): ProcessingWorkflowServices {
 		openGeneratedPreviewIfSingle,
 		feedback: { showError: viewState.showError },
 		console,
+		remoteSource: {
+			processingAssets: vi.fn(() => undefined),
+			withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
+		},
 	};
 }
 

@@ -317,7 +317,9 @@ describe('output plan public view', () => {
 		const callsBefore = previewOutputPath.mock.calls.length;
 		form = replaceField(metadataView().form, 'meta-series-part', { value: '2' });
 		setMetadataView((current) => ({ ...current, form }));
-		await vi.waitFor(() => expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore));
+		await vi.waitFor(() =>
+			expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore),
+		);
 		const lastCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
 		expect(lastCall?.[0]?.metadata?.series_part).toBe('2');
 		previewOutputPath.mockRestore();

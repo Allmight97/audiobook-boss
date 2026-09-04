@@ -64,6 +64,8 @@ impl AudibleProvider {
             supports_typeahead_filter: true,
             supports_supplemental_pdf: true,
             supports_materialized_audio: true,
+            supports_release_search: false,
+            supports_release_grab: false,
             supports_refresh: true,
             requires_live_session: true,
             known_unsupported_reasons: vec![

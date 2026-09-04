@@ -1,81 +1,184 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile } from '../../types/audio';
+import type { AcquisitionLane } from '../../types/appSettings';
+import type { AudioFile, SupplementalProcessingAsset } from '../../types/audio';
+import { tauriClient } from '../../lib/tauri/client';
 import type { InputOwner } from '../inputSession';
-import { clearRemoteSourceCoverPreviewCache } from './coverPreview';
-import { makeProductionRemoteSourceServices } from './services';
 import {
-	reconcileRemoteSourceSessionsWithInput,
-	resetRemoteSourceSessionAssets,
-} from './sessionAssets';
-import { patchRemoteSourceState, resetRemoteSourceState, snapshotRemoteSourceView } from './state';
-import type { RemoteSourceView } from './types';
+	createRemoteSourceCoverPreviews,
+	type RemoteSourceCoverPreviewState,
+} from './coverPreview';
 import {
-	invalidateRemoteSourceWorkflows,
-	makeRemoteSourceWorkflowServicesLayer,
-	runRemoteSourceWorkflow,
+	createIndexerConnectionSettings,
+	type IndexerConnectionSettingsView,
+} from './indexerConnection';
+import {
+	makeProductionIndexerConnectionServices,
+	makeProductionRemoteSourceServices,
+} from './services';
+import { createRemoteSourceSessionAssets, type CompanionAssetSummary } from './sessionAssets';
+import { createRemoteSourceStateStore } from './state';
+import {
+	createInitialRemoteSourceState,
+	laneSelectionResetPatch,
+	providerIdFromLane,
+	type RemoteSourceView,
+} from './types';
+import {
+	createRemoteSourceWorkflow,
 	type RemoteSourceWorkflowAction,
+	type RemoteSourceWorkflowServices,
 } from './workflow';
+
+type InputId = string | undefined;
 
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
-	open(): void;
+	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
+	open(options?: { readonly lane?: AcquisitionLane }): void;
+	selectLane(lane: AcquisitionLane): Promise<void>;
 	close(): void;
-	patch(patch: Parameters<typeof patchRemoteSourceState>[0]): void;
+	patch(patch: Partial<RemoteSourceView>): void;
 	runAction(action: RemoteSourceWorkflowAction): Promise<void>;
-	reconcileWithInput(files: ReadonlyArray<AudioFile>): void;
+	coverPreview(coverUrl: string | null | undefined): RemoteSourceCoverPreviewState;
+	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
+	cancelCoverPreviews(): void;
+	companionSummary(inputIds: readonly InputId[]): CompanionAssetSummary;
+	hasCompanions(inputId: InputId): boolean;
+	processingAssets(
+		inputIds: readonly InputId[],
+	): Record<string, SupplementalProcessingAsset[]> | undefined;
+	withSubmissionRetention<T>(inputIds: readonly InputId[], submit: () => Promise<T>): Promise<T>;
+	settleTerminalWork(input: {
+		readonly inputIds: readonly string[];
+		readonly completedInputIds: readonly string[];
+	}): Promise<void>;
+	loadIndexerConnectionSettings(): Promise<void>;
+	patchIndexerConnectionSettings(patch: Partial<IndexerConnectionSettingsView>): void;
+	saveIndexerConnectionSettings(): Promise<void>;
+	testIndexerConnection(): Promise<void>;
+	reconcileWithInput(files: ReadonlyArray<AudioFile>): Promise<void>;
 	reset(): void;
 };
 
-export function resetRemoteSource(): void {
-	invalidateRemoteSourceWorkflows();
-	resetRemoteSourceState();
-	resetRemoteSourceSessionAssets();
-	clearRemoteSourceCoverPreviewCache();
-}
+export type RemoteSourceOwnerDeps = {
+	readonly input: InputOwner;
+	readonly services?: RemoteSourceWorkflowServices;
+	readonly loadCoverArtFromUrl?: (url: string) => Promise<number[]>;
+};
 
-export function createRemoteSourceOwner(deps: { readonly input: InputOwner }): RemoteSourceOwner {
-	const [view, setView] = createSignal(snapshotRemoteSourceView());
+export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
+	let snapshot = createInitialRemoteSourceState();
+	const [viewRev, bumpView] = createSignal(0);
+	const [assetRev, bumpAssets] = createSignal(0);
+	const [previewRev, bumpPreviews] = createSignal(0);
+	const state = createRemoteSourceStateStore(() => {
+		snapshot = state.snapshot();
+		bumpView((revision) => revision + 1);
+	});
+	snapshot = state.snapshot();
+	const indexerConnection = createIndexerConnectionSettings({
+		services: makeProductionIndexerConnectionServices,
+	});
 
-	function publish(): void {
-		setView(snapshotRemoteSourceView());
-	}
-
-	function services() {
-		return makeProductionRemoteSourceServices({
+	const services =
+		deps.services ??
+		makeProductionRemoteSourceServices({
 			inputView: () => deps.input.view(),
 			importPaths: (paths) => deps.input.importIntent({ type: 'importPaths', paths }),
 		});
-	}
+	const assets = createRemoteSourceSessionAssets({
+		purgeSession: services.purgeSession,
+		onChange: () => bumpAssets((revision) => revision + 1),
+	});
+	const previews = createRemoteSourceCoverPreviews({
+		loadCoverArtFromUrl: deps.loadCoverArtFromUrl ?? tauriClient.loadCoverArtFromUrl,
+		onChange: () => bumpPreviews((revision) => revision + 1),
+	});
+	const workflow = createRemoteSourceWorkflow({
+		services,
+		state,
+		registerSupplementalAssets: assets.register,
+	});
 
 	return {
-		view,
-		open() {
-			patchRemoteSourceState({ isOpen: true });
-			publish();
+		view: () => {
+			viewRev();
+			return snapshot;
+		},
+		indexerConnection: indexerConnection.view,
+		open(options) {
+			const lane = options?.lane ?? 'audible';
+			state.patch({
+				isOpen: true,
+				providerId: providerIdFromLane(lane),
+				...laneSelectionResetPatch(),
+				didHydrateOpenDialog: false,
+			});
+		},
+		selectLane(lane) {
+			return this.runAction({ type: 'selectLane', lane });
 		},
 		close() {
-			patchRemoteSourceState({ isOpen: false, didHydrateOpenDialog: false });
-			publish();
+			state.patch({ isOpen: false, didHydrateOpenDialog: false });
 		},
 		patch(patch) {
-			patchRemoteSourceState(patch);
-			publish();
+			state.patch(patch);
 		},
 		async runAction(action) {
-			const layer = makeRemoteSourceWorkflowServicesLayer(services());
 			try {
-				await runRemoteSourceWorkflow(layer, action, publish);
+				await workflow.run(action);
 			} catch (error) {
 				console.error('Remote source workflow failed:', error);
-				publish();
 			}
 		},
+		coverPreview(coverUrl) {
+			previewRev();
+			return previews.getState(coverUrl);
+		},
+		scheduleCoverPreviews(coverUrls) {
+			previews.schedule(coverUrls);
+		},
+		cancelCoverPreviews() {
+			previews.cancel();
+		},
+		companionSummary(inputIds) {
+			assetRev();
+			return assets.companionSummary(inputIds);
+		},
+		hasCompanions(inputId) {
+			assetRev();
+			return assets.hasCompanions(inputId);
+		},
+		processingAssets(inputIds) {
+			return assets.processingAssets(inputIds);
+		},
+		withSubmissionRetention(inputIds, submit) {
+			return assets.withSubmissionRetention(inputIds, submit);
+		},
+		settleTerminalWork(input) {
+			return assets.settleTerminalWork(input);
+		},
+		loadIndexerConnectionSettings() {
+			return indexerConnection.load();
+		},
+		patchIndexerConnectionSettings(patch) {
+			indexerConnection.patch(patch);
+		},
+		saveIndexerConnectionSettings() {
+			return indexerConnection.save();
+		},
+		testIndexerConnection() {
+			return indexerConnection.testConnection();
+		},
 		reconcileWithInput(files) {
-			void reconcileRemoteSourceSessionsWithInput(files);
+			return assets.reconcileInput(files);
 		},
 		reset() {
-			resetRemoteSource();
-			publish();
+			workflow.invalidate();
+			previews.clear();
+			assets.reset();
+			indexerConnection.reset();
+			state.reset();
 		},
 	};
 }

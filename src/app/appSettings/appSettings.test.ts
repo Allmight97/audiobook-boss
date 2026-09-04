@@ -26,6 +26,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		},
 		toolchain: {},
 		startupBehavior: 'rememberLastState',
+		defaultAcquisitionLane: 'audible',
 		...overrides,
 	};
 }
@@ -36,6 +37,8 @@ function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapa
 		updateAppSettings: vi.fn(async (patch) =>
 			settingsFixture({
 				maxConcurrentJobs: patch.maxConcurrentJobs ?? { mode: 'auto' },
+				defaultAcquisitionLane:
+					patch.defaultAcquisitionLane ?? settingsFixture().defaultAcquisitionLane,
 			}),
 		),
 		resetAppSettings: vi.fn(async () => settingsFixture()),
@@ -80,5 +83,18 @@ describe('app settings concurrency', () => {
 		expect(runtime.settings.concurrency().effectiveLabel).toBe('Auto → 4');
 		await runtime.settings.setConcurrencySelection('3');
 		expect(runtime.settings.concurrency().selection).toBe('auto');
+	});
+
+	it('hydrates and persists defaultAcquisitionLane', async () => {
+		const settings = fakeSettings({
+			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
+		});
+		runtime = createTestAppRuntime({ settings });
+		await runtime.settings.hydrateAcquisitionPreferences();
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
+
+		await runtime.settings.setDefaultAcquisitionLane('audible');
+		expect(settings.updateAppSettings).toHaveBeenCalledWith({ defaultAcquisitionLane: 'audible' });
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
 	});
 });

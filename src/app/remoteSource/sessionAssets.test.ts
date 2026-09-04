@@ -1,16 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
 import type { FileListInfo } from '../../types/audio';
+import { createRemoteSourceSessionAssets, type RemoteSourceSessionAssets } from './sessionAssets';
 
-const purgeRemoteSourceSessionMock = vi.hoisted(() => vi.fn());
+const purgeRemoteSourceSessionMock = vi.fn();
 const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
 const secondaryPdfFileName = 'Secure Love - Supplemental PDF.pdf';
-
-vi.mock('../../lib/tauri/client', () => ({
-	tauriClient: {
-		purgeRemoteSourceSession: purgeRemoteSourceSessionMock,
-	},
-}));
 
 function fileList(): FileListInfo {
 	return {
@@ -122,30 +117,27 @@ function multiTitleAcquisitionJob(): AcquisitionJob {
 }
 
 describe('remote source session assets', () => {
-	beforeEach(async () => {
+	let assets: RemoteSourceSessionAssets;
+	let onChange: Mock<() => void>;
+
+	beforeEach(() => {
 		purgeRemoteSourceSessionMock.mockReset();
 		purgeRemoteSourceSessionMock.mockResolvedValue(undefined);
-		const { resetRemoteSourceSessionAssets } = await import('./sessionAssets');
-		resetRemoteSourceSessionAssets();
+		onChange = vi.fn();
+		assets = createRemoteSourceSessionAssets({
+			purgeSession: purgeRemoteSourceSessionMock,
+			onChange,
+		});
 	});
 
-	it('notifies subscribers when supplemental assets are registered', async () => {
-		const module = await import('./sessionAssets');
-		const listener = vi.fn();
-		const unsubscribe = module.subscribeRemoteSourceSupplementalAssets(listener);
-
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-
-		expect(listener).toHaveBeenCalledTimes(1);
-		unsubscribe();
+	it('publishes when supplemental assets are registered', () => {
+		assets.register(acquisitionJob(), fileList());
+		expect(onChange).toHaveBeenCalledTimes(1);
 	});
 
-	it('rekeys provider supplemental assets to the imported file input id', async () => {
-		const module = await import('./sessionAssets');
-
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toEqual({
+	it('rekeys provider supplemental assets to the imported file input id', () => {
+		assets.register(acquisitionJob(), fileList());
+		expect(assets.processingAssets(['current-input-1'])).toEqual({
 			'current-input-1': [
 				{
 					assetId: 'pdf-1',
@@ -160,11 +152,9 @@ describe('remote source session assets', () => {
 		});
 	});
 
-	it('summarizes single-file companion assets without exposing paths', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-
-		const summary = module.companionSummaryForInputIds(['current-input-1']);
+	it('summarizes single-file companion assets without exposing paths', () => {
+		assets.register(acquisitionJob(), fileList());
+		const summary = assets.companionSummary(['current-input-1']);
 
 		expect(summary).toEqual({
 			text: primaryPdfFileName,
@@ -173,14 +163,12 @@ describe('remote source session assets', () => {
 			fileCountWithCompanions: 1,
 		});
 		expect(summary.title).not.toContain('/session/');
-		expect(module.hasSupplementalAssetsForInputId('current-input-1')).toBe(true);
+		expect(assets.hasCompanions('current-input-1')).toBe(true);
 	});
 
-	it('summarizes multi-file companion assets by selected count', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-
-		const summary = module.companionSummaryForInputIds(['current-input-1', 'current-input-2']);
+	it('summarizes multi-file companion assets by selected count', () => {
+		assets.register(acquisitionJob(), fileList());
+		const summary = assets.companionSummary(['current-input-1', 'current-input-2']);
 
 		expect(summary.text).toBe('1 PDF across 2 selected files');
 		expect(summary.title).toBe('1 PDF across 2 selected files');
@@ -188,11 +176,9 @@ describe('remote source session assets', () => {
 		expect(summary.fileCountWithCompanions).toBe(1);
 	});
 
-	it('keeps multi-file companion summaries count-based when every file has a long PDF name', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
-
-		const summary = module.companionSummaryForInputIds(['current-input-1', 'current-input-2']);
+	it('keeps multi-file companion summaries count-based for long PDF names', () => {
+		assets.register(multiTitleAcquisitionJob(), multiTitleFileList());
+		const summary = assets.companionSummary(['current-input-1', 'current-input-2']);
 
 		expect(summary.text).toBe('2 PDFs across 2 selected files');
 		expect(summary.title).toBe('2 PDFs across 2 selected files');
@@ -202,62 +188,56 @@ describe('remote source session assets', () => {
 		expect(summary.fileCountWithCompanions).toBe(2);
 	});
 
-	it('purges acquired session roots for explicit input ids', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-
-		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1']);
-
+	it('purges acquired session roots when inputs leave the session', async () => {
+		assets.register(acquisitionJob(), fileList());
+		await assets.reconcileInput(fileList().files);
+		await assets.reconcileInput([]);
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
+		expect(assets.processingAssets(['current-input-1'])).toBeUndefined();
 	});
 
-	it('defers draft cleanup purge while an accepted work operation retains the input', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-		module.retainRemoteSourceSessionsForInputIds(['current-input-1']);
-
-		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1']);
-
+	it('defers input cleanup while an accepted work operation retains the input', async () => {
+		assets.register(acquisitionJob(), fileList());
+		await assets.reconcileInput(fileList().files);
+		await assets.withSubmissionRetention(['current-input-1'], async () => 'accepted');
+		await assets.reconcileInput([]);
 		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeDefined();
-
-		const pendingPurgeInputIds = module.releaseRemoteSourceSessionRetainers(['current-input-1']);
-		await module.purgeRemoteSourceSessionsForInputIds(pendingPurgeInputIds);
-
+		expect(assets.processingAssets(['current-input-1'])).toBeDefined();
+		await assets.settleTerminalWork({
+			inputIds: ['current-input-1'],
+			completedInputIds: [],
+		});
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
+		expect(assets.processingAssets(['current-input-1'])).toBeUndefined();
 	});
 
 	it('does not purge a shared acquired session while a retained sibling remains in flight', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
-		module.retainRemoteSourceSessionsForInputIds(['current-input-1', 'current-input-2']);
-
-		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1', 'current-input-2']);
-		const firstPendingPurge = module.releaseRemoteSourceSessionRetainers(['current-input-1']);
-		await module.purgeRemoteSourceSessionsForInputIds(firstPendingPurge);
-
+		assets.register(multiTitleAcquisitionJob(), multiTitleFileList());
+		await assets.reconcileInput(multiTitleFileList().files);
+		await assets.withSubmissionRetention(['current-input-1'], async () => 'accepted');
+		await assets.withSubmissionRetention(['current-input-2'], async () => 'accepted');
+		await assets.reconcileInput([]);
+		await assets.settleTerminalWork({
+			inputIds: ['current-input-1'],
+			completedInputIds: [],
+		});
 		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
-		expect(module.supplementalAssetsForInputIds(['current-input-2'])).toBeDefined();
-
-		const secondPendingPurge = module.releaseRemoteSourceSessionRetainers(['current-input-2']);
-		await module.purgeRemoteSourceSessionsForInputIds(secondPendingPurge);
-
+		expect(assets.processingAssets(['current-input-2'])).toBeDefined();
+		await assets.settleTerminalWork({
+			inputIds: ['current-input-2'],
+			completedInputIds: [],
+		});
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
-		expect(module.supplementalAssetsForInputIds(['current-input-2'])).toBeUndefined();
+		expect(assets.processingAssets(['current-input-2'])).toBeUndefined();
 	});
 
 	it('waits to purge shared acquisition sessions until every registered input is removable', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(multiTitleAcquisitionJob(), multiTitleFileList());
-
-		await module.purgeRemoteSourceSessionsForInputIds(['current-input-1']);
-
+		assets.register(multiTitleAcquisitionJob(), multiTitleFileList());
+		await assets.reconcileInput(multiTitleFileList().files);
+		await assets.reconcileInput([multiTitleFileList().files[1]!]);
 		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
-		expect(module.supplementalAssetsForInputIds(['current-input-2'])).toEqual({
+		expect(assets.processingAssets(['current-input-1'])).toBeUndefined();
+		expect(assets.processingAssets(['current-input-2'])).toEqual({
 			'current-input-2': [
 				{
 					assetId: 'pdf-2',
@@ -270,21 +250,39 @@ describe('remote source session assets', () => {
 				},
 			],
 		});
-
-		await module.purgeRemoteSourceSessionsForInputIds(['current-input-2']);
-
+		await assets.reconcileInput([]);
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledTimes(1);
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
-		expect(module.supplementalAssetsForInputIds(['current-input-2'])).toBeUndefined();
+		expect(assets.processingAssets(['current-input-2'])).toBeUndefined();
 	});
 
-	it('purges remote sessions for input ids that leave the Input session', async () => {
-		const module = await import('./sessionAssets');
-		module.registerRemoteSourceSupplementalAssets(acquisitionJob(), fileList());
-		await module.reconcileRemoteSourceSessionsWithInput(fileList().files);
-		await module.reconcileRemoteSourceSessionsWithInput([]);
-
+	it('preserves the submission error after releasing pending cleanup', async () => {
+		assets.register(acquisitionJob(), fileList());
+		await assets.reconcileInput(fileList().files);
+		const submissionError = new Error('submission failed');
+		const submission = assets.withSubmissionRetention(['current-input-1'], async () => {
+			await assets.reconcileInput([]);
+			throw submissionError;
+		});
+		await expect(submission).rejects.toBe(submissionError);
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
-		expect(module.supplementalAssetsForInputIds(['current-input-1'])).toBeUndefined();
+	});
+
+	it('keeps cleanup failure non-blocking and forgets the stale association', async () => {
+		purgeRemoteSourceSessionMock.mockRejectedValueOnce(new Error('busy'));
+		assets.register(acquisitionJob(), fileList());
+		await assets.reconcileInput(fileList().files);
+		await expect(assets.reconcileInput([])).resolves.toBeUndefined();
+		expect(assets.processingAssets(['current-input-1'])).toBeUndefined();
+	});
+
+	it('does not share assets or purge state across instances', () => {
+		const other = createRemoteSourceSessionAssets({
+			purgeSession: vi.fn(async () => undefined),
+			onChange: vi.fn(),
+		});
+		assets.register(acquisitionJob(), fileList());
+		expect(assets.hasCompanions('current-input-1')).toBe(true);
+		expect(other.hasCompanions('current-input-1')).toBe(false);
 	});
 });

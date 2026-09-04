@@ -1,8 +1,10 @@
 use crate::commands::CommandResult;
 use crate::remote_source::{
     AcquisitionJob, AcquisitionPlan, ProviderId, RemoteAuthCompletionRequest,
-    RemoteAuthStartResponse, RemoteLibraryResponse, RemoteSourceAccountState,
-    RemoteSourceProviderCapabilities,
+    RemoteAuthStartResponse, RemoteIndexerConnection, RemoteIndexerConnectionTestResult,
+    RemoteIndexerConnectionUpdate, RemoteLibraryResponse, RemoteReleaseGrabRequest,
+    RemoteReleaseGrabResponse, RemoteReleaseSearchRequest, RemoteReleaseSearchResponse,
+    RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
 
 #[tauri::command]
@@ -92,4 +94,47 @@ pub fn purge_remote_source_session(
     job_id: String,
 ) -> CommandResult<()> {
     Ok(runtime.purge_session(&job_id)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn search_remote_source_releases(
+    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    request: RemoteReleaseSearchRequest,
+) -> CommandResult<RemoteReleaseSearchResponse> {
+    Ok(runtime.search_releases(request).await?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn grab_remote_source_release(
+    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    request: RemoteReleaseGrabRequest,
+) -> CommandResult<RemoteReleaseGrabResponse> {
+    Ok(runtime.grab_release(request).await?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_remote_source_indexer_connection(
+    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+) -> CommandResult<RemoteIndexerConnection> {
+    Ok(runtime.get_indexer_connection()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_remote_source_indexer_connection(
+    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    update: RemoteIndexerConnectionUpdate,
+) -> CommandResult<RemoteIndexerConnection> {
+    Ok(runtime.update_indexer_connection(update)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn test_remote_source_indexer_connection(
+    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+) -> CommandResult<RemoteIndexerConnectionTestResult> {
+    Ok(runtime.test_indexer_connection().await?)
 }

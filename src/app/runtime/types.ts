@@ -7,13 +7,14 @@ import type { MetadataLookupOwner } from '../metadataLookup';
 import type { MetadataOwner } from '../metadataSession';
 import type { OutputPlanOwner } from '../outputPlan';
 import type { ProcessingOwner } from '../processing';
-import type { RemoteSourceOwner } from '../remoteSource';
+import type { RemoteSourceOwner, RemoteSourceOwnerDeps } from '../remoteSource';
 import type { WorkOperationsOwner } from '../workOperations';
 
 export type RuntimeCapabilities = {
 	readonly input?: InputCapability;
 	readonly metadata?: MetadataCapability;
 	readonly settings?: SettingsCapability;
+	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'input'>;
 };
 
 export type AppRuntime = {

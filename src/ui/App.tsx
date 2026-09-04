@@ -22,6 +22,7 @@ export function App(): JSX.Element {
 	const runtime = useAppRuntime();
 	const saveMetadata = runtime.metadata.save;
 	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
+	const hydrateAcquisitionPreferences = runtime.settings.hydrateAcquisitionPreferences;
 	const openSettings = runtime.settings.openDialog;
 	const applyOutputDefaults = runtime.output.applyDefaults;
 	const initializeWork = runtime.workOperations.initialize;
@@ -33,6 +34,7 @@ export function App(): JSX.Element {
 			}
 		});
 		void hydrateConcurrency();
+		void hydrateAcquisitionPreferences();
 		void initializeWork();
 
 		function handleGlobalKeyDown(event: KeyboardEvent): void {

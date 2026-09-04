@@ -6,45 +6,41 @@ import {
 	type RemoteSourceView,
 } from './types';
 
-export let remoteSourceState: RemoteSourceState = createInitialRemoteSourceState();
+export type RemoteSourceStateStore = {
+	readonly current: () => RemoteSourceState;
+	readonly snapshot: () => RemoteSourceView;
+	patch(patch: Partial<RemoteSourceState>): void;
+	setAcquisitionError(cause: unknown, fallback: string): void;
+	reset(): void;
+};
 
-const remoteSourceStateListeners = new Set<() => void>();
+export function createRemoteSourceStateStore(onChange: () => void): RemoteSourceStateStore {
+	let state = createInitialRemoteSourceState();
 
-export function subscribeRemoteSourceState(listener: () => void): () => void {
-	remoteSourceStateListeners.add(listener);
-	return () => {
-		remoteSourceStateListeners.delete(listener);
-	};
-}
-
-function notifyRemoteSourceStateListeners(): void {
-	for (const listener of remoteSourceStateListeners) {
-		listener();
+	function patch(patchValue: Partial<RemoteSourceState>): void {
+		state = {
+			...state,
+			...patchValue,
+			selectedTitleIds: patchValue.selectedTitleIds
+				? new Set(patchValue.selectedTitleIds)
+				: state.selectedTitleIds,
+		};
+		onChange();
 	}
-}
 
-export function snapshotRemoteSourceView(): RemoteSourceView {
-	return snapshotRemoteSourceState(remoteSourceState);
-}
-
-export function resetRemoteSourceState(): void {
-	remoteSourceState = createInitialRemoteSourceState();
-}
-
-export function setAcquisitionError(cause: unknown, fallback: string): void {
-	logAppError(fallback, cause);
-	patchRemoteSourceState({
-		statusMessage: toUserMessage(cause, { fallback, suppressUnknown: true }),
-	});
-}
-
-export function patchRemoteSourceState(patch: Partial<RemoteSourceState>): void {
-	remoteSourceState = {
-		...remoteSourceState,
-		...patch,
-		selectedTitleIds: patch.selectedTitleIds
-			? new Set(patch.selectedTitleIds)
-			: remoteSourceState.selectedTitleIds,
+	return {
+		current: () => state,
+		snapshot: () => snapshotRemoteSourceState(state),
+		patch,
+		setAcquisitionError(cause, fallback) {
+			logAppError(fallback, cause);
+			patch({
+				statusMessage: toUserMessage(cause, { fallback, suppressUnknown: true }),
+			});
+		},
+		reset() {
+			state = createInitialRemoteSourceState();
+			onChange();
+		},
 	};
-	notifyRemoteSourceStateListeners();
 }

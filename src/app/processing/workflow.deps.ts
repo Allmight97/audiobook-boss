@@ -1,5 +1,10 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { boundProcessingInput, boundProcessingMetadata, boundProcessingSettings } from './bind';
+import {
+	boundProcessingInput,
+	boundProcessingMetadata,
+	boundProcessingRemoteSource,
+	boundProcessingSettings,
+} from './bind';
 import { fileListFromInput } from './input';
 import {
 	cacheMetadataForFile,
@@ -71,6 +76,13 @@ const liveProcessingWorkflowServices = {
 	openGeneratedPreviewIfSingle,
 	feedback: { showError },
 	console,
+	get remoteSource() {
+		const remoteSource = boundProcessingRemoteSource();
+		if (!remoteSource) {
+			throw new Error('Remote Source owner is not mounted');
+		}
+		return remoteSource;
+	},
 } satisfies ProcessingWorkflowServices;
 
 export const ProcessingWorkflowLive = makeProcessingWorkflowServicesLayer(

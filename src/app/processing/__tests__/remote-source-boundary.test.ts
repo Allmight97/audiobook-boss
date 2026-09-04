@@ -2,16 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as remoteSource from '../../../ui/remoteSource';
 
-const EXPECTED_REMOTE_SOURCE_EXPORTS = [
-	'companionSummaryForInputIds',
-	'hasSupplementalAssetsForInputId',
-	'purgeRemoteSourceSessionsForInputIds',
-	'registerRemoteSourceSupplementalAssets',
-	'releaseRemoteSourceSessionRetainers',
-	'retainRemoteSourceSessionsForInputIds',
-	'subscribeRemoteSourceSupplementalAssets',
-	'supplementalAssetsByInputIdForProcessing',
-] as const;
+const EXPECTED_REMOTE_SOURCE_EXPORTS = ['RemoteSourceAcquireView'] as const;
 
 const FORBIDDEN_REMOTE_SOURCE_IMPORTS = [
 	'remoteSource/sessionAssets',

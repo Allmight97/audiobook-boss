@@ -5,6 +5,16 @@ use crate::audio::{
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
 
+#[derive(
+    Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum AcquisitionLane {
+    #[default]
+    Audible,
+    Indexer,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -17,6 +27,8 @@ pub struct AppSettings {
     pub startup_behavior: StartupBehavior,
     #[serde(default)]
     pub pinned_defaults: Option<PinnedDefaults>,
+    #[serde(default)]
+    pub default_acquisition_lane: AcquisitionLane,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -30,6 +42,7 @@ pub struct AppSettingsPatch {
     /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
     /// back to `RememberLastState`, never unpinning.
     pub pinned_defaults: Option<PinnedDefaults>,
+    pub default_acquisition_lane: Option<AcquisitionLane>,
 }
 
 /// What launch hydration restores into the panels. The panels always keep
@@ -100,6 +113,7 @@ impl Default for AppSettings {
             toolchain: ToolchainPreferences::default(),
             startup_behavior: StartupBehavior::default(),
             pinned_defaults: None,
+            default_acquisition_lane: AcquisitionLane::default(),
         }
     }
 }
@@ -138,6 +152,9 @@ impl AppSettings {
         }
         if let Some(pinned_defaults) = patch.pinned_defaults {
             self.pinned_defaults = Some(pinned_defaults);
+        }
+        if let Some(default_acquisition_lane) = patch.default_acquisition_lane {
+            self.default_acquisition_lane = default_acquisition_lane;
         }
         self.validate()?;
         Ok(self)

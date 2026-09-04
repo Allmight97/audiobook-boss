@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { RemoteTitle } from '../../types/remoteSource';
+import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	selectedRemoteTitleSummaryText,
 	toggledRemoteTitleSelection,
 	toggledSupplementalPdfPreference,
+	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
 
@@ -119,5 +120,33 @@ describe('remote source selection policy', () => {
 		expect(
 			selectedRemoteTitleSummaryText(new Set(['B000000001', 'B000000003']), visibleTitles),
 		).toBe('2 titles selected (1 title hidden by filter)');
+	});
+
+	it('filters visible releases client-side without fabricating remote titles', () => {
+		const releases: RemoteRelease[] = [
+			{
+				providerId: 'indexer',
+				guid: 'a',
+				indexerId: 1,
+				title: 'The Way of Kings',
+				indexer: 'Example',
+				sizeBytes: 100,
+				protocol: 'torrent',
+				seeders: 10,
+			},
+			{
+				providerId: 'indexer',
+				guid: 'b',
+				indexerId: 2,
+				title: 'Mistborn',
+				indexer: 'Other',
+				sizeBytes: 200,
+				protocol: 'usenet',
+				seeders: undefined,
+			},
+		];
+
+		expect(visibleRemoteReleases(releases, { releaseFilter: 'way' })).toHaveLength(1);
+		expect(visibleRemoteReleases(releases, { releaseFilter: 'usenet' })).toHaveLength(1);
 	});
 });

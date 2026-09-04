@@ -13,7 +13,7 @@
 
 ## Private Cluster
 
-- Files: `PreviewAudioControls.tsx`, `previewAudioControls.css`.
+- Files: `PreviewAudioControls.tsx`.
 
 ## Cross-Strip Coupling
 

@@ -1,8 +1,8 @@
 # RemoteSourceRuntime
 
 `remote_source` owns remote-source provider state, account/session lifecycle,
-acquisition jobs, staging roots, acquired session files, Supplemental Assets,
-and cleanup.
+acquisition jobs, release search/grab (Indexer lane), staging roots, acquired
+session files, Supplemental Assets, and cleanup.
 
 ## Public API Strip
 
@@ -37,6 +37,9 @@ or infer provider-private Audible internals.
 - Post-download cancel uses `rollback_committed_file`; do not revive generic
   `cleanup_download_artifacts` helpers. No cross-device rename fallback here.
 - `providers/audible/library.rs` owns Audible library response shaping.
+- `providers/indexer/` owns Indexer connection persistence, release
+  search/grab, and the first Prowlarr HTTP adapter. Indexer grabs do not create
+  acquisition jobs or materialize files into Input.
 
 No provider secrets, license blobs, raw provider responses, or protected
 intermediates may cross the public strip or generated TypeScript boundary.

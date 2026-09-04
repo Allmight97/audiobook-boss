@@ -11,8 +11,12 @@
 ## Public API Strip
 
 - Import session-asset coordination from `src/ui/remoteSource`.
-- Import acquire intents and the Input handoff result type from
+- Import acquire intents, lane helpers (`providerIdFromLane`, `laneFromProviderId`),
+  release/title filter helpers, and the Input handoff result type from
   `src/app/remoteSource`.
+- `RemoteSourceOwner`: `open({ lane? })`, `selectLane`, `view`, workflow
+  `runAction`, and indexer connection settings intents (`loadIndexerConnectionSettings`,
+  `saveIndexerConnectionSettings`, `testIndexerConnection`, `indexerConnection`).
 - `index.ts` is the export surface. Do not import `workflow.ts`,
   `sessionAssets.ts`, or `state.ts` from outside this owner.
 - State/listeners, workflow generation counters, cover-preview scheduling, and
@@ -23,8 +27,9 @@
 ## Hard Invariants
 
 - Closing the dialog does not cancel an in-flight acquisition. Polling and
-  selected hidden titles survive ordinary close. App disposal and native
-  cancel/purge remain the cleanup authorities.
+  selected hidden titles survive ordinary close. Lane switches reset Indexer
+  results and Audible selection UI only; they do not cancel in-flight Audible
+  acquisition. App disposal and native cancel/purge remain the cleanup authorities.
 - Acquisition poll patches publish through the Remote Source owner view.
   Native jobs provide a progress snapshot from job creation;
   `RemoteSourceAcquireView` renders its live percentage and Cancel.
@@ -51,8 +56,9 @@
 - `sessionAssets.test.ts` pins input-id rekey, companion summaries that omit
   paths, retainer deferral, and shared-job purge.
 - `workflow.test.ts` pins successful Input handoff, blocked-import purge,
-  close-does-not-cancel, and publication of polled `getAcquisitionStatus`
-  snapshots.
+  close-does-not-cancel, lane switch without cancelling Audible jobs, Indexer
+  grab success/failure, unconfigured Indexer hydrate, `open({ lane })` reset
+  patch semantics, and publication of polled `getAcquisitionStatus` snapshots.
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
 - `selection.test.ts` pins filter/selection policy.
 - `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent and

@@ -15,6 +15,7 @@ mod vault;
 
 use materializer::AaxcleanMaterializer;
 use providers::audible::{AudibleProvider, PendingAudibleAuth};
+use providers::indexer::{IndexerProvider, ReqwestProwlarrAdapter};
 use session_lifecycle::RemoteAcquisitionLifecycle;
 use staging::RemoteSourceStaging;
 use types::{
@@ -34,9 +35,11 @@ pub struct RemoteSourceRuntime {
 }
 
 struct RemoteSourceRuntimeInner {
+    config_dir: PathBuf,
     vault: Box<dyn SecretVault>,
     lifecycle: RemoteAcquisitionLifecycle,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
+    indexer_adapter: ReqwestProwlarrAdapter,
 }
 
 impl RemoteSourceRuntime {
@@ -44,14 +47,19 @@ impl RemoteSourceRuntime {
         let cache_dir = app.path().app_cache_dir().map_err(|error| {
             AppError::General(format!("Failed to resolve app cache directory: {error}"))
         })?;
+        let config_dir = app.path().app_config_dir().map_err(|error| {
+            AppError::General(format!("Failed to resolve app config directory: {error}"))
+        })?;
         Ok(Self {
             inner: Arc::new(RemoteSourceRuntimeInner {
+                config_dir,
                 vault: Box::<KeyringSecretVault>::default(),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(cache_dir),
                     AaxcleanMaterializer::from_app(app),
                 ),
                 pending_audible_auth: Mutex::new(None),
+                indexer_adapter: ReqwestProwlarrAdapter::new()?,
             }),
         })
     }
@@ -61,12 +69,18 @@ impl RemoteSourceRuntime {
     }
 
     pub fn list_providers(&self) -> Vec<RemoteProviderCapabilities> {
-        vec![AudibleProvider::capabilities()]
+        vec![
+            AudibleProvider::capabilities(),
+            IndexerProvider::capabilities(),
+        ]
     }
 
     pub fn account_state(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::account_state(self.inner.vault.as_ref()),
+            RemoteProviderId::Indexer => {
+                IndexerProvider::account_state(&self.inner.config_dir, self.inner.vault.as_ref())
+            }
         }
     }
 
@@ -86,6 +100,10 @@ impl RemoteSourceRuntime {
                     message: "Open the authorization URL externally, sign in, then paste the final Amazon URL or save it to a local handoff file and complete auth from ABB.".to_string(),
                 })
             }
+            RemoteProviderId::Indexer => Err(AppError::InvalidInput(
+                "Indexer uses Settings URL and API key configuration instead of browser auth."
+                    .to_string(),
+            )),
         }
     }
 
@@ -107,6 +125,10 @@ impl RemoteSourceRuntime {
                 AudibleProvider::complete_auth(self.inner.vault.as_ref(), pending, &response_url)
                     .await
             }
+            RemoteProviderId::Indexer => Err(AppError::InvalidInput(
+                "Indexer uses Settings URL and API key configuration instead of browser auth."
+                    .to_string(),
+            )),
         }
     }
 
@@ -114,6 +136,7 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.abort_all_acquisition_tasks();
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
+            RemoteProviderId::Indexer => IndexerProvider::logout(self.inner.vault.as_ref())?,
         }
         self.inner
             .lifecycle
@@ -132,13 +155,74 @@ impl RemoteSourceRuntime {
             RemoteProviderId::Audible => {
                 AudibleProvider::load_library(self.inner.vault.as_ref()).await
             }
+            RemoteProviderId::Indexer => Err(AppError::InvalidInput(
+                "Indexer search uses release search instead of library scan.".to_string(),
+            )),
         }
+    }
+
+    pub async fn search_releases(
+        &self,
+        request: types::RemoteReleaseSearchRequest,
+    ) -> Result<types::RemoteReleaseSearchResponse> {
+        IndexerProvider::search_releases(
+            &self.inner.config_dir,
+            self.inner.vault.as_ref(),
+            &self.inner.indexer_adapter,
+            request,
+        )
+        .await
+    }
+
+    pub async fn grab_release(
+        &self,
+        request: types::RemoteReleaseGrabRequest,
+    ) -> Result<types::RemoteReleaseGrabResponse> {
+        IndexerProvider::grab_release(
+            &self.inner.config_dir,
+            self.inner.vault.as_ref(),
+            &self.inner.indexer_adapter,
+            request,
+        )
+        .await
+    }
+
+    pub fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
+        IndexerProvider::get_connection(&self.inner.config_dir, self.inner.vault.as_ref())
+    }
+
+    pub fn update_indexer_connection(
+        &self,
+        update: types::RemoteIndexerConnectionUpdate,
+    ) -> Result<types::RemoteIndexerConnection> {
+        IndexerProvider::update_connection(
+            &self.inner.config_dir,
+            self.inner.vault.as_ref(),
+            update,
+        )
+    }
+
+    pub async fn test_indexer_connection(
+        &self,
+    ) -> Result<types::RemoteIndexerConnectionTestResult> {
+        IndexerProvider::test_connection(
+            &self.inner.config_dir,
+            self.inner.vault.as_ref(),
+            &self.inner.indexer_adapter,
+        )
+        .await
     }
 
     pub async fn start_acquisition(
         &self,
         plan: RemoteAcquisitionPlan,
     ) -> Result<RemoteAcquisitionJob> {
+        if plan.provider_id == RemoteProviderId::Indexer {
+            return Err(AppError::InvalidInput(
+                "Indexer grabs do not create acquisition jobs. Use grab release instead."
+                    .to_string(),
+            ));
+        }
         self.inner
             .lifecycle
             .start_acquisition(self.clone(), plan)
@@ -213,12 +297,14 @@ mod tests {
     fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
         RemoteSourceRuntime {
             inner: Arc::new(RemoteSourceRuntimeInner {
+                config_dir: root.path().to_path_buf(),
                 vault: Box::<TestSecretVault>::default(),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(root.path().to_path_buf()),
                     AaxcleanMaterializer::for_tests(),
                 ),
                 pending_audible_auth: Mutex::new(None),
+                indexer_adapter: ReqwestProwlarrAdapter::new().expect("indexer adapter"),
             }),
         }
     }
