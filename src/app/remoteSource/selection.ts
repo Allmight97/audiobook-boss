@@ -1,4 +1,5 @@
 import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
+import type { RemoteSourceView } from './types';
 import { isTitleAcquirable, releaseProtocolLabel } from './display';
 
 export type RemoteTitleFilterOptions = {
@@ -7,9 +8,7 @@ export type RemoteTitleFilterOptions = {
 	hideUnavailableTitles: boolean;
 };
 
-export type RemoteReleaseFilterOptions = {
-	releaseFilter: string;
-};
+export type RemoteReleaseFilterOptions = Pick<RemoteSourceView, 'releaseFilter' | 'releaseSort'>;
 
 export function visibleRemoteTitles(
 	titles: RemoteTitle[],
@@ -54,7 +53,13 @@ export function visibleRemoteReleases(
 			)
 		: [...releases];
 
-	return visible.sort(compareReleasesBySeedersDesc);
+	return visible.sort((left, right) => {
+		if (options.releaseSort === 'size') {
+			const sizeDelta = right.sizeBytes - left.sizeBytes;
+			if (sizeDelta !== 0) return sizeDelta;
+		}
+		return compareReleasesBySeedersDesc(left, right);
+	});
 }
 
 function compareReleasesBySeedersDesc(left: RemoteRelease, right: RemoteRelease): number {

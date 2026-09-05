@@ -15,5 +15,8 @@ the view does not hydrate account state or construct selection-state patches.
 
 Cover-preview scheduling follows the visible titles and is cancelled when the
 view no longer needs it. Resources and caches remain private to the owner.
+Indexer results are a list with separate selection buttons and source-page
+links; opening details preserves selection and the current search.
+
 Remote source IPC routes through `src/lib/tauri/client.ts`. Materialized audio
 imports through Input Session; processing remains user-triggered.

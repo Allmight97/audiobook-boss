@@ -50,6 +50,7 @@ export type RemoteSourceOwner = {
 				| 'indexerAuthorQuery'
 				| 'indexerTitleQuery'
 				| 'releaseFilter'
+				| 'releaseSort'
 			>
 		>,
 	): void;

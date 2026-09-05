@@ -35,6 +35,7 @@
 }
 
 .remote-source-provider select,
+.remote-source-sort select,
 .remote-source-filter input[type="search"],
 .remote-source-handoff input,
 .remote-source-indexer-author input,
@@ -195,13 +196,22 @@
 	color: var(--text-secondary);
 }
 
+.remote-source-sort {
+	flex: 0 0 10rem;
+}
+
 .remote-release-list {
+	list-style: none;
+	margin: 0;
 	max-height: min(36rem, 55vh);
 	overflow-y: auto;
 	padding: 0;
 }
 
 .remote-release-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
 	border-bottom: 1px solid var(--border-primary);
 }
 
@@ -215,7 +225,8 @@
 
 .remote-release-button {
 	display: flex;
-	width: 100%;
+	flex: 1;
+	min-width: 0;
 	flex-direction: column;
 	gap: 0.125rem;
 	padding: 0.65rem 0.75rem;
@@ -288,4 +299,25 @@
 	.remote-source-toolbar-button {
 		flex: 1 1 100%;
 	}
+}
+
+.remote-release-details {
+	flex: 0 0 auto;
+	max-width: 12rem;
+	padding-right: 0.75rem;
+	font-size: 0.75rem;
+}
+
+.remote-release-details a {
+	color: var(--accent-primary);
+	white-space: nowrap;
+}
+
+.remote-release-details a:hover {
+	text-decoration: underline;
+}
+
+.remote-release-detail-error {
+	margin: 0.25rem 0 0;
+	color: var(--text-secondary);
 }

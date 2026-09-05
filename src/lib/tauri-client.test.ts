@@ -58,6 +58,18 @@ describe('tauriClient', () => {
 	});
 
 	describe('opener helpers', () => {
+		it('allows both web schemes used by source details without permitting other URL handlers', () => {
+			expect(
+				mainWindowCapability.permissions.find(
+					(permission) =>
+						typeof permission === 'object' && permission.identifier === 'opener:allow-open-url',
+				),
+			).toEqual({
+				identifier: 'opener:allow-open-url',
+				allow: [{ url: 'http://*' }, { url: 'https://*' }],
+			});
+		});
+
 		it('limits source and preview opening to user-owned or mounted paths', () => {
 			const openPathPermission = mainWindowCapability.permissions.find(
 				(permission) =>

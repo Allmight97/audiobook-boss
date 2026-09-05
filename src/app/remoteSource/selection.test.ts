@@ -164,16 +164,24 @@ describe('remote source selection policy', () => {
 		];
 
 		expect(
-			visibleRemoteReleases(releases, { releaseFilter: 'way' }).map((item) => item.guid),
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'way' }).map(
+				(item) => item.guid,
+			),
 		).toEqual(['a']);
 		expect(
-			visibleRemoteReleases(releases, { releaseFilter: 'usenet' }).map((item) => item.guid),
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'usenet' }).map(
+				(item) => item.guid,
+			),
 		).toEqual(['b']);
 		expect(
-			visibleRemoteReleases(releases, { releaseFilter: 'nzb' }).map((item) => item.guid),
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'nzb' }).map(
+				(item) => item.guid,
+			),
 		).toEqual(['b']);
 		expect(
-			visibleRemoteReleases(releases, { releaseFilter: 'audiobook' }).map((item) => item.guid),
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'audiobook' }).map(
+				(item) => item.guid,
+			),
 		).toEqual(['a']);
 	});
 
@@ -191,12 +199,40 @@ describe('remote source selection policy', () => {
 			release({ guid: 'mam-72', title: 'Starsight 72', indexer: 'MyAnonamouse', seeders: 72 }),
 		];
 
-		expect(visibleRemoteReleases(releases, { releaseFilter: '' }).map((item) => item.guid)).toEqual(
-			['mam-72', 'tpb-25', 'tpb-4', 'nzbgeek'],
-		);
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: '' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['mam-72', 'tpb-25', 'tpb-4', 'nzbgeek']);
 		expect(releases.map((item) => item.guid)).toEqual(['tpb-25', 'tpb-4', 'nzbgeek', 'mam-72']);
 		expect(
-			visibleRemoteReleases(releases, { releaseFilter: 'pirate' }).map((item) => item.guid),
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'pirate' }).map(
+				(item) => item.guid,
+			),
 		).toEqual(['tpb-25', 'tpb-4']);
+	});
+	it('orders collections by size, breaks size ties by seeders, and restores seeder order', () => {
+		const releases = [
+			release({ guid: 'popular', title: 'Holmes single', sizeBytes: 100, seeders: 80 }),
+			release({ guid: 'pack-low', title: 'Holmes collection low', sizeBytes: 900, seeders: 2 }),
+			release({ guid: 'pack-high', title: 'Holmes collection high', sizeBytes: 900, seeders: 8 }),
+			release({ guid: 'unknown', title: 'Holmes unknown', sizeBytes: 0, seeders: 1 }),
+		];
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: '', releaseSort: 'size' }).map(
+				(r) => r.guid,
+			),
+		).toEqual(['pack-high', 'pack-low', 'popular', 'unknown']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'collection', releaseSort: 'size' }).map(
+				(r) => r.guid,
+			),
+		).toEqual(['pack-high', 'pack-low']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: '', releaseSort: 'seeders' }).map(
+				(r) => r.guid,
+			),
+		).toEqual(['popular', 'pack-high', 'pack-low', 'unknown']);
+		expect(releases.map((r) => r.guid)).toEqual(['popular', 'pack-low', 'pack-high', 'unknown']);
 	});
 });
