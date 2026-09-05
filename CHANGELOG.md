@@ -13,6 +13,25 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   change and names the host-tuned `.app` vs portable DMG before any bump
   or build.
 
+## [1.6.0] - 2026-09-04
+
+### Added
+
+- Import chapters from a UTF-8 CUE beside a same-stem MP3. Input shows the
+  chapter source and count; standard CUE timestamps apply directly, while
+  nonstandard hundredths require confirmation or an explicit Ignore choice.
+- Preserve accepted CUE chapter names and positions through Native AAC,
+  Apple AAC, and external FDK encoding, including valid short final chapters.
+  Supplied markers are transferred as written; ABB does not infer spoken
+  boundaries or rename chapters.
+
+### Fixed
+
+- Selected chapters that cannot be written or survive final metadata writes
+  now fail processing instead of reporting success.
+- An account refresh failure after saving Indexer settings reports a visible
+  diagnostic while preserving the successful save.
+
 ## [1.5.0] - 2026-09-04
 
 ### Added
