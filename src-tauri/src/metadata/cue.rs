@@ -127,7 +127,13 @@ fn read_cue(path: &Path, parent: &Path, duration_ms: i64) -> Result<super::CueSh
         ));
     }
     let mut text = String::new();
-    file.take(1_048_577).read_to_string(&mut text)?;
+    file.take(1_048_577).read_to_string(&mut text).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::InvalidData {
+            AppError::InvalidInput("CUE text must be UTF-8. Save the sidecar as UTF-8 and import the MP3 again, or ignore CUE.".into())
+        } else {
+            error.into()
+        }
+    })?;
     if text.len() > 1_048_576 {
         return Err(AppError::InvalidInput(
             "CUE exceeds the 1 MiB text limit".into(),

@@ -70,6 +70,22 @@ describe('Indexer connection owner intents', () => {
 		expect(owner.view().accountState?.status).toBe('connected');
 	});
 
+	it('reports a failed post-save refresh while retaining successful persistence', async () => {
+		vi.spyOn(tauriClient, 'updateRemoteSourceIndexerConnection').mockResolvedValue(configured);
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
+		vi.spyOn(tauriClient, 'getRemoteSourceAccountState')
+			.mockResolvedValueOnce({ providerId: 'indexer', status: 'needsAuth' })
+			.mockRejectedValueOnce(new Error('Account refresh unavailable'));
+		runtime = createTestAppRuntime();
+		const owner = runtime.remoteSource;
+		await owner.open({ lane: 'indexer' });
+		owner.patchIndexerConnectionSettings({ baseUrlDraft: configured.baseUrl!, apiKeyDraft: 'key' });
+		await expect(owner.saveIndexerConnectionSettings()).resolves.toBeUndefined();
+		expect(owner.indexerConnection().saveState).toBe('saved');
+		expect(owner.indexerConnection().apiKeyDraft).toBe('');
+		expect(owner.view().statusMessage).toContain('Connection saved, but account refresh failed.');
+	});
+
 	it('does not let initial loading overwrite edits made before the load returns', async () => {
 		let finish!: (connection: RemoteIndexerConnection) => void;
 		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockReturnValue(
