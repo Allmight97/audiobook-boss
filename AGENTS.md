@@ -2,9 +2,9 @@
 
 ## Start Here
 
-- Read this file first, then the nearest nested `AGENTS.md` for every path you
-  change. These files are routing and owner guidance, not substitutes for live
-  code, types, generated contracts, or tests.
+- Follow this file and the applicable nested `AGENTS.md` chain for changed
+  paths. Read related owners when the task crosses their boundaries; use live
+  code, types, generated contracts, and tests to verify implementation facts.
 - Read `docs/system-map.md` only for repository onboarding, unclear ownership,
   or work crossing frontend/backend or multiple product owners. Ordinary local
   changes should not load it.
@@ -13,15 +13,15 @@
   bindings; do not rely on a prose command/event inventory.
 - Cargo commands run from the repository root. Verification commands and scope
   live in `scripts/AGENTS.md`; frontend owner rules live in `src/app/AGENTS.md`.
-- When work crosses file-handle, external-process, temp-artifact, replacement,
-  or cleanup ownership, use `.agents/skills/resource-lifetime-audit`; nearest
-  local `AGENTS.md` files supply the current owners and invariants.
+- For lifecycle reviews or changes to resource transfer, reopen, replacement,
+  or cleanup semantics, use `.agents/skills/resource-lifetime-audit`. Routine
+  file I/O follows the local owner's invariants.
 - "Public API Strip" means an owned module's allowed import/export surface;
   callers use it instead of private implementation files.
 - Root owns repo-wide posture, proof, and cross-cutting invariants; local
   `AGENTS.md` files own path-specific surfaces and traps; skills own reusable
   procedures. Keep each meaning in one of those owners.
-- External-library research routes through
+- When an implementation or contract decision needs external-library evidence, use
   `.agents/skills/abb-library-research`. Do not commit upstream source
   snapshots as research material. Build provenance explicitly owned by ABB,
   such as the patched FFmpeg sys crate under `vendor/`, is a separate concern.
@@ -29,7 +29,9 @@
 ## Hard Invariants
 
 - Precedence: safety/data/contract invariants > explicit user request > completion bias > style.
-- Block and explain before changing when there is data-loss risk, ambiguous TS↔Rust contract parity, removed path-safety guarantees, or hidden bypass of an owning boundary.
+- Resolve safety and contract uncertainty from the owning code and proof before
+  changing behavior. Block and explain when data-loss risk, TS↔Rust parity,
+  path-safety guarantees, or an owning-boundary bypass remains unresolved.
 - Runtime IPC stays centralized in `src/lib/tauri/*`.
 - Metadata intent adaptation stays at the Tauri runtime boundary.
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.
@@ -65,6 +67,9 @@
 - Let deterministic lint/typecheck own style and stale-cleanup (unused symbols, formatting, `any`): run the tools for the touched surface and fix what they report. Command menu: `scripts/AGENTS.md`.
 - UI behavior also needs visual/human review where static tests cannot prove UX.
 - Owned import/export surface changes update the nearest `AGENTS.md` and its contract test.
+- Treat local boundary-change lists as prompts to update the owning interface
+  and proof within the authorized scope. Carry requested fixes through those
+  checks; an interface change alone does not require renewed permission.
 - Release/version/changelog/tag/DMG work uses the `release` skill.
 
 ## Planning And Capture

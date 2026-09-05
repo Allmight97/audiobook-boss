@@ -26,12 +26,6 @@
 - Queue snapshot items must always become terminal outcomes (success or failed) so UI state never hangs on missing indices.
 - Concurrency reconfiguration is idle-only to prevent dangling permits and inconsistent UI job counts.
 
-## Lifecycle Ownership Traps
-
-- If ownership between scheduler, permit handling, and cancellation appears split or implicit, name the seam and working assumption.
-- Add or propose the smallest invariant, test, or doc guard that would prevent recurrence.
-- Block when ambiguity risks leaked permits, incorrect counts, or stuck cancellation.
-
 ## Done Criteria
 
 - Job lifecycle remains single-owner and terminal paths are complete.

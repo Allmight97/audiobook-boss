@@ -15,7 +15,7 @@
   `readEncoderDefaultsFromState`, `readEncodingRequestConfig`,
   `readFdkAfterburner`, `setFdkAfterburner`, `subscribeEncoderPanel`.
 - Do not add callers to `subscribeEncoderPanel`, `state.ts`,
-  `runtimeSettingsCapabilities.ts`, or the read/apply global functions. New
+  `src/ui/runtimeSettingsCapabilities.ts`, or the read/apply global functions. New
   callers use a runtime-scoped owner composed by App Runtime.
 
 ## Required Owner Boundary

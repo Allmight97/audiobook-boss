@@ -1,87 +1,54 @@
 ---
 name: abb-library-research
-description: Resolve ABB external-library/API uncertainty for Effect, Solid, Tauri, Specta, or tauri-specta when implementation, IPC contracts, codegen, resolved-version behavior, or upstream changes affect the work. Ground answers in lockfiles and exact package source; use focused documentation or primary-source discovery only as needed.
+description: Resolve version-sensitive Effect, Solid, Tauri, Specta, or tauri-specta behavior when an ABB implementation or contract decision needs external-library evidence.
 ---
 
 # ABB Library Research
 
-Answer external-library questions that affect an ABB implementation or contract decision. Smallest source-backed answer — not a survey.
+Resolve the active library question and return the answer to its ABB owner.
+Repository paths below are relative to the ABB root.
 
-## Boundary
+## Evidence
 
-Resolved lockfile versions, installed or registry-packaged source, route cards,
-exact public package docs, focused documentation, and primary-source discovery.
+Start with the owning ABB code, tests, and contract, then identify the resolved
+package version and source in `bun.lock` or `Cargo.lock`. Manifests state the
+intended range; lockfiles select the version.
 
-ABB owners retain metadata, processing, output artifacts, audio engine behavior,
-path safety, job lifecycle, IPC guardrails, and release. Research an external
-library only when its behavior is the active blocker, then return the answer to
-the owning ABB boundary. No durable artifacts. Do not commit upstream source
-snapshots as research material. The patched FFmpeg sys crate under `vendor/` is
-build provenance, not this skill.
+Use installed declarations/source or exact registry-packaged source for
+version-sensitive behavior. Exact-version public documentation may be enough
+for a documented API; inspect implementation when the question depends on it.
+If installed files are absent or incomplete, retrieve the exact npm tarball or
+Cargo crate and verify its version and registry checksum as applicable.
 
-## Answer
+Load only the route card for the library involved:
 
-- **Behavior** for the active question
-- **ABB route** (owning boundary)
-- **Constraints** that change implementation
-- **Version or path** when version-sensitive
-- **Residual uncertainty** when evidence conflicts
+| Question | Reference |
+| --- | --- |
+| Effect workflows and APIs | [effect.md](references/effect.md) |
+| Solid rendering, reactivity, or component tests | [solid.md](references/solid.md) |
+| Tauri runtime, commands, capabilities, or bundling | [tauri.md](references/tauri.md) |
+| Installed Tauri plugins | [tauri-plugins.md](references/tauri-plugins.md) |
+| Rust type export and TypeScript generation | [specta.md](references/specta.md) |
+| Tauri command/event codegen integration | [tauri-specta.md](references/tauri-specta.md) |
 
-Version-sensitive answers must cite ABB's resolved lockfile version or say the
-version could not be proven. Record a commit SHA when exceptional upstream
-source was used.
+When package evidence leaves a material gap, use available documentation or
+search tools to find primary docs, source, issues, or history. Context7 can help
+with a known API; Exa or web search can discover sources. Resolve Context7 IDs
+live if using it; route-card IDs are hints. Neither tool is required. Reconcile
+current docs and search results to the resolved package before treating them
+as version proof.
 
-Stop when exact-version evidence answers the active behavior, the ABB owner and
-implementation constraints are named, and any research-aid evidence is either
-reconciled to the resolved package or labeled current-only, mismatched, or
-unproven.
+Read [source-retrieval.md](references/source-retrieval.md) when omitted tests,
+examples, codegen internals, or history require upstream retrieval. Root
+`AGENTS.md` owns the policy on upstream source snapshots; external research
+does not transfer product ownership out of ABB's local boundaries.
 
-## Lookup order
+## Finish
 
-1. ABB-owned truth: nearest `AGENTS.md`, ABB code and tests, generated
-   contracts, `bun.lock`, `Cargo.lock`, and manifests. Lockfiles identify the
-   resolved version and source. Manifests explain the intended range but do not
-   override the lockfile.
-2. Exact installed or registry-packaged source:
-   - JavaScript: exported `node_modules` package files and TypeScript
-     declarations; the exact npm package tarball when installed files are
-     absent or incomplete.
-   - Rust: the Cargo registry source selected by `Cargo.lock`. Verify crate
-     version and checksum before treating it as installed truth.
-3. Exact public package documentation at the resolved version (`docs.rs`, npm,
-   unpkg/jsDelivr). Effect `llms.txt` is current documentation, not versioned
-   evidence.
-4. Supplementary research only when the preceding evidence does not answer the
-   active question. Choose the narrowest lane:
-   - Context7 for focused usage guidance about a known library and concept.
-     Resolve the library ID live, then run one focused query that includes the
-     resolved ABB version. Treat default-branch, mismatched, or undisclosed
-     indexed versions as orientation rather than version proof.
-   - Exa, when available, to discover primary documentation, source, issues,
-     releases, or history when the route is unclear, Context7 is incomplete or
-     version-mismatched, or the question crosses source types. Validate a
-     selected primary source against ABB's resolved package or exact version.
-   - Use both only when the first lane leaves decision-changing uncertainty.
-     Search results and generated summaries are discovery evidence, not
-     authority for installed behavior.
-5. Exceptional upstream retrieval: see `references/source-retrieval.md`. Use
-   only when registry packages omit tests, examples, codegen internals, runtime
-   implementation, or history required by the question.
+Report the behavior, ABB owner, implementation-changing constraints, and
+version/source evidence. Record the commit SHA when upstream source was used.
+If evidence is unavailable or conflicts, label the answer current-only,
+version-mismatched, or unproven and state the remaining decision.
 
-Context7 library IDs in route cards are selection hints, not a substitute for
-live resolution. No broad surveys unless asked.
-
-## References
-
-`references/source-retrieval.md` for exceptional upstream clones.
-
-Route cards: `effect.md`, `solid.md`, `tauri.md`, `tauri-plugins.md`, `specta.md`, `tauri-specta.md`.
-
-Pattern files: `references/pattern-<library>-<topic>.md` only after repeated need.
-
-## Guardrails
-
-- Installed or registry-packaged source over current upstream documentation
-- `src/lib/tauri/*` is the Tauri IPC boundary
-- Effect workflow APIs stay private to owning workflows. Do not import
-  `effect/unstable/reactivity` or `@effect/atom-solid`.
+Stop once the active question is answered with adequate version evidence, or
+the missing evidence and its implementation consequence are explicit.

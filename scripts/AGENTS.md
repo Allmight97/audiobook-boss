@@ -12,23 +12,17 @@ commands over invoking internals directly.
   It catches undeclared dependencies that a warm checkout can conceal; it is
   not a PR gate or broad test route. Rust and generated-binding proof stay
   local/release-owned through the commands below.
-- There is no repo-owned verification runner and no default broad review route.
-  Run native commands directly, one at a time, only for the touched owner or
-  explicit risk surface. Report the command, elapsed time when meaningful, exit
-  code, failing test/script line, and residual risk.
-- Broad workspace routes are not a freshness badge. Use them only when the
-  changed surface actually crosses owners or when the repo owner asks for that
-  cost.
+- Run native verification commands for the touched owner or explicit risk
+  surface. Keep expensive build/test routes sequential to avoid competing for
+  shared targets. Report failures with the command, exit code, and failing
+  test/script location; include elapsed time when cost is material.
 - If a proof/test/build command consumes disproportionate wall-clock, first-output
   latency, or agent tokens, classify the friction as `fix` unless a safety, data,
   or contract invariant requires finishing the current command.
-- Keep Rust binary checks out of broad Nextest discovery. Run generated binding
-  export and decoder-contract binaries through their explicit commands only.
-- AAC decoder capability contract: `bun run aac-decoder-contract:check`.
-- Avoid broad workspace and multi-package Nextest routes; they can discover or
-  list unrelated binaries such as `export_bindings` and
-  `verify_aac_decoder_contract`.
-- Media execution lane (issue #341 closeout: route `add`): real-media workflow
+- Package-select Nextest routes; broad workspace/multi-package discovery can
+  pull unrelated binaries into the target set. Binding export and
+  `bun run aac-decoder-contract:check` have explicit binary commands.
+- Media execution: real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
   the Native AAC and Apple AAC encoder routes (external FDK is excluded: it
@@ -39,7 +33,7 @@ commands over invoking internals directly.
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
-  (runtime budget ~1s wall clock; shrink fixtures before widening it). Do not
+  (keep synthesized fixtures small). Do not
   add broad media gates or committed fixtures beyond this lane without a new
   owner decision.
 
@@ -124,7 +118,7 @@ commands over invoking internals directly.
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
   The no-import tripwires match `from 'typescript'` and the full `effect`
   package family, so ordinary multiline named imports count; do not require
-  the binding list to sit on one line.   Workflow APIs enter through
+  the binding list to sit on one line. Workflow APIs enter through
   `src/lib/effect/appEffect.ts`. The tripwire also rejects leftover
   `.svelte` / `.svelte.ts` sources under `src/` and leftover Tailwind or
   foundation-internal imports. The tripwire stays in `scripts/` so it does not

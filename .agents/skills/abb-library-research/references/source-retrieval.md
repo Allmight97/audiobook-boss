@@ -1,59 +1,27 @@
 # Exceptional Upstream Source Retrieval
 
-Use this reference when the active library-research question needs upstream
-tests, omitted examples, codegen internals, runtime implementation, or history
-that installed and registry packages do not contain.
+Read when the active question needs tests, examples, internals, or history
+omitted from the installed or registry package. Root `AGENTS.md` owns the
+policy on retaining upstream snapshots.
 
-## Control-Plane Rule
+Map the resolved package to its upstream revision using registry metadata,
+`.cargo_vcs_info.json`, or release evidence. A version string is not proof
+that an identically named tag matches the published package. Verify the
+packaged source/checksum as applicable and resolve the revision to a commit
+SHA before making exact-version claims.
 
-`abb-library-research` owns the reference-library workflow:
+Prefer an API or single-file fetch when it answers the question. For a tree,
+tests, or history, retrieve the verified commit into an ephemeral OS-temp
+checkout; use shallow, filtered, or sparse retrieval when useful. Read only the
+material needed, cite the SHA in the answer, and remove the task-created
+checkout after use.
 
-- resolved versions come from `bun.lock` and `Cargo.lock`
-- route cards live in this skill's `references/<library>.md`
-- task-specific pattern files, if needed, live as
-  `references/pattern-<library>-<topic>.md`
-- root `AGENTS.md` keeps the no-snapshot invariant; this file owns the
-  retrieval procedure
+If the published artifact cannot be tied to a revision, report the retrieved
+source as unproven for the installed version. Return the implementation
+consequence to the ABB owner instead of silently substituting upstream behavior.
 
-Do not create a second routing system under `repos/`, `docs/reference/`, or a
-repo-local ticket ledger. Do not write upstream checkouts into the ABB tree.
-
-## When To Retrieve Upstream Source
-
-Stay on installed or registry-packaged source plus Context7 and exact public
-docs unless the question cannot be answered from those.
-
-Never infer that a package version equals an upstream tag. Resolve the
-repository and a candidate tag or revision, verify that it corresponds to the
-published package, resolve it to a commit SHA, and record that SHA in the
-research answer.
-
-Prefer the GitHub API or a single-file fetch when targeted files are enough.
-Create an ephemeral OS-temp clone only when a tree, tests, or history is
-required. Prefer shallow, filtered, or sparse retrieval. Remove the temporary
-checkout after the task.
-
-## Retrieval Shape
-
-1. Read the resolved version from `bun.lock` or `Cargo.lock`.
-2. Identify the upstream repository from the route card or package metadata.
-3. Map version → candidate tag/revision using crates.io, npm, or GitHub
-   releases. Confirm the published artifact (checksum, packument, or crate
-   `.crate` source) matches that revision.
-4. Fetch the verified commit. Record the SHA in the answer.
-5. Read only the files needed for the question.
-6. Delete the temporary checkout before finishing.
-
-## Pattern Files
-
-Do not create pattern files speculatively. Create one only after a real ABB task
-shows repeated lookup friction for the same external-library idiom.
-
-Pattern files must:
-
-- live one level deep under `references/`
-- be named `pattern-<library>-<topic>.md`
-- cite concrete upstream source, test, or docs paths
-- describe practical ABB usage, not broad upstream documentation
-- include avoid-notes when they prevent likely misuse
-- be refreshed or deleted when cited source paths stop matching lockfile truth
+A maintained pattern reference earns a place here only after repeated ABB
+lookup friction. Before adding one, inspect existing callers and references;
+retain the decision-changing idiom and exact source pointer rather than an
+upstream tutorial. Refresh or remove it when its evidence no longer matches
+the selected package.
