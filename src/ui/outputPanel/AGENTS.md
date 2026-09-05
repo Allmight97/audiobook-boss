@@ -11,12 +11,9 @@
 
 - Import from `src/ui/outputPanel`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- Exports: `OutputView`, `applyOutputDefaultsFromSettings`,
-  `readOutputDefaultsFromState`, `readOutputRequestConfig`,
-  `runOutputPlanReviewWorkflow`.
-- The non-view exports are compatibility re-exports. Do not add callers;
-  after migration this index exports the view and any genuinely view-owned
-  types only. Processing and Settings use `runtime.output` directly.
+- The non-view exports are compatibility re-exports. New Processing and
+  Settings callers use `runtime.output` directly; do not extend that UI strip
+  for application coordination.
 
 ## Private Cluster
 
@@ -28,7 +25,7 @@
 - Estimated size is rendered in the encoder header from Output Plan. Do not
   add a second estimate readout here.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
 - Reintroducing a poke API (`updateOutputPath`, `updateEstimatedSize`) or a

@@ -51,7 +51,7 @@
   consumes. Do not import private Remote session or acquisition files here.
 - Status UI strip is pinned by `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a public export.
 - Reading leftover file-list, job-control, encoder, or output private state to

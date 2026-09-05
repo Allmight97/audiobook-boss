@@ -1,4 +1,4 @@
 interface:
   display_name: "Release"
-  short_description: "Ship ABB releases with minimal repo infra"
+  short_description: "Prepare, package, install, or publish ABB releases"
   default_prompt: "Use $release to decide whether this ABB change needs a version/changelog update and prepare the release surfaces."

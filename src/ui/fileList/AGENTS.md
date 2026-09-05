@@ -27,9 +27,8 @@
   module cache/listeners are a lifetime gap; the target resource is scoped
   to each `FileListView` and disposed with it. Do not add module resets or
   callers to `coverThumbnails.ts`.
-- PDF companion chips observe the runtime Remote Source owner. The current
-  `subscribeRemoteSourceSupplementalAssets` call is a compatibility rail;
-  do not assume an Input publish also rerenders supplemental assets.
+- PDF companion chips use the runtime Remote Source owner's reactive
+  `hasCompanions` read; supplemental changes can arrive after Input publishes.
 - Remote session purge tracks Input file identity through Remote Source. Do
   not dual-purge from this view.
 

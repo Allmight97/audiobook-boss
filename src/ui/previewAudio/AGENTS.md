@@ -20,7 +20,7 @@
 - Compact variant mounts in the tags header in `src/ui/App.tsx`.
 - Do not add a preview store or poke leftover job-control APIs.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
 - Moving preview duration into a shared owner without a named need.

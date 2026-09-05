@@ -20,7 +20,7 @@
 - Import `Dialog` from `src/ui/foundation`. Do not add a second modal stack or
   a local collision store.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
 - Reintroducing collision policy state in this folder.

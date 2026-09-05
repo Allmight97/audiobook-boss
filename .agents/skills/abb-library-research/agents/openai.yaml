@@ -1,4 +1,4 @@
 interface:
   display_name: "ABB Library Research"
   short_description: "Resolve ABB library behavior from exact sources"
-  default_prompt: "Use $abb-library-research to resolve version-sensitive external-library behavior from ABB lockfiles and exact package source, using Context7 for focused docs or Exa for primary-source discovery only when needed."
+  default_prompt: "Use $abb-library-research to resolve this library question against ABB's selected package version."

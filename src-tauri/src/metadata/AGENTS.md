@@ -58,7 +58,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   non-MP4 tag containers return no thumbnail instead of using an unbounded
   demux fallback.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 - Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
 - Change runtime/container adapters when targeted `audiobook-boss` Nextest and
   Public API Strip checks stay green.
@@ -68,7 +68,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Preserve external audiobook tag interoperability.
 - Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.
 
-## Breaking-Change Triggers
+## Boundary Changes
 - Adding, removing, or renaming any Public API Strip symbol.
 - Making clear intent partial, lossy, or dependent on sentinel frontend values.
 - Moving publication-date or series/subseries sequence validation out of the

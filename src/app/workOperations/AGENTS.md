@@ -43,7 +43,7 @@
 - Work Center UI strip is pinned by
   `src/ui/workCenter/__tests__/runtime-api-contract.test.ts`.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a public export.
 - Reintroducing `processing-progress` overlay consumption for background

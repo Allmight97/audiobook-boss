@@ -32,8 +32,7 @@
   `RemoteSourceAcquireView` renders its live percentage and Cancel.
   File List and the inspector observe Supplemental Assets through the composed
   Remote Source owner so PDF chips update after Input has already published the
-  new files. The current `subscribeRemoteSourceSupplementalAssets` export is a
-  compatibility rail, not the target interface.
+  new files. Consumers use the owner's reactive companion reads.
   Cancellation and app disposal invalidate the active acquisition generation
   so late Promise completions cannot overwrite terminal or reset state.
 - Materialized audio becomes a normal Input session through
@@ -63,13 +62,13 @@
 - `display.test.ts` pins terminal classification so polling cannot spin forever.
 - `selection.test.ts` pins filter/selection policy and Indexer release seeder
   order.
-- `RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent,
+- `src/ui/remoteSource/RemoteSourceAcquireView.test.tsx` pins Escape/Close to the close intent,
   the polled owner-to-Solid progress path, Indexer release protocol/category
   tags, and Enter-to-search on the author and title fields.
 - When lifetime ownership changes, add two-runtime proof covering the affected
   state or resource: disposing A cannot cancel, purge, reset, or publish into B.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Exposing internal state mutation or moving asset coordination into the UI.
 - Dual-writing `fileListSessionState` or adding a parallel remote file list.

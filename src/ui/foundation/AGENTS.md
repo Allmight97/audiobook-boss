@@ -1,10 +1,10 @@
 # UI Foundation
 
-## Current state
+## Scope
 
 Shared visual behavior crosses `src/ui/foundation/index.ts`. Native CSS is the
-only styling language. Next action: change tokens or primitives here, then
-update `src/lab` in the same change.
+only styling language. When changing tokens or primitives, update `src/lab`
+in the same change.
 
 ## Public API Strip
 

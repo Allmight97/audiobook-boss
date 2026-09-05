@@ -51,7 +51,7 @@
   `settings_encoder.rs`, and `toolchain/` (`mod.rs` = platform-neutral
   resolution/validation; `platform.rs` = the per-OS probe seam — candidate
   enumeration, binary-arch acceptance, and platform paths live ONLY there,
-  cfg-dispatched per the `remote_source/vault.rs` pattern with pure rules
+  cfg-dispatched per the `src-tauri/src/remote_source/vault.rs` pattern with pure rules
   unit-testable on any host).
 - The cluster owns local audio import metadata/discovery, decoder/toolchain
   selection, media inspection, decode/resample/encode/mux internals, staging,
@@ -76,7 +76,7 @@
 - Diagnostics and logs use sanitized display strings.
 - Lossy strings are allowed only for display ordering, never identity or command argv.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 
 - Change private implementation files when focused audio/processing tests stay
   green for the touched boundary.
@@ -85,7 +85,7 @@
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK adapter differences inside
   the private cluster unless a caller needs a stable capability fact.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming any Public API Strip symbol.
 - Moving job lifecycle ownership out of processing, final artifact commit truth

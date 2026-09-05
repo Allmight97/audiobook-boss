@@ -27,12 +27,9 @@
   and `encodingEstimateKbps`. Do not read private Input/encoder state, sample
   `readEncodingRequestConfig()`, parse the encoder `Est: ~60 kbps` label, or
   cache a mirrored byte size.
-- Keep `estimateEncodedSizeBytes` as: non-positive duration → 0; bytes =
-  `durationSeconds * bitrateKbps * 1000 / 8`; ×1.5 when `channels === 'stereo'`;
-  ×1.03 overhead;   `Math.round`. On FDK VBR, `bitrateKbps` is the injected
-  `encodingEstimateKbps`, not the sticky request `encoderSettings.bitrateKbps`.
-  The encoder header is the only estimate consumer and keeps
-  `~ 12.3 MB` / `~ --- MB` (`formatEstimatedSizeText`).
+- `estimate.ts` and `estimate.test.ts` own the byte formula and empty-session
+  placeholder. On FDK VBR, use injected `encodingEstimateKbps`, not the sticky
+  request `encoderSettings.bitrateKbps`. The encoder header owns presentation.
 - Path preview is a Solid `createEffect` on public Input, Metadata, output
   directory, naming preset, year, and the **committed** template. Live template
   typing updates the input immediately and commits after 150 ms. Do not preview
@@ -67,7 +64,7 @@
 - `workflow.test.ts` pins stale preview suppression and review approve /
   cancel / hard-block.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a public export.
 - Reading private Input, Metadata, file-list, or encoder state to build
