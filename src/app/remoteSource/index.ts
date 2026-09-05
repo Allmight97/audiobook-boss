@@ -12,8 +12,6 @@ export {
 } from './display';
 export {
 	selectedRemoteTitleSummaryText,
-	toggledRemoteTitleSelection,
-	toggledSupplementalPdfPreference,
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';

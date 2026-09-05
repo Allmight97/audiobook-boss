@@ -287,6 +287,13 @@ describe('tauriClient nullish adapters', () => {
 		const result = await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
+				chapterPlans: {
+					'/books/a.m4b': {
+						fromCue: true,
+						sourceFingerprint: '123:456',
+						chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
+					},
+				},
 				outputDir: '/tmp/out',
 				settings: defaultEncoderSettings(),
 				sampleRate: undefined,
@@ -312,6 +319,13 @@ describe('tauriClient nullish adapters', () => {
 			},
 		];
 		expect(commandName).toBe('process_audiobook_files');
+		expect(args.payload.chapterPlans).toEqual({
+			'/books/a.m4b': {
+				fromCue: true,
+				sourceFingerprint: '123:456',
+				chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
+			},
+		});
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();

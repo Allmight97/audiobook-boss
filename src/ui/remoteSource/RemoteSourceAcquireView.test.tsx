@@ -95,6 +95,33 @@ function remoteTitle(): RemoteTitle {
 	};
 }
 
+async function openConnected(
+	runtime: AppRuntime,
+	lane: 'audible' | 'indexer',
+	releases?: RemoteRelease[],
+) {
+	vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue(providerCapabilities());
+	vi.spyOn(tauriClient, 'getRemoteSourceAccountState').mockImplementation(async (providerId) => ({
+		providerId,
+		status: 'connected',
+	}));
+	vi.spyOn(tauriClient, 'loadRemoteSourceLibrary').mockResolvedValue({
+		providerId: 'audible',
+		titles: [remoteTitle()],
+		diagnostics: [],
+	});
+	await runtime.remoteSource.open({ lane });
+	if (releases) {
+		vi.spyOn(tauriClient, 'searchRemoteSourceReleases').mockResolvedValue({
+			providerId: 'indexer',
+			releases,
+			diagnostics: [],
+		});
+		runtime.remoteSource.editSearch({ indexerTitleQuery: 'Example' });
+		await runtime.remoteSource.runAction({ type: 'searchReleases' });
+	}
+}
+
 describe('RemoteSourceAcquireView close wiring', () => {
 	let runtime: AppRuntime | undefined;
 
@@ -140,13 +167,8 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			accountState: { providerId: 'audible', status: 'connected' },
-			titles: [remoteTitle()],
-			selectedTitleIds: new Set(['B000000001']),
-		});
+		await openConnected(runtime, 'audible');
+		runtime.remoteSource.toggleTitle('B000000001');
 		await Promise.resolve();
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Acquire Selected' }));
@@ -169,14 +191,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			providerId: 'audible',
-			providers: providerCapabilities(),
-			accountState: { providerId: 'audible', status: 'connected' },
-			titles: [remoteTitle()],
-		});
+		await openConnected(runtime, 'audible');
 		await Promise.resolve();
 
 		expect(screen.getByLabelText('Source')).toBeEnabled();
@@ -207,13 +222,11 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			providerId: 'audible',
-			providers: providerCapabilities(),
-			accountState: { providerId: 'audible', status: 'connected' },
-			titles: [remoteTitle()],
+		await openConnected(runtime, 'audible');
+		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValue({
+			providerId: 'indexer',
+			status: 'needsAuth',
+			message: 'Configure Indexer URL and API key in Settings before searching.',
 		});
 		await Promise.resolve();
 
@@ -234,13 +247,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			providerId: 'indexer',
-			providers: providerCapabilities(),
-			accountState: { providerId: 'indexer', status: 'connected' },
-		});
+		await openConnected(runtime, 'indexer');
 		await Promise.resolve();
 
 		expect(screen.queryByTestId('remote-indexer-settings-needed')).not.toBeInTheDocument();
@@ -256,13 +263,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			providerId: 'indexer',
-			providers: providerCapabilities(),
-			accountState: { providerId: 'indexer', status: 'connected' },
-		});
+		await openConnected(runtime, 'indexer');
 		await Promise.resolve();
 		runAction.mockClear();
 
@@ -281,26 +282,19 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			providerId: 'indexer',
-			providers: providerCapabilities(),
-			accountState: { providerId: 'indexer', status: 'connected' },
-			releases: [
-				{
-					providerId: 'indexer',
-					guid: 'extinction-1',
-					indexerId: 7,
-					title: 'Extinction by David Crouse [ENG / M4B]',
-					indexer: 'MyAnonymouse',
-					sizeBytes: 550_000_000,
-					protocol: 'torrent',
-					seeders: 72,
-					categories: [{ id: 3030, name: 'Audio/Audiobook' }],
-				},
-			],
-		});
+		await openConnected(runtime, 'indexer', [
+			{
+				providerId: 'indexer',
+				guid: 'extinction-1',
+				indexerId: 7,
+				title: 'Extinction by David Crouse [ENG / M4B]',
+				indexer: 'MyAnonymouse',
+				sizeBytes: 550_000_000,
+				protocol: 'torrent',
+				seeders: 72,
+				categories: [{ id: 3030, name: 'Audio/Audiobook' }],
+			},
+		]);
 		await Promise.resolve();
 
 		expect(screen.getByText('torrent')).toHaveClass('remote-release-tag-torrent');
@@ -333,14 +327,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 				<RemoteSourceAcquireView />
 			</AppRuntimeProvider>
 		));
-		runtime.remoteSource.patch({
-			isOpen: true,
-			didHydrateOpenDialog: true,
-			providerId: 'indexer',
-			providers: providerCapabilities(),
-			accountState: { providerId: 'indexer', status: 'connected' },
-			releases,
-		});
+		await openConnected(runtime, 'indexer', releases);
 		await fireEvent.click(screen.getByRole('button', { name: /Release from 8/ }));
 		expect(screen.getByRole('option', { name: /Release from 7/ })).toHaveAttribute(
 			'aria-selected',

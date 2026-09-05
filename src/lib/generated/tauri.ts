@@ -210,16 +210,6 @@ export type AppSettingsPatch = {
 	defaultAcquisitionLane: AcquisitionLane | null,
 };
 
-/**  Read-only chapter facts discovered while analyzing one audio file. */
-export type AudioChapter = {
-	/**  Embedded chapter title, when present in the source container. */
-	title: string | null,
-	/**  Chapter start in milliseconds from the beginning of this file. */
-	startMs: number,
-	/**  Chapter end in milliseconds from the beginning of this file. */
-	endMs: number,
-};
-
 /**  Represents an audio file with metadata */
 export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
@@ -247,7 +237,9 @@ export type AudioFile = {
 	/**  Artist tag discovered during input analysis (None if unavailable) */
 	tagArtist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
-	chapters?: AudioChapter[],
+	chapters?: ChapterSpec[],
+	chapterPlan?: ChapterPlan | null,
+	cueSource?: CueSource | null,
 	/**  Validation status */
 	isValid: boolean,
 	/**  Error message if validation failed */
@@ -282,6 +274,18 @@ export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
 /**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
 
+export type ChapterPlan = {
+	chapters: ChapterSpec[],
+	fromCue: boolean,
+	sourceFingerprint: string,
+};
+
+export type ChapterSpec = {
+	title: string | null,
+	startMs: number,
+	endMs: number,
+};
+
 export type ChildJobSnapshot = {
 	childJobId: string,
 	operationId: OperationId,
@@ -303,6 +307,14 @@ export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "c
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
+
+export type CueSource = {
+	fileName: string,
+	status: CueStatus,
+	message: string,
+};
+
+export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
 
 /**  Machine-readable decoder identity paired with the friendly display label. */
 export type DecoderSelection = {
@@ -646,6 +658,7 @@ export type ProcessCommandResult = {
 
 export type ProcessPayload = {
 	inputFiles: string[],
+	chapterPlans: { [key in string]: ChapterPlan } | null,
 	/**
 	 *  Session/workbench identities aligned to `input_files`; used for acquired
 	 *  source sidecars without replacing path as the filesystem source label.

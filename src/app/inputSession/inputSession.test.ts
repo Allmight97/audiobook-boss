@@ -3,7 +3,7 @@ import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../.
 import { createTestAppRuntime } from '../runtime/harness';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { AppRuntime } from '../runtime';
-import { createInputOwner } from './owner';
+import { createInputOwner, chapterPlansForProcessing } from './index';
 import { emptyInputSession, type InputSessionState } from './types';
 
 const metadata: SupportedAudioImportMetadata = {
@@ -205,4 +205,59 @@ describe('input session support text hydrate', () => {
 		expect(runtime.input.view().files).toHaveLength(1);
 		expect(runtime.input.view().files[0]?.path).toBe('/books/chapter.m4b');
 	});
+});
+
+it('carries folder CUE confirmation and explicit ignore into independent processing plans', async () => {
+	const analyzed = analyzedFile('/books/book.mp3');
+	analyzed.files[0] = {
+		...analyzed.files[0]!,
+		cueSource: {
+			fileName: 'book.cue',
+			status: 'needsConfirmation',
+			message: 'Stale FILE name; using same-stem MP3.',
+		},
+		chapterPlan: {
+			sourceFingerprint: '100:200',
+			fromCue: true,
+			chapters: [{ title: 'Opening', startMs: 940, endMs: 120000 }],
+		},
+	};
+	analyzed.files.push({
+		...audioFile('/books/broken.mp3'),
+		inputId: 'broken',
+		cueSource: {
+			fileName: 'broken.cue',
+			status: 'invalid',
+			message: 'CUE line 2: multiple FILE sheets are unsupported',
+		},
+		chapterPlan: { sourceFingerprint: '200:300', fromCue: false, chapters: [] },
+	});
+	analyzed.validCount = 2;
+	const capability = fakeInput({
+		discoverAudioImportPaths: vi.fn(async () => ['/books/book.mp3', '/books/broken.mp3']),
+		analyzeAudioFiles: vi.fn(async () => analyzed),
+	});
+	const owner = createInputOwner({ capability });
+	await owner.importIntent({ type: 'pickFolder' });
+	expect(capability.discoverAudioImportPaths).toHaveBeenCalledWith(['/books']);
+	expect(owner.view().files[0]?.chapterPlan?.chapters).toHaveLength(1);
+	expect(owner.view().files[0]?.cueSource?.fileName).toBe('book.cue');
+	expect(() => chapterPlansForProcessing(owner.view().files, 'batch')).toThrow('confirm');
+	owner.chooseCue('input-1', 'confirmHundredths');
+	expect(() => chapterPlansForProcessing(owner.view().files, 'batch')).toThrow('broken.cue');
+	expect(owner.view().files[1]?.cueSource?.message).toContain('multiple FILE');
+	owner.chooseCue('broken', 'ignore');
+	const accepted = chapterPlansForProcessing(owner.view().files, 'batch');
+	expect(accepted?.['/books/book.mp3']?.chapters).toEqual([
+		{ title: 'Opening', startMs: 940, endMs: 120000 },
+	]);
+	expect(accepted?.['/books/broken.mp3']?.chapters).toEqual([]);
+	expect(() => chapterPlansForProcessing(owner.view().files, 'merge')).toThrow(
+		'Merging CUE-bearing',
+	);
+	owner.chooseCue('input-1', 'ignore');
+	expect(
+		chapterPlansForProcessing(owner.view().files, 'merge')?.['/books/book.mp3']?.chapters,
+	).toEqual([]);
+	expect(accepted?.['/books/book.mp3']?.chapters[0]?.startMs).toBe(940);
 });

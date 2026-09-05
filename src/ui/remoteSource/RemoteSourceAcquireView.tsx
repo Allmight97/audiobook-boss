@@ -11,8 +11,6 @@ import {
 	releaseProtocolLabel,
 	selectedRemoteTitleSummaryText,
 	titleAvailability,
-	toggledRemoteTitleSelection,
-	toggledSupplementalPdfPreference,
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from '../../app/remoteSource';
@@ -65,18 +63,10 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const view = remoteSource.view;
 	const runAction = remoteSource.runAction;
 	const close = remoteSource.close;
-	const patchView = remoteSource.patch;
+	const editSearch = remoteSource.editSearch;
 
 	const isAudibleLane = () => view().providerId === 'audible';
 	const isIndexerLane = () => view().providerId === 'indexer';
-
-	createEffect(() => {
-		const current = view();
-		if (current.isOpen && !current.didHydrateOpenDialog) {
-			patchView({ didHydrateOpenDialog: true });
-			void runAction({ type: 'hydrateOpenDialog' });
-		}
-	});
 
 	createEffect(() => {
 		const current = view();
@@ -110,7 +100,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 		});
 
 	function handleLaneChange(lane: AcquisitionLane): void {
-		void runAction({ type: 'selectLane', lane });
+		void remoteSource.selectLane(lane);
 	}
 
 	function submitIndexerSearchOnEnter(event: KeyboardEvent): void {
@@ -184,7 +174,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 											type="text"
 											placeholder="Final Amazon URL or handoff file path"
 											value={view().handoffPath}
-											onInput={(event) => patchView({ handoffPath: event.currentTarget.value })}
+											onInput={(event) => editSearch({ handoffPath: event.currentTarget.value })}
 										/>
 									</div>
 									<div class="remote-source-toolbar-field remote-source-toolbar-button">
@@ -222,7 +212,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 									type="search"
 									placeholder="Filter loaded titles"
 									value={view().titleFilter}
-									onInput={(event) => patchView({ titleFilter: event.currentTarget.value })}
+									onInput={(event) => editSearch({ titleFilter: event.currentTarget.value })}
 								/>
 							</div>
 							<div class="remote-source-toolbar-field remote-source-toolbar-toggle remote-source-pdf-filter">
@@ -231,7 +221,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										type="checkbox"
 										checked={view().showSupplementalPdfOnly}
 										onChange={(event) =>
-											patchView({ showSupplementalPdfOnly: event.currentTarget.checked })
+											editSearch({ showSupplementalPdfOnly: event.currentTarget.checked })
 										}
 									/>
 									<span class="option-label">Supplemental PDF only</span>
@@ -243,7 +233,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										type="checkbox"
 										checked={view().hideUnavailableTitles}
 										onChange={(event) =>
-											patchView({ hideUnavailableTitles: event.currentTarget.checked })
+											editSearch({ hideUnavailableTitles: event.currentTarget.checked })
 										}
 									/>
 									<span class="option-label">Hide unavailable</span>
@@ -261,7 +251,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								type="text"
 								placeholder="Author"
 								value={view().indexerAuthorQuery}
-								onInput={(event) => patchView({ indexerAuthorQuery: event.currentTarget.value })}
+								onInput={(event) => editSearch({ indexerAuthorQuery: event.currentTarget.value })}
 								onKeyDown={submitIndexerSearchOnEnter}
 							/>
 						</div>
@@ -273,7 +263,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								type="text"
 								placeholder="Title"
 								value={view().indexerTitleQuery}
-								onInput={(event) => patchView({ indexerTitleQuery: event.currentTarget.value })}
+								onInput={(event) => editSearch({ indexerTitleQuery: event.currentTarget.value })}
 								onKeyDown={submitIndexerSearchOnEnter}
 							/>
 						</div>
@@ -294,7 +284,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								type="search"
 								placeholder="Filter loaded releases"
 								value={view().releaseFilter}
-								onInput={(event) => patchView({ releaseFilter: event.currentTarget.value })}
+								onInput={(event) => editSearch({ releaseFilter: event.currentTarget.value })}
 							/>
 						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
@@ -339,7 +329,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								class="remote-clear-selection"
 								type="button"
 								disabled={view().isBusy}
-								onClick={() => patchView({ selectedTitleIds: new Set() })}
+								onClick={() => remoteSource.clearTitleSelection()}
 							>
 								Clear selection
 							</button>
@@ -399,14 +389,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										type="button"
 										class="remote-title-button"
 										disabled={!isTitleAcquirable(title)}
-										onClick={() =>
-											patchView({
-												selectedTitleIds: toggledRemoteTitleSelection(
-													view().selectedTitleIds,
-													title,
-												),
-											})
-										}
+										onClick={() => remoteSource.toggleTitle(title.titleId)}
 									>
 										<span class="remote-title-name">{title.title}</span>
 										<span class="remote-title-meta">{title.authors.join(', ')}</span>
@@ -427,14 +410,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 												type="checkbox"
 												disabled={!isTitleAcquirable(title)}
 												checked={view().includePdfByTitleId[title.titleId] ?? true}
-												onChange={() =>
-													patchView({
-														includePdfByTitleId: toggledSupplementalPdfPreference(
-															view().includePdfByTitleId,
-															title.titleId,
-														),
-													})
-												}
+												onChange={() => remoteSource.toggleSupplementalPdf(title.titleId)}
 											/>
 											PDF
 										</label>
@@ -460,11 +436,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										view().selectedRelease?.guid === release.guid &&
 										view().selectedRelease?.indexerId === release.indexerId
 									}
-									onSelect={() =>
-										patchView({
-											selectedRelease: { guid: release.guid, indexerId: release.indexerId },
-										})
-									}
+									onSelect={() => remoteSource.selectRelease(release)}
 								/>
 							)}
 						</For>

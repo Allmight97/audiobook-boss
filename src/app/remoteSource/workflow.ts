@@ -245,11 +245,19 @@ export function createRemoteSourceWorkflow(deps: {
 	): Promise<void> {
 		switch (action.type) {
 			case 'refreshAccount': {
-				await refreshAccountState(deps.state.current().providerId, isWorkflowCurrent);
+				try {
+					await refreshAccountState(deps.state.current().providerId, isWorkflowCurrent);
+				} catch (cause) {
+					setAcquisitionErrorWhenCurrent(
+						isWorkflowCurrent,
+						cause,
+						'Connection saved, but account refresh failed. Reopen Acquire to retry.',
+					);
+				}
 				return;
 			}
 			case 'hydrateOpenDialog': {
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true, didHydrateOpenDialog: true });
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 				try {
 					const providers = await deps.services.listProviders();
 					if (!patchWhenCurrent(isWorkflowCurrent, { providers })) return;

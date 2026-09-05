@@ -57,15 +57,33 @@ describe('Indexer connection owner intents', () => {
 			.mockResolvedValue({ providerId: 'indexer', status: 'connected' });
 		runtime = createTestAppRuntime();
 		const owner = runtime.remoteSource;
-		owner.patch({
-			isOpen: true,
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
+		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValueOnce({
 			providerId: 'indexer',
-			accountState: { providerId: 'indexer', status: 'needsAuth' },
+			status: 'needsAuth',
 		});
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().accountState?.status).toBe('needsAuth');
 		owner.patchIndexerConnectionSettings({ baseUrlDraft: configured.baseUrl!, apiKeyDraft: 'key' });
 		await owner.saveIndexerConnectionSettings();
 		expect(account).toHaveBeenCalledWith('indexer');
 		expect(owner.view().accountState?.status).toBe('connected');
+	});
+
+	it('reports a failed post-save refresh while retaining successful persistence', async () => {
+		vi.spyOn(tauriClient, 'updateRemoteSourceIndexerConnection').mockResolvedValue(configured);
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
+		vi.spyOn(tauriClient, 'getRemoteSourceAccountState')
+			.mockResolvedValueOnce({ providerId: 'indexer', status: 'needsAuth' })
+			.mockRejectedValueOnce(new Error('Account refresh unavailable'));
+		runtime = createTestAppRuntime();
+		const owner = runtime.remoteSource;
+		await owner.open({ lane: 'indexer' });
+		owner.patchIndexerConnectionSettings({ baseUrlDraft: configured.baseUrl!, apiKeyDraft: 'key' });
+		await expect(owner.saveIndexerConnectionSettings()).resolves.toBeUndefined();
+		expect(owner.indexerConnection().saveState).toBe('saved');
+		expect(owner.indexerConnection().apiKeyDraft).toBe('');
+		expect(owner.view().statusMessage).toContain('Connection saved, but account refresh failed.');
 	});
 
 	it('does not let initial loading overwrite edits made before the load returns', async () => {
@@ -119,11 +137,13 @@ describe('Indexer connection owner intents', () => {
 		});
 		runtime = createTestAppRuntime();
 		const owner = runtime.remoteSource;
-		owner.patch({
-			isOpen: true,
+		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
+		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValueOnce({
 			providerId: 'indexer',
-			accountState: { providerId: 'indexer', status: 'needsAuth' },
+			status: 'needsAuth',
 		});
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().accountState?.status).toBe('needsAuth');
 		owner.patchIndexerConnectionSettings({
 			baseUrlDraft: configured.baseUrl!,
 			apiKeyDraft: 'first-key',

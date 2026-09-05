@@ -10,19 +10,16 @@
 
 ## Public API Strip
 
-- Import session-asset coordination from `src/ui/remoteSource`.
-- Import acquire intents, lane helper (`providerIdFromLane`),
-  release/title filter helpers, and the Input handoff result type from
-  `src/app/remoteSource`.
-- `RemoteSourceOwner`: `open({ lane? })`, `selectLane`, `view`, workflow
-  `runAction`, and indexer connection settings intents (`loadIndexerConnectionSettings`,
-  `saveIndexerConnectionSettings`, `testIndexerConnection`, `indexerConnection`).
-- `index.ts` is the export surface. Do not import `workflow.ts`,
-  `sessionAssets.ts`, or `state.ts` from outside this owner.
-- State/listeners, workflow generation counters, cover-preview scheduling, and
-  Supplemental Asset maps are still module-global compatibility state. Do not
-  add callers, a reset API, another global, or a UI re-export; new state belongs
-  to each Remote Source owner.
+- `index.ts` is the export surface. Callers consume the composed
+  `RemoteSourceOwner`; private state, workflow, assets, and previews stay here.
+- `open({ lane? })` hydrates account/library state without a mounted view.
+  `selectLane`, title/PDF/release selection intents, and workflow actions own
+  transitions. `editSearch` accepts only user-editable search/filter fields;
+  connection edits accept only URL, API-key, and category drafts.
+- State, workflow generations, cover previews, and supplemental assets belong
+  to each owner instance. Reset/disposal invalidates that instance's work.
+- Nonvisual callers use the owner's companion, processing-asset, retention,
+  reconciliation, and terminal-work intents; the UI strip exports only its view.
 
 ## Hard Invariants
 
@@ -74,6 +71,6 @@
 
 ## Breaking-Change Triggers
 
-- Adding a caller to the public session-asset compatibility exports.
+- Exposing internal state mutation or moving asset coordination into the UI.
 - Dual-writing `fileListSessionState` or adding a parallel remote file list.
 - Cancelling acquisition from dialog close.

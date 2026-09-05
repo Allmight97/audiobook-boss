@@ -11,6 +11,12 @@ pub mod reader;
 pub(crate) mod tag_registry;
 
 mod container;
+mod cue;
+pub use abb_metadata_core::{
+    parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
+};
+pub(crate) use cue::{inspect_chapter_source, validate_chapter_plan};
+pub use cue::{ChapterPlan, CueSource, CueStatus};
 #[cfg(test)]
 mod contract_tests;
 mod cover_art;
@@ -58,7 +64,8 @@ pub use cover_art::{
 pub use ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
 pub(crate) use passthrough::prepare_output_cover_art;
 pub use passthrough::{
-    add_chapters_to_output, extract_passthrough_metadata, PassthroughMetadata, PassthroughSource,
+    add_chapters_to_output, extract_passthrough_metadata, verify_chapters, PassthroughMetadata,
+    PassthroughSource,
 };
 
 /// Applies an explicit metadata intent patch to a real file: validate/plan,
@@ -109,6 +116,9 @@ pub fn finalize_artifact_metadata(
         if should_write_finalized_metadata(path)? {
             write_finalized_metadata(path, metadata)?;
         }
+    }
+    if let Some(passthrough) = passthrough {
+        verify_chapters(path, &passthrough.chapters)?;
     }
     Ok(())
 }

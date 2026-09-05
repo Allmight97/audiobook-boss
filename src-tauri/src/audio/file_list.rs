@@ -75,6 +75,13 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
             audio_file.tag_title = properties.tag_title;
             audio_file.tag_artist = properties.tag_artist;
             audio_file.chapters = properties.chapters;
+            let (plan, cue) = crate::metadata::inspect_chapter_source(
+                &canonical_path,
+                (properties.duration * 1000.0).round() as i64,
+                &audio_file.chapters,
+            )?;
+            audio_file.chapter_plan = Some(plan);
+            audio_file.cue_source = cue;
             audio_file.selected_decoder = properties
                 .selected_decoder
                 .as_ref()
@@ -232,4 +239,33 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
         valid_count,
         invalid_count,
     })
+}
+
+/// Bind accepted chapter facts to freshly inspected audio, never to a reread CUE.
+pub fn apply_chapter_plans(
+    files: &mut FileListInfo,
+    plans: Option<&std::collections::HashMap<String, crate::metadata::ChapterPlan>>,
+    merging: bool,
+) -> Result<()> {
+    for file in files.files.iter_mut().filter(|file| file.is_valid) {
+        let accepted = plans.and_then(|plans| file.path.to_str().and_then(|path| plans.get(path)));
+        if let Some(plan) = accepted {
+            crate::metadata::validate_chapter_plan(
+                &file.path,
+                (file.duration.unwrap_or(0.0) * 1000.0).round() as i64,
+                plan,
+            )?;
+            file.chapter_plan = Some(plan.clone());
+            file.cue_source = None; // accepted intent supersedes inspection/confirmation status
+        } else if file.cue_source.is_some() {
+            return Err(AppError::InvalidInput(
+                "Review the sibling CUE in Input before processing, or explicitly ignore it."
+                    .into(),
+            ));
+        }
+        if merging && file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue) {
+            return Err(AppError::InvalidInput("Merging CUE-bearing inputs is not supported. Convert them as separate jobs or ignore their CUE chapters.".into()));
+        }
+    }
+    Ok(())
 }

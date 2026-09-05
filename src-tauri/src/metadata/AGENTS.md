@@ -75,3 +75,17 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   metadata boundary.
 - Changing canonical/mirrored/compatibility tag precedence, provider-degradation
   contract, or container routing without explicit evidence and doc updates.
+
+## CUE And Accepted Chapters
+
+- `abb-metadata-core` owns `parse_cue`, `validate_chapters`, `ChapterSpec`,
+  `CueInterpretation`, and `CueSheet`. CUE conversion rounds the checked rational
+  timestamp once to the nearest millisecond. Runtime `cue.rs` owns bounded
+  sibling discovery, diagnostics, and source fingerprints; FILE text never
+  chooses another audio path.
+- `ChapterPlan`, `CueSource`, and `CueStatus` carry intake facts. Audio consumes
+  crate-local `inspect_chapter_source` and `validate_chapter_plan`.
+- `PassthroughSource.chapters` carries accepted data when present; `None` is
+  container discovery for artifact readers. `verify_chapters` checks names,
+  starts, ends, and count after final metadata writes and before artifact commit.
+  Selected chapter write/readback failures propagate; they are not best effort.
