@@ -12,7 +12,7 @@ use crate::remote_source::vault::SecretVault;
 pub(super) fn api_key_vault_key(base_url: &str) -> String {
     format!("indexer.api_key:{base_url}")
 }
-pub(super) const DEFAULT_CATEGORY_ID: u32 = 3030;
+pub(super) const DEFAULT_CATEGORY_IDS: &[u32] = &[3000, 3030];
 
 const CONNECTION_FILE_NAME: &str = "remote-source-indexer-connection.json";
 
@@ -35,7 +35,7 @@ impl Default for StoredIndexerConnection {
 }
 
 fn default_category_ids() -> Vec<u32> {
-    vec![DEFAULT_CATEGORY_ID]
+    DEFAULT_CATEGORY_IDS.to_vec()
 }
 
 fn normalize_category_ids(ids: Vec<u32>) -> Vec<u32> {
@@ -280,8 +280,25 @@ mod tests {
         let connection = get_connection(temp.path(), &vault).expect("connection");
 
         assert_eq!(connection.base_url, None);
-        assert_eq!(connection.category_ids, vec![3030]);
+        assert_eq!(connection.category_ids, vec![3000, 3030]);
         assert!(!connection.api_key_configured);
+    }
+
+    #[test]
+    fn preserves_explicit_categories_and_defaults_empty_categories() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        for (categories, expected) in [(vec![3030], vec![3030]), (vec![], vec![3000, 3030])] {
+            let mut change = update(None, None);
+            change.category_ids = Some(categories);
+            update_connection(temp.path(), &vault, change).expect("save categories");
+            assert_eq!(
+                get_connection(temp.path(), &vault)
+                    .expect("reload")
+                    .category_ids,
+                expected
+            );
+        }
     }
 
     #[test]
@@ -407,7 +424,7 @@ mod tests {
         assert!(results.into_iter().all(|result| result.is_err()));
         let saved = get_connection(temp.path(), &vault).expect("read saved connection");
         assert_eq!(saved.base_url.as_deref(), Some("http://old.test"));
-        assert_eq!(saved.category_ids, [3030]);
+        assert_eq!(saved.category_ids, [3000, 3030]);
         assert_eq!(
             std::fs::read_dir(temp.path())
                 .expect("list config files")

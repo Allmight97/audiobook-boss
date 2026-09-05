@@ -149,7 +149,7 @@ pub(super) fn build_search_params(
     Ok(ProwlarrSearchParams {
         query: joined,
         category_ids: if category_ids.is_empty() {
-            vec![connection::DEFAULT_CATEGORY_ID]
+            connection::DEFAULT_CATEGORY_IDS.to_vec()
         } else {
             category_ids.to_vec()
         },
@@ -325,6 +325,7 @@ fn map_release(
     }
 
     Some(RemoteRelease {
+        detail_url: release_detail_url(raw.info_url.as_deref(), raw.comment_url.as_deref()),
         provider_id: ProviderId::Indexer,
         guid: raw.guid,
         indexer_id: raw.indexer_id,
@@ -338,6 +339,20 @@ fn map_release(
             .map(|value| value as u32),
         categories: map_categories(raw.categories),
     })
+}
+
+fn release_detail_url(info_url: Option<&str>, comment_url: Option<&str>) -> Option<String> {
+    [info_url, comment_url]
+        .into_iter()
+        .flatten()
+        .find_map(|candidate| {
+            let url = Url::parse(candidate).ok()?;
+            (matches!(url.scheme(), "http" | "https")
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none())
+            .then(|| url.to_string())
+        })
 }
 
 fn map_categories(entries: Vec<ProwlarrCategoryEntry>) -> Vec<RemoteReleaseCategory> {
@@ -424,6 +439,10 @@ struct ProwlarrReleaseRaw {
     title: String,
     #[serde(default)]
     indexer: String,
+    #[serde(rename = "infoUrl", default)]
+    info_url: Option<String>,
+    #[serde(rename = "commentUrl", default)]
+    comment_url: Option<String>,
     #[serde(default)]
     size: i64,
     #[serde(default)]
@@ -655,6 +674,58 @@ mod tests {
     }
 
     #[test]
+    fn release_details_use_only_valid_source_links() {
+        for (info, comment, expected) in [
+            (None, None, None),
+            (
+                Some("https://source.test/book"),
+                Some("https://source.test/comments"),
+                Some("https://source.test/book"),
+            ),
+            (
+                None,
+                Some("http://source.test/comments"),
+                Some("http://source.test/comments"),
+            ),
+            (
+                Some("/relative"),
+                Some("https://source.test/comments"),
+                Some("https://source.test/comments"),
+            ),
+            (Some("javascript:alert(1)"), None, None),
+            (
+                Some("https://user:secret@source.test/book"),
+                Some("https://source.test/comments"),
+                Some("https://source.test/comments"),
+            ),
+            (
+                Some("https://user@source.test/book"),
+                Some("file:///tmp/book"),
+                None,
+            ),
+        ] {
+            let raw: ProwlarrReleaseRaw = serde_json::from_value(serde_json::json!({
+                "guid": "https://source.test/not-a-detail-link",
+                "infoUrl": info,
+                "commentUrl": comment,
+            }))
+            .expect("release fixture");
+            let mut diagnostics = Vec::new();
+            let release = map_release(raw, &mut diagnostics).expect("release remains selectable");
+            assert_eq!(release.detail_url.as_deref(), expected);
+            assert!(diagnostics.is_empty());
+        }
+        let raw: ProwlarrReleaseRaw =
+            serde_json::from_str(r#"{"guid":"abc"}"#).expect("absent links");
+        assert_eq!(
+            map_release(raw, &mut Vec::new())
+                .expect("release")
+                .detail_url,
+            None
+        );
+    }
+
+    #[test]
     fn map_categories_accepts_named_objects_and_bare_ids() {
         let categories = map_categories(vec![
             ProwlarrCategoryEntry::Id(3000),
@@ -721,7 +792,7 @@ mod tests {
     async fn search_maps_query_and_category_without_indexer_ids() {
         let (listener, addr) = start_listener().await;
         let host = "prowlarr.test";
-        let body = br#"[{"guid":"abc","indexerId":7,"title":"Book Title","indexer":"Example","size":1234,"protocol":"torrent","seeders":12,"categories":[{"id":3030,"name":"Audio/Audiobook"}]}]"#;
+        let body = br#"[{"guid":"abc","indexerId":7,"title":"Book Title","indexer":"Example","size":1234,"protocol":"torrent","seeders":12,"infoUrl":"https://source.test/book/abc","commentUrl":"https://source.test/comments/abc","categories":[{"id":3030,"name":"Audio/Audiobook"}]}]"#;
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
             body.len()
@@ -737,7 +808,7 @@ mod tests {
                 &SecretString::from("secret-key".to_string()),
                 &ProwlarrSearchParams {
                     query: "way of kings".to_string(),
-                    category_ids: vec![3030],
+                    category_ids: vec![3000, 3030],
                 },
             )
             .await
@@ -756,9 +827,14 @@ mod tests {
         );
         assert!(request.path_and_query.contains("type=search"));
         assert!(request.path_and_query.contains("categories=3030"));
+        assert!(request.path_and_query.contains("categories=3000"));
         assert!(!request.path_and_query.contains("indexerIds"));
         assert_eq!(outcome.releases.len(), 1);
         assert_eq!(outcome.releases[0].guid, "abc");
+        assert_eq!(
+            outcome.releases[0].detail_url.as_deref(),
+            Some("https://source.test/book/abc")
+        );
         assert_eq!(outcome.releases[0].indexer, "Example");
         assert_eq!(outcome.releases[0].indexer_id, 7);
         assert_eq!(outcome.releases[0].protocol, RemoteReleaseProtocol::Torrent);

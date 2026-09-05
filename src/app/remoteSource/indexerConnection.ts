@@ -32,7 +32,7 @@ export type IndexerConnectionServices = {
 function createInitialView(): IndexerConnectionSettingsView {
 	return {
 		baseUrlDraft: '',
-		categoryIdsDraft: [3030],
+		categoryIdsDraft: [3000, 3030],
 		apiKeyDraft: '',
 		apiKeyConfigured: false,
 		saveState: 'idle',

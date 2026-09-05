@@ -140,6 +140,7 @@ pub struct RemoteRelease {
     pub indexer_id: i64,
     pub title: String,
     pub indexer: String,
+    pub detail_url: Option<String>,
     pub size_bytes: u64,
     pub protocol: RemoteReleaseProtocol,
     pub seeders: Option<u32>,
