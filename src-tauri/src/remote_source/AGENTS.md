@@ -42,7 +42,8 @@ or infer provider-private Audible internals.
   acquisition jobs or materialize files into Input.
 - Release detail URLs are optional source-provided HTTP(S) links without embedded
   credentials; never infer them from a release GUID.
-- Indexer connection URLs reject embedded credentials before persistence or draft testing.
+- Indexer connection URLs reject embedded credentials on load, save, and draft
+  testing; invalid saved URLs never reach IPC or provider requests.
 - Indexer credentials are scoped to the normalized server URL in the vault;
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.

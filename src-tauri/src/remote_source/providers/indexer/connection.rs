@@ -168,6 +168,16 @@ fn load_stored_connection(config_dir: &Path) -> Result<StoredIndexerConnection> 
             "Indexer connection settings are invalid. Remove remote-source-indexer-connection.json from the app configuration folder, then configure Indexer again. ({error})"
         ))
     })?;
+    stored.base_url = stored
+        .base_url
+        .map(normalize_base_url)
+        .transpose()
+        .map_err(|error| {
+            AppError::InvalidInput(format!(
+                "Stored Indexer URL is invalid: {error} Remove remote-source-indexer-connection.json from the app configuration folder, then configure Indexer again."
+            ))
+        })?
+        .flatten();
     stored.category_ids = normalize_category_ids(stored.category_ids);
     Ok(stored)
 }
@@ -318,6 +328,30 @@ mod tests {
                     .expose_secret(),
                 "saved-key"
             );
+        }
+    }
+
+    #[test]
+    fn rejects_persisted_url_credentials_before_exposing_or_using_them() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        std::fs::write(
+            connection_path(temp.path()),
+            r#"{"baseUrl":"https://user:old-password@indexer.test","categoryIds":[3030]}"#,
+        )
+        .expect("write previously accepted connection");
+
+        let errors = [
+            get_connection(temp.path(), &vault).expect_err("do not expose stored credentials"),
+            draft_credentials(temp.path(), &vault, update(None, Some("api-key")))
+                .expect_err("do not use stored credentials for a connection test"),
+        ];
+        for error in errors {
+            let message = error.to_string();
+            assert!(message.contains("must not contain credentials"));
+            assert!(message.contains("remote-source-indexer-connection.json"));
+            assert!(!message.contains("old-password"));
+            assert!(!message.contains("indexer.test"));
         }
     }
 
