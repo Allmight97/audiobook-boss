@@ -3,8 +3,6 @@ mod prowlarr;
 
 use std::path::Path;
 
-use secrecy::SecretString;
-
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
     AccountRef, ProviderId, RemoteAccountStatus, RemoteAcquisitionFailureKind, RemoteAuthFlow,
@@ -15,7 +13,7 @@ use crate::remote_source::types::{
 use crate::remote_source::vault::SecretVault;
 
 use connection::{
-    api_key_vault_key, draft_credentials, get_connection, read_api_key, update_connection,
+    api_key_vault_key, configured_connection, draft_credentials, get_connection, update_connection,
 };
 use prowlarr::{build_search_params, ProwlarrSearchOutcome};
 
@@ -96,10 +94,11 @@ impl IndexerProvider {
         adapter: &ReqwestProwlarrAdapter,
         request: RemoteReleaseSearchRequest,
     ) -> Result<RemoteReleaseSearchResponse> {
-        let connection = get_connection(config_dir, vault)?;
-        let (base_url, api_key) = require_connection(&connection, vault)?;
+        let connection = configured_connection(config_dir, vault)?;
         let params = build_search_params(&request, &connection.category_ids)?;
-        let outcome = adapter.search(&base_url, &api_key, &params).await?;
+        let outcome = adapter
+            .search(&connection.base_url, &connection.api_key, &params)
+            .await?;
         Ok(map_search_outcome(outcome))
     }
 
@@ -110,12 +109,11 @@ impl IndexerProvider {
         request: RemoteReleaseGrabRequest,
     ) -> Result<RemoteReleaseGrabResponse> {
         validate_grab_release(&request.release)?;
-        let connection = get_connection(config_dir, vault)?;
-        let (base_url, api_key) = require_connection(&connection, vault)?;
+        let connection = configured_connection(config_dir, vault)?;
         let outcome = adapter
             .grab(
-                &base_url,
-                &api_key,
+                &connection.base_url,
+                &connection.api_key,
                 &request.release.guid,
                 request.release.indexer_id,
             )
@@ -148,21 +146,6 @@ impl IndexerProvider {
         }
         Ok(())
     }
-}
-
-fn require_connection(
-    connection: &RemoteIndexerConnection,
-    vault: &dyn SecretVault,
-) -> Result<(String, SecretString)> {
-    let base_url = connection.base_url.clone().ok_or_else(|| {
-        AppError::InvalidInput("Configure Indexer URL in Settings before continuing.".to_string())
-    })?;
-    let api_key = read_api_key(vault, Some(&base_url))?.ok_or_else(|| {
-        AppError::InvalidInput(
-            "Configure Indexer API key in Settings before continuing.".to_string(),
-        )
-    })?;
-    Ok((base_url, api_key))
 }
 
 fn map_search_outcome(outcome: ProwlarrSearchOutcome) -> RemoteReleaseSearchResponse {

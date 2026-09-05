@@ -44,6 +44,8 @@ or infer provider-private Audible internals.
   credentials; never infer them from a release GUID.
 - Indexer connection URLs reject embedded credentials on load, save, and draft
   testing; invalid saved URLs never reach IPC or provider requests.
+- The private connection owner resolves URL, categories, and the host's key for
+  search/grab together; its credential-bearing result never crosses IPC.
 - Indexer credentials are scoped to the normalized server URL in the vault;
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.

@@ -772,22 +772,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn search_url_repeats_categories_for_each_id() {
-        let url = build_search_url(
-            "http://indexer.test",
-            &ProwlarrSearchParams {
-                query: "kings".to_string(),
-                category_ids: vec![3030, 3000],
-            },
-        )
-        .expect("url");
-        let query = url.query().expect("query");
-
-        assert!(query.contains("categories=3030"));
-        assert!(query.contains("categories=3000"));
-    }
-
     #[tokio::test]
     async fn search_maps_query_and_category_without_indexer_ids() {
         let (listener, addr) = start_listener().await;

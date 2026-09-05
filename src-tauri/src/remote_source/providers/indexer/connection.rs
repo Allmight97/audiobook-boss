@@ -117,10 +117,33 @@ fn update_api_key(
     }
 }
 
-pub(super) fn read_api_key(
+pub(super) struct ConfiguredIndexerConnection {
+    pub base_url: String,
+    pub category_ids: Vec<u32>,
+    pub api_key: SecretString,
+}
+
+pub(super) fn configured_connection(
+    config_dir: &Path,
     vault: &dyn SecretVault,
-    base_url: Option<&str>,
-) -> Result<Option<SecretString>> {
+) -> Result<ConfiguredIndexerConnection> {
+    let stored = load_stored_connection(config_dir)?;
+    let base_url = stored.base_url.ok_or_else(|| {
+        AppError::InvalidInput("Configure Indexer URL in Settings before continuing.".to_string())
+    })?;
+    let api_key = read_api_key(vault, Some(&base_url))?.ok_or_else(|| {
+        AppError::InvalidInput(
+            "Configure Indexer API key in Settings before continuing.".to_string(),
+        )
+    })?;
+    Ok(ConfiguredIndexerConnection {
+        base_url,
+        category_ids: stored.category_ids,
+        api_key,
+    })
+}
+
+fn read_api_key(vault: &dyn SecretVault, base_url: Option<&str>) -> Result<Option<SecretString>> {
     match base_url {
         Some(base_url) => vault.get_secret(&api_key_vault_key(base_url)),
         None => Ok(None),
@@ -250,11 +273,13 @@ mod tests {
     #[derive(Default)]
     struct TestVault {
         secrets: Mutex<HashMap<String, SecretString>>,
+        reads: Mutex<usize>,
         fail_writes: bool,
     }
 
     impl SecretVault for TestVault {
         fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
+            *self.reads.lock().expect("read counter lock") += 1;
             Ok(self
                 .secrets
                 .lock()
@@ -332,6 +357,25 @@ mod tests {
     }
 
     #[test]
+    fn configured_request_resolves_the_saved_host_key_once() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        update_connection(
+            temp.path(),
+            &vault,
+            update(Some("https://indexer.test/proxy/"), Some("saved-key")),
+        )
+        .expect("save connection");
+        *vault.reads.lock().expect("read counter lock") = 0;
+
+        let connection = configured_connection(temp.path(), &vault).expect("resolve connection");
+        assert_eq!(connection.base_url, "https://indexer.test/proxy");
+        assert_eq!(connection.category_ids, [3000, 3030]);
+        assert_eq!(connection.api_key.expose_secret(), "saved-key");
+        assert_eq!(*vault.reads.lock().expect("read counter lock"), 1);
+    }
+
+    #[test]
     fn rejects_persisted_url_credentials_before_exposing_or_using_them() {
         let temp = TempDir::new().expect("temp dir");
         let vault = TestVault::default();
@@ -353,6 +397,8 @@ mod tests {
             assert!(!message.contains("old-password"));
             assert!(!message.contains("indexer.test"));
         }
+        assert!(configured_connection(temp.path(), &vault).is_err());
+        assert_eq!(*vault.reads.lock().expect("read counter lock"), 0);
     }
 
     #[test]
