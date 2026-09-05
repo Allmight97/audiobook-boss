@@ -30,6 +30,7 @@ export type AcquisitionState = {
 	indexerTitleQuery: string;
 	releases: RemoteRelease[];
 	releaseFilter: string;
+	releaseSort: 'seeders' | 'size';
 	selectedRelease: Pick<RemoteRelease, 'guid' | 'indexerId'> | null;
 	statusMessage: string;
 	activeJob: AcquisitionJobWithProgress | null;
@@ -63,6 +64,7 @@ export function createInitialAcquisitionState(): AcquisitionState {
 		indexerTitleQuery: '',
 		releases: [],
 		releaseFilter: '',
+		releaseSort: 'seeders',
 		selectedRelease: null,
 		statusMessage: '',
 		activeJob: null,
@@ -99,6 +101,7 @@ export function laneSelectionResetPatch(): Partial<AcquisitionState> {
 		indexerTitleQuery: '',
 		releases: [],
 		releaseFilter: '',
+		releaseSort: 'seeders',
 		selectedRelease: null,
 		statusMessage: '',
 	};

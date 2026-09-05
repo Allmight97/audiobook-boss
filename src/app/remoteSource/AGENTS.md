@@ -14,7 +14,7 @@
   `RemoteSourceOwner`; private state, workflow, assets, and previews stay here.
 - `open({ lane? })` hydrates account/library state without a mounted view.
   `selectLane`, title/PDF/release selection intents, and workflow actions own
-  transitions. `editSearch` accepts only user-editable search/filter fields;
+  transitions. `editSearch` accepts only user-editable search/filter/sort fields;
   connection edits accept only URL, API-key, and category drafts.
 - State, workflow generations, cover previews, and supplemental assets belong
   to each owner instance. Reset/disposal invalidates that instance's work.
@@ -43,6 +43,8 @@
   provider path after handoff. Do not add a second file-list store.
 - Remote Source purges sessions for input ids that leave the public Input
   view. File Import keeps that lifetime subscription alive.
+- Indexer sort is session state: most seeders by default, or largest size with
+  seeders as the tie-breaker. Filtering and sorting preserve release selection.
 - Release selection is the `(indexerId, guid)` pair; GUID alone is not unique
   across indexers. Grab queues externally and never calls the Input handoff.
 - Frontend state may hold provider-neutral account, title, job, and

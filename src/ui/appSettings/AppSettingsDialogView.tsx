@@ -134,6 +134,57 @@ function formatFdkSource(source: string): string {
 	}
 }
 
+function IndexerConnectionHelp(props: {
+	readonly open: boolean;
+	readonly setOpen: (open: boolean) => void;
+}): JSX.Element {
+	return (
+		<fieldset
+			class="app-settings-connection-help"
+			aria-label="Connection security help"
+			onMouseEnter={() => props.setOpen(true)}
+			onMouseLeave={(event) => {
+				if (!event.currentTarget.contains(document.activeElement)) props.setOpen(false);
+			}}
+			onFocusIn={() => props.setOpen(true)}
+			onFocusOut={(event) => {
+				if (
+					!(
+						event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
+					)
+				) {
+					props.setOpen(false);
+				}
+			}}
+		>
+			<button
+				type="button"
+				class="app-settings-info-button"
+				aria-label="About indexer connection security"
+				aria-expanded={props.open}
+				aria-controls="app-settings-connection-help"
+				aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
+				onClick={() => props.setOpen(true)}
+			>
+				i
+			</button>
+			<Show when={props.open}>
+				<div id="app-settings-connection-help" class="app-settings-help-content" role="tooltip">
+					<strong>Use HTTPS when available</strong>
+					<p>
+						HTTPS encrypts your API key, searches, and results and verifies the server’s identity.
+					</p>
+					<p>
+						Enable HTTPS on Prowlarr or your reverse proxy using a certificate trusted by this
+						device. Enter its matching HTTPS address here, then choose Test.
+					</p>
+					<p>HTTP remains available if you accept an unencrypted connection.</p>
+				</div>
+			</Show>
+		</fieldset>
+	);
+}
+
 export function AppSettingsDialogView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const settings = runtime.settings;
@@ -141,6 +192,11 @@ export function AppSettingsDialogView(): JSX.Element {
 	const state = settings.dialog;
 	const isOpen = createMemo(() => state().isOpen);
 	const indexerConnection = remoteSource.indexerConnection;
+	const [indexerHelpOpen, setIndexerHelpOpen] = createSignal(false);
+	const usesHttp = () => /^http:\/\//i.test(indexerConnection().baseUrlDraft.trim());
+	createEffect(() => {
+		if (!isOpen()) setIndexerHelpOpen(false);
+	});
 	const [resetConfirming, setResetConfirming] = createSignal(false);
 	const [afterburnerRevision, setAfterburnerRevision] = createSignal(0);
 	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -205,7 +261,10 @@ export function AppSettingsDialogView(): JSX.Element {
 		<Dialog
 			id="app-settings-modal"
 			open={state().isOpen}
-			onClose={() => settings.closeDialog()}
+			onClose={() => {
+				if (indexerHelpOpen()) setIndexerHelpOpen(false);
+				else settings.closeDialog();
+			}}
 			labelledBy="app-settings-title"
 			testId="app-settings-modal"
 		>
@@ -332,10 +391,12 @@ export function AppSettingsDialogView(): JSX.Element {
 									</div>
 								</section>
 								<section class="app-settings-section">
-									<h4 class="app-settings-section-title">Indexer connection</h4>
+									<div class="app-settings-connection-heading">
+										<h4 class="app-settings-section-title">Indexer connection</h4>
+										<IndexerConnectionHelp open={indexerHelpOpen()} setOpen={setIndexerHelpOpen} />
+									</div>
 									<p class="muted-text">
-										Configure your Indexer URL, API key, and audiobook categories. The API key is
-										stored securely and is never shown again after save.
+										Your API key is stored in your operating system’s credential store.
 									</p>
 									<div class="app-settings-path-row">
 										<label class="app-settings-field-label" for="app-settings-indexer-url">
@@ -346,7 +407,8 @@ export function AppSettingsDialogView(): JSX.Element {
 											class="app-settings-path-input"
 											data-testid="app-settings-indexer-url"
 											type="text"
-											placeholder="http://192.168.0.20:9696"
+											placeholder="https://prowlarr.example.com"
+											aria-describedby="app-settings-connection-security"
 											value={indexerConnection().baseUrlDraft}
 											onInput={(event) =>
 												remoteSource.patchIndexerConnectionSettings({
@@ -355,6 +417,12 @@ export function AppSettingsDialogView(): JSX.Element {
 											}
 										/>
 									</div>
+									<p id="app-settings-connection-security" class="app-settings-connection-security">
+										<Show when={usesHttp()} fallback="HTTPS recommended.">
+											<strong>HTTP is unencrypted.</strong> Your API key, searches, and results
+											could be read or modified by someone able to intercept this connection.
+										</Show>
+									</p>
 									<div class="app-settings-path-row">
 										<label class="app-settings-field-label" for="app-settings-indexer-category">
 											Categories

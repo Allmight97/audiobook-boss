@@ -136,7 +136,15 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('lets the user enable both audiobook categories from the collapsed picker', async () => {
+		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockResolvedValue({
+			baseUrl: undefined,
+			categoryIds: [3030],
+			apiKeyConfigured: false,
+		});
 		await renderOpenDialog();
+		await vi.waitFor(() =>
+			expect(runtime!.remoteSource.indexerConnection().categoryIdsDraft).toEqual([3030]),
+		);
 
 		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
 			'Audiobooks (3030)',
@@ -150,6 +158,42 @@ describe('AppSettingsDialogView', () => {
 		expect(screen.getByTestId('app-settings-indexer-category')).toHaveTextContent(
 			'Audiobooks (3030), Audio (3000)',
 		);
+	});
+
+	it('recommends HTTPS while keeping an explicit HTTP connection usable', async () => {
+		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockResolvedValue({
+			baseUrl: 'http://saved:9696',
+			categoryIds: [3030],
+			apiKeyConfigured: true,
+		});
+		const r = await renderOpenDialog();
+		const url = screen.getByLabelText('URL');
+		await vi.waitFor(() => expect(url).toHaveValue('http://saved:9696'));
+		expect(url).toHaveAttribute('placeholder', 'https://prowlarr.example.com');
+		expect(screen.getByText('HTTP is unencrypted.')).toBeInTheDocument();
+		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
+		await fireEvent.click(screen.getByRole('button', { name: 'Test' }));
+		expect(test).toHaveBeenCalledOnce();
+		await fireEvent.input(url, { target: { value: 'https://saved.example.com' } });
+		expect(screen.queryByText('HTTP is unencrypted.')).not.toBeInTheDocument();
+		expect(screen.getByText('HTTPS recommended.')).toBeInTheDocument();
+	});
+
+	it('opens connection help by click or focus and dismisses it before Settings on Escape', async () => {
+		const r = await renderOpenDialog();
+		const help = screen.getByRole('button', { name: 'About indexer connection security' });
+		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+		await fireEvent.click(help);
+		expect(screen.getByRole('tooltip')).toHaveTextContent('Use HTTPS when available');
+		await fireEvent.keyDown(help, { key: 'Escape' });
+		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+		expect(r.settings.dialog().isOpen).toBe(true);
+		await fireEvent.focusIn(help);
+		expect(screen.getByRole('tooltip')).toBeInTheDocument();
+		await fireEvent.focusOut(help, { relatedTarget: screen.getByLabelText('URL') });
+		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+		await fireEvent.keyDown(help, { key: 'Escape' });
+		expect(r.settings.dialog().isOpen).toBe(false);
 	});
 
 	it('keeps Indexer drafts when another Settings field changes', async () => {

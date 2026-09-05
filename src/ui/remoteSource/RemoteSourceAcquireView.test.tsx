@@ -329,15 +329,90 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		));
 		await openConnected(runtime, 'indexer', releases);
 		await fireEvent.click(screen.getByRole('button', { name: /Release from 8/ }));
-		expect(screen.getByRole('option', { name: /Release from 7/ })).toHaveAttribute(
-			'aria-selected',
+		expect(screen.getByRole('button', { name: /Release from 7/ })).toHaveAttribute(
+			'aria-pressed',
 			'false',
 		);
-		expect(screen.getByRole('option', { name: /Release from 8/ })).toHaveAttribute(
-			'aria-selected',
+		expect(screen.getByRole('button', { name: /Release from 8/ })).toHaveAttribute(
+			'aria-pressed',
 			'true',
 		);
 		await fireEvent.click(screen.getByRole('button', { name: 'Grab' }));
 		await vi.waitFor(() => expect(grab).toHaveBeenCalledWith({ release: releases[1] }));
+	});
+	it('sorts loaded releases, opens source details, and preserves manual follow-up after a failed grab', async () => {
+		const releases: RemoteRelease[] = [
+			{
+				providerId: 'indexer',
+				guid: 'popular',
+				indexerId: 19,
+				title: 'Holmes single',
+				indexer: 'MyAnonamouse',
+				sizeBytes: 100,
+				protocol: 'torrent',
+				seeders: 80,
+				categories: [],
+			},
+			{
+				providerId: 'indexer',
+				guid: 'collection',
+				indexerId: 20,
+				title: 'Holmes collection',
+				indexer: 'AudioBookBay (Jackett)',
+				sizeBytes: 900,
+				protocol: 'torrent',
+				seeders: 1,
+				detailUrl: 'https://example.test/books/holmes',
+				categories: [{ id: 3000, name: 'Audio' }],
+			},
+		];
+		const openUrl = vi.spyOn(tauriClient, 'openUrl').mockResolvedValue(undefined);
+		const grab = vi.spyOn(tauriClient, 'grabRemoteSourceRelease').mockResolvedValue({
+			providerId: 'indexer',
+			accepted: false,
+			message: 'Indexer could not grab this release.',
+			diagnostics: [],
+		});
+		runtime = createTestAppRuntime();
+		render(() => (
+			<AppRuntimeProvider runtime={runtime!}>
+				<RemoteSourceAcquireView />
+			</AppRuntimeProvider>
+		));
+		await openConnected(runtime, 'indexer', releases);
+		const rows = () => screen.getAllByRole('button', { name: /Holmes/ });
+		expect(rows()[0]).toHaveTextContent('Holmes single');
+		await fireEvent.click(rows()[1]);
+		await fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'size' } });
+		expect(rows()[0]).toHaveTextContent('Holmes collection');
+		expect(rows()[0]).toHaveAttribute('aria-pressed', 'true');
+		await fireEvent.input(screen.getByLabelText('Filter'), { target: { value: 'collection' } });
+		expect(rows()).toHaveLength(1);
+		const details = screen.getByRole('link', { name: 'View details for Holmes collection' });
+		await fireEvent.click(details);
+		expect(openUrl).toHaveBeenCalledExactlyOnceWith(releases[1].detailUrl);
+		expect(runtime.remoteSource.view().selectedRelease).toEqual({
+			guid: 'collection',
+			indexerId: 20,
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Grab' }));
+		await vi.waitFor(() =>
+			expect(screen.getByText('Indexer could not grab this release.')).toBeInTheDocument(),
+		);
+		expect(grab).toHaveBeenCalledExactlyOnceWith({ release: releases[1] });
+		expect(details).toHaveAttribute('href', releases[1].detailUrl);
+		await fireEvent.click(details);
+		expect(openUrl).toHaveBeenCalledTimes(2);
+		expect(screen.getByLabelText('Filter')).toHaveValue('collection');
+		await fireEvent.input(screen.getByLabelText('Filter'), { target: { value: '' } });
+		await fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'seeders' } });
+		expect(rows()[0]).toHaveTextContent('Holmes single');
+		expect(screen.getAllByRole('link', { name: /View details/ })).toHaveLength(1);
+		openUrl.mockRejectedValueOnce(new Error('Browser unavailable'));
+		await fireEvent.click(details);
+		await vi.waitFor(() =>
+			expect(screen.getByText('Could not open the source page.')).toBeInTheDocument(),
+		);
+		expect(runtime.remoteSource.view().isOpen).toBe(true);
 	});
 });

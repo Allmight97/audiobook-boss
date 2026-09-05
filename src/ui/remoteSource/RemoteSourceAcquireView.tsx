@@ -1,4 +1,6 @@
-import { createEffect, For, onCleanup, Show, type JSX } from 'solid-js';
+import { createEffect, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
+import { tauriClient } from '../../lib/tauri/client';
+import { toUserMessage } from '../../lib/tauri/appError';
 
 import type { AcquisitionLane } from '../../types/appSettings';
 import {
@@ -97,6 +99,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const visibleReleases = () =>
 		visibleRemoteReleases(view().releases, {
 			releaseFilter: view().releaseFilter,
+			releaseSort: view().releaseSort,
 		});
 
 	function handleLaneChange(lane: AcquisitionLane): void {
@@ -287,6 +290,21 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								onInput={(event) => editSearch({ releaseFilter: event.currentTarget.value })}
 							/>
 						</div>
+						<div class="remote-source-toolbar-field remote-source-sort">
+							<label for="remote-source-release-sort">Sort by</label>
+							<select
+								id="remote-source-release-sort"
+								value={view().releaseSort}
+								onChange={(event) =>
+									editSearch({
+										releaseSort: event.currentTarget.value === 'size' ? 'size' : 'seeders',
+									})
+								}
+							>
+								<option value="seeders">Most seeders</option>
+								<option value="size">Largest first</option>
+							</select>
+						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
 								disabled={view().isBusy || !view().selectedRelease}
@@ -422,9 +440,8 @@ export function RemoteSourceAcquireView(): JSX.Element {
 				</Show>
 
 				<Show when={isIndexerLane() && view().accountState?.status === 'connected'}>
-					<div
+					<ul
 						class="app-modal-results remote-release-list"
-						role="listbox"
 						aria-label="Indexer releases"
 						data-testid="remote-release-list"
 					>
@@ -440,7 +457,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 								/>
 							)}
 						</For>
-					</div>
+					</ul>
 				</Show>
 			</Dialog.Body>
 		</Dialog>
@@ -455,16 +472,31 @@ function ReleaseRow(props: {
 	const seedersLabel = () =>
 		props.release.seeders == null ? null : `${props.release.seeders} seeders`;
 	const indexerLabel = () => props.release.indexer.trim();
+	const [detailError, setDetailError] = createSignal('');
+
+	async function openDetails(event: MouseEvent, url: string): Promise<void> {
+		event.preventDefault();
+		setDetailError('');
+		try {
+			await tauriClient.openUrl(url);
+		} catch (cause) {
+			setDetailError(
+				toUserMessage(cause, {
+					fallback: 'Could not open the source page.',
+					suppressUnknown: true,
+				}),
+			);
+		}
+	}
 
 	return (
-		<div
-			class="remote-release-row"
-			classList={{ selected: props.selected }}
-			role="option"
-			tabIndex={-1}
-			aria-selected={props.selected ? 'true' : 'false'}
-		>
-			<button type="button" class="remote-release-button" onClick={() => props.onSelect()}>
+		<li class="remote-release-row" classList={{ selected: props.selected }}>
+			<button
+				type="button"
+				class="remote-release-button"
+				aria-pressed={props.selected}
+				onClick={() => props.onSelect()}
+			>
 				<span class="remote-release-title">{props.release.title}</span>
 				<span class="remote-release-meta">
 					<span class={`remote-release-tag remote-release-tag-${props.release.protocol}`}>
@@ -486,6 +518,26 @@ function ReleaseRow(props: {
 					</span>
 				</span>
 			</button>
-		</div>
+			<Show when={props.release.detailUrl}>
+				{(url) => (
+					<div class="remote-release-details">
+						<a
+							href={url()}
+							target="_blank"
+							rel="noreferrer"
+							aria-label={`View details for ${props.release.title}`}
+							onClick={(event) => void openDetails(event, url())}
+						>
+							View details <span aria-hidden="true">↗</span>
+						</a>
+						<Show when={detailError()}>
+							<p class="remote-release-detail-error" role="status">
+								{detailError()}
+							</p>
+						</Show>
+					</div>
+				)}
+			</Show>
+		</li>
 	);
 }

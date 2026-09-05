@@ -12,7 +12,7 @@ use crate::remote_source::vault::SecretVault;
 pub(super) fn api_key_vault_key(base_url: &str) -> String {
     format!("indexer.api_key:{base_url}")
 }
-pub(super) const DEFAULT_CATEGORY_ID: u32 = 3030;
+pub(super) const DEFAULT_CATEGORY_IDS: &[u32] = &[3000, 3030];
 
 const CONNECTION_FILE_NAME: &str = "remote-source-indexer-connection.json";
 
@@ -35,7 +35,7 @@ impl Default for StoredIndexerConnection {
 }
 
 fn default_category_ids() -> Vec<u32> {
-    vec![DEFAULT_CATEGORY_ID]
+    DEFAULT_CATEGORY_IDS.to_vec()
 }
 
 fn normalize_category_ids(ids: Vec<u32>) -> Vec<u32> {
@@ -117,10 +117,33 @@ fn update_api_key(
     }
 }
 
-pub(super) fn read_api_key(
+pub(super) struct ConfiguredIndexerConnection {
+    pub base_url: String,
+    pub category_ids: Vec<u32>,
+    pub api_key: SecretString,
+}
+
+pub(super) fn configured_connection(
+    config_dir: &Path,
     vault: &dyn SecretVault,
-    base_url: Option<&str>,
-) -> Result<Option<SecretString>> {
+) -> Result<ConfiguredIndexerConnection> {
+    let stored = load_stored_connection(config_dir)?;
+    let base_url = stored.base_url.ok_or_else(|| {
+        AppError::InvalidInput("Configure Indexer URL in Settings before continuing.".to_string())
+    })?;
+    let api_key = read_api_key(vault, Some(&base_url))?.ok_or_else(|| {
+        AppError::InvalidInput(
+            "Configure Indexer API key in Settings before continuing.".to_string(),
+        )
+    })?;
+    Ok(ConfiguredIndexerConnection {
+        base_url,
+        category_ids: stored.category_ids,
+        api_key,
+    })
+}
+
+fn read_api_key(vault: &dyn SecretVault, base_url: Option<&str>) -> Result<Option<SecretString>> {
     match base_url {
         Some(base_url) => vault.get_secret(&api_key_vault_key(base_url)),
         None => Ok(None),
@@ -168,6 +191,16 @@ fn load_stored_connection(config_dir: &Path) -> Result<StoredIndexerConnection> 
             "Indexer connection settings are invalid. Remove remote-source-indexer-connection.json from the app configuration folder, then configure Indexer again. ({error})"
         ))
     })?;
+    stored.base_url = stored
+        .base_url
+        .map(normalize_base_url)
+        .transpose()
+        .map_err(|error| {
+            AppError::InvalidInput(format!(
+                "Stored Indexer URL is invalid: {error} Remove remote-source-indexer-connection.json from the app configuration folder, then configure Indexer again."
+            ))
+        })?
+        .flatten();
     stored.category_ids = normalize_category_ids(stored.category_ids);
     Ok(stored)
 }
@@ -214,6 +247,11 @@ fn normalize_base_url(base_url: String) -> Result<Option<String>> {
             "Indexer URL must use http or https.".to_string(),
         ));
     }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(AppError::InvalidInput(
+            "Indexer URL must not contain credentials. Use the API key field instead.".to_string(),
+        ));
+    }
     let mut normalized = format!("{}://{}", parsed.scheme(), parsed.authority());
     let path = parsed.path().trim_end_matches('/');
     if !path.is_empty() && path != "/" {
@@ -235,11 +273,13 @@ mod tests {
     #[derive(Default)]
     struct TestVault {
         secrets: Mutex<HashMap<String, SecretString>>,
+        reads: Mutex<usize>,
         fail_writes: bool,
     }
 
     impl SecretVault for TestVault {
         fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
+            *self.reads.lock().expect("read counter lock") += 1;
             Ok(self
                 .secrets
                 .lock()
@@ -280,8 +320,102 @@ mod tests {
         let connection = get_connection(temp.path(), &vault).expect("connection");
 
         assert_eq!(connection.base_url, None);
-        assert_eq!(connection.category_ids, vec![3030]);
+        assert_eq!(connection.category_ids, vec![3000, 3030]);
         assert!(!connection.api_key_configured);
+    }
+
+    #[test]
+    fn rejects_url_credentials_before_saving_or_testing() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        let saved = update_connection(
+            temp.path(),
+            &vault,
+            update(Some("https://indexer.test"), Some("saved-key")),
+        )
+        .expect("save valid connection");
+        for url in [
+            "https://user:password@indexer.test",
+            "http://user@indexer.test:9696",
+            "https://:password@indexer.test",
+        ] {
+            let change = || update(Some(url), Some("replacement-key"));
+            let error = update_connection(temp.path(), &vault, change())
+                .expect_err("URL credentials must not be persisted");
+            assert!(error.to_string().contains("must not contain credentials"));
+            assert!(!error.to_string().contains(url));
+            assert!(draft_credentials(temp.path(), &vault, change()).is_err());
+            assert_eq!(get_connection(temp.path(), &vault).expect("reload"), saved);
+            assert_eq!(
+                read_api_key(&vault, saved.base_url.as_deref())
+                    .expect("read key")
+                    .expect("saved key")
+                    .expose_secret(),
+                "saved-key"
+            );
+        }
+    }
+
+    #[test]
+    fn configured_request_resolves_the_saved_host_key_once() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        update_connection(
+            temp.path(),
+            &vault,
+            update(Some("https://indexer.test/proxy/"), Some("saved-key")),
+        )
+        .expect("save connection");
+        *vault.reads.lock().expect("read counter lock") = 0;
+
+        let connection = configured_connection(temp.path(), &vault).expect("resolve connection");
+        assert_eq!(connection.base_url, "https://indexer.test/proxy");
+        assert_eq!(connection.category_ids, [3000, 3030]);
+        assert_eq!(connection.api_key.expose_secret(), "saved-key");
+        assert_eq!(*vault.reads.lock().expect("read counter lock"), 1);
+    }
+
+    #[test]
+    fn rejects_persisted_url_credentials_before_exposing_or_using_them() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        std::fs::write(
+            connection_path(temp.path()),
+            r#"{"baseUrl":"https://user:old-password@indexer.test","categoryIds":[3030]}"#,
+        )
+        .expect("write previously accepted connection");
+
+        let errors = [
+            get_connection(temp.path(), &vault).expect_err("do not expose stored credentials"),
+            draft_credentials(temp.path(), &vault, update(None, Some("api-key")))
+                .expect_err("do not use stored credentials for a connection test"),
+        ];
+        for error in errors {
+            let message = error.to_string();
+            assert!(message.contains("must not contain credentials"));
+            assert!(message.contains("remote-source-indexer-connection.json"));
+            assert!(!message.contains("old-password"));
+            assert!(!message.contains("indexer.test"));
+        }
+        assert!(configured_connection(temp.path(), &vault).is_err());
+        assert_eq!(*vault.reads.lock().expect("read counter lock"), 0);
+    }
+
+    #[test]
+    fn preserves_explicit_categories_and_defaults_empty_categories() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        for (categories, expected) in [(vec![3030], vec![3030]), (vec![], vec![3000, 3030])] {
+            let mut change = update(None, None);
+            change.category_ids = Some(categories);
+            update_connection(temp.path(), &vault, change).expect("save categories");
+            assert_eq!(
+                get_connection(temp.path(), &vault)
+                    .expect("reload")
+                    .category_ids,
+                expected
+            );
+        }
     }
 
     #[test]
@@ -407,7 +541,7 @@ mod tests {
         assert!(results.into_iter().all(|result| result.is_err()));
         let saved = get_connection(temp.path(), &vault).expect("read saved connection");
         assert_eq!(saved.base_url.as_deref(), Some("http://old.test"));
-        assert_eq!(saved.category_ids, [3030]);
+        assert_eq!(saved.category_ids, [3000, 3030]);
         assert_eq!(
             std::fs::read_dir(temp.path())
                 .expect("list config files")

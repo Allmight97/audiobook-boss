@@ -26,7 +26,9 @@
 - Default acquisition lane and Indexer connection fields dispatch through
   `src/app/appSettings` and `src/app/remoteSource` owner intents respectively.
   Indexer URL/categories persist via Remote Source IPC; the API key is write-only
-  in the Settings panel.
+  in the Settings panel. HTTPS is the recommended URL example; explicit HTTP
+  remains usable with visible transport guidance. Connection help is view-local,
+  and Escape dismisses it before dismissing Settings.
 - Persistence failure must be observable through App Settings and have an
   owner-level retry or restore outcome proved through its public interface;
   views do not decide that policy independently.

@@ -827,6 +827,7 @@ export type RemoteRelease = {
 	indexerId: number,
 	title: string,
 	indexer: string,
+	detailUrl: string | null,
 	sizeBytes: number,
 	protocol: RemoteReleaseProtocol,
 	seeders: number | null,
