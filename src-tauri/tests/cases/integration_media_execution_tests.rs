@@ -432,6 +432,7 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
         .iter()
         .zip(durations)
         .map(|(path, duration)| PassthroughSource {
+            chapters: None,
             path: path.clone(),
             duration: Some(duration),
             is_valid: true,
@@ -495,6 +496,7 @@ async fn artifact_finalize_preserves_series_tags_and_chapters_on_mp4_route() {
 
     // Chapters written during finalize survive the MP4 tag rewrite.
     let artifact_chapters = extract_passthrough_metadata(&[PassthroughSource {
+        chapters: None,
         path: output.clone(),
         duration: None,
         is_valid: true,
@@ -559,6 +561,7 @@ fn minimal_jpg_bytes() -> Vec<u8> {
 
 fn chapters_of(path: &Path) -> Vec<(Option<String>, i64, i64)> {
     let passthrough = extract_passthrough_metadata(&[PassthroughSource {
+        chapters: None,
         path: path.to_path_buf(),
         duration: None,
         is_valid: true,
@@ -1095,4 +1098,33 @@ async fn stereo_merge_preserves_audio_in_both_channels() {
             "channel {ch} RMS {value} indicates missing or silent audio (expected ~0.21 for a 0.3-amplitude sine)"
         );
     }
+}
+
+/// One CUE case: supplied names/start positions survive encoding and final tags.
+#[tokio::test]
+async fn cue_chapters_survive_mp3_encoding_and_finalization() {
+    let tmp = TempDir::new().expect("CUE fixture directory");
+    let mp3 = tmp.path().join("book.mp3");
+    write_sine_mp3(&mp3, 1.5, 440.0);
+    fs::write(tmp.path().join("book.cue"), "FILE \"stale.mp3\" MP3\nTRACK 01 AUDIO\nTITLE \"Opening\"\nINDEX 01 00:00:00\nTRACK 02 AUDIO\nTITLE \"Near end\"\nINDEX 01 00:01:36\n").expect("write CUE");
+    let lane = MediaLane::for_inputs(vec![mp3]);
+    let output = lane
+        .process(Some(AudiobookMetadata {
+            title: Some("CUE book".into()),
+            ..Default::default()
+        }))
+        .await;
+    let chapters = chapters_of(&output);
+    assert_eq!(chapters.len(), 2);
+    assert_eq!(chapters[0].0.as_deref(), Some("Opening"));
+    assert_eq!(chapters[0].1, 0);
+    assert_eq!(chapters[1].0.as_deref(), Some("Near end"));
+    assert_eq!(chapters[1].1, 1_480);
+    assert!(chapters[1].2 > 1_480, "short last chapter remains");
+    let (duration, _, _) = timed_text_chapter_track(&output);
+    assert!(
+        duration > 1.48 && duration < 1.6,
+        "chapter track spans the audio: {duration}"
+    );
+    assert!(lane.residual_workspace_dirs().is_empty());
 }

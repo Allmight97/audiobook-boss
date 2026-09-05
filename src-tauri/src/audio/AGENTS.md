@@ -22,7 +22,7 @@
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
-- Functions: `get_file_list_info`, `validate_input_audio_path`,
+- Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
   `validate_input_image_path`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
@@ -134,3 +134,12 @@ When one appears, name the affected boundary, state the current assumption used 
 - Native AAC changes include a real-media probe when feasible: output codec/profile, sample rate, channels, duration, and at least one channel-level sanity check such as RMS/peak parity.
 - Audio correctness fixes run the focused audio/runtime checks warranted by the touched boundary before being presented as done; escalate only when the change crosses owners or uses real-media behavior the focused checks cannot prove.
 - Final notes distinguish structural correctness from subjective encoder quality when discussing Native AAC artifacts.
+
+## Chapter Intake
+
+Analysis attaches sibling CUE diagnostics and a source-fingerprinted candidate
+chapter plan to each MP3. `apply_chapter_plans` validates accepted payload plans
+against the audio identity and duration before dispatch. CUE confirmation or
+Ignore is explicit; multi-source CUE merging is rejected. Encoder adapters
+consume accepted chapters, while passthrough source probing remains for cover
+art and external artifact readers. Preview continues to omit chapters.

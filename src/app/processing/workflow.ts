@@ -1,4 +1,5 @@
 import { pathBasename } from '../../lib/path/basename';
+import { chapterPlansForProcessing } from '../inputSession';
 import type {
 	ProcessCommandResult,
 	ProcessPayload,
@@ -410,6 +411,10 @@ export function processingWorkflowProgram(
 			processingRequestConfig,
 			jobType,
 			services.remoteSource.processingAssets(inputIds),
+		);
+		processPayload.chapterPlans = yield* workflowPromise(
+			async () => chapterPlansForProcessing(fileList.files, jobType),
+			'Review CUE chapters before processing.',
 		);
 		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
 

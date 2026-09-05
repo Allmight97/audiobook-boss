@@ -3,7 +3,7 @@ import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigat
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
-import { createSignal, createEffect, For, onCleanup, type JSX } from 'solid-js';
+import { createSignal, createEffect, Show, For, onCleanup, type JSX } from 'solid-js';
 import {
 	clearFileListCoverThumbnails,
 	getFileListCoverThumbnailState,
@@ -265,6 +265,60 @@ export function FileListView(props: {
 												) : null}
 											</div>
 											<div class="file-details">{formatFileDetails(file)}</div>
+											<Show when={file.cueSource}>
+												{(cue) => (
+													<div class="file-cue-details">
+														<span>
+															{file.chapterPlan?.chapters.length ?? 0} chapters from{' '}
+															{cue().status === 'embeddedPreferred'
+																? 'embedded audio'
+																: cue().fileName}
+														</span>
+														<Show when={cue().message}>
+															<p>{cue().message}</p>
+														</Show>
+														<Show when={cue().status === 'needsConfirmation'}>
+															<p>
+																This CUE uses nonstandard timestamps. Interpret the final field as
+																hundredths of a second?
+															</p>
+															<button
+																type="button"
+																disabled={view().orderLocked}
+																onClick={(event) => {
+																	event.stopPropagation();
+																	if (file.inputId)
+																		runtime.input.chooseCue(file.inputId, 'confirmHundredths');
+																}}
+															>
+																Use hundredths
+															</button>
+														</Show>
+														<Show when={cue().status === 'ignored'}>
+															<p>CUE ignored. Converting without its chapters.</p>
+														</Show>
+														<Show when={cue().status === 'ready'}>
+															<p>CUE chapters accepted.</p>
+														</Show>
+														<Show
+															when={
+																cue().status !== 'ignored' && cue().status !== 'embeddedPreferred'
+															}
+														>
+															<button
+																type="button"
+																disabled={view().orderLocked}
+																onClick={(event) => {
+																	event.stopPropagation();
+																	if (file.inputId) runtime.input.chooseCue(file.inputId, 'ignore');
+																}}
+															>
+																Ignore CUE
+															</button>
+														</Show>
+													</div>
+												)}
+											</Show>
 										</div>
 										<button
 											class="move-up-btn"

@@ -1,5 +1,5 @@
 import { createMemo, createSignal, type Accessor } from 'solid-js';
-import type { JobType } from '../../types/audio';
+import type { AudioFile, ProcessPayload, JobType } from '../../types/audio';
 import { runAppEffect } from '../../lib/effect/appEffect';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import { toInputView } from './display';
@@ -45,6 +45,7 @@ export type InputOwner = {
 	restoreImportOrder(): void;
 	setOrderLocked(orderLocked: boolean): void;
 	setJobType(jobType: JobType): void;
+	chooseCue(inputId: string, choice: 'confirmHundredths' | 'ignore'): void;
 	replaceSession(session: InputSessionState): void;
 	reset(): void;
 };
@@ -78,6 +79,28 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		session,
 		jobType,
 		capability,
+		chooseCue(inputId, choice) {
+			if (session().orderLocked) return;
+			const current = session();
+			if (!current.fileList) return;
+			const files = current.fileList.files.map((file) => {
+				if (file.inputId !== inputId || !file.cueSource) return file;
+				if (choice === 'confirmHundredths' && file.cueSource.status === 'needsConfirmation') {
+					return { ...file, cueSource: { ...file.cueSource, status: 'ready' as const } };
+				}
+				if (choice === 'ignore' && file.cueSource.status !== 'embeddedPreferred') {
+					return {
+						...file,
+						cueSource: { ...file.cueSource, status: 'ignored' as const },
+						chapterPlan: file.chapterPlan
+							? { ...file.chapterPlan, fromCue: false, chapters: file.chapters ?? [] }
+							: undefined,
+					};
+				}
+				return file;
+			});
+			commit({ ...current, fileList: { ...current.fileList, files } });
+		},
 		async importIntent(intent) {
 			const next = await runAppEffect(runImportIntent(capability(), session(), intent));
 			commit({ ...next, orderLocked: session().orderLocked });
@@ -180,4 +203,32 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			setJobTypeSignal('batch');
 		},
 	};
+}
+
+export function chapterPlansForProcessing(
+	files: readonly AudioFile[],
+	jobType: JobType,
+): ProcessPayload['chapterPlans'] {
+	const plans: NonNullable<ProcessPayload['chapterPlans']> = {};
+	for (const file of files.filter((file) => file.isValid)) {
+		if (file.cueSource?.status === 'needsConfirmation' || file.cueSource?.status === 'invalid') {
+			throw new Error(
+				`Review ${file.cueSource.fileName}: confirm its timestamp interpretation or ignore the CUE before converting.`,
+			);
+		}
+		if (jobType === 'merge' && files.length > 1 && file.chapterPlan?.fromCue) {
+			throw new Error(
+				'Merging CUE-bearing inputs is not supported. Convert separate jobs or ignore CUE chapters.',
+			);
+		}
+		if (file.chapterPlan)
+			plans[file.path] = {
+				...file.chapterPlan,
+				chapters: file.chapterPlan.chapters.map((chapter) => ({
+					...chapter,
+					title: chapter.title,
+				})),
+			};
+	}
+	return Object.keys(plans).length ? plans : undefined;
 }

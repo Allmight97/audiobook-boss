@@ -55,11 +55,13 @@ fn metadata_intent_plan_contract_rejects_invalid_publication_dates() {
 fn metadata_passthrough_contract_synthesizes_chapters_from_source_facts() {
     let sources = vec![
         PassthroughSource {
+            chapters: None,
             path: std::path::PathBuf::from("chapter-one.m4b"),
             duration: Some(60.0),
             is_valid: true,
         },
         PassthroughSource {
+            chapters: None,
             path: std::path::PathBuf::from("chapter-two.m4b"),
             duration: Some(90.0),
             is_valid: true,

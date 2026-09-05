@@ -80,7 +80,12 @@ async fn dispatch_merge_plan(
     }
 
     let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let file_info = audio::get_file_list_info(&paths)?;
+    let mut file_info = audio::get_file_list_info(&paths)?;
+    audio::apply_chapter_plans(
+        &mut file_info,
+        payload.chapter_plans.as_ref(),
+        paths.len() > 1,
+    )?;
     let result = run_processing_job(ProcessingJobRequest {
         window,
         registry,
@@ -167,6 +172,7 @@ async fn dispatch_batch_plan(
         })?;
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
         let progress_listener = options.progress_listener.clone();
+        let chapter_plans = payload.chapter_plans.clone();
 
         scheduled_jobs.push(Box::pin(async move {
             if operation_cancel
@@ -175,7 +181,8 @@ async fn dispatch_batch_plan(
             {
                 return Err(AppError::cancelled());
             }
-            let file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
+            let mut file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
+            audio::apply_chapter_plans(&mut file_info, chapter_plans.as_ref(), false)?;
             run_processing_job(ProcessingJobRequest {
                 window: window_cloned,
                 registry: registry_cloned,
