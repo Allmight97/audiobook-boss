@@ -214,6 +214,11 @@ fn normalize_base_url(base_url: String) -> Result<Option<String>> {
             "Indexer URL must use http or https.".to_string(),
         ));
     }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(AppError::InvalidInput(
+            "Indexer URL must not contain credentials. Use the API key field instead.".to_string(),
+        ));
+    }
     let mut normalized = format!("{}://{}", parsed.scheme(), parsed.authority());
     let path = parsed.path().trim_end_matches('/');
     if !path.is_empty() && path != "/" {
@@ -282,6 +287,38 @@ mod tests {
         assert_eq!(connection.base_url, None);
         assert_eq!(connection.category_ids, vec![3000, 3030]);
         assert!(!connection.api_key_configured);
+    }
+
+    #[test]
+    fn rejects_url_credentials_before_saving_or_testing() {
+        let temp = TempDir::new().expect("temp dir");
+        let vault = TestVault::default();
+        let saved = update_connection(
+            temp.path(),
+            &vault,
+            update(Some("https://indexer.test"), Some("saved-key")),
+        )
+        .expect("save valid connection");
+        for url in [
+            "https://user:password@indexer.test",
+            "http://user@indexer.test:9696",
+            "https://:password@indexer.test",
+        ] {
+            let change = || update(Some(url), Some("replacement-key"));
+            let error = update_connection(temp.path(), &vault, change())
+                .expect_err("URL credentials must not be persisted");
+            assert!(error.to_string().contains("must not contain credentials"));
+            assert!(!error.to_string().contains(url));
+            assert!(draft_credentials(temp.path(), &vault, change()).is_err());
+            assert_eq!(get_connection(temp.path(), &vault).expect("reload"), saved);
+            assert_eq!(
+                read_api_key(&vault, saved.base_url.as_deref())
+                    .expect("read key")
+                    .expect("saved key")
+                    .expose_secret(),
+                "saved-key"
+            );
+        }
     }
 
     #[test]
