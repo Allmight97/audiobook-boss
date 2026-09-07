@@ -31,6 +31,8 @@ type ProcessPayloadForTest = {
 };
 const eventListeners = new Map<string, Set<TestEventHandler>>();
 let mockJobCounter = 0;
+let mockMembershipRevision = 0;
+const mockOperations = new Map<string, OperationSnapshot>();
 
 function emitTestEvent(event: string, payload: unknown): void {
 	const handlers = eventListeners.get(event);
@@ -38,6 +40,18 @@ function emitTestEvent(event: string, payload: unknown): void {
 	for (const handler of handlers) {
 		handler({ event, id: Date.now(), payload });
 	}
+}
+
+function mockOperationList(): OperationListSnapshot {
+	return {
+		membershipRevision: mockMembershipRevision,
+		operations: [...mockOperations.values()].sort((a, b) => b.sequence - a.sequence),
+	};
+}
+
+function publishMockOperation(snapshot: OperationSnapshot): void {
+	mockOperations.set(snapshot.operationId, snapshot);
+	emitTestEvent('work-operation-snapshot', { snapshot });
 }
 
 function mockOperationSnapshot(
@@ -61,7 +75,7 @@ function mockOperationSnapshot(
 		operationId,
 		sequence: mockJobCounter,
 		revision: 1,
-		createdRevision: 1,
+		createdRevision: ++mockMembershipRevision,
 		kind,
 		status: 'accepted' as const,
 		title,
@@ -276,37 +290,36 @@ vi.mock('@tauri-apps/api/core', () => ({
 				const kind =
 					args?.request?.payload?.jobType === 'merge' ? 'processingMerge' : 'processingBatch';
 				const snapshot = mockOperationSnapshot(operationId, kind, inputFiles);
-				emitTestEvent('work-operation-snapshot', { snapshot });
-				emitTestEvent('work-operation-list-snapshot', {
-					membershipRevision: 1,
-					operations: [snapshot],
-				});
+				publishMockOperation(snapshot);
+				emitTestEvent('work-operation-list-snapshot', mockOperationList());
 				return Promise.resolve({
 					operationId,
 					snapshot,
 				} satisfies WorkSubmissionAccepted);
 			}
 			case 'list_work_operations':
-				return Promise.resolve({
-					membershipRevision: 0,
-					operations: [],
-				} satisfies OperationListSnapshot);
+				return Promise.resolve(mockOperationList());
 			case 'get_work_operation': {
 				const args = _args as { operationId?: string } | undefined;
-				const operationId = args?.operationId ?? 'mock-operation';
-				return Promise.resolve(
-					mockOperationSnapshot(operationId, 'processingBatch', []) satisfies OperationSnapshot,
-				);
+				const snapshot = mockOperations.get(args?.operationId ?? '');
+				return snapshot
+					? Promise.resolve(snapshot)
+					: Promise.reject(new Error('Operation not found'));
 			}
 			case 'cancel_work_operation': {
 				const args = _args as { operationId?: string } | undefined;
-				const operationId = args?.operationId ?? 'mock-operation';
-				return Promise.resolve({
-					...mockOperationSnapshot(operationId, 'processingBatch', []),
+				const current = mockOperations.get(args?.operationId ?? '');
+				if (!current) return Promise.reject(new Error('Operation not found'));
+				if (!current.cancellable) return Promise.resolve(current);
+				const snapshot: OperationSnapshot = {
+					...current,
+					revision: current.revision + 1,
 					status: 'cancelling' as const,
 					cancelRequested: true,
 					cancellable: false,
-				} satisfies OperationSnapshot);
+				};
+				publishMockOperation(snapshot);
+				return Promise.resolve(snapshot);
 			}
 			case 'save_metadata_batch': {
 				mockJobCounter += 1;
@@ -326,11 +339,17 @@ vi.mock('@tauri-apps/api/core', () => ({
 				// per-file result. Mirror that — emit running + terminal snapshots,
 				// then resolve the synchronous result.
 				const baseSnapshot = mockOperationSnapshot(operationId, 'metadataSave', filePaths);
-				emitTestEvent('work-operation-snapshot', {
-					snapshot: { ...baseSnapshot, status: 'running' as const, startedAtMs: Date.now() },
+				publishMockOperation(baseSnapshot);
+				emitTestEvent('work-operation-list-snapshot', mockOperationList());
+				publishMockOperation({
+					...baseSnapshot,
+					revision: baseSnapshot.revision + 1,
+					status: 'running',
+					startedAtMs: Date.now(),
 				});
 				const terminalSnapshot: OperationSnapshot = {
 					...baseSnapshot,
+					revision: baseSnapshot.revision + 2,
 					status: 'completed' as const,
 					startedAtMs: Date.now(),
 					finishedAtMs: Date.now(),
@@ -356,11 +375,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 						message: `Completed ${items.length} item(s).`,
 					},
 				};
-				emitTestEvent('work-operation-snapshot', { snapshot: terminalSnapshot });
-				emitTestEvent('work-operation-list-snapshot', {
-					membershipRevision: 1,
-					operations: [terminalSnapshot],
-				});
+				publishMockOperation(terminalSnapshot);
+				emitTestEvent('work-operation-list-snapshot', mockOperationList());
 				return Promise.resolve({
 					summary: {
 						total: items.length,
@@ -447,11 +463,15 @@ vi.stubEnv('DEV', true);
 beforeEach(() => {
 	eventListeners.clear();
 	mockJobCounter = 0;
+	mockMembershipRevision = 0;
+	mockOperations.clear();
 });
 
 afterEach(() => {
 	eventListeners.clear();
 	mockJobCounter = 0;
+	mockMembershipRevision = 0;
+	mockOperations.clear();
 });
 
 const storage = new Map<string, string>();

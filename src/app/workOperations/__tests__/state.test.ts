@@ -113,6 +113,25 @@ describe('Work Center state', () => {
 		expect(listUnlisten).toHaveBeenCalledTimes(1);
 	});
 
+	it('retains successive metadata operations and their terminal updates through the Tauri mock', async () => {
+		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		await session.initialize();
+		for (const filePath of ['/books/alpha.m4b', '/books/beta.m4b']) {
+			await tauriClient.saveMetadataBatch([
+				{ filePath, metadataPatch: { title: { op: 'set', value: 'Edited' } } },
+			]);
+		}
+		const operations = session.view().operations;
+		expect(operations).toHaveLength(2);
+		expect(operations.map(({ status }) => status)).toEqual(['completed', 'completed']);
+		const listed = await tauriClient.listWorkOperations();
+		expect(listed.operations).toEqual(operations);
+		expect(await tauriClient.listWorkOperations()).toEqual(listed);
+		for (const operation of operations) {
+			expect(await tauriClient.getWorkOperation(operation.operationId)).toEqual(operation);
+		}
+	});
+
 	it('keeps event state when a delayed initial listing arrives', async () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const list = createDeferred<OperationListSnapshot>();
