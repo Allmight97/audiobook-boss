@@ -8,7 +8,7 @@ use ffmpeg_next as ff;
 
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::encoder::{
-    append_in_process_encoding_log_best_effort, InProcessEncoderRunLog,
+    append_in_process_encoding_log_best_effort, encoding_log_enabled, InProcessEncoderRunLog,
 };
 use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::MediaProcessingPlan;
@@ -18,6 +18,11 @@ use crate::processing::ProcessingContext;
 
 /// ffmpeg-next based processor
 pub struct FfmpegNextProcessor;
+
+struct EncodingRunDiagnostics {
+    started: Instant,
+    opened_encoder: Option<String>,
+}
 
 impl FfmpegNextProcessor {
     /// Processes a single input file through the decode/resample/encode pipeline
@@ -103,9 +108,15 @@ impl FfmpegNextProcessor {
         metadata: Option<&crate::metadata::AudiobookMetadata>,
         passthrough: Option<&crate::metadata::PassthroughMetadata>,
     ) -> Result<()> {
-        let started = Instant::now();
-        let result = Self::execute_pipeline(plan, context, metadata, passthrough);
-        append_in_process_encoding_run(plan, context, started.elapsed(), &result);
+        let mut diagnostics = encoding_log_enabled().then(|| EncodingRunDiagnostics {
+            started: Instant::now(),
+            opened_encoder: None,
+        });
+        let result =
+            Self::execute_pipeline(plan, context, metadata, passthrough, diagnostics.as_mut());
+        if let Some(diagnostics) = diagnostics {
+            append_in_process_encoding_run(plan, context, &diagnostics, &result);
+        }
         result
     }
 
@@ -114,6 +125,7 @@ impl FfmpegNextProcessor {
         context: &ProcessingContext,
         metadata: Option<&crate::metadata::AudiobookMetadata>,
         passthrough: Option<&crate::metadata::PassthroughMetadata>,
+        diagnostics: Option<&mut EncodingRunDiagnostics>,
     ) -> Result<()> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
@@ -131,6 +143,10 @@ impl FfmpegNextProcessor {
                 skip_chapter_passthrough,
                 passthrough,
             )?;
+
+        if let Some(diagnostics) = diagnostics {
+            diagnostics.opened_encoder = enc_ctx.codec().map(|codec| codec.name().to_owned());
+        }
 
         // Validate metadata compatibility if provided
         if let Some(md) = metadata {
@@ -184,12 +200,9 @@ impl FfmpegNextProcessor {
 fn append_in_process_encoding_run(
     plan: &MediaProcessingPlan,
     context: &ProcessingContext,
-    elapsed: std::time::Duration,
+    diagnostics: &EncodingRunDiagnostics,
     result: &Result<()>,
 ) {
-    let availability = crate::audio::detect_encoder_availability();
-    let resolved_encoder =
-        crate::audio::resolve_encoder_type(&plan.encoder_settings, &availability);
     let status = match result {
         Ok(()) => "success",
         Err(AppError::Cancellation(_)) => "cancelled",
@@ -203,8 +216,8 @@ fn append_in_process_encoding_run(
     append_in_process_encoding_log_best_effort(&InProcessEncoderRunLog {
         status,
         status_detail: status_detail.as_deref(),
-        elapsed,
-        resolved_encoder,
+        elapsed: diagnostics.started.elapsed(),
+        opened_encoder: diagnostics.opened_encoder.as_deref(),
         encoder_settings: &plan.encoder_settings,
         sample_rate: &plan.sample_rate,
         session_id: context.session.id(),

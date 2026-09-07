@@ -26,7 +26,7 @@ pub(crate) struct InProcessEncoderRunLog<'a> {
     pub status: &'a str,
     pub status_detail: Option<&'a str>,
     pub elapsed: Duration,
-    pub resolved_encoder: EncoderType,
+    pub opened_encoder: Option<&'a str>,
     pub encoder_settings: &'a EncoderSettings,
     pub sample_rate: &'a SampleRateConfig,
     pub session_id: String,
@@ -37,6 +37,10 @@ pub(crate) struct InProcessEncoderRunLog<'a> {
     pub temp_output: &'a Path,
     pub input_paths: &'a [std::path::PathBuf],
     pub target_duration_seconds: f64,
+}
+
+pub(crate) fn encoding_log_enabled() -> bool {
+    encoding_log_target().is_some()
 }
 
 pub(crate) fn append_in_process_encoding_log_best_effort(entry: &InProcessEncoderRunLog<'_>) {
@@ -137,7 +141,11 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
         let _ = writeln!(output, "input_index={input_index}");
     }
     let _ = writeln!(output, "operation_kind={}", entry.operation_kind);
-    let _ = writeln!(output, "encoder={}", entry.resolved_encoder);
+    let _ = writeln!(
+        output,
+        "encoder={}",
+        entry.opened_encoder.unwrap_or("unavailable")
+    );
     let _ = writeln!(
         output,
         "requested_encoder={}",
@@ -347,7 +355,7 @@ mod tests {
         use std::time::Duration;
 
         let encoder_settings = EncoderSettings {
-            encoder_type: EncoderType::AacAt,
+            encoder_type: EncoderType::Auto,
             bitrate_kbps: 64,
             bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Stereo,
@@ -355,11 +363,11 @@ mod tests {
         };
         let sample_rate = SampleRateConfig::Explicit(44_100);
         let inputs = [PathBuf::from("/private/input/Book One.m4b")];
-        let formatted = format_in_process_encoding_log_entry(&InProcessEncoderRunLog {
+        let mut entry = InProcessEncoderRunLog {
             status: "success",
             status_detail: None,
             elapsed: Duration::from_millis(1200),
-            resolved_encoder: EncoderType::AacAt,
+            opened_encoder: Some("aac_at"),
             encoder_settings: &encoder_settings,
             sample_rate: &sample_rate,
             session_id: "session-1".to_string(),
@@ -370,17 +378,24 @@ mod tests {
             temp_output: Path::new("/private/tmp/worker-output.m4b"),
             input_paths: &inputs,
             target_duration_seconds: 12.5,
-        });
+        };
+        let formatted = format_in_process_encoding_log_entry(&entry);
 
         assert!(formatted.starts_with("--- in-process-encoder run "));
         assert!(formatted.contains("status=success"));
         assert!(formatted.contains("encoder=aac_at"));
-        assert!(formatted.contains("requested_encoder=aac_at"));
+        assert!(formatted.contains("requested_encoder=auto"));
         assert!(formatted.contains("job_id=job-1"));
         assert!(formatted.contains("input[0] file=Book One.m4b"));
         assert!(formatted.contains("temp_output=worker-output.m4b"));
         assert!(formatted.contains("--- end in-process-encoder run ---"));
         assert!(!formatted.contains("/private/input"));
         assert!(!formatted.contains("/private/tmp"));
+
+        entry.status = "failed";
+        entry.opened_encoder = None;
+        let formatted = format_in_process_encoding_log_entry(&entry);
+        assert!(formatted.contains("encoder=unavailable\n"));
+        assert!(formatted.contains("requested_encoder=auto\n"));
     }
 }
