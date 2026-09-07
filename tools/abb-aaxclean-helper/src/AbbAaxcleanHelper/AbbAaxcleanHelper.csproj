@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AAXClean" Version="3.0.2" />
+    <PackageReference Include="AAXClean" Version="3.1.0" />
   </ItemGroup>
 
   <ItemGroup>

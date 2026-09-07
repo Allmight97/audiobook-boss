@@ -26,6 +26,6 @@ into `src-tauri/binaries/` before the app resolves or packages the sidecar.
 
 ## Licensing
 
-This helper depends on AAXClean `3.0.2`, licensed GPL-3.0. See
+This helper depends on AAXClean `3.1.0`, licensed GPL-3.0. See
 `THIRD-PARTY-NOTICES.md`. ABB's top-level license is not changed by this helper
 source directory.

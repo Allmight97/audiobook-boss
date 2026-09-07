@@ -48,10 +48,10 @@
 		"@solidjs/testing-library": "1.0.0-beta.3",
 		"@solidjs/vite-plugin": "3.0.0-next.39",
 		"@tauri-apps/cli": "^2.11.4",
-		"@testing-library/jest-dom": "^6.10.0",
+		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/user-event": "^14.6.6",
 		"@typescript/native": "npm:typescript@7.0.2",
-		"jsdom": "^29.1.1",
+		"jsdom": "^30.0.1",
 		"typescript": "npm:typescript@7.0.2",
 		"vite": "^8.2.2",
 		"vitest": "^4.1.11"
