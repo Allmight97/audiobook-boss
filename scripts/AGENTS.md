@@ -70,13 +70,15 @@ commands over invoking internals directly.
   To keep a `RUST_LOG` already in the shell: `ABB_DEV_USE_EXISTING_RUST_LOG=1 bun run app:dev:log`.
 - Frontend owner: `bun run test -- <owner test files>`.
 - Frontend type validation: `bun run typecheck`.
-- IPC/generated binding changes:
-  `bash scripts/check-generated-bindings.sh --mode local`, then the contract
+- IPC/generated binding changes: use `bun run bindings:check`, then the contract
   Vitest files: `bun run test -- src/lib/tauri-public-api.contract.test.ts
   src/lib/tauri-client.test.ts src/lib/tauri-client.generated-event-bindings.test.ts`.
-  For release-critical drift confidence: `bun run bindings:check`.
+  `bash scripts/check-generated-bindings.sh --mode local` is the uncommitted
+  working-tree loop: it checks changes against `HEAD` plus untracked files and
+  can skip a clean committed branch. Use verify mode for committed contract
+  changes unless generation for that same source is already established.
 - Runtime boundary changes: run the generated binding check
-  (`bash scripts/check-generated-bindings.sh --mode local`), the generated Tauri
+  (`bun run bindings:check`), the generated Tauri
   runtime-boundary check (`bun scripts/check-tauri-runtime-boundary.ts`), or
   targeted contract tests for the owning public surface. Boundary rules:
   `src-tauri/src/commands/AGENTS.md` + `src/lib/tauri/AGENTS.md`.
@@ -105,7 +107,9 @@ commands over invoking internals directly.
   inspects both.
 - `analyze_code_lines.py`: optional human "Commander View" source-size
   diagnostic, not proof.
-- `*.test.ts`: Vitest coverage for script helpers.
+- `*.test.ts`: Vitest coverage for script helpers. `vitest.config.ts` runs
+  scripts and bootstrap import-order proof in the Node `tooling` project;
+  frontend tests use the `frontend` project with jsdom and Tauri setup.
 
 ## Edit Rules
 

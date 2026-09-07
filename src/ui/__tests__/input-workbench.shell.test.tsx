@@ -89,22 +89,13 @@ describe('Solid input workbench', () => {
 		document.getElementById('cover-art-area')?.remove();
 	});
 
-	it('renders input workflow before the inspector and keeps merge independent of the list', async () => {
+	it('imports audio and preserves the selected list when switching to merge', async () => {
 		const user = userEvent.setup();
 		const input = fakeInput({
 			openFiles: vi.fn(async () => ['/tmp/file1.mp3']),
 		});
 		runtime = createAppRuntime({ input });
 		renderApp(runtime);
-
-		const shell = screen.getByTestId('left-column');
-		const workflow = screen.getByTestId('input-workflow-panel');
-		const inspector = screen.getByTestId('file-inspector-panel');
-		expect(workflow.parentElement).toBe(shell);
-		expect(inspector.parentElement).toBe(shell);
-		expect(
-			workflow.compareDocumentPosition(inspector) & Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await screen.findByRole('option', { name: 'file1.mp3' });

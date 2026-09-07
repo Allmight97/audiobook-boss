@@ -32,6 +32,7 @@ export const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 
 function emptyWorkCenterState(): WorkCenterState {
 	return {
+		membershipRevision: 0,
 		initialized: false,
 		operations: [],
 		cancelPendingByOperationId: {},
@@ -76,6 +77,7 @@ export function createWorkOperationsSession(
 	const state = emptyWorkCenterState();
 	let initializationPromise: Promise<void> | null = null;
 	let subscriptions: SubscriptionGroup | null = null;
+	let generation = 0;
 	const purgedOperationIds = new Set<string>();
 	const purgedOperationOrder: string[] = [];
 
@@ -131,14 +133,16 @@ export function createWorkOperationsSession(
 
 	function applyOperationSnapshot(next: OperationSnapshot): void {
 		const model = upsertOperation(state, next);
-		state.operations = model.operations;
+		if (model === state) return;
+		Object.assign(state, model);
 		commit();
 		void purgeRemoteSessionsForTerminalOperation(next);
 	}
 
 	function applyOperationListSnapshot(list: OperationListSnapshot): void {
 		const model = replaceOperations(state, list);
-		state.operations = model.operations;
+		if (model === state) return;
+		Object.assign(state, model);
 		commit();
 		for (const operation of state.operations) {
 			void purgeRemoteSessionsForTerminalOperation(operation);
@@ -166,7 +170,7 @@ export function createWorkOperationsSession(
 				);
 				await group.add(
 					tauriClient.listen(EVENTS.WORK_OPERATION_LIST_SNAPSHOT, ({ payload }) => {
-						applyOperationListSnapshot({ operations: payload.operations });
+						applyOperationListSnapshot(payload);
 					}),
 				);
 
@@ -179,10 +183,9 @@ export function createWorkOperationsSession(
 				state.errorMessage = null;
 				commit();
 			})().catch((error) => {
+				if (group.disposed || subscriptions !== group) return;
 				group.dispose();
-				if (subscriptions === group) {
-					subscriptions = null;
-				}
+				subscriptions = null;
 				state.errorMessage = `Failed to initialize Work Center: ${toUserMessage(error)}`;
 				initializationPromise = null;
 				commit();
@@ -192,11 +195,13 @@ export function createWorkOperationsSession(
 			return initializationPromise;
 		},
 		dispose() {
+			generation += 1;
 			subscriptions?.dispose();
 			subscriptions = null;
 			initializationPromise = null;
 			state.initialized = false;
 			state.operations = [];
+			state.membershipRevision = 0;
 			state.cancelPendingByOperationId = {};
 			state.errorMessage = null;
 			purgedOperationIds.clear();
@@ -205,6 +210,7 @@ export function createWorkOperationsSession(
 		},
 		applyOperationSnapshot,
 		async cancel(operationId) {
+			const started = generation;
 			state.cancelPendingByOperationId = {
 				...state.cancelPendingByOperationId,
 				[operationId]: true,
@@ -212,15 +218,19 @@ export function createWorkOperationsSession(
 			commit();
 			try {
 				const next = await tauriClient.cancelWorkOperation(operationId);
+				if (started !== generation) return;
 				applyOperationSnapshot(next);
 			} catch (error) {
+				if (started !== generation) return;
 				state.errorMessage = `Failed to cancel operation: ${toUserMessage(error)}`;
 				commit();
 			} finally {
-				const next = { ...state.cancelPendingByOperationId };
-				delete next[operationId];
-				state.cancelPendingByOperationId = next;
-				commit();
+				if (started === generation) {
+					const next = { ...state.cancelPendingByOperationId };
+					delete next[operationId];
+					state.cancelPendingByOperationId = next;
+					commit();
+				}
 			}
 		},
 		async openSource(child) {

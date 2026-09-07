@@ -79,8 +79,8 @@ export type MetadataView = {
 export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
 	readonly capability: Accessor<MetadataCapability>;
-	hydrateSelection(activeElement: Element | null): Promise<void>;
-	canChangeSelection(): Promise<boolean>;
+	hydrateSelection(activeElement: Element | null): Promise<boolean>;
+	canChangeSelection(signal?: AbortSignal): Promise<boolean>;
 	setFieldValue(command: { readonly inputId: string; readonly value: string }): void;
 	setFieldAction(command: { readonly actionId: string; readonly action: 'keep' | 'blank' }): void;
 	setCoverHovered(hovered: boolean): void;
@@ -91,7 +91,11 @@ export type MetadataOwner = {
 	loadCoverArtFromPicker(): Promise<void>;
 	loadCoverArtFromUrl(rawInput: string): Promise<string | null>;
 	applyCoverArtDrop(paths: ReadonlyArray<string>): Promise<boolean>;
-	applyLookupMetadata(metadata: Partial<AudiobookMetadata>): void;
+	applyLookupMetadata(
+		file: AudioFile,
+		metadata: Partial<AudiobookMetadata>,
+		coverArtBytes?: number[],
+	): boolean;
 	applyDraftValidation(validation: MetadataDraftValidation): void;
 	stageCurrentSelectionForProcess(): Promise<boolean>;
 	save(): Promise<void>;
@@ -318,6 +322,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 	async function persistBoundDrafts(
 		current: MetadataEditorState,
+		signal?: AbortSignal,
 	): Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }> {
 		const started = generation;
 		if (current.boundFiles.length === 0) {
@@ -340,6 +345,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return { ok: false, message: prepared.message };
 		}
 		if (
+			signal?.aborted ||
 			generation !== started ||
 			editor.selectionKey !== current.selectionKey ||
 			editor.hydrateRequestId !== current.hydrateRequestId ||
@@ -449,17 +455,17 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	return {
 		view,
 		capability,
-		async canChangeSelection() {
+		async canChangeSelection(signal) {
 			const started = generation;
 			const current = editor;
-			if (current.saveInProgress) {
+			if (signal?.aborted || current.saveInProgress) {
 				return false;
 			}
 			if (current.boundFiles.length === 0 || !hasDirtyMetadataFields(current.form, current.cover)) {
 				return true;
 			}
-			const persisted = await persistBoundDrafts(current);
-			if (generation !== started) return false;
+			const persisted = await persistBoundDrafts(current, signal);
+			if (signal?.aborted || generation !== started) return false;
 			if (!persisted.ok) {
 				applyValidationFailure(persisted.message);
 				return false;
@@ -489,7 +495,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					...emptyEditor(),
 					hydrateRequestId: start.hydrateRequestId + 1,
 				});
-				return;
+				return true;
 			}
 			syncRemovedFiles(files);
 
@@ -507,7 +513,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					jobType,
 					start.hydrateRequestId,
 				);
-				return;
+				return generation === started && editor.selectionKey === nextKey;
 			}
 
 			const requestId = start.hydrateRequestId + 1;
@@ -517,11 +523,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			if (start.boundFiles.length > 0) {
 				const persisted = await persistBoundDrafts({ ...next, boundFiles: start.boundFiles });
 				if (generation !== started || editor.hydrateRequestId !== requestId) {
-					return;
+					return false;
 				}
 				if (!persisted.ok) {
 					applyValidationFailure(persisted.message);
-					return;
+					return false;
 				}
 				next = editor;
 			}
@@ -538,14 +544,14 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				next = bumpForm(next, populateMetadataFormSingle({}));
 				next = bumpCover(next, displayCover(createEmptyCoverUiState(), null));
 				commit(next);
-				return;
+				return true;
 			}
 
 			const loading = next;
 			const metadataList = await Promise.all(
 				selectedFiles.map((file) => loadMetadataForFile(file)),
 			);
-			if (generation !== started || editor.hydrateRequestId !== requestId) return;
+			if (generation !== started || editor.hydrateRequestId !== requestId) return false;
 			const latest = editor;
 			let form =
 				selectedFiles.length === 1
@@ -583,6 +589,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			}
 
 			await autoLoadCoverIfNeeded(session.fileList, selectedFiles, jobType, requestId);
+			return generation === started && editor.hydrateRequestId === requestId;
 		},
 		setFieldValue(command) {
 			const definition = getMetadataFieldDefinitionByInputId(command.inputId);
@@ -725,14 +732,21 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return false;
 			}
 		},
-		applyLookupMetadata(metadata) {
+		applyLookupMetadata(file, metadata, coverArtBytes) {
 			const current = editor;
+			const selected = selectedFilesFromSession(deps.input.session());
+			const matches = (files: ReadonlyArray<AudioFile>) =>
+				files.length === 1 && files[0].path === file.path && files[0].inputId === file.inputId;
+			if (current.saveInProgress || !matches(current.boundFiles) || !matches(selected))
+				return false;
 			commit(
 				bumpForm(
 					current,
 					applyMetadataToForm(current.form, metadata, { mode: 'single', markDirty: true }),
 				),
 			);
+			if (coverArtBytes?.length) applyLoadedCoverArt(coverArtBytes);
+			return true;
 		},
 		applyDraftValidation(validation) {
 			// Diagnostics do not invalidate drafts captured by pending intents.

@@ -17,7 +17,11 @@ export function ConcurrencyControl(): JSX.Element {
 				class="concurrency-select"
 				value={view().selection}
 				disabled={!view().controlsEnabled}
-				onChange={(event) => void setSelection(event.currentTarget.value)}
+				onChange={async (event) => {
+					const select = event.currentTarget;
+					await setSelection(select.value);
+					select.value = view().selection;
+				}}
 			>
 				{view().allowAuto && <option value="auto">Auto</option>}
 				<For each={[...view().fixedOptions]}>

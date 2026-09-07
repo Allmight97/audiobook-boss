@@ -16,6 +16,11 @@
   validation, and private JSON storage under Tauri's app config directory.
 - Durable preferences validate against the owning runtime APIs; App Settings
   must not duplicate encoder or JobRegistry accept/reject rules.
+- Updating preferences does not reconfigure JobRegistry. Concurrency is accepted
+  through its runtime command before the frontend Settings owner records the
+  preference; retrying storage remains possible while jobs are active. Reset
+  coordinates runtime defaults with storage and restores prior concurrency if
+  storage reset fails.
 
 ## Edit Rules
 

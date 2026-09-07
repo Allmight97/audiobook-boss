@@ -152,7 +152,68 @@ describe('input session selection gate', () => {
 	});
 });
 
-describe('input session selection transition ticket', () => {
+describe('input session selection transitions', () => {
+	it('keeps the selection when its requesting workflow aborts during validation', async () => {
+		let allow!: (value: boolean) => void;
+		const owner = createInputOwner({
+			beforeSelectionChange: () =>
+				new Promise<boolean>((resolve) => {
+					allow = resolve;
+				}),
+		});
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [1]));
+		const request = new AbortController();
+		const pending = owner.selectFile({
+			index: 0,
+			modifiers: { multi: false, range: false },
+			signal: request.signal,
+		});
+		request.abort();
+		allow(true);
+		expect(await pending).toBe(false);
+		expect(owner.session().selectedIndices).toEqual([1]);
+	});
+
+	it.each(['select', 'remove'] as const)(
+		'resolves %s by file identity after a pending gate and reorder',
+		async (action) => {
+			let allow!: (value: boolean) => void;
+			const owner = createInputOwner({
+				beforeSelectionChange: () =>
+					new Promise<boolean>((resolve) => {
+						allow = resolve;
+					}),
+			});
+			owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [1]));
+			const pending =
+				action === 'remove'
+					? owner.removeFile(0)
+					: owner.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+			owner.reorderFiles({ fromIndex: 0, toIndex: 1 });
+			allow(true);
+			await pending;
+			if (action === 'remove') expect(owner.view().files.map((file) => file.path)).toEqual(['/b']);
+			else expect(owner.session().selectedIndices).toEqual([1]);
+		},
+	);
+
+	it('invalidates a pending selection when the session is reset and replaced', async () => {
+		let allow!: (value: boolean) => void;
+		const owner = createInputOwner({
+			beforeSelectionChange: () =>
+				new Promise<boolean>((resolve) => {
+					allow = resolve;
+				}),
+		});
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [0]));
+		const pending = owner.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		owner.reset();
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [0]));
+		allow(true);
+		expect(await pending).toBe(false);
+		expect(owner.session().selectedIndices).toEqual([0]);
+	});
+
 	it('ignores a stale gate answer when a newer selection completes first', async () => {
 		let resolveFirstGate: (allowed: boolean) => void;
 		const firstGate = new Promise<boolean>((resolve) => {
@@ -371,7 +432,7 @@ it.each(['remove', 'clear'] as const)(
 		owner.replaceSession(sessionWith([audioFile('/books/old.m4b')]));
 		const pending = owner.importIntent({ type: 'importPaths', paths: ['/books/new.m4b'] });
 		await vi.waitFor(() => expect(capability.analyzeAudioFiles).toHaveBeenCalled());
-		if (action === 'remove') owner.removeFile(0);
+		if (action === 'remove') await owner.removeFile(0);
 		else await owner.clearAllFiles();
 		finishAnalysis(analyzedFile('/books/new.m4b'));
 		await pending;
@@ -397,7 +458,7 @@ it.each(['cancel', 'error'] as const)(
 		owner.replaceSession(sessionWith([audioFile('/books/old.m4b')]));
 		const pending = owner.importIntent({ type: 'pickFiles' });
 		await vi.waitFor(() => expect(capability.openFiles).toHaveBeenCalled());
-		owner.removeFile(0);
+		await owner.removeFile(0);
 		if (outcome === 'cancel') finishPicker(null);
 		else failPicker(new Error('picker failed'));
 		await pending;

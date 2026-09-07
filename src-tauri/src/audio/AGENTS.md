@@ -43,7 +43,7 @@
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event
-  vocabulary and operation lifecycle identity.
+  vocabulary, and `crate::work_runtime` for accepted-operation identity.
 
 ## Private Cluster
 

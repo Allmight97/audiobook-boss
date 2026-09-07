@@ -21,7 +21,7 @@
   Estimate kbps uses the VBR table; it never parses `Est: ~60 kbps`.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`
   do not persist. Only `select` and `setAfterburner` persist last-used
-  defaults through the injected persist adapter.
+  defaults through the injected Settings `rememberEncoderDefaults` intent.
 - Capability and availability facts come from backend Runtime Settings
   Capabilities. Settings reset waits for the App Runtime handoff to reload
   these capabilities after a configured FFmpeg path is removed. Labels and

@@ -159,6 +159,10 @@ pub struct OperationTerminalSummary {
 pub struct OperationSnapshot {
     pub operation_id: OperationId,
     pub sequence: u64,
+    /// Monotonic within this operation; authored under the state lock.
+    pub revision: u64,
+    /// Membership revision when this operation entered the retained set.
+    pub created_revision: u64,
     pub kind: OperationKind,
     pub status: WorkOperationStatus,
     pub title: String,
@@ -180,6 +184,7 @@ pub struct OperationSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationListSnapshot {
+    pub membership_revision: u64,
     pub operations: Vec<OperationSnapshot>,
 }
 
@@ -208,6 +213,7 @@ pub struct WorkOperationSnapshotEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkOperationListSnapshotEvent {
+    pub membership_revision: u64,
     pub operations: Vec<OperationSnapshot>,
 }
 

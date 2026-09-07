@@ -1,9 +1,9 @@
-import { onSettled } from 'solid-js';
+import { onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { hydrateAppSettingsProduction } from '../app/appSettings';
 import { useAppRuntime } from '../app/runtime';
-import { AppSettingsDialogView } from './appSettings/AppSettingsDialogView';
+import { AppSettingsDialogView, SettingsPersistenceNotice } from './appSettings';
 import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
 import { EncoderView } from './encoderPanel';
 import { OutputView } from './outputPanel/OutputView';
@@ -76,6 +76,9 @@ export function App(): JSX.Element {
 			</div>
 
 			<div class="right-column-wrapper">
+				<Show when={!runtime.settings.dialog().isOpen}>
+					<SettingsPersistenceNotice />
+				</Show>
 				<div class="panel right-column-panel metadata-manager-panel">
 					<MetadataManagerView />
 				</div>

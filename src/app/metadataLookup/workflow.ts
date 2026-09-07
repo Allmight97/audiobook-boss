@@ -34,6 +34,7 @@ import type {
 } from './state';
 
 export interface MetadataLookupWorkflowServices {
+	isCurrent: () => boolean;
 	getLookupState: () => MetadataLookupState;
 	getQueueState: () => MetadataLookupQueueState;
 	setMetadataLookupQueue: (queue: MetadataLookupQueueItem[]) => void;
@@ -43,26 +44,21 @@ export interface MetadataLookupWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
 	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
 	stageMetadataIntentPatch: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
-	selectFile: (
-		index: number,
-		modifiers?: { multi: boolean; range: boolean },
-		options?: { skipPersistPrevious?: boolean },
-	) => Promise<void> | void;
+	selectFile: (file: AudioFile) => Promise<boolean>;
 	applyMetadataToForm: (
+		file: AudioFile,
 		metadata: Partial<AudiobookMetadata>,
-		options?: { mode?: 'single' | 'multi'; markDirty?: boolean },
-	) => void;
+		coverArtBytes?: number[],
+	) => boolean;
 	readMetadataForm: (options?: {
 		mode?: 'single' | 'multi';
 		includeCoverArt?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;
 		limit?: number | null;
 	}) => Promise<MetadataLookupResponse>;
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>;
 	loadLookupCoverBytes: (url: string) => Promise<number[]>;
 	clearCoverPreviews: () => void;
 	focusElementById: (id: string) => void;
@@ -160,11 +156,16 @@ async function advanceQueue(
 	const nextItem = queue[nextIndex];
 
 	if (nextItem) {
-		await services.selectFile(
-			nextItem.index,
-			{ multi: false, range: false },
-			{ skipPersistPrevious: true },
-		);
+		const selected = await services.selectFile(nextItem.file);
+		if (!services.isCurrent()) return;
+		if (!selected) {
+			setStatus(
+				services,
+				'Could not select the next file. Review pending metadata edits and try again.',
+				'error',
+			);
+			return;
+		}
 		services.setMetadataLookupQueueIndex(nextIndex);
 		updateQueueContext(services);
 		const state = services.getLookupState();
@@ -193,7 +194,6 @@ async function applyCoverArt(
 	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
 		const coverBytes = await services.loadLookupCoverBytes(result.coverUrl);
-		services.setCustomCoverArt(coverBytes);
 		return { status: 'applied', bytes: coverBytes };
 	} catch (error) {
 		services.console.warn('Failed to load cover art from lookup:', error);
@@ -215,15 +215,8 @@ async function applyResult(
 	const mode = services.getLookupState().applyMode;
 
 	const current = queue[services.getQueueState().index];
-	if (current) {
-		await services.selectFile(
-			current.index,
-			{ multi: false, range: false },
-			{ skipPersistPrevious: true },
-		);
-	}
+	if (!current) return;
 
-	services.applyMetadataToForm(metadata, { mode: 'single', markDirty: true });
 	let queueCoverState: QueueCoverState = { intent: 'keep' };
 	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
@@ -234,14 +227,31 @@ async function applyResult(
 			coverArtFailed = true;
 		}
 	}
+	if (!services.isCurrent()) return;
+	const selected = await services.selectFile(current.file);
+	if (!services.isCurrent()) return;
+	if (
+		!selected ||
+		!services.applyMetadataToForm(
+			current.file,
+			metadata,
+			queueCoverState.intent === 'replace' ? queueCoverState.bytes : undefined,
+		)
+	) {
+		setStatus(
+			services,
+			'Could not apply metadata to the selected file. Review pending edits and try again.',
+			'error',
+		);
+		return;
+	}
+
 	if (mode === 'queue') {
-		if (current) {
-			const queueState: QueueItemState = {
-				metadataPatch: buildQueueMetadataPatch(services),
-				cover: queueCoverState,
-			};
-			persistQueueMetadata(services, current.file, queueState);
-		}
+		const queueState: QueueItemState = {
+			metadataPatch: buildQueueMetadataPatch(services),
+			cover: queueCoverState,
+		};
+		persistQueueMetadata(services, current.file, queueState);
 		await advanceQueue(services, 'applied', { coverArtFailed });
 		return;
 	}
@@ -278,6 +288,7 @@ async function runSearch(
 			sources: selectedSources(services),
 			limit: 8,
 		});
+		if (!services.isCurrent()) return;
 		const { results, diagnostics } = response;
 		state.results = results;
 		state.hasSearched = true;
@@ -291,6 +302,7 @@ async function runSearch(
 			options.successVariant ?? (diagnostics.length > 0 ? 'info' : 'success'),
 		);
 	} catch (error) {
+		if (!services.isCurrent()) return;
 		services.console.error('Metadata lookup failed:', error);
 		state.results = [];
 		state.hasSearched = false;
@@ -359,6 +371,7 @@ function reportWorkflowFailure(
 	error: MetadataLookupWorkflowFailed,
 ): AppEffect<void> {
 	return Effect.sync(() => {
+		if (!services.isCurrent()) return;
 		services.console.error(`Metadata lookup workflow failed: ${error.message}`, error.cause);
 		setStatus(services, 'Metadata lookup failed. Check console and try again.', 'error');
 	});
@@ -369,6 +382,7 @@ function metadataLookupWorkflowBody(
 ): AppEffect<void, MetadataLookupWorkflowFailed, MetadataLookupWorkflowServicesId> {
 	return Effect.gen(function* () {
 		const services = yield* MetadataLookupWorkflowServicesTag;
+		if (!services.isCurrent()) return;
 		switch (action.type) {
 			case 'applyResult': {
 				yield* workflowPromise(async () => {

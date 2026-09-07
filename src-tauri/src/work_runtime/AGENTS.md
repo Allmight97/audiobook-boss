@@ -19,6 +19,9 @@
 
 - Own operation identity, immutable accepted submissions, operation snapshots,
   operation-scoped cancellation, and Work Center event truth.
+- Stamp per-operation `revision` under the state lock before mutable access.
+  List `membershipRevision` advances on insert/prune; `createdRevision` records
+  each operation's insertion. Submission `sequence` remains display order.
 - Accepted background work emits `work-operation-snapshot` and
   `work-operation-list-snapshot`, never the direct-preview
   `processing-progress` or `processing-queue` window events.

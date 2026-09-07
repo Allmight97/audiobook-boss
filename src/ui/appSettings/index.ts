@@ -1,6 +1,2 @@
-export {
-	persistAppSettingsPatch,
-	persistConcurrencyPreference,
-	persistEncoderDefaults,
-	persistOutputDefaults,
-} from './persistence';
+export { AppSettingsDialogView } from './AppSettingsDialogView';
+export { SettingsPersistenceNotice } from './SettingsPersistenceNotice';

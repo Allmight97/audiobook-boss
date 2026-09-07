@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import type { MetadataSaveBatchResult } from '../../types/metadata';
+import type { MetadataLookupResponse, MetadataSaveBatchResult } from '../../types/metadata';
 import { createAppRuntime } from '../runtime';
 import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
@@ -87,6 +87,171 @@ describe('metadata session selection and save', () => {
 		expect(metadata.readAudioMetadata).toHaveBeenCalledWith('/books/alpha.m4b');
 	});
 
+	it('keeps a dirty selected input when removal fails metadata validation', async () => {
+		runtime = createAppRuntime({
+			metadata: fakeMetadata({
+				validateMetadataIntentPatch: vi.fn(async (patch) => ({
+					isValid: false,
+					metadataPatch: patch,
+					fieldErrors: [
+						{
+							field: 'date' as const,
+							code: 'publication_date_syntax' as const,
+							message: 'Invalid date',
+						},
+					],
+				})),
+			}),
+		});
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Unsaved title' });
+		await runtime.input.removeFile(0);
+		expect(runtime.input.view().files.map((entry) => entry.path)).toEqual(['/books/alpha.m4b']);
+		expect(runtime.input.session().selectedIndices).toEqual([0]);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Unsaved title');
+	});
+
+	it('does not apply Lookup metadata when the target selection is rejected', async () => {
+		const metadata = fakeMetadata({
+			searchOnlineMetadata: vi.fn(async () => ({
+				results: [
+					{
+						source: 'audnexus' as const,
+						sourceId: '1',
+						title: 'Lookup title',
+						authors: [],
+						narrators: [],
+						audibleOnly: false,
+					},
+				],
+				diagnostics: [],
+			})),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.lookup.run({ type: 'open' });
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Unsaved Beta' });
+		vi.mocked(metadata.validateMetadataIntentPatch).mockImplementation(async (patch) => ({
+			isValid: false,
+			metadataPatch: patch,
+			fieldErrors: [
+				{
+					field: 'date' as const,
+					code: 'publication_date_syntax' as const,
+					message: 'Invalid date',
+				},
+			],
+		}));
+		await runtime.lookup.run({ type: 'applyResult', index: 0 });
+		expect(runtime.input.session().selectedIndices).toEqual([1]);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Unsaved Beta');
+		expect(runtime.lookup.view().statusVariant).toBe('error');
+	});
+
+	it.each(['close', 'reset'] as const)(
+		'expires pending Lookup cover application when the dialog is %s',
+		async (action) => {
+			let finishCover!: (bytes: number[]) => void;
+			const metadata = fakeMetadata({
+				loadCoverArtFromUrl: vi.fn(
+					() =>
+						new Promise<number[]>((resolve) => {
+							finishCover = resolve;
+						}),
+				),
+				searchOnlineMetadata: vi.fn(async () => ({
+					results: [
+						{
+							source: 'audnexus' as const,
+							sourceId: '1',
+							title: 'Lookup title',
+							authors: [],
+							narrators: [],
+							audibleOnly: false,
+							coverUrl: 'https://example.com/cover.jpg',
+						},
+					],
+					diagnostics: [],
+				})),
+			});
+			runtime = createAppRuntime({ metadata });
+			runtime.input.replaceSession({
+				...emptyInputSession(),
+				fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+				selectedIndices: [0],
+				selectedAnchor: 0,
+			});
+			await runtime.metadata.hydrateSelection(null);
+			await runtime.lookup.run({ type: 'open' });
+			runtime.lookup.setReplaceCover(true);
+			const applying = runtime.lookup.run({ type: 'applyResult', index: 0 });
+			await vi.waitFor(() => expect(metadata.loadCoverArtFromUrl).toHaveBeenCalled());
+			if (action === 'close') await runtime.lookup.run({ type: 'close' });
+			else runtime.lookup.reset();
+			await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+			await runtime.metadata.hydrateSelection(null);
+			finishCover([1, 2, 3]);
+			await applying;
+			expect(runtime.input.session().selectedIndices).toEqual([1]);
+			expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Beta');
+			expect(runtime.lookup.view().isOpen).toBe(false);
+		},
+	);
+
+	it('keeps the newer Lookup search results when an earlier request completes last', async () => {
+		let finishFirst!: (response: MetadataLookupResponse) => void;
+		const metadata = fakeMetadata({
+			searchOnlineMetadata: vi.fn(
+				() =>
+					new Promise<MetadataLookupResponse>((resolve) => {
+						finishFirst = resolve;
+					}),
+			),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		const opening = runtime.lookup.run({ type: 'open' });
+		await vi.waitFor(() => expect(metadata.searchOnlineMetadata).toHaveBeenCalledTimes(1));
+		vi.mocked(metadata.searchOnlineMetadata).mockResolvedValue({ results: [], diagnostics: [] });
+		runtime.lookup.setTitleQuery('New query');
+		await runtime.lookup.run({ type: 'search' });
+		finishFirst({
+			results: [
+				{
+					source: 'audnexus',
+					sourceId: 'old',
+					title: 'Old result',
+					authors: [],
+					narrators: [],
+					audibleOnly: false,
+				},
+			],
+			diagnostics: [],
+		});
+		await opening;
+		expect(runtime.lookup.view().results).toEqual([]);
+		expect(runtime.lookup.view().titleQuery).toBe('New query');
+	});
+
 	it('commits a dirty title onto the previous file before hydrating the next selection', async () => {
 		const metadata = fakeMetadata();
 		runtime = createAppRuntime({ metadata });
@@ -112,6 +277,65 @@ describe('metadata session selection and save', () => {
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Beta');
 		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
+
+	it.each([
+		{ valid: true, cancel: 'workflow' },
+		{ valid: false, cancel: 'workflow' },
+		{ valid: true, cancel: 'new selection' },
+		{ valid: false, cancel: 'new selection' },
+	])(
+		'aborts draft validation on $cancel and leaves a newer gate usable (valid: $valid)',
+		async ({ valid, cancel }) => {
+			const metadata = fakeMetadata();
+			runtime = createAppRuntime({ metadata });
+			runtime.input.replaceSession({
+				...emptyInputSession(),
+				fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+				selectedIndices: [0],
+				selectedAnchor: 0,
+			});
+			await runtime.metadata.hydrateSelection(null);
+			runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Edited Alpha' });
+			const draft = runtime.metadata.view();
+			const finish: Array<(isValid: boolean) => void> = [];
+			vi.mocked(metadata.validateMetadataIntentPatch).mockImplementation(
+				(patch) =>
+					new Promise((resolve) => {
+						finish.push((isValid) =>
+							resolve({
+								isValid,
+								metadataPatch: patch,
+								fieldErrors: isValid
+									? []
+									: [{ field: 'date', code: 'publication_date_syntax', message: 'Invalid date' }],
+							}),
+						);
+					}),
+			);
+			const controller = new AbortController();
+			const obsolete = runtime.input.selectFile({
+				index: 1,
+				modifiers: { multi: false, range: false },
+				signal: controller.signal,
+			});
+			await vi.waitFor(() => expect(finish).toHaveLength(1));
+			if (cancel === 'workflow') controller.abort();
+			const current = runtime.input.selectFile({
+				index: 1,
+				modifiers: { multi: false, range: false },
+			});
+			await vi.waitFor(() => expect(finish).toHaveLength(2));
+			finish[0](valid);
+			expect(await obsolete).toBe(false);
+			expect(runtime.metadata.view().form).toEqual(draft.form);
+			expect(runtime.metadata.view().statusMessage).toBe(draft.statusMessage);
+			expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha');
+			finish[1](true);
+			expect(await current).toBe(true);
+			expect(runtime.input.session().selectedIndices).toEqual([1]);
+			expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+		},
+	);
 
 	it('saves staged intent through the metadata capability', async () => {
 		const metadata = fakeMetadata();
@@ -474,7 +698,7 @@ describe('metadata session selection and save', () => {
 		await runtime.metadata.hydrateSelection(null);
 		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha');
 
-		runtime.input.removeFile(0);
+		await runtime.input.removeFile(0);
 		await runtime.metadata.hydrateSelection(null);
 		expect(runtime.metadata.readCached('/books/alpha.m4b')).toBeUndefined();
 

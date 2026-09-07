@@ -15,6 +15,7 @@ import {
 import { clearSelectionInSession, selectAllInSession, selectFileInSession } from './selection';
 import {
 	emptyInputSession,
+	fileIdentityKey,
 	type ImportIntent,
 	type InputSessionState,
 	type InputView,
@@ -31,12 +32,12 @@ export type InputOwner = {
 	selectFile(command: {
 		readonly index: number;
 		readonly modifiers: SelectionModifiers;
-		readonly skipPersistPrevious?: boolean;
+		readonly signal?: AbortSignal;
 	}): Promise<boolean>;
 	selectAll(): Promise<void>;
 	clearSelection(): Promise<void>;
 	setDragOver(isDragOver: boolean): void;
-	removeFile(index: number): void;
+	removeFile(index: number): Promise<void>;
 	clearAllFiles(): Promise<void>;
 	moveFile(command: { readonly index: number; readonly direction: 'up' | 'down' }): void;
 	reorderFiles(command: { readonly fromIndex: number; readonly toIndex: number }): void;
@@ -51,7 +52,7 @@ export type InputOwner = {
 
 export type InputOwnerDeps = {
 	readonly capability?: InputCapability;
-	readonly beforeSelectionChange?: () => boolean | Promise<boolean>;
+	readonly beforeSelectionChange?: (signal?: AbortSignal) => boolean | Promise<boolean>;
 };
 
 export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
@@ -72,7 +73,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		return jobType;
 	};
 	const capability: Accessor<InputCapability> = () => capabilityValue;
-	let selectionTransitionTicket = 0;
+	let selectionTransition: AbortController | undefined;
 	let importQueue: Promise<void> = Promise.resolve();
 	let importEpoch = 0;
 
@@ -81,12 +82,27 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		bump((n) => n + 1);
 	}
 
-	function beginSelectionTransition(): number {
-		return ++selectionTransitionTicket;
+	async function allowSelectionTransition(signal?: AbortSignal): Promise<boolean> {
+		if (signal?.aborted) return false;
+		selectionTransition?.abort();
+		const transition = new AbortController();
+		selectionTransition = transition;
+		const abort = () => transition.abort();
+		signal?.addEventListener('abort', abort, { once: true });
+		try {
+			const allowed = await deps.beforeSelectionChange?.(transition.signal);
+			return allowed !== false && !transition.signal.aborted;
+		} finally {
+			signal?.removeEventListener('abort', abort);
+		}
 	}
 
-	function isLatestSelectionTransition(ticket: number): boolean {
-		return ticket === selectionTransitionTicket;
+	function currentIndex(file: AudioFile): number {
+		return (
+			session.fileList?.files.findIndex(
+				(current) => fileIdentityKey(current) === fileIdentityKey(file),
+			) ?? -1
+		);
 	}
 
 	return {
@@ -144,43 +160,19 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			} catch {}
 		},
 		async selectFile(command) {
-			const ticket = beginSelectionTransition();
-			if (!command.skipPersistPrevious && deps.beforeSelectionChange) {
-				const allowed = await deps.beforeSelectionChange();
-				if (allowed === false) {
-					return false;
-				}
-			}
-			if (!isLatestSelectionTransition(ticket)) {
-				return false;
-			}
-			commit(selectFileInSession(session, command.index, command.modifiers));
+			const file = session.fileList?.files[command.index];
+			if (!file || !(await allowSelectionTransition(command.signal))) return false;
+			const index = currentIndex(file);
+			if (index < 0) return false;
+			commit(selectFileInSession(session, index, command.modifiers));
 			return true;
 		},
 		async selectAll() {
-			const ticket = beginSelectionTransition();
-			if (deps.beforeSelectionChange) {
-				const allowed = await deps.beforeSelectionChange();
-				if (allowed === false) {
-					return;
-				}
-			}
-			if (!isLatestSelectionTransition(ticket)) {
-				return;
-			}
+			if (!(await allowSelectionTransition())) return;
 			commit(selectAllInSession(session));
 		},
 		async clearSelection() {
-			const ticket = beginSelectionTransition();
-			if (deps.beforeSelectionChange) {
-				const allowed = await deps.beforeSelectionChange();
-				if (allowed === false) {
-					return;
-				}
-			}
-			if (!isLatestSelectionTransition(ticket)) {
-				return;
-			}
+			if (!(await allowSelectionTransition())) return;
 			commit(clearSelectionInSession(session));
 		},
 		setDragOver(isDragOver) {
@@ -189,20 +181,13 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			}
 			commit({ ...session, isDragOver });
 		},
-		removeFile(index) {
-			commit(removeFileFromSession(session, index).session);
+		async removeFile(index) {
+			const file = session.fileList?.files[index];
+			if (!file || session.orderLocked || !(await allowSelectionTransition())) return;
+			commit(removeFileFromSession(session, currentIndex(file)).session);
 		},
 		async clearAllFiles() {
-			const ticket = beginSelectionTransition();
-			if (deps.beforeSelectionChange) {
-				const allowed = await deps.beforeSelectionChange();
-				if (allowed === false) {
-					return;
-				}
-			}
-			if (!isLatestSelectionTransition(ticket)) {
-				return;
-			}
+			if (!(await allowSelectionTransition())) return;
 			commit(clearAllFilesFromSession(session));
 		},
 		moveFile(command) {
@@ -225,9 +210,12 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			bump((n) => n + 1);
 		},
 		replaceSession(next) {
+			selectionTransition?.abort();
 			commit(next);
 		},
 		reset() {
+			selectionTransition?.abort();
+			selectionTransition = undefined;
 			importEpoch += 1;
 			jobType = 'batch';
 			commit(emptyInputSession());

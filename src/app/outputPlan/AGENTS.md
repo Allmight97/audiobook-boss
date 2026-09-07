@@ -40,7 +40,8 @@
   Output owner. Views use `useAppRuntime().output`. Do not fold review into
   path-preview freshness.
 - App Settings hydration passes resolved `outputDefaults` to the runtime's
-  Output owner.
+  Output owner without persisting. User changes hand accepted defaults to the
+  injected Settings `rememberOutputDefaults` intent.
 - Processing submit and collision review use the injected Output owner
   (`readRequestConfig`, `openCollisionReview`). `readRequestConfig()` uses the
   live naming box (`namingTemplate`), not the 150 ms committed

@@ -22,6 +22,84 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
 }
 
 #[test]
+fn snapshots_revision_each_operation_independently_and_stamp_membership() {
+    let (mut state, operation_id) = accepted_state();
+    let accepted = state.get(&operation_id).expect("accepted snapshot");
+    let initial_list = state.list();
+    assert_eq!(accepted.revision, 1);
+    assert_eq!(accepted.created_revision, initial_list.membership_revision);
+
+    let running = state.mark_running(&operation_id, 150).expect("start");
+    let progress = state
+        .apply_progress_event(&operation_id, &converting_event(50.0, "Encoding", 0), 155)
+        .expect("progress");
+    let cancelling = state
+        .request_cancel(&operation_id, 160)
+        .expect("request cancel");
+    let terminal = state
+        .cancel(&operation_id, "Cancelled".to_string(), 170)
+        .expect("cancel");
+    assert!(accepted.revision < running.revision);
+    assert!(running.revision < progress.revision);
+    assert!(progress.revision < cancelling.revision);
+    assert!(cancelling.revision < terminal.revision);
+    assert_eq!(terminal.sequence, accepted.sequence);
+    assert_eq!(terminal.created_revision, accepted.created_revision);
+    assert_eq!(
+        state.list().membership_revision,
+        initial_list.membership_revision
+    );
+    assert_eq!(state.list().operations[0].revision, terminal.revision);
+
+    let next = state.insert_operation(new_metadata_save_snapshot(
+        OperationId("op-2".to_string()),
+        2,
+        "Tags".to_string(),
+        &["/tmp/new.m4b".to_string()],
+        180,
+    ));
+    assert_eq!(next.revision, 1);
+    assert!(next.created_revision > initial_list.membership_revision);
+    assert_eq!(
+        state
+            .get(&operation_id)
+            .expect("terminal snapshot")
+            .revision,
+        terminal.revision
+    );
+
+    let metadata_id = OperationId("op-2".to_string());
+    let metadata_progress = state
+        .apply_progress_event(
+            &metadata_id,
+            &ProgressEvent {
+                operation_kind: OperationKind::MetadataSave,
+                stage: EventStage::Writing,
+                job_id: None,
+                ..converting_event(40.0, "Saving tags", 0)
+            },
+            190,
+        )
+        .expect("metadata progress");
+    let metadata_terminal = state
+        .complete_from_summary(
+            &metadata_id,
+            &OperationResultSummary {
+                total: 1,
+                succeeded: 1,
+                skipped: 0,
+                cancelled: 0,
+                failed: 0,
+            },
+            &[(0, ProcessResultStatus::Success, "Saved".to_string())],
+            200,
+        )
+        .expect("metadata complete");
+    assert!(next.revision < metadata_progress.revision);
+    assert!(metadata_progress.revision < metadata_terminal.revision);
+}
+
+#[test]
 fn accepted_operation_preserves_immutable_child_identity() {
     let (state, operation_id) = accepted_state();
     let snapshot = state.get(&operation_id).expect("snapshot");
@@ -642,6 +720,10 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
 
     let list = state.list();
     assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
+    assert!(
+        list.membership_revision > 26,
+        "pruning advances membership beyond insertions"
+    );
     assert!(state.get(&running_id).is_ok());
 
     // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent

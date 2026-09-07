@@ -50,10 +50,6 @@ function importsTypescriptPackage(source: string): boolean {
 	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]typescript['"]/.test(source);
 }
 
-function importsEffectPackageRoot(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect['"]/.test(source);
-}
-
 function importsEffectPackage(source: string): boolean {
 	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect(?:\/[^'"]*)?['"]/.test(
 		source,
@@ -141,11 +137,6 @@ describe('frontend toolchain layout', () => {
 		expect(svelteSources).toEqual([]);
 	});
 
-	it('lets only appEffect.ts import the effect package root', () => {
-		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
-		expect(packageImportHits(importsEffectPackageRoot, new Set([allowed]))).toEqual([]);
-	});
-
 	it('lets only appEffect.ts import the effect package family', () => {
 		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
 		expect(packageImportHits(importsEffectPackage, new Set([allowed]))).toEqual([]);
@@ -195,10 +186,6 @@ describe('frontend toolchain layout', () => {
 	it('treats Effect package root and subpath specifiers as the same family', () => {
 		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
 		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);
-		expect(importsEffectPackageRoot("import { Effect } from 'effect'")).toBe(true);
-		expect(importsEffectPackageRoot("import { Atom } from 'effect/unstable/reactivity'")).toBe(
-			false,
-		);
 		expect(importsEffectPackage("import { something } from './effect'")).toBe(false);
 	});
 

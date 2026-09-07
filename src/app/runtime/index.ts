@@ -18,10 +18,10 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 	const runtime = runWithOwner(null, () =>
 		createRoot((dispose) => {
 			disposeRoot = dispose;
-			const selectionGate: { check?: () => Promise<boolean> } = {};
+			const selectionGate: { check?: (signal?: AbortSignal) => Promise<boolean> } = {};
 			const input = createInputOwner({
 				capability: capabilities.input,
-				beforeSelectionChange: () => selectionGate.check?.() ?? true,
+				beforeSelectionChange: (signal) => selectionGate.check?.(signal) ?? true,
 			});
 			const settings = createSettingsOwner({ capability: capabilities.settings });
 			const processingHolder: { current?: ReturnType<typeof createProcessingOwner> } = {};
@@ -30,24 +30,18 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				capability: capabilities.metadata,
 				isForegroundProcessing: () => processingHolder.current?.isProcessing() ?? false,
 			});
-			selectionGate.check = () => metadata.canChangeSelection();
+			selectionGate.check = (signal) => metadata.canChangeSelection(signal);
 			const encoding = createEncodingOwner({
 				input,
 				loadCapabilities: async () =>
 					(await settings.capability().getRuntimeSettingsCapabilities()).encoder ?? null,
-				persistDefaults: (defaults) => {
-					void settings
-						.capability()
-						.updateAppSettings({ encoderDefaults: defaults })
-						.catch((error: unknown) => {
-							console.warn('Failed to persist encoder defaults:', error);
-						});
-				},
+				persistDefaults: settings.rememberEncoderDefaults,
 			});
 			const output = createOutputOwner({
 				input,
 				metadataView: metadata.view,
 				encoding,
+				persistDefaults: settings.rememberOutputDefaults,
 				onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
 			});
 			const lookup = createMetadataLookupOwner({ input, metadata });
@@ -69,7 +63,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				output.applyDefaults(defaults.outputDefaults);
 				encoding.applyDefaults(defaults.encoderDefaults);
 				await encoding.reloadCapabilities();
-				await settings.hydrateConcurrency({ preference: defaults.maxConcurrentJobs });
 			});
 			return {
 				input,

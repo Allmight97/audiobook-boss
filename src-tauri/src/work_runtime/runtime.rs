@@ -74,10 +74,7 @@ impl WorkRuntime {
         );
         let cancel_flag = Arc::new(AtomicBool::new(false));
 
-        {
-            let mut state = lock_state(&self.inner.state)?;
-            state.insert_operation(snapshot.clone());
-        }
+        let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
             flags.insert(operation_id.0.clone(), cancel_flag.clone());
@@ -152,10 +149,7 @@ impl WorkRuntime {
         );
         let cancel_flag = Arc::new(AtomicBool::new(false));
 
-        {
-            let mut state = lock_state(&self.inner.state)?;
-            state.insert_operation(snapshot.clone());
-        }
+        let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
             flags.insert(operation_id.0.clone(), cancel_flag.clone());
@@ -350,6 +344,7 @@ impl WorkRuntime {
         match self.list_operations() {
             Ok(list) => {
                 let event = WorkOperationListSnapshotEvent {
+                    membership_revision: list.membership_revision,
                     operations: list.operations,
                 };
                 if let Err(error) =

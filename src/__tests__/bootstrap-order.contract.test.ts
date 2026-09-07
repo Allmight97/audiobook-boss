@@ -1,18 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 
-const fsPromisesSpecifier = 'node:fs/promises';
-const { readFile } = (await import(fsPromisesSpecifier)) as {
-	readFile(path: string, encoding: 'utf8'): Promise<string>;
-};
+const evaluations = vi.hoisted(() => [] as string[]);
+vi.mock('../lib/frontendLogBridge.install', () => {
+	evaluations.push('log bridge');
+	return {};
+});
+vi.mock('../app/runtime/ProductionRoot', () => {
+	evaluations.push('app root');
+	return { ProductionRoot: () => null };
+});
+vi.mock('@solidjs/web', () => ({ render: () => () => {} }));
 
-describe('bootstrap order contract', () => {
-	it('installs the frontend log bridge before the Solid app root is imported', async () => {
-		const source = await readFile('src/main.tsx', 'utf8');
-		const installIndex = source.indexOf('frontendLogBridge.install');
-		const appIndex = source.indexOf('ProductionRoot');
+afterEach(() => vi.unstubAllGlobals());
 
-		expect(installIndex).toBeGreaterThan(-1);
-		expect(appIndex).toBeGreaterThan(-1);
-		expect(installIndex).toBeLessThan(appIndex);
-	});
+it('evaluates the frontend log bridge before importing the app root', async () => {
+	vi.stubGlobal('document', { getElementById: () => ({}) });
+	await import('../main');
+	expect(evaluations).toEqual(['log bridge', 'app root']);
 });

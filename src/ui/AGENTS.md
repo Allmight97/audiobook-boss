@@ -18,8 +18,7 @@ output, and tags blocks inline and imports `encodingWorkbench.css`.
 
 `src/ui/App.tsx` is the rendering integration root. It composes public views;
 application state and intents cross `src/app/<owner>` Public API Strips through
-App Runtime context. Compatibility re-exports called out in nested guidance
-are current migration gaps, not an API pattern for new work.
+App Runtime context.
 
 Rules for both:
 

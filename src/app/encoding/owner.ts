@@ -65,11 +65,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	}
 
 	function persist(): void {
-		try {
-			deps.persistDefaults?.(bagDefaults(bag));
-		} catch (error) {
-			console.warn('Failed to persist encoder defaults:', error);
-		}
+		deps.persistDefaults?.(bagDefaults(bag));
 	}
 
 	async function loadCapabilities(): Promise<void> {

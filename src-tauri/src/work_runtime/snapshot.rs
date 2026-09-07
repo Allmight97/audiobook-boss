@@ -57,6 +57,8 @@ pub(crate) fn new_processing_snapshot(
     OperationSnapshot {
         operation_id,
         sequence,
+        revision: 0,
+        created_revision: 0,
         kind,
         status: WorkOperationStatus::Accepted,
         title,
@@ -112,6 +114,8 @@ pub(crate) fn new_metadata_save_snapshot(
     OperationSnapshot {
         operation_id,
         sequence,
+        revision: 0,
+        created_revision: 0,
         kind: OperationKind::MetadataSave,
         status: WorkOperationStatus::Accepted,
         title,

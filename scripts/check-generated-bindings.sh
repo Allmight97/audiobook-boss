@@ -21,7 +21,7 @@ Usage:
 
 Modes:
   verify  Always regenerate and fail if the generated bindings drift.
-  local   Skip regeneration unless contract-related files changed.
+  local   Check uncommitted changes against HEAD and untracked contract files.
   sync    Regenerate and auto-stage generated bindings when drift is found.
 USAGE
 }

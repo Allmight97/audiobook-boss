@@ -13,7 +13,6 @@ import type {
 	OutputRequestConfig,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
-import { persistOutputDefaults } from '../../ui/appSettings';
 import { tauriClient } from '../../lib/tauri/client';
 import type { EncodingOwner } from '../encoding';
 import type { InputOwner } from '../inputSession';
@@ -70,6 +69,7 @@ export type OutputPlanOwner = {
 };
 
 export type OutputOwnerDeps = {
+	readonly persistDefaults: (defaults: OutputDefaults) => void;
 	readonly input: InputOwner;
 	readonly metadataView: Accessor<MetadataView>;
 	readonly encoding: Pick<EncodingOwner, 'request' | 'estimateKbps'>;
@@ -146,7 +146,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 
 	function persistPlan(overrides: Partial<PreviewPlanBag> = {}): void {
 		const next = { ...previewPlan, ...overrides };
-		void persistOutputDefaults({
+		deps.persistDefaults({
 			outputDirectory: next.outputDirectory || undefined,
 			outputNaming: outputNamingFromPlan({
 				...namingFields(),

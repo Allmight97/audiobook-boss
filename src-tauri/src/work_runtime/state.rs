@@ -66,6 +66,7 @@ const TERMINAL_OPERATIONS_CAP: usize = 20;
 #[derive(Default)]
 pub(crate) struct WorkRuntimeState {
     operations: BTreeMap<String, OperationSnapshot>,
+    membership_revision: u64,
     /// Operation ids in the order they terminalized (runtime-internal, never
     /// serialized). Pruning follows this order — not submission `sequence` —
     /// so a long-running operation that finishes late is the NEWEST terminal
@@ -74,15 +75,25 @@ pub(crate) struct WorkRuntimeState {
 }
 
 impl WorkRuntimeState {
-    pub(crate) fn insert_operation(&mut self, snapshot: OperationSnapshot) {
+    pub(crate) fn insert_operation(
+        &mut self,
+        mut snapshot: OperationSnapshot,
+    ) -> OperationSnapshot {
+        self.membership_revision += 1;
+        snapshot.created_revision = self.membership_revision;
+        snapshot.revision = 1;
         self.operations
-            .insert(snapshot.operation_id.0.clone(), snapshot);
+            .insert(snapshot.operation_id.0.clone(), snapshot.clone());
+        snapshot
     }
 
     pub(crate) fn list(&self) -> OperationListSnapshot {
         let mut operations = self.operations.values().cloned().collect::<Vec<_>>();
         operations.sort_by_key(|operation| std::cmp::Reverse(operation.sequence));
-        OperationListSnapshot { operations }
+        OperationListSnapshot {
+            membership_revision: self.membership_revision,
+            operations,
+        }
     }
 
     pub(crate) fn get(&self, operation_id: &OperationId) -> Result<OperationSnapshot> {
@@ -388,9 +399,12 @@ impl WorkRuntimeState {
     }
 
     fn snapshot_mut(&mut self, operation_id: &OperationId) -> Result<&mut OperationSnapshot> {
-        self.operations
+        let snapshot = self
+            .operations
             .get_mut(operation_id.as_str())
-            .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
+            .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))?;
+        snapshot.revision += 1;
+        Ok(snapshot)
     }
 
     /// Record an operation as terminalized, once, in completion order.
@@ -410,6 +424,7 @@ impl WorkRuntimeState {
         while self.terminal_order.len() > TERMINAL_OPERATIONS_CAP {
             let oldest = self.terminal_order.remove(0);
             self.operations.remove(&oldest);
+            self.membership_revision += 1;
         }
     }
 }

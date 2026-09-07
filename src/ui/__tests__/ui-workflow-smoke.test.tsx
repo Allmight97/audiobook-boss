@@ -149,6 +149,8 @@ function acceptedSubmission(): WorkSubmissionAccepted {
 		snapshot: {
 			operationId: 'operation-smoke',
 			sequence: 1,
+			revision: 1,
+			createdRevision: 1,
 			kind: 'processingBatch',
 			status: 'accepted',
 			title: 'Batch encode (1 file)',
@@ -217,7 +219,7 @@ describe('UI Workflow Smoke Test', () => {
 		);
 		native.preflightProcessingPlan.mockResolvedValue(approvedPlan());
 		native.submitProcessingOperation.mockResolvedValue(acceptedSubmission());
-		native.listWorkOperations.mockResolvedValue({ operations: [] });
+		native.listWorkOperations.mockResolvedValue({ membershipRevision: 0, operations: [] });
 
 		const runtime = createAppRuntime();
 		const user = userEvent.setup();

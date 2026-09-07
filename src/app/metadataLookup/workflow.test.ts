@@ -114,7 +114,7 @@ function makeHarness(options?: {
 	metadataByFile?: Array<[string, Partial<AudiobookMetadata>]>;
 	readMetadataForm?: () => Partial<AudiobookMetadata>;
 	searchOnlineMetadata?: MetadataLookupWorkflowServices['searchOnlineMetadata'];
-	loadCoverArtFromUrl?: MetadataLookupWorkflowServices['loadCoverArtFromUrl'];
+	loadCoverArtFromUrl?: (url: string) => Promise<number[]>;
 	selectFile?: MetadataLookupWorkflowServices['selectFile'];
 }) {
 	const files = [audioFile('/books/alpha.m4b'), audioFile('/books/beta.m4b')];
@@ -158,11 +158,10 @@ function makeHarness(options?: {
 		return 'staged' as const;
 	});
 	const selectFile = vi.fn(
-		options?.selectFile ?? (async () => undefined),
+		options?.selectFile ?? (async () => true),
 	) as MetadataLookupWorkflowServices['selectFile'] & ReturnType<typeof vi.fn>;
-	const applyMetadataToForm = vi.fn();
+	const applyMetadataToForm = vi.fn(() => true);
 	const readMetadataForm = vi.fn(options?.readMetadataForm ?? (() => ({ title: 'Patched Title' })));
-	const setCustomCoverArt = vi.fn();
 	const searchOnlineMetadata = vi.fn(
 		options?.searchOnlineMetadata ?? (async () => lookupResponse()),
 	);
@@ -177,6 +176,7 @@ function makeHarness(options?: {
 	const consoleWarn = vi.fn();
 
 	const services = {
+		isCurrent: () => true,
 		getLookupState,
 		getQueueState,
 		setMetadataLookupQueue,
@@ -189,9 +189,7 @@ function makeHarness(options?: {
 		selectFile,
 		applyMetadataToForm,
 		readMetadataForm,
-		setCustomCoverArt,
 		searchOnlineMetadata,
-		loadCoverArtFromUrl,
 		loadLookupCoverBytes: (url) => previews.loadBytes(url),
 		clearCoverPreviews: () => previews.clear(),
 		focusElementById,
@@ -217,7 +215,6 @@ function makeHarness(options?: {
 			selectFile,
 			applyMetadataToForm,
 			readMetadataForm,
-			setCustomCoverArt,
 			searchOnlineMetadata,
 			loadCoverArtFromUrl,
 			focusElementById,
@@ -245,7 +242,11 @@ describe('MetadataLookupWorkflow', () => {
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
-		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([9, 9, 9]);
+		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			[9, 9, 9],
+		);
 	});
 
 	it('does not reuse cached lookup cover bytes for a different URL at the same result index', async () => {
@@ -268,7 +269,11 @@ describe('MetadataLookupWorkflow', () => {
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith(secondCoverUrl);
-		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([2, 2, 2]);
+		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			[2, 2, 2],
+		);
 	});
 
 	it('joins an in-flight eager lookup cover preview when applying metadata', async () => {
@@ -295,7 +300,11 @@ describe('MetadataLookupWorkflow', () => {
 		await pendingApply;
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
-		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([8, 8, 8]);
+		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			[8, 8, 8],
+		);
 	});
 
 	it('opens with an error when no selected files are valid', async () => {
@@ -438,13 +447,12 @@ describe('MetadataLookupWorkflow', () => {
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.selectFile).toHaveBeenCalledWith(
-			0,
-			{ multi: false, range: false },
-			{ skipPersistPrevious: true },
+			expect.objectContaining({ path: '/books/alpha.m4b' }),
 		);
 		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.objectContaining({ path: '/books/alpha.m4b' }),
 			expect.objectContaining({ title: 'Applied Title', album: 'Applied Title' }),
-			{ mode: 'single', markDirty: true },
+			undefined,
 		);
 		expect(harness.mocks.stageMetadataIntentPatch).not.toHaveBeenCalled();
 		expect(harness.lookupState.statusMessage).toBe('Metadata applied to form.');
@@ -501,7 +509,11 @@ describe('MetadataLookupWorkflow', () => {
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(harness.mocks.setCustomCoverArt).toHaveBeenCalledWith([9, 9, 9]);
+		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			[9, 9, 9],
+		);
 		expect(harness.mocks.stageMetadataIntentPatch).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			expect.objectContaining({
@@ -537,7 +549,11 @@ describe('MetadataLookupWorkflow', () => {
 			'Failed to load cover art from lookup:',
 			cause,
 		);
-		expect(harness.mocks.setCustomCoverArt).not.toHaveBeenCalled();
+		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			undefined,
+		);
 		expect(harness.mocks.stageMetadataIntentPatch).toHaveBeenCalledWith(
 			'/books/alpha.m4b',
 			expect.not.objectContaining({ cover_art: expect.anything() }),
@@ -565,7 +581,11 @@ describe('MetadataLookupWorkflow', () => {
 			'Failed to load cover art from lookup:',
 			cause,
 		);
-		expect(harness.mocks.setCustomCoverArt).not.toHaveBeenCalled();
+		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			undefined,
+		);
 		expect(harness.lookupState.statusMessage).toBe(
 			'Metadata applied to form, but cover art failed to load.',
 		);
@@ -588,9 +608,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.mocks.stageMetadataIntentPatch).not.toHaveBeenCalled();
 		expect(harness.queueState.index).toBe(1);
 		expect(harness.mocks.selectFile).toHaveBeenCalledWith(
-			1,
-			{ multi: false, range: false },
-			{ skipPersistPrevious: true },
+			expect.objectContaining({ path: '/books/beta.m4b' }),
 		);
 		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
 			query: 'Beta Existing',
@@ -598,6 +616,26 @@ describe('MetadataLookupWorkflow', () => {
 			limit: 8,
 		});
 		expect(harness.lookupState.statusMessage).toBe('Skipped. Found 1 results.');
+	});
+
+	it('keeps the queue and results when selecting the next file is rejected', async () => {
+		const result = lookupResult();
+		const harness = makeHarness({
+			lookupState: { results: [result] },
+			queueState: {
+				queue: [
+					{ file: audioFile('/books/alpha.m4b'), index: 0 },
+					{ file: audioFile('/books/beta.m4b'), index: 1 },
+				],
+				index: 0,
+			},
+			selectFile: async () => false,
+		});
+		await runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' });
+		expect(harness.queueState.index).toBe(0);
+		expect(harness.lookupState.results).toEqual([result]);
+		expect(harness.lookupState.statusVariant).toBe('error');
+		expect(harness.mocks.searchOnlineMetadata).not.toHaveBeenCalled();
 	});
 
 	it('reports queue complete after the last skip', async () => {
