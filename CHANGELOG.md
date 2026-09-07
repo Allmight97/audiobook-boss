@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-07
+
 ### Changed
 
 - Adopt Solid 2 with exact prerelease toolchain pins and one disposable
@@ -15,6 +17,10 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Preserve newer metadata and cover edits when validation, loading, or an
   earlier save finishes. Disposed runtimes cannot start a pending metadata save.
 - Preserve CUE decisions and removed inputs when an asynchronous import finishes.
+- Keep Settings opening reliable and refresh available encoders after resetting
+  a configured FFmpeg path.
+- Record the encoder actually used in optional processing diagnostics without
+  probing external FFmpeg again after every output.
 
 ## [1.7.0] - 2026-09-05
 
