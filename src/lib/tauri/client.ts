@@ -108,7 +108,7 @@ async function listenWorkOperationListSnapshot(
 ): Promise<UnlistenFn> {
 	return generatedEvents.workOperationListSnapshot.listen((event) => {
 		handler({
-			payload: normalizeOperationListSnapshot({ operations: event.payload.operations }),
+			payload: normalizeOperationListSnapshot(event.payload),
 		});
 	});
 }

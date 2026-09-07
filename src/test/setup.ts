@@ -60,6 +60,8 @@ function mockOperationSnapshot(
 	return {
 		operationId,
 		sequence: mockJobCounter,
+		revision: 1,
+		createdRevision: 1,
 		kind,
 		status: 'accepted' as const,
 		title,
@@ -275,7 +277,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 					args?.request?.payload?.jobType === 'merge' ? 'processingMerge' : 'processingBatch';
 				const snapshot = mockOperationSnapshot(operationId, kind, inputFiles);
 				emitTestEvent('work-operation-snapshot', { snapshot });
-				emitTestEvent('work-operation-list-snapshot', { operations: [snapshot] });
+				emitTestEvent('work-operation-list-snapshot', {
+					membershipRevision: 1,
+					operations: [snapshot],
+				});
 				return Promise.resolve({
 					operationId,
 					snapshot,
@@ -283,6 +288,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 			}
 			case 'list_work_operations':
 				return Promise.resolve({
+					membershipRevision: 0,
 					operations: [],
 				} satisfies OperationListSnapshot);
 			case 'get_work_operation': {
@@ -351,7 +357,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 					},
 				};
 				emitTestEvent('work-operation-snapshot', { snapshot: terminalSnapshot });
-				emitTestEvent('work-operation-list-snapshot', { operations: [terminalSnapshot] });
+				emitTestEvent('work-operation-list-snapshot', {
+					membershipRevision: 1,
+					operations: [terminalSnapshot],
+				});
 				return Promise.resolve({
 					summary: {
 						total: items.length,

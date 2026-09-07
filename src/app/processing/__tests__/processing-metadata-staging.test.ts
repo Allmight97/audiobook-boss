@@ -211,6 +211,8 @@ describe('startProcessing metadata staging', () => {
 			snapshot: {
 				operationId: 'operation-1',
 				sequence: 1,
+				revision: 1,
+				createdRevision: 1,
 				kind: 'processingMerge',
 				status: 'accepted',
 				title: 'Merge encode (2 files)',

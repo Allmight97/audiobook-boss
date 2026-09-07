@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
-import type { OperationSnapshot } from '../../../types/workRuntime';
+import type { OperationListSnapshot, OperationSnapshot } from '../../../types/workRuntime';
 import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
 
 const settleRemoteSourceMock = vi.fn();
@@ -17,6 +17,8 @@ function completedMergeOperation(operationId: string): OperationSnapshot {
 	return {
 		operationId,
 		sequence: 1,
+		revision: 1,
+		createdRevision: 1,
 		kind: 'processingMerge',
 		status: 'completed',
 		title: 'Merge encode',
@@ -109,6 +111,35 @@ describe('Work Center state', () => {
 		expect(listUnlisten).toHaveBeenCalledTimes(1);
 	});
 
+	it('keeps event state when a delayed initial listing arrives', async () => {
+		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		const list = createDeferred<OperationListSnapshot>();
+		vi.spyOn(tauriClient, 'listen').mockResolvedValue(() => undefined);
+		const listCall = vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValue(list.promise);
+		const initialize = session.initialize();
+		await vi.waitFor(() => expect(listCall).toHaveBeenCalled());
+		const completed = completedMergeOperation('op-finished');
+		session.applyOperationSnapshot(completed);
+		list.resolve({ membershipRevision: 0, operations: [] });
+		await initialize;
+		expect(session.view().operations).toEqual([completed]);
+	});
+
+	it.each([false, true])(
+		'ignores delayed cancel response after terminal event (disposed=%s)',
+		async (disposed) => {
+			const response = createDeferred<OperationSnapshot>();
+			vi.spyOn(tauriClient, 'cancelWorkOperation').mockReturnValue(response.promise);
+			const completed = { ...completedMergeOperation('op-cancel'), revision: 3 };
+			const cancel = session.cancel(completed.operationId);
+			session.applyOperationSnapshot(completed);
+			if (disposed) session.dispose();
+			response.resolve({ ...completed, revision: 2, status: 'cancelling' });
+			await cancel;
+			expect(session.view().operations).toEqual(disposed ? [] : [completed]);
+		},
+	);
+
 	it('purges completed merge operation source ids even when the merge child has no input id', async () => {
 		session.applyOperationSnapshot(completedMergeOperation('op-merge-purge'));
 		await Promise.resolve();
@@ -150,7 +181,7 @@ describe('Work Center state', () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		const snapshotUnlisten = vi.fn();
 		const listUnlisten = vi.fn();
-		const listDeferred = createDeferred<{ operations: never[] }>();
+		const listDeferred = createDeferred<{ membershipRevision: number; operations: never[] }>();
 		vi.spyOn(tauriClient, 'listen')
 			.mockResolvedValueOnce(snapshotUnlisten)
 			.mockResolvedValueOnce(listUnlisten);
@@ -161,7 +192,7 @@ describe('Work Center state', () => {
 		const initPromise = session.initialize();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		session.dispose();
-		listDeferred.resolve({ operations: [] });
+		listDeferred.resolve({ membershipRevision: 0, operations: [] });
 		await initPromise.catch(() => {});
 
 		expect(snapshotUnlisten).toHaveBeenCalledTimes(1);

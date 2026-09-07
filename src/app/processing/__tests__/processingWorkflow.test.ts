@@ -100,6 +100,8 @@ function acceptedSubmission(jobType: JobType = 'merge'): WorkSubmissionAccepted 
 		snapshot: {
 			operationId: 'operation-1',
 			sequence: 1,
+			revision: 1,
+			createdRevision: 1,
 			kind: jobType === 'batch' ? 'processingBatch' : 'processingMerge',
 			status: 'accepted',
 			title: jobType === 'batch' ? 'Batch encode (1 file)' : 'Merge encode (1 file)',

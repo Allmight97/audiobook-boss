@@ -22,6 +22,44 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
 }
 
 #[test]
+fn snapshots_revision_each_operation_independently_and_stamp_membership() {
+    let (mut state, operation_id) = accepted_state();
+    let accepted = state.get(&operation_id).unwrap();
+    let initial_list = state.list();
+    assert_eq!(accepted.revision, 1);
+    assert_eq!(accepted.created_revision, initial_list.membership_revision);
+
+    let running = state.mark_running(&operation_id, 150).unwrap();
+    let cancelling = state.request_cancel(&operation_id, 160).unwrap();
+    let terminal = state
+        .cancel(&operation_id, "Cancelled".to_string(), 170)
+        .unwrap();
+    assert!(accepted.revision < running.revision);
+    assert!(running.revision < cancelling.revision);
+    assert!(cancelling.revision < terminal.revision);
+    assert_eq!(terminal.sequence, accepted.sequence);
+    assert_eq!(terminal.created_revision, accepted.created_revision);
+    assert_eq!(
+        state.list().membership_revision,
+        initial_list.membership_revision
+    );
+
+    let next = state.insert_operation(new_metadata_save_snapshot(
+        OperationId("op-2".to_string()),
+        2,
+        "Tags".to_string(),
+        &["/tmp/new.m4b".to_string()],
+        180,
+    ));
+    assert_eq!(next.revision, 1);
+    assert!(next.created_revision > initial_list.membership_revision);
+    assert_eq!(
+        state.get(&operation_id).unwrap().revision,
+        terminal.revision
+    );
+}
+
+#[test]
 fn accepted_operation_preserves_immutable_child_identity() {
     let (state, operation_id) = accepted_state();
     let snapshot = state.get(&operation_id).expect("snapshot");
@@ -642,6 +680,10 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
 
     let list = state.list();
     assert_eq!(list.operations.len(), 21, "20 terminal + 1 running");
+    assert!(
+        list.membership_revision > 26,
+        "pruning advances membership beyond insertions"
+    );
     assert!(state.get(&running_id).is_ok());
 
     // Oldest 5 terminal ops (sequence 1..=5) were pruned; the 20 most recent

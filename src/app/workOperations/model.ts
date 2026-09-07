@@ -5,6 +5,7 @@ import type {
 } from '../../types/workRuntime';
 
 export interface WorkCenterModel {
+	membershipRevision: number;
 	operations: OperationSnapshot[];
 }
 
@@ -20,11 +21,23 @@ export function isTerminalOperationStatus(status: WorkOperationStatus): boolean 
 }
 
 export function replaceOperations(
-	_model: WorkCenterModel,
+	model: WorkCenterModel,
 	list: OperationListSnapshot,
 ): WorkCenterModel {
+	if (list.membershipRevision < model.membershipRevision) return model;
+	const previous = new Map(model.operations.map((operation) => [operation.operationId, operation]));
+	const operations = list.operations.map((incoming) => {
+		const current = previous.get(incoming.operationId);
+		previous.delete(incoming.operationId);
+		return current && current.revision > incoming.revision ? current : incoming;
+	});
+	// An event can announce new work after this list was captured.
+	for (const operation of previous.values()) {
+		if (operation.createdRevision > list.membershipRevision) operations.push(operation);
+	}
 	return {
-		operations: [...list.operations].sort(sortByStatusThenSequenceDesc),
+		membershipRevision: list.membershipRevision,
+		operations: operations.sort(sortByStatusThenSequenceDesc),
 	};
 }
 
@@ -32,12 +45,21 @@ export function upsertOperation(
 	model: WorkCenterModel,
 	snapshot: OperationSnapshot,
 ): WorkCenterModel {
+	const current = model.operations.find(
+		(operation) => operation.operationId === snapshot.operationId,
+	);
+	if (
+		current
+			? snapshot.revision <= current.revision
+			: snapshot.createdRevision <= model.membershipRevision
+	)
+		return model;
 	const next = model.operations.filter(
 		(operation) => operation.operationId !== snapshot.operationId,
 	);
 	next.push(snapshot);
 	next.sort(sortByStatusThenSequenceDesc);
-	return { operations: next };
+	return { membershipRevision: model.membershipRevision, operations: next };
 }
 
 function statusDisplayBucket(status: WorkOperationStatus): 0 | 1 | 2 {

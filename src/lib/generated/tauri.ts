@@ -543,6 +543,7 @@ export type OperationId = string;
 export type OperationKind = "processingMerge" | "processingBatch" | "remoteAcquisition" | "metadataSave";
 
 export type OperationListSnapshot = {
+	membershipRevision: number,
 	operations: OperationSnapshot[],
 };
 
@@ -569,6 +570,10 @@ export type OperationResultSummary = {
 export type OperationSnapshot = {
 	operationId: OperationId,
 	sequence: number,
+	/**  Monotonic within this operation; authored under the state lock. */
+	revision: number,
+	/**  Membership revision when this operation entered the retained set. */
+	createdRevision: number,
 	kind: OperationKind,
 	status: WorkOperationStatus,
 	title: string,
@@ -995,6 +1000,7 @@ export type ToolchainPreferences = {
 };
 
 export type WorkOperationListSnapshotEvent = {
+	membershipRevision: number,
 	operations: OperationSnapshot[],
 };
 

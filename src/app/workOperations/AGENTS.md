@@ -27,6 +27,11 @@
 - Terminal operation status is backend-canonical through
   `abb_processing_core::classify_run_terminal`. Do not recalculate success,
   mixed, failed, skipped, or cancelled outcomes.
+- Keep the highest per-operation revision across event/list/cancel responses.
+  Only current list membership may prune history; retain operations created
+  after a list's membership revision and reject late resurrection of removed
+  members. Terminal effects use accepted model truth. Reset invalidates pending
+  responses before a new session can publish.
 - `PURGED_OPERATION_TOMBSTONE_CAP` must stay strictly larger than backend
   `TERMINAL_OPERATIONS_CAP`. The contract test pins both sites.
 - Keep terminal Input projection and the operation-id tombstone here, then call
