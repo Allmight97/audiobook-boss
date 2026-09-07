@@ -1,6 +1,7 @@
-import { createMemo, createSignal, type Accessor } from 'solid-js';
+import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import { toUserMessage } from '../../lib/tauri/appError';
 import {
@@ -8,18 +9,7 @@ import {
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
 import type { InputOwner } from '../inputSession';
-import { getStatusView } from '../processing';
-import {
-	cacheMetadataForFile,
-	clearMetadataSession,
-	clearPendingMetadataForFile,
-	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	getPendingMetadataIntentEntries,
-	isUsableMetadataCache,
-	removeMetadataForFile,
-	stageMetadataIntentPatch,
-} from './cache';
+import { createMetadataCache, isUsableMetadataCache, type MetadataStageResult } from './cache';
 import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_ART_IMAGE_EXTENSION_HINT_PATTERN,
@@ -35,6 +25,7 @@ import {
 } from './coverOwner';
 import {
 	getMetadataFieldDefinitionByActionId,
+	METADATA_FIELD_DEFINITIONS,
 	getMetadataFieldDefinitionByInputId,
 	createEmptyFormState,
 	replaceField,
@@ -106,6 +97,11 @@ export type MetadataOwner = {
 	save(): Promise<void>;
 	readHasDirtyMetadata(): boolean;
 	readMetadata(): Partial<AudiobookMetadata>;
+	readCached(filePath: string): Partial<AudiobookMetadata> | undefined;
+	stageIntent(filePath: string, patch: MetadataIntentPatch): MetadataStageResult;
+	intentsForProcess(
+		filePaths: readonly string[],
+	): Promise<Record<string, MetadataIntentPatch> | null>;
 	reset(): void;
 };
 
@@ -136,11 +132,12 @@ function bumpForm(editor: MetadataEditorState, form: MetadataFormState): Metadat
 }
 
 function bumpCover(editor: MetadataEditorState, cover: Partial<CoverUiState>): MetadataEditorState {
-	return {
-		...editor,
-		cover: { ...editor.cover, ...cover },
-		coverRevision: editor.coverRevision + 1,
-	};
+	const nextCover = { ...editor.cover, ...cover };
+	const changed =
+		nextCover.currentCoverArt !== editor.cover.currentCoverArt ||
+		nextCover.hasCustomCoverArt !== editor.cover.hasCustomCoverArt ||
+		nextCover.coverArtRemovalRequested !== editor.cover.coverArtRemovalRequested;
+	return { ...editor, cover: nextCover, coverRevision: editor.coverRevision + (changed ? 1 : 0) };
 }
 
 function selectionKeyFor(files: ReadonlyArray<AudioFile>): string {
@@ -169,6 +166,7 @@ function displayCover(cover: CoverUiState, bytes: number[] | null): CoverUiState
 }
 
 type CoverLoadContext = {
+	readonly generation: number;
 	readonly selectionKey: string;
 	readonly hydrateRequestId: number;
 };
@@ -185,30 +183,38 @@ function toView(editor: MetadataEditorState): MetadataView {
 }
 
 export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
-	const [editor, setEditor] = createSignal(emptyEditor());
-	const [capability] = createSignal(deps.capability ?? liveMetadataCapability);
-	const view = createMemo(() => toView(editor()));
-	const isForegroundProcessing =
-		deps.isForegroundProcessing ?? (() => getStatusView().isProcessing);
+	const cache = createMetadataCache();
+	let editor = emptyEditor();
+	let generation = 0;
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	const capabilityValue = deps.capability ?? liveMetadataCapability;
+	const capability: Accessor<MetadataCapability> = () => capabilityValue;
+	const view: Accessor<MetadataView> = () => {
+		rev();
+		return toView(editor);
+	};
+	const isForegroundProcessing = deps.isForegroundProcessing ?? (() => false);
 	let coverMessageTimeoutId: number | null = null;
 
 	function readCoverLoadContext(state: MetadataEditorState): CoverLoadContext {
 		return {
+			generation,
 			selectionKey: state.selectionKey,
 			hydrateRequestId: state.hydrateRequestId,
 		};
 	}
 
 	function coverLoadStillValid(context: CoverLoadContext): boolean {
-		const latest = editor();
 		return (
-			latest.selectionKey === context.selectionKey &&
-			latest.hydrateRequestId === context.hydrateRequestId
+			generation === context.generation &&
+			editor.selectionKey === context.selectionKey &&
+			editor.hydrateRequestId === context.hydrateRequestId
 		);
 	}
 
 	function commit(next: MetadataEditorState): void {
-		setEditor(next);
+		editor = next;
+		bump((n) => n + 1);
 	}
 
 	function scheduleCoverMessageClear(): void {
@@ -217,13 +223,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		}
 		coverMessageTimeoutId = window.setTimeout(() => {
 			coverMessageTimeoutId = null;
-			commit(bumpCover(editor(), { message: { kind: 'hidden' } }));
+			commit(bumpCover(editor, { message: { kind: 'hidden' } }));
 		}, 4000);
 	}
 
 	function surfaceCoverFailure(message: string): void {
 		commit(
-			bumpCover(editor(), {
+			bumpCover(editor, {
 				isLoading: false,
 				message: { kind: 'error', text: message },
 			}),
@@ -232,21 +238,20 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	}
 
 	function syncRemovedFiles(sessionFiles: ReadonlyArray<AudioFile>): void {
-		const livePaths = new Set(sessionFiles.map((file) => file.path));
-		for (const [filePath] of getPendingMetadataIntentEntries()) {
-			if (!livePaths.has(filePath)) {
-				removeMetadataForFile(filePath);
-			}
-		}
+		cache.dropRemovedPaths(new Set(sessionFiles.map((file) => file.path)));
 	}
 
 	async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMetadata> | null> {
 		if (!file.isValid) return null;
-		const existing = getMetadataForFile(file.path);
+		const started = generation;
+		const existing = cache.getMetadataForFile(file.path);
 		if (isUsableMetadataCache(existing)) return existing;
 		try {
 			const metadata = await capability().readAudioMetadata(file.path);
-			cacheMetadataForFile(file.path, metadata);
+			if (generation !== started) return null;
+			const latest = cache.getMetadataForFile(file.path);
+			if (isUsableMetadataCache(latest)) return latest;
+			cache.cacheMetadataForFile(file.path, metadata);
 			return metadata;
 		} catch (error) {
 			console.warn('Failed to load metadata:', error);
@@ -260,11 +265,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		selectedFiles: ReadonlyArray<AudioFile>,
 		cover: CoverUiState,
 	): CoverUiState {
-		const displayPath = resolveCoverDisplayPath(jobType, fileList, [...selectedFiles]);
+		const displayPath = resolveCoverDisplayPath(jobType, fileList, [...selectedFiles], cache);
 		if (!displayPath) {
 			return displayCover(cover, null);
 		}
-		return displayCover(cover, effectiveCoverForFile(displayPath));
+		return displayCover(cover, effectiveCoverForFile(displayPath, cache));
 	}
 
 	function commitCoverToOwners(coverArtBytes: number[] | null, markRemoval: boolean): boolean {
@@ -281,7 +286,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				? { cover_art: { op: 'clear' as const } }
 				: { cover_art: { op: 'set' as const, value: [...coverArtBytes] } };
 		for (const filePath of ownerPaths) {
-			stageMetadataIntentPatch(filePath, intentPatch);
+			cache.stageMetadataIntentPatch(filePath, intentPatch);
 		}
 		return true;
 	}
@@ -290,7 +295,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		if (loadContext && !coverLoadStillValid(loadContext)) {
 			return;
 		}
-		const current = editor();
+		const current = editor;
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		if (!commitCoverToOwners(bytes, false)) {
@@ -314,6 +319,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	async function persistBoundDrafts(
 		current: MetadataEditorState,
 	): Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }> {
+		const started = generation;
 		if (current.boundFiles.length === 0) {
 			return { ok: true };
 		}
@@ -325,7 +331,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				selectedFiles: current.boundFiles,
 				validate: (patch) => capability().validateMetadataIntentPatch(patch),
 				readUncachedMetadata: (file) =>
-					readUncachedMetadataSnapshot(file, (path) => capability().readAudioMetadata(path)),
+					readUncachedMetadataSnapshot(file, (path) => capability().readAudioMetadata(path), cache),
 			});
 		} catch {
 			return { ok: false, message: 'Failed to validate metadata before changing selection.' };
@@ -333,10 +339,22 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		if (!prepared.ok) {
 			return { ok: false, message: prepared.message };
 		}
-		commitPreparedMetadataDrafts(prepared.prepared);
+		if (
+			generation !== started ||
+			editor.selectionKey !== current.selectionKey ||
+			editor.hydrateRequestId !== current.hydrateRequestId ||
+			editor.formRevision !== current.formRevision ||
+			editor.coverRevision !== current.coverRevision
+		) {
+			return {
+				ok: false,
+				message: 'Metadata changed during validation. Try changing selection again.',
+			};
+		}
+		commitPreparedMetadataDrafts(prepared.prepared, cache);
 		if (prepared.prepared.kind !== 'none') {
 			commit(
-				bumpCover(bumpForm(editor(), resetDirtyState(editor().form)), {
+				bumpCover(bumpForm(editor, resetDirtyState(editor.form)), {
 					hasCustomCoverArt: false,
 					coverArtRemovalRequested: false,
 				}),
@@ -346,7 +364,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	}
 
 	function applyValidationFailure(message: string): void {
-		const current = editor();
+		const current = editor;
 		commit({
 			...bumpForm(
 				current,
@@ -369,7 +387,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		jobType: JobType,
 		hydrateRequestId: number,
 	): Promise<void> {
-		const current = editor();
+		const started = generation;
+		const current = editor;
 		const autoCoverRequestId = current.autoCoverRequestId + 1;
 		commit({ ...current, autoCoverRequestId });
 		const firstValid = fileList?.files.find((file) => file.isValid);
@@ -380,8 +399,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return;
 		}
 		if (
-			effectiveCoverForFile(targetPath) !== null ||
-			getMetadataIntentPatchForFile(targetPath)?.cover_art
+			effectiveCoverForFile(targetPath, cache) !== null ||
+			cache.getMetadataIntentPatchForFile(targetPath)?.cover_art
 		) {
 			return;
 		}
@@ -389,7 +408,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		try {
 			metadata = await capability().readAudioMetadata(targetPath);
 		} catch (error) {
-			if (editor().hydrateRequestId !== hydrateRequestId) {
+			if (generation !== started || editor.hydrateRequestId !== hydrateRequestId) {
 				return;
 			}
 			surfaceCoverFailure(
@@ -400,18 +419,19 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			);
 			return;
 		}
-		const latest = editor();
+		const latest = editor;
 		if (
+			generation !== started ||
 			!metadata ||
 			latest.hydrateRequestId !== hydrateRequestId ||
 			latest.autoCoverRequestId !== autoCoverRequestId ||
 			latest.cover.hasCustomCoverArt ||
-			getMetadataIntentPatchForFile(targetPath)?.cover_art
+			cache.getMetadataIntentPatchForFile(targetPath)?.cover_art
 		) {
 			return;
 		}
-		const existing = getMetadataForFile(targetPath) ?? {};
-		cacheMetadataForFile(targetPath, {
+		const existing = cache.getMetadataForFile(targetPath) ?? {};
+		cache.cacheMetadataForFile(targetPath, {
 			...metadata,
 			...existing,
 			cover_art: metadata.cover_art || existing.cover_art,
@@ -430,7 +450,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		view,
 		capability,
 		async canChangeSelection() {
-			const current = editor();
+			const started = generation;
+			const current = editor;
 			if (current.saveInProgress) {
 				return false;
 			}
@@ -438,6 +459,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return true;
 			}
 			const persisted = await persistBoundDrafts(current);
+			if (generation !== started) return false;
 			if (!persisted.ok) {
 				applyValidationFailure(persisted.message);
 				return false;
@@ -445,9 +467,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return true;
 		},
 		async hydrateSelection(activeElement) {
+			const started = generation;
 			const session = deps.input.session();
 			const jobType = deps.input.jobType();
-			const start = editor();
+			const start = editor;
 			const selectedFiles = selectedFilesFromSession(session);
 			const nextKey = selectionKeyFor(selectedFiles);
 			const committed = commitFocusedControlValue(start.form, activeElement);
@@ -460,7 +483,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 			const files = session.fileList?.files ?? [];
 			if (files.length === 0) {
-				clearMetadataSession();
+				generation += 1;
+				cache.clear();
 				commit({
 					...emptyEditor(),
 					hydrateRequestId: start.hydrateRequestId + 1,
@@ -488,22 +512,22 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 			const requestId = start.hydrateRequestId + 1;
 			commit({ ...next, hydrateRequestId: requestId });
-			next = editor();
+			next = editor;
 
 			if (start.boundFiles.length > 0) {
 				const persisted = await persistBoundDrafts({ ...next, boundFiles: start.boundFiles });
-				if (editor().hydrateRequestId !== requestId) {
+				if (generation !== started || editor.hydrateRequestId !== requestId) {
 					return;
 				}
 				if (!persisted.ok) {
 					applyValidationFailure(persisted.message);
 					return;
 				}
-				next = editor();
+				next = editor;
 			}
 
 			next = {
-				...next,
+				...bumpCover(next, createEmptyCoverUiState()),
 				selectionKey: nextKey,
 				boundFiles: selectedFiles,
 				statusMessage: '',
@@ -517,31 +541,37 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return;
 			}
 
+			const loading = next;
 			const metadataList = await Promise.all(
 				selectedFiles.map((file) => loadMetadataForFile(file)),
 			);
-			if (editor().hydrateRequestId !== requestId) {
-				return;
+			if (generation !== started || editor.hydrateRequestId !== requestId) return;
+			const latest = editor;
+			let form =
+				selectedFiles.length === 1
+					? populateMetadataFormSingle(metadataList[0] ?? {})
+					: populateMetadataFormMulti(
+							metadataList.map((metadata) => metadata ?? {}),
+							selectedFiles.length,
+						);
+			if (latest.formRevision !== loading.formRevision) {
+				const fields = { ...form.fields };
+				for (const field of METADATA_FIELD_DEFINITIONS) {
+					const current = latest.form.fields[field.inputId];
+					const previous = loading.form.fields[field.inputId];
+					if (
+						current.dirty ||
+						current.value !== previous.value ||
+						current.action !== previous.action
+					)
+						fields[field.inputId] = current;
+				}
+				form = { ...form, fields };
 			}
-
-			if (selectedFiles.length === 1) {
-				next = bumpForm(next, populateMetadataFormSingle(metadataList[0] ?? {}));
-			} else {
-				next = bumpForm(
-					next,
-					populateMetadataFormMulti(
-						metadataList.map((metadata) => metadata ?? {}),
-						selectedFiles.length,
-					),
-				);
-			}
+			next = bumpForm(latest, form);
 			next = bumpCover(
 				next,
-				refreshCoverFromOwners(jobType, session.fileList, selectedFiles, {
-					...next.cover,
-					hasCustomCoverArt: false,
-					coverArtRemovalRequested: false,
-				}),
+				refreshCoverFromOwners(jobType, session.fileList, selectedFiles, next.cover),
 			);
 			commit(next);
 
@@ -557,26 +587,26 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		setFieldValue(command) {
 			const definition = getMetadataFieldDefinitionByInputId(command.inputId);
 			if (!definition) return;
-			const current = editor();
+			const current = editor;
 			const withValue = replaceField(current.form, definition.inputId, { value: command.value });
 			commit(bumpForm(current, applyFieldInput(withValue, definition.inputId)));
 		},
 		setFieldAction(command) {
 			const definition = getMetadataFieldDefinitionByActionId(command.actionId);
 			if (!definition) return;
-			const current = editor();
+			const current = editor;
 			commit(bumpForm(current, applyFieldAction(current.form, definition.inputId, command.action)));
 		},
 		setCoverHovered(hovered) {
-			const current = editor();
+			const current = editor;
 			commit({ ...current, cover: { ...current.cover, isHovered: hovered } });
 		},
 		setCoverDragOver(dragOver) {
-			const current = editor();
+			const current = editor;
 			commit({ ...current, cover: { ...current.cover, isDragOver: dragOver } });
 		},
 		setCoverUrlInput(value) {
-			const current = editor();
+			const current = editor;
 			commit({ ...current, cover: { ...current.cover, urlInputValue: value } });
 		},
 		setCustomCoverArt(coverArtBytes) {
@@ -586,7 +616,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			applyLoadedCoverArt(coverArtBytes);
 		},
 		clearCoverArt() {
-			const current = editor();
+			const current = editor;
 			commitCoverToOwners(null, true);
 			commit(
 				bumpCover(current, {
@@ -599,7 +629,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			);
 		},
 		async loadCoverArtFromPicker() {
-			const loadContext = readCoverLoadContext(editor());
+			const loadContext = readCoverLoadContext(editor);
 			try {
 				const selectedFile = await capability().openFile({
 					title: 'Select Cover Art Image',
@@ -609,6 +639,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				const imageData = await capability().loadCoverArtFile(selectedFile);
 				applyLoadedCoverArt(imageData, loadContext);
 			} catch (error) {
+				if (!coverLoadStillValid(loadContext)) return;
 				console.error('Failed to open file dialog:', error);
 				surfaceCoverFailure(
 					formatCoverArtError(
@@ -620,7 +651,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 		async loadCoverArtFromUrl(rawInput) {
 			const raw = rawInput.trim();
-			const current = editor();
+			const current = editor;
 			if (!raw) {
 				commit(
 					bumpCover(current, { message: { kind: 'error', text: 'Paste an image URL first.' } }),
@@ -629,21 +660,21 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			}
 			const parsed = parseCoverArtUrl(raw);
 			if (!parsed) {
-				commit(bumpCover(editor(), { message: { kind: 'error', text: 'Invalid URL format.' } }));
+				commit(bumpCover(editor, { message: { kind: 'error', text: 'Invalid URL format.' } }));
 				return null;
 			}
 			if (parsed.protocol !== 'https:') {
 				commit(
-					bumpCover(editor(), {
+					bumpCover(editor, {
 						message: { kind: 'error', text: 'Only HTTPS URLs are supported.' },
 					}),
 				);
 				return null;
 			}
 			const normalized = parsed.toString();
-			const loadContext = readCoverLoadContext(editor());
+			const loadContext = readCoverLoadContext(editor);
 			commit(
-				bumpCover(editor(), {
+				bumpCover(editor, {
 					urlInputValue: normalized,
 					isLoading: true,
 					message: { kind: 'hidden' },
@@ -651,13 +682,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			);
 			try {
 				const imageData = await capability().loadCoverArtFromUrl(normalized);
-				if (!coverLoadStillValid(loadContext)) {
-					commit(bumpCover(editor(), { isLoading: false, message: { kind: 'hidden' } }));
-					return null;
-				}
+				if (!coverLoadStillValid(loadContext)) return null;
 				applyLoadedCoverArt(imageData, loadContext);
 				commit(
-					bumpCover(editor(), {
+					bumpCover(editor, {
 						isLoading: false,
 						message: { kind: 'success', text: 'Cover art loaded from URL.' },
 					}),
@@ -665,6 +693,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				scheduleCoverMessageClear();
 				return normalized;
 			} catch (error) {
+				if (!coverLoadStillValid(loadContext)) return null;
 				surfaceCoverFailure(
 					formatCoverArtError(
 						toUserMessage(error, { fallback: 'Unable to load image.' }),
@@ -679,12 +708,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			if (!imageFile) {
 				return false;
 			}
-			const loadContext = readCoverLoadContext(editor());
+			const loadContext = readCoverLoadContext(editor);
 			try {
 				const imageData = await capability().loadCoverArtFile(imageFile);
 				applyLoadedCoverArt(imageData, loadContext);
 				return true;
 			} catch (error) {
+				if (!coverLoadStillValid(loadContext)) return false;
 				console.error('Failed to load cover art file:', error);
 				surfaceCoverFailure(
 					formatCoverArtError(
@@ -696,7 +726,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			}
 		},
 		applyLookupMetadata(metadata) {
-			const current = editor();
+			const current = editor;
 			commit(
 				bumpForm(
 					current,
@@ -705,7 +735,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			);
 		},
 		applyDraftValidation(validation) {
-			const current = editor();
+			// Diagnostics do not invalidate drafts captured by pending intents.
+			const current = editor;
 			const nextForm = applyMetadataFormValidationWarnings(
 				current.form,
 				readMetadataForm(current.form, {
@@ -723,14 +754,16 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return;
 			}
 			commit({
-				...bumpForm(current, nextForm),
+				...current,
+				form: nextForm,
 				statusMessage: validation.ok
 					? current.statusMessage
 					: (validation.errors.first ?? current.statusMessage),
 			});
 		},
 		async stageCurrentSelectionForProcess() {
-			const start = editor();
+			const started = generation;
+			const start = editor;
 			const captured = {
 				selectionKey: start.selectionKey,
 				formRevision: start.formRevision,
@@ -746,28 +779,35 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					selectedFiles,
 					validate: (patch) => capability().validateMetadataIntentPatch(patch),
 					readUncachedMetadata: (file) =>
-						readUncachedMetadataSnapshot(file, (path) => capability().readAudioMetadata(path)),
+						readUncachedMetadataSnapshot(
+							file,
+							(path) => capability().readAudioMetadata(path),
+							cache,
+						),
 				});
 			} catch {
 				return false;
 			}
+			if (generation !== started) return false;
 			if (!prepared.ok) {
 				applyValidationFailure(prepared.message);
 				return false;
 			}
-			const latest = editor();
+			const latest = editor;
 			if (
+				generation !== started ||
 				latest.selectionKey !== captured.selectionKey ||
 				latest.formRevision !== captured.formRevision ||
 				latest.coverRevision !== captured.coverRevision
 			) {
 				return false;
 			}
-			return commitPreparedMetadataDrafts(prepared.prepared);
+			return commitPreparedMetadataDrafts(prepared.prepared, cache);
 		},
 		async save() {
+			const started = generation;
 			const session = deps.input.session();
-			const current = editor();
+			const current = editor;
 			if (!session.fileList?.files.length) {
 				console.log('No files loaded - nothing to save');
 				return;
@@ -790,49 +830,74 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				formRevision:
 					committed.form === current.form ? current.formRevision : current.formRevision + 1,
 			});
+			const captured = editor;
 			try {
 				const prepared = await prepareMetadataDrafts({
-					form: editor().form,
-					cover: editor().cover,
+					form: editor.form,
+					cover: editor.cover,
 					selectedFiles: selectedFilesFromSession(session),
 					validate: (patch) => capability().validateMetadataIntentPatch(patch),
 					readUncachedMetadata: (file) =>
-						readUncachedMetadataSnapshot(file, (path) => capability().readAudioMetadata(path)),
+						readUncachedMetadataSnapshot(
+							file,
+							(path) => capability().readAudioMetadata(path),
+							cache,
+						),
 				});
+				if (generation !== started) return;
+				if (
+					editor.selectionKey !== captured.selectionKey ||
+					editor.formRevision !== captured.formRevision ||
+					editor.coverRevision !== captured.coverRevision
+				) {
+					commit({
+						...editor,
+						saveInProgress: false,
+						statusMessage:
+							'Metadata changed during validation. Save again to include the latest edits.',
+					});
+					return;
+				}
 				if (!prepared.ok) {
 					commit({
-						...editor(),
+						...editor,
 						saveInProgress: false,
 						statusMessage: 'Fix metadata validation errors before saving.',
 					});
 					return;
 				}
-				commitPreparedMetadataDrafts(prepared.prepared);
-				commit(bumpForm(editor(), resetDirtyState(editor().form)));
+				commitPreparedMetadataDrafts(prepared.prepared, cache);
+				commit(bumpForm(editor, resetDirtyState(editor.form)));
 
 				const validPaths = new Set(
 					(session.fileList?.files ?? []).filter((file) => file.isValid).map((file) => file.path),
 				);
-				const pendingEntries = getPendingMetadataIntentEntries().filter(([filePath]) =>
-					validPaths.has(filePath),
-				);
+				const pendingEntries = cache
+					.getPendingMetadataIntentEntries()
+					.filter(([filePath]) => validPaths.has(filePath));
 				if (pendingEntries.length === 0) {
 					commit({
-						...editor(),
+						...editor,
 						saveInProgress: false,
 						statusMessage: 'No pending metadata changes',
 					});
 					return;
 				}
+				const submitted = new Map(pendingEntries);
+				const savedCoverRevision = editor.coverRevision;
 				const result = await capability().saveMetadataBatch(
 					pendingEntries.map(([filePath, metadataIntent]) => ({
 						filePath,
 						metadataPatch: metadataIntent,
 					})),
 				);
+				if (generation !== started) return;
 				for (const entry of result.results) {
 					if (entry.status === 'success') {
-						clearPendingMetadataForFile(entry.filePath);
+						if (
+							cache.getMetadataIntentPatchForFile(entry.filePath) === submitted.get(entry.filePath)
+						)
+							cache.clearPendingMetadataForFile(entry.filePath);
 					} else if (entry.status === 'failed') {
 						console.error(
 							`Failed metadata save for ${entry.filePath}:`,
@@ -840,43 +905,72 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 						);
 					}
 				}
-				const latest = editor();
+				const latest = editor;
 				commit({
 					...latest,
 					saveInProgress: false,
 					statusMessage: `Metadata save complete: success=${result.summary.succeeded}, failed=${result.summary.failed}, cancelled=${result.summary.cancelled}`,
-					cover: {
-						...latest.cover,
-						hasCustomCoverArt: false,
-						coverArtRemovalRequested: false,
-					},
+					cover:
+						latest.coverRevision !== savedCoverRevision
+							? latest.cover
+							: {
+									...latest.cover,
+									hasCustomCoverArt: false,
+									coverArtRemovalRequested: false,
+								},
 				});
 			} catch (error) {
+				if (generation !== started) return;
 				console.error('Failed to save metadata:', error);
 				commit({
-					...editor(),
+					...editor,
 					saveInProgress: false,
 					statusMessage: 'Save failed - see console',
 				});
 			}
 		},
 		readHasDirtyMetadata() {
-			const current = editor();
+			const current = editor;
 			return hasDirtyMetadataFields(current.form, current.cover);
 		},
 		readMetadata() {
-			const current = editor();
+			const current = editor;
 			return readMetadataForm(current.form, {
 				coverArtBytes: current.cover.currentCoverArt,
 				coverArtRemovalRequested: current.cover.coverArtRemovalRequested,
 			});
 		},
+		readCached(filePath) {
+			return cache.getMetadataForFile(filePath);
+		},
+		stageIntent(filePath, patch) {
+			return cache.stageMetadataIntentPatch(filePath, patch);
+		},
+		async intentsForProcess(filePaths) {
+			const started = generation;
+			await Promise.all(
+				filePaths.map(async (filePath) => {
+					if (isUsableMetadataCache(cache.getMetadataForFile(filePath))) {
+						return;
+					}
+					try {
+						const metadata = await capability().readAudioMetadata(filePath);
+						if (generation !== started) return;
+						cache.cacheMetadataForFile(filePath, metadata);
+					} catch (error) {
+						console.warn('Failed to load metadata for batch file:', filePath, error);
+					}
+				}),
+			);
+			return generation === started ? cache.collectActionableMetadataIntent(filePaths) : null;
+		},
 		reset() {
+			generation += 1;
 			if (coverMessageTimeoutId !== null) {
 				window.clearTimeout(coverMessageTimeoutId);
 				coverMessageTimeoutId = null;
 			}
-			clearMetadataSession();
+			cache.clear();
 			commit(emptyEditor());
 		},
 	};

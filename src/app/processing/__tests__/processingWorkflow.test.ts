@@ -37,7 +37,7 @@ function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile 
 
 function fileList(paths = ['/books/a.m4b']): FileListInfo {
 	return {
-		files: paths.map((path) => audioFile(path)),
+		files: paths.map((path, index) => audioFile(path, { inputId: `input-${index + 1}` })),
 		selectedDecoders: paths.map(() => null),
 		totalDuration: paths.length,
 		totalSize: paths.length,
@@ -154,6 +154,10 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 				plan: preflightPlan(payload),
 			}),
 		);
+	const remoteSource: ProcessingWorkflowServices['remoteSource'] = {
+		processingAssets: vi.fn(() => undefined),
+		withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
+	};
 	const services: ProcessingWorkflowServices = {
 		getCurrentFileList: vi.fn(() => fileList()),
 		getSelectedFileIndex: vi.fn(() => 0),
@@ -162,10 +166,8 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		getJobType: getJobTypeMock,
 		hasDirtyMetadataFields: vi.fn(() => false),
 		readMetadataForm: vi.fn(() => ({})),
-		collectActionableMetadataIntent: vi.fn(() => null),
-		getMetadataForFile: vi.fn(() => undefined),
-		cacheMetadataForFile: vi.fn(),
-		stageMetadataIntentPatch: vi.fn(() => 'staged' as const),
+		stageIntent: vi.fn(() => 'staged' as const),
+		intentsForProcess: vi.fn(async () => null),
 		stageMetadataToSelection: vi.fn(async () => true),
 		setJobControlsEnabled: vi.fn(),
 		setFileOrderLocked: vi.fn(),
@@ -174,9 +176,9 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 			metadataPatch,
 			fieldErrors: [],
 		})),
-		readAudioMetadata: vi.fn(async () => ({})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
 		submitProcessingOperation: vi.fn(async () => acceptedSubmission(getJobTypeMock())),
+		remoteSource,
 		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
 		feedback,
@@ -184,10 +186,6 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 			error: vi.fn(),
 			log: vi.fn(),
 			warn: vi.fn(),
-		},
-		remoteSource: {
-			processingAssets: vi.fn(() => undefined),
-			withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
 		},
 		...overrides,
 	};
@@ -231,6 +229,10 @@ describe('ProcessingWorkflow', () => {
 			metadataIntent: null,
 			previewSeconds: undefined,
 		});
+		expect(services.remoteSource.withSubmissionRetention).toHaveBeenCalledWith(
+			['input-1'],
+			expect.any(Function),
+		);
 		expect(services.processAudiobookFiles).not.toHaveBeenCalled();
 		expect(ctx.reconcileProcessResult).not.toHaveBeenCalled();
 		expect(ctx.setProcessingState).toHaveBeenLastCalledWith(false);
@@ -275,24 +277,25 @@ describe('ProcessingWorkflow', () => {
 			validCount: 1,
 			invalidCount: 0,
 		};
+		const supplementalAssetsByInputId = {
+			'current-input-1': [
+				{
+					assetId: 'pdf-1',
+					inputId: 'current-input-1',
+					titleId: 'B000000001',
+					path: '/session/book.pdf',
+					fileName: 'Being You - A New Science of Consciousness - Supplemental PDF.pdf',
+					sizeBytes: 32,
+					sha256: 'pdf-sha',
+				},
+			],
+		};
 		const ctx = workflowContext();
 		const { services } = workflowServices({
 			getCurrentFileList: vi.fn(() => currentFileList),
 			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
-				processingAssets: vi.fn(() => ({
-					'current-input-1': [
-						{
-							assetId: 'pdf-1',
-							inputId: 'current-input-1',
-							titleId: 'B000000001',
-							path: '/session/book.pdf',
-							fileName: 'Being You - A New Science of Consciousness - Supplemental PDF.pdf',
-							sizeBytes: 32,
-							sha256: 'pdf-sha',
-						},
-					],
-				})),
+				processingAssets: vi.fn(() => supplementalAssetsByInputId),
 				withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
 			},
 		});
@@ -385,36 +388,39 @@ describe('ProcessingWorkflow', () => {
 	});
 
 	it('submits background processing inside Remote Source retention', async () => {
-		const currentFileList: FileListInfo = {
-			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
-			selectedDecoders: [null],
-			totalDuration: 1,
-			totalSize: 1,
-			validCount: 1,
-			invalidCount: 0,
-		};
-		const withSubmissionRetention = vi.fn(async (_inputIds, submit) => submit());
-		const ctx = workflowContext();
-		const { services, feedback } = workflowServices({
-			getCurrentFileList: vi.fn(() => currentFileList),
+		let allowSubmission!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			allowSubmission = resolve;
+		});
+		let retentionActive = false;
+		const withSubmissionRetention: ProcessingWorkflowServices['remoteSource']['withSubmissionRetention'] =
+			vi.fn(async (_inputIds, submit) => {
+				await gate;
+				retentionActive = true;
+				try {
+					return await submit();
+				} finally {
+					retentionActive = false;
+				}
+			});
+		const submittedWhileRetained: boolean[] = [];
+		const { services } = workflowServices({
 			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
 				processingAssets: vi.fn(() => undefined),
 				withSubmissionRetention,
 			},
 			submitProcessingOperation: vi.fn(async () => {
-				throw {
-					code: 'decoder_unavailable',
-					category: 'toolchain',
-					message: 'Decoder unavailable.',
-					detail: null,
-				};
+				submittedWhileRetained.push(retentionActive);
+				return acceptedSubmission('batch');
 			}),
 		});
-
-		await runWithServices(ctx, services);
-
-		expect(withSubmissionRetention).toHaveBeenCalledWith(['current-input-1'], expect.any(Function));
-		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
+		const pending = runWithServices(workflowContext(), services);
+		await vi.waitFor(() => expect(withSubmissionRetention).toHaveBeenCalled());
+		expect(services.submitProcessingOperation).not.toHaveBeenCalled();
+		allowSubmission();
+		await pending;
+		expect(withSubmissionRetention).toHaveBeenCalledWith(['input-1'], expect.any(Function));
+		expect(submittedWhileRetained).toEqual([true]);
 	});
 });

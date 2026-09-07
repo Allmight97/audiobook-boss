@@ -4,6 +4,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Adopt Solid 2 with exact prerelease toolchain pins and one disposable
+  frontend runtime. File-list thumbnails and metadata lookup covers are
+  isolated to their owning view or runtime.
+
+### Fixed
+
+- Preserve newer metadata and cover edits when validation, loading, or an
+  earlier save finishes. Disposed runtimes cannot start a pending metadata save.
+- Preserve CUE decisions and removed inputs when an asynchronous import finishes.
+
 ## [1.7.0] - 2026-09-05
 
 ### Added

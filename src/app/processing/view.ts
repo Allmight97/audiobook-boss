@@ -30,160 +30,164 @@ const DEFAULT_USER_STATUS_LOCK_TTL_MS = 1_500;
 
 type StatusPublisher = (view: StatusView) => void;
 
-let snapshot: StatusView = DEFAULT_STATUS_VIEW;
-let publisher: StatusPublisher | null = null;
-let statusMessageLockTimeoutId: number | null = null;
-let statusBeforeUserMessageLock: string | null = null;
-let queuedStatusAfterUserMessageLock: string | null = null;
-
-export function bindStatusPublisher(next: StatusPublisher | null): void {
-	publisher = next;
-	next?.(snapshot);
-}
-
-function commit(): void {
-	publisher?.(snapshot);
-}
-
-function patch(next: Partial<StatusView>): void {
-	snapshot = { ...snapshot, ...next };
-	commit();
-}
-
-export function getStatusView(): StatusView {
-	return snapshot;
-}
+export type StatusViewStore = {
+	snapshot(): StatusView;
+	bindPublisher(next: StatusPublisher | null): void;
+	reset(): void;
+	setCoverArtDataUrl(dataUrl: string | null): void;
+	setJobItems(items: JobListItem[]): void;
+	setProgressPercentage(value: number): void;
+	setStatusText(value: string): void;
+	setStepText(value: string): void;
+	setStepColor(value: string): void;
+	setConcurrencyText(value: string): void;
+	setIsProcessing(isProcessing: boolean): void;
+	setCancelAllPending(isPending: boolean): void;
+	showError(message: string): void;
+	showSuccess(message: string): void;
+	showInfo(message: string): void;
+	pushTransient(message: string, ttlMs?: number): void;
+};
 
 function normalizeStatusLockTtlMs(ttlMs: number): number {
 	if (!Number.isFinite(ttlMs)) return 0;
 	return Math.max(0, Math.trunc(ttlMs));
 }
 
-export function isStatusPanelUserMessageLockActive(nowMs: number = Date.now()): boolean {
-	return snapshot.statusTextLockUntilEpochMs > nowMs;
-}
+export function createStatusViewStore(): StatusViewStore {
+	let snapshot: StatusView = DEFAULT_STATUS_VIEW;
+	let publisher: StatusPublisher | null = null;
+	let statusMessageLockTimeoutId: number | null = null;
+	let statusBeforeUserMessageLock: string | null = null;
+	let queuedStatusAfterUserMessageLock: string | null = null;
 
-export function clearStatusPanelUserMessageLock(): void {
-	if (statusMessageLockTimeoutId !== null) {
-		window.clearTimeout(statusMessageLockTimeoutId);
-		statusMessageLockTimeoutId = null;
+	function commit(): void {
+		publisher?.(snapshot);
 	}
 
-	const restoredStatus = queuedStatusAfterUserMessageLock ?? statusBeforeUserMessageLock;
-	snapshot = {
-		...snapshot,
-		statusTextLockUntilEpochMs: 0,
-		statusText: restoredStatus ?? snapshot.statusText,
-	};
-	statusBeforeUserMessageLock = null;
-	queuedStatusAfterUserMessageLock = null;
-	commit();
-}
+	function patch(next: Partial<StatusView>): void {
+		snapshot = { ...snapshot, ...next };
+		commit();
+	}
 
-export function pushStatusPanelUserMessageLock(
-	value: string,
-	ttlMs: number = DEFAULT_USER_STATUS_LOCK_TTL_MS,
-): void {
-	if (!isStatusPanelUserMessageLockActive()) {
-		statusBeforeUserMessageLock = snapshot.statusText;
+	function isUserMessageLockActive(nowMs: number = Date.now()): boolean {
+		return snapshot.statusTextLockUntilEpochMs > nowMs;
+	}
+
+	function clearUserMessageLock(): void {
+		if (statusMessageLockTimeoutId !== null) {
+			window.clearTimeout(statusMessageLockTimeoutId);
+			statusMessageLockTimeoutId = null;
+		}
+
+		const restoredStatus = queuedStatusAfterUserMessageLock ?? statusBeforeUserMessageLock;
+		snapshot = {
+			...snapshot,
+			statusTextLockUntilEpochMs: 0,
+			statusText: restoredStatus ?? snapshot.statusText,
+		};
+		statusBeforeUserMessageLock = null;
 		queuedStatusAfterUserMessageLock = null;
+		commit();
 	}
 
-	if (statusMessageLockTimeoutId !== null) {
-		window.clearTimeout(statusMessageLockTimeoutId);
-		statusMessageLockTimeoutId = null;
+	function pushUserMessageLock(
+		value: string,
+		ttlMs: number = DEFAULT_USER_STATUS_LOCK_TTL_MS,
+	): void {
+		if (!isUserMessageLockActive()) {
+			statusBeforeUserMessageLock = snapshot.statusText;
+			queuedStatusAfterUserMessageLock = null;
+		}
+
+		if (statusMessageLockTimeoutId !== null) {
+			window.clearTimeout(statusMessageLockTimeoutId);
+			statusMessageLockTimeoutId = null;
+		}
+
+		const lockTtlMs = normalizeStatusLockTtlMs(ttlMs);
+		snapshot = {
+			...snapshot,
+			statusText: value,
+			statusTextLockUntilEpochMs: lockTtlMs > 0 ? Date.now() + lockTtlMs : 0,
+		};
+		commit();
+
+		if (lockTtlMs > 0) {
+			statusMessageLockTimeoutId = window.setTimeout(() => {
+				clearUserMessageLock();
+			}, lockTtlMs);
+		}
 	}
 
-	const lockTtlMs = normalizeStatusLockTtlMs(ttlMs);
-	snapshot = {
-		...snapshot,
-		statusText: value,
-		statusTextLockUntilEpochMs: lockTtlMs > 0 ? Date.now() + lockTtlMs : 0,
+	const store: StatusViewStore = {
+		snapshot: () => snapshot,
+		bindPublisher(next) {
+			publisher = next;
+			next?.(snapshot);
+		},
+		reset() {
+			snapshot = { ...DEFAULT_STATUS_VIEW, jobItems: [] };
+			if (statusMessageLockTimeoutId !== null) {
+				window.clearTimeout(statusMessageLockTimeoutId);
+				statusMessageLockTimeoutId = null;
+			}
+			statusBeforeUserMessageLock = null;
+			queuedStatusAfterUserMessageLock = null;
+			commit();
+		},
+		setCoverArtDataUrl(dataUrl) {
+			patch({ coverArtDataUrl: dataUrl });
+		},
+		setJobItems(items) {
+			patch({ jobItems: items });
+		},
+		setProgressPercentage(value) {
+			patch({ progressPercentage: value });
+		},
+		setStatusText(value) {
+			if (isUserMessageLockActive()) {
+				queuedStatusAfterUserMessageLock = value;
+				return;
+			}
+			if (snapshot.statusTextLockUntilEpochMs > 0) {
+				clearUserMessageLock();
+			}
+			queuedStatusAfterUserMessageLock = null;
+			statusBeforeUserMessageLock = null;
+			patch({ statusText: value });
+		},
+		setStepText(value) {
+			patch({ stepText: value });
+		},
+		setStepColor(value) {
+			patch({ stepColor: value });
+		},
+		setConcurrencyText(value) {
+			patch({ concurrencyText: value });
+		},
+		setIsProcessing(isProcessing) {
+			patch({ isProcessing });
+		},
+		setCancelAllPending(isPending) {
+			patch({ cancelAllPending: isPending });
+		},
+		showError(message) {
+			store.setStepText(`Error: ${message}`);
+			store.setStepColor('var(--text-error, #ef4444)');
+		},
+		showSuccess(message) {
+			store.setStepText(message);
+			store.setStepColor('var(--text-success, #10b981)');
+		},
+		showInfo(message) {
+			store.setStepText(message);
+			store.setStepColor(DEFAULT_STATUS_VIEW.stepColor);
+		},
+		pushTransient(message, ttlMs) {
+			pushUserMessageLock(message, ttlMs);
+		},
 	};
-	commit();
 
-	if (lockTtlMs > 0) {
-		statusMessageLockTimeoutId = window.setTimeout(() => {
-			clearStatusPanelUserMessageLock();
-		}, lockTtlMs);
-	}
-}
-
-export function setStatusPanelCoverArtDataUrl(dataUrl: string | null): void {
-	patch({ coverArtDataUrl: dataUrl });
-}
-
-export function setStatusPanelJobItems(items: JobListItem[]): void {
-	patch({ jobItems: items });
-}
-
-export function setStatusPanelProgressPercentage(value: number): void {
-	patch({ progressPercentage: value });
-}
-
-export function setStatusPanelStatusText(value: string): void {
-	if (isStatusPanelUserMessageLockActive()) {
-		queuedStatusAfterUserMessageLock = value;
-		return;
-	}
-	if (snapshot.statusTextLockUntilEpochMs > 0) {
-		clearStatusPanelUserMessageLock();
-	}
-	queuedStatusAfterUserMessageLock = null;
-	statusBeforeUserMessageLock = null;
-	patch({ statusText: value });
-}
-
-export function setStatusPanelStepText(value: string): void {
-	patch({ stepText: value });
-}
-
-export function setStatusPanelStepColor(value: string): void {
-	patch({ stepColor: value });
-}
-
-export function setStatusPanelConcurrencyText(value: string): void {
-	patch({ concurrencyText: value });
-}
-
-export function setStatusPanelIsProcessing(isProcessing: boolean): void {
-	patch({ isProcessing });
-}
-
-export function setStatusPanelCancelAllPending(isPending: boolean): void {
-	patch({ cancelAllPending: isPending });
-}
-
-export function showError(message: string): void {
-	setStatusPanelStepText(`Error: ${message}`);
-	setStatusPanelStepColor('var(--text-error, #ef4444)');
-}
-
-export function showSuccess(message: string): void {
-	setStatusPanelStepText(message);
-	setStatusPanelStepColor('var(--text-success, #10b981)');
-}
-
-export function showInfo(message: string): void {
-	setStatusPanelStepText(message);
-	setStatusPanelStepColor(DEFAULT_STATUS_VIEW.stepColor);
-}
-
-export function pushTransientStatusMessage(message: string, ttlMs?: number): void {
-	pushStatusPanelUserMessageLock(message, ttlMs);
-}
-
-export function clearTransientStatusMessageLock(): void {
-	clearStatusPanelUserMessageLock();
-}
-
-export function resetStatusPanelViewState(): void {
-	snapshot = { ...DEFAULT_STATUS_VIEW, jobItems: [] };
-	if (statusMessageLockTimeoutId !== null) {
-		window.clearTimeout(statusMessageLockTimeoutId);
-		statusMessageLockTimeoutId = null;
-	}
-	statusBeforeUserMessageLock = null;
-	queuedStatusAfterUserMessageLock = null;
-	commit();
+	return store;
 }

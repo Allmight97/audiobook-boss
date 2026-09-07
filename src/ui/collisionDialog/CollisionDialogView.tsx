@@ -1,4 +1,6 @@
-import { For, Show, type JSX } from 'solid-js';
+import { For, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { useAppRuntime } from '../../app/runtime';
 import { pathBasename } from '../../lib/path/basename';
 import { Button, Dialog } from '../foundation';

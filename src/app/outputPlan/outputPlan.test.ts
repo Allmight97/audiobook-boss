@@ -1,4 +1,4 @@
-import { createRoot, createSignal, type Accessor } from 'solid-js';
+import { createRoot, createSignal, flush, runWithOwner, type Accessor } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	defaultEncoderSettings,
@@ -6,15 +6,10 @@ import {
 	type ProcessingPreflightPlan,
 } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
-import { createTestAppRuntime } from '../runtime/harness';
+import { createAppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
 import type { InputView } from '../inputSession';
-import {
-	createOutputOwner,
-	readOutputRequestConfig,
-	resetOutputPlanTimers,
-	type OutputPlanOwner,
-} from '.';
+import { createOutputOwner, type OutputPlanOwner } from '.';
 import type { CollisionView } from './collision';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import { createEmptyCoverUiState } from '../metadataSession/cover';
@@ -127,7 +122,7 @@ type MountedOutput = {
 };
 
 function mountOutput(
-	runtime: ReturnType<typeof createTestAppRuntime>,
+	runtime: ReturnType<typeof createAppRuntime>,
 	overrides: {
 		readonly encodingRequest?: EncodingRequestConfig;
 		readonly encodingEstimateKbps?: number;
@@ -135,31 +130,35 @@ function mountOutput(
 		readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 	} = {},
 ): MountedOutput {
-	return createRoot((dispose) => {
-		const [encodingRequest, setEncodingRequest] = createSignal(
-			overrides.encodingRequest ?? defaultEncodingRequest(),
-		);
-		const [encodingEstimateKbps, setEncodingEstimateKbps] = createSignal(
-			overrides.encodingEstimateKbps ?? 64,
-		);
-		const owner = createOutputOwner({
-			input: runtime.input,
-			metadataView: overrides.metadataView ?? emptyMetadataView,
-			encodingRequest,
-			encodingEstimateKbps,
-			onMetadataValidation: overrides.onMetadataValidation,
-		});
-		return {
-			owner,
-			setEncodingRequest,
-			setEncodingEstimateKbps,
-			dispose,
-		};
-	});
+	return runWithOwner(null, () =>
+		createRoot((dispose) => {
+			const [encodingRequest, setEncodingRequest] = createSignal(
+				overrides.encodingRequest ?? defaultEncodingRequest(),
+			);
+			const [encodingEstimateKbps, setEncodingEstimateKbps] = createSignal(
+				overrides.encodingEstimateKbps ?? 64,
+			);
+			const owner = createOutputOwner({
+				input: runtime.input,
+				metadataView: overrides.metadataView ?? emptyMetadataView,
+				encoding: {
+					request: encodingRequest,
+					estimateKbps: encodingEstimateKbps,
+				},
+				onMetadataValidation: overrides.onMetadataValidation,
+			});
+			return {
+				owner,
+				setEncodingRequest,
+				setEncodingEstimateKbps,
+				dispose,
+			};
+		}),
+	);
 }
 
 describe('output plan public view', () => {
-	let runtime: ReturnType<typeof createTestAppRuntime> | undefined;
+	let runtime: ReturnType<typeof createAppRuntime> | undefined;
 	let mounted: MountedOutput | undefined;
 
 	afterEach(() => {
@@ -168,11 +167,10 @@ describe('output plan public view', () => {
 		mounted = undefined;
 		runtime?.dispose();
 		runtime = undefined;
-		resetOutputPlanTimers();
 	});
 
 	it('hydrates output defaults through the public strip without a preview poke API', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
@@ -183,11 +181,11 @@ describe('output plan public view', () => {
 		expect(view.absIncludeYear).toBe(true);
 		expect(view.absHintHidden).toBe(false);
 		expect(view.absHintText).toContain('YYYY');
-		expect(readOutputRequestConfig().outputDirectory).toBe('/books/out');
+		expect(mounted.owner.readRequestConfig().outputDirectory).toBe('/books/out');
 	});
 
 	it('derives the encoder-header estimate from public Input duration and encoder request config', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		mounted = mountOutput(runtime, {
 			encodingRequest: {
@@ -205,7 +203,7 @@ describe('output plan public view', () => {
 	});
 
 	it('changes the encoder-header size when FDK VBR quality changes encoded bitrate', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		const stickyBitrateKbps = 64;
 		mounted = mountOutput(runtime, {
@@ -231,13 +229,14 @@ describe('output plan public view', () => {
 			sampleRate: 'auto',
 		});
 		mounted.setEncodingEstimateKbps(96);
+		flush();
 		const quality5 = mounted.owner.estimatedSizeText();
 		expect(quality1).toBe('~ 402.3 KB');
 		expect(quality5).toBe('~ 1.2 MB');
 	});
 
 	it('keeps the empty estimate placeholder when Input has no files', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		expect(mounted.owner.estimatedSizeText()).toBe('~ --- MB');
 	});
@@ -251,7 +250,7 @@ describe('output plan public view', () => {
 			metadataPatch: {},
 			fieldErrors: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
@@ -266,13 +265,13 @@ describe('output plan public view', () => {
 
 		mounted.owner.editNamingTemplate('{author}/{title}');
 		expect(mounted.owner.view().namingTemplate).toBe('{author}/{title}');
-		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
+		expect(mounted.owner.readRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
 		await Promise.resolve();
 		expect(previewOutputPath).not.toHaveBeenCalled();
 
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(previewOutputPath).not.toHaveBeenCalled();
-		expect(readOutputRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
+		expect(mounted.owner.readRequestConfig().outputNaming.customTemplate).toBe('{author}/{title}');
 
 		await vi.waitFor(
 			() => {
@@ -294,7 +293,7 @@ describe('output plan public view', () => {
 			metadataPatch: {},
 			fieldErrors: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		let form = createEmptyFormState();
 		form = replaceField(form, 'meta-series-part', { value: '1' });
@@ -324,6 +323,66 @@ describe('output plan public view', () => {
 		expect(lastCall?.[0]?.metadata?.series_part).toBe('2');
 		previewOutputPath.mockRestore();
 		validatePatch.mockRestore();
+	});
+
+	it('keeps the latest in-flight path preview and ignores a stale slower answer', async () => {
+		let resolveFirst: ((path: string) => void) | undefined;
+		const previewOutputPath = vi.spyOn(tauriClient, 'previewOutputPath');
+		previewOutputPath
+			.mockImplementationOnce(
+				() =>
+					new Promise<string>((resolve) => {
+						resolveFirst = resolve;
+					}),
+			)
+			.mockResolvedValue('/books/out/second.m4b');
+		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
+			isValid: true,
+			metadataPatch: {},
+			fieldErrors: [],
+		});
+		runtime = createAppRuntime();
+		mounted = mountOutput(runtime);
+		const owner = mounted.owner;
+		owner.applyDefaults({
+			outputDirectory: '/books/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await vi.waitFor(() => expect(previewOutputPath).toHaveBeenCalledTimes(1));
+		owner.setAbsIncludeYear(true);
+		await vi.waitFor(() => expect(owner.view().previewText).toBe('/books/out/second.m4b'));
+		resolveFirst?.('/books/out/stale.m4b');
+		await Promise.resolve();
+		expect(owner.view().previewText).toBe('/books/out/second.m4b');
+		previewOutputPath.mockRestore();
+		validatePatch.mockRestore();
+	});
+
+	it('still previews the path when metadata validation fails', async () => {
+		const previewOutputPath = vi
+			.spyOn(tauriClient, 'previewOutputPath')
+			.mockResolvedValue('/books/out/preview.m4b');
+		const validatePatch = vi
+			.spyOn(tauriClient, 'validateMetadataIntentPatch')
+			.mockRejectedValue(new Error('validation transport failed'));
+		const errors: string[] = [];
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+			errors.push(String(args[0]));
+		});
+		runtime = createAppRuntime();
+		mounted = mountOutput(runtime);
+		const owner = mounted.owner;
+		owner.applyDefaults({
+			outputDirectory: '/books/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await vi.waitFor(() => expect(owner.view().previewText).toBe('/books/out/preview.m4b'));
+		expect(errors.some((message) => message.includes('Metadata preview validation failed'))).toBe(
+			true,
+		);
+		previewOutputPath.mockRestore();
+		validatePatch.mockRestore();
+		errorSpy.mockRestore();
 	});
 });
 
@@ -366,7 +425,7 @@ describe('output path preview projection', () => {
 });
 
 describe('collision review', () => {
-	let runtime: ReturnType<typeof createTestAppRuntime> | undefined;
+	let runtime: ReturnType<typeof createAppRuntime> | undefined;
 
 	afterEach(() => {
 		runtime?.dispose();
@@ -378,7 +437,7 @@ describe('collision review', () => {
 	}
 
 	it('cancel resolves null and closes the dialog', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const result = runtime.output.openCollisionReview(collisionPlan());
 		runtime.output.cancelCollisionReview();
 		await expect(result).resolves.toBeNull();
@@ -387,7 +446,7 @@ describe('collision review', () => {
 	});
 
 	it('opening a second dialog resolves the first as cancelled', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const first = runtime.output.openCollisionReview(collisionPlan());
 		const second = runtime.output.openCollisionReview(collisionPlan());
 		await expect(first).resolves.toBeNull();
@@ -397,7 +456,7 @@ describe('collision review', () => {
 	});
 
 	it('exposes only collided outputs', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		void runtime.output.openCollisionReview(collisionPlan());
 		expect(collision().outputs).toHaveLength(1);
 		expect(collision().outputs[0]?.inputPath).toBe('/books/b.m4b');

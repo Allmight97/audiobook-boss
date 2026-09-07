@@ -2,25 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
 import { STAGES } from '../../../types/events';
 import { StatusPanelRuntime } from '../runtime';
-import { resetStatusPanelViewState, getStatusView } from '../view';
+import { createStatusViewStore, type StatusViewStore } from '../view';
 
-function setupDom() {
-	document.body.innerHTML = `
-    <div id="progress-bar"></div>
-    <div id="percentage-processed"></div>
-    <div id="status-text"></div>
-    <div id="step-text"></div>
-    <div id="concurrency-status"></div>
-    <button id="process-button"></button>
-    <button id="cancel-all-button"></button>
-    <div class="art-thumbnail"></div>
-    <div id="job-list"></div>
-    <select id="max-concurrent-select"></select>
-  `;
+function mountRuntime(): {
+	readonly view: StatusViewStore;
+	readonly controller: StatusPanelRuntime;
+} {
+	const view = createStatusViewStore();
+	return { view, controller: new StatusPanelRuntime({ view }) };
 }
 
-function getJobRows(): string[] {
-	return getStatusView().jobItems.map((item) => {
+function getJobRows(view: StatusViewStore): string[] {
+	return view.snapshot().jobItems.map((item) => {
 		const percentage =
 			typeof item.percentage === 'number' ? ` (${item.percentage.toFixed(1)}%)` : '';
 		return `${item.label} • ${item.statusText}${percentage}`;
@@ -29,8 +22,6 @@ function getJobRows(): string[] {
 
 describe('StatusPanel aggregate progress', () => {
 	beforeEach(() => {
-		setupDom();
-		resetStatusPanelViewState();
 		vi.useFakeTimers();
 	});
 
@@ -41,7 +32,7 @@ describe('StatusPanel aggregate progress', () => {
 	});
 
 	it('computes simple averages across active and completed jobs', () => {
-		const controller = new StatusPanelRuntime();
+		const { view, controller } = mountRuntime();
 		const snapshot: ProcessingQueueEvent = {
 			operation_kind: 'processingBatch',
 			items: [
@@ -75,16 +66,16 @@ describe('StatusPanel aggregate progress', () => {
 			percentage: 75,
 			message: 'Halfway',
 		});
-		expect(getStatusView().progressPercentage).toBe(75);
-		expect(getStatusView().statusText).toBe('Converting');
-		expect(getJobRows()).toEqual([
+		expect(view.snapshot().progressPercentage).toBe(75);
+		expect(view.snapshot().statusText).toBe('Converting');
+		expect(getJobRows(view)).toEqual([
 			'alpha.m4b • Converting (50.0%)',
 			'beta.m4b • Completed (100.0%)',
 		]);
 	});
 
 	it('counts queued jobs as zero-progress participants in batch averages', () => {
-		const controller = new StatusPanelRuntime();
+		const { view, controller } = mountRuntime();
 		controller.applyQueueSnapshot({
 			operation_kind: 'processingBatch',
 			items: [
@@ -109,9 +100,9 @@ describe('StatusPanel aggregate progress', () => {
 			percentage: 33.3,
 			message: 'Queued 2 files',
 		});
-		expect(getStatusView().progressPercentage).toBe(33.3);
-		expect(getStatusView().statusText).toBe('Analyzing');
-		expect(getJobRows()).toEqual([
+		expect(view.snapshot().progressPercentage).toBe(33.3);
+		expect(view.snapshot().statusText).toBe('Analyzing');
+		expect(getJobRows(view)).toEqual([
 			'alpha.m4b • Completed (100.0%)',
 			'beta.m4b • Queued • #2 of 3',
 			'gamma.m4b • Queued • #3 of 3',
@@ -128,7 +119,7 @@ describe('StatusPanel aggregate progress', () => {
 	it.each([STAGES.completed, STAGES.skipped, STAGES.failed, STAGES.cancelled])(
 		'does not leak stale currentFile/etaSeconds onto terminal aggregates for %s',
 		(terminalStage) => {
-			const controller = new StatusPanelRuntime();
+			const { controller } = mountRuntime();
 			const snapshot: ProcessingQueueEvent = {
 				operation_kind: 'processingBatch',
 				items: [{ input_index: 0, file_path: '/books/alpha.m4b' }],

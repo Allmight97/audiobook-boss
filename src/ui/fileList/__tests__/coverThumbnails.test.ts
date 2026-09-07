@@ -1,10 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	clearFileListCoverThumbnails,
-	MAX_FILE_LIST_COVER_THUMBNAIL_CACHE_ENTRIES,
-	getFileListCoverThumbnailState,
-	scheduleFileListCoverThumbnails,
-} from '../coverThumbnails';
+import { describe, expect, it, vi } from 'vitest';
+import { createFileListCoverThumbnails } from '../coverThumbnails';
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
 function deferred<T>(): Deferred<T> {
@@ -19,8 +14,6 @@ async function flush(): Promise<void> {
 }
 
 describe('FileList cover thumbnail scheduler', () => {
-	beforeEach(() => clearFileListCoverThumbnails());
-
 	it('bounds loading to two paths and dedupes duplicate paths', async () => {
 		const requests: Array<Deferred<number[] | null>> = [];
 		const load = vi.fn(() => {
@@ -28,10 +21,11 @@ describe('FileList cover thumbnail scheduler', () => {
 			requests.push(request);
 			return request.promise;
 		});
-		scheduleFileListCoverThumbnails(['/a', '/a', '/b', '/c'], load);
+		const thumbnails = createFileListCoverThumbnails(load);
+		thumbnails.schedule(['/a', '/a', '/b', '/c']);
 		await flush();
 		expect(load).toHaveBeenCalledTimes(2);
-		expect(getFileListCoverThumbnailState('/c').status).toBe('queued');
+		expect(thumbnails.read('/c').status).toBe('queued');
 		requests[0].resolve([1]);
 		await flush();
 		expect(load).toHaveBeenCalledTimes(3);
@@ -44,28 +38,27 @@ describe('FileList cover thumbnail scheduler', () => {
 		const stale = deferred<number[]>();
 		const fresh = deferred<number[]>();
 		const load = vi.fn().mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
-		scheduleFileListCoverThumbnails(['/book'], load);
+		const thumbnails = createFileListCoverThumbnails(load);
+		thumbnails.schedule(['/book']);
 		await flush();
-		clearFileListCoverThumbnails();
-		scheduleFileListCoverThumbnails(['/book'], load);
+		thumbnails.schedule([]);
+		thumbnails.schedule(['/book']);
 		await flush();
 		stale.resolve([1]);
 		await flush();
-		expect(getFileListCoverThumbnailState('/book').status).toBe('loading');
+		expect(thumbnails.read('/book').status).toBe('loading');
 		fresh.resolve([2]);
 		await flush();
-		expect(getFileListCoverThumbnailState('/book')).toMatchObject({ status: 'ready' });
+		expect(thumbnails.read('/book')).toMatchObject({ status: 'ready' });
 	});
 
 	it('keeps the terminal thumbnail cache bounded even when every path is visible', async () => {
-		const paths = Array.from(
-			{ length: MAX_FILE_LIST_COVER_THUMBNAIL_CACHE_ENTRIES + 1 },
-			(_, index) => `/book-${index}`,
-		);
-		scheduleFileListCoverThumbnails(paths, async () => [1]);
+		const paths = Array.from({ length: 65 }, (_, index) => `/book-${index}`);
+		const thumbnails = createFileListCoverThumbnails(async () => [1]);
+		thumbnails.schedule(paths);
 		for (let index = 0; index < 150; index += 1) await Promise.resolve();
 
-		expect(getFileListCoverThumbnailState(paths[0]).status).toBe('idle');
-		expect(getFileListCoverThumbnailState(paths[paths.length - 1]).status).toBe('ready');
+		expect(thumbnails.read(paths[0]).status).toBe('idle');
+		expect(thumbnails.read(paths[paths.length - 1]).status).toBe('ready');
 	});
 });

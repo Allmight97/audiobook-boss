@@ -26,11 +26,25 @@ export interface JobOutcome {
 	terminal: boolean;
 }
 
+export interface OutputPlanEvent {
+	phase: string;
+	reviewed: boolean;
+	policy: string;
+	inputIndex: string;
+	kind: string;
+	action: string;
+	requested: string;
+	resolved: string;
+	collisionKind: string;
+	collisionPath: string;
+}
+
 export interface DevLogAnalysis {
 	health: SessionHealth;
 	reasons: string[];
 	operations: OperationOutcome[];
 	jobs: JobOutcome[];
+	outputPlanEvents: OutputPlanEvent[];
 	unmatchedOperationIds: string[];
 	unmatchedJobIds: string[];
 	wrapperExitStatus: number;
@@ -44,6 +58,7 @@ export interface DevLogAnalysis {
 	panics: number;
 	compilerFailures: number;
 	malformedLifecycleLines: number;
+	malformedOutputPlanLines: number;
 	orphanOperationIds: string[];
 	orphanJobIds: string[];
 	childExitCodes: number[];
@@ -51,6 +66,9 @@ export interface DevLogAnalysis {
 	externalFdkRuns: number;
 	externalFdkStatuses: Record<string, number>;
 	malformedExternalFdkRuns: number;
+	inProcessEncoderRuns: number;
+	inProcessEncoderStatuses: Record<string, number>;
+	malformedInProcessEncoderRuns: number;
 	highSignalLines: string[];
 }
 
@@ -87,6 +105,37 @@ const JOB_EVENT_STATUSES: Record<string, ReadonlySet<string>> = {
 	terminal: new Set(['success', 'cancelled', 'failed']),
 };
 const EXTERNAL_FDK_STATUSES = new Set(['success', 'failed', 'wait_error', 'interrupted']);
+const IN_PROCESS_ENCODER_STATUSES = new Set(['success', 'failed', 'cancelled']);
+const OUTPUT_PLAN_PHASES = new Set(['preflight', 'process']);
+const OUTPUT_PLAN_POLICIES = new Set(['Fail', 'ReplaceExisting', 'RenameNew', 'SkipExisting']);
+const OUTPUT_PLAN_KINDS = new Set(['Final', 'Preview']);
+const OUTPUT_PLAN_ACTIONS = new Set([
+	'Write',
+	'ReplaceExisting',
+	'RenameNew',
+	'SkipExisting',
+	'ReviewRequired',
+]);
+const OUTPUT_PLAN_COLLISION_KINDS = new Set([
+	'none',
+	'ExistingFile',
+	'BatchDuplicate',
+	'SourceDestinationOverlap',
+	'CanonicalPathOverlap',
+	'CaseInsensitiveMatch',
+]);
+const OUTPUT_PLAN_KEYS = [
+	'phase',
+	'reviewed',
+	'policy',
+	'input_index',
+	'kind',
+	'action',
+	'requested',
+	'resolved',
+	'collision_kind',
+	'collision_path',
+] as const;
 
 export function stripAnsi(value: string): string {
 	return value.replace(ANSI_PATTERN, '').replaceAll('\r', '');
@@ -117,6 +166,76 @@ function parseRecord(line: string, recordName: string): Record<string, string> |
 		fields[token.slice(0, equalsIndex)] = token.slice(equalsIndex + 1);
 	}
 	return fields;
+}
+
+function parseKeyedFields(
+	line: string,
+	recordName: string,
+	keys: readonly string[],
+): Record<string, string> | null {
+	const marker = `${recordName} `;
+	const markerIndex = line.indexOf(marker);
+	if (markerIndex < 0) return null;
+
+	const rest = line.slice(markerIndex + marker.length);
+	const positions: Array<{ key: string; idx: number }> = [];
+	for (const key of keys) {
+		const needle = `${key}=`;
+		let searchFrom = 0;
+		while (searchFrom <= rest.length) {
+			const idx = rest.indexOf(needle, searchFrom);
+			if (idx < 0) break;
+			if (idx === 0 || rest[idx - 1] === ' ') {
+				positions.push({ key, idx });
+				break;
+			}
+			searchFrom = idx + 1;
+		}
+	}
+	positions.sort((left, right) => left.idx - right.idx);
+
+	const fields: Record<string, string> = {};
+	for (let index = 0; index < positions.length; index += 1) {
+		const current = positions[index];
+		const valueStart = current.idx + current.key.length + 1;
+		const valueEnd = index + 1 < positions.length ? positions[index + 1].idx : rest.length;
+		fields[current.key] = rest.slice(valueStart, valueEnd).trimEnd();
+	}
+	return fields;
+}
+
+function outputPlanFromFields(fields: Record<string, string>): OutputPlanEvent | null {
+	const reviewed = fields.reviewed === 'true' ? true : fields.reviewed === 'false' ? false : null;
+	if (
+		!fields.phase ||
+		!OUTPUT_PLAN_PHASES.has(fields.phase) ||
+		reviewed === null ||
+		!fields.policy ||
+		!OUTPUT_PLAN_POLICIES.has(fields.policy) ||
+		!fields.kind ||
+		!OUTPUT_PLAN_KINDS.has(fields.kind) ||
+		!fields.action ||
+		!OUTPUT_PLAN_ACTIONS.has(fields.action) ||
+		fields.requested === undefined ||
+		fields.resolved === undefined ||
+		!fields.collision_kind ||
+		!OUTPUT_PLAN_COLLISION_KINDS.has(fields.collision_kind)
+	) {
+		return null;
+	}
+
+	return {
+		phase: fields.phase,
+		reviewed,
+		policy: fields.policy,
+		inputIndex: fields.input_index ?? '',
+		kind: fields.kind,
+		action: fields.action,
+		requested: fields.requested,
+		resolved: fields.resolved,
+		collisionKind: fields.collision_kind,
+		collisionPath: fields.collision_path ?? '',
+	};
 }
 
 function operationFromFields(fields: Record<string, string>): MutableOperation | null {
@@ -345,6 +464,51 @@ function parseExternalFdkRuns(input: string): {
 	return { runs, malformedRuns };
 }
 
+function parseInProcessEncoderRuns(input: string): {
+	runs: ExternalFdkRun[];
+	malformedRuns: number;
+} {
+	const runs: ExternalFdkRun[] = [];
+	let malformedRuns = 0;
+	let current: (ExternalFdkRun & { malformed: boolean }) | undefined;
+
+	const finishCurrent = (closed: boolean): void => {
+		if (!current) {
+			malformedRuns += 1;
+			return;
+		}
+		const { malformed, ...run } = current;
+		runs.push(run);
+		if (!closed || malformed || !run.status || !IN_PROCESS_ENCODER_STATUSES.has(run.status)) {
+			malformedRuns += 1;
+		}
+		current = undefined;
+	};
+
+	for (const line of input.split('\n')) {
+		if (line.startsWith('--- in-process-encoder run ')) {
+			if (current) finishCurrent(false);
+			current = { malformed: false };
+			continue;
+		}
+		if (line === '--- end in-process-encoder run ---') {
+			finishCurrent(true);
+			continue;
+		}
+		if (!current) continue;
+		if (line.startsWith('status=')) {
+			if (current.status !== undefined) current.malformed = true;
+			current.status = line.slice('status='.length);
+		} else if (line.startsWith('job_id=')) {
+			if (current.jobId !== undefined) current.malformed = true;
+			current.jobId = line.slice('job_id='.length);
+		}
+	}
+	if (current) finishCurrent(false);
+
+	return { runs, malformedRuns };
+}
+
 function isExpectedCancellationWarning(line: string, hasCancelledJob: boolean): boolean {
 	if (/processing_job .*\bstatus=cancelled\b/.test(line)) return true;
 	if (/\bJob [0-9a-fA-F-]+ cancelled:/.test(line)) return true;
@@ -375,7 +539,7 @@ function failureExplanation(code: string | undefined): string | undefined {
 
 function highSignalLine(line: string): boolean {
 	if (line.includes('RUST_LOG:')) return false;
-	return /work_operation |processing_job |\b(?:ERROR|WARN)\b|Internal server error|panicked|panic|could not compile|failed to compile|exited with code/i.test(
+	return /work_operation |processing_job |output_plan phase=|\b(?:ERROR|WARN)\b|Internal server error|panicked|panic|could not compile|failed to compile|exited with code/i.test(
 		line,
 	);
 }
@@ -390,7 +554,9 @@ export function analyzeDevLog(
 	const lines = cleanLog.split('\n');
 	const operations = new Map<string, MutableOperation>();
 	const jobs = new Map<string, MutableJob>();
+	const outputPlanEvents: OutputPlanEvent[] = [];
 	let malformedLifecycleLines = 0;
+	let malformedOutputPlanLines = 0;
 
 	for (const line of lines) {
 		const operationFields = parseRecord(line, 'work_operation');
@@ -410,6 +576,13 @@ export function analyzeDevLog(
 		} else {
 			const legacyResult = parseLegacyJobLine(line, jobs);
 			if (legacyResult === 'malformed') malformedLifecycleLines += 1;
+		}
+
+		if (line.includes('output_plan phase=')) {
+			const outputPlanFields = parseKeyedFields(line, 'output_plan', OUTPUT_PLAN_KEYS);
+			const event = outputPlanFields ? outputPlanFromFields(outputPlanFields) : null;
+			if (!event) malformedOutputPlanLines += 1;
+			else outputPlanEvents.push(event);
 		}
 	}
 
@@ -461,11 +634,24 @@ export function analyzeDevLog(
 	const failedExternalFdkRuns = externalFdkRunRecords.filter(
 		(run) => run.status === 'failed' || run.status === 'wait_error',
 	);
+	const { runs: inProcessEncoderRunRecords, malformedRuns: malformedInProcessEncoderRuns } =
+		parseInProcessEncoderRuns(cleanEncodingLog);
+	const inProcessEncoderStatuses: Record<string, number> = {};
+	for (const run of inProcessEncoderRunRecords) {
+		if (!run.status) continue;
+		inProcessEncoderStatuses[run.status] = (inProcessEncoderStatuses[run.status] ?? 0) + 1;
+	}
+	const failedInProcessEncoderRuns = inProcessEncoderRunRecords.filter(
+		(run) => run.status === 'failed',
+	);
 	const cancelledJobIds = new Set(
 		jobOutcomes.filter((job) => job.sawTerminal && job.status === 'cancelled').map((job) => job.id),
 	);
 	const unexpectedExternalFdkInterruptions = externalFdkRunRecords.filter(
 		(run) => run.status === 'interrupted' && (!run.jobId || !cancelledJobIds.has(run.jobId)),
+	);
+	const unexpectedInProcessCancellations = inProcessEncoderRunRecords.filter(
+		(run) => run.status === 'cancelled' && (!run.jobId || !cancelledJobIds.has(run.jobId)),
 	);
 	const wrapperFailed =
 		wrapperExitStatus !== 0 && !EXPECTED_SIGNAL_EXIT_CODES.has(wrapperExitStatus);
@@ -479,7 +665,8 @@ export function analyzeDevLog(
 		compilerFailures > 0 ||
 		failedOperations.length > 0 ||
 		failedJobs.length > 0 ||
-		failedExternalFdkRuns.length > 0
+		failedExternalFdkRuns.length > 0 ||
+		failedInProcessEncoderRuns.length > 0
 	) {
 		health = 'failed';
 		if (wrapperFailed) reasons.push(`Wrapper exited with status ${wrapperExitStatus}.`);
@@ -502,11 +689,16 @@ export function analyzeDevLog(
 			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
 			reasons.push(`External FDK encoder reported ${run.status}${job}.`);
 		}
+		for (const run of failedInProcessEncoderRuns) {
+			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
+			reasons.push(`In-process encoder reported failed${job}.`);
+		}
 	} else if (
 		malformedLifecycleLines > 0 ||
 		orphanOperationIds.length > 0 ||
 		orphanJobIds.length > 0 ||
 		malformedExternalFdkRuns > 0 ||
+		malformedInProcessEncoderRuns > 0 ||
 		appStarts === 0
 	) {
 		health = 'indeterminate';
@@ -524,11 +716,17 @@ export function analyzeDevLog(
 				`${malformedExternalFdkRuns} external FDK run record(s) violated the encoding-log contract.`,
 			);
 		}
+		if (malformedInProcessEncoderRuns > 0) {
+			reasons.push(
+				`${malformedInProcessEncoderRuns} in-process encoder run record(s) violated the encoding-log contract.`,
+			);
+		}
 		if (appStarts === 0) reasons.push('No application startup record was captured.');
 	} else if (
 		unmatchedOperationIds.length > 0 ||
 		unmatchedJobIds.length > 0 ||
-		unexpectedExternalFdkInterruptions.length > 0
+		unexpectedExternalFdkInterruptions.length > 0 ||
+		unexpectedInProcessCancellations.length > 0
 	) {
 		health = 'interrupted';
 		for (const id of unmatchedOperationIds) {
@@ -540,6 +738,10 @@ export function analyzeDevLog(
 		for (const run of unexpectedExternalFdkInterruptions) {
 			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
 			reasons.push(`External FDK encoder was interrupted${job}.`);
+		}
+		for (const run of unexpectedInProcessCancellations) {
+			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
+			reasons.push(`In-process encoder was cancelled${job}.`);
 		}
 	} else if (
 		appRestarts > 0 ||
@@ -566,6 +768,7 @@ export function analyzeDevLog(
 	const encodingLines =
 		cleanEncodingLog.trim().length === 0 ? 0 : cleanEncodingLog.trimEnd().split('\n').length;
 	const externalFdkRuns = externalFdkRunRecords.length;
+	const inProcessEncoderRuns = inProcessEncoderRunRecords.length;
 	const highSignalLines = lines
 		.map((line, index) => ({ line, number: index + 1 }))
 		.filter(({ line }) => highSignalLine(line))
@@ -579,6 +782,7 @@ export function analyzeDevLog(
 			({ sawStart: _sawStart, sawTerminal: _sawTerminal, ...operation }) => operation,
 		),
 		jobs: jobOutcomes.map(({ sawStart: _sawStart, sawTerminal: _sawTerminal, ...job }) => job),
+		outputPlanEvents,
 		unmatchedOperationIds,
 		unmatchedJobIds,
 		orphanOperationIds,
@@ -594,11 +798,15 @@ export function analyzeDevLog(
 		panics,
 		compilerFailures,
 		malformedLifecycleLines,
+		malformedOutputPlanLines,
 		childExitCodes,
 		encoderLines: encodingLines,
 		externalFdkRuns,
 		externalFdkStatuses,
 		malformedExternalFdkRuns,
+		inProcessEncoderRuns,
+		inProcessEncoderStatuses,
+		malformedInProcessEncoderRuns,
 		highSignalLines,
 	};
 }
@@ -648,12 +856,50 @@ function renderJobs(jobs: JobOutcome[]): string[] {
 	];
 }
 
+function displayInputIndex(inputIndex: string): string {
+	const some = inputIndex.match(/^Some\((\d+)\)$/);
+	if (some) return some[1];
+	if (inputIndex === 'None' || inputIndex === '') return 'none';
+	return inputIndex;
+}
+
+function renderOutputPlan(events: OutputPlanEvent[], malformedLines: number): string[] {
+	if (events.length === 0 && malformedLines === 0) {
+		return ['No output-plan diagnostics were captured.'];
+	}
+	const lines: string[] = [];
+	if (malformedLines > 0) {
+		lines.push(`${malformedLines} output-plan line(s) could not be parsed.`);
+		lines.push('');
+	}
+	if (events.length === 0) return lines;
+	lines.push(
+		'| Phase | Input | Kind | Action | Collision | Requested | Resolved |',
+		'| --- | --- | --- | --- | --- | --- | --- |',
+		...events.map((event) =>
+			[
+				`| ${tableCell(event.phase)}`,
+				tableCell(displayInputIndex(event.inputIndex)),
+				tableCell(event.kind),
+				tableCell(event.action),
+				event.collisionKind === 'none' ? 'none' : tableCell(event.collisionKind),
+				`\`${tableCell(event.requested)}\``,
+				`\`${tableCell(event.resolved)}\` |`,
+			].join(' | '),
+		),
+	);
+	return lines;
+}
+
 export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 	const childExits =
 		analysis.childExitCodes.length > 0 ? analysis.childExitCodes.join(', ') : 'none';
-	const encoderStatuses = Object.entries(analysis.externalFdkStatuses)
-		.map(([status, count]) => `${status}=${count}`)
-		.join(' ');
+	const encoderStatuses = [
+		...Object.entries(analysis.externalFdkStatuses).map(([status, count]) => `${status}=${count}`),
+		...Object.entries(analysis.inProcessEncoderStatuses).map(
+			([status, count]) => `in_process_${status}=${count}`,
+		),
+	].join(' ');
 	return [
 		'## Session Verdict',
 		'',
@@ -667,6 +913,10 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'## Processing Jobs',
 		'',
 		...renderJobs(analysis.jobs),
+		'',
+		'## Output Plan',
+		'',
+		...renderOutputPlan(analysis.outputPlanEvents, analysis.malformedOutputPlanLines),
 		'',
 		'## Runtime / Build Diagnostics',
 		'',
@@ -689,7 +939,7 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'## Encoder Log',
 		'',
 		'```text',
-		`lines=${analysis.encoderLines} external_fdk_runs=${analysis.externalFdkRuns} malformed_external_fdk_runs=${analysis.malformedExternalFdkRuns}${encoderStatuses ? ` ${encoderStatuses}` : ''}`,
+		`lines=${analysis.encoderLines} external_fdk_runs=${analysis.externalFdkRuns} malformed_external_fdk_runs=${analysis.malformedExternalFdkRuns} in_process_encoder_runs=${analysis.inProcessEncoderRuns} malformed_in_process_encoder_runs=${analysis.malformedInProcessEncoderRuns}${encoderStatuses ? ` ${encoderStatuses}` : ''}`,
 		'```',
 		'',
 	].join('\n');

@@ -3,13 +3,10 @@ import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigat
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
-import { createSignal, createEffect, Show, For, onCleanup, type JSX } from 'solid-js';
-import {
-	clearFileListCoverThumbnails,
-	getFileListCoverThumbnailState,
-	scheduleFileListCoverThumbnails,
-	subscribeCoverThumbnails,
-} from './coverThumbnails';
+import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
+import { createFileListCoverThumbnails } from './coverThumbnails';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import './fileList.css';
 
@@ -32,7 +29,9 @@ export function FileListView(props: {
 	const toggleSort = input.toggleSort;
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
-	const [thumbnailRevision, setThumbnailRevision] = createSignal(0);
+	const thumbnails = createFileListCoverThumbnails((path) =>
+		capability().readAudioCoverThumbnail(path),
+	);
 	const [dragState, setDragState] = createSignal<FileListDragState>({
 		draggedIndex: null,
 		hoveredIndex: null,
@@ -48,32 +47,31 @@ export function FileListView(props: {
 	});
 
 	onCleanup(() => reorderHandlers.dispose());
-	onCleanup(subscribeCoverThumbnails(() => setThumbnailRevision((revision) => revision + 1)));
+	onCleanup(thumbnails.dispose);
 
-	createEffect(() => {
-		const validPaths = view()
-			.files.filter((file) => file.isValid)
-			.map((file) => file.path);
-		if (validPaths.length === 0) {
-			clearFileListCoverThumbnails();
-			return;
-		}
-		scheduleFileListCoverThumbnails(validPaths, (path) =>
-			capability().readAudioCoverThumbnail(path),
-		);
-	});
+	createEffect(
+		() => {
+			const validPaths = view()
+				.files.filter((file) => file.isValid)
+				.map((file) => file.path);
+			return validPaths;
+		},
+		(validPaths) => thumbnails.schedule(validPaths),
+	);
 
-	createEffect(() => {
-		const selected = view().selectedIndices;
-		const index = selected[selected.length - 1];
-		if (typeof index !== 'number') return;
-		requestAnimationFrame(() => {
-			const selectedItem = fileListContent?.querySelector<HTMLElement>(
-				`[data-file-index="${index}"]`,
-			);
-			selectedItem?.scrollIntoView?.({ block: 'nearest' });
-		});
-	});
+	createEffect(
+		() => view().selectedIndices,
+		(selected) => {
+			const index = selected[selected.length - 1];
+			if (typeof index !== 'number') return;
+			requestAnimationFrame(() => {
+				const selectedItem = fileListContent?.querySelector<HTMLElement>(
+					`[data-file-index="${index}"]`,
+				);
+				selectedItem?.scrollIntoView?.({ block: 'nearest' });
+			});
+		},
+	);
 
 	function isSelected(index: number): boolean {
 		return view().selectedIndices.includes(index);
@@ -116,10 +114,7 @@ export function FileListView(props: {
 		void clearSelection();
 	}
 
-	const drag = () => {
-		thumbnailRevision();
-		return dragState();
-	};
+	const drag = dragState;
 
 	return (
 		<>
@@ -180,8 +175,7 @@ export function FileListView(props: {
 			>
 				<button
 					type="button"
-					class="drop-zone-header"
-					classList={{ 'drag-over': view().isDragOver }}
+					class={['drop-zone-header', { 'drag-over': view().isDragOver }]}
 					data-has-files={String(view().hasFiles)}
 					aria-label="Add audio files"
 					onClick={() => props.onHeaderClick()}
@@ -196,7 +190,7 @@ export function FileListView(props: {
 					role="listbox"
 					aria-label="Audio files"
 					aria-multiselectable="true"
-					tabIndex={0}
+					tabindex={0}
 					ref={(element) => {
 						fileListContent = element;
 					}}
@@ -205,35 +199,37 @@ export function FileListView(props: {
 					<For each={view().files}>
 						{(file, index) => {
 							const thumbnail = () => {
-								drag();
-								return getFileListCoverThumbnailState(file.path);
+								return thumbnails.read(file.path);
 							};
 							return (
 								// biome-ignore lint/a11y/useKeyWithClickEvents: listbox owns keyboard; rows are not tab stops
+								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 JSX types expose tabindex, not tabIndex
 								<div
 									data-file-index={index()}
-									class="file-list-item"
-									classList={{
-										valid: file.isValid,
-										invalid: !file.isValid,
-										selected: isSelected(index()),
-										dragging: drag().draggedIndex === index(),
-										'drag-over': drag().hoveredIndex === index(),
-									}}
+									class={[
+										'file-list-item',
+										{
+											valid: file.isValid,
+											invalid: !file.isValid,
+											selected: isSelected(index()),
+											dragging: drag().draggedIndex === index(),
+											'drag-over': drag().hoveredIndex === index(),
+										},
+									]}
 									data-drop-edge={
 										drag().hoveredIndex === index() ? (drag().hoveredEdge ?? undefined) : undefined
 									}
 									role="option"
-									aria-selected={isSelected(index())}
+									aria-selected={isSelected(index()) ? 'true' : 'false'}
 									aria-label={pathBasename(file.path, { fallback: 'path' })}
-									tabIndex={-1}
+									tabindex={-1}
 									onClick={(event) => handleFileListClick(index(), event)}
 								>
 									<div class="file-item-content">
 										<button
 											type="button"
 											class="file-reorder-grip"
-											tabIndex={-1}
+											tabindex={-1}
 											aria-label={`Reorder ${pathBasename(file.path, { fallback: 'path' })}`}
 											onPointerDown={(event) => reorderHandlers.onGripPointerDown(index(), event)}
 											onClick={(event) => event.stopPropagation()}

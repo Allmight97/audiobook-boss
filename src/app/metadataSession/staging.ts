@@ -1,12 +1,7 @@
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import {
-	cacheMetadataForFile,
-	getMetadataForFile,
-	isUsableMetadataCache,
-	stageMetadataIntentPatch,
-} from './cache';
+import { isUsableMetadataCache, type MetadataCache } from './cache';
 import type { CoverUiState } from './cover';
 import {
 	hasDirtyMetadataFields,
@@ -112,19 +107,22 @@ async function prepareMultiSelectionMetadata(
 	};
 }
 
-export function commitPreparedMetadataDrafts(prepared: PreparedMetadataDraft): boolean {
+export function commitPreparedMetadataDrafts(
+	prepared: PreparedMetadataDraft,
+	cache: MetadataCache,
+): boolean {
 	if (prepared.kind === 'none') return true;
 	if (prepared.kind === 'single') {
-		stageMetadataIntentPatch(prepared.filePath, prepared.intentPatch);
+		cache.stageMetadataIntentPatch(prepared.filePath, prepared.intentPatch);
 		return true;
 	}
 	for (const [path, metadata] of Object.entries(prepared.pendingCacheByPath)) {
-		if (!isUsableMetadataCache(getMetadataForFile(path))) {
-			cacheMetadataForFile(path, metadata);
+		if (!isUsableMetadataCache(cache.getMetadataForFile(path))) {
+			cache.cacheMetadataForFile(path, metadata);
 		}
 	}
 	const stageResults = prepared.files.map((file) =>
-		stageMetadataIntentPatch(file.path, prepared.intentPatch),
+		cache.stageMetadataIntentPatch(file.path, prepared.intentPatch),
 	);
 	return stageResults[0] !== 'noop';
 }
@@ -136,9 +134,10 @@ export function resetFormAfterCommit(form: MetadataFormState): MetadataFormState
 export async function readUncachedMetadataSnapshot(
 	file: AudioFile,
 	readAudioMetadata: (path: string) => Promise<Partial<AudiobookMetadata>>,
+	cache: MetadataCache,
 ): Promise<Partial<AudiobookMetadata> | null> {
 	if (!file.isValid) return null;
-	if (isUsableMetadataCache(getMetadataForFile(file.path))) return null;
+	if (isUsableMetadataCache(cache.getMetadataForFile(file.path))) return null;
 	try {
 		return await readAudioMetadata(file.path);
 	} catch (error) {

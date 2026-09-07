@@ -7,7 +7,7 @@ import type {
 	SupplementalProcessingAsset,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { isUsableMetadataCache, validateMetadataDraft } from '../metadataSession';
+import { validateMetadataDraft } from '../metadataSession';
 import type { OutputPlanReviewResult } from '../outputPlan';
 import type { ProcessingWorkflowFailed } from './workflow';
 import type { ProcessingWorkflowServices } from './workflow';
@@ -124,7 +124,7 @@ function stageSingleSelectionMetadata(
 			);
 			return false;
 		}
-		services.stageMetadataIntentPatch(targetPath, intentPatch);
+		services.stageIntent(targetPath, intentPatch);
 
 		return true;
 	});
@@ -148,52 +148,6 @@ export function stagePendingMetadataIntent(
 
 		return yield* stageSingleSelectionMetadata(services, fileList, selectionCount, workflowPromise);
 	});
-}
-
-export function ensureBatchMetadataLoaded(
-	services: ProcessingWorkflowServices,
-	processPayload: ProcessPayload,
-	workflowPromise: ProcessingWorkflowPromise,
-): AppEffect<void, ProcessingWorkflowFailed> {
-	return Effect.gen(function* () {
-		if (processPayload.jobType !== 'batch') {
-			return;
-		}
-
-		const missingMetadata = processPayload.inputFiles.filter(
-			(filePath) => !isUsableMetadataCache(services.getMetadataForFile(filePath)),
-		);
-		if (missingMetadata.length === 0) {
-			return;
-		}
-
-		yield* workflowPromise(
-			() =>
-				Promise.all(
-					missingMetadata.map(async (filePath) => {
-						try {
-							const metadata = await services.readAudioMetadata(filePath);
-							services.cacheMetadataForFile(filePath, metadata);
-						} catch (error) {
-							services.console.warn('Failed to load metadata for batch file:', filePath, error);
-						}
-					}),
-				),
-			'Failed to load batch metadata.',
-		);
-	});
-}
-
-export function buildMetadataIntentByPath(
-	services: ProcessingWorkflowServices,
-	processPayload: ProcessPayload,
-): MetadataIntentByPath | null {
-	if (processPayload.jobType === 'merge') {
-		const mergeKey = processPayload.inputFiles[0];
-		return mergeKey ? services.collectActionableMetadataIntent([mergeKey]) : null;
-	}
-
-	return services.collectActionableMetadataIntent(processPayload.inputFiles);
 }
 
 export function reviewOutputPlan(

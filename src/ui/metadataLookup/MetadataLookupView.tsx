@@ -1,10 +1,6 @@
-import { createEffect, createSignal, For, onCleanup, onMount, type JSX } from 'solid-js';
-import {
-	cancelMetadataLookupCoverPreviewSchedule,
-	getMetadataLookupCoverPreviewState,
-	scheduleMetadataLookupCoverPreviews,
-	subscribeMetadataLookupCoverPreviews,
-} from '../../app/metadataLookup';
+import { createEffect, createSignal, For, onSettled } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { useAppRuntime } from '../../app/runtime';
 import { Button, CoverThumb, Dialog } from '../foundation';
 import type { OnlineMetadataResult } from '../../types/metadata';
@@ -52,11 +48,8 @@ function LookupCoverThumb(props: {
 	readonly coverUrl: string | null | undefined;
 	readonly title: string;
 }): JSX.Element {
-	const previewRevision = useAppRuntime().lookup.previewRevision;
-	const previewState = () => {
-		previewRevision();
-		return getMetadataLookupCoverPreviewState(props.coverUrl);
-	};
+	const coverPreview = useAppRuntime().lookup.coverPreview;
+	const previewState = () => coverPreview(props.coverUrl);
 	const readyUrl = () => {
 		const state = previewState();
 		return state.status === 'ready' ? state.dataUrl : '';
@@ -94,26 +87,30 @@ export function MetadataLookupView(): JSX.Element {
 	const setSource = lookup.setSource;
 	const setApplyMode = lookup.setApplyMode;
 	const setReplaceCover = lookup.setReplaceCover;
-	const bumpPreview = lookup.bumpPreview;
-	const capability = useAppRuntime().metadata.capability;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
 
-	onMount(() => {
+	onSettled(() => {
 		void runLookup({ type: 'init' });
-		onCleanup(subscribeMetadataLookupCoverPreviews(() => bumpPreview()));
 	});
 
-	createEffect(() => {
-		const state = view();
-		if (!state.isOpen || !state.hasSearched) {
-			cancelMetadataLookupCoverPreviewSchedule();
-			return;
-		}
-		scheduleMetadataLookupCoverPreviews(
-			state.results.map((result) => result.coverUrl),
-			(url) => capability().loadCoverArtFromUrl(url),
-		);
-	});
+	createEffect(
+		() => {
+			const state = view();
+			return {
+				isOpen: state.isOpen,
+				hasSearched: state.hasSearched,
+				coverUrls: state.results.map((result) => result.coverUrl),
+			};
+		},
+		(state) => {
+			if (!state.isOpen || !state.hasSearched) {
+				lookup.cancelCoverPreviews();
+				return;
+			}
+			lookup.scheduleCoverPreviews(state.coverUrls);
+			return () => lookup.cancelCoverPreviews();
+		},
+	);
 
 	function handleQueryKeyDown(event: KeyboardEvent): void {
 		if (event.key !== 'Enter') return;
@@ -293,8 +290,10 @@ export function MetadataLookupView(): JSX.Element {
 										{formatDurationHours(result.durationSeconds ?? null)}
 									</div>
 									<span
-										class="metadata-lookup-source"
-										classList={{ 'is-secondary-source': result.source === 'openlibrary' }}
+										class={[
+											'metadata-lookup-source',
+											{ 'is-secondary-source': result.source === 'openlibrary' },
+										]}
 									>
 										{sourceLabel(result)}
 									</span>

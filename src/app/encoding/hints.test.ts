@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AudioFile } from '../../../types/audio';
-import { channelCountToLabel, resolveAutoResolutionHints } from '../autoResolutionHints';
+import type { AudioFile } from '../../types/audio';
+import { resolveAutoResolutionHints } from './hints';
 
 const makeFile = (overrides: Partial<AudioFile>): AudioFile => ({
 	path: '/books/input.m4b',
@@ -79,12 +79,9 @@ describe('resolveAutoResolutionHints', () => {
 			]).sampleRateHint,
 		).toBe('Auto -> mixed (22.05/48 kHz)');
 	});
-});
-
-describe('channelCountToLabel', () => {
-	it('maps channel counts to human-readable labels', () => {
-		expect(channelCountToLabel(1)).toBe('Mono');
-		expect(channelCountToLabel(2)).toBe('Stereo');
-		expect(channelCountToLabel(6)).toBe('6 ch');
+	it('describes multichannel source audio', () => {
+		expect(resolveAutoResolutionHints([makeFile({ channels: 6 })]).channelsHint).toBe(
+			'Auto -> 6 ch',
+		);
 	});
 });

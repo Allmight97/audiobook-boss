@@ -1,14 +1,4 @@
 export {
-	cacheMetadataForFile,
-	clearMetadataSession,
-	collectActionableMetadataIntent,
-	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	isUsableMetadataCache,
-	removeMetadataForFile,
-	stageMetadataIntentPatch,
-} from './cache';
-export {
 	commitPreparedMetadataDrafts,
 	prepareMetadataDrafts,
 	readUncachedMetadataSnapshot,

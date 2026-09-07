@@ -1,8 +1,7 @@
 import { cleanup, fireEvent, render } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppRuntimeProvider } from '../../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../../app/runtime/harness';
-import type { AppRuntime } from '../../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../../app/runtime';
+
 import { MetadataLookupView } from '../MetadataLookupView';
 
 describe('MetadataLookupView modal wiring', () => {
@@ -16,7 +15,7 @@ describe('MetadataLookupView modal wiring', () => {
 	});
 
 	it('routes Escape through the same close callback the Close button uses', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<button type="button" id="lookup-invoker">

@@ -1,10 +1,3 @@
-export {
-	applyOutputDefaultsFromSettings,
-	readOutputDefaultsFromState,
-	readOutputRequestConfig,
-	resetOutputPlan,
-	resetOutputPlanTimers,
-} from './bind';
 export { createOutputOwner } from './owner';
 export type { OutputOwnerDeps, OutputPlanOwner } from './owner';
 export type { CollisionView } from './collision';

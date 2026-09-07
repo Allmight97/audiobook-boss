@@ -1,90 +1,61 @@
 import { tauriClient } from '../../lib/tauri/client';
-import {
-	boundProcessingInput,
-	boundProcessingMetadata,
-	boundProcessingRemoteSource,
-	boundProcessingSettings,
-} from './bind';
 import { fileListFromInput } from './input';
-import {
-	cacheMetadataForFile,
-	collectActionableMetadataIntent,
-	getMetadataForFile,
-	stageMetadataIntentPatch,
-} from '../metadataSession';
-import { runOutputPlanReviewWorkflow } from '../outputPlan';
+import { runOutputPlanReviewWorkflow, type OutputPlanOwner } from '../outputPlan';
 import { makeProcessingWorkflowServicesLayer, type ProcessingWorkflowServices } from './workflow';
-import { showError } from './view';
 import { openGeneratedPreviewIfSingle } from './preview';
-import { readProcessingRequestConfig } from './config';
+import type { EncodingOwner } from '../encoding';
+import type { InputOwner } from '../inputSession';
+import type { MetadataOwner } from '../metadataSession';
+import type { SettingsOwner } from '../appSettings';
+import type { RemoteSourceOwner } from '../remoteSource';
 
-function liveFileList() {
-	const view = boundProcessingInput()?.view();
-	return view ? fileListFromInput(view) : null;
+export type ProcessingWorkflowLiveDeps = {
+	readonly input: InputOwner;
+	readonly metadata: MetadataOwner;
+	readonly settings: SettingsOwner;
+	readonly encoding: Pick<EncodingOwner, 'request'>;
+	readonly output: Pick<OutputPlanOwner, 'readRequestConfig' | 'openCollisionReview'>;
+	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
+	readonly showError: (message: string) => void;
+};
+
+export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
+	const services: ProcessingWorkflowServices = {
+		getCurrentFileList: () => fileListFromInput(deps.input.view()),
+		getSelectedFileIndex: () => deps.input.view().selectedAnchor,
+		getSelectedFileIndices: () => new Set(deps.input.view().selectedIndices),
+		readProcessingRequestConfig: () => ({
+			...deps.encoding.request(),
+			...deps.output.readRequestConfig(),
+		}),
+		getJobType: () => deps.input.jobType(),
+		hasDirtyMetadataFields: () => deps.metadata.readHasDirtyMetadata(),
+		readMetadataForm: () => deps.metadata.readMetadata(),
+		stageIntent: (filePath, patch) => deps.metadata.stageIntent(filePath, patch),
+		intentsForProcess: (filePaths) => deps.metadata.intentsForProcess(filePaths),
+		async stageMetadataToSelection(options) {
+			const staged = await deps.metadata.stageCurrentSelectionForProcess();
+			if (!staged && options?.showStatus) {
+				deps.showError('Fix metadata validation errors before processing.');
+			}
+			return staged;
+		},
+		setJobControlsEnabled: (enabled) => {
+			deps.settings.setControlsEnabled(enabled);
+		},
+		setFileOrderLocked: (locked) => {
+			deps.input.setOrderLocked(locked);
+		},
+		validateMetadataIntentPatch: (patch) =>
+			deps.metadata.capability().validateMetadataIntentPatch(patch),
+		processAudiobookFiles: tauriClient.processAudiobookFiles,
+		submitProcessingOperation: tauriClient.submitProcessingOperation,
+		remoteSource: deps.remoteSource,
+		runOutputPlanReviewWorkflow: (request) => runOutputPlanReviewWorkflow(request, deps.output),
+		openGeneratedPreviewIfSingle,
+		feedback: { showError: deps.showError },
+		console,
+	};
+
+	return makeProcessingWorkflowServicesLayer(services);
 }
-
-function liveMetadata() {
-	return boundProcessingMetadata();
-}
-
-const liveProcessingWorkflowServices = {
-	getCurrentFileList: liveFileList,
-	getSelectedFileIndex: () => boundProcessingInput()?.view().selectedAnchor ?? -1,
-	getSelectedFileIndices: () => new Set(boundProcessingInput()?.view().selectedIndices ?? []),
-	readProcessingRequestConfig,
-	getJobType: () => boundProcessingInput()?.jobType() ?? 'batch',
-	hasDirtyMetadataFields: () => liveMetadata()?.readHasDirtyMetadata() ?? false,
-	readMetadataForm: () => liveMetadata()?.readMetadata() ?? {},
-	collectActionableMetadataIntent,
-	getMetadataForFile,
-	cacheMetadataForFile,
-	stageMetadataIntentPatch,
-	async stageMetadataToSelection(options?: { showStatus?: boolean }): Promise<boolean> {
-		const metadata = liveMetadata();
-		if (!metadata) {
-			return false;
-		}
-		const staged = await metadata.stageCurrentSelectionForProcess();
-		if (!staged && options?.showStatus) {
-			showError('Fix metadata validation errors before processing.');
-		}
-		return staged;
-	},
-	setJobControlsEnabled: (enabled) => {
-		boundProcessingSettings()?.setControlsEnabled(enabled);
-	},
-	setFileOrderLocked: (locked) => {
-		boundProcessingInput()?.setOrderLocked(locked);
-	},
-	validateMetadataIntentPatch: (patch) => {
-		const metadata = liveMetadata();
-		if (!metadata) {
-			return Promise.reject(new Error('Metadata owner is not mounted'));
-		}
-		return metadata.capability().validateMetadataIntentPatch(patch);
-	},
-	readAudioMetadata: (path) => {
-		const metadata = liveMetadata();
-		if (!metadata) {
-			return Promise.reject(new Error('Metadata owner is not mounted'));
-		}
-		return metadata.capability().readAudioMetadata(path);
-	},
-	processAudiobookFiles: tauriClient.processAudiobookFiles,
-	submitProcessingOperation: tauriClient.submitProcessingOperation,
-	runOutputPlanReviewWorkflow,
-	openGeneratedPreviewIfSingle,
-	feedback: { showError },
-	console,
-	get remoteSource() {
-		const remoteSource = boundProcessingRemoteSource();
-		if (!remoteSource) {
-			throw new Error('Remote Source owner is not mounted');
-		}
-		return remoteSource;
-	},
-} satisfies ProcessingWorkflowServices;
-
-export const ProcessingWorkflowLive = makeProcessingWorkflowServicesLayer(
-	liveProcessingWorkflowServices,
-);

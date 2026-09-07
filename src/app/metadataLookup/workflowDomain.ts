@@ -3,7 +3,6 @@ import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { buildMetadataDraftIntent } from '../metadataSession';
-import { clearMetadataLookupCoverPreviewCache } from './coverPreview';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
 export type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
@@ -74,7 +73,7 @@ export function resetResults(services: MetadataLookupWorkflowServices): void {
 	const state = services.getLookupState();
 	state.results = [];
 	state.hasSearched = false;
-	clearMetadataLookupCoverPreviewCache();
+	services.clearCoverPreviews();
 }
 
 export function buildQueueMetadataPatch(

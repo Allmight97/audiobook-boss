@@ -1,4 +1,6 @@
-import { For, Show, type JSX } from 'solid-js';
+import { For, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { formatEtaRemaining } from '../../lib/format/eta';
 import { useAppRuntime } from '../../app/runtime';
 import { Progress } from '../foundation';

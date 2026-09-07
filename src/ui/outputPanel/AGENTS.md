@@ -4,16 +4,13 @@
 
 - Solid Output workbench view under `src/ui/outputPanel/`.
 - Output directory, naming, path preview, estimate, and collision review truth
-  live in `src/app/outputPlan`. This owner renders that view and re-exports the
-  submit/hydration strip processing still composes.
+  live in `src/app/outputPlan`. This owner renders that view.
 
 ## Public API Strip
 
 - Import from `src/ui/outputPanel`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- The non-view exports are compatibility re-exports. New Processing and
-  Settings callers use `runtime.output` directly; do not extend that UI strip
-  for application coordination.
+- Exports: `OutputView`.
 
 ## Private Cluster
 

@@ -1,21 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { AudioFile, FileListInfo } from '../../types/audio';
+import { createMetadataCache } from './cache';
 import {
 	effectiveCoverForFile,
 	firstValidFilePath,
 	resolveCoverDisplayPath,
 	resolveCoverOwnerPaths,
 } from './coverOwner';
-
-const metadataSessionMocks = vi.hoisted(() => ({
-	getMetadataForFile: vi.fn(),
-	getMetadataIntentPatchForFile: vi.fn(),
-}));
-
-vi.mock('./cache', () => ({
-	getMetadataForFile: metadataSessionMocks.getMetadataForFile,
-	getMetadataIntentPatchForFile: metadataSessionMocks.getMetadataIntentPatchForFile,
-}));
 
 function makeFile(path: string, isValid = true): AudioFile {
 	return {
@@ -36,11 +27,6 @@ function makeFileList(files: AudioFile[]): FileListInfo {
 }
 
 describe('coverOwner', () => {
-	beforeEach(() => {
-		metadataSessionMocks.getMetadataForFile.mockReset();
-		metadataSessionMocks.getMetadataIntentPatchForFile.mockReset();
-	});
-
 	it('resolves merge owner to the first valid input file', () => {
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
 
@@ -76,53 +62,56 @@ describe('coverOwner', () => {
 	});
 
 	it('prefers intent patch cover art over stored metadata', () => {
-		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
+		const cache = createMetadataCache();
+		cache.cacheMetadataForFile('/books/a.m4b', { cover_art: [1, 2, 3] });
+		cache.stageMetadataIntentPatch('/books/a.m4b', {
 			cover_art: { op: 'set', value: [9, 9, 9] },
 		});
-		metadataSessionMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
 
-		expect(effectiveCoverForFile('/books/a.m4b')).toEqual([9, 9, 9]);
+		expect(effectiveCoverForFile('/books/a.m4b', cache)).toEqual([9, 9, 9]);
 	});
 
 	it('treats intent clear as no cover art', () => {
-		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
-			cover_art: { op: 'clear' },
-		});
-		metadataSessionMocks.getMetadataForFile.mockReturnValue({ cover_art: [1, 2, 3] });
+		const cache = createMetadataCache();
+		cache.cacheMetadataForFile('/books/a.m4b', { cover_art: [1, 2, 3] });
+		cache.stageMetadataIntentPatch('/books/a.m4b', { cover_art: { op: 'clear' } });
 
-		expect(effectiveCoverForFile('/books/a.m4b')).toBeNull();
+		expect(effectiveCoverForFile('/books/a.m4b', cache)).toBeNull();
 	});
 
 	it('returns null display path when batch multi-select covers differ', () => {
+		const cache = createMetadataCache();
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
-		metadataSessionMocks.getMetadataIntentPatchForFile.mockImplementation((path: string) => {
-			if (path === '/books/a.m4b') {
-				return { cover_art: { op: 'set', value: [1] } };
-			}
-			return { cover_art: { op: 'set', value: [2] } };
-		});
-		metadataSessionMocks.getMetadataForFile.mockReturnValue({});
+		cache.stageMetadataIntentPatch('/books/a.m4b', { cover_art: { op: 'set', value: [1] } });
+		cache.stageMetadataIntentPatch('/books/b.m4b', { cover_art: { op: 'set', value: [2] } });
 
 		expect(
-			resolveCoverDisplayPath('batch', fileList, [
-				makeFile('/books/a.m4b'),
-				makeFile('/books/b.m4b'),
-			]),
+			resolveCoverDisplayPath(
+				'batch',
+				fileList,
+				[makeFile('/books/a.m4b'), makeFile('/books/b.m4b')],
+				cache,
+			),
 		).toBeNull();
 	});
 
 	it('returns first selected path when batch multi-select covers match', () => {
+		const cache = createMetadataCache();
 		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
-		metadataSessionMocks.getMetadataIntentPatchForFile.mockReturnValue({
+		cache.stageMetadataIntentPatch('/books/a.m4b', {
 			cover_art: { op: 'set', value: [1, 2, 3] },
 		});
-		metadataSessionMocks.getMetadataForFile.mockReturnValue({});
+		cache.stageMetadataIntentPatch('/books/b.m4b', {
+			cover_art: { op: 'set', value: [1, 2, 3] },
+		});
 
 		expect(
-			resolveCoverDisplayPath('batch', fileList, [
-				makeFile('/books/a.m4b'),
-				makeFile('/books/b.m4b'),
-			]),
+			resolveCoverDisplayPath(
+				'batch',
+				fileList,
+				[makeFile('/books/a.m4b'), makeFile('/books/b.m4b')],
+				cache,
+			),
 		).toBe('/books/a.m4b');
 	});
 

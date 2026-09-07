@@ -41,12 +41,11 @@ export type SettingsOwner = {
 	browseForFfmpegBinary(): Promise<void>;
 	clearFfmpegPathDraft(): void;
 	setFfmpegPathDraft(value: string): void;
-	setFdkAfterburner(enabled: boolean): void;
 	saveToolchainPreference(): Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
+	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
 
@@ -79,7 +78,7 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner {
 	let concurrency = emptyConcurrency();
 	let defaultAcquisitionLane: AcquisitionLane = 'audible';
-	const [rev, bump] = createSignal(0);
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const capabilityValue = deps.capability ?? liveSettingsCapability;
 	const capability: Accessor<SettingsCapability> = () => capabilityValue;
 	const dialog = createSettingsDialog({ capability: () => capabilityValue });
@@ -92,6 +91,15 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 	function commitDefaultLane(lane: AcquisitionLane): void {
 		defaultAcquisitionLane = lane;
 		bump((n) => n + 1);
+	}
+
+	async function hydrateAcquisitionPreferences() {
+		try {
+			const settings = await capabilityValue.getAppSettings();
+			commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
+		} catch (error) {
+			console.warn('Failed to hydrate acquisition preferences:', error);
+		}
 	}
 
 	return {
@@ -129,14 +137,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 				console.warn('Failed to hydrate max concurrency:', error);
 			}
 		},
-		async hydrateAcquisitionPreferences() {
-			try {
-				const settings = await capabilityValue.getAppSettings();
-				commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
-			} catch (error) {
-				console.warn('Failed to hydrate acquisition preferences:', error);
-			}
-		},
+		hydrateAcquisitionPreferences,
 		async setConcurrencySelection(value) {
 			const previous = concurrency.selection;
 			commitConcurrency({ ...concurrency, selection: value });
@@ -178,7 +179,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		async openDialog() {
 			await dialog.open();
-			await this.hydrateAcquisitionPreferences();
+			await hydrateAcquisitionPreferences();
 		},
 		closeDialog() {
 			dialog.close();
@@ -194,9 +195,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		setFfmpegPathDraft(value) {
 			dialog.setFfmpegPathDraft(value);
-		},
-		setFdkAfterburner(enabled) {
-			dialog.setFdkAfterburner(enabled);
 		},
 		saveToolchainPreference() {
 			return dialog.saveToolchainPreference();

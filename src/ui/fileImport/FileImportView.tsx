@@ -1,4 +1,5 @@
-import { createEffect, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { createEffect, onSettled, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 
 import {
 	nativeDropLooksLikeCoverArt,
@@ -23,9 +24,12 @@ export function FileImportView(): JSX.Element {
 	const applyCoverArtDrop = runtime.metadata.applyCoverArtDrop;
 	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
-	createEffect(() => {
-		void runtime.remoteSource.reconcileWithInput(view().files);
-	});
+	createEffect(
+		() => view().files,
+		(files) => {
+			void runtime.remoteSource.reconcileWithInput(files);
+		},
+	);
 	let fileManagementContainer: HTMLElement | null = null;
 	let deferredOpenedDrain = false;
 
@@ -43,7 +47,7 @@ export function FileImportView(): JSX.Element {
 		importIntent({ type: 'drainOpened' });
 	}
 
-	onMount(() => {
+	onSettled(() => {
 		void hydrateSupportText();
 		const subscriptions = createSubscriptionGroup();
 		void subscriptions.add(
@@ -81,14 +85,17 @@ export function FileImportView(): JSX.Element {
 			}),
 		);
 		void drainOpenedAudioFiles();
-		onCleanup(() => subscriptions.dispose());
+		return () => subscriptions.dispose();
 	});
 
-	createEffect(() => {
-		if (!view().orderLocked && deferredOpenedDrain) {
-			void drainOpenedAudioFiles();
-		}
-	});
+	createEffect(
+		() => view().orderLocked,
+		(orderLocked) => {
+			if (!orderLocked && deferredOpenedDrain) {
+				void drainOpenedAudioFiles();
+			}
+		},
+	);
 
 	return (
 		<>

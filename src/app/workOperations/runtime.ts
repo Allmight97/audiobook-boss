@@ -5,6 +5,7 @@ import type {
 	OperationListSnapshot,
 	OperationSnapshot,
 } from '../../types/workRuntime';
+import type { RemoteSourceOwner } from '../remoteSource';
 import {
 	isTerminalOperationStatus,
 	replaceOperations,
@@ -56,6 +57,10 @@ export type WorkOperationsSession = {
 	openSource(child: { sourcePath?: string | null }): Promise<void>;
 };
 
+export type WorkOperationsSessionDeps = {
+	readonly remoteSource: Pick<RemoteSourceOwner, 'settleTerminalWork'>;
+};
+
 function isTauriRuntimeAvailable(): boolean {
 	return (
 		typeof window === 'undefined' ||
@@ -66,12 +71,7 @@ function isTauriRuntimeAvailable(): boolean {
 
 export function createWorkOperationsSession(
 	publish: (view: WorkOperationsView) => void,
-	deps: {
-		readonly settleTerminalWork?: (input: {
-			readonly inputIds: readonly string[];
-			readonly completedInputIds: readonly string[];
-		}) => Promise<void>;
-	} = {},
+	deps: WorkOperationsSessionDeps,
 ): WorkOperationsSession {
 	const state = emptyWorkCenterState();
 	let initializationPromise: Promise<void> | null = null;
@@ -121,11 +121,9 @@ export function createWorkOperationsSession(
 						.filter((child) => child.status === 'completed')
 						.map((child) => child.inputId)
 						.filter((inputId): inputId is string => Boolean(inputId));
-		if (operationInputIds.length === 0 && completedInputIds.length === 0) {
-			return;
-		}
+		if (operationInputIds.length === 0 && completedInputIds.length === 0) return;
 
-		await deps.settleTerminalWork?.({
+		await deps.remoteSource.settleTerminalWork({
 			inputIds: operationInputIds,
 			completedInputIds,
 		});

@@ -62,18 +62,27 @@ export function createIndexerConnectionSettings(deps: {
 	testConnection(): Promise<void>;
 	reset(): void;
 } {
-	const [view, setView] = createSignal(createInitialView());
+	let snapshot = createInitialView();
+	const [revision, bump] = createSignal(0, { ownedWrite: true });
+	const view = () => {
+		revision();
+		return snapshot;
+	};
+	function setView(next: IndexerConnectionSettingsView): void {
+		snapshot = next;
+		bump((n) => n + 1);
+	}
 	let draftRevision = 0;
 	let lifetimeRevision = 0;
 
 	function update(mutator: (draft: IndexerConnectionSettingsView) => void): void {
-		const next = { ...view() };
+		const next = { ...snapshot };
 		mutator(next);
 		setView(next);
 	}
 
 	function draftUpdate(): RemoteIndexerConnectionUpdate {
-		const current = view();
+		const current = snapshot;
 		const apiKey = current.apiKeyDraft.trim();
 		return {
 			baseUrl: current.baseUrlDraft.trim(),

@@ -402,4 +402,129 @@ describe('analyzeDevLog', () => {
 		expect(analysis.health).toBe('clean');
 		expect(analysis.jobs[0]).toMatchObject({ id: jobId, status: 'success', terminal: true });
 	});
+
+	it('lists an output-plan collision without treating it as session failure', () => {
+		const analysis = analyzeDevLog(
+			[
+				APP_START,
+				'output_plan phase=process reviewed=true policy=Fail input_index=Some(0) kind=Final action=ReviewRequired requested=/out/Book One.m4b resolved=/out/Book One.m4b collision_kind=ExistingFile collision_path=/out/Book One.m4b',
+			].join('\n'),
+			'',
+			0,
+		);
+
+		expect(analysis.health).toBe('clean');
+		expect(analysis.outputPlanEvents).toEqual([
+			{
+				phase: 'process',
+				reviewed: true,
+				policy: 'Fail',
+				inputIndex: 'Some(0)',
+				kind: 'Final',
+				action: 'ReviewRequired',
+				requested: '/out/Book One.m4b',
+				resolved: '/out/Book One.m4b',
+				collisionKind: 'ExistingFile',
+				collisionPath: '/out/Book One.m4b',
+			},
+		]);
+		expect(renderDevLogAnalysis(analysis)).toContain('ExistingFile');
+		expect(renderDevLogAnalysis(analysis)).toContain('Book One.m4b');
+	});
+
+	it('keeps spaced output paths on an output-plan record', () => {
+		const analysis = analyzeDevLog(
+			`${APP_START}\noutput_plan phase=preflight reviewed=false policy=RenameNew input_index=None kind=Preview action=RenameNew requested=/out/My Book.m4b resolved=/out/My Book (2).m4b collision_kind=BatchDuplicate collision_path=/out/My Book.m4b`,
+			'',
+			0,
+		);
+
+		expect(analysis.outputPlanEvents[0]).toMatchObject({
+			requested: '/out/My Book.m4b',
+			resolved: '/out/My Book (2).m4b',
+			collisionKind: 'BatchDuplicate',
+		});
+	});
+
+	it('does not fail a session for an unparseable output-plan line', () => {
+		const analysis = analyzeDevLog(
+			`${APP_START}\noutput_plan phase=process reviewed=true policy=Fail`,
+			'',
+			0,
+		);
+
+		expect(analysis.health).toBe('clean');
+		expect(analysis.malformedOutputPlanLines).toBe(1);
+		expect(analysis.outputPlanEvents).toEqual([]);
+	});
+
+	it('ignores unstructured output_plan warning lines', () => {
+		const analysis = analyzeDevLog(
+			`${APP_START}\n[WARN audiobook_boss_lib] output_plan source canonicalization failed path=/tmp/book.m4b error=permission denied`,
+			'',
+			0,
+		);
+
+		expect(analysis.outputPlanEvents).toEqual([]);
+		expect(analysis.malformedOutputPlanLines).toBe(0);
+	});
+
+	it.each(['failed'])('classifies in-process encoder status=%s as failed', (status) => {
+		const encodingLog = [
+			'--- in-process-encoder run 1783700000 ---',
+			'run_id=test-run',
+			`status=${status}`,
+			'encoder=aac_at',
+			'job_id=job-apple',
+			'--- end in-process-encoder run ---',
+		].join('\n');
+		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
+
+		expect(analysis.health).toBe('failed');
+		expect(analysis.inProcessEncoderStatuses).toMatchObject({ [status]: 1 });
+	});
+
+	it('accepts an in-process encoder cancellation correlated to a cancelled job', () => {
+		const analysis = analyzeDevLog(
+			[
+				APP_START,
+				'processing_job event=started operation_id=op-apple job_id=job-apple input_index=0 kind=processing_batch status=running',
+				'[WARN audiobook_boss_lib] processing_job event=terminal operation_id=op-apple job_id=job-apple input_index=0 kind=processing_batch status=cancelled elapsed_ms=12',
+			].join('\n'),
+			[
+				'--- in-process-encoder run 1 ---',
+				'status=cancelled',
+				'job_id=job-apple',
+				'--- end in-process-encoder run ---',
+			].join('\n'),
+			0,
+		);
+
+		expect(analysis.health).toBe('clean');
+		expect(analysis.inProcessEncoderStatuses).toEqual({ cancelled: 1 });
+	});
+
+	it('classifies an uncorrelated in-process encoder cancellation as interrupted', () => {
+		const encodingLog = [
+			'--- in-process-encoder run 1 ---',
+			'status=cancelled',
+			'job_id=job-apple',
+			'--- end in-process-encoder run ---',
+		].join('\n');
+		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
+
+		expect(analysis.health).toBe('interrupted');
+	});
+
+	it('classifies a truncated in-process encoder run as indeterminate', () => {
+		const encodingLog = [
+			'--- in-process-encoder run 1 ---',
+			'status=success',
+			'encoder=native_aac',
+		].join('\n');
+		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
+
+		expect(analysis.health).toBe('indeterminate');
+		expect(analysis.malformedInProcessEncoderRuns).toBe(1);
+	});
 });

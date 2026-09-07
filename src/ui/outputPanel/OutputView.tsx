@@ -1,4 +1,5 @@
-import type { JSX } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { CUSTOM_TEMPLATE_PLACEHOLDER } from '../../app/outputPlan';
 import { useAppRuntime } from '../../app/runtime';
 import './outputView.css';

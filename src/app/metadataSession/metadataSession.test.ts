@@ -2,14 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import type { MetadataSaveBatchResult } from '../../types/metadata';
-import { createTestAppRuntime } from '../runtime/harness';
+import { createAppRuntime } from '../runtime';
 import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
-import {
-	getMetadataForFile,
-	getMetadataIntentPatchForFile,
-	stageMetadataIntentPatch,
-} from './index';
+import * as metadataSessionApi from './index';
 
 function file(path: string, title: string): FileListInfo['files'][number] {
 	return {
@@ -78,7 +74,7 @@ describe('metadata session selection and save', () => {
 
 	it('hydrates a single selection from native metadata reads', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -93,7 +89,7 @@ describe('metadata session selection and save', () => {
 
 	it('commits a dirty title onto the previous file before hydrating the next selection', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -114,12 +110,12 @@ describe('metadata session selection and save', () => {
 		});
 		await runtime.metadata.hydrateSelection(null);
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Beta');
-		expect(getMetadataForFile('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
 
 	it('saves staged intent through the metadata capability', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -127,7 +123,7 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		stageMetadataIntentPatch('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
 		await runtime.metadata.save();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalled();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalledWith([
@@ -144,7 +140,7 @@ describe('metadata session selection and save', () => {
 				throw new Error('lookup transport down');
 			}),
 		});
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -178,7 +174,7 @@ describe('metadata session selection and save', () => {
 					}),
 			),
 		});
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -194,11 +190,13 @@ describe('metadata session selection and save', () => {
 			selectedAnchor: 1,
 		});
 		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().cover.isLoading).toBe(false);
 		resolveUrlLoad?.([9, 9, 9]);
 		await loadPromise;
-		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.cover_art).toBeUndefined();
-		expect(getMetadataIntentPatchForFile('/books/alpha.m4b')?.cover_art).toBeUndefined();
+		expect(await runtime.metadata.intentsForProcess(['/books/beta.m4b'])).toBeNull();
+		expect(await runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
 		expect(runtime.metadata.view().cover.hasCustomCoverArt).toBe(false);
+		expect(runtime.metadata.view().cover.isLoading).toBe(false);
 	});
 
 	it('does not commit process staging when selection changes during validation', async () => {
@@ -219,7 +217,7 @@ describe('metadata session selection and save', () => {
 				};
 			}),
 		});
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -241,10 +239,175 @@ describe('metadata session selection and save', () => {
 		await runtime.metadata.hydrateSelection(null);
 		releaseValidate?.();
 		expect(await stagePromise).toBe(false);
-		expect(getMetadataIntentPatchForFile('/books/beta.m4b')?.title).toBeUndefined();
-		expect(getMetadataForFile('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+		expect(await runtime.metadata.intentsForProcess(['/books/beta.m4b'])).toBeNull();
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
 
+	it('preserves a newer draft when selection validation is still pending', async () => {
+		let releaseValidate: (() => void) | undefined;
+		const metadata = fakeMetadata({
+			validateMetadataIntentPatch: vi.fn(async (patch) => {
+				await new Promise<void>((resolve) => {
+					releaseValidate = resolve;
+				});
+				return { isValid: true, metadataPatch: patch, fieldErrors: [] };
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'First edit' });
+		const selection = runtime.input.selectFile({
+			index: 1,
+			modifiers: { range: false, multi: false },
+		});
+		await vi.waitFor(() => expect(releaseValidate).toBeDefined());
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Newer edit' });
+		releaseValidate?.();
+		expect(await selection).toBe(false);
+		expect(runtime.input.session().selectedIndices).toEqual([0]);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Newer edit');
+		expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+		expect(await runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
+	});
+
+	it.each(['edit', 'dispose'] as const)(
+		'rejects save preparation invalidated by %s',
+		async (change) => {
+			let release!: () => void;
+			let pending = false;
+			const metadata = fakeMetadata({
+				validateMetadataIntentPatch: vi.fn(async (patch) => {
+					if (pending)
+						await new Promise<void>((resolve) => {
+							release = resolve;
+						});
+					return { isValid: true, metadataPatch: patch, fieldErrors: [] };
+				}),
+			});
+			runtime = createAppRuntime({ metadata });
+			runtime.input.replaceSession({
+				...emptyInputSession(),
+				fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+				selectedIndices: [0],
+				selectedAnchor: 0,
+			});
+			await runtime.metadata.hydrateSelection(null);
+			runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'First' });
+			pending = true;
+			const save = runtime.metadata.save();
+			await vi.waitFor(() => expect(release).toBeDefined());
+			if (change === 'edit')
+				runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Newer' });
+			else runtime.dispose();
+			release();
+			await save;
+			expect(metadata.saveMetadataBatch).not.toHaveBeenCalled();
+			if (change === 'edit') {
+				expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Newer');
+				expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+			} else expect(runtime.metadata.readCached('/books/alpha.m4b')).toBeUndefined();
+		},
+	);
+
+	it('keeps edits made while the selected file metadata is loading', async () => {
+		let release!: () => void;
+		const metadata = fakeMetadata({
+			readAudioMetadata: vi.fn(async () => {
+				await new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				return { title: 'Disk', artist: 'Author', cover_art: [1] };
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		const hydrate = runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(release).toBeDefined());
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed while loading' });
+		release();
+		await hydrate;
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Typed while loading');
+		expect(runtime.metadata.view().form.fields['meta-author'].value).toBe('Author');
+		expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+	});
+
+	it('invalidates reads across reset even when a new hydration reuses its request number', async () => {
+		let release!: () => void;
+		let reads = 0;
+		const metadata = fakeMetadata({
+			readAudioMetadata: vi.fn(async () => {
+				if (++reads === 1) {
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					});
+					return { title: 'Stale', cover_art: [1] };
+				}
+				return { title: 'Fresh', cover_art: [2] };
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		const oldHydrate = runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(release).toBeDefined());
+		runtime.metadata.reset();
+		await runtime.metadata.hydrateSelection(null);
+		release();
+		await oldHydrate;
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Fresh');
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Fresh');
+	});
+	it('keeps newer cover intent pending when an earlier save finishes', async () => {
+		let release!: () => void;
+		let defer = true;
+		const base = fakeMetadata();
+		const metadata = fakeMetadata({
+			readAudioMetadata: vi.fn(async () => ({ title: 'Alpha', cover_art: [9] })),
+			saveMetadataBatch: vi.fn(async (items) => {
+				if (defer)
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					});
+				return base.saveMetadataBatch(items);
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Save this' });
+		const save = runtime.metadata.save();
+		await vi.waitFor(() => expect(release).toBeDefined());
+		runtime.metadata.clearCoverArt();
+		release();
+		await save;
+		expect(runtime.metadata.view().cover.coverArtRemovalRequested).toBe(true);
+		defer = false;
+		await runtime.metadata.save();
+		expect(metadata.saveMetadataBatch).toHaveBeenCalledTimes(2);
+		expect(
+			vi.mocked(metadata.saveMetadataBatch).mock.calls[1][0][0].metadataPatch.cover_art,
+		).toEqual({ op: 'clear' });
+	});
 	it('blocks selection change while a metadata save is in progress', async () => {
 		let releaseSave: (() => void) | undefined;
 		const metadata = fakeMetadata({
@@ -272,7 +435,7 @@ describe('metadata session selection and save', () => {
 					}),
 			),
 		});
-		runtime = createTestAppRuntime({ metadata });
+		runtime = createAppRuntime({ metadata });
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
@@ -280,7 +443,7 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		stageMetadataIntentPatch('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
 		const save = runtime.metadata.save();
 		await vi.waitFor(() => {
 			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
@@ -289,5 +452,79 @@ describe('metadata session selection and save', () => {
 		expect(await runtime.metadata.canChangeSelection()).toBe(false);
 		releaseSave?.();
 		await save;
+	});
+
+	it('drops cached tags when a path is removed so re-import reads native metadata again', async () => {
+		let alphaTitle = 'Alpha';
+		const readAudioMetadata = vi.fn(async (filePath: string) => ({
+			title: filePath.includes('alpha') ? alphaTitle : 'Beta',
+			artist: 'Author',
+			cover_art: [1],
+		}));
+		const metadata = fakeMetadata({ readAudioMetadata });
+		runtime = createAppRuntime({ metadata });
+		const alpha = file('/books/alpha.m4b', 'Alpha');
+		const beta = file('/books/beta.m4b', 'Beta');
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([alpha, beta]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha');
+
+		runtime.input.removeFile(0);
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toBeUndefined();
+
+		alphaTitle = 'Alpha From Disk';
+		readAudioMetadata.mockClear();
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([alpha, beta]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(readAudioMetadata).toHaveBeenCalledWith('/books/alpha.m4b');
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha From Disk');
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha From Disk');
+	});
+
+	it('intentsForProcess loads native tags when cache only contains cover art', async () => {
+		const readAudioMetadata = vi.fn(async (filePath: string) => {
+			const count = readAudioMetadata.mock.calls.filter(([path]) => path === filePath).length;
+			if (count === 1) {
+				return { cover_art: [1, 2, 3] };
+			}
+			return { title: 'Loaded From Disk' };
+		});
+		const metadata = fakeMetadata({ readAudioMetadata });
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ cover_art: [1, 2, 3] });
+
+		await expect(runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).resolves.toBeNull();
+		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ title: 'Loaded From Disk' });
+		expect(readAudioMetadata).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not export process-global cache helpers', () => {
+		expect(metadataSessionApi).not.toHaveProperty('cacheMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('getMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('getMetadataIntentPatchForFile');
+		expect(metadataSessionApi).not.toHaveProperty('stageMetadataIntentPatch');
+		expect(metadataSessionApi).not.toHaveProperty('collectActionableMetadataIntent');
+		expect(metadataSessionApi).not.toHaveProperty('clearPendingMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('removeMetadataForFile');
+		expect(metadataSessionApi).not.toHaveProperty('clearMetadataSession');
+		expect(metadataSessionApi).not.toHaveProperty('isUsableMetadataCache');
 	});
 });

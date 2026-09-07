@@ -7,9 +7,10 @@
 
 ## Workflow Owner Shape
 
-Use `AppEffect` for frontend workflow owners that coordinate async work,
-dependencies, typed failures, cleanup, cancellation/lifetime handoff, or
-multi-service orchestration.
+Use `AppEffect` where typed failure, dependency composition, or scoped workflow
+behavior removes meaningful coordination. Plain async with injected capabilities
+is appropriate when Effect adds wrappers without simplifying the owner. Keep
+reactive session state in Solid; increased Effect usage is not a goal.
 
 Keep Effect workflow APIs private to workflow owners:
 
@@ -58,10 +59,9 @@ const kit = makeWorkflowKit(
   `ProcessingWorkflowCancelled`).
 - `workflowTryPromise` / `workflowTrySync` remain exported for the escape-hatch
   path; kit wrappers are the default.
-- A program whose existing capability already supplies its dependencies can
-  use the kernel directly, as in `src/app/inputSession/importWorkflow.ts`.
-  Introduce a service layer when it clarifies a real dependency or failure
-  boundary.
+- Introduce a service layer when it clarifies a real dependency or failure
+  boundary. Direct capability workflows such as Input import and Remote Source
+  use plain async; a capability call alone does not justify a kernel wrapper.
 
 ## Fake-Layer Harness Shape
 

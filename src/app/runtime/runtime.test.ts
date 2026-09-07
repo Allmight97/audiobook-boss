@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { ProcessingPreflightPlan } from '../../types/audio';
+import {
+	defaultEncoderSettings,
+	type FileListInfo,
+	type ProcessingPreflightPlan,
+} from '../../types/audio';
+import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { tauriClient } from '../../lib/tauri/client';
+import { runOutputPlanReviewWorkflow } from '../outputPlan';
 import { createAppRuntime } from './index';
 import { emptyInputSession } from '../inputSession/types';
 import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
@@ -50,6 +57,27 @@ function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowSe
 	};
 }
 
+function metadataFileList(path: string, title: string): FileListInfo {
+	return {
+		files: [
+			{
+				path,
+				inputId: path,
+				isValid: true,
+				duration: 60,
+				size: 1024,
+				format: 'm4b',
+				tagTitle: title,
+			},
+		],
+		selectedDecoders: [null],
+		totalDuration: 60,
+		totalSize: 1024,
+		validCount: 1,
+		invalidCount: 0,
+	};
+}
+
 function collisionPlan(): ProcessingPreflightPlan {
 	return {
 		jobType: 'batch',
@@ -83,7 +111,7 @@ describe('app runtime', () => {
 		dispose = undefined;
 	});
 
-	it('does not share collision, settings-dialog, lookup, or work-operations state across live runtimes', () => {
+	it('does not share product-owner state across live runtimes', () => {
 		const first = createAppRuntime();
 		const second = createAppRuntime();
 		dispose = () => {
@@ -94,6 +122,10 @@ describe('app runtime', () => {
 		void first.output.openCollisionReview(collisionPlan());
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
+		first.encoding.select('encoder', 'native_aac');
+		first.processing.pushTransientStatus('first runtime only');
+		void first.remoteSource.open();
+		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
 
 		expect(first.output.collision().isOpen).toBe(true);
 		expect(second.output.collision().isOpen).toBe(false);
@@ -101,13 +133,22 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(first.workOperations.view().operations).toEqual([]);
-		expect(second.workOperations.view().operations).toEqual([]);
+		expect(first.encoding.request().encoderSettings.encoderType).toBe('native_aac');
+		expect(second.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(first.processing.status().statusText).toBe('first runtime only');
+		expect(second.processing.status().statusText).toBe('Idle');
+		expect(first.remoteSource.view().isOpen).toBe(true);
+		expect(second.remoteSource.view().isOpen).toBe(false);
+		expect(second.remoteSource.view().statusMessage).toBe('');
 
 		first.dispose();
+		first.processing.pushTransientStatus('after dispose');
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
+		expect(second.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(second.processing.status().statusText).toBe('Idle');
+		expect(second.remoteSource.view().isOpen).toBe(false);
 
 		const third = createAppRuntime();
 		dispose = () => {
@@ -117,22 +158,118 @@ describe('app runtime', () => {
 		expect(third.output.collision().isOpen).toBe(false);
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
-		expect(third.workOperations.view().operations).toEqual([]);
+		expect(third.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(third.processing.status().statusText).toBe('Idle');
+		expect(third.remoteSource.view().isOpen).toBe(false);
 	});
 
-	it('isolates lookup and processing owners across disposed runtimes', () => {
+	it('keeps output request config and collision review isolated across live runtimes', async () => {
 		const first = createAppRuntime();
-		first.lookup.setTitleQuery('stale lookup');
-		expect(first.lookup.view().titleQuery).toBe('stale lookup');
-		expect(first.processing.status().statusText).toBe('Idle');
-		first.dispose();
-
 		const second = createAppRuntime();
-		dispose = () => second.dispose();
-		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.lookup.view().isOpen).toBe(false);
-		expect(second.processing.status().isProcessing).toBe(false);
-		expect(second.workOperations.view().operations).toEqual([]);
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		first.output.applyDefaults({
+			outputDirectory: '/first/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: false,
+				customTemplate: '{first}',
+			},
+		});
+		second.output.applyDefaults({
+			outputDirectory: '/second/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: true,
+				customTemplate: '{second}',
+			},
+		});
+
+		expect(first.output.readRequestConfig()).toEqual({
+			outputDirectory: '/first/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: false,
+				customTemplate: '{first}',
+			},
+		});
+		expect(second.output.readRequestConfig()).toEqual({
+			outputDirectory: '/second/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: true,
+				customTemplate: '{second}',
+			},
+		});
+
+		const preflight = vi
+			.spyOn(tauriClient, 'preflightProcessingPlan')
+			.mockResolvedValue(collisionPlan());
+		const pending = runOutputPlanReviewWorkflow(
+			{
+				payload: {
+					inputFiles: ['/books/a.m4b'],
+					outputDir: '/tmp/out',
+					settings: defaultEncoderSettings(),
+					sampleRate: 'auto',
+					jobType: 'merge',
+					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
+				},
+				metadataIntentByPath: null,
+			},
+			first.output,
+		);
+		await vi.waitFor(() => expect(first.output.collision().isOpen).toBe(true));
+		expect(second.output.collision().isOpen).toBe(false);
+
+		first.output.cancelCollisionReview();
+		await expect(pending).resolves.toEqual({ status: 'cancelled' });
+
+		first.dispose();
+		expect(second.output.readRequestConfig()).toEqual({
+			outputDirectory: '/second/out',
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: true,
+				customTemplate: '{second}',
+			},
+		});
+		preflight.mockRestore();
+	});
+
+	it('keeps lookup cover preview cancellation and cache isolated across runtimes', async () => {
+		const firstLoad = createDeferred<number[]>();
+		const first = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				loadCoverArtFromUrl: () => firstLoad.promise,
+			},
+		});
+		const second = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				loadCoverArtFromUrl: async () => [0xff, 0xd8, 0xff],
+			},
+		});
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		first.lookup.scheduleCoverPreviews(['https://covers.example/first.jpg']);
+		second.lookup.scheduleCoverPreviews(['https://covers.example/second.jpg']);
+		await vi.waitFor(() =>
+			expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready'),
+		);
+
+		first.dispose();
+		firstLoad.resolve([0xff, 0xd8, 0xff]);
+		await Promise.resolve();
+		expect(first.lookup.coverPreview('https://covers.example/first.jpg').status).toBe('idle');
+		expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 
 	it('disposes Solid session state so later runtimes do not share it', () => {
@@ -202,5 +339,66 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 		expect(other.remoteSource.view().isOpen).toBe(true);
 		expect(other.remoteSource.view().titleFilter).toBe('other runtime');
+	});
+
+	it('keeps metadata cache and process intents isolated across live runtimes', async () => {
+		const firstRead = vi.fn(async () => ({
+			title: 'First Alpha',
+			artist: 'Author',
+			cover_art: [1],
+		}));
+		const secondRead = vi.fn(async () => ({
+			title: 'Second Alpha',
+			artist: 'Author',
+			cover_art: [2],
+		}));
+		const first = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				readAudioMetadata: firstRead,
+			},
+		});
+		const second = createAppRuntime({
+			metadata: {
+				...liveMetadataCapability,
+				readAudioMetadata: secondRead,
+			},
+		});
+		dispose = () => {
+			first.dispose();
+			second.dispose();
+		};
+
+		const files = metadataFileList('/books/alpha.m4b', 'Alpha');
+		first.input.replaceSession({
+			...emptyInputSession(),
+			fileList: files,
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await first.metadata.hydrateSelection(null);
+		first.metadata.stageIntent('/books/alpha.m4b', {
+			title: { op: 'set', value: 'Staged On A' },
+		});
+		expect(first.metadata.readCached('/books/alpha.m4b')?.title).toBe('Staged On A');
+		expect(await first.metadata.intentsForProcess(['/books/alpha.m4b'])).toEqual({
+			'/books/alpha.m4b': { title: { op: 'set', value: 'Staged On A' } },
+		});
+
+		second.input.replaceSession({
+			...emptyInputSession(),
+			fileList: files,
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await second.metadata.hydrateSelection(null);
+		expect(secondRead).toHaveBeenCalledWith('/books/alpha.m4b');
+		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
+		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
+
+		first.dispose();
+		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
+		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
+		expect(second.metadata.view().form.fields['meta-title'].value).toBe('Second Alpha');
 	});
 });

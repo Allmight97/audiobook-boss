@@ -11,7 +11,6 @@ export type OutputPlanState = {
 	readonly absIncludeYear: boolean;
 	readonly previewText: string;
 	readonly previewTitle: string;
-	readonly latestPreviewRequestId: number;
 };
 
 export type OutputView = {
@@ -45,7 +44,6 @@ export function emptyOutputPlan(): OutputPlanState {
 		absIncludeYear: false,
 		previewText: EMPTY_PREVIEW_TEXT,
 		previewTitle: EMPTY_PREVIEW_TITLE,
-		latestPreviewRequestId: 0,
 	};
 }
 

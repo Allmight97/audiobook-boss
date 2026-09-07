@@ -1,4 +1,5 @@
-import { createEffect, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
+import { createEffect, createSignal, For, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 
@@ -70,24 +71,26 @@ export function RemoteSourceAcquireView(): JSX.Element {
 	const isAudibleLane = () => view().providerId === 'audible';
 	const isIndexerLane = () => view().providerId === 'indexer';
 
-	createEffect(() => {
-		const current = view();
-		if (
-			!current.isOpen ||
-			current.providerId !== 'audible' ||
-			current.accountState?.status !== 'connected'
-		) {
-			remoteSource.cancelCoverPreviews();
-			return;
-		}
-		const visible = visibleRemoteTitles(current.titles, {
-			titleFilter: current.titleFilter,
-			showSupplementalPdfOnly: current.showSupplementalPdfOnly,
-			hideUnavailableTitles: current.hideUnavailableTitles,
-		});
-		remoteSource.scheduleCoverPreviews(visible.map((title) => title.coverUrl));
-		onCleanup(() => remoteSource.cancelCoverPreviews());
-	});
+	createEffect(
+		() => view(),
+		(current) => {
+			if (
+				!current.isOpen ||
+				current.providerId !== 'audible' ||
+				current.accountState?.status !== 'connected'
+			) {
+				remoteSource.cancelCoverPreviews();
+				return;
+			}
+			const visible = visibleRemoteTitles(current.titles, {
+				titleFilter: current.titleFilter,
+				showSupplementalPdfOnly: current.showSupplementalPdfOnly,
+				hideUnavailableTitles: current.hideUnavailableTitles,
+			});
+			remoteSource.scheduleCoverPreviews(visible.map((title) => title.coverUrl));
+			return () => remoteSource.cancelCoverPreviews();
+		},
+	);
 
 	const visibleTitles = () =>
 		visibleRemoteTitles(view().titles, {
@@ -391,14 +394,11 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					>
 						<For each={visibleTitles()}>
 							{(title) => (
+								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
 								<div
-									class="remote-title-row"
-									classList={{
-										selected: view().selectedTitleIds.has(title.titleId),
-										unavailable: !isTitleAcquirable(title),
-									}}
+									class={`remote-title-row${view().selectedTitleIds.has(title.titleId) ? ' selected' : ''}${!isTitleAcquirable(title) ? ' unavailable' : ''}`}
 									role="option"
-									tabIndex={-1}
+									tabindex={-1}
 									aria-selected={view().selectedTitleIds.has(title.titleId) ? 'true' : 'false'}
 									aria-disabled={!isTitleAcquirable(title) ? 'true' : undefined}
 								>
@@ -490,11 +490,11 @@ function ReleaseRow(props: {
 	}
 
 	return (
-		<li class="remote-release-row" classList={{ selected: props.selected }}>
+		<li class={`remote-release-row${props.selected ? ' selected' : ''}`}>
 			<button
 				type="button"
 				class="remote-release-button"
-				aria-pressed={props.selected}
+				aria-pressed={props.selected ? 'true' : 'false'}
 				onClick={() => props.onSelect()}
 			>
 				<span class="remote-release-title">{props.release.title}</span>

@@ -1,18 +1,9 @@
-import {
-	createEffect,
-	createMemo,
-	createSignal,
-	onCleanup,
-	onMount,
-	Show,
-	untrack,
-	type JSX,
-} from 'solid-js';
+import { createEffect, createMemo, createSignal, onSettled, Show } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 
 import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
-import { readFdkAfterburner, subscribeEncoderPanel } from '../encoderPanel';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
@@ -41,7 +32,7 @@ function IndexerCategoryPicker(props: {
 	const [open, setOpen] = createSignal(false);
 	let root: HTMLDivElement | undefined;
 
-	onMount(() => {
+	onSettled(() => {
 		function handleWindowClick(event: MouseEvent): void {
 			if (!open()) return;
 			const target = event.target;
@@ -49,7 +40,7 @@ function IndexerCategoryPicker(props: {
 			setOpen(false);
 		}
 		window.addEventListener('click', handleWindowClick);
-		onCleanup(() => window.removeEventListener('click', handleWindowClick));
+		return () => window.removeEventListener('click', handleWindowClick);
 	});
 
 	return (
@@ -161,7 +152,7 @@ function IndexerConnectionHelp(props: {
 				type="button"
 				class="app-settings-info-button"
 				aria-label="About indexer connection security"
-				aria-expanded={props.open}
+				aria-expanded={props.open ? 'true' : 'false'}
 				aria-controls="app-settings-connection-help"
 				aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
 				onClick={() => props.setOpen(true)}
@@ -189,16 +180,16 @@ export function AppSettingsDialogView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const settings = runtime.settings;
 	const remoteSource = runtime.remoteSource;
+	const encoding = runtime.encoding;
 	const state = settings.dialog;
 	const isOpen = createMemo(() => state().isOpen);
 	const indexerConnection = remoteSource.indexerConnection;
 	const [indexerHelpOpen, setIndexerHelpOpen] = createSignal(false);
 	const usesHttp = () => /^http:\/\//i.test(indexerConnection().baseUrlDraft.trim());
-	createEffect(() => {
-		if (!isOpen()) setIndexerHelpOpen(false);
+	createEffect(isOpen, (open) => {
+		if (!open) setIndexerHelpOpen(false);
 	});
 	const [resetConfirming, setResetConfirming] = createSignal(false);
-	const [afterburnerRevision, setAfterburnerRevision] = createSignal(0);
 	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function cancelResetConfirm(): void {
@@ -227,35 +218,26 @@ export function AppSettingsDialogView(): JSX.Element {
 		cancelResetConfirm();
 	}
 
-	createEffect(() => {
-		if (!isOpen()) {
+	createEffect(isOpen, (open) => {
+		if (!open) {
 			cancelResetConfirm();
 			return;
 		}
-		untrack(() => {
-			void remoteSource.loadIndexerConnectionSettings();
-		});
+		void remoteSource.loadIndexerConnectionSettings();
 	});
 
-	onMount(() => {
-		const unsubscribeEncoder = subscribeEncoderPanel(() => {
-			setAfterburnerRevision((value) => value + 1);
-		});
+	onSettled(() => {
 		window.addEventListener('click', handleWindowClickForResetConfirm, true);
-		onCleanup(() => {
-			unsubscribeEncoder();
+		return () => {
 			window.removeEventListener('click', handleWindowClickForResetConfirm, true);
 			cancelResetConfirm();
-		});
+		};
 	});
 
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
 	const defaultAcquisitionLane = (): AcquisitionLane => settings.defaultAcquisitionLane();
-	const afterburner = () => {
-		afterburnerRevision();
-		return readFdkAfterburner();
-	};
+	const afterburner = () => encoding.view().afterburner;
 
 	return (
 		<Dialog
@@ -341,9 +323,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								id="app-settings-afterburner"
 								data-testid="app-settings-afterburner-checkbox"
 								checked={afterburner()}
-								onChange={(event) =>
-									settings.setFdkAfterburner(Boolean(event.currentTarget.checked))
-								}
+								onChange={(event) => encoding.setAfterburner(Boolean(event.currentTarget.checked))}
 							/>
 							<span class="option-label">FDK Afterburner</span>
 						</label>

@@ -1,4 +1,6 @@
-import { createContext, useContext, type JSX } from 'solid-js';
+import { createContext, useContext } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import type { AppRuntime } from './types';
 
 const AppRuntimeContext = createContext<AppRuntime>();
@@ -7,15 +9,13 @@ export function AppRuntimeProvider(props: {
 	readonly runtime: AppRuntime;
 	readonly children: JSX.Element;
 }): JSX.Element {
-	return (
-		<AppRuntimeContext.Provider value={props.runtime}>{props.children}</AppRuntimeContext.Provider>
-	);
+	return <AppRuntimeContext value={props.runtime}>{props.children}</AppRuntimeContext>;
 }
 
 export function useAppRuntime(): AppRuntime {
-	const runtime = useContext(AppRuntimeContext);
-	if (!runtime) {
+	try {
+		return useContext(AppRuntimeContext);
+	} catch {
 		throw new Error('App runtime is not mounted');
 	}
-	return runtime;
 }

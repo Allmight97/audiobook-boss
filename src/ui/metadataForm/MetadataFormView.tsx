@@ -1,4 +1,6 @@
-import { For, type JSX } from 'solid-js';
+import { For } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { METADATA_FIELD_DEFINITIONS } from '../../app/metadataSession';
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
@@ -73,7 +75,7 @@ export function MetadataFormView(): JSX.Element {
 										placeholder={fieldState().mixed ? 'Mixed values' : fieldState().placeholder}
 										data-dirty={fieldState().dirty ? 'true' : undefined}
 										data-mixed={fieldState().mixed ? 'true' : undefined}
-										classList={{ 'dirty-field': fieldState().dirty }}
+										class={{ 'dirty-field': fieldState().dirty }}
 									/>
 								) : (
 									<input
@@ -83,7 +85,7 @@ export function MetadataFormView(): JSX.Element {
 										placeholder={fieldState().mixed ? 'Mixed values' : fieldState().placeholder}
 										data-dirty={fieldState().dirty ? 'true' : undefined}
 										data-mixed={fieldState().mixed ? 'true' : undefined}
-										classList={{ 'dirty-field': fieldState().dirty }}
+										class={{ 'dirty-field': fieldState().dirty }}
 									/>
 								)}
 								{field.inputId === 'meta-series-part' && (

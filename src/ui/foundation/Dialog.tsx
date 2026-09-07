@@ -1,4 +1,6 @@
-import { createEffect, onCleanup, type JSX } from 'solid-js';
+import { createEffect, onCleanup } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { ModalController } from './internal/modal';
 
 export type DialogProps = {
@@ -37,11 +39,14 @@ function Status(props: {
 		<div
 			id={props.id}
 			aria-live={props.live}
-			class={`abb-dialog-status${props.class ? ` ${props.class}` : ''}`}
-			classList={{
-				'is-error': tone() === 'error',
-				'is-success': tone() === 'success',
-			}}
+			class={[
+				'abb-dialog-status',
+				props.class,
+				{
+					'is-error': tone() === 'error',
+					'is-success': tone() === 'success',
+				},
+			]}
 		>
 			{props.children}
 		</div>
@@ -52,22 +57,28 @@ function DialogRoot(props: DialogProps): JSX.Element {
 	let dialogEl: HTMLDivElement | undefined;
 	const modal = new ModalController();
 
-	createEffect(() => {
-		modal.sync(
-			props.open,
-			{ container: dialogEl ?? null },
-			{ onEscape: props.onClose, restoreInvoker: props.restoreFocus !== false },
-		);
-	});
+	createEffect(
+		() => ({
+			open: props.open,
+			onClose: props.onClose,
+			restoreFocus: props.restoreFocus !== false,
+		}),
+		(value) => {
+			modal.sync(
+				value.open,
+				{ container: dialogEl ?? null },
+				{ onEscape: value.onClose, restoreInvoker: value.restoreFocus },
+			);
+		},
+	);
 	onCleanup(() => modal.destroy());
 
 	return (
 		<div
 			id={props.id}
-			class="abb-dialog-backdrop"
-			classList={{ open: props.open }}
+			class={['abb-dialog-backdrop', { open: props.open }]}
 			data-testid={props.testId}
-			aria-hidden={!props.open}
+			aria-hidden={props.open ? undefined : 'true'}
 			onClick={(event) => {
 				if (event.target === event.currentTarget) {
 					props.onClose();

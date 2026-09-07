@@ -32,7 +32,7 @@ Import -> Inspect -> Decide -> Preflight -> Process -> Verify
 User intent
   -> Solid view
   -> App Runtime owner                   session truth + semantic intent
-  -> private Effect workflow             async coordination + typed failure
+  -> private workflow                    async coordination + explicit failure
   -> tauriClient                         TS/Rust adaptation
   -> thin Tauri command                  ingress validation
   -> Rust domain/runtime owner           policy + lifecycle authority
@@ -57,7 +57,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 
 | Owner | Path | Truth owned |
 | --- | --- | --- |
-| App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, disposal, test harness. |
+| App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, and disposal. |
 | Frontend owners | `src/app/<owner>` | Runtime-scoped draft/session state and semantic intents. Each `index.ts` is its live export truth. |
 | Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, theme, and density. |
@@ -69,6 +69,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Metadata Outcome | `src-tauri/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `src-tauri/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `src-tauri/src/app_settings` + `src/app/appSettings` | Durable preferences plus frontend hydration, accepted-value coordination, and durability state. |
+| Encoding Configuration | `src/app/encoding` | Encoder/sample-rate/channel request, capability projection, auto-resolution hints, and estimate kbps. |
 | Remote Source | `src-tauri/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an existing owner; not additional product owners. |
 
@@ -83,7 +84,7 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | Screen interaction | Solid view instance | Keep disclosure, focus, and transient input local. |
 | Presentation resource | View instance, or an owner-private resource when workflows share it | Dispose listeners, cancellation, caches, and late completions with that instance. |
 | Session truth | One App Runtime owner | Read through its view/accessor and change through semantic intent. Never mirror it in another writable store. |
-| Workflow transient state | Private Effect workflow | Publish typed outcomes through the owner; do not expose live Effect programs. |
+| Workflow transient state | Private workflow owner | Use plain async or Effect per the owned coordination need; publish outcomes through the owner. |
 | Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
 | Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation-scoped cancellation. |
 | Durable preference | Rust App Settings store | Runtime owner accepts behavior before persistence records it. |

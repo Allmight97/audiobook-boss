@@ -1,4 +1,6 @@
-import { createSignal, For, type JSX } from 'solid-js';
+import { createSignal, For } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+
 import { useAppRuntime } from '../../app/runtime';
 import { compactRows, leftRows, rightRows } from './rows';
 import './tagPreview.css';
@@ -17,8 +19,7 @@ export function TagPreviewView(props: { readonly variant?: 'full' | 'workbench' 
 						<div class="tag-compact-row" title={row.title}>
 							<span class="tag-compact-name">{row.label}</span>
 							<span
-								class="tag-compact-value"
-								classList={{ 'tag-value-empty': !tags()[row.field] }}
+								class={['tag-compact-value', { 'tag-value-empty': !tags()[row.field] }]}
 								data-field={row.field}
 							>
 								{tags()[row.field] || '—'}
@@ -61,7 +62,7 @@ export function TagPreviewView(props: { readonly variant?: 'full' | 'workbench' 
 				type="button"
 				class="show-all-tags-button"
 				data-testid="show-all-tags-button"
-				aria-expanded={showAllTags()}
+				aria-expanded={showAllTags() ? 'true' : 'false'}
 				onClick={() => setShowAllTags((current) => !current)}
 			>
 				{showAllTags() ? 'Hide Extra Tags' : 'Show All Tags'}

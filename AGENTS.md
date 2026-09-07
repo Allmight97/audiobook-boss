@@ -40,7 +40,7 @@
 - External provider partial failure is handled at the owning command with explicit typed diagnostics; hard-fail when the selected contract cannot be satisfied.
 - No silent, hidden, or caller-side substitute behavior across IPC, metadata, path, or lifecycle boundaries.
 - Do not introduce new `any` escape paths across IPC or state boundaries; type safety at the runtime boundary is a contract concern, not style.
-- Treat this checkout as one Solid major: read `package.json` `solid-js` before changing Solid APIs or running `bun install`; install and typecheck only against this folder's lockfile; keep Solid 2 on `cursor/solid2-effect-spike-36fc` in a sibling worktree until formal adoption (`docs/DECISIONS.md` 2026-09-04).
+- Solid 2 is the frontend baseline. Read `package.json` before changing Solid APIs; install and typecheck against this checkout's lockfile. Keep historical Solid-major checkouts in separate folders because Git does not isolate `node_modules`. Prerelease update policy lives in `docs/DECISIONS.md`.
 
 ## Refactor Discipline
 

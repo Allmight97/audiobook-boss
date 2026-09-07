@@ -456,6 +456,10 @@ cd "$repo_root"
 export ABB_RUN_ID="$run_id"
 export ABB_ENCODING_LOG="$encoding_log"
 default_rust_log="audiobook_boss_lib=info,tauri=warn,wry=warn"
+# ABB_DEV_RUST_LOG replaces RUST_LOG for this session only. It does not change
+# the default. Examples:
+#   ABB_DEV_RUST_LOG='audiobook_boss_lib=debug,tauri=warn,wry=warn' bun run app:dev:log
+#   ABB_DEV_RUST_LOG='audiobook_boss_lib::audio=debug,audiobook_boss_lib=info,tauri=warn,wry=warn' bun run app:dev:log
 if [[ -n "${ABB_DEV_RUST_LOG:-}" ]]; then
 	export RUST_LOG="$ABB_DEV_RUST_LOG"
 	rust_log_source="ABB_DEV_RUST_LOG"

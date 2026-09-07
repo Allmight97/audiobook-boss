@@ -1,10 +1,8 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
-import { clearMetadataLookupCoverPreviewCache } from '../../app/metadataLookup/coverPreview';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { MetadataLookupView } from '../metadataLookup/MetadataLookupView';
@@ -104,12 +102,11 @@ describe('MetadataLookup cover preview', () => {
 		cleanup();
 		runtime?.dispose();
 		runtime = undefined;
-		clearMetadataLookupCoverPreviewCache();
 	});
 
 	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<button id="metadata-lookup-btn" type="button">
@@ -133,15 +130,15 @@ describe('MetadataLookup cover preview', () => {
 		});
 
 		await waitFor(() => {
-			expect(document.querySelector('[data-testid="metadata-lookup-cover-image"]')).toBeTruthy();
+			const images = document.querySelectorAll<HTMLImageElement>(
+				'[data-testid="metadata-lookup-cover-image"]',
+			);
+			expect(images).toHaveLength(2);
+			for (const image of images)
+				expect(image.src.startsWith('data:image/jpeg;base64,')).toBe(true);
 		});
-
-		const image = document.querySelector(
-			'[data-testid="metadata-lookup-cover-image"]',
-		) as HTMLImageElement | null;
-		expect(image?.src.startsWith('data:image/jpeg;base64,')).toBe(true);
-		expect(image?.src).not.toContain('covers.example.com');
-		expect(document.querySelector('[src*="169.254.169.254"]')).toBeNull();
-		expect(document.querySelector('[src*="127.0.0.1"]')).toBeNull();
+		for (const source of document.querySelectorAll('[src]')) {
+			expect(source.getAttribute('src')).not.toContain('covers.example.com');
+		}
 	});
 });

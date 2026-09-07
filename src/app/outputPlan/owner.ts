@@ -1,5 +1,4 @@
 import {
-	batch,
 	createEffect,
 	createMemo,
 	createSignal,
@@ -10,36 +9,48 @@ import {
 import type { OutputDefaults } from '../../types/appSettings';
 import type {
 	CollisionPolicy,
-	EncodingRequestConfig,
 	OutputNamingConfig,
 	OutputRequestConfig,
 	ProcessingPreflightPlan,
 } from '../../types/audio';
 import { persistOutputDefaults } from '../../ui/appSettings';
-import { Effect, runAppEffect } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
+import type { EncodingOwner } from '../encoding';
 import type { InputOwner } from '../inputSession';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 import { createCollisionReview, type CollisionView } from './collision';
 import { formatEstimatedSizeText } from './estimate';
-import { bindOutputOwner, boundOutputOwner } from './bind';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import {
 	emptyOutputPlan,
 	namingHintText,
 	outputNamingFromPlan,
 	EMPTY_PREVIEW_TEXT,
+	EMPTY_PREVIEW_TITLE,
 	type OutputPlanState,
 	type OutputView,
 } from './types';
 import {
-	makeOutputPlanWorkflowServicesLayer,
-	outputPathPreviewBody,
+	computeOutputPathPreview,
 	showOutputError,
 	updateMetadataIntentWarnings as applyMetadataIntentWarnings,
+	type OutputPathPreviewResult,
 } from './workflow';
 
 const TEMPLATE_PREVIEW_DEBOUNCE_MS = 150;
+
+const EMPTY_PREVIEW_RESULT: OutputPathPreviewResult = {
+	ok: true,
+	text: EMPTY_PREVIEW_TEXT,
+	title: EMPTY_PREVIEW_TITLE,
+};
+
+type PreviewPlanBag = {
+	outputDirectory: string;
+	namingPreset: OutputPlanState['namingPreset'];
+	previewTemplate: string;
+	absIncludeYear: boolean;
+};
 
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
@@ -61,41 +72,67 @@ export type OutputPlanOwner = {
 export type OutputOwnerDeps = {
 	readonly input: InputOwner;
 	readonly metadataView: Accessor<MetadataView>;
-	readonly encodingRequest: Accessor<EncodingRequestConfig>;
-	readonly encodingEstimateKbps: Accessor<number>;
+	readonly encoding: Pick<EncodingOwner, 'request' | 'estimateKbps'>;
 	readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 };
 
 export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	const empty = emptyOutputPlan();
-	const [outputDirectory, setOutputDirectory] = createSignal(empty.outputDirectory);
-	const [namingPreset, setNamingPreset] = createSignal(empty.namingPreset);
-	const [namingTemplate, setNamingTemplate] = createSignal(empty.namingTemplate);
-	const [previewTemplate, setPreviewTemplate] = createSignal(empty.previewTemplate);
-	const [absIncludeYear, setAbsIncludeYearSignal] = createSignal(empty.absIncludeYear);
+	let previewPlan: PreviewPlanBag = {
+		outputDirectory: empty.outputDirectory,
+		namingPreset: empty.namingPreset,
+		previewTemplate: empty.previewTemplate,
+		absIncludeYear: empty.absIncludeYear,
+	};
+	let namingTemplate = empty.namingTemplate;
+	const [previewRev, bumpPreview] = createSignal(0, { ownedWrite: true });
+	const [formRev, bumpForm] = createSignal(0, { ownedWrite: true });
 	const [previewText, setPreviewText] = createSignal(empty.previewText);
 	const [previewTitle, setPreviewTitle] = createSignal(empty.previewTitle);
-	let latestPreviewRequestId = empty.latestPreviewRequestId;
 	let templatePreviewTimer: ReturnType<typeof setTimeout> | null = null;
 	const collisionReview = createCollisionReview();
 
+	function commitPreviewPlan(next: PreviewPlanBag): void {
+		previewPlan = next;
+		bumpPreview((n) => n + 1);
+	}
+
+	function commitLiveTemplate(next: string): void {
+		namingTemplate = next;
+		bumpForm((n) => n + 1);
+	}
+
+	function namingFields(): OutputPlanState {
+		return {
+			outputDirectory: previewPlan.outputDirectory,
+			namingPreset: previewPlan.namingPreset,
+			namingTemplate,
+			previewTemplate: previewPlan.previewTemplate,
+			absIncludeYear: previewPlan.absIncludeYear,
+			previewText: EMPTY_PREVIEW_TEXT,
+			previewTitle: EMPTY_PREVIEW_TITLE,
+		};
+	}
+
 	const estimatedSizeText = createMemo(() => {
 		const input = deps.input.view();
-		const request = deps.encodingRequest();
+		const request = deps.encoding.request();
 		return formatEstimatedSizeText(input.hasFiles, input.totalDurationSeconds, {
-			bitrateKbps: deps.encodingEstimateKbps(),
+			bitrateKbps: deps.encoding.estimateKbps(),
 			channels: request.encoderSettings.channels,
 		});
 	});
 
-	const view = createMemo((): OutputView => {
-		const directory = outputDirectory();
-		const preset = namingPreset();
-		const year = absIncludeYear();
+	const view: Accessor<OutputView> = () => {
+		formRev();
+		previewRev();
+		const directory = previewPlan.outputDirectory;
+		const preset = previewPlan.namingPreset;
+		const year = previewPlan.absIncludeYear;
 		return {
 			outputDirectory: directory,
 			namingPreset: preset,
-			namingTemplate: namingTemplate(),
+			namingTemplate,
 			absIncludeYear: year,
 			previewText: previewText(),
 			previewTitle: previewTitle(),
@@ -105,31 +142,24 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			displayDirectory: directory || EMPTY_PREVIEW_TEXT,
 			estimatedSizeText: estimatedSizeText(),
 		};
-	});
+	};
 
-	function plan(): OutputPlanState {
-		return {
-			outputDirectory: outputDirectory(),
-			namingPreset: namingPreset(),
-			namingTemplate: namingTemplate(),
-			previewTemplate: previewTemplate(),
-			absIncludeYear: absIncludeYear(),
-			previewText: previewText(),
-			previewTitle: previewTitle(),
-			latestPreviewRequestId,
-		};
-	}
-
-	function persistPlan(): void {
+	function persistPlan(overrides: Partial<PreviewPlanBag> = {}): void {
+		const next = { ...previewPlan, ...overrides };
 		void persistOutputDefaults({
-			outputDirectory: outputDirectory() || undefined,
-			outputNaming: outputNamingFromPlan(plan()),
+			outputDirectory: next.outputDirectory || undefined,
+			outputNaming: outputNamingFromPlan({
+				...namingFields(),
+				...next,
+			}),
 		});
 	}
 
 	function outputNamingForSubmit(): OutputNamingConfig {
-		const state = plan();
-		return outputNamingFromPlan({ ...state, previewTemplate: state.namingTemplate });
+		return outputNamingFromPlan({
+			...namingFields(),
+			previewTemplate: namingTemplate,
+		});
 	}
 
 	function clearTemplatePreviewTimer(): void {
@@ -143,7 +173,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		clearTemplatePreviewTimer();
 		templatePreviewTimer = setTimeout(() => {
 			templatePreviewTimer = null;
-			setPreviewTemplate(namingTemplate());
+			commitPreviewPlan({ ...previewPlan, previewTemplate: namingTemplate });
 			persistPlan();
 		}, TEMPLATE_PREVIEW_DEBOUNCE_MS);
 	}
@@ -164,18 +194,16 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		].join('\0');
 	});
 
-	createEffect(() => {
-		const directory = outputDirectory();
-		const preset = namingPreset();
-		const year = absIncludeYear();
-		const committed = previewTemplate();
+	const previewContext = createMemo(() => {
+		previewRev();
+		const directory = previewPlan.outputDirectory;
+		const preset = previewPlan.namingPreset;
+		const year = previewPlan.absIncludeYear;
+		const committed = previewPlan.previewTemplate;
 		const input = deps.input.view();
 		metadataDraftKey();
 		const metadata = untrack(() => deps.metadataView());
-		const requestId = latestPreviewRequestId + 1;
-		latestPreviewRequestId = requestId;
-
-		const context = {
+		return {
 			outputDirectory: directory,
 			sourcePath: sourcePathFromInput(input),
 			outputNaming: outputNamingFromPlan({
@@ -187,27 +215,36 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			}),
 			metadataDraft: previewDraftFromMetadataView(metadata),
 		};
-
-		const layer = makeOutputPlanWorkflowServicesLayer({
-			updateMetadataIntentWarnings: (draft) =>
-				applyMetadataIntentWarnings(draft, deps.onMetadataValidation),
-			beginOutputPreviewRequest: () => requestId,
-			isLatestOutputPreviewRequest: (id) => id === latestPreviewRequestId,
-			setOutputPreview: (text, title = text) => {
-				setPreviewText(text);
-				setPreviewTitle(title);
-			},
-			showOutputError,
-			previewOutputPath: tauriClient.previewOutputPath,
-			preflightProcessingPlan: tauriClient.preflightProcessingPlan,
-			openCollisionDialog: () => Promise.resolve(null),
-			console,
-		});
-
-		void runAppEffect(
-			outputPathPreviewBody('final', context, requestId).pipe(Effect.provide(layer)),
-		);
 	});
+
+	const previewQuery = createMemo(
+		async () => {
+			const context = previewContext();
+			return computeOutputPathPreview('final', context, tauriClient.previewOutputPath);
+		},
+		{ loadingValue: EMPTY_PREVIEW_RESULT },
+	);
+
+	createEffect(
+		() => previewQuery(),
+		(preview) => {
+			setPreviewText(preview.text);
+			setPreviewTitle(preview.title);
+			if (!preview.ok) {
+				showOutputError(`Rust preview failed: ${String(preview.cause)}`);
+			}
+		},
+	);
+
+	createEffect(
+		() => previewContext().metadataDraft,
+		(draft) => {
+			void applyMetadataIntentWarnings(draft, deps.onMetadataValidation).catch((error) => {
+				console.error('Metadata preview validation failed:', error);
+				showOutputError('Failed to validate metadata preview.');
+			});
+		},
+	);
 
 	const owner: OutputPlanOwner = {
 		view,
@@ -215,16 +252,13 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		collision: collisionReview.view,
 		applyDefaults(defaults) {
 			clearTemplatePreviewTimer();
-			const directory = defaults.outputDirectory ?? '';
-			const preset = defaults.outputNaming.preset;
 			const template = defaults.outputNaming.customTemplate ?? '';
-			const year = defaults.outputNaming.includeYear;
-			batch(() => {
-				setOutputDirectory(directory);
-				setNamingPreset(preset);
-				setNamingTemplate(template);
-				setPreviewTemplate(template);
-				setAbsIncludeYearSignal(year);
+			commitLiveTemplate(template);
+			commitPreviewPlan({
+				outputDirectory: defaults.outputDirectory ?? '',
+				namingPreset: defaults.outputNaming.preset,
+				previewTemplate: template,
+				absIncludeYear: defaults.outputNaming.includeYear,
 			});
 		},
 		async browseDirectory() {
@@ -236,8 +270,8 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 					return;
 				}
 				clearTemplatePreviewTimer();
-				setOutputDirectory(selectedPath);
-				persistPlan();
+				commitPreviewPlan({ ...previewPlan, outputDirectory: selectedPath });
+				persistPlan({ outputDirectory: selectedPath });
 			} catch (cause) {
 				console.error('Error selecting directory:', cause);
 				showOutputError('Failed to select directory');
@@ -245,16 +279,17 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		},
 		selectNamingPreset(value) {
 			clearTemplatePreviewTimer();
-			setNamingPreset(value === 'customTemplate' ? 'customTemplate' : 'absDefault');
-			persistPlan();
+			const preset = value === 'customTemplate' ? 'customTemplate' : 'absDefault';
+			commitPreviewPlan({ ...previewPlan, namingPreset: preset });
+			persistPlan({ namingPreset: preset });
 		},
 		setAbsIncludeYear(value) {
 			clearTemplatePreviewTimer();
-			setAbsIncludeYearSignal(value);
-			persistPlan();
+			commitPreviewPlan({ ...previewPlan, absIncludeYear: value });
+			persistPlan({ absIncludeYear: value });
 		},
 		editNamingTemplate(value) {
-			setNamingTemplate(value);
+			commitLiveTemplate(value);
 			scheduleCommittedTemplate();
 		},
 		openCollisionReview(plan) {
@@ -267,7 +302,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			collisionReview.cancel();
 		},
 		readRequestConfig() {
-			const directory = outputDirectory();
+			const directory = previewPlan.outputDirectory;
 			if (!directory) {
 				throw new Error('Output directory not selected');
 			}
@@ -278,7 +313,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		},
 		readDefaults() {
 			return {
-				outputDirectory: outputDirectory() || undefined,
+				outputDirectory: previewPlan.outputDirectory || undefined,
 				outputNaming: outputNamingForSubmit(),
 			};
 		},
@@ -286,26 +321,20 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			collisionReview.reset();
 			clearTemplatePreviewTimer();
 			const next = emptyOutputPlan();
-			latestPreviewRequestId = next.latestPreviewRequestId;
-			batch(() => {
-				setOutputDirectory(next.outputDirectory);
-				setNamingPreset(next.namingPreset);
-				setNamingTemplate(next.namingTemplate);
-				setPreviewTemplate(next.previewTemplate);
-				setAbsIncludeYearSignal(next.absIncludeYear);
-				setPreviewText(next.previewText);
-				setPreviewTitle(next.previewTitle);
+			commitLiveTemplate(next.namingTemplate);
+			commitPreviewPlan({
+				outputDirectory: next.outputDirectory,
+				namingPreset: next.namingPreset,
+				previewTemplate: next.previewTemplate,
+				absIncludeYear: next.absIncludeYear,
 			});
+			setPreviewText(next.previewText);
+			setPreviewTitle(next.previewTitle);
 		},
 	};
 
-	bindOutputOwner(owner);
 	onCleanup(() => {
-		latestPreviewRequestId += 1;
 		clearTemplatePreviewTimer();
-		if (boundOutputOwner() === owner) {
-			bindOutputOwner(undefined);
-		}
 	});
 
 	return owner;

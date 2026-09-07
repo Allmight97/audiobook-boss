@@ -20,25 +20,17 @@ import {
 import type { tauriClient } from '../../lib/tauri/client';
 import type { FileListInfo, JobType } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
-import type {
-	cacheMetadataForFile,
-	collectActionableMetadataIntent,
-	getMetadataForFile,
-	stageMetadataIntentPatch,
-} from '../metadataSession';
+import type { MetadataStageResult } from '../metadataSession';
 import type { runOutputPlanReviewWorkflow } from '../outputPlan';
+import type { RemoteSourceOwner } from '../remoteSource';
 import {
-	buildMetadataIntentByPath,
 	buildProcessPayload,
-	ensureBatchMetadataLoaded,
 	reviewOutputPlan,
 	stagePendingMetadataIntent,
 	validInputIds,
 	validInputFilePaths,
 } from './workflowPreparation';
-import type { RemoteSourceOwner } from '../remoteSource';
 import type { openGeneratedPreviewIfSingle } from './preview';
-import type { readProcessingRequestConfig } from './config';
 import type { ProcessingStatus } from './state';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -50,25 +42,26 @@ export interface ProcessingWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
 	getSelectedFileIndex: () => number;
 	getSelectedFileIndices: () => Set<number>;
-	readProcessingRequestConfig: typeof readProcessingRequestConfig;
+	readProcessingRequestConfig: () => ProcessingRequestConfig;
 	getJobType: () => JobType;
 	hasDirtyMetadataFields: () => boolean;
 	readMetadataForm: (options?: {
 		mode?: 'single' | 'multi';
 		onlyDirty?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	collectActionableMetadataIntent: typeof collectActionableMetadataIntent;
-	getMetadataForFile: typeof getMetadataForFile;
-	cacheMetadataForFile: typeof cacheMetadataForFile;
-	stageMetadataIntentPatch: typeof stageMetadataIntentPatch;
+	stageIntent: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
+	intentsForProcess: (
+		filePaths: readonly string[],
+	) => Promise<Record<string, MetadataIntentPatch> | null>;
 	stageMetadataToSelection: (options?: { showStatus?: boolean }) => Promise<boolean>;
 	setJobControlsEnabled: (enabled: boolean) => void;
 	setFileOrderLocked: (locked: boolean) => void;
 	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
-	readAudioMetadata: typeof tauriClient.readAudioMetadata;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
-	runOutputPlanReviewWorkflow: typeof runOutputPlanReviewWorkflow;
+	runOutputPlanReviewWorkflow: (
+		request: Parameters<typeof runOutputPlanReviewWorkflow>[0],
+	) => ReturnType<typeof runOutputPlanReviewWorkflow>;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: StatusPanelFeedbackService;
 	console: Pick<Console, 'error' | 'log' | 'warn'>;
@@ -416,9 +409,14 @@ export function processingWorkflowProgram(
 			async () => chapterPlansForProcessing(fileList.files, jobType),
 			'Review CUE chapters before processing.',
 		);
-		yield* ensureBatchMetadataLoaded(services, processPayload, workflowPromise);
-
-		const metadataIntentByPath = buildMetadataIntentByPath(services, processPayload);
+		const intentPaths =
+			processPayload.jobType === 'merge'
+				? processPayload.inputFiles.slice(0, 1)
+				: processPayload.inputFiles;
+		const metadataIntentByPath = yield* workflowPromise(
+			() => services.intentsForProcess(intentPaths),
+			'Failed to load batch metadata.',
+		);
 		const reviewResult = yield* reviewOutputPlan(
 			services,
 			{
@@ -474,10 +472,8 @@ export function startProcessing(
 	},
 	layer?: ProcessingWorkflowLayer,
 ): Promise<void> {
-	return (async () => {
-		const workflowLayer = layer ?? (await import('./workflow.deps')).ProcessingWorkflowLive;
-		return runAppEffect(
-			processingWorkflowProgram(context, options).pipe(Effect.provide(workflowLayer)),
-		);
-	})();
+	if (!layer) {
+		return Promise.reject(new Error('Processing workflow requires its runtime owner layer.'));
+	}
+	return runAppEffect(processingWorkflowProgram(context, options).pipe(Effect.provide(layer)));
 }

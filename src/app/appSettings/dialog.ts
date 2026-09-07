@@ -3,8 +3,6 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import type { AppSettings, PinnedDefaults, StartupBehavior } from '../../types/appSettings';
 import type { EncoderAvailability } from '../../types/audio';
-import { setFdkAfterburner as applyFdkAfterburner } from '../../ui/encoderPanel';
-import { hydrateAppSettingsProduction } from './hydrate';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -50,21 +48,22 @@ export type SettingsDialog = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	setFdkAfterburner(enabled: boolean): void;
-	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
+	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
 
 export function createSettingsDialog(deps: {
 	readonly capability: () => SettingsCapability;
 }): SettingsDialog {
-	const [state, setState] = createSignal(createInitialState());
-	let afterSettingsReset: ((defaults: PinnedDefaults) => void) | undefined;
+	let dialog = createInitialState();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	let afterSettingsReset: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined;
 
 	function update(mutator: (draft: AppSettingsDialogState) => void): void {
-		const next = { ...state() };
+		const next = { ...dialog };
 		mutator(next);
-		setState(next);
+		dialog = next;
+		bump((n) => n + 1);
 	}
 
 	async function refreshEncoderAvailability(): Promise<void> {
@@ -105,7 +104,10 @@ export function createSettingsDialog(deps: {
 	}
 
 	return {
-		state,
+		state: () => {
+			rev();
+			return dialog;
+		},
 		async open() {
 			update((draft) => {
 				draft.isOpen = true;
@@ -151,7 +153,7 @@ export function createSettingsDialog(deps: {
 				draft.saveState = 'saving';
 				draft.saveError = '';
 			});
-			const draftPath = state().ffmpegPathDraft.trim();
+			const draftPath = dialog.ffmpegPathDraft.trim();
 			try {
 				const settings = await deps.capability().updateAppSettings({
 					toolchain: { externalFfmpegPath: draftPath.length > 0 ? draftPath : undefined },
@@ -218,11 +220,8 @@ export function createSettingsDialog(deps: {
 				draft.saveError = '';
 			});
 			try {
-				await deps.capability().resetAppSettings();
-				const defaults = await hydrateAppSettingsProduction();
-				if (defaults) {
-					afterSettingsReset?.(defaults);
-				}
+				const defaults = await deps.capability().resetAppSettings();
+				await afterSettingsReset?.(defaults);
 				update((draft) => {
 					draft.saveState = 'saved';
 				});
@@ -234,15 +233,13 @@ export function createSettingsDialog(deps: {
 			}
 			await reloadDialogData();
 		},
-		setFdkAfterburner(enabled) {
-			applyFdkAfterburner(enabled);
-		},
 		bindAfterReset(apply) {
 			afterSettingsReset = apply;
 		},
 		reset() {
 			afterSettingsReset = undefined;
-			setState(createInitialState());
+			dialog = createInitialState();
+			bump((n) => n + 1);
 		},
 	};
 }

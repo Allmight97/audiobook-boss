@@ -1,36 +1,39 @@
-import { boundProcessingSettings } from './bind';
 import { formatEtaRemaining, formatStatusDisplayText } from './formatting';
 import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
-import {
-	setStatusPanelConcurrencyText,
-	setStatusPanelIsProcessing,
-	setStatusPanelJobItems,
-	setStatusPanelProgressPercentage,
-	setStatusPanelStatusText,
-	setStatusPanelStepColor,
-	setStatusPanelStepText,
-} from './view';
+import type { StatusViewStore } from './view';
 import type { JobListItem } from './viewTypes';
 
-export function renderStatus(status: ProcessingStatus, isProcessing: boolean): void {
-	setStatusPanelProgressPercentage(status.percentage);
+export type ConcurrencyRead = {
+	readonly selection: string;
+	readonly effective: number | null;
+};
+
+export function renderStatus(
+	view: StatusViewStore,
+	status: ProcessingStatus,
+	isProcessing: boolean,
+): void {
+	view.setProgressPercentage(status.percentage);
 	const statusText =
 		status.stage === 'converting' && status.etaSeconds !== undefined
 			? `${formatStatusDisplayText(status.stage)} · ${formatEtaRemaining(status.etaSeconds)}`
 			: formatStatusDisplayText(status.stage);
-	setStatusPanelStatusText(statusText);
-	setStatusPanelStepText(`Current Step: ${status.message}`);
-	setStatusPanelStepColor('var(--text-primary)');
-	setStatusPanelIsProcessing(isProcessing);
+	view.setStatusText(statusText);
+	view.setStepText(`Current Step: ${status.message}`);
+	view.setStepColor('var(--text-primary)');
+	view.setIsProcessing(isProcessing);
 }
 
-export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
-	const concurrency = boundProcessingSettings()?.concurrency();
+export function renderConcurrencyStatus(
+	view: StatusViewStore,
+	concurrency: ConcurrencyRead | undefined,
+	aggregate?: AggregateProgress,
+): void {
 	const effective = concurrency?.effective ?? null;
 	const suffix = concurrency?.selection === 'auto' ? ' (Auto)' : '';
 
 	if (effective === null) {
-		setStatusPanelConcurrencyText('Max jobs: —');
+		view.setConcurrencyText('Max jobs: —');
 		return;
 	}
 
@@ -41,13 +44,13 @@ export function renderConcurrencyStatus(aggregate?: AggregateProgress): void {
 		const queuedSuffix = aggregate.queuedJobs > 0 ? ` • Queued ${aggregate.queuedJobs}` : '';
 		const completedSuffix =
 			aggregate.completedJobs > 0 ? ` • Completed ${aggregate.completedJobs}` : '';
-		setStatusPanelConcurrencyText(
+		view.setConcurrencyText(
 			`Running ${aggregate.activeJobs} / Max ${effective}${suffix}${queuedSuffix}${completedSuffix}`,
 		);
 		return;
 	}
 
-	setStatusPanelConcurrencyText(`Max jobs: ${effective}${suffix}`);
+	view.setConcurrencyText(`Max jobs: ${effective}${suffix}`);
 }
 
 function formatJobStatusText(
@@ -100,6 +103,7 @@ function buildRenderOrder(jobProgress: Map<string, JobProgress>, queueOrder: str
 }
 
 export function renderJobList(
+	view: StatusViewStore,
 	jobProgress: Map<string, JobProgress>,
 	queueOrder: string[],
 	onCancel: (id: string) => void,
@@ -144,5 +148,5 @@ export function renderJobList(
 		return acc;
 	}, []);
 
-	setStatusPanelJobItems(jobs);
+	view.setJobItems(jobs);
 }

@@ -15,16 +15,24 @@ export type WorkOperationsOwner = {
 	reset(): void;
 };
 
-export function createWorkOperationsOwner(deps: {
+export type WorkOperationsOwnerDeps = {
 	readonly remoteSource: Pick<RemoteSourceOwner, 'settleTerminalWork'>;
-}): WorkOperationsOwner {
-	const [view, setView] = createSignal(emptyWorkOperationsView());
-	const session = createWorkOperationsSession(setView, {
-		settleTerminalWork: (input) => deps.remoteSource.settleTerminalWork(input),
-	});
+};
+
+export function createWorkOperationsOwner(deps: WorkOperationsOwnerDeps): WorkOperationsOwner {
+	let snapshot = emptyWorkOperationsView();
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	function publish(next: WorkOperationsView): void {
+		snapshot = next;
+		bump((n) => n + 1);
+	}
+	const session = createWorkOperationsSession(publish, deps);
 
 	return {
-		view,
+		view: () => {
+			rev();
+			return snapshot;
+		},
 		initialize() {
 			return session.initialize();
 		},
@@ -36,7 +44,7 @@ export function createWorkOperationsOwner(deps: {
 		},
 		reset() {
 			session.dispose();
-			setView(emptyWorkOperationsView());
+			publish(emptyWorkOperationsView());
 		},
 	};
 }

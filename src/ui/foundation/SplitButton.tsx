@@ -1,4 +1,5 @@
-import { createSignal, onCleanup, onMount, splitProps, type JSX } from 'solid-js';
+import { createSignal, onSettled, omit } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 import { Button, type ButtonTone } from './Button';
 
 export type SplitButtonProps = {
@@ -16,14 +17,14 @@ export type SplitButtonProps = {
 export type SplitButtonOptionProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>;
 
 function Option(props: SplitButtonOptionProps): JSX.Element {
-	const [local, rest] = splitProps(props, ['class', 'type', 'children']);
+	const rest = omit(props, 'class', 'type', 'children');
 	return (
 		<button
 			{...rest}
-			type={local.type ?? 'button'}
-			class={`abb-split-option${local.class ? ` ${local.class}` : ''}`}
+			type={props.type ?? 'button'}
+			class={`abb-split-option${props.class ? ` ${props.class}` : ''}`}
 		>
-			{local.children}
+			{props.children}
 		</button>
 	);
 }
@@ -35,7 +36,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 	const tone = () => props.tone ?? 'primary';
 	const variant = () => props.variant ?? 'default';
 
-	onMount(() => {
+	onSettled(() => {
 		function handleWindowClick(event: MouseEvent): void {
 			if (!open()) return;
 			const target = event.target;
@@ -44,7 +45,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 			setOpen(false);
 		}
 		window.addEventListener('click', handleWindowClick);
-		onCleanup(() => window.removeEventListener('click', handleWindowClick));
+		return () => window.removeEventListener('click', handleWindowClick);
 	});
 
 	function close(): void {
@@ -68,7 +69,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 				id={props.caretId}
 				tone={tone()}
 				class="abb-split-caret"
-				aria-expanded={open()}
+				aria-expanded={open() ? 'true' : 'false'}
 				ref={toggle}
 				onClick={(event) => {
 					event.stopPropagation();

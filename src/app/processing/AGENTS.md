@@ -9,22 +9,25 @@
 
 ## Public API Strip
 
-- Import processing runtime symbols from `src/app/processing`.
+- Import `createProcessingOwner` and owner types from `src/app/processing`.
 - Workbench callers that only need the composed UI strip import
   `src/ui/statusPanel` instead.
 - `index.ts` is the export surface. Do not import `runtime.ts`, `workflow.ts`,
-  `view.ts`, `config.ts`, `domain/`, or `services/` from outside this owner.
-- `bindProcessing*`, `initStatusPanel`, the trigger functions, and the module
-  status view are compatibility rails. Do not add callers; new callers use
-  status and semantic start/cancel intents on their runtime's Processing owner.
+  `view.ts`, `workflow.deps.ts`, `domain/`, or `services/` from outside this
+  owner.
+- Keep the Effect fake layer private: workflow tests import
+  `makeProcessingWorkflowServicesLayer` from `workflow.ts`. Do not re-export
+  bind slots, `initStatusPanel`, `getStatusView`, or
+  `readProcessingRequestConfig`.
 
 ## Hard Invariants
 
 - Compose submit config inside the runtime Processing owner from injected
-  Encoding Configuration and Output owners. Current
-  `readProcessingRequestConfig()` / `readOutputRequestConfig()` globals are
-  migration getters, not poke APIs or a target dependency seam. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`.
+  Encoding Configuration and Output owners (`encoding.request()` +
+  `output.readRequestConfig()`). Collision review calls
+  `runOutputPlanReviewWorkflow(request, output)` with that same owner.
+  Do not restore `updateOutputPath`, `updateEstimatedSize`, or a
+  process-wide encoding/output getter.
 - File-list and job-type truth come from Input. Concurrency enable/disable uses
   Settings. Metadata staging uses the Metadata public strip. Do not read
   leftover file-list or job-control stores.
@@ -42,14 +45,23 @@
   precedence from per-job rows.
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.
   Submit goes through Processing `start`.
+- Supplemental payload assets come from the injected Remote Source owner.
+  Background submission runs inside its `withSubmissionRetention` operation;
+  Processing must not reproduce retain/release/purge ordering.
+- Each Processing owner instance owns its status view store and
+  `StatusPanelRuntime`. Two live App Runtimes isolate preview status.
+  Disposing A cannot publish into B.
 
 ## Testing
 
 - Workflow tests inject `makeProcessingWorkflowServicesLayer`; they do not mock
   leftover file-list or job-control modules.
-- `remote-source-boundary.test.ts` pins the Remote public strip this owner
-  consumes. Do not import private Remote session or acquisition files here.
+- `remote-source-boundary.test.ts` pins the visual Remote UI strip and proves
+  production Processing does not import UI or private Remote implementation
+  files.
+- `runtime-api-contract.test.ts` pins this owner's public export strip.
 - Status UI strip is pinned by `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`.
+- Two-runtime preview-status isolation lives in `src/app/runtime/runtime.test.ts`.
 
 ## Boundary Changes
 
@@ -58,6 +70,7 @@
   build a process payload.
 - Converting Status Panel into a WorkRuntime consumer without a documented
   architecture decision.
+- Restoring `bindProcessing*` or a module-global status publisher.
 
 - Input's `chapterPlansForProcessing` owns confirmation/Ignore gating. Processing
   includes the returned plans in the immutable submission; runtime validates

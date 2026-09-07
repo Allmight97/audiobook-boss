@@ -3,9 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import { FileImportView } from './FileImportView';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -68,7 +67,7 @@ describe('FileImportView import split button', () => {
 	});
 
 	it('opens the default acquisition lane from settings on main click', async () => {
-		runtime = createTestAppRuntime({
+		runtime = createAppRuntime({
 			settings: fakeSettings({ defaultAcquisitionLane: 'indexer' }),
 		});
 		await runtime.settings.hydrateAcquisitionPreferences();
@@ -85,7 +84,7 @@ describe('FileImportView import split button', () => {
 	});
 
 	it('opens Audible from the caret when default lane is Indexer', async () => {
-		runtime = createTestAppRuntime({
+		runtime = createAppRuntime({
 			settings: fakeSettings({ defaultAcquisitionLane: 'indexer' }),
 		});
 		await runtime.settings.hydrateAcquisitionPreferences();

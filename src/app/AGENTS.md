@@ -44,9 +44,9 @@ dispatch intent; they do not keep parallel business state.
 
 ## Workflow And Failure Shape
 
-- Use the AppEffect kernel for multi-boundary async work, typed failure,
-  cancellation/lifetime handoff, or injected external dependencies. Read
-  `src/lib/effect/AGENTS.md` before changing that shape.
+- Choose AppEffect when its typed failure, dependency composition, or scoped
+  work reduces coordination; direct capability workflows may use plain async.
+  Read `src/lib/effect/AGENTS.md` before changing that shape.
 - Keep Effect programs and live layers private to the workflow owner. Public
   owner entrypoints return Promise or synchronous domain outcomes.
 - Runtime calls route through `tauriClient`. Normalize user-facing errors and

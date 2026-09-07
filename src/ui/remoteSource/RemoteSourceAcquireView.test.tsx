@@ -1,9 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import { tauriClient } from '../../lib/tauri/client';
 import type {
 	AcquisitionJob,
@@ -134,7 +133,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 	});
 
 	it('routes Escape through the same close callback the Close button uses without cancelling acquisition', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<button type="button" id="acquire-invoker">
@@ -161,7 +160,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			.mockResolvedValueOnce(acquisitionJob(40))
 			.mockImplementationOnce(() => terminalStatus.promise);
 
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -185,7 +184,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 	});
 
 	it('exposes Audible controls and filters connected library titles', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -216,7 +215,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			message: 'Configure Indexer URL and API key in Settings before searching.',
 		});
 
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -241,7 +240,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 	});
 
 	it('shows indexer search controls when the lane is connected', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -256,7 +255,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 	});
 
 	it('searches indexer releases when Enter is pressed in the author or title field', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const runAction = vi.spyOn(runtime.remoteSource, 'runAction');
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -276,7 +275,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 	});
 
 	it('paints protocol, category, and indexer as release tags', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -321,7 +320,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			message: 'Queued externally.',
 			diagnostics: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />
@@ -373,7 +372,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			message: 'Indexer could not grab this release.',
 			diagnostics: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<RemoteSourceAcquireView />

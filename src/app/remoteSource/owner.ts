@@ -97,9 +97,9 @@ export type RemoteSourceOwnerDeps = {
 
 export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
 	let snapshot = createInitialRemoteSourceState();
-	const [viewRev, bumpView] = createSignal(0);
-	const [assetRev, bumpAssets] = createSignal(0);
-	const [previewRev, bumpPreviews] = createSignal(0);
+	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
+	const [assetRev, bumpAssets] = createSignal(0, { ownedWrite: true });
+	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
 	const state = createRemoteSourceStateStore(() => {
 		snapshot = state.snapshot();
 		bumpView((revision) => revision + 1);

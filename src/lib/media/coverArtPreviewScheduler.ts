@@ -27,7 +27,6 @@ export type CoverArtPreviewScheduler = {
 		loadCoverArtFromUrl: CoverArtPreviewLoader,
 	) => void;
 	loadBytes: (coverUrl: string, loadCoverArtFromUrl: CoverArtPreviewLoader) => Promise<number[]>;
-	fetch: (coverUrl: string, loadCoverArtFromUrl: CoverArtPreviewLoader) => Promise<void>;
 };
 
 export function createCoverArtPreviewScheduler(
@@ -130,13 +129,6 @@ export function createCoverArtPreviewScheduler(
 				true,
 			),
 		);
-	}
-
-	async function fetch(
-		coverUrl: string,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
-	): Promise<void> {
-		await loadBytes(coverUrl, loadCoverArtFromUrl);
 	}
 
 	function uniqueCoverUrls(coverUrls: ReadonlyArray<string | null | undefined>): string[] {
@@ -278,6 +270,5 @@ export function createCoverArtPreviewScheduler(
 		getCachedBytes,
 		schedule,
 		loadBytes,
-		fetch,
 	};
 }

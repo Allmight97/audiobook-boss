@@ -13,20 +13,16 @@
   `createOutputOwner` is the Solid plan factory.
 - Workbench callers that only need the composed UI strip import
   `src/ui/outputPanel` instead.
-- `index.ts` is the export surface. Do not import `owner.ts`, `bind.ts`,
+- `index.ts` is the export surface. Do not import `owner.ts`,
   `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside this owner.
-- `applyOutputDefaultsFromSettings`, `readOutputDefaultsFromState`, and
-  `readOutputRequestConfig` still resolve the last bound owner. They are
-  compatibility exports: do not add callers. New callers use the Output owner
-  held by App Runtime.
 
 ## Hard Invariants
 
 - Estimated size is a derived view of public Input duration
-  (`input.view().totalDurationSeconds`), encoder `encodingRequest` channels,
-  and `encodingEstimateKbps`. Do not read private Input/encoder state, sample
-  `readEncodingRequestConfig()`, parse the encoder `Est: ~60 kbps` label, or
-  cache a mirrored byte size.
+  (`input.view().totalDurationSeconds`), Encoding owner `request` channels,
+  and `estimateKbps`. Do not read private Input/encoder state, sample a UI
+  encoder getter, parse the encoder `Est: ~60 kbps` label, or cache a mirrored
+  byte size.
 - `estimate.ts` and `estimate.test.ts` own the byte formula and empty-session
   placeholder. On FDK VBR, use injected `encodingEstimateKbps`, not the sticky
   request `encoderSettings.bitrateKbps`. The encoder header owns presentation.
@@ -45,13 +41,11 @@
   path-preview freshness.
 - App Settings hydration passes resolved `outputDefaults` to the runtime's
   Output owner.
-- Submit composition reads the runtime's Output owner. The current
-  `readOutputRequestConfig()` / `readProcessingRequestConfig()` compatibility
-  getters use the live naming box
-  (`namingTemplate`), not the 150 ms committed `previewTemplate`. Preview stays
-  on the committed copy. They are getters, not poke APIs. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`, or preserve the last-bound lookup
-  through a new alias.
+- Processing submit and collision review use the injected Output owner
+  (`readRequestConfig`, `openCollisionReview`). `readRequestConfig()` uses the
+  live naming box (`namingTemplate`), not the 150 ms committed
+  `previewTemplate`. Preview stays on the committed copy. Do not restore
+  `updateOutputPath` or `updateEstimatedSize`, or a last-writer owner lookup.
 
 ## Testing
 
@@ -63,6 +57,9 @@
   `runtime.input.replaceSession`.
 - `workflow.test.ts` pins stale preview suppression and review approve /
   cancel / hard-block.
+- `runtime-api-contract.test.ts` pins this owner's public export strip.
+- Two-runtime request and collision isolation lives in
+  `src/app/runtime/runtime.test.ts`.
 
 ## Boundary Changes
 

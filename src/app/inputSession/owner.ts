@@ -1,6 +1,5 @@
-import { createMemo, createSignal, type Accessor } from 'solid-js';
+import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, ProcessPayload, JobType } from '../../types/audio';
-import { runAppEffect } from '../../lib/effect/appEffect';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import { toInputView } from './display';
 import { runImportIntent } from './importWorkflow';
@@ -56,14 +55,30 @@ export type InputOwnerDeps = {
 };
 
 export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
-	const [session, setSession] = createSignal(emptyInputSession());
-	const [jobType, setJobTypeSignal] = createSignal<JobType>('batch');
-	const [capability] = createSignal(deps.capability ?? liveInputCapability);
-	const view = createMemo(() => toInputView(session()));
+	let session = emptyInputSession();
+	let jobType: JobType = 'batch';
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	const capabilityValue = deps.capability ?? liveInputCapability;
+	const view: Accessor<InputView> = () => {
+		rev();
+		return toInputView(session);
+	};
+	const sessionView: Accessor<InputSessionState> = () => {
+		rev();
+		return session;
+	};
+	const jobTypeView: Accessor<JobType> = () => {
+		rev();
+		return jobType;
+	};
+	const capability: Accessor<InputCapability> = () => capabilityValue;
 	let selectionTransitionTicket = 0;
+	let importQueue: Promise<void> = Promise.resolve();
+	let importEpoch = 0;
 
 	function commit(next: InputSessionState): void {
-		setSession(next);
+		session = next;
+		bump((n) => n + 1);
 	}
 
 	function beginSelectionTransition(): number {
@@ -76,12 +91,12 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 
 	return {
 		view,
-		session,
-		jobType,
+		session: sessionView,
+		jobType: jobTypeView,
 		capability,
 		chooseCue(inputId, choice) {
-			if (session().orderLocked) return;
-			const current = session();
+			if (session.orderLocked) return;
+			const current = session;
 			if (!current.fileList) return;
 			const files = current.fileList.files.map((file) => {
 				if (file.inputId !== inputId || !file.cueSource) return file;
@@ -102,15 +117,29 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			commit({ ...current, fileList: { ...current.fileList, files } });
 		},
 		async importIntent(intent) {
-			const next = await runAppEffect(runImportIntent(capability(), session(), intent));
-			commit({ ...next, orderLocked: session().orderLocked });
+			const epoch = importEpoch;
+			const run = importQueue.then(async () => {
+				if (epoch !== importEpoch) {
+					return;
+				}
+				const applyImport = await runImportIntent(capabilityValue, session, intent);
+				if (epoch !== importEpoch) {
+					return;
+				}
+				commit(applyImport(session));
+			});
+			importQueue = run.then(
+				() => undefined,
+				() => undefined,
+			);
+			await run;
 		},
 		async hydrateSupportText() {
 			try {
-				const metadata = await capability().getSupportedAudioImportMetadata();
+				const metadata = await capabilityValue.getSupportedAudioImportMetadata();
 				commit({
-					...session(),
-					supportText: metadata.supportText || session().supportText,
+					...session,
+					supportText: metadata.supportText || session.supportText,
 				});
 			} catch {}
 		},
@@ -125,7 +154,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (!isLatestSelectionTransition(ticket)) {
 				return false;
 			}
-			commit(selectFileInSession(session(), command.index, command.modifiers));
+			commit(selectFileInSession(session, command.index, command.modifiers));
 			return true;
 		},
 		async selectAll() {
@@ -139,7 +168,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (!isLatestSelectionTransition(ticket)) {
 				return;
 			}
-			commit(selectAllInSession(session()));
+			commit(selectAllInSession(session));
 		},
 		async clearSelection() {
 			const ticket = beginSelectionTransition();
@@ -152,17 +181,16 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (!isLatestSelectionTransition(ticket)) {
 				return;
 			}
-			commit(clearSelectionInSession(session()));
+			commit(clearSelectionInSession(session));
 		},
 		setDragOver(isDragOver) {
-			const current = session();
-			if (current.isDragOver === isDragOver) {
+			if (session.isDragOver === isDragOver) {
 				return;
 			}
-			commit({ ...current, isDragOver });
+			commit({ ...session, isDragOver });
 		},
 		removeFile(index) {
-			commit(removeFileFromSession(session(), index).session);
+			commit(removeFileFromSession(session, index).session);
 		},
 		async clearAllFiles() {
 			const ticket = beginSelectionTransition();
@@ -175,32 +203,34 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (!isLatestSelectionTransition(ticket)) {
 				return;
 			}
-			commit(clearAllFilesFromSession(session()));
+			commit(clearAllFilesFromSession(session));
 		},
 		moveFile(command) {
-			commit(moveFileInSession(session(), command.index, command.direction));
+			commit(moveFileInSession(session, command.index, command.direction));
 		},
 		reorderFiles(command) {
-			commit(reorderFilesInSession(session(), command.fromIndex, command.toIndex));
+			commit(reorderFilesInSession(session, command.fromIndex, command.toIndex));
 		},
 		toggleSort() {
-			commit(sortFilesInSession(session()));
+			commit(sortFilesInSession(session));
 		},
 		restoreImportOrder() {
-			commit(restoreImportOrderInSession(session()));
+			commit(restoreImportOrderInSession(session));
 		},
 		setOrderLocked(orderLocked) {
-			commit(setOrderLockedInSession(session(), orderLocked));
+			commit(setOrderLockedInSession(session, orderLocked));
 		},
 		setJobType(next) {
-			setJobTypeSignal(next);
+			jobType = next;
+			bump((n) => n + 1);
 		},
 		replaceSession(next) {
 			commit(next);
 		},
 		reset() {
+			importEpoch += 1;
+			jobType = 'batch';
 			commit(emptyInputSession());
-			setJobTypeSignal('batch');
 		},
 	};
 }
