@@ -7,7 +7,7 @@ use base64::{
     },
     Engine as _,
 };
-use cbc::cipher::{block_padding::NoPadding, BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{block_padding::NoPadding, BlockModeDecrypt, KeyIvInit};
 use secrecy::SecretString;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -117,7 +117,7 @@ fn decrypt_license_response(
     let (key, iv) = hash.split_at(16);
     let plaintext = Aes128CbcDec::new_from_slices(key, iv)
         .ok()?
-        .decrypt_padded_mut::<NoPadding>(&mut ciphertext)
+        .decrypt_padded::<NoPadding>(&mut ciphertext)
         .ok()?;
     let json_bytes = plaintext
         .split(|byte| *byte == 0)
@@ -322,7 +322,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cbc::cipher::BlockEncryptMut;
+    use cbc::cipher::BlockModeEncrypt;
     use secrecy::ExposeSecret;
     use serde_json::json;
 
@@ -352,7 +352,7 @@ mod tests {
         let (key, iv) = hash.split_at(16);
         let ciphertext = Aes128CbcEnc::new_from_slices(key, iv)
             .expect("cipher")
-            .encrypt_padded_mut::<NoPadding>(&mut plaintext, padded_len)
+            .encrypt_padded::<NoPadding>(&mut plaintext, padded_len)
             .expect("encrypt");
         BASE64_STANDARD.encode(ciphertext)
     }

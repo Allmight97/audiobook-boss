@@ -4,6 +4,16 @@ use std::path::Path;
 
 const PDF_HEADER_BYTES: usize = 5;
 
+fn lower_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        encoded.push(DIGITS[(byte >> 4) as usize] as char);
+        encoded.push(DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    encoded
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaContainerKind {
@@ -131,7 +141,7 @@ impl SupplementalPdfIdentityBuilder {
     pub fn finalize(self) -> SupplementalPdfIdentity {
         SupplementalPdfIdentity {
             size_bytes: self.size_bytes,
-            sha256: format!("{:x}", self.hasher.finalize()),
+            sha256: lower_hex(&self.hasher.finalize()),
             has_pdf_magic: has_pdf_magic(&self.header[..self.header_len]),
         }
     }
@@ -142,7 +152,7 @@ impl SupplementalPdfIdentityBuilder {
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    format!("{:x}", hasher.finalize())
+    lower_hex(&hasher.finalize())
 }
 
 #[cfg(test)]

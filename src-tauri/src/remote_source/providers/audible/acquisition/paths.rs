@@ -8,6 +8,16 @@ use sha2::{Digest, Sha256};
 
 use crate::errors::Result;
 
+fn lower_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        encoded.push(DIGITS[(byte >> 4) as usize] as char);
+        encoded.push(DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    encoded
+}
+
 pub(in crate::remote_source::providers::audible) fn staged_protected_source_path(
     job_dir: &Path,
     strategy: AcquisitionStrategy,
@@ -47,5 +57,5 @@ pub(in crate::remote_source::providers::audible) fn sha256_file(path: &Path) -> 
         }
         hasher.update(&buffer[..bytes_read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(lower_hex(&hasher.finalize()))
 }

@@ -3,9 +3,9 @@
 ## AAXClean
 
 - Package: `AAXClean`
-- Version: `3.0.2`
+- Version: `3.1.0`
 - Source: <https://github.com/Mbucari/AAXClean>
-- NuGet: <https://www.nuget.org/packages/AAXClean/3.0.2>
+- NuGet: <https://www.nuget.org/packages/AAXClean/3.1.0>
 - License: GNU General Public License v3.0
 
 ABB distributes this helper as a separate bundled program invoked by
