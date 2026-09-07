@@ -20,11 +20,9 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
 
     metadata.title = tag.title().map(str::to_string);
     metadata.album = tag.album().map(str::to_string);
-    metadata.artist = tag
-        .artist()
-        .or_else(|| tag.album_artist())
-        .map(str::to_string);
-    metadata.composer = tag.composer().map(str::to_string);
+    metadata.artist =
+        join_contributors(tag.artists()).or_else(|| join_contributors(tag.album_artists()));
+    metadata.composer = join_contributors(tag.composers());
     metadata.genre = tag.genre().map(str::to_string);
     metadata.comment = tag.comment().map(str::to_string);
     metadata.description = tag.description().map(str::to_string);
@@ -45,6 +43,11 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     metadata.cover_art = tag.artwork().map(|img| img.data.to_vec());
 
     Ok(metadata)
+}
+
+fn join_contributors<'a>(values: impl Iterator<Item = &'a str>) -> Option<String> {
+    let values: Vec<_> = values.collect();
+    (!values.is_empty()).then(|| values.join(";"))
 }
 
 pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {

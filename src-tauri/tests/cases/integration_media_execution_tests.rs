@@ -92,6 +92,235 @@ fn assert_ffprobe_tag(
 
 const SAMPLE_RATE: u32 = 44_100;
 
+/// An encoder-sized zero pad must not become playable source audio.
+#[tokio::test]
+async fn native_aac_reprocessing_keeps_the_original_playable_sample_count() {
+    assert_reprocessing_sample_count(native_encoder_settings()).await;
+}
+
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn apple_aac_reprocessing_keeps_the_original_playable_sample_count() {
+    assert_reprocessing_sample_count(EncoderSettings {
+        encoder_type: EncoderType::AacAt,
+        bitrate_mode: BitrateMode::Cvbr,
+        ..native_encoder_settings()
+    })
+    .await;
+}
+
+async fn assert_reprocessing_sample_count(settings: EncoderSettings) {
+    let lane = MediaLane::with_fixtures(&[1.003]).with_encoder(settings.clone());
+    let expected = (1.003 * f64::from(SAMPLE_RATE)) as u64;
+    let mut output = lane.process(None).await;
+    let mut generations = Vec::new();
+    for generation in 0..3 {
+        let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
+        let probe = Command::new(binary)
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=duration_ts,time_base",
+                "-of",
+                "json",
+            ])
+            .arg(&output)
+            .output()
+            .expect("ffprobe sample duration");
+        assert!(probe.status.success());
+        let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+        let stream = &facts["streams"][0];
+        assert_eq!(stream["time_base"], "1/44100");
+        assert_eq!(
+            stream["duration_ts"].as_u64(),
+            Some(expected),
+            "generation {generation} added playable padding"
+        );
+        let samples = decode_pcm_f32(&output);
+        assert_eq!(
+            samples.len() as u64,
+            expected,
+            "generation {generation} decoded sample count"
+        );
+        let tail = &samples[samples.len() - 512..];
+        let rms = (tail
+            .iter()
+            .map(|value| f64::from(*value).powi(2))
+            .sum::<f64>()
+            / tail.len() as f64)
+            .sqrt();
+        assert!(
+            rms > 0.1,
+            "generation {generation} lost the audible tail: RMS {rms}"
+        );
+        if generation < 2 {
+            let next = MediaLane::for_inputs(vec![output]).with_encoder(settings.clone());
+            output = next.process(None).await;
+            generations.push(next);
+        }
+    }
+}
+
+fn decode_pcm_f32(path: &Path) -> Vec<f32> {
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let decoded = Command::new(binary)
+        .args(["-v", "error", "-xerror", "-i"])
+        .arg(path)
+        .args([
+            "-map",
+            "0:a:0",
+            "-f",
+            "f32le",
+            "-c:a",
+            "pcm_f32le",
+            "pipe:1",
+        ])
+        .output()
+        .expect("decode artifact PCM");
+    assert!(
+        decoded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&decoded.stderr)
+    );
+    decoded
+        .stdout
+        .chunks_exact(4)
+        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect()
+}
+
+#[tokio::test]
+async fn truncated_audio_fails_without_publishing_a_shortened_book() {
+    let lane = MediaLane::with_fixtures(&[2.0]);
+    let complete = lane.process(None).await;
+    let broken = lane.tmp.path().join("truncated.m4b");
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
+    let remux = Command::new(binary)
+        .args(["-v", "error", "-i"])
+        .arg(complete)
+        .args(["-map", "0:a:0", "-c:a", "copy", "-movflags", "+faststart"])
+        .arg(&broken)
+        .output()
+        .unwrap();
+    assert!(remux.status.success());
+    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
+    let probe = Command::new(binary)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_packets",
+            "-of",
+            "json",
+        ])
+        .arg(&broken)
+        .output()
+        .unwrap();
+    assert!(probe.status.success());
+    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+    let packet = &facts["packets"][30];
+    let end = packet["pos"].as_str().unwrap().parse::<u64>().unwrap()
+        + packet["size"].as_str().unwrap().parse::<u64>().unwrap();
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&broken)
+        .unwrap()
+        .set_len(end)
+        .unwrap();
+    let broken_lane = MediaLane::for_inputs(vec![broken]);
+    let info = get_file_list_info(&broken_lane.inputs).unwrap();
+    assert_eq!(
+        info.invalid_count, 1,
+        "declared packets extend past the end of this MP4"
+    );
+    assert!(info.files[0]
+        .error
+        .as_deref()
+        .unwrap()
+        .contains("incomplete or truncated"));
+    let request = AudioExecutionRequest::new(
+        broken_lane.context(ProcessingSession::new()),
+        info,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+    );
+    let result = execute_audio_engine(request).await;
+    assert!(
+        result.is_err(),
+        "truncated input was reported as successful: {result:?}"
+    );
+    assert!(!broken_lane.output_path().exists());
+    assert!(broken_lane.residual_workspace_dirs().is_empty());
+}
+
+#[tokio::test]
+async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() {
+    let lane = MediaLane::with_fixtures(&[0.3]);
+    let output = lane.process(None).await;
+    let mut tag = mp4ameta::Tag::read_from_path(&output).unwrap();
+    tag.set_artists(["First Author".to_string(), "Second Author".to_string()]);
+    tag.set_album_artists([
+        "First Album Author".to_string(),
+        "Second Album Author".to_string(),
+    ]);
+    tag.set_composers(["First Narrator".to_string(), "Second Narrator".to_string()]);
+    tag.write_to_path(&output).unwrap();
+
+    let metadata = read_metadata(&output).unwrap();
+    assert_eq!(
+        metadata.artist.as_deref(),
+        Some("First Author;Second Author")
+    );
+    assert_eq!(
+        metadata.composer.as_deref(),
+        Some("First Narrator;Second Narrator")
+    );
+    let imported = get_file_list_info(&[&output]).unwrap();
+    assert_eq!(imported.files[0].tag_artist, metadata.artist);
+
+    save_metadata_intent(
+        &output,
+        &MetadataIntentPatch {
+            title: PatchOp::Set("Retitled".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut tag = mp4ameta::Tag::read_from_path(&output).unwrap();
+    assert_eq!(
+        tag.artists().collect::<Vec<_>>(),
+        ["First Author", "Second Author"]
+    );
+    assert_eq!(
+        tag.album_artists().collect::<Vec<_>>(),
+        ["First Album Author", "Second Album Author"]
+    );
+    assert_eq!(
+        tag.composers().collect::<Vec<_>>(),
+        ["First Narrator", "Second Narrator"]
+    );
+
+    tag.remove_artists();
+    tag.write_to_path(&output).unwrap();
+    assert_eq!(
+        read_metadata(&output).unwrap().artist.as_deref(),
+        Some("First Album Author;Second Album Author")
+    );
+
+    let reprocess = MediaLane::for_inputs(vec![output]);
+    let finalized = reprocess.process(Some(metadata)).await;
+    let reread = read_metadata(&finalized).unwrap();
+    assert_eq!(reread.artist.as_deref(), Some("First Author;Second Author"));
+    assert_eq!(
+        reread.composer.as_deref(),
+        Some("First Narrator;Second Narrator")
+    );
+}
+
 /// Writes a mono 16-bit PCM WAV of `seconds` of sine at `freq_hz`.
 fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
@@ -216,7 +445,6 @@ impl MediaLane {
             file_info,
             metadata,
             CoverArtPassthroughPolicy::Preserve,
-            self.encoder_settings.clone(),
         )
     }
 
@@ -972,70 +1200,6 @@ fn write_stereo_sine_wav(path: &Path, seconds: f64, left_hz: f64, right_hz: f64)
     fs::write(path, bytes).expect("write stereo WAV fixture");
 }
 
-/// Decodes an artifact and returns per-channel RMS over the whole stream.
-/// Used to prove real, non-silent audio reaches every output channel.
-fn per_channel_rms(path: &Path) -> Vec<f64> {
-    use ffmpeg_next as ff;
-
-    ff::init().expect("ffmpeg init");
-    let mut ictx = ff::format::input(path).expect("open artifact for RMS probe");
-    let stream = ictx
-        .streams()
-        .best(ff::media::Type::Audio)
-        .expect("artifact has an audio stream");
-    let stream_index = stream.index();
-    let mut decoder = ff::codec::context::Context::from_parameters(stream.parameters())
-        .expect("decoder context from artifact params")
-        .decoder()
-        .audio()
-        .expect("open artifact audio decoder");
-
-    let channels = decoder.channels() as usize;
-    let mut sum_squares = vec![0f64; channels];
-    let mut sample_counts = vec![0u64; channels];
-    let drain = |decoder: &mut ff::codec::decoder::Audio,
-                 sum_squares: &mut Vec<f64>,
-                 sample_counts: &mut Vec<u64>| {
-        let mut frame = ff::frame::Audio::empty();
-        while decoder.receive_frame(&mut frame).is_ok() {
-            assert_eq!(
-                frame.format(),
-                ff::format::Sample::F32(ff::format::sample::Type::Planar),
-                "RMS probe expects planar f32 decoder output"
-            );
-            for ch in 0..channels.min(frame.planes()) {
-                let plane = frame.plane::<f32>(ch);
-                for &v in &plane[..frame.samples()] {
-                    sum_squares[ch] += f64::from(v) * f64::from(v);
-                }
-                sample_counts[ch] += frame.samples() as u64;
-            }
-        }
-    };
-
-    for (si, packet) in ictx.packets() {
-        if si.index() != stream_index {
-            continue;
-        }
-        decoder.send_packet(&packet).expect("send artifact packet");
-        drain(&mut decoder, &mut sum_squares, &mut sample_counts);
-    }
-    let _ = decoder.send_eof();
-    drain(&mut decoder, &mut sum_squares, &mut sample_counts);
-
-    sum_squares
-        .iter()
-        .zip(sample_counts.iter())
-        .map(|(sq, count)| {
-            if *count == 0 {
-                0.0
-            } else {
-                (sq / *count as f64).sqrt()
-            }
-        })
-        .collect()
-}
-
 /// Rate-converted merge: the resample path (44.1kHz WAV → 22.05kHz output)
 /// must keep truthful duration and the requested output rate. Guards the
 /// resampler + tail-flush boundary the same-rate lane never exercises.
@@ -1065,38 +1229,60 @@ async fn rate_converted_merge_keeps_truthful_duration_and_rate() {
     );
 }
 
-/// Stereo channel preservation: both output channels must carry real audio
-/// (RMS well above silence) after decode → resample → encode. Pins the
-/// "missing or silent output channels" trap from the audio directives.
 #[tokio::test]
-async fn stereo_merge_preserves_audio_in_both_channels() {
-    let lane = MediaLane::for_inputs(Vec::new());
-    let input = lane.tmp.path().join("stereo-fixture.wav");
-    write_stereo_sine_wav(&input, 1.5, 440.0, 660.0);
-    let lane = MediaLane {
-        inputs: vec![input],
-        ..lane
-    }
-    .with_encoder(EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: ChannelConfig::Stereo,
-        afterburner: false,
-    });
+async fn native_auto_merge_preserves_distinct_stereo_in_either_input_order() {
+    assert_auto_merge_stereo(native_encoder_settings()).await;
+}
 
-    let output = lane.process(None).await;
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn apple_auto_merge_preserves_distinct_stereo_in_either_input_order() {
+    assert_auto_merge_stereo(EncoderSettings {
+        encoder_type: EncoderType::AacAt,
+        bitrate_mode: BitrateMode::Cvbr,
+        ..native_encoder_settings()
+    })
+    .await;
+}
 
-    let probe = get_file_list_info(&[&output]).expect("re-probe stereo M4B");
-    assert_eq!(probe.files[0].channels, Some(2), "output stays stereo");
-
-    let rms = per_channel_rms(&output);
-    assert_eq!(rms.len(), 2, "RMS probe sees two channels");
-    for (ch, value) in rms.iter().enumerate() {
-        assert!(
-            *value > 0.05,
-            "channel {ch} RMS {value} indicates missing or silent audio (expected ~0.21 for a 0.3-amplitude sine)"
-        );
+async fn assert_auto_merge_stereo(settings: EncoderSettings) {
+    let fixtures = TempDir::new().expect("mixed channel fixtures");
+    let mono = fixtures.path().join("mono.wav");
+    let stereo = fixtures.path().join("stereo.wav");
+    write_sine_wav(&mono, 0.3, 220.0);
+    write_stereo_sine_wav(&stereo, 0.6, 440.0, 660.0);
+    for inputs in [
+        vec![mono.clone(), stereo.clone()],
+        vec![stereo.clone(), mono.clone()],
+    ] {
+        let lane = MediaLane::for_inputs(inputs).with_encoder(EncoderSettings {
+            channels: ChannelConfig::Auto,
+            ..settings.clone()
+        });
+        let output = lane.process(None).await;
+        let probe = get_file_list_info(&[&output]).expect("re-probe mixed-channel M4B");
+        assert_eq!(probe.files[0].channels, Some(2), "Auto preserves stereo");
+        let samples = decode_pcm_f32(&output);
+        let frames = samples.chunks_exact(2);
+        let count = frames.len() as f64;
+        let mut energy = [0.0_f64; 3];
+        for frame in frames {
+            let left = f64::from(frame[0]);
+            let right = f64::from(frame[1]);
+            energy[0] += left * left;
+            energy[1] += right * right;
+            energy[2] += (left - right).powi(2);
+        }
+        for (signal, energy) in ["left", "right", "left minus right"]
+            .into_iter()
+            .zip(energy)
+        {
+            let rms = (energy / count).sqrt();
+            assert!(
+                rms > 0.05,
+                "{signal} RMS {rms}: missing audio or collapsed stereo"
+            );
+        }
     }
 }
 

@@ -49,7 +49,6 @@ pub struct AudioExecutionRequest {
     file_info: FileListInfo,
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
-    encoder_settings: EncoderSettings,
 }
 
 impl AudioExecutionRequest {
@@ -58,14 +57,12 @@ impl AudioExecutionRequest {
         file_info: FileListInfo,
         metadata: Option<AudiobookMetadata>,
         cover_art_passthrough: CoverArtPassthroughPolicy,
-        encoder_settings: EncoderSettings,
     ) -> Self {
         Self {
             context,
             file_info,
             metadata,
             cover_art_passthrough,
-            encoder_settings,
         }
     }
 }
@@ -74,6 +71,7 @@ pub fn validate_audio_engine_inputs(
     encoder_settings: &EncoderSettings,
     file_info: &FileListInfo,
 ) -> Result<()> {
+    adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     adapter.validate_inputs(file_info)
 }
@@ -103,7 +101,15 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
         .collect()
 }
 
-pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<String> {
+pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
+    let requested_channels = request.context.encoder_settings.channels;
+    request.context.encoder_settings.channels =
+        adapter::resolve_output_channels(requested_channels, &request.file_info.files)?;
+    log::info!(
+        "audio output channels: requested={:?} resolved={:?}",
+        requested_channels,
+        request.context.encoder_settings.channels,
+    );
     for file in request.file_info.files.iter().filter(|file| file.is_valid) {
         if file.cue_source.as_ref().is_some_and(|cue| {
             matches!(
@@ -128,9 +134,9 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Stri
         selected_decoders,
         ..
     } = request.file_info;
-    let adapter = adapter::resolve_processor_adapter(&request.encoder_settings)?;
+    let adapter = adapter::resolve_processor_adapter(&request.context.encoder_settings)?;
     let adapter_label = match &adapter {
-        adapter::ResolvedProcessorAdapter::NativeFfmpegNext => "native_ffmpeg_next",
+        adapter::ResolvedProcessorAdapter::NativeFfmpegNext { .. } => "native_ffmpeg_next",
         adapter::ResolvedProcessorAdapter::ExternalFdk { .. } => "external_fdk",
     };
     let operation_id = request
@@ -145,7 +151,7 @@ pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<Stri
         .map_or_else(|| "none".to_string(), |index| index.to_string());
     log::info!(
         "audio engine adapter: operation_id={operation_id} job_id={job_id} input_index={input_index} kind={adapter_label} requested_encoder={:?}",
-        request.encoder_settings.encoder_type,
+        request.context.encoder_settings.encoder_type,
     );
     adapter
         .execute(

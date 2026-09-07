@@ -27,12 +27,10 @@ pub(crate) fn process_input_files(
     plan: &MediaProcessingPlan,
     context: &ProcessingContext,
     io: &mut InputProcessingContext<'_>,
-) -> Result<bool> {
+) -> Result<i64> {
     let mut running_pts: i64 = 0;
     let mut last_emit = std::time::Instant::now();
     let mut eta_estimator = crate::processing::progress::EtaEstimator::new();
-    let mut input_samples_total: u64 = 0;
-    let mut encoded_samples_total: u64 = 0;
     let mut preview_early_stop = false;
     let file_count = plan.input_file_paths.len();
     let mut preview_state_storage =
@@ -65,8 +63,6 @@ pub(crate) fn process_input_files(
         current_file_index: 0,
         current_stream_index: 0,
         current_file_name: String::new(),
-        input_samples_total: &mut input_samples_total,
-        encoded_samples_total: &mut encoded_samples_total,
         early_stop: &mut preview_early_stop,
         preview_state: preview_state_storage.as_mut(),
     };
@@ -135,5 +131,6 @@ pub(crate) fn process_input_files(
     }
 
     log::info!("✓ All input files processed successfully");
-    flush_accumulator_tail(io.enc_ctx, io.octx, &mut ctx, &mut accumulator)
+    flush_accumulator_tail(io.enc_ctx, io.octx, &mut ctx, &mut accumulator)?;
+    Ok(running_pts)
 }

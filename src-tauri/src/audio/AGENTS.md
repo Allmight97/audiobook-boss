@@ -34,7 +34,9 @@
   `validate_audio_engine_inputs`, `set_user_external_ffmpeg_path` (settings
   hydration/update ingress for the durable user FFmpeg path; validation stays
   toolchain-owned).
-- Execution request type: `AudioExecutionRequest`.
+- Execution request type: `AudioExecutionRequest`. Its constructor accepts the
+  processing context, inspected files, metadata, and cover-art policy; encoder
+  settings come from that context so the request cannot carry conflicting copies.
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
 - Constants: `VALID_ENCODER_BITRATES`.
@@ -100,6 +102,13 @@
   decode/resample -> accumulate exact encoder frames -> encode/mux -> finalize
   artifact -> verify output truth.
 - Keep sample format, channel layout, sample rate, frame size, and encoder selection explicit at the boundary where they are chosen.
+- Resolve Auto channels once at the Audio execution boundary: all valid inputs
+  mono -> Mono; any stereo input -> Stereo. Multichannel or unknown input
+  counts require an explicit Mono/Stereo choice during preflight. Adapters
+  receive resolved channels; external concat normalizes each input first.
+- Downmix coefficients are normalized to prevent coherent channels from
+  overflowing before encoding. The standard downmix retains center/surround
+  channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK behavior distinct. They are different encoder/toolchain targets with different sample formats and quality profiles.
 - Treat Native AAC as a compatibility path. Do not hide quality limitations behind silent downgrade behavior.

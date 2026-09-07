@@ -208,32 +208,8 @@ impl SampleAccumulator {
         }
     }
 
-    /// Flush tail (pad to full frame if pad=true) returning optional final frame.
-    pub fn flush_tail(&mut self, pad: bool) -> Option<ff::frame::Audio> {
-        let available = self.available_samples();
-        if available == 0 {
-            return None;
-        }
-
-        if pad {
-            match &mut self.storage {
-                SampleStorage::F32Planar(buffers) => {
-                    if available < self.frame_size {
-                        let missing = self.frame_size - available;
-                        for buf in buffers.iter_mut() {
-                            buf.extend(std::iter::repeat_n(0.0f32, missing));
-                        }
-                    }
-                }
-                SampleStorage::S16Packed(buffer) => {
-                    if available < self.frame_size {
-                        let missing_samples = self.frame_size - available;
-                        // Pad with silence (0) for all channels
-                        buffer.extend(std::iter::repeat_n(0i16, missing_samples * self.channels));
-                    }
-                }
-            }
-        }
+    /// Return the real final samples; the encoder owns codec padding.
+    pub fn flush_tail(&mut self) -> Option<ff::frame::Audio> {
         self.drain_one(true)
     }
 
@@ -287,7 +263,6 @@ impl SampleAccumulator {
             frame.alloc(config.format, take, config.channel_layout);
         }
 
-        let mut total_repairs = 0usize;
         for (ch, buffer) in buffers.iter().enumerate() {
             if ch >= frame.planes() {
                 log::warn!(
@@ -303,32 +278,32 @@ impl SampleAccumulator {
             let src = &buffer[start..start + take];
 
             // Sanitize float samples: clamp to [-1.0, 1.0], fix NaN/Inf
-            let mut repaired = 0usize;
+            let mut clipped = 0usize;
+            let mut non_finite = 0usize;
+            let mut clipped_peak = 0.0_f32;
             for i in 0..take {
                 let mut v = src[i];
                 if !v.is_finite() {
                     v = 0.0;
-                    repaired += 1;
+                    non_finite += 1;
                 } else if v > 1.0 {
+                    clipped_peak = clipped_peak.max(v);
                     v = 1.0;
-                    repaired += 1;
+                    clipped += 1;
                 } else if v < -1.0 {
+                    clipped_peak = clipped_peak.max(-v);
                     v = -1.0;
-                    repaired += 1;
+                    clipped += 1;
                 }
                 dst[i] = v;
             }
-            total_repairs += repaired;
+            if clipped + non_finite > 0 {
+                log::warn!(
+                    "Accumulator sanitized float samples before encoding: channel_index={ch} clipped={clipped} non_finite={non_finite} clipped_peak={clipped_peak:.6} frame_size={take}"
+                );
+            }
         }
         *consumed_samples += take;
-
-        if total_repairs > 0 {
-            log::warn!(
-                "Accumulator sanitized {} float samples before encoding (frame_size={})",
-                total_repairs,
-                take
-            );
-        }
         Some(frame)
     }
 

@@ -17,6 +17,10 @@
 ## Preferred Path
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
+- Resolve the encoder once at adapter dispatch and carry that choice into native
+  setup. Explicit Native/Apple selections validate their linked encoder without
+  probing external FDK; Auto still resolves the available toolchain. Do not repeat
+  external-toolchain detection while opening the encoder.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
 - Preserve finalize behavior that completes filesystem operations before success is reported.

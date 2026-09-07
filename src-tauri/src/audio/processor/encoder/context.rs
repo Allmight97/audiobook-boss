@@ -4,10 +4,7 @@ use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType};
 use crate::errors::Result;
 use ffmpeg_next as ff;
 
-use super::common::{
-    encoder_log, find_encoder_by_name, resolve_plan_encoder_settings,
-    try_configure_variable_frame_size, EncoderFramePlan,
-};
+use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
 use super::options::{build_apple_options, build_native_options};
 
 /// Creates and configures an AAC audio encoder with optimal settings
@@ -54,13 +51,6 @@ pub(crate) fn create_audio_encoder(
     opened.set_channel_layout(channel_layout);
     opened.set_format(sample_format);
     opened.set_time_base(time_base);
-
-    if let Err(e) = try_configure_variable_frame_size(&mut opened) {
-        log::warn!(
-            "Could not configure variable frame sizes ({}), may have frame size issues",
-            e
-        );
-    }
 
     // Build encoder-specific options Dictionary
     // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
@@ -122,9 +112,7 @@ pub(crate) fn setup_encoder(
     let (target_sample_rate, target_channels) =
         crate::audio::processor::engine::resolve_target_audio_params(plan)?;
 
-    let availability = crate::audio::detect_encoder_availability();
-    let (effective_settings, resolved_encoder_type) =
-        resolve_plan_encoder_settings(plan, &availability);
+    let resolved_encoder_type = plan.encoder_settings.encoder_type;
 
     let mut octx = ff::format::output(&plan.output_path)
         .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
@@ -149,7 +137,7 @@ pub(crate) fn setup_encoder(
         .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
     let enc_ctx = create_audio_encoder(
-        effective_settings.as_ref(),
+        &plan.encoder_settings,
         resolved_encoder_type,
         target_sample_rate,
         target_channels,

@@ -190,6 +190,26 @@ describe('encoding owner', () => {
 		flush();
 		expect(mounted.owner.view().sampleRateHint).toBe('Auto -> 44.1 kHz');
 		expect(mounted.owner.view().channelsHint).toBe('Auto -> Stereo');
+		mounted.owner.select('channels', 'stereo');
+		flush();
+		expect(mounted.owner.view().channelsHint).toBe('Using Stereo.');
+		mounted.setInput(
+			emptyInputView({
+				files: [{ ...file, channels: 6 }],
+				fileCount: 1,
+				hasFiles: true,
+				selectedIndices: [0],
+			}),
+		);
+		flush();
+		expect(mounted.owner.view().channelsHint).toBe(
+			'Using Stereo. Surround downmix omits bass effects (LFE).',
+		);
+		mounted.owner.select('channels', 'auto');
+		flush();
+		expect(mounted.owner.view().channelsHint).toBe(
+			'Multichannel input: choose Mono or Stereo to downmix.',
+		);
 	});
 
 	it('isolates two owners with separate bags and persist adapters', async () => {

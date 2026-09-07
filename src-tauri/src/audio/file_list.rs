@@ -52,8 +52,11 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
     };
 
     // Get file size (canonical path should exist)
-    match fs::metadata(&canonical_path) {
-        Ok(metadata) => audio_file.size = Some(metadata.len() as f64),
+    let file_size = match fs::metadata(&canonical_path) {
+        Ok(metadata) => {
+            audio_file.size = Some(metadata.len() as f64);
+            metadata.len()
+        }
         Err(e) => {
             audio_file.error = Some(format!("Cannot read file metadata: {e}"));
             return Ok(ValidatedAudioFile {
@@ -61,10 +64,10 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
                 selected_decoder: None,
             });
         }
-    }
+    };
 
     // Validate audio format and get comprehensive metadata using canonical path
-    match validate_audio_format(&canonical_path) {
+    match validate_audio_format(&canonical_path, file_size) {
         Ok(properties) => {
             audio_file.format = Some(properties.format);
             audio_file.duration = Some(properties.duration);
@@ -118,7 +121,43 @@ struct AudioProperties {
     selected_decoder: Option<DecoderSelection>,
 }
 
-fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
+/// Known MP4 audio packets must fit inside the local file, even when the
+/// demuxer would report ordinary EOF at a missing packet boundary.
+fn validate_mp4_audio_extent(
+    input: &ff::format::context::Input,
+    audio_stream: &ff::Stream<'_>,
+    file_size: u64,
+) -> Result<()> {
+    if !input.format().name().split(',').any(|name| name == "mp4") {
+        return Ok(());
+    }
+    let incomplete = || {
+        AppError::InvalidInput(
+            "MP4 audio is incomplete or truncated: invalid indexed audio byte range.".into(),
+        )
+    };
+    // SAFETY: The stream remains borrowed from the live input. These public
+    // index APIs only inspect it; copy each entry's fields before another call.
+    let stream = unsafe { audio_stream.as_ptr() };
+    let count = unsafe { ff::ffi::avformat_index_get_entries_count(stream) };
+    for index in 0..count {
+        let (position, size) = unsafe {
+            ff::ffi::avformat_index_get_entry(stream.cast_mut(), index)
+                .as_ref()
+                .map(|entry| (entry.pos, entry.size()))
+        }
+        .ok_or_else(incomplete)?;
+        let position = u64::try_from(position).map_err(|_| incomplete())?;
+        let size = u64::try_from(size).map_err(|_| incomplete())?;
+        let end = position.checked_add(size).ok_or_else(incomplete)?;
+        if end > file_size {
+            return Err(incomplete());
+        }
+    }
+    Ok(())
+}
+
+fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
     // First check if we support the file extension
@@ -130,6 +169,7 @@ fn validate_audio_format(path: &Path) -> Result<AudioProperties> {
             .streams()
             .best(ff::media::Type::Audio)
             .ok_or_else(|| AppError::InvalidInput("No audio stream found".to_string()))?;
+        validate_mp4_audio_extent(&ictx, &audio_stream, file_size)?;
         let container = ictx.duration();
         let duration = if container > 0 {
             container as f64 / ffmpeg_next::ffi::AV_TIME_BASE as f64
