@@ -54,8 +54,10 @@ export type SettingsDialog = {
 
 export function createSettingsDialog(deps: {
 	readonly capability: () => SettingsCapability;
+	readonly beforeCapture: () => Promise<void>;
 }): SettingsDialog {
 	let dialog = createInitialState();
+	let generation = 0;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let afterSettingsReset: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined;
 
@@ -66,7 +68,15 @@ export function createSettingsDialog(deps: {
 		bump((n) => n + 1);
 	}
 
-	async function refreshEncoderAvailability(): Promise<void> {
+	function guardedUpdate(started: number): typeof update {
+		return (mutator) => {
+			if (started === generation) update(mutator);
+		};
+	}
+
+	async function refreshEncoderAvailability(started = generation): Promise<void> {
+		if (started !== generation) return;
+		const update = guardedUpdate(started);
 		try {
 			const capabilities = await deps.capability().getRuntimeSettingsCapabilities();
 			update((draft) => {
@@ -79,7 +89,9 @@ export function createSettingsDialog(deps: {
 		}
 	}
 
-	async function reloadDialogData(): Promise<void> {
+	async function reloadDialogData(started = generation): Promise<void> {
+		if (started !== generation) return;
+		const update = guardedUpdate(started);
 		update((draft) => {
 			draft.loading = true;
 		});
@@ -100,7 +112,7 @@ export function createSettingsDialog(deps: {
 				draft.loading = false;
 			});
 		}
-		await refreshEncoderAvailability();
+		await refreshEncoderAvailability(started);
 	}
 
 	return {
@@ -109,6 +121,8 @@ export function createSettingsDialog(deps: {
 			return dialog;
 		},
 		async open() {
+			const started = generation;
+			const update = guardedUpdate(started);
 			update((draft) => {
 				draft.isOpen = true;
 				draft.saveState = 'idle';
@@ -116,7 +130,7 @@ export function createSettingsDialog(deps: {
 				draft.startupSaveState = 'idle';
 				draft.startupSaveError = '';
 			});
-			await reloadDialogData();
+			await reloadDialogData(started);
 		},
 		close() {
 			update((draft) => {
@@ -129,6 +143,8 @@ export function createSettingsDialog(deps: {
 			});
 		},
 		async browseForFfmpegBinary() {
+			const started = generation;
+			const update = guardedUpdate(started);
 			const selected = await deps.capability().openFile({
 				title: 'Choose an FFmpeg binary with libfdk_aac',
 			});
@@ -149,6 +165,8 @@ export function createSettingsDialog(deps: {
 			});
 		},
 		async saveToolchainPreference() {
+			const started = generation;
+			const update = guardedUpdate(started);
 			update((draft) => {
 				draft.saveState = 'saving';
 				draft.saveError = '';
@@ -169,14 +187,17 @@ export function createSettingsDialog(deps: {
 					draft.saveError = describeError(error);
 				});
 			}
-			await refreshEncoderAvailability();
+			await refreshEncoderAvailability(started);
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
+			const started = generation;
+			const update = guardedUpdate(started);
 			update((draft) => {
 				draft.startupSaveState = 'saving';
 				draft.startupSaveError = '';
 			});
 			try {
+				await deps.beforeCapture();
 				const current = await deps.capability().getAppSettings();
 				const settings = await deps.capability().updateAppSettings({
 					pinnedDefaults: {
@@ -197,6 +218,8 @@ export function createSettingsDialog(deps: {
 			}
 		},
 		async setStartupBehavior(behavior) {
+			const started = generation;
+			const update = guardedUpdate(started);
 			update((draft) => {
 				draft.startupSaveState = 'saving';
 				draft.startupSaveError = '';
@@ -215,12 +238,15 @@ export function createSettingsDialog(deps: {
 			}
 		},
 		async resetAllAppSettings() {
+			const started = generation;
+			const update = guardedUpdate(started);
 			update((draft) => {
 				draft.saveState = 'saving';
 				draft.saveError = '';
 			});
 			try {
 				const defaults = await deps.capability().resetAppSettings();
+				if (started !== generation) return;
 				await afterSettingsReset?.(defaults);
 				update((draft) => {
 					draft.saveState = 'saved';
@@ -231,12 +257,13 @@ export function createSettingsDialog(deps: {
 					draft.saveError = describeError(error);
 				});
 			}
-			await reloadDialogData();
+			await reloadDialogData(started);
 		},
 		bindAfterReset(apply) {
 			afterSettingsReset = apply;
 		},
 		reset() {
+			generation += 1;
 			afterSettingsReset = undefined;
 			dialog = createInitialState();
 			bump((n) => n + 1);

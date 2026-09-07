@@ -35,19 +35,13 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				input,
 				loadCapabilities: async () =>
 					(await settings.capability().getRuntimeSettingsCapabilities()).encoder ?? null,
-				persistDefaults: (defaults) => {
-					void settings
-						.capability()
-						.updateAppSettings({ encoderDefaults: defaults })
-						.catch((error: unknown) => {
-							console.warn('Failed to persist encoder defaults:', error);
-						});
-				},
+				persistDefaults: settings.rememberEncoderDefaults,
 			});
 			const output = createOutputOwner({
 				input,
 				metadataView: metadata.view,
 				encoding,
+				persistDefaults: settings.rememberOutputDefaults,
 				onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
 			});
 			const lookup = createMetadataLookupOwner({ input, metadata });

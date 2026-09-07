@@ -11,9 +11,8 @@
   and normalization stay with Rust Metadata Outcome. For metadata-save
   lifecycle display, also read `src/app/workOperations/AGENTS.md`.
 - For Effect workflow or kernel changes, read `src/lib/effect/AGENTS.md`.
-- Durable preference hydration and persistence belong to `src/app/appSettings`.
-  The remaining UI persistence exception is documented in
-  `src/ui/appSettings/AGENTS.md`; use the Settings owner for new callers.
+- Durable preference hydration, acceptance, and persistence follow
+  `src/app/appSettings/AGENTS.md`.
 - Remote acquisition belongs to `src/app/remoteSource`; its Solid dialog is
   under `src/ui/remoteSource`. Materialized audio enters through Input's public
   strip. Provider secrets and raw provider payloads stay backend-only.

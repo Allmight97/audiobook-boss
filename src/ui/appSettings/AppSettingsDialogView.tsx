@@ -4,6 +4,7 @@ import type { JSX } from '@solidjs/web';
 import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
+import { SettingsPersistenceNotice } from './SettingsPersistenceNotice';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
@@ -261,6 +262,7 @@ export function AppSettingsDialogView(): JSX.Element {
 				</Button>
 			</Dialog.Header>
 			<Dialog.Body>
+				<SettingsPersistenceNotice />
 				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
 					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
@@ -323,6 +325,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								id="app-settings-afterburner"
 								data-testid="app-settings-afterburner-checkbox"
 								checked={afterburner()}
+								disabled={state().saveState === 'saving'}
 								onChange={(event) => encoding.setAfterburner(Boolean(event.currentTarget.checked))}
 							/>
 							<span class="option-label">FDK Afterburner</span>

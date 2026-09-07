@@ -1,6 +1,9 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type {
 	AcquisitionLane,
+	AppSettingsPatch,
+	EncoderDefaults,
+	OutputDefaults,
 	ConcurrencyPreference,
 	PinnedDefaults,
 	StartupBehavior,
@@ -10,10 +13,17 @@ import {
 	liveSettingsCapability,
 	type SettingsCapability,
 } from '../../lib/tauri/capabilities/settings';
+import { toUserMessage } from '../../lib/tauri/appError';
 import { createSettingsDialog, type AppSettingsDialogState } from './dialog';
 import { resolveStartupDefaults } from './startupDefaults';
 
+export type SettingsDurability = {
+	readonly state: 'saved' | 'saving' | 'error';
+	readonly message: string;
+};
+
 export type ConcurrencyView = {
+	readonly errorMessage: string;
 	readonly selection: string;
 	readonly effective: number | null;
 	readonly effectiveLabel: string;
@@ -23,6 +33,10 @@ export type ConcurrencyView = {
 };
 
 export type SettingsOwner = {
+	readonly durability: Accessor<SettingsDurability>;
+	rememberEncoderDefaults(defaults: EncoderDefaults): void;
+	rememberOutputDefaults(defaults: OutputDefaults): void;
+	retryPersistence(): Promise<void>;
 	readonly concurrency: Accessor<ConcurrencyView>;
 	readonly defaultAcquisitionLane: Accessor<AcquisitionLane>;
 	readonly capability: Accessor<SettingsCapability>;
@@ -55,6 +69,7 @@ export type SettingsOwnerDeps = {
 
 function emptyConcurrency(): ConcurrencyView {
 	return {
+		errorMessage: '',
 		selection: 'auto',
 		effective: null,
 		effectiveLabel: '',
@@ -81,7 +96,84 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const capabilityValue = deps.capability ?? liveSettingsCapability;
 	const capability: Accessor<SettingsCapability> = () => capabilityValue;
-	const dialog = createSettingsDialog({ capability: () => capabilityValue });
+	let generation = 0;
+	let concurrencyRevision = 0;
+	let laneRevision = 0;
+	let writeRevision = 0;
+	let pendingPatch: AppSettingsPatch = {};
+	let durability: SettingsDurability = { state: 'saved', message: '' };
+	let writeQueue: Promise<void> = Promise.resolve();
+
+	function enqueue<T>(action: () => Promise<T>): Promise<T> {
+		const next = writeQueue.then(action);
+		writeQueue = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		return next;
+	}
+
+	function publishDurability(next: SettingsDurability): void {
+		durability = next;
+		bump((n) => n + 1);
+	}
+
+	async function persistPending(): Promise<void> {
+		if (Object.keys(pendingPatch).length === 0) return;
+		const revision = ++writeRevision;
+		const started = generation;
+		publishDurability({ state: 'saving', message: durability.message });
+		await enqueue(async () => {
+			if (started !== generation || revision !== writeRevision) return;
+			try {
+				await capabilityValue.updateAppSettings(pendingPatch);
+				if (started !== generation || revision !== writeRevision) return;
+				pendingPatch = {};
+				publishDurability({ state: 'saved', message: '' });
+			} catch (error) {
+				if (started !== generation || revision !== writeRevision) return;
+				publishDurability({ state: 'error', message: toUserMessage(error) });
+			}
+		});
+	}
+
+	function remember(patch: AppSettingsPatch): Promise<void> {
+		pendingPatch = { ...pendingPatch, ...patch };
+		return persistPending();
+	}
+
+	const dialogCapability: SettingsCapability = {
+		...capabilityValue,
+		getAppSettings: () => enqueue(() => capabilityValue.getAppSettings()),
+		updateAppSettings: (patch) => enqueue(() => capabilityValue.updateAppSettings(patch)),
+		resetAppSettings: () => {
+			writeRevision += 1;
+			const started = generation;
+			return enqueue(async () => {
+				try {
+					const settings = await capabilityValue.resetAppSettings();
+					if (started === generation) {
+						pendingPatch = {};
+						publishDurability({ state: 'saved', message: '' });
+					}
+					return settings;
+				} catch (error) {
+					if (started === generation && Object.keys(pendingPatch).length > 0) {
+						publishDurability({ state: 'error', message: toUserMessage(error) });
+					}
+					throw error;
+				}
+			});
+		},
+	};
+	const dialog = createSettingsDialog({
+		capability: () => dialogCapability,
+		beforeCapture: async () => {
+			await persistPending();
+			if (durability.state === 'error')
+				throw new Error(`Save current settings before pinning defaults. ${durability.message}`);
+		},
+	});
 
 	function commitConcurrency(next: ConcurrencyView): void {
 		concurrency = next;
@@ -94,8 +186,12 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 	}
 
 	async function hydrateAcquisitionPreferences() {
+		if (laneRevision > 0) return;
+		const started = generation;
+		const revision = laneRevision;
 		try {
 			const settings = await capabilityValue.getAppSettings();
+			if (started !== generation || revision !== laneRevision) return;
 			commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
 		} catch (error) {
 			console.warn('Failed to hydrate acquisition preferences:', error);
@@ -103,6 +199,17 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 	}
 
 	return {
+		durability: () => {
+			rev();
+			return durability;
+		},
+		rememberEncoderDefaults: (defaults) => {
+			void remember({ encoderDefaults: defaults });
+		},
+		rememberOutputDefaults: (defaults) => {
+			void remember({ outputDefaults: defaults });
+		},
+		retryPersistence: persistPending,
 		concurrency: () => {
 			rev();
 			return concurrency;
@@ -114,16 +221,22 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		capability,
 		dialog: dialog.state,
 		async hydrateConcurrency(input = {}) {
+			const started = generation;
+			const revision = concurrencyRevision;
 			try {
 				const runtime = await capabilityValue.getRuntimeSettingsCapabilities();
 				const source = await resolveStartupDefaults(capabilityValue);
 				const capabilities = input.capabilities ?? runtime.maxConcurrentJobs ?? null;
 				const preference = input.preference ?? source.maxConcurrentJobs;
 				const selection = preference.mode === 'fixed' ? String(preference.value) : 'auto';
-				const effective =
-					selection === 'auto'
-						? await capabilityValue.setMaxConcurrentJobs(null)
-						: await capabilityValue.setMaxConcurrentJobs(Number.parseInt(selection, 10));
+				const effective = await enqueue(async () => {
+					if (started !== generation || revision !== concurrencyRevision) return null;
+					return capabilityValue.setMaxConcurrentJobs(
+						preference.mode === 'auto' ? null : preference.value,
+					);
+				});
+				if (started !== generation || revision !== concurrencyRevision || effective === null)
+					return;
 				const latest = concurrency;
 				commitConcurrency({
 					...latest,
@@ -139,46 +252,45 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		hydrateAcquisitionPreferences,
 		async setConcurrencySelection(value) {
-			const previous = concurrency.selection;
-			commitConcurrency({ ...concurrency, selection: value });
+			const started = generation;
+			concurrencyRevision += 1;
+			const preference = preferenceFromSelection(value);
 			try {
-				const preference = preferenceFromSelection(value);
-				const settings = await capabilityValue.updateAppSettings({ maxConcurrentJobs: preference });
-				const accepted = settings.maxConcurrentJobs;
+				const effective = await enqueue(async () => {
+					if (started !== generation) return null;
+					return capabilityValue.setMaxConcurrentJobs(
+						preference.mode === 'auto' ? null : preference.value,
+					);
+				});
+				if (started !== generation || effective === null) return;
+				const accepted: ConcurrencyPreference =
+					preference.mode === 'auto' ? preference : { mode: 'fixed', value: effective };
 				const selection = accepted.mode === 'fixed' ? String(accepted.value) : 'auto';
-				let effective: number | null = null;
-				try {
-					effective = await capabilityValue.getMaxConcurrentJobs();
-				} catch {
-					effective = accepted.mode === 'fixed' ? accepted.value : null;
-				}
 				commitConcurrency({
 					...concurrency,
 					selection,
 					effective,
+					errorMessage: '',
 					effectiveLabel: labelFor(selection, effective),
 				});
+				await remember({ maxConcurrentJobs: accepted });
 			} catch (error) {
-				console.warn('Failed to update max concurrency:', error);
-				commitConcurrency({ ...concurrency, selection: previous });
+				if (started !== generation) return;
+				commitConcurrency({ ...concurrency, errorMessage: toUserMessage(error) });
 			}
 		},
 		async setDefaultAcquisitionLane(lane) {
-			const previous = defaultAcquisitionLane;
+			laneRevision += 1;
 			commitDefaultLane(lane);
-			try {
-				const settings = await capabilityValue.updateAppSettings({ defaultAcquisitionLane: lane });
-				commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
-			} catch (error) {
-				console.warn('Failed to update default acquisition lane:', error);
-				commitDefaultLane(previous);
-			}
+			await remember({ defaultAcquisitionLane: lane });
 		},
 		setControlsEnabled(enabled) {
 			commitConcurrency({ ...concurrency, controlsEnabled: enabled });
 		},
 		async openDialog() {
+			const started = generation;
 			await dialog.open();
+			if (started !== generation) return;
 			await hydrateAcquisitionPreferences();
 		},
 		closeDialog() {
@@ -206,7 +318,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 			return dialog.setStartupBehavior(behavior);
 		},
 		async resetAllAppSettings() {
+			const started = generation;
 			await dialog.resetAllAppSettings();
+			if (started !== generation) return;
 			const accepted = dialog.state().settings;
 			if (accepted) commitDefaultLane(accepted.defaultAcquisitionLane ?? 'audible');
 		},
@@ -214,6 +328,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 			dialog.bindAfterReset(apply);
 		},
 		reset() {
+			generation += 1;
+			writeRevision += 1;
+			pendingPatch = {};
+			publishDurability({ state: 'saved', message: '' });
 			dialog.reset();
 			commitConcurrency(emptyConcurrency());
 			commitDefaultLane('audible');

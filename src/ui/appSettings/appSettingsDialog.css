@@ -1,3 +1,31 @@
+.settings-persistence-notice {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	background: var(--bg-panel);
+	color: var(--text-primary);
+	font-size: var(--text-sm);
+}
+
+.settings-persistence-copy {
+	flex: 1;
+	min-width: 15rem;
+	overflow-wrap: anywhere;
+}
+
+.settings-persistence-notice p {
+	margin: 0.25rem 0 0;
+}
+
+.settings-concurrency-error {
+	flex-basis: 100%;
+	overflow-wrap: anywhere;
+}
+
 .app-settings-section {
 	margin-top: 1rem;
 }

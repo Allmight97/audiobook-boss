@@ -57,8 +57,8 @@ dispatch intent; they do not keep parallel business state.
   cancellation through `src/lib/tauri/appError.ts`; preserve typed provider
   diagnostics and backend terminal verdicts.
 - Automatic persistence is an App Settings intent with observable durability
-  state, not a UI utility. `src/ui/appSettings/persistence.ts` is a current
-  exception; do not add callers or another swallow-and-warn path.
+  state. Its acceptance, retry, and reset contract lives in
+  `src/app/appSettings/AGENTS.md`.
 - Publish observable state through the owner view and existing runtime/log
   surfaces. Do not add a shadow event bus or log-derived state machine.
 

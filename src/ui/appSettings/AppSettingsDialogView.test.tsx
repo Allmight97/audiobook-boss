@@ -88,6 +88,28 @@ describe('AppSettingsDialogView', () => {
 		expect(settings.resetAppSettings).toHaveBeenCalledTimes(1);
 	});
 
+	it('shows an automatic save failure and retries without discarding the accepted choice', async () => {
+		await renderOpenDialog({
+			updateAppSettings: vi.fn(async () => {
+				throw new Error('Disk full');
+			}),
+		});
+		await fireEvent.click(screen.getByTestId('app-settings-afterburner-checkbox'));
+		await vi.waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
+		);
+		expect(screen.getByRole('status')).toHaveTextContent(
+			'Your current choices still apply for this session. Disk full',
+		);
+		expect(screen.getByTestId('app-settings-afterburner-checkbox')).not.toBeChecked();
+		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
+		await fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+		await vi.waitFor(() =>
+			expect(screen.queryByText("Settings haven't been saved")).not.toBeInTheDocument(),
+		);
+		expect(screen.getByTestId('app-settings-afterburner-checkbox')).not.toBeChecked();
+	});
+
 	it('returns to idle when the confirm step is cancelled', async () => {
 		await renderOpenDialog();
 

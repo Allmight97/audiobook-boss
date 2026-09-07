@@ -139,6 +139,7 @@ function mountOutput(
 				overrides.encodingEstimateKbps ?? 64,
 			);
 			const owner = createOutputOwner({
+				persistDefaults: () => undefined,
 				input: runtime.input,
 				metadataView: overrides.metadataView ?? emptyMetadataView,
 				encoding: {
