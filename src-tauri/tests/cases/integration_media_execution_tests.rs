@@ -92,6 +92,70 @@ fn assert_ffprobe_tag(
 
 const SAMPLE_RATE: u32 = 44_100;
 
+#[tokio::test]
+async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() {
+    let lane = MediaLane::with_fixtures(&[0.3]);
+    let output = lane.process(None).await;
+    let mut tag = mp4ameta::Tag::read_from_path(&output).unwrap();
+    tag.set_artists(["First Author".to_string(), "Second Author".to_string()]);
+    tag.set_album_artists([
+        "First Album Author".to_string(),
+        "Second Album Author".to_string(),
+    ]);
+    tag.set_composers(["First Narrator".to_string(), "Second Narrator".to_string()]);
+    tag.write_to_path(&output).unwrap();
+
+    let metadata = read_metadata(&output).unwrap();
+    assert_eq!(
+        metadata.artist.as_deref(),
+        Some("First Author;Second Author")
+    );
+    assert_eq!(
+        metadata.composer.as_deref(),
+        Some("First Narrator;Second Narrator")
+    );
+    let imported = get_file_list_info(&[&output]).unwrap();
+    assert_eq!(imported.files[0].tag_artist, metadata.artist);
+
+    save_metadata_intent(
+        &output,
+        &MetadataIntentPatch {
+            title: PatchOp::Set("Retitled".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut tag = mp4ameta::Tag::read_from_path(&output).unwrap();
+    assert_eq!(
+        tag.artists().collect::<Vec<_>>(),
+        ["First Author", "Second Author"]
+    );
+    assert_eq!(
+        tag.album_artists().collect::<Vec<_>>(),
+        ["First Album Author", "Second Album Author"]
+    );
+    assert_eq!(
+        tag.composers().collect::<Vec<_>>(),
+        ["First Narrator", "Second Narrator"]
+    );
+
+    tag.remove_artists();
+    tag.write_to_path(&output).unwrap();
+    assert_eq!(
+        read_metadata(&output).unwrap().artist.as_deref(),
+        Some("First Album Author;Second Album Author")
+    );
+
+    let reprocess = MediaLane::for_inputs(vec![output]);
+    let finalized = reprocess.process(Some(metadata)).await;
+    let reread = read_metadata(&finalized).unwrap();
+    assert_eq!(reread.artist.as_deref(), Some("First Author;Second Author"));
+    assert_eq!(
+        reread.composer.as_deref(),
+        Some("First Narrator;Second Narrator")
+    );
+}
+
 /// Writes a mono 16-bit PCM WAV of `seconds` of sine at `freq_hz`.
 fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;

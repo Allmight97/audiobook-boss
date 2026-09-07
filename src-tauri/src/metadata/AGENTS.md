@@ -66,6 +66,12 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   naming projection, write plans, validation/normalization, and cover-art
   handling.
 - Preserve external audiobook tag interoperability.
+- MP4 artist and composer reads join repeated values with `;`, matching FFmpeg's
+  text projection. Artist values take precedence over album-artist fallback.
+  Unrelated save intent preserves repeated source values; processing and explicit
+  contributor writes use the singular text model (artist also fans out to
+  album-artist). Do not split names on punctuation or claim structural or
+  distinct album-artist preservation from this text projection.
 - Drop FFmpeg probe/remux contexts before calling mp4ameta on the same path or replacing the source file.
 
 ## Boundary Changes
