@@ -122,11 +122,11 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 				if (epoch !== importEpoch) {
 					return;
 				}
-				const next = await runImportIntent(capabilityValue, session, intent);
+				const applyImport = await runImportIntent(capabilityValue, session, intent);
 				if (epoch !== importEpoch) {
 					return;
 				}
-				commit({ ...next, orderLocked: session.orderLocked });
+				commit(applyImport(session));
 			});
 			importQueue = run.then(
 				() => undefined,

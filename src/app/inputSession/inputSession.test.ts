@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import { createTestAppRuntime } from '../runtime/harness';
+import { createAppRuntime, type AppRuntime } from '../runtime';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
-import type { AppRuntime } from '../runtime';
+
 import { createInputOwner, chapterPlansForProcessing } from './index';
 import { emptyInputSession, type InputSessionState } from './types';
 
@@ -95,7 +95,7 @@ describe('input session import tracer', () => {
 
 	it('imports a local file through the capability and exposes a renderer-ready row', async () => {
 		const input = fakeInput();
-		runtime = createTestAppRuntime({ input });
+		runtime = createAppRuntime({ input });
 		await runtime.input.importIntent({ type: 'pickFiles' });
 		const view = runtime.input.view();
 		expect(view.files).toHaveLength(1);
@@ -111,7 +111,7 @@ describe('input session import tracer', () => {
 				throw new Error('native boom');
 			}),
 		});
-		runtime = createTestAppRuntime({ input });
+		runtime = createAppRuntime({ input });
 		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/chapter.m4b'] });
 		expect(runtime.input.view().errorMessage).toBe('Failed to analyze files. Please try again.');
 		expect(runtime.input.view().files).toHaveLength(0);
@@ -241,7 +241,7 @@ describe('input session support text hydrate', () => {
 		const input = fakeInput({
 			getSupportedAudioImportMetadata: vi.fn(async () => metadataPromise),
 		});
-		runtime = createTestAppRuntime({ input });
+		runtime = createAppRuntime({ input });
 
 		const hydratePromise = runtime.input.hydrateSupportText();
 		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/chapter.m4b'] });
@@ -307,3 +307,102 @@ it('carries folder CUE confirmation and explicit ignore into independent process
 	).toEqual([]);
 	expect(accepted?.['/books/book.mp3']?.chapters[0]?.startMs).toBe(940);
 });
+
+it.each(['confirmHundredths', 'ignore'] as const)(
+	'preserves CUE %s while another import is analyzed',
+	async (choice) => {
+		let finishAnalysis!: (files: FileListInfo) => void;
+		const capability = fakeInput({
+			analyzeAudioFiles: vi.fn(
+				() =>
+					new Promise<FileListInfo>((resolve) => {
+						finishAnalysis = resolve;
+					}),
+			),
+		});
+		const owner = createInputOwner({ capability });
+		owner.replaceSession(
+			sessionWith([
+				audioFile('/books/book.mp3', {
+					cueSource: {
+						fileName: 'book.cue',
+						status: 'needsConfirmation',
+						message: 'Confirm timestamps',
+					},
+					chapterPlan: {
+						sourceFingerprint: '100:200',
+						fromCue: true,
+						chapters: [{ title: 'Opening', startMs: 0, endMs: 60000 }],
+					},
+				}),
+			]),
+		);
+		const pending = owner.importIntent({ type: 'importPaths', paths: ['/books/new.m4b'] });
+		await vi.waitFor(() => expect(capability.analyzeAudioFiles).toHaveBeenCalled());
+		owner.chooseCue('/books/book.mp3', choice);
+		finishAnalysis(analyzedFile('/books/new.m4b'));
+		await pending;
+		expect(owner.view().files.map((file) => file.path)).toEqual([
+			'/books/book.mp3',
+			'/books/new.m4b',
+		]);
+		expect(owner.view().files[0]?.cueSource?.status).toBe(
+			choice === 'ignore' ? 'ignored' : 'ready',
+		);
+		expect(
+			chapterPlansForProcessing(owner.view().files, 'batch')?.['/books/book.mp3']?.chapters,
+		).toHaveLength(choice === 'ignore' ? 0 : 1);
+	},
+);
+
+it.each(['remove', 'clear'] as const)(
+	'does not restore rows after %s while another import is analyzed',
+	async (action) => {
+		let finishAnalysis!: (files: FileListInfo) => void;
+		const capability = fakeInput({
+			analyzeAudioFiles: vi.fn(
+				() =>
+					new Promise<FileListInfo>((resolve) => {
+						finishAnalysis = resolve;
+					}),
+			),
+		});
+		const owner = createInputOwner({ capability });
+		owner.replaceSession(sessionWith([audioFile('/books/old.m4b')]));
+		const pending = owner.importIntent({ type: 'importPaths', paths: ['/books/new.m4b'] });
+		await vi.waitFor(() => expect(capability.analyzeAudioFiles).toHaveBeenCalled());
+		if (action === 'remove') owner.removeFile(0);
+		else await owner.clearAllFiles();
+		finishAnalysis(analyzedFile('/books/new.m4b'));
+		await pending;
+		expect(owner.view().files.map((file) => file.path)).toEqual(['/books/new.m4b']);
+	},
+);
+
+it.each(['cancel', 'error'] as const)(
+	'keeps row removal when an outstanding picker ends with %s',
+	async (outcome) => {
+		let finishPicker!: (paths: string[] | null) => void;
+		let failPicker!: (error: Error) => void;
+		const capability = fakeInput({
+			openFiles: vi.fn(
+				() =>
+					new Promise<string[] | null>((resolve, reject) => {
+						finishPicker = resolve;
+						failPicker = reject;
+					}),
+			),
+		});
+		const owner = createInputOwner({ capability });
+		owner.replaceSession(sessionWith([audioFile('/books/old.m4b')]));
+		const pending = owner.importIntent({ type: 'pickFiles' });
+		await vi.waitFor(() => expect(capability.openFiles).toHaveBeenCalled());
+		owner.removeFile(0);
+		if (outcome === 'cancel') finishPicker(null);
+		else failPicker(new Error('picker failed'));
+		await pending;
+		expect(owner.view().files).toEqual([]);
+		if (outcome === 'error') expect(owner.view().errorMessage).not.toBe('');
+		else expect(owner.view().errorMessage).toBe('');
+	},
+);

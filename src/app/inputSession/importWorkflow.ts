@@ -1,19 +1,18 @@
-import type { AudioFile } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { buildFileListAppendResult } from './appendResult';
 import type { ImportIntent, InputSessionState } from './types';
 
+type ImportUpdate = (session: InputSessionState) => InputSessionState;
+
 export async function runImportIntent(
 	capability: InputCapability,
 	session: InputSessionState,
 	intent: ImportIntent,
-): Promise<InputSessionState> {
+): Promise<ImportUpdate> {
 	if (session.orderLocked) {
-		return {
-			...session,
-			errorMessage: 'Order locked while processing. Wait for completion to add files.',
-		};
+		return withError('Order locked while processing. Wait for completion to add files.');
 	}
 
 	if (intent.type === 'pickFiles') {
@@ -22,12 +21,12 @@ export async function runImportIntent(
 			'Failed to open file dialog. Please try again.',
 		);
 		if (!selected.ok) {
-			return withError(session, selected.message);
+			return withError(selected.message);
 		}
 		if (!selected.value || selected.value.length === 0) {
-			return session;
+			return (current) => current;
 		}
-		return importDiscoveredPaths(capability, session, selected.value);
+		return importDiscoveredPaths(capability, selected.value);
 	}
 
 	if (intent.type === 'pickFolder') {
@@ -36,12 +35,12 @@ export async function runImportIntent(
 			'Failed to open folder dialog. Please try again.',
 		);
 		if (!selected.ok) {
-			return withError(session, selected.message);
+			return withError(selected.message);
 		}
 		if (!selected.value) {
-			return session;
+			return (current) => current;
 		}
-		return importDiscoveredPaths(capability, session, [selected.value]);
+		return importDiscoveredPaths(capability, [selected.value]);
 	}
 
 	if (intent.type === 'drainOpened') {
@@ -50,15 +49,15 @@ export async function runImportIntent(
 			'Failed to import opened audio files. Please try again.',
 		);
 		if (!opened.ok) {
-			return withError(session, opened.message);
+			return withError(opened.message);
 		}
 		if (opened.value.length === 0) {
-			return session;
+			return (current) => current;
 		}
-		return importDiscoveredPaths(capability, session, opened.value);
+		return importDiscoveredPaths(capability, opened.value);
 	}
 
-	return importDiscoveredPaths(capability, session, [...intent.paths]);
+	return importDiscoveredPaths(capability, [...intent.paths]);
 }
 
 async function openSupportedAudioFiles(capability: InputCapability): Promise<string[] | null> {
@@ -75,15 +74,14 @@ async function openSupportedAudioFiles(capability: InputCapability): Promise<str
 
 async function importDiscoveredPaths(
 	capability: InputCapability,
-	session: InputSessionState,
 	paths: string[],
-): Promise<InputSessionState> {
+): Promise<ImportUpdate> {
 	const discovered = await tryUserAction(
 		() => capability.discoverAudioImportPaths(paths),
 		'Failed to discover audio files. Please try again.',
 	);
 	if (!discovered.ok) {
-		return withError(session, discovered.message);
+		return withError(discovered.message);
 	}
 	if (discovered.value.length === 0) {
 		const metadata = await tryUserAction(
@@ -91,10 +89,9 @@ async function importDiscoveredPaths(
 			'Failed to load supported audio formats. Please try again.',
 		);
 		if (!metadata.ok) {
-			return withError(session, metadata.message);
+			return withError(metadata.message);
 		}
 		return withError(
-			session,
 			`No supported audio files found. Please use ${metadata.value.formatsText} files.`,
 		);
 	}
@@ -104,16 +101,23 @@ async function importDiscoveredPaths(
 		'Failed to analyze files. Please try again.',
 	);
 	if (!analyzed.ok) {
-		return withError(session, analyzed.message);
+		return withError(analyzed.message);
 	}
 
+	return (session) => appendAnalyzedFiles(session, analyzed.value);
+}
+
+function appendAnalyzedFiles(
+	session: InputSessionState,
+	analyzed: FileListInfo,
+): InputSessionState {
 	const existingFiles = session.fileList?.files ?? [];
-	const appendResult = buildFileListAppendResult(analyzed.value, {
+	const appendResult = buildFileListAppendResult(analyzed, {
 		existingFiles,
 		currentFileList: session.fileList,
 	});
 	if (appendResult.outcome === 'duplicateOnly') {
-		return withError(session, 'No new files added. All analyzed files were already in the list.');
+		return withError('No new files added. All analyzed files were already in the list.')(session);
 	}
 
 	const fileList = appendResult.fileList;
@@ -163,8 +167,8 @@ function selectionAfterAppend(
 	};
 }
 
-function withError(session: InputSessionState, errorMessage: string): InputSessionState {
-	return { ...session, errorMessage, isDragOver: false };
+function withError(errorMessage: string): ImportUpdate {
+	return (session) => ({ ...session, errorMessage, isDragOver: false });
 }
 
 type UserActionResult<A> = { ok: true; value: A } | { ok: false; message: string };
