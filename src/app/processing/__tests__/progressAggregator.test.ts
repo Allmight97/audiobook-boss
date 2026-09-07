@@ -4,22 +4,10 @@ import { STAGES } from '../../../types/events';
 import { StatusPanelRuntime } from '../runtime';
 import { createStatusViewStore, type StatusViewStore } from '../view';
 
-function setupDom() {
-	document.body.innerHTML = `
-    <div id="progress-bar"></div>
-    <div id="percentage-processed"></div>
-    <div id="status-text"></div>
-    <div id="step-text"></div>
-    <div id="concurrency-status"></div>
-    <button id="process-button"></button>
-    <button id="cancel-all-button"></button>
-    <div class="art-thumbnail"></div>
-    <div id="job-list"></div>
-    <select id="max-concurrent-select"></select>
-  `;
-}
-
-function mountRuntime(): { readonly view: StatusViewStore; readonly controller: StatusPanelRuntime } {
+function mountRuntime(): {
+	readonly view: StatusViewStore;
+	readonly controller: StatusPanelRuntime;
+} {
 	const view = createStatusViewStore();
 	return { view, controller: new StatusPanelRuntime({ view }) };
 }
@@ -34,7 +22,6 @@ function getJobRows(view: StatusViewStore): string[] {
 
 describe('StatusPanel aggregate progress', () => {
 	beforeEach(() => {
-		setupDom();
 		vi.useFakeTimers();
 	});
 

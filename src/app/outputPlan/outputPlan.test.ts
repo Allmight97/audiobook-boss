@@ -6,7 +6,7 @@ import {
 	type ProcessingPreflightPlan,
 } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
-import { createTestAppRuntime } from '../runtime/harness';
+import { createAppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
 import type { InputView } from '../inputSession';
 import { createOutputOwner, type OutputPlanOwner } from '.';
@@ -122,7 +122,7 @@ type MountedOutput = {
 };
 
 function mountOutput(
-	runtime: ReturnType<typeof createTestAppRuntime>,
+	runtime: ReturnType<typeof createAppRuntime>,
 	overrides: {
 		readonly encodingRequest?: EncodingRequestConfig;
 		readonly encodingEstimateKbps?: number;
@@ -158,7 +158,7 @@ function mountOutput(
 }
 
 describe('output plan public view', () => {
-	let runtime: ReturnType<typeof createTestAppRuntime> | undefined;
+	let runtime: ReturnType<typeof createAppRuntime> | undefined;
 	let mounted: MountedOutput | undefined;
 
 	afterEach(() => {
@@ -170,7 +170,7 @@ describe('output plan public view', () => {
 	});
 
 	it('hydrates output defaults through the public strip without a preview poke API', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
@@ -185,7 +185,7 @@ describe('output plan public view', () => {
 	});
 
 	it('derives the encoder-header estimate from public Input duration and encoder request config', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		mounted = mountOutput(runtime, {
 			encodingRequest: {
@@ -203,7 +203,7 @@ describe('output plan public view', () => {
 	});
 
 	it('changes the encoder-header size when FDK VBR quality changes encoded bitrate', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		const stickyBitrateKbps = 64;
 		mounted = mountOutput(runtime, {
@@ -236,7 +236,7 @@ describe('output plan public view', () => {
 	});
 
 	it('keeps the empty estimate placeholder when Input has no files', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		expect(mounted.owner.estimatedSizeText()).toBe('~ --- MB');
 	});
@@ -250,7 +250,7 @@ describe('output plan public view', () => {
 			metadataPatch: {},
 			fieldErrors: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
@@ -293,7 +293,7 @@ describe('output plan public view', () => {
 			metadataPatch: {},
 			fieldErrors: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		let form = createEmptyFormState();
 		form = replaceField(form, 'meta-series-part', { value: '1' });
@@ -341,7 +341,7 @@ describe('output plan public view', () => {
 			metadataPatch: {},
 			fieldErrors: [],
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		const owner = mounted.owner;
 		owner.applyDefaults({
@@ -369,7 +369,7 @@ describe('output plan public view', () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
 			errors.push(String(args[0]));
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		const owner = mounted.owner;
 		owner.applyDefaults({
@@ -425,7 +425,7 @@ describe('output path preview projection', () => {
 });
 
 describe('collision review', () => {
-	let runtime: ReturnType<typeof createTestAppRuntime> | undefined;
+	let runtime: ReturnType<typeof createAppRuntime> | undefined;
 
 	afterEach(() => {
 		runtime?.dispose();
@@ -437,7 +437,7 @@ describe('collision review', () => {
 	}
 
 	it('cancel resolves null and closes the dialog', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const result = runtime.output.openCollisionReview(collisionPlan());
 		runtime.output.cancelCollisionReview();
 		await expect(result).resolves.toBeNull();
@@ -446,7 +446,7 @@ describe('collision review', () => {
 	});
 
 	it('opening a second dialog resolves the first as cancelled', async () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const first = runtime.output.openCollisionReview(collisionPlan());
 		const second = runtime.output.openCollisionReview(collisionPlan());
 		await expect(first).resolves.toBeNull();
@@ -456,7 +456,7 @@ describe('collision review', () => {
 	});
 
 	it('exposes only collided outputs', () => {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		void runtime.output.openCollisionReview(collisionPlan());
 		expect(collision().outputs).toHaveLength(1);
 		expect(collision().outputs[0]?.inputPath).toBe('/books/b.m4b');

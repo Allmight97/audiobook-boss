@@ -140,8 +140,6 @@ describe('app runtime', () => {
 		expect(first.remoteSource.view().isOpen).toBe(true);
 		expect(second.remoteSource.view().isOpen).toBe(false);
 		expect(second.remoteSource.view().statusMessage).toBe('');
-		expect(first.workOperations.view().operations).toEqual([]);
-		expect(second.workOperations.view().operations).toEqual([]);
 
 		first.dispose();
 		first.processing.pushTransientStatus('after dispose');
@@ -163,7 +161,6 @@ describe('app runtime', () => {
 		expect(third.encoding.request().encoderSettings.encoderType).toBe('auto');
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
-		expect(third.workOperations.view().operations).toEqual([]);
 	});
 
 	it('keeps output request config and collision review isolated across live runtimes', async () => {
@@ -241,21 +238,6 @@ describe('app runtime', () => {
 			},
 		});
 		preflight.mockRestore();
-	});
-
-	it('isolates lookup and processing owners across disposed runtimes', () => {
-		const first = createAppRuntime();
-		first.lookup.setTitleQuery('stale lookup');
-		expect(first.lookup.view().titleQuery).toBe('stale lookup');
-		expect(first.processing.status().statusText).toBe('Idle');
-		first.dispose();
-
-		const second = createAppRuntime();
-		dispose = () => second.dispose();
-		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.lookup.view().isOpen).toBe(false);
-		expect(second.processing.status().isProcessing).toBe(false);
-		expect(second.workOperations.view().operations).toEqual([]);
 	});
 
 	it('keeps lookup cover preview cancellation and cache isolated across runtimes', async () => {

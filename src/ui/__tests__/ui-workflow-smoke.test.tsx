@@ -8,8 +8,8 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
+import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
+
 import type { FileListInfo, ProcessingPreflightPlan } from '../../types/audio';
 import type { AppSettings } from '../../types/appSettings';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
@@ -219,7 +219,7 @@ describe('UI Workflow Smoke Test', () => {
 		native.submitProcessingOperation.mockResolvedValue(acceptedSubmission());
 		native.listWorkOperations.mockResolvedValue({ operations: [] });
 
-		const runtime = createTestAppRuntime();
+		const runtime = createAppRuntime();
 		const user = userEvent.setup();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime}>

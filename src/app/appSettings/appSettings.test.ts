@@ -3,8 +3,7 @@ import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { tauriClient } from '../../lib/tauri/client';
-import { createTestAppRuntime } from '../runtime/harness';
-import type { AppRuntime } from '../runtime';
+import { createAppRuntime, type AppRuntime } from '../runtime';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 	return {
@@ -62,7 +61,7 @@ describe('app settings concurrency', () => {
 
 	it('hydrates auto selection and the effective backend count', async () => {
 		const settings = fakeSettings();
-		runtime = createTestAppRuntime({ settings });
+		runtime = createAppRuntime({ settings });
 		await runtime.settings.hydrateConcurrency();
 		expect(runtime.settings.concurrency().effectiveLabel).toBe('Auto → 4');
 		expect(runtime.settings.concurrency()).toMatchObject({
@@ -80,7 +79,7 @@ describe('app settings concurrency', () => {
 				throw new Error('jobs active');
 			}),
 		});
-		runtime = createTestAppRuntime({ settings });
+		runtime = createAppRuntime({ settings });
 		await runtime.settings.hydrateConcurrency();
 		expect(runtime.settings.concurrency().effectiveLabel).toBe('Auto → 4');
 		await runtime.settings.setConcurrencySelection('3');
@@ -91,7 +90,7 @@ describe('app settings concurrency', () => {
 		const settings = fakeSettings({
 			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
 		});
-		runtime = createTestAppRuntime({ settings });
+		runtime = createAppRuntime({ settings });
 		await runtime.settings.hydrateAcquisitionPreferences();
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
 

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { Effect, runAppEffect } from '../../lib/effect/appEffect';
 import type { AudioFile, FileListInfo } from '../../types/audio';
 import { applyMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
@@ -11,8 +10,6 @@ import type {
 import { createMetadataLookupCoverPreviews } from './coverPreview';
 import {
 	makeMetadataLookupWorkflowServicesLayer,
-	MetadataLookupWorkflowFailed,
-	metadataLookupWorkflowExecution,
 	runMetadataLookupWorkflow,
 	type MetadataLookupWorkflowServices,
 } from './workflow';
@@ -244,7 +241,7 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl: async () => [9, 9, 9],
 		});
 
-		await harness.previews.fetch(result.coverUrl!);
+		await harness.previews.loadBytes(result.coverUrl!);
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
@@ -267,7 +264,7 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl,
 		});
 
-		await harness.previews.fetch(firstCoverUrl);
+		await harness.previews.loadBytes(firstCoverUrl);
 		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith(secondCoverUrl);
@@ -632,7 +629,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.statusMessage).toBe('');
 	});
 
-	it('exposes typed workflow errors for rejected infrastructure calls', async () => {
+	it('reports infrastructure failure and preserves the queue when selecting its next item fails', async () => {
 		const cause = new Error('selection failed');
 		const harness = makeHarness({
 			lookupState: { queueContext: '1 of 2 • alpha.m4b' },
@@ -648,17 +645,17 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		const error = await runAppEffect(
-			Effect.flip(
-				metadataLookupWorkflowExecution({ type: 'skipQueueItem' }).pipe(
-					Effect.provide(harness.layer),
-				),
-			),
+		await expect(
+			runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' }),
+		).resolves.toBeUndefined();
+		expect(harness.lookupState.statusMessage).toBe(
+			'Metadata lookup failed. Check console and try again.',
 		);
-
-		expect(error).toBeInstanceOf(MetadataLookupWorkflowFailed);
-		expect(error.message).toBe('Failed to skip metadata lookup queue item.');
-		expect(error.cause).toBe(cause);
+		expect(harness.lookupState.statusVariant).toBe('error');
+		expect(harness.mocks.consoleError).toHaveBeenCalledWith(
+			'Metadata lookup workflow failed: Failed to skip metadata lookup queue item.',
+			cause,
+		);
 		expect(harness.queueState.index).toBe(0);
 		expect(harness.mocks.setMetadataLookupQueueIndex).not.toHaveBeenCalled();
 		expect(harness.lookupState.queueContext).toBe('1 of 2 • alpha.m4b');

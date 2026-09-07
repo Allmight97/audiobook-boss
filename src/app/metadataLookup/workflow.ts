@@ -409,12 +409,6 @@ function metadataLookupWorkflowBody(
 	});
 }
 
-export function metadataLookupWorkflowExecution(
-	action: MetadataLookupWorkflowAction,
-): AppEffect<void, MetadataLookupWorkflowFailed, MetadataLookupWorkflowServicesId> {
-	return metadataLookupWorkflowBody(action);
-}
-
 export function metadataLookupWorkflowProgram(
 	action: MetadataLookupWorkflowAction,
 ): AppEffect<void, never, MetadataLookupWorkflowServicesId> {

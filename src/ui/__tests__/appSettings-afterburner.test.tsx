@@ -1,8 +1,7 @@
 import { cleanup, render } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import { AppSettingsDialogView } from '../appSettings/AppSettingsDialogView';
 
 vi.mock('../../lib/tauri/client', async () => {
@@ -56,7 +55,7 @@ describe('App Settings afterburner control', () => {
 	});
 
 	async function renderOpenDialog(): Promise<void> {
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		await runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>

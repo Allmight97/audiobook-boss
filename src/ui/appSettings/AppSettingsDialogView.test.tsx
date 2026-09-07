@@ -4,9 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import { tauriClient } from '../../lib/tauri/client';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
@@ -68,7 +67,7 @@ describe('AppSettingsDialogView', () => {
 		overrides: Partial<SettingsCapability> = {},
 	): Promise<AppRuntime> {
 		settings = fakeSettings(overrides);
-		runtime = createTestAppRuntime({ settings });
+		runtime = createAppRuntime({ settings });
 		await runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -111,7 +110,7 @@ describe('AppSettingsDialogView', () => {
 
 	it('closes on Escape after opening post-mount, even with focus outside the dialog', async () => {
 		settings = fakeSettings();
-		runtime = createTestAppRuntime({ settings });
+		runtime = createAppRuntime({ settings });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<AppSettingsDialogView />

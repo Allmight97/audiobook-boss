@@ -14,7 +14,6 @@ export type MetadataLookupCoverPreviews = {
 	getState(coverUrl: string | null | undefined): MetadataLookupCoverPreviewState;
 	schedule(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	loadBytes(coverUrl: string): Promise<number[]>;
-	fetch(coverUrl: string): Promise<void>;
 };
 
 export function createMetadataLookupCoverPreviews(deps: {
@@ -44,6 +43,5 @@ export function createMetadataLookupCoverPreviews(deps: {
 		getState: (coverUrl) => scheduler.getState(coverUrl),
 		schedule: (coverUrls) => scheduler.schedule(coverUrls, deps.loadCoverArtFromUrl),
 		loadBytes: (coverUrl) => scheduler.loadBytes(coverUrl, deps.loadCoverArtFromUrl),
-		fetch: (coverUrl) => scheduler.fetch(coverUrl, deps.loadCoverArtFromUrl),
 	};
 }

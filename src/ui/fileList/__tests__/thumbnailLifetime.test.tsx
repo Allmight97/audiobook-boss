@@ -1,7 +1,7 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestAppRuntime } from '../../../app/runtime/harness';
-import { AppRuntimeProvider } from '../../../app/runtime/RuntimeProvider';
+import { createAppRuntime, AppRuntimeProvider } from '../../../app/runtime';
+
 import { liveInputCapability } from '../../../lib/tauri/capabilities/input';
 import { FileListView } from '../FileListView';
 
@@ -15,7 +15,7 @@ function deferred() {
 
 async function mountedList(request: ReturnType<typeof deferred>, paths = ['/shared.m4b']) {
 	const load = vi.fn(() => request.promise);
-	const runtime = createTestAppRuntime({
+	const runtime = createAppRuntime({
 		input: {
 			...liveInputCapability,
 			discoverAudioImportPaths: async (paths) => [...paths],

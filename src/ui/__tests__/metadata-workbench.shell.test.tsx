@@ -2,9 +2,8 @@ import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { App } from '../App';
@@ -113,7 +112,7 @@ describe('metadata workbench shell', () => {
 
 	it('composes cover and form zones and keeps cover clear keyboard-reachable', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -143,7 +142,7 @@ describe('metadata workbench shell', () => {
 
 	it('edits a title and saves through the native metadata capability', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {
@@ -162,7 +161,7 @@ describe('metadata workbench shell', () => {
 
 	it('saves from the global shortcut', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		renderApp(runtime);
 		await userEvent.click(screen.getByRole('button', { name: 'Add audio files' }));
 		await waitFor(() => {

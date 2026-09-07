@@ -388,36 +388,39 @@ describe('ProcessingWorkflow', () => {
 	});
 
 	it('submits background processing inside Remote Source retention', async () => {
-		const currentFileList: FileListInfo = {
-			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
-			selectedDecoders: [null],
-			totalDuration: 1,
-			totalSize: 1,
-			validCount: 1,
-			invalidCount: 0,
-		};
-		const withSubmissionRetention = vi.fn(async (_inputIds, submit) => submit());
-		const ctx = workflowContext();
-		const { services, feedback } = workflowServices({
-			getCurrentFileList: vi.fn(() => currentFileList),
+		let allowSubmission!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			allowSubmission = resolve;
+		});
+		let retentionActive = false;
+		const withSubmissionRetention: ProcessingWorkflowServices['remoteSource']['withSubmissionRetention'] =
+			vi.fn(async (_inputIds, submit) => {
+				await gate;
+				retentionActive = true;
+				try {
+					return await submit();
+				} finally {
+					retentionActive = false;
+				}
+			});
+		const submittedWhileRetained: boolean[] = [];
+		const { services } = workflowServices({
 			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
 				processingAssets: vi.fn(() => undefined),
 				withSubmissionRetention,
 			},
 			submitProcessingOperation: vi.fn(async () => {
-				throw {
-					code: 'decoder_unavailable',
-					category: 'toolchain',
-					message: 'Decoder unavailable.',
-					detail: null,
-				};
+				submittedWhileRetained.push(retentionActive);
+				return acceptedSubmission('batch');
 			}),
 		});
-
-		await runWithServices(ctx, services);
-
-		expect(withSubmissionRetention).toHaveBeenCalledWith(['current-input-1'], expect.any(Function));
-		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
+		const pending = runWithServices(workflowContext(), services);
+		await vi.waitFor(() => expect(withSubmissionRetention).toHaveBeenCalled());
+		expect(services.submitProcessingOperation).not.toHaveBeenCalled();
+		allowSubmission();
+		await pending;
+		expect(withSubmissionRetention).toHaveBeenCalledWith(['input-1'], expect.any(Function));
+		expect(submittedWhileRetained).toEqual([true]);
 	});
 });

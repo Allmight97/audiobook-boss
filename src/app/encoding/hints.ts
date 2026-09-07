@@ -53,7 +53,7 @@ const formatSampleRateSummary = (sampleRates: readonly number[]): string => {
 	return `${formatSampleRate(first)}-${formatSampleRate(last)} kHz`;
 };
 
-export const channelCountToLabel = (channels: number): string => {
+const channelCountToLabel = (channels: number): string => {
 	if (channels === 1) return 'Mono';
 	if (channels === 2) return 'Stereo';
 	return `${channels} ch`;

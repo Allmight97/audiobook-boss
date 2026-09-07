@@ -1,25 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../types/events';
 import { StatusPanelRuntime } from '../runtime';
 import { SINGLE_COMPLETION_HOLD_MS } from '../domain/stateMachine';
 import { createStatusViewStore, type StatusViewStore } from '../view';
 
-function setupDom() {
-	document.body.innerHTML = `
-    <div id="progress-bar"></div>
-    <div id="percentage-processed"></div>
-    <div id="status-text"></div>
-    <div id="step-text"></div>
-    <div id="concurrency-status"></div>
-    <button id="process-button"></button>
-    <button id="cancel-all-button"></button>
-    <div class="art-thumbnail"></div>
-    <div id="job-list"></div>
-    <select id="max-concurrent-select"></select>
-  `;
-}
-
-function mountRuntime(): { readonly view: StatusViewStore; readonly controller: StatusPanelRuntime } {
+function mountRuntime(): {
+	readonly view: StatusViewStore;
+	readonly controller: StatusPanelRuntime;
+} {
 	const view = createStatusViewStore();
 	return { view, controller: new StatusPanelRuntime({ view }) };
 }
@@ -39,10 +27,6 @@ async function flushRenderFrame(): Promise<void> {
 }
 
 describe('StatusPanel queue snapshot', () => {
-	beforeEach(() => {
-		setupDom();
-	});
-
 	afterEach(() => {
 		vi.useRealTimers();
 	});
@@ -60,7 +44,10 @@ describe('StatusPanel queue snapshot', () => {
 
 		controller.applyQueueSnapshot(snapshot);
 
-		expect(getJobRows(view)).toEqual(['alpha.m4b • Queued • #1 of 2', 'beta.m4b • Queued • #2 of 2']);
+		expect(getJobRows(view)).toEqual([
+			'alpha.m4b • Queued • #1 of 2',
+			'beta.m4b • Queued • #2 of 2',
+		]);
 		expect(view.snapshot().statusText).toBe('Analyzing');
 		expect(view.snapshot().stepText).toBe('Current Step: Queued 2 files');
 		const status = controller.getCurrentStatus();

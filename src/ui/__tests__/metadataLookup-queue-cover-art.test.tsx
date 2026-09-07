@@ -2,9 +2,8 @@ import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import type { AppRuntime } from '../../app/runtime';
+import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
+
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { App } from '../App';
@@ -146,7 +145,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 	it('does not wipe previously replaced art when queue advances', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -183,7 +182,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 	it('preserves existing cover art when replace toggle is disabled', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -212,7 +211,7 @@ describe('metadata lookup queue cover art isolation', () => {
 
 	it('does not mutate metadata when skipping queue item', async () => {
 		const metadata = fakeMetadata();
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -236,7 +235,7 @@ describe('metadata lookup queue cover art isolation', () => {
 		const metadata = fakeMetadata({
 			searchOnlineMetadata: vi.fn(async () => ({ results: [], diagnostics: [] })),
 		});
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />
@@ -266,7 +265,7 @@ describe('metadata lookup queue cover art isolation', () => {
 				throw new Error('all sources failed');
 			}),
 		});
-		runtime = createTestAppRuntime({ input: fakeInput(), metadata });
+		runtime = createAppRuntime({ input: fakeInput(), metadata });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<App />

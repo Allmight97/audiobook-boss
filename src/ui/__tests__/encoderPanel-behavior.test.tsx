@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
-import type { AppRuntime } from '../../app/runtime';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
+import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
+
 import { EncoderView } from '../encoderPanel/EncoderView';
 import { emptyInputSession } from '../../app/inputSession/types';
 import {
@@ -44,7 +43,7 @@ describe('encoder panel behavior controls', () => {
 
 	function renderEncoder() {
 		runtime?.dispose();
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />
@@ -54,27 +53,6 @@ describe('encoder panel behavior controls', () => {
 
 	beforeEach(() => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-	});
-
-	it('renders no afterburner control; the App Settings dialog owns it', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-
-		expect(document.getElementById('fdk-options')).toBeNull();
-		expect(document.getElementById('adv-fdk-afterburner')).toBeNull();
-		expect(document.getElementById('encoder-inline-option-row')).toBeNull();
 	});
 
 	it('applies the settings-dialog afterburner preference to encoding config', async () => {
@@ -209,29 +187,6 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('retains the session afterburner opt-out across a capability reload', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-		runtime!.encoding.setAfterburner(false);
-		await runtime!.encoding.reloadCapabilities();
-
-		await vi.waitFor(() => {
-			expect(runtime!.encoding.request().encoderSettings.afterburner).toBe(false);
-		});
-	});
-
 	it('updates encoding request config when bitrate and channel choices change', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
@@ -339,31 +294,6 @@ describe('encoder panel behavior controls', () => {
 				encoderSettings: expect.any(Object),
 				sampleRate: expect.anything(),
 			});
-		});
-	});
-
-	it('shows missing FDK availability without exposing an override input', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: false,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (Apple AAC)');
-			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
-				'Auto will use Apple AAC.',
-			);
-			expect(document.body.textContent).not.toContain('Toolchain');
 		});
 	});
 

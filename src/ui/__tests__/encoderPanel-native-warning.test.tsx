@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
-import type { AppRuntime } from '../../app/runtime';
-import { createTestAppRuntime } from '../../app/runtime/harness';
-import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
+import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
+
 import { EncoderView } from '../encoderPanel/EncoderView';
 import {
 	encoderAvailabilityFixture,
@@ -36,7 +35,7 @@ describe('encoder panel native AAC warning', () => {
 
 	function renderEncoder() {
 		runtime?.dispose();
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />

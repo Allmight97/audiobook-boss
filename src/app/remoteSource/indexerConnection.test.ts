@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestAppRuntime } from '../runtime/harness';
-import type { AppRuntime } from '../runtime';
+import { createAppRuntime, type AppRuntime } from '../runtime';
+
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteIndexerConnection } from '../../types/remoteSource';
 
@@ -25,7 +25,7 @@ describe('Indexer connection owner intents', () => {
 		const test = vi
 			.spyOn(tauriClient, 'testRemoteSourceIndexerConnection')
 			.mockResolvedValue({ ok: false, message: 'API key rejected' });
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const owner = runtime.remoteSource;
 		await owner.loadIndexerConnectionSettings();
 		expect(owner.indexerConnection().apiKeyDraft).toBe('');
@@ -55,7 +55,7 @@ describe('Indexer connection owner intents', () => {
 		const account = vi
 			.spyOn(tauriClient, 'getRemoteSourceAccountState')
 			.mockResolvedValue({ providerId: 'indexer', status: 'connected' });
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const owner = runtime.remoteSource;
 		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
 		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValueOnce({
@@ -76,7 +76,7 @@ describe('Indexer connection owner intents', () => {
 		vi.spyOn(tauriClient, 'getRemoteSourceAccountState')
 			.mockResolvedValueOnce({ providerId: 'indexer', status: 'needsAuth' })
 			.mockRejectedValueOnce(new Error('Account refresh unavailable'));
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const owner = runtime.remoteSource;
 		await owner.open({ lane: 'indexer' });
 		owner.patchIndexerConnectionSettings({ baseUrlDraft: configured.baseUrl!, apiKeyDraft: 'key' });
@@ -93,7 +93,7 @@ describe('Indexer connection owner intents', () => {
 				finish = resolve;
 			}),
 		);
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const owner = runtime.remoteSource;
 		const loading = owner.loadIndexerConnectionSettings();
 		owner.patchIndexerConnectionSettings({
@@ -113,7 +113,7 @@ describe('Indexer connection owner intents', () => {
 			}),
 		);
 		vi.spyOn(tauriClient, 'updateRemoteSourceIndexerConnection').mockResolvedValue(configured);
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const owner = runtime.remoteSource;
 		owner.patchIndexerConnectionSettings({ baseUrlDraft: configured.baseUrl!, apiKeyDraft: 'key' });
 		const testing = owner.testIndexerConnection();
@@ -135,7 +135,7 @@ describe('Indexer connection owner intents', () => {
 			providerId: 'indexer',
 			status: 'connected',
 		});
-		runtime = createTestAppRuntime();
+		runtime = createAppRuntime();
 		const owner = runtime.remoteSource;
 		vi.spyOn(tauriClient, 'listRemoteSourceProviders').mockResolvedValue([]);
 		vi.mocked(tauriClient.getRemoteSourceAccountState).mockResolvedValueOnce({
