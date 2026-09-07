@@ -6,12 +6,7 @@ import { Button } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import {
-	clearFileListCoverThumbnails,
-	getFileListCoverThumbnailState,
-	scheduleFileListCoverThumbnails,
-	subscribeCoverThumbnails,
-} from './coverThumbnails';
+import { createFileListCoverThumbnails } from './coverThumbnails';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import './fileList.css';
 
@@ -34,7 +29,9 @@ export function FileListView(props: {
 	const toggleSort = input.toggleSort;
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
-	const [thumbnailRevision, setThumbnailRevision] = createSignal(0);
+	const thumbnails = createFileListCoverThumbnails((path) =>
+		capability().readAudioCoverThumbnail(path),
+	);
 	const [dragState, setDragState] = createSignal<FileListDragState>({
 		draggedIndex: null,
 		hoveredIndex: null,
@@ -50,7 +47,7 @@ export function FileListView(props: {
 	});
 
 	onCleanup(() => reorderHandlers.dispose());
-	onCleanup(subscribeCoverThumbnails(() => setThumbnailRevision((revision) => revision + 1)));
+	onCleanup(thumbnails.dispose);
 
 	createEffect(
 		() => {
@@ -59,15 +56,7 @@ export function FileListView(props: {
 				.map((file) => file.path);
 			return validPaths;
 		},
-		(validPaths) => {
-			if (validPaths.length === 0) {
-				clearFileListCoverThumbnails();
-				return;
-			}
-			scheduleFileListCoverThumbnails(validPaths, (path) =>
-				capability().readAudioCoverThumbnail(path),
-			);
-		},
+		(validPaths) => thumbnails.schedule(validPaths),
 	);
 
 	createEffect(
@@ -125,10 +114,7 @@ export function FileListView(props: {
 		void clearSelection();
 	}
 
-	const drag = () => {
-		thumbnailRevision();
-		return dragState();
-	};
+	const drag = dragState;
 
 	return (
 		<>
@@ -213,8 +199,7 @@ export function FileListView(props: {
 					<For each={view().files}>
 						{(file, index) => {
 							const thumbnail = () => {
-								drag();
-								return getFileListCoverThumbnailState(file.path);
+								return thumbnails.read(file.path);
 							};
 							return (
 								// biome-ignore lint/a11y/useKeyWithClickEvents: listbox owns keyboard; rows are not tab stops
