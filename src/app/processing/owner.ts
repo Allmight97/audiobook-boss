@@ -45,7 +45,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			deps.settings.setControlsEnabled(true);
 			deps.input.setOrderLocked(false);
 		},
-		concurrency: () => deps.settings.concurrency(),
+		concurrency: () => untrack(deps.settings.concurrency),
 		workflowLayer: makeProcessingWorkflowLive({
 			input: deps.input,
 			metadata: deps.metadata,
