@@ -42,7 +42,6 @@
 - Workflow tests inject `makeMetadataLookupWorkflowServicesLayer` with a
   harness-owned preview factory.
 - Two-runtime preview isolation lives in `src/app/runtime/runtime.test.ts`.
-- Status UI strip is pinned by `src/ui/metadataLookup` modal/island tests.
 
 ## Breaking-Change Triggers
 

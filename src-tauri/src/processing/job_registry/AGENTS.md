@@ -6,9 +6,9 @@
 - Source of truth for permit discipline, scheduling behavior, and reconfiguration safety.
 - Source of truth for max-concurrent-job capability facts exposed to settings
   controls.
-- Operation identity, progress/queue event vocabulary, and shared terminal
-  summaries live in the parent `processing` lifecycle/progress public API;
-  this directory owns active-job state, not the whole lifecycle contract.
+- Accepted-operation identity lives in `work_runtime`. Progress/queue event
+  vocabulary and shared terminal summaries live in the parent `processing`
+  public API; this directory owns active-job state.
 
 ## Preferred Path
 

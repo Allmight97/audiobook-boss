@@ -4,17 +4,27 @@ import solid from '@solidjs/vite-plugin';
 export default defineConfig({
 	plugins: [solid({ include: ['/**/*.tsx'] })],
 	test: {
-		// Use jsdom for DOM testing (statusPanel, fileList, etc.)
-		environment: 'jsdom',
-
-		include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts', 'scripts/**/*.test.ts'],
-		environmentMatchGlobs: [['scripts/**', 'node']],
-
-		// Global setup for Tauri mocks
-		setupFiles: ['./src/test/setup.ts'],
-
-		// TypeScript support via vite's built-in esbuild
-		globals: true,
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: 'frontend',
+					environment: 'jsdom',
+					include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts'],
+					exclude: ['src/__tests__/bootstrap-order.contract.test.ts'],
+					setupFiles: ['./src/test/setup.ts'],
+					globals: true,
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: 'tooling',
+					environment: 'node',
+					include: ['scripts/**/*.test.ts', 'src/__tests__/bootstrap-order.contract.test.ts'],
+				},
+			},
+		],
 	},
 
 	resolve: {

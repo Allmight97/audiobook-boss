@@ -24,18 +24,24 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
 #[test]
 fn snapshots_revision_each_operation_independently_and_stamp_membership() {
     let (mut state, operation_id) = accepted_state();
-    let accepted = state.get(&operation_id).unwrap();
+    let accepted = state.get(&operation_id).expect("accepted snapshot");
     let initial_list = state.list();
     assert_eq!(accepted.revision, 1);
     assert_eq!(accepted.created_revision, initial_list.membership_revision);
 
-    let running = state.mark_running(&operation_id, 150).unwrap();
-    let cancelling = state.request_cancel(&operation_id, 160).unwrap();
+    let running = state.mark_running(&operation_id, 150).expect("start");
+    let progress = state
+        .apply_progress_event(&operation_id, &converting_event(50.0, "Encoding", 0), 155)
+        .expect("progress");
+    let cancelling = state
+        .request_cancel(&operation_id, 160)
+        .expect("request cancel");
     let terminal = state
         .cancel(&operation_id, "Cancelled".to_string(), 170)
-        .unwrap();
+        .expect("cancel");
     assert!(accepted.revision < running.revision);
-    assert!(running.revision < cancelling.revision);
+    assert!(running.revision < progress.revision);
+    assert!(progress.revision < cancelling.revision);
     assert!(cancelling.revision < terminal.revision);
     assert_eq!(terminal.sequence, accepted.sequence);
     assert_eq!(terminal.created_revision, accepted.created_revision);
@@ -43,6 +49,7 @@ fn snapshots_revision_each_operation_independently_and_stamp_membership() {
         state.list().membership_revision,
         initial_list.membership_revision
     );
+    assert_eq!(state.list().operations[0].revision, terminal.revision);
 
     let next = state.insert_operation(new_metadata_save_snapshot(
         OperationId("op-2".to_string()),
@@ -54,9 +61,42 @@ fn snapshots_revision_each_operation_independently_and_stamp_membership() {
     assert_eq!(next.revision, 1);
     assert!(next.created_revision > initial_list.membership_revision);
     assert_eq!(
-        state.get(&operation_id).unwrap().revision,
+        state
+            .get(&operation_id)
+            .expect("terminal snapshot")
+            .revision,
         terminal.revision
     );
+
+    let metadata_id = OperationId("op-2".to_string());
+    let metadata_progress = state
+        .apply_progress_event(
+            &metadata_id,
+            &ProgressEvent {
+                operation_kind: OperationKind::MetadataSave,
+                stage: EventStage::Writing,
+                job_id: None,
+                ..converting_event(40.0, "Saving tags", 0)
+            },
+            190,
+        )
+        .expect("metadata progress");
+    let metadata_terminal = state
+        .complete_from_summary(
+            &metadata_id,
+            &OperationResultSummary {
+                total: 1,
+                succeeded: 1,
+                skipped: 0,
+                cancelled: 0,
+                failed: 0,
+            },
+            &[(0, ProcessResultStatus::Success, "Saved".to_string())],
+            200,
+        )
+        .expect("metadata complete");
+    assert!(next.revision < metadata_progress.revision);
+    assert!(metadata_progress.revision < metadata_terminal.revision);
 }
 
 #[test]

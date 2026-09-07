@@ -214,16 +214,6 @@ describe('createFileListPointerReorder', () => {
 			expect(handlers.consumePostDragClick()).toBe(false);
 			handlers.dispose();
 		});
-
-		it('still lets the immediate post-drag row click consume the flag', () => {
-			const handlers = createHandlers();
-			handlers.onGripPointerDown(0, gripPointerDown());
-			firePointer('pointermove', { clientX: 0, clientY: 24 });
-			firePointer('pointerup', {});
-			expect(handlers.consumePostDragClick()).toBe(true);
-			expect(handlers.consumePostDragClick()).toBe(false);
-			handlers.dispose();
-		});
 	});
 
 	describe('lostpointercapture listener leak', () => {

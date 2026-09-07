@@ -10,7 +10,8 @@
 
 ## Public API Strip
 
-- Import Work Operations runtime symbols from `src/app/workOperations`.
+- Import `createWorkOperationsOwner` and owner/view types from
+  `src/app/workOperations`. Merge helpers and retention constants are private.
 - Workbench callers that only need the composed UI strip import
   `src/ui/workCenter` instead.
 - `index.ts` is the export surface. Do not import `runtime.ts` or `model.ts`
@@ -48,6 +49,7 @@
   rejection.
 - Work Center UI strip is pinned by
   `src/ui/workCenter/__tests__/runtime-api-contract.test.ts`.
+- `runtime-api-contract.test.ts` independently pins the app owner export strip.
 
 ## Boundary Changes
 

@@ -399,13 +399,12 @@ impl WorkRuntimeState {
     }
 
     fn snapshot_mut(&mut self, operation_id: &OperationId) -> Result<&mut OperationSnapshot> {
-        self.operations
+        let snapshot = self
+            .operations
             .get_mut(operation_id.as_str())
-            .map(|snapshot| {
-                snapshot.revision += 1;
-                snapshot
-            })
-            .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))
+            .ok_or_else(|| AppError::InvalidInput("Work operation was not found.".to_string()))?;
+        snapshot.revision += 1;
+        Ok(snapshot)
     }
 
     /// Record an operation as terminalized, once, in completion order.
