@@ -3,7 +3,6 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import type { AppSettings, PinnedDefaults, StartupBehavior } from '../../types/appSettings';
 import type { EncoderAvailability } from '../../types/audio';
-import { hydrateAppSettingsProduction } from './hydrate';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -49,7 +48,7 @@ export type SettingsDialog = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
+	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
 
@@ -58,7 +57,7 @@ export function createSettingsDialog(deps: {
 }): SettingsDialog {
 	let dialog = createInitialState();
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	let afterSettingsReset: ((defaults: PinnedDefaults) => void) | undefined;
+	let afterSettingsReset: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined;
 
 	function update(mutator: (draft: AppSettingsDialogState) => void): void {
 		const next = { ...dialog };
@@ -221,11 +220,8 @@ export function createSettingsDialog(deps: {
 				draft.saveError = '';
 			});
 			try {
-				await deps.capability().resetAppSettings();
-				const defaults = await hydrateAppSettingsProduction();
-				if (defaults) {
-					afterSettingsReset?.(defaults);
-				}
+				const defaults = await deps.capability().resetAppSettings();
+				await afterSettingsReset?.(defaults);
 				update((draft) => {
 					draft.saveState = 'saved';
 				});

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
-import { tauriClient } from '../../lib/tauri/client';
+import {
+	encoderAvailabilityFixture,
+	runtimeSettingsCapabilitiesFixture,
+} from '../../test/fixtures/runtimeSettingsCapabilities';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -110,9 +112,50 @@ describe('app settings concurrency', () => {
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
 		await runtime.settings.setDefaultAcquisitionLane('indexer');
 		vi.mocked(settings.getAppSettings).mockResolvedValue(settingsFixture());
-		vi.spyOn(tauriClient, 'getAppSettings').mockResolvedValue(settingsFixture());
 		await runtime.settings.resetAllAppSettings();
 		expect(runtime.settings.dialog().settings?.defaultAcquisitionLane).toBe('audible');
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
+	});
+
+	it('refreshes encoder availability when resetting removes the configured FFmpeg', async () => {
+		let fdkAvailable = true;
+		let refreshRequested = false;
+		let finishRefresh!: () => void;
+		const refresh = new Promise<void>((resolve) => {
+			finishRefresh = resolve;
+		});
+		const settings = fakeSettings({
+			getRuntimeSettingsCapabilities: vi.fn(async () => {
+				if (!fdkAvailable) {
+					refreshRequested = true;
+					await refresh;
+				}
+				return runtimeSettingsCapabilitiesFixture({
+					encoder: { availability: encoderAvailabilityFixture({ fdkAvailable }) },
+				});
+			}),
+			resetAppSettings: vi.fn(async () => {
+				fdkAvailable = false;
+				return settingsFixture();
+			}),
+		});
+		runtime = createAppRuntime({ settings });
+		const encoding = runtime.encoding;
+		await vi.waitFor(() => {
+			expect(
+				encoding.view().flavorOptions.find(({ value }) => value === 'fdk_he_aac'),
+			).toMatchObject({ disabled: false });
+		});
+		encoding.select('encoder', 'fdk_he_aac');
+		const reset = runtime.settings.resetAllAppSettings();
+		await vi.waitFor(() => expect(refreshRequested).toBe(true));
+		expect(runtime.settings.dialog().saveState).toBe('saving');
+		finishRefresh();
+		await reset;
+		expect(encoding.view().flavorOptions.find(({ value }) => value === 'fdk_he_aac')).toMatchObject(
+			{ disabled: true },
+		);
+		encoding.select('encoder', 'fdk_he_aac');
+		expect(encoding.request().encoderSettings.encoderType).toBe('auto');
 	});
 });

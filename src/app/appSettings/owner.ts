@@ -45,7 +45,7 @@ export type SettingsOwner = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	bindAfterReset(apply: ((defaults: PinnedDefaults) => void) | undefined): void;
+	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
 

@@ -23,7 +23,9 @@
   do not persist. Only `select` and `setAfterburner` persist last-used
   defaults through the injected persist adapter.
 - Capability and availability facts come from backend Runtime Settings
-  Capabilities. Labels and auto-hints are frontend-owned.
+  Capabilities. Settings reset waits for the App Runtime handoff to reload
+  these capabilities after a configured FFmpeg path is removed. Labels and
+  auto-hints are frontend-owned.
 - Afterburner is encoding truth. The checkbox stays in the Settings dialog.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.

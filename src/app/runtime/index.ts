@@ -65,10 +65,11 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			});
 			processingHolder.current = processing;
 			const workOperations = createWorkOperationsOwner({ remoteSource });
-			settings.bindAfterReset((defaults) => {
+			settings.bindAfterReset(async (defaults) => {
 				output.applyDefaults(defaults.outputDefaults);
 				encoding.applyDefaults(defaults.encoderDefaults);
-				void settings.hydrateConcurrency({ preference: defaults.maxConcurrentJobs });
+				await encoding.reloadCapabilities();
+				await settings.hydrateConcurrency({ preference: defaults.maxConcurrentJobs });
 			});
 			return {
 				input,
