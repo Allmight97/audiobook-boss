@@ -394,6 +394,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					>
 						<For each={visibleTitles()}>
 							{(title) => (
+								// biome-ignore lint/a11y/useFocusableInteractive: Solid 2 uses the lowercase tabindex attribute.
 								<div
 									class={`remote-title-row${view().selectedTitleIds.has(title.titleId) ? ' selected' : ''}${!isTitleAcquirable(title) ? ' unavailable' : ''}`}
 									role="option"
