@@ -278,6 +278,65 @@ describe('metadata session selection and save', () => {
 		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
 
+	it.each([
+		{ valid: true, cancel: 'workflow' },
+		{ valid: false, cancel: 'workflow' },
+		{ valid: true, cancel: 'new selection' },
+		{ valid: false, cancel: 'new selection' },
+	])(
+		'aborts draft validation on $cancel and leaves a newer gate usable (valid: $valid)',
+		async ({ valid, cancel }) => {
+			const metadata = fakeMetadata();
+			runtime = createAppRuntime({ metadata });
+			runtime.input.replaceSession({
+				...emptyInputSession(),
+				fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+				selectedIndices: [0],
+				selectedAnchor: 0,
+			});
+			await runtime.metadata.hydrateSelection(null);
+			runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Edited Alpha' });
+			const draft = runtime.metadata.view();
+			const finish: Array<(isValid: boolean) => void> = [];
+			vi.mocked(metadata.validateMetadataIntentPatch).mockImplementation(
+				(patch) =>
+					new Promise((resolve) => {
+						finish.push((isValid) =>
+							resolve({
+								isValid,
+								metadataPatch: patch,
+								fieldErrors: isValid
+									? []
+									: [{ field: 'date', code: 'publication_date_syntax', message: 'Invalid date' }],
+							}),
+						);
+					}),
+			);
+			const controller = new AbortController();
+			const obsolete = runtime.input.selectFile({
+				index: 1,
+				modifiers: { multi: false, range: false },
+				signal: controller.signal,
+			});
+			await vi.waitFor(() => expect(finish).toHaveLength(1));
+			if (cancel === 'workflow') controller.abort();
+			const current = runtime.input.selectFile({
+				index: 1,
+				modifiers: { multi: false, range: false },
+			});
+			await vi.waitFor(() => expect(finish).toHaveLength(2));
+			finish[0](valid);
+			expect(await obsolete).toBe(false);
+			expect(runtime.metadata.view().form).toEqual(draft.form);
+			expect(runtime.metadata.view().statusMessage).toBe(draft.statusMessage);
+			expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha');
+			finish[1](true);
+			expect(await current).toBe(true);
+			expect(runtime.input.session().selectedIndices).toEqual([1]);
+			expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
+		},
+	);
+
 	it('saves staged intent through the metadata capability', async () => {
 		const metadata = fakeMetadata();
 		runtime = createAppRuntime({ metadata });

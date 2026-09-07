@@ -42,7 +42,9 @@ dispatch intent; they do not keep parallel business state.
 - Input owns awaitable selection and removal transitions; Metadata's draft gate
   must accept before Input changes. Pending targeted intents retain file
   identity across reordering and expire when the session is replaced/reset.
-  Workflow-owned selections honor their abort signal while awaiting the gate.
+  Input cancels the draft gate on a newer transition, replacement/reset, or the
+  requesting workflow's abort. An aborted gate cannot stage drafts, clear dirty
+  state, or publish validation errors.
   Dependent workflows proceed only after selection and hydration succeed.
 - Choose AppEffect when its typed failure, dependency composition, or scoped
   work reduces coordination; direct capability workflows may use plain async.

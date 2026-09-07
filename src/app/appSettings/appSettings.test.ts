@@ -85,6 +85,8 @@ describe('app settings concurrency', () => {
 		expect(runtime.settings.concurrency().selection).toBe('auto');
 		expect(settings.updateAppSettings).not.toHaveBeenCalled();
 		expect(runtime.settings.concurrency().errorMessage).toContain('jobs active');
+		await runtime.settings.hydrateConcurrency();
+		expect(runtime.settings.concurrency().errorMessage).toBe('');
 	});
 
 	it('keeps accepted concurrency after a storage failure and retries saving without reconfiguration', async () => {
@@ -223,6 +225,122 @@ describe('app settings concurrency', () => {
 		await runtime.settings.retryPersistence();
 		expect(settings.updateAppSettings).toHaveBeenCalledTimes(1);
 	});
+
+	it('preserves defaults accepted while reset is pending, including their failed write and retry', async () => {
+		let finishReset!: (value: AppSettings) => void;
+		const settings = fakeSettings({
+			resetAppSettings: vi.fn(
+				() =>
+					new Promise<AppSettings>((resolve) => {
+						finishReset = resolve;
+					}),
+			),
+			updateAppSettings: vi.fn(async () => {
+				throw new Error('Disk full');
+			}),
+		});
+		runtime = createAppRuntime({ settings });
+		const reset = runtime.settings.resetAllAppSettings();
+		await vi.waitFor(() => expect(settings.resetAppSettings).toHaveBeenCalled());
+		runtime.encoding.setAfterburner(false);
+		runtime.output.setAbsIncludeYear(true);
+		const changeLane = runtime.settings.setDefaultAcquisitionLane('indexer');
+		finishReset(settingsFixture());
+		await Promise.all([reset, changeLane]);
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(true);
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
+		expect(runtime.settings.durability()).toMatchObject({ state: 'error', message: 'Disk full' });
+		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
+		await runtime.settings.retryPersistence();
+		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				encoderDefaults: expect.objectContaining({
+					settings: expect.objectContaining({ afterburner: false }),
+				}),
+				outputDefaults: expect.objectContaining({
+					outputNaming: expect.objectContaining({ includeYear: true }),
+				}),
+				defaultAcquisitionLane: 'indexer',
+			}),
+		);
+		expect(runtime.settings.durability().state).toBe('saved');
+	});
+
+	it.each([true, false])(
+		'keeps reset and a later concurrency request in runtime order (accepted: %s)',
+		async (accepted) => {
+			let finishReset!: (value: AppSettings) => void;
+			let effective = 4;
+			const settings = fakeSettings({
+				resetAppSettings: vi.fn(async () => {
+					const defaults = await new Promise<AppSettings>((resolve) => {
+						finishReset = resolve;
+					});
+					effective = 4;
+					return defaults;
+				}),
+				getMaxConcurrentJobs: vi.fn(async () => effective),
+				setMaxConcurrentJobs: vi.fn(async (value) => {
+					if (value === 3 && !accepted) throw new Error('jobs active');
+					effective = value ?? 4;
+					return effective;
+				}),
+			});
+			runtime = createAppRuntime({ settings });
+			await runtime.settings.setConcurrencySelection('2');
+			const reset = runtime.settings.resetAllAppSettings();
+			await vi.waitFor(() => expect(settings.resetAppSettings).toHaveBeenCalled());
+			const change = runtime.settings.setConcurrencySelection('3');
+			finishReset(settingsFixture());
+			await Promise.all([reset, change]);
+			expect(runtime.settings.concurrency()).toMatchObject({
+				selection: accepted ? '3' : 'auto',
+				effective: accepted ? 3 : 4,
+				errorMessage: accepted ? '' : 'jobs active',
+			});
+			expect(effective).toBe(accepted ? 3 : 4);
+		},
+	);
+
+	it.each([true, false])(
+		'supersedes an earlier pending concurrency request only when reset succeeds (%s)',
+		async (resetAccepted) => {
+			let finishChange!: (value: number) => void;
+			const settings = fakeSettings({
+				setMaxConcurrentJobs: vi.fn(
+					() =>
+						new Promise<number>((resolve) => {
+							finishChange = resolve;
+						}),
+				),
+				resetAppSettings: vi.fn(async () => {
+					if (!resetAccepted) throw new Error('Reset failed');
+					return settingsFixture();
+				}),
+				updateAppSettings: vi.fn(async () => {
+					throw new Error('Disk full');
+				}),
+			});
+			runtime = createAppRuntime({ settings });
+			const change = runtime.settings.setConcurrencySelection('3');
+			await vi.waitFor(() => expect(settings.setMaxConcurrentJobs).toHaveBeenCalled());
+			const reset = runtime.settings.resetAllAppSettings();
+			finishChange(3);
+			await Promise.all([change, reset]);
+			expect(runtime.settings.concurrency().selection).toBe(resetAccepted ? 'auto' : '3');
+			expect(runtime.settings.durability().state).toBe(resetAccepted ? 'saved' : 'error');
+			vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
+			await runtime.settings.retryPersistence();
+			if (resetAccepted) {
+				expect(settings.updateAppSettings).not.toHaveBeenCalled();
+			} else {
+				expect(settings.updateAppSettings).toHaveBeenLastCalledWith({
+					maxConcurrentJobs: { mode: 'fixed', value: 3 },
+				});
+			}
+		},
+	);
 
 	it('ignores a late failed write after the runtime is disposed', async () => {
 		let fail!: (error: Error) => void;

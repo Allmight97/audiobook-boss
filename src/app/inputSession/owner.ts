@@ -52,7 +52,7 @@ export type InputOwner = {
 
 export type InputOwnerDeps = {
 	readonly capability?: InputCapability;
-	readonly beforeSelectionChange?: () => boolean | Promise<boolean>;
+	readonly beforeSelectionChange?: (signal?: AbortSignal) => boolean | Promise<boolean>;
 };
 
 export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
@@ -73,7 +73,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		return jobType;
 	};
 	const capability: Accessor<InputCapability> = () => capabilityValue;
-	let selectionTransitionTicket = 0;
+	let selectionTransition: AbortController | undefined;
 	let importQueue: Promise<void> = Promise.resolve();
 	let importEpoch = 0;
 
@@ -84,9 +84,17 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 
 	async function allowSelectionTransition(signal?: AbortSignal): Promise<boolean> {
 		if (signal?.aborted) return false;
-		const ticket = ++selectionTransitionTicket;
-		const allowed = await deps.beforeSelectionChange?.();
-		return allowed !== false && !signal?.aborted && ticket === selectionTransitionTicket;
+		selectionTransition?.abort();
+		const transition = new AbortController();
+		selectionTransition = transition;
+		const abort = () => transition.abort();
+		signal?.addEventListener('abort', abort, { once: true });
+		try {
+			const allowed = await deps.beforeSelectionChange?.(transition.signal);
+			return allowed !== false && !transition.signal.aborted;
+		} finally {
+			signal?.removeEventListener('abort', abort);
+		}
 	}
 
 	function currentIndex(file: AudioFile): number {
@@ -202,11 +210,12 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			bump((n) => n + 1);
 		},
 		replaceSession(next) {
-			selectionTransitionTicket += 1;
+			selectionTransition?.abort();
 			commit(next);
 		},
 		reset() {
-			selectionTransitionTicket += 1;
+			selectionTransition?.abort();
+			selectionTransition = undefined;
 			importEpoch += 1;
 			jobType = 'batch';
 			commit(emptyInputSession());

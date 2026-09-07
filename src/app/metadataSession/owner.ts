@@ -80,7 +80,7 @@ export type MetadataOwner = {
 	readonly view: Accessor<MetadataView>;
 	readonly capability: Accessor<MetadataCapability>;
 	hydrateSelection(activeElement: Element | null): Promise<boolean>;
-	canChangeSelection(): Promise<boolean>;
+	canChangeSelection(signal?: AbortSignal): Promise<boolean>;
 	setFieldValue(command: { readonly inputId: string; readonly value: string }): void;
 	setFieldAction(command: { readonly actionId: string; readonly action: 'keep' | 'blank' }): void;
 	setCoverHovered(hovered: boolean): void;
@@ -322,6 +322,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 
 	async function persistBoundDrafts(
 		current: MetadataEditorState,
+		signal?: AbortSignal,
 	): Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }> {
 		const started = generation;
 		if (current.boundFiles.length === 0) {
@@ -344,6 +345,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return { ok: false, message: prepared.message };
 		}
 		if (
+			signal?.aborted ||
 			generation !== started ||
 			editor.selectionKey !== current.selectionKey ||
 			editor.hydrateRequestId !== current.hydrateRequestId ||
@@ -453,17 +455,17 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	return {
 		view,
 		capability,
-		async canChangeSelection() {
+		async canChangeSelection(signal) {
 			const started = generation;
 			const current = editor;
-			if (current.saveInProgress) {
+			if (signal?.aborted || current.saveInProgress) {
 				return false;
 			}
 			if (current.boundFiles.length === 0 || !hasDirtyMetadataFields(current.form, current.cover)) {
 				return true;
 			}
-			const persisted = await persistBoundDrafts(current);
-			if (generation !== started) return false;
+			const persisted = await persistBoundDrafts(current, signal);
+			if (signal?.aborted || generation !== started) return false;
 			if (!persisted.ok) {
 				applyValidationFailure(persisted.message);
 				return false;

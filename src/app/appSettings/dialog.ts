@@ -1,7 +1,7 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import type { AppSettings, PinnedDefaults, StartupBehavior } from '../../types/appSettings';
+import type { AppSettings, StartupBehavior } from '../../types/appSettings';
 import type { EncoderAvailability } from '../../types/audio';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -48,7 +48,6 @@ export type SettingsDialog = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
 
@@ -59,7 +58,6 @@ export function createSettingsDialog(deps: {
 	let dialog = createInitialState();
 	let generation = 0;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	let afterSettingsReset: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined;
 
 	function update(mutator: (draft: AppSettingsDialogState) => void): void {
 		const next = { ...dialog };
@@ -245,9 +243,8 @@ export function createSettingsDialog(deps: {
 				draft.saveError = '';
 			});
 			try {
-				const defaults = await deps.capability().resetAppSettings();
+				await deps.capability().resetAppSettings();
 				if (started !== generation) return;
-				await afterSettingsReset?.(defaults);
 				update((draft) => {
 					draft.saveState = 'saved';
 				});
@@ -259,12 +256,8 @@ export function createSettingsDialog(deps: {
 			}
 			await reloadDialogData(started);
 		},
-		bindAfterReset(apply) {
-			afterSettingsReset = apply;
-		},
 		reset() {
 			generation += 1;
-			afterSettingsReset = undefined;
 			dialog = createInitialState();
 			bump((n) => n + 1);
 		},

@@ -152,7 +152,7 @@ describe('input session selection gate', () => {
 	});
 });
 
-describe('input session selection transition ticket', () => {
+describe('input session selection transitions', () => {
 	it('keeps the selection when its requesting workflow aborts during validation', async () => {
 		let allow!: (value: boolean) => void;
 		const owner = createInputOwner({

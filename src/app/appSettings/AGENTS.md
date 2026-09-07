@@ -21,7 +21,10 @@
   accepted values. Older completions cannot claim newer choices are saved.
   Persistence retries do not reconfigure concurrency.
 - Reset waits for in-flight writes and supersedes older pending defaults only
-  when it succeeds. Failed reset leaves unsaved values retryable. Disposal
+  when it succeeds. Accepted changes requested after reset remain applied and
+  pending until their own write succeeds. Reset reflects the runtime's
+  accepted concurrency before later queued requests run; panel appliers do not
+  reconfigure it. Failed reset leaves unsaved values retryable. Disposal
   invalidates pending publications and follow-on hydration.
 - Store backend/request-shaped preferences. UI-only disclosure, detected text,
   previews, and visibility stay outside durable settings.
