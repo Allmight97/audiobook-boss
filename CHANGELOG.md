@@ -4,6 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-09-07
+
+### Changed
+
+- Update the bundled AAXClean helper to 3.1.0 for reliable xHE-AAC seeking and
+  sample-accurate chapter splitting.
+- Refresh eligible frontend, Rust, and helper dependencies, including jsdom 30
+  and the current RustCrypto AES, CBC, SHA-2, and base64 releases.
+
 ## [1.7.1] - 2026-09-07
 
 ### Changed
