@@ -12,7 +12,7 @@
 - Files: `artifact.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `naming.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
 - The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation and cleanup of ABB-created empty parent dirs, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 - Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.
 - Change private implementation files when targeted `audiobook-boss` Nextest
   and Public API Strip checks stay green.
@@ -20,7 +20,7 @@
 - Keep final artifact writes and replacement policy here; processor code should ask this boundary for artifact truth.
 - Use explicit cross-platform replacement semantics for final artifacts; do not rely on Unix-only rename-over-existing behavior.
 
-## Breaking-Change Triggers
+## Boundary Changes
 - Adding, removing, or renaming any Public API Strip symbol.
 - Changing collision/review semantics, source-destination overlap handling, final commit behavior, or success message truth.
 - Moving final artifact commit truth outside this boundary.

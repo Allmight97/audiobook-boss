@@ -1,11 +1,9 @@
 # Tauri IPC Boundary
 
 ## Public API Strip
-- Public module exports: `tauriClient`, `TAURI_COMMAND_NAMES`, `TAURI_APP_EVENT_NAMES`, `TauriCommand`.
-- `tauriClient` methods are pinned by `src/lib/tauri-public-api.contract.test.ts`; add methods only as deliberate boundary changes.
-- Public-strip tests must pin an independent expected surface. Do not derive the
-  expected method, command, or event list from `commands.ts` or generated
-  bindings.
+- `client.ts` defines the public runtime surface;
+  `src/lib/tauri-public-api.contract.test.ts` independently pins it. Inspect
+  those sources for the exact exports and methods before changing the strip.
 - Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
 
 ## Frontend Utility Surface
@@ -27,7 +25,7 @@
 - Files: `client.ts`, `commands.ts`, `normalizers.ts`, `AGENTS.md`.
 - Generated bindings live at `src/lib/generated/tauri.ts`; do not hand-edit them.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 - Change private adapters when generated-binding, Public API Strip, and targeted
   runtime Vitest checks stay green.
 - Keep command and type names semantic; avoid `_v1`/`_v2` version suffixes and `_cmd` command suffixes. Breaking changes get a new product-meaningful name.
@@ -37,7 +35,7 @@
   rule tables.
 - Keep nullish and payload normalization centralized in the private cluster.
 
-## Breaking-Change Triggers
+## Boundary Changes
 - Adding, removing, or renaming a public export, `tauriClient` method, command name, event name, or generated overlap type.
 - Sending clear intent through sentinel frontend values instead of explicit patch ops.
 - Bypassing `tauriClient` with generated invokers or raw Tauri invoke/listen calls.

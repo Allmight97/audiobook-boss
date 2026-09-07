@@ -1,45 +1,17 @@
-# Specta Route Card
+# Specta
 
-- ABB crates: `specta`, `specta-typescript`
-- Upstream: `https://github.com/specta-rs/specta.git`
-- Context7: none pinned; prefer `docs.rs` at the exact crate version
+Read for Rust type export, serde mapping, macros, or TypeScript generation.
 
-Resolve pinned versions from `Cargo.lock` (do not cache them here). ABB pins
-release candidates; upstream default branch is not proof.
+- Resolve `specta` and `specta-typescript` from `Cargo.lock`, including
+  their source/checksum; inspect features in `src-tauri/Cargo.toml`.
+- Use the selected Cargo registry sources or
+  `docs.rs/<crate>/<exact-version>`. Default-branch release-candidate docs
+  may differ from ABB's pinned release.
+- Upstream: [Specta](https://github.com/specta-rs/specta), including
+  `specta`, `specta-typescript`, `specta-macros`, and tests/examples.
 
-## Use For
-
-- Rust type export behavior, TypeScript generation, serde/type mapping, macro
-  behavior, and generated binding expectations.
-- Source-level confirmation for ABB's IPC type export path.
-
-## Installed / registry entrypoints
-
-- Cargo registry crates `specta` and `specta-typescript` at the `Cargo.lock`
-  versions and checksums
-- `docs.rs/specta/<exact-version>`
-- `docs.rs/specta-typescript/<exact-version>`
-
-## Exceptional upstream areas
-
-- `specta/src`
-- `specta-typescript/src`
-- `specta-macros/src`
-- `specta-serde/src`
-- `tests/tests`, `tests/tests/macro`, `tests/tests/snapshots`
-- `examples/basic-ts`, `examples/collect`
-
-## Avoid
-
-- Do not assume upstream default-branch docs match ABB's pinned release
-  candidates.
-- Do not hand-edit generated ABB bindings to match upstream examples.
-- Do not copy snapshot expectations without checking ABB's exporter command.
-
-## ABB Reconciliation
-
-- Check `src-tauri/Cargo.toml` and `Cargo.lock` for pinned `specta` and
-  `specta-typescript` versions.
-- Verify generated output through `bun run bindings:check` or the relevant
-  focused binding command before changing IPC contracts.
-- When Specta output affects TS/Rust parity, see `src-tauri/src/commands/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
+Compare research with ABB's exporter and `src/lib/generated/tauri.ts`.
+If the answer changes TS/Rust shape, follow
+`src-tauri/src/commands/AGENTS.md`, `src/lib/tauri/AGENTS.md`, and the
+binding verification commands in `scripts/AGENTS.md`. Research alone does
+not require regeneration.

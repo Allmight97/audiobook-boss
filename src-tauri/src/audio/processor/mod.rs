@@ -94,11 +94,35 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
             path: file.path.clone(),
             duration: file.duration,
             is_valid: file.is_valid,
+            chapters: Some(
+                file.chapter_plan
+                    .as_ref()
+                    .map_or_else(|| file.chapters.clone(), |plan| plan.chapters.clone()),
+            ),
         })
         .collect()
 }
 
 pub async fn execute_audio_engine(request: AudioExecutionRequest) -> Result<String> {
+    for file in request.file_info.files.iter().filter(|file| file.is_valid) {
+        if file.cue_source.as_ref().is_some_and(|cue| {
+            matches!(
+                cue.status,
+                crate::metadata::CueStatus::NeedsConfirmation | crate::metadata::CueStatus::Invalid
+            )
+        }) {
+            return Err(crate::errors::AppError::InvalidInput(
+                "Review or ignore the CUE before processing.".into(),
+            ));
+        }
+        if request.file_info.files.len() > 1
+            && file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue)
+        {
+            return Err(crate::errors::AppError::InvalidInput(
+                "CUE chapters require a single-source output.".into(),
+            ));
+        }
+    }
     let FileListInfo {
         files,
         selected_decoders,
@@ -206,8 +230,13 @@ fn process_audiobook_with_context(
     )?;
 
     // Stage 3: Finalize
-    let result =
-        finalize::finalize_processing(&context, workflow, merged_output, effective_metadata)?;
+    let result = finalize::finalize_processing(
+        &context,
+        workflow,
+        merged_output,
+        effective_metadata,
+        passthrough_metadata.as_ref(),
+    )?;
     let _ = workflow_cleanup.remove_path(&workflow_temp_dir);
 
     // Suppress full-run metrics summary during preview; log preview-specific stats instead

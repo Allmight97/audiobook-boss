@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FileListInfo } from '../../types/audio';
-import type { AcquisitionJob, RemoteLibraryResponse, RemoteTitle } from '../../types/remoteSource';
+import type {
+	AcquisitionJob,
+	RemoteLibraryResponse,
+	RemoteRelease,
+	RemoteSourceProviderCapabilities,
+	RemoteTitle,
+} from '../../types/remoteSource';
 import type { InputOwner } from '../inputSession';
 import { createRemoteSourceOwner, type RemoteSourceOwner } from './owner';
 import {
@@ -147,31 +153,93 @@ function terminalJob(): AcquisitionJob {
 	};
 }
 
+function providerCapabilities(): RemoteSourceProviderCapabilities[] {
+	return [
+		{
+			providerId: 'audible',
+			label: 'Audible',
+			authFlow: 'externalBrowserHandoff',
+			supportsLibraryScan: true,
+			supportsPagedScan: false,
+			supportsTypeaheadFilter: true,
+			supportsSupplementalPdf: true,
+			supportsMaterializedAudio: true,
+			supportsReleaseSearch: false,
+			supportsReleaseGrab: false,
+			supportsRefresh: true,
+			requiresLiveSession: true,
+			knownUnsupportedReasons: [],
+		},
+		{
+			providerId: 'indexer',
+			label: 'Indexer',
+			authFlow: 'apiKey',
+			supportsLibraryScan: false,
+			supportsPagedScan: false,
+			supportsTypeaheadFilter: false,
+			supportsSupplementalPdf: false,
+			supportsMaterializedAudio: false,
+			supportsReleaseSearch: true,
+			supportsReleaseGrab: true,
+			supportsRefresh: false,
+			requiresLiveSession: false,
+			knownUnsupportedReasons: ['indexerConnectionRequired'],
+		},
+	];
+}
+
+function indexerRelease(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
+	return {
+		providerId: 'indexer',
+		guid: 'release-guid-1',
+		indexerId: 7,
+		title: 'Example Release',
+		indexer: 'Example Indexer',
+		sizeBytes: 1_024_000_000,
+		protocol: 'torrent',
+		seeders: 12,
+		categories: [{ id: 3030, name: 'Audio/Audiobook' }],
+		...overrides,
+	};
+}
+
 function makeServices(
 	overrides: Partial<RemoteSourceWorkflowServices> = {},
 ): RemoteSourceWorkflowServices {
 	return {
-		getAccountState: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		listProviders: vi.fn(async () => providerCapabilities()),
+		getAccountState: vi.fn(async (providerId) => ({
+			providerId,
 			status: 'connected' as const,
 		})),
-		startAuth: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		startAuth: vi.fn(async (providerId) => ({
+			providerId,
 			authorizationUrl: 'https://example.test/auth',
 			handoffPathHint: '/tmp/handoff',
 			message: 'Open Audible to continue.',
 		})),
 		openAuthorizationUrl: vi.fn(async () => undefined),
-		completeAuth: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		completeAuth: vi.fn(async (providerId) => ({
+			providerId,
 			status: 'connected' as const,
 		})),
-		logout: vi.fn(async () => ({
-			providerId: 'audible' as const,
+		logout: vi.fn(async (providerId) => ({
+			providerId,
 			status: 'needsAuth' as const,
 		})),
 		loadLibrary: vi.fn(async () => library()),
-		startAcquisition: vi.fn(async () => runningJob()),
+		searchReleases: vi.fn(async () => ({
+			providerId: 'indexer' as const,
+			releases: [indexerRelease()],
+			diagnostics: [],
+		})),
+		grabRelease: vi.fn(async () => ({
+			providerId: 'indexer' as const,
+			accepted: true,
+			message: 'Release sent to Indexer.',
+			diagnostics: [],
+		})),
+		startAcquisition: vi.fn(async (_providerId, _selections) => runningJob()),
 		getAcquisitionStatus: vi.fn(async () => terminalJob()),
 		cancelAcquisition: vi.fn(async () => ({
 			...runningJob(),
@@ -207,14 +275,15 @@ describe('remote source acquisition workflow', () => {
 	it('rekeys supplemental PDFs through the Input file list after a successful handoff', async () => {
 		const services = makeServices();
 		const owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		await owner.runAction({
 			type: 'acquireSelected',
 		});
 
-		expect(services.startAcquisition).toHaveBeenCalledWith([
-			{ titleId: 'B000000001', includeSupplementalPdf: false },
+		expect(services.startAcquisition).toHaveBeenCalledWith('audible', [
+			{ titleId: 'B000000001', includeSupplementalPdf: true },
 		]);
 		expect(services.importMaterializedPaths).toHaveBeenCalledWith(['/session/book.m4b']);
 		expect(services.purgeSession).not.toHaveBeenCalled();
@@ -264,7 +333,8 @@ describe('remote source acquisition workflow', () => {
 			}),
 		});
 		owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 		await owner.runAction({ type: 'acquireSelected' });
 
 		expect(published).toContainEqual({
@@ -285,7 +355,8 @@ describe('remote source acquisition workflow', () => {
 			})),
 		});
 		const owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		await owner.runAction({
 			type: 'acquireSelected',
@@ -294,6 +365,7 @@ describe('remote source acquisition workflow', () => {
 		expect(services.purgeSession).toHaveBeenCalledWith('remote-job-1');
 		expect(owner.processingAssets(['current-input-1'])).toBeUndefined();
 		expect(owner.view().activeJob?.materializedFiles).toEqual([]);
+		expect(owner.view().activeJob?.supplementalAssets).toEqual([]);
 		expect(owner.view().statusMessage).toContain(STAGED_FILES_REMOVED_SUFFIX);
 	});
 
@@ -311,10 +383,8 @@ describe('remote source acquisition workflow', () => {
 			}),
 		});
 		owner = makeOwner(services);
-		owner.patch({
-			isOpen: true,
-			selectedTitleIds: new Set(['B000000001']),
-		});
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		await owner.runAction({
 			type: 'acquireSelected',
@@ -326,9 +396,13 @@ describe('remote source acquisition workflow', () => {
 	});
 
 	it('cancels only through the explicit cancel action', async () => {
-		const services = makeServices();
+		const poll = createDeferred<AcquisitionJob>();
+		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
 		const owner = makeOwner(services);
-		owner.patch({ activeJob: runningJob() });
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		const acquiring = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
 
 		await owner.runAction({
 			type: 'cancelActiveAcquisition',
@@ -336,6 +410,8 @@ describe('remote source acquisition workflow', () => {
 
 		expect(services.cancelAcquisition).toHaveBeenCalledWith('remote-job-1');
 		expect(owner.view().statusMessage).toBe('Cancelled.');
+		poll.resolve(runningJob());
+		await acquiring;
 	});
 
 	it('does not let a late acquisition poll overwrite native cancellation', async () => {
@@ -344,7 +420,8 @@ describe('remote source acquisition workflow', () => {
 			getAcquisitionStatus: vi.fn(() => latePoll.promise),
 		});
 		const owner = makeOwner(services);
-		owner.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await owner.open();
+		owner.toggleTitle('B000000001');
 
 		const acquisition = owner.runAction({
 			type: 'acquireSelected',
@@ -368,8 +445,10 @@ describe('remote source acquisition workflow', () => {
 	it('keeps acquisition state and supplemental assets isolated across owners', async () => {
 		const first = makeOwner(makeServices());
 		const second = makeOwner(makeServices());
-		first.patch({ selectedTitleIds: new Set(['B000000001']) });
-		second.patch({ selectedTitleIds: new Set(['B000000001']), isOpen: true });
+		await first.open();
+		first.toggleTitle('B000000001');
+		await second.open();
+		second.toggleTitle('B000000001');
 
 		await first.runAction({ type: 'acquireSelected' });
 		await second.runAction({ type: 'acquireSelected' });
@@ -387,8 +466,10 @@ describe('remote source acquisition workflow', () => {
 		const secondServices = makeServices();
 		const first = makeOwner(firstServices);
 		const second = makeOwner(secondServices);
-		first.patch({ selectedTitleIds: new Set(['B000000001']) });
-		second.patch({ selectedTitleIds: new Set(['B000000001']) });
+		await first.open();
+		first.toggleTitle('B000000001');
+		await second.open();
+		second.toggleTitle('B000000001');
 		await first.runAction({ type: 'acquireSelected' });
 		await second.runAction({ type: 'acquireSelected' });
 		await first.reconcileWithInput(fileList().files);
@@ -423,5 +504,136 @@ describe('remote source acquisition workflow', () => {
 		await Promise.resolve();
 		expect(first.coverPreview('https://covers.example/first.jpg').status).toBe('idle');
 		expect(second.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
+	});
+
+	it('searches indexer releases from author, title, or both without requiring both', async () => {
+		const services = makeServices();
+		const owner = makeOwner(services);
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerAuthorQuery: 'David Crouse' });
+
+		await owner.runAction({ type: 'searchReleases' });
+		expect(services.searchReleases).toHaveBeenCalledWith({
+			author: 'David Crouse',
+			title: undefined,
+			query: undefined,
+		});
+
+		owner.editSearch({ indexerAuthorQuery: '', indexerTitleQuery: 'Way of Kings' });
+		await owner.runAction({ type: 'searchReleases' });
+		expect(services.searchReleases).toHaveBeenCalledWith({
+			author: undefined,
+			title: 'Way of Kings',
+			query: undefined,
+		});
+
+		owner.editSearch({
+			indexerAuthorQuery: 'Brandon Sanderson',
+			indexerTitleQuery: 'The Way of Kings',
+		});
+		await owner.runAction({ type: 'searchReleases' });
+		expect(services.searchReleases).toHaveBeenCalledWith({
+			author: 'Brandon Sanderson',
+			title: 'The Way of Kings',
+			query: undefined,
+		});
+	});
+
+	it('grabs the selected indexer identity without starting acquisition or importing files', async () => {
+		const services = makeServices();
+		const owner = makeOwner(services);
+		const first = indexerRelease({ indexerId: 1 });
+		const chosen = indexerRelease({ indexerId: 2 });
+		vi.mocked(services.searchReleases).mockResolvedValue({
+			providerId: 'indexer',
+			releases: [first, chosen],
+			diagnostics: [],
+		});
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		await owner.runAction({ type: 'searchReleases' });
+		owner.selectRelease(chosen);
+		await owner.runAction({ type: 'grabSelectedRelease' });
+		expect(services.grabRelease).toHaveBeenCalledExactlyOnceWith({ release: chosen });
+		expect(services.startAcquisition).not.toHaveBeenCalled();
+		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
+		expect(owner.view().statusMessage).toBe('Release sent to Indexer.');
+		expect(owner.view().isBusy).toBe(false);
+	});
+
+	it.each(['rejected', 'error'] as const)(
+		'publishes a %s grab without importing',
+		async (outcome) => {
+			const services = makeServices({
+				grabRelease: vi.fn<RemoteSourceWorkflowServices['grabRelease']>(async () => {
+					if (outcome === 'error') throw new Error('Indexer unavailable');
+					return {
+						providerId: 'indexer',
+						accepted: false,
+						message: 'Rejected',
+						diagnostics: [{ kind: 'releaseGrabFailed', message: 'No download client' }],
+					};
+				}),
+			});
+			const owner = makeOwner(services);
+			const release = indexerRelease();
+			await owner.open({ lane: 'indexer' });
+			owner.editSearch({ indexerTitleQuery: 'Example' });
+			await owner.runAction({ type: 'searchReleases' });
+			owner.selectRelease(release);
+			await owner.runAction({ type: 'grabSelectedRelease' });
+			expect(owner.view().statusMessage).toContain(
+				outcome === 'error' ? 'Failed to grab release.' : 'No download client',
+			);
+			expect(owner.view().isBusy).toBe(false);
+			expect(services.importMaterializedPaths).not.toHaveBeenCalled();
+		},
+	);
+
+	it('hydrates unconfigured Indexer without scanning the Audible library', async () => {
+		const services = makeServices({
+			getAccountState: vi.fn<RemoteSourceWorkflowServices['getAccountState']>(async () => ({
+				providerId: 'indexer',
+				status: 'needsAuth',
+			})),
+		});
+		const owner = makeOwner(services);
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().accountState?.status).toBe('needsAuth');
+		expect(services.loadLibrary).not.toHaveBeenCalled();
+		expect(owner.view().isBusy).toBe(false);
+	});
+
+	it('resets lane selection while an accepted Audible job continues to Input', async () => {
+		const poll = createDeferred<AcquisitionJob>();
+		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
+		const owner = makeOwner(services);
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		owner.editSearch({ releaseFilter: 'old' });
+		const acquiring = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
+		await owner.selectLane('indexer');
+		expect(owner.view().selectedTitleIds.size).toBe(0);
+		expect(owner.view().releases).toEqual([]);
+		expect(owner.view().releaseFilter).toBe('');
+		expect(owner.view().activeJob?.jobId).toBe('remote-job-1');
+		expect(services.cancelAcquisition).not.toHaveBeenCalled();
+		poll.resolve(terminalJob());
+		await acquiring;
+		expect(services.importMaterializedPaths).toHaveBeenCalledWith(['/session/book.m4b']);
+		expect(owner.view().providerId).toBe('indexer');
+	});
+
+	it('preserves selection on ordinary reopen and resets it when opening another lane', async () => {
+		const owner = makeOwner(makeServices());
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		owner.close();
+		await owner.open({ lane: 'audible' });
+		expect([...owner.view().selectedTitleIds]).toEqual(['B000000001']);
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().selectedTitleIds.size).toBe(0);
+		expect(owner.view().providerId).toBe('indexer');
 	});
 });

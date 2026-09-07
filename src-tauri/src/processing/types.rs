@@ -27,6 +27,7 @@ impl From<JobType> for OperationKind {
 #[serde(rename_all = "camelCase")]
 pub struct ProcessPayload {
     pub input_files: Vec<String>,
+    pub chapter_plans: Option<HashMap<String, crate::metadata::ChapterPlan>>,
     /// Session/workbench identities aligned to `input_files`; used for acquired
     /// source sidecars without replacing path as the filesystem source label.
     pub input_ids: Option<Vec<Option<String>>>,

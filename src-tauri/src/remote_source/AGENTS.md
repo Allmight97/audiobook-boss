@@ -1,8 +1,8 @@
 # RemoteSourceRuntime
 
 `remote_source` owns remote-source provider state, account/session lifecycle,
-acquisition jobs, staging roots, acquired session files, Supplemental Assets,
-and cleanup.
+acquisition jobs, release search/grab (Indexer lane), staging roots, acquired
+session files, Supplemental Assets, and cleanup.
 
 ## Public API Strip
 
@@ -37,6 +37,21 @@ or infer provider-private Audible internals.
 - Post-download cancel uses `rollback_committed_file`; do not revive generic
   `cleanup_download_artifacts` helpers. No cross-device rename fallback here.
 - `providers/audible/library.rs` owns Audible library response shaping.
+- `providers/indexer/` owns Indexer connection persistence, release
+  search/grab, and the first Prowlarr HTTP adapter. Indexer grabs do not create
+  acquisition jobs or materialize files into Input.
+- Release detail URLs are optional source-provided HTTP(S) links without embedded
+  credentials; never infer them from a release GUID.
+- Indexer connection URLs reject embedded credentials on load, save, and draft
+  testing; invalid saved URLs never reach IPC or provider requests.
+- The private connection owner resolves URL, categories, and the host's key for
+  search/grab together; its credential-bearing result never crosses IPC.
+- Indexer credentials are scoped to the normalized server URL in the vault;
+  connection JSON never contains a key. Save persists changed JSON before
+  changing that URL's key, and reports partial persistence if the vault fails.
+  A failed save must never pair one server with another server's key.
+- Connection Test accepts a draft without persisting it. An omitted draft key
+  resolves only from that draft URL's vault slot; a new URL requires its own key.
 
 No provider secrets, license blobs, raw provider responses, or protected
 intermediates may cross the public strip or generated TypeScript boundary.

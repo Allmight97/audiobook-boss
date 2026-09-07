@@ -183,6 +183,8 @@ fn external_decoder_contract_rejects_unsupported_named_decoder() {
         },
     };
     let files = vec![AudioFile {
+        chapter_plan: None,
+        cue_source: None,
         input_id: "input-1".to_string(),
         path: PathBuf::from("/books/input.m4b"),
         size: Some(1.0),

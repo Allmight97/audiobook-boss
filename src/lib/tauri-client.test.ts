@@ -58,6 +58,18 @@ describe('tauriClient', () => {
 	});
 
 	describe('opener helpers', () => {
+		it('allows both web schemes used by source details without permitting other URL handlers', () => {
+			expect(
+				mainWindowCapability.permissions.find(
+					(permission) =>
+						typeof permission === 'object' && permission.identifier === 'opener:allow-open-url',
+				),
+			).toEqual({
+				identifier: 'opener:allow-open-url',
+				allow: [{ url: 'http://*' }, { url: 'https://*' }],
+			});
+		});
+
 		it('limits source and preview opening to user-owned or mounted paths', () => {
 			const openPathPermission = mainWindowCapability.permissions.find(
 				(permission) =>
@@ -89,6 +101,22 @@ describe('tauriClient nullish adapters', () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
+	});
+
+	it('sends draft Indexer Test values through IPC without persisting them', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const mockInvoke = vi.mocked(invoke);
+		mockInvoke.mockResolvedValueOnce({ ok: true, message: 'Connected to Indexer.' });
+		const { tauriClient } = await import('./tauri/client');
+		await expect(
+			tauriClient.testRemoteSourceIndexerConnection({
+				baseUrl: 'http://indexer.test',
+				categoryIds: [3030, 3000],
+			}),
+		).resolves.toEqual({ ok: true, message: 'Connected to Indexer.' });
+		expect(mockInvoke).toHaveBeenCalledExactlyOnceWith('test_remote_source_indexer_connection', {
+			update: { baseUrl: 'http://indexer.test', categoryIds: [3030, 3000] },
+		});
 	});
 
 	it('compiles metadata intent patch on save before denormalization', async () => {
@@ -271,6 +299,13 @@ describe('tauriClient nullish adapters', () => {
 		const result = await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
+				chapterPlans: {
+					'/books/a.m4b': {
+						fromCue: true,
+						sourceFingerprint: '123:456',
+						chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
+					},
+				},
 				outputDir: '/tmp/out',
 				settings: defaultEncoderSettings(),
 				sampleRate: undefined,
@@ -296,6 +331,13 @@ describe('tauriClient nullish adapters', () => {
 			},
 		];
 		expect(commandName).toBe('process_audiobook_files');
+		expect(args.payload.chapterPlans).toEqual({
+			'/books/a.m4b': {
+				fromCue: true,
+				sourceFingerprint: '123:456',
+				chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
+			},
+		});
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();

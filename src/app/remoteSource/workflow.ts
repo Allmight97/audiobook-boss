@@ -1,9 +1,17 @@
 import type { FileListInfo } from '../../types/audio';
+import type { AcquisitionLane } from '../../types/appSettings';
 import type {
 	AcquisitionJob,
+	ProviderId,
 	RemoteAuthStartResponse,
 	RemoteLibraryResponse,
+	RemoteRelease,
+	RemoteReleaseGrabRequest,
+	RemoteReleaseGrabResponse,
+	RemoteReleaseSearchRequest,
+	RemoteReleaseSearchResponse,
 	RemoteSourceAccountState,
+	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
 import type { RemoteInputHandoffResult, RemoteSourceState } from './types';
 import {
@@ -15,16 +23,24 @@ import {
 	withClearedHandoffJob,
 	type AcquisitionJobWithProgress,
 } from './display';
+import { laneSelectionResetPatch, providerIdFromLane } from './types';
 import type { RemoteSourceStateStore } from './state';
 
 export interface RemoteSourceWorkflowServices {
-	getAccountState: () => Promise<RemoteSourceAccountState>;
-	startAuth: () => Promise<RemoteAuthStartResponse>;
+	listProviders: () => Promise<RemoteSourceProviderCapabilities[]>;
+	getAccountState: (providerId: ProviderId) => Promise<RemoteSourceAccountState>;
+	startAuth: (providerId: ProviderId) => Promise<RemoteAuthStartResponse>;
 	openAuthorizationUrl: (url: string) => Promise<void>;
-	completeAuth: (responseUrlHandoffPath?: string) => Promise<RemoteSourceAccountState>;
-	logout: () => Promise<RemoteSourceAccountState>;
-	loadLibrary: () => Promise<RemoteLibraryResponse>;
+	completeAuth: (
+		providerId: ProviderId,
+		responseUrlHandoffPath?: string,
+	) => Promise<RemoteSourceAccountState>;
+	logout: (providerId: ProviderId) => Promise<RemoteSourceAccountState>;
+	loadLibrary: (providerId: ProviderId) => Promise<RemoteLibraryResponse>;
+	searchReleases: (request: RemoteReleaseSearchRequest) => Promise<RemoteReleaseSearchResponse>;
+	grabRelease: (request: RemoteReleaseGrabRequest) => Promise<RemoteReleaseGrabResponse>;
 	startAcquisition: (
+		providerId: ProviderId,
 		selections: ReadonlyArray<{
 			readonly titleId: string;
 			readonly includeSupplementalPdf: boolean;
@@ -39,10 +55,14 @@ export interface RemoteSourceWorkflowServices {
 
 export type RemoteSourceWorkflowAction =
 	| { readonly type: 'hydrateOpenDialog' }
+	| { readonly type: 'refreshAccount' }
+	| { readonly type: 'selectLane'; readonly lane: AcquisitionLane }
 	| { readonly type: 'startAuth' }
 	| { readonly type: 'completeAuth' }
 	| { readonly type: 'logout' }
 	| { readonly type: 'loadLibrary' }
+	| { readonly type: 'searchReleases' }
+	| { readonly type: 'grabSelectedRelease' }
 	| { readonly type: 'acquireSelected' }
 	| { readonly type: 'cancelActiveAcquisition' };
 
@@ -58,6 +78,18 @@ export const STAGED_FILES_REMOVED_SUFFIX =
 	'Staged remote files were removed; retry acquisition after processing completes.';
 
 type IsCurrent = () => boolean;
+
+function selectedRelease(
+	releases: RemoteRelease[],
+	selected: RemoteSourceState['selectedRelease'],
+): RemoteRelease | null {
+	if (!selected) return null;
+	return (
+		releases.find(
+			(release) => release.guid === selected.guid && release.indexerId === selected.indexerId,
+		) ?? null
+	);
+}
 
 export function createRemoteSourceWorkflow(deps: {
 	readonly services: RemoteSourceWorkflowServices;
@@ -97,15 +129,17 @@ export function createRemoteSourceWorkflow(deps: {
 		}
 	}
 
-	async function refreshAccountState(isCurrent: IsCurrent): Promise<void> {
-		const accountState = await deps.services.getAccountState();
-		patchWhenCurrent(isCurrent, { accountState });
+	async function refreshAccountState(providerId: ProviderId, isCurrent: IsCurrent): Promise<void> {
+		const accountState = await deps.services.getAccountState(providerId);
+		if (deps.state.current().providerId === providerId) {
+			patchWhenCurrent(isCurrent, { accountState });
+		}
 	}
 
-	async function loadLibrary(isCurrent: IsCurrent): Promise<void> {
+	async function loadLibrary(providerId: ProviderId, isCurrent: IsCurrent): Promise<void> {
 		patchWhenCurrent(isCurrent, { isBusy: true });
 		try {
-			const library = await deps.services.loadLibrary();
+			const library = await deps.services.loadLibrary(providerId);
 			if (!isCurrent()) return;
 			const selectableTitleIds = new Set(
 				library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
@@ -210,13 +244,31 @@ export function createRemoteSourceWorkflow(deps: {
 		isWorkflowCurrent: IsCurrent,
 	): Promise<void> {
 		switch (action.type) {
-			case 'hydrateOpenDialog': {
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true, didHydrateOpenDialog: true });
+			case 'refreshAccount': {
 				try {
-					await refreshAccountState(isWorkflowCurrent);
+					await refreshAccountState(deps.state.current().providerId, isWorkflowCurrent);
+				} catch (cause) {
+					setAcquisitionErrorWhenCurrent(
+						isWorkflowCurrent,
+						cause,
+						'Connection saved, but account refresh failed. Reopen Acquire to retry.',
+					);
+				}
+				return;
+			}
+			case 'hydrateOpenDialog': {
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
+				try {
+					const providers = await deps.services.listProviders();
+					if (!patchWhenCurrent(isWorkflowCurrent, { providers })) return;
+					const providerId = deps.state.current().providerId;
+					await refreshAccountState(providerId, isWorkflowCurrent);
 					if (!isWorkflowCurrent()) return;
-					if (deps.state.current().accountState?.status === 'connected') {
-						await loadLibrary(isWorkflowCurrent);
+					if (
+						providerId === 'audible' &&
+						deps.state.current().accountState?.status === 'connected'
+					) {
+						await loadLibrary(providerId, isWorkflowCurrent);
 					}
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
@@ -229,10 +281,33 @@ export function createRemoteSourceWorkflow(deps: {
 				}
 				return;
 			}
-			case 'startAuth': {
+			case 'selectLane': {
+				const nextProviderId = providerIdFromLane(action.lane);
+				if (nextProviderId === deps.state.current().providerId) return;
+				patchWhenCurrent(isWorkflowCurrent, {
+					providerId: nextProviderId,
+					...laneSelectionResetPatch(),
+					accountState: null,
+				});
 				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 				try {
-					const response = await deps.services.startAuth();
+					await refreshAccountState(nextProviderId, isWorkflowCurrent);
+				} catch (cause) {
+					setAcquisitionErrorWhenCurrent(
+						isWorkflowCurrent,
+						cause,
+						'Failed to switch acquisition source.',
+					);
+				} finally {
+					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+				}
+				return;
+			}
+			case 'startAuth': {
+				const providerId = deps.state.current().providerId;
+				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
+				try {
+					const response = await deps.services.startAuth(providerId);
 					if (!patchWhenCurrent(isWorkflowCurrent, { statusMessage: response.message })) return;
 					await deps.services.openAuthorizationUrl(response.authorizationUrl);
 				} catch (cause) {
@@ -243,9 +318,11 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'completeAuth': {
+				const providerId = deps.state.current().providerId;
 				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 				try {
 					const accountState = await deps.services.completeAuth(
+						providerId,
 						deps.state.current().handoffPath.trim() || undefined,
 					);
 					if (
@@ -256,7 +333,7 @@ export function createRemoteSourceWorkflow(deps: {
 					) {
 						return;
 					}
-					await loadLibrary(isWorkflowCurrent);
+					await loadLibrary(providerId, isWorkflowCurrent);
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
 						isWorkflowCurrent,
@@ -269,9 +346,10 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'logout': {
+				const providerId = deps.state.current().providerId;
 				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
 				try {
-					const accountState = await deps.services.logout();
+					const accountState = await deps.services.logout(providerId);
 					patchWhenCurrent(isWorkflowCurrent, {
 						accountState,
 						titles: [],
@@ -289,7 +367,75 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'loadLibrary': {
-				await loadLibrary(isWorkflowCurrent);
+				await loadLibrary(deps.state.current().providerId, isWorkflowCurrent);
+				return;
+			}
+			case 'searchReleases': {
+				const author = deps.state.current().indexerAuthorQuery.trim();
+				const title = deps.state.current().indexerTitleQuery.trim();
+				if (!author && !title) {
+					patchWhenCurrent(isWorkflowCurrent, {
+						statusMessage: 'Enter an author and/or title to search.',
+					});
+					return;
+				}
+				patchWhenCurrent(isWorkflowCurrent, {
+					isBusy: true,
+					selectedRelease: null,
+					statusMessage: 'Searching Indexer releases.',
+				});
+				try {
+					const response = await deps.services.searchReleases({
+						author: author || undefined,
+						title: title || undefined,
+						query: undefined,
+					});
+					if (!isWorkflowCurrent()) return;
+					patchWhenCurrent(isWorkflowCurrent, {
+						releases: response.releases,
+						statusMessage:
+							response.diagnostics.length > 0
+								? uniqueDiagnosticMessage(response.diagnostics)
+								: `${response.releases.length} release${response.releases.length === 1 ? '' : 's'} found.`,
+					});
+				} catch (cause) {
+					setAcquisitionErrorWhenCurrent(
+						isWorkflowCurrent,
+						cause,
+						'Failed to search Indexer releases.',
+					);
+				} finally {
+					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+				}
+				return;
+			}
+			case 'grabSelectedRelease': {
+				const current = deps.state.current();
+				const release = selectedRelease(current.releases, current.selectedRelease);
+				if (!release) {
+					patchWhenCurrent(isWorkflowCurrent, {
+						statusMessage: 'Select a release before grabbing.',
+					});
+					return;
+				}
+				patchWhenCurrent(isWorkflowCurrent, {
+					isBusy: true,
+					statusMessage: 'Sending release to Indexer.',
+				});
+				try {
+					const response = await deps.services.grabRelease({ release });
+					if (!isWorkflowCurrent()) return;
+					const diagnostics = uniqueDiagnosticMessage(response.diagnostics);
+					patchWhenCurrent(isWorkflowCurrent, {
+						statusMessage: response.accepted
+							? response.message
+							: diagnostics || response.message || 'Indexer did not accept the grab.',
+					});
+				} catch (cause) {
+					setAcquisitionErrorWhenCurrent(isWorkflowCurrent, cause, 'Failed to grab release.');
+				} finally {
+					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+				}
 				return;
 			}
 			case 'acquireSelected': {
@@ -314,7 +460,7 @@ export function createRemoteSourceWorkflow(deps: {
 						titleId,
 						includeSupplementalPdf: current.includePdfByTitleId[titleId] ?? false,
 					}));
-					const startedJob = await deps.services.startAcquisition(selections);
+					const startedJob = await deps.services.startAcquisition(current.providerId, selections);
 					if (
 						!patchWhenCurrent(isAcquisitionCurrent, {
 							activeJob: startedJob,

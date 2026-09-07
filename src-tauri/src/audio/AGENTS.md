@@ -22,7 +22,7 @@
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
-- Functions: `get_file_list_info`, `validate_input_audio_path`,
+- Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
   `validate_input_image_path`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
@@ -51,7 +51,7 @@
   `settings_encoder.rs`, and `toolchain/` (`mod.rs` = platform-neutral
   resolution/validation; `platform.rs` = the per-OS probe seam — candidate
   enumeration, binary-arch acceptance, and platform paths live ONLY there,
-  cfg-dispatched per the `remote_source/vault.rs` pattern with pure rules
+  cfg-dispatched per the `src-tauri/src/remote_source/vault.rs` pattern with pure rules
   unit-testable on any host).
 - The cluster owns local audio import metadata/discovery, decoder/toolchain
   selection, media inspection, decode/resample/encode/mux internals, staging,
@@ -76,7 +76,7 @@
 - Diagnostics and logs use sanitized display strings.
 - Lossy strings are allowed only for display ordering, never identity or command argv.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 
 - Change private implementation files when focused audio/processing tests stay
   green for the touched boundary.
@@ -85,7 +85,7 @@
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK adapter differences inside
   the private cluster unless a caller needs a stable capability fact.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming any Public API Strip symbol.
 - Moving job lifecycle ownership out of processing, final artifact commit truth
@@ -134,3 +134,12 @@ When one appears, name the affected boundary, state the current assumption used 
 - Native AAC changes include a real-media probe when feasible: output codec/profile, sample rate, channels, duration, and at least one channel-level sanity check such as RMS/peak parity.
 - Audio correctness fixes run the focused audio/runtime checks warranted by the touched boundary before being presented as done; escalate only when the change crosses owners or uses real-media behavior the focused checks cannot prove.
 - Final notes distinguish structural correctness from subjective encoder quality when discussing Native AAC artifacts.
+
+## Chapter Intake
+
+Analysis attaches sibling CUE diagnostics and a source-fingerprinted candidate
+chapter plan to each MP3. `apply_chapter_plans` validates accepted payload plans
+against the audio identity and duration before dispatch. CUE confirmation or
+Ignore is explicit; multi-source CUE merging is rejected. Encoder adapters
+consume accepted chapters, while passthrough source probing remains for cover
+art and external artifact readers. Preview continues to omit chapters.

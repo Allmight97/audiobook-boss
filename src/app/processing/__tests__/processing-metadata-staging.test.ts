@@ -90,21 +90,22 @@ function stagingServices(): ProcessingWorkflowServices {
 		hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 		readMetadataForm: context.readMetadataFormMock,
 		stageIntent: context.stageIntentMock,
-		intentsForProcess: context.intentsForProcessMock as ProcessingWorkflowServices['intentsForProcess'],
+		intentsForProcess:
+			context.intentsForProcessMock as ProcessingWorkflowServices['intentsForProcess'],
 		stageMetadataToSelection: context.stageMetadataToSelectionMock,
 		setJobControlsEnabled: vi.fn(),
 		setFileOrderLocked: vi.fn(),
 		validateMetadataIntentPatch: context.validateMetadataIntentPatchMock,
 		processAudiobookFiles: context.processAudiobookFilesMock,
 		submitProcessingOperation: context.submitProcessingOperationMock,
-		remoteSource: {
-			processingAssets: vi.fn(() => undefined),
-			withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
-		},
 		runOutputPlanReviewWorkflow: context.runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle,
 		feedback: { showError },
 		console,
+		remoteSource: {
+			processingAssets: vi.fn(() => undefined),
+			withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
+		},
 	};
 }
 
@@ -298,9 +299,7 @@ describe('startProcessing metadata staging', () => {
 			showStatus: false,
 		});
 		expect(context.submitProcessingOperationMock).not.toHaveBeenCalled();
-		expect(showError).toHaveBeenCalledWith(
-			'Fix metadata validation errors before processing.',
-		);
+		expect(showError).toHaveBeenCalledWith('Fix metadata validation errors before processing.');
 	});
 
 	it('aborts single-selection processing when dirty series-part metadata is invalid', async () => {
@@ -400,10 +399,7 @@ describe('startProcessing metadata staging', () => {
 			title: { op: 'set', value: 'Selected Row Title' },
 			cover_art: { op: 'set', value: [7, 7, 7] },
 		});
-		expect(context.stageIntentMock).not.toHaveBeenCalledWith(
-			'/books/b.m4b',
-			expect.anything(),
-		);
+		expect(context.stageIntentMock).not.toHaveBeenCalledWith('/books/b.m4b', expect.anything());
 		expect(context.runOutputPlanReviewWorkflowMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				metadataIntentByPath: {

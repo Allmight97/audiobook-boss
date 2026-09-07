@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import { tauriClient } from '../../lib/tauri/client';
 import { createTestAppRuntime } from '../runtime/harness';
 import type { AppRuntime } from '../runtime';
 
@@ -26,6 +27,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		},
 		toolchain: {},
 		startupBehavior: 'rememberLastState',
+		defaultAcquisitionLane: 'audible',
 		...overrides,
 	};
 }
@@ -36,6 +38,8 @@ function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapa
 		updateAppSettings: vi.fn(async (patch) =>
 			settingsFixture({
 				maxConcurrentJobs: patch.maxConcurrentJobs ?? { mode: 'auto' },
+				defaultAcquisitionLane:
+					patch.defaultAcquisitionLane ?? settingsFixture().defaultAcquisitionLane,
 			}),
 		),
 		resetAppSettings: vi.fn(async () => settingsFixture()),
@@ -53,6 +57,7 @@ describe('app settings concurrency', () => {
 	afterEach(() => {
 		runtime?.dispose();
 		runtime = undefined;
+		vi.restoreAllMocks();
 	});
 
 	it('hydrates auto selection and the effective backend count', async () => {
@@ -80,5 +85,24 @@ describe('app settings concurrency', () => {
 		expect(runtime.settings.concurrency().effectiveLabel).toBe('Auto → 4');
 		await runtime.settings.setConcurrencySelection('3');
 		expect(runtime.settings.concurrency().selection).toBe('auto');
+	});
+
+	it('hydrates and persists defaultAcquisitionLane', async () => {
+		const settings = fakeSettings({
+			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
+		});
+		runtime = createTestAppRuntime({ settings });
+		await runtime.settings.hydrateAcquisitionPreferences();
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
+
+		await runtime.settings.setDefaultAcquisitionLane('audible');
+		expect(settings.updateAppSettings).toHaveBeenCalledWith({ defaultAcquisitionLane: 'audible' });
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
+		await runtime.settings.setDefaultAcquisitionLane('indexer');
+		vi.mocked(settings.getAppSettings).mockResolvedValue(settingsFixture());
+		vi.spyOn(tauriClient, 'getAppSettings').mockResolvedValue(settingsFixture());
+		await runtime.settings.resetAllAppSettings();
+		expect(runtime.settings.dialog().settings?.defaultAcquisitionLane).toBe('audible');
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
 	});
 });

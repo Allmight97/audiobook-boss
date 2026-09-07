@@ -19,6 +19,7 @@ import type {
 	OperationListSnapshot,
 	OperationSnapshot,
 	ProcessCommandResult,
+	RemoteIndexerConnection,
 	SupportedAudioImportMetadata,
 	WorkSubmissionAccepted,
 } from '../lib/generated/tauri';
@@ -380,6 +381,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 					fieldErrors: [],
 				} satisfies MetadataIntentValidationResult);
 			}
+			case 'get_remote_source_indexer_connection':
+				return Promise.resolve({
+					baseUrl: null,
+					categoryIds: [3030],
+					apiKeyConfigured: false,
+				} satisfies RemoteIndexerConnection);
+
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);
 		}

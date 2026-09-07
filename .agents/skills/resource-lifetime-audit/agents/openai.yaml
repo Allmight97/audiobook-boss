@@ -1,4 +1,4 @@
 interface:
   display_name: "Resource Lifetime Audit"
-  short_description: "Find high-ROI handle lifetime foot-guns"
-  default_prompt: "Use $resource-lifetime-audit to find high-ROI file handle, process, temp file, and replacement lifetime foot-guns in this ABB change."
+  short_description: "Trace ABB resource ownership and cleanup hazards"
+  default_prompt: "Use $resource-lifetime-audit to trace resource ownership and terminal outcomes in this ABB change."

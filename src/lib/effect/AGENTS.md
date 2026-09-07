@@ -19,13 +19,13 @@ Keep Effect workflow APIs private to workflow owners:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
 - Public UI/runtime entrypoints expose Promise-returning functions or existing
   synchronous wrappers where callers already rely on them.
-- Workflow owners expose a local service interface, service tag, live layer
-  (co-located in the workflow file with `satisfies`), typed errors, program,
-  and Promise bridge. Processing keeps live deps in
+- When a workflow needs an Effect service layer, keep its service interface,
+  tag, live layer, typed errors, and Promise bridge private to that owner.
+  Co-locate the live layer with `satisfies`. Processing keeps live deps in
   `src/app/processing/workflow.deps.ts` (dynamic-imported) to preserve the
   cycle break.
-- Dependencies are injected through service objects so tests can provide fake
-  layers without Solid rendering or live Tauri.
+- Inject dependencies so tests can supply capabilities or fake layers without
+  Solid rendering or live Tauri.
 - State and event outputs stay explicit in the owner contract.
 - Public API Strip impact is stated by the wrapper: if callers do not need new
   symbols or changed return types, keep the existing public API stable.
@@ -35,8 +35,8 @@ Keep Effect workflow APIs private to workflow owners:
 
 ## Workflow Harness Helpers
 
-Workflow owners get their service tag, live-layer factory, tagged failure
-class, failure factory, and try-wrappers from one kernel kit (#389):
+Use `makeWorkflowKit` when an owner needs a service tag, live-layer factory,
+and tagged failure wrappers:
 
 ```ts
 const kit = makeWorkflowKit(
@@ -51,18 +51,21 @@ const kit = makeWorkflowKit(
   local `Effect.tryPromise` / `Effect.try` blocks or hand-copied
   `Data.TaggedError` trios.
 - The failure tag stays a per-owner string literal, so `Effect.catchTag`
-  discriminates owners exactly like hand-written classes (pinned by the kit
-  spike tests in `appEffect.test.ts`).
+  discriminates owners (pinned by `appEffect.test.ts`).
 - Escape hatch: an owner with genuinely unique failure mapping keeps its own
   factory built on `kit.Failed` (for example `ProcessingWorkflow` normalizes
   `AppError` into the message and forks a hand-written
   `ProcessingWorkflowCancelled`).
 - `workflowTryPromise` / `workflowTrySync` remain exported for the escape-hatch
   path; kit wrappers are the default.
+- A program whose existing capability already supplies its dependencies can
+  use the kernel directly, as in `src/app/inputSession/importWorkflow.ts`.
+  Introduce a service layer when it clarifies a real dependency or failure
+  boundary.
 
 ## Fake-Layer Harness Shape
 
-Workflow tests should run the Effect program directly with fake services:
+For service-layer workflows, run the Effect program directly with fake services:
 
 - Build a small `makeHarness` helper in the owner test file.
 - Provide dependencies through the owner service layer, not through Solid
@@ -76,21 +79,16 @@ Workflow tests should run the Effect program directly with fake services:
 
 ## Finding Workflow Owners
 
-Workflow owners live in `*Workflow*.ts` files beside their `__tests__/`; find the
-current set by searching the tree (e.g. `rg -l "Workflow" src/app --glob '*Workflow*.ts'`)
-rather than from a hand-maintained list that rots as owners move. Each owner
-co-locates its service interface, service tag, live layer (`satisfies`), program,
-and Promise bridge, and is exercised by a focused Vitest file next to it
-(`bun run test -- <owner test file>`).
-
-Public API Strip impact for these owners is intentionally narrow: callers keep
-existing UI/runtime Promise or synchronous wrapper shapes unless a milestone
-explicitly accepts a public API change.
+Find workflow files with
+`rg --files src/app -g '*workflow*.ts' -g '*Workflow*.ts'`.
+Tests may be siblings or under the owner's `__tests__/`; inspect the selected
+owner for its focused proof. The Processing live-layer exception is described
+above.
 
 ## Future Workflow Ingress
 
-- New frontend work that coordinates multiple real boundaries should start with
-  an explicit workflow owner, co-located service contract + live layer, and
-  fake-layer tests.
+- New multi-boundary coordination belongs to an explicit workflow owner with
+  injected dependencies and proof through its observable outcomes. Choose
+  direct capability injection or a service layer using the criteria above.
 - Plain local UI state, pure transforms, and single-boundary event handlers can
   stay vanilla TypeScript when Effect would not clarify ownership or testing.

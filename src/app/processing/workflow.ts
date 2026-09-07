@@ -1,4 +1,5 @@
 import { pathBasename } from '../../lib/path/basename';
+import { chapterPlansForProcessing } from '../inputSession';
 import type {
 	ProcessCommandResult,
 	ProcessPayload,
@@ -58,13 +59,13 @@ export interface ProcessingWorkflowServices {
 	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
-	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 	runOutputPlanReviewWorkflow: (
 		request: Parameters<typeof runOutputPlanReviewWorkflow>[0],
 	) => ReturnType<typeof runOutputPlanReviewWorkflow>;
 	openGeneratedPreviewIfSingle: typeof openGeneratedPreviewIfSingle;
 	feedback: StatusPanelFeedbackService;
 	console: Pick<Console, 'error' | 'log' | 'warn'>;
+	remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 }
 
 export type ProcessingWorkflowServicesId = 'StatusPanel/ProcessingWorkflowServices';
@@ -232,7 +233,6 @@ function submitRetainedProcessingCommand(
 				services.submitProcessingOperation({
 					payload: request.payload,
 					metadataIntent: request.metadataIntentByPath,
-					previewSeconds: undefined,
 				}),
 			),
 		catch: toProcessingWorkflowError,
@@ -404,6 +404,10 @@ export function processingWorkflowProgram(
 			processingRequestConfig,
 			jobType,
 			services.remoteSource.processingAssets(inputIds),
+		);
+		processPayload.chapterPlans = yield* workflowPromise(
+			async () => chapterPlansForProcessing(fileList.files, jobType),
+			'Review CUE chapters before processing.',
 		);
 		const intentPaths =
 			processPayload.jobType === 'merge'

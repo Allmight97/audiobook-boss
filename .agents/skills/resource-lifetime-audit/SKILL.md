@@ -1,78 +1,57 @@
 ---
 name: resource-lifetime-audit
-description: Read-only audit for Audiobook Boss resource-lifetime foot-guns with high bug potential. Use when reviewing or planning ABB changes across file handles, external processes, temp artifacts, replacement, cleanup ownership, validation-to-write, or FFmpeg/mp4ameta reopen boundaries, and when the user asks to hunt for lifecycle or cross-platform hazards. Apply fixes only with explicit implementation authority.
+description: Audit ABB resource ownership for file loss, false terminal outcomes, residue, or stuck cancellation across reopen, replacement, process, and cleanup transitions.
 ---
 
 # Resource Lifetime Audit
 
-## Scan Scope
+Trace the requested lifecycle boundary using its nearest `AGENTS.md` and live
+callers. An audit alone reports findings; apply fixes when the request also
+authorizes implementation. Loading this skill during a fix does not remove
+that authority or broaden the change into a repository-wide audit.
 
-Scan the highest-risk boundaries first: audio processing, metadata read/write/remux, output artifact commit, path validation, cleanup, cancellation, and external process handling.
+## Trace Ownership
 
-## Hunt Pattern
+Prioritize transitions that affect source audiobooks, final artifacts, or
+terminal outcomes:
 
-Search for code that crosses one lifecycle phase into another:
+- probe/open/read → reopen the same path, including FFmpeg → mp4ameta;
+- write temporary artifact → rename/copy/replace final path;
+- spawn process → read pipes → cancel/kill/wait;
+- register cleanup → transfer or drain ownership;
+- validate path → persist or write it.
 
-- probe/open/read -> reopen same path
-- FFmpeg context -> mp4ameta read/write on same path
-- write temp -> rename/copy/replace final path
-- spawn process -> read pipes -> cancel/kill/wait
-- register cleanup -> remove path from cleanup ownership
-- validate path -> persist or write path
+For each candidate, establish which resource is still alive, what touches it
+next, and whether platform behavior changes the outcome. A credible finding
+names the triggering path and impact: file loss, false success/failure,
+residue, or stuck jobs.
 
-For each candidate, ask:
+For cleanup, trace concrete path values through registration, removal,
+draining, overlapping guards, and startup backstops. A removal call alone does
+not prove ownership ended: compare registered and removed values and inspect
+every caller of the transition and every guard holding that resource.
 
-1. What resource is still alive?
-2. What opens, mutates, deletes, renames, or replaces the same resource next?
-3. Does this rely on macOS/POSIX behavior that may fail on Windows?
-4. Would a failure cause false success, file loss, residue, stuck jobs, or noisy retries?
-5. Is the fix local and testable?
+For post-commit cleanup, answer both before adjudicating the finding:
 
-For cleanup candidates, trace exact path values through registration, removal,
-draining, overlapping guards, and startup or other backstop owners. Evaluate
-terminal classification separately from residue retry or recovery. A cleanup
-removal call is not proof of ownership: prove that the registered and removed
-values match and identify every remaining owner.
-
-Do not close a post-commit cleanup candidate until both questions are answered:
-
-1. If the durable operation succeeded and cleanup fails, what terminal outcome
-   reaches the caller or user?
+1. If durable work succeeds and cleanup fails, which terminal outcome reaches
+   the caller or user?
 2. Which exact owner retains or reacquires the failed path for retry?
 
-A retry or startup backstop can limit residue without making a false terminal
-failure truthful.
+A retry backstop can limit residue while the reported terminal outcome remains
+wrong. Evaluate those consequences separately.
 
-Before concluding that no retry owner remains, enumerate every caller of the
-transition and every guard that registered the same concrete resource value.
+## Repair And Proof
 
-## Priority
+Recommend or implement the smallest repair at the owning transition. Reuse
+existing replacement, cleanup, and `AppError` mechanisms. The owning metadata,
+audio, processing, and output guidance supplies the applicable invariants;
+avoid adding a parallel lifecycle policy in callers.
 
-Prioritize findings that touch:
+For authorized changes, use the focused proof routes in `scripts/AGENTS.md`.
+Prefer deterministic filesystem/process tests when they prove the transition;
+use real media or platform evidence when the failure depends on those systems.
 
-- source audiobook files
-- final output artifacts
-- metadata writes and cover art
-- FFmpeg input/output contexts
-- external FFmpeg processes
-- cleanup/cancellation terminal paths
-
-Defer low-impact style cleanup unless it prevents repeated lifecycle mistakes.
-
-## Fix Shape
-
-Prefer explicit ownership transitions:
-
-- Drop FFmpeg probe contexts before reopening the same path.
-- Keep replacement behavior in the owning boundary.
-- Use backup/rollback or create-new semantics instead of assuming rename-over-existing is portable.
-- Remove cleanup ownership only after the durable artifact is committed.
-- Map file/path errors through existing `AppError` patterns.
-
-Add focused tests when behavior is deterministic without real media. Use the
-owner-scoped command menu from `README.md` / `scripts/AGENTS.md` for code
-changes.
-
-## Report Shape
-
-Lead with the category name, affected boundary, impact, and fix. Use "resource-lifetime foot-gun" for hazards that are not always active bugs but have credible cross-platform or edge-case failure paths.
+Report the boundary and code location, trigger, impact, evidence, and repair or
+disposition. Distinguish an observed bug from a plausible platform hazard.
+Finish when in-scope transitions have been traced, findings have dispositions,
+and any authorized repairs have their proportionate proof.

@@ -16,6 +16,23 @@ git history and closed issues own superseded chronology.
 - Guardrail: upgrade Solid and merge its lockfile only in the spike worktree
   until adoption; check each Solid-major branch out in its own folder.
 
+## 2026-09-03 - Remote Source Owns Indexer Search-Grab
+
+- Outcome: `RemoteSourceRuntime` and `src/app/remoteSource` own both Audible
+  library-acquire and Indexer release search-grab in one acquire dialog. The
+  Indexer lane is provider-neutral in UX (`Indexer`, not Prowlarr). Prowlarr is
+  the first backend adapter under `providers/indexer/`. Grab success means
+  Prowlarr accepted the release for the configured download client; ABB does not
+  poll downloads or auto-import grabbed files. Indexer URL/categories persist as
+  non-secret settings; the API key is vault-backed and write-only across IPC.
+- Evidence: `ProviderId::Indexer`, `search_remote_source_releases`,
+  `grab_remote_source_release`, indexer connection commands in
+  `src-tauri/src/ipc_contract.rs`, `defaultAcquisitionLane` in App Settings,
+  `RemoteSourceAcquireView` lane switch, `SplitButton` on File Import.
+- Guardrail: do not route Indexer grab through `start_remote_source_acquisition`
+  or Input `importPaths`; do not expose indexer API keys on the generated
+  TypeScript boundary after save.
+
 ## 2026-08-31 - One Owner Per Kind Of Repository Truth
 
 - Outcome: root `AGENTS.md` is the always-loaded operating and routing

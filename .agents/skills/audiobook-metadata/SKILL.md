@@ -1,42 +1,41 @@
 ---
 name: audiobook-metadata
-description: Canonical audiobook tag and interoperability strategy for Audiobook Boss. Use when changing tag mappings, folder conventions, or ABS/Plex/Apple compatibility; ordinary metadata intent and validation work follows the nearest owning AGENTS.md.
+description: Evaluate or change ABB tag mappings and folder conventions for Audiobookshelf, Plex, or Apple Books interoperability. Ordinary metadata intent and validation work follows its owning AGENTS.md.
 ---
 
 # Audiobook Metadata
 
-## Interop Invariant
+Preserve real-file interoperability while keeping compatibility claims tied to
+the writer, reader, and player behavior actually verified.
 
-External compatibility with ABS/Plex/Apple Books is required. Compatibility
-claims must match current code and product decisions.
+## Choose The Evidence
 
-ABB does not read or write Apple movement tags (`MVNM`/`MVIN`). Series uses
-ffprobe-visible tags plus mirrored mp4ameta freeform atoms.
+- For tag mapping or series compatibility, read
+  [tag-mapping.md](references/tag-mapping.md). It owns the retained interop
+  strategy and routes to the live field schema and container adapters.
+- For output organization or scanner folder parsing, read
+  [folder-conventions.md](references/folder-conventions.md). It routes to
+  ABB's naming owner and external scanner documentation.
 
-## Series Tag Strategy
+Repository paths in these references are relative to the ABB root. Metadata
+intent, validation, write planning, and runtime adaptation stay under
+`src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`. Output path
+policy stays under `src-tauri/src/output_artifact/AGENTS.md`.
 
-For series metadata, write both:
-- ffprobe-visible tags: `series`, `series-part`
-- mp4ameta freeforms: canonical `----:com.apple.iTunes:series` /
-  `----:com.apple.iTunes:series-part` plus uppercase iTunes mirrors
-  `----:com.apple.iTunes:SERIES` / `----:com.apple.iTunes:SERIES-PART`
+## Verify The Changed Handoff
 
-Intent semantics (`set | clear | noop`), the Outcome Plan, and naming-to-artifact
-flow are owned by `src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
+Use owner tests for mapping, clear/noop behavior, and atom precedence. For a
+changed writer or finalization path, inspect a generated M4B with:
 
-## Verification
-
-1. Verify ffprobe-visible tags:
 ```bash
-ffprobe -v quiet -print_format json -show_format output.m4b | jq '.format.tags'
+ffprobe -v quiet -print_format json -show_format output.m4b
 ```
-2. Verify freeform atoms with mp4 tooling (for example `AtomicParsley`).
-3. Validate behavior in ABS/Plex/Apple import workflows when modifying mappings.
 
-## References
+Use atom-aware readback for freeform mirrors that ffprobe cannot distinguish.
+When the claim is player/scanner compatibility, verify the affected import
+workflow and record the consumer version and relevant library settings. If
+that consumer is unavailable, report the artifact proof and the unverified
+compatibility claim separately.
 
-- Strategy and mappings: `references/tag-mapping.md`
-- Folder conventions: `references/folder-conventions.md`
-- Metadata model and outcome plan: `src-tauri/src/metadata/`
-- Boundary commands: `src-tauri/src/commands/metadata.rs`
-- Output artifact naming: `src-tauri/src/output_artifact/naming.rs`
+Finish with the changed mapping or convention, its owner, artifact/test
+evidence, and any remaining consumer-specific uncertainty.

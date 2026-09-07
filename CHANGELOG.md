@@ -4,14 +4,79 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-05
+
+### Added
+
+- Sort Indexer results by largest size or most seeders. Filtering and sorting
+  preserve the selected release.
+- Open a release's source page from its View details link, including for
+  manual follow-up after a failed Grab.
+- Indexer connection help recommends HTTPS and explains unencrypted HTTP
+  connections. API keys remain in the operating system's credential store.
+
 ### Changed
 
+- New Indexer connections search both Audio (3000) and Audiobook (3030)
+  categories by default. Explicit saved category choices are preserved.
 - Compacted repository agent guidance: root `AGENTS.md` is the always-loaded
   routing surface, the system map is conditional cross-owner topology, and
   live contracts own command/event discovery instead of a prose inventory.
 - Release skill first move now chooses patch/minor/major from the accepted
   change and names the host-tuned `.app` vs portable DMG before any bump
   or build.
+
+### Fixed
+
+- Reject Indexer URLs containing embedded credentials when loading, saving,
+  or testing a connection, before they can reach the interface or requests.
+
+## [1.6.0] - 2026-09-04
+
+### Added
+
+- Import chapters from a UTF-8 CUE beside a same-stem MP3. Input shows the
+  chapter source and count; standard CUE timestamps apply directly, while
+  nonstandard hundredths require confirmation or an explicit Ignore choice.
+- Preserve accepted CUE chapter names and positions through Native AAC,
+  Apple AAC, and external FDK encoding, including valid short final chapters.
+  Supplied markers are transferred as written; ABB does not infer spoken
+  boundaries or rename chapters.
+
+### Fixed
+
+- Selected chapters that cannot be written or survive final metadata writes
+  now fail processing instead of reporting success.
+- An account refresh failure after saving Indexer settings reports a visible
+  diagnostic while preserving the successful save.
+
+## [1.5.0] - 2026-09-04
+
+### Added
+
+- Indexer search and Grab alongside Audible in Acquire Audiobooks. Search by
+  author, title, or both, filter results, and send a selected release to your
+  configured download client. Grab does not import downloaded files into ABB.
+- Import source picker and a configurable default acquisition source.
+- Indexer connection settings with a write-only API key, audiobook categories,
+  and a Test action that checks the current form without saving it.
+
+### Changed
+
+- Indexer results show protocol, named categories, and indexer tags, ordered by
+  seeders. Filtering preserves that order; Enter submits author/title searches.
+
+### Fixed
+
+- Saving an Indexer connection updates an already-open Acquire dialog.
+  Unrelated Settings edits preserve connection drafts, and Reset All immediately
+  restores the default Import source.
+- Grab preserves the selected indexer when multiple results share a release ID.
+- Connection tests reject invalid server responses. API keys are scoped to their
+  server URL, and API requests do not follow redirects, so keys stay with the
+  configured server.
+- Closing and reopening Acquire preserves selection in the same source;
+  accepted Audible downloads continue through source changes.
 
 ## [1.4.2-spike.1] - 2026-09-02
 

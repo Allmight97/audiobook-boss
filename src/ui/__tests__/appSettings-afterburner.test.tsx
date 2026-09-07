@@ -12,6 +12,7 @@ vi.mock('../../lib/tauri/client', async () => {
 	return {
 		tauriClient: {
 			getAppSettings: vi.fn().mockResolvedValue({
+				defaultAcquisitionLane: 'audible',
 				maxConcurrentJobs: { mode: 'auto' },
 				encoderDefaults: {
 					settings: {
@@ -35,6 +36,9 @@ vi.mock('../../lib/tauri/client', async () => {
 			updateAppSettings: vi.fn().mockResolvedValue(undefined),
 			resetAppSettings: vi.fn(),
 			openFile: vi.fn(),
+			getRemoteSourceIndexerConnection: vi
+				.fn()
+				.mockResolvedValue({ baseUrl: null, categoryIds: [3030], apiKeyConfigured: false }),
 			getRuntimeSettingsCapabilities: vi
 				.fn()
 				.mockResolvedValue(runtimeSettingsCapabilitiesFixture()),

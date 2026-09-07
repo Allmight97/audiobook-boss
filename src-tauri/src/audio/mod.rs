@@ -52,23 +52,17 @@ pub struct AudioFile {
     /// Chapters embedded in this individual source file, normalized to milliseconds.
     #[serde(default)]
     pub chapters: Vec<AudioChapter>,
+    #[serde(default)]
+    pub chapter_plan: Option<crate::metadata::ChapterPlan>,
+    #[serde(default)]
+    pub cue_source: Option<crate::metadata::CueSource>,
     /// Validation status
     pub is_valid: bool,
     /// Error message if validation failed
     pub error: Option<String>,
 }
 
-/// Read-only chapter facts discovered while analyzing one audio file.
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioChapter {
-    /// Embedded chapter title, when present in the source container.
-    pub title: Option<String>,
-    /// Chapter start in milliseconds from the beginning of this file.
-    pub start_ms: i64,
-    /// Chapter end in milliseconds from the beginning of this file.
-    pub end_ms: i64,
-}
+pub type AudioChapter = crate::metadata::ChapterSpec;
 
 /// Machine-readable decoder identity paired with the friendly display label.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -103,6 +97,8 @@ impl AudioFile {
             tag_title: None,
             tag_artist: None,
             chapters: Vec::new(),
+            chapter_plan: None,
+            cue_source: None,
             is_valid: false,
             error: None,
         }
@@ -120,7 +116,7 @@ pub enum SampleRateConfig {
 }
 
 // Audio Engine Deep Module Public API Strip.
-pub use file_list::{get_file_list_info, FileListInfo};
+pub use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
 pub use imports::{
     discover_audio_import_paths, supported_audio_import_metadata, SupportedAudioImportFormat,
     SupportedAudioImportMetadata,

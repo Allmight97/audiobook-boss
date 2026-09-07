@@ -1,15 +1,15 @@
 # UI Foundation
 
-## Current state
+## Scope
 
 Shared visual behavior crosses `src/ui/foundation/index.ts`. Native CSS is the
-only styling language. Next action: change tokens or primitives here, then
-update `src/lab` in the same change.
+only styling language. When changing tokens or primitives, update `src/lab`
+in the same change.
 
 ## Public API Strip
 
 - Import from `src/ui/foundation`.
-- Exports: `Button`, `CoverThumb`, `Dialog`, `Progress`, and their prop types.
+- Exports: `Button`, `CoverThumb`, `Dialog`, `Progress`, `SplitButton`, and their prop types.
 - Public semantic tokens live on `:root` in `internal/tokens.css`. Owner CSS
   may consume those custom properties. It may not import this private cluster.
 

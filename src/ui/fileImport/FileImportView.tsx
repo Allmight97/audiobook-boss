@@ -6,9 +6,10 @@ import {
 	nativeDropTargetAtPoint,
 } from '../../app/inputSession/nativeIngress';
 import { useAppRuntime } from '../../app/runtime';
+import type { AcquisitionLane } from '../../types/appSettings';
 import { isFileDropEvent } from '../../types/events';
 import { createSubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
-import { Button } from '../foundation';
+import { Button, SplitButton } from '../foundation';
 import { FileListView } from '../fileList/FileListView';
 import { RemoteSourceAcquireView } from '../remoteSource';
 import './fileImport.css';
@@ -18,7 +19,8 @@ export function FileImportView(): JSX.Element {
 	const view = runtime.input.view;
 	const capability = runtime.input.capability;
 	const importIntent = runtime.input.importIntent;
-	const openRemoteSourceAcquire = runtime.remoteSource.open;
+	const remoteSource = runtime.remoteSource;
+	const defaultAcquisitionLane = runtime.settings.defaultAcquisitionLane;
 	const applyCoverArtDrop = runtime.metadata.applyCoverArtDrop;
 	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
@@ -30,6 +32,10 @@ export function FileImportView(): JSX.Element {
 	);
 	let fileManagementContainer: HTMLElement | null = null;
 	let deferredOpenedDrain = false;
+
+	function openAcquire(lane: AcquisitionLane): void {
+		remoteSource.open({ lane });
+	}
 
 	async function drainOpenedAudioFiles(): Promise<void> {
 		if (view().orderLocked) {
@@ -97,9 +103,37 @@ export function FileImportView(): JSX.Element {
 				<Button id="add-folder-btn" onClick={() => importIntent({ type: 'pickFolder' })}>
 					Add Folder
 				</Button>
-				<Button id="acquire-audiobooks-btn" onClick={() => openRemoteSourceAcquire()}>
-					Import from Library
-				</Button>
+				<SplitButton
+					testId="import-split-button"
+					mainId="acquire-audiobooks-btn"
+					caretId="import-split-caret"
+					dropdownId="import-split-dropdown"
+					mainLabel="Import"
+					onMainClick={() => openAcquire(defaultAcquisitionLane())}
+				>
+					{({ close }) => (
+						<>
+							<SplitButton.Option
+								data-testid="import-lane-audible"
+								onClick={() => {
+									close();
+									openAcquire('audible');
+								}}
+							>
+								Audible
+							</SplitButton.Option>
+							<SplitButton.Option
+								data-testid="import-lane-indexer"
+								onClick={() => {
+									close();
+									openAcquire('indexer');
+								}}
+							>
+								Indexer
+							</SplitButton.Option>
+						</>
+					)}
+				</SplitButton>
 			</div>
 			<Show when={view().errorMessage}>
 				{(message) => (

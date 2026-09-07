@@ -159,6 +159,7 @@ mod tests {
 
     fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayload {
         let mut payload = ProcessPayload {
+            chapter_plans: None,
             input_files: vec!["/books/input.m4b".to_string()],
             input_ids: None,
             output_dir: "/tmp/out".to_string(),

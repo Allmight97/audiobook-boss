@@ -308,3 +308,15 @@
 	color: var(--text-inverse);
 	opacity: 0.8;
 }
+
+.file-cue-details {
+	margin-top: var(--space-1, 4px);
+	font-size: var(--font-size-sm, 12px);
+	white-space: normal;
+}
+.file-cue-details p {
+	margin: 4px 0;
+}
+.file-cue-details button {
+	margin-right: 8px;
+}

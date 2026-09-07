@@ -119,9 +119,15 @@ pub(crate) fn finalize_processing(
     workflow: ProcessingWorkflow,
     merged_output: PathBuf,
     metadata: Option<AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<String> {
     write_metadata_stage(context, &merged_output, metadata)?;
 
+    if context.preview.is_none() {
+        if let Some(passthrough) = passthrough {
+            crate::metadata::verify_chapters(&merged_output, &passthrough.chapters)?;
+        }
+    }
     complete_processing(context, workflow, merged_output)
 }
 

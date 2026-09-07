@@ -9,7 +9,6 @@
 
 - Import from `src/ui/tagPreview`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- Exports: `TagPreviewView`.
 
 ## Private Cluster
 
@@ -22,7 +21,7 @@
   `src/app/metadataSession/tags.ts`. Do not add a local tag store, refresh
   function, or listener that copies those values.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
 - Reintroducing a push or snapshot API that writes tag values outside

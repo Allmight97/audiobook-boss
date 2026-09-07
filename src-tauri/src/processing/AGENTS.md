@@ -44,7 +44,7 @@
   discriminator the UI consumes; the internal `ProcessingStage` carries data (e.g. `Failed(String)`)
   and drives orchestration — keep them distinct.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 - Change pure processing classification/summarization when
   `cargo nextest run -p abb-processing-core` stays green.
 - Change planner or runner internals when targeted `audiobook-boss` Nextest and
@@ -58,7 +58,7 @@
   `OperationResultSummary` vocabulary while metadata write policy stays inside
   metadata-owned APIs.
 
-## Breaking-Change Triggers
+## Boundary Changes
 - Adding, removing, or renaming any Public API Strip symbol.
 - Changing preflight signature behavior, collision-review enforcement, metadata projection, path validation, or parent-dir side effects.
 - Moving artifact truth, metadata intent semantics, backend lifecycle ownership,

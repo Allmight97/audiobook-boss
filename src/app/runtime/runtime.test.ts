@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import { defaultEncoderSettings, type FileListInfo, type ProcessingPreflightPlan } from '../../types/audio';
+import {
+	defaultEncoderSettings,
+	type FileListInfo,
+	type ProcessingPreflightPlan,
+} from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { tauriClient } from '../../lib/tauri/client';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
@@ -35,12 +39,15 @@ function runningJob(): AcquisitionJob {
 
 function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowServices {
 	return {
+		listProviders: vi.fn(async () => []),
 		getAccountState: vi.fn(),
 		startAuth: vi.fn(),
 		openAuthorizationUrl: vi.fn(),
 		completeAuth: vi.fn(),
 		logout: vi.fn(),
 		loadLibrary: vi.fn(),
+		searchReleases: vi.fn(),
+		grabRelease: vi.fn(),
 		startAcquisition: vi.fn(async () => runningJob()),
 		getAcquisitionStatus: vi.fn(() => status),
 		cancelAcquisition: vi.fn(),
@@ -117,7 +124,8 @@ describe('app runtime', () => {
 		first.lookup.setTitleQuery('stale lookup');
 		first.encoding.select('encoder', 'native_aac');
 		first.processing.pushTransientStatus('first runtime only');
-		first.remoteSource.patch({ isOpen: true, statusMessage: 'first runtime only' });
+		void first.remoteSource.open();
+		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
 
 		expect(first.output.collision().isOpen).toBe(true);
 		expect(second.output.collision().isOpen).toBe(false);
@@ -272,9 +280,7 @@ describe('app runtime', () => {
 		first.lookup.scheduleCoverPreviews(['https://covers.example/first.jpg']);
 		second.lookup.scheduleCoverPreviews(['https://covers.example/second.jpg']);
 		await vi.waitFor(() =>
-			expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe(
-				'ready',
-			),
+			expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready'),
 		);
 
 		first.dispose();
@@ -298,9 +304,9 @@ describe('app runtime', () => {
 		expect(second.input.view().errorMessage).toBe('');
 	});
 
-	it('resets Remote Source module state on dispose so a remount does not keep the dialog open', () => {
+	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {
 		const runtime = createAppRuntime();
-		runtime.remoteSource.patch({ isOpen: true, statusMessage: 'stale remote' });
+		void runtime.remoteSource.open();
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
 		runtime.dispose();
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
@@ -313,8 +319,31 @@ describe('app runtime', () => {
 		const runtime = createAppRuntime({ remoteSource: { services } });
 		const other = createAppRuntime();
 		dispose = () => other.dispose();
-		other.remoteSource.patch({ isOpen: true, statusMessage: 'other runtime' });
-		runtime.remoteSource.patch({ selectedTitleIds: new Set(['B000000001']) });
+		void other.remoteSource.open();
+		other.remoteSource.editSearch({ titleFilter: 'other runtime' });
+		vi.mocked(services.getAccountState).mockResolvedValue({
+			providerId: 'audible',
+			status: 'connected',
+		});
+		vi.mocked(services.loadLibrary).mockResolvedValue({
+			providerId: 'audible',
+			diagnostics: [],
+			titles: [
+				{
+					providerId: 'audible',
+					titleId: 'B000000001',
+					title: 'Book',
+					authors: [],
+					narrators: [],
+					supplementalPdfAvailable: false,
+					acquired: false,
+					availability: { acquirable: true, status: 'available', label: 'Available' },
+					unsupportedReasons: [],
+				},
+			],
+		});
+		await runtime.remoteSource.open();
+		runtime.remoteSource.toggleTitle('B000000001');
 		const acquisition = runtime.remoteSource.runAction({
 			type: 'acquireSelected',
 		});
@@ -327,7 +356,7 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().activeJob).toBeNull();
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 		expect(other.remoteSource.view().isOpen).toBe(true);
-		expect(other.remoteSource.view().statusMessage).toBe('other runtime');
+		expect(other.remoteSource.view().titleFilter).toBe('other runtime');
 	});
 
 	it('keeps metadata cache and process intents isolated across live runtimes', async () => {

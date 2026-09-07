@@ -4,7 +4,7 @@
 
 - Import durable settings behavior from `crate::app_settings`, not private child
   modules.
-- Types: `AppSettings`, `AppSettingsPatch`, `EncoderDefaults`,
+- Types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`, `EncoderDefaults`,
   `OutputDefaults`, `ConcurrencyPreference`, `ToolchainPreferences`,
   `StartupBehavior`, `PinnedDefaults`.
 - Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`.
@@ -17,7 +17,7 @@
 - Durable preferences validate against the owning runtime APIs; App Settings
   must not duplicate encoder or JobRegistry accept/reject rules.
 
-## Allowed Agent Edits Without Escalation
+## Edit Rules
 
 - Change storage or merge internals when App Settings contract tests and runtime
   binding checks stay green.
@@ -26,7 +26,7 @@
 - Treat persisted user paths as preference data only. Runtime owners still
   validate paths before reads or writes.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming any Public API Strip symbol.
 - Moving runtime behavior ownership, output artifact truth, audio toolchain

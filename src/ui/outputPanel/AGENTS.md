@@ -22,7 +22,7 @@
 - Estimated size is rendered in the encoder header from Output Plan. Do not
   add a second estimate readout here.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
 - Reintroducing a poke API (`updateOutputPath`, `updateEstimatedSize`) or a

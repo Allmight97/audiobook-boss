@@ -386,4 +386,38 @@ describe('ProcessingWorkflow', () => {
 		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
 		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
 	});
+
+	it('submits background processing inside Remote Source retention', async () => {
+		const currentFileList: FileListInfo = {
+			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
+			selectedDecoders: [null],
+			totalDuration: 1,
+			totalSize: 1,
+			validCount: 1,
+			invalidCount: 0,
+		};
+		const withSubmissionRetention = vi.fn(async (_inputIds, submit) => submit());
+		const ctx = workflowContext();
+		const { services, feedback } = workflowServices({
+			getCurrentFileList: vi.fn(() => currentFileList),
+			getJobType: vi.fn((): JobType => 'batch'),
+			remoteSource: {
+				processingAssets: vi.fn(() => undefined),
+				withSubmissionRetention,
+			},
+			submitProcessingOperation: vi.fn(async () => {
+				throw {
+					code: 'decoder_unavailable',
+					category: 'toolchain',
+					message: 'Decoder unavailable.',
+					detail: null,
+				};
+			}),
+		});
+
+		await runWithServices(ctx, services);
+
+		expect(withSubmissionRetention).toHaveBeenCalledWith(['current-input-1'], expect.any(Function));
+		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
+	});
 });

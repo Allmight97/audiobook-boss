@@ -208,20 +208,8 @@ pub(crate) fn setup_encoder(
     // Skip in preview mode since chapters won't align with shortened output
     if !skip_chapter_passthrough {
         if let Some(p) = passthrough {
-            match crate::metadata::add_chapters_to_output(&mut octx, &p.chapters) {
-                Ok(count) if count > 0 => {
-                    log::info!("✓ Copied {} chapters from source files", count);
-                }
-                Ok(_) => {
-                    log::debug!("No chapters found to copy from source files");
-                }
-                Err(error) => {
-                    log::warn!(
-                        "Could not preserve passthrough chapters during native encoding: {}",
-                        error
-                    );
-                }
-            }
+            let count = crate::metadata::add_chapters_to_output(&mut octx, &p.chapters)?;
+            log::debug!("Copied {count} accepted chapters");
         }
     } else {
         log::debug!("Chapter passthrough skipped (preview mode)");

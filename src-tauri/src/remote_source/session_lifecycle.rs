@@ -133,6 +133,9 @@ impl RemoteAcquisitionLifecycle {
                 )
                 .await
             }
+            super::RemoteProviderId::Indexer => Err(AppError::InvalidInput(
+                "Indexer grabs do not create acquisition jobs.".to_string(),
+            )),
         };
 
         self.remove_acquisition_task(&job_id);

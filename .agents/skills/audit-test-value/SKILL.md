@@ -1,174 +1,76 @@
 ---
 name: audit-test-value
-description: Audit and tidy ABB tests so retained proofs protect observable behavior at the lowest owning boundary, then simplify production seams kept alive only by low-value tests. Use when the user explicitly asks to audit, prune, consolidate, clean up, or maintain tests or testing infrastructure; investigate stale, brittle, duplicative, false-green, or implementation-coupled tests; or follow test cleanup into production simplification. Do not use for ordinary feature or bug-fix test authoring.
+description: Audit or clean up ABB tests and test-only production seams for behavioral value, duplication, and proof cost. Use for test maintenance requests; ordinary feature or bug-fix test authoring follows owner guidance.
 ---
 
 # Audit Test Value
 
-Make every retained test name a plausible bug it would reveal. Treat stale,
-false-green, duplicative, misplaced, and costly tests as maintenance debt, just
-as suspect as stale production code.
+Recover useful regression protection at the lowest owning boundary, and remove
+complexity whose only purpose was supporting tests that do not earn keep.
 
-## 1. Establish Authority, Scope, And Baseline
+## Scope And Authority
 
-1. Read the root and nearest owner `AGENTS.md` files, test configuration,
-   manifests, registries, and `scripts/AGENTS.md` command menu.
-2. Resolve the authorization boundary:
-   - `audit`, `review`, `educate`, or `report` means read-only;
-   - `clean up`, `prune`, `refactor`, or `implement` authorizes in-scope edits.
-3. Separate the audit boundary from the change boundary. A repository-wide
-   census may still produce one owner-coherent change; a whole-repository
-   cleanup may span owners when the user explicitly wants all accepted value
-   recovered in one effort.
-4. Record branch, commit, worktree state, and pre-existing failures. Preserve
-   unrelated user state.
-5. Run only the cheapest meaningful baseline checks when their signal is worth
-   their cost. Do not use a broad suite as a freshness badge.
+Use the whole request to distinguish a report from authorized cleanup. An
+audit alone is read-only; an audit followed by requested fixes includes those
+edits. A repository-wide census does not by itself authorize production changes.
 
-Complete this stage when the inspected scope, mutation authority, exclusions,
-and baseline are explicit.
+Read applicable owner guidance and `scripts/AGENTS.md` for test placement and
+commands. Inspect the in-scope tests, fixtures, registries, configuration, and
+production callers. Use baseline execution when it provides useful evidence;
+distinguish existing failures from regressions.
 
-## 2. Inventory Tests And Claimed Contracts
+## Judge The Contract
 
-Inventory tracked, project-owned test surfaces in scope:
+Root `AGENTS.md` owns ABB's test-value bar and tier selection. For each
+challenged test or shared group, establish:
 
-- owner and tier;
-- registries, fixtures, snapshots, mocks, and generated-contract checks;
-- production exports, helpers, dependency injection, factories, or `cfg(test)`
-  seams used by those tests;
-- verification cost or false-green behavior already observed.
+- the plausible bug and observable contract it protects;
+- the stable owner and any distinct risk that justifies a second test tier;
+- what protection deletion would lose;
+- the disposition: `keep`, `move`, `consolidate`, `delete`, or `replace`;
+- any production seam kept alive by the test and its remaining production use.
 
-Exclude vendored or upstream suites unless the request includes them. Label
-lexical counts as approximate when tests were not executed.
+Source-text restatements, constructor/read-back checks, self-comparisons,
+test-authored algorithms, mock choreography, and structural snapshots are
+candidates for scrutiny. Interpret them in context: exact serialization,
+interaction order, externally observed copy, and independent Public API Strip
+expectations can be real contracts.
 
-For every challenged test, state the observable contract it claims to protect
-or mark it as having no behavioral contract. Complete the census before using
-candidate counts as conclusions.
+Measure cost when slow discovery, opaque output, flakiness, or target bloat is
+part of the finding. Lexical counts are approximate; do not present a sampled
+review as a complete census. Keep a ledger for a broad audit so dispositions
+and summary counts reconcile. A focused request can use a short finding list.
 
-## 3. Apply The Behavior-Value Bar
+Settle consequential uncertainty with a cheap, safe mutation experiment when
+useful. Otherwise retain the protection and name the unresolved evidence;
+uncertainty alone need not stop independent authorized cleanup.
 
-Retain a test when its failure would reveal at least one of:
+## Apply Authorized Cleanup
 
-- broken behavior visible through a stable owner boundary;
-- a security, privacy, data-integrity, cleanup, or resource-lifetime violation;
-- a broken contract between layers, processes, or external systems;
-- a plausible regression that could recur;
-- a meaningful edge or failure case best isolated at that tier.
+Choose an owner-coherent change set from the findings. Delete unsupported
+tests, consolidate duplicated contracts, and move proof to the lowest tier
+that can establish it. Add replacement coverage only for a meaningful gap.
 
-Give each contract one primary test owner. A second tier earns keep only for a
-distinct integration, serialization, platform, side-effect, or presentation
-risk. Push proof to the lowest deterministic ABB tier named in root guidance.
+After test changes, recheck production callers. Remove exports, wrappers,
+factories, or indirection whose only remaining purpose was test access when
+production simplification is in scope. Preserve seams that isolate real side
+effects, lifecycle transitions, platform variation, or external dependencies.
+Report out-of-scope simplifications with impact and owner.
 
-Treat these as strong candidates for deletion, movement, or consolidation:
+Keep procedure here and verification commands in `scripts/AGENTS.md`. Update
+owner guidance only when the change reveals a new local trap or changes an
+owned interface; root already carries the repo-wide value bar.
 
-- source text, private symbol, type declaration, CSS literal, fixture, or
-  configuration restatements;
-- constructor/read-back checks, self-comparisons, and compile-only shape tests;
-- expected values that reproduce the production algorithm or branch tree;
-- mock choreography without an observable result or boundary interaction;
-- the same contract repeated across core, runtime, contract, component, and
-  browser tiers without distinct risk;
-- structural snapshots or refactor detectors whose only plausible failure is
-  an intentional implementation change;
-- slow, opaque, target-bloated, or flaky proof routes whose cost exceeds their
-  regression signal.
+## Proof And Completion
 
-Interpret those signals in context. Exact copy, option values, serialization
-shape, interaction order, generated parity, and Public API Strips can be real
-contracts when ABB or an external consumer observes them. Independent Public
-API Strip expectations must not be derived from the registry they guard.
+Run the focused checks for changed owners, expanding only for crossed
+boundaries or a concrete unresolved risk. Proof must show that retained or
+moved tests exercise the named behavior and that simplified production seams
+preserve observable outcomes. Media, IPC, platform, or visual behavior needs
+its corresponding acceptance evidence when affected.
 
-For each candidate, establish:
-
-1. the plausible bug it reveals today;
-2. the stable owner of that behavior;
-3. whether another test already protects the same contract and whether its risk
-   is genuinely distinct;
-4. what regression protection deletion would lose;
-5. the safe disposition: `keep`, `move`, `consolidate`, `delete`, or `replace`;
-6. the affected production seam and its remaining production reason;
-7. confidence, validation needed, and residual risk.
-
-When evidence remains genuinely balanced, use a focused mutation experiment if
-the target is cheap and safe. Otherwise retain the test under an explicit human
-decision. Uncertainty may change the disposition; it may not leave a candidate
-unclassified.
-
-## 4. Adjudicate Before Editing
-
-Build one integrated ledger. Challenge non-obvious retain decisions as hard as
-deletion candidates. Reconcile conflicting audit lanes against production code,
-owner contracts, and actual test behavior.
-
-For large scopes, bounded read-only subagents may census independent owners.
-Each lane returns evidence and dispositions, not edits. The orchestrator owns
-cross-lane deduplication, owner selection, and the accepted change set.
-
-Do not optimize for a small diff. Select the least complexity that reaches the
-agreed end state. Finish adjudication only when every in-scope candidate and
-test-only seam is classified and every accepted finding is either in the change
-set or explicitly deferred with impact and owner.
-
-## 5. Prune, Move, And Simplify
-
-Implement accepted work in owner-coherent groups:
-
-1. delete tests with no justified contract;
-2. consolidate duplicate contracts under their stable owner;
-3. move valuable assertions to the lowest tier that proves the behavior;
-4. add replacement coverage only for a meaningful gap exposed by the cleanup;
-5. rescan production code after test changes;
-6. remove or collapse exports, aliases, wrappers, factories, parameters, or
-   indirection whose only remaining reason was test access.
-
-Retain seams that isolate real side effects, lifecycle transitions, external
-processes, platform variation, security boundaries, or resource cleanup.
-
-Use the minimum PR count, normally one, with commits separated by owner and
-causal dependency. A multi-owner audit does not justify leaving accepted value
-on the table merely to keep the diff visually small.
-
-During parallel implementation, give each lane disjoint path ownership and
-focused checks. The orchestrator integrates shared surfaces and owns the final
-cross-owner validation gate.
-
-## 6. Prove The Result
-
-After each coherent edit group, run the focused command for that owner. Then
-run the broadest proportionate integration checks justified by crossed
-boundaries and risk.
-
-Verification must demonstrate:
-
-- retained tests still exercise the named behavior;
-- moved proof fails at the owning boundary, not through test-authored logic;
-- removed tests did not expose an unprotected meaningful contract;
-- simplified production seams preserve observable behavior;
-- generated, IPC, media, platform, visual, or manual proof was run when that is
-  the actual acceptance surface;
-- pre-existing failures remain distinguished from regressions.
-
-## 7. Keep Recurrence Guidance Surgical
-
-Update root guidance only when the sweep reveals a repo-wide invariant not
-already stated. Update a local `AGENTS.md` only when ownership, placement, or a
-recurring local trap changed. Keep procedure in this skill and commands in
-`scripts/AGENTS.md`; do not duplicate the workflow across instruction files.
-
-## Report And Finish Line
-
-Report:
-
-- audit scope, census, and limitations;
-- summary disposition counts that reconcile with the detailed ledger;
-- tests deleted, moved, consolidated, replaced, or retained, with behavioral
-  justification;
-- production seams removed, simplified, or deliberately retained;
-- coherent commit or issue scope;
-- commands, results, pre-existing failures, and manual proof;
-- unresolved human choices and residual risk.
-
-Finish only when summary counts reconcile with the ledger, every in-scope test
-passed the behavior-value bar, every affected test-only seam was assessed,
-every accepted finding was handled, observable contracts remain protected, and
-proportionate verification ran.
+Finish when the requested scope has been assessed, each finding has a
+disposition, accepted in-scope edits are complete, and proportionate checks
+have run. Report changes, deliberately retained protection, any deferred work
+and owner, validation results, and residual risk. Reconcile counts with the
+ledger when reporting a census.

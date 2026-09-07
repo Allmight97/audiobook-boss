@@ -63,7 +63,7 @@
 - Status UI strip is pinned by `src/ui/statusPanel/__tests__/runtime-api-contract.test.ts`.
 - Two-runtime preview-status isolation lives in `src/app/runtime/runtime.test.ts`.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a public export.
 - Reading leftover file-list, job-control, encoder, or output private state to
@@ -71,3 +71,8 @@
 - Converting Status Panel into a WorkRuntime consumer without a documented
   architecture decision.
 - Restoring `bindProcessing*` or a module-global status publisher.
+
+- Input's `chapterPlansForProcessing` owns confirmation/Ignore gating. Processing
+  includes the returned plans in the immutable submission; runtime validates
+  the source fingerprint and chapter intervals. Do not rediscover CUE in an
+  encoder adapter or reinterpret timestamps in the frontend.

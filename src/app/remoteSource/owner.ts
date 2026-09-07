@@ -1,15 +1,30 @@
 import { createSignal, type Accessor } from 'solid-js';
+import type { AcquisitionLane } from '../../types/appSettings';
 import type { AudioFile, SupplementalProcessingAsset } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
+import type { RemoteRelease } from '../../types/remoteSource';
+import { toggledRemoteTitleSelection, toggledSupplementalPdfPreference } from './selection';
 import type { InputOwner } from '../inputSession';
 import {
 	createRemoteSourceCoverPreviews,
 	type RemoteSourceCoverPreviewState,
 } from './coverPreview';
-import { makeProductionRemoteSourceServices } from './services';
+import {
+	createIndexerConnectionSettings,
+	type IndexerConnectionSettingsView,
+} from './indexerConnection';
+import {
+	makeProductionIndexerConnectionServices,
+	makeProductionRemoteSourceServices,
+} from './services';
 import { createRemoteSourceSessionAssets, type CompanionAssetSummary } from './sessionAssets';
 import { createRemoteSourceStateStore } from './state';
-import { createInitialRemoteSourceState, type RemoteSourceView } from './types';
+import {
+	createInitialRemoteSourceState,
+	laneSelectionResetPatch,
+	providerIdFromLane,
+	type RemoteSourceView,
+} from './types';
 import {
 	createRemoteSourceWorkflow,
 	type RemoteSourceWorkflowAction,
@@ -20,10 +35,35 @@ type InputId = string | undefined;
 
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
-	open(): void;
+	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
+	open(options?: { readonly lane?: AcquisitionLane }): Promise<void>;
+	selectLane(lane: AcquisitionLane): Promise<void>;
 	close(): void;
-	patch(patch: Partial<RemoteSourceView>): void;
-	runAction(action: RemoteSourceWorkflowAction): Promise<void>;
+	editSearch(
+		patch: Partial<
+			Pick<
+				RemoteSourceView,
+				| 'handoffPath'
+				| 'titleFilter'
+				| 'showSupplementalPdfOnly'
+				| 'hideUnavailableTitles'
+				| 'indexerAuthorQuery'
+				| 'indexerTitleQuery'
+				| 'releaseFilter'
+				| 'releaseSort'
+			>
+		>,
+	): void;
+	toggleTitle(titleId: string): void;
+	clearTitleSelection(): void;
+	toggleSupplementalPdf(titleId: string): void;
+	selectRelease(release: Pick<RemoteRelease, 'guid' | 'indexerId'>): void;
+	runAction(
+		action: Exclude<
+			RemoteSourceWorkflowAction,
+			{ type: 'hydrateOpenDialog' | 'refreshAccount' | 'selectLane' }
+		>,
+	): Promise<void>;
 	coverPreview(coverUrl: string | null | undefined): RemoteSourceCoverPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;
@@ -37,6 +77,14 @@ export type RemoteSourceOwner = {
 		readonly inputIds: readonly string[];
 		readonly completedInputIds: readonly string[];
 	}): Promise<void>;
+	loadIndexerConnectionSettings(): Promise<void>;
+	patchIndexerConnectionSettings(
+		patch: Partial<
+			Pick<IndexerConnectionSettingsView, 'baseUrlDraft' | 'apiKeyDraft' | 'categoryIdsDraft'>
+		>,
+	): void;
+	saveIndexerConnectionSettings(): Promise<void>;
+	testIndexerConnection(): Promise<void>;
 	reconcileWithInput(files: ReadonlyArray<AudioFile>): Promise<void>;
 	reset(): void;
 };
@@ -57,6 +105,9 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		bumpView((revision) => revision + 1);
 	});
 	snapshot = state.snapshot();
+	const indexerConnection = createIndexerConnectionSettings({
+		services: makeProductionIndexerConnectionServices,
+	});
 
 	const services =
 		deps.services ??
@@ -83,14 +134,59 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			viewRev();
 			return snapshot;
 		},
-		open() {
-			state.patch({ isOpen: true });
+		indexerConnection: indexerConnection.view,
+		async open(options) {
+			const lane = options?.lane ?? 'audible';
+			state.patch({
+				isOpen: true,
+				providerId: providerIdFromLane(lane),
+				...(state.current().providerId !== providerIdFromLane(lane)
+					? { ...laneSelectionResetPatch(), accountState: null }
+					: {}),
+			});
+			await workflow.run({ type: 'hydrateOpenDialog' });
+		},
+		selectLane(lane) {
+			return workflow.run({ type: 'selectLane', lane });
 		},
 		close() {
-			state.patch({ isOpen: false, didHydrateOpenDialog: false });
+			state.patch({ isOpen: false });
 		},
-		patch(patch) {
+		editSearch(patch) {
 			state.patch(patch);
+		},
+		toggleTitle(titleId) {
+			const current = state.current();
+			const title = current.titles.find((item) => item.titleId === titleId);
+			if (title)
+				state.patch({
+					selectedTitleIds: toggledRemoteTitleSelection(current.selectedTitleIds, title),
+				});
+		},
+		clearTitleSelection() {
+			state.patch({ selectedTitleIds: new Set() });
+		},
+		toggleSupplementalPdf(titleId) {
+			const current = state.current();
+			if (
+				current.titles.some((title) => title.titleId === titleId && title.supplementalPdfAvailable)
+			) {
+				state.patch({
+					includePdfByTitleId: toggledSupplementalPdfPreference(
+						current.includePdfByTitleId,
+						titleId,
+					),
+				});
+			}
+		},
+		selectRelease(identity) {
+			const release = state
+				.current()
+				.releases.find(
+					(item) => item.guid === identity.guid && item.indexerId === identity.indexerId,
+				);
+			if (release)
+				state.patch({ selectedRelease: { guid: release.guid, indexerId: release.indexerId } });
 		},
 		async runAction(action) {
 			try {
@@ -126,6 +222,21 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		settleTerminalWork(input) {
 			return assets.settleTerminalWork(input);
 		},
+		loadIndexerConnectionSettings() {
+			return indexerConnection.load();
+		},
+		patchIndexerConnectionSettings(patch) {
+			indexerConnection.patch(patch);
+		},
+		async saveIndexerConnectionSettings() {
+			const saved = await indexerConnection.save();
+			if (saved && state.current().isOpen && state.current().providerId === 'indexer') {
+				await workflow.run({ type: 'refreshAccount' });
+			}
+		},
+		testIndexerConnection() {
+			return indexerConnection.testConnection();
+		},
 		reconcileWithInput(files) {
 			return assets.reconcileInput(files);
 		},
@@ -133,6 +244,7 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			workflow.invalidate();
 			previews.clear();
 			assets.reset();
+			indexerConnection.reset();
 			state.reset();
 		},
 	};

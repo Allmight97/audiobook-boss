@@ -1,48 +1,17 @@
-# Tauri Route Card
+# Tauri
 
-- ABB packages/crates: `@tauri-apps/api`, `@tauri-apps/cli`, `tauri`,
-  `tauri-build`, `tauri-utils`
-- Upstream: `https://github.com/tauri-apps/tauri.git`
-- Context7: `/websites/v2_tauri_app`
+Read for runtime, command/event, capability, WebView, config, or bundling questions.
 
-Resolve installed versions from `bun.lock` and `Cargo.lock` (do not cache them
-here). Do not treat upstream `dev` as ABB truth until those versions match.
+- JS packages: `@tauri-apps/api`, `@tauri-apps/cli` from `bun.lock`.
+- Rust crates: `tauri`, `tauri-build`, `tauri-utils` from `Cargo.lock`.
+- Inspect installed JS exports and the selected Cargo registry crates;
+  `docs.rs/<crate>/<exact-version>` supplies versioned public API docs.
+- Upstream: [Tauri](https://github.com/tauri-apps/tauri), with JS in
+  `packages/api` and Rust under `crates/`.
+- Optional Context7 hint: `/websites/v2_tauri_app`.
 
-## Use For
-
-- Tauri runtime behavior, command/event APIs, JS API shapes, capabilities,
-  window/webview behavior, config, build, and bundling details.
-- Source-level confirmation when Context7/current docs leave contract behavior
-  ambiguous.
-
-## Installed / registry entrypoints
-
-- `node_modules/@tauri-apps/api`
-- Cargo registry crate `tauri` at the `Cargo.lock` version and checksum
-- `docs.rs/tauri/<exact-version>`
-- `docs.rs/tauri-utils/<exact-version>`
-
-## Exceptional upstream areas
-
-- `packages/api/src`
-- `crates/tauri/src`
-- `crates/tauri-runtime/src`
-- `crates/tauri-runtime-wry/src`
-- `crates/tauri-utils/src/config`
-- `crates/tauri-bundler/src`
-- `crates/tests`, `crates/tauri/test`, `examples/api`, `examples/commands`
-
-## Avoid
-
-- Do not bypass ABB's centralized runtime boundary in `src/lib/tauri/*`.
-- Do not copy Tauri example permission/config shapes without comparing ABB's
-  `src-tauri/capabilities` and `src-tauri/tauri.conf.json`.
-
-## ABB Reconciliation
-
-- Check `package.json`, `bun.lock`, `src-tauri/Cargo.toml`, and `Cargo.lock`
-  for installed Tauri versions.
-- Validate TS/Rust contract changes against `src/lib/generated/tauri.ts` and
-  `src-tauri/src/ipc_contract.rs`.
-- For command, event, binding, or runtime-boundary edits, see
-  `src-tauri/src/commands/AGENTS.md` and `src/lib/tauri/AGENTS.md`.
+For command/event questions, compare `src-tauri/src/ipc_contract.rs`,
+`src/lib/generated/tauri.ts`, and `src/lib/tauri/client.ts`. The command
+and frontend Tauri `AGENTS.md` files own adaptation rules. For permission
+or bundle questions, compare `src-tauri/capabilities` and
+`src-tauri/tauri.conf.json` before adopting upstream examples.

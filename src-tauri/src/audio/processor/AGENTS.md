@@ -41,12 +41,6 @@
 - Terminal paths clean app-owned temporary resources to avoid residue across retries.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
 
-## Stage-Coupling Traps
-
-- If processor behavior relies on implicit assumptions across execute/finalize/cancel stages, name the assumption and working behavior used.
-- Add or propose the smallest invariant, test, or doc guard that would prevent recurrence.
-- Block when ambiguity risks false success, file loss, or stuck cleanup.
-
 ## Done Criteria
 
 - Pipeline stages remain explicit and user-visible progress is truthful.

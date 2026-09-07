@@ -7,7 +7,7 @@
     `WorkSubmissionAccepted`).
   - inline metadata-save lifecycle hooks — `begin_metadata_save_operation`,
     `record_metadata_save_progress`, `finish_metadata_save_operation`,
-    `fail_metadata_save_operation` — orchestrated by `commands/metadata/save_batch.rs`
+    `fail_metadata_save_operation` — orchestrated by `src-tauri/src/commands/metadata/save_batch.rs`
     (the command owns the metadata executor; WorkRuntime owns the operation
     lifecycle/snapshots/cancellation).
 - `OperationId`

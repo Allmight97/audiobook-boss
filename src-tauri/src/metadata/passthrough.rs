@@ -16,15 +16,10 @@ pub struct PassthroughSource {
     pub path: PathBuf,
     pub duration: Option<f64>,
     pub is_valid: bool,
+    pub chapters: Option<Vec<ChapterSpec>>,
 }
 
-/// Minimal chapter representation for passthrough (milliseconds time base).
-#[derive(Debug, Clone)]
-pub struct ChapterSpec {
-    pub title: Option<String>,
-    pub start_ms: i64,
-    pub end_ms: i64,
-}
+pub use super::ChapterSpec;
 
 /// Aggregated passthrough metadata collected from input files.
 #[derive(Debug, Clone, Default)]
@@ -147,7 +142,7 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
         match ff::format::input(&file.path) {
             Ok(ictx) => {
                 // Collect chapters
-                if ictx.nb_chapters() > 0 {
+                if file.chapters.is_none() && ictx.nb_chapters() > 0 {
                     for chapter in ictx.chapters() {
                         let title = chapter.metadata().get("title").map(str::to_string);
                         let start_ms = rescale_to_ms(chapter.start(), chapter.time_base())
@@ -174,6 +169,16 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
                     e
                 );
             }
+        }
+
+        if let Some(chapters) = &file.chapters {
+            passthrough
+                .chapters
+                .extend(chapters.iter().map(|chapter| ChapterSpec {
+                    title: chapter.title.clone(),
+                    start_ms: chapter.start_ms + cumulative_offset_ms,
+                    end_ms: chapter.end_ms + cumulative_offset_ms,
+                }));
         }
 
         // Update offset for next file using known duration (seconds).
@@ -234,6 +239,34 @@ pub fn add_chapters_to_output(
         }
     }
     Ok(copied)
+}
+
+/// Fail before artifact commit if finalization lost selected chapters.
+pub fn verify_chapters(path: &std::path::Path, expected: &[ChapterSpec]) -> Result<()> {
+    if expected.is_empty() {
+        return Ok(());
+    }
+    let input = ff::format::input(path)?;
+    let actual: Vec<_> = input
+        .chapters()
+        .map(|chapter| ChapterSpec {
+            title: chapter.metadata().get("title").map(str::to_string),
+            start_ms: rescale_to_ms(chapter.start(), chapter.time_base()),
+            end_ms: rescale_to_ms(chapter.end(), chapter.time_base()),
+        })
+        .collect();
+    if actual.len() != expected.len()
+        || actual.iter().zip(expected).any(|(a, e)| {
+            a.title.as_deref().unwrap_or("") != e.title.as_deref().unwrap_or("")
+                || a.start_ms != e.start_ms
+                || a.end_ms != e.end_ms
+        })
+    {
+        return Err(crate::errors::AppError::InvalidInput(
+            "Final output did not preserve the accepted chapter names and positions.".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {

@@ -1,6 +1,6 @@
 // TypeScript interfaces for audio processing
 import type {
-	AudioChapter as GeneratedAudioChapter,
+	ChapterSpec as GeneratedAudioChapter,
 	BitrateMode as GeneratedBitrateMode,
 	ChannelConfig as GeneratedChannelConfig,
 	AudioFile as GeneratedAudioFile,

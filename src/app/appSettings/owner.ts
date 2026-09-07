@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type {
+	AcquisitionLane,
 	ConcurrencyPreference,
 	PinnedDefaults,
 	StartupBehavior,
@@ -23,13 +24,16 @@ export type ConcurrencyView = {
 
 export type SettingsOwner = {
 	readonly concurrency: Accessor<ConcurrencyView>;
+	readonly defaultAcquisitionLane: Accessor<AcquisitionLane>;
 	readonly capability: Accessor<SettingsCapability>;
 	readonly dialog: Accessor<AppSettingsDialogState>;
 	hydrateConcurrency(input?: {
 		readonly preference?: ConcurrencyPreference;
 		readonly capabilities?: MaxConcurrentJobsCapabilities | null;
 	}): Promise<void>;
+	hydrateAcquisitionPreferences(): Promise<void>;
 	setConcurrencySelection(value: string): Promise<void>;
+	setDefaultAcquisitionLane(lane: AcquisitionLane): Promise<void>;
 	setControlsEnabled(enabled: boolean): void;
 	openDialog(): Promise<void>;
 	closeDialog(): void;
@@ -73,6 +77,7 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 
 export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner {
 	let concurrency = emptyConcurrency();
+	let defaultAcquisitionLane: AcquisitionLane = 'audible';
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const capabilityValue = deps.capability ?? liveSettingsCapability;
 	const capability: Accessor<SettingsCapability> = () => capabilityValue;
@@ -83,10 +88,19 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		bump((n) => n + 1);
 	}
 
+	function commitDefaultLane(lane: AcquisitionLane): void {
+		defaultAcquisitionLane = lane;
+		bump((n) => n + 1);
+	}
+
 	return {
 		concurrency: () => {
 			rev();
 			return concurrency;
+		},
+		defaultAcquisitionLane: () => {
+			rev();
+			return defaultAcquisitionLane;
 		},
 		capability,
 		dialog: dialog.state,
@@ -114,6 +128,14 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 				console.warn('Failed to hydrate max concurrency:', error);
 			}
 		},
+		async hydrateAcquisitionPreferences() {
+			try {
+				const settings = await capabilityValue.getAppSettings();
+				commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
+			} catch (error) {
+				console.warn('Failed to hydrate acquisition preferences:', error);
+			}
+		},
 		async setConcurrencySelection(value) {
 			const previous = concurrency.selection;
 			commitConcurrency({ ...concurrency, selection: value });
@@ -139,11 +161,23 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 				commitConcurrency({ ...concurrency, selection: previous });
 			}
 		},
+		async setDefaultAcquisitionLane(lane) {
+			const previous = defaultAcquisitionLane;
+			commitDefaultLane(lane);
+			try {
+				const settings = await capabilityValue.updateAppSettings({ defaultAcquisitionLane: lane });
+				commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
+			} catch (error) {
+				console.warn('Failed to update default acquisition lane:', error);
+				commitDefaultLane(previous);
+			}
+		},
 		setControlsEnabled(enabled) {
 			commitConcurrency({ ...concurrency, controlsEnabled: enabled });
 		},
-		openDialog() {
-			return dialog.open();
+		async openDialog() {
+			await dialog.open();
+			await this.hydrateAcquisitionPreferences();
 		},
 		closeDialog() {
 			dialog.close();
@@ -169,8 +203,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		setStartupBehavior(behavior) {
 			return dialog.setStartupBehavior(behavior);
 		},
-		resetAllAppSettings() {
-			return dialog.resetAllAppSettings();
+		async resetAllAppSettings() {
+			await dialog.resetAllAppSettings();
+			const accepted = dialog.state().settings;
+			if (accepted) commitDefaultLane(accepted.defaultAcquisitionLane ?? 'audible');
 		},
 		bindAfterReset(apply) {
 			dialog.bindAfterReset(apply);
@@ -178,6 +214,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		reset() {
 			dialog.reset();
 			commitConcurrency(emptyConcurrency());
+			commitDefaultLane('audible');
 		},
 	};
 }

@@ -1,118 +1,59 @@
-# M4B Tag Mapping Reference
+# Tag Interoperability
 
-Current mapping of ABB-written MP4 metadata to Audiobookshelf, Plex, and Apple Books fields.
+Read for changes to ABB's tag mapping or consumer compatibility. Paths below
+are relative to the ABB root.
 
-## Standard Tags
+## Live Mapping Owners
 
-| MP4 Atom | ffmetadata key | ABS Field | Plex Field | Notes |
-|----------|----------------|-----------|------------|-------|
-| `©nam` | `title` | Title | Track Name | Book title |
-| `©ART` | `artist` | Author | Artist | Primary author |
-| `aART` | `album_artist` | Author | Album Artist | Fallback for author |
-| `©alb` | `album` | Title | Album | Fallback for title |
-| `©wrt` | `composer` | Narrator | Composer | **Use for narrator** |
-| `©day` | `date` | Publish Year | Year | Year only |
-| `©gen` | `genre` | Genres | Genre | Separate multiple with `/` or `;` |
-| `desc` | `description` | Description | — | Synopsis |
-| `©pub` | `publisher` | Publisher | — | Publisher name |
-| `©cmt` | `comment` | — | — | General comments |
+| Question | Source to inspect |
+| --- | --- |
+| Supported fields, read aliases, clear groups, FFmpeg keys | `src-tauri/src/metadata/field_schema.rs` |
+| Series key families and precedence | `src-tauri/src/metadata/tag_registry.rs` |
+| Field fan-outs, tuples, series/subseries projection | `src-tauri/src/metadata/metadata_ops.rs` |
+| Actual container writes and atom-level tests | `src-tauri/src/metadata/metadata_sinks.rs` |
+| MP4 reads, album sort, movement cleanup, artwork | `src-tauri/src/metadata/mp4ameta_bridge.rs` |
+| Date and series validation/normalization | `crates/abb-metadata-core/src/lib.rs` |
 
-## Series Tags (Critical)
+The schema describes ABB's supported fields. A field recognized by an external
+scanner is not evidence that ABB exposes or writes it. Preserve normalized
+publication dates through the owning sink; do not infer year-only storage from
+a container library method named `set_year`.
 
-These are the tags that matter most for series detection.
+## Retained Series Strategy
 
-### For ABS and Plex
+Write ffprobe-visible `series` / `series-part` keys and both MP4 freeform
+families under `com.apple.iTunes`:
 
-| Storage | Key / Atom | Purpose |
-|---------|------------|---------|
-| ffprobe / ffmetadata | `series` | Series name |
-| ffprobe / ffmetadata | `series-part` | Book number |
-| mp4ameta canonical freeform | `----:com.apple.iTunes:series` | Series name |
-| mp4ameta canonical freeform | `----:com.apple.iTunes:series-part` | Book number |
-| iTunes compatibility freeform | `----:com.apple.iTunes:SERIES` | Series name |
-| iTunes compatibility freeform | `----:com.apple.iTunes:SERIES-PART` | Book number |
+- canonical lowercase `series` / `series-part`;
+- uppercase interoperability mirrors `SERIES` / `SERIES-PART`.
 
-Read precedence prefers canonical lowercase `series` / `series-part`, then the
-uppercase iTunes mirrors, then legacy `show` / `episode_sort` fallbacks.
-`ffprobe -show_format` collapses freeform names that differ only by case, so
-unit tests around the mp4ameta sink are the proof that both lowercase canonical
-and uppercase mirror atoms exist.
+Read precedence favors lowercase canonical values, then uppercase mirrors,
+then legacy `show` / `episode_sort` values. Preserve legacy read compatibility;
+new writes use the canonical/mirrored families. Series/subseries projection and
+effective-metadata validation stay in their code owners above.
 
-Apple movement tags (`MVNM`/`MVIN`) are not currently written or read as ABB's
-series mechanism. Reintroduce them only with manual player evidence and an
+Apple movement tags (`MVNM`/`MVIN`) are not ABB's series read/write mechanism.
+The MP4 bridge removes movement fields when series-family writes apply.
+Adopting movement tags as a series mechanism requires player evidence and an
 explicit product decision.
 
-## iTunes Custom Atoms
+For MP4 finalization, follow `src-tauri/src/metadata/AGENTS.md`: its
+container-aware handoff owns preservation of tags the mov muxer drops. A bare
+FFmpeg command setting arbitrary dictionary keys is not equivalent evidence.
 
-Additional freeform atoms recognized by ABS:
+## Consumer Evidence
 
-| Atom | ffmetadata key | ABS Field |
-|------|----------------|-----------|
-| `----:com.apple.iTunes:ASIN` | `asin` | ASIN |
-| `----:com.apple.iTunes:AUDIBLE_ASIN` | `audible_asin` | ASIN |
-| `----:com.apple.iTunes:ISBN` | `isbn` | ISBN |
+For ABS mapping, consult the current
+[File Metadata documentation](https://audiobookshelf.org/docs/documentation/libraries/book-library/directory-structure/#file-metadata).
+For disagreements between disk tags and an existing library entry, inspect the
+[metadata priority settings](https://audiobookshelf.org/docs/documentation/libraries/book-library/book-metadata/#local-metadata-priority-order).
+Folder and sidecar precedence can override audio tags.
 
-## Writing with ffmpeg
+Plex and Apple Books claims need the affected player's import evidence.
+Distinguish ABB's chosen compatibility strategy from demonstrated support for
+a particular consumer version.
 
-### Basic metadata via ffmetadata file
-
-```ini
-;FFMETADATA1
-title=Book Title
-artist=Author Name
-composer=Narrator Name
-series=Series Name
-series-part=1
-genre=Science Fiction/Fantasy
-```
-
-Apply with:
-```bash
-ffmpeg -i input.m4b -i metadata.txt -map_metadata 1 -c copy output.m4b
-```
-
-### Direct command line
-
-```bash
-ffmpeg -i input.m4b \
-  -metadata title="Book Title" \
-  -metadata artist="Author Name" \
-  -metadata composer="Narrator Name" \
-  -metadata series="Series Name" \
-  -metadata series-part="1" \
-  -c copy output.m4b
-```
-
-## Writing with ffmpeg-next (Rust)
-
-audiobook-boss writes canonical ffprobe-visible keys plus iTunes freeform mirrors
-for series metadata. These are the series keys ABB currently owns in the FFmpeg
-dictionary path.
-
-```rust
-// Primary + mirrored keys written together
-dict.set("series", series_name);
-dict.set("----:com.apple.iTunes:SERIES", series_name);
-
-dict.set("series-part", book_number);
-dict.set("----:com.apple.iTunes:SERIES-PART", book_number);
-```
-
-The mp4ameta path writes the same logical values to lowercase canonical
-freeforms and uppercase iTunes mirrors. Keep both families unless player
-evidence and an explicit product decision replace this compatibility strategy.
-
-Series-part values should stay scanner-friendly. Slash-form values like `1/5`
-are rejected by validation.
-
-Validation checklist:
-1. Creating an M4B with these tags
-2. Running `ffprobe -show_format output.m4b`
-3. Confirming `series` and `series-part` appear in the tags (plus the freeform atom names)
-
-Legacy read compatibility remains (`show` / `episode_sort`) for older files,
-but write paths should use the canonical and freeform keys above.
-
----
-
-Source: [Audiobookshelf Docs - Audio Metadata](https://www.audiobookshelf.org/docs/#book-audio-metadata)
+`ffprobe -show_format` can collapse case-only freeform names. The atom-level
+sink tests/readback establish whether both families exist; a single visible
+series key does not. Report artifact evidence separately from player-import
+evidence.

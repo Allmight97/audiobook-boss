@@ -2,8 +2,9 @@
 
 Each UI surface under `src/ui/<owner>/` keeps its own nested `AGENTS.md` where
 it has view-local interaction, presentation-resource lifetime, or contract
-truth (closest file wins). Application session/workflow truth lives under
-`src/app`; this file owns only rules shared by thin composition shells.
+truth. Nested guidance narrows the inherited rules. Application session/workflow
+truth lives under `src/app`; this file owns only rules shared by thin composition
+shells.
 
 ## Composition-only Shells
 
@@ -30,5 +31,6 @@ Rules for both:
   Center, file-management, metadata, and cover-art truth stay in their owners.
 - Preserve `leftColumn` height behavior: the input workflow flexes, the
   inspector stays pinned.
-- Structure changes need a focused composition test that pins the sibling-zone
-  arrangement plus a browser visual pass.
+- Review changed layout visually. Add composition proof only when it protects
+  an observable interaction or integration contract; static sibling order by
+  itself is not a test requirement.

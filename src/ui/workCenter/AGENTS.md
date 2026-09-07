@@ -10,7 +10,6 @@
 
 - Import from `src/ui/workCenter`. The runtime export surface is `index.ts`,
   pinned by `__tests__/runtime-api-contract.test.ts`.
-- Exports: `WorkCenterView`.
 
 ## Private Cluster
 
@@ -22,7 +21,7 @@
   `workOperations.cancel`.
 - Do not add a local operation store or subscribe to `processing-progress`.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
 - Reintroducing client-authored progress overlays for background operations.

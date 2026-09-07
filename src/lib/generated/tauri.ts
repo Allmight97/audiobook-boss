@@ -70,6 +70,11 @@ export const commands = {
 	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
 	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
 	purgeRemoteSourceSession: (jobId: string) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("purge_remote_source_session", { jobId })),
+	searchRemoteSourceReleases: (request: RemoteReleaseSearchRequest) => typedError<RemoteReleaseSearchResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_remote_source_releases", { request })),
+	grabRemoteSourceRelease: (request: RemoteReleaseGrabRequest) => typedError<RemoteReleaseGrabResponse, AppErrorEnvelope>(__TAURI_INVOKE("grab_remote_source_release", { request })),
+	getRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_indexer_connection")),
+	updateRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("update_remote_source_indexer_connection", { update })),
+	testRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection", { update })),
 	/**  Validates encoder settings (no side effects) */
 	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	/**  Returns backend-owned runtime settings capabilities for UI controls. */
@@ -142,6 +147,8 @@ export type AcquisitionJob = {
 	diagnostics: RemoteSourceDiagnostic[],
 };
 
+export type AcquisitionLane = "audible" | "indexer";
+
 export type AcquisitionPlan = {
 	providerId: ProviderId,
 	selections: AcquisitionSelection[],
@@ -186,6 +193,7 @@ export type AppSettings = {
 	toolchain?: ToolchainPreferences,
 	startupBehavior?: StartupBehavior,
 	pinnedDefaults?: PinnedDefaults | null,
+	defaultAcquisitionLane?: AcquisitionLane,
 };
 
 export type AppSettingsPatch = {
@@ -199,16 +207,7 @@ export type AppSettingsPatch = {
 	 *  back to `RememberLastState`, never unpinning.
 	 */
 	pinnedDefaults: PinnedDefaults | null,
-};
-
-/**  Read-only chapter facts discovered while analyzing one audio file. */
-export type AudioChapter = {
-	/**  Embedded chapter title, when present in the source container. */
-	title: string | null,
-	/**  Chapter start in milliseconds from the beginning of this file. */
-	startMs: number,
-	/**  Chapter end in milliseconds from the beginning of this file. */
-	endMs: number,
+	defaultAcquisitionLane: AcquisitionLane | null,
 };
 
 /**  Represents an audio file with metadata */
@@ -238,7 +237,9 @@ export type AudioFile = {
 	/**  Artist tag discovered during input analysis (None if unavailable) */
 	tagArtist: string | null,
 	/**  Chapters embedded in this individual source file, normalized to milliseconds. */
-	chapters?: AudioChapter[],
+	chapters?: ChapterSpec[],
+	chapterPlan?: ChapterPlan | null,
+	cueSource?: CueSource | null,
 	/**  Validation status */
 	isValid: boolean,
 	/**  Error message if validation failed */
@@ -273,6 +274,18 @@ export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
 /**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
 
+export type ChapterPlan = {
+	chapters: ChapterSpec[],
+	fromCue: boolean,
+	sourceFingerprint: string,
+};
+
+export type ChapterSpec = {
+	title: string | null,
+	startMs: number,
+	endMs: number,
+};
+
 export type ChildJobSnapshot = {
 	childJobId: string,
 	operationId: OperationId,
@@ -294,6 +307,14 @@ export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "c
 export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip_existing";
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
+
+export type CueSource = {
+	fileName: string,
+	status: CueStatus,
+	message: string,
+};
+
+export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
 
 /**  Machine-readable decoder identity paired with the friendly display label. */
 export type DecoderSelection = {
@@ -637,6 +658,7 @@ export type ProcessCommandResult = {
 
 export type ProcessPayload = {
 	inputFiles: string[],
+	chapterPlans: { [key in string]: ChapterPlan } | null,
 	/**
 	 *  Session/workbench identities aligned to `input_files`; used for acquired
 	 *  source sidecars without replacing path as the filesystem source label.
@@ -734,7 +756,7 @@ export type ProgressSnapshot = {
 	etaSeconds: number | null,
 };
 
-export type ProviderId = "audible";
+export type ProviderId = "audible" | "indexer";
 
 /**  Batch queue snapshot for frontend communication */
 export type QueueEvent = {
@@ -757,7 +779,7 @@ export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProt
  *  staging source could not be purged. Non-blocking: the startup session
  *  sweep removes it on next launch.
  */
-"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "cancelled";
+"protectedSourcePurgeFailed" | "validationFailed" | "supplementalPdfFailed" | "indexerConnectionRequired" | "releaseSearchFailed" | "releaseGrabFailed" | "cancelled";
 
 export type RemoteAcquisitionStatus = "planned" | "acquiring" | "materialized" | "validated" | "importedToFileList" | "failed" | "cancelled";
 
@@ -766,7 +788,7 @@ export type RemoteAuthCompletionRequest = {
 	responseUrlHandoffPath: string | null,
 };
 
-export type RemoteAuthFlow = "externalBrowserHandoff";
+export type RemoteAuthFlow = "externalBrowserHandoff" | "apiKey";
 
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
@@ -775,9 +797,70 @@ export type RemoteAuthStartResponse = {
 	message: string,
 };
 
+export type RemoteIndexerConnection = {
+	baseUrl: string | null,
+	categoryIds: number[],
+	apiKeyConfigured: boolean,
+};
+
+export type RemoteIndexerConnectionTestResult = {
+	ok: boolean,
+	message: string,
+};
+
+export type RemoteIndexerConnectionUpdate = {
+	baseUrl: string | null,
+	categoryIds: number[] | null,
+	apiKey: string | null,
+	clearApiKey: boolean | null,
+};
+
 export type RemoteLibraryResponse = {
 	providerId: ProviderId,
 	titles: RemoteTitle[],
+	diagnostics: RemoteSourceDiagnostic[],
+};
+
+export type RemoteRelease = {
+	providerId: ProviderId,
+	guid: string,
+	indexerId: number,
+	title: string,
+	indexer: string,
+	detailUrl: string | null,
+	sizeBytes: number,
+	protocol: RemoteReleaseProtocol,
+	seeders: number | null,
+	categories?: RemoteReleaseCategory[],
+};
+
+export type RemoteReleaseCategory = {
+	id: number,
+	name: string,
+};
+
+export type RemoteReleaseGrabRequest = {
+	release: RemoteRelease,
+};
+
+export type RemoteReleaseGrabResponse = {
+	providerId: ProviderId,
+	accepted: boolean,
+	message: string,
+	diagnostics: RemoteSourceDiagnostic[],
+};
+
+export type RemoteReleaseProtocol = "usenet" | "torrent" | "unknown";
+
+export type RemoteReleaseSearchRequest = {
+	author: string | null,
+	title: string | null,
+	query: string | null,
+};
+
+export type RemoteReleaseSearchResponse = {
+	providerId: ProviderId,
+	releases: RemoteRelease[],
 	diagnostics: RemoteSourceDiagnostic[],
 };
 
@@ -803,6 +886,8 @@ export type RemoteSourceProviderCapabilities = {
 	supportsTypeaheadFilter: boolean,
 	supportsSupplementalPdf: boolean,
 	supportsMaterializedAudio: boolean,
+	supportsReleaseSearch: boolean,
+	supportsReleaseGrab: boolean,
 	supportsRefresh: boolean,
 	requiresLiveSession: boolean,
 	knownUnsupportedReasons: RemoteAcquisitionFailureKind[],

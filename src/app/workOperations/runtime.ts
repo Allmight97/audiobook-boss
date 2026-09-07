@@ -121,6 +121,8 @@ export function createWorkOperationsSession(
 						.filter((child) => child.status === 'completed')
 						.map((child) => child.inputId)
 						.filter((inputId): inputId is string => Boolean(inputId));
+		if (operationInputIds.length === 0 && completedInputIds.length === 0) return;
+
 		await deps.remoteSource.settleTerminalWork({
 			inputIds: operationInputIds,
 			completedInputIds,

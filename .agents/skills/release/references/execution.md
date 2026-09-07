@@ -1,7 +1,7 @@
 # Release Execution
 
-Read this reference only after the first move has stated the version or
-no-bump decision and the lane. Before running a command, confirm it against
+Read the sections for the selected lane after stating the version or no-bump
+decision. Before running a command, check it against
 `scripts/AGENTS.md` and the live package scripts; the repository environment
 owns command truth.
 
@@ -66,7 +66,7 @@ tagging or publishing.
 
 ## Public Release
 
-1. Use the version and impact already stated in the first move.
+1. Use the selected version and accepted change's impact.
 2. Write the matching `CHANGELOG.md` section and run the version bump script.
 3. Run `bun run audit` so both Rust and JavaScript dependency graphs report
    before public packaging; any failure blocks the release. Run additional
@@ -83,10 +83,9 @@ tagging or publishing.
 
    Use `bun run app:build` only for explicit repo-local app validation; a normal
    DMG release already builds the app.
-5. For Public Release + Developer Install, run `bun run app:install-local` after
-   DMG verification. This native rebuild is expected: the published DMG stays
-   portable while the owner's installed app targets the local Mac. The DMG
-   lane may also remove the intermediate app; do not substitute
+5. If a local install was also requested, run `bun run app:install-local` after
+   DMG verification. This separate native rebuild is expected; the DMG lane
+   may remove the intermediate portable app. Do not substitute
    `app:install-local:existing`.
 6. Commit and tag the accepted release:
 
@@ -96,14 +95,15 @@ tagging or publishing.
    git tag v<x.y.z>
    ```
 
-7. Push intentionally:
+7. Verify the release commit and tag identify the accepted work on the intended
+   branch. For a release from `main`, push:
 
    ```bash
    git push origin main
    git push origin v<x.y.z>
    ```
 
-8. Unless the owner requested tag-only, publish the verified artifact with the
+8. Publish the verified artifact with the
    matching changelog section as release notes:
 
    ```bash
@@ -115,3 +115,14 @@ tagging or publishing.
 
    `verify-asset` must succeed for the exact local DMG that passed `hdiutil
    verify`; it confirms the GitHub asset is byte-for-byte the tested file.
+
+Check local/remote tag and branch SHA parity before reporting publication
+complete. If a push or publish result is uncertain, inspect remote state before
+retrying. An existing tag/release with conflicting content requires resolving
+the mismatch; do not force-move tags or overwrite assets to make a retry pass.
+
+## Tag Only
+
+Verify the requested commit, create the tag, and push that tag to the intended
+remote. Inspect the remote tag SHA before reporting completion. Build, install,
+and GitHub Release creation apply only if separately requested.

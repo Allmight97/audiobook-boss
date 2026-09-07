@@ -1,12 +1,83 @@
-import { createEffect, createSignal, onSettled, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import type { AppSettings, PinnedDefaults } from '../../types/appSettings';
+import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
 import './appSettingsDialog.css';
 
 const RESET_CONFIRM_MS = 4000;
+
+const INDEXER_CATEGORY_OPTIONS: ReadonlyArray<{ readonly id: number; readonly label: string }> = [
+	{ id: 3030, label: 'Audiobooks (3030)' },
+	{ id: 3000, label: 'Audio (3000)' },
+];
+
+function indexerCategorySummary(selected: readonly number[]): string {
+	const labels = INDEXER_CATEGORY_OPTIONS.filter((option) => selected.includes(option.id)).map(
+		(option) => option.label,
+	);
+	return labels.length > 0 ? labels.join(', ') : 'Audiobooks (3030)';
+}
+
+function toggledIndexerCategories(selected: readonly number[], id: number): number[] {
+	const next = selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id];
+	return next.length > 0 ? next : [3030];
+}
+
+function IndexerCategoryPicker(props: {
+	readonly selected: readonly number[];
+	readonly onChange: (ids: number[]) => void;
+}): JSX.Element {
+	const [open, setOpen] = createSignal(false);
+	let root: HTMLDivElement | undefined;
+
+	onSettled(() => {
+		function handleWindowClick(event: MouseEvent): void {
+			if (!open()) return;
+			const target = event.target;
+			if (target instanceof Node && root?.contains(target)) return;
+			setOpen(false);
+		}
+		window.addEventListener('click', handleWindowClick);
+		return () => window.removeEventListener('click', handleWindowClick);
+	});
+
+	return (
+		<div class="app-settings-category-picker" ref={root}>
+			<button
+				id="app-settings-indexer-category"
+				type="button"
+				class="app-settings-path-input app-settings-category-summary"
+				data-testid="app-settings-indexer-category"
+				aria-haspopup="listbox"
+				aria-expanded={open() ? 'true' : 'false'}
+				onClick={() => setOpen(!open())}
+			>
+				<span>{indexerCategorySummary(props.selected)}</span>
+				<span class="app-settings-category-caret" aria-hidden="true">
+					▼
+				</span>
+			</button>
+			<div
+				class={`app-settings-category-menu${open() ? ' open' : ''}`}
+				role="listbox"
+				aria-multiselectable="true"
+			>
+				{INDEXER_CATEGORY_OPTIONS.map((option) => (
+					<label class="app-settings-category-option">
+						<input
+							type="checkbox"
+							checked={props.selected.includes(option.id)}
+							onChange={() => props.onChange(toggledIndexerCategories(props.selected, option.id))}
+						/>
+						{option.label}
+					</label>
+				))}
+			</div>
+		</div>
+	);
+}
 
 function formatConcurrency(settings: Pick<AppSettings, 'maxConcurrentJobs'>): string {
 	const preference = settings.maxConcurrentJobs;
@@ -54,11 +125,70 @@ function formatFdkSource(source: string): string {
 	}
 }
 
+function IndexerConnectionHelp(props: {
+	readonly open: boolean;
+	readonly setOpen: (open: boolean) => void;
+}): JSX.Element {
+	return (
+		<fieldset
+			class="app-settings-connection-help"
+			aria-label="Connection security help"
+			onMouseEnter={() => props.setOpen(true)}
+			onMouseLeave={(event) => {
+				if (!event.currentTarget.contains(document.activeElement)) props.setOpen(false);
+			}}
+			onFocusIn={() => props.setOpen(true)}
+			onFocusOut={(event) => {
+				if (
+					!(
+						event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
+					)
+				) {
+					props.setOpen(false);
+				}
+			}}
+		>
+			<button
+				type="button"
+				class="app-settings-info-button"
+				aria-label="About indexer connection security"
+				aria-expanded={props.open ? 'true' : 'false'}
+				aria-controls="app-settings-connection-help"
+				aria-describedby={props.open ? 'app-settings-connection-help' : undefined}
+				onClick={() => props.setOpen(true)}
+			>
+				i
+			</button>
+			<Show when={props.open}>
+				<div id="app-settings-connection-help" class="app-settings-help-content" role="tooltip">
+					<strong>Use HTTPS when available</strong>
+					<p>
+						HTTPS encrypts your API key, searches, and results and verifies the server’s identity.
+					</p>
+					<p>
+						Enable HTTPS on Prowlarr or your reverse proxy using a certificate trusted by this
+						device. Enter its matching HTTPS address here, then choose Test.
+					</p>
+					<p>HTTP remains available if you accept an unencrypted connection.</p>
+				</div>
+			</Show>
+		</fieldset>
+	);
+}
+
 export function AppSettingsDialogView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const settings = runtime.settings;
+	const remoteSource = runtime.remoteSource;
 	const encoding = runtime.encoding;
 	const state = settings.dialog;
+	const isOpen = createMemo(() => state().isOpen);
+	const indexerConnection = remoteSource.indexerConnection;
+	const [indexerHelpOpen, setIndexerHelpOpen] = createSignal(false);
+	const usesHttp = () => /^http:\/\//i.test(indexerConnection().baseUrlDraft.trim());
+	createEffect(isOpen, (open) => {
+		if (!open) setIndexerHelpOpen(false);
+	});
 	const [resetConfirming, setResetConfirming] = createSignal(false);
 	let resetConfirmTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -88,12 +218,13 @@ export function AppSettingsDialogView(): JSX.Element {
 		cancelResetConfirm();
 	}
 
-	createEffect(
-		() => state().isOpen,
-		(isOpen) => {
-			if (!isOpen) cancelResetConfirm();
-		},
-	);
+	createEffect(isOpen, (open) => {
+		if (!open) {
+			cancelResetConfirm();
+			return;
+		}
+		void remoteSource.loadIndexerConnectionSettings();
+	});
 
 	onSettled(() => {
 		window.addEventListener('click', handleWindowClickForResetConfirm, true);
@@ -105,13 +236,17 @@ export function AppSettingsDialogView(): JSX.Element {
 
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
+	const defaultAcquisitionLane = (): AcquisitionLane => settings.defaultAcquisitionLane();
 	const afterburner = () => encoding.view().afterburner;
 
 	return (
 		<Dialog
 			id="app-settings-modal"
 			open={state().isOpen}
-			onClose={() => settings.closeDialog()}
+			onClose={() => {
+				if (indexerHelpOpen()) setIndexerHelpOpen(false);
+				else settings.closeDialog();
+			}}
 			labelledBy="app-settings-title"
 			testId="app-settings-modal"
 		>
@@ -159,9 +294,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								tone="primary"
 								data-testid="app-settings-ffmpeg-save"
 								disabled={state().saveState === 'saving'}
-								onClick={() =>
-									void settings.saveToolchainPreference().then(() => encoding.reloadCapabilities())
-								}
+								onClick={() => void settings.saveToolchainPreference()}
 							>
 								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
 							</Button>
@@ -202,6 +335,151 @@ export function AppSettingsDialogView(): JSX.Element {
 					<Show when={state().settings}>
 						{(_) => (
 							<>
+								<section class="app-settings-section">
+									<h4 class="app-settings-section-title">Import</h4>
+									<p class="muted-text">
+										Choose which source the Import button opens by default. Use the caret to pick
+										the other source any time.
+									</p>
+									<div
+										class="app-settings-startup-options"
+										role="radiogroup"
+										aria-label="Default acquisition lane"
+									>
+										<label class="app-settings-radio">
+											<input
+												type="radio"
+												name="app-settings-default-acquisition-lane"
+												value="audible"
+												data-testid="app-settings-default-lane-audible"
+												checked={defaultAcquisitionLane() === 'audible'}
+												onChange={() => void settings.setDefaultAcquisitionLane('audible')}
+											/>
+											Audible
+										</label>
+										<label class="app-settings-radio">
+											<input
+												type="radio"
+												name="app-settings-default-acquisition-lane"
+												value="indexer"
+												data-testid="app-settings-default-lane-indexer"
+												checked={defaultAcquisitionLane() === 'indexer'}
+												onChange={() => void settings.setDefaultAcquisitionLane('indexer')}
+											/>
+											Indexer
+										</label>
+									</div>
+								</section>
+								<section class="app-settings-section">
+									<div class="app-settings-connection-heading">
+										<h4 class="app-settings-section-title">Indexer connection</h4>
+										<IndexerConnectionHelp open={indexerHelpOpen()} setOpen={setIndexerHelpOpen} />
+									</div>
+									<p class="muted-text">
+										Your API key is stored in your operating system’s credential store.
+									</p>
+									<div class="app-settings-path-row">
+										<label class="app-settings-field-label" for="app-settings-indexer-url">
+											URL
+										</label>
+										<input
+											id="app-settings-indexer-url"
+											class="app-settings-path-input"
+											data-testid="app-settings-indexer-url"
+											type="text"
+											placeholder="https://prowlarr.example.com"
+											aria-describedby="app-settings-connection-security"
+											value={indexerConnection().baseUrlDraft}
+											onInput={(event) =>
+												remoteSource.patchIndexerConnectionSettings({
+													baseUrlDraft: event.currentTarget.value,
+												})
+											}
+										/>
+									</div>
+									<p id="app-settings-connection-security" class="app-settings-connection-security">
+										<Show when={usesHttp()} fallback="HTTPS recommended.">
+											<strong>HTTP is unencrypted.</strong> Your API key, searches, and results
+											could be read or modified by someone able to intercept this connection.
+										</Show>
+									</p>
+									<div class="app-settings-path-row">
+										<label class="app-settings-field-label" for="app-settings-indexer-category">
+											Categories
+										</label>
+										<IndexerCategoryPicker
+											selected={indexerConnection().categoryIdsDraft}
+											onChange={(categoryIdsDraft) =>
+												remoteSource.patchIndexerConnectionSettings({ categoryIdsDraft })
+											}
+										/>
+									</div>
+									<div class="app-settings-path-row">
+										<label class="app-settings-field-label" for="app-settings-indexer-api-key">
+											API key
+										</label>
+										<input
+											id="app-settings-indexer-api-key"
+											class="app-settings-path-input"
+											data-testid="app-settings-indexer-api-key"
+											type="password"
+											placeholder={
+												indexerConnection().apiKeyConfigured
+													? 'Replace stored API key'
+													: 'Enter API key'
+											}
+											value={indexerConnection().apiKeyDraft}
+											onInput={(event) =>
+												remoteSource.patchIndexerConnectionSettings({
+													apiKeyDraft: event.currentTarget.value,
+												})
+											}
+										/>
+									</div>
+									<div class="app-settings-path-row">
+										<Button
+											tone="primary"
+											data-testid="app-settings-indexer-save"
+											disabled={indexerConnection().saveState === 'saving'}
+											onClick={() => void remoteSource.saveIndexerConnectionSettings()}
+										>
+											{indexerConnection().saveState === 'saving' ? 'Saving…' : 'Save'}
+										</Button>
+										<Button
+											data-testid="app-settings-indexer-test"
+											disabled={indexerConnection().testState === 'testing'}
+											onClick={() => void remoteSource.testIndexerConnection()}
+										>
+											{indexerConnection().testState === 'testing' ? 'Testing…' : 'Test'}
+										</Button>
+									</div>
+									<Show when={indexerConnection().saveState === 'error'}>
+										<p
+											class="app-settings-status app-settings-status-error"
+											data-testid="app-settings-indexer-save-error"
+										>
+											{indexerConnection().saveError}
+										</p>
+									</Show>
+									<Show
+										when={
+											indexerConnection().testState === 'success' ||
+											indexerConnection().testState === 'error'
+										}
+									>
+										<p
+											class={`app-settings-status${indexerConnection().testState === 'error' ? ' app-settings-status-error' : ''}`}
+											data-testid="app-settings-indexer-test-status"
+										>
+											{indexerConnection().testMessage}
+										</p>
+									</Show>
+									<Show when={indexerConnection().apiKeyConfigured}>
+										<p class="muted-text" data-testid="app-settings-indexer-key-configured">
+											An API key is configured. Enter a new key only to replace it.
+										</p>
+									</Show>
+								</section>
 								<section class="app-settings-section">
 									<h4 class="app-settings-section-title">Startup settings</h4>
 									<p class="muted-text">

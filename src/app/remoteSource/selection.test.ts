@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { RemoteTitle } from '../../types/remoteSource';
+import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	selectedRemoteTitleSummaryText,
 	toggledRemoteTitleSelection,
 	toggledSupplementalPdfPreference,
+	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
 
@@ -25,6 +26,21 @@ function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
 			detail: undefined,
 		},
 		unsupportedReasons: [],
+		...overrides,
+	};
+}
+
+function release(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
+	return {
+		providerId: 'indexer',
+		guid: 'release-1',
+		indexerId: 1,
+		title: 'Example Release',
+		indexer: 'Example',
+		sizeBytes: 100,
+		protocol: 'torrent',
+		seeders: 0,
+		categories: [{ id: 3030, name: 'Audio/Audiobook' }],
 		...overrides,
 	};
 }
@@ -119,5 +135,104 @@ describe('remote source selection policy', () => {
 		expect(
 			selectedRemoteTitleSummaryText(new Set(['B000000001', 'B000000003']), visibleTitles),
 		).toBe('2 titles selected (1 title hidden by filter)');
+	});
+
+	it('filters visible releases client-side without fabricating remote titles', () => {
+		const releases: RemoteRelease[] = [
+			{
+				providerId: 'indexer',
+				guid: 'a',
+				indexerId: 1,
+				title: 'The Way of Kings',
+				indexer: 'Example',
+				sizeBytes: 100,
+				protocol: 'torrent',
+				seeders: 10,
+				categories: [{ id: 3030, name: 'Audio/Audiobook' }],
+			},
+			{
+				providerId: 'indexer',
+				guid: 'b',
+				indexerId: 2,
+				title: 'Mistborn',
+				indexer: 'Other',
+				sizeBytes: 200,
+				protocol: 'usenet',
+				seeders: undefined,
+				categories: [{ id: 3000, name: 'Audio' }],
+			},
+		];
+
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'way' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['a']);
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'usenet' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['b']);
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'nzb' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['b']);
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'audiobook' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['a']);
+	});
+
+	it('orders visible releases by seeders descending and keeps that order under filter', () => {
+		const releases: RemoteRelease[] = [
+			release({ guid: 'tpb-25', title: 'Starsight 25', indexer: 'The Pirate Bay', seeders: 25 }),
+			release({ guid: 'tpb-4', title: 'Starsight 4', indexer: 'The Pirate Bay', seeders: 4 }),
+			release({
+				guid: 'nzbgeek',
+				title: 'Starsight NZB',
+				indexer: 'NZBGeek',
+				protocol: 'usenet',
+				seeders: undefined,
+			}),
+			release({ guid: 'mam-72', title: 'Starsight 72', indexer: 'MyAnonamouse', seeders: 72 }),
+		];
+
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: '' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['mam-72', 'tpb-25', 'tpb-4', 'nzbgeek']);
+		expect(releases.map((item) => item.guid)).toEqual(['tpb-25', 'tpb-4', 'nzbgeek', 'mam-72']);
+		expect(
+			visibleRemoteReleases(releases, { releaseSort: 'seeders', releaseFilter: 'pirate' }).map(
+				(item) => item.guid,
+			),
+		).toEqual(['tpb-25', 'tpb-4']);
+	});
+	it('orders collections by size, breaks size ties by seeders, and restores seeder order', () => {
+		const releases = [
+			release({ guid: 'popular', title: 'Holmes single', sizeBytes: 100, seeders: 80 }),
+			release({ guid: 'pack-low', title: 'Holmes collection low', sizeBytes: 900, seeders: 2 }),
+			release({ guid: 'pack-high', title: 'Holmes collection high', sizeBytes: 900, seeders: 8 }),
+			release({ guid: 'unknown', title: 'Holmes unknown', sizeBytes: 0, seeders: 1 }),
+		];
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: '', releaseSort: 'size' }).map(
+				(r) => r.guid,
+			),
+		).toEqual(['pack-high', 'pack-low', 'popular', 'unknown']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: 'collection', releaseSort: 'size' }).map(
+				(r) => r.guid,
+			),
+		).toEqual(['pack-high', 'pack-low']);
+		expect(
+			visibleRemoteReleases(releases, { releaseFilter: '', releaseSort: 'seeders' }).map(
+				(r) => r.guid,
+			),
+		).toEqual(['popular', 'pack-high', 'pack-low', 'unknown']);
+		expect(releases.map((r) => r.guid)).toEqual(['popular', 'pack-low', 'pack-high', 'unknown']);
 	});
 });

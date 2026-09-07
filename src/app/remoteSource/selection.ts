@@ -1,11 +1,14 @@
-import type { RemoteTitle } from '../../types/remoteSource';
-import { isTitleAcquirable } from './display';
+import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
+import type { RemoteSourceView } from './types';
+import { isTitleAcquirable, releaseProtocolLabel } from './display';
 
 export type RemoteTitleFilterOptions = {
 	titleFilter: string;
 	showSupplementalPdfOnly: boolean;
 	hideUnavailableTitles: boolean;
 };
+
+export type RemoteReleaseFilterOptions = Pick<RemoteSourceView, 'releaseFilter' | 'releaseSort'>;
 
 export function visibleRemoteTitles(
 	titles: RemoteTitle[],
@@ -28,6 +31,43 @@ export function visibleRemoteTitles(
 			.toLowerCase()
 			.includes(normalizedFilter),
 	);
+}
+
+export function visibleRemoteReleases(
+	releases: RemoteRelease[],
+	options: RemoteReleaseFilterOptions,
+): RemoteRelease[] {
+	const normalizedFilter = options.releaseFilter.trim().toLowerCase();
+	const visible = normalizedFilter
+		? releases.filter((release) =>
+				[
+					release.title,
+					release.indexer,
+					release.protocol,
+					releaseProtocolLabel(release.protocol),
+					...(release.categories ?? []).map((category) => category.name),
+				]
+					.join(' ')
+					.toLowerCase()
+					.includes(normalizedFilter),
+			)
+		: [...releases];
+
+	return visible.sort((left, right) => {
+		if (options.releaseSort === 'size') {
+			const sizeDelta = right.sizeBytes - left.sizeBytes;
+			if (sizeDelta !== 0) return sizeDelta;
+		}
+		return compareReleasesBySeedersDesc(left, right);
+	});
+}
+
+function compareReleasesBySeedersDesc(left: RemoteRelease, right: RemoteRelease): number {
+	const seederDelta = (right.seeders ?? 0) - (left.seeders ?? 0);
+	if (seederDelta !== 0) return seederDelta;
+	const titleDelta = left.title.localeCompare(right.title);
+	if (titleDelta !== 0) return titleDelta;
+	return left.guid.localeCompare(right.guid);
 }
 
 export function toggledRemoteTitleSelection(
