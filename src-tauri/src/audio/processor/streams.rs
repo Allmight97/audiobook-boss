@@ -584,7 +584,7 @@ pub(crate) fn setup_decoder_and_resampler(
         encoder.format()
     );
 
-    let resampler = ff::software::resampling::Context::get(
+    let resampler = create_resampler(
         in_format,
         in_layout,
         in_rate,
@@ -608,6 +608,29 @@ pub(crate) fn setup_decoder_and_resampler(
     Ok((ictx, decoder, resampler, stream_index))
 }
 
+fn create_resampler(
+    input_format: ff::format::Sample,
+    input_layout: ff::ChannelLayout,
+    input_rate: u32,
+    output_format: ff::format::Sample,
+    output_layout: ff::ChannelLayout,
+    output_rate: u32,
+) -> std::result::Result<ff::software::resampling::Context, ff::Error> {
+    let mut options = ff::Dictionary::new();
+    // Float output otherwise skips swresample's integer-path normalization,
+    // so coherent channels can overflow and get clipped by the accumulator.
+    options.set("rematrix_maxval", "1");
+    ff::software::resampling::Context::get_with(
+        input_format,
+        input_layout,
+        input_rate,
+        output_format,
+        output_layout,
+        output_rate,
+        options,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -619,6 +642,50 @@ mod tests {
     };
     use ffmpeg_next as ff;
     use std::path::Path;
+
+    #[test]
+    fn coherent_downmix_keeps_float_samples_within_full_scale() {
+        ff::init().expect("initialize FFmpeg");
+        let format = ff::format::Sample::F32(ff::format::sample::Type::Planar);
+        for (input_layout, output_layout) in [
+            (ff::ChannelLayout::STEREO, ff::ChannelLayout::MONO),
+            (ff::ChannelLayout::_5POINT1, ff::ChannelLayout::STEREO),
+        ] {
+            let mut input = ff::frame::Audio::new(format, 1_024, input_layout);
+            input.set_rate(44_100);
+            for channel in 0..input_layout.channels() as usize {
+                for (index, sample) in input.plane_mut::<f32>(channel).iter_mut().enumerate() {
+                    *sample = 0.9 * (std::f32::consts::TAU * index as f32 / 100.0).sin();
+                }
+            }
+            let mut resampler = super::create_resampler(
+                format,
+                input_layout,
+                44_100,
+                format,
+                output_layout,
+                44_100,
+            )
+            .expect("create normalized downmix");
+            let mut output = ff::frame::Audio::empty();
+            resampler
+                .run(&input, &mut output)
+                .expect("downmix coherent signal");
+            assert_eq!(output.samples(), input.samples());
+            for channel in 0..output_layout.channels() as usize {
+                for (actual, expected) in output
+                    .plane::<f32>(channel)
+                    .iter()
+                    .zip(input.plane::<f32>(0))
+                {
+                    assert!(
+                        (actual - expected).abs() < 0.000_01,
+                        "{input_layout:?} -> {output_layout:?}: {actual} differs from {expected}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn non_named_aac_decoder_contract_reports_false_when_none_available() {

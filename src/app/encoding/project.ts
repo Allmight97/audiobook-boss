@@ -66,6 +66,7 @@ export type EncodingBag = {
 	availability: EncoderAvailability | null;
 	sampleRateHint: string;
 	channelsHint: string;
+	hasMultichannelInput: boolean;
 };
 
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
@@ -93,6 +94,7 @@ export function createDefaultBag(): EncodingBag {
 		availability: null,
 		sampleRateHint: DEFAULT_SAMPLE_RATE_HINT,
 		channelsHint: DEFAULT_CHANNELS_HINT,
+		hasMultichannelInput: false,
 	};
 }
 
@@ -277,7 +279,8 @@ function sampleRateDetail(bag: EncodingBag): string {
 
 function channelsDetail(bag: EncodingBag): string {
 	if (bag.channels === 'auto') return bag.channelsHint;
-	return `Using ${channelLabel(bag.channels)}.`;
+	const downmix = bag.hasMultichannelInput ? ' Surround downmix omits bass effects (LFE).' : '';
+	return `Using ${channelLabel(bag.channels)}.${downmix}`;
 }
 
 export function projectView(bag: EncodingBag): EncodingView {

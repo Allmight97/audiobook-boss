@@ -80,13 +80,12 @@ pub(crate) async fn run_processing_job(
     });
     let preview_path = (request.output_plan.kind == OutputKind::Preview)
         .then(|| request.output_plan.resolved_path.display().to_string());
-    let result = match execute_processing_job(
+    let result = match audio::execute_audio_engine(AudioExecutionRequest::new(
         context,
         request.file_info,
         request.metadata,
         request.cover_art_passthrough,
-        request.encoder_settings,
-    )
+    ))
     .await
     {
         Ok(message) => match commit_supplemental_assets(
@@ -370,23 +369,6 @@ fn processing_job_status_label(status: ProcessingJobLogStatus<'_>) -> &'static s
         ProcessingJobLogStatus::Cancelled => "cancelled",
         ProcessingJobLogStatus::Failed(_) => "failed",
     }
-}
-
-async fn execute_processing_job(
-    context: ProcessingContext,
-    file_info: FileListInfo,
-    metadata: Option<crate::metadata::AudiobookMetadata>,
-    cover_art_passthrough: CoverArtPassthroughPolicy,
-    encoder_settings: EncoderSettings,
-) -> Result<String> {
-    audio::execute_audio_engine(AudioExecutionRequest::new(
-        context,
-        file_info,
-        metadata,
-        cover_art_passthrough,
-        encoder_settings,
-    ))
-    .await
 }
 
 #[cfg(test)]

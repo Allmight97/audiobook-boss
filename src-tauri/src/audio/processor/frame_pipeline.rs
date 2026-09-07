@@ -32,8 +32,6 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
     pub(crate) current_file_name: String,
-    pub(crate) input_samples_total: &'a mut u64,
-    pub(crate) encoded_samples_total: &'a mut u64,
     pub(crate) early_stop: &'a mut bool,
     /// Adaptive preview state (None when not in preview mode or using single-file preview)
     pub(crate) preview_state: Option<&'a mut PreviewState>,
@@ -143,7 +141,6 @@ fn process_and_encode_frame(
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
     let samples_count = frame.samples() as u64;
-    *ctx.input_samples_total += samples_count;
 
     if let Some(ref mut ps) = ctx.preview_state {
         ps.current_file_elapsed_samples += samples_count;
@@ -152,7 +149,6 @@ fn process_and_encode_frame(
     for mut full in accumulator.push_frame(frame) {
         full.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += full.samples() as i64;
-        *ctx.encoded_samples_total += full.samples() as u64;
         crate::audio::processor::encoder::encode_and_write_frame(
             encoder,
             &full,
@@ -281,11 +277,12 @@ pub(crate) fn flush_accumulator_tail(
     output_context: &mut ff::format::context::Output,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
-) -> Result<bool> {
-    if let Some(mut tail) = accumulator.flush_tail(true) {
+) -> Result<()> {
+    // Preserve the real tail length so encoders can mark their own padding as
+    // non-playable instead of turning ABB's zero pad into source audio.
+    if let Some(mut tail) = accumulator.flush_tail() {
         tail.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += tail.samples() as i64;
-        *ctx.encoded_samples_total += tail.samples() as u64;
         crate::audio::processor::encoder::encode_and_write_frame(
             encoder,
             &tail,
@@ -293,10 +290,8 @@ pub(crate) fn flush_accumulator_tail(
             ctx.output_stream_index,
             ctx.output_time_base,
         )?;
-        return Ok(true);
     }
-
-    Ok(false)
+    Ok(())
 }
 
 /// Processes audio frames from decoder through resample and encode pipeline
@@ -375,7 +370,10 @@ pub(crate) fn process_decoded_frames(
                     break;
                 }
             }
-            Err(ff::Error::Other { .. }) | Err(ff::Error::Eof) => break,
+            Err(ff::Error::Other {
+                errno: ff::error::EAGAIN,
+            })
+            | Err(ff::Error::Eof) => break,
             Err(e) => return Err(AppError::General(format!("Decoder receive failed: {e}"))),
         }
     }
@@ -403,9 +401,20 @@ pub(crate) fn process_input_packets(
     }
     let mut packet_count = 0;
     let mut final_action = PreviewAction::Continue;
-    for (si, packet) in ictx.packets() {
+    loop {
+        let mut packet = ff::Packet::empty();
+        match packet.read(ictx) {
+            Ok(()) => {}
+            Err(ff::Error::Eof) => break,
+            Err(error) => {
+                return Err(AppError::General(format!(
+                    "Input packet read failed: {error}"
+                )))
+            }
+        }
+        let stream_index = packet.stream();
         if log::log_enabled!(log::Level::Debug) {
-            log::debug!("Processing packet from stream {}", si.index());
+            log::debug!("Processing packet from stream {}", stream_index);
         }
         if ctx.context.is_cancelled() {
             if log::log_enabled!(log::Level::Warn) {
@@ -414,10 +423,10 @@ pub(crate) fn process_input_packets(
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
-        if si.index() != ctx.current_stream_index {
+        if stream_index != ctx.current_stream_index {
             log::debug!(
                 "Skipping packet from stream {} (expecting {})",
-                si.index(),
+                stream_index,
                 ctx.current_stream_index
             );
             continue;
@@ -454,7 +463,9 @@ pub(crate) fn process_input_packets(
     let should_drain = should_drain_decoder_after_input(ctx, final_action);
     if should_drain {
         log::debug!("Sending decoder EOF after packet processing");
-        let _ = decoder.send_eof();
+        decoder
+            .send_eof()
+            .map_err(|error| AppError::General(format!("Decoder flush failed: {error}")))?;
         log::debug!("Draining decoder after EOF");
         let drain_action = process_decoded_frames(
             decoder,

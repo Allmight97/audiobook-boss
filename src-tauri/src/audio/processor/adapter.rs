@@ -1,28 +1,64 @@
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::{
-    resolve_encoder_type, validate_requested_encoder_available, EncoderSettings, EncoderType,
+    is_encoder_available_by_name, resolve_encoder_name, resolve_encoder_type,
+    validate_encoder_available, validate_requested_encoder_available, ChannelConfig,
+    EncoderSettings, EncoderType,
 };
 use crate::audio::toolchain::{
     detect_encoder_availability_with_resolution, validate_external_input_decoders,
     EncoderAvailability, ValidatedExternalToolchain,
 };
 use crate::audio::{AudioFile, DecoderSelection};
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
 use crate::processing::ProcessingContext;
 
 #[derive(Debug, Clone)]
 pub enum ResolvedProcessorAdapter {
-    NativeFfmpegNext,
+    NativeFfmpegNext {
+        encoder_type: EncoderType,
+    },
     ExternalFdk {
         toolchain: ValidatedExternalToolchain,
     },
 }
 
+pub(super) fn resolve_output_channels(
+    requested: ChannelConfig,
+    files: &[AudioFile],
+) -> Result<ChannelConfig> {
+    if requested != ChannelConfig::Auto {
+        return Ok(requested);
+    }
+
+    let mut resolved = None;
+    for file in files.iter().filter(|file| file.is_valid) {
+        match file.channels {
+            Some(1) => {
+                resolved.get_or_insert(ChannelConfig::Mono);
+            }
+            Some(2) => resolved = Some(ChannelConfig::Stereo),
+            Some(channels) if channels > 2 => {
+                return Err(AppError::InvalidInput(format!(
+                    "'{}' has {channels} audio channels. Choose Mono or Stereo to downmix multichannel audio.",
+                    sanitize_path_for_display(&file.path)
+                )));
+            }
+            _ => {
+                return Err(AppError::InvalidInput(format!(
+                    "Could not determine audio channels for '{}'. Choose Mono or Stereo explicitly.",
+                    sanitize_path_for_display(&file.path)
+                )));
+            }
+        }
+    }
+    resolved.ok_or_else(|| AppError::InvalidInput("No valid audio files to process.".into()))
+}
+
 impl ResolvedProcessorAdapter {
     pub fn validate_inputs(&self, file_info: &FileListInfo) -> Result<()> {
         match self {
-            Self::NativeFfmpegNext => Ok(()),
+            Self::NativeFfmpegNext { .. } => Ok(()),
             Self::ExternalFdk { toolchain } => validate_external_input_decoders(
                 &file_info.files,
                 &file_info.selected_decoders,
@@ -33,14 +69,15 @@ impl ResolvedProcessorAdapter {
 
     pub async fn execute(
         self,
-        context: ProcessingContext,
+        mut context: ProcessingContext,
         files: Vec<AudioFile>,
         selected_decoders: Vec<Option<DecoderSelection>>,
         metadata: Option<AudiobookMetadata>,
         cover_art_passthrough: CoverArtPassthroughPolicy,
     ) -> Result<String> {
         match self {
-            Self::NativeFfmpegNext => {
+            Self::NativeFfmpegNext { encoder_type } => {
+                context.encoder_settings.encoder_type = encoder_type;
                 // The native pipeline (prepare -> encode -> finalize) is fully
                 // synchronous, CPU-bound work. Offload it onto a blocking thread
                 // so it never occupies an async runtime worker. Progress emission
@@ -77,6 +114,16 @@ impl ResolvedProcessorAdapter {
 pub fn resolve_processor_adapter(
     encoder_settings: &EncoderSettings,
 ) -> Result<ResolvedProcessorAdapter> {
+    let requested = encoder_settings.encoder_type;
+    if matches!(requested, EncoderType::NativeAac | EncoderType::AacAt) {
+        let platform_supported = requested != EncoderType::AacAt || cfg!(target_os = "macos");
+        let available =
+            platform_supported && is_encoder_available_by_name(resolve_encoder_name(requested));
+        validate_encoder_available(requested, available)?;
+        return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type: requested,
+        });
+    }
     let (availability, resolution) = detect_encoder_availability_with_resolution();
     resolve_processor_adapter_from_parts(encoder_settings, &availability, resolution.validated)
 }
@@ -90,7 +137,9 @@ fn resolve_processor_adapter_from_parts(
     let resolved_encoder = resolve_encoder_type(encoder_settings, availability);
 
     if !matches!(resolved_encoder, EncoderType::FdkHeAac) {
-        return Ok(ResolvedProcessorAdapter::NativeFfmpegNext);
+        return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type: resolved_encoder,
+        });
     }
 
     let toolchain = toolchain.ok_or_else(|| {
@@ -108,6 +157,62 @@ mod tests {
     };
     use std::path::{Path, PathBuf};
 
+    fn channel_files(counts: &[Option<u32>]) -> Vec<AudioFile> {
+        counts
+            .iter()
+            .map(|channels| {
+                let mut file = AudioFile::new("input.wav".into());
+                file.channels = *channels;
+                file.is_valid = true;
+                file
+            })
+            .collect()
+    }
+
+    #[test]
+    fn auto_channels_preserve_stereo_in_either_input_order() {
+        for counts in [[Some(1), Some(2)], [Some(2), Some(1)]] {
+            assert_eq!(
+                resolve_output_channels(ChannelConfig::Auto, &channel_files(&counts))
+                    .expect("resolve mixed channels"),
+                ChannelConfig::Stereo
+            );
+        }
+        assert_eq!(
+            resolve_output_channels(ChannelConfig::Auto, &channel_files(&[Some(1), Some(1)]))
+                .expect("resolve mono inputs"),
+            ChannelConfig::Mono
+        );
+    }
+
+    #[test]
+    fn auto_channels_require_an_explicit_downmix_for_multichannel_or_unknown_inputs() {
+        for channels in [Some(6), Some(0), None] {
+            let files = channel_files(&[Some(2), channels]);
+            let error = resolve_output_channels(ChannelConfig::Auto, &files)
+                .expect_err("Auto requires known mono/stereo inputs");
+            assert!(error.to_string().contains("Choose Mono or Stereo"));
+            for forced in [ChannelConfig::Mono, ChannelConfig::Stereo] {
+                assert_eq!(
+                    resolve_output_channels(forced, &files).expect("explicit downmix accepted"),
+                    forced
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn auto_channels_only_resolve_valid_inputs() {
+        let mut files = channel_files(&[Some(1), Some(6)]);
+        files[1].is_valid = false;
+        assert_eq!(
+            resolve_output_channels(ChannelConfig::Auto, &files).expect("resolve mono inputs"),
+            ChannelConfig::Mono
+        );
+        files[0].is_valid = false;
+        assert!(resolve_output_channels(ChannelConfig::Auto, &files).is_err());
+    }
+
     #[test]
     fn resolves_non_fdk_encoder_to_native_adapter() {
         let adapter = resolve_processor_adapter_from_parts(
@@ -122,7 +227,9 @@ mod tests {
 
         assert!(matches!(
             adapter,
-            ResolvedProcessorAdapter::NativeFfmpegNext
+            ResolvedProcessorAdapter::NativeFfmpegNext {
+                encoder_type: EncoderType::NativeAac
+            }
         ));
     }
 

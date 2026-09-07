@@ -208,32 +208,8 @@ impl SampleAccumulator {
         }
     }
 
-    /// Flush tail (pad to full frame if pad=true) returning optional final frame.
-    pub fn flush_tail(&mut self, pad: bool) -> Option<ff::frame::Audio> {
-        let available = self.available_samples();
-        if available == 0 {
-            return None;
-        }
-
-        if pad {
-            match &mut self.storage {
-                SampleStorage::F32Planar(buffers) => {
-                    if available < self.frame_size {
-                        let missing = self.frame_size - available;
-                        for buf in buffers.iter_mut() {
-                            buf.extend(std::iter::repeat_n(0.0f32, missing));
-                        }
-                    }
-                }
-                SampleStorage::S16Packed(buffer) => {
-                    if available < self.frame_size {
-                        let missing_samples = self.frame_size - available;
-                        // Pad with silence (0) for all channels
-                        buffer.extend(std::iter::repeat_n(0i16, missing_samples * self.channels));
-                    }
-                }
-            }
-        }
+    /// Return the real final samples; the encoder owns codec padding.
+    pub fn flush_tail(&mut self) -> Option<ff::frame::Audio> {
         self.drain_one(true)
     }
 

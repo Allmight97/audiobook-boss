@@ -1,11 +1,9 @@
 //! Common encoder helpers and utilities.
 
-use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType};
-use crate::audio::toolchain::EncoderAvailability;
+use crate::audio::settings_encoder::{EncoderSettings, EncoderType};
 use crate::audio::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
-use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::fs::OpenOptions;
 use std::io::Write as _;
@@ -148,7 +146,7 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
     );
     let _ = writeln!(
         output,
-        "requested_encoder={}",
+        "selected_encoder={}",
         entry.encoder_settings.encoder_type
     );
     let _ = writeln!(output, "preview={}", entry.preview);
@@ -191,14 +189,6 @@ fn encoder_log_target_from_env(
                 .filter(|path| !path.is_empty())
                 .map(EncoderLogTarget::Legacy)
         })
-}
-
-pub(super) fn resolve_plan_encoder_settings<'a>(
-    plan: &'a crate::audio::processor::plan::MediaProcessingPlan,
-    availability: &EncoderAvailability,
-) -> (Cow<'a, EncoderSettings>, EncoderType) {
-    let resolved = settings_encoder::resolve_encoder_type(&plan.encoder_settings, availability);
-    (Cow::Borrowed(&plan.encoder_settings), resolved)
 }
 
 const AAC_FRAME_QUANTUM_SAMPLES: usize = 1024;
@@ -253,47 +243,6 @@ pub(super) fn find_encoder_by_name(name: &str) -> Result<ff::Codec> {
         }
 
         Ok(ff::Codec::wrap(codec_ptr))
-    }
-}
-
-/// Attempts to configure AAC encoder for variable frame sizes.
-pub(super) fn try_configure_variable_frame_size(
-    encoder_ctx: &mut ff::codec::context::Context,
-) -> Result<()> {
-    use crate::errors::AppError;
-    use std::ffi::CString;
-
-    unsafe {
-        let av_ctx = encoder_ctx.as_mut_ptr();
-        if av_ctx.is_null() {
-            return Err(AppError::General(
-                "Invalid encoder context pointer".to_string(),
-            ));
-        }
-
-        let strict_key = CString::new("strict")
-            .map_err(|e| AppError::General(format!("Failed to create strict key string: {}", e)))?;
-        let experimental_value = CString::new("experimental").map_err(|e| {
-            AppError::General(format!("Failed to create experimental value string: {}", e))
-        })?;
-
-        let result = ffmpeg_next::sys::av_opt_set(
-            av_ctx as *mut std::ffi::c_void,
-            strict_key.as_ptr(),
-            experimental_value.as_ptr(),
-            0,
-        );
-
-        if result < 0 {
-            log::warn!(
-                "strict=experimental not applied (FFmpeg error code {}); continuing with encoder defaults",
-                result
-            );
-        } else {
-            log::debug!("Set strict=experimental on encoder context");
-        }
-
-        Ok(())
     }
 }
 
@@ -355,7 +304,7 @@ mod tests {
         use std::time::Duration;
 
         let encoder_settings = EncoderSettings {
-            encoder_type: EncoderType::Auto,
+            encoder_type: EncoderType::AacAt,
             bitrate_kbps: 64,
             bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Stereo,
@@ -384,7 +333,7 @@ mod tests {
         assert!(formatted.starts_with("--- in-process-encoder run "));
         assert!(formatted.contains("status=success"));
         assert!(formatted.contains("encoder=aac_at"));
-        assert!(formatted.contains("requested_encoder=auto"));
+        assert!(formatted.contains("selected_encoder=aac_at"));
         assert!(formatted.contains("job_id=job-1"));
         assert!(formatted.contains("input[0] file=Book One.m4b"));
         assert!(formatted.contains("temp_output=worker-output.m4b"));
@@ -396,6 +345,6 @@ mod tests {
         entry.opened_encoder = None;
         let formatted = format_in_process_encoding_log_entry(&entry);
         assert!(formatted.contains("encoder=unavailable\n"));
-        assert!(formatted.contains("requested_encoder=auto\n"));
+        assert!(formatted.contains("selected_encoder=aac_at\n"));
     }
 }

@@ -260,7 +260,11 @@ pub fn validate_requested_encoder_available(
     requested: EncoderType,
     availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> Result<()> {
-    if encoder_available(requested, availability) {
+    validate_encoder_available(requested, encoder_available(requested, availability))
+}
+
+pub(super) fn validate_encoder_available(requested: EncoderType, available: bool) -> Result<()> {
+    if available {
         return Ok(());
     }
 

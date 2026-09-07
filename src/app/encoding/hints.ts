@@ -3,13 +3,14 @@ import type { AudioFile } from '../../types/audio';
 const UNKNOWN_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const UNKNOWN_CHANNELS_HINT = 'Auto -> source audio';
 const PARTIAL_SAMPLE_RATE_HINT = 'Auto -> mixed/unknown rates';
-const PARTIAL_CHANNELS_HINT = 'Auto -> mixed/unknown channels';
+const UNKNOWN_INPUT_CHANNELS_HINT = 'Unknown input channels: choose Mono or Stereo.';
 
 type ResolutionState = 'same' | 'mixed' | 'partial' | 'unknown';
 
 export type AutoResolutionHints = {
 	sampleRateHint: string;
 	channelsHint: string;
+	hasMultichannelInput: boolean;
 };
 
 const toPositiveInt = (value: number | undefined): number | null => {
@@ -53,20 +54,6 @@ const formatSampleRateSummary = (sampleRates: readonly number[]): string => {
 	return `${formatSampleRate(first)}-${formatSampleRate(last)} kHz`;
 };
 
-const channelCountToLabel = (channels: number): string => {
-	if (channels === 1) return 'Mono';
-	if (channels === 2) return 'Stereo';
-	return `${channels} ch`;
-};
-
-const formatChannelSummary = (channels: readonly number[]): string => {
-	const uniqueChannels = [...new Set(channels)].sort((a, b) => a - b);
-	if (uniqueChannels.length <= 3) {
-		return uniqueChannels.map(channelCountToLabel).join('/');
-	}
-	return 'mixed channels';
-};
-
 const resolveSampleRateHint = (selectedFiles: readonly AudioFile[]): string => {
 	const knownSampleRates = getKnownValues(selectedFiles, (file) => file.sampleRate);
 	const state = resolveState(selectedFiles.length, knownSampleRates);
@@ -77,12 +64,17 @@ const resolveSampleRateHint = (selectedFiles: readonly AudioFile[]): string => {
 };
 
 const resolveChannelsHint = (selectedFiles: readonly AudioFile[]): string => {
-	const knownChannels = getKnownValues(selectedFiles, (file) => file.channels);
-	const state = resolveState(selectedFiles.length, knownChannels);
-	if (state === 'unknown') return UNKNOWN_CHANNELS_HINT;
-	if (state === 'partial') return PARTIAL_CHANNELS_HINT;
-	if (state === 'mixed') return `Auto -> mixed (${formatChannelSummary(knownChannels)})`;
-	return `Auto -> ${formatChannelSummary(knownChannels)}`;
+	const validFiles = selectedFiles.filter((file) => file.isValid);
+	if (validFiles.length === 0) return UNKNOWN_CHANNELS_HINT;
+	const knownChannels = getKnownValues(validFiles, (file) => file.channels);
+	if (knownChannels.some((channels) => channels > 2)) {
+		return 'Multichannel input: choose Mono or Stereo to downmix.';
+	}
+	if (knownChannels.length !== validFiles.length) return UNKNOWN_INPUT_CHANNELS_HINT;
+	if (knownChannels.includes(1) && knownChannels.includes(2)) {
+		return 'Auto -> source channels; Stereo when merged';
+	}
+	return knownChannels.includes(2) ? 'Auto -> Stereo' : 'Auto -> Mono';
 };
 
 export const resolveAutoResolutionHints = (
@@ -90,4 +82,5 @@ export const resolveAutoResolutionHints = (
 ): AutoResolutionHints => ({
 	sampleRateHint: resolveSampleRateHint(selectedFiles),
 	channelsHint: resolveChannelsHint(selectedFiles),
+	hasMultichannelInput: selectedFiles.some((file) => file.isValid && (file.channels ?? 0) > 2),
 });

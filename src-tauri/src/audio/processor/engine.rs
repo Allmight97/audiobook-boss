@@ -170,9 +170,8 @@ impl FfmpegNextProcessor {
             samples_per_frame: frame_plan.samples_per_frame(),
             emitter: &emitter,
         };
-        if super::engine_orchestrator::process_input_files(plan, context, &mut io)? {
-            log::info!("✓ Flushed final accumulator tail frame");
-        }
+        let audio_end_pts =
+            super::engine_orchestrator::process_input_files(plan, context, &mut io)?;
 
         // Finalize encoding (same path for full encode or preview early-stop)
         log::info!("🏁 Starting encoding finalization...");
@@ -181,6 +180,7 @@ impl FfmpegNextProcessor {
             &mut octx,
             ost_index,
             ost_time_base,
+            audio_end_pts,
         )?;
         log::info!("✓ Encoding finalization completed successfully");
 
@@ -231,54 +231,25 @@ fn append_in_process_encoding_run(
     });
 }
 
-/// Helper to determine the target sample rate and channel count based on plan settings and input probe.
+/// Resolves sample rate after the shared Audio boundary has chosen output channels.
 pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
-    let needs_probe_for_rate = matches!(plan.sample_rate, SampleRateConfig::Auto);
-    let needs_probe_for_channels = matches!(
-        plan.encoder_settings.channels,
-        crate::audio::settings_encoder::ChannelConfig::Auto
-    );
-
-    let probe = if needs_probe_for_rate || needs_probe_for_channels {
-        Some(probe_first_input(plan)?)
-    } else {
-        None
-    };
-
-    let sampled_rate = probe.map(|(rate, _)| rate);
-    let sampled_channels = probe.map(|(_, ch)| ch);
-
-    use crate::errors::AppError;
-
-    let target_sample_rate = match plan.sample_rate {
-        SampleRateConfig::Explicit(rate) => rate,
-        SampleRateConfig::Auto => sampled_rate.ok_or_else(|| {
-            AppError::InvalidInput(
-                "Could not determine sample rate from inputs; please specify an explicit sample rate"
-                    .to_string(),
-            )
-        })?,
-    };
-
     let target_channels = plan
         .encoder_settings
         .channels
         .forced_channels()
-        .map(|c| c as i32)
-        .or(sampled_channels)
+        .map(i32::from)
         .ok_or_else(|| {
-            AppError::InvalidInput(
-                "Could not determine channel count from inputs; please specify channels explicitly"
-                    .to_string(),
-            )
+            AppError::General("Output channels were not resolved before encoder setup.".to_string())
         })?;
+    let target_sample_rate = match plan.sample_rate {
+        SampleRateConfig::Explicit(rate) => rate,
+        SampleRateConfig::Auto => probe_first_sample_rate(plan)?,
+    };
 
     Ok((target_sample_rate, target_channels))
 }
 
-pub(crate) fn probe_first_input(plan: &MediaProcessingPlan) -> Result<(u32, i32)> {
-    use crate::errors::AppError;
-
+fn probe_first_sample_rate(plan: &MediaProcessingPlan) -> Result<u32> {
     let first = plan
         .input_file_paths
         .first()
@@ -291,5 +262,5 @@ pub(crate) fn probe_first_input(plan: &MediaProcessingPlan) -> Result<(u32, i32)
         inspection.sample_rate,
         inspection.channels
     );
-    Ok((inspection.sample_rate, (inspection.channels as i32).max(1)))
+    Ok(inspection.sample_rate)
 }

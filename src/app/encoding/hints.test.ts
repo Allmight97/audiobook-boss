@@ -39,7 +39,11 @@ describe('resolveAutoResolutionHints', () => {
 		]);
 
 		expect(hints.sampleRateHint).toBe('Auto -> mixed (32/44.1 kHz)');
-		expect(hints.channelsHint).toBe('Auto -> mixed (Mono/Stereo)');
+		expect(hints.channelsHint).toBe('Auto -> source channels; Stereo when merged');
+		expect(
+			resolveAutoResolutionHints([makeFile({ channels: 2 }), makeFile({ channels: 1 })])
+				.channelsHint,
+		).toBe('Auto -> source channels; Stereo when merged');
 	});
 
 	it('treats partial metadata in multi-selection as mixed inputs', () => {
@@ -49,13 +53,14 @@ describe('resolveAutoResolutionHints', () => {
 		]);
 
 		expect(hints.sampleRateHint).toBe('Auto -> mixed/unknown rates');
-		expect(hints.channelsHint).toBe('Auto -> mixed/unknown channels');
+		expect(hints.channelsHint).toBe('Unknown input channels: choose Mono or Stereo.');
 	});
 
 	it('falls back to unknown helper text when values are missing', () => {
 		expect(resolveAutoResolutionHints([])).toEqual({
 			sampleRateHint: 'Auto -> source audio',
 			channelsHint: 'Auto -> source audio',
+			hasMultichannelInput: false,
 		});
 
 		expect(
@@ -67,7 +72,8 @@ describe('resolveAutoResolutionHints', () => {
 			]),
 		).toEqual({
 			sampleRateHint: 'Auto -> source audio',
-			channelsHint: 'Auto -> source audio',
+			channelsHint: 'Unknown input channels: choose Mono or Stereo.',
+			hasMultichannelInput: false,
 		});
 	});
 
@@ -79,9 +85,9 @@ describe('resolveAutoResolutionHints', () => {
 			]).sampleRateHint,
 		).toBe('Auto -> mixed (22.05/48 kHz)');
 	});
-	it('describes multichannel source audio', () => {
+	it('requires an explicit downmix for multichannel input', () => {
 		expect(resolveAutoResolutionHints([makeFile({ channels: 6 })]).channelsHint).toBe(
-			'Auto -> 6 ch',
+			'Multichannel input: choose Mono or Stereo to downmix.',
 		);
 	});
 });

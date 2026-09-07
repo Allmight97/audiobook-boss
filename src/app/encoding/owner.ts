@@ -96,11 +96,16 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 				.map((index) => inputView.files[index])
 				.filter((file): file is AudioFile => Boolean(file));
 			const hints = resolveAutoResolutionHints(selected);
-			if (bag.sampleRateHint === hints.sampleRateHint && bag.channelsHint === hints.channelsHint) {
+			if (
+				bag.sampleRateHint === hints.sampleRateHint &&
+				bag.channelsHint === hints.channelsHint &&
+				bag.hasMultichannelInput === hints.hasMultichannelInput
+			) {
 				return;
 			}
 			bag.sampleRateHint = hints.sampleRateHint;
 			bag.channelsHint = hints.channelsHint;
+			bag.hasMultichannelInput = hints.hasMultichannelInput;
 			publish();
 		},
 	);
@@ -146,6 +151,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			const hints = resolveAutoResolutionHints(selectedFilesFromInput(deps.input));
 			bag.sampleRateHint = hints.sampleRateHint;
 			bag.channelsHint = hints.channelsHint;
+			bag.hasMultichannelInput = hints.hasMultichannelInput;
 			publish();
 		},
 	};

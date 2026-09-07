@@ -1,6 +1,6 @@
 //! Frame encoding and packet writing utilities.
 
-use crate::errors::Result;
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 
 #[cfg(debug_assertions)]
@@ -51,8 +51,6 @@ pub(crate) fn encode_and_write_frame(
     output_stream_index: usize,
     output_time_base: ff::Rational,
 ) -> Result<()> {
-    use crate::errors::AppError;
-
     #[cfg(debug_assertions)]
     debug_validate_frame_contract(frame, encoder);
 
@@ -60,14 +58,17 @@ pub(crate) fn encode_and_write_frame(
         .send_frame(frame)
         .map_err(|e| AppError::General(format!("Encoder send failed: {e}")))?;
 
-    let mut pkt = ff::Packet::empty();
-    while encoder.receive_packet(&mut pkt).is_ok() {
-        pkt.set_stream(output_stream_index);
-        pkt.rescale_ts(encoder.time_base(), output_time_base);
-        pkt.write_interleaved(output_context)
-            .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
-    }
-    Ok(())
+    let audio_end_pts = frame
+        .pts()
+        .ok_or_else(|| AppError::General("Encoder input frame has no sample timestamp.".into()))?
+        + frame.samples() as i64;
+    write_encoded_packets(
+        encoder,
+        output_context,
+        output_stream_index,
+        output_time_base,
+        audio_end_pts,
+    )
 }
 
 /// Flushes the encoder and writes the output trailer
@@ -76,20 +77,59 @@ pub(crate) fn finalize_encoding(
     output_context: &mut ff::format::context::Output,
     output_stream_index: usize,
     output_time_base: ff::Rational,
+    audio_end_pts: i64,
 ) -> Result<()> {
-    use crate::errors::AppError;
-
-    encoder.send_eof().ok();
-    let mut pkt = ff::Packet::empty();
-    while encoder.receive_packet(&mut pkt).is_ok() {
-        pkt.set_stream(output_stream_index);
-        pkt.rescale_ts(encoder.time_base(), output_time_base);
-        pkt.write_interleaved(output_context)
-            .map_err(|e| AppError::General(format!("Write packet failed: {e}")))?;
-    }
+    encoder
+        .send_eof()
+        .map_err(|e| AppError::General(format!("Encoder flush failed: {e}")))?;
+    write_encoded_packets(
+        encoder,
+        output_context,
+        output_stream_index,
+        output_time_base,
+        audio_end_pts,
+    )?;
 
     output_context
         .write_trailer()
         .map_err(|e| AppError::General(format!("Write trailer failed: {e}")))?;
     Ok(())
+}
+
+fn write_encoded_packets(
+    encoder: &mut ff::codec::encoder::audio::Encoder,
+    output_context: &mut ff::format::context::Output,
+    output_stream_index: usize,
+    output_time_base: ff::Rational,
+    audio_end_pts: i64,
+) -> Result<()> {
+    let mut packet = ff::Packet::empty();
+    loop {
+        match encoder.receive_packet(&mut packet) {
+            Ok(()) => {}
+            Err(ff::Error::Eof)
+            | Err(ff::Error::Other {
+                errno: ff::error::EAGAIN,
+            }) => return Ok(()),
+            Err(error) => {
+                return Err(AppError::General(format!(
+                    "Encoder receive failed: {error}"
+                )))
+            }
+        }
+        let pts = packet.pts().ok_or_else(|| {
+            AppError::General("Encoded audio packet has no sample timestamp.".into())
+        })?;
+        // AudioToolbox can report a full final packet even for a short input
+        // tail. The container's playable duration ends at the submitted audio.
+        if pts >= audio_end_pts {
+            continue;
+        }
+        packet.set_duration(packet.duration().min(audio_end_pts - pts));
+        packet.set_stream(output_stream_index);
+        packet.rescale_ts(encoder.time_base(), output_time_base);
+        packet
+            .write_interleaved(output_context)
+            .map_err(|error| AppError::General(format!("Write packet failed: {error}")))?;
+    }
 }

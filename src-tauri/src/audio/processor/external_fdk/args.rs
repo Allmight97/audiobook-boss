@@ -1,4 +1,4 @@
-use crate::audio::settings_encoder::{BitrateMode, EncoderSettings};
+use crate::audio::settings_encoder::{BitrateMode, ChannelConfig, EncoderSettings};
 use crate::audio::{AudioFile, DecoderSelection};
 use std::ffi::OsString;
 use std::path::Path;
@@ -14,6 +14,8 @@ pub(super) fn build_ffmpeg_args(
     let mut args = vec![
         OsString::from("-y"),
         OsString::from("-hide_banner"),
+        // Stop on decode errors instead of publishing an output with lost audio.
+        OsString::from("-xerror"),
         // `warning` keeps libfdk_aac's parameter-acceptance warnings (e.g. the
         // HE-AAC + VBR combination) visible in the captured encoding log.
         OsString::from("-loglevel"),
@@ -44,7 +46,10 @@ pub(super) fn build_ffmpeg_args(
 
     if files.len() > 1 {
         args.push(OsString::from("-filter_complex"));
-        args.push(OsString::from(build_concat_filter(files.len())));
+        args.push(OsString::from(build_concat_filter(
+            files.len(),
+            settings.channels,
+        )));
         args.push(OsString::from("-map"));
         args.push(OsString::from("[outa]"));
     } else {
@@ -90,10 +95,28 @@ fn build_input_decoder_args(selection: Option<&DecoderSelection>) -> Vec<OsStrin
     vec![OsString::from("-c:a"), OsString::from(decoder_name)]
 }
 
-fn build_concat_filter(input_count: usize) -> String {
+fn build_concat_filter(input_count: usize, channels: ChannelConfig) -> String {
+    let forced_layout = match channels {
+        ChannelConfig::Auto => None,
+        ChannelConfig::Mono => Some("mono"),
+        ChannelConfig::Stereo => Some("stereo"),
+    };
     let mut filter = String::new();
+    if let Some(layout) = forced_layout {
+        // Concat can otherwise downmix a later stereo input to a mono first
+        // input before the output's -ac option takes effect.
+        for index in 0..input_count {
+            filter.push_str(&format!(
+                "[{index}:a:0]aformat=channel_layouts={layout}[a{index}];"
+            ));
+        }
+    }
     for index in 0..input_count {
-        filter.push_str(&format!("[{}:a:0]", index));
+        if forced_layout.is_some() {
+            filter.push_str(&format!("[a{index}]"));
+        } else {
+            filter.push_str(&format!("[{index}:a:0]"));
+        }
     }
     filter.push_str(&format!("concat=n={}:v=0:a=1[outa]", input_count));
     filter
@@ -111,6 +134,40 @@ mod tests {
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
             afterburner: true,
+        }
+    }
+
+    #[test]
+    fn external_merge_args_enforce_explicit_audio_contract() {
+        let files = [
+            AudioFile::new("mono.wav".into()),
+            AudioFile::new("stereo.wav".into()),
+        ];
+        for (channels, layout) in [
+            (ChannelConfig::Mono, "mono"),
+            (ChannelConfig::Stereo, "stereo"),
+        ] {
+            let settings = EncoderSettings {
+                channels,
+                ..encoder_settings()
+            };
+            let args = build_ffmpeg_args(
+                &settings,
+                &SampleRateConfig::Auto,
+                None,
+                &files,
+                &[None, None],
+                Path::new("output.m4b"),
+            );
+            assert!(args.iter().any(|arg| arg == "-xerror"));
+            let expected = OsString::from(format!(
+                "[0:a:0]aformat=channel_layouts={layout}[a0];\
+                 [1:a:0]aformat=channel_layouts={layout}[a1];\
+                 [a0][a1]concat=n=2:v=0:a=1[outa]"
+            ));
+            assert!(args
+                .windows(2)
+                .any(|pair| pair[0] == "-filter_complex" && pair[1] == expected));
         }
     }
 

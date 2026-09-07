@@ -4,6 +4,17 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-07 - Audio Output Channel Resolution (#447)
+
+- Outcome: Audio owns channel resolution per output. Auto keeps mono when all
+  inputs are mono and chooses stereo when any input is stereo; unknown or
+  multichannel sources require an explicit Mono/Stereo choice. Each adapter
+  receives that resolution, and external concat normalizes inputs before merging.
+- Evidence: the old merge inherited its first source's channel count, while
+  external FDK could collapse forced stereo into duplicated mono. Synthesized
+  mixed-channel fixtures now retain distinct stereo in either order on all three
+  routes. Explicit downmix normalizes coefficients and omits LFE, with UI disclosure.
+
 ## 2026-09-06 - Solid 2 Adoption And Selective Effect Workflows (#480)
 
 - Outcome: Solid 2 is the frontend baseline with exact, tested prerelease
