@@ -19,6 +19,11 @@
 
 ## Hard Invariants
 
+- Resolve queued files by identity against current Input. Apply and advance
+  only after gated selection and Metadata hydration succeed. Metadata verifies
+  the intended file is still selected and bound when applying text and cover.
+- Finish asynchronous cover loading before applying the result; a failed
+  transition leaves the queue and editor untouched.
 - Each Metadata Lookup owner instance owns its cover-preview scheduler and
   cache. Two live App Runtimes isolate preview state. Disposing, cancelling,
   or clearing A cannot publish into B.

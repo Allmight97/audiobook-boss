@@ -1,5 +1,4 @@
 import type { FileListInfo } from '../../types/audio';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
 import type { MetadataLookupCoverPreviews } from './coverPreview';
@@ -34,24 +33,23 @@ export function makeProductionLookupServices(
 		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
 		getMetadataForFile: (path) => deps.metadata.readCached(path),
 		stageMetadataIntentPatch: (path, patch) => deps.metadata.stageIntent(path, patch),
-		selectFile: async (index, modifiers, options) => {
-			const changed = await deps.input.selectFile({
-				index,
-				modifiers: modifiers ?? { multi: false, range: false },
-				skipPersistPrevious: options?.skipPersistPrevious,
-			});
-			if (changed === false) {
-				return;
-			}
-			await deps.metadata.hydrateSelection(document.activeElement);
+		selectFile: async (file) => {
+			const index =
+				deps.input
+					.session()
+					.fileList?.files.findIndex(
+						(candidate) => candidate.path === file.path && candidate.inputId === file.inputId,
+					) ?? -1;
+			if (
+				index < 0 ||
+				!(await deps.input.selectFile({ index, modifiers: { multi: false, range: false } }))
+			)
+				return false;
+			return deps.metadata.hydrateSelection(document.activeElement);
 		},
-		applyMetadataToForm: (metadata: Partial<AudiobookMetadata>) => {
-			deps.metadata.applyLookupMetadata(metadata);
-		},
+		applyMetadataToForm: (file, metadata, coverArtBytes) =>
+			deps.metadata.applyLookupMetadata(file, metadata, coverArtBytes),
 		readMetadataForm: () => deps.metadata.readMetadata() ?? {},
-		setCustomCoverArt: (coverArtBytes) => {
-			deps.metadata.setCustomCoverArt(coverArtBytes);
-		},
 		searchOnlineMetadata: (args) => deps.metadata.capability().searchOnlineMetadata(args),
 		loadCoverArtFromUrl: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
 		loadLookupCoverBytes: (url) => deps.coverPreviews.loadBytes(url),

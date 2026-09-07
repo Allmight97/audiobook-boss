@@ -44,6 +44,10 @@ dispatch intent; they do not keep parallel business state.
 
 ## Workflow And Failure Shape
 
+- Input owns awaitable selection and removal transitions; Metadata's draft gate
+  must accept before Input changes. Pending targeted intents retain file
+  identity across reordering and expire when the session is replaced/reset.
+  Dependent workflows proceed only after selection and hydration succeed.
 - Choose AppEffect when its typed failure, dependency composition, or scoped
   work reduces coordination; direct capability workflows may use plain async.
   Read `src/lib/effect/AGENTS.md` before changing that shape.

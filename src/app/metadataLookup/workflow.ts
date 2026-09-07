@@ -43,20 +43,16 @@ export interface MetadataLookupWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
 	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
 	stageMetadataIntentPatch: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
-	selectFile: (
-		index: number,
-		modifiers?: { multi: boolean; range: boolean },
-		options?: { skipPersistPrevious?: boolean },
-	) => Promise<void> | void;
+	selectFile: (file: AudioFile) => Promise<boolean>;
 	applyMetadataToForm: (
+		file: AudioFile,
 		metadata: Partial<AudiobookMetadata>,
-		options?: { mode?: 'single' | 'multi'; markDirty?: boolean },
-	) => void;
+		coverArtBytes?: number[],
+	) => boolean;
 	readMetadataForm: (options?: {
 		mode?: 'single' | 'multi';
 		includeCoverArt?: boolean;
 	}) => Partial<AudiobookMetadata>;
-	setCustomCoverArt: (coverArtBytes: number[] | null) => void;
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;
@@ -160,11 +156,14 @@ async function advanceQueue(
 	const nextItem = queue[nextIndex];
 
 	if (nextItem) {
-		await services.selectFile(
-			nextItem.index,
-			{ multi: false, range: false },
-			{ skipPersistPrevious: true },
-		);
+		if (!(await services.selectFile(nextItem.file))) {
+			setStatus(
+				services,
+				'Could not select the next file. Review pending metadata edits and try again.',
+				'error',
+			);
+			return;
+		}
 		services.setMetadataLookupQueueIndex(nextIndex);
 		updateQueueContext(services);
 		const state = services.getLookupState();
@@ -193,7 +192,6 @@ async function applyCoverArt(
 	if (!result.coverUrl) return { status: 'notRequested' };
 	try {
 		const coverBytes = await services.loadLookupCoverBytes(result.coverUrl);
-		services.setCustomCoverArt(coverBytes);
 		return { status: 'applied', bytes: coverBytes };
 	} catch (error) {
 		services.console.warn('Failed to load cover art from lookup:', error);
@@ -215,15 +213,8 @@ async function applyResult(
 	const mode = services.getLookupState().applyMode;
 
 	const current = queue[services.getQueueState().index];
-	if (current) {
-		await services.selectFile(
-			current.index,
-			{ multi: false, range: false },
-			{ skipPersistPrevious: true },
-		);
-	}
+	if (!current) return;
 
-	services.applyMetadataToForm(metadata, { mode: 'single', markDirty: true });
 	let queueCoverState: QueueCoverState = { intent: 'keep' };
 	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
@@ -234,6 +225,22 @@ async function applyResult(
 			coverArtFailed = true;
 		}
 	}
+	if (
+		!(await services.selectFile(current.file)) ||
+		!services.applyMetadataToForm(
+			current.file,
+			metadata,
+			queueCoverState.intent === 'replace' ? queueCoverState.bytes : undefined,
+		)
+	) {
+		setStatus(
+			services,
+			'Could not apply metadata to the selected file. Review pending edits and try again.',
+			'error',
+		);
+		return;
+	}
+
 	if (mode === 'queue') {
 		if (current) {
 			const queueState: QueueItemState = {

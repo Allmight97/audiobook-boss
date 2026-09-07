@@ -20,9 +20,9 @@
 ## Preferred Path
 
 - `FileListView` reads Input `view` and dispatches Input Session intents.
-  Row click, keyboard Select all, Escape clear-highlight, and toolbar Clear
-  go through the awaitable `selectFile`, `selectAll`, `clearSelection`, and
-  `clearAllFiles` intents so the metadata draft gate can run.
+  Row click/removal, keyboard Select all, Escape clear-highlight, and toolbar
+  Clear go through awaitable `selectFile`, `removeFile`, `selectAll`,
+  `clearSelection`, and `clearAllFiles` intents so the metadata draft gate runs.
 - Cover thumbnails are a presentation resource, not list truth. Each
   `FileListView` owns a private thumbnail resource with its loader, reactive
   reads, bounded cache, and queue; dispose it with the view. Scheduling an
