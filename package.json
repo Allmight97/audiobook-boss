@@ -33,7 +33,7 @@
 		"bindings:sync": "scripts/check-generated-bindings.sh --mode sync",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"update:rc": "bun add --exact --minimum-release-age 0 effect@rc solid-js@next @solidjs/web@next && bun add --dev --exact --minimum-release-age 0 @solidjs/vite-plugin@latest @solidjs/testing-library@next"
+		"update:rc": "bun add --exact effect@rc solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
 	},
 	"dependencies": {
 		"@solidjs/web": "2.0.0-rc.6",

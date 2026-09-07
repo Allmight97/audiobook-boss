@@ -4,17 +4,21 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
-## 2026-09-04 - One Checkout Per Solid Major
+## 2026-09-06 - Solid 2 Adoption And Selective Effect Workflows (#480)
 
-- Outcome: `main` and product branches stay on Solid 1.9. Solid 2 stays on
-  `cursor/solid2-effect-spike-36fc` in a separate worktree until formal
-  adoption. Git does not isolate `node_modules`; one folder cannot hold both
-  lockfiles.
-- Evidence: each checkout's `package.json` `solid-js` pin; product worktrees
-  stay on `main` or branches from it; the spike stays on
-  `cursor/solid2-effect-spike-36fc`.
-- Guardrail: upgrade Solid and merge its lockfile only in the spike worktree
-  until adoption; check each Solid-major branch out in its own folder.
+- Outcome: Solid 2 is the frontend baseline with exact, tested prerelease
+  pins for Solid, Effect, and the compiler/testing companions. Adoption is
+  gated by ABB's contract, build, lifetime, and representative workflow proof;
+  upstream GA and Atom integration are not prerequisites.
+- Outcome: one disposable App Runtime owns Solid session state. Use private
+  Effect workflows when typed failure, dependency composition, or scoped work
+  removes meaningful coordination; plain async remains appropriate for direct
+  capability workflows. Atom availability alone does not reopen the state
+  choice: require a concrete owner problem and evidence of less coordination.
+- Evidence: `package.json`, `bun.lock`, `src/app/runtime/`, private Processing
+  and collision-review workflows, and owner/thumbnail lifetime regressions.
+- Guardrail: keep historical Solid-major checkouts in separate folders and use
+  each folder's lockfile; Git does not isolate installed dependencies.
 
 ## 2026-09-03 - Remote Source Owns Indexer Search-Grab
 
@@ -60,9 +64,9 @@ git history and closed issues own superseded chronology.
 ## 2026-08-29 - Solid Renderer And Runtime-Scoped Owners (#468)
 
 - Outcome: Solid is ABB's only desktop renderer. Runtime-scoped Solid owners
-  hold frontend session truth. Effect owns effectful workflows. One disposable
-  application runtime composes those owners and is provided through Solid
-  context.
+  hold frontend session truth. Workflow owners select Effect according to the
+  adoption criteria above. One disposable application runtime composes those
+  owners and is provided through Solid context.
 - Evidence: `package.json`, `src/main.tsx`, `src/app/runtime/`, and
   `scripts/frontend-toolchain-layout.test.ts`.
 - Guardrail: do not reintroduce Effect Atom, a process-wide owner singleton,
@@ -95,7 +99,12 @@ git history and closed issues own superseded chronology.
   `bunfig.toml` `minimumReleaseAge` gates fresh Bun resolutions and the
   Dependabot cooldown gates update PRs. Cargo has no release-age filter, so
   manual `cargo update` has no gate and relies on reviewer discipline.
-  Security fixes bypass the age with focused proof.
+  Security fixes bypass the age with focused proof. Explicit `bun run update:rc`
+  updates also bypass the age for the Solid/Effect prerelease family and its
+  Solid compiler/Vite/testing companions only, resolving compatible package
+  tags individually and saving exact pins. All other dependencies retain the
+  ten-day gate, including unrelated transitive resolutions through the explicit
+  `minimumReleaseAgeExcludes` list in `bunfig.toml`.
 - Outcome: weekly Dependabot version updates for Cargo and the text `bun.lock`
   ecosystem use the same 10-day cooldown, compatible-update groups, and a low
   PR limit.

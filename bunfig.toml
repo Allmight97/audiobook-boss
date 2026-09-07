@@ -1,5 +1,16 @@
 [install]
 # Delay fresh dependency resolutions by 10 days to reduce exposure to newly
 # published supply-chain compromises while leaving the committed lockfile flow
-# unchanged. Blanket policy per docs/DECISIONS.md 2026-08-27.
+# unchanged. Policy and exceptions live in docs/DECISIONS.md.
 minimumReleaseAge = 864000
+
+# Keep unrelated transitive resolutions gated during explicit prerelease updates.
+minimumReleaseAgeExcludes = [
+  "effect",
+  "solid-js",
+  "@solidjs/web",
+  "@solidjs/babel-plugin",
+  "@solidjs/compiler",
+  "@solidjs/vite-plugin",
+  "@solidjs/testing-library",
+]
