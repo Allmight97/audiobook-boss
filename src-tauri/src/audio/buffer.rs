@@ -263,7 +263,6 @@ impl SampleAccumulator {
             frame.alloc(config.format, take, config.channel_layout);
         }
 
-        let mut total_repairs = 0usize;
         for (ch, buffer) in buffers.iter().enumerate() {
             if ch >= frame.planes() {
                 log::warn!(
@@ -279,32 +278,32 @@ impl SampleAccumulator {
             let src = &buffer[start..start + take];
 
             // Sanitize float samples: clamp to [-1.0, 1.0], fix NaN/Inf
-            let mut repaired = 0usize;
+            let mut clipped = 0usize;
+            let mut non_finite = 0usize;
+            let mut clipped_peak = 0.0_f32;
             for i in 0..take {
                 let mut v = src[i];
                 if !v.is_finite() {
                     v = 0.0;
-                    repaired += 1;
+                    non_finite += 1;
                 } else if v > 1.0 {
+                    clipped_peak = clipped_peak.max(v);
                     v = 1.0;
-                    repaired += 1;
+                    clipped += 1;
                 } else if v < -1.0 {
+                    clipped_peak = clipped_peak.max(-v);
                     v = -1.0;
-                    repaired += 1;
+                    clipped += 1;
                 }
                 dst[i] = v;
             }
-            total_repairs += repaired;
+            if clipped + non_finite > 0 {
+                log::warn!(
+                    "Accumulator sanitized float samples before encoding: channel_index={ch} clipped={clipped} non_finite={non_finite} clipped_peak={clipped_peak:.6} frame_size={take}"
+                );
+            }
         }
         *consumed_samples += take;
-
-        if total_repairs > 0 {
-            log::warn!(
-                "Accumulator sanitized {} float samples before encoding (frame_size={})",
-                total_repairs,
-                take
-            );
-        }
         Some(frame)
     }
 
