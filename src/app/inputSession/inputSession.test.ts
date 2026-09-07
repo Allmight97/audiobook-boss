@@ -406,3 +406,27 @@ it.each(['cancel', 'error'] as const)(
 		else expect(owner.view().errorMessage).toBe('');
 	},
 );
+
+it('rejects completed import analysis when processing locks the input meanwhile', async () => {
+	let finishAnalysis!: (files: FileListInfo) => void;
+	const capability = fakeInput({
+		analyzeAudioFiles: vi.fn(
+			() =>
+				new Promise<FileListInfo>((resolve) => {
+					finishAnalysis = resolve;
+				}),
+		),
+	});
+	const owner = createInputOwner({ capability });
+	owner.replaceSession(sessionWith([audioFile('/books/old.m4b')]));
+	const pending = owner.importIntent({ type: 'importPaths', paths: ['/books/new.m4b'] });
+	await vi.waitFor(() => expect(capability.analyzeAudioFiles).toHaveBeenCalled());
+	owner.setOrderLocked(true);
+	finishAnalysis(analyzedFile('/books/new.m4b'));
+	await pending;
+	expect(owner.view().files.map((file) => file.path)).toEqual(['/books/old.m4b']);
+	expect(owner.view().orderLocked).toBe(true);
+	expect(owner.view().errorMessage).toBe(
+		'Order locked while processing. Wait for completion to add files.',
+	);
+});

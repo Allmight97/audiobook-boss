@@ -111,6 +111,9 @@ function appendAnalyzedFiles(
 	session: InputSessionState,
 	analyzed: FileListInfo,
 ): InputSessionState {
+	if (session.orderLocked) {
+		return withError('Order locked while processing. Wait for completion to add files.')(session);
+	}
 	const existingFiles = session.fileList?.files ?? [];
 	const appendResult = buildFileListAppendResult(analyzed, {
 		existingFiles,
