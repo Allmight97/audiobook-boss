@@ -4,6 +4,21 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-07 - Work Snapshot Freshness And Settings Durability (#421)
+
+- Outcome: WorkRuntime stamps each operation revision under its state lock and
+  records list membership separately. Submission sequence remains display order.
+- Evidence: a delayed initial list can omit work already received by event;
+  per-operation comparison alone cannot preserve that work or distinguish a
+  pruned operation from a late event. Model and runtime tests cover both races.
+- Outcome: the runtime accepts concurrency before Settings records its preference.
+  Storage failure retains accepted session choices with visible retry; retry does
+  not reconfigure an active JobRegistry. Reset still restores prior concurrency
+  when its storage step fails.
+- Evidence: the old combined update could undo an accepted job limit on disk
+  failure, while automatic encoder/output helpers hid errors. Settings owner and
+  UI tests now distinguish rejection, non-durability, and newest-value retry.
+
 ## 2026-09-07 - Audio Output Channel Resolution (#447)
 
 - Outcome: Audio owns channel resolution per output. Auto keeps mono when all
@@ -517,7 +532,5 @@ git history and closed issues own superseded chronology.
 ## 2026-05-26 - App Settings And Concurrency
 
 - Serialize settings writes inside `app_settings`.
-- On settings update/reset failure, roll back live `JobRegistry` concurrency, not stale persisted preference.
 - Hydrate settings per UI owner; one owner failure must not block other owners.
-- If settings acceptance succeeds but `getMaxConcurrentJobs` fails, keep accepted UI state.
 - Guardrail: do not widen settings patches into cross-registry filesystem transactions without a separate design.

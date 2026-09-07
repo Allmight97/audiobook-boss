@@ -16,7 +16,7 @@
   is write-only. HTTPS is the recommended URL example; explicit HTTP remains
   usable with visible transport guidance. Connection help is view-local, and
   Escape dismisses it before dismissing Settings.
-- Reset requires the existing second activation. Disable conflicting dialog
-  edits while reset is saving.
+- Reset requires the existing second activation. Afterburner and reset controls
+  remain disabled while a dialog save is pending.
 - `AppSettingsDialogView.test.tsx` owns dialog interactions and visible automatic
   save failure/retry. `runtime-api-contract.test.ts` pins this UI export strip.

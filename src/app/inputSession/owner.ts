@@ -32,6 +32,7 @@ export type InputOwner = {
 	selectFile(command: {
 		readonly index: number;
 		readonly modifiers: SelectionModifiers;
+		readonly signal?: AbortSignal;
 	}): Promise<boolean>;
 	selectAll(): Promise<void>;
 	clearSelection(): Promise<void>;
@@ -81,10 +82,11 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		bump((n) => n + 1);
 	}
 
-	async function allowSelectionTransition(): Promise<boolean> {
+	async function allowSelectionTransition(signal?: AbortSignal): Promise<boolean> {
+		if (signal?.aborted) return false;
 		const ticket = ++selectionTransitionTicket;
 		const allowed = await deps.beforeSelectionChange?.();
-		return allowed !== false && ticket === selectionTransitionTicket;
+		return allowed !== false && !signal?.aborted && ticket === selectionTransitionTicket;
 	}
 
 	function currentIndex(file: AudioFile): number {
@@ -151,7 +153,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		},
 		async selectFile(command) {
 			const file = session.fileList?.files[command.index];
-			if (!file || !(await allowSelectionTransition())) return false;
+			if (!file || !(await allowSelectionTransition(command.signal))) return false;
 			const index = currentIndex(file);
 			if (index < 0) return false;
 			commit(selectFileInSession(session, index, command.modifiers));

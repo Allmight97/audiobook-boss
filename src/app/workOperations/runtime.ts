@@ -183,10 +183,9 @@ export function createWorkOperationsSession(
 				state.errorMessage = null;
 				commit();
 			})().catch((error) => {
+				if (group.disposed || subscriptions !== group) return;
 				group.dispose();
-				if (subscriptions === group) {
-					subscriptions = null;
-				}
+				subscriptions = null;
 				state.errorMessage = `Failed to initialize Work Center: ${toUserMessage(error)}`;
 				initializationPromise = null;
 				commit();

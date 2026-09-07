@@ -40,6 +40,7 @@ export function createMetadataLookupOwner(deps: {
 }): MetadataLookupOwner {
 	const lookupState = createMetadataLookupState();
 	const queueState = createMetadataLookupQueueState();
+	let pendingRequest: AbortController | undefined;
 	let snapshot = snapshotMetadataLookupState(lookupState);
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
@@ -53,7 +54,7 @@ export function createMetadataLookupOwner(deps: {
 		bumpView((n) => n + 1);
 	}
 
-	function services() {
+	function services(signal: AbortSignal) {
 		return makeProductionLookupServices(
 			{
 				input: deps.input,
@@ -61,6 +62,7 @@ export function createMetadataLookupOwner(deps: {
 				lookupState,
 				queueState,
 				coverPreviews: previews,
+				signal,
 			},
 			publish,
 		);
@@ -82,13 +84,19 @@ export function createMetadataLookupOwner(deps: {
 			previews.cancel();
 		},
 		async run(action) {
-			const layer = makeMetadataLookupWorkflowServicesLayer(services());
+			pendingRequest?.abort();
+			const request = new AbortController();
+			pendingRequest = request;
+			const layer = makeMetadataLookupWorkflowServicesLayer(services(request.signal));
 			try {
 				await runMetadataLookupWorkflow(layer, action);
-				publish();
+				if (!request.signal.aborted) publish();
 			} catch (error) {
+				if (request.signal.aborted) return;
 				console.error('Metadata lookup failed:', error);
 				publish();
+			} finally {
+				if (pendingRequest === request) pendingRequest = undefined;
 			}
 		},
 		setTitleQuery(value) {
@@ -112,6 +120,8 @@ export function createMetadataLookupOwner(deps: {
 			publish();
 		},
 		reset() {
+			pendingRequest?.abort();
+			pendingRequest = undefined;
 			previews.clear();
 			Object.assign(lookupState, createMetadataLookupState());
 			Object.assign(queueState, createMetadataLookupQueueState());

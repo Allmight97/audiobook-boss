@@ -114,7 +114,7 @@ function makeHarness(options?: {
 	metadataByFile?: Array<[string, Partial<AudiobookMetadata>]>;
 	readMetadataForm?: () => Partial<AudiobookMetadata>;
 	searchOnlineMetadata?: MetadataLookupWorkflowServices['searchOnlineMetadata'];
-	loadCoverArtFromUrl?: MetadataLookupWorkflowServices['loadCoverArtFromUrl'];
+	loadCoverArtFromUrl?: (url: string) => Promise<number[]>;
 	selectFile?: MetadataLookupWorkflowServices['selectFile'];
 }) {
 	const files = [audioFile('/books/alpha.m4b'), audioFile('/books/beta.m4b')];
@@ -176,6 +176,7 @@ function makeHarness(options?: {
 	const consoleWarn = vi.fn();
 
 	const services = {
+		isCurrent: () => true,
 		getLookupState,
 		getQueueState,
 		setMetadataLookupQueue,
@@ -189,7 +190,6 @@ function makeHarness(options?: {
 		applyMetadataToForm,
 		readMetadataForm,
 		searchOnlineMetadata,
-		loadCoverArtFromUrl,
 		loadLookupCoverBytes: (url) => previews.loadBytes(url),
 		clearCoverPreviews: () => previews.clear(),
 		focusElementById,

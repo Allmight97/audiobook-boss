@@ -12,10 +12,12 @@ export function makeProductionLookupServices(
 		readonly lookupState: MetadataLookupState;
 		readonly queueState: MetadataLookupQueueState;
 		readonly coverPreviews: MetadataLookupCoverPreviews;
+		readonly signal: AbortSignal;
 	},
 	publishView?: () => void,
 ): MetadataLookupWorkflowServices {
 	return {
+		isCurrent: () => !deps.signal.aborted,
 		getLookupState: () => deps.lookupState,
 		getQueueState: () => deps.queueState,
 		setMetadataLookupQueue(queue) {
@@ -42,7 +44,12 @@ export function makeProductionLookupServices(
 					) ?? -1;
 			if (
 				index < 0 ||
-				!(await deps.input.selectFile({ index, modifiers: { multi: false, range: false } }))
+				!(await deps.input.selectFile({
+					index,
+					modifiers: { multi: false, range: false },
+					signal: deps.signal,
+				})) ||
+				deps.signal.aborted
 			)
 				return false;
 			return deps.metadata.hydrateSelection(document.activeElement);
@@ -51,7 +58,6 @@ export function makeProductionLookupServices(
 			deps.metadata.applyLookupMetadata(file, metadata, coverArtBytes),
 		readMetadataForm: () => deps.metadata.readMetadata() ?? {},
 		searchOnlineMetadata: (args) => deps.metadata.capability().searchOnlineMetadata(args),
-		loadCoverArtFromUrl: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
 		loadLookupCoverBytes: (url) => deps.coverPreviews.loadBytes(url),
 		clearCoverPreviews: () => deps.coverPreviews.clear(),
 		focusElementById: (id) => {

@@ -7,10 +7,12 @@ const settleRemoteSourceMock = vi.fn();
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((resolvePromise) => {
+	let reject!: (error: Error) => void;
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
 		resolve = resolvePromise;
+		reject = rejectPromise;
 	});
-	return { promise, resolve };
+	return { promise, resolve, reject };
 }
 
 function completedMergeOperation(operationId: string): OperationSnapshot {
@@ -123,6 +125,23 @@ describe('Work Center state', () => {
 		list.resolve({ membershipRevision: 0, operations: [] });
 		await initialize;
 		expect(session.view().operations).toEqual([completed]);
+	});
+
+	it('ignores an initial-list rejection after the session is disposed', async () => {
+		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+		const list = createDeferred<OperationListSnapshot>();
+		vi.spyOn(tauriClient, 'listen').mockResolvedValue(() => undefined);
+		const listCall = vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValue(list.promise);
+		const initializing = session.initialize();
+		await vi.waitFor(() => expect(listCall).toHaveBeenCalled());
+		session.dispose();
+		list.reject(new Error('late list failure'));
+		await expect(initializing).resolves.toBeUndefined();
+		expect(session.view()).toMatchObject({
+			initialized: false,
+			operations: [],
+			errorMessage: null,
+		});
 	});
 
 	it.each([false, true])(

@@ -153,6 +153,27 @@ describe('input session selection gate', () => {
 });
 
 describe('input session selection transition ticket', () => {
+	it('keeps the selection when its requesting workflow aborts during validation', async () => {
+		let allow!: (value: boolean) => void;
+		const owner = createInputOwner({
+			beforeSelectionChange: () =>
+				new Promise<boolean>((resolve) => {
+					allow = resolve;
+				}),
+		});
+		owner.replaceSession(sessionWith([audioFile('/a'), audioFile('/b')], [1]));
+		const request = new AbortController();
+		const pending = owner.selectFile({
+			index: 0,
+			modifiers: { multi: false, range: false },
+			signal: request.signal,
+		});
+		request.abort();
+		allow(true);
+		expect(await pending).toBe(false);
+		expect(owner.session().selectedIndices).toEqual([1]);
+	});
+
 	it.each(['select', 'remove'] as const)(
 		'resolves %s by file identity after a pending gate and reorder',
 		async (action) => {
