@@ -86,6 +86,17 @@ describe('app settings concurrency', () => {
 		expect(runtime.settings.concurrency().selection).toBe('auto');
 	});
 
+	it('opens and refreshes the acquisition preference through a detached UI handler', async () => {
+		const settings = fakeSettings({
+			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
+		});
+		runtime = createAppRuntime({ settings });
+		const openSettings = runtime.settings.openDialog;
+		await expect(openSettings()).resolves.toBeUndefined();
+		expect(runtime.settings.dialog().isOpen).toBe(true);
+		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
+	});
+
 	it('hydrates and persists defaultAcquisitionLane', async () => {
 		const settings = fakeSettings({
 			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),

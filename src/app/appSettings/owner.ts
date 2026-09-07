@@ -93,6 +93,15 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		bump((n) => n + 1);
 	}
 
+	async function hydrateAcquisitionPreferences() {
+		try {
+			const settings = await capabilityValue.getAppSettings();
+			commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
+		} catch (error) {
+			console.warn('Failed to hydrate acquisition preferences:', error);
+		}
+	}
+
 	return {
 		concurrency: () => {
 			rev();
@@ -128,14 +137,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 				console.warn('Failed to hydrate max concurrency:', error);
 			}
 		},
-		async hydrateAcquisitionPreferences() {
-			try {
-				const settings = await capabilityValue.getAppSettings();
-				commitDefaultLane(settings.defaultAcquisitionLane ?? 'audible');
-			} catch (error) {
-				console.warn('Failed to hydrate acquisition preferences:', error);
-			}
-		},
+		hydrateAcquisitionPreferences,
 		async setConcurrencySelection(value) {
 			const previous = concurrency.selection;
 			commitConcurrency({ ...concurrency, selection: value });
@@ -177,7 +179,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		async openDialog() {
 			await dialog.open();
-			await this.hydrateAcquisitionPreferences();
+			await hydrateAcquisitionPreferences();
 		},
 		closeDialog() {
 			dialog.close();
