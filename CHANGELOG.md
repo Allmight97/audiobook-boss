@@ -4,6 +4,27 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-09-07
+
+### Fixed
+
+- Preserve the exact playable audio tail when encoding with Native AAC or Apple
+  AAC, preventing extra silence from accumulating during reprocessing.
+- Preserve stereo in mixed mono/stereo merges regardless of input order, and
+  normalize explicit downmixes to avoid clipping. Auto now asks for Mono or
+  Stereo when source channels are unknown or multichannel.
+- Retain every repeated MP4 author and narrator name during metadata reads,
+  while preserving repeated values during unrelated edits.
+- Reject truncated MP4 audio and propagate media processing errors instead of
+  reporting success for shortened output.
+
+### Changed
+
+- Reduce Native AAC and Apple AAC startup overhead by resolving encoder settings
+  once and avoiding unnecessary external-toolchain probes.
+- Report the affected channel, clipped versus non-finite sample counts, and
+  the peak before clipping in audio repair diagnostics.
+
 ## [1.7.2] - 2026-09-07
 
 ### Changed
