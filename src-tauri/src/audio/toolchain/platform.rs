@@ -16,25 +16,54 @@ use std::ffi::OsStr;
 
 const APPLE_SILICON_FFMPEG_ARCHES: &[&str] = &["arm64", "arm64e"];
 
+/// Open the bundled, fixed Homebrew handoff in Terminal. No user input becomes shell code.
+pub(crate) fn open_fdk_setup(resource_dir: &Path) -> crate::errors::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("/usr/bin/open")
+            .args(["-a", "Terminal"])
+            .arg(resource_dir.join("fdk-setup.command"))
+            .status()?;
+        if !status.success() {
+            return Err(crate::errors::AppError::General(
+                "Could not open FDK setup in Terminal.".into(),
+            ));
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = resource_dir;
+        Err(crate::errors::AppError::General("Guided FDK setup is currently available on macOS. Choose an FFmpeg executable with libfdk_aac from your package manager.".into()))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // cfg-gated dispatchers — the only conditional code in this module.
 // ---------------------------------------------------------------------------
 
 #[cfg(target_os = "macos")]
 pub(super) fn auto_candidates() -> Vec<PathBuf> {
-    ordered_macos_auto_candidate_paths(
-        super::first_successful_stdout(
-            &["brew", "/opt/homebrew/bin/brew"],
-            &["--prefix", "ffmpeg"],
-        )
-        .as_deref(),
-        super::first_successful_stdout(
-            &["pkg-config", "/opt/homebrew/bin/pkg-config"],
-            &["--variable=prefix", "libavcodec"],
-        )
-        .as_deref(),
-        super::first_successful_stdout(&["which", "/usr/bin/which"], &["ffmpeg"]).as_deref(),
+    let packages = ["/opt/homebrew/opt", "/usr/local/opt"]
+        .into_iter()
+        .flat_map(|root| std::fs::read_dir(root).into_iter().flatten())
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name == "ffmpeg-full" || name.starts_with("ffmpeg@"))
+        })
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    macos_auto_candidate_paths(
+        std::env::var_os("PATH").as_deref(),
+        &packages,
+        &fs_canonicalize,
     )
+    .into_iter()
+    .filter(|path| path.is_file())
+    .collect()
 }
 
 #[cfg(target_os = "linux")]
@@ -127,7 +156,7 @@ fn push_candidate(
 ) {
     if let Some(canonical) = canonicalize(&candidate) {
         if seen.insert(canonical.clone()) {
-            candidates.push(canonical);
+            candidates.push(candidate);
         }
         return;
     }
@@ -137,61 +166,25 @@ fn push_candidate(
     }
 }
 
-pub(super) fn ordered_macos_auto_candidate_paths(
-    brew_prefix: Option<&str>,
-    pkg_config_prefix: Option<&str>,
-    path_ffmpeg: Option<&str>,
-) -> Vec<PathBuf> {
-    ordered_macos_auto_candidate_paths_with(
-        brew_prefix,
-        pkg_config_prefix,
-        path_ffmpeg,
-        &fs_canonicalize,
-    )
-}
-
-fn ordered_macos_auto_candidate_paths_with(
-    brew_prefix: Option<&str>,
-    pkg_config_prefix: Option<&str>,
-    path_ffmpeg: Option<&str>,
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn macos_auto_candidate_paths(
+    path: Option<&std::ffi::OsStr>,
+    package_prefixes: &[PathBuf],
     canonicalize: Canonicalize,
 ) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
-
-    if let Some(prefix) = brew_prefix.filter(|prefix| is_supported_macos_auto_detect_prefix(prefix))
-    {
-        push_candidate(
-            &mut candidates,
-            &mut seen,
-            Path::new(prefix).join("bin/ffmpeg"),
-            canonicalize,
-        );
-    }
-
-    if let Some(prefix) =
-        pkg_config_prefix.filter(|prefix| is_supported_macos_auto_detect_prefix(prefix))
-    {
-        push_candidate(
-            &mut candidates,
-            &mut seen,
-            Path::new(prefix).join("bin/ffmpeg"),
-            canonicalize,
-        );
-    }
-
-    if let Some(path) = path_ffmpeg {
-        push_candidate(
-            &mut candidates,
-            &mut seen,
-            PathBuf::from(path),
-            canonicalize,
-        );
-    }
-
+    // Stable opt links survive Homebrew upgrades; native architecture is checked separately.
     for path in [
         "/opt/homebrew/opt/ffmpeg/bin/ffmpeg",
         "/opt/homebrew/bin/ffmpeg",
+        "/opt/homebrew/opt/ffmpeg/bin/ffmpeg-alt",
+        "/opt/homebrew/bin/ffmpeg-alt",
+        "/usr/local/opt/ffmpeg/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/usr/local/opt/ffmpeg/bin/ffmpeg-alt",
+        "/usr/local/bin/ffmpeg-alt",
+        "/opt/local/bin/ffmpeg",
     ] {
         push_candidate(
             &mut candidates,
@@ -200,7 +193,28 @@ fn ordered_macos_auto_candidate_paths_with(
             canonicalize,
         );
     }
-
+    for prefix in package_prefixes {
+        for name in ["ffmpeg", "ffmpeg-alt"] {
+            push_candidate(
+                &mut candidates,
+                &mut seen,
+                prefix.join("bin").join(name),
+                canonicalize,
+            );
+        }
+    }
+    if let Some(path) = path {
+        for directory in std::env::split_paths(path).filter(|path| path.is_absolute()) {
+            for name in ["ffmpeg", "ffmpeg-alt"] {
+                push_candidate(
+                    &mut candidates,
+                    &mut seen,
+                    directory.join(name),
+                    canonicalize,
+                );
+            }
+        }
+    }
     candidates
 }
 
@@ -252,10 +266,6 @@ fn ordered_linux_auto_candidate_paths_with(
     }
 
     candidates
-}
-
-pub(super) fn is_supported_macos_auto_detect_prefix(prefix: &str) -> bool {
-    prefix == "/opt/homebrew" || prefix.starts_with("/opt/homebrew/")
 }
 
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -385,28 +395,41 @@ mod tests {
     }
 
     #[test]
-    fn macos_rules_keep_current_behavior_after_extraction() {
-        // Pins that the seam extraction changed nothing on macOS. Ordering is
-        // asserted with canonicalization stubbed out: brew prefix, then
-        // pkg-config prefix, then which; the hardcoded tail dedupes away.
-        let candidates = ordered_macos_auto_candidate_paths_with(
-            Some("/opt/homebrew/opt/ffmpeg"),
-            Some("/opt/homebrew"),
-            Some("/tmp/abb-which-ffmpeg"),
+    fn macos_candidates_cover_standard_locations_and_all_absolute_path_entries() {
+        let candidates = macos_auto_candidate_paths(
+            Some(std::ffi::OsStr::new(
+                "/custom/first:/custom/second:relative:/custom/first",
+            )),
+            &[PathBuf::from("/opt/homebrew/opt/ffmpeg@8")],
             &no_canonicalize,
         );
+        for expected in [
+            "/opt/homebrew/opt/ffmpeg/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/opt/local/bin/ffmpeg",
+            "/opt/homebrew/bin/ffmpeg-alt",
+            "/custom/first/ffmpeg",
+            "/custom/second/ffmpeg",
+            "/custom/second/ffmpeg-alt",
+            "/opt/homebrew/opt/ffmpeg@8/bin/ffmpeg",
+        ] {
+            assert!(
+                candidates.contains(&PathBuf::from(expected)),
+                "missing {expected}"
+            );
+        }
+        assert!(candidates.iter().all(|path| path.is_absolute()));
         assert_eq!(
-            candidates,
-            vec![
-                PathBuf::from("/opt/homebrew/opt/ffmpeg/bin/ffmpeg"),
-                PathBuf::from("/opt/homebrew/bin/ffmpeg"),
-                PathBuf::from("/tmp/abb-which-ffmpeg"),
-            ]
+            candidates
+                .iter()
+                .filter(|path| *path == Path::new("/custom/first/ffmpeg"))
+                .count(),
+            1
         );
+    }
 
-        assert!(is_supported_macos_auto_detect_prefix("/opt/homebrew"));
-        assert!(!is_supported_macos_auto_detect_prefix("/usr/local"));
-
+    #[test]
+    fn macos_binary_validation_accepts_native_and_universal_binaries() {
         assert!(matches_supported_apple_silicon_arch("arm64"));
         assert!(matches_supported_apple_silicon_arch("arm64e"));
         assert!(!matches_supported_apple_silicon_arch("aarch64"));
@@ -424,6 +447,18 @@ mod tests {
         assert!(is_supported_macos_file_description(
             "a /bin/sh script, ASCII text executable"
         ));
+    }
+
+    #[test]
+    fn deduplication_retains_the_stable_alias_across_package_upgrades() {
+        let alias = PathBuf::from("/opt/homebrew/opt/ffmpeg/bin/ffmpeg");
+        let cellar = PathBuf::from("/opt/homebrew/Cellar/ffmpeg/9.0.1/bin/ffmpeg");
+        let canonicalize = |_: &Path| Some(cellar.clone());
+        let mut candidates = Vec::new();
+        let mut seen = HashSet::new();
+        push_candidate(&mut candidates, &mut seen, alias.clone(), &canonicalize);
+        push_candidate(&mut candidates, &mut seen, cellar.clone(), &canonicalize);
+        assert_eq!(candidates, vec![alias]);
     }
 
     #[test]

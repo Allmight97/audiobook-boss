@@ -35,6 +35,9 @@
   rule tables.
 - Keep nullish and payload normalization centralized in the private cluster.
 
+- `openFdkSetup` delegates the fixed bundled setup script through Audio; the
+  promise means Terminal was opened, not that FDK was installed.
+
 ## Boundary Changes
 - Adding, removing, or renaming a public export, `tauriClient` method, command name, event name, or generated overlap type.
 - Sending clear intent through sentinel frontend values instead of explicit patch ops.

@@ -4,6 +4,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-09-08
+
+### Fixed
+
+- Find existing FDK AAC installations across standard macOS locations and PATH,
+  retain stable Homebrew paths across upgrades, and time out unresponsive tools.
+- Keep FDK AAC available as a setup choice, with a Settings shortcut, explicit
+  Homebrew installation/update handoff, and Recheck that refreshes Auto immediately.
+- Make all Settings content reachable by scrolling and give the API-key field
+  the same stable styling as other text inputs.
+
 ## [1.8.0] - 2026-09-07
 
 ### Added

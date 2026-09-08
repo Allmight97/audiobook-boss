@@ -36,6 +36,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 function fakeSettings(initial: Partial<AppSettings> = {}): SettingsCapability {
 	let current = settingsFixture(initial);
 	return {
+		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => current),
 		updateAppSettings: vi.fn(async (patch) => {
 			current = settingsFixture({

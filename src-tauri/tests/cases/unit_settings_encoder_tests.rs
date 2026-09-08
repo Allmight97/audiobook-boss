@@ -93,6 +93,7 @@ fn test_detect_available_encoders_struct_defaults() {
 #[test]
 fn test_resolve_encoder_type_prefers_available() {
     let availability = EncoderAvailability {
+        fdk_setup_supported: true,
         fdk_available: true,
         fdk_source: EncoderCapabilitySource::Detected,
         aac_at_available: true,
@@ -111,6 +112,7 @@ fn test_resolve_encoder_type_prefers_available() {
     assert_eq!(resolved, EncoderType::FdkHeAac);
 
     let availability_no_fdk = EncoderAvailability {
+        fdk_setup_supported: true,
         fdk_available: false,
         fdk_source: EncoderCapabilitySource::None,
         aac_at_available: true,
@@ -129,6 +131,7 @@ fn test_resolve_encoder_type_prefers_available() {
     assert_eq!(resolved, EncoderType::AacAt);
 
     let availability_none = EncoderAvailability {
+        fdk_setup_supported: true,
         fdk_available: false,
         fdk_source: EncoderCapabilitySource::None,
         aac_at_available: false,
@@ -156,6 +159,7 @@ fn test_resolve_encoder_name_rejects_auto() {
 #[test]
 fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encoders() {
     let availability = EncoderAvailability {
+        fdk_setup_supported: true,
         fdk_available: false,
         fdk_source: EncoderCapabilitySource::None,
         aac_at_available: false,
@@ -200,6 +204,7 @@ fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encode
 #[test]
 fn test_validate_requested_encoder_available_allows_auto_resolution() {
     let availability = EncoderAvailability {
+        fdk_setup_supported: true,
         fdk_available: false,
         fdk_source: EncoderCapabilitySource::None,
         aac_at_available: false,

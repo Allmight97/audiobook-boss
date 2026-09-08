@@ -26,6 +26,9 @@
   Capabilities. Settings reset waits for the App Runtime handoff to reload
   these capabilities after a configured FFmpeg path is removed. Labels and
   auto-hints are frontend-owned.
+- Selecting unavailable FDK invokes the injected setup intent and preserves the
+  current encoder request. The FDK option remains actionable; capability loss
+  during hydration/reload still clamps an unavailable request to Auto.
 - Afterburner is encoding truth. The checkbox stays in the Settings dialog.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.

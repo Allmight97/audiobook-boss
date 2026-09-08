@@ -18,6 +18,7 @@ export function encoderAvailabilityFixture(
 	const aacAtAvailable = overrides.aacAtAvailable ?? true;
 	const nativeAacAvailable = overrides.nativeAacAvailable ?? true;
 	const base = {
+		fdkSetupSupported: true,
 		fdkAvailable,
 		aacAtAvailable,
 		nativeAacAvailable,
@@ -48,6 +49,7 @@ export function runtimeSettingsCapabilitiesFixture(
 	const base = {
 		encoder: {
 			availability: {
+				fdkSetupSupported: true,
 				fdkAvailable: true,
 				aacAtAvailable: true,
 				nativeAacAvailable: true,

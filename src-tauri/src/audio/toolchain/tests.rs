@@ -9,7 +9,7 @@ fn auto_detection_finds_fdk_toolchain() {
     let temp_dir = TempDir::new().expect("temp dir");
     let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), true);
 
-    let resolution = resolve_external_toolchain_with_candidates(None, vec![ffmpeg_path]);
+    let resolution = resolve_external_toolchain_with_candidates(None, || vec![ffmpeg_path]);
 
     let validated = resolution.validated.expect("validated toolchain");
     assert_eq!(validated.source, EncoderCapabilitySource::Detected);
@@ -29,10 +29,11 @@ fn user_configured_path_wins_over_auto_detection() {
     std::fs::create_dir_all(&user_dir).expect("user dir");
     std::fs::create_dir_all(&auto_dir).expect("auto dir");
     let user_ffmpeg = write_fake_ffmpeg(&user_dir, true);
-    let auto_ffmpeg = write_fake_ffmpeg(&auto_dir, true);
+    write_fake_ffmpeg(&auto_dir, true);
 
-    let resolution =
-        resolve_external_toolchain_with_candidates(Some(user_ffmpeg.clone()), vec![auto_ffmpeg]);
+    let resolution = resolve_external_toolchain_with_candidates(Some(user_ffmpeg.clone()), || {
+        panic!("valid user path must skip automatic discovery")
+    });
 
     let validated = resolution.validated.expect("validated toolchain");
     assert_eq!(validated.source, EncoderCapabilitySource::UserConfigured);
@@ -53,10 +54,9 @@ fn rejected_user_path_degrades_to_detection_with_explicit_status() {
     let auto_ffmpeg = write_fake_ffmpeg(temp_dir.path(), true);
     let missing_user_path = temp_dir.path().join("missing-ffmpeg");
 
-    let resolution = resolve_external_toolchain_with_candidates(
-        Some(missing_user_path),
-        vec![auto_ffmpeg.clone()],
-    );
+    let resolution = resolve_external_toolchain_with_candidates(Some(missing_user_path), || {
+        vec![auto_ffmpeg.clone()]
+    });
 
     // Degradation is explicit, never silent: the detected toolchain still
     // powers FDK, but the status names the rejected user path first.
@@ -82,8 +82,7 @@ fn rejected_user_path_without_detection_reports_both_failures() {
     let temp_dir = TempDir::new().expect("temp dir");
     let missing_user_path = temp_dir.path().join("missing-ffmpeg");
 
-    let resolution =
-        resolve_external_toolchain_with_candidates(Some(missing_user_path), Vec::new());
+    let resolution = resolve_external_toolchain_with_candidates(Some(missing_user_path), Vec::new);
 
     assert!(resolution.validated.is_none());
     assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);
@@ -111,7 +110,7 @@ fn no_fdk_found_returns_none_with_status_message() {
     let temp_dir = TempDir::new().expect("temp dir");
     let ffmpeg_path = write_fake_ffmpeg(temp_dir.path(), false);
 
-    let resolution = resolve_external_toolchain_with_candidates(None, vec![ffmpeg_path]);
+    let resolution = resolve_external_toolchain_with_candidates(None, || vec![ffmpeg_path]);
 
     assert!(resolution.validated.is_none());
     assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);
@@ -129,7 +128,7 @@ fn nonstarting_ffmpeg_candidate_is_not_fdk_available() {
     let temp_dir = TempDir::new().expect("temp dir");
     let ffmpeg_path = write_nonstarting_ffmpeg(temp_dir.path());
 
-    let resolution = resolve_external_toolchain_with_candidates(None, vec![ffmpeg_path]);
+    let resolution = resolve_external_toolchain_with_candidates(None, || vec![ffmpeg_path]);
 
     assert!(resolution.validated.is_none());
     assert_eq!(resolution.fdk_source, EncoderCapabilitySource::None);
@@ -273,4 +272,97 @@ fn write_fake_ffmpeg_script(root: &Path, encoder_line: &str, decoder_lines: &str
     permissions.set_mode(0o755);
     set_permissions(&script_path, permissions).expect("chmod fake ffmpeg");
     script_path
+}
+
+#[test]
+fn auto_detection_continues_past_an_ffmpeg_without_fdk() {
+    let temp = TempDir::new().expect("temporary toolchain directory");
+    let ordinary = write_fake_ffmpeg(&temp.path().join("ordinary"), false);
+    let fdk = write_fake_ffmpeg(&temp.path().join("fdk"), true);
+    let resolution =
+        resolve_external_toolchain_with_candidates(None, || vec![ordinary, fdk.clone()]);
+    assert_eq!(
+        resolution
+            .validated
+            .expect("second candidate exposes FDK")
+            .ffmpeg_path,
+        fdk
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn hung_probe_terminates_wrapper_and_children_holding_output_pipes() {
+    let started = std::time::Instant::now();
+    let result = probe_stdout_with_timeout(
+        "/bin/sh",
+        ["-c", "sleep 30 & wait"],
+        std::time::Duration::from_millis(50),
+    );
+    assert!(matches!(result, Err(ProbeFail::TimedOut)));
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn homebrew_handoff_installs_updates_and_refuses_a_conflicting_formula() {
+    let temp = TempDir::new().expect("temporary toolchain directory");
+    let brew = temp.path().join("fake brew");
+    let log = temp.path().join("actions");
+    write(
+        &brew,
+        r#"#!/bin/bash
+case "$1" in
+list) printf '%s\n' "$TEST_INSTALLED" ;;
+info) printf '%s\n' '{"formulae":[{"installed":[{"used_options":["--with-fdk-aac"]}]}]}' ;;
+*) printf '%s\n' "$*" >> "$TEST_LOG" ;;
+esac
+"#,
+    )
+    .expect("write fake Homebrew");
+    set_permissions(&brew, std::fs::Permissions::from_mode(0o755))
+        .expect("make fake Homebrew executable");
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/audio/toolchain/fdk-setup.command");
+    for (installed, expected, success) in [
+        (
+            "",
+            "install homebrew-ffmpeg/ffmpeg/ffmpeg --with-fdk-aac\n",
+            true,
+        ),
+        (
+            "homebrew-ffmpeg/ffmpeg/ffmpeg",
+            "update\nupgrade homebrew-ffmpeg/ffmpeg/ffmpeg\n",
+            true,
+        ),
+        ("ffmpeg", "", false),
+    ] {
+        write(&log, "").expect("reset action log");
+        let output = Command::new("/bin/bash")
+            .args([
+                "-c",
+                "set -o pipefail; source \"$1\"; install_fdk \"$2\"",
+                "test",
+            ])
+            .arg(&script)
+            .arg(&brew)
+            .env("TEST_INSTALLED", installed)
+            .env("TEST_LOG", &log)
+            .output()
+            .expect("execute isolated Homebrew handoff");
+        assert_eq!(
+            output.status.success(),
+            success,
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            std::fs::read_to_string(&log).expect("read action log"),
+            expected
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).contains("Homebrew finished"),
+            success
+        );
+    }
 }

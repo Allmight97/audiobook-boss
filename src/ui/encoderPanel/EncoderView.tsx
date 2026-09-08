@@ -1,4 +1,4 @@
-import { For } from 'solid-js';
+import { For, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
@@ -12,7 +12,9 @@ export function EncoderView(): JSX.Element {
 
 	function bind(field: EncodingField) {
 		return (event: Event) => {
-			runtime.encoding.select(field, (event.currentTarget as HTMLSelectElement).value);
+			const select = event.currentTarget as HTMLSelectElement;
+			runtime.encoding.select(field, select.value);
+			if (field === 'encoder') select.value = view().flavor;
 		};
 	}
 
@@ -57,6 +59,16 @@ export function EncoderView(): JSX.Element {
 							data-testid="encoder-availability-hint"
 						>
 							{view().availabilityHint}
+							<Show when={view().fdkSetupNeeded}>
+								{' '}
+								<button
+									type="button"
+									class="encoder-setup-link"
+									onClick={() => void runtime.settings.openDialog()}
+								>
+									Set up FDK…
+								</button>
+							</Show>
 						</p>
 					</div>
 				</div>

@@ -155,3 +155,5 @@ pub(crate) fn cleanup_abandoned_processing_workspaces(
 
 #[cfg(test)]
 mod contract_tests;
+
+pub(crate) use toolchain::open_fdk_setup;

@@ -40,6 +40,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::test_remote_source_indexer_connection,
             crate::commands::validate_encoder_settings,
             crate::commands::get_runtime_settings_capabilities,
+            crate::commands::open_fdk_setup,
             crate::commands::preview_output_path,
             crate::commands::preflight_processing_plan,
             crate::commands::get_max_concurrent_jobs,

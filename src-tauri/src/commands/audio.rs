@@ -123,11 +123,13 @@ pub fn validate_encoder_settings(settings: EncoderSettings) -> CommandResult<Str
 /// Returns backend-owned runtime settings capabilities for UI controls.
 #[tauri::command]
 #[specta::specta]
-pub fn get_runtime_settings_capabilities() -> CommandResult<RuntimeSettingsCapabilities> {
-    Ok(RuntimeSettingsCapabilities {
+pub async fn get_runtime_settings_capabilities() -> CommandResult<RuntimeSettingsCapabilities> {
+    Ok(tokio::task::spawn_blocking(|| RuntimeSettingsCapabilities {
         encoder: encoder_settings_capabilities(),
         max_concurrent_jobs: JobRegistry::max_concurrent_jobs_capabilities(),
     })
+    .await
+    .map_err(|error| AppError::General(error.to_string()))?)
 }
 
 /// Builds an output path preview using backend naming rules without collision suffixing.
@@ -247,4 +249,18 @@ mod tests {
             result => panic!("expected invalid-input error, got {result:?}"),
         }
     }
+}
+
+/// Delegate an explicitly requested installation/update to Homebrew in Terminal.
+#[tauri::command]
+#[specta::specta]
+pub async fn open_fdk_setup(app: tauri::AppHandle) -> CommandResult<()> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|error| AppError::General(error.to_string()))?;
+    tokio::task::spawn_blocking(move || crate::audio::open_fdk_setup(&resource_dir))
+        .await
+        .map_err(|error| AppError::General(error.to_string()))??;
+    Ok(())
 }

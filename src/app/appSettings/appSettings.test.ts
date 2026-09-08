@@ -35,6 +35,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 
 function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapability {
 	return {
+		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => settingsFixture()),
 		updateAppSettings: vi.fn(async (patch) =>
 			settingsFixture({
@@ -163,6 +164,7 @@ describe('app settings concurrency', () => {
 
 	it('opens and refreshes the acquisition preference through a detached UI handler', async () => {
 		const settings = fakeSettings({
+			openFdkSetup: vi.fn(async () => undefined),
 			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
 		});
 		runtime = createAppRuntime({ settings });
@@ -390,6 +392,7 @@ describe('app settings concurrency', () => {
 	it('does not publish a pending dialog read after disposal', async () => {
 		let finish!: (value: AppSettings) => void;
 		const settings = fakeSettings({
+			openFdkSetup: vi.fn(async () => undefined),
 			getAppSettings: vi.fn(
 				() =>
 					new Promise<AppSettings>((resolve) => {
@@ -413,6 +416,7 @@ describe('app settings concurrency', () => {
 
 	it('hydrates and persists defaultAcquisitionLane', async () => {
 		const settings = fakeSettings({
+			openFdkSetup: vi.fn(async () => undefined),
 			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
 		});
 		runtime = createAppRuntime({ settings });
@@ -427,6 +431,28 @@ describe('app settings concurrency', () => {
 		await runtime.settings.resetAllAppSettings();
 		expect(runtime.settings.dialog().settings?.defaultAcquisitionLane).toBe('audible');
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
+	});
+
+	it('refreshes Auto after accepting a custom FFmpeg path', async () => {
+		let fdkAvailable = false;
+		const settings = fakeSettings({
+			getRuntimeSettingsCapabilities: vi.fn(async () =>
+				runtimeSettingsCapabilitiesFixture({
+					encoder: { availability: encoderAvailabilityFixture({ fdkAvailable }) },
+				}),
+			),
+			updateAppSettings: vi.fn(async (patch) => {
+				fdkAvailable = Boolean(patch.toolchain?.externalFfmpegPath);
+				return settingsFixture({ toolchain: patch.toolchain ?? {} });
+			}),
+		});
+		runtime = createAppRuntime({ settings });
+		await runtime.settings.openDialog();
+		expect(runtime.encoding.view().fdkSetupNeeded).toBe(true);
+		runtime.settings.setFfmpegPathDraft('/custom/bin/ffmpeg');
+		await runtime.settings.saveToolchainPreference();
+		expect(runtime.encoding.view().fdkSetupNeeded).toBe(false);
+		expect(runtime.encoding.view().availabilityHint).toContain('Using external FDK AAC');
 	});
 
 	it('refreshes encoder availability when resetting removes the configured FFmpeg', async () => {
@@ -465,7 +491,7 @@ describe('app settings concurrency', () => {
 		finishRefresh();
 		await reset;
 		expect(encoding.view().flavorOptions.find(({ value }) => value === 'fdk_he_aac')).toMatchObject(
-			{ disabled: true },
+			{ disabled: false, label: 'FDK AAC (Set up…)' },
 		);
 		encoding.select('encoder', 'fdk_he_aac');
 		expect(encoding.request().encoderSettings.encoderType).toBe('auto');

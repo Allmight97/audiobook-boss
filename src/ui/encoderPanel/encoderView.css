@@ -87,3 +87,13 @@
 	font-size: 0.7rem;
 	line-height: 1.25;
 }
+
+.encoder-setup-link {
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	color: var(--text-primary);
+	font: inherit;
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
+}

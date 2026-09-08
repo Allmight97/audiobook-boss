@@ -39,6 +39,7 @@ export type EncodingOwner = {
 export type EncodingOwnerDeps = {
 	readonly input: Pick<InputOwner, 'view'>;
 	readonly loadCapabilities: () => Promise<EncoderSettingsCapabilities | null>;
+	readonly onFdkSetupRequested?: () => void;
 	readonly persistDefaults?: (defaults: EncoderDefaults) => void;
 };
 
@@ -120,6 +121,15 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			return bagEstimateKbps(bag);
 		},
 		select(field, value) {
+			if (
+				field === 'encoder' &&
+				value === 'fdk_he_aac' &&
+				bag.availability &&
+				!bag.availability.fdkAvailable
+			) {
+				deps.onFdkSetupRequested?.();
+				return;
+			}
 			if (!selectField(bag, field, value)) return;
 			const { flavorReset } = commitPolicy();
 			if (flavorReset) return;

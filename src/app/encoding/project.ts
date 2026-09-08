@@ -32,6 +32,7 @@ export type EncodingView = {
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
 	readonly availabilityHint: string;
+	readonly fdkSetupNeeded: boolean;
 	readonly profileDisplay: string;
 	readonly bitrateMode: BitrateModeSelection;
 	readonly bitrateModeOptions: ReadonlyArray<EncodingOption>;
@@ -207,8 +208,8 @@ function availabilityHint(bag: EncodingBag): string {
 	const effective = effectiveEncoder(bag);
 	if (selected === 'auto') {
 		if (effective === 'fdk_he_aac') return fdkAvailabilityHint(bag);
-		if (effective === 'aac_at') return 'Auto will use Apple AAC.';
-		return `Auto will use Native AAC (FFmpeg). ${NATIVE_AAC_WARNING}`;
+		if (effective === 'aac_at') return 'Auto will use Apple AAC. FDK AAC is not available.';
+		return `Auto will use Native AAC (FFmpeg). FDK AAC is not available. ${NATIVE_AAC_WARNING}`;
 	}
 	if (effective === 'native_aac') {
 		if (!bag.availability.nativeAacAvailable) {
@@ -242,6 +243,8 @@ function autoOptionLabel(bag: EncodingBag): string {
 
 function encoderLabel(bag: EncodingBag, value: string): string {
 	if (value === 'auto') return autoOptionLabel(bag);
+	if (value === 'fdk_he_aac' && bag.availability && !bag.availability.fdkAvailable)
+		return 'FDK AAC (Set up…)';
 	if (value === 'fdk_he_aac' || value === 'aac_at' || value === 'native_aac') {
 		return encoderFlavorLabel(value);
 	}
@@ -293,7 +296,10 @@ export function projectView(bag: EncodingBag): EncodingView {
 			: bag.capabilities.encoderTypes.map((flavor) => ({
 					value: flavor,
 					label: encoderLabel(bag, flavor),
-					disabled: flavor !== 'auto' && Boolean(disabled[flavor as keyof typeof disabled]),
+					disabled:
+						flavor !== 'auto' &&
+						flavor !== 'fdk_he_aac' &&
+						Boolean(disabled[flavor as keyof typeof disabled]),
 				}));
 	const bitrateModeOptions: EncodingOption[] = (
 		bag.capabilities
@@ -336,6 +342,7 @@ export function projectView(bag: EncodingBag): EncodingView {
 		flavorOptions,
 		flavorDisabled: bag.capabilities === null,
 		availabilityHint: availabilityHint(bag),
+		fdkSetupNeeded: bag.availability !== null && !bag.availability.fdkAvailable,
 		profileDisplay: ENCODER_PROFILES[effectiveEncoder(bag)] ?? 'AAC-LC',
 		bitrateMode: bag.bitrateMode,
 		bitrateModeOptions,

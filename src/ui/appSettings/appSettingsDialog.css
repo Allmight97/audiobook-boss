@@ -1,3 +1,13 @@
+#app-settings-modal .app-settings-body {
+	min-height: 0;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
+.app-settings-body > * {
+	flex-shrink: 0;
+}
+
 .settings-persistence-notice {
 	display: flex;
 	flex-wrap: wrap;
@@ -253,4 +263,34 @@
 	padding: 0;
 	border: 0;
 	min-width: 0;
+}
+
+.app-settings-fdk-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.app-settings-fdk-setup {
+	margin-top: 0.75rem;
+	font-size: var(--text-sm);
+}
+
+.app-settings-fdk-setup summary {
+	cursor: pointer;
+	color: var(--text-primary);
+}
+
+.app-settings-fdk-setup p {
+	margin: 0.5rem 0;
+}
+
+.app-settings-path-label {
+	margin-top: 0.75rem;
+}
+
+.app-settings-detected-path {
+	display: block;
+	margin-top: 0.25rem;
+	overflow-wrap: anywhere;
 }

@@ -88,7 +88,9 @@ describe('encoder panel native AAC warning', () => {
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toBe('Auto will use Apple AAC.');
+			expect(hint?.textContent).toBe(
+				'Auto will use Apple AAC. FDK AAC is not available. Set up FDK…',
+			);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.options[0]?.textContent).toBe('Auto (Apple AAC)');
 		});

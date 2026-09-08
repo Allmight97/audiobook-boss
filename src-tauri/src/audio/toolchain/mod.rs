@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 mod platform;
+pub(crate) use platform::open_fdk_setup;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -41,6 +42,7 @@ fn user_external_ffmpeg_path() -> Option<PathBuf> {
 #[serde(rename_all = "camelCase")]
 pub struct EncoderAvailability {
     pub fdk_available: bool,
+    pub fdk_setup_supported: bool,
     pub fdk_source: EncoderCapabilitySource,
     pub aac_at_available: bool,
     pub native_aac_available: bool,
@@ -101,6 +103,7 @@ pub(crate) fn detect_encoder_availability_with_resolution(
 
     let availability = EncoderAvailability {
         fdk_available,
+        fdk_setup_supported: cfg!(target_os = "macos"),
         fdk_source: resolution.fdk_source,
         aac_at_available: aac_at,
         native_aac_available: native_aac,
@@ -114,7 +117,7 @@ pub(crate) fn detect_encoder_availability_with_resolution(
 pub(crate) fn resolve_external_toolchain() -> ToolchainResolution {
     resolve_external_toolchain_with_candidates(
         user_external_ffmpeg_path(),
-        platform::auto_candidates(),
+        platform::auto_candidates,
     )
 }
 
@@ -123,10 +126,10 @@ pub(crate) fn resolve_external_toolchain() -> ToolchainResolution {
 /// status message names the rejected user path first (#331).
 fn resolve_external_toolchain_with_candidates(
     user_path: Option<PathBuf>,
-    auto_candidates: Vec<PathBuf>,
+    auto_candidates: impl FnOnce() -> Vec<PathBuf>,
 ) -> ToolchainResolution {
     let Some(user_path) = user_path else {
-        return resolve_detected_toolchain(&auto_candidates);
+        return resolve_detected_toolchain(&auto_candidates());
     };
     match validate_candidate(&user_path, EncoderCapabilitySource::UserConfigured) {
         Ok(validated) => {
@@ -139,7 +142,7 @@ fn resolve_external_toolchain_with_candidates(
             }
         }
         Err(user_error) => {
-            let mut resolution = resolve_detected_toolchain(&auto_candidates);
+            let mut resolution = resolve_detected_toolchain(&auto_candidates());
             resolution.status_message = format!(
                 "Configured FFmpeg was rejected: {user_error} Falling back to auto-detection: {}",
                 resolution.status_message
@@ -342,10 +345,10 @@ pub fn validate_external_input_decoders(
     Ok(())
 }
 
-/// Failure from a one-shot CLI probe: the process could not be spawned, or it
-/// exited unsuccessfully (carrying the most useful stderr line, if any).
+/// Failure from a bounded CLI probe, including the most useful stderr line on exit.
 enum ProbeFail {
     Spawn(std::io::Error),
+    TimedOut,
     Exit { detail: Option<String> },
 }
 
@@ -357,9 +360,51 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = Command::new(program)
+    probe_stdout_with_timeout(program, args, std::time::Duration::from_secs(3))
+}
+
+fn probe_stdout_with_timeout<I, S>(
+    program: impl AsRef<OsStr>,
+    args: I,
+    timeout: std::time::Duration,
+) -> Result<String, ProbeFail>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    use std::process::Stdio;
+    let mut command = Command::new(program);
+    command
         .args(args)
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let child = command.spawn().map_err(ProbeFail::Spawn)?;
+    let pid = child.id();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    // wait_with_output drains both pipes while the owning thread enforces the deadline.
+    let worker = std::thread::spawn(move || {
+        let _ = sender.send(child.wait_with_output());
+    });
+    let received = receiver.recv_timeout(timeout);
+    if received.is_err() {
+        #[cfg(unix)]
+        let _ = Command::new("/bin/kill")
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        #[cfg(not(unix))]
+        let _ = pid;
+    }
+    let _ = worker.join();
+    let output = received
+        .map_err(|_| ProbeFail::TimedOut)?
         .map_err(ProbeFail::Spawn)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -371,6 +416,7 @@ where
 }
 
 /// First command whose probe yields a successful, non-empty trimmed stdout.
+#[cfg(target_os = "linux")]
 fn first_successful_stdout(commands: &[&str], args: &[&str]) -> Option<String> {
     commands.iter().find_map(|command| {
         let value = probe_stdout(command, args.iter().copied()).ok()?;
@@ -401,6 +447,9 @@ fn ffmpeg_probe_message(
 ) -> String {
     let path = sanitize_path_for_display(candidate);
     match fail {
+        ProbeFail::TimedOut => {
+            format!("FFmpeg executable '{path}' did not respond within 3 seconds.")
+        }
         ProbeFail::Spawn(error) => format!("{spawn_action} '{path}': {error}"),
         ProbeFail::Exit { detail } => {
             let base = format!("FFmpeg executable '{path}' {exit_reason}");

@@ -3,10 +3,14 @@ import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import {
+	encoderAvailabilityFixture,
+	runtimeSettingsCapabilitiesFixture,
+} from '../../test/fixtures/runtimeSettingsCapabilities';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { tauriClient } from '../../lib/tauri/client';
+import { EncoderView } from '../encoderPanel';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -37,6 +41,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 
 function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapability {
 	return {
+		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => settingsFixture()),
 		updateAppSettings: vi.fn(async (patch) =>
 			settingsFixture({
@@ -76,6 +81,57 @@ describe('AppSettingsDialogView', () => {
 		));
 		return runtime;
 	}
+
+	it('routes missing FDK to setup and rechecks an installation without saving a path', async () => {
+		let fdkAvailable = false;
+		const app = await renderOpenDialog({
+			getRuntimeSettingsCapabilities: vi.fn(async () =>
+				runtimeSettingsCapabilitiesFixture({
+					encoder: { availability: encoderAvailabilityFixture({ fdkAvailable }) },
+				}),
+			),
+		});
+		app.settings.closeDialog();
+		render(() => (
+			<AppRuntimeProvider runtime={app}>
+				<EncoderView />
+			</AppRuntimeProvider>
+		));
+		const encoder = screen.getByTestId('encoder-select');
+		expect(screen.getByTestId('encoder-availability-hint')).toHaveTextContent(
+			'Auto will use Apple AAC. FDK AAC is not available.',
+		);
+		await fireEvent.change(encoder, { target: { value: 'fdk_he_aac' } });
+		await vi.waitFor(() => expect(app.settings.dialog().checkingFdk).toBe(false));
+		expect(app.settings.dialog().isOpen).toBe(true);
+		expect(encoder).toHaveValue('auto');
+		expect(settings.openFdkSetup).not.toHaveBeenCalled();
+		await fireEvent.click(await screen.findByText('Install or update with Homebrew…'));
+		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
+		await vi.waitFor(() => expect(settings.openFdkSetup).toHaveBeenCalledTimes(1));
+		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(false);
+		fdkAvailable = true;
+		await fireEvent.click(screen.getByRole('button', { name: 'Recheck FDK' }));
+		await vi.waitFor(() =>
+			expect(app.encoding.view().availabilityHint).toContain('Using external FDK AAC'),
+		);
+		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(true);
+		expect(settings.updateAppSettings).not.toHaveBeenCalled();
+	});
+
+	it('shows setup-launch and recheck failures without claiming FDK is ready', async () => {
+		const app = await renderOpenDialog({
+			openFdkSetup: vi.fn().mockRejectedValue(new Error('Terminal unavailable')),
+		});
+		await fireEvent.click(await screen.findByText('Install or update with Homebrew…'));
+		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
+		await vi.waitFor(() => expect(screen.getByText('Terminal unavailable')).toBeInTheDocument());
+		vi.mocked(settings.getRuntimeSettingsCapabilities).mockRejectedValue(new Error('Probe failed'));
+		await fireEvent.click(screen.getByRole('button', { name: 'Recheck FDK' }));
+		await vi.waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Probe failed'));
+		expect(app.settings.dialog().encoderAvailability).toBeNull();
+		expect(app.settings.dialog().checkingFdk).toBe(false);
+	});
 
 	it('requires a second activation before resetting all settings', async () => {
 		await renderOpenDialog();

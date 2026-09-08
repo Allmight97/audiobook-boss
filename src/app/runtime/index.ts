@@ -23,7 +23,12 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				capability: capabilities.input,
 				beforeSelectionChange: (signal) => selectionGate.check?.(signal) ?? true,
 			});
-			const settings = createSettingsOwner({ capability: capabilities.settings });
+			const settings = createSettingsOwner({
+				capability: capabilities.settings,
+				onToolchainChanged: async (): Promise<void> => {
+					await encoding.reloadCapabilities();
+				},
+			});
 			const processingHolder: { current?: ReturnType<typeof createProcessingOwner> } = {};
 			const metadata = createMetadataOwner({
 				input,
@@ -36,6 +41,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				loadCapabilities: async () =>
 					(await settings.capability().getRuntimeSettingsCapabilities()).encoder ?? null,
 				persistDefaults: settings.rememberEncoderDefaults,
+				onFdkSetupRequested: () => {
+					void settings.openDialog();
+				},
 			});
 			const output = createOutputOwner({
 				input,
