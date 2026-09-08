@@ -504,6 +504,8 @@ function ReleaseRow(props: {
 	const seedersLabel = () =>
 		props.release.seeders == null ? null : `${props.release.seeders} seeders`;
 	const indexerLabel = () => props.release.indexer.trim();
+	const releaseLabel = () =>
+		`${props.release.title} from ${indexerLabel() || `Indexer ${props.release.indexerId}`}`;
 	const grabLabel = () => {
 		const status = props.grabState?.status;
 		return status
@@ -533,7 +535,7 @@ function ReleaseRow(props: {
 				type="button"
 				class="remote-release-button"
 				aria-pressed={props.selected ? 'true' : 'false'}
-				aria-label={`Select ${props.release.title}`}
+				aria-label={`Select ${releaseLabel()}`}
 				aria-describedby="remote-release-selection"
 				onClick={(event) => props.onSelect(event)}
 			>
@@ -563,7 +565,7 @@ function ReleaseRow(props: {
 					<Button
 						class={`remote-release-grab${props.grabState?.status === 'sent' ? ' is-sent' : ''}`}
 						disabled={props.busy || props.grabState?.status === 'sent'}
-						aria-label={`${grabLabel()} ${props.release.title}`}
+						aria-label={`${grabLabel()} ${releaseLabel()}`}
 						title={props.grabState?.message ?? `Send ${props.release.title} to downloader`}
 						onClick={() => props.onGrab()}
 					>
@@ -576,7 +578,7 @@ function ReleaseRow(props: {
 									href={url()}
 									target="_blank"
 									rel="noreferrer"
-									aria-label={`View details for ${props.release.title}`}
+									aria-label={`View details for ${releaseLabel()}`}
 									onClick={(event) => void openDetails(event, url())}
 								>
 									View details <span aria-hidden="true">↗</span>

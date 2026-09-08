@@ -58,7 +58,8 @@ export function createIndexerConnectionSettings(deps: {
 	readonly view: Accessor<IndexerConnectionSettingsView>;
 	load(): Promise<void>;
 	patch(patch: Partial<IndexerConnectionSettingsView>): void;
-	save(): Promise<boolean>;
+	isSaving(): boolean;
+	save(blockedReason?: string): Promise<boolean>;
 	testConnection(): Promise<void>;
 	reset(): void;
 } {
@@ -74,6 +75,7 @@ export function createIndexerConnectionSettings(deps: {
 	}
 	let draftRevision = 0;
 	let lifetimeRevision = 0;
+	let saving = false;
 
 	function update(mutator: (draft: IndexerConnectionSettingsView) => void): void {
 		const next = { ...snapshot };
@@ -125,7 +127,17 @@ export function createIndexerConnectionSettings(deps: {
 				draft.testMessage = '';
 			});
 		},
-		async save() {
+		isSaving: () => saving,
+		async save(blockedReason) {
+			if (saving) return false;
+			if (blockedReason) {
+				update((draft) => {
+					draft.saveState = 'error';
+					draft.saveError = blockedReason;
+				});
+				return false;
+			}
+			saving = true;
 			const lifetime = lifetimeRevision;
 			const revision = ++draftRevision;
 			const connectionUpdate = draftUpdate();
@@ -158,6 +170,8 @@ export function createIndexerConnectionSettings(deps: {
 					});
 				});
 				return false;
+			} finally {
+				saving = false;
 			}
 		},
 		async testConnection() {

@@ -60,8 +60,12 @@
 - Indexer selection and outcomes survive filtering, sorting, and same-lane
   close/reopen. A fresh search or lane switch clears them. An in-flight Grab
   batch captures its releases and owns the busy state until settled; reopening
-  cannot hydrate over that state or replace its lane. Reset invalidates late
+  cannot hydrate over that state or replace its lane. Pending searches and
+  account loads allow an explicit cross-lane reopen; their late results expire. Reset invalidates late
   responses and stops sending remaining items.
+- Connection Save and Grab batches are mutually exclusive, including when
+  settings drafts change during a pending save. A save expires previous Indexer
+  results and searches; submissions must come from a fresh search.
 - Grab queues externally and never calls the Input handoff. Sent means the
   configured provider confirmed submission; it is not download-completion truth.
 - Frontend state may hold provider-neutral account, title, job, and

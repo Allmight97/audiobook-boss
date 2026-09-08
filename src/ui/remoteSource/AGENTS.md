@@ -21,6 +21,8 @@ that row independently of selection. Command/Ctrl-click toggles individual
 selections; plain click replaces selection. The toolbar says Grab All for
 multiple selections and includes selections hidden by filtering; show the
 hidden count. Opening details preserves selection and the current search.
+Selection, Grab, and details accessible names include the source indexer to
+distinguish mirrored releases with the same title.
 Acquisition progress renders only in the Audible lane.
 
 Remote source IPC routes through `src/lib/tauri/client.ts`. Materialized audio

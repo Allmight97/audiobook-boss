@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { tauriClient } from '../../lib/tauri/client';
 import type { FileListInfo } from '../../types/audio';
 import type {
 	AcquisitionJob,
@@ -15,6 +16,8 @@ import {
 	STAGED_FILES_REMOVED_SUFFIX,
 	type RemoteSourceWorkflowServices,
 } from './workflow';
+
+afterEach(() => vi.restoreAllMocks());
 
 const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
 
@@ -758,6 +761,97 @@ describe('remote source acquisition workflow', () => {
 		expect(owner.view().statusMessage).toBe('1 release found.');
 		await owner.selectLane('audible');
 		expect(owner.view().statusMessage).toBe('Failed to acquire selected Audible titles.');
+	});
+
+	it.each(['search', 'hydrate'] as const)(
+		'honors an Audible reopen during pending Indexer %s',
+		async (operation) => {
+			const pendingSearch =
+				createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['searchReleases']>>>();
+			const pendingAccount =
+				createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['getAccountState']>>>();
+			const services = makeServices({ searchReleases: vi.fn(() => pendingSearch.promise) });
+			if (operation === 'hydrate')
+				vi.mocked(services.getAccountState).mockReturnValueOnce(pendingAccount.promise);
+			const owner = makeOwner(services);
+			let pending = owner.open({ lane: 'indexer' });
+			if (operation === 'search') {
+				await pending;
+				owner.editSearch({ indexerTitleQuery: 'Example' });
+				pending = owner.runAction({ type: 'searchReleases' });
+			} else await vi.waitFor(() => expect(services.getAccountState).toHaveBeenCalled());
+			owner.close();
+			await owner.open({ lane: 'audible' });
+			expect(owner.view().providerId).toBe('audible');
+			expect(owner.view().titles).toEqual(library().titles);
+			pendingSearch.resolve({
+				providerId: 'indexer',
+				releases: [indexerRelease()],
+				diagnostics: [],
+			});
+			pendingAccount.resolve({ providerId: 'indexer', status: 'connected' });
+			await pending;
+			expect(owner.view().accountState?.providerId).toBe('audible');
+			expect(owner.view().releases).toEqual([]);
+			expect(owner.view().statusMessage).toContain('Audible titles loaded.');
+		},
+	);
+
+	it('serializes connection saves with Grab and discards results from the previous connection', async () => {
+		const pendingGrab =
+			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
+		const pendingSave =
+			createDeferred<Awaited<ReturnType<typeof tauriClient.updateRemoteSourceIndexerConnection>>>();
+		const save = vi
+			.spyOn(tauriClient, 'updateRemoteSourceIndexerConnection')
+			.mockReturnValue(pendingSave.promise);
+		const releases = [1, 2].map((indexerId) => indexerRelease({ indexerId }));
+		const services = makeServices({
+			grabRelease: vi.fn(() => pendingGrab.promise),
+			searchReleases: vi.fn(async () => ({
+				providerId: 'indexer' as const,
+				releases,
+				diagnostics: [],
+			})),
+		});
+		const owner = makeOwner(services);
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		await owner.runAction({ type: 'searchReleases' });
+		for (const release of releases) owner.selectRelease(release, { multi: true });
+		const batch = owner.runAction({ type: 'grabSelectedReleases' });
+		owner.close();
+		await owner.saveIndexerConnectionSettings();
+		expect(save).not.toHaveBeenCalled();
+		expect(owner.indexerConnection().saveError).toContain('Grab');
+		pendingGrab.resolve({
+			providerId: 'indexer',
+			accepted: true,
+			message: 'Sent',
+			diagnostics: [],
+		});
+		await batch;
+		expect(services.grabRelease).toHaveBeenCalledTimes(2);
+		const staleSearch =
+			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['searchReleases']>>>();
+		vi.mocked(services.searchReleases).mockReturnValueOnce(staleSearch.promise);
+		const searching = owner.runAction({ type: 'searchReleases' });
+		const saving = owner.saveIndexerConnectionSettings();
+		owner.patchIndexerConnectionSettings({ apiKeyDraft: 'newer draft' });
+		await owner.runAction({ type: 'searchReleases' });
+		await owner.runAction({ type: 'grabRelease', release: releases[0] });
+		expect(services.searchReleases).toHaveBeenCalledTimes(2);
+		expect(services.grabRelease).toHaveBeenCalledTimes(2);
+		pendingSave.resolve({
+			baseUrl: 'http://new.test',
+			apiKeyConfigured: true,
+			categoryIds: [3030],
+		});
+		await saving;
+		staleSearch.resolve({ providerId: 'indexer', releases, diagnostics: [] });
+		await searching;
+		expect(owner.view().releases).toEqual([]);
+		expect(owner.view().selectedReleaseKeys.size).toBe(0);
 	});
 
 	it('loads the connected Audible library when entered from the Source selector', async () => {

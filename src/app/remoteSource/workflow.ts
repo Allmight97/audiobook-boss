@@ -71,6 +71,7 @@ export type RemoteSourceWorkflowAction =
 export type RemoteSourceWorkflow = {
 	run(action: RemoteSourceWorkflowAction): Promise<void>;
 	invalidate(): void;
+	clearIndexerResults(): void;
 };
 
 export const ORDER_LOCKED_IMPORT_MESSAGE =
@@ -89,6 +90,7 @@ export function createRemoteSourceWorkflow(deps: {
 	let workflowGeneration = 0;
 	let acquisitionGeneration = 0;
 	let entryGeneration = 0;
+	let indexerConnectionGeneration = 0;
 
 	function invalidate(): void {
 		workflowGeneration += 1;
@@ -318,8 +320,8 @@ export function createRemoteSourceWorkflow(deps: {
 
 	async function enterLane(lane: AcquisitionLane, scope: WorkflowScope): Promise<void> {
 		const current = deps.state.current();
-		if (current.providerId === 'indexer' && current.isBusy) return;
 		const providerId = providerIdFromLane(lane);
+		if (current.providerId === providerId && current.isBusy) return;
 		if (providerId !== current.providerId) {
 			deps.state.patch({
 				providerId,
@@ -571,13 +573,37 @@ export function createRemoteSourceWorkflow(deps: {
 		async run(action) {
 			if (deps.state.current().isGrabbing) return;
 			const generation = workflowGeneration;
+			const entry = entryGeneration;
+			const connection = indexerConnectionGeneration;
+			const providerId = deps.state.current().providerId;
+			const survivesEntry =
+				action.type === 'enterLane' ||
+				action.type === 'acquireSelected' ||
+				action.type === 'cancelActiveAcquisition';
 			const scope: WorkflowScope = {
-				providerId: deps.state.current().providerId,
-				isCurrent: () => workflowGeneration === generation,
+				providerId,
+				isCurrent: () =>
+					workflowGeneration === generation &&
+					(survivesEntry ||
+						(entryGeneration === entry &&
+							(providerId !== 'indexer' || indexerConnectionGeneration === connection))),
 			};
 			await runAction(action, scope);
 		},
 		invalidate,
+		clearIndexerResults() {
+			indexerConnectionGeneration += 1;
+			deps.state.patch(
+				{
+					releases: [],
+					selectedReleaseKeys: new Set(),
+					releaseGrabs: {},
+					isBusy: false,
+					statusMessage: 'Search again before grabbing releases with the saved Indexer connection.',
+				},
+				'indexer',
+			);
+		},
 	};
 }
 

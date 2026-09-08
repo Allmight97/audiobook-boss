@@ -181,6 +181,21 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			state.patch({ selectedReleaseKeys: selected });
 		},
 		async runAction(action) {
+			if (
+				indexerConnection.isSaving() &&
+				(action.type === 'searchReleases' ||
+					action.type === 'grabRelease' ||
+					action.type === 'grabSelectedReleases')
+			) {
+				state.patch(
+					{
+						statusMessage:
+							'Wait for the Indexer connection save to finish before searching or grabbing.',
+					},
+					'indexer',
+				);
+				return;
+			}
 			try {
 				await workflow.run(action);
 			} catch (error) {
@@ -221,7 +236,20 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			indexerConnection.patch(patch);
 		},
 		async saveIndexerConnectionSettings() {
+			if (indexerConnection.isSaving()) return;
+			if (state.current().isGrabbing) {
+				await indexerConnection.save(
+					'Wait for the current Grab batch to finish before saving the Indexer connection.',
+				);
+				return;
+			}
+			workflow.clearIndexerResults();
 			const saved = await indexerConnection.save();
+			if (saved)
+				state.patch(
+					{ statusMessage: 'Indexer connection saved. Search again before grabbing.' },
+					'indexer',
+				);
 			if (saved && state.current().isOpen && state.current().providerId === 'indexer') {
 				await workflow.run({ type: 'refreshAccount' });
 			}
