@@ -4,6 +4,34 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-07
+
+### Added
+
+- Grab Indexer releases directly from each result, or Cmd/Ctrl-click multiple
+  releases and use Grab All. Each result shows its handoff status and offers
+  an explicit retry when submission could not be confirmed.
+
+### Fixed
+
+- Load the Audible library consistently when entering from the Source selector.
+  Keep Audible progress, status, and busy controls with its running acquisition
+  while Indexer searches and submissions proceed independently.
+- Preserve release selections through filtering and retain confirmed Grab
+  outcomes when closing and reopening the same source.
+- Keep Grab batches on one Indexer connection and distinguish mirrored releases
+  from different indexers for screen readers.
+- Keep file selection and metadata Lookup changes bound to the accepted input,
+  preventing delayed work from changing a newer selection.
+- Keep Work Center current when delayed snapshots or responses arrive.
+- Retain accepted settings when saving fails, show the failure, and let Retry
+  save the newest choices without disrupting active jobs.
+
+### Changed
+
+- Add correlated native logs for Indexer handoff requests, HTTP responses, and
+  outcomes to make downloader-submission troubleshooting easier.
+
 ## [1.7.3] - 2026-09-07
 
 ### Fixed
