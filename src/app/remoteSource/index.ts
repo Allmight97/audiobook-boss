@@ -11,6 +11,7 @@ export {
 	titleAvailability,
 } from './display';
 export {
+	releaseKey,
 	selectedRemoteTitleSummaryText,
 	visibleRemoteReleases,
 	visibleRemoteTitles,

@@ -1,7 +1,9 @@
+import type { ProviderId } from '../../types/remoteSource';
 import { logAppError, toUserMessage } from '../../lib/tauri/appError';
 import {
 	createInitialRemoteSourceState,
 	snapshotRemoteSourceState,
+	type RemoteSourcePatch,
 	type RemoteSourceState,
 	type RemoteSourceView,
 } from './types';
@@ -9,18 +11,27 @@ import {
 export type RemoteSourceStateStore = {
 	readonly current: () => RemoteSourceState;
 	readonly snapshot: () => RemoteSourceView;
-	patch(patch: Partial<RemoteSourceState>): void;
-	setAcquisitionError(cause: unknown, fallback: string): void;
+	patch(patch: RemoteSourcePatch, providerId?: ProviderId): void;
+	setAcquisitionError(cause: unknown, fallback: string, providerId: ProviderId): void;
 	reset(): void;
 };
 
 export function createRemoteSourceStateStore(onChange: () => void): RemoteSourceStateStore {
 	let state = createInitialRemoteSourceState();
 
-	function patch(patchValue: Partial<RemoteSourceState>): void {
+	function patch(patchValue: RemoteSourcePatch, providerId = state.providerId): void {
+		const { statusMessage, isBusy, ...rest } = patchValue;
 		state = {
 			...state,
-			...patchValue,
+			...rest,
+			...(isBusy !== undefined && providerId === state.providerId ? { isBusy } : {}),
+			statusByProvider:
+				statusMessage === undefined
+					? state.statusByProvider
+					: {
+							...state.statusByProvider,
+							[providerId]: statusMessage,
+						},
 			selectedTitleIds: patchValue.selectedTitleIds
 				? new Set(patchValue.selectedTitleIds)
 				: state.selectedTitleIds,
@@ -32,11 +43,14 @@ export function createRemoteSourceStateStore(onChange: () => void): RemoteSource
 		current: () => state,
 		snapshot: () => snapshotRemoteSourceState(state),
 		patch,
-		setAcquisitionError(cause, fallback) {
+		setAcquisitionError(cause, fallback, providerId) {
 			logAppError(fallback, cause);
-			patch({
-				statusMessage: toUserMessage(cause, { fallback, suppressUnknown: true }),
-			});
+			patch(
+				{
+					statusMessage: toUserMessage(cause, { fallback, suppressUnknown: true }),
+				},
+				providerId,
+			);
 		},
 		reset() {
 			state = createInitialRemoteSourceState();

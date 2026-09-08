@@ -60,7 +60,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, and disposal. |
 | Frontend owners | `src/app/<owner>` | Runtime-scoped draft/session state and semantic intents. Each `index.ts` is its live export truth. |
 | Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
-| UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, theme, and density. |
+| UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
 | Command ingress | `src-tauri/src/commands` | Thin validation/adaptation into Rust owners. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
 | Processing | `src-tauri/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |

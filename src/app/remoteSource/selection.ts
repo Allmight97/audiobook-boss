@@ -110,3 +110,7 @@ export function selectedRemoteTitleSummaryText(
 	const hiddenLabel = hiddenCount === 1 ? 'title' : 'titles';
 	return `${count} ${titleLabel} selected (${hiddenCount} ${hiddenLabel} hidden by filter)`;
 }
+
+export function releaseKey(release: Pick<RemoteRelease, 'guid' | 'indexerId'>): string {
+	return JSON.stringify([release.indexerId, release.guid]);
+}

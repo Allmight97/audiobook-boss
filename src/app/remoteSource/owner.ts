@@ -3,7 +3,11 @@ import type { AcquisitionLane } from '../../types/appSettings';
 import type { AudioFile, SupplementalProcessingAsset } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteRelease } from '../../types/remoteSource';
-import { toggledRemoteTitleSelection, toggledSupplementalPdfPreference } from './selection';
+import {
+	releaseKey,
+	toggledRemoteTitleSelection,
+	toggledSupplementalPdfPreference,
+} from './selection';
 import type { InputOwner } from '../inputSession';
 import {
 	createRemoteSourceCoverPreviews,
@@ -19,12 +23,7 @@ import {
 } from './services';
 import { createRemoteSourceSessionAssets, type CompanionAssetSummary } from './sessionAssets';
 import { createRemoteSourceStateStore } from './state';
-import {
-	createInitialRemoteSourceState,
-	laneSelectionResetPatch,
-	providerIdFromLane,
-	type RemoteSourceView,
-} from './types';
+import type { RemoteSourceView } from './types';
 import {
 	createRemoteSourceWorkflow,
 	type RemoteSourceWorkflowAction,
@@ -57,12 +56,12 @@ export type RemoteSourceOwner = {
 	toggleTitle(titleId: string): void;
 	clearTitleSelection(): void;
 	toggleSupplementalPdf(titleId: string): void;
-	selectRelease(release: Pick<RemoteRelease, 'guid' | 'indexerId'>): void;
+	selectRelease(
+		release: Pick<RemoteRelease, 'guid' | 'indexerId'>,
+		options?: { multi: boolean },
+	): void;
 	runAction(
-		action: Exclude<
-			RemoteSourceWorkflowAction,
-			{ type: 'hydrateOpenDialog' | 'refreshAccount' | 'selectLane' }
-		>,
+		action: Exclude<RemoteSourceWorkflowAction, { type: 'enterLane' | 'refreshAccount' }>,
 	): Promise<void>;
 	coverPreview(coverUrl: string | null | undefined): RemoteSourceCoverPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
@@ -96,7 +95,7 @@ export type RemoteSourceOwnerDeps = {
 };
 
 export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
-	let snapshot = createInitialRemoteSourceState();
+	let snapshot: RemoteSourceView;
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
 	const [assetRev, bumpAssets] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
@@ -136,18 +135,11 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		},
 		indexerConnection: indexerConnection.view,
 		async open(options) {
-			const lane = options?.lane ?? 'audible';
-			state.patch({
-				isOpen: true,
-				providerId: providerIdFromLane(lane),
-				...(state.current().providerId !== providerIdFromLane(lane)
-					? { ...laneSelectionResetPatch(), accountState: null }
-					: {}),
-			});
-			await workflow.run({ type: 'hydrateOpenDialog' });
+			state.patch({ isOpen: true });
+			await workflow.run({ type: 'enterLane', lane: options?.lane ?? 'audible' });
 		},
 		selectLane(lane) {
-			return workflow.run({ type: 'selectLane', lane });
+			return workflow.run({ type: 'enterLane', lane });
 		},
 		close() {
 			state.patch({ isOpen: false });
@@ -179,16 +171,31 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 				});
 			}
 		},
-		selectRelease(identity) {
-			const release = state
-				.current()
-				.releases.find(
-					(item) => item.guid === identity.guid && item.indexerId === identity.indexerId,
-				);
-			if (release)
-				state.patch({ selectedRelease: { guid: release.guid, indexerId: release.indexerId } });
+		selectRelease(identity, options) {
+			const current = state.current();
+			const key = releaseKey(identity);
+			if (!current.releases.some((release) => releaseKey(release) === key)) return;
+			const selected = options?.multi ? new Set(current.selectedReleaseKeys) : new Set<string>();
+			if (options?.multi && selected.has(key)) selected.delete(key);
+			else selected.add(key);
+			state.patch({ selectedReleaseKeys: selected });
 		},
 		async runAction(action) {
+			if (
+				indexerConnection.isSaving() &&
+				(action.type === 'searchReleases' ||
+					action.type === 'grabRelease' ||
+					action.type === 'grabSelectedReleases')
+			) {
+				state.patch(
+					{
+						statusMessage:
+							'Wait for the Indexer connection save to finish before searching or grabbing.',
+					},
+					'indexer',
+				);
+				return;
+			}
 			try {
 				await workflow.run(action);
 			} catch (error) {
@@ -229,7 +236,20 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 			indexerConnection.patch(patch);
 		},
 		async saveIndexerConnectionSettings() {
+			if (indexerConnection.isSaving()) return;
+			if (state.current().isGrabbing) {
+				await indexerConnection.save(
+					'Wait for the current Grab batch to finish before saving the Indexer connection.',
+				);
+				return;
+			}
+			workflow.clearIndexerResults();
 			const saved = await indexerConnection.save();
+			if (saved)
+				state.patch(
+					{ statusMessage: 'Indexer connection saved. Search again before grabbing.' },
+					'indexer',
+				);
 			if (saved && state.current().isOpen && state.current().providerId === 'indexer') {
 				await workflow.run({ type: 'refreshAccount' });
 			}

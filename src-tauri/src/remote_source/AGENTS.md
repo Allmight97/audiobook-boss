@@ -39,7 +39,9 @@ or infer provider-private Audible internals.
 - `providers/audible/library.rs` owns Audible library response shaping.
 - `providers/indexer/` owns Indexer connection persistence, release
   search/grab, and the first Prowlarr HTTP adapter. Indexer grabs do not create
-  acquisition jobs or materialize files into Input.
+  acquisition jobs or materialize files into Input. Grab logging correlates
+  start, HTTP response, and outcome with a request ID; keep credentials,
+  release GUIDs/URLs, and raw response bodies out of those entries.
 - Release detail URLs are optional source-provided HTTP(S) links without embedded
   credentials; never infer them from a release GUID.
 - Indexer connection URLs reject embedded credentials on load, save, and draft

@@ -153,7 +153,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 
-	it('renders polled acquisition progress published through the owner view', async () => {
+	it('renders polled Audible progress only in the Audible lane', async () => {
 		const terminalStatus = createDeferred<AcquisitionJob>();
 		vi.spyOn(tauriClient, 'startRemoteSourceAcquisition').mockResolvedValue(acquisitionJob(10));
 		vi.spyOn(tauriClient, 'getRemoteSourceAcquisitionStatus')
@@ -181,6 +181,22 @@ describe('RemoteSourceAcquireView close wiring', () => {
 
 		terminalStatus.resolve(acquisitionJob(100, true));
 		await vi.waitFor(() => expect(runtime!.remoteSource.view().isBusy).toBe(false));
+		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
+			'aria-valuenow',
+			'100',
+		);
+
+		const user = userEvent.setup();
+		await user.selectOptions(screen.getByLabelText('Source'), 'indexer');
+		await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Search' })).toBeEnabled());
+		expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+		expect(screen.queryByText('Acquisition complete.')).not.toBeInTheDocument();
+
+		await user.selectOptions(screen.getByLabelText('Source'), 'audible');
+		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
+			'aria-valuenow',
+			'100',
+		);
 	});
 
 	it('exposes Audible controls and filters connected library titles', async () => {
@@ -327,18 +343,90 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		await openConnected(runtime, 'indexer', releases);
-		await fireEvent.click(screen.getByRole('button', { name: /Release from 8/ }));
-		expect(screen.getByRole('button', { name: /Release from 7/ })).toHaveAttribute(
+		await fireEvent.click(screen.getByRole('button', { name: /^Select Release from 8/ }));
+		expect(screen.getByRole('button', { name: /^Select Release from 7/ })).toHaveAttribute(
 			'aria-pressed',
 			'false',
 		);
-		expect(screen.getByRole('button', { name: /Release from 8/ })).toHaveAttribute(
+		expect(screen.getByRole('button', { name: /^Select Release from 8/ })).toHaveAttribute(
 			'aria-pressed',
 			'true',
 		);
 		await fireEvent.click(screen.getByRole('button', { name: 'Grab' }));
 		await vi.waitFor(() => expect(grab).toHaveBeenCalledWith({ release: releases[1] }));
 	});
+	it.each(['metaKey', 'ctrlKey'] as const)(
+		'supports %s multi-selection and row Grab independently of the bulk selection',
+		async (modifier) => {
+			const releases: RemoteRelease[] = [7, 8].map((indexerId) => ({
+				providerId: 'indexer',
+				guid: 'same-guid',
+				indexerId,
+				title: 'Mirrored Book',
+				indexer: `Indexer ${indexerId}`,
+				sizeBytes: 1000,
+				protocol: 'torrent',
+				seeders: 10,
+				categories: [],
+				detailUrl: `https://example.test/book/${indexerId}`,
+			}));
+			const grab = vi.spyOn(tauriClient, 'grabRemoteSourceRelease').mockResolvedValue({
+				providerId: 'indexer',
+				accepted: true,
+				message: 'Sent',
+				diagnostics: [],
+			});
+			runtime = createAppRuntime();
+			render(() => (
+				<AppRuntimeProvider runtime={runtime!}>
+					<RemoteSourceAcquireView />
+				</AppRuntimeProvider>
+			));
+			await openConnected(runtime, 'indexer', releases);
+			const first = screen.getByRole('button', { name: 'Select Mirrored Book from Indexer 7' });
+			const second = screen.getByRole('button', { name: 'Select Mirrored Book from Indexer 8' });
+			await fireEvent.click(first);
+			await fireEvent.click(second, { [modifier]: true });
+			expect(first).toHaveAttribute('aria-pressed', 'true');
+			expect(second).toHaveAttribute('aria-pressed', 'true');
+			expect(screen.getByRole('button', { name: 'Grab All' })).toBeEnabled();
+			await fireEvent.click(second, { [modifier]: true });
+			expect(second).toHaveAttribute('aria-pressed', 'false');
+			expect(screen.getByRole('button', { name: 'Grab' })).toBeEnabled();
+			await fireEvent.click(second, { [modifier]: true });
+			await fireEvent.input(screen.getByLabelText('Filter'), { target: { value: 'Indexer 8' } });
+			expect(document.getElementById('remote-release-selection')).toHaveTextContent(
+				/2 selected.*1 hidden by filter/,
+			);
+			await fireEvent.click(
+				screen.getByRole('button', { name: 'Grab Mirrored Book from Indexer 8' }),
+			);
+			await vi.waitFor(() =>
+				expect(
+					screen.getByRole('button', { name: 'Sent Mirrored Book from Indexer 8' }),
+				).toHaveTextContent('✓ Sent'),
+			);
+			expect(grab).toHaveBeenCalledExactlyOnceWith({ release: releases[1] });
+			expect(
+				screen.getByRole('button', { name: 'Sent Mirrored Book from Indexer 8' }),
+			).toBeDisabled();
+			await fireEvent.click(screen.getByRole('button', { name: 'Grab All' }));
+			await vi.waitFor(() => expect(grab).toHaveBeenCalledTimes(2));
+			expect(grab).toHaveBeenLastCalledWith({ release: releases[0] });
+			await fireEvent.input(screen.getByLabelText('Filter'), { target: { value: '' } });
+			expect(screen.getByRole('button', { name: 'Sent Mirrored Book from Indexer 7' })).toHaveClass(
+				'is-sent',
+			);
+			expect(screen.getByRole('button', { name: 'Grab All' })).toBeDisabled();
+			await fireEvent.click(
+				screen.getByRole('button', { name: 'Select Mirrored Book from Indexer 7' }),
+			);
+			expect(
+				screen.getByRole('button', { name: 'Select Mirrored Book from Indexer 8' }),
+			).toHaveAttribute('aria-pressed', 'false');
+		},
+	);
+
 	it('sorts loaded releases, opens source details, and preserves manual follow-up after a failed grab', async () => {
 		const releases: RemoteRelease[] = [
 			{
@@ -379,7 +467,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 			</AppRuntimeProvider>
 		));
 		await openConnected(runtime, 'indexer', releases);
-		const rows = () => screen.getAllByRole('button', { name: /Holmes/ });
+		const rows = () => screen.getAllByRole('button', { name: /^Select Holmes/ });
 		expect(rows()[0]).toHaveTextContent('Holmes single');
 		await fireEvent.click(rows()[1]);
 		await fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'size' } });
@@ -387,16 +475,15 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(rows()[0]).toHaveAttribute('aria-pressed', 'true');
 		await fireEvent.input(screen.getByLabelText('Filter'), { target: { value: 'collection' } });
 		expect(rows()).toHaveLength(1);
-		const details = screen.getByRole('link', { name: 'View details for Holmes collection' });
+		const details = screen.getByRole('link', {
+			name: 'View details for Holmes collection from AudioBookBay (Jackett)',
+		});
 		await fireEvent.click(details);
 		expect(openUrl).toHaveBeenCalledExactlyOnceWith(releases[1].detailUrl);
-		expect(runtime.remoteSource.view().selectedRelease).toEqual({
-			guid: 'collection',
-			indexerId: 20,
-		});
+		expect(rows()[0]).toHaveAttribute('aria-pressed', 'true');
 		await fireEvent.click(screen.getByRole('button', { name: 'Grab' }));
 		await vi.waitFor(() =>
-			expect(screen.getByText('Indexer could not grab this release.')).toBeInTheDocument(),
+			expect(screen.getAllByText('Indexer could not grab this release.')).toHaveLength(2),
 		);
 		expect(grab).toHaveBeenCalledExactlyOnceWith({ release: releases[1] });
 		expect(details).toHaveAttribute('href', releases[1].detailUrl);

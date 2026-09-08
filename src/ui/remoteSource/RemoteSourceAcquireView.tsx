@@ -11,7 +11,9 @@ import {
 	isTitleAcquirable,
 	progressPercent,
 	progressTitleLabel,
+	releaseKey,
 	releaseProtocolLabel,
+	type RemoteSourceView,
 	selectedRemoteTitleSummaryText,
 	titleAvailability,
 	visibleRemoteReleases,
@@ -104,6 +106,17 @@ export function RemoteSourceAcquireView(): JSX.Element {
 			releaseFilter: view().releaseFilter,
 			releaseSort: view().releaseSort,
 		});
+
+	const selectedReleases = () =>
+		view().releases.filter((release) => view().selectedReleaseKeys.has(releaseKey(release)));
+	const canGrabSelection = () =>
+		selectedReleases().some(
+			(release) => view().releaseGrabs[releaseKey(release)]?.status !== 'sent',
+		);
+	const hiddenSelectionCount = () =>
+		selectedReleases().length -
+		visibleReleases().filter((release) => view().selectedReleaseKeys.has(releaseKey(release)))
+			.length;
 
 	function handleLaneChange(lane: AcquisitionLane): void {
 		void remoteSource.selectLane(lane);
@@ -310,14 +323,28 @@ export function RemoteSourceAcquireView(): JSX.Element {
 						</div>
 						<div class="remote-source-toolbar-field remote-source-toolbar-button">
 							<Button
-								disabled={view().isBusy || !view().selectedRelease}
-								onClick={() => void runAction({ type: 'grabSelectedRelease' })}
+								disabled={view().isBusy || !canGrabSelection()}
+								onClick={() => void runAction({ type: 'grabSelectedReleases' })}
 							>
-								Grab
+								{view().selectedReleaseKeys.size > 1 ? 'Grab All' : 'Grab'}
 							</Button>
 						</div>
 					</Show>
 				</div>
+
+				<Show when={isIndexerLane() && view().releases.length > 0}>
+					<p class="remote-release-selection" id="remote-release-selection" aria-live="polite">
+						{view().selectedReleaseKeys.size} selected
+						<Show when={hiddenSelectionCount() > 0}>
+							{' '}
+							({hiddenSelectionCount()} hidden by filter)
+						</Show>
+						<span>
+							{' '}
+							· ⌘-click on Mac or Ctrl-click on Windows/Linux to select multiple releases.
+						</span>
+					</p>
+				</Show>
 
 				<Show when={view().statusMessage}>
 					<Dialog.Status class="remote-source-status" live="polite">
@@ -358,7 +385,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 					</div>
 				</Show>
 
-				<Show when={view().activeJob}>
+				<Show when={isAudibleLane() && view().activeJob}>
 					{(job) => (
 						<Show when={job().progress}>
 							{(progress) => (
@@ -449,11 +476,13 @@ export function RemoteSourceAcquireView(): JSX.Element {
 							{(release) => (
 								<ReleaseRow
 									release={release}
-									selected={
-										view().selectedRelease?.guid === release.guid &&
-										view().selectedRelease?.indexerId === release.indexerId
+									selected={view().selectedReleaseKeys.has(releaseKey(release))}
+									grabState={view().releaseGrabs[releaseKey(release)]}
+									busy={view().isBusy}
+									onGrab={() => void runAction({ type: 'grabRelease', release })}
+									onSelect={(event) =>
+										remoteSource.selectRelease(release, { multi: event.metaKey || event.ctrlKey })
 									}
-									onSelect={() => remoteSource.selectRelease(release)}
 								/>
 							)}
 						</For>
@@ -467,11 +496,22 @@ export function RemoteSourceAcquireView(): JSX.Element {
 function ReleaseRow(props: {
 	readonly release: RemoteRelease;
 	readonly selected: boolean;
-	readonly onSelect: () => void;
+	readonly onSelect: (event: MouseEvent) => void;
+	readonly onGrab: () => void;
+	readonly busy: boolean;
+	readonly grabState: RemoteSourceView['releaseGrabs'][string] | undefined;
 }): JSX.Element {
 	const seedersLabel = () =>
 		props.release.seeders == null ? null : `${props.release.seeders} seeders`;
 	const indexerLabel = () => props.release.indexer.trim();
+	const releaseLabel = () =>
+		`${props.release.title} from ${indexerLabel() || `Indexer ${props.release.indexerId}`}`;
+	const grabLabel = () => {
+		const status = props.grabState?.status;
+		return status
+			? { queued: 'Queued', sending: 'Sending…', sent: 'Sent', error: 'Retry' }[status]
+			: 'Grab';
+	};
 	const [detailError, setDetailError] = createSignal('');
 
 	async function openDetails(event: MouseEvent, url: string): Promise<void> {
@@ -495,7 +535,9 @@ function ReleaseRow(props: {
 				type="button"
 				class="remote-release-button"
 				aria-pressed={props.selected ? 'true' : 'false'}
-				onClick={() => props.onSelect()}
+				aria-label={`Select ${releaseLabel()}`}
+				aria-describedby="remote-release-selection"
+				onClick={(event) => props.onSelect(event)}
 			>
 				<span class="remote-release-title">{props.release.title}</span>
 				<span class="remote-release-meta">
@@ -514,30 +556,48 @@ function ReleaseRow(props: {
 					</Show>
 					<span class="remote-release-facts">
 						{formatReleaseSizeBytes(props.release.sizeBytes)}
-						<Show when={seedersLabel()}>{(label) => ` · ${label()}`}</Show>
+						<Show when={seedersLabel()}>{(label) => <span> · {label()}</span>}</Show>
 					</span>
 				</span>
 			</button>
-			<Show when={props.release.detailUrl}>
-				{(url) => (
-					<div class="remote-release-details">
-						<a
-							href={url()}
-							target="_blank"
-							rel="noreferrer"
-							aria-label={`View details for ${props.release.title}`}
-							onClick={(event) => void openDetails(event, url())}
-						>
-							View details <span aria-hidden="true">↗</span>
-						</a>
-						<Show when={detailError()}>
-							<p class="remote-release-detail-error" role="status">
-								{detailError()}
-							</p>
-						</Show>
-					</div>
-				)}
-			</Show>
+			<div class="remote-release-actions">
+				<div class="remote-release-action-buttons">
+					<Button
+						class={`remote-release-grab${props.grabState?.status === 'sent' ? ' is-sent' : ''}`}
+						disabled={props.busy || props.grabState?.status === 'sent'}
+						aria-label={`${grabLabel()} ${releaseLabel()}`}
+						title={props.grabState?.message ?? `Send ${props.release.title} to downloader`}
+						onClick={() => props.onGrab()}
+					>
+						{`${props.grabState?.status === 'sent' ? '✓ ' : ''}${grabLabel()}`}
+					</Button>
+					<Show when={props.release.detailUrl}>
+						{(url) => (
+							<div class="remote-release-details">
+								<a
+									href={url()}
+									target="_blank"
+									rel="noreferrer"
+									aria-label={`View details for ${releaseLabel()}`}
+									onClick={(event) => void openDetails(event, url())}
+								>
+									View details <span aria-hidden="true">↗</span>
+								</a>
+								<Show when={detailError()}>
+									<p class="remote-release-detail-error" role="status">
+										{detailError()}
+									</p>
+								</Show>
+							</div>
+						)}
+					</Show>
+				</div>
+				<Show when={props.grabState?.status === 'error'}>
+					<p class="remote-release-grab-error" role="status">
+						{props.grabState?.message}
+					</p>
+				</Show>
+			</div>
 		</li>
 	);
 }

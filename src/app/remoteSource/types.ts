@@ -14,6 +14,11 @@ export type RemoteInputHandoffResult =
 	| { readonly status: 'blocked'; readonly message: string }
 	| { readonly status: 'failed'; readonly message: string };
 
+export type ReleaseGrabState = {
+	status: 'queued' | 'sending' | 'sent' | 'error';
+	message: string;
+};
+
 export type AcquisitionState = {
 	isBusy: boolean;
 	providerId: ProviderId;
@@ -31,17 +36,28 @@ export type AcquisitionState = {
 	releases: RemoteRelease[];
 	releaseFilter: string;
 	releaseSort: 'seeders' | 'size';
-	selectedRelease: Pick<RemoteRelease, 'guid' | 'indexerId'> | null;
+	selectedReleaseKeys: Set<string>;
+	releaseGrabs: Record<string, ReleaseGrabState>;
 	statusMessage: string;
 	activeJob: AcquisitionJobWithProgress | null;
 	lastJob: AcquisitionJobWithProgress | null;
 };
 
-export type RemoteSourceState = AcquisitionState & {
+export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
 	isOpen: boolean;
+	isGrabbing: boolean;
+	isAcquiring: boolean;
+	statusByProvider: Record<ProviderId, string>;
 };
 
-export type RemoteSourceView = RemoteSourceState;
+export type RemoteSourceView = Omit<
+	RemoteSourceState,
+	'isGrabbing' | 'isAcquiring' | 'statusByProvider'
+> & {
+	statusMessage: string;
+};
+
+export type RemoteSourcePatch = Partial<RemoteSourceState> & { statusMessage?: string };
 
 export function providerIdFromLane(lane: AcquisitionLane): ProviderId {
 	return lane;
@@ -65,7 +81,8 @@ export function createInitialAcquisitionState(): AcquisitionState {
 		releases: [],
 		releaseFilter: '',
 		releaseSort: 'seeders',
-		selectedRelease: null,
+		selectedReleaseKeys: new Set(),
+		releaseGrabs: {},
 		statusMessage: '',
 		activeJob: null,
 		lastJob: null,
@@ -73,16 +90,25 @@ export function createInitialAcquisitionState(): AcquisitionState {
 }
 
 export function createInitialRemoteSourceState(): RemoteSourceState {
+	const { statusMessage, ...initial } = createInitialAcquisitionState();
 	return {
-		...createInitialAcquisitionState(),
+		...initial,
 		isOpen: false,
+		isGrabbing: false,
+		isAcquiring: false,
+		statusByProvider: { audible: statusMessage, indexer: '' },
 	};
 }
 
 export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
+	const { isGrabbing, isAcquiring, statusByProvider, ...view } = state;
 	return {
-		...state,
+		...view,
+		statusMessage: statusByProvider[state.providerId],
+		isBusy: state.isBusy || isGrabbing || (state.providerId === 'audible' && isAcquiring),
 		selectedTitleIds: new Set(state.selectedTitleIds),
+		selectedReleaseKeys: new Set(state.selectedReleaseKeys),
+		releaseGrabs: { ...state.releaseGrabs },
 		includePdfByTitleId: { ...state.includePdfByTitleId },
 		titles: [...state.titles],
 		providers: [...state.providers],
@@ -102,7 +128,7 @@ export function laneSelectionResetPatch(): Partial<AcquisitionState> {
 		releases: [],
 		releaseFilter: '',
 		releaseSort: 'seeders',
-		selectedRelease: null,
-		statusMessage: '',
+		selectedReleaseKeys: new Set(),
+		releaseGrabs: {},
 	};
 }

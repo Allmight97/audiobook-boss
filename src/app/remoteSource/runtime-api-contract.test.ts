@@ -11,6 +11,7 @@ const EXPECTED_APP_REMOTE_SOURCE_EXPORTS = [
 	'progressPercent',
 	'progressTitleLabel',
 	'providerIdFromLane',
+	'releaseKey',
 	'releaseProtocolLabel',
 	'selectedRemoteTitleSummaryText',
 	'titleAvailability',

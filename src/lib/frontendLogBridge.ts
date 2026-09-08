@@ -71,7 +71,7 @@ function sendLogFrontend(level: FrontendLogLevel, scope: string, message: string
 			})
 			.catch(() => undefined);
 	} catch {
-		// Plain Vite and the design lab have no Tauri backend.
+		// Log forwarding must not throw while handling another error.
 	}
 }
 

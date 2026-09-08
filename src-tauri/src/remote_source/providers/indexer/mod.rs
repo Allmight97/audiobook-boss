@@ -109,16 +109,38 @@ impl IndexerProvider {
         request: RemoteReleaseGrabRequest,
     ) -> Result<RemoteReleaseGrabResponse> {
         validate_grab_release(&request.release)?;
-        let connection = configured_connection(config_dir, vault)?;
-        let outcome = adapter
-            .grab(
-                &connection.base_url,
-                &connection.api_key,
-                &request.release.guid,
-                request.release.indexer_id,
-            )
-            .await?;
-        Ok(map_grab_outcome(outcome))
+        let request_id = uuid::Uuid::new_v4();
+        let started = std::time::Instant::now();
+        log::info!(
+            "remote_source indexer_grab request_id={} stage=start indexer_id={} indexer={:?} title={:?} protocol={:?}",
+            request_id, request.release.indexer_id, request.release.indexer,
+            request.release.title, request.release.protocol
+        );
+        let result = async {
+            let connection = configured_connection(config_dir, vault)?;
+            adapter
+                .grab(
+                    &connection.base_url,
+                    &connection.api_key,
+                    &request.release.guid,
+                    request.release.indexer_id,
+                    &request_id.to_string(),
+                )
+                .await
+        }
+        .await;
+        let outcome = match &result {
+            Ok(outcome) if outcome.accepted => "handoff_confirmed",
+            Ok(_) => "rejected",
+            Err(_) => "unconfirmed",
+        };
+        log::info!(
+            "remote_source indexer_grab request_id={} stage=complete outcome={} elapsed_ms={}",
+            request_id,
+            outcome,
+            started.elapsed().as_millis()
+        );
+        result.map(map_grab_outcome)
     }
 
     pub(in crate::remote_source) async fn test_connection(
