@@ -12,7 +12,9 @@
 
 - `index.ts` is the export surface. Callers consume the composed
   `RemoteSourceOwner`; private state, workflow, assets, and previews stay here.
-- `open({ lane? })` hydrates account/library state without a mounted view.
+- `open({ lane? })` and `selectLane` share workflow-owned entry: refresh account
+  state and load the connected Audible library, without a mounted view. When
+  an acquisition job exists, entry retains its status and library; Refresh rescans.
   `selectLane`, title/PDF/release selection intents, and workflow actions own
   transitions. `editSearch` accepts only user-editable search/filter/sort fields;
   connection edits accept only URL, API-key, and category drafts.
@@ -27,6 +29,9 @@
   selected hidden titles survive ordinary close. Lane switches reset Indexer
   results and Audible selection UI only; they do not cancel in-flight Audible
   acquisition. App disposal and native cancel/purge remain the cleanup authorities.
+- Status text belongs to its originating provider and the view projects the
+  selected provider's message. Background Audible progress, terminal outcomes,
+  and errors cannot replace Indexer status or clear its pending-operation busy state.
 - Acquisition poll patches publish through the Remote Source owner view.
   Native jobs provide a progress snapshot from job creation;
   `RemoteSourceAcquireView` renders its live percentage and Cancel.
@@ -45,8 +50,18 @@
   view. File Import keeps that lifetime subscription alive.
 - Indexer sort is session state: most seeders by default, or largest size with
   seeders as the tie-breaker. Filtering and sorting preserve release selection.
-- Release selection is the `(indexerId, guid)` pair; GUID alone is not unique
-  across indexers. Grab queues externally and never calls the Input handoff.
+- Release selection and per-release Grab outcomes use `releaseKey` for the
+  `(indexerId, guid)` pair; GUID alone is not unique across indexers.
+  `selectRelease` replaces selection or toggles one item with the multi option.
+  Row Grab and Grab All share the same sequential submission workflow, skip
+  already-sent releases, and retain individual failures for explicit retry.
+- Indexer selection and outcomes survive filtering, sorting, and same-lane
+  close/reopen. A fresh search or lane switch clears them. An in-flight Grab
+  batch captures its releases and owns the busy state until settled; reopening
+  cannot hydrate over that state or replace its lane. Reset invalidates late
+  responses and stops sending remaining items.
+- Grab queues externally and never calls the Input handoff. Sent means the
+  configured provider confirmed submission; it is not download-completion truth.
 - Frontend state may hold provider-neutral account, title, job, and
   diagnostic text. It must not persist credentials, tokens, cookies, license
   material, or raw provider payloads.

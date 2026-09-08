@@ -9,6 +9,7 @@ import type {
 } from '../../types/remoteSource';
 import type { InputOwner } from '../inputSession';
 import { createRemoteSourceOwner, type RemoteSourceOwner } from './owner';
+import { releaseKey } from './selection';
 import {
 	ORDER_LOCKED_IMPORT_MESSAGE,
 	STAGED_FILES_REMOVED_SUFFIX,
@@ -236,7 +237,7 @@ function makeServices(
 		grabRelease: vi.fn(async () => ({
 			providerId: 'indexer' as const,
 			accepted: true,
-			message: 'Release sent to Indexer.',
+			message: 'Release sent to downloader.',
 			diagnostics: [],
 		})),
 		startAcquisition: vi.fn(async (_providerId, _selections) => runningJob()),
@@ -553,11 +554,11 @@ describe('remote source acquisition workflow', () => {
 		owner.editSearch({ indexerTitleQuery: 'Example' });
 		await owner.runAction({ type: 'searchReleases' });
 		owner.selectRelease(chosen);
-		await owner.runAction({ type: 'grabSelectedRelease' });
+		await owner.runAction({ type: 'grabSelectedReleases' });
 		expect(services.grabRelease).toHaveBeenCalledExactlyOnceWith({ release: chosen });
 		expect(services.startAcquisition).not.toHaveBeenCalled();
 		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
-		expect(owner.view().statusMessage).toBe('Release sent to Indexer.');
+		expect(owner.view().statusMessage).toBe('Release sent to downloader.');
 		expect(owner.view().isBusy).toBe(false);
 	});
 
@@ -581,14 +582,171 @@ describe('remote source acquisition workflow', () => {
 			owner.editSearch({ indexerTitleQuery: 'Example' });
 			await owner.runAction({ type: 'searchReleases' });
 			owner.selectRelease(release);
-			await owner.runAction({ type: 'grabSelectedRelease' });
+			await owner.runAction({ type: 'grabSelectedReleases' });
 			expect(owner.view().statusMessage).toContain(
-				outcome === 'error' ? 'Failed to grab release.' : 'No download client',
+				outcome === 'error' ? 'Could not confirm the handoff.' : 'No download client',
 			);
 			expect(owner.view().isBusy).toBe(false);
 			expect(services.importMaterializedPaths).not.toHaveBeenCalled();
 		},
 	);
+
+	it('submits a captured bulk selection sequentially, retains partial outcomes across reopen, and retries only failures', async () => {
+		const pending =
+			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
+		const releases = [1, 2, 3].map((indexerId) => indexerRelease({ indexerId }));
+		const services = makeServices();
+		vi.mocked(services.searchReleases).mockResolvedValue({
+			providerId: 'indexer',
+			releases,
+			diagnostics: [],
+		});
+		vi.mocked(services.grabRelease)
+			.mockImplementationOnce(() => pending.promise)
+			.mockRejectedValueOnce(new Error('Connection lost'));
+		const owner = makeOwner(services);
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		await owner.runAction({ type: 'searchReleases' });
+		for (const release of releases) owner.selectRelease(release, { multi: true });
+		const batch = owner.runAction({ type: 'grabSelectedReleases' });
+		expect(services.grabRelease).toHaveBeenCalledTimes(1);
+		expect(owner.view().releaseGrabs[releaseKey(releases[0])].status).toBe('sending');
+		expect(owner.view().releaseGrabs[releaseKey(releases[1])].status).toBe('queued');
+		owner.selectRelease(releases[0]);
+		owner.editSearch({ releaseFilter: 'hidden', releaseSort: 'size' });
+		owner.close();
+		await owner.open({ lane: 'indexer' });
+		await owner.runAction({ type: 'grabRelease', release: releases[0] });
+		await owner.runAction({ type: 'searchReleases' });
+		await owner.selectLane('audible');
+		expect(owner.view().providerId).toBe('indexer');
+		expect(owner.view().isBusy).toBe(true);
+		expect(services.searchReleases).toHaveBeenCalledTimes(1);
+		expect(services.grabRelease).toHaveBeenCalledTimes(1);
+		pending.resolve({ providerId: 'indexer', accepted: true, message: 'Sent', diagnostics: [] });
+		await batch;
+		expect(
+			vi.mocked(services.grabRelease).mock.calls.map(([request]) => request.release.indexerId),
+		).toEqual([1, 2, 3]);
+		expect(
+			releases.map((release) => owner.view().releaseGrabs[releaseKey(release)].status),
+		).toEqual(['sent', 'error', 'sent']);
+		expect(owner.view().statusMessage).toContain('2 sent to downloader; 1 could not be confirmed');
+		owner.close();
+		await owner.open({ lane: 'indexer' });
+		expect(owner.view().releaseGrabs[releaseKey(releases[0])].status).toBe('sent');
+		owner.selectRelease(releases[1], { multi: true });
+		owner.selectRelease(releases[2], { multi: true });
+		await owner.runAction({ type: 'grabSelectedReleases' });
+		expect(services.grabRelease).toHaveBeenCalledTimes(4);
+		expect(services.grabRelease).toHaveBeenLastCalledWith({ release: releases[1] });
+		expect(owner.view().releaseGrabs[releaseKey(releases[1])].status).toBe('sent');
+		await owner.runAction({ type: 'searchReleases' });
+		expect(owner.view().releaseGrabs).toEqual({});
+		expect(owner.view().selectedReleaseKeys.size).toBe(0);
+		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
+	});
+
+	it('keeps an Indexer batch busy when a background Audible acquisition settles', async () => {
+		const acquisitionStatus = createDeferred<AcquisitionJob>();
+		const grabbed =
+			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
+		const services = makeServices({
+			getAcquisitionStatus: vi.fn(() => acquisitionStatus.promise),
+			grabRelease: vi.fn(() => grabbed.promise),
+		});
+		const owner = makeOwner(services);
+		await owner.open({ lane: 'audible' });
+		owner.toggleTitle('B000000001');
+		const acquisition = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
+		await owner.selectLane('indexer');
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		await owner.runAction({ type: 'searchReleases' });
+		const batch = owner.runAction({ type: 'grabRelease', release: indexerRelease() });
+		acquisitionStatus.resolve(terminalJob());
+		await acquisition;
+		expect(owner.view().isBusy).toBe(true);
+		expect(owner.view().statusMessage).toBe('Sending to downloader via Indexer…');
+		owner.close();
+		await owner.open({ lane: 'audible' });
+		expect(owner.view().providerId).toBe('indexer');
+		grabbed.resolve({ providerId: 'indexer', accepted: true, message: 'Sent', diagnostics: [] });
+		await batch;
+		expect(owner.view().isBusy).toBe(false);
+		expect(owner.view().releaseGrabs[releaseKey(indexerRelease())].status).toBe('sent');
+		await owner.selectLane('audible');
+		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
+	});
+
+	it('stops unsent batch items after reset and isolates late completion from another owner', async () => {
+		const pending =
+			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
+		const releases = [1, 2].map((indexerId) => indexerRelease({ indexerId }));
+		const firstServices = makeServices({ grabRelease: vi.fn(() => pending.promise) });
+		vi.mocked(firstServices.searchReleases).mockResolvedValue({
+			providerId: 'indexer',
+			releases,
+			diagnostics: [],
+		});
+		const first = makeOwner(firstServices);
+		const second = makeOwner(makeServices());
+		for (const owner of [first, second]) {
+			await owner.open({ lane: 'indexer' });
+			owner.editSearch({ indexerTitleQuery: 'Example' });
+			await owner.runAction({ type: 'searchReleases' });
+		}
+		for (const release of releases) first.selectRelease(release, { multi: true });
+		const batch = first.runAction({ type: 'grabSelectedReleases' });
+		first.reset();
+		await second.runAction({ type: 'grabRelease', release: indexerRelease() });
+		pending.resolve({ providerId: 'indexer', accepted: true, message: 'Sent', diagnostics: [] });
+		await batch;
+		expect(firstServices.grabRelease).toHaveBeenCalledTimes(1);
+		expect(first.view().releaseGrabs).toEqual({});
+		expect(first.view().isBusy).toBe(false);
+		expect(second.view().releaseGrabs[releaseKey(indexerRelease())].status).toBe('sent');
+	});
+
+	it('retains a background Audible failure while an Indexer search is pending', async () => {
+		const poll = createDeferred<AcquisitionJob>();
+		const search =
+			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['searchReleases']>>>();
+		const services = makeServices({
+			getAcquisitionStatus: vi.fn(async () => {
+				await poll.promise;
+				throw new Error('network failed');
+			}),
+			searchReleases: vi.fn(() => search.promise),
+		});
+		const owner = makeOwner(services);
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		const acquiring = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
+		await owner.selectLane('indexer');
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		const searching = owner.runAction({ type: 'searchReleases' });
+		poll.resolve(terminalJob());
+		await acquiring;
+		expect(owner.view().statusMessage).toBe('Searching Indexer releases.');
+		expect(owner.view().isBusy).toBe(true);
+		search.resolve({ providerId: 'indexer', releases: [indexerRelease()], diagnostics: [] });
+		await searching;
+		expect(owner.view().statusMessage).toBe('1 release found.');
+		await owner.selectLane('audible');
+		expect(owner.view().statusMessage).toBe('Failed to acquire selected Audible titles.');
+	});
+
+	it('loads the connected Audible library when entered from the Source selector', async () => {
+		const services = makeServices();
+		const owner = makeOwner(services);
+		await owner.open({ lane: 'indexer' });
+		await owner.selectLane('audible');
+		expect(services.loadLibrary).toHaveBeenCalledWith('audible');
+		expect(owner.view().titles).toEqual(library().titles);
+	});
 
 	it('hydrates unconfigured Indexer without scanning the Audible library', async () => {
 		const services = makeServices({

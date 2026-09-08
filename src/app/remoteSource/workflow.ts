@@ -1,3 +1,5 @@
+import { toUserMessage } from '../../lib/tauri/appError';
+import { releaseKey } from './selection';
 import type { FileListInfo } from '../../types/audio';
 import type { AcquisitionLane } from '../../types/appSettings';
 import type {
@@ -13,7 +15,7 @@ import type {
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
-import type { RemoteInputHandoffResult, RemoteSourceState } from './types';
+import type { RemoteInputHandoffResult, RemoteSourcePatch, RemoteSourceState } from './types';
 import {
 	acquisitionPollDelayMs,
 	isAcquisitionTerminal,
@@ -54,15 +56,15 @@ export interface RemoteSourceWorkflowServices {
 }
 
 export type RemoteSourceWorkflowAction =
-	| { readonly type: 'hydrateOpenDialog' }
 	| { readonly type: 'refreshAccount' }
-	| { readonly type: 'selectLane'; readonly lane: AcquisitionLane }
+	| { readonly type: 'enterLane'; readonly lane: AcquisitionLane }
 	| { readonly type: 'startAuth' }
 	| { readonly type: 'completeAuth' }
 	| { readonly type: 'logout' }
 	| { readonly type: 'loadLibrary' }
 	| { readonly type: 'searchReleases' }
-	| { readonly type: 'grabSelectedRelease' }
+	| { readonly type: 'grabSelectedReleases' }
+	| { readonly type: 'grabRelease'; readonly release: Pick<RemoteRelease, 'guid' | 'indexerId'> }
 	| { readonly type: 'acquireSelected' }
 	| { readonly type: 'cancelActiveAcquisition' };
 
@@ -77,19 +79,7 @@ export const ORDER_LOCKED_IMPORT_MESSAGE =
 export const STAGED_FILES_REMOVED_SUFFIX =
 	'Staged remote files were removed; retry acquisition after processing completes.';
 
-type IsCurrent = () => boolean;
-
-function selectedRelease(
-	releases: RemoteRelease[],
-	selected: RemoteSourceState['selectedRelease'],
-): RemoteRelease | null {
-	if (!selected) return null;
-	return (
-		releases.find(
-			(release) => release.guid === selected.guid && release.indexerId === selected.indexerId,
-		) ?? null
-	);
-}
+type WorkflowScope = { readonly isCurrent: () => boolean; readonly providerId: ProviderId };
 
 export function createRemoteSourceWorkflow(deps: {
 	readonly services: RemoteSourceWorkflowServices;
@@ -98,6 +88,7 @@ export function createRemoteSourceWorkflow(deps: {
 }): RemoteSourceWorkflow {
 	let workflowGeneration = 0;
 	let acquisitionGeneration = 0;
+	let entryGeneration = 0;
 
 	function invalidate(): void {
 		workflowGeneration += 1;
@@ -113,38 +104,38 @@ export function createRemoteSourceWorkflow(deps: {
 		acquisitionGeneration += 1;
 	}
 
-	function patchWhenCurrent(isCurrent: IsCurrent, patch: Partial<RemoteSourceState>): boolean {
-		if (!isCurrent()) return false;
-		deps.state.patch(patch);
+	function patchWhenCurrent(scope: WorkflowScope, patch: RemoteSourcePatch): boolean {
+		if (!scope.isCurrent()) return false;
+		deps.state.patch(patch, scope.providerId);
 		return true;
 	}
 
 	function setAcquisitionErrorWhenCurrent(
-		isCurrent: IsCurrent,
+		scope: WorkflowScope,
 		cause: unknown,
 		fallback: string,
 	): void {
-		if (isCurrent()) {
-			deps.state.setAcquisitionError(cause, fallback);
+		if (scope.isCurrent()) {
+			deps.state.setAcquisitionError(cause, fallback, scope.providerId);
 		}
 	}
 
-	async function refreshAccountState(providerId: ProviderId, isCurrent: IsCurrent): Promise<void> {
+	async function refreshAccountState(providerId: ProviderId, scope: WorkflowScope): Promise<void> {
 		const accountState = await deps.services.getAccountState(providerId);
 		if (deps.state.current().providerId === providerId) {
-			patchWhenCurrent(isCurrent, { accountState });
+			patchWhenCurrent(scope, { accountState });
 		}
 	}
 
-	async function loadLibrary(providerId: ProviderId, isCurrent: IsCurrent): Promise<void> {
-		patchWhenCurrent(isCurrent, { isBusy: true });
+	async function loadLibrary(providerId: ProviderId, scope: WorkflowScope): Promise<void> {
+		patchWhenCurrent(scope, { isBusy: true });
 		try {
 			const library = await deps.services.loadLibrary(providerId);
-			if (!isCurrent()) return;
+			if (!scope.isCurrent()) return;
 			const selectableTitleIds = new Set(
 				library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
 			);
-			patchWhenCurrent(isCurrent, {
+			patchWhenCurrent(scope, {
 				titles: library.titles,
 				selectedTitleIds: new Set(
 					[...deps.state.current().selectedTitleIds].filter((titleId) =>
@@ -160,23 +151,23 @@ export function createRemoteSourceWorkflow(deps: {
 						: `${library.titles.length} Audible titles loaded.`,
 			});
 		} catch (cause) {
-			setAcquisitionErrorWhenCurrent(isCurrent, cause, 'Failed to load Audible library.');
+			setAcquisitionErrorWhenCurrent(scope, cause, 'Failed to load Audible library.');
 		} finally {
-			patchWhenCurrent(isCurrent, { isBusy: false });
+			patchWhenCurrent(scope, { isBusy: false });
 		}
 	}
 
 	async function pollAcquisitionToTerminal(
 		initialJob: AcquisitionJobWithProgress,
-		isCurrent: IsCurrent,
+		scope: WorkflowScope,
 	): Promise<AcquisitionJobWithProgress | null> {
 		let currentJob = initialJob;
-		while (isCurrent() && !isAcquisitionTerminal(currentJob)) {
+		while (scope.isCurrent() && !isAcquisitionTerminal(currentJob)) {
 			await deps.services.sleep(acquisitionPollDelayMs);
-			if (!isCurrent()) return null;
+			if (!scope.isCurrent()) return null;
 			currentJob = await deps.services.getAcquisitionStatus(currentJob.jobId);
 			if (
-				!patchWhenCurrent(isCurrent, {
+				!patchWhenCurrent(scope, {
 					activeJob: currentJob,
 					lastJob: currentJob,
 					statusMessage: statusFromAcquisitionJob(currentJob),
@@ -185,17 +176,17 @@ export function createRemoteSourceWorkflow(deps: {
 				return null;
 			}
 		}
-		return isCurrent() ? currentJob : null;
+		return scope.isCurrent() ? currentJob : null;
 	}
 
 	async function finishAcquisitionJob(
 		job: AcquisitionJobWithProgress,
-		isCurrent: IsCurrent,
+		scope: WorkflowScope,
 	): Promise<void> {
-		if (!isCurrent()) return;
+		if (!scope.isCurrent()) return;
 		const materializedPaths = job.materializedFiles.map((file) => file.path);
 		if (materializedPaths.length === 0) {
-			patchWhenCurrent(isCurrent, {
+			patchWhenCurrent(scope, {
 				statusMessage:
 					uniqueDiagnosticMessage(job.diagnostics) ||
 					'Audible acquisition did not materialize an importable file.',
@@ -204,12 +195,12 @@ export function createRemoteSourceWorkflow(deps: {
 		}
 
 		const importResult = await deps.services.importMaterializedPaths(materializedPaths);
-		if (!isCurrent()) return;
+		if (!scope.isCurrent()) return;
 		if (importResult.status !== 'imported') {
 			await deps.services.purgeSession(job.jobId);
-			if (!isCurrent()) return;
+			if (!scope.isCurrent()) return;
 			const cleanedJob = withClearedHandoffJob(job);
-			patchWhenCurrent(isCurrent, {
+			patchWhenCurrent(scope, {
 				activeJob: cleanedJob,
 				lastJob: cleanedJob,
 				statusMessage: `${importResult.message} ${STAGED_FILES_REMOVED_SUFFIX}`,
@@ -222,9 +213,9 @@ export function createRemoteSourceWorkflow(deps: {
 		);
 		if (!importedAny) {
 			await deps.services.purgeSession(job.jobId);
-			if (!isCurrent()) return;
+			if (!scope.isCurrent()) return;
 			const cleanedJob = withClearedHandoffJob(job);
-			patchWhenCurrent(isCurrent, {
+			patchWhenCurrent(scope, {
 				activeJob: cleanedJob,
 				lastJob: cleanedJob,
 				statusMessage: `${importResult.fileList ? 'Acquired titles were not added to the input session.' : 'Input session had no files after import.'} ${STAGED_FILES_REMOVED_SUFFIX}`,
@@ -232,125 +223,203 @@ export function createRemoteSourceWorkflow(deps: {
 			return;
 		}
 
-		if (!isCurrent()) return;
+		if (!scope.isCurrent()) return;
 		deps.registerSupplementalAssets(job, importResult.fileList);
-		patchWhenCurrent(isCurrent, {
+		patchWhenCurrent(scope, {
 			statusMessage: `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`,
 		});
 	}
 
+	function setGrabState(
+		key: string,
+		status: RemoteSourceState['releaseGrabs'][string],
+		scope: WorkflowScope,
+	): void {
+		patchWhenCurrent(scope, {
+			releaseGrabs: { ...deps.state.current().releaseGrabs, [key]: status },
+		});
+	}
+
+	async function sendRelease(release: RemoteRelease, scope: WorkflowScope): Promise<void> {
+		const key = releaseKey(release);
+		setGrabState(key, { status: 'sending', message: 'Sending to downloader via Indexer…' }, scope);
+		try {
+			const response = await deps.services.grabRelease({ release });
+			setGrabState(
+				key,
+				{
+					status: response.accepted ? 'sent' : 'error',
+					message: response.accepted
+						? response.message
+						: uniqueDiagnosticMessage(response.diagnostics) ||
+							response.message ||
+							'Indexer did not accept the grab.',
+				},
+				scope,
+			);
+		} catch (cause) {
+			setGrabState(
+				key,
+				{
+					status: 'error',
+					message: toUserMessage(cause, {
+						fallback: 'Could not confirm the handoff. Check your downloader before retrying.',
+						suppressUnknown: true,
+					}),
+				},
+				scope,
+			);
+		}
+	}
+
+	async function grabReleases(keys: ReadonlySet<string>, scope: WorkflowScope): Promise<void> {
+		const current = deps.state.current();
+		const releases = current.releases.filter(
+			(release) =>
+				keys.has(releaseKey(release)) &&
+				current.releaseGrabs[releaseKey(release)]?.status !== 'sent',
+		);
+		if (current.isBusy || current.providerId !== 'indexer' || releases.length === 0) return;
+		patchWhenCurrent(scope, {
+			isGrabbing: true,
+			statusMessage: 'Sending to downloader via Indexer…',
+			releaseGrabs: {
+				...current.releaseGrabs,
+				...Object.fromEntries(
+					releases.map((release) => [
+						releaseKey(release),
+						{ status: 'queued' as const, message: 'Waiting to send.' },
+					]),
+				),
+			},
+		});
+		try {
+			for (const release of releases) {
+				if (!scope.isCurrent()) return;
+				await sendRelease(release, scope);
+			}
+			if (!scope.isCurrent()) return;
+			const outcomes = releases.map(
+				(release) => deps.state.current().releaseGrabs[releaseKey(release)],
+			);
+			const sent = outcomes.filter((outcome) => outcome.status === 'sent').length;
+			patchWhenCurrent(scope, {
+				statusMessage:
+					outcomes.length === 1
+						? outcomes[0].message
+						: `${sent} sent to downloader; ${outcomes.length - sent} could not be confirmed. See individual results.`,
+			});
+		} finally {
+			if (scope.isCurrent()) {
+				deps.state.patch({ isGrabbing: false });
+			}
+		}
+	}
+
+	async function enterLane(lane: AcquisitionLane, scope: WorkflowScope): Promise<void> {
+		const current = deps.state.current();
+		if (current.providerId === 'indexer' && current.isBusy) return;
+		const providerId = providerIdFromLane(lane);
+		if (providerId !== current.providerId) {
+			deps.state.patch({
+				providerId,
+				...laneSelectionResetPatch(),
+				accountState: null,
+				isBusy: false,
+			});
+		}
+		const generation = ++entryGeneration;
+		const entryScope: WorkflowScope = {
+			providerId,
+			isCurrent: () => scope.isCurrent() && entryGeneration === generation,
+		};
+		if (providerId !== current.providerId && providerId === 'indexer') {
+			patchWhenCurrent(entryScope, { statusMessage: '' });
+		}
+		patchWhenCurrent(entryScope, { isBusy: true });
+		try {
+			const providers = await deps.services.listProviders();
+			if (!patchWhenCurrent(entryScope, { providers })) return;
+			await refreshAccountState(providerId, entryScope);
+			if (!entryScope.isCurrent()) return;
+			if (
+				providerId === 'audible' &&
+				deps.state.current().accountState?.status === 'connected' &&
+				!deps.state.current().activeJob
+			) {
+				await loadLibrary(providerId, entryScope);
+			}
+		} catch (cause) {
+			setAcquisitionErrorWhenCurrent(entryScope, cause, 'Failed to load remote source state.');
+		} finally {
+			patchWhenCurrent(entryScope, { isBusy: false });
+		}
+	}
+
 	async function runAction(
 		action: RemoteSourceWorkflowAction,
-		isWorkflowCurrent: IsCurrent,
+		workflowScope: WorkflowScope,
 	): Promise<void> {
 		switch (action.type) {
+			case 'enterLane':
+				await enterLane(action.lane, workflowScope);
+				return;
 			case 'refreshAccount': {
 				try {
-					await refreshAccountState(deps.state.current().providerId, isWorkflowCurrent);
+					await refreshAccountState(deps.state.current().providerId, workflowScope);
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
-						isWorkflowCurrent,
+						workflowScope,
 						cause,
 						'Connection saved, but account refresh failed. Reopen Acquire to retry.',
 					);
 				}
 				return;
 			}
-			case 'hydrateOpenDialog': {
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
-				try {
-					const providers = await deps.services.listProviders();
-					if (!patchWhenCurrent(isWorkflowCurrent, { providers })) return;
-					const providerId = deps.state.current().providerId;
-					await refreshAccountState(providerId, isWorkflowCurrent);
-					if (!isWorkflowCurrent()) return;
-					if (
-						providerId === 'audible' &&
-						deps.state.current().accountState?.status === 'connected'
-					) {
-						await loadLibrary(providerId, isWorkflowCurrent);
-					}
-				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(
-						isWorkflowCurrent,
-						cause,
-						'Failed to load remote source state.',
-					);
-				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
-				}
-				return;
-			}
-			case 'selectLane': {
-				const nextProviderId = providerIdFromLane(action.lane);
-				if (nextProviderId === deps.state.current().providerId) return;
-				patchWhenCurrent(isWorkflowCurrent, {
-					providerId: nextProviderId,
-					...laneSelectionResetPatch(),
-					accountState: null,
-				});
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
-				try {
-					await refreshAccountState(nextProviderId, isWorkflowCurrent);
-				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(
-						isWorkflowCurrent,
-						cause,
-						'Failed to switch acquisition source.',
-					);
-				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
-				}
-				return;
-			}
 			case 'startAuth': {
 				const providerId = deps.state.current().providerId;
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
+				patchWhenCurrent(workflowScope, { isBusy: true });
 				try {
 					const response = await deps.services.startAuth(providerId);
-					if (!patchWhenCurrent(isWorkflowCurrent, { statusMessage: response.message })) return;
+					if (!patchWhenCurrent(workflowScope, { statusMessage: response.message })) return;
 					await deps.services.openAuthorizationUrl(response.authorizationUrl);
 				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(isWorkflowCurrent, cause, 'Failed to start Audible auth.');
+					setAcquisitionErrorWhenCurrent(workflowScope, cause, 'Failed to start Audible auth.');
 				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+					patchWhenCurrent(workflowScope, { isBusy: false });
 				}
 				return;
 			}
 			case 'completeAuth': {
 				const providerId = deps.state.current().providerId;
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
+				patchWhenCurrent(workflowScope, { isBusy: true });
 				try {
 					const accountState = await deps.services.completeAuth(
 						providerId,
 						deps.state.current().handoffPath.trim() || undefined,
 					);
 					if (
-						!patchWhenCurrent(isWorkflowCurrent, {
+						!patchWhenCurrent(workflowScope, {
 							accountState,
 							statusMessage: 'Audible connected.',
 						})
 					) {
 						return;
 					}
-					await loadLibrary(providerId, isWorkflowCurrent);
+					await loadLibrary(providerId, workflowScope);
 				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(
-						isWorkflowCurrent,
-						cause,
-						'Failed to complete Audible auth.',
-					);
+					setAcquisitionErrorWhenCurrent(workflowScope, cause, 'Failed to complete Audible auth.');
 				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+					patchWhenCurrent(workflowScope, { isBusy: false });
 				}
 				return;
 			}
 			case 'logout': {
 				const providerId = deps.state.current().providerId;
-				patchWhenCurrent(isWorkflowCurrent, { isBusy: true });
+				patchWhenCurrent(workflowScope, { isBusy: true });
 				try {
 					const accountState = await deps.services.logout(providerId);
-					patchWhenCurrent(isWorkflowCurrent, {
+					patchWhenCurrent(workflowScope, {
 						accountState,
 						titles: [],
 						selectedTitleIds: new Set(),
@@ -360,28 +429,30 @@ export function createRemoteSourceWorkflow(deps: {
 						statusMessage: 'Audible disconnected.',
 					});
 				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(isWorkflowCurrent, cause, 'Failed to disconnect Audible.');
+					setAcquisitionErrorWhenCurrent(workflowScope, cause, 'Failed to disconnect Audible.');
 				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+					patchWhenCurrent(workflowScope, { isBusy: false });
 				}
 				return;
 			}
 			case 'loadLibrary': {
-				await loadLibrary(deps.state.current().providerId, isWorkflowCurrent);
+				await loadLibrary(deps.state.current().providerId, workflowScope);
 				return;
 			}
 			case 'searchReleases': {
 				const author = deps.state.current().indexerAuthorQuery.trim();
 				const title = deps.state.current().indexerTitleQuery.trim();
 				if (!author && !title) {
-					patchWhenCurrent(isWorkflowCurrent, {
+					patchWhenCurrent(workflowScope, {
 						statusMessage: 'Enter an author and/or title to search.',
 					});
 					return;
 				}
-				patchWhenCurrent(isWorkflowCurrent, {
+				patchWhenCurrent(workflowScope, {
 					isBusy: true,
-					selectedRelease: null,
+					selectedReleaseKeys: new Set(),
+					releaseGrabs: {},
+					releases: [],
 					statusMessage: 'Searching Indexer releases.',
 				});
 				try {
@@ -390,8 +461,8 @@ export function createRemoteSourceWorkflow(deps: {
 						title: title || undefined,
 						query: undefined,
 					});
-					if (!isWorkflowCurrent()) return;
-					patchWhenCurrent(isWorkflowCurrent, {
+					if (!workflowScope.isCurrent()) return;
+					patchWhenCurrent(workflowScope, {
 						releases: response.releases,
 						statusMessage:
 							response.diagnostics.length > 0
@@ -400,56 +471,37 @@ export function createRemoteSourceWorkflow(deps: {
 					});
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
-						isWorkflowCurrent,
+						workflowScope,
 						cause,
 						'Failed to search Indexer releases.',
 					);
 				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
+					patchWhenCurrent(workflowScope, { isBusy: false });
 				}
 				return;
 			}
-			case 'grabSelectedRelease': {
-				const current = deps.state.current();
-				const release = selectedRelease(current.releases, current.selectedRelease);
-				if (!release) {
-					patchWhenCurrent(isWorkflowCurrent, {
-						statusMessage: 'Select a release before grabbing.',
-					});
-					return;
-				}
-				patchWhenCurrent(isWorkflowCurrent, {
-					isBusy: true,
-					statusMessage: 'Sending release to Indexer.',
-				});
-				try {
-					const response = await deps.services.grabRelease({ release });
-					if (!isWorkflowCurrent()) return;
-					const diagnostics = uniqueDiagnosticMessage(response.diagnostics);
-					patchWhenCurrent(isWorkflowCurrent, {
-						statusMessage: response.accepted
-							? response.message
-							: diagnostics || response.message || 'Indexer did not accept the grab.',
-					});
-				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(isWorkflowCurrent, cause, 'Failed to grab release.');
-				} finally {
-					patchWhenCurrent(isWorkflowCurrent, { isBusy: false });
-				}
+			case 'grabSelectedReleases': {
+				await grabReleases(deps.state.current().selectedReleaseKeys, workflowScope);
+				return;
+			}
+			case 'grabRelease': {
+				await grabReleases(new Set([releaseKey(action.release)]), workflowScope);
 				return;
 			}
 			case 'acquireSelected': {
 				const generation = beginAcquisition();
-				const isAcquisitionCurrent = () =>
-					isWorkflowCurrent() && acquisitionGeneration === generation;
+				const acquisitionScope: WorkflowScope = {
+					providerId: workflowScope.providerId,
+					isCurrent: () => workflowScope.isCurrent() && acquisitionGeneration === generation,
+				};
 				const current = deps.state.current();
 				if (current.selectedTitleIds.size === 0) {
-					patchWhenCurrent(isAcquisitionCurrent, {
+					patchWhenCurrent(acquisitionScope, {
 						statusMessage: 'Select at least one Audible title.',
 					});
 					return;
 				}
-				patchWhenCurrent(isAcquisitionCurrent, {
+				patchWhenCurrent(acquisitionScope, {
 					isBusy: true,
 					activeJob: null,
 					lastJob: null,
@@ -462,7 +514,7 @@ export function createRemoteSourceWorkflow(deps: {
 					}));
 					const startedJob = await deps.services.startAcquisition(current.providerId, selections);
 					if (
-						!patchWhenCurrent(isAcquisitionCurrent, {
+						!patchWhenCurrent(acquisitionScope, {
 							activeJob: startedJob,
 							lastJob: startedJob,
 							statusMessage: statusFromAcquisitionJob(startedJob),
@@ -470,18 +522,18 @@ export function createRemoteSourceWorkflow(deps: {
 					) {
 						return;
 					}
-					const terminalJob = await pollAcquisitionToTerminal(startedJob, isAcquisitionCurrent);
+					const terminalJob = await pollAcquisitionToTerminal(startedJob, acquisitionScope);
 					if (terminalJob) {
-						await finishAcquisitionJob(terminalJob, isAcquisitionCurrent);
+						await finishAcquisitionJob(terminalJob, acquisitionScope);
 					}
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
-						isAcquisitionCurrent,
+						acquisitionScope,
 						cause,
 						'Failed to acquire selected Audible titles.',
 					);
 				} finally {
-					patchWhenCurrent(isAcquisitionCurrent, { isBusy: false });
+					patchWhenCurrent(acquisitionScope, { isBusy: false });
 				}
 				return;
 			}
@@ -490,9 +542,9 @@ export function createRemoteSourceWorkflow(deps: {
 				if (!activeJob || isAcquisitionTerminal(activeJob)) return;
 				try {
 					const cancelledJob = await deps.services.cancelAcquisition(activeJob.jobId);
-					if (!isWorkflowCurrent()) return;
+					if (!workflowScope.isCurrent()) return;
 					invalidateAcquisition();
-					patchWhenCurrent(isWorkflowCurrent, {
+					patchWhenCurrent(workflowScope, {
 						activeJob: cancelledJob,
 						lastJob: cancelledJob,
 						statusMessage: statusFromAcquisitionJob(cancelledJob),
@@ -500,7 +552,7 @@ export function createRemoteSourceWorkflow(deps: {
 					});
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
-						isWorkflowCurrent,
+						workflowScope,
 						cause,
 						'Failed to cancel Audible acquisition.',
 					);
@@ -516,9 +568,13 @@ export function createRemoteSourceWorkflow(deps: {
 
 	return {
 		async run(action) {
+			if (deps.state.current().isGrabbing) return;
 			const generation = workflowGeneration;
-			const isCurrent = () => workflowGeneration === generation;
-			await runAction(action, isCurrent);
+			const scope: WorkflowScope = {
+				providerId: deps.state.current().providerId,
+				isCurrent: () => workflowGeneration === generation,
+			};
+			await runAction(action, scope);
 		},
 		invalidate,
 	};

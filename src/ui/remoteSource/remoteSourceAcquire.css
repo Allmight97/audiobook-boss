@@ -304,7 +304,6 @@
 .remote-release-details {
 	flex: 0 0 auto;
 	max-width: 12rem;
-	padding-right: 0.75rem;
 	font-size: 0.75rem;
 }
 
@@ -320,4 +319,42 @@
 .remote-release-detail-error {
 	margin: 0.25rem 0 0;
 	color: var(--text-secondary);
+}
+
+.remote-release-selection {
+	margin: 0;
+	color: var(--text-secondary);
+	font-size: 0.75rem;
+}
+
+.remote-release-actions {
+	flex: 0 0 auto;
+	max-width: 20rem;
+	padding: 0.5rem 0.75rem 0.5rem 0;
+}
+
+.remote-release-action-buttons {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.remote-release-grab {
+	min-width: 5.5rem;
+	white-space: nowrap;
+}
+
+.remote-release-grab.is-sent:disabled {
+	background: color-mix(in srgb, var(--text-success) 16%, var(--bg-panel));
+	color: var(--text-primary);
+	border-color: var(--text-success);
+	opacity: 1;
+}
+
+.remote-release-grab-error {
+	margin: 0.35rem 0 0;
+	max-width: 20rem;
+	color: var(--text-primary);
+	font-size: 0.75rem;
+	overflow-wrap: anywhere;
 }

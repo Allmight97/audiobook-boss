@@ -15,8 +15,13 @@ the view does not hydrate account state or construct selection-state patches.
 
 Cover-preview scheduling follows the visible titles and is cancelled when the
 view no longer needs it. Resources and caches remain private to the owner.
-Indexer results are a list with separate selection buttons and source-page
-links; opening details preserves selection and the current search.
+Indexer results are a list with separate selection buttons, per-row Grab, and
+source-page links. Row Grab sits immediately left of View details and acts on
+that row independently of selection. Command/Ctrl-click toggles individual
+selections; plain click replaces selection. The toolbar says Grab All for
+multiple selections and includes selections hidden by filtering; show the
+hidden count. Opening details preserves selection and the current search.
+Acquisition progress renders only in the Audible lane.
 
 Remote source IPC routes through `src/lib/tauri/client.ts`. Materialized audio
 imports through Input Session; processing remains user-triggered.

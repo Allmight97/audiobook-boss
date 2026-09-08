@@ -107,6 +107,7 @@ impl ReqwestProwlarrAdapter {
         api_key: &SecretString,
         guid: &str,
         indexer_id: i64,
+        request_id: &str,
     ) -> Result<ProwlarrGrabOutcome> {
         let url = join_api_path(base_url, "/api/v1/search")?;
         let body = serde_json::json!({
@@ -122,6 +123,11 @@ impl ReqwestProwlarrAdapter {
             .await
             .map_err(|error| AppError::General(format!("Indexer grab request failed: {error}")))?;
 
+        log::info!(
+            "remote_source indexer_grab request_id={} stage=prowlarr_response http_status={}",
+            request_id,
+            response.status().as_u16()
+        );
         parse_grab_response(response).await
     }
 }
@@ -306,7 +312,7 @@ async fn parse_grab_response(response: reqwest::Response) -> Result<ProwlarrGrab
 
     Ok(ProwlarrGrabOutcome {
         accepted: true,
-        message: "Release sent to Indexer.".to_string(),
+        message: "Release sent to downloader.".to_string(),
         diagnostics: Vec::new(),
     })
 }
@@ -874,6 +880,7 @@ mod tests {
                 &SecretString::from("secret-key".to_string()),
                 "release-guid",
                 42,
+                "test-grab",
             )
             .await
             .expect("grab");
@@ -905,6 +912,7 @@ mod tests {
                 &SecretString::from("secret-key".to_string()),
                 "release-guid",
                 42,
+                "test-grab",
             )
             .await
             .expect("grab");
