@@ -3,8 +3,7 @@
 ## Scope
 
 Shared visual behavior crosses `src/ui/foundation/index.ts`. Native CSS is the
-only styling language. When changing tokens or primitives, update `src/lab`
-in the same change.
+only styling language.
 
 ## Public API Strip
 
@@ -26,11 +25,9 @@ in the same change.
 - No `sx`, style-object, or public utility catalog.
 - A primitive stays only if deleting it redistributes real behavior across
   owners. Field and Surface fail that test today.
-- Theme follows `prefers-color-scheme`. Density follows
-  `[data-density='compact']` on `html`. Do not add TypeScript theme or density
-  props.
+- Theme follows `prefers-color-scheme`. Do not add TypeScript theme props.
 
 ## Proof
 
-- `bun run test -- src/ui/foundation src/lab/Lab.test.tsx`
+- `bun run test -- src/ui/foundation`
 - `bun run test -- scripts/frontend-toolchain-layout.test.ts`

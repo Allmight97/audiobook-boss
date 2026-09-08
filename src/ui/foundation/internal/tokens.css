@@ -37,29 +37,16 @@
 	--space-1: 0.25rem;
 	--space-2: 0.5rem;
 	--space-3: 0.75rem;
-	--space-4: 1rem;
-	--space-5: 1.5rem;
-	--space-6: 2rem;
 
 	--text-xs: 0.6875rem;
 	--text-sm: 0.75rem;
-	--text-md: 0.8125rem;
-	--text-lg: 0.9375rem;
-	--text-xl: 1.125rem;
 
-	--radius-sm: 0.25rem;
 	--radius-md: 0.375rem;
-	--radius-lg: 0.625rem;
 	--radius-pill: 999px;
 
-	--dur-fast: 120ms;
 	--dur-base: 180ms;
-	--dur-slow: 260ms;
 	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-	--density-row-h: 2.5rem;
-	--density-pad: var(--space-3);
-	--density-text: var(--text-md);
 	--cover-thumb-size: 4rem;
 }
 
@@ -94,10 +81,4 @@
 		--progress-bg: #374151;
 		--progress-fg: #3b82f6;
 	}
-}
-
-:root[data-density="compact"] {
-	--density-row-h: 1.875rem;
-	--density-pad: var(--space-2);
-	--density-text: var(--text-sm);
 }

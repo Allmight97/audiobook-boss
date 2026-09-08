@@ -28,8 +28,6 @@
   its `AGENTS.md` when changing shared visual behavior.
 - Owner layout lives in that owner's CSS. Consume public semantic tokens;
   imports of another owner's CSS or foundation internals bypass ownership.
-- Update the design lab (`lab.html` + `src/lab/`, Vite dev only) when
-  changing foundation tokens or primitives.
 - Audiobook Boss is desktop-only. Alternate viewport review applies when the
   task explicitly requests it.
 

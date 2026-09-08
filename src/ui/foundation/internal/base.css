@@ -6,8 +6,7 @@
 
 html,
 body,
-#app,
-#lab {
+#app {
 	width: 100%;
 	height: 100%;
 }
