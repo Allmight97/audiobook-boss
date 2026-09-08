@@ -46,10 +46,14 @@ export type AcquisitionState = {
 export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
 	isOpen: boolean;
 	isGrabbing: boolean;
+	isAcquiring: boolean;
 	statusByProvider: Record<ProviderId, string>;
 };
 
-export type RemoteSourceView = Omit<RemoteSourceState, 'isGrabbing' | 'statusByProvider'> & {
+export type RemoteSourceView = Omit<
+	RemoteSourceState,
+	'isGrabbing' | 'isAcquiring' | 'statusByProvider'
+> & {
 	statusMessage: string;
 };
 
@@ -91,16 +95,17 @@ export function createInitialRemoteSourceState(): RemoteSourceState {
 		...initial,
 		isOpen: false,
 		isGrabbing: false,
+		isAcquiring: false,
 		statusByProvider: { audible: statusMessage, indexer: '' },
 	};
 }
 
 export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourceView {
-	const { isGrabbing, statusByProvider, ...view } = state;
+	const { isGrabbing, isAcquiring, statusByProvider, ...view } = state;
 	return {
 		...view,
 		statusMessage: statusByProvider[state.providerId],
-		isBusy: state.isBusy || isGrabbing,
+		isBusy: state.isBusy || isGrabbing || (state.providerId === 'audible' && isAcquiring),
 		selectedTitleIds: new Set(state.selectedTitleIds),
 		selectedReleaseKeys: new Set(state.selectedReleaseKeys),
 		releaseGrabs: { ...state.releaseGrabs },

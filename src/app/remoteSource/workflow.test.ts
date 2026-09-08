@@ -709,6 +709,27 @@ describe('remote source acquisition workflow', () => {
 		expect(second.view().releaseGrabs[releaseKey(indexerRelease())].status).toBe('sent');
 	});
 
+	it('keeps Audible busy through source reentry until the running acquisition settles', async () => {
+		const poll = createDeferred<AcquisitionJob>();
+		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
+		const owner = makeOwner(services);
+		await owner.open();
+		owner.toggleTitle('B000000001');
+		const acquiring = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
+		await owner.selectLane('indexer');
+		expect(owner.view().isBusy).toBe(false);
+		await owner.selectLane('audible');
+		expect(owner.view().isBusy).toBe(true);
+		owner.toggleTitle('B000000001');
+		await owner.runAction({ type: 'acquireSelected' });
+		expect(services.startAcquisition).toHaveBeenCalledTimes(1);
+		poll.resolve(terminalJob());
+		await acquiring;
+		expect(owner.view().isBusy).toBe(false);
+		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
+	});
+
 	it('retains a background Audible failure while an Indexer search is pending', async () => {
 		const poll = createDeferred<AcquisitionJob>();
 		const search =

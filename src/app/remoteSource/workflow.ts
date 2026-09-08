@@ -489,6 +489,7 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'acquireSelected': {
+				if (deps.state.current().isAcquiring) return;
 				const generation = beginAcquisition();
 				const acquisitionScope: WorkflowScope = {
 					providerId: workflowScope.providerId,
@@ -502,7 +503,7 @@ export function createRemoteSourceWorkflow(deps: {
 					return;
 				}
 				patchWhenCurrent(acquisitionScope, {
-					isBusy: true,
+					isAcquiring: true,
 					activeJob: null,
 					lastJob: null,
 					statusMessage: 'Starting Audible acquisition.',
@@ -533,7 +534,7 @@ export function createRemoteSourceWorkflow(deps: {
 						'Failed to acquire selected Audible titles.',
 					);
 				} finally {
-					patchWhenCurrent(acquisitionScope, { isBusy: false });
+					patchWhenCurrent(acquisitionScope, { isAcquiring: false });
 				}
 				return;
 			}
@@ -548,7 +549,7 @@ export function createRemoteSourceWorkflow(deps: {
 						activeJob: cancelledJob,
 						lastJob: cancelledJob,
 						statusMessage: statusFromAcquisitionJob(cancelledJob),
-						isBusy: false,
+						isAcquiring: false,
 					});
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(

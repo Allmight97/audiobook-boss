@@ -32,6 +32,8 @@
 - Status text belongs to its originating provider and the view projects the
   selected provider's message. Background Audible progress, terminal outcomes,
   and errors cannot replace Indexer status or clear its pending-operation busy state.
+  An acquisition owns Audible busy state until its handoff settles or cancellation
+  succeeds; source reentry cannot enable a competing acquisition.
 - Acquisition poll patches publish through the Remote Source owner view.
   Native jobs provide a progress snapshot from job creation;
   `RemoteSourceAcquireView` renders its live percentage and Cancel.
