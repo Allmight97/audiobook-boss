@@ -103,8 +103,9 @@ commands over invoking internals directly.
   `bump-version.ts`: build/release utilities. Public DMG builds always publish
   the AAXClean helper from current source and retain the matching portable app
   long enough to verify it; local app builds may reuse a fresh helper sidecar.
-  Bundle verification accepts exactly the app and helper executables and
-  inspects both.
+  Bundle verification accepts exactly the app and helper executables, inspects
+  both, and validates the app resource signature. Tauri seals macOS bundles
+  before DMG creation with the configured signing identity.
 - `analyze_code_lines.py`: optional human "Commander View" source-size
   diagnostic, not proof.
 - `*.test.ts`: Vitest coverage for script helpers. `vitest.config.ts` runs

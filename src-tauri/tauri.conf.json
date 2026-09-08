@@ -70,6 +70,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "resources": {
       "src/audio/toolchain/fdk-setup.command": "fdk-setup.command"
     }

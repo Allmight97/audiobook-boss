@@ -12,6 +12,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   retain stable Homebrew paths across upgrades, and time out unresponsive tools.
 - Keep FDK AAC available as a setup choice, with a Settings shortcut, explicit
   Homebrew installation/update handoff, and Recheck that refreshes Auto immediately.
+- Seal macOS app resources before DMG packaging and reject invalid bundle signatures.
 - Make all Settings content reachable by scrolling and give the API-key field
   the same stable styling as other text inputs.
 

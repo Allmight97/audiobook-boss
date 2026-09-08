@@ -28,20 +28,22 @@ install_fdk() {
 }
 
 main() {
-    local brew
+    local brew=/opt/homebrew/bin/brew
     printf 'AudioBook Boss — optional FDK AAC setup\n'
     printf 'Uses the community homebrew-ffmpeg formula. Homebrew manages the software on your Mac.\n'
+    if [ "$(/usr/bin/uname -m)" != arm64 ]; then
+        printf '\nOpen Terminal natively on Apple Silicon, then run this setup again.\n'
+        return 1
+    fi
     if ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
         printf '\nInstall Apple Command Line Tools in the system dialog, then run this setup again.\n'
         /usr/bin/xcode-select --install
         return
     fi
-    for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-        if [ -x "$brew" ]; then
-            install_fdk "$brew"
-            return
-        fi
-    done
+    if [ -x "$brew" ]; then
+        install_fdk "$brew"
+        return
+    fi
     printf '\nHomebrew is required. Opening its official installer download in your browser.\n'
     printf 'Open the downloaded Homebrew.pkg and finish installation, then run this setup again.\n'
     /usr/bin/open 'https://github.com/Homebrew/brew/releases/latest/download/Homebrew.pkg'
