@@ -22,10 +22,7 @@
  * ASC. The opaque faac_encoder* is the core's faacEncStruct*.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,6 +31,7 @@
 #include "bitstream.h"
 #include "sbr.h"
 #include "resample.h"
+#include "util.h"
 
 /* The public enums are width-pinned to 32 bits by their FAAC_*_MAX sentinels;
  * verify the compiler honored that so the ABI matches the documented layout. */
@@ -64,6 +62,12 @@ _Static_assert((int)FAAC_INPUT_NULL  == INPUT_NULL  && (int)FAAC_INPUT_16BIT == 
 #define PARAMS_BASELINE_SIZE \
     ((uint32_t)(offsetof(faac_params, max_bit_rate) + sizeof(uint32_t)))
 
+/* Same pattern as PARAMS_BASELINE_SIZE above. */
+#define LIBRARY_INFO_BASELINE_SIZE \
+    ((uint32_t)(offsetof(faac_library_info, sbr_decimation) + sizeof(uint32_t)))
+#define ENCODER_INFO_BASELINE_SIZE \
+    ((uint32_t)(offsetof(faac_encoder_info, pns_level) + sizeof(int32_t)))
+
 /* faac_encoder* and faacEncHandle are the same underlying object. */
 static inline faacEncStruct *unwrap(faac_encoder *enc) { return (faacEncStruct *)enc; }
 
@@ -76,7 +80,7 @@ FAACAPI faac_status faac_get_library_info(faac_library_info *out)
     if (!out)
         return FAAC_ERR_INVALID_ARGUMENT;
     caller_size = out->struct_size;
-    if (caller_size < sizeof(info.struct_size))
+    if (caller_size < LIBRARY_INFO_BASELINE_SIZE)
         return FAAC_ERR_INVALID_ARGUMENT;
 
     faacEncGetVersion(&vid, &vcopy);
@@ -95,26 +99,36 @@ FAACAPI faac_status faac_get_library_info(faac_library_info *out)
     return FAAC_OK;
 }
 
-FAACAPI faac_status faac_params_init(faac_params *p)
+FAACAPI faac_status faac_params_init(faac_params *p, uint32_t caller_size)
 {
+    faac_params tmp;
+    uint32_t n;
+
     if (!p)
         return FAAC_ERR_INVALID_ARGUMENT;
+    if (caller_size < PARAMS_BASELINE_SIZE)
+        return FAAC_ERR_INVALID_ARGUMENT;
 
-    memset(p, 0, sizeof(*p));
-    p->struct_size   = (uint32_t)sizeof(faac_params);
-    p->mpeg_version  = FAAC_MPEG4;
-    p->object_type   = FAAC_OBJ_LOW;
-    p->joint_mode    = FAAC_JOINT_MIXED;
-    p->use_lfe       = false;
-    p->use_tns       = false;
-    p->bit_rate      = 64000;          /* per channel; 0 would defer to quant_quality */
-    p->bandwidth     = 0;              /* derive from bit_rate */
-    p->quant_quality = 0;              /* derive from bit_rate */
-    p->max_bit_rate  = 0;              /* no per-frame peak cap */
-    p->output_format = FAAC_STREAM_ADTS;
-    p->input_format  = FAAC_INPUT_16BIT;
-    p->short_control = FAAC_SHORTCTL_NORMAL;
-    p->pns_level     = 4;
+    memset(&tmp, 0, sizeof(tmp));
+    tmp.mpeg_version  = FAAC_MPEG4;
+    tmp.object_type   = FAAC_OBJ_LOW;
+    tmp.joint_mode    = FAAC_JOINT_MIXED;
+    tmp.use_lfe       = false;
+    tmp.use_tns       = false;
+    tmp.bit_rate      = 64000;          /* per channel; 0 would defer to quant_quality */
+    tmp.bandwidth     = 0;              /* derive from bit_rate */
+    tmp.quant_quality = 0;              /* derive from bit_rate */
+    tmp.max_bit_rate  = 0;              /* no per-frame peak cap */
+    tmp.output_format = FAAC_STREAM_ADTS;
+    tmp.input_format  = FAAC_INPUT_16BIT;
+    tmp.short_control = FAAC_SHORTCTL_NORMAL;
+    tmp.pns_level     = 4;
+
+    /* Write at most the caller's struct_size so a newer library cannot overrun
+     * an older, smaller faac_params; report the byte count actually set. */
+    n = caller_size < (uint32_t)sizeof(faac_params) ? caller_size : (uint32_t)sizeof(faac_params);
+    tmp.struct_size = n;
+    memcpy(p, &tmp, n);
     return FAAC_OK;
 }
 
@@ -150,10 +164,8 @@ static faac_status validate_params(const faac_params *p)
         default: return FAAC_ERR_INVALID_ARGUMENT;
     }
     switch (p->input_format) {
-        case FAAC_INPUT_16BIT: case FAAC_INPUT_32BIT: case FAAC_INPUT_FLOAT:
+        case FAAC_INPUT_16BIT: case FAAC_INPUT_24BIT: case FAAC_INPUT_32BIT: case FAAC_INPUT_FLOAT:
             break;
-        case FAAC_INPUT_24BIT:
-            return FAAC_ERR_UNSUPPORTED;   /* 24-in-24 not implemented */
         default:
             return FAAC_ERR_INVALID_ARGUMENT;
     }
@@ -171,6 +183,10 @@ static faac_status validate_params(const faac_params *p)
             if (p->channel_map[i] < 0 || (uint32_t)p->channel_map[i] >= p->num_channels)
                 return FAAC_ERR_INVALID_ARGUMENT;
     }
+    /* bit_rate is per channel; reject a target above what a channel can carry
+     * under the ISO/IEC 14496-3 per-frame ceiling regardless of max_bit_rate. */
+    if (p->bit_rate && p->bit_rate > MaxBitrate(p->sample_rate))
+        return FAAC_ERR_INVALID_ARGUMENT;
     if (p->max_bit_rate) {
         /* Bounded because it is converted into a per-frame bit budget; an
          * absurd value is a caller error, not a request for an unlimited
@@ -261,6 +277,20 @@ FAACAPI faac_status faac_encoder_close(faac_encoder **enc)
     return FAAC_OK;
 }
 
+/* LC: one frame of 50% MDCT overlap. HE-AAC: that same core delay at full
+ * rate (2*FRAME_LEN) plus one extra full-rate frame the SBR/resample pipeline
+ * buffers ahead of the core, net of the resampler's own FIR group delay.
+ * Verified against decoded output, not derived from spec. */
+static uint32_t faacEncoderDelay(const faacEncStruct *h)
+{
+    switch (h->config.aacObjectType) {
+        case LOW:   return FRAME_LEN;
+        case HE_V1: return 3 * FRAME_LEN - RESAMPLE_FILTER_LEN / 2;
+    }
+    assert(0 && "faacEncoderDelay: unhandled aacObjectType");
+    return FRAME_LEN;
+}
+
 FAACAPI faac_status faac_encoder_get_info(faac_encoder *enc, faac_encoder_info *out)
 {
     faac_encoder_info info;
@@ -270,7 +300,7 @@ FAACAPI faac_status faac_encoder_get_info(faac_encoder *enc, faac_encoder_info *
     if (!enc || !out)
         return FAAC_ERR_INVALID_ARGUMENT;
     caller_size = out->struct_size;
-    if (caller_size < sizeof(info.struct_size))
+    if (caller_size < ENCODER_INFO_BASELINE_SIZE)
         return FAAC_ERR_INVALID_ARGUMENT;
     h = unwrap(enc);
 
@@ -286,10 +316,7 @@ FAACAPI faac_status faac_encoder_get_info(faac_encoder *enc, faac_encoder_info *
     info.quant_quality    = (uint32_t)h->config.quantqual;
     info.pns_level        = (int32_t)h->config.pnslevel;
     info.max_bit_rate     = (uint32_t)h->config.maxBitRate;
-    /* SBR dual-rate decoder adds 962 full-rate samples (ISO/IEC TR 14496-24). */
-    info.priming_samples = h->config.aacObjectType == HE_V1
-        ? 2 * FRAME_LEN + (RESAMPLE_FILTER_LEN - 1) / 2 : FRAME_LEN;
-    info.decoder_delay_samples = h->config.aacObjectType == HE_V1 ? 962 : 0;
+    info.encoder_delay    = faacEncoderDelay(h);
 
     /* Write at most the caller's struct_size so a newer library cannot overrun
      * an older, smaller faac_encoder_info; report the byte count actually set. */
@@ -348,13 +375,8 @@ FAACAPI faac_status faac_encoder_encode(faac_encoder *enc,
     /* faacEncEncode reinterprets the input bytes per the configured
      * input_format; the int32_t* parameter is historical and does not imply an
      * int32 layout. */
-    /* A zero-byte priming result during EOF is not end of output. */
-    if (!in_samples && !h->frameNum && !h->inputFifoFill)
-        return FAAC_OK;
-    do {
-        rc = faacEncEncode((faacEncHandle)h, (int32_t *)(uintptr_t)in,
-                           in_samples, out, out_cap);
-    } while (!in_samples && rc == 0 && h->frameNum <= LOOKAHEAD_DEPTH);
+    rc = faacEncEncode((faacEncHandle)h, (int32_t *)(uintptr_t)in,
+                       in_samples, out, out_cap);
     /* A too-small output buffer was already rejected above, so a negative
      * return here is an unexpected core fault, not a buffer-size problem --
      * don't disguise it as one or the caller will grow the buffer and retry. */

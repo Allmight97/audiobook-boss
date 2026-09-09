@@ -10,7 +10,7 @@ set -euo pipefail
 # scripts/AGENTS.md by touched owner.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-705286a8a7a8f9118465b2bd83f99a6f066dcbbc}"
+ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-903325e279b67156c3aa1f06ec5cb2378d9d004d}"
 ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg90}"
 ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
 ffmpeg_patch="${repo_root}/vendor/ffmpeg-sys-next-9.0.0/patches/mov-chapter-start.patch"

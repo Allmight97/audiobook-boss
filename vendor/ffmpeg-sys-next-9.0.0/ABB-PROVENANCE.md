@@ -4,9 +4,12 @@ Base: crates.io `ffmpeg-sys-next` 9.0.0 archive, SHA-256
 `9b939bf79dd5949412a4b81cfe21a07f48ea21b47fcbb5f57816c8c2de5ae30b`. The upstream manifest declares WTFPL.
 
 ABB builds FFmpeg from immutable commit
-`705286a8a7a8f9118465b2bd83f99a6f066dcbbc`; source stamps include that
+`903325e279b67156c3aa1f06ec5cb2378d9d004d`; source stamps include that
 revision and the local patch blob hash, invalidating cached libraries when
-either changes. The local sys changes also retain
+either changes. Advancing from `705286a8` to this revision adds only Android
+MediaCodec API documentation (`doc/APIchanges` and comments in
+`libavcodec/mediacodec.h`); it changes no executable code. NMR is still absent
+from the formal 9.0.1 release. The local sys changes also retain
 the required CoreAudio framework link and distinguish portable distribution
 builds from native development builds.
 

@@ -120,8 +120,9 @@ git history and closed issues own superseded chronology.
   reserved for proven prerelease families,
   cross-version type boundaries, synchronized families, and vendored or
   provenance-sensitive dependencies.
-- Outcome: a blanket 10-day minimum release age applies to every ordinary
-  dependency update, no family tiers. It is mechanical on both surfaces:
+- Outcome: a 10-day minimum release age applies to ordinary dependency
+  updates outside audio and metadata handling (exception below).
+  It is mechanical on both surfaces:
   `bunfig.toml` `minimumReleaseAge` gates fresh Bun resolutions and the
   Dependabot cooldown gates update PRs. Cargo has no release-age filter, so
   manual `cargo update` has no gate and relies on reviewer discipline.
@@ -129,7 +130,8 @@ git history and closed issues own superseded chronology.
   updates also bypass the age for the Solid/Effect prerelease family and its
   Solid compiler/Vite/testing companions only, resolving compatible package
   tags individually and saving exact pins. All other dependencies retain the
-  ten-day gate, including unrelated transitive resolutions through the explicit
+  ten-day gate except the audio/metadata scope below, including unrelated
+  transitive resolutions through the explicit
   `minimumReleaseAgeExcludes` list in `bunfig.toml`.
 - Outcome: weekly Dependabot version updates for Cargo and the text `bun.lock`
   ecosystem use the same 10-day cooldown, compatible-update groups, and a low
@@ -143,6 +145,23 @@ git history and closed issues own superseded chronology.
   refreshes. Evidence: `Cargo.toml`,
   `src-tauri/Cargo.toml`, `package.json`, `bunfig.toml`, and
   `.github/dependabot.yml`.
+
+## 2026-09-09 - Current Upstream For Audio And Metadata Dependencies
+
+- Outcome: keep audio and metadata dependencies current, including NMR/FFmpeg,
+  encoders, decoders, resampling, containers, artwork, and chapters. Use formal
+  releases when they meet the required behavior. FAAC follows current upstream
+  development while resolving HE timing; return to releases once they satisfy
+  that need. FFmpeg development currently supplies NMR, absent from 9.0.1.
+  Check development-head fixes before diagnosing upstream defects. This scope
+  bypasses the ordinary ten-day release-age policy for direct updates.
+- Guardrail: retaining an older version or imposing a version restriction
+  requires a demonstrated technical necessity, with the failing behavior,
+  owning boundary, and condition for removing the restriction recorded.
+  Existing patches, prior validation, or convenience alone do not justify it.
+  Record the source actually tested; advance source, bindings, and applicable
+  behavior proof together. A recorded revision is not a standing reason to
+  remain on it.
 
 ## 2026-08-24 - Function Complexity Is An Attention Ratchet, Not A Gate (#454)
 
@@ -207,13 +226,13 @@ git history and closed issues own superseded chronology.
   wire contract must remain non-nullable; keep focused owner and generated-type
   proof beside that exception.
 
-## 2026-09-08 - Native AAC Uses Pinned FFmpeg NMR
+## 2026-09-08 - Native AAC Uses FFmpeg NMR
 
 - Outcome: Native AAC uses `aac_coder=nmr` at `aac_nmr_speed=0`, retaining
   upstream intensity stereo and perceptual noise substitution defaults. The
   opened encoder must confirm the required options before processing begins;
   the UI names this route NMR AAC. Auto priority remains FDK, Apple, Native.
-- Evidence: FFmpeg commit `705286a8a7a8f9118465b2bd83f99a6f066dcbbc`
+- Evidence: FFmpeg commit `903325e279b67156c3aa1f06ec5cb2378d9d004d`
   includes NMR; the bundled runtime passes actual merge, chapter, metadata,
   channel, cancellation, and repeated-encoding media tests. Listening informed
   adoption but does not establish a universal quality ranking.

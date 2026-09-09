@@ -16,12 +16,14 @@
 #ifndef CODER_H
 #define CODER_H
 
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 #define FRAME_LEN 1024
+#define AAC_MAX_BITS_PER_CH 6144
 #define BLOCK_LEN_LONG 1024
 #define BLOCK_LEN_SHORT 128
 
@@ -104,8 +106,8 @@ typedef struct {
   unsigned long sampling_rate;  /* the following entries are for this sampling rate */
   int num_cb_long;
   int num_cb_short;
-  int cb_width_long[NSFB_LONG];
-  int cb_width_short[NSFB_SHORT];
+  uint8_t cb_width_long[NSFB_LONG];
+  uint8_t cb_width_short[NSFB_SHORT];
 } SR_INFO;
 
 /* Scalefactor-band layout per sampling_rate_index, shared by frame.c and sbr.c. */

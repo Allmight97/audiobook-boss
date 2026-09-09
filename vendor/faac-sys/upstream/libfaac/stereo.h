@@ -16,10 +16,6 @@
 #ifndef STEREO_H
 #define STEREO_H
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "channels.h"
 #include "util.h"
 
@@ -29,7 +25,7 @@ void AACstereo(CoderInfo *coder,
                float *s[MAX_CHANNELS],
                float quality,
                int mode,
-               int sampleRate
-              );
+               int sampleRate,
+               unsigned int bandWidth);
 
 #endif

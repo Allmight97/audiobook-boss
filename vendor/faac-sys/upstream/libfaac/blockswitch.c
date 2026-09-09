@@ -104,6 +104,42 @@ void PsyInit(GlobalPsyInfo * gpsyInfo, PsyInfo * psyInfo, unsigned int numChanne
     psyInfo[channel].sizeS = size;
 }
 
+/* Strongest relative energy jump across the sub-blocks of the window the MDCT
+   is about to transform. ENG_WIN_PREV is exactly that window -- (FIFO_PAST,
+   FIFO_CURR) -- because PsyBufferUpdate has already shifted by the time TNS
+   runs.
+
+   Exposed so TNS can gate on the temporal envelope already sitting in
+   psydata instead of recomputing it. Returns 0 if PsyBufferUpdate hasn't
+   populated the energy windows for this channel yet -- callers must treat
+   that as "no basis to judge", not "flat". */
+float PsyGetAttack(PsyInfo * psyInfo)
+{
+  psydata_t *psydata = (psydata_t *)psyInfo->data;
+  float strength = 0.0f, total = 0.0f;
+  int win;
+
+  if (!psydata)
+    return 0.0f;
+
+  for (win = 0; win < SUBBLOCKS_PER_FRAME; win++)
+  {
+    float e = (float)psydata->eng[ENG_WIN_PREV + win];
+
+    total += e;
+    if (win)
+    {
+      float p = (float)psydata->eng[ENG_WIN_PREV + win - 1];
+      float lo = (e < p) ? e : p;
+      float s = fabsf(e - p) / lo;      /* IEEE divide covers silence */
+
+      if (s > strength) strength = s;
+    }
+  }
+
+  return total > 0.0f ? strength : 0.0f;
+}
+
 void PsyEnd(PsyInfo * psyInfo, unsigned int numChannels)
 {
   unsigned int channel;
@@ -116,13 +152,33 @@ void PsyEnd(PsyInfo * psyInfo, unsigned int numChannels)
 }
 
 /* Do psychoacoustical analysis */
+/* Fast energy-based Perceptual Entropy approximation: sum subblock high-pass energies
+   pre-computed in PsyBufferUpdate(), scaling by PE_ENERGY_SCALE to match PE complexity threshold. */
+static void PsyCalcPE(PsyInfo * psyInfo)
+{
+  psydata_t *psydata = (psydata_t *)psyInfo->data;
+  if (!psydata) { psyInfo->pe = 0.0f; return; }
+  float pe = (float)psydata->eng[ENG_WIN_CUR + 0] + (float)psydata->eng[ENG_WIN_CUR + 1] +
+             (float)psydata->eng[ENG_WIN_CUR + 2] + (float)psydata->eng[ENG_WIN_CUR + 3] +
+             (float)psydata->eng[ENG_WIN_CUR + 4] + (float)psydata->eng[ENG_WIN_CUR + 5] +
+             (float)psydata->eng[ENG_WIN_CUR + 6] + (float)psydata->eng[ENG_WIN_CUR + 7];
+  psyInfo->pe = pe * PE_ENERGY_SCALE;
+}
+
+static void PsyAnalyzeChannel(PsyInfo * psyInfo)
+{
+  PsyCheckShort(psyInfo);
+  PsyCalcPE(psyInfo);
+}
+
+/* Do psychoacoustical analysis */
 void PsyCalculate(AACElement * elements, int numElements, PsyInfo * psyInfo,
 			 unsigned int numChannels
 			)
 {
   if (elements == NULL) {
       for (unsigned int channel = 0; channel < numChannels; channel++)
-          PsyCheckShort(&psyInfo[channel]);
+          PsyAnalyzeChannel(&psyInfo[channel]);
       return;
   }
 
@@ -131,14 +187,15 @@ void PsyCalculate(AACElement * elements, int numElements, PsyInfo * psyInfo,
       AACElement *elem = &elements[e];
       switch (elem->type) {
           case ID_SCE:
-              PsyCheckShort(&psyInfo[elem->channels[0]]);
+              PsyAnalyzeChannel(&psyInfo[elem->channels[0]]);
               break;
           case ID_CPE:
-              PsyCheckShort(&psyInfo[elem->channels[0]]);
-              PsyCheckShort(&psyInfo[elem->channels[1]]);
+              PsyAnalyzeChannel(&psyInfo[elem->channels[0]]);
+              PsyAnalyzeChannel(&psyInfo[elem->channels[1]]);
               break;
           case ID_LFE:
               psyInfo[elem->channels[0]].block_type = ONLY_LONG_WINDOW;
+              psyInfo[elem->channels[0]].pe = 0.0f;
               break;
           default:
               break;

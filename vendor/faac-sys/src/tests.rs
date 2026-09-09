@@ -23,7 +23,10 @@ fn float_raw_encoder_opens_drains_short_input_and_closes() {
 
 fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) {
     let mut params = faac_params::default();
-    assert_eq!(unsafe { faac_params_init(&mut params) }, FAAC_OK);
+    assert_eq!(
+        unsafe { faac_params_init(&mut params, size_of::<faac_params>() as u32) },
+        FAAC_OK
+    );
     params.sample_rate = rate;
     params.num_channels = channels;
     params.object_type = profile;
@@ -130,5 +133,8 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(unsafe { faac_get_library_info(&mut info) }, FAAC_OK);
     assert_eq!(info.max_channels, 2);
     assert_eq!(info.sbr_decimation, 1);
-    assert_eq!(unsafe { CStr::from_ptr(info.version) }.to_bytes(), b"2.1.0");
+    assert_eq!(
+        unsafe { CStr::from_ptr(info.version) }.to_bytes(),
+        b"2.1.0-dev.3aa4c6d"
+    );
 }

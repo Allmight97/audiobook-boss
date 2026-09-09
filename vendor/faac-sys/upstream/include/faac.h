@@ -53,23 +53,21 @@ extern "C" {
  *
  *   #if defined(FAAC_VERSION_MAJOR) && (FAAC_VERSION_MAJOR >= 1)
  */
-#define FAAC_VERSION_MAJOR 1
-#define FAAC_VERSION_MINOR 1
+#define FAAC_VERSION_MAJOR 2
+#define FAAC_VERSION_MINOR 0
 #define FAAC_VERSION_PATCH 0
 #define FAAC_VERSION_HEX \
     ((FAAC_VERSION_MAJOR << 16) | (FAAC_VERSION_MINOR << 8) | FAAC_VERSION_PATCH)
 
-/* Export/visibility marker. Shared with <faac.h>; guarded so including both
- * headers is harmless. */
-#if !defined(FAACAPI) && defined(__GNUC__) && (__GNUC__ >= 4)
-# if defined(_WIN32)
-#  define FAACAPI __stdcall __declspec(dllexport)
-# else
-#  define FAACAPI __attribute__((visibility("default")))
-# endif
-#endif
+/* Export/visibility marker. */
 #ifndef FAACAPI
+# if defined(_WIN32)
+#  define FAACAPI __declspec(dllexport)
+# elif defined(__GNUC__) && (__GNUC__ >= 4)
+#  define FAACAPI __attribute__((visibility("default")))
+# else
 #  define FAACAPI
+# endif
 #endif
 
 /* Opaque encoder handle */
@@ -137,7 +135,7 @@ enum faac_stream_format {
 enum faac_input_format {
     FAAC_INPUT_NULL  = 0,            /* invalid / unset                          */
     FAAC_INPUT_16BIT,                /* native-endian int16                      */
-    FAAC_INPUT_24BIT,                /* native-endian int24 in 24 bits (unimpl.) */
+    FAAC_INPUT_24BIT,                /* native-endian int24 in 24 bits           */
     FAAC_INPUT_32BIT,                /* native-endian int24 in 32 bits           */
     FAAC_INPUT_FLOAT,                /* 32-bit float                             */
     FAAC_INPUT_MAX = 0x7fffffff
@@ -152,7 +150,7 @@ enum faac_input_format {
  * open() will reject it. The struct only ever grows by appending named fields.
  */
 typedef struct faac_params {
-    uint32_t                struct_size;   /* set by faac_params_init to sizeof(faac_params) */
+    uint32_t                struct_size;   /* set by faac_params_init() */
 
     uint32_t                sample_rate;   /* input/output sample rate in Hz (required)      */
     uint32_t                num_channels;  /* channel count, 1..max_channels (required)       */
@@ -182,7 +180,8 @@ typedef struct faac_params {
     /* Ceiling on any single frame, for packet-oriented transports that cannot
      * fragment one -- a frame that overruns the link MTU is dropped, not split.
      * Unlike bit_rate this is a WHOLE-STREAM rate, so it stays independent of
-     * num_channels and follows from the payload a packet can carry:
+     * num_channels and follows from the payload a packet can carry or standard
+     * ISO/IEC 14496-3 limits (6144 bits/channel per frame):
      *
      *     max_bit_rate = payload_bytes * 8 * sample_rate / 1024
      *
@@ -224,11 +223,11 @@ typedef struct faac_encoder_info {
     uint32_t                quant_quality;    /* resolved quantizer quality                          */
     int32_t                 pns_level;        /* resolved PNS level, 0..10                           */
     uint32_t                max_bit_rate;     /* resolved peak cap, 0 if unlimited                   */
-    /* Core-compatible leading samples, in full input/output-rate units. */
-    uint32_t priming_samples;
-    /* Additional delay of the dual-rate SBR decoder. Decoder integrations
-     * differ in whether they compensate this themselves. */
-    uint32_t decoder_delay_samples;
+
+    /* Priming delay in samples/channel at the output rate: leading samples the
+     * decoder must discard. Use verbatim for gapless tagging (e.g. iTunSMPB) --
+     * not the same as frame_samples for HE-AAC. */
+    uint32_t                encoder_delay;
 } faac_encoder_info;
 
 /*
@@ -255,9 +254,21 @@ typedef struct faac_library_info {
 
 FAACAPI faac_status faac_get_library_info(faac_library_info *out);
 
-/* Zero-initialize *p and fill in library defaults and struct_size. Returns
- * FAAC_ERR_INVALID_ARGUMENT if p is NULL. */
-FAACAPI faac_status faac_params_init(faac_params *p);
+/* Zero-initialize *p and fill in library defaults and struct_size. Pass
+ * sizeof(*p) as caller_size; never writes past min(caller_size,
+ * sizeof(faac_params)), so a caller stays safe even if the loaded library's
+ * faac_params has grown since the caller was built. Returns
+ * FAAC_ERR_INVALID_ARGUMENT if p is NULL or caller_size is smaller than
+ * faac_params's original (baseline) layout.
+ *
+ * caller_size was added in SONAME 2; code that must build against both:
+ *   #if FAAC_VERSION_MAJOR >= 2
+ *       faac_params_init(&params, sizeof(params));
+ *   #else
+ *       faac_params_init(&params);
+ *   #endif
+ */
+FAACAPI faac_status faac_params_init(faac_params *p, uint32_t caller_size);
 
 /*
  * Create an encoder from a fully-specified faac_params. On success writes the

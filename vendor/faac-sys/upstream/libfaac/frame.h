@@ -27,10 +27,6 @@
 #define FIFO_AHEAD1     2
 #define FIFO_AHEAD2     3
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "faac_internal.h"
 
 #ifdef __cplusplus
@@ -43,6 +39,7 @@ extern "C" {
 #include "fft.h"
 #include "quantize.h"
 #include "sbr.h"
+#include "stats.h"
 
 typedef struct faacEncStruct {
     /* number of channels in AAC file */
@@ -109,9 +106,13 @@ typedef struct faacEncStruct {
     /* HE-AAC / SBR state */
     struct SBRContext *sbrContext;   /* SBR analysis state and bitstream data */
 
-    /* Peak-limiter retry scratch, NULL unless config.maxBitRate is set: one
-     * buffer per channel holding book[] at [0] and sf[] at [MAX_SCFAC_BANDS]. */
+    /* Peak-limiter retry scratch: one buffer per channel holding book[] at
+     * [0] and sf[] at [MAX_SCFAC_BANDS]. */
     int *peakSnap[MAX_CHANNELS];
+
+    /* Adaptive bit reservoir state */
+    int bitReservoir;       /* current bit reservoir level in bits */
+    int bitReservoirCap;    /* max bit reservoir capacity in bits */
 } faacEncStruct;
 
 /* Configuration worker behind faac_encoder_open(): validates the config,

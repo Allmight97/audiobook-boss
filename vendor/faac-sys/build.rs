@@ -4,7 +4,7 @@ fn main() {
     let out = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo output directory"));
     fs::write(
         out.join("config.h"),
-        "#define PACKAGE_VERSION \"2.1.0\"\n#define MAX_CHANNELS 2\n#define FAAC_SBR_DECIMATION 1\n",
+        "#define PACKAGE_VERSION \"2.1.0-dev.3aa4c6d\"\n#define MAX_CHANNELS 2\n#define FAAC_SBR_DECIMATION 1\n",
     ).expect("write FAAC build configuration");
 
     // Portable scalar source list from upstream libfaac/meson.build.
@@ -33,7 +33,14 @@ fn main() {
     build
         .include("upstream/include")
         .include(&out)
-        .define("HAVE_CONFIG_H", None)
+        .flag(
+            if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+                "/FI"
+            } else {
+                "-include"
+            },
+        )
+        .flag(out.join("config.h").to_str().expect("configuration path"))
         .std("c11")
         .opt_level(3);
     for source in sources {

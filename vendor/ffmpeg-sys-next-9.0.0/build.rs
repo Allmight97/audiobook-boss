@@ -143,7 +143,7 @@ fn version() -> String {
 
 // ABB distributes the bundled build, so its FFmpeg source must not follow the
 // mutable upstream release branch used by the published sys crate.
-const FFMPEG_SOURCE_COMMIT: &str = "705286a8a7a8f9118465b2bd83f99a6f066dcbbc";
+const FFMPEG_SOURCE_COMMIT: &str = "903325e279b67156c3aa1f06ec5cb2378d9d004d";
 const FFMPEG_SOURCE_PATCH: &str = "patches/mov-chapter-start.patch";
 
 fn source_patch_path() -> PathBuf {
