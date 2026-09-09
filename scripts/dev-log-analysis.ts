@@ -502,7 +502,7 @@ function parseInProcessEncoderRuns(input: string): {
 		}
 		if (!current) continue;
 		if (
-			/^(encoder=|stage=|ffmpeg_version=|faac_version=|profile=|output_rate=|submitted_samples=|first_packet_pts=|elapsed_ms=)/.test(
+			/^(encoder=|encoder_settings |stage=|target_duration_seconds=|ffmpeg_version=|faac_version=|profile=|output_rate=|submitted_samples=|first_packet_pts=|elapsed_ms=)/.test(
 				line,
 			)
 		) {

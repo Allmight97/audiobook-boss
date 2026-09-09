@@ -476,6 +476,8 @@ describe('analyzeDevLog', () => {
 				'status=success',
 				`job_id=job-${index}`,
 				'encoder=faac',
+				'encoder_settings encoder_type=FaacHeAac bitrate_mode=Abr bitrate_kbps=64',
+				'elapsed_ms=1200',
 				'stage=encode_mux',
 				'faac_version=2.1-dev profile=HE-AAC-v1',
 				'submitted_samples=44100 encoded_packets=24',
@@ -488,6 +490,8 @@ describe('analyzeDevLog', () => {
 		expect(analysis.jobs).toEqual([]);
 		const summary = renderDevLogAnalysis(analysis);
 		expect(summary).toContain('faac_version=2.1-dev');
+		expect(summary).toContain('encoder_settings encoder_type=FaacHeAac');
+		expect(summary).toContain('elapsed_ms=1200');
 		expect(summary).toContain('submitted_samples=44100');
 		expect(summary).not.toContain('job_id=job-0');
 	});
