@@ -19,6 +19,10 @@
 
 - Own operation identity, immutable accepted submissions, operation snapshots,
   operation-scoped cancellation, and Work Center event truth.
+- Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
+  progress through output completion (100%, excluding the earlier cleanup
+  event). Keep each child's finish when the batch settles; missing timestamps
+  mean unknown, never derive them from logs or batch duration.
 - Stamp per-operation `revision` under the state lock before mutable access.
   List `membershipRevision` advances on insert/prune; `createdRevision` records
   each operation's insertion. Submission `sequence` remains display order.

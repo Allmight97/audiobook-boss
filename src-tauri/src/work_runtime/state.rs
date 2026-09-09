@@ -161,6 +161,12 @@ impl WorkRuntimeState {
             if let Some(job_id) = event.job_id.as_deref() {
                 child.job_id = Some(job_id.to_string());
             }
+            if child_status == ChildJobStatus::Running {
+                child.started_at_ms.get_or_insert(now_ms);
+            } else if event.stage != EventStage::Completed || event.percentage >= 100.0 {
+                // Cleanup also uses Completed, below 100%; the output is not ready yet.
+                child.finished_at_ms.get_or_insert(now_ms);
+            }
             child.status = child_status;
             child.progress.stage = work_stage_from_event_stage(event.stage);
             child.progress.percentage = finite_percentage(event.percentage);

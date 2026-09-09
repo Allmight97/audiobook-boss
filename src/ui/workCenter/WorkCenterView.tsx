@@ -7,11 +7,23 @@ import { Progress } from '../foundation';
 import type { ChildJobSnapshot, OperationSnapshot } from '../../types/workRuntime';
 import './workCenterView.css';
 
-function operationStatusLabel(status: OperationSnapshot['status']): string {
+function completedLabel(
+	label: string,
+	timing: { startedAtMs?: number; finishedAtMs?: number },
+): string {
+	if (timing.startedAtMs == null || timing.finishedAtMs == null) return label;
+	const totalSeconds = Math.max(0, Math.round((timing.finishedAtMs - timing.startedAtMs) / 1000));
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = String(totalSeconds % 60).padStart(2, '0');
+	return `${label} in ${String(minutes).padStart(2, '0')}:${seconds}`;
+}
+
+function operationStatusLabel(operation: OperationSnapshot): string {
+	const { status } = operation;
 	if (status === 'accepted') return 'Accepted';
 	if (status === 'running') return 'Running';
 	if (status === 'cancelling') return 'Cancelling';
-	if (status === 'completed') return 'Completed';
+	if (status === 'completed') return completedLabel('Completed', operation);
 	if (status === 'cancelled') return 'Cancelled';
 	if (status === 'failed') return 'Failed';
 	return 'Mixed';
@@ -36,10 +48,11 @@ function operationKindLabel(kind: OperationSnapshot['kind']): string {
 	return 'Metadata';
 }
 
-function childStatusLabel(status: ChildJobSnapshot['status']): string {
+function childStatusLabel(child: ChildJobSnapshot): string {
+	const { status } = child;
 	if (status === 'queued') return 'Queued';
 	if (status === 'running') return 'Running';
-	if (status === 'completed') return 'Done';
+	if (status === 'completed') return completedLabel('Done', child);
 	if (status === 'skipped') return 'Skipped';
 	if (status === 'cancelled') return 'Cancelled';
 	return 'Failed';
@@ -92,7 +105,7 @@ export function WorkCenterView(): JSX.Element {
 										</div>
 										<div class="work-operation-actions">
 											<span class={`work-status is-${operation.status}`}>
-												{operationStatusLabel(operation.status)}
+												{operationStatusLabel(operation)}
 												<Show when={queuePosition()}>{(position) => <> #{position()}</>}</Show>
 											</span>
 											<button
@@ -137,7 +150,7 @@ export function WorkCenterView(): JSX.Element {
 														{child.label}
 													</span>
 													<span class="work-child-status">
-														{childStatusLabel(child.status)}
+														{childStatusLabel(child)}
 														<Show
 															when={child.status === 'running' && child.progress.etaSeconds != null}
 														>

@@ -101,6 +101,8 @@ function mockOperationSnapshot(
 			operationId,
 			label: pathBasename(path, { fallback: 'path' }),
 			status: 'queued' as const,
+			startedAtMs: null,
+			finishedAtMs: null,
 			lane: childLane,
 			progress: {
 				stage: 'pending' as const,

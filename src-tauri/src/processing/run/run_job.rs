@@ -78,6 +78,9 @@ pub(crate) async fn run_processing_job(
         workspace_root: request.workspace_root,
         preview_seconds: request.preview_seconds,
     });
+    context
+        .new_emitter()
+        .emit_analyzing_start("Preparing audio job...");
     let preview_path = (request.output_plan.kind == OutputKind::Preview)
         .then(|| request.output_plan.resolved_path.display().to_string());
     let result = match audio::execute_audio_engine(AudioExecutionRequest::new(
