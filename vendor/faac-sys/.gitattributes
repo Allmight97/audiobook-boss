@@ -1,0 +1,4 @@
+# Keep pinned upstream bytes reproducible; whitespace is part of the source artifact.
+upstream/** -whitespace
+# Unified diff context includes significant leading whitespace and blank lines.
+timing.patch -whitespace

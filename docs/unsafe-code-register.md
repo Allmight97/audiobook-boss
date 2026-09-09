@@ -60,6 +60,9 @@ These are tracked at summary level so the register stays useful:
 - `vendor/ffmpeg-sys-next-9.0.0/**`: unsafe C wrapper functions belong to the
   vendored FFmpeg sys layer. Treat this as dependency/sys surface unless local
   production code calls a wrapper directly.
+- `vendor/faac-sys/`: generated C bindings and smoke-test calls own the pinned
+  library build experiment. No production Rust encoder session calls them yet;
+  adding that session requires an owned handle/ASC/PCM lifetime entry here.
 - `src/AGENTS.md`: "unsafe `any` propagation" is TypeScript lint language, not
   Rust unsafe code.
 

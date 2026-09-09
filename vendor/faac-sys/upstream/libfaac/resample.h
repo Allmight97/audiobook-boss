@@ -1,0 +1,53 @@
+/*
+ * FAAC - Freeware Advanced Audio Coder
+ * Copyright (C) 2026 Nils Schimmelmann
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ */
+
+/* 2:1 FIR downsampler for HE-AAC core signal preparation.
+ * Takes full-rate PCM (Fs) and produces half-rate PCM (Fs/2)
+ * for the AAC-LC core encoder. */
+
+#ifndef RESAMPLE_H
+#define RESAMPLE_H
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "coder.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef float resfloat;
+
+#define RESAMPLE_FILTER_LEN 63
+
+typedef struct Resampler {
+    float  buf     [MAX_CHANNELS][RESAMPLE_FILTER_LEN]; /* FIR overlap state (carries between frames) */
+    float  fullRate[MAX_CHANNELS][2 * FRAME_LEN];       /* full-rate input: caller fills, SBR reads, FIR consumes */
+    float  halfRate[MAX_CHANNELS][FRAME_LEN];           /* downsampled output: written by Resample */
+    int        channels;
+} Resampler;
+
+Resampler *ResampleInit(int channels);
+void ResampleEnd(Resampler *r);
+
+int Resample(Resampler *r, int input_len);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* RESAMPLE_H */
