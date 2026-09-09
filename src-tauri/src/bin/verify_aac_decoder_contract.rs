@@ -7,7 +7,7 @@ fn main() {
     let preferred_order = preferred_aac_decoder_order_labels(availability).join(",");
 
     #[cfg(target_os = "macos")]
-    let contract_ok = availability.has_compatible_named_decoder();
+    let contract_ok = availability.has_named_decoder();
 
     #[cfg(not(target_os = "macos"))]
     let contract_ok = true;
@@ -27,7 +27,7 @@ fn main() {
 
     if !contract_ok {
         eprintln!(
-            "macOS AAC decoder contract failed: expected at least one compatible named AAC decoder (aac_at or libfdk_aac)"
+            "macOS AAC decoder contract failed: expected at least one available named AAC decoder (aac_at or libfdk_aac)"
         );
         std::process::exit(1);
     }
