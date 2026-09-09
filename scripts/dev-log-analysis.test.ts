@@ -469,6 +469,28 @@ describe('analyzeDevLog', () => {
 		expect(analysis.malformedOutputPlanLines).toBe(0);
 	});
 
+	it('shows bounded encoder diagnostics without treating mux completion as artifact success', () => {
+		const log = Array.from({ length: 7 }, (_, index) =>
+			[
+				`--- in-process-encoder run ${index} ---`,
+				'status=success',
+				`job_id=job-${index}`,
+				'encoder=aac_at',
+				'stage=encode_mux',
+				'encoder_settings encoder_type=AacAt bitrate_mode=Cvbr bitrate_kbps=64',
+				'elapsed_ms=1200',
+				'--- end in-process-encoder run ---',
+			].join('\n'),
+		).join('\n');
+		const analysis = analyzeDevLog(APP_START, log, 0);
+		expect(analysis.inProcessEncoderDetails).toHaveLength(5);
+		expect(analysis.jobs).toEqual([]);
+		const summary = renderDevLogAnalysis(analysis);
+		expect(summary).toContain('encoder=aac_at');
+		expect(summary).toContain('elapsed_ms=1200');
+		expect(summary).not.toContain('job_id=job-0');
+	});
+
 	it.each(['failed'])('classifies in-process encoder status=%s as failed', (status) => {
 		const encodingLog = [
 			'--- in-process-encoder run 1783700000 ---',

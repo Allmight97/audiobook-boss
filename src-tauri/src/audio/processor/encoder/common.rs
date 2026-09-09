@@ -122,6 +122,7 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
         std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".to_string())
     );
     let _ = writeln!(output, "status={}", entry.status);
+    output.push_str("stage=encode_mux\n");
     if let Some(detail) = entry.status_detail {
         let _ = writeln!(output, "status_detail={detail}");
     }

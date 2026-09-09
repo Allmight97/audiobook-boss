@@ -67,6 +67,7 @@ export interface DevLogAnalysis {
 	externalFdkStatuses: Record<string, number>;
 	malformedExternalFdkRuns: number;
 	inProcessEncoderRuns: number;
+	inProcessEncoderDetails: string[];
 	inProcessEncoderStatuses: Record<string, number>;
 	malformedInProcessEncoderRuns: number;
 	highSignalLines: string[];
@@ -464,13 +465,17 @@ function parseExternalFdkRuns(input: string): {
 	return { runs, malformedRuns };
 }
 
+interface InProcessEncoderRun extends ExternalFdkRun {
+	details: string[];
+}
+
 function parseInProcessEncoderRuns(input: string): {
-	runs: ExternalFdkRun[];
+	runs: InProcessEncoderRun[];
 	malformedRuns: number;
 } {
-	const runs: ExternalFdkRun[] = [];
+	const runs: InProcessEncoderRun[] = [];
 	let malformedRuns = 0;
-	let current: (ExternalFdkRun & { malformed: boolean }) | undefined;
+	let current: (InProcessEncoderRun & { malformed: boolean }) | undefined;
 
 	const finishCurrent = (closed: boolean): void => {
 		if (!current) {
@@ -488,7 +493,7 @@ function parseInProcessEncoderRuns(input: string): {
 	for (const line of input.split('\n')) {
 		if (line.startsWith('--- in-process-encoder run ')) {
 			if (current) finishCurrent(false);
-			current = { malformed: false };
+			current = { malformed: false, details: [] };
 			continue;
 		}
 		if (line === '--- end in-process-encoder run ---') {
@@ -496,6 +501,9 @@ function parseInProcessEncoderRuns(input: string): {
 			continue;
 		}
 		if (!current) continue;
+		if (/^(encoder=|encoder_settings |stage=|elapsed_ms=|target_duration_seconds=)/.test(line)) {
+			current.details.push(line);
+		}
 		if (line.startsWith('status=')) {
 			if (current.status !== undefined) current.malformed = true;
 			current.status = line.slice('status='.length);
@@ -805,6 +813,14 @@ export function analyzeDevLog(
 		externalFdkStatuses,
 		malformedExternalFdkRuns,
 		inProcessEncoderRuns,
+		inProcessEncoderDetails: inProcessEncoderRunRecords
+			.slice(-5)
+			.map((run) =>
+				[
+					`job_id=${run.jobId ?? 'unscoped'} status=${run.status ?? 'incomplete'}`,
+					...run.details,
+				].join('\n'),
+			),
 		inProcessEncoderStatuses,
 		malformedInProcessEncoderRuns,
 		highSignalLines,
@@ -938,8 +954,11 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'',
 		'## Encoder Log',
 		'',
+		'Encoder records describe encoding and muxing. Final artifact outcomes are reported above.',
+		'',
 		'```text',
 		`lines=${analysis.encoderLines} external_fdk_runs=${analysis.externalFdkRuns} malformed_external_fdk_runs=${analysis.malformedExternalFdkRuns} in_process_encoder_runs=${analysis.inProcessEncoderRuns} malformed_in_process_encoder_runs=${analysis.malformedInProcessEncoderRuns}${encoderStatuses ? ` ${encoderStatuses}` : ''}`,
+		...analysis.inProcessEncoderDetails,
 		'```',
 		'',
 	].join('\n');
