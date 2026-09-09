@@ -98,7 +98,10 @@ export function EncoderView(): JSX.Element {
 					</select>
 				</div>
 				<div class="encoder-field-row">
-					<label for="output-quality" id="quality-bitrate-label">
+					<label
+						for={view().showQuality ? 'output-quality' : 'output-bitrate'}
+						id="quality-bitrate-label"
+					>
 						{view().qualityBitrateLabel}
 					</label>
 					<div class="encoder-field-stack">

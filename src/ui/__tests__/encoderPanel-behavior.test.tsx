@@ -227,6 +227,7 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement;
+		expect(bitrateSelect).toHaveAccessibleName('Bitrate');
 		changeSelectValue(bitrateSelect, '48');
 
 		await vi.waitFor(() => {
