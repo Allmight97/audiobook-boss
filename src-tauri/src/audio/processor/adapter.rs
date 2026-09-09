@@ -115,10 +115,14 @@ pub fn resolve_processor_adapter(
     encoder_settings: &EncoderSettings,
 ) -> Result<ResolvedProcessorAdapter> {
     let requested = encoder_settings.encoder_type;
-    if matches!(requested, EncoderType::NativeAac | EncoderType::AacAt) {
+    if matches!(
+        requested,
+        EncoderType::NativeAac | EncoderType::AacAt | EncoderType::FaacHeAac
+    ) {
         let platform_supported = requested != EncoderType::AacAt || cfg!(target_os = "macos");
-        let available =
-            platform_supported && is_encoder_available_by_name(resolve_encoder_name(requested));
+        let available = requested == EncoderType::FaacHeAac
+            || (platform_supported
+                && is_encoder_available_by_name(resolve_encoder_name(requested)));
         validate_encoder_available(requested, available)?;
         return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
             encoder_type: requested,

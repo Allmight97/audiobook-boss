@@ -126,9 +126,11 @@ pub use processor::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
 };
 pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
-pub use settings::{validate_output_path, validate_sample_rate_config};
+pub use settings::{
+    validate_encoder_sample_rate, validate_output_path, validate_sample_rate_config,
+};
 pub use settings_capabilities::{
-    encoder_settings_capabilities, EncoderBitrateModeCapability, EncoderSettingsCapabilities,
+    encoder_settings_capabilities, EncoderConfigurationCapability, EncoderSettingsCapabilities,
 };
 pub use settings_encoder::{
     resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,

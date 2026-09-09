@@ -6,6 +6,10 @@ use ffmpeg_next as ff;
 
 use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
 use super::options::{build_apple_options, build_native_options, validate_native_options};
+use super::{
+    faac::FaacEncoder,
+    session::{Backend, EncoderSession},
+};
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
@@ -57,7 +61,7 @@ pub(crate) fn create_audio_encoder(
     let opts = match resolved_encoder {
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
-        EncoderType::FdkHeAac | EncoderType::Auto => {
+        EncoderType::FaacHeAac | EncoderType::FdkHeAac | EncoderType::Auto => {
             unreachable!("create_audio_encoder requires a resolved in-process encoder type")
         }
     };
@@ -93,24 +97,17 @@ pub(crate) fn create_audio_encoder(
 }
 
 /// Sets up the output encoder context and stream with metadata support.
-/// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate, frame_plan)
+/// The returned session owns the codec, output handle, and sample timeline.
 ///
 /// When `skip_chapter_passthrough` is false and input files have chapters, they are copied
 /// to the output context before the header is written (#66).
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // Sequential codec/container/cover/chapter setup with fallible handoffs.
 pub(crate) fn setup_encoder(
     plan: &crate::audio::processor::plan::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     skip_chapter_passthrough: bool,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
-) -> Result<(
-    ff::format::context::Output,
-    ff::codec::encoder::audio::Encoder,
-    usize,
-    ff::Rational,
-    u32,
-    EncoderFramePlan,
-)> {
+) -> Result<EncoderSession> {
     use crate::errors::AppError;
 
     let (target_sample_rate, target_channels) =
@@ -140,16 +137,24 @@ pub(crate) fn setup_encoder(
         .add_stream(codec)
         .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
-    let enc_ctx = create_audio_encoder(
-        &plan.encoder_settings,
-        resolved_encoder_type,
-        target_sample_rate,
-        target_channels,
-        requires_global_header,
-    )?;
+    let enc_ctx = if resolved_encoder_type == EncoderType::FaacHeAac {
+        Backend::Faac(FaacEncoder::open(
+            target_sample_rate,
+            target_channels,
+            plan.encoder_settings.bitrate_kbps,
+        )?)
+    } else {
+        Backend::Ffmpeg(create_audio_encoder(
+            &plan.encoder_settings,
+            resolved_encoder_type,
+            target_sample_rate,
+            target_channels,
+            requires_global_header,
+        )?)
+    };
 
     ost.set_time_base(enc_ctx.time_base());
-    ost.set_parameters(&enc_ctx);
+    ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
     let ost_time_base = ost.time_base();
 
@@ -256,14 +261,17 @@ pub(crate) fn setup_encoder(
         plan.encoder_settings.bitrate_kbps,
         plan.encoder_settings
     );
-    let frame_plan = EncoderFramePlan::from_opened_encoder(&enc_ctx, resolved_encoder_type)?;
+    let frame_plan = EncoderFramePlan::from_raw_frame_size(
+        enc_ctx.frame_size() as usize,
+        resolved_encoder_type,
+    )?;
 
-    Ok((
-        octx,
+    Ok(EncoderSession::new(
         enc_ctx,
+        octx,
         ost_index,
         ost_time_base,
-        target_sample_rate,
-        frame_plan,
+        frame_plan.samples_per_frame(),
+        resolved_encoder_type,
     ))
 }

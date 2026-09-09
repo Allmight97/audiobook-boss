@@ -25,7 +25,7 @@
 - Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
   `validate_input_image_path`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`,
-  `validate_sample_rate_config`, `validate_encoder_settings`,
+  `validate_sample_rate_config`, `validate_encoder_sample_rate`, `validate_encoder_settings`,
   `validate_requested_encoder_available`,
   `encoder_settings_capabilities`,
   `resolve_encoder_type`, `resolve_encoder_name`,
@@ -37,7 +37,7 @@
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.
-- Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
+- Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
 - Constants: `VALID_ENCODER_BITRATES`.
 - Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled

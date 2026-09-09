@@ -25,7 +25,7 @@ commands over invoking internals directly.
 - Media execution: real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
-  the Native AAC and Apple AAC encoder routes (external FDK is excluded: it
+  the FAAC HE-AAC, Native AAC and Apple AAC encoder routes (external FDK is excluded: it
   needs a user-supplied libfdk_aac FFmpeg, so real-execution proof for it is
   manual or env-gated only; Apple AAC is macOS-gated and skips elsewhere),
   sample-rate-converted merges, chapterless prefixes before embedded chapters,

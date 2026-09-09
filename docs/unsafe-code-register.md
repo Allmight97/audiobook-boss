@@ -50,6 +50,9 @@ behavior can break if that invariant is wrong?
 | Codec extradata copy | `src-tauri/src/audio/processor/streams.rs` `read_codec_extradata` | Copy codec extradata for AAC profile/probe decisions when safe wrapper coverage is insufficient. | Decoder selection and xHE-AAC/AAC routing. | Read only during the lifetime of codec parameters; require non-null data and positive size; copy into owned memory immediately. |
 | MP4 audio index inspection | `src-tauri/src/audio/file_list.rs` `validate_mp4_audio_extent` | Read public FFmpeg index entry offsets and sizes absent from the safe wrapper to reject declared audio outside the local file. | MP4 import validity for all encoder routes. | Require the detected MP4 demuxer; borrow the live stream, copy fields before another FFmpeg call, check null entries, negative fields, addition overflow, and file bounds. Only known indexed packets are validated. |
 
+| FAAC encoder session | `src-tauri/src/audio/processor/encoder/faac.rs` | Own a FAAC C handle, interleave normalized PCM onto FAAC's signed-16 float scale, copy ASC into padded FFmpeg codec parameters. | FAAC channel/profile truth, encoding and resource cleanup. | ABI-sized structs; checked status codes and opened configuration; bounded owned buffers; copy borrowed ASC while live; one Drop closes the handle, including setup failures. |
+| HE packet padding | `src-tauri/src/audio/processor/encoder/write.rs` | Attach discard-padding side data while preserving complete HE access units and postroll in MP4. | FAAC playback interval and final audio tail. | Packet owns the allocated 10-byte skip-samples payload; samples use the encoder time base; full packet duration and postroll survive muxing. |
+
 ## Non-Production Sightings
 
 These are tracked at summary level so the register stays useful:

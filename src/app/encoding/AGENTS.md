@@ -17,7 +17,7 @@
 
 ## Hard Invariants
 
-- Request-shaped truth. VBR quality is not the sticky CBR/CVBR `bitrateKbps`.
+- Request-shaped truth. VBR quality is not the sticky ABR/CBR/CVBR `bitrateKbps`.
   Estimate kbps uses the VBR table; it never parses `Est: ~60 kbps`.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`
   do not persist. Only `select` and `setAfterburner` persist last-used
@@ -30,6 +30,9 @@
 - Selecting unavailable FDK invokes the injected setup intent and preserves the
   current encoder request. The FDK option remains actionable; capability loss
   during hydration/reload still clamps an unavailable request to Auto.
+- Per-encoder sample-rate restrictions come from `encoderConfigurations`.
+  Unsupported explicit rates remain visible with a correction hint and are
+  rejected at backend ingress; switching encoders must not silently resample.
 - Afterburner is encoding truth. The checkbox stays in the Settings dialog.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.

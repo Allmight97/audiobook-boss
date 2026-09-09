@@ -29,7 +29,10 @@ pub(crate) fn validate_processing_inputs(
         let _ = crate::audio::path_validation::validate_input_audio_path(&file.path)?;
     }
 
-    crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;
+    crate::audio::settings::validate_encoder_sample_rate(
+        context.encoder_settings.encoder_type,
+        &context.sample_rate,
+    )?;
     crate::audio::settings::validate_output_path(context.output.final_path())?;
     Ok(())
 }

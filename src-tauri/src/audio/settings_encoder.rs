@@ -17,8 +17,10 @@ pub enum EncoderType {
     FdkHeAac,
     /// Apple AAC (AudioToolbox), macOS-only
     AacAt,
-    /// FFmpeg AAC encoder using the pinned NMR coder (aac)
+    /// FFmpeg AAC encoder using the NMR coder (aac)
     NativeAac,
+    /// Bundled FAAC HE-AAC v1 using average bitrate control.
+    FaacHeAac,
 }
 
 impl fmt::Display for EncoderType {
@@ -28,6 +30,7 @@ impl fmt::Display for EncoderType {
             EncoderType::FdkHeAac => "fdk_he_aac",
             EncoderType::AacAt => "aac_at",
             EncoderType::NativeAac => "native_aac",
+            EncoderType::FaacHeAac => "faac_he_aac",
         };
         write!(f, "{}", label)
     }
@@ -39,6 +42,7 @@ impl fmt::Display for EncoderType {
 pub enum BitrateMode {
     Cbr,
     Cvbr,
+    Abr,
     Vbr(u8),
 }
 
@@ -48,6 +52,7 @@ pub enum BitrateMode {
 pub enum BitrateModeKind {
     Cbr,
     Cvbr,
+    Abr,
     Vbr,
 }
 
@@ -56,6 +61,7 @@ impl BitrateModeKind {
         match mode {
             BitrateMode::Cbr => Self::Cbr,
             BitrateMode::Cvbr => Self::Cvbr,
+            BitrateMode::Abr => Self::Abr,
             BitrateMode::Vbr(_) => Self::Vbr,
         }
     }
@@ -107,11 +113,12 @@ pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u8> = 1..=5;
 /// Default VBR level for audiobook speech output.
 pub const DEFAULT_VBR_LEVEL: u8 = 3;
 
-const ALL_ENCODER_TYPES: [EncoderType; 4] = [
+const ALL_ENCODER_TYPES: [EncoderType; 5] = [
     EncoderType::Auto,
     EncoderType::FdkHeAac,
     EncoderType::AacAt,
     EncoderType::NativeAac,
+    EncoderType::FaacHeAac,
 ];
 const AUTO_ENCODER_RESOLUTION_ORDER: [EncoderType; 3] = [
     EncoderType::FdkHeAac,
@@ -120,9 +127,10 @@ const AUTO_ENCODER_RESOLUTION_ORDER: [EncoderType; 3] = [
 ];
 const VBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Vbr];
 const CVBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cvbr];
+const ABR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Abr];
 const CBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cbr];
 
-pub fn all_encoder_types() -> [EncoderType; 4] {
+pub fn all_encoder_types() -> [EncoderType; 5] {
     ALL_ENCODER_TYPES
 }
 
@@ -135,6 +143,7 @@ pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [Bi
         EncoderType::Auto | EncoderType::FdkHeAac => &VBR_ONLY,
         EncoderType::AacAt => &CVBR_ONLY,
         EncoderType::NativeAac => &CBR_ONLY,
+        EncoderType::FaacHeAac => &ABR_ONLY,
     }
 }
 
@@ -143,6 +152,7 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
         EncoderType::Auto | EncoderType::FdkHeAac => BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
         EncoderType::AacAt => BitrateMode::Cvbr,
         EncoderType::NativeAac => BitrateMode::Cbr,
+        EncoderType::FaacHeAac => BitrateMode::Abr,
     }
 }
 
@@ -168,7 +178,7 @@ fn validate_bitrate(bitrate_kbps: u16) -> Result<()> {
 
 fn validate_bitrate_mode(mode: BitrateMode) -> Result<()> {
     match mode {
-        BitrateMode::Cbr | BitrateMode::Cvbr => Ok(()),
+        BitrateMode::Cbr | BitrateMode::Cvbr | BitrateMode::Abr => Ok(()),
         BitrateMode::Vbr(level) if VALID_VBR_LEVEL_RANGE.contains(&level) => Ok(()),
         BitrateMode::Vbr(level) => Err(AppError::InvalidInput(format!(
             "Unsupported VBR level: {} (allowed 1..=5)",
@@ -249,7 +259,7 @@ pub fn encoder_available(
     availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> bool {
     match requested {
-        EncoderType::Auto => true,
+        EncoderType::Auto | EncoderType::FaacHeAac => true,
         EncoderType::FdkHeAac => availability.fdk_available,
         EncoderType::AacAt => availability.aac_at_available,
         EncoderType::NativeAac => availability.native_aac_available,
@@ -285,6 +295,7 @@ pub(super) fn validate_encoder_available(requested: EncoderType, available: bool
             }
         }
         EncoderType::NativeAac => "NMR AAC is unavailable in this build.".to_string(),
+        EncoderType::FaacHeAac => "FAAC HE-AAC is unavailable in this build.".to_string(),
     };
 
     Err(AppError::InvalidInput(message))
@@ -296,6 +307,7 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
     match encoder_type {
         EncoderType::Auto => unreachable!("resolve_encoder_name requires a resolved encoder type"),
         EncoderType::NativeAac => "aac",
+        EncoderType::FaacHeAac => "faac",
         EncoderType::FdkHeAac => "libfdk_aac",
         EncoderType::AacAt => "aac_at",
     }

@@ -28,8 +28,11 @@ the earlier local replacements were removed. The old local delay-info fields
 were also removed. Upstream `encoder_delay` reports LC 1024 / HE 3041 samples;
 the HE value includes the additional 962-sample decoder delay and must not
 be used as an unconditional MP4 trim. Apple and native FFmpeg compensate it
-differently. This remains a buildable dependency, with no selectable ABB
-FAAC encoder or production mux/import timing policy yet.
+differently. ABB's private `audio/processor/encoder` session now exposes FAAC
+HE-AAC as an experimental ABR option. It uses 2079-sample core priming,
+retained postroll packets, and MP4 discard padding; general native HE import
+timing remains unresolved. Opened bitrate, frame size, and reported delay
+must match the configuration and timing contract used by this adapter.
 
 Latest-source proof on macOS: documented flushing produced nonempty,
 sufficient-capacity output in all 40 LC/HE rate/channel/length cases.
@@ -42,8 +45,8 @@ requires explicit demux/skip control and a 3041-sample crop to match the full
 reference (20/20). Those research controls are not a general importer fix.
 
 AAC-LC opens at 22050, 32000, 44100, and 48000 Hz. Upstream HE requires
-at least 32000 Hz and rejects 22050 Hz; a future caller must expose that
-constraint. The sys smoke test covers six HE and eight LC rate/channel
+at least 32000 Hz and rejects 22050 Hz; ABB exposes that constraint in
+capabilities, settings validation, and encoder setup. The sys smoke test covers six HE and eight LC rate/channel
 combinations and rejection of both 22050 Hz HE configurations.
 
 The caller owns each encoder handle and closes it via `faac_encoder_close`.

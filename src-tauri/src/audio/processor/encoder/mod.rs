@@ -13,7 +13,9 @@
 
 mod common;
 mod context;
+mod faac;
 mod options;
+mod session;
 mod write;
 
 // Encoder boundary behavior pinned in src-tauri/src/audio/contract_tests.rs
@@ -24,4 +26,4 @@ pub(crate) use common::{
     append_in_process_encoding_log_best_effort, encoding_log_enabled, InProcessEncoderRunLog,
 };
 pub(crate) use context::setup_encoder;
-pub(crate) use write::{encode_and_write_frame, finalize_encoding};
+pub(crate) use session::EncoderSession;

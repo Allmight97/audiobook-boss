@@ -692,7 +692,7 @@ describe('tauriClient nullish adapters', () => {
 				encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
 				autoResolutionOrder: ['fdk_he_aac', 'aac_at', 'native_aac'],
 				bitrateKbpsOptions: [64],
-				bitrateModesByEncoder: [
+				encoderConfigurations: [
 					{ encoderType: 'auto', allowedModes: ['vbr'], defaultMode: { mode: 'vbr', value: 3 } },
 				],
 				vbrLevelMin: 1,

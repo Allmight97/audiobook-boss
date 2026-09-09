@@ -22,7 +22,7 @@ pub(crate) fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::Sam
         .sample_rate
         .clone()
         .unwrap_or(audio::SampleRateConfig::Auto);
-    audio::validate_sample_rate_config(&sample_rate)?;
+    audio::validate_encoder_sample_rate(payload.settings.encoder_type, &sample_rate)?;
     Ok(sample_rate)
 }
 

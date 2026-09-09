@@ -18,9 +18,16 @@
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
 - Resolve the encoder once at adapter dispatch and carry that choice into native
-  setup. Explicit Native/Apple selections validate their linked encoder without
+  setup. Explicit FAAC/Native/Apple selections validate their linked encoder without
   probing external FDK; Auto still resolves the available toolchain. Do not repeat
   external-toolchain detection while opening the encoder.
+- The private `encoder::EncoderSession` owns each in-process codec handle,
+  muxer, and contiguous submitted-sample interval. The frame pipeline submits
+  PCM and finishes the session without depending on codec or packet variants.
+- FAAC HE-AAC is an explicit experimental ABR option; Auto ordering remains
+  unchanged. Preserve full access units and decoder postroll with core priming
+  2079 and MP4 discard padding. FFmpeg's native HE decoder still differs from
+  Apple timing by 962 samples; do not claim general re-import timing is solved.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
 - Preserve finalize behavior that completes filesystem operations before success is reported.
