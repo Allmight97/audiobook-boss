@@ -150,8 +150,9 @@ commands over invoking internals directly.
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`.
 - The runtime suite links FFmpeg at the pinned source revision (see
-  `vendor/ffmpeg-sys-next-*`, which selects `n9.0` and verifies its peeled
-  commit). On a Linux agent, build that same tag from source and export
+  `vendor/ffmpeg-sys-next-*`, which selects `n9.0`, verifies its peeled
+  commit, and applies its owned chapter patch). On a Linux agent, use
+  `scripts/setup-codex-agent-env.sh` for that patched source and export
   `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig`, `LD_LIBRARY_PATH=<prefix>/lib`,
   and `PATH="<prefix>/bin:$PATH"` before `cargo test`. Distro FFmpeg 6.x fails
   the media lane with swresample "Input changed" errors on WAV inputs — that

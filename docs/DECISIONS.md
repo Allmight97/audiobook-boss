@@ -215,14 +215,18 @@ git history and closed issues own superseded chronology.
   `d32b387f2b0a484599d4587d651891f0c63c4238`, and restore the `CoreAudio`
   framework required by FFmpeg's AudioToolbox device symbols. Distributed
   DMG builds enable `build-portable`; ordinary source builds target their
-  compiling Apple Silicon host natively. No other Apple behavior is carried.
+  compiling Apple Silicon host natively. The owned QuickTime chapter patch
+  preserves a nonzero first chapter start; build caches include its hash.
 - Evidence: exact v1.3.1 source compiled unchanged against Homebrew FFmpeg 9
   and completed an upstream bundled FFmpeg 9 build; upstream sys 9.0.0 still
   follows a mutable release branch. The first bundled runtime-test link then
   failed on `AudioObjectGetPropertyData*` until `CoreAudio` was restored.
+  Prepending chapterless audio reproduced incorrect chapter offsets on n9.0;
+  the media regression checks accepted chapters and raw QuickTime timing.
 - Guardrail: keep the vendor diff limited to source selection, commit
-  verification, and the proven `CoreAudio` link requirement; advance the
-  FFmpeg tag/commit deliberately with wrapper/sys review and the media,
+  verification, the chapter initialization fix, and the proven `CoreAudio`
+  link requirement; advance the FFmpeg tag/commit deliberately with
+  wrapper/sys review and the media,
   packaging, and release proof in issue #441. Only builds producing a
   distributable DMG use `bundled-ffmpeg-portable`; local development, tests,
   app builds, and developer installs use `bundled-ffmpeg`.
