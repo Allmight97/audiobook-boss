@@ -197,7 +197,7 @@ fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encode
         validate_requested_encoder_available(EncoderType::NativeAac, &availability).unwrap_err();
     assert_eq!(
         native_error.to_string(),
-        "Invalid input: Native AAC (FFmpeg) is unavailable in this build."
+        "Invalid input: NMR AAC is unavailable in this build."
     );
 }
 

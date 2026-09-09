@@ -1314,3 +1314,69 @@ async fn cue_chapters_survive_mp3_encoding_and_finalization() {
     );
     assert!(lane.residual_workspace_dirs().is_empty());
 }
+
+fn assert_quicktime_chapter_offset(path: &Path, start_ms: u32, first_duration_ms: u32) {
+    let bytes = fs::read(path).expect("read QuickTime chapter timing");
+    let moov = find_atom(&bytes, 0, bytes.len(), *b"moov").expect("moov");
+    let mvhd = find_atom(&bytes, moov.0, moov.1, *b"mvhd").expect("mvhd");
+    let (movie_timescale, _) = parse_mdhd(&bytes, mvhd.0, mvhd.1);
+    let mut offset = moov.0;
+    while let Some((start, end, size)) = next_atom(&bytes, offset, moov.1) {
+        offset += size;
+        if &bytes[start + 4..start + 8] != b"trak" {
+            continue;
+        }
+        let mdia = find_atom(&bytes, start + 8, end, *b"mdia").expect("track media");
+        let hdlr = find_atom(&bytes, mdia.0, mdia.1, *b"hdlr").expect("handler");
+        if &bytes[hdlr.0 + 8..hdlr.0 + 12] != b"text" {
+            continue;
+        }
+        let mdhd = find_atom(&bytes, mdia.0, mdia.1, *b"mdhd").expect("media header");
+        let (text_timescale, _) = parse_mdhd(&bytes, mdhd.0, mdhd.1);
+        let edts = find_atom(&bytes, start + 8, end, *b"edts").expect("chapter edits");
+        let elst = find_atom(&bytes, edts.0, edts.1, *b"elst").expect("edit list");
+        let read_u32 = |at| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+        assert_eq!(
+            bytes[elst.0], 0,
+            "small fixture uses edit-list version zero"
+        );
+        assert_eq!(read_u32(elst.0 + 4), 2, "empty edit precedes chapter media");
+        assert_eq!(read_u32(elst.0 + 12), u32::MAX, "first edit is empty");
+        assert_eq!(
+            u64::from(read_u32(elst.0 + 8)) * 1_000,
+            u64::from(start_ms) * u64::from(movie_timescale),
+            "QuickTime chapter presentation begins after the chapterless prefix"
+        );
+        let minf = find_atom(&bytes, mdia.0, mdia.1, *b"minf").expect("media information");
+        let stbl = find_atom(&bytes, minf.0, minf.1, *b"stbl").expect("sample table");
+        let stts = find_atom(&bytes, stbl.0, stbl.1, *b"stts").expect("sample timing");
+        assert_eq!(read_u32(stts.0 + 8), 1, "first chapter sample");
+        assert_eq!(
+            u64::from(read_u32(stts.0 + 12)) * 1_000,
+            u64::from(first_duration_ms) * u64::from(text_timescale),
+            "first chapter does not absorb the chapterless prefix"
+        );
+        return;
+    }
+    panic!("QuickTime chapter track missing");
+}
+
+#[tokio::test]
+async fn prepending_chapterless_audio_preserves_later_embedded_chapter_positions() {
+    let chaptered_lane = MediaLane::with_fixtures(&[0.4, 0.3]);
+    let chaptered = chaptered_lane.process(None).await;
+    let mut expected = chapters_of(&chaptered);
+    let tmp = TempDir::new().expect("chapterless prefix fixture");
+    let prefix = tmp.path().join("prefix.wav");
+    write_sine_wav(&prefix, 1.25, 330.0);
+    for chapter in &mut expected {
+        chapter.1 += 1_250;
+        chapter.2 += 1_250;
+    }
+
+    let lane = MediaLane::for_inputs(vec![prefix, chaptered]);
+    let output = lane.process(None).await;
+    assert_eq!(chapters_of(&output), expected);
+    assert_quicktime_chapter_offset(&output, 1_250, 400);
+    assert!(lane.residual_workspace_dirs().is_empty());
+}

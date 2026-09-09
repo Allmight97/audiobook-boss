@@ -143,8 +143,26 @@ fn version() -> String {
 
 // ABB distributes the bundled build, so its FFmpeg source must not follow the
 // mutable upstream release branch used by the published sys crate.
-const FFMPEG_SOURCE_TAG: &str = "n9.0";
-const FFMPEG_SOURCE_COMMIT: &str = "d32b387f2b0a484599d4587d651891f0c63c4238";
+const FFMPEG_SOURCE_COMMIT: &str = "705286a8a7a8f9118465b2bd83f99a6f066dcbbc";
+const FFMPEG_SOURCE_PATCH: &str = "patches/mov-chapter-start.patch";
+
+fn source_patch_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(FFMPEG_SOURCE_PATCH)
+}
+
+fn patched_source_identity() -> io::Result<String> {
+    let hash = Command::new("git")
+        .args(["hash-object", "--no-filters"])
+        .arg(source_patch_path())
+        .output()?;
+    if !hash.status.success() {
+        return Err(io::Error::other("failed to hash the FFmpeg source patch"));
+    }
+    Ok(format!(
+        "{FFMPEG_SOURCE_COMMIT}:{}",
+        String::from_utf8_lossy(&hash.stdout).trim()
+    ))
+}
 
 fn output() -> PathBuf {
     PathBuf::from(env::var("OUT_DIR").unwrap())
@@ -166,23 +184,32 @@ fn fetch() -> io::Result<()> {
     let output_base_path = output();
     let clone_dest_dir = format!("ffmpeg-{}", version());
     let _ = std::fs::remove_dir_all(output_base_path.join(&clone_dest_dir));
-    let status = Command::new("git")
-        .current_dir(&output_base_path)
-        .args(if cfg!(target_os = "windows") {
-            vec!["-c", "core.autocrlf=false"]
-        } else {
-            vec![]
-        })
-        .arg("clone")
-        .arg("--depth=1")
-        .arg("-b")
-        .arg(FFMPEG_SOURCE_TAG)
-        .arg("https://github.com/FFmpeg/FFmpeg")
-        .arg(&clone_dest_dir)
-        .status()?;
-
-    if !status.success() {
-        return Err(io::Error::other("fetch failed"));
+    fs::create_dir_all(source())?;
+    // Fetch the immutable commit directly: git clone --branch accepts refs,
+    // not arbitrary commit IDs.
+    for args in [
+        vec!["init"],
+        vec![
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/FFmpeg/FFmpeg",
+        ],
+        vec!["fetch", "--depth=1", "origin", FFMPEG_SOURCE_COMMIT],
+        vec!["checkout", "--detach", "FETCH_HEAD"],
+    ] {
+        let status = Command::new("git")
+            .current_dir(source())
+            .args(if cfg!(target_os = "windows") {
+                vec!["-c", "core.autocrlf=false"]
+            } else {
+                vec![]
+            })
+            .args(args)
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::other("FFmpeg commit fetch failed"));
+        }
     }
 
     let revision = Command::new("git")
@@ -192,9 +219,18 @@ fn fetch() -> io::Result<()> {
     let actual_commit = String::from_utf8_lossy(&revision.stdout);
     if !revision.status.success() || actual_commit.trim() != FFMPEG_SOURCE_COMMIT {
         return Err(io::Error::other(format!(
-            "FFmpeg {FFMPEG_SOURCE_TAG} resolved to {}, expected {FFMPEG_SOURCE_COMMIT}",
+            "FFmpeg source resolved to {}, expected {FFMPEG_SOURCE_COMMIT}",
             actual_commit.trim()
         )));
+    }
+
+    let status = Command::new("git")
+        .current_dir(source())
+        .arg("apply")
+        .arg(source_patch_path())
+        .status()?;
+    if !status.success() {
+        return Err(io::Error::other("failed to apply the FFmpeg source patch"));
     }
 
     Ok(())
@@ -1101,6 +1137,7 @@ fn link_to_libraries(statik: bool, target_os: &str) {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=FFMPEG_DIR");
+    println!("cargo:rerun-if-changed={FFMPEG_SOURCE_PATCH}");
 
     let statik = env::var("CARGO_FEATURE_STATIC").is_ok();
     let ffmpeg_major_version: u32 = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap();
@@ -1113,10 +1150,19 @@ fn main() {
             search().join("lib").to_string_lossy()
         );
         link_to_libraries(statik, &target_os);
-        if fs::metadata(search().join("lib").join("libavutil.a")).is_err() {
+        let source_stamp = search().join("abb-source-commit");
+        let source_identity = patched_source_identity().expect("failed to identify FFmpeg source");
+        let cached_commit = fs::read_to_string(&source_stamp).unwrap_or_default();
+        if cached_commit.trim() != source_identity
+            || fs::metadata(search().join("lib").join("libavutil.a")).is_err()
+        {
+            if search().exists() {
+                fs::remove_dir_all(search()).expect("failed to clear stale FFmpeg build");
+            }
             fs::create_dir_all(output()).expect("failed to create build directory");
             fetch().unwrap();
             build(sysroot.as_deref()).unwrap();
+            fs::write(source_stamp, source_identity).expect("failed to record FFmpeg source");
         }
 
         // Check additional required libraries.

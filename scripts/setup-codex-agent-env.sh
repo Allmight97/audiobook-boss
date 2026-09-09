@@ -10,10 +10,10 @@ set -euo pipefail
 # scripts/AGENTS.md by touched owner.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ffmpeg_ref="${ABB_CODEX_FFMPEG_REF:-n9.0}"
-ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-d32b387f2b0a484599d4587d651891f0c63c4238}"
+ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-705286a8a7a8f9118465b2bd83f99a6f066dcbbc}"
 ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg90}"
 ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
+ffmpeg_patch="${repo_root}/vendor/ffmpeg-sys-next-9.0.0/patches/mov-chapter-start.patch"
 local_env_file="${repo_root}/.codex/agent-env.local.sh"
 required_bun_version="1.4.0"
 
@@ -166,22 +166,30 @@ install_linux_packages() {
 }
 
 ensure_linux_ffmpeg() {
-	if [ -f "${ffmpeg_prefix}/lib/pkgconfig/libavcodec.pc" ]; then
+	local source_identity
+	source_identity="${ffmpeg_commit}:$(git hash-object --no-filters "${ffmpeg_patch}")"
+	if [ -f "${ffmpeg_prefix}/lib/pkgconfig/libavcodec.pc" ] &&
+		[ "$(cat "${ffmpeg_prefix}/abb-source-commit" 2>/dev/null || true)" = "${source_identity}" ]; then
 		log "Using existing FFmpeg at ${ffmpeg_prefix}"
 		persist_linux_ffmpeg_paths
 		return
 	fi
 
-	log "Building FFmpeg ${ffmpeg_ref} into ${ffmpeg_prefix}"
+	log "Building FFmpeg ${ffmpeg_commit} into ${ffmpeg_prefix}"
 	run_as_root rm -rf "${ffmpeg_src}"
-	run_as_root git clone --depth=1 -b "${ffmpeg_ref}" https://github.com/FFmpeg/FFmpeg "${ffmpeg_src}"
+	run_as_root git init "${ffmpeg_src}"
+	run_as_root git -C "${ffmpeg_src}" remote add origin https://github.com/FFmpeg/FFmpeg
+	run_as_root git -C "${ffmpeg_src}" fetch --depth=1 origin "${ffmpeg_commit}"
+	run_as_root git -C "${ffmpeg_src}" checkout --detach FETCH_HEAD
 	local resolved_commit
 	resolved_commit="$(run_as_root git -C "${ffmpeg_src}" rev-parse HEAD)"
 	if [ "${resolved_commit}" != "${ffmpeg_commit}" ]; then
 		printf 'error: FFmpeg %s resolved to %s; expected %s\n' \
-			"${ffmpeg_ref}" "${resolved_commit}" "${ffmpeg_commit}" >&2
+			"${ffmpeg_commit}" "${resolved_commit}" "${ffmpeg_commit}" >&2
 		return 1
 	fi
+
+	run_as_root git -C "${ffmpeg_src}" apply "${ffmpeg_patch}"
 
 	pushd "${ffmpeg_src}" >/dev/null
 	run_as_root ./configure \
@@ -192,6 +200,7 @@ ensure_linux_ffmpeg() {
 		--enable-libmp3lame
 	run_as_root make -j"$(cpu_count)"
 	run_as_root make install
+	printf '%s\n' "${source_identity}" | run_as_root tee "${ffmpeg_prefix}/abb-source-commit" >/dev/null
 	popd >/dev/null
 
 	persist_linux_ffmpeg_paths

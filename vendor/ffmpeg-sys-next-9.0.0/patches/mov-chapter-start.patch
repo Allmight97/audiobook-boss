@@ -1,0 +1,13 @@
+diff --git a/libavformat/movenc.c b/libavformat/movenc.c
+--- a/libavformat/movenc.c
++++ b/libavformat/movenc.c
+@@ -7836,6 +7836,9 @@ static int mov_create_chapter_track(AVFormatContext *s, int tracknum)
+     int ret;
+ 
+     track->mode = mov->mode;
++    /* Chapter tracks bypass the regular stream initialization. Treat their
++     * first packet as a new track, preserving a nonzero first chapter start. */
++    track->start_dts = AV_NOPTS_VALUE;
+     track->tag = MKTAG('t','e','x','t');
+     track->timescale = mov->movie_timescale;
+     track->par = avcodec_parameters_alloc();

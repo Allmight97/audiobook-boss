@@ -118,7 +118,9 @@
   channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK behavior distinct. They are different encoder/toolchain targets with different sample formats and quality profiles.
-- Treat Native AAC as a compatibility path. Do not hide quality limitations behind silent downgrade behavior.
+- Native AAC uses the pinned NMR coder at speed 0. Verify required options
+  on the opened encoder; an unsupported linked build must fail explicitly.
+  Listening quality and structural media correctness are separate evidence.
 
 ## Hard Invariants
 

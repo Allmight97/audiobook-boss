@@ -73,8 +73,6 @@ export type EncodingBag = {
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const DEFAULT_CHANNELS_HINT = 'Auto -> source audio';
 const DEFAULT_AVAILABILITY_HINT = 'Checking encoder availability…';
-const NATIVE_AAC_WARNING =
-	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
 const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	auto: 'HE-AAC v1',
 	fdk_he_aac: 'HE-AAC v1',
@@ -118,7 +116,7 @@ function encoderFlavorLabel(flavor: EncoderFlavor): string {
 		case 'aac_at':
 			return 'Apple AAC';
 		case 'native_aac':
-			return 'Native AAC (FFmpeg)';
+			return 'NMR AAC';
 		default:
 			return 'Auto';
 	}
@@ -209,13 +207,13 @@ function availabilityHint(bag: EncodingBag): string {
 	if (selected === 'auto') {
 		if (effective === 'fdk_he_aac') return fdkAvailabilityHint(bag);
 		if (effective === 'aac_at') return 'Auto will use Apple AAC. FDK AAC is not available.';
-		return `Auto will use Native AAC (FFmpeg). FDK AAC is not available. ${NATIVE_AAC_WARNING}`;
+		return 'Auto will use NMR AAC. FDK AAC is not available.';
 	}
 	if (effective === 'native_aac') {
 		if (!bag.availability.nativeAacAvailable) {
-			return 'Native AAC (FFmpeg) is unavailable in this build.';
+			return 'NMR AAC is unavailable in this build.';
 		}
-		return NATIVE_AAC_WARNING;
+		return 'NMR AAC available';
 	}
 	if (effective === 'fdk_he_aac') {
 		if (!bag.availability.fdkAvailable) {

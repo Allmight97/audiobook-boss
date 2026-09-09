@@ -17,7 +17,7 @@ pub enum EncoderType {
     FdkHeAac,
     /// Apple AAC (AudioToolbox), macOS-only
     AacAt,
-    /// Native FFmpeg AAC encoder (aac)
+    /// FFmpeg AAC encoder using the pinned NMR coder (aac)
     NativeAac,
 }
 
@@ -284,7 +284,7 @@ pub(super) fn validate_encoder_available(requested: EncoderType, available: bool
                 "Apple AAC (aac_at) is only available on macOS.".to_string()
             }
         }
-        EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),
+        EncoderType::NativeAac => "NMR AAC is unavailable in this build.".to_string(),
     };
 
     Err(AppError::InvalidInput(message))

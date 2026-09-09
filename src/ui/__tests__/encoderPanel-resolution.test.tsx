@@ -25,7 +25,7 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
-describe('encoder panel native AAC warning', () => {
+describe('encoder panel effective encoder', () => {
 	let runtime: AppRuntime | undefined;
 
 	afterEach(() => {
@@ -47,7 +47,7 @@ describe('encoder panel native AAC warning', () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
 	});
 
-	it('shows native AAC quality warning when auto resolves to native AAC', async () => {
+	it('shows NMR AAC when auto resolves to the native encoder', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -64,10 +64,9 @@ describe('encoder panel native AAC warning', () => {
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toContain('Auto will use Native AAC (FFmpeg).');
-			expect(hint?.textContent).toContain('Native AAC (FFmpeg) may sound degraded');
+			expect(hint?.textContent).toContain('Auto will use NMR AAC.');
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (FFmpeg))');
+			expect(select?.options[0]?.textContent).toBe('Auto (NMR AAC)');
 		});
 	});
 
@@ -151,7 +150,7 @@ describe('encoder panel native AAC warning', () => {
 		});
 	});
 
-	it('shows the native warning when Native AAC is manually selected', async () => {
+	it('shows NMR AAC when the native encoder is manually selected', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -176,7 +175,7 @@ describe('encoder panel native AAC warning', () => {
 
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toContain('Native AAC (FFmpeg) may sound degraded');
+			expect(hint?.textContent).toBe('NMR AAC available');
 			expect(select.options[0]?.textContent).toBe('Auto');
 		});
 	});

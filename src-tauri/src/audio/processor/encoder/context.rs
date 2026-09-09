@@ -5,7 +5,7 @@ use crate::errors::Result;
 use ffmpeg_next as ff;
 
 use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
-use super::options::{build_apple_options, build_native_options};
+use super::options::{build_apple_options, build_native_options, validate_native_options};
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
@@ -84,6 +84,10 @@ pub(crate) fn create_audio_encoder(
     let enc_ctx = opened
         .open_as_with(codec, opts)
         .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
+
+    if resolved_encoder == EncoderType::NativeAac {
+        validate_native_options(&enc_ctx)?;
+    }
 
     Ok(enc_ctx)
 }
