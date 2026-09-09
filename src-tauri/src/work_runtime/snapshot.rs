@@ -151,6 +151,8 @@ fn new_child(
         operation_id: operation_id.clone(),
         label,
         status: super::ChildJobStatus::Queued,
+        started_at_ms: None,
+        finished_at_ms: None,
         lane,
         progress: ProgressSnapshot::pending("Queued.", total_items),
         source_path,

@@ -117,6 +117,9 @@ pub struct ChildJobSnapshot {
     pub operation_id: OperationId,
     pub label: String,
     pub status: ChildJobStatus,
+    /// First active progress and final completion, authored by WorkRuntime.
+    pub started_at_ms: Option<i64>,
+    pub finished_at_ms: Option<i64>,
     pub lane: ResourceLane,
     pub progress: ProgressSnapshot,
     pub source_path: Option<String>,

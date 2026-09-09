@@ -293,6 +293,9 @@ export type ChildJobSnapshot = {
 	operationId: OperationId,
 	label: string,
 	status: ChildJobStatus,
+	/**  First active progress and final completion, authored by WorkRuntime. */
+	startedAtMs: number | null,
+	finishedAtMs: number | null,
 	lane: ResourceLane,
 	progress: ProgressSnapshot,
 	sourcePath: string | null,

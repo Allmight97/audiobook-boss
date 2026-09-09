@@ -4,6 +4,7 @@ import { EVENTS } from '../types/events';
 import type {
 	AcquisitionProgress,
 	ChapterSpec,
+	ChildJobSnapshot,
 	FileListInfo,
 	MaterializedSourceFile,
 	MaxConcurrentJobsCapabilities,
@@ -63,6 +64,8 @@ describe('tauriClient generated event bindings', () => {
 		expectTypeOf<MaterializedSourceFile['sizeBytes']>().toEqualTypeOf<number>();
 		expectTypeOf<MetadataSaveResultEntry['inputIndex']>().toEqualTypeOf<number>();
 		expectTypeOf<OperationSnapshot['sequence']>().toEqualTypeOf<number>();
+		expectTypeOf<ChildJobSnapshot['startedAtMs']>().toEqualTypeOf<number | null>();
+		expectTypeOf<ChildJobSnapshot['finishedAtMs']>().toEqualTypeOf<number | null>();
 		expectTypeOf<FileListInfo['totalDuration']>().toEqualTypeOf<number>();
 		expectTypeOf<ProgressEvent['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ProgressSnapshot['percentage']>().toEqualTypeOf<number>();

@@ -811,3 +811,57 @@ fn log_tail_records_the_cancellation_request_transition() {
     assert!(messages.contains(&"Cancellation requested."));
     assert_eq!(messages.last(), Some(&"Processing was cancelled."));
 }
+
+#[test]
+fn child_completion_timing_excludes_queue_and_survives_later_batch_settlement() {
+    let (mut state, operation_id) = accepted_state();
+    state
+        .mark_running(&operation_id, 150)
+        .expect("start operation");
+    assert_eq!(
+        state
+            .get(&operation_id)
+            .expect("operation timing snapshot")
+            .children[0]
+            .started_at_ms,
+        None
+    );
+    state
+        .apply_progress_event(&operation_id, &converting_event(0.0, "Start", 0), 1_000)
+        .expect("operation timing snapshot");
+    let cleanup = ProgressEvent {
+        stage: EventStage::Completed,
+        ..converting_event(95.0, "Cleaning", 0)
+    };
+    let snapshot = state
+        .apply_progress_event(&operation_id, &cleanup, 12_000)
+        .expect("operation timing snapshot");
+    assert_eq!(snapshot.children[0].started_at_ms, Some(1_000));
+    assert_eq!(snapshot.children[0].finished_at_ms, None);
+    let complete = ProgressEvent {
+        percentage: 100.0,
+        ..cleanup
+    };
+    let snapshot = state
+        .apply_progress_event(&operation_id, &complete, 14_150)
+        .expect("operation timing snapshot");
+    assert_eq!(snapshot.children[0].finished_at_ms, Some(14_150));
+    assert_eq!(snapshot.children[1].started_at_ms, None);
+    state
+        .apply_progress_event(&operation_id, &complete, 15_000)
+        .expect("operation timing snapshot");
+    let result = ProcessCommandResult::new(
+        JobType::Batch,
+        vec![
+            entry(0, ProcessResultStatus::Success),
+            entry(1, ProcessResultStatus::Skipped),
+        ],
+    );
+    let snapshot = state
+        .complete_from_process_result(&operation_id, &result, 20_000)
+        .expect("operation timing snapshot");
+    assert_eq!(snapshot.finished_at_ms, Some(20_000));
+    assert_eq!(snapshot.children[0].finished_at_ms, Some(14_150));
+    assert_eq!(snapshot.children[1].started_at_ms, None);
+    assert_eq!(snapshot.children[1].finished_at_ms, None);
+}
