@@ -40,6 +40,8 @@
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
 - Constants: `VALID_ENCODER_BITRATES`.
+- `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
+  per-file trial decoding owns initial compatibility.
 - Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled
   Homebrew handoff in Terminal; its return confirms launch, not installation).
 - Audio does not own lifecycle event names or progress math. Use

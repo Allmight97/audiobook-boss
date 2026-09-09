@@ -39,7 +39,7 @@ impl DecoderCandidate {
     }
 }
 
-/// Runtime AAC decoder capability snapshot used by both the engine and package gate.
+/// Decoder presence for the current build; file compatibility requires trial decoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AacDecoderAvailability {
     pub default_aac: bool,
@@ -48,7 +48,7 @@ pub struct AacDecoderAvailability {
 }
 
 impl AacDecoderAvailability {
-    pub fn has_compatible_named_decoder(self) -> bool {
+    pub fn has_named_decoder(self) -> bool {
         self.aac_at || self.libfdk_aac
     }
 }
@@ -143,7 +143,7 @@ fn build_aac_decoder_candidates_for_object_type(
     availability: AacDecoderAvailability,
     audio_object_type: Option<u32>,
 ) -> Vec<DecoderCandidate> {
-    if audio_object_type == Some(42) && availability.has_compatible_named_decoder() {
+    if audio_object_type == Some(42) && availability.has_named_decoder() {
         let mut candidates = build_named_aac_decoder_candidates(availability);
         if availability.default_aac {
             candidates.push(DecoderCandidate::Default);
@@ -170,6 +170,7 @@ fn build_decoder_candidates_from_parameters(
 
 fn format_decoder_selection_failure(
     path: &Path,
+    codec_label: Option<&str>,
     attempted_labels: &[&str],
     first_failure: &str,
 ) -> String {
@@ -179,8 +180,9 @@ fn format_decoder_selection_failure(
         attempted_labels.join(", ")
     };
 
+    let format = codec_label.unwrap_or("audio");
     format!(
-        "Could not decode audio for '{}'. Attempted decoders: {}. First failure: {}",
+        "No available decoder could read this {format} file: '{}'. Attempted decoders: {}. First failure: {}",
         sanitize_path_for_display(path),
         attempted,
         first_failure
@@ -323,6 +325,15 @@ fn friendly_codec_label_from_id(codec_id: ff::codec::Id) -> Option<String> {
     Some(label)
 }
 
+fn aac_label_from_parameters(params: &ff::codec::Parameters) -> Option<&'static str> {
+    if params.id() != ff::codec::Id::AAC {
+        return None;
+    }
+    read_codec_extradata(params)
+        .and_then(|data| parse_aac_audio_object_type(&data))
+        .and_then(aac_audio_object_type_label)
+}
+
 fn derive_codec_label(
     params: &ff::codec::Parameters,
     decoder: &ff::codec::decoder::Audio,
@@ -330,12 +341,8 @@ fn derive_codec_label(
     let codec_id = params.id();
 
     if codec_id == ff::codec::Id::AAC {
-        if let Some(extradata) = read_codec_extradata(params) {
-            if let Some(label) =
-                parse_aac_audio_object_type(&extradata).and_then(aac_audio_object_type_label)
-            {
-                return Some(label.to_string());
-            }
+        if let Some(label) = aac_label_from_parameters(params) {
+            return Some(label.to_string());
         }
 
         if let Some(label) = aac_profile_label(decoder.profile()) {
@@ -466,8 +473,12 @@ fn select_decoder_candidate(
     let first_failure =
         first_failure.unwrap_or_else(|| "No decoder candidates available".to_string());
 
+    let codec_label = aac_label_from_parameters(params)
+        .map(str::to_owned)
+        .or_else(|| friendly_codec_label_from_id(params.id()));
     Err(AppError::General(format_decoder_selection_failure(
         path,
+        codec_label.as_deref(),
         &attempted_labels,
         &first_failure,
     )))
@@ -695,7 +706,7 @@ mod tests {
             libfdk_aac: false,
         };
 
-        assert!(!availability.has_compatible_named_decoder());
+        assert!(!availability.has_named_decoder());
     }
 
     #[test]
@@ -756,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn xhe_aac_candidates_prefer_compatible_named_decoders() {
+    fn xhe_aac_candidates_prefer_available_named_decoders() {
         let availability = AacDecoderAvailability {
             default_aac: true,
             aac_at: true,
@@ -789,10 +800,12 @@ mod tests {
     fn failure_message_lists_attempted_decoders_in_order() {
         let msg = format_decoder_selection_failure(
             Path::new("/tmp/example.m4b"),
+            Some("USAC / xHE-AAC"),
             &["default", "aac_at", "libfdk_aac"],
             "Decoder 'default' rejected packet 1",
         );
 
+        assert!(msg.contains("No available decoder could read this USAC / xHE-AAC file"));
         assert!(msg.contains("Attempted decoders: default, aac_at, libfdk_aac"));
         assert!(msg.contains("First failure: Decoder 'default' rejected packet 1"));
     }
