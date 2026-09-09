@@ -12,6 +12,10 @@
 
 ## View Interactions And Proof
 
+- Settings owns its scrolling body; all sections and the bottom actions remain
+  reachable. Opening Settings starts at the FDK section. Homebrew details explain
+  dependencies and the Terminal handoff before the user launches setup.
+
 - Indexer connection fields dispatch Remote Source intents. Its API key input
   is write-only. HTTPS is the recommended URL example; explicit HTTP remains
   usable with visible transport guidance. Connection help is view-local, and

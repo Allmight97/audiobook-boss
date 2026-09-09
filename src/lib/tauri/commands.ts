@@ -162,6 +162,8 @@ export const commandSpecs = {
 			generatedCommands.updateAppSettings(toGeneratedAppSettingsPatch(args.patch)),
 			(settings) => normalizeNullish(settings),
 		),
+	open_fdk_setup: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.openFdkSetup(), () => undefined),
 	reset_app_settings: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.resetAppSettings(), (settings) =>
 			normalizeNullish(settings),

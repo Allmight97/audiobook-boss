@@ -191,6 +191,7 @@ export const tauriClient = {
 	getAppSettings: (): Promise<AppSettings> => commandSpecs.get_app_settings(),
 	updateAppSettings: (patch: AppSettingsPatch): Promise<AppSettings> =>
 		commandSpecs.update_app_settings({ patch }),
+	openFdkSetup: (): Promise<void> => commandSpecs.open_fdk_setup(),
 	resetAppSettings: (): Promise<AppSettings> => commandSpecs.reset_app_settings(),
 	validateFiles: (filePaths: string[]): Promise<CommandResult<'validate_files'>> =>
 		commandSpecs.validate_files({ filePaths }),

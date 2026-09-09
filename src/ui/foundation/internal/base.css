@@ -40,6 +40,7 @@ h3 {
 button,
 select,
 input[type="text"],
+input[type="password"],
 textarea {
 	margin-top: 0.25rem;
 }
@@ -64,6 +65,7 @@ label,
 }
 
 input[type="text"],
+input[type="password"],
 select,
 textarea {
 	width: 100%;

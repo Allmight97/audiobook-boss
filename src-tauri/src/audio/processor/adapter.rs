@@ -334,6 +334,7 @@ mod tests {
 
     fn availability(fdk_available: bool, auto_encoder: EncoderType) -> EncoderAvailability {
         EncoderAvailability {
+            fdk_setup_supported: true,
             fdk_available,
             fdk_source: if fdk_available {
                 EncoderCapabilitySource::Detected

@@ -7,6 +7,7 @@ export interface SettingsOpenFileOptions {
 }
 
 export interface SettingsCapability {
+	openFdkSetup(): Promise<void>;
 	getAppSettings(): Promise<AppSettings>;
 	updateAppSettings(patch: AppSettingsPatch): Promise<AppSettings>;
 	resetAppSettings(): Promise<AppSettings>;
@@ -17,6 +18,7 @@ export interface SettingsCapability {
 }
 
 export const liveSettingsCapability: SettingsCapability = {
+	openFdkSetup: () => tauriClient.openFdkSetup(),
 	getAppSettings: () => tauriClient.getAppSettings(),
 	updateAppSettings: (patch) => tauriClient.updateAppSettings(patch),
 	resetAppSettings: () => tauriClient.resetAppSettings(),

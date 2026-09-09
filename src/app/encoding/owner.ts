@@ -32,13 +32,14 @@ export type EncodingOwner = {
 	setAfterburner(enabled: boolean): void;
 	applyDefaults(defaults: EncoderDefaults): void;
 	readDefaults(): EncoderDefaults;
-	reloadCapabilities(): Promise<void>;
+	reloadCapabilities(capabilities?: EncoderSettingsCapabilities | null): Promise<void>;
 	reset(): void;
 };
 
 export type EncodingOwnerDeps = {
 	readonly input: Pick<InputOwner, 'view'>;
 	readonly loadCapabilities: () => Promise<EncoderSettingsCapabilities | null>;
+	readonly onFdkSetupRequested?: () => void;
 	readonly persistDefaults?: (defaults: EncoderDefaults) => void;
 };
 
@@ -68,10 +69,10 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		deps.persistDefaults?.(bagDefaults(bag));
 	}
 
-	async function loadCapabilities(): Promise<void> {
+	async function loadCapabilities(supplied?: EncoderSettingsCapabilities | null): Promise<void> {
 		const ticket = ++generation;
 		try {
-			const capabilities = await deps.loadCapabilities();
+			const capabilities = supplied === undefined ? await deps.loadCapabilities() : supplied;
 			if (ticket !== generation) return;
 			applyCapabilities(bag, capabilities);
 			syncPolicy(bag);
@@ -120,6 +121,15 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			return bagEstimateKbps(bag);
 		},
 		select(field, value) {
+			if (
+				field === 'encoder' &&
+				value === 'fdk_he_aac' &&
+				bag.availability &&
+				!bag.availability.fdkAvailable
+			) {
+				deps.onFdkSetupRequested?.();
+				return;
+			}
 			if (!selectField(bag, field, value)) return;
 			const { flavorReset } = commitPolicy();
 			if (flavorReset) return;
@@ -138,8 +148,8 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		readDefaults() {
 			return bagDefaults(bag);
 		},
-		reloadCapabilities() {
-			return loadCapabilities();
+		reloadCapabilities(capabilities) {
+			return loadCapabilities(capabilities);
 		},
 		reset() {
 			generation += 1;

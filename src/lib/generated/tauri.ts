@@ -79,6 +79,8 @@ export const commands = {
 	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	/**  Returns backend-owned runtime settings capabilities for UI controls. */
 	getRuntimeSettingsCapabilities: () => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities")),
+	/**  Delegate an explicitly requested installation/update to Homebrew in Terminal. */
+	openFdkSetup: () => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("open_fdk_setup")),
 	/**  Builds an output path preview using backend naming rules without collision suffixing. */
 	previewOutputPath: (outputDir: string, metadata: {
 	title: string | null,
@@ -326,6 +328,7 @@ export type DecoderSelection = {
 
 export type EncoderAvailability = {
 	fdkAvailable: boolean,
+	fdkSetupSupported: boolean,
 	fdkSource: EncoderCapabilitySource,
 	aacAtAvailable: boolean,
 	nativeAacAvailable: boolean,

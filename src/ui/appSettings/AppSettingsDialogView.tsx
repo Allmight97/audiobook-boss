@@ -119,8 +119,6 @@ function formatFdkSource(source: string): string {
 			return 'user-configured path';
 		case 'detected':
 			return 'auto-detected';
-		case 'bundled':
-			return 'bundled';
 		default:
 			return 'unavailable';
 	}
@@ -183,6 +181,13 @@ export function AppSettingsDialogView(): JSX.Element {
 	const remoteSource = runtime.remoteSource;
 	const encoding = runtime.encoding;
 	const state = settings.dialog;
+	let fdkSection: HTMLElement | undefined;
+	createEffect(
+		() => state().isOpen && !state().loading,
+		(ready) => {
+			if (ready && fdkSection?.parentElement) fdkSection.parentElement.scrollTop = 0;
+		},
+	);
 	const isOpen = createMemo(() => state().isOpen);
 	const indexerConnection = remoteSource.indexerConnection;
 	const [indexerHelpOpen, setIndexerHelpOpen] = createSignal(false);
@@ -261,15 +266,61 @@ export function AppSettingsDialogView(): JSX.Element {
 					Close
 				</Button>
 			</Dialog.Header>
-			<Dialog.Body>
+			<Dialog.Body class="app-settings-body">
 				<SettingsPersistenceNotice />
 				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
-					<section class="app-settings-section">
+					<section class="app-settings-section" ref={fdkSection}>
 						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
 						<p class="muted-text">
-							Point AudioBook Boss at an FFmpeg binary built with libfdk_aac to unlock the FDK
-							HE-AAC encoder. The path is validated before it is used.
+							FDK AAC is optional. ABB includes its standard audio tools; FDK requires a separate
+							FFmpeg executable built with libfdk_aac.
 						</p>
+						<div class="app-settings-fdk-actions">
+							<Button
+								disabled={state().checkingFdk || state().saveState === 'saving'}
+								onClick={() => void settings.recheckFdk()}
+							>
+								{state().checkingFdk ? 'Checking FDK…' : 'Recheck FDK'}
+							</Button>
+						</div>
+						<Show when={state().fdkCheckError}>
+							<p class="app-settings-status app-settings-status-error" role="alert">
+								{state().fdkCheckError}
+							</p>
+						</Show>
+						<Show when={state().encoderAvailability?.fdkSetupSupported}>
+							<details class="app-settings-fdk-setup">
+								<summary>Install or update with Homebrew…</summary>
+								<p class="muted-text">
+									Opens Terminal to install or update the community homebrew-ffmpeg build with FDK
+									AAC and its dependencies. Homebrew manages the software. Building can take several
+									minutes.
+								</p>
+								<p class="muted-text">
+									A fresh Mac may first need Apple Command Line Tools and Homebrew; setup will guide
+									you. An existing conflicting FFmpeg requires your review before it can be
+									replaced. For a custom installation, use its original package manager to update
+									it.
+								</p>
+								<Button
+									disabled={state().setupState === 'opening'}
+									onClick={() => void settings.openFdkSetup()}
+								>
+									Continue in Terminal
+								</Button>
+								<Show when={state().setupMessage}>
+									<p
+										class={`app-settings-status${state().setupState === 'error' ? ' app-settings-status-error' : ''}`}
+										role="status"
+									>
+										{state().setupMessage}
+									</p>
+								</Show>
+							</details>
+						</Show>
+						<label for="app-settings-ffmpeg-path" class="app-settings-path-label">
+							Custom FFmpeg path (optional)
+						</label>
 						<div class="app-settings-path-row">
 							<input
 								id="app-settings-ffmpeg-path"
@@ -295,7 +346,7 @@ export function AppSettingsDialogView(): JSX.Element {
 							<Button
 								tone="primary"
 								data-testid="app-settings-ffmpeg-save"
-								disabled={state().saveState === 'saving'}
+								disabled={state().saveState === 'saving' || state().checkingFdk}
 								onClick={() => void settings.saveToolchainPreference()}
 							>
 								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
@@ -314,7 +365,10 @@ export function AppSettingsDialogView(): JSX.Element {
 								<p class="app-settings-status" data-testid="app-settings-toolchain-status">
 									{availability().statusMessage}
 									<Show when={availability().fdkAvailable}>
-										{` (FDK source: ${formatFdkSource(availability().fdkSource)})`}
+										{` (${formatFdkSource(availability().fdkSource)})`}
+										<code class="app-settings-detected-path">
+											{availability().detectedToolchainPath}
+										</code>
 									</Show>
 								</p>
 							)}

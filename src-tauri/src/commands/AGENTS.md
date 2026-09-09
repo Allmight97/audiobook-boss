@@ -13,6 +13,8 @@
 - Route product behavior through the owning Public API Strip:
   `crate::audio`, `crate::metadata`, `crate::processing`,
   `crate::work_runtime`, `crate::output_artifact`, or `crate::app_settings`.
+- Indexer Settings reads/writes can wait on an OS credential prompt; run them
+  off the UI thread so Settings remains usable while Keychain is waiting.
 - Register command and event changes in `src-tauri/src/ipc_contract.rs` and keep
   generated TypeScript bindings in sync.
 - Use `tokio::task::spawn_blocking` for synchronous file/media work reached from

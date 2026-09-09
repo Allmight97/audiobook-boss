@@ -1,4 +1,5 @@
 use crate::commands::CommandResult;
+use crate::errors::AppError;
 use crate::remote_source::{
     AcquisitionJob, AcquisitionPlan, ProviderId, RemoteAuthCompletionRequest,
     RemoteAuthStartResponse, RemoteIndexerConnection, RemoteIndexerConnectionTestResult,
@@ -116,19 +117,29 @@ pub async fn grab_remote_source_release(
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_remote_source_indexer_connection(
+pub async fn get_remote_source_indexer_connection(
     runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
 ) -> CommandResult<RemoteIndexerConnection> {
-    Ok(runtime.get_indexer_connection()?)
+    let runtime = runtime.inner().clone();
+    Ok(
+        tokio::task::spawn_blocking(move || runtime.get_indexer_connection())
+            .await
+            .map_err(|error| AppError::General(error.to_string()))??,
+    )
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn update_remote_source_indexer_connection(
+pub async fn update_remote_source_indexer_connection(
     runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
     update: RemoteIndexerConnectionUpdate,
 ) -> CommandResult<RemoteIndexerConnection> {
-    Ok(runtime.update_indexer_connection(update)?)
+    let runtime = runtime.inner().clone();
+    Ok(
+        tokio::task::spawn_blocking(move || runtime.update_indexer_connection(update))
+            .await
+            .map_err(|error| AppError::General(error.to_string()))??,
+    )
 }
 
 #[tauri::command]

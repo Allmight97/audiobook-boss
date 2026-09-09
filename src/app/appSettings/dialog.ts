@@ -2,7 +2,7 @@ import { createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import type { AppSettings, StartupBehavior } from '../../types/appSettings';
-import type { EncoderAvailability } from '../../types/audio';
+import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -14,6 +14,10 @@ export type AppSettingsDialogState = {
 	saveState: SettingsSaveState;
 	saveError: string;
 	encoderAvailability: EncoderAvailability | null;
+	checkingFdk: boolean;
+	fdkCheckError: string;
+	setupState: 'idle' | 'opening' | 'opened' | 'error';
+	setupMessage: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
 };
@@ -27,6 +31,10 @@ function createInitialState(): AppSettingsDialogState {
 		saveState: 'idle',
 		saveError: '',
 		encoderAvailability: null,
+		checkingFdk: false,
+		fdkCheckError: '',
+		setupState: 'idle',
+		setupMessage: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
 	};
@@ -45,6 +53,8 @@ export type SettingsDialog = {
 	clearFfmpegPathDraft(): void;
 	setFfmpegPathDraft(value: string): void;
 	saveToolchainPreference(): Promise<void>;
+	recheckFdk(): Promise<void>;
+	openFdkSetup(): Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
@@ -54,9 +64,11 @@ export type SettingsDialog = {
 export function createSettingsDialog(deps: {
 	readonly capability: () => SettingsCapability;
 	readonly beforeCapture: () => Promise<void>;
+	readonly onToolchainChanged?: (capabilities: EncoderSettingsCapabilities | null) => Promise<void>;
 }): SettingsDialog {
 	let dialog = createInitialState();
 	let generation = 0;
+	let availabilityRevision = 0;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 
 	function update(mutator: (draft: AppSettingsDialogState) => void): void {
@@ -74,15 +86,29 @@ export function createSettingsDialog(deps: {
 
 	async function refreshEncoderAvailability(started = generation): Promise<void> {
 		if (started !== generation) return;
-		const update = guardedUpdate(started);
+		const revision = ++availabilityRevision;
+		const update = (mutator: (draft: AppSettingsDialogState) => void) => {
+			if (revision === availabilityRevision) guardedUpdate(started)(mutator);
+		};
+		update((draft) => {
+			draft.checkingFdk = true;
+			draft.fdkCheckError = '';
+		});
 		try {
 			const capabilities = await deps.capability().getRuntimeSettingsCapabilities();
 			update((draft) => {
 				draft.encoderAvailability = capabilities.encoder?.availability ?? null;
 			});
-		} catch {
+			if (started === generation && revision === availabilityRevision)
+				await deps.onToolchainChanged?.(capabilities.encoder ?? null);
+		} catch (error) {
 			update((draft) => {
 				draft.encoderAvailability = null;
+				draft.fdkCheckError = describeError(error);
+			});
+		} finally {
+			update((draft) => {
+				draft.checkingFdk = false;
 			});
 		}
 	}
@@ -161,6 +187,27 @@ export function createSettingsDialog(deps: {
 			update((draft) => {
 				draft.ffmpegPathDraft = value;
 			});
+		},
+		recheckFdk: () => refreshEncoderAvailability(),
+		async openFdkSetup() {
+			if (dialog.setupState === 'opening') return;
+			const update = guardedUpdate(generation);
+			update((draft) => {
+				draft.setupState = 'opening';
+				draft.setupMessage = '';
+			});
+			try {
+				await deps.capability().openFdkSetup();
+				update((draft) => {
+					draft.setupState = 'opened';
+					draft.setupMessage = 'Continue in Terminal. When Homebrew finishes, click Recheck FDK.';
+				});
+			} catch (error) {
+				update((draft) => {
+					draft.setupState = 'error';
+					draft.setupMessage = describeError(error);
+				});
+			}
 		},
 		async saveToolchainPreference() {
 			const started = generation;
@@ -245,6 +292,7 @@ export function createSettingsDialog(deps: {
 			try {
 				await deps.capability().resetAppSettings();
 				if (started !== generation) return;
+				await reloadDialogData(started);
 				update((draft) => {
 					draft.saveState = 'saved';
 				});
@@ -254,7 +302,6 @@ export function createSettingsDialog(deps: {
 					draft.saveError = describeError(error);
 				});
 			}
-			await reloadDialogData(started);
 		},
 		reset() {
 			generation += 1;

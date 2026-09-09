@@ -373,7 +373,7 @@ describe('encoder panel behavior controls', () => {
 			expect(select?.value).toBe('auto');
 			expect(select?.options[0]?.textContent).toBe('Auto (Apple AAC)');
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toBe(
-				'Auto will use Apple AAC.',
+				'Auto will use Apple AAC. FDK AAC is not available. Set up FDK…',
 			);
 			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
 		});

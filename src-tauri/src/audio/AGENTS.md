@@ -40,7 +40,8 @@
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
 - Constants: `VALID_ENCODER_BITRATES`.
-- Crate-internal helper: `CleanupGuard`.
+- Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled
+  Homebrew handoff in Terminal; its return confirms launch, not installation).
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event
   vocabulary, and `crate::work_runtime` for accepted-operation identity.
@@ -54,11 +55,17 @@
   resolution/validation; `platform.rs` = the per-OS probe seam — candidate
   enumeration, binary-arch acceptance, and platform paths live ONLY there,
   cfg-dispatched per the `src-tauri/src/remote_source/vault.rs` pattern with pure rules
-  unit-testable on any host).
+  unit-testable on any host). `fdk-setup.command` is the fixed macOS Homebrew
+  handoff bundled as a resource; it accepts no user-supplied shell code.
 - The cluster owns local audio import metadata/discovery, decoder/toolchain
   selection, media inspection, decode/resample/encode/mux internals, staging,
   cleanup, and media execution facts. Processing owns lifecycle orchestration
   and terminal normalization; `output_artifact` owns final artifact commit truth.
+
+- Auto detection is read-only. Validate the configured path first; canonicalize
+  only for deduplication so stable package-manager aliases survive upgrades.
+  Probe timeouts terminate and reap the process group. Homebrew setup runs only
+  after explicit user intent and leaves conflicting formula replacement to the user.
 
 ## Test Placement
 

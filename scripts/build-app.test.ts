@@ -137,6 +137,13 @@ describe('verifyMacOsBundle', () => {
 		return { commandRunner, paths, toolCalls };
 	}
 
+	it('rejects an app with an invalid resource signature', () => {
+		const { paths, commandRunner } = createPackagedAppFixture();
+		const unsignedRunner = ((command: string, args: string[]) =>
+			command === 'codesign' ? { status: 1 } : commandRunner(command, args)) as typeof spawnSync;
+		expect(() => verifyMacOsBundle(paths, unsignedRunner)).toThrow('codesign failed with status 1');
+	});
+
 	it('accepts exactly the app and helper and inspects both executables', () => {
 		const { commandRunner, paths, toolCalls } = createPackagedAppFixture();
 
@@ -146,6 +153,7 @@ describe('verifyMacOsBundle', () => {
 			{ command: 'lipo', args: ['-archs', paths.helperExecutablePath] },
 			{ command: 'otool', args: ['-L', paths.executablePath] },
 			{ command: 'otool', args: ['-L', paths.helperExecutablePath] },
+			{ command: 'codesign', args: ['--verify', '--deep', '--strict', paths.canonicalAppPath] },
 		]);
 	});
 

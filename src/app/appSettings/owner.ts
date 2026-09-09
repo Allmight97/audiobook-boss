@@ -8,7 +8,7 @@ import type {
 	PinnedDefaults,
 	StartupBehavior,
 } from '../../types/appSettings';
-import type { MaxConcurrentJobsCapabilities } from '../../types/audio';
+import type { EncoderSettingsCapabilities, MaxConcurrentJobsCapabilities } from '../../types/audio';
 import {
 	liveSettingsCapability,
 	type SettingsCapability,
@@ -56,6 +56,8 @@ export type SettingsOwner = {
 	clearFfmpegPathDraft(): void;
 	setFfmpegPathDraft(value: string): void;
 	saveToolchainPreference(): Promise<void>;
+	recheckFdk(): Promise<void>;
+	openFdkSetup(): Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
@@ -65,6 +67,7 @@ export type SettingsOwner = {
 
 export type SettingsOwnerDeps = {
 	readonly capability?: SettingsCapability;
+	readonly onToolchainChanged?: (capabilities: EncoderSettingsCapabilities | null) => Promise<void>;
 };
 
 type RememberedDefaults = Partial<
@@ -196,6 +199,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 	};
 	const dialog = createSettingsDialog({
 		capability: () => dialogCapability,
+		onToolchainChanged: deps.onToolchainChanged,
 		beforeCapture: async () => {
 			await persistPending();
 			if (durability.state === 'error')
@@ -359,6 +363,8 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		setFfmpegPathDraft(value) {
 			dialog.setFfmpegPathDraft(value);
 		},
+		recheckFdk: () => dialog.recheckFdk(),
+		openFdkSetup: () => dialog.openFdkSetup(),
 		saveToolchainPreference() {
 			return dialog.saveToolchainPreference();
 		},

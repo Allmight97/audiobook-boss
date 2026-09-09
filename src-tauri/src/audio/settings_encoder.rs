@@ -308,6 +308,7 @@ mod aac_at_message_tests {
 
     fn availability_without_aac_at() -> EncoderAvailability {
         EncoderAvailability {
+            fdk_setup_supported: true,
             fdk_available: false,
             fdk_source: EncoderCapabilitySource::None,
             aac_at_available: false,

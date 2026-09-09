@@ -276,6 +276,12 @@ export function verifyMacOsBundle(
 	verifyMacOsExecutableArchitecture(paths.helperExecutablePath, commandRunner);
 	verifyMacOsExecutableLinks(paths.executablePath, commandRunner);
 	verifyMacOsExecutableLinks(paths.helperExecutablePath, commandRunner);
+	runCheckedCommand(commandRunner, 'codesign', [
+		'--verify',
+		'--deep',
+		'--strict',
+		paths.canonicalAppPath,
+	]);
 }
 
 function verifyMacOsExecutableLinks(executablePath: string, commandRunner: typeof spawnSync): void {

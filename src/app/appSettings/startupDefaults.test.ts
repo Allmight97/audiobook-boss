@@ -9,6 +9,9 @@ function notCalled(): never {
 
 function capabilityFor(settings: AppSettings): SettingsCapability {
 	return {
+		openFdkSetup: async () => {
+			throw new Error('unexpected setup');
+		},
 		getAppSettings: () => Promise.resolve(settings),
 		updateAppSettings: notCalled,
 		resetAppSettings: notCalled,

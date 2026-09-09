@@ -155,6 +155,26 @@ describe('encoding owner', () => {
 		expect(mounted.persist).not.toHaveBeenCalled();
 	});
 
+	it('keeps a shared Settings scan when an older startup scan finishes later', async () => {
+		let finish!: (capabilities: EncoderSettingsCapabilities) => void;
+		const pending = new Promise<EncoderSettingsCapabilities>((resolve) => {
+			finish = resolve;
+		});
+		const load = vi.fn(() => pending);
+		mounted = mountEncoding({ load });
+		const missing = encoderCaps({
+			availability: { ...encoderCaps().availability, fdkAvailable: false },
+		});
+		await mounted.owner.reloadCapabilities(missing);
+		expect(mounted.owner.view().fdkSetupNeeded).toBe(true);
+		finish(encoderCaps());
+		await pending;
+		flush();
+		expect(mounted.owner.view().fdkSetupNeeded).toBe(true);
+		expect(load).toHaveBeenCalledTimes(1);
+		expect(mounted.persist).not.toHaveBeenCalled();
+	});
+
 	it('keeps afterburner across a capability reload', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);

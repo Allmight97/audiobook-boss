@@ -11,6 +11,10 @@
   composition injects `rememberEncoderDefaults` and `rememberOutputDefaults`;
   views do not call settings IPC or own persistence helpers.
 
+- `recheckFdk` and toolchain path-save refresh Settings availability and the
+  composed Encoding owner using the same fetched capability result. `openFdkSetup` reports handoff state; only an actual
+  capability recheck can report FDK ready. Installation state is not persisted.
+
 ## Acceptance And Durability
 
 - Ask the runtime owner to accept behavior before recording its preference.
