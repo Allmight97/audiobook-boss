@@ -12,7 +12,7 @@
   views do not call settings IPC or own persistence helpers.
 
 - `recheckFdk` and toolchain path-save refresh Settings availability and the
-  composed Encoding owner. `openFdkSetup` reports handoff state; only an actual
+  composed Encoding owner using the same fetched capability result. `openFdkSetup` reports handoff state; only an actual
   capability recheck can report FDK ready. Installation state is not persisted.
 
 ## Acceptance And Durability

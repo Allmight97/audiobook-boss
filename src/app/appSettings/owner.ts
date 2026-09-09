@@ -8,7 +8,7 @@ import type {
 	PinnedDefaults,
 	StartupBehavior,
 } from '../../types/appSettings';
-import type { MaxConcurrentJobsCapabilities } from '../../types/audio';
+import type { EncoderSettingsCapabilities, MaxConcurrentJobsCapabilities } from '../../types/audio';
 import {
 	liveSettingsCapability,
 	type SettingsCapability,
@@ -67,7 +67,7 @@ export type SettingsOwner = {
 
 export type SettingsOwnerDeps = {
 	readonly capability?: SettingsCapability;
-	readonly onToolchainChanged?: () => Promise<void>;
+	readonly onToolchainChanged?: (capabilities: EncoderSettingsCapabilities | null) => Promise<void>;
 };
 
 type RememberedDefaults = Partial<

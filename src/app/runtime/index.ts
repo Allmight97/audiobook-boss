@@ -25,8 +25,8 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			});
 			const settings = createSettingsOwner({
 				capability: capabilities.settings,
-				onToolchainChanged: async (): Promise<void> => {
-					await encoding.reloadCapabilities();
+				onToolchainChanged: async (capabilities): Promise<void> => {
+					await encoding.reloadCapabilities(capabilities);
 				},
 			});
 			const processingHolder: { current?: ReturnType<typeof createProcessingOwner> } = {};
@@ -67,10 +67,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			});
 			processingHolder.current = processing;
 			const workOperations = createWorkOperationsOwner({ remoteSource });
-			settings.bindAfterReset(async (defaults) => {
+			settings.bindAfterReset((defaults) => {
 				output.applyDefaults(defaults.outputDefaults);
 				encoding.applyDefaults(defaults.encoderDefaults);
-				await encoding.reloadCapabilities();
 			});
 			return {
 				input,

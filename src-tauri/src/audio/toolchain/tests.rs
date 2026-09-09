@@ -4,6 +4,23 @@ use std::fs::{set_permissions, write};
 use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_auto_detection_validates_and_retains_a_symlink_alias() {
+    let temp = TempDir::new().expect("temp dir");
+    let target = write_fake_ffmpeg(temp.path(), true);
+    let alias = temp.path().join("ffmpeg-alias");
+    std::os::unix::fs::symlink(&target, &alias).expect("symlink");
+    let result = resolve_external_toolchain_with_candidates(None, || vec![alias.clone()]);
+    assert_eq!(
+        result
+            .validated
+            .expect("valid linked toolchain")
+            .ffmpeg_path,
+        alias
+    );
+}
+
 #[test]
 fn auto_detection_finds_fdk_toolchain() {
     let temp_dir = TempDir::new().expect("temp dir");

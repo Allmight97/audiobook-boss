@@ -23,8 +23,9 @@
   do not persist. Only `select` and `setAfterburner` persist last-used
   defaults through the injected Settings `rememberEncoderDefaults` intent.
 - Capability and availability facts come from backend Runtime Settings
-  Capabilities. Settings reset waits for the App Runtime handoff to reload
-  these capabilities after a configured FFmpeg path is removed. Labels and
+  Capabilities. `reloadCapabilities` accepts a fetched result from Settings
+  and invalidates older loads; opening, rechecking, saving, and resetting
+  share one scan across both owners after the configured path changes. Labels and
   auto-hints are frontend-owned.
 - Selecting unavailable FDK invokes the injected setup intent and preserves the
   current encoder request. The FDK option remains actionable; capability loss

@@ -91,7 +91,7 @@ pub(super) fn is_supported_ffmpeg_binary(candidate: &Path) -> bool {
         return is_supported_macos_arch_listing(&arches);
     }
 
-    if let Ok(description) = super::probe_stdout("file", [OsStr::new("-b"), candidate.as_os_str()])
+    if let Ok(description) = super::probe_stdout("file", [OsStr::new("-bL"), candidate.as_os_str()])
     {
         return is_supported_macos_file_description(&description);
     }
@@ -102,7 +102,7 @@ pub(super) fn is_supported_ffmpeg_binary(candidate: &Path) -> bool {
 #[cfg(target_os = "linux")]
 pub(super) fn is_supported_ffmpeg_binary(candidate: &Path) -> bool {
     use std::ffi::OsStr;
-    if let Ok(description) = super::probe_stdout("file", [OsStr::new("-b"), candidate.as_os_str()])
+    if let Ok(description) = super::probe_stdout("file", [OsStr::new("-bL"), candidate.as_os_str()])
     {
         return is_supported_linux_file_description(&description);
     }

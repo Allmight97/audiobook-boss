@@ -2,7 +2,7 @@ import { createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import type { AppSettings, StartupBehavior } from '../../types/appSettings';
-import type { EncoderAvailability } from '../../types/audio';
+import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -64,7 +64,7 @@ export type SettingsDialog = {
 export function createSettingsDialog(deps: {
 	readonly capability: () => SettingsCapability;
 	readonly beforeCapture: () => Promise<void>;
-	readonly onToolchainChanged?: () => Promise<void>;
+	readonly onToolchainChanged?: (capabilities: EncoderSettingsCapabilities | null) => Promise<void>;
 }): SettingsDialog {
 	let dialog = createInitialState();
 	let generation = 0;
@@ -100,7 +100,7 @@ export function createSettingsDialog(deps: {
 				draft.encoderAvailability = capabilities.encoder?.availability ?? null;
 			});
 			if (started === generation && revision === availabilityRevision)
-				await deps.onToolchainChanged?.();
+				await deps.onToolchainChanged?.(capabilities.encoder ?? null);
 		} catch (error) {
 			update((draft) => {
 				draft.encoderAvailability = null;
@@ -292,6 +292,7 @@ export function createSettingsDialog(deps: {
 			try {
 				await deps.capability().resetAppSettings();
 				if (started !== generation) return;
+				await reloadDialogData(started);
 				update((draft) => {
 					draft.saveState = 'saved';
 				});
@@ -301,7 +302,6 @@ export function createSettingsDialog(deps: {
 					draft.saveError = describeError(error);
 				});
 			}
-			await reloadDialogData(started);
 		},
 		reset() {
 			generation += 1;

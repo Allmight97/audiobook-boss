@@ -449,10 +449,15 @@ describe('app settings concurrency', () => {
 		runtime = createAppRuntime({ settings });
 		await runtime.settings.openDialog();
 		expect(runtime.encoding.view().fdkSetupNeeded).toBe(true);
+		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
 		runtime.settings.setFfmpegPathDraft('/custom/bin/ffmpeg');
 		await runtime.settings.saveToolchainPreference();
 		expect(runtime.encoding.view().fdkSetupNeeded).toBe(false);
 		expect(runtime.encoding.view().availabilityHint).toContain('Using external FDK AAC');
+		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
+		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
+		await runtime.settings.recheckFdk();
+		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
 	});
 
 	it('refreshes encoder availability when resetting removes the configured FFmpeg', async () => {
@@ -485,11 +490,13 @@ describe('app settings concurrency', () => {
 			).toMatchObject({ disabled: false });
 		});
 		encoding.select('encoder', 'fdk_he_aac');
+		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
 		const reset = runtime.settings.resetAllAppSettings();
 		await vi.waitFor(() => expect(refreshRequested).toBe(true));
 		expect(runtime.settings.dialog().saveState).toBe('saving');
 		finishRefresh();
 		await reset;
+		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
 		expect(encoding.view().flavorOptions.find(({ value }) => value === 'fdk_he_aac')).toMatchObject(
 			{ disabled: false, label: 'FDK AAC (Set up…)' },
 		);
