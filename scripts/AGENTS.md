@@ -149,9 +149,11 @@ commands over invoking internals directly.
   `libmp3lame`, makes FFmpeg discoverable after the setup shell exits, creates
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`.
-- The runtime suite links FFmpeg at the pinned source revision (see
-  `vendor/ffmpeg-sys-next-*`, which selects `n9.0`, verifies its peeled
-  commit, and applies its owned chapter patch). On a Linux agent, use
+- The runtime suite links FFmpeg at the revision selected by
+  `vendor/ffmpeg-sys-next-*/ffmpeg-revision`. Rust and Linux setup consume that
+  source identity and apply the vendor-owned chapter patch. Bundled cache reuse
+  also requires matching effective compiler, target, feature and CPU inputs.
+  On a Linux agent, use
   `scripts/setup-codex-agent-env.sh` for that patched source and export
   `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig`, `LD_LIBRARY_PATH=<prefix>/lib`,
   and `PATH="<prefix>/bin:$PATH"` before `cargo test`. Distro FFmpeg 6.x fails

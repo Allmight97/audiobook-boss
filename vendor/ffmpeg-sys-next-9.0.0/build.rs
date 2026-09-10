@@ -143,26 +143,111 @@ fn version() -> String {
 
 // ABB distributes the bundled build, so its FFmpeg source must not follow the
 // mutable upstream release branch used by the published sys crate.
-const FFMPEG_SOURCE_TAG: &str = "n9.0";
-const FFMPEG_SOURCE_COMMIT: &str = "d32b387f2b0a484599d4587d651891f0c63c4238";
+const FFMPEG_SOURCE_REVISION: &str = include_str!("ffmpeg-revision");
 const FFMPEG_SOURCE_PATCH: &str = "patches/mov-chapter-start.patch";
+
+fn source_commit() -> &'static str {
+    FFMPEG_SOURCE_REVISION.trim()
+}
 
 fn source_patch_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(FFMPEG_SOURCE_PATCH)
 }
 
 fn patched_source_identity() -> io::Result<String> {
+    Ok(format!(
+        "{}:{}",
+        source_commit(),
+        git_blob_hash(&source_patch_path())?
+    ))
+}
+
+fn git_blob_hash(path: &Path) -> io::Result<String> {
     let hash = Command::new("git")
         .args(["hash-object", "--no-filters"])
-        .arg(source_patch_path())
+        .arg(path)
         .output()?;
     if !hash.status.success() {
-        return Err(io::Error::other("failed to hash the FFmpeg source patch"));
+        return Err(io::Error::other("failed to hash FFmpeg build input"));
     }
-    Ok(format!(
-        "{FFMPEG_SOURCE_COMMIT}:{}",
-        String::from_utf8_lossy(&hash.stdout).trim()
-    ))
+    Ok(String::from_utf8_lossy(&hash.stdout).trim().to_owned())
+}
+
+fn native_build_input_names() -> Vec<String> {
+    let mut names = [
+        "HOST",
+        "TARGET",
+        "DEBUG",
+        "OPT_LEVEL",
+        "FFMPEG_MARCH",
+        "FFMPEG_MTUNE",
+        "SYSROOT",
+        "SDKROOT",
+        "DEVELOPER_DIR",
+        "MACOSX_DEPLOYMENT_TARGET",
+        "CARGO_NDK_SYSROOT_PATH",
+        "CC",
+        "CFLAGS",
+        "CPPFLAGS",
+        "LDFLAGS",
+        "AR",
+        "RANLIB",
+        "AS",
+        "NM",
+        "STRIP",
+        "PKG_CONFIG_PATH",
+        "PKG_CONFIG_LIBDIR",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    let target = env::var("TARGET").unwrap();
+    for tool in ["CC", "CFLAGS", "AR"] {
+        for suffix in [&target, &target.replace('-', "_")] {
+            names.push(format!("{tool}_{suffix}"));
+        }
+        names.push(format!("HOST_{tool}"));
+        names.push(format!("TARGET_{tool}"));
+    }
+    names
+}
+
+fn register_native_build_inputs() {
+    for name in native_build_input_names() {
+        println!("cargo:rerun-if-env-changed={name}");
+    }
+}
+
+fn native_build_identity(sysroot: Option<&str>) -> io::Result<String> {
+    let mut names = native_build_input_names();
+    names.extend(env::vars_os().filter_map(|(key, _)| {
+        key.to_str()
+            .filter(|key| key.starts_with("CARGO_FEATURE_"))
+            .map(str::to_owned)
+    }));
+    names.sort();
+    let mut identity = format!(
+        "build-script={}\nsysroot={sysroot:?}\n",
+        git_blob_hash(&Path::new(env!("CARGO_MANIFEST_DIR")).join("build.rs"))?
+    );
+    for name in names {
+        writeln!(identity, "{name}={:?}", env::var_os(&name)).unwrap();
+    }
+    let compiler = cc::Build::new().get_compiler();
+    let version = compiler
+        .to_command()
+        .arg(if compiler.is_like_msvc() {
+            "/Bv"
+        } else {
+            "--version"
+        })
+        .output()?;
+    writeln!(
+        identity,
+        "compiler={compiler:?}\nversion={:?}\n{:?}",
+        version.stdout, version.stderr
+    )
+    .unwrap();
+    Ok(identity)
 }
 
 fn output() -> PathBuf {
@@ -185,23 +270,32 @@ fn fetch() -> io::Result<()> {
     let output_base_path = output();
     let clone_dest_dir = format!("ffmpeg-{}", version());
     let _ = std::fs::remove_dir_all(output_base_path.join(&clone_dest_dir));
-    let status = Command::new("git")
-        .current_dir(&output_base_path)
-        .args(if cfg!(target_os = "windows") {
-            vec!["-c", "core.autocrlf=false"]
-        } else {
-            vec![]
-        })
-        .arg("clone")
-        .arg("--depth=1")
-        .arg("-b")
-        .arg(FFMPEG_SOURCE_TAG)
-        .arg("https://github.com/FFmpeg/FFmpeg")
-        .arg(&clone_dest_dir)
-        .status()?;
-
-    if !status.success() {
-        return Err(io::Error::other("fetch failed"));
+    fs::create_dir_all(source())?;
+    // Fetch the immutable commit directly: git clone --branch accepts refs,
+    // not arbitrary commit IDs.
+    for args in [
+        vec!["init"],
+        vec![
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/FFmpeg/FFmpeg",
+        ],
+        vec!["fetch", "--depth=1", "origin", source_commit()],
+        vec!["checkout", "--detach", "FETCH_HEAD"],
+    ] {
+        let status = Command::new("git")
+            .current_dir(source())
+            .args(if cfg!(target_os = "windows") {
+                vec!["-c", "core.autocrlf=false"]
+            } else {
+                vec![]
+            })
+            .args(args)
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::other("FFmpeg commit fetch failed"));
+        }
     }
 
     let revision = Command::new("git")
@@ -209,10 +303,11 @@ fn fetch() -> io::Result<()> {
         .args(["rev-parse", "HEAD"])
         .output()?;
     let actual_commit = String::from_utf8_lossy(&revision.stdout);
-    if !revision.status.success() || actual_commit.trim() != FFMPEG_SOURCE_COMMIT {
+    if !revision.status.success() || actual_commit.trim() != source_commit() {
         return Err(io::Error::other(format!(
-            "FFmpeg {FFMPEG_SOURCE_TAG} resolved to {}, expected {FFMPEG_SOURCE_COMMIT}",
-            actual_commit.trim()
+            "FFmpeg source resolved to {}, expected {}",
+            actual_commit.trim(),
+            source_commit()
         )));
     }
 
@@ -440,9 +535,6 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
     } else {
         // Determine -march/-mtune flags for the compiler.
         // Priority: env vars > build-portable feature > default (native)
-        println!("cargo:rerun-if-env-changed=FFMPEG_MARCH");
-        println!("cargo:rerun-if-env-changed=FFMPEG_MTUNE");
-
         let march_env = env::var("FFMPEG_MARCH").ok();
         let mtune_env = env::var("FFMPEG_MTUNE").ok();
 
@@ -1129,7 +1221,11 @@ fn link_to_libraries(statik: bool, target_os: &str) {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=FFMPEG_DIR");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=hwcontext_wrapper.h");
+    println!("cargo:rerun-if-changed=ffmpeg-revision");
     println!("cargo:rerun-if-changed={FFMPEG_SOURCE_PATCH}");
+    register_native_build_inputs();
 
     let statik = env::var("CARGO_FEATURE_STATIC").is_ok();
     let ffmpeg_major_version: u32 = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap();
@@ -1144,8 +1240,12 @@ fn main() {
         link_to_libraries(statik, &target_os);
         let source_stamp = search().join("abb-source-commit");
         let source_identity = patched_source_identity().expect("failed to identify FFmpeg source");
+        let build_stamp = search().join("abb-build-inputs");
+        let build_identity = native_build_identity(sysroot.as_deref())
+            .expect("failed to identify FFmpeg build inputs");
         let cached_commit = fs::read_to_string(&source_stamp).unwrap_or_default();
         if cached_commit.trim() != source_identity
+            || fs::read_to_string(&build_stamp).ok().as_deref() != Some(&build_identity)
             || fs::metadata(search().join("lib").join("libavutil.a")).is_err()
         {
             if search().exists() {
@@ -1155,6 +1255,7 @@ fn main() {
             fetch().unwrap();
             build(sysroot.as_deref()).unwrap();
             fs::write(source_stamp, source_identity).expect("failed to record FFmpeg source");
+            fs::write(build_stamp, build_identity).expect("failed to record FFmpeg build inputs");
         }
 
         // Check additional required libraries.
