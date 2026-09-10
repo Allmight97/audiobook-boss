@@ -494,6 +494,13 @@ fn build(sysroot: Option<&str>) -> io::Result<()> {
 
     let target = env::var("TARGET").unwrap();
     let host = env::var("HOST").unwrap();
+    if target == host && !cfg!(target_env = "msvc") {
+        // Use the same host compiler whose identity guards bundled cache reuse.
+        configure.arg(format!(
+            "--cc={}",
+            cc::Build::new().get_compiler().path().display()
+        ));
+    }
     if target != host {
         configure.arg("--enable-cross-compile");
 

@@ -6,7 +6,7 @@ The original license and source remain included. Registry bookkeeping, upstream
 CI configuration, and the crate-local lockfile are omitted.
 
 This patch adds exact Rust variants and bidirectional mappings for the selected
-FFmpeg source `903325e279b67156c3aa1f06ec5cb2378d9d004d`:
+FFmpeg source `efb0a7e5e78ab261ad8ac5af0ff867fe9ce8c99a`:
 
 - `AV_SAMPLE_FMT_DSD`
 - `AV_PIX_FMT_CUARRAY`
