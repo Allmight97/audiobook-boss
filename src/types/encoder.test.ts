@@ -33,6 +33,7 @@ describe('toBoundaryEncoderSettings', () => {
 			bitrateMode: { mode: 'cbr' },
 			channels: 'stereo',
 			afterburner: false,
+			nativeAacSpeed: 0,
 		} satisfies EncoderSettings;
 
 		const normalized = toBoundaryEncoderSettings(boundary, undefined, encoderCapabilities());

@@ -5,7 +5,7 @@ use crate::errors::Result;
 use ffmpeg_next as ff;
 
 use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
-use super::options::{build_apple_options, build_native_options};
+use super::options::{build_apple_options, build_native_options, validate_native_options};
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
@@ -28,12 +28,21 @@ pub(crate) fn create_audio_encoder(
     }
 
     let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
-    let codec = if codec_name == "aac" {
-        ff::encoder::find(ff::codec::Id::AAC)
-            .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
-    } else {
-        find_encoder_by_name(codec_name)?
-    };
+    let codec = find_encoder_by_name(codec_name)?;
+    let mut resolved_settings = encoder_settings.clone();
+    resolved_settings.encoder_type = resolved_encoder;
+    settings_encoder::validate_encoder_settings(&resolved_settings)?;
+    if resolved_encoder == EncoderType::NativeAac
+        && matches!(
+            encoder_settings.bitrate_mode,
+            settings_encoder::BitrateMode::Cbr
+        )
+    {
+        let max_bps = 6 * u64::from(target_sample_rate) * target_channels as u64;
+        if u64::from(encoder_settings.bitrate_kbps) * 1000 > max_bps {
+            return Err(AppError::InvalidInput(format!("Native target bitrate exceeds {} kbps at {target_sample_rate} Hz / {target_channels} channel(s)", max_bps / 1000)));
+        }
+    }
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
     let sample_format = match resolved_encoder {
@@ -51,6 +60,10 @@ pub(crate) fn create_audio_encoder(
     opened.set_channel_layout(channel_layout);
     opened.set_format(sample_format);
     opened.set_time_base(time_base);
+
+    if requires_global_header {
+        opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
+    }
 
     // Build encoder-specific options Dictionary
     // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
@@ -75,16 +88,15 @@ pub(crate) fn create_audio_encoder(
         opts.iter().collect::<Vec<_>>()
     ));
 
-    if requires_global_header {
-        opened.set_flags(ff::codec::flag::Flags::GLOBAL_HEADER);
-    }
-
     // Open encoder with codec AND options dictionary
     // This passes options to avcodec_open2, which correctly handles encoder-private options
     let enc_ctx = opened
         .open_as_with(codec, opts)
         .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
 
+    if resolved_encoder == EncoderType::NativeAac {
+        validate_native_options(&enc_ctx, encoder_settings)?;
+    }
     Ok(enc_ctx)
 }
 

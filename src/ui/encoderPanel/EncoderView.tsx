@@ -12,9 +12,11 @@ export function EncoderView(): JSX.Element {
 
 	function bind(field: EncodingField) {
 		return (event: Event) => {
-			const select = event.currentTarget as HTMLSelectElement;
+			const select = event.currentTarget as HTMLSelectElement | HTMLInputElement;
 			runtime.encoding.select(field, select.value);
 			if (field === 'encoder') select.value = view().flavor;
+			if (field === 'nativeQuality') select.value = String(view().nativeQuality);
+			if (field === 'bitrate') select.value = String(view().bitrate);
 		};
 	}
 
@@ -99,7 +101,13 @@ export function EncoderView(): JSX.Element {
 				</div>
 				<div class="encoder-field-row">
 					<label
-						for={view().showQuality ? 'output-quality' : 'output-bitrate'}
+						for={
+							view().bitrateMode === 'native_vbr'
+								? 'native-quality'
+								: view().showQuality
+									? 'output-quality'
+									: 'output-bitrate'
+						}
 						id="quality-bitrate-label"
 					>
 						{view().qualityBitrateLabel}
@@ -107,7 +115,7 @@ export function EncoderView(): JSX.Element {
 					<div class="encoder-field-stack">
 						<select
 							id="output-quality"
-							hidden={!view().showQuality}
+							hidden={view().bitrateMode !== 'vbr'}
 							data-testid="quality-select"
 							value={view().quality}
 							onChange={bind('quality')}
@@ -116,22 +124,64 @@ export function EncoderView(): JSX.Element {
 								{(option) => <option value={option.value}>{option.label}</option>}
 							</For>
 						</select>
-						<select
+						<input
 							id="output-bitrate"
+							data-testid="bitrate-input"
+							type="number"
 							hidden={view().showQuality}
-							data-testid="bitrate-select"
+							min={view().bitrateKbpsMin}
+							max={view().bitrateKbpsMax}
+							step="1"
 							value={view().bitrate}
 							onChange={bind('bitrate')}
-						>
-							<For each={view().bitrateOptions}>
-								{(option) => <option value={option.value}>{option.label}</option>}
-							</For>
-						</select>
+							aria-describedby="estimated-bitrate"
+						/>
+						<Show when={view().native}>
+							<Show when={view().bitrateMode === 'native_vbr'}>
+								<input
+									id="native-quality"
+									data-testid="native-quality-input"
+									type="number"
+									min={view().nativeQualityMin}
+									max={view().nativeQualityMax}
+									step="any"
+									value={view().nativeQuality}
+									onChange={bind('nativeQuality')}
+									aria-describedby="estimated-bitrate native-rate-hint"
+								/>
+							</Show>
+							<p id="native-rate-hint" class="field-hint">
+								{view().bitrateMode === 'native_vbr'
+									? `q ${view().nativeQualityMin.toFixed(4)}–${view().nativeQualityMax.toFixed(4)}; engine safety bounds, not a calibrated quality scale.`
+									: 'kbps total. Maximum depends on sample rate and channel count; incompatible combinations are rejected.'}
+							</p>
+						</Show>
 						<p id="estimated-bitrate" class="field-hint" data-testid="estimated-bitrate">
 							{view().estimatedBitrateText}
 						</p>
 					</div>
 				</div>
+				<Show when={view().native}>
+					<div class="encoder-field-row">
+						<label for="native-speed">NMR speed</label>
+						<div class="encoder-field-stack">
+							<select
+								id="native-speed"
+								data-testid="native-speed-select"
+								value={view().nativeSpeed}
+								onChange={bind('nativeSpeed')}
+								aria-describedby="native-speed-hint"
+							>
+								<For each={view().nativeSpeedOptions}>
+									{(option) => <option value={option.value}>{option.label}</option>}
+								</For>
+							</select>
+							<p id="native-speed-hint" class="field-hint">
+								Higher values reduce search effort. Psychoacoustic tools use upstream defaults.
+							</p>
+						</div>
+					</div>
+				</Show>
 				<div class="encoder-field-row">
 					<label for="output-samplerate">Sample Rate</label>
 					<div class="encoder-field-stack">

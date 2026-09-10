@@ -18,7 +18,7 @@
 - Render `runtime.encoding.view()` and dispatch `select`. Keep screen-local
   disclosure only.
 - The `estimated-size` span is the only consumer of Output Plan's estimated-size
-  text. Keep `~ 12.3 MB` / `~ --- MB` in this header; do not move the span into
+  text, including unknown size for native VBR. Keep it in this header; do not move the span into
   Output.
 - Afterburner is encoding truth; the checkbox lives in the Settings dialog.
 

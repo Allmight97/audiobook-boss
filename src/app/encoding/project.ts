@@ -12,11 +12,13 @@ import {
 } from '../../types/encoder';
 import { estimateKbpsFromRequest } from './estimate';
 
-export type BitrateModeSelection = 'vbr' | 'cvbr' | 'cbr';
+export type BitrateModeSelection = 'vbr' | 'cvbr' | 'cbr' | 'native_vbr';
 export type EncodingField =
 	| 'encoder'
 	| 'bitrateMode'
 	| 'quality'
+	| 'nativeQuality'
+	| 'nativeSpeed'
 	| 'bitrate'
 	| 'sampleRate'
 	| 'channels';
@@ -37,12 +39,19 @@ export type EncodingView = {
 	readonly bitrateMode: BitrateModeSelection;
 	readonly bitrateModeOptions: ReadonlyArray<EncodingOption>;
 	readonly bitrateModeDisabled: boolean;
-	readonly qualityBitrateLabel: 'Quality' | 'Bitrate';
+	readonly qualityBitrateLabel: string;
+	readonly native: boolean;
+	readonly nativeQuality: number;
+	readonly nativeQualityMin: number;
+	readonly nativeQualityMax: number;
+	readonly bitrateKbpsMax: number;
+	readonly nativeSpeed: number;
+	readonly nativeSpeedOptions: ReadonlyArray<EncodingOption>;
 	readonly showQuality: boolean;
 	readonly quality: number;
 	readonly qualityOptions: ReadonlyArray<EncodingOption>;
 	readonly bitrate: number;
-	readonly bitrateOptions: ReadonlyArray<EncodingOption>;
+	readonly bitrateKbpsMin: number;
 	readonly estimatedBitrateText: string;
 	readonly sampleRate: string;
 	readonly sampleRateOptions: ReadonlyArray<EncodingOption>;
@@ -59,6 +68,8 @@ export type EncodingBag = {
 	flavor: EncoderFlavor;
 	bitrateMode: BitrateModeSelection;
 	quality: number;
+	nativeQuality: number;
+	nativeSpeed: number;
 	bitrate: number;
 	sampleRate: string;
 	channels: NonNullable<EncoderSettingsState['channels']>;
@@ -73,8 +84,7 @@ export type EncodingBag = {
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const DEFAULT_CHANNELS_HINT = 'Auto -> source audio';
 const DEFAULT_AVAILABILITY_HINT = 'Checking encoder availability…';
-const NATIVE_AAC_WARNING =
-	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
+const NATIVE_AAC_HINT = 'NMR AAC-LC. Preview to compare settings on your audio.';
 const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	auto: 'HE-AAC v1',
 	fdk_he_aac: 'HE-AAC v1',
@@ -87,6 +97,8 @@ export function createDefaultBag(): EncodingBag {
 		flavor: 'auto',
 		bitrateMode: 'vbr',
 		quality: 3,
+		nativeQuality: 0,
+		nativeSpeed: 0,
 		bitrate: 64,
 		sampleRate: 'auto',
 		channels: 'auto',
@@ -108,7 +120,7 @@ function rangeOptions(min: number, max: number): number[] {
 }
 
 function bitrateModeFromKind(kind: string): BitrateModeSelection {
-	return kind === 'cvbr' || kind === 'cbr' ? kind : 'vbr';
+	return kind === 'cvbr' || kind === 'cbr' || kind === 'native_vbr' ? kind : 'vbr';
 }
 
 function encoderFlavorLabel(flavor: EncoderFlavor): string {
@@ -118,7 +130,7 @@ function encoderFlavorLabel(flavor: EncoderFlavor): string {
 		case 'aac_at':
 			return 'Apple AAC';
 		case 'native_aac':
-			return 'Native AAC (FFmpeg)';
+			return 'Native AAC (NMR)';
 		default:
 			return 'Auto';
 	}
@@ -178,8 +190,13 @@ function uiSettingsFromBag(bag: EncodingBag): EncoderSettingsState {
 		channels: bag.channels,
 		bitrateKbps: bag.bitrate as EncoderSettingsState['bitrateKbps'],
 		bitrateMode:
-			bag.bitrateMode === 'vbr' ? { mode: 'vbr', value: bag.quality } : { mode: bag.bitrateMode },
+			bag.bitrateMode === 'vbr'
+				? { mode: 'vbr', value: bag.quality }
+				: bag.bitrateMode === 'native_vbr'
+					? { mode: 'native_vbr', value: bag.nativeQuality }
+					: { mode: bag.bitrateMode },
 		fdkAfterburner: bag.afterburner,
+		nativeAacSpeed: bag.nativeSpeed,
 	};
 }
 
@@ -198,7 +215,7 @@ export function bagDefaults(bag: EncodingBag): EncoderDefaults {
 	};
 }
 
-export function bagEstimateKbps(bag: EncodingBag): number {
+export function bagEstimateKbps(bag: EncodingBag): number | null {
 	return estimateKbpsFromRequest(bagRequest(bag));
 }
 
@@ -209,13 +226,13 @@ function availabilityHint(bag: EncodingBag): string {
 	if (selected === 'auto') {
 		if (effective === 'fdk_he_aac') return fdkAvailabilityHint(bag);
 		if (effective === 'aac_at') return 'Auto will use Apple AAC. FDK AAC is not available.';
-		return `Auto will use Native AAC (FFmpeg). FDK AAC is not available. ${NATIVE_AAC_WARNING}`;
+		return `Auto will use Native AAC (FFmpeg). FDK AAC is not available. ${NATIVE_AAC_HINT}`;
 	}
 	if (effective === 'native_aac') {
 		if (!bag.availability.nativeAacAvailable) {
 			return 'Native AAC (FFmpeg) is unavailable in this build.';
 		}
-		return NATIVE_AAC_WARNING;
+		return NATIVE_AAC_HINT;
 	}
 	if (effective === 'fdk_he_aac') {
 		if (!bag.availability.fdkAvailable) {
@@ -288,7 +305,8 @@ function channelsDetail(bag: EncodingBag): string {
 
 export function projectView(bag: EncodingBag): EncodingView {
 	const estimate = bagEstimateKbps(bag);
-	const showQuality = bag.bitrateMode === 'vbr';
+	const showQuality = bag.bitrateMode === 'vbr' || bag.bitrateMode === 'native_vbr';
+	const native = effectiveEncoder(bag) === 'native_aac';
 	const disabled = disabledEncoderOptions(bag.availability);
 	const flavorOptions: EncodingOption[] =
 		bag.capabilities === null
@@ -313,7 +331,8 @@ export function projectView(bag: EncodingBag): EncodingView {
 			: []
 	).map((mode) => ({
 		value: mode,
-		label: mode.toUpperCase(),
+		label:
+			mode === 'cbr' ? 'Target bitrate' : mode === 'native_vbr' ? 'Native VBR' : mode.toUpperCase(),
 		disabled: !bitrateModeAllowed(bag, mode),
 	}));
 	const qualityOptions = bag.capabilities
@@ -322,10 +341,6 @@ export function projectView(bag: EncodingBag): EncodingView {
 				label: qualityLabel(bag, value),
 			}))
 		: [];
-	const bitrateOptions = (bag.capabilities?.bitrateKbpsOptions ?? []).map((value) => ({
-		value: String(value),
-		label: `${value} kbps`,
-	}));
 	const sampleRateOptions = bag.capabilities
 		? [
 				...(bag.capabilities.sampleRateAuto ? ['auto'] : []),
@@ -347,13 +362,34 @@ export function projectView(bag: EncodingBag): EncodingView {
 		bitrateMode: bag.bitrateMode,
 		bitrateModeOptions,
 		bitrateModeDisabled: bitrateModeOptions.length === 0,
-		qualityBitrateLabel: showQuality ? 'Quality' : 'Bitrate',
+		qualityBitrateLabel:
+			bag.bitrateMode === 'native_vbr' ? 'Native q' : showQuality ? 'Quality' : 'Bitrate',
+		native,
+		nativeQuality: bag.nativeQuality,
+		nativeQualityMin: bag.capabilities?.nativeQualityMin ?? 0,
+		nativeQualityMax: bag.capabilities?.nativeQualityMax ?? 0,
+		bitrateKbpsMax: bag.capabilities?.bitrateKbpsMax ?? 0,
+		nativeSpeed: bag.nativeSpeed,
+		nativeSpeedOptions: rangeOptions(0, bag.capabilities?.nativeSpeedMax ?? 0).map((value) => ({
+			value: String(value),
+			label:
+				value === 0
+					? '0 · Full search (default)'
+					: value === 4
+						? '4 · Fastest search'
+						: String(value),
+		})),
 		showQuality,
 		quality: bag.quality,
 		qualityOptions,
 		bitrate: bag.bitrate,
-		bitrateOptions,
-		estimatedBitrateText: showQuality ? `Est: ~${estimate} kbps` : `Target: ${estimate} kbps`,
+		bitrateKbpsMin: bag.capabilities?.bitrateKbpsMin ?? 1,
+		estimatedBitrateText:
+			bag.bitrateMode === 'native_vbr'
+				? `Higher q generally uses more bits. Effective q: ${(Math.round(bag.nativeQuality * 118) / 118).toFixed(4)}. Size depends on the audio.`
+				: showQuality
+					? `Est: ~${estimate} kbps`
+					: `Target: ${estimate} kbps`,
 		sampleRate: bag.sampleRate,
 		sampleRateOptions,
 		sampleRateDisabled: sampleRateOptions.length === 0,
@@ -400,13 +436,14 @@ export function applyCapabilities(
 	bag: EncodingBag,
 	capabilities: EncoderSettingsCapabilities | null,
 ): void {
-	const usable =
-		capabilities && Array.isArray(capabilities.bitrateKbpsOptions) ? capabilities : null;
+	const usable = capabilities;
 	bag.capabilities = usable;
 	bag.availability = usable?.availability ?? capabilities?.availability ?? null;
 	if (!usable) return;
-	if (!usable.bitrateKbpsOptions.includes(bag.bitrate)) {
-		bag.bitrate = usable.bitrateKbpsOptions[0] ?? bag.bitrate;
+	if (bag.nativeQuality < usable.nativeQualityMin || bag.nativeQuality > usable.nativeQualityMax)
+		bag.nativeQuality = usable.nativeQualityDefault;
+	if (bag.bitrate < usable.bitrateKbpsMin || bag.bitrate > usable.bitrateKbpsMax) {
+		bag.bitrate = Math.min(usable.bitrateKbpsMax, Math.max(usable.bitrateKbpsMin, bag.bitrate));
 	}
 	bag.quality = Math.min(usable.vbrLevelMax, Math.max(usable.vbrLevelMin, bag.quality));
 	const sampleRates = [
@@ -429,6 +466,8 @@ export function applyDefaultsToBag(bag: EncodingBag, defaults: EncoderDefaults):
 		settings.bitrateMode.mode === 'vbr'
 			? settings.bitrateMode.value
 			: (bag.capabilities?.vbrLevelDefault ?? bag.quality);
+	if (settings.bitrateMode.mode === 'native_vbr') bag.nativeQuality = settings.bitrateMode.value;
+	bag.nativeSpeed = settings.nativeAacSpeed ?? 0;
 	bag.bitrate = settings.bitrateKbps;
 	bag.channels = settings.channels;
 	bag.afterburner = settings.afterburner;
@@ -460,9 +499,38 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 			return true;
 		}
 		case 'bitrateMode': {
-			if (value !== 'vbr' && value !== 'cvbr' && value !== 'cbr') return false;
+			if (value !== 'vbr' && value !== 'cvbr' && value !== 'cbr' && value !== 'native_vbr')
+				return false;
 			if (bag.bitrateMode === value) return false;
 			bag.bitrateMode = value;
+			return true;
+		}
+		case 'nativeQuality': {
+			const q = Number(value);
+			const cap = bag.capabilities;
+			if (
+				!value.trim() ||
+				!cap ||
+				!Number.isFinite(q) ||
+				q < cap.nativeQualityMin ||
+				q > cap.nativeQualityMax ||
+				q === bag.nativeQuality
+			)
+				return false;
+			bag.nativeQuality = q;
+			return true;
+		}
+		case 'nativeSpeed': {
+			const speed = Number(value);
+			if (
+				!bag.capabilities ||
+				!Number.isInteger(speed) ||
+				speed < 0 ||
+				speed > bag.capabilities.nativeSpeedMax ||
+				speed === bag.nativeSpeed
+			)
+				return false;
+			bag.nativeSpeed = speed;
 			return true;
 		}
 		case 'quality': {
@@ -476,9 +544,12 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 			return true;
 		}
 		case 'bitrate': {
-			const parsed = Number.parseInt(value, 10);
-			if (!Number.isFinite(parsed)) return false;
-			if (bag.capabilities && !bag.capabilities.bitrateKbpsOptions.includes(parsed)) {
+			const parsed = Number(value);
+			if (!Number.isInteger(parsed) || !value.trim()) return false;
+			if (
+				bag.capabilities &&
+				(parsed < bag.capabilities.bitrateKbpsMin || parsed > bag.capabilities.bitrateKbpsMax)
+			) {
 				return false;
 			}
 			if (bag.bitrate === parsed) return false;

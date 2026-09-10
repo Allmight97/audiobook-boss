@@ -27,7 +27,7 @@ export type { EncodingField, EncodingView } from './project';
 export type EncodingOwner = {
 	readonly view: Accessor<EncodingView>;
 	readonly request: Accessor<EncodingRequestConfig>;
-	readonly estimateKbps: Accessor<number>;
+	readonly estimateKbps: Accessor<number | null>;
 	select(field: EncodingField, value: string): void;
 	setAfterburner(enabled: boolean): void;
 	applyDefaults(defaults: EncoderDefaults): void;

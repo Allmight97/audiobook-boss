@@ -7,11 +7,11 @@ describe('estimateEncodedSizeBytes', () => {
 		expect(estimateEncodedSizeBytes(-1, { bitrateKbps: 64, channels: 'stereo' })).toBe(0);
 	});
 
-	it('uses request bitrate, stereo gain, and 1.03 overhead', () => {
+	it('uses total bitrate for either channel count, with 1.03 overhead', () => {
 		// 100s * 64 kbps * 1000 / 8 = 800_000, then *1.03 overhead.
 		expect(estimateEncodedSizeBytes(100, { bitrateKbps: 64, channels: 'mono' })).toBe(824000);
-		// Same base *1.5 stereo *1.03 overhead.
-		expect(estimateEncodedSizeBytes(100, { bitrateKbps: 64, channels: 'stereo' })).toBe(1236000);
+		// The target bitrate already includes both channels.
+		expect(estimateEncodedSizeBytes(100, { bitrateKbps: 64, channels: 'stereo' })).toBe(824000);
 	});
 });
 

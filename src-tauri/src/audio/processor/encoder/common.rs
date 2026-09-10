@@ -310,6 +310,7 @@ mod tests {
             bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Stereo,
             afterburner: false,
+            native_aac_speed: 0,
         };
         let sample_rate = SampleRateConfig::Explicit(44_100);
         let inputs = [PathBuf::from("/private/input/Book One.m4b")];

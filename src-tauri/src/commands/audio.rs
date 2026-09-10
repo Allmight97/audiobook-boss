@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::Manager;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeSettingsCapabilities {
     pub encoder: EncoderSettingsCapabilities,

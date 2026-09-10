@@ -18,7 +18,10 @@
 ## Hard Invariants
 
 - Request-shaped truth. VBR quality is not the sticky CBR/CVBR `bitrateKbps`.
-  Estimate kbps uses the VBR table; it never parses `Est: ~60 kbps`.
+  FDK estimates use its level table. Native VBR carries fractional q and returns
+  no bitrate estimate; target kbps and NMR speed persist independently.
+- Target bitrate is a bounded numeric input. Backend capabilities own its
+  bounds and mode compatibility; Auto preserves the selected resolved mode.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`
   do not persist. Only `select` and `setAfterburner` persist last-used
   defaults through the injected Settings `rememberEncoderDefaults` intent.

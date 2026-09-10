@@ -127,6 +127,7 @@ impl Default for EncoderDefaults {
                 bitrate_mode: BitrateMode::Vbr(3),
                 channels: ChannelConfig::Auto,
                 afterburner: true,
+                native_aac_speed: 0,
             },
             sample_rate: SampleRateConfig::Auto,
         }

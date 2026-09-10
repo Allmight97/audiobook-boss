@@ -247,8 +247,8 @@ git history and closed issues own superseded chronology.
 ## 2026-07-04 - Encoder Settings Carry No Inert Knobs
 
 - `EncoderSettings` has no `threads` or `twoloop` field: AAC encoders (native
-  `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, and FFmpeg's native
-  coder default is already twoloop — both knobs were end-to-end no-ops.
+  `aac`, `aac_at`, `libfdk_aac`) do not frame-thread. Native AAC now pins NMR;
+  its speed control changes search effort and is verified on the opened encoder.
 - The in-process engine refuses `FdkHeAac` with a typed error; FDK is owned
   exclusively by the external FFmpeg adapter (evidence: adapter routing in
   `processor/adapter.rs`, encoder guard in `processor/encoder/context.rs`).

@@ -200,7 +200,7 @@ describe('output plan public view', () => {
 			},
 			encodingEstimateKbps: 64,
 		});
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.2 MB');
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 804.7 KB');
 	});
 
 	it('changes the encoder-header size when FDK VBR quality changes encoded bitrate', () => {

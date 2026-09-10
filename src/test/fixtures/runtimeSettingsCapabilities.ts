@@ -60,11 +60,11 @@ export function runtimeSettingsCapabilitiesFixture(
 			} satisfies GeneratedEncoderAvailability,
 			encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
 			autoResolutionOrder: ['fdk_he_aac', 'aac_at', 'native_aac'],
-			bitrateKbpsOptions: [48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128],
+			bitrateKbpsMin: 1,
 			bitrateModesByEncoder: [
 				{
 					encoderType: 'auto' as const,
-					allowedModes: ['vbr' as const],
+					allowedModes: ['vbr' as const, 'cvbr' as const, 'cbr' as const, 'native_vbr' as const],
 					defaultMode: { mode: 'vbr' as const, value: 3 },
 				},
 				{
@@ -79,15 +79,22 @@ export function runtimeSettingsCapabilitiesFixture(
 				},
 				{
 					encoderType: 'native_aac' as const,
-					allowedModes: ['cbr' as const],
+					allowedModes: ['cbr' as const, 'native_vbr' as const],
 					defaultMode: { mode: 'cbr' as const },
 				},
 			],
+			bitrateKbpsMax: 1152,
+			nativeQualityMin: 1 / 118,
+			nativeQualityMax: 3932 / 118,
+			nativeQualityDefault: 120 / 118,
+			nativeSpeedMax: 4,
 			vbrLevelMin: 1,
 			vbrLevelMax: 5,
 			vbrLevelDefault: 3,
 			sampleRateAuto: true,
-			explicitSampleRates: [22050, 32000, 44100, 48000],
+			explicitSampleRates: [
+				7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+			],
 			channelOptions: ['auto' as const, 'mono' as const, 'stereo' as const],
 		} satisfies GeneratedEncoderSettingsCapabilities,
 		maxConcurrentJobs: {
