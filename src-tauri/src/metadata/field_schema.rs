@@ -122,6 +122,24 @@ impl TagField {
     }
 }
 
+/// FFmpeg exports COMM as comment[-descriptor][-language]. ABB displays one
+/// user comment; iTunes technical COMM records remain opaque passthrough data.
+/// Prefer the canonical key, then undescribed language variants, then descriptors.
+pub(super) fn comment_key_rank(key: &str) -> Option<u8> {
+    let key = key.to_ascii_lowercase();
+    if key == "comment" {
+        return Some(0);
+    }
+    let descriptor = key.strip_prefix("comment-")?;
+    if descriptor.is_empty() || descriptor.starts_with("itun") {
+        return None;
+    }
+    if descriptor.len() == 3 && descriptor.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+        return Some(1);
+    }
+    Some(2)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{TagField, DISK_NUMBER_READ_KEYS, TRACK_NUMBER_READ_KEYS};
