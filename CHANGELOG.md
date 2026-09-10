@@ -4,6 +4,21 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-09-09
+
+### Fixed
+
+- Preserve chapter positions when chapterless audio precedes a chaptered file.
+- Identify unsupported input audio formats more clearly when no decoder can read them.
+- Give the bitrate control its correct accessible label.
+
+### Changed
+
+- Show elapsed completion times for operations and individual files in Work Center.
+- Include recent encoder diagnostics in development summaries to aid troubleshooting.
+- Clarify test-audit guidance to prioritize observable behavior and record the test
+  tier, using end-to-end coverage where real boundary handoffs need protection.
+
 ## [1.8.1] - 2026-09-08
 
 ### Fixed
