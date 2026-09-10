@@ -42,7 +42,9 @@
   against actual artifact metadata.
 - Drop probe/inspection contexts before reopening the same path for decoder trials, processing, replacement, or another library.
 - Cancellation is checked at critical boundaries, including post-move and pre-success paths.
-- Terminal paths clean app-owned temporary resources to avoid residue across retries.
+- Register newly created workspaces with cleanup before observing cancellation.
+  Failed cleanup remains tracked for retry; post-publication cleanup failure
+  preserves success with an explicit warning from Output Artifact.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
 
 ## Done Criteria

@@ -202,10 +202,9 @@ fn process_audiobook_with_context(
     let mut metrics = ProcessingMetrics::new();
 
     // Stage 1: Validate + Prepare (from prepare module)
-    let workflow = prepare::validate_and_prepare(&context, &files)?;
-    let workflow_temp_dir = workflow.temp_dir.clone();
     let mut workflow_cleanup = CleanupGuard::new(context.session.id());
-    workflow_cleanup.add_path(&workflow_temp_dir);
+    let workflow = prepare::validate_and_prepare(&context, &files, &mut workflow_cleanup)?;
+    let workflow_temp_dir = workflow.temp_dir.clone();
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
     let passthrough_sources = passthrough_sources_from_audio_files(&files);

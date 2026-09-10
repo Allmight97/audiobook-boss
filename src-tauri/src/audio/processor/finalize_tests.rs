@@ -15,6 +15,7 @@ fn encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Auto,
         afterburner: false,
+        native_aac_speed: 0,
     }
 }
 
