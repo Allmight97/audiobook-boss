@@ -25,6 +25,7 @@ export interface EncoderSettingsState {
 	bitrateMode?: BitrateMode;
 	channels?: EncoderChannelConfig;
 	fdkAfterburner?: boolean;
+	nativeAacSpeed?: number;
 }
 
 export type EncoderSettingsLike =
@@ -58,7 +59,7 @@ const isBitrateMode = (value: unknown): value is BitrateMode => {
 	if (candidate.mode === 'cbr' || candidate.mode === 'cvbr') {
 		return true;
 	}
-	if (candidate.mode !== 'vbr') {
+	if (candidate.mode !== 'vbr' && candidate.mode !== 'native_vbr') {
 		return false;
 	}
 	return typeof candidate.value === 'number';
@@ -98,7 +99,10 @@ const sanitizeBitrate = (
 ): EncoderSettings['bitrateKbps'] => {
 	if (
 		typeof value === 'number' &&
-		(!capabilities || capabilities.bitrateKbpsOptions.includes(value))
+		(!capabilities ||
+			(Number.isInteger(value) &&
+				value >= capabilities.bitrateKbpsMin &&
+				value <= capabilities.bitrateKbpsMax))
 	) {
 		return value as BitrateKbps;
 	}
@@ -132,6 +136,8 @@ const sanitizeBitrateMode = (
 			return defaultBitrateModeFor(encoderType, capabilities, fallback);
 		}
 		if (value.mode === 'cbr' || value.mode === 'cvbr') return { mode: value.mode };
+
+		if (value.mode === 'native_vbr') return value;
 
 		const numeric = Number(value.value ?? capabilities?.vbrLevelDefault ?? 3);
 		if (Number.isFinite(numeric)) {
@@ -179,6 +185,7 @@ const normalizeBoundary = (
 		bitrateMode,
 		channels,
 		afterburner,
+		nativeAacSpeed: candidate.nativeAacSpeed ?? base.nativeAacSpeed,
 	};
 };
 
@@ -214,5 +221,6 @@ export const toBoundaryEncoderSettings = (
 		bitrateMode,
 		channels,
 		afterburner,
+		nativeAacSpeed: ui.nativeAacSpeed ?? base.nativeAacSpeed,
 	};
 };

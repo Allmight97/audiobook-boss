@@ -131,6 +131,7 @@ export const defaultEncoderSettings = (): EncoderSettings => ({
 	bitrateMode: { mode: 'vbr', value: 3 },
 	channels: 'auto',
 	afterburner: true,
+	nativeAacSpeed: 0,
 });
 
 // Utility functions

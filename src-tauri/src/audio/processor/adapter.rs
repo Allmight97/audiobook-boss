@@ -117,8 +117,12 @@ pub fn resolve_processor_adapter(
     let requested = encoder_settings.encoder_type;
     if matches!(requested, EncoderType::NativeAac | EncoderType::AacAt) {
         let platform_supported = requested != EncoderType::AacAt || cfg!(target_os = "macos");
-        let available =
-            platform_supported && is_encoder_available_by_name(resolve_encoder_name(requested));
+        let available = platform_supported
+            && if requested == EncoderType::NativeAac {
+                crate::audio::settings_encoder::is_native_nmr_available()
+            } else {
+                is_encoder_available_by_name(resolve_encoder_name(requested))
+            };
         validate_encoder_available(requested, available)?;
         return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
             encoder_type: requested,
@@ -135,6 +139,10 @@ fn resolve_processor_adapter_from_parts(
 ) -> Result<ResolvedProcessorAdapter> {
     validate_requested_encoder_available(encoder_settings.encoder_type, availability)?;
     let resolved_encoder = resolve_encoder_type(encoder_settings, availability);
+    validate_requested_encoder_available(resolved_encoder, availability)?;
+    let mut resolved_settings = encoder_settings.clone();
+    resolved_settings.encoder_type = resolved_encoder;
+    crate::audio::settings_encoder::validate_encoder_settings(&resolved_settings)?;
 
     if !matches!(resolved_encoder, EncoderType::FdkHeAac) {
         return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
@@ -326,9 +334,14 @@ mod tests {
         EncoderSettings {
             encoder_type,
             bitrate_kbps: 64,
-            bitrate_mode: BitrateMode::Cbr,
+            bitrate_mode: if encoder_type == EncoderType::FdkHeAac {
+                BitrateMode::Vbr(3)
+            } else {
+                BitrateMode::Cbr
+            },
             channels: ChannelConfig::Auto,
             afterburner: false,
+            native_aac_speed: 0,
         }
     }
 

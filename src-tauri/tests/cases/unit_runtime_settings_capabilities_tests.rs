@@ -22,13 +22,14 @@ fn exposed_encoder_capabilities_match_validators() {
         ]
     );
 
-    for bitrate in &capabilities.bitrate_kbps_options {
+    for bitrate in [capabilities.bitrate_kbps_min, capabilities.bitrate_kbps_max] {
         let settings = EncoderSettings {
             encoder_type: EncoderType::FdkHeAac,
-            bitrate_kbps: *bitrate,
+            bitrate_kbps: bitrate,
             bitrate_mode: BitrateMode::Vbr(capabilities.vbr_level_default),
             channels: ChannelConfig::Auto,
             afterburner: true,
+            native_aac_speed: 0,
         };
         validate_encoder_settings(&settings).expect("exposed bitrate should validate for FDK VBR");
     }
@@ -50,6 +51,7 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
             bitrate_mode: entry.default_mode,
             channels: ChannelConfig::Auto,
             afterburner: true,
+            native_aac_speed: 0,
         };
 
         validate_encoder_settings(&settings)

@@ -8,8 +8,9 @@ const VBR_BITRATE_ESTIMATES: Record<number, number> = {
 	5: 96,
 };
 
-export function estimateKbpsFromRequest(config: EncodingRequestConfig): number {
+export function estimateKbpsFromRequest(config: EncodingRequestConfig): number | null {
 	const { bitrateMode, bitrateKbps } = config.encoderSettings;
+	if (bitrateMode.mode === 'native_vbr') return null;
 	if (bitrateMode.mode !== 'vbr') {
 		return bitrateKbps;
 	}

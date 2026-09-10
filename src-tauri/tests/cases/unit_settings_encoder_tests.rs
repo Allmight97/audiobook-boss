@@ -6,7 +6,6 @@ use audiobook_boss_lib::audio::{
     detect_encoder_availability, resolve_encoder_name, resolve_encoder_type,
     validate_encoder_settings, validate_requested_encoder_available, BitrateMode, ChannelConfig,
     EncoderAvailability, EncoderCapabilitySource, EncoderSettings, EncoderType,
-    VALID_ENCODER_BITRATES,
 };
 
 fn base_settings() -> EncoderSettings {
@@ -16,23 +15,54 @@ fn base_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Vbr(3),
         channels: ChannelConfig::Auto,
         afterburner: true,
+        native_aac_speed: 0,
     }
 }
 
 #[test]
-fn test_validate_bitrate_whitelist() {
-    for &br in VALID_ENCODER_BITRATES {
-        let mut s = base_settings();
-        s.bitrate_kbps = br;
-        assert!(validate_encoder_settings(&s).is_ok());
+fn target_bitrate_accepts_typed_values_and_rejects_invalid_bounds() {
+    let mut settings = base_settings();
+    settings.encoder_type = EncoderType::NativeAac;
+    settings.bitrate_mode = BitrateMode::Cbr;
+    for bitrate in [1, 33, 192, 1152] {
+        settings.bitrate_kbps = bitrate;
+        assert!(validate_encoder_settings(&settings).is_ok());
     }
-    // Test invalid bitrates (outside expanded 48-128 range)
-    let mut s = base_settings();
-    s.bitrate_kbps = 32; // below minimum
-    assert!(validate_encoder_settings(&s).is_err());
+    for bitrate in [0, 1153] {
+        settings.bitrate_kbps = bitrate;
+        assert!(validate_encoder_settings(&settings).is_err());
+    }
+}
 
-    s.bitrate_kbps = 192; // above maximum
-    assert!(validate_encoder_settings(&s).is_err());
+#[test]
+fn native_quality_and_speed_reject_invalid_or_incompatible_intent() {
+    let mut settings = base_settings();
+    settings.encoder_type = EncoderType::NativeAac;
+    settings.bitrate_mode = BitrateMode::NativeVbr(1.25);
+    settings.native_aac_speed = 4;
+    assert!(validate_encoder_settings(&settings).is_ok());
+    settings.native_aac_speed = 5;
+    assert!(validate_encoder_settings(&settings).is_err());
+    settings.native_aac_speed = 0;
+    for q in [0.0, -1.0, f64::NAN, f64::INFINITY, 34.0] {
+        settings.bitrate_mode = BitrateMode::NativeVbr(q);
+        assert!(validate_encoder_settings(&settings).is_err());
+    }
+    settings.encoder_type = EncoderType::FdkHeAac;
+    settings.bitrate_mode = BitrateMode::NativeVbr(1.25);
+    assert!(validate_encoder_settings(&settings).is_err());
+}
+
+#[test]
+fn inactive_encoder_controls_do_not_constrain_selected_mode() {
+    let mut settings = base_settings();
+    settings.bitrate_kbps = 0;
+    settings.native_aac_speed = 255;
+    assert!(validate_encoder_settings(&settings).is_ok());
+    settings.encoder_type = EncoderType::NativeAac;
+    settings.bitrate_mode = BitrateMode::NativeVbr(1.25);
+    settings.native_aac_speed = 0;
+    assert!(validate_encoder_settings(&settings).is_ok());
 }
 
 #[test]
@@ -70,12 +100,12 @@ fn test_encoder_mode_combo_validation() {
     s.bitrate_mode = BitrateMode::Vbr(3);
     assert!(validate_encoder_settings(&s).is_err());
 
-    // Auto remains VBR-only
+    // Auto preserves mode intent until its encoder is resolved.
     s.encoder_type = EncoderType::Auto;
     s.bitrate_mode = BitrateMode::Vbr(3);
     assert!(validate_encoder_settings(&s).is_ok());
     s.bitrate_mode = BitrateMode::Cvbr;
-    assert!(validate_encoder_settings(&s).is_err());
+    assert!(validate_encoder_settings(&s).is_ok());
 }
 
 #[test]

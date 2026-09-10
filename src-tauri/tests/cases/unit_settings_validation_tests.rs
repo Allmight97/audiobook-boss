@@ -17,6 +17,7 @@ fn baseline_encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: EncoderChannelConfig::Mono,
         afterburner: false,
+        native_aac_speed: 0,
     }
 }
 

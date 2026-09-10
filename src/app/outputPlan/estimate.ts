@@ -1,7 +1,7 @@
 import { formatFileSize } from '../../types/audio';
 
 export type EstimateEncoderRequest = {
-	readonly bitrateKbps: number;
+	readonly bitrateKbps: number | null;
 	readonly channels: string;
 };
 
@@ -9,14 +9,11 @@ export function estimateEncodedSizeBytes(
 	durationSeconds: number,
 	request: EstimateEncoderRequest,
 ): number {
-	if (!durationSeconds || durationSeconds <= 0) {
+	if (!durationSeconds || durationSeconds <= 0 || request.bitrateKbps === null) {
 		return 0;
 	}
 
 	let sizeBytes = (durationSeconds * request.bitrateKbps * 1000) / 8;
-	if (request.channels === 'stereo') {
-		sizeBytes *= 1.5;
-	}
 	sizeBytes *= 1.03;
 	return Math.round(sizeBytes);
 }
@@ -29,5 +26,6 @@ export function formatEstimatedSizeText(
 	if (!hasFiles) {
 		return '~ --- MB';
 	}
+	if (request.bitrateKbps === null) return 'Size depends on audio';
 	return `~ ${formatFileSize(estimateEncodedSizeBytes(durationSeconds, request))}`;
 }

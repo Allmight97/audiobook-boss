@@ -4,7 +4,9 @@ use super::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
-const SUPPORTED_SAMPLE_RATES: &[u32] = &[22050, 32000, 44100, 48000];
+const SUPPORTED_SAMPLE_RATES: &[u32] = &[
+    7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+];
 
 /// Validates sample rate configuration
 pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {

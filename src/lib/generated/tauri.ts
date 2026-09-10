@@ -268,10 +268,10 @@ export type AudiobookMetadata = {
 };
 
 /**  Bitrate/quality control mode per encoder */
-export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; value: number };
+export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; value: number } | { mode: "native_vbr"; value: number };
 
 /**  Bitrate mode capability without encoder-specific values. */
-export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
+export type BitrateModeKind = "cbr" | "cvbr" | "vbr" | "native_vbr";
 
 /**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
@@ -365,7 +365,7 @@ export type EncoderDefaults = {
 export type EncoderSettings = {
 	encoderType: EncoderType,
 	/**
-	 *  Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps).
+	 *  Target kbps. Native AAC additionally checks the resolved rate/channel ceiling.
 	 *  Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
 	 */
 	bitrateKbps: number,
@@ -373,14 +373,21 @@ export type EncoderSettings = {
 	channels: ChannelConfig,
 	/**  Applies to FDK encoder only */
 	afterburner: boolean,
+	/**  Native NMR search speed, upstream default 0. */
+	nativeAacSpeed?: number,
 };
 
 export type EncoderSettingsCapabilities = {
 	availability: EncoderAvailability,
 	encoderTypes: EncoderType[],
 	autoResolutionOrder: EncoderType[],
-	bitrateKbpsOptions: number[],
+	bitrateKbpsMin: number,
 	bitrateModesByEncoder: EncoderBitrateModeCapability[],
+	bitrateKbpsMax: number,
+	nativeQualityMin: number,
+	nativeQualityMax: number,
+	nativeQualityDefault: number,
+	nativeSpeedMax: number,
 	vbrLevelMin: number,
 	vbrLevelMax: number,
 	vbrLevelDefault: number,

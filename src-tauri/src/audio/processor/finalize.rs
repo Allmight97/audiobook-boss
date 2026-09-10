@@ -94,6 +94,7 @@ pub(super) fn complete_staged_output(
         context.output.output_kind(),
         &outcome.final_output,
         outcome.cancelled,
+        outcome.cleanup_warning.as_deref(),
     );
     ui.emit_complete(success.ui_message);
     log::info!("🎉 {}", success.result_message);
