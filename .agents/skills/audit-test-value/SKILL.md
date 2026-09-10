@@ -7,6 +7,9 @@ description: Audit or clean up ABB tests and test-only production seams for beha
 
 Recover useful regression protection at the lowest owning boundary, and remove
 complexity whose only purpose was supporting tests that do not earn keep.
+Favor observable behavior over implementation details. Use end-to-end tests
+when the regression depends on real handoffs across boundaries; isolated unit
+tests earn their place when they prove the owned behavior directly.
 
 ## Scope And Authority
 
@@ -25,7 +28,8 @@ Root `AGENTS.md` owns ABB's test-value bar and tier selection. For each
 challenged test or shared group, establish:
 
 - the plausible bug and observable contract it protects;
-- the stable owner and any distinct risk that justifies a second test tier;
+- the stable owner, test tier, and any distinct risk that justifies a higher or
+  second tier;
 - what protection deletion would lose;
 - the disposition: `keep`, `move`, `consolidate`, `delete`, or `replace`;
 - any production seam kept alive by the test and its remaining production use.
