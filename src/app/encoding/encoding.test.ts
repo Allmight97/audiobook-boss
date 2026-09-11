@@ -99,6 +99,31 @@ describe('encoding owner', () => {
 		flush();
 	}
 
+	it('selects FAAC with ABR, persists its request, and exposes supported HE rates', async () => {
+		mounted = mountEncoding();
+		await ready(mounted.owner);
+		mounted.owner.select('encoder', 'faac_he_aac');
+		flush();
+		expect(mounted.owner.request().encoderSettings).toMatchObject({
+			encoderType: 'faac_he_aac',
+			bitrateMode: { mode: 'abr' },
+			bitrateKbps: 64,
+		});
+		expect(mounted.owner.view().showQuality).toBe(false);
+		expect(
+			mounted.owner.view().sampleRateOptions.find((option) => option.value === '22050')?.disabled,
+		).toBe(true);
+		mounted.owner.select('sampleRate', '22050');
+		flush();
+		expect(mounted.owner.request().sampleRate).toBe('auto');
+		mounted.owner.select('sampleRate', '48000');
+		flush();
+		expect(mounted.persist.mock.lastCall?.[0]).toMatchObject({
+			settings: { encoderType: 'faac_he_aac', bitrateMode: { mode: 'abr' } },
+			sampleRate: { explicit: 48000 },
+		});
+	});
+
 	it('hydrates VBR request without persisting, then persists only on select', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);

@@ -1,7 +1,5 @@
 //! Owned orchestration for the ffmpeg-next input processing loop.
 
-use ffmpeg_next as ff;
-
 use crate::audio::buffer::SampleAccumulator;
 use crate::audio::processor::frame_pipeline::{
     flush_accumulator_tail, FramePipelineCtx, PreviewAction,
@@ -14,12 +12,7 @@ use crate::processing::{ProcessingContext, ProgressEmitter};
 use super::engine::FfmpegNextProcessor;
 
 pub(crate) struct InputProcessingContext<'a> {
-    pub(crate) enc_ctx: &'a mut ff::codec::encoder::audio::Encoder,
-    pub(crate) octx: &'a mut ff::format::context::Output,
-    pub(crate) ost_index: usize,
-    pub(crate) ost_time_base: ff::Rational,
-    pub(crate) target_sample_rate: u32,
-    pub(crate) samples_per_frame: usize,
+    pub(crate) enc_ctx: &'a mut super::encoder::EncoderSession,
     pub(crate) emitter: &'a ProgressEmitter,
 }
 
@@ -54,9 +47,7 @@ pub(crate) fn process_input_files(
         emitter: io.emitter,
         total_duration: plan.total_duration.max(0.001),
         total_files: file_count,
-        target_sample_rate: io.target_sample_rate,
-        output_stream_index: io.ost_index,
-        output_time_base: io.ost_time_base,
+        target_sample_rate: io.enc_ctx.rate(),
         running_pts: &mut running_pts,
         last_emit: &mut last_emit,
         eta: &mut eta_estimator,
@@ -69,7 +60,7 @@ pub(crate) fn process_input_files(
 
     let mut accumulator = SampleAccumulator::new(
         io.enc_ctx.channel_layout().channels() as usize,
-        io.samples_per_frame,
+        io.enc_ctx.samples_per_frame(),
         io.enc_ctx.rate(),
         io.enc_ctx.channel_layout(),
         io.enc_ctx.format(),
@@ -93,7 +84,6 @@ pub(crate) fn process_input_files(
         let action = FfmpegNextProcessor::process_input_file(
             in_path,
             io.enc_ctx,
-            io.octx,
             idx,
             &mut ctx,
             &mut accumulator,
@@ -131,6 +121,6 @@ pub(crate) fn process_input_files(
     }
 
     log::info!("✓ All input files processed successfully");
-    flush_accumulator_tail(io.enc_ctx, io.octx, &mut ctx, &mut accumulator)?;
+    flush_accumulator_tail(io.enc_ctx, &mut ctx, &mut accumulator)?;
     Ok(running_pts)
 }

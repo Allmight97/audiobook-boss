@@ -5,8 +5,9 @@
 //! Audio Engine implementation file.
 
 use audiobook_boss_lib::audio::{
-    encoder_settings_capabilities, validate_encoder_settings, validate_sample_rate_config,
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    encoder_settings_capabilities, validate_encoder_sample_rate, validate_encoder_settings,
+    validate_sample_rate_config, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
+    SampleRateConfig,
 };
 
 #[test]
@@ -43,7 +44,7 @@ fn exposed_encoder_capabilities_match_validators() {
 fn exposed_mode_defaults_validate_for_each_encoder() {
     let capabilities = encoder_settings_capabilities();
 
-    for entry in capabilities.bitrate_modes_by_encoder {
+    for entry in capabilities.encoder_configurations {
         let settings = EncoderSettings {
             encoder_type: entry.encoder_type,
             bitrate_kbps: 64,
@@ -55,4 +56,38 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
         validate_encoder_settings(&settings)
             .expect("default mode exposed for an encoder should validate");
     }
+}
+
+#[test]
+fn faac_capabilities_and_validation_keep_he_rates_and_abr_explicit() {
+    let capabilities = encoder_settings_capabilities();
+    let faac = capabilities
+        .encoder_configurations
+        .iter()
+        .find(|entry| entry.encoder_type == EncoderType::FaacHeAac)
+        .expect("bundled FAAC option");
+    assert_eq!(faac.default_mode, BitrateMode::Abr);
+    assert_eq!(faac.explicit_sample_rates, vec![32000, 44100, 48000]);
+    for rate in &faac.explicit_sample_rates {
+        validate_encoder_sample_rate(EncoderType::FaacHeAac, &SampleRateConfig::Explicit(*rate))
+            .unwrap();
+    }
+    assert!(validate_encoder_sample_rate(
+        EncoderType::FaacHeAac,
+        &SampleRateConfig::Explicit(22050)
+    )
+    .is_err());
+    validate_encoder_sample_rate(EncoderType::NativeAac, &SampleRateConfig::Explicit(22050))
+        .unwrap();
+    let settings = EncoderSettings {
+        encoder_type: EncoderType::FaacHeAac,
+        bitrate_mode: BitrateMode::Vbr(3),
+        bitrate_kbps: 64,
+        channels: ChannelConfig::Mono,
+        afterburner: false,
+    };
+    assert!(
+        validate_encoder_settings(&settings).is_err(),
+        "FAAC does not accept FDK's VBR scale"
+    );
 }

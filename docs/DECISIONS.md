@@ -132,8 +132,9 @@ git history and closed issues own superseded chronology.
   reserved for proven prerelease families,
   cross-version type boundaries, synchronized families, and vendored or
   provenance-sensitive dependencies.
-- Outcome: a blanket 10-day minimum release age applies to every ordinary
-  dependency update, no family tiers. It is mechanical on both surfaces:
+- Outcome: a 10-day minimum release age applies to ordinary dependency
+  updates outside audio and metadata handling (exception below).
+  It is mechanical on both surfaces:
   `bunfig.toml` `minimumReleaseAge` gates fresh Bun resolutions and the
   Dependabot cooldown gates update PRs. Cargo has no release-age filter, so
   manual `cargo update` has no gate and relies on reviewer discipline.
@@ -141,7 +142,8 @@ git history and closed issues own superseded chronology.
   updates also bypass the age for the Solid/Effect prerelease family and its
   Solid compiler/Vite/testing companions only, resolving compatible package
   tags individually and saving exact pins. All other dependencies retain the
-  ten-day gate, including unrelated transitive resolutions through the explicit
+  ten-day gate except the audio/metadata scope below, including unrelated
+  transitive resolutions through the explicit
   `minimumReleaseAgeExcludes` list in `bunfig.toml`.
 - Outcome: weekly Dependabot version updates for Cargo and the text `bun.lock`
   ecosystem use the same 10-day cooldown, compatible-update groups, and a low
@@ -155,6 +157,23 @@ git history and closed issues own superseded chronology.
   refreshes. Evidence: `Cargo.toml`,
   `src-tauri/Cargo.toml`, `package.json`, `bunfig.toml`, and
   `.github/dependabot.yml`.
+
+## 2026-09-09 - Current Upstream For Audio And Metadata Dependencies
+
+- Outcome: keep audio and metadata dependencies current, including NMR/FFmpeg,
+  encoders, decoders, resampling, containers, artwork, and chapters. Use formal
+  releases when they meet the required behavior. FAAC follows current upstream
+  development while resolving HE timing; return to releases once they satisfy
+  that need. FFmpeg development currently supplies NMR, absent from 9.0.1.
+  Check development-head fixes before diagnosing upstream defects. This scope
+  bypasses the ordinary ten-day release-age policy for direct updates.
+- Guardrail: retaining an older version or imposing a version restriction
+  requires a demonstrated technical necessity, with the failing behavior,
+  owning boundary, and condition for removing the restriction recorded.
+  Existing patches, prior validation, or convenience alone do not justify it.
+  Record the source actually tested; advance source, bindings, and applicable
+  behavior proof together. A recorded revision is not a standing reason to
+  remain on it.
 
 ## 2026-08-24 - Function Complexity Is An Attention Ratchet, Not A Gate (#454)
 
@@ -219,29 +238,26 @@ git history and closed issues own superseded chronology.
   wire contract must remain non-nullable; keep focused owner and generated-type
   proof beside that exception.
 
-## 2026-08-09 - FFmpeg 9 Uses a Minimal Source-Provenance Vendor (#441)
+## 2026-09-08 - Native AAC Uses FFmpeg NMR
 
-- Outcome: ABB moves `ffmpeg-next` and `ffmpeg-sys-next` together to 9.0.0 and
-  retains a minimal `ffmpeg-sys-next` vendor to replace its mutable
-  `release/9.0` clone with FFmpeg tag `n9.0`, verified at peeled commit
-  `d32b387f2b0a484599d4587d651891f0c63c4238`, and restore the `CoreAudio`
-  framework required by FFmpeg's AudioToolbox device symbols. Distributed
-  DMG builds enable `build-portable`; ordinary source builds target their
-  compiling Apple Silicon host natively. The owned QuickTime chapter patch
-  preserves a nonzero first chapter start; build caches include its hash.
-- Evidence: exact v1.3.1 source compiled unchanged against Homebrew FFmpeg 9
-  and completed an upstream bundled FFmpeg 9 build; upstream sys 9.0.0 still
-  follows a mutable release branch. The first bundled runtime-test link then
-  failed on `AudioObjectGetPropertyData*` until `CoreAudio` was restored.
-  Prepending chapterless audio reproduced incorrect chapter offsets on n9.0;
-  the media regression checks accepted chapters and raw QuickTime timing.
-- Guardrail: keep the vendor diff limited to source selection, commit
-  verification, the chapter initialization fix, and the proven `CoreAudio`
-  link requirement; advance the FFmpeg tag/commit deliberately with
-  wrapper/sys review and the media,
-  packaging, and release proof in issue #441. Only builds producing a
-  distributable DMG use `bundled-ffmpeg-portable`; local development, tests,
-  app builds, and developer installs use `bundled-ffmpeg`.
+- Outcome: Native AAC uses `aac_coder=nmr` at `aac_nmr_speed=0`, retaining
+  upstream intensity stereo and perceptual noise substitution defaults. The
+  opened encoder must confirm the required options before processing begins;
+  the UI names this route NMR AAC. Auto priority remains FDK, Apple, Native.
+- Evidence: FFmpeg commit `903325e279b67156c3aa1f06ec5cb2378d9d004d`
+  includes NMR; the bundled runtime passes actual merge, chapter, metadata,
+  channel, cancellation, and repeated-encoding media tests. Listening informed
+  adoption but does not establish a universal quality ranking.
+- Guardrail: source-and-patch stamps invalidate stale native caches. The local
+  `ffmpeg-next` 9.0.0 patch adds exact enum mappings required by this revision;
+  the sys patch owns verified source selection, CUDA header ABI declarations,
+  the proven CoreAudio link requirement, and a one-line QuickTime chapter
+  initialization fix. A chapterless prefix exposed that muxer defect; the
+  regression checks both accepted chapters and raw QuickTime timing tables.
+  Each vendor records provenance.
+  Distributable DMGs use `bundled-ffmpeg-portable`; source builds and local
+  tests use `bundled-ffmpeg`. A source advance still requires wrapper/sys and
+  real-media proof, followed by packaging proof when producing a release.
 
 ## 2026-08-09 - FileList Sort Changes Processing Order
 
@@ -260,7 +276,8 @@ git history and closed issues own superseded chronology.
 
 - `EncoderSettings` has no `threads` or `twoloop` field: AAC encoders (native
   `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, and FFmpeg's native
-  coder default is already twoloop — both knobs were end-to-end no-ops.
+  coder selection is private audio-engine policy. User settings expose only
+  controls with a demonstrated effect on the selected encoder.
 - The in-process engine refuses `FdkHeAac` with a typed error; FDK is owned
   exclusively by the external FFmpeg adapter (evidence: adapter routing in
   `processor/adapter.rs`, encoder guard in `processor/encoder/context.rs`).

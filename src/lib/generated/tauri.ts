@@ -281,10 +281,10 @@ export type AudiobookMetadata = {
 };
 
 /**  Bitrate/quality control mode per encoder */
-export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; value: number };
+export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number };
 
 /**  Bitrate mode capability without encoder-specific values. */
-export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
+export type BitrateModeKind = "cbr" | "cvbr" | "abr" | "vbr";
 
 /**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
@@ -353,15 +353,16 @@ export type EncoderAvailability = {
 	statusMessage: string,
 };
 
-export type EncoderBitrateModeCapability = {
-	encoderType: EncoderType,
-	allowedModes: BitrateModeKind[],
-	defaultMode: BitrateMode,
-};
-
 export type EncoderCapabilitySource = "none" | "detected" |
 /**  Validated from the user-configured FFmpeg path in App Settings. */
 "user_configured";
+
+export type EncoderConfigurationCapability = {
+	encoderType: EncoderType,
+	allowedModes: BitrateModeKind[],
+	defaultMode: BitrateMode,
+	explicitSampleRates: number[],
+};
 
 export type EncoderDefaults = {
 	settings: EncoderSettings,
@@ -395,7 +396,7 @@ export type EncoderSettingsCapabilities = {
 	encoderTypes: EncoderType[],
 	autoResolutionOrder: EncoderType[],
 	bitrateKbpsOptions: number[],
-	bitrateModesByEncoder: EncoderBitrateModeCapability[],
+	encoderConfigurations: EncoderConfigurationCapability[],
 	vbrLevelMin: number,
 	vbrLevelMax: number,
 	vbrLevelDefault: number,
@@ -412,8 +413,10 @@ export type EncoderType =
 "fdk_he_aac" |
 /**  Apple AAC (AudioToolbox), macOS-only */
 "aac_at" |
-/**  Native FFmpeg AAC encoder (aac) */
-"native_aac";
+/**  FFmpeg AAC encoder using the NMR coder (aac) */
+"native_aac" |
+/**  Bundled FAAC HE-AAC v1 using average bitrate control. */
+"faac_he_aac";
 
 /**
  *  Stage identifier emitted on `processing-progress` events.

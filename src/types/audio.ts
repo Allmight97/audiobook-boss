@@ -7,7 +7,7 @@ import type {
 	CollisionPolicy as GeneratedCollisionPolicy,
 	DecoderSelection as GeneratedDecoderSelection,
 	EncoderAvailability as GeneratedEncoderAvailability,
-	EncoderBitrateModeCapability as GeneratedEncoderBitrateModeCapability,
+	EncoderConfigurationCapability as GeneratedEncoderConfigurationCapability,
 	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	EncoderSettings as GeneratedEncoderSettings,
@@ -62,7 +62,7 @@ export type ProcessingPreflightPlan = Omit<
 
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
-export type EncoderBitrateModeCapability = GeneratedEncoderBitrateModeCapability;
+export type EncoderConfigurationCapability = GeneratedEncoderConfigurationCapability;
 export type EncoderCapabilitySource = GeneratedEncoderCapabilitySource;
 export type BitrateMode = GeneratedBitrateMode;
 export type BitrateModeKind = GeneratedBitrateModeKind;

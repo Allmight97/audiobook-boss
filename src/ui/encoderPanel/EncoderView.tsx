@@ -143,7 +143,11 @@ export function EncoderView(): JSX.Element {
 							onChange={bind('sampleRate')}
 						>
 							<For each={view().sampleRateOptions}>
-								{(option) => <option value={option.value}>{option.label}</option>}
+								{(option) => (
+									<option value={option.value} disabled={option.disabled}>
+										{option.label}
+									</option>
+								)}
 							</For>
 						</select>
 						<p

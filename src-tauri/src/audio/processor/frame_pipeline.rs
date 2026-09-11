@@ -24,8 +24,6 @@ pub(crate) struct FramePipelineCtx<'a> {
     pub(crate) total_duration: f64,
     pub(crate) total_files: usize,
     pub(crate) target_sample_rate: u32,
-    pub(crate) output_stream_index: usize,
-    pub(crate) output_time_base: ff::Rational,
     pub(crate) running_pts: &'a mut i64,
     pub(crate) last_emit: &'a mut std::time::Instant,
     pub(crate) eta: &'a mut crate::processing::progress::EtaEstimator,
@@ -135,8 +133,7 @@ fn check_and_mark_preview_early_stop(ctx: &mut FramePipelineCtx) {
 
 fn process_and_encode_frame(
     frame: &ff::frame::Audio,
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
+    encoder: &mut super::encoder::EncoderSession,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
@@ -149,13 +146,7 @@ fn process_and_encode_frame(
     for mut full in accumulator.push_frame(frame) {
         full.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += full.samples() as i64;
-        crate::audio::processor::encoder::encode_and_write_frame(
-            encoder,
-            &full,
-            output_context,
-            ctx.output_stream_index,
-            ctx.output_time_base,
-        )?;
+        encoder.submit(&full)?;
     }
 
     emit_progress_update(ctx);
@@ -226,8 +217,7 @@ fn drain_resampler_sample_count(
 /// Encodes the resampler's held-back tail after the decoder is fully drained.
 fn flush_resampler_tail(
     resampler: &mut ff::software::resampling::Context,
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
+    encoder: &mut super::encoder::EncoderSession,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<()> {
@@ -245,7 +235,7 @@ fn flush_resampler_tail(
         }
         frame_count += 1;
         sample_count += out.samples();
-        process_and_encode_frame(&out, encoder, output_context, ctx, accumulator)?;
+        process_and_encode_frame(&out, encoder, ctx, accumulator)?;
         if remaining.is_none() {
             break;
         }
@@ -273,8 +263,7 @@ fn should_drain_decoder_after_input(ctx: &FramePipelineCtx, action: PreviewActio
 }
 
 pub(crate) fn flush_accumulator_tail(
-    encoder: &mut ff::codec::encoder::audio::Encoder,
-    output_context: &mut ff::format::context::Output,
+    encoder: &mut super::encoder::EncoderSession,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<()> {
@@ -283,13 +272,7 @@ pub(crate) fn flush_accumulator_tail(
     if let Some(mut tail) = accumulator.flush_tail() {
         tail.set_pts(Some(*ctx.running_pts));
         *ctx.running_pts += tail.samples() as i64;
-        crate::audio::processor::encoder::encode_and_write_frame(
-            encoder,
-            &tail,
-            output_context,
-            ctx.output_stream_index,
-            ctx.output_time_base,
-        )?;
+        encoder.submit(&tail)?;
     }
     Ok(())
 }
@@ -298,9 +281,8 @@ pub(crate) fn flush_accumulator_tail(
 /// Returns PreviewAction to signal adaptive preview file transitions
 pub(crate) fn process_decoded_frames(
     decoder: &mut ff::codec::decoder::Audio,
-    encoder: &mut ff::codec::encoder::audio::Encoder,
+    encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
-    output_context: &mut ff::format::context::Output,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
@@ -318,7 +300,6 @@ pub(crate) fn process_decoded_frames(
 
     loop {
         if ctx.context.is_cancelled() {
-            let _ = encoder.send_eof();
             ctx.emitter.emit_cancelled("Processing was cancelled");
             return Err(AppError::cancelled());
         }
@@ -338,13 +319,7 @@ pub(crate) fn process_decoded_frames(
                         log::warn!("Decoder produced 0 samples – skipping frame");
                         continue;
                     }
-                    action = process_and_encode_frame(
-                        &frame,
-                        encoder,
-                        output_context,
-                        ctx,
-                        accumulator,
-                    )?;
+                    action = process_and_encode_frame(&frame, encoder, ctx, accumulator)?;
                     if action != PreviewAction::Continue || *ctx.early_stop {
                         break;
                     }
@@ -365,7 +340,7 @@ pub(crate) fn process_decoded_frames(
                     continue;
                 }
 
-                action = process_and_encode_frame(&out, encoder, output_context, ctx, accumulator)?;
+                action = process_and_encode_frame(&out, encoder, ctx, accumulator)?;
                 if action != PreviewAction::Continue || *ctx.early_stop {
                     break;
                 }
@@ -385,9 +360,8 @@ pub(crate) fn process_decoded_frames(
 pub(crate) fn process_input_packets(
     ictx: &mut ff::format::context::Input,
     decoder: &mut ff::codec::decoder::Audio,
-    encoder: &mut ff::codec::encoder::audio::Encoder,
+    encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
-    output_context: &mut ff::format::context::Output,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
 ) -> Result<PreviewAction> {
@@ -439,15 +413,8 @@ pub(crate) fn process_input_packets(
 
         send_packet_to_decoder(decoder, &packet, packet_count)?;
 
-        final_action = process_packet_frames(
-            decoder,
-            encoder,
-            resampler,
-            output_context,
-            ctx,
-            accumulator,
-            packet_count,
-        )?;
+        final_action =
+            process_packet_frames(decoder, encoder, resampler, ctx, accumulator, packet_count)?;
         if final_action != PreviewAction::Continue {
             break;
         }
@@ -467,20 +434,13 @@ pub(crate) fn process_input_packets(
             .send_eof()
             .map_err(|error| AppError::General(format!("Decoder flush failed: {error}")))?;
         log::debug!("Draining decoder after EOF");
-        let drain_action = process_decoded_frames(
-            decoder,
-            encoder,
-            resampler,
-            output_context,
-            ctx,
-            accumulator,
-        )?;
+        let drain_action = process_decoded_frames(decoder, encoder, resampler, ctx, accumulator)?;
         if drain_action != PreviewAction::Continue {
             final_action = drain_action;
         } else if !*ctx.early_stop {
             // End of this file's real audio: recover the resampler's
             // held-back tail before moving to the next input.
-            flush_resampler_tail(resampler, encoder, output_context, ctx, accumulator)?;
+            flush_resampler_tail(resampler, encoder, ctx, accumulator)?;
         }
     } else {
         log::debug!("Skipping decoder drain after preview boundary");
@@ -517,23 +477,15 @@ fn send_packet_to_decoder(
 
 fn process_packet_frames(
     decoder: &mut ff::codec::decoder::Audio,
-    encoder: &mut ff::codec::encoder::audio::Encoder,
+    encoder: &mut super::encoder::EncoderSession,
     resampler: &mut ff::software::resampling::Context,
-    output_context: &mut ff::format::context::Output,
     ctx: &mut FramePipelineCtx,
     accumulator: &mut crate::audio::buffer::SampleAccumulator,
     packet_count: usize,
 ) -> Result<PreviewAction> {
     log::debug!("Processing decoded frames for packet {}", packet_count);
 
-    match process_decoded_frames(
-        decoder,
-        encoder,
-        resampler,
-        output_context,
-        ctx,
-        accumulator,
-    ) {
+    match process_decoded_frames(decoder, encoder, resampler, ctx, accumulator) {
         Ok(action) => {
             log::debug!(
                 "✓ Decoded frames processed successfully for packet {} (action={:?})",

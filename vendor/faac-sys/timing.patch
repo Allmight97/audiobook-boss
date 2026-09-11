@@ -1,0 +1,75 @@
+--- a/libfaac/frame.c
++++ b/libfaac/frame.c
+@@ -782,15 +782,14 @@
+             hEncoder->audioFIFO[channel][FIFO_AHEAD1]  = hEncoder->audioFIFO[channel][FIFO_AHEAD2];
+             hEncoder->audioFIFO[channel][FIFO_AHEAD2] = tmp;
+ 
+-            if (realPerCh == 0)
+-            {
+-                /* start flushing*/
+-                memset(hEncoder->audioFIFO[channel][FIFO_AHEAD2], 0, FRAME_LEN * sizeof(float));
+-            }
+-            else if (hEncoder->config.aacObjectType == HE_V1 && heHalfRate[channel])
++            if (hEncoder->config.aacObjectType == HE_V1 && heHalfRate[channel])
+             {
+                 /* core feeds on the SBR-downsampled signal, not the raw input */
+                 memcpy(hEncoder->audioFIFO[channel][FIFO_AHEAD2], heHalfRate[channel], FRAME_LEN * sizeof(float));
++            }
++            else if (realPerCh == 0)
++            {
++                memset(hEncoder->audioFIFO[channel][FIFO_AHEAD2], 0, FRAME_LEN * sizeof(float));
+             }
+             else
+             {
+--- a/libfaac/sbr.c
++++ b/libfaac/sbr.c
+@@ -227,11 +227,11 @@
+     /* Explicit-hierarchy ASC: AAC-LC core wrapped with an SBR extension
+      * (sync 0x2b7, type 5) carrying the full output rate. The core rate is
+      * Fs/2 (dual-rate SBR); the extension declares the full output rate. */
+-    *pSize = 5;
+-    *ppBuffer = (unsigned char *)malloc(5);
++    *pSize = 7;
++    *ppBuffer = (unsigned char *)malloc(7);
+     if (*ppBuffer == NULL) return -3;
+-    memset(*ppBuffer, 0, 5);
+-    BitStream *pBitStream = OpenBitStream(5, *ppBuffer);
++    memset(*ppBuffer, 0, 7);
++    BitStream *pBitStream = OpenBitStream(7, *ppBuffer);
+     PutBit(pBitStream, LOW,                         5);  /* core object type */
+     PutBit(pBitStream, coreSRIdx,                   4);  /* core rate (Fs/2, dual-rate) */
+     PutBit(pBitStream, channels,                     4);
+@@ -242,6 +242,8 @@
+     PutBit(pBitStream, HE_V1,                       5);  /* extObjectType = SBR */
+     PutBit(pBitStream, 1,                           1);  /* sbrPresentFlag */
+     PutBit(pBitStream, sbrCtx->fullSampleRateIdx, 4);   /* SBR output rate (2*core) */
++    PutBit(pBitStream, 0x548, 11); /* PS sync extension */
++    PutBit(pBitStream, 0, 1);      /* HEv1: no parametric stereo */
+     CloseBitStream(pBitStream);
+     return 0;
+ }
+@@ -275,23 +277,7 @@
+     sCtx->frameHead = (sCtx->frameHead + 1) % SBR_FRAME_FIFO;
+     SbrFrameData *fd = &sCtx->frameFIFO[sCtx->frameHead];
+ 
+-    /* Flush frames are silence, whose analysis result is known up front: no
+-     * transient, one FIXFIX envelope, floored levels, default noise floors.
+-     * Skip straight to it -- the core signal is substituted with silence in
+-     * frame.c anyway -- but keep the delay lines advancing so the payloads
+-     * still in flight drain out. */
+-    if (realPerCh == 0) {
+-        sbr_frame_silence(fd);
+-        for (channel = 0; channel < (unsigned int)numChannels; channel++) {
+-            memmove(&sCtx->transientStrengthFIFO[channel][0], &sCtx->transientStrengthFIFO[channel][1], (SBR_DETECT_FIFO - 1) * sizeof(float));
+-            sCtx->transientStrengthFIFO[channel][SBR_DETECT_FIFO - 1] = 0.0f;
+-            memmove(&sCtx->wantShortFIFO[channel][0], &sCtx->wantShortFIFO[channel][1], (SBR_DETECT_FIFO - 1) * sizeof(int));
+-            sCtx->wantShortFIFO[channel][SBR_DETECT_FIFO - 1] = 0;
+-            heHalfRate[channel] = rs->halfRate[channel];
+-        }
+-        return;
+-    }
+-
++    /* Drain FIR and QMF history through the same zero-padded input path. */
+     for (channel = 0; channel < (unsigned int)numChannels; channel++) {
+         float *fullRate = rs->fullRate[channel];
+         fullPtrs[channel] = fullRate;

@@ -40,14 +40,14 @@ const defaultBitrateModeFor = (
 	capabilities: EncoderCapabilities,
 	fallback: BitrateMode,
 ): BitrateMode =>
-	capabilities?.bitrateModesByEncoder.find((entry) => entry.encoderType === encoderType)
+	capabilities?.encoderConfigurations.find((entry) => entry.encoderType === encoderType)
 		?.defaultMode ?? fallback;
 
 const supportedBitrateModeKindsFor = (
 	encoderType: EncoderType,
 	capabilities: EncoderCapabilities,
 ): readonly string[] =>
-	capabilities?.bitrateModesByEncoder.find((entry) => entry.encoderType === encoderType)
+	capabilities?.encoderConfigurations.find((entry) => entry.encoderType === encoderType)
 		?.allowedModes ?? [];
 
 const isBitrateMode = (value: unknown): value is BitrateMode => {
@@ -55,7 +55,7 @@ const isBitrateMode = (value: unknown): value is BitrateMode => {
 		return false;
 	}
 	const candidate = value as Record<string, unknown>;
-	if (candidate.mode === 'cbr' || candidate.mode === 'cvbr') {
+	if (candidate.mode === 'cbr' || candidate.mode === 'cvbr' || candidate.mode === 'abr') {
 		return true;
 	}
 	if (candidate.mode !== 'vbr') {
@@ -131,7 +131,8 @@ const sanitizeBitrateMode = (
 		if (!supportsMode) {
 			return defaultBitrateModeFor(encoderType, capabilities, fallback);
 		}
-		if (value.mode === 'cbr' || value.mode === 'cvbr') return { mode: value.mode };
+		if (value.mode === 'cbr' || value.mode === 'cvbr' || value.mode === 'abr')
+			return { mode: value.mode };
 
 		const numeric = Number(value.value ?? capabilities?.vbrLevelDefault ?? 3);
 		if (Number.isFinite(numeric)) {

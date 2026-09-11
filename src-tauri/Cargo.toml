@@ -56,6 +56,7 @@ tokio = { version = "1.52.1", features = ["full"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 log = "0.4.29"
 env_logger = "0.11.10"
+faac-sys = { path = "../vendor/faac-sys" }
 ffmpeg-next = "9.0.0"
 ffmpeg-sys-next = { version = "9.0.0", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }

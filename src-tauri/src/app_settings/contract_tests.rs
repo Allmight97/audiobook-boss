@@ -526,3 +526,42 @@ fn settings_file_without_default_acquisition_lane_loads_with_default() {
 
     assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
 }
+
+#[test]
+fn faac_defaults_round_trip_and_reject_unsupported_he_rate() {
+    let temp = TempDir::new().expect("create settings directory");
+    let mut encoder_defaults = AppSettings::default().encoder_defaults;
+    encoder_defaults.settings.encoder_type = EncoderType::FaacHeAac;
+    encoder_defaults.settings.bitrate_mode = BitrateMode::Abr;
+    encoder_defaults.sample_rate = SampleRateConfig::Explicit(48000);
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(encoder_defaults.clone()),
+            ..Default::default()
+        },
+    )
+    .expect("persist or reload FAAC defaults");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("persist or reload FAAC defaults")
+            .encoder_defaults,
+        encoder_defaults
+    );
+    encoder_defaults.sample_rate = SampleRateConfig::Explicit(22050);
+    assert!(update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(encoder_defaults),
+            ..Default::default()
+        }
+    )
+    .is_err());
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("persist or reload FAAC defaults")
+            .encoder_defaults
+            .sample_rate,
+        SampleRateConfig::Explicit(48000)
+    );
+}

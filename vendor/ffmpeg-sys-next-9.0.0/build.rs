@@ -143,8 +143,7 @@ fn version() -> String {
 
 // ABB distributes the bundled build, so its FFmpeg source must not follow the
 // mutable upstream release branch used by the published sys crate.
-const FFMPEG_SOURCE_TAG: &str = "n9.0";
-const FFMPEG_SOURCE_COMMIT: &str = "d32b387f2b0a484599d4587d651891f0c63c4238";
+const FFMPEG_SOURCE_COMMIT: &str = "903325e279b67156c3aa1f06ec5cb2378d9d004d";
 const FFMPEG_SOURCE_PATCH: &str = "patches/mov-chapter-start.patch";
 
 fn source_patch_path() -> PathBuf {
@@ -185,23 +184,32 @@ fn fetch() -> io::Result<()> {
     let output_base_path = output();
     let clone_dest_dir = format!("ffmpeg-{}", version());
     let _ = std::fs::remove_dir_all(output_base_path.join(&clone_dest_dir));
-    let status = Command::new("git")
-        .current_dir(&output_base_path)
-        .args(if cfg!(target_os = "windows") {
-            vec!["-c", "core.autocrlf=false"]
-        } else {
-            vec![]
-        })
-        .arg("clone")
-        .arg("--depth=1")
-        .arg("-b")
-        .arg(FFMPEG_SOURCE_TAG)
-        .arg("https://github.com/FFmpeg/FFmpeg")
-        .arg(&clone_dest_dir)
-        .status()?;
-
-    if !status.success() {
-        return Err(io::Error::other("fetch failed"));
+    fs::create_dir_all(source())?;
+    // Fetch the immutable commit directly: git clone --branch accepts refs,
+    // not arbitrary commit IDs.
+    for args in [
+        vec!["init"],
+        vec![
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/FFmpeg/FFmpeg",
+        ],
+        vec!["fetch", "--depth=1", "origin", FFMPEG_SOURCE_COMMIT],
+        vec!["checkout", "--detach", "FETCH_HEAD"],
+    ] {
+        let status = Command::new("git")
+            .current_dir(source())
+            .args(if cfg!(target_os = "windows") {
+                vec!["-c", "core.autocrlf=false"]
+            } else {
+                vec![]
+            })
+            .args(args)
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::other("FFmpeg commit fetch failed"));
+        }
     }
 
     let revision = Command::new("git")
@@ -211,7 +219,7 @@ fn fetch() -> io::Result<()> {
     let actual_commit = String::from_utf8_lossy(&revision.stdout);
     if !revision.status.success() || actual_commit.trim() != FFMPEG_SOURCE_COMMIT {
         return Err(io::Error::other(format!(
-            "FFmpeg {FFMPEG_SOURCE_TAG} resolved to {}, expected {FFMPEG_SOURCE_COMMIT}",
+            "FFmpeg source resolved to {}, expected {FFMPEG_SOURCE_COMMIT}",
             actual_commit.trim()
         )));
     }

@@ -1,6 +1,6 @@
 //! Audio processing settings validation utilities
 
-use super::SampleRateConfig;
+use super::{EncoderType, SampleRateConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
@@ -12,6 +12,28 @@ pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
         SampleRateConfig::Auto => Ok(()), // Auto is always valid
         SampleRateConfig::Explicit(rate) => validate_explicit_sample_rate(*rate),
     }
+}
+
+/// Validates an explicit rate against the selected encoder's capabilities.
+pub fn validate_encoder_sample_rate(encoder: EncoderType, config: &SampleRateConfig) -> Result<()> {
+    validate_sample_rate_config(config)?;
+    if let SampleRateConfig::Explicit(rate) = config {
+        if !encoder_sample_rates(encoder).contains(rate) {
+            return Err(AppError::InvalidInput(format!(
+                "{encoder} does not support {rate} Hz. Choose one of {:?}.",
+                encoder_sample_rates(encoder)
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn encoder_sample_rates(encoder: EncoderType) -> Vec<u32> {
+    supported_sample_rates()
+        .iter()
+        .copied()
+        .filter(|rate| encoder != EncoderType::FaacHeAac || *rate >= 32_000)
+        .collect()
 }
 
 /// Validates explicit sample rate is supported

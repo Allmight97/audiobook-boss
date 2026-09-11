@@ -22,6 +22,7 @@ pub struct FfmpegNextProcessor;
 struct EncodingRunDiagnostics {
     started: Instant,
     opened_encoder: Option<String>,
+    encoder_details: Option<String>,
 }
 
 impl FfmpegNextProcessor {
@@ -29,8 +30,7 @@ impl FfmpegNextProcessor {
     /// Returns PreviewAction to signal adaptive preview transitions
     pub(crate) fn process_input_file(
         input_path: &Path,
-        encoder: &mut ff::codec::encoder::audio::Encoder,
-        output_context: &mut ff::format::context::Output,
+        encoder: &mut super::encoder::EncoderSession,
         file_index: usize,
         ctx: &mut crate::audio::processor::frame_pipeline::FramePipelineCtx,
         accumulator: &mut crate::audio::buffer::SampleAccumulator,
@@ -83,7 +83,6 @@ impl FfmpegNextProcessor {
             &mut decoder,
             encoder,
             &mut resampler,
-            output_context,
             ctx,
             accumulator,
         )?;
@@ -111,6 +110,7 @@ impl FfmpegNextProcessor {
         let mut diagnostics = encoding_log_enabled().then(|| EncodingRunDiagnostics {
             started: Instant::now(),
             opened_encoder: None,
+            encoder_details: None,
         });
         let result =
             Self::execute_pipeline(plan, context, metadata, passthrough, diagnostics.as_mut());
@@ -125,7 +125,7 @@ impl FfmpegNextProcessor {
         context: &ProcessingContext,
         metadata: Option<&crate::metadata::AudiobookMetadata>,
         passthrough: Option<&crate::metadata::PassthroughMetadata>,
-        diagnostics: Option<&mut EncodingRunDiagnostics>,
+        mut diagnostics: Option<&mut EncodingRunDiagnostics>,
     ) -> Result<()> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
@@ -136,16 +136,18 @@ impl FfmpegNextProcessor {
         // Setup encoder and output context with metadata
         // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
         let skip_chapter_passthrough = context.preview.is_some();
-        let (mut octx, mut enc_ctx, ost_index, ost_time_base, target_sample_rate, frame_plan) =
-            crate::audio::processor::encoder::setup_encoder(
-                plan,
-                metadata,
-                skip_chapter_passthrough,
-                passthrough,
-            )?;
+        // The encoder/output handles drop before cleanup can remove their path.
+        let mut cleanup_guard = CleanupGuard::new(context.session.id());
+        cleanup_guard.add_path(&plan.output_path);
+        let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(
+            plan,
+            metadata,
+            skip_chapter_passthrough,
+            passthrough,
+        )?;
 
-        if let Some(diagnostics) = diagnostics {
-            diagnostics.opened_encoder = enc_ctx.codec().map(|codec| codec.name().to_owned());
+        if let Some(diagnostics) = diagnostics.as_deref_mut() {
+            diagnostics.opened_encoder = Some(enc_ctx.name().to_owned());
         }
 
         // Validate metadata compatibility if provided
@@ -156,33 +158,22 @@ impl FfmpegNextProcessor {
             }
         }
 
-        // Ensure partial outputs are removed on failure or cancellation
-        let mut cleanup_guard = CleanupGuard::new(context.session.id());
-        cleanup_guard.add_path(&plan.output_path);
-
         let emitter = context.new_emitter();
-        let mut io = super::engine_orchestrator::InputProcessingContext {
-            enc_ctx: &mut enc_ctx,
-            octx: &mut octx,
-            ost_index,
-            ost_time_base,
-            target_sample_rate,
-            samples_per_frame: frame_plan.samples_per_frame(),
-            emitter: &emitter,
-        };
-        let audio_end_pts =
+        let result = (|| {
+            let mut io = super::engine_orchestrator::InputProcessingContext {
+                enc_ctx: &mut enc_ctx,
+                emitter: &emitter,
+            };
             super::engine_orchestrator::process_input_files(plan, context, &mut io)?;
-
-        // Finalize encoding (same path for full encode or preview early-stop)
-        log::info!("🏁 Starting encoding finalization...");
-        crate::audio::processor::encoder::finalize_encoding(
-            &mut enc_ctx,
-            &mut octx,
-            ost_index,
-            ost_time_base,
-            audio_end_pts,
-        )?;
-        log::info!("✓ Encoding finalization completed successfully");
+            if context.is_cancelled() {
+                return Err(AppError::cancelled());
+            }
+            enc_ctx.finish()
+        })();
+        if let Some(diagnostics) = diagnostics {
+            diagnostics.encoder_details = Some(enc_ctx.diagnostics());
+        }
+        result?;
 
         // Preserve output on success
         let _ = cleanup_guard.remove_path(&plan.output_path);
@@ -218,6 +209,7 @@ fn append_in_process_encoding_run(
         status_detail: status_detail.as_deref(),
         elapsed: diagnostics.started.elapsed(),
         opened_encoder: diagnostics.opened_encoder.as_deref(),
+        encoder_details: diagnostics.encoder_details.as_deref(),
         encoder_settings: &plan.encoder_settings,
         sample_rate: &plan.sample_rate,
         session_id: context.session.id(),

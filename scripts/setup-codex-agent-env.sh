@@ -10,8 +10,7 @@ set -euo pipefail
 # scripts/AGENTS.md by touched owner.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ffmpeg_ref="${ABB_CODEX_FFMPEG_REF:-n9.0}"
-ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-d32b387f2b0a484599d4587d651891f0c63c4238}"
+ffmpeg_commit="${ABB_CODEX_FFMPEG_COMMIT:-903325e279b67156c3aa1f06ec5cb2378d9d004d}"
 ffmpeg_prefix="${ABB_CODEX_FFMPEG_PREFIX:-/opt/ffmpeg90}"
 ffmpeg_src="${ABB_CODEX_FFMPEG_SRC:-/opt/ffmpeg-src}"
 ffmpeg_patch="${repo_root}/vendor/ffmpeg-sys-next-9.0.0/patches/mov-chapter-start.patch"
@@ -176,14 +175,17 @@ ensure_linux_ffmpeg() {
 		return
 	fi
 
-	log "Building FFmpeg ${ffmpeg_ref} into ${ffmpeg_prefix}"
+	log "Building FFmpeg ${ffmpeg_commit} into ${ffmpeg_prefix}"
 	run_as_root rm -rf "${ffmpeg_src}"
-	run_as_root git clone --depth=1 -b "${ffmpeg_ref}" https://github.com/FFmpeg/FFmpeg "${ffmpeg_src}"
+	run_as_root git init "${ffmpeg_src}"
+	run_as_root git -C "${ffmpeg_src}" remote add origin https://github.com/FFmpeg/FFmpeg
+	run_as_root git -C "${ffmpeg_src}" fetch --depth=1 origin "${ffmpeg_commit}"
+	run_as_root git -C "${ffmpeg_src}" checkout --detach FETCH_HEAD
 	local resolved_commit
 	resolved_commit="$(run_as_root git -C "${ffmpeg_src}" rev-parse HEAD)"
 	if [ "${resolved_commit}" != "${ffmpeg_commit}" ]; then
 		printf 'error: FFmpeg %s resolved to %s; expected %s\n' \
-			"${ffmpeg_ref}" "${resolved_commit}" "${ffmpeg_commit}" >&2
+			"${ffmpeg_commit}" "${resolved_commit}" "${ffmpeg_commit}" >&2
 		return 1
 	fi
 

@@ -12,7 +12,7 @@ import {
 } from '../../types/encoder';
 import { estimateKbpsFromRequest } from './estimate';
 
-export type BitrateModeSelection = 'vbr' | 'cvbr' | 'cbr';
+export type BitrateModeSelection = 'vbr' | 'cvbr' | 'cbr' | 'abr';
 export type EncodingField =
 	| 'encoder'
 	| 'bitrateMode'
@@ -73,13 +73,12 @@ export type EncodingBag = {
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const DEFAULT_CHANNELS_HINT = 'Auto -> source audio';
 const DEFAULT_AVAILABILITY_HINT = 'Checking encoder availability…';
-const NATIVE_AAC_WARNING =
-	'Native AAC (FFmpeg) may sound degraded on speech (known issue; prefer Auto/Apple/FDK).';
 const ENCODER_PROFILES: Record<EncoderFlavor, string> = {
 	auto: 'HE-AAC v1',
 	fdk_he_aac: 'HE-AAC v1',
 	aac_at: 'AAC-LC',
 	native_aac: 'AAC-LC',
+	faac_he_aac: 'HE-AAC v1',
 };
 
 export function createDefaultBag(): EncodingBag {
@@ -108,7 +107,7 @@ function rangeOptions(min: number, max: number): number[] {
 }
 
 function bitrateModeFromKind(kind: string): BitrateModeSelection {
-	return kind === 'cvbr' || kind === 'cbr' ? kind : 'vbr';
+	return kind === 'cvbr' || kind === 'cbr' || kind === 'abr' ? kind : 'vbr';
 }
 
 function encoderFlavorLabel(flavor: EncoderFlavor): string {
@@ -118,7 +117,9 @@ function encoderFlavorLabel(flavor: EncoderFlavor): string {
 		case 'aac_at':
 			return 'Apple AAC';
 		case 'native_aac':
-			return 'Native AAC (FFmpeg)';
+			return 'NMR AAC';
+		case 'faac_he_aac':
+			return 'FAAC HE-AAC';
 		default:
 			return 'Auto';
 	}
@@ -209,13 +210,15 @@ function availabilityHint(bag: EncodingBag): string {
 	if (selected === 'auto') {
 		if (effective === 'fdk_he_aac') return fdkAvailabilityHint(bag);
 		if (effective === 'aac_at') return 'Auto will use Apple AAC. FDK AAC is not available.';
-		return `Auto will use Native AAC (FFmpeg). FDK AAC is not available. ${NATIVE_AAC_WARNING}`;
+		return 'Auto will use NMR AAC. FDK AAC is not available.';
 	}
+	if (effective === 'faac_he_aac')
+		return 'Experimental: playback and re-import timing are under evaluation.';
 	if (effective === 'native_aac') {
 		if (!bag.availability.nativeAacAvailable) {
-			return 'Native AAC (FFmpeg) is unavailable in this build.';
+			return 'NMR AAC is unavailable in this build.';
 		}
-		return NATIVE_AAC_WARNING;
+		return 'NMR AAC available';
 	}
 	if (effective === 'fdk_he_aac') {
 		if (!bag.availability.fdkAvailable) {
@@ -245,7 +248,12 @@ function encoderLabel(bag: EncodingBag, value: string): string {
 	if (value === 'auto') return autoOptionLabel(bag);
 	if (value === 'fdk_he_aac' && bag.availability && !bag.availability.fdkAvailable)
 		return 'FDK AAC (Set up…)';
-	if (value === 'fdk_he_aac' || value === 'aac_at' || value === 'native_aac') {
+	if (
+		value === 'fdk_he_aac' ||
+		value === 'aac_at' ||
+		value === 'native_aac' ||
+		value === 'faac_he_aac'
+	) {
 		return encoderFlavorLabel(value);
 	}
 	return value;
@@ -275,7 +283,17 @@ function channelLabel(value: string): string {
 	}
 }
 
+function allowedSampleRates(bag: EncodingBag): readonly number[] {
+	return (
+		bag.capabilities?.encoderConfigurations.find(
+			(entry) => entry.encoderType === effectiveEncoder(bag),
+		)?.explicitSampleRates ?? []
+	);
+}
+
 function sampleRateDetail(bag: EncodingBag): string {
+	if (bag.sampleRate !== 'auto' && !allowedSampleRates(bag).includes(Number(bag.sampleRate)))
+		return 'Choose a supported sample rate for this encoder.';
 	if (bag.sampleRate === 'auto') return bag.sampleRateHint;
 	return `Using ${sampleRateLabel(bag.sampleRate)}.`;
 }
@@ -305,7 +323,7 @@ export function projectView(bag: EncodingBag): EncodingView {
 		bag.capabilities
 			? [
 					...new Set(
-						bag.capabilities.bitrateModesByEncoder.flatMap((entry) =>
+						bag.capabilities.encoderConfigurations.flatMap((entry) =>
 							entry.allowedModes.map(bitrateModeFromKind),
 						),
 					),
@@ -330,7 +348,11 @@ export function projectView(bag: EncodingBag): EncodingView {
 		? [
 				...(bag.capabilities.sampleRateAuto ? ['auto'] : []),
 				...bag.capabilities.explicitSampleRates.map(String),
-			].map((value) => ({ value, label: sampleRateLabel(value) }))
+			].map((value) => ({
+				value,
+				label: sampleRateLabel(value),
+				disabled: value !== 'auto' && !allowedSampleRates(bag).includes(Number(value)),
+			}))
 		: [];
 	const channelOptions = (bag.capabilities?.channelOptions ?? []).map((value) => ({
 		value,
@@ -367,7 +389,7 @@ export function projectView(bag: EncodingBag): EncodingView {
 }
 
 function bitrateModeAllowed(bag: EncodingBag, mode: BitrateModeSelection): boolean {
-	const capability = bag.capabilities?.bitrateModesByEncoder.find(
+	const capability = bag.capabilities?.encoderConfigurations.find(
 		(entry) => entry.encoderType === effectiveEncoder(bag),
 	);
 	const allowed = capability?.allowedModes.map(bitrateModeFromKind) ?? [];
@@ -383,7 +405,7 @@ export function syncPolicy(bag: EncodingBag): SyncResult {
 	if (flavorReset) {
 		bag.flavor = 'auto';
 	}
-	const capability = bag.capabilities?.bitrateModesByEncoder.find(
+	const capability = bag.capabilities?.encoderConfigurations.find(
 		(entry) => entry.encoderType === effectiveEncoder(bag),
 	);
 	const allowed = capability?.allowedModes.map(bitrateModeFromKind) ?? [];
@@ -451,7 +473,8 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 				value !== 'auto' &&
 				value !== 'fdk_he_aac' &&
 				value !== 'aac_at' &&
-				value !== 'native_aac'
+				value !== 'native_aac' &&
+				value !== 'faac_he_aac'
 			) {
 				return false;
 			}
@@ -460,7 +483,7 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 			return true;
 		}
 		case 'bitrateMode': {
-			if (value !== 'vbr' && value !== 'cvbr' && value !== 'cbr') return false;
+			if (value !== 'vbr' && value !== 'cvbr' && value !== 'cbr' && value !== 'abr') return false;
 			if (bag.bitrateMode === value) return false;
 			bag.bitrateMode = value;
 			return true;
@@ -492,6 +515,7 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 						...bag.capabilities.explicitSampleRates.map(String),
 					]
 				: ['auto'];
+			if (value !== 'auto' && !allowedSampleRates(bag).includes(Number(value))) return false;
 			const next = options.includes(value) ? value : 'auto';
 			if (bag.sampleRate === next) return false;
 			bag.sampleRate = next;

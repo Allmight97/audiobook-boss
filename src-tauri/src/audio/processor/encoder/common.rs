@@ -29,6 +29,7 @@ pub(crate) struct InProcessEncoderRunLog<'a> {
     pub status_detail: Option<&'a str>,
     pub elapsed: Duration,
     pub opened_encoder: Option<&'a str>,
+    pub encoder_details: Option<&'a str>,
     pub encoder_settings: &'a EncoderSettings,
     pub sample_rate: &'a SampleRateConfig,
     pub session_id: String,
@@ -178,6 +179,9 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
             sanitize_path_for_display(path)
         );
     }
+    if let Some(details) = entry.encoder_details {
+        output.push_str(details);
+    }
     output.push_str("--- end in-process-encoder run ---\n\n");
     output
 }
@@ -204,18 +208,14 @@ pub(crate) struct EncoderFramePlan {
 }
 
 impl EncoderFramePlan {
-    pub(crate) fn from_opened_encoder(
-        encoder: &ff::codec::encoder::audio::Encoder,
-        resolved_encoder: EncoderType,
-    ) -> Result<Self> {
-        Self::from_raw_frame_size(encoder.frame_size() as usize, resolved_encoder)
-    }
-
     pub(crate) fn samples_per_frame(self) -> usize {
         self.samples_per_frame
     }
 
-    fn from_raw_frame_size(frame_size: usize, resolved_encoder: EncoderType) -> Result<Self> {
+    pub(super) fn from_raw_frame_size(
+        frame_size: usize,
+        resolved_encoder: EncoderType,
+    ) -> Result<Self> {
         if frame_size > 0 {
             return Ok(Self {
                 samples_per_frame: frame_size,
@@ -226,9 +226,11 @@ impl EncoderFramePlan {
             EncoderType::AacAt | EncoderType::NativeAac => Ok(Self {
                 samples_per_frame: AAC_FRAME_QUANTUM_SAMPLES,
             }),
-            EncoderType::FdkHeAac | EncoderType::Auto => Err(AppError::General(
-                "Encoder frame plan requires a resolved in-process encoder type.".to_string(),
-            )),
+            EncoderType::FaacHeAac | EncoderType::FdkHeAac | EncoderType::Auto => {
+                Err(AppError::General(
+                    "Encoder frame plan requires a resolved in-process encoder type.".to_string(),
+                ))
+            }
         }
     }
 }
@@ -322,6 +324,7 @@ mod tests {
             status_detail: None,
             elapsed: Duration::from_millis(1200),
             opened_encoder: Some("aac_at"),
+            encoder_details: None,
             encoder_settings: &encoder_settings,
             sample_rate: &sample_rate,
             session_id: "session-1".to_string(),

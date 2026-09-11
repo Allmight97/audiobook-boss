@@ -31,10 +31,11 @@ commands over invoking internals directly.
 - Media execution: real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
-  the Native AAC and Apple AAC encoder routes (external FDK is excluded: it
+  the FAAC HE-AAC, Native AAC and Apple AAC encoder routes (external FDK is excluded: it
   needs a user-supplied libfdk_aac FFmpeg, so real-execution proof for it is
   manual or env-gated only; Apple AAC is macOS-gated and skips elsewhere),
-  sample-rate-converted merges, stereo channel preservation (per-channel RMS),
+  sample-rate-converted merges, chapterless prefixes before embedded chapters,
+  stereo channel preservation (per-channel RMS),
   cover art, chapters, metadata round-trips, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
@@ -158,9 +159,9 @@ commands over invoking internals directly.
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`.
 - The runtime suite links FFmpeg at the pinned source revision (see
-  `vendor/ffmpeg-sys-next-*`, which selects `n9.0`, verifies its peeled
-  commit, and applies its owned chapter patch). On a Linux agent, use
-  `scripts/setup-codex-agent-env.sh` for that patched source and export
+  `vendor/ffmpeg-sys-next-*`, which pins and verifies the NMR source
+  commit plus the owned QuickTime chapter-start patch). On a Linux agent,
+  use `scripts/setup-codex-agent-env.sh` for that patched source and export
   `PKG_CONFIG_PATH=<prefix>/lib/pkgconfig`, `LD_LIBRARY_PATH=<prefix>/lib`,
   and `PATH="<prefix>/bin:$PATH"` before `cargo test`. Distro FFmpeg 6.x fails
   the media lane with swresample "Input changed" errors on WAV inputs — that

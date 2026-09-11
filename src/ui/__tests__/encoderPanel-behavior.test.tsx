@@ -331,9 +331,9 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('auto');
-			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (FFmpeg))');
+			expect(select?.options[0]?.textContent).toBe('Auto (NMR AAC)');
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
-				'Auto will use Native AAC (FFmpeg).',
+				'Auto will use NMR AAC.',
 			);
 			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
 		});

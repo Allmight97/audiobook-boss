@@ -1,5 +1,5 @@
 use crate::audio::{
-    validate_encoder_settings, validate_sample_rate_config, BitrateMode, ChannelConfig,
+    validate_encoder_sample_rate, validate_encoder_settings, BitrateMode, ChannelConfig,
     EncoderSettings, EncoderType, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
@@ -234,7 +234,7 @@ impl ConcurrencyPreference {
 impl EncoderDefaults {
     fn validate(&mut self) -> Result<()> {
         validate_encoder_settings(&self.settings)?;
-        validate_sample_rate_config(&self.sample_rate)?;
+        validate_encoder_sample_rate(self.settings.encoder_type, &self.sample_rate)?;
         Ok(())
     }
 }

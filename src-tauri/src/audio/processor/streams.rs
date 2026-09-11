@@ -532,7 +532,7 @@ pub(crate) fn inspect_audio_decoder(path: &Path) -> Result<AudioDecoderInspectio
 /// Sets up decoder and resampler for a single input file.
 pub(crate) fn setup_decoder_and_resampler(
     input_path: &Path,
-    encoder: &ff::codec::encoder::audio::Encoder,
+    encoder: &super::encoder::EncoderSession,
 ) -> Result<(
     ff::format::context::Input,
     ff::codec::decoder::Audio,
