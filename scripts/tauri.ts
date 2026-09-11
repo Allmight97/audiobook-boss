@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
@@ -30,6 +31,11 @@ export function withDevelopmentIdentity(repoRoot: string, args: string[]): strin
 
 if (import.meta.main) {
 	const args = withDevelopmentIdentity(process.cwd(), process.argv.slice(2));
+	const revision = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' });
+	const dirty = spawnSync('git', ['status', '--porcelain'], { encoding: 'utf8' });
+	console.info(
+		`build_checkout revision=${revision.status === 0 ? revision.stdout.trim() : 'unknown'} dirty=${dirty.status === 0 ? Boolean(dirty.stdout.trim()) : 'unknown'} checkout=${JSON.stringify(path.basename(realpathSync(process.cwd())))}`,
+	);
 	const { run } = await import('@tauri-apps/cli');
 	await run(args, 'bun run tauri').catch((error: unknown) => {
 		console.error(error instanceof Error ? error.message : error);

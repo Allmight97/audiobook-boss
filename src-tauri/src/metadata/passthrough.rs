@@ -243,7 +243,17 @@ pub fn add_chapters_to_output(
 
 /// Fail before artifact commit if finalization lost selected chapters.
 pub fn verify_chapters(path: &std::path::Path, expected: &[ChapterSpec]) -> Result<()> {
+    crate::diagnostics::stage("metadata_verify_chapters", path, || {
+        verify_chapters_inner(path, expected)
+    })
+}
+
+fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Result<()> {
     if expected.is_empty() {
+        log::info!(
+            "metadata_chapters artifact={} status=skipped reason=no_expected_chapters",
+            crate::diagnostics::artifact_id(path)
+        );
         return Ok(());
     }
     let input = ff::format::input(path)?;
@@ -255,13 +265,27 @@ pub fn verify_chapters(path: &std::path::Path, expected: &[ChapterSpec]) -> Resu
             end_ms: rescale_to_ms(chapter.end(), chapter.time_base()),
         })
         .collect();
-    if actual.len() != expected.len()
-        || actual.iter().zip(expected).any(|(a, e)| {
-            a.title.as_deref().unwrap_or("") != e.title.as_deref().unwrap_or("")
-                || a.start_ms != e.start_ms
-                || a.end_ms != e.end_ms
-        })
-    {
+    let mismatch = actual.iter().zip(expected).position(|(a, e)| {
+        a.title.as_deref().unwrap_or("") != e.title.as_deref().unwrap_or("")
+            || a.start_ms != e.start_ms
+            || a.end_ms != e.end_ms
+    });
+    log::info!(
+        "metadata_chapters artifact={} expected={} actual={} first_mismatch={:?}",
+        crate::diagnostics::artifact_id(path),
+        expected.len(),
+        actual.len(),
+        mismatch.or_else(
+            || (actual.len() != expected.len()).then_some(actual.len().min(expected.len()))
+        )
+    );
+    if let Some(index) = mismatch {
+        let (a, e) = (&actual[index], &expected[index]);
+        log::info!("metadata_chapter_mismatch artifact={} index={} title_matches={} expected_start_ms={} actual_start_ms={} expected_end_ms={} actual_end_ms={}",
+            crate::diagnostics::artifact_id(path), index, a.title.as_deref().unwrap_or("") == e.title.as_deref().unwrap_or(""),
+            e.start_ms, a.start_ms, e.end_ms, a.end_ms);
+    }
+    if actual.len() != expected.len() || mismatch.is_some() {
         return Err(crate::errors::AppError::InvalidInput(
             "Final output did not preserve the accepted chapter names and positions.".into(),
         ));

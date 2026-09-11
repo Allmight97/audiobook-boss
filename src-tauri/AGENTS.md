@@ -23,6 +23,15 @@
   preview and requires `preview_seconds`. Read the Processing owner guidance
   when changing either lifecycle.
 
+## Diagnostics
+
+- `diagnostics.rs` owns the shared stage record and file snapshot format.
+  Records never change an operation result. Artifact IDs correlate paths without
+  exposing parent folders; processor handoffs link those IDs to job/session IDs.
+- Log encoding/metadata/publication transitions and cleanup at their owners.
+  Metadata diagnostics describe field actions and cover sizes/formats, not tag
+  values or artwork bytes. Keep per-packet tracing at debug level.
+
 ## Runtime Constraints
 
 - Validate input audio paths at ingress with

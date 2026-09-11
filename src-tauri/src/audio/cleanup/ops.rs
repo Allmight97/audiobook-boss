@@ -10,7 +10,16 @@ impl CleanupGuard {
         let mut first_error: Option<AppError> = None;
 
         for path in paths {
-            if let Err(e) = self.cleanup_single_path(path) {
+            log::info!(
+                "media_cleanup session_id={} pid={} artifact={} file={:?}",
+                self.raw_session_id(),
+                std::process::id(),
+                crate::diagnostics::artifact_id(path),
+                sanitize_path_for_display(path)
+            );
+            if let Err(e) =
+                crate::diagnostics::stage("cleanup_remove", path, || self.cleanup_single_path(path))
+            {
                 log::error!(
                     "Session {}: Failed to cleanup {}: {}",
                     self.raw_session_id(),

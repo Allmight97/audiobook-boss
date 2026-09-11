@@ -68,7 +68,16 @@ pub(crate) fn merge_audio_files_with_context(
         total_duration,
     );
 
-    FfmpegNextProcessor::execute(&plan, context, metadata, passthrough)?;
+    log::info!(
+        "media_job session_id={} job_id={} artifact={} encoder={:?}",
+        context.session.id(),
+        context.job_id.as_deref().unwrap_or("unscoped"),
+        crate::diagnostics::artifact_id(&temp_output),
+        context.encoder_settings.encoder_type
+    );
+    crate::diagnostics::stage("encode_mux", &temp_output, || {
+        FfmpegNextProcessor::execute(&plan, context, metadata, passthrough)
+    })?;
 
     Ok(temp_output)
 }

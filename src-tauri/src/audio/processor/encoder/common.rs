@@ -17,7 +17,11 @@ static ENCODING_LOG_WRITE: Mutex<()> = Mutex::new(());
 
 pub(super) fn encoder_log(message: &str) {
     let _ = with_encoding_log_file(|file| writeln!(file, "{message}"));
-    log::debug!("{}", message);
+    if message.starts_with("encoder_config ") || message.starts_with("encoder_effective ") {
+        log::info!("{message}");
+    } else {
+        log::debug!("{message}");
+    }
 }
 
 pub(crate) struct InProcessEncoderRunLog<'a> {

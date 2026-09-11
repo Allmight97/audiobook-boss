@@ -5,6 +5,7 @@
 
 pub mod app_settings;
 pub mod commands;
+mod diagnostics;
 mod errors;
 mod file_replace;
 pub mod ipc_contract;
@@ -138,6 +139,10 @@ pub fn run() {
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);
+            log::info!("build_identity app_id={} app_version={} pid={} run_id={} libavcodec={} libavformat={}",
+                app.config().identifier, env!("CARGO_PKG_VERSION"), std::process::id(),
+                std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".into()),
+                diagnostics::version_label(ffmpeg_next::codec::version()), diagnostics::version_label(ffmpeg_next::format::version()));
             let app_cache_dir = app.path().app_cache_dir().map_err(|error| {
                 errors::AppError::General(format!("Failed to resolve app cache directory: {error}"))
             })?;

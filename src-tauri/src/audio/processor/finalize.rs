@@ -83,9 +83,20 @@ pub(super) fn complete_staged_output(
 
     let commit_request =
         OutputCommitRequest::new(context.output.final_path(), context.output.commit_action());
-    let outcome = commit_output_artifact(commit_request, staged_output, cleanup_guard, || {
-        context.is_cancelled()
+    log::info!("media_handoff stage=publish session_id={} job_id={} source_artifact={} destination_artifact={} destination_state={:?}",
+        context.session.id(), context.job_id.as_deref().unwrap_or("unscoped"),
+        crate::diagnostics::artifact_id(&staged_output), crate::diagnostics::artifact_id(context.output.final_path()),
+        crate::diagnostics::file_state(context.output.final_path()));
+    let outcome = crate::diagnostics::stage("publish", &staged_output, || {
+        commit_output_artifact(commit_request, staged_output.clone(), cleanup_guard, || {
+            context.is_cancelled()
+        })
     })?;
+    log::info!(
+        "media_handoff stage=published artifact={} {}",
+        crate::diagnostics::artifact_id(&outcome.final_output),
+        crate::diagnostics::file_state(&outcome.final_output)
+    );
     log::info!(
         "✓ File moved successfully to: {}",
         sanitize_path_for_display(&outcome.final_output)

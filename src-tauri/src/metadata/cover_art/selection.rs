@@ -51,9 +51,10 @@ impl<'a> ResolvedCover<'a> {
     /// post-header packet remux stages.
     pub(crate) fn handle_embed_failure(self, error: AppError, stage: &str) -> Result<()> {
         if self.is_passthrough() {
-            log::warn!("Could not preserve passthrough {stage} during metadata remux: {error}");
+            log::warn!("metadata_cover stage={stage:?} source=passthrough decision=skip reason=embed_failed error={error}");
             Ok(())
         } else {
+            log::error!("metadata_cover stage={stage:?} source=explicit decision=fail reason=embed_failed error={error}");
             Err(error)
         }
     }

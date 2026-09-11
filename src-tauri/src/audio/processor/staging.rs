@@ -62,7 +62,15 @@ pub(crate) fn cleanup_abandoned_processing_sessions(workspace_root: &Path) -> Re
 
     for entry in std::fs::read_dir(workspace_root)? {
         let path = entry?.path();
-        purge_processing_session(workspace_root, &path)?;
+        log::info!(
+            "media_cleanup reason=startup_sweep pid={} session_dir={:?} artifact={}",
+            std::process::id(),
+            sanitize_path_for_display(&path),
+            crate::diagnostics::artifact_id(&path)
+        );
+        crate::diagnostics::stage("startup_cleanup", &path, || {
+            purge_processing_session(workspace_root, &path)
+        })?;
     }
 
     Ok(())

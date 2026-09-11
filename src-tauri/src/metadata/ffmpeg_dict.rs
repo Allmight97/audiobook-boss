@@ -110,6 +110,20 @@ pub fn set_container_metadata(
     octx: &mut ff::format::context::Output,
     metadata: &AudiobookMetadata,
 ) -> Result<()> {
+    super::metadata_ops::log_field_decisions(
+        metadata,
+        if metadata
+            .album_sort
+            .as_ref()
+            .is_some_and(|s| !s.trim().is_empty())
+        {
+            "set"
+        } else {
+            "preserve"
+        },
+        "ffmpeg_encode",
+        "current_encoder",
+    );
     let dict = metadata_to_ffmpeg_dict(metadata)?;
     octx.set_metadata(dict);
 

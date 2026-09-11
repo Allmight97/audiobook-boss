@@ -61,6 +61,12 @@ impl CleanupGuard {
             self.paths.len()
         );
 
+        log::info!(
+            "media_cleanup reason=explicit session_id={} pid={} paths={}",
+            self.session_id,
+            std::process::id(),
+            self.paths.len()
+        );
         let paths_to_clean: Vec<PathBuf> = self.paths.drain().collect();
         self.perform_cleanup(&paths_to_clean)
     }
@@ -79,6 +85,12 @@ impl Drop for CleanupGuard {
             self.paths.len()
         );
 
+        log::info!(
+            "media_cleanup reason=guard_drop session_id={} pid={} paths={}",
+            self.session_id,
+            std::process::id(),
+            self.paths.len()
+        );
         let paths: Vec<PathBuf> = self.paths.iter().cloned().collect();
 
         if let Err(e) = self.perform_cleanup(&paths) {
