@@ -4,7 +4,7 @@ use secrecy::{ExposeSecret, SecretString};
 
 use crate::errors::{AppError, Result};
 
-const SERVICE: &str = "audiobook-boss.remote-source";
+const PRODUCTION_SERVICE: &str = "audiobook-boss.remote-source";
 
 pub(super) trait SecretVault: Send + Sync {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>>;
@@ -12,13 +12,26 @@ pub(super) trait SecretVault: Send + Sync {
     fn delete_secret(&self, key: &str) -> Result<()>;
 }
 
-#[derive(Debug, Default)]
-pub(super) struct KeyringSecretVault;
+#[derive(Debug)]
+pub(super) struct KeyringSecretVault {
+    service: String,
+}
 
 impl KeyringSecretVault {
-    fn entry(key: &str) -> Result<keyring_core::Entry> {
+    pub(super) fn for_app_identifier(identifier: &str) -> Self {
+        Self {
+            // Keep shipped credentials reachable; other app identities own their slots.
+            service: if identifier == "com.audiobook-boss" {
+                PRODUCTION_SERVICE.to_string()
+            } else {
+                format!("{identifier}.remote-source")
+            },
+        }
+    }
+
+    fn entry(&self, key: &str) -> Result<keyring_core::Entry> {
         ensure_native_store()?;
-        keyring_core::Entry::new(SERVICE, key)
+        keyring_core::Entry::new(&self.service, key)
             .map_err(|error| AppError::ResourceCleanup(format!("Keychain access failed: {error}")))
     }
 }
@@ -76,7 +89,7 @@ fn store_unavailable(error: keyring_core::Error) -> AppError {
 
 impl SecretVault for KeyringSecretVault {
     fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
-        let entry = Self::entry(key)?;
+        let entry = self.entry(key)?;
         match entry.get_password() {
             Ok(value) => Ok(Some(SecretString::from(value))),
             Err(keyring_core::Error::NoEntry) => Ok(None),
@@ -87,7 +100,7 @@ impl SecretVault for KeyringSecretVault {
     }
 
     fn set_secret(&self, key: &str, value: SecretString) -> Result<()> {
-        let entry = Self::entry(key)?;
+        let entry = self.entry(key)?;
         entry.set_password(value.expose_secret()).map_err(|error| {
             AppError::ResourceCleanup(format!(
                 "Failed to write provider secret to secure storage: {error}"
@@ -96,12 +109,31 @@ impl SecretVault for KeyringSecretVault {
     }
 
     fn delete_secret(&self, key: &str) -> Result<()> {
-        let entry = Self::entry(key)?;
+        let entry = self.entry(key)?;
         match entry.delete_credential() {
             Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
             Err(error) => Err(AppError::ResourceCleanup(format!(
                 "Failed to delete provider secret from secure storage: {error}"
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_identity_keeps_shipped_credentials_and_isolates_development_vaults() {
+        let production = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
+        let first = KeyringSecretVault::for_app_identifier("com.audiobook-boss.dev.first");
+        let second = KeyringSecretVault::for_app_identifier("com.audiobook-boss.dev.second");
+        assert_eq!(production.service, "audiobook-boss.remote-source");
+        assert_ne!(first.service, production.service);
+        assert_ne!(first.service, second.service);
+        assert_eq!(
+            first.service,
+            KeyringSecretVault::for_app_identifier("com.audiobook-boss.dev.first").service
+        );
     }
 }

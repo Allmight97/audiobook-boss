@@ -7,6 +7,12 @@ commands over invoking internals directly.
 ## Public Entrypoints
 
 - Convenience commands: `package.json` scripts.
+- `bun run tauri` routes through `scripts/tauri.ts`. Dev runs (including
+  `dev --release`) and debug bundles get a stable identity per canonical
+  checkout path, isolating settings, provider/WebView state, and caches.
+  Production builds retain the configured identity. Use this entrypoint for
+  development; direct Cargo or upstream Tauri CLI launches bypass isolation.
+  Packaged release-mode experiments need an explicit separate identifier.
 - Frontend clean-install alarm (`.github/workflows/ci.yml`) runs after relevant
   frontend/dependency/config pushes to `main`: frozen install and typecheck.
   It catches undeclared dependencies that a warm checkout can conceal; it is

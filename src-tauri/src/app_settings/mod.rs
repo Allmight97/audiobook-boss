@@ -7,8 +7,10 @@ use std::sync::{Mutex, MutexGuard};
 use crate::errors::{AppError, Result};
 
 pub use types::{
-    AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference, EncoderDefaults,
-    OutputDefaults, PinnedDefaults, StartupBehavior, ToolchainPreferences,
+    AcquisitionLane, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan,
+    AppSettingsRecoveryResult, ConcurrencyPreference, EncoderDefaults, EncoderDefaultsScope,
+    IncompatibleEncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
+    ToolchainPreferences,
 };
 
 static SETTINGS_UPDATE_LOCK: Mutex<()> = Mutex::new(());
@@ -29,6 +31,18 @@ pub fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {
     let _guard = settings_update_lock()?;
     storage::reset(config_dir)?;
     Ok(AppSettings::default())
+}
+
+pub fn get_app_settings_recovery(config_dir: &Path) -> Result<Option<AppSettingsRecoveryPlan>> {
+    storage::recovery_plan(config_dir)
+}
+
+pub fn recover_app_settings(
+    config_dir: &Path,
+    expected: AppSettingsRecoveryPlan,
+) -> Result<AppSettingsRecoveryResult> {
+    let _guard = settings_update_lock()?;
+    storage::recover(config_dir, expected)
 }
 
 fn settings_update_lock() -> Result<MutexGuard<'static, ()>> {

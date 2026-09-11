@@ -4,6 +4,18 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-10 - Development State Belongs To The Checkout
+
+- Outcome: development launches and debug bundles derive their app identity from
+  the canonical checkout path. Branch switches keep that checkout's preferences;
+  production retains its installed identity and credential service.
+- Evidence: an experimental FAAC default made the installed app's shared settings
+  unreadable, and startup cleanup also shared the processing-session root.
+  Identity separation plus explicit, backed-up settings recovery covers prevention
+  and repair without accepting unsupported encoders at runtime.
+- Guardrail: development uses the repo Tauri entrypoint; release-mode experiments
+  must choose a separate identifier explicitly.
+
 ## 2026-09-07 - Work Snapshot Freshness And Settings Durability (#421)
 
 - Outcome: WorkRuntime stamps each operation revision under its state lock and

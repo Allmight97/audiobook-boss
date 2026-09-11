@@ -42,6 +42,9 @@
   pending preferences are durable. A save failure blocks stale-default capture.
 - Reopening Settings must preserve an accepted acquisition choice after a
   storage failure.
+- `recoverEncoderDefaults` applies the backend-reviewed recovery through the
+  settings write queue, then retries pending accepted preferences. It preserves
+  current session choices and reports the backup even if a later reload fails.
 
 ## Proof
 

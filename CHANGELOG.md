@@ -4,6 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Recover unsupported saved encoder defaults explicitly in Settings, preserving
+  other preferences and backing up the original file.
+- Keep the full settings reset available when a settings file cannot be loaded.
+- Isolate development settings, caches, and provider credentials by checkout so
+  experimental builds do not interfere with installed builds or other checkouts.
+- Identify metadata input/output open failures and staged-path availability in logs.
+
 ## [1.8.2] - 2026-09-09
 
 ### Fixed

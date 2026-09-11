@@ -37,6 +37,11 @@ function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapa
 	return {
 		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => settingsFixture()),
+		getAppSettingsRecovery: vi.fn(async () => null),
+		recoverAppSettings: vi.fn(async () => ({
+			backupFileName: 'backup.json',
+			settings: settingsFixture(),
+		})),
 		updateAppSettings: vi.fn(async (patch) =>
 			settingsFixture({
 				maxConcurrentJobs: patch.maxConcurrentJobs ?? { mode: 'auto' },
@@ -185,6 +190,42 @@ describe('app settings concurrency', () => {
 		await runtime.settings.openDialog();
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
 		expect(runtime.settings.durability().state).toBe('error');
+	});
+
+	it('retries accepted session preferences after recovery without resetting runtime choices', async () => {
+		let recovered = false;
+		const settings = fakeSettings({
+			getAppSettings: vi.fn(async () => {
+				if (!recovered) throw new Error('Unsupported saved encoder');
+				return settingsFixture();
+			}),
+			getAppSettingsRecovery: vi.fn(async () => ({
+				incompatibleEncoders: [{ scope: 'pinned' as const, encoderType: 'future_encoder' }],
+			})),
+			recoverAppSettings: vi.fn(async () => {
+				recovered = true;
+				return { backupFileName: 'backup.json', settings: settingsFixture() };
+			}),
+			updateAppSettings: vi.fn(async (patch) => {
+				if (!recovered) throw new Error('Unsupported saved encoder');
+				return settingsFixture(patch);
+			}),
+		});
+		runtime = createAppRuntime({ settings });
+		runtime.encoding.setAfterburner(false);
+		await vi.waitFor(() => expect(runtime!.settings.durability().state).toBe('error'));
+		await runtime.settings.openDialog();
+		await runtime.settings.recoverEncoderDefaults();
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				encoderDefaults: expect.objectContaining({
+					settings: expect.objectContaining({ afterburner: false }),
+				}),
+			}),
+		);
+		expect(settings.setMaxConcurrentJobs).not.toHaveBeenCalled();
+		expect(runtime.settings.durability().state).toBe('saved');
 	});
 
 	it('does not capture stale defaults when current settings cannot be saved', async () => {

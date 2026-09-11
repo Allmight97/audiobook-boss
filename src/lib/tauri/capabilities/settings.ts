@@ -1,4 +1,9 @@
-import type { AppSettings, AppSettingsPatch } from '../../../types/appSettings';
+import type {
+	AppSettings,
+	AppSettingsPatch,
+	AppSettingsRecoveryPlan,
+	AppSettingsRecoveryResult,
+} from '../../../types/appSettings';
 import type { RuntimeSettingsCapabilities } from '../../../types/audio';
 import { tauriClient } from '../client';
 
@@ -9,6 +14,8 @@ export interface SettingsOpenFileOptions {
 export interface SettingsCapability {
 	openFdkSetup(): Promise<void>;
 	getAppSettings(): Promise<AppSettings>;
+	getAppSettingsRecovery(): Promise<AppSettingsRecoveryPlan | null>;
+	recoverAppSettings(expected: AppSettingsRecoveryPlan): Promise<AppSettingsRecoveryResult>;
 	updateAppSettings(patch: AppSettingsPatch): Promise<AppSettings>;
 	resetAppSettings(): Promise<AppSettings>;
 	openFile(options?: SettingsOpenFileOptions): Promise<string | null>;
@@ -20,6 +27,8 @@ export interface SettingsCapability {
 export const liveSettingsCapability: SettingsCapability = {
 	openFdkSetup: () => tauriClient.openFdkSetup(),
 	getAppSettings: () => tauriClient.getAppSettings(),
+	getAppSettingsRecovery: () => tauriClient.getAppSettingsRecovery(),
+	recoverAppSettings: (expected) => tauriClient.recoverAppSettings(expected),
 	updateAppSettings: (patch) => tauriClient.updateAppSettings(patch),
 	resetAppSettings: () => tauriClient.resetAppSettings(),
 	openFile: (options) => tauriClient.openFile(options ? { title: options.title } : undefined),

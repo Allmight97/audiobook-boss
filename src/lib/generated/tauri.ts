@@ -8,6 +8,10 @@ export const commands = {
 	getAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings")),
 	updateAppSettings: (patch: AppSettingsPatch) => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("update_app_settings", { patch })),
 	resetAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("reset_app_settings")),
+	getAppSettingsRecovery: () => typedError<{
+	incompatibleEncoders: IncompatibleEncoderDefaults[],
+} | null, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings_recovery")),
+	recoverAppSettings: (expected: AppSettingsRecoveryPlan) => typedError<AppSettingsRecoveryResult, AppErrorEnvelope>(__TAURI_INVOKE("recover_app_settings", { expected })),
 	/**
 	 *  Validates that all provided file paths exist and are files
 	 *  Accepts an array of file paths and checks file existence
@@ -212,6 +216,15 @@ export type AppSettingsPatch = {
 	defaultAcquisitionLane: AcquisitionLane | null,
 };
 
+export type AppSettingsRecoveryPlan = {
+	incompatibleEncoders: IncompatibleEncoderDefaults[],
+};
+
+export type AppSettingsRecoveryResult = {
+	backupFileName: string,
+	settings: AppSettings,
+};
+
 /**  Represents an audio file with metadata */
 export type AudioFile = {
 	/**  Stable workbench/session identity for joins that must survive reorder/remove operations. */
@@ -355,6 +368,8 @@ export type EncoderDefaults = {
 	sampleRate: SampleRateConfig,
 };
 
+export type EncoderDefaultsScope = "lastUsed" | "pinned";
+
 /**
  *  Advanced encoder settings payload
  *
@@ -434,6 +449,11 @@ export type FrontendLogEntry = {
 };
 
 export type FrontendLogLevel = "error" | "warn";
+
+export type IncompatibleEncoderDefaults = {
+	scope: EncoderDefaultsScope,
+	encoderType: string,
+};
 
 export type JobType = "merge" | "batch";
 

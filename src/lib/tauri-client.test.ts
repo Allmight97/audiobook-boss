@@ -18,6 +18,37 @@ describe('tauriClient', () => {
 		vi.clearAllMocks();
 	});
 
+	it('passes the reviewed recovery plan and normalizes recovered settings', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const { tauriClient } = await import('./tauri/client');
+		const plan = {
+			incompatibleEncoders: [{ scope: 'pinned' as const, encoderType: 'future_encoder' }],
+		};
+		vi.mocked(invoke).mockResolvedValueOnce(plan);
+		expect(await tauriClient.getAppSettingsRecovery()).toEqual(plan);
+		expect(invoke).toHaveBeenLastCalledWith('get_app_settings_recovery');
+		vi.mocked(invoke).mockResolvedValueOnce({
+			backupFileName: 'app-settings.before-recovery-test.json',
+			settings: {
+				maxConcurrentJobs: { mode: 'auto' },
+				encoderDefaults: { settings: defaultEncoderSettings, sampleRate: 'auto' },
+				outputDefaults: {
+					outputDirectory: null,
+					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+				},
+				toolchain: { externalFfmpegPath: null },
+				startupBehavior: 'rememberLastState',
+				pinnedDefaults: null,
+				defaultAcquisitionLane: 'audible',
+			},
+		});
+		const recovered = await tauriClient.recoverAppSettings(plan);
+		expect(invoke).toHaveBeenLastCalledWith('recover_app_settings', { expected: plan });
+		expect(recovered.backupFileName).toBe('app-settings.before-recovery-test.json');
+		expect(recovered.settings.pinnedDefaults).toBeUndefined();
+		expect(recovered.settings.toolchain?.externalFfmpegPath).toBeUndefined();
+	});
+
 	describe('dialog helpers', () => {
 		it('sets single-file dialog options at the boundary', async () => {
 			const { open } = await import('@tauri-apps/plugin-dialog');

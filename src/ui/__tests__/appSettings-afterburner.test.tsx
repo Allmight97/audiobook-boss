@@ -34,6 +34,8 @@ vi.mock('../../lib/tauri/client', async () => {
 			}),
 			updateAppSettings: vi.fn().mockResolvedValue(undefined),
 			resetAppSettings: vi.fn(),
+			getAppSettingsRecovery: vi.fn().mockResolvedValue(null),
+			recoverAppSettings: vi.fn(),
 			openFile: vi.fn(),
 			getRemoteSourceIndexerConnection: vi
 				.fn()

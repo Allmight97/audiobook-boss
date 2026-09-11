@@ -17,7 +17,7 @@
 		"audit:js": "bun audit",
 		"audit": "bun run --sequential --no-exit-on-error audit:rust audit:js",
 		"preview": "vite preview",
-		"tauri": "tauri",
+		"tauri": "bun scripts/tauri.ts",
 		"app:dev:log": "bash scripts/dev-tauri-log.sh",
 		"aaxclean-helper:publish": "bun scripts/publish-aaxclean-helper.ts",
 		"app:build": "bun scripts/build-app.ts --bundles app",

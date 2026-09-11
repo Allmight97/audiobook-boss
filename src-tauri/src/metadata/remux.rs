@@ -36,12 +36,14 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
 
     let started = Instant::now();
     ff::init().map_err(AppError::Ffmpeg)?;
-    let mut ictx = ff::format::input(input_path).map_err(AppError::Ffmpeg)?;
+    let mut ictx = ff::format::input(input_path)
+        .map_err(|error| remux_open_error("open_input", input_path, error))?;
     let temp_path = build_temp_output_path(input_path)?;
     let mut octx = match output_format {
-        Some(format) => ff::format::output_as(&temp_path, format).map_err(AppError::Ffmpeg)?,
-        None => ff::format::output(&temp_path).map_err(AppError::Ffmpeg)?,
-    };
+        Some(format) => ff::format::output_as(&temp_path, format),
+        None => ff::format::output(&temp_path),
+    }
+    .map_err(|error| remux_open_error("create_output", &temp_path, error))?;
     let metadata_value = metadata.map(|plan| &plan.metadata);
     let (stream_mapping, output_time_bases) = copy_streams(&ictx, &mut octx, metadata_value)?;
     copy_chapters(&ictx, &mut octx, passthrough)?;
@@ -83,6 +85,22 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         input_path.display()
     );
     Ok(())
+}
+
+fn remux_open_error(
+    stage: &str,
+    path: &std::path::Path,
+    error: ff::Error,
+) -> crate::errors::AppError {
+    log::error!(
+        "metadata_remux stage={} path={} exists={} parent_exists={} error={}",
+        stage,
+        crate::errors::sanitize_path_for_display(path),
+        path.exists(),
+        path.parent().is_some_and(std::path::Path::exists),
+        error
+    );
+    crate::errors::AppError::Ffmpeg(error)
 }
 
 fn build_temp_output_path(input_path: &std::path::Path) -> Result<std::path::PathBuf> {

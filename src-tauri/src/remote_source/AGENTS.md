@@ -25,6 +25,10 @@ or infer provider-private Audible internals.
 - `providers/audible/library_probe.rs` owns library probe test harness helpers.
 - `cancellation.rs` owns shared acquisition cancellation checks.
 - `vault.rs` owns backend secret-vault adapters.
+- Credential service names follow the app identifier so development identities
+  cannot read, replace, or delete production provider credentials. The production
+  identifier retains its shipped service name; isolated profiles require their
+  own sign-in and keys.
 - Auth providers separate the live OAuth exchange from keychain persistence
   (a `persist_auth`-style vault write seam in `providers/audible/mod.rs`) so
   the serialize -> `set_secret` -> `account_state` write path is mock-testable

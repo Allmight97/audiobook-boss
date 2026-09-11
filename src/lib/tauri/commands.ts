@@ -17,7 +17,11 @@ import type {
 	ProcessingPreflightPlan,
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
-import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
+import type {
+	AppSettings,
+	AppSettingsPatch,
+	AppSettingsRecoveryPlan,
+} from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
@@ -153,6 +157,12 @@ function compileMetadataSaveRequests(items: MetadataSaveRequest[]): MetadataSave
 }
 
 export const commandSpecs = {
+	get_app_settings_recovery: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.getAppSettingsRecovery()),
+	recover_app_settings: (args: { expected: AppSettingsRecoveryPlan }) =>
+		runGeneratedCommand(generatedCommands.recoverAppSettings(args.expected), (result) =>
+			normalizeNullish(result),
+		),
 	get_app_settings: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getAppSettings(), (settings) =>
 			normalizeNullish(settings),

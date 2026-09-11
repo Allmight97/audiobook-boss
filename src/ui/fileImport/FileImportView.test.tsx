@@ -37,6 +37,11 @@ function fakeSettings(initial: Partial<AppSettings> = {}): SettingsCapability {
 	let current = settingsFixture(initial);
 	return {
 		openFdkSetup: vi.fn(async () => undefined),
+		getAppSettingsRecovery: vi.fn(async () => null),
+		recoverAppSettings: vi.fn(async () => ({
+			backupFileName: 'backup.json',
+			settings: settingsFixture(),
+		})),
 		getAppSettings: vi.fn(async () => current),
 		updateAppSettings: vi.fn(async (patch) => {
 			current = settingsFixture({

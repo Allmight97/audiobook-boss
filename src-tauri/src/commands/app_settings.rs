@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 
 use tauri::Manager;
 
-use crate::app_settings::{self, AppSettings, AppSettingsPatch};
+use crate::app_settings::{
+    self, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan, AppSettingsRecoveryResult,
+};
 use crate::commands::CommandResult;
 use crate::errors::{AppError, Result};
 
@@ -17,6 +19,34 @@ fn app_settings_config_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
 pub fn get_app_settings(app: tauri::AppHandle) -> CommandResult<AppSettings> {
     let config_dir = app_settings_config_dir(&app)?;
     Ok(app_settings::get_app_settings(&config_dir)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_app_settings_recovery(
+    app: tauri::AppHandle,
+) -> CommandResult<Option<AppSettingsRecoveryPlan>> {
+    Ok(app_settings::get_app_settings_recovery(
+        &app_settings_config_dir(&app)?,
+    )?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn recover_app_settings(
+    app: tauri::AppHandle,
+    expected: AppSettingsRecoveryPlan,
+) -> CommandResult<AppSettingsRecoveryResult> {
+    let result = app_settings::recover_app_settings(&app_settings_config_dir(&app)?, expected)?;
+    crate::audio::set_user_external_ffmpeg_path(
+        result
+            .settings
+            .toolchain
+            .external_ffmpeg_path
+            .clone()
+            .map(Into::into),
+    );
+    Ok(result)
 }
 
 #[tauri::command]

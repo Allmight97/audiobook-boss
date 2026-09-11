@@ -53,7 +53,9 @@ impl RemoteSourceRuntime {
         Ok(Self {
             inner: Arc::new(RemoteSourceRuntimeInner {
                 config_dir,
-                vault: Box::<KeyringSecretVault>::default(),
+                vault: Box::new(KeyringSecretVault::for_app_identifier(
+                    &app.config().identifier,
+                )),
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(cache_dir),
                     AaxcleanMaterializer::from_app(app),

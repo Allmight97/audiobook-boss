@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 async fn audible_pdf_live_probe() {
     let title_id = std::env::var("ABB_AUDIBLE_PDF_PROBE_TITLE_ID")
         .expect("ABB_AUDIBLE_PDF_PROBE_TITLE_ID is required");
-    let vault = KeyringSecretVault;
+    let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
     let root = tempfile::TempDir::new().expect("temp root");
     let file_name = supplemental_pdf_display_file_name(None, &title_id);
@@ -55,7 +55,7 @@ async fn audible_pdf_live_probe() {
 #[tokio::test]
 #[ignore = "uses local keychain Audible auth and real account library metadata"]
 async fn audible_library_live_probe() {
-    let vault = KeyringSecretVault;
+    let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
     let client = client_from_auth(auth).expect("Audible client");
 
@@ -104,7 +104,7 @@ async fn audible_library_live_probe() {
 #[tokio::test]
 #[ignore = "uses local keychain Audible auth and real account revoked-library metadata"]
 async fn audible_revoked_library_live_probe() {
-    let vault = KeyringSecretVault;
+    let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
     let client = client_from_auth(auth).expect("Audible client");
     let mut params = library_probe_params(None, Some("Revoked"), None);
@@ -151,7 +151,7 @@ async fn audible_revoked_library_live_probe() {
 async fn audible_catalog_vs_library_search_live_probe() {
     let query =
         std::env::var("ABB_AUDIBLE_SEARCH_PROBE").unwrap_or_else(|_| "Super Powereds".into());
-    let vault = KeyringSecretVault;
+    let vault = KeyringSecretVault::for_app_identifier("com.audiobook-boss");
     let auth = auth_from_vault(&vault).expect("Audible account must be connected");
     let client = client_from_auth(auth).expect("Audible client");
 

@@ -13,6 +13,8 @@ function capabilityFor(settings: AppSettings): SettingsCapability {
 			throw new Error('unexpected setup');
 		},
 		getAppSettings: () => Promise.resolve(settings),
+		getAppSettingsRecovery: notCalled,
+		recoverAppSettings: notCalled,
 		updateAppSettings: notCalled,
 		resetAppSettings: notCalled,
 		openFile: notCalled,
