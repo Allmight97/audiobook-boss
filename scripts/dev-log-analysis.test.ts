@@ -278,13 +278,19 @@ describe('analyzeDevLog', () => {
 			'run_id=test-run',
 			'status=success',
 			'job_id=job-real',
+			'progress final_progress=end total_size=123',
 			'stderr:',
 			'status=failed',
 			'job_id=job-spoofed',
+			'progress final_progress=spoofed',
 			'--- end external-fdk run ---',
 		].join('\n');
 		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
 
+		expect(analysis.externalFdkDetails.join('\n')).toContain(
+			'progress final_progress=end total_size=123',
+		);
+		expect(analysis.externalFdkDetails.join('\n')).not.toContain('spoofed');
 		expect(analysis.health).toBe('clean');
 		expect(analysis.externalFdkStatuses).toEqual({ success: 1 });
 		expect(analysis.malformedExternalFdkRuns).toBe(0);
@@ -554,4 +560,35 @@ describe('analyzeDevLog', () => {
 		expect(analysis.health).toBe('indeterminate');
 		expect(analysis.malformedInProcessEncoderRuns).toBe(1);
 	});
+});
+
+it('exposes build identity, stage failures and effective codec diagnostics without changing job outcomes', () => {
+	const main = [
+		APP_START,
+		'build_checkout revision=abc dirty=false checkout="main"',
+		'build_identity app_id=dev.main libavcodec=1 libavformat=2',
+		'media_job session_id=s job_id=j artifact=a encoder=external_fdk',
+		'encoder_effective encoder=aac rate=44100 channels=2',
+		'media_stage stage=metadata_open_input status=error artifact=a exists=false',
+		'metadata_plan artifact=a writer=mp4ameta fields=Title=set,Comment=clear',
+		'media_cleanup reason=guard_drop session_id=s pid=1',
+	].join('\n');
+	const encoding = [
+		'--- in-process-encoder run 1 ---',
+		'status=success',
+		'job_id=j',
+		'ffmpeg_version=9.0',
+		'faac_version=1.31 profile=HE-AAC-v1',
+		'submitted_samples=2048 encoded_packets=1',
+		'first_packet_pts=0 mux_finished=true',
+		'--- end in-process-encoder run ---',
+	].join('\n');
+	const analysis = analyzeDevLog(main, encoding, 0);
+	const summary = renderDevLogAnalysis(analysis);
+	expect(summary).toContain('build_identity app_id=dev.main');
+	expect(summary).toContain('metadata_open_input status=error artifact=a exists=false');
+	expect(summary).toContain('encoder_effective encoder=aac rate=44100 channels=2');
+	expect(summary).toContain('faac_version=1.31 profile=HE-AAC-v1');
+	expect(summary).toContain('mux_finished=true');
+	expect(analysis.jobs).toEqual([]);
 });

@@ -144,6 +144,54 @@ pub(crate) fn field_has_clear_intent(metadata: &AudiobookMetadata, field: TagFie
     }
 }
 
+pub(crate) fn log_write_plan(plan: &super::MetadataWritePlan, writer: &str, artifact: &str) {
+    let sort = match &plan.album_sort {
+        super::AlbumSortWriteAction::Preserve => "preserve",
+        super::AlbumSortWriteAction::Set(_) => "set",
+        super::AlbumSortWriteAction::Clear => "clear",
+        super::AlbumSortWriteAction::Recompute => "recompute",
+    };
+    log_field_decisions(&plan.metadata, sort, writer, artifact);
+}
+
+pub(crate) fn log_field_decisions(
+    metadata: &AudiobookMetadata,
+    album_sort: &str,
+    writer: &str,
+    artifact: &str,
+) {
+    let ops = plan_metadata_field_ops(metadata);
+    let decisions: Vec<_> = TagField::ALL
+        .iter()
+        .map(|field| {
+            let action = if ops
+                .iter()
+                .any(|op| matches!(op, MetadataOp::Clear(f) if f == field))
+            {
+                "clear"
+            } else if ops.iter().any(|op| match op {
+                MetadataOp::SetString { field: f, .. } => f == field,
+                MetadataOp::SetTrack { .. } => *field == TagField::Track,
+                MetadataOp::SetDisk { .. } => *field == TagField::Disk,
+                _ => false,
+            }) {
+                "set"
+            } else {
+                "preserve"
+            };
+            format!("{field:?}={action}")
+        })
+        .collect();
+    log::info!(
+        "metadata_plan artifact={artifact} writer={writer} fields={} album_sort={album_sort}",
+        decisions.join(",")
+    );
+    if let Some(bytes) = metadata.cover_art.as_ref() {
+        log::info!("metadata_cover artifact={artifact} writer={writer} source=explicit action={} bytes={} format={:?}",
+            if bytes.is_empty() { "clear" } else { "set" }, bytes.len(), super::cover_art::detect_cover_art_format(bytes));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{plan_metadata_field_ops, MetadataOp};

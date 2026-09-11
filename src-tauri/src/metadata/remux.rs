@@ -32,24 +32,67 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     passthrough: Option<&PassthroughMetadata>,
     output_format: Option<&str>,
 ) -> Result<()> {
+    use crate::diagnostics::stage;
     use crate::errors::AppError;
 
     let started = Instant::now();
     ff::init().map_err(AppError::Ffmpeg)?;
-    let mut ictx = ff::format::input(input_path)
-        .map_err(|error| remux_open_error("open_input", input_path, error))?;
+    let mut ictx = stage("metadata_open_input", input_path, || {
+        ff::format::input(input_path).map_err(AppError::Ffmpeg)
+    })?;
     let temp_path = build_temp_output_path(input_path)?;
-    let mut octx = match output_format {
-        Some(format) => ff::format::output_as(&temp_path, format),
-        None => ff::format::output(&temp_path),
+    log::info!(
+        "media_handoff stage=remux_create source_artifact={} destination_artifact={}",
+        crate::diagnostics::artifact_id(input_path),
+        crate::diagnostics::artifact_id(&temp_path)
+    );
+    let mut octx = stage("metadata_create_output", &temp_path, || {
+        match output_format {
+            Some(format) => ff::format::output_as(&temp_path, format),
+            None => ff::format::output(&temp_path),
+        }
+        .map_err(AppError::Ffmpeg)
+    })?;
+    if let Some(plan) = metadata {
+        super::metadata_ops::log_write_plan(
+            plan,
+            "ffmpeg_remux",
+            &crate::diagnostics::artifact_id(input_path),
+        );
     }
-    .map_err(|error| remux_open_error("create_output", &temp_path, error))?;
+    log::info!("metadata_route artifact={} input_format={} writer=ffmpeg_remux output_format={} chapters={}",
+        crate::diagnostics::artifact_id(input_path), ictx.format().name(), octx.format().name(),
+        passthrough.map_or(0, |value| value.chapters.len()));
     let metadata_value = metadata.map(|plan| &plan.metadata);
-    let (stream_mapping, output_time_bases) = copy_streams(&ictx, &mut octx, metadata_value)?;
-    copy_chapters(&ictx, &mut octx, passthrough)?;
-    copy_container_metadata(&ictx, &mut octx, metadata)?;
+    let (stream_mapping, output_time_bases) = stage("metadata_copy_streams", &temp_path, || {
+        copy_streams(&ictx, &mut octx, metadata_value)
+    })?;
+    stage("metadata_copy_chapters", &temp_path, || {
+        copy_chapters(&ictx, &mut octx, passthrough)
+    })?;
+    stage("metadata_copy_tags", &temp_path, || {
+        copy_container_metadata(&ictx, &mut octx, metadata)
+    })?;
 
     let cover = ResolvedCover::select(metadata_value, passthrough);
+    log::info!(
+        "metadata_cover artifact={} writer=ffmpeg_remux source={} bytes={} format={:?} decision={}",
+        crate::diagnostics::artifact_id(input_path),
+        match cover {
+            Some(ResolvedCover::Explicit(_)) => "explicit",
+            Some(ResolvedCover::Passthrough(_)) => "passthrough",
+            None => "none",
+        },
+        cover.map_or(0, |s| s.bytes().len()),
+        cover.and_then(|s| super::cover_art::detect_cover_art_format(s.bytes())),
+        if cover.is_some() {
+            "embed"
+        } else if metadata_value.and_then(|m| m.cover_art.as_ref()).is_some() {
+            "explicit_clear"
+        } else {
+            "no_cover_data"
+        }
+    );
     let cover_stream_info = if let Some(selection) = cover {
         match add_cover_art_stream_pre_header(&mut octx, selection.bytes()) {
             Ok(stream_info) => stream_info,
@@ -61,7 +104,9 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     } else {
         None
     };
-    octx.write_header().map_err(AppError::Ffmpeg)?;
+    stage("metadata_write_header", &temp_path, || {
+        octx.write_header().map_err(AppError::Ffmpeg)
+    })?;
 
     if let (Some(selection), Some((stream_index, format))) = (cover, cover_stream_info) {
         if let Err(error) =
@@ -71,36 +116,26 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         }
     }
 
-    stream_copy_packets(&mut ictx, &mut octx, &stream_mapping, &output_time_bases)?;
-    octx.write_trailer().map_err(AppError::Ffmpeg)?;
+    stage("metadata_copy_packets", &temp_path, || {
+        stream_copy_packets(&mut ictx, &mut octx, &stream_mapping, &output_time_bases)
+    })?;
+    stage("metadata_write_trailer", &temp_path, || {
+        octx.write_trailer().map_err(AppError::Ffmpeg)
+    })?;
 
     // Release FFmpeg's file handles before replacing the source path.
     drop(octx);
     drop(ictx);
 
-    crate::file_replace::replace_file(&temp_path, input_path).map_err(AppError::Io)?;
+    stage("metadata_replace", input_path, || {
+        crate::file_replace::replace_file(&temp_path, input_path).map_err(AppError::Io)
+    })?;
     log::info!(
         "metadata_remux status=ok elapsed_ms={} path={}",
         started.elapsed().as_millis(),
         input_path.display()
     );
     Ok(())
-}
-
-fn remux_open_error(
-    stage: &str,
-    path: &std::path::Path,
-    error: ff::Error,
-) -> crate::errors::AppError {
-    log::error!(
-        "metadata_remux stage={} path={} exists={} parent_exists={} error={}",
-        stage,
-        crate::errors::sanitize_path_for_display(path),
-        path.exists(),
-        path.parent().is_some_and(std::path::Path::exists),
-        error
-    );
-    crate::errors::AppError::Ffmpeg(error)
 }
 
 fn build_temp_output_path(input_path: &std::path::Path) -> Result<std::path::PathBuf> {

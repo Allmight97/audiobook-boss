@@ -80,7 +80,7 @@ pub(crate) fn save_metadata_with_plan(
     path: &std::path::Path,
     plan: &MetadataWritePlan,
 ) -> Result<()> {
-    match container::classify(path)? {
+    match crate::diagnostics::stage("metadata_classify", path, || container::classify(path))? {
         container::ContainerRoute::Mp4Family => {
             mp4ameta_bridge::write_metadata_with_plan(path, plan)
         }
@@ -110,7 +110,9 @@ pub fn finalize_artifact_metadata(
         return Ok(());
     }
 
-    remux::rewrite_metadata_with_ffmpeg(path, metadata, passthrough)?;
+    crate::diagnostics::stage("metadata_remux", path, || {
+        remux::rewrite_metadata_with_ffmpeg(path, metadata, passthrough)
+    })?;
 
     if let Some(metadata) = metadata {
         if should_write_finalized_metadata(path)? {
@@ -134,7 +136,7 @@ pub(crate) fn write_cover_art_to_file(path: &std::path::Path, cover_data: Vec<u8
 
 pub(crate) fn should_write_finalized_metadata(path: &std::path::Path) -> Result<bool> {
     Ok(matches!(
-        container::classify(path)?,
+        crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?,
         container::ContainerRoute::Mp4Family
     ))
 }

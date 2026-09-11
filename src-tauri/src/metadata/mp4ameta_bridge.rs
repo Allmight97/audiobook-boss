@@ -70,6 +70,13 @@ pub fn write_metadata(path: &Path, metadata: &AudiobookMetadata) -> Result<()> {
 }
 
 pub(crate) fn write_metadata_with_plan(path: &Path, plan: &MetadataWritePlan) -> Result<()> {
+    super::metadata_ops::log_write_plan(plan, "mp4ameta", &crate::diagnostics::artifact_id(path));
+    crate::diagnostics::stage("metadata_mp4_tags", path, || {
+        write_metadata_with_plan_inner(path, plan)
+    })
+}
+
+fn write_metadata_with_plan_inner(path: &Path, plan: &MetadataWritePlan) -> Result<()> {
     let mut tag = Tag::read_from_path(path)
         .map_err(|e| AppError::General(format!("mp4ameta read failed: {e}")))?;
 

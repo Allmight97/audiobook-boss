@@ -73,9 +73,16 @@ pub(super) async fn process_audiobook_with_external_fdk(
     cleanup_guard.add_path(&temp_dir);
     let temp_output = temp_dir.join("worker-output.m4b");
     cleanup_guard.add_path(&temp_output);
+    log::info!(
+        "media_job session_id={} job_id={} artifact={} encoder=external_fdk",
+        context.session.id(),
+        context.job_id.as_deref().unwrap_or("unscoped"),
+        crate::diagnostics::artifact_id(&temp_output)
+    );
     let total_duration = expected_duration_seconds(&valid_files, context.preview.as_ref());
 
-    process::run_external_ffmpeg(
+    let encode_stage = crate::diagnostics::Stage::start("encode_mux", &temp_output);
+    let encode_result = process::run_external_ffmpeg(
         &context,
         &ui,
         &toolchain,
@@ -84,8 +91,14 @@ pub(super) async fn process_audiobook_with_external_fdk(
         &temp_output,
         total_duration,
     )
-    .await?;
+    .await;
+    encode_stage.finish(encode_result)?;
 
+    log::info!(
+        "media_handoff stage=encode_closed artifact={} {}",
+        crate::diagnostics::artifact_id(&temp_output),
+        crate::diagnostics::file_state(&temp_output)
+    );
     if effective_metadata.is_some() || passthrough.is_some() {
         ui.emit_metadata_start("Re-applying metadata and cover art...");
         let metadata_started = Instant::now();

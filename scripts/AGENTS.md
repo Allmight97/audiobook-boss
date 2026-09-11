@@ -69,6 +69,8 @@ commands over invoking internals directly.
   session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
   pasted terminal output. These are latest-run entrypoints; the five newest
   run-scoped artifacts remain under `.logs/runs/<run-id>/`.
+  The summary includes bounded build identity, encoder, metadata, file-handoff,
+  and cleanup diagnostics. Full records remain in the raw and encoding logs.
   The wrapper sets `RUST_LOG=audiobook_boss_lib=info,tauri=warn,wry=warn` unless
   you override it. For extra Rust debug lines in the same captured run:
   `ABB_DEV_RUST_LOG='audiobook_boss_lib=debug,tauri=warn,wry=warn' bun run app:dev:log`.

@@ -64,6 +64,7 @@ export interface DevLogAnalysis {
 	childExitCodes: number[];
 	encoderLines: number;
 	externalFdkRuns: number;
+	externalFdkDetails: string[];
 	externalFdkStatuses: Record<string, number>;
 	malformedExternalFdkRuns: number;
 	inProcessEncoderRuns: number;
@@ -71,6 +72,8 @@ export interface DevLogAnalysis {
 	inProcessEncoderStatuses: Record<string, number>;
 	malformedInProcessEncoderRuns: number;
 	highSignalLines: string[];
+	mediaDiagnostics: string[];
+	buildIdentities: string[];
 }
 
 interface MutableOperation extends OperationOutcome {
@@ -84,6 +87,7 @@ interface MutableJob extends JobOutcome {
 }
 
 interface ExternalFdkRun {
+	details: string[];
 	status?: string;
 	jobId?: string;
 }
@@ -440,7 +444,7 @@ function parseExternalFdkRuns(input: string): {
 		}
 		if (line.startsWith('--- external-fdk run ')) {
 			if (current) finishCurrent(false);
-			current = { malformed: false, inStderr: false };
+			current = { malformed: false, inStderr: false, details: [] };
 			continue;
 		}
 		if (line === '--- end external-fdk run ---') {
@@ -451,6 +455,13 @@ function parseExternalFdkRuns(input: string): {
 		if (line === 'stderr:') {
 			current.inStderr = true;
 			continue;
+		}
+		if (
+			/^(encoder_settings |elapsed_ms=|target_duration_seconds=|progress |toolchain_ffmpeg=|status_detail=)/.test(
+				line,
+			)
+		) {
+			current.details.push(line);
 		}
 		if (line.startsWith('status=')) {
 			if (current.status !== undefined) current.malformed = true;
@@ -502,7 +513,7 @@ function parseInProcessEncoderRuns(input: string): {
 		}
 		if (!current) continue;
 		if (
-			/^(encoder=|encoder_settings |stage=|target_duration_seconds=|ffmpeg_version=|faac_version=|profile=|output_rate=|submitted_samples=|first_packet_pts=|elapsed_ms=)/.test(
+			/^(encoder=|encoder_settings |stage=|elapsed_ms=|target_duration_seconds=|ffmpeg_version=|faac_version=|profile=|output_rate=|submitted_samples=|first_packet_pts=|backend_diagnostics=)/.test(
 				line,
 			)
 		) {
@@ -813,6 +824,14 @@ export function analyzeDevLog(
 		malformedOutputPlanLines,
 		childExitCodes,
 		encoderLines: encodingLines,
+		externalFdkDetails: externalFdkRunRecords
+			.slice(-5)
+			.map((run) =>
+				[
+					`job_id=${run.jobId ?? 'unscoped'} status=${run.status ?? 'incomplete'}`,
+					...run.details,
+				].join('\n'),
+			),
 		externalFdkRuns,
 		externalFdkStatuses,
 		malformedExternalFdkRuns,
@@ -827,6 +846,18 @@ export function analyzeDevLog(
 			),
 		inProcessEncoderStatuses,
 		malformedInProcessEncoderRuns,
+		mediaDiagnostics: lines
+			.filter((line) =>
+				/media_stage |media_job |media_handoff |media_cleanup |metadata_plan |metadata_route |metadata_cover |metadata_chapters |metadata_chapter_mismatch |cover_art_plan |encoder_effective |encoder_config /.test(
+					line,
+				),
+			)
+			.slice(-100),
+		buildIdentities: [
+			...new Set(
+				lines.filter((line) => /build_identity |build_checkout |toolchain_identity /.test(line)),
+			),
+		].slice(-20),
 		highSignalLines,
 	};
 }
@@ -950,6 +981,20 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		`child_exit_codes=${childExits}`,
 		'```',
 		'',
+		'## Build Identity',
+		'',
+		'```text',
+		...analysis.buildIdentities,
+		'```',
+		'',
+		'## Encoding, Metadata, and File Handoffs',
+		'',
+		'Recent bounded diagnostics; the raw logs retain the complete run. Artifact IDs link stages to media_job records.',
+		'',
+		'```text',
+		...analysis.mediaDiagnostics,
+		'```',
+		'',
 		'## Recent High-Signal Lines',
 		'',
 		'```text',
@@ -962,6 +1007,7 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'',
 		'```text',
 		`lines=${analysis.encoderLines} external_fdk_runs=${analysis.externalFdkRuns} malformed_external_fdk_runs=${analysis.malformedExternalFdkRuns} in_process_encoder_runs=${analysis.inProcessEncoderRuns} malformed_in_process_encoder_runs=${analysis.malformedInProcessEncoderRuns}${encoderStatuses ? ` ${encoderStatuses}` : ''}`,
+		...analysis.externalFdkDetails,
 		...analysis.inProcessEncoderDetails,
 		'```',
 		'',

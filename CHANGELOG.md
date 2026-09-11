@@ -4,6 +4,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Dev-run summaries expose build/toolchain identity, effective encoder settings,
+  metadata decisions and stage outcomes, artifact handoffs, and cleanup records.
+
 ### Fixed
 
 - Recover unsupported saved encoder defaults explicitly in Settings, preserving

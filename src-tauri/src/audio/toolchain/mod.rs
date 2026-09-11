@@ -228,7 +228,7 @@ fn validate_candidate(
         ));
     }
 
-    probe_stdout(
+    let version_output = probe_stdout(
         candidate,
         ["-hide_banner", "-loglevel", "error", "-version"],
     )
@@ -259,6 +259,11 @@ fn validate_candidate(
 
     let decoder_capabilities = inspect_decoder_capabilities(candidate)?;
 
+    log::info!(
+        "toolchain_identity source={source:?} file={:?} version={:?}",
+        sanitize_path_for_display(candidate),
+        version_output.lines().next().unwrap_or("unknown")
+    );
     Ok(ValidatedExternalToolchain {
         ffmpeg_path: candidate.to_path_buf(),
         source,

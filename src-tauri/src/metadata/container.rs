@@ -27,7 +27,13 @@ pub(crate) fn classify(path: &Path) -> Result<ContainerRoute> {
     ff::init().map_err(AppError::Ffmpeg)?;
 
     let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
-    Ok(classify_format_name(ictx.format().name()))
+    let route = classify_format_name(ictx.format().name());
+    log::info!(
+        "metadata_route artifact={} input_format={} route={route:?}",
+        crate::diagnostics::artifact_id(path),
+        ictx.format().name()
+    );
+    Ok(route)
 }
 
 pub(crate) fn classify_format_name(format_name: &str) -> ContainerRoute {

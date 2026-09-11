@@ -153,6 +153,10 @@ pub(crate) fn setup_encoder(
         )?)
     };
 
+    encoder_log(&format!("encoder_effective artifact={} encoder={:?} rate={} channels={} format={:?} frame_samples={} time_base={:?}",
+        crate::diagnostics::artifact_id(&plan.output_path), resolved_encoder_type,
+        enc_ctx.rate(), enc_ctx.channel_layout().channels(), enc_ctx.format(), enc_ctx.frame_size(), enc_ctx.time_base()));
+
     ost.set_time_base(enc_ctx.time_base());
     ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
