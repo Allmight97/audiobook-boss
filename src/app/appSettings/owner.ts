@@ -61,6 +61,7 @@ export type SettingsOwner = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
+	recoverEncoderDefaults(): Promise<void>;
 	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
@@ -162,6 +163,16 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		...capabilityValue,
 		getAppSettings: () => enqueue(() => capabilityValue.getAppSettings()),
 		updateAppSettings: (patch) => enqueue(() => capabilityValue.updateAppSettings(patch)),
+		getAppSettingsRecovery: () => enqueue(() => capabilityValue.getAppSettingsRecovery()),
+		recoverAppSettings: async (expected) => {
+			const started = generation;
+			const result = await enqueue(() => capabilityValue.recoverAppSettings(expected));
+			if (started !== generation) return result;
+			if (Object.keys(pendingPatch).length === 0)
+				publishDurability({ state: 'saved', message: '' });
+			else await persistPending();
+			return result;
+		},
 		resetAppSettings: () => {
 			writeRevision += 1;
 			concurrencyRevision += 1;
@@ -376,6 +387,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		},
 		resetAllAppSettings() {
 			return dialog.resetAllAppSettings();
+		},
+		recoverEncoderDefaults() {
+			return dialog.recoverEncoderDefaults();
 		},
 		bindAfterReset(apply) {
 			afterSettingsReset = apply;

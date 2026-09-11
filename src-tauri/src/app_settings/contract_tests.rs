@@ -14,6 +14,121 @@ fn missing_settings_file_returns_defaults() {
     assert_eq!(settings, AppSettings::default());
 }
 
+fn settings_with_future_encoder(scope: EncoderDefaultsScope) -> serde_json::Value {
+    let mut value = serde_json::to_value(AppSettings::default()).expect("settings JSON");
+    value["outputDefaults"]["outputDirectory"] = serde_json::json!("/books/output");
+    value["toolchain"]["externalFfmpegPath"] = serde_json::json!("/tools/ffmpeg");
+    value["pinnedDefaults"] = serde_json::json!({
+        "encoderDefaults": value["encoderDefaults"],
+        "maxConcurrentJobs": { "mode": "fixed", "value": 2 },
+        "outputDefaults": value["outputDefaults"],
+    });
+    let pointer = match scope {
+        EncoderDefaultsScope::LastUsed => "/encoderDefaults",
+        EncoderDefaultsScope::Pinned => "/pinnedDefaults/encoderDefaults",
+    };
+    let defaults = value.pointer_mut(pointer).expect("encoder defaults");
+    defaults["settings"]["encoderType"] = serde_json::json!("future_encoder");
+    defaults["settings"]["bitrateMode"] = serde_json::json!({ "mode": "future_mode" });
+    value
+}
+
+#[test]
+fn explicit_recovery_backs_up_original_and_changes_only_incompatible_encoder_defaults() {
+    for scope in [EncoderDefaultsScope::LastUsed, EncoderDefaultsScope::Pinned] {
+        let temp = TempDir::new().expect("temp dir");
+        let mut value = settings_with_future_encoder(scope);
+        value["futurePreference"] = serde_json::json!({ "keep": true });
+        let content = serde_json::to_string_pretty(&value).expect("original JSON");
+        let path = temp.path().join("app-settings.json");
+        std::fs::write(&path, &content).expect("write original");
+
+        assert!(get_app_settings(temp.path()).is_err());
+        let plan = get_app_settings_recovery(temp.path())
+            .expect("inspect")
+            .expect("recovery");
+        assert_eq!(
+            plan.incompatible_encoders,
+            vec![IncompatibleEncoderDefaults {
+                scope,
+                encoder_type: "future_encoder".to_string(),
+            }]
+        );
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read settings"),
+            content,
+            "inspection is read-only"
+        );
+        let result = recover_app_settings(temp.path(), plan).expect("recover");
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join(result.backup_file_name))
+                .expect("read backup"),
+            content
+        );
+        let pointer = match scope {
+            EncoderDefaultsScope::LastUsed => "/encoderDefaults",
+            EncoderDefaultsScope::Pinned => "/pinnedDefaults/encoderDefaults",
+        };
+        *value.pointer_mut(pointer).expect("encoder defaults") =
+            serde_json::to_value(EncoderDefaults::default()).expect("default encoder JSON");
+        let actual: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("read settings"))
+                .expect("recovered JSON");
+        assert_eq!(actual, value, "all other preferences survive recovery");
+        assert!(get_app_settings_recovery(temp.path())
+            .expect("inspect settings")
+            .is_none());
+        update_app_settings(
+            temp.path(),
+            AppSettingsPatch {
+                max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(3)),
+                ..Default::default()
+            },
+        )
+        .expect("normal saves work after recovery");
+    }
+}
+
+#[test]
+fn recovery_refuses_changed_encoder_plan_and_unrelated_invalid_settings() {
+    let temp = TempDir::new().expect("temp dir");
+    let path = temp.path().join("app-settings.json");
+    let mut value = settings_with_future_encoder(EncoderDefaultsScope::Pinned);
+    std::fs::write(&path, value.to_string()).expect("write settings");
+    let plan = get_app_settings_recovery(temp.path())
+        .expect("inspect settings")
+        .expect("recovery plan");
+    value["pinnedDefaults"]["encoderDefaults"]["settings"]["encoderType"] =
+        serde_json::json!("another_encoder");
+    std::fs::write(&path, value.to_string()).expect("write settings");
+    assert!(recover_app_settings(temp.path(), plan).is_err());
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read settings"),
+        value.to_string()
+    );
+    assert_eq!(
+        std::fs::read_dir(temp.path())
+            .expect("read config directory")
+            .count(),
+        1,
+        "no mutation on stale review"
+    );
+
+    value["maxConcurrentJobs"] = serde_json::json!({ "mode": "fixed", "value": 0 });
+    std::fs::write(&path, value.to_string()).expect("write settings");
+    assert!(get_app_settings_recovery(temp.path())
+        .expect("inspect settings")
+        .is_none());
+    std::fs::write(&path, "{ broken").expect("write malformed settings");
+    assert!(get_app_settings_recovery(temp.path())
+        .expect("inspect settings")
+        .is_none());
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read settings"),
+        "{ broken"
+    );
+}
+
 #[test]
 fn update_merges_top_level_patch_and_persists() {
     let temp = TempDir::new().expect("temp dir");
@@ -113,7 +228,9 @@ fn malformed_settings_file_fails_explicitly() {
 
     let error = get_app_settings(temp.path()).expect_err("malformed settings should fail");
 
-    assert!(error.to_string().contains("App settings file is invalid"));
+    assert!(error
+        .to_string()
+        .contains("Open App Settings to check recovery options"));
 }
 
 #[test]

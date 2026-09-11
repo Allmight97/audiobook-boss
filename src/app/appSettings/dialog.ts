@@ -1,7 +1,11 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import type { AppSettings, StartupBehavior } from '../../types/appSettings';
+import type {
+	AppSettings,
+	AppSettingsRecoveryPlan,
+	StartupBehavior,
+} from '../../types/appSettings';
 import type { EncoderAvailability, EncoderSettingsCapabilities } from '../../types/audio';
 
 export type SettingsSaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -20,6 +24,8 @@ export type AppSettingsDialogState = {
 	setupMessage: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
+	recovery: AppSettingsRecoveryPlan | null;
+	recoveryBackup: string;
 };
 
 function createInitialState(): AppSettingsDialogState {
@@ -37,6 +43,8 @@ function createInitialState(): AppSettingsDialogState {
 		setupMessage: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
+		recovery: null,
+		recoveryBackup: '',
 	};
 }
 
@@ -58,6 +66,7 @@ export type SettingsDialog = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
+	recoverEncoderDefaults(): Promise<void>;
 	reset(): void;
 };
 
@@ -124,6 +133,7 @@ export function createSettingsDialog(deps: {
 			update((draft) => {
 				draft.settings = settings;
 				draft.ffmpegPathDraft = settings.toolchain?.externalFfmpegPath ?? '';
+				draft.recovery = null;
 			});
 		} catch (error) {
 			update((draft) => {
@@ -131,6 +141,18 @@ export function createSettingsDialog(deps: {
 				draft.saveState = 'error';
 				draft.saveError = describeError(error);
 			});
+			try {
+				const recovery = await deps.capability().getAppSettingsRecovery();
+				update((draft) => {
+					draft.recovery = recovery;
+					if (recovery) draft.saveError = '';
+				});
+			} catch (recoveryError) {
+				update((draft) => {
+					draft.recovery = null;
+					draft.saveError += ` Recovery check failed: ${describeError(recoveryError)}`;
+				});
+			}
 		} finally {
 			update((draft) => {
 				draft.loading = false;
@@ -295,6 +317,32 @@ export function createSettingsDialog(deps: {
 				await reloadDialogData(started);
 				update((draft) => {
 					draft.saveState = 'saved';
+				});
+			} catch (error) {
+				update((draft) => {
+					draft.saveState = 'error';
+					draft.saveError = describeError(error);
+				});
+			}
+		},
+		async recoverEncoderDefaults() {
+			if (!dialog.recovery || dialog.saveState === 'saving') return;
+			const expected = dialog.recovery;
+			const started = generation;
+			const update = guardedUpdate(started);
+			update((draft) => {
+				draft.saveState = 'saving';
+				draft.saveError = '';
+			});
+			try {
+				const result = await deps.capability().recoverAppSettings(expected);
+				if (started !== generation) return;
+				update((draft) => {
+					draft.recoveryBackup = result.backupFileName;
+				});
+				await reloadDialogData(started);
+				update((draft) => {
+					if (draft.settings) draft.saveState = 'saved';
 				});
 			} catch (error) {
 				update((draft) => {

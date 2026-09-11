@@ -35,6 +35,8 @@ const native = vi.hoisted(() => ({
 	loadCoverArtFromUrl: vi.fn(),
 	searchOnlineMetadata: vi.fn(),
 	getAppSettings: vi.fn(),
+	getAppSettingsRecovery: vi.fn().mockResolvedValue(null),
+	recoverAppSettings: vi.fn(),
 	updateAppSettings: vi.fn(),
 	resetAppSettings: vi.fn(),
 	getMaxConcurrentJobs: vi.fn(),

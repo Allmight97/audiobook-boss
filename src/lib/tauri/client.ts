@@ -26,7 +26,12 @@ import type {
 	OutputKind,
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
-import type { AppSettings, AppSettingsPatch } from '../../types/appSettings';
+import type {
+	AppSettings,
+	AppSettingsPatch,
+	AppSettingsRecoveryPlan,
+	AppSettingsRecoveryResult,
+} from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
 import type {
@@ -188,6 +193,10 @@ function openDirectory(options?: DialogOptions): Promise<string | null> {
 }
 
 export const tauriClient = {
+	getAppSettingsRecovery: (): Promise<AppSettingsRecoveryPlan | null> =>
+		commandSpecs.get_app_settings_recovery(),
+	recoverAppSettings: (expected: AppSettingsRecoveryPlan): Promise<AppSettingsRecoveryResult> =>
+		commandSpecs.recover_app_settings({ expected }),
 	getAppSettings: (): Promise<AppSettings> => commandSpecs.get_app_settings(),
 	updateAppSettings: (patch: AppSettingsPatch): Promise<AppSettings> =>
 		commandSpecs.update_app_settings({ patch }),

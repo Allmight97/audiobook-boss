@@ -9,6 +9,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::get_app_settings,
             crate::commands::update_app_settings,
             crate::commands::reset_app_settings,
+            crate::commands::get_app_settings_recovery,
+            crate::commands::recover_app_settings,
             crate::commands::validate_files,
             crate::commands::read_audio_metadata,
             crate::commands::write_cover_art,

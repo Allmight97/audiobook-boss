@@ -44,6 +44,10 @@
 	margin-top: 0;
 }
 
+.app-settings-recovery {
+	overflow-wrap: anywhere;
+}
+
 .app-settings-section-title {
 	margin: 0 0 0.35rem;
 	font-size: 0.85rem;

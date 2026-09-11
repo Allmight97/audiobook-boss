@@ -6,8 +6,10 @@
   modules.
 - Types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`, `EncoderDefaults`,
   `OutputDefaults`, `ConcurrencyPreference`, `ToolchainPreferences`,
-  `StartupBehavior`, `PinnedDefaults`.
-- Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`.
+  `StartupBehavior`, `PinnedDefaults`, `AppSettingsRecoveryPlan`,
+  `AppSettingsRecoveryResult`, `EncoderDefaultsScope`, `IncompatibleEncoderDefaults`.
+- Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`,
+  `get_app_settings_recovery`, `recover_app_settings`.
 
 ## Private Cluster
 
@@ -21,6 +23,11 @@
   preference; retrying storage remains possible while jobs are active. Reset
   coordinates runtime defaults with storage and restores prior concurrency if
   storage reset fails.
+- Unsupported persisted encoders require explicit targeted recovery. Inspection
+  is read-only; recovery rechecks the reviewed encoder scopes, writes a complete
+  backup before replacement, and resets only their encoder-default groups.
+  Unrelated invalid settings block that recovery. Preserve all other JSON
+  values during recovery; ordinary runtime requests remain strictly typed.
 
 ## Edit Rules
 

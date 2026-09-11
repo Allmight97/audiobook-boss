@@ -13,7 +13,7 @@
 ## View Interactions And Proof
 
 - Settings owns its scrolling body; all sections and the bottom actions remain
-  reachable. Opening Settings starts at the FDK section. Homebrew details explain
+  reachable. Opening Settings starts at recovery when offered, otherwise the FDK section. Homebrew details explain
   dependencies and the Terminal handoff before the user launches setup.
 
 - Indexer connection fields dispatch Remote Source intents. Its API key input
@@ -22,5 +22,10 @@
   Escape dismisses it before dismissing Settings.
 - Reset requires the existing second activation. Afterburner and reset controls
   remain disabled while a dialog save is pending.
+- Full reset remains reachable when settings cannot load or targeted recovery
+  is unavailable.
+- Targeted recovery shows the backend's affected encoder scopes and explains
+  the defaults reset and backup before its explicit activation. Keep recovery
+  errors with that action rather than attributing them to FFmpeg path saving.
 - `AppSettingsDialogView.test.tsx` owns dialog interactions and visible automatic
   save failure/retry. `runtime-api-contract.test.ts` pins this UI export strip.

@@ -142,6 +142,7 @@ print_process_snapshot() {
 		$4 == "awk" { next }
 		NR == 1 ||
 		/bun run tauri dev/ ||
+		/bun scripts\/tauri.ts dev/ ||
 		/node_modules\/.bin\/tauri dev/ ||
 		/target\/debug\/audiobook-boss/ ||
 		/node_modules\/.bin\/vite/ ||
@@ -288,6 +289,7 @@ is_repo_dev_process() {
 	[[ "$cwd" == "$repo_root" ]] || return 1
 	[[ "$command" == *"bun run app:dev:log"* ||
 		"$command" == *"bun run tauri dev"* ||
+		"$command" == *"bun scripts/tauri.ts dev"* ||
 		"$command" == *"node_modules/.bin/tauri dev"* ||
 		"$command" == *"aaxclean-helper:publish && bun run dev"* ||
 		"$command" == *"bun run dev"* ||

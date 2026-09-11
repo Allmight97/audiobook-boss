@@ -37,6 +37,9 @@
 
 - `openFdkSetup` delegates the fixed bundled setup script through Audio; the
   promise means Terminal was opened, not that FDK was installed.
+- `getAppSettingsRecovery` inspects unsupported persisted encoders without
+  mutation. `recoverAppSettings` sends the reviewed plan and returns the backup
+  filename plus recovered settings; backend App Settings owns recovery policy.
 
 ## Boundary Changes
 - Adding, removing, or renaming a public export, `tauriClient` method, command name, event name, or generated overlap type.

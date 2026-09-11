@@ -1,7 +1,7 @@
 import { flush } from 'solid-js';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings } from '../../types/appSettings';
+import type { AppSettings, AppSettingsRecoveryPlan } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
 import {
 	encoderAvailabilityFixture,
@@ -43,6 +43,11 @@ function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapa
 	return {
 		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => settingsFixture()),
+		getAppSettingsRecovery: vi.fn(async () => null),
+		recoverAppSettings: vi.fn(async () => ({
+			backupFileName: 'backup.json',
+			settings: settingsFixture(),
+		})),
 		updateAppSettings: vi.fn(async (patch) =>
 			settingsFixture({
 				defaultAcquisitionLane:
@@ -81,6 +86,83 @@ describe('AppSettingsDialogView', () => {
 		));
 		return runtime;
 	}
+
+	it('offers targeted recovery after inspection and reports its backup only after success', async () => {
+		let recovered = false;
+		const plan: AppSettingsRecoveryPlan = {
+			incompatibleEncoders: [{ scope: 'pinned', encoderType: 'faac_he_aac' }],
+		};
+		const recover = vi.fn(async () => {
+			recovered = true;
+			return {
+				backupFileName: 'app-settings.before-recovery-test.json',
+				settings: settingsFixture(),
+			};
+		});
+		await renderOpenDialog({
+			getAppSettings: vi.fn(async () => {
+				if (!recovered) throw new Error('Open App Settings to check recovery options.');
+				return settingsFixture();
+			}),
+			getAppSettingsRecovery: vi.fn(async () => plan),
+			recoverAppSettings: recover,
+		});
+		expect(screen.getByRole('listitem')).toHaveTextContent('Pinned defaults: faac_he_aac');
+		expect(
+			screen.getByText(/Output folders and other preferences will be preserved/),
+		).toBeInTheDocument();
+		expect(recover).not.toHaveBeenCalled();
+		await fireEvent.click(screen.getByRole('button', { name: 'Back up and recover defaults' }));
+		await vi.waitFor(() => expect(recover).toHaveBeenCalledWith(plan));
+		await vi.waitFor(() =>
+			expect(screen.getByText(/Saved defaults recovered/)).toBeInTheDocument(),
+		);
+		expect(
+			screen.queryByRole('button', { name: 'Back up and recover defaults' }),
+		).not.toBeInTheDocument();
+		expect(screen.getByText('app-settings.before-recovery-test.json')).toBeInTheDocument();
+	});
+
+	it('keeps the confirmed full reset reachable when targeted recovery is unavailable', async () => {
+		let reset = false;
+		await renderOpenDialog({
+			getAppSettings: vi.fn(async () => {
+				if (!reset) throw new Error('Malformed settings file');
+				return settingsFixture();
+			}),
+			resetAppSettings: vi.fn(async () => {
+				reset = true;
+				return settingsFixture();
+			}),
+		});
+		expect(
+			screen.queryByRole('button', { name: 'Back up and recover defaults' }),
+		).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByTestId('app-settings-reset'));
+		expect(settings.resetAppSettings).not.toHaveBeenCalled();
+		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
+		await vi.waitFor(() => expect(settings.resetAppSettings).toHaveBeenCalledOnce());
+	});
+
+	it('keeps recovery retryable when the backup cannot be saved', async () => {
+		await renderOpenDialog({
+			getAppSettings: vi.fn(async () => {
+				throw new Error('Unsupported saved encoder');
+			}),
+			getAppSettingsRecovery: vi.fn(async () => ({
+				incompatibleEncoders: [{ scope: 'pinned' as const, encoderType: 'future_encoder' }],
+			})),
+			recoverAppSettings: vi.fn(async () => {
+				throw new Error('Cannot write settings backup');
+			}),
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Back up and recover defaults' }));
+		await vi.waitFor(() =>
+			expect(screen.getByText('Cannot write settings backup')).toBeInTheDocument(),
+		);
+		expect(screen.getByRole('button', { name: 'Back up and recover defaults' })).toBeEnabled();
+		expect(screen.queryByText(/Saved defaults recovered/)).not.toBeInTheDocument();
+	});
 
 	it('routes missing FDK to setup and rechecks an installation without saving a path', async () => {
 		let fdkAvailable = false;

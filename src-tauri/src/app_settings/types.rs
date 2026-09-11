@@ -88,6 +88,33 @@ pub struct EncoderDefaults {
     pub sample_rate: SampleRateConfig,
 }
 
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum EncoderDefaultsScope {
+    LastUsed,
+    Pinned,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct IncompatibleEncoderDefaults {
+    pub scope: EncoderDefaultsScope,
+    pub encoder_type: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsRecoveryPlan {
+    pub incompatible_encoders: Vec<IncompatibleEncoderDefaults>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsRecoveryResult {
+    pub backup_file_name: String,
+    pub settings: AppSettings,
+}
+
 #[derive(
     Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
 )]
