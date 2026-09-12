@@ -36,10 +36,11 @@ fn audio_contract_rejects_missing_input_path() {
 fn audio_contract_rejects_invalid_encoder_bitrate() {
     let settings = EncoderSettings {
         encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 1,
+        bitrate_kbps: 0,
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Mono,
         afterburner: true,
+        native_aac_speed: 0,
     };
 
     let err = validate_encoder_settings(&settings).expect_err("invalid bitrate should fail");

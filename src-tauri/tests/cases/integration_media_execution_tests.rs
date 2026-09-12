@@ -95,7 +95,15 @@ const SAMPLE_RATE: u32 = 44_100;
 /// An encoder-sized zero pad must not become playable source audio.
 #[tokio::test]
 async fn native_aac_reprocessing_keeps_the_original_playable_sample_count() {
-    assert_reprocessing_sample_count(native_encoder_settings()).await;
+    for settings in [
+        native_encoder_settings(),
+        EncoderSettings {
+            native_aac_speed: 4,
+            ..native_encoder_settings()
+        },
+    ] {
+        assert_reprocessing_sample_count(settings).await;
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -354,6 +362,7 @@ fn native_encoder_settings() -> EncoderSettings {
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Mono,
         afterburner: false,
+        native_aac_speed: 0,
     }
 }
 
@@ -1153,6 +1162,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         bitrate_mode: BitrateMode::Cvbr,
         channels: ChannelConfig::Mono,
         afterburner: false,
+        native_aac_speed: 0,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());

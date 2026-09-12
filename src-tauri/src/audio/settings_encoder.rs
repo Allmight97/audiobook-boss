@@ -89,22 +89,22 @@ impl ChannelConfig {
 #[serde(rename_all = "camelCase")]
 pub struct EncoderSettings {
     pub encoder_type: EncoderType,
-    /// Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps).
+    /// Target kbps. Native AAC additionally checks the resolved rate/channel ceiling.
     /// Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
     pub bitrate_kbps: u16,
     pub bitrate_mode: BitrateMode,
     pub channels: ChannelConfig,
     /// Applies to FDK encoder only
     pub afterburner: bool,
+    /// Native NMR search speed, upstream default 0.
+    #[serde(default)]
+    pub native_aac_speed: u8,
 }
 
-/// Whitelist of supported encoder bitrates for speech-oriented output
-pub const VALID_ENCODER_BITRATES: &[u16] = &[48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128];
-
-/// Valid VBR level range for encoders that support VBR.
+/// Valid FDK VBR level range.
 pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u8> = 1..=5;
 
-/// Default VBR level for audiobook speech output.
+/// Default FDK VBR level for audiobook speech output.
 pub const DEFAULT_VBR_LEVEL: u8 = 3;
 
 const ALL_ENCODER_TYPES: [EncoderType; 4] = [
@@ -113,26 +113,26 @@ const ALL_ENCODER_TYPES: [EncoderType; 4] = [
     EncoderType::AacAt,
     EncoderType::NativeAac,
 ];
-const AUTO_ENCODER_RESOLUTION_ORDER: [EncoderType; 3] = [
-    EncoderType::FdkHeAac,
-    EncoderType::AacAt,
-    EncoderType::NativeAac,
+const AUTO_MODES: [BitrateModeKind; 3] = [
+    BitrateModeKind::Vbr,
+    BitrateModeKind::Cvbr,
+    BitrateModeKind::Cbr,
 ];
 const VBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Vbr];
 const CVBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cvbr];
 const CBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cbr];
 
+pub const MAX_ENCODER_BITRATE: u16 = 1152;
+pub const NATIVE_SPEED_MAX: u8 = 4;
+
 pub fn all_encoder_types() -> [EncoderType; 4] {
     ALL_ENCODER_TYPES
 }
 
-pub fn auto_encoder_resolution_order() -> [EncoderType; 3] {
-    AUTO_ENCODER_RESOLUTION_ORDER
-}
-
 pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [BitrateModeKind] {
     match encoder_type {
-        EncoderType::Auto | EncoderType::FdkHeAac => &VBR_ONLY,
+        EncoderType::Auto => &AUTO_MODES,
+        EncoderType::FdkHeAac => &VBR_ONLY,
         EncoderType::AacAt => &CVBR_ONLY,
         EncoderType::NativeAac => &CBR_ONLY,
     }
@@ -148,22 +148,22 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
 
 /// Validates encoder settings (no engine side-effects)
 pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
-    validate_bitrate(settings.bitrate_kbps)?;
+    if matches!(settings.bitrate_mode, BitrateMode::Cbr | BitrateMode::Cvbr)
+        && (settings.bitrate_kbps == 0 || settings.bitrate_kbps > MAX_ENCODER_BITRATE)
+    {
+        return Err(AppError::InvalidInput(format!("Target bitrate must be 1..={MAX_ENCODER_BITRATE} kbps; the encoder, sample rate and channels may lower this ceiling.")));
+    }
+    if matches!(
+        settings.encoder_type,
+        EncoderType::NativeAac | EncoderType::Auto
+    ) && settings.native_aac_speed > NATIVE_SPEED_MAX
+    {
+        return Err(AppError::InvalidInput("NMR speed must be 0..=4".into()));
+    }
     validate_bitrate_mode(settings.bitrate_mode)?;
     validate_encoder_mode_combo(settings.encoder_type, settings.bitrate_mode)?;
 
     Ok(())
-}
-
-fn validate_bitrate(bitrate_kbps: u16) -> Result<()> {
-    if VALID_ENCODER_BITRATES.contains(&bitrate_kbps) {
-        Ok(())
-    } else {
-        Err(AppError::InvalidInput(format!(
-            "Unsupported bitrate_kbps: {}. Valid: {:?}",
-            bitrate_kbps, VALID_ENCODER_BITRATES
-        )))
-    }
 }
 
 fn validate_bitrate_mode(mode: BitrateMode) -> Result<()> {
@@ -220,6 +220,35 @@ pub fn is_encoder_available_by_name(name: &str) -> bool {
         if result { "FOUND" } else { "NOT FOUND" }
     );
     result
+}
+
+/// Probe the required NMR controls on the named encoder's private options.
+/// Opening each requested configuration still performs authoritative readback.
+pub(crate) fn is_native_nmr_available() -> bool {
+    use ffmpeg_next as ff;
+    ensure_ffmpeg_initialized();
+    let Some(codec) = ff::encoder::find_by_name("aac") else {
+        return false;
+    };
+    let mut ctx = ff::codec::context::Context::new_with_codec(codec);
+    // SAFETY: ctx owns its private options; C literals are NUL-terminated.
+    unsafe {
+        if ctx.as_mut_ptr().is_null() {
+            return false;
+        }
+        ff::ffi::av_opt_set(
+            ctx.as_mut_ptr().cast(),
+            c"aac_coder".as_ptr(),
+            c"nmr".as_ptr(),
+            ff::ffi::AV_OPT_SEARCH_CHILDREN,
+        ) >= 0
+            && ff::ffi::av_opt_set_int(
+                ctx.as_mut_ptr().cast(),
+                c"aac_nmr_speed".as_ptr(),
+                4,
+                ff::ffi::AV_OPT_SEARCH_CHILDREN,
+            ) >= 0
+    }
 }
 
 /// Resolves the actual encoder to use based on requested type + availability.

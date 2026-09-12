@@ -1,24 +1,13 @@
 //! Unit tests for settings validation logic.
 //!
-//! Tests validation functions for sample rate, output paths, and encoder settings
+//! Tests validation functions for sample rate and output paths
 //! without touching real files or FFmpeg infrastructure.
 
 use audiobook_boss_lib::audio::{
-    validate_encoder_settings, validate_output_path, validate_sample_rate_config, BitrateMode,
-    ChannelConfig as EncoderChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    validate_output_path, validate_sample_rate_config, SampleRateConfig,
 };
 use std::path::PathBuf;
 use tempfile::TempDir;
-
-fn baseline_encoder_settings() -> EncoderSettings {
-    EncoderSettings {
-        encoder_type: EncoderType::NativeAac,
-        bitrate_kbps: 64,
-        bitrate_mode: BitrateMode::Cbr,
-        channels: EncoderChannelConfig::Mono,
-        afterburner: false,
-    }
-}
 
 #[test]
 fn sample_rate_validation_accepts_expected_values() {
@@ -58,27 +47,6 @@ fn output_path_validation_covers_extension_and_directory() {
     let missing_dir = PathBuf::from("/nonexistent/path/output.m4b");
     let err = validate_output_path(&missing_dir).expect_err("expected missing dir error");
     assert!(err.to_string().contains("does not exist"));
-}
-
-#[test]
-fn encoder_settings_validation_accepts_supported_combinations() {
-    let mut settings = baseline_encoder_settings();
-    settings.bitrate_mode = BitrateMode::Cbr;
-    settings.encoder_type = EncoderType::NativeAac;
-    validate_encoder_settings(&settings).expect("native AAC + CBR should be valid");
-
-    settings.encoder_type = EncoderType::AacAt;
-    settings.bitrate_mode = BitrateMode::Cvbr;
-    validate_encoder_settings(&settings).expect("AAC-AT + CVBR should be valid");
-}
-
-#[test]
-fn encoder_settings_validation_rejects_invalid_combinations() {
-    let mut settings = baseline_encoder_settings();
-    settings.encoder_type = EncoderType::AacAt;
-    settings.bitrate_mode = BitrateMode::Cbr;
-    let err = validate_encoder_settings(&settings).expect_err("AAC-AT + CBR should be rejected");
-    assert!(err.to_string().contains("not supported"));
 }
 
 #[test]

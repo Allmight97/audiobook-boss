@@ -150,6 +150,7 @@ mod tests {
             bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Auto,
             afterburner: false,
+            native_aac_speed: 0,
         }
     }
 
