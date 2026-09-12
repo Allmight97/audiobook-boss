@@ -3,18 +3,7 @@ use std::cell::Cell;
 use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tempfile::TempDir;
-
-struct DropProbe {
-    dropped: Arc<AtomicBool>,
-}
-
-impl Drop for DropProbe {
-    fn drop(&mut self) {
-        self.dropped.store(true, Ordering::Release);
-    }
-}
 
 #[test]
 fn commit_output_artifact_preserves_moved_output_on_post_move_cancel() {
@@ -53,17 +42,61 @@ fn commit_output_artifact_preserves_moved_output_on_post_move_cancel() {
 }
 
 #[test]
+fn committed_output_survives_cleanup_failure_with_visible_warning_and_retry() {
+    let root = TempDir::new().expect("create isolated test directory");
+    let workspace = root.path().join("workspace");
+    let backup = root.path().join("workspace-backup");
+    std::fs::create_dir(&workspace).expect("create test workspace");
+    let staged = workspace.join("staged.m4b");
+    let output = root.path().join("book.m4b");
+    std::fs::write(&staged, b"complete book").expect("write test fixture");
+    let mut guard = CleanupGuard::new("cleanup-warning".into());
+    let outcome = commit_output_artifact_after_move(
+        OutputCommitRequest::new(&output, PlannedOutputAction::Write),
+        staged.clone(),
+        &mut guard,
+        || {
+            std::fs::rename(&workspace, &backup).expect("move test workspace");
+            std::fs::write(&workspace, b"blocks cleanup traversal").expect("write test fixture");
+        },
+        || false,
+    )
+    .expect("publication remains successful when staged cleanup fails");
+    assert_eq!(
+        std::fs::read(&output).expect("read published artifact"),
+        b"complete book"
+    );
+    let success = finalized_output_success(
+        OutputKind::Final,
+        &output,
+        false,
+        outcome.cleanup_warning.as_deref(),
+    );
+    assert!(success
+        .result_message
+        .contains("temporary files could not be removed"));
+    std::fs::remove_file(&workspace).expect("remove test traversal blocker");
+    std::fs::rename(&backup, &workspace).expect("move test workspace");
+    drop(guard);
+    assert!(!staged.exists());
+    assert_eq!(
+        std::fs::read(&output).expect("read published artifact"),
+        b"complete book"
+    );
+}
+
+#[test]
 fn finalized_output_success_keeps_success_messages_after_post_commit_cancel() {
     let output = Path::new("/tmp/final-output.m4b");
 
-    let preview = finalized_output_success(OutputKind::Preview, output, true);
+    let preview = finalized_output_success(OutputKind::Preview, output, true, None);
     assert_eq!(preview.ui_message, "Preview created successfully");
     assert_eq!(
         preview.result_message,
         "Successfully created preview: /tmp/final-output.m4b"
     );
 
-    let full = finalized_output_success(OutputKind::Final, output, true);
+    let full = finalized_output_success(OutputKind::Final, output, true, None);
     assert_eq!(full.ui_message, "Processing complete");
     assert_eq!(
         full.result_message,
@@ -153,7 +186,10 @@ fn replace_existing_copies_to_destination_temp_on_cross_device_rename() {
         std::fs::read(&final_output).expect("read final output"),
         b"new"
     );
-    assert!(!temp_output.exists(), "staged source should be consumed");
+    assert!(
+        temp_output.exists(),
+        "the commit owner cleans staged source after publication"
+    );
     assert!(
         std::fs::read_dir(&destination_dir)
             .expect("read destination")
@@ -216,25 +252,6 @@ fn replace_existing_cross_device_fallback_preserves_source_and_destination_on_in
                 .starts_with(".abb_replace_install_")),
         "destination temp replacement should be cleaned on failure"
     );
-}
-
-#[test]
-fn copy_fallback_closes_source_before_removing_temp_output() {
-    let dropped = Arc::new(AtomicBool::new(false));
-    let source = DropProbe {
-        dropped: Arc::clone(&dropped),
-    };
-    let temp_output = Path::new("/tmp/staged-output.m4b");
-    let final_output = Path::new("/tmp/final-output.m4b");
-
-    remove_copied_temp_output_with(temp_output, final_output, source, |_path| {
-        assert!(
-            dropped.load(Ordering::Acquire),
-            "staged source handle must be closed before removal"
-        );
-        Ok(())
-    })
-    .expect("remove should succeed");
 }
 
 #[test]
