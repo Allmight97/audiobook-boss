@@ -4,6 +4,39 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-11 - Native NMR Uses Pinned FFmpeg Source And Matching Wrappers
+
+- Outcome: `vendor/ffmpeg-sys-next-9.0.0/ffmpeg-revision` selects the immutable
+  FFmpeg source for bundled Rust builds and Linux setup. Native AAC requires
+  the upstream NMR coder, which is absent from the FFmpeg 9 release. The two
+  `ABB-PROVENANCE.md` files under `vendor/` own wrapper/header changes and
+  their retirement conditions. ABB retains the CoreAudio link and QuickTime
+  chapter-start fix.
+- Evidence: the selected source adds required enum values absent from the
+  published Rust wrapper. Bundled cache reuse now compares source/patch,
+  build-script, effective compiler, target, features, CPU, and SDK inputs;
+  otherwise a changed build could silently reuse older FFmpeg libraries.
+- Guardrail: advance source, wrapper mappings, and header/runtime proof together.
+  Local development, tests, app builds, and developer installs use
+  `bundled-ffmpeg`; distributable DMGs use `bundled-ffmpeg-portable`.
+
+## 2026-09-11 - Encoder Controls Follow The Effective Backend
+
+- Outcome: Native AAC uses NMR target bitrate with an advanced speed control;
+  its opened coder, speed, and bitrate must match the request. Native quality
+  mode is outside the product contract. Long-book trials favored target bitrate
+  for predictable size; quality mode took longer and varied substantially by book.
+- Outcome: the frontend derives rate mode from the effective backend capability.
+  Native and Apple accept numeric targets; FDK keeps its quality control.
+  Encoding owns typed request construction, avoiding a second normalization
+  layer or a separately mutable rate-mode choice. Pending capability discovery
+  preserves the validated saved mode for explicit encoders. Auto submission
+  requires capabilities so its effective encoder determines the mode.
+- Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,
+  `src/app/encoding/`, and the encoder interaction and media execution tests.
+- Guardrail: encoder controls must change a shipped path. FDK stays owned by
+  the external FFmpeg adapter; the in-process engine rejects it explicitly.
+
 ## 2026-09-10 - Development State Belongs To The Checkout
 
 - Outcome: development launches and debug bundles derive their app identity from
@@ -114,8 +147,8 @@ git history and closed issues own superseded chronology.
 
 - Outcome: ABB's frontend compiler is TypeScript 7 via `@typescript/native`
   and the `typescript` package slot. ABB-owned code does not import
-  `typescript`. Bun is `1.4.0`. Effect is an exact v4 RC pin
-  (`4.0.0-rc.112` at landing), not a range. Workflow owners consume Effect
+  `typescript`. Bun version truth is `package.json#packageManager`. Effect uses
+  an exact v4 RC pin from the manifest. Workflow owners consume Effect
   only through `src/lib/effect/appEffect.ts`.
 - Evidence: `package.json`, `bun.lock`, `.github/workflows/ci.yml`,
   `scripts/check-tauri-runtime-boundary.ts`.
@@ -138,11 +171,12 @@ git history and closed issues own superseded chronology.
   Dependabot cooldown gates update PRs. Cargo has no release-age filter, so
   manual `cargo update` has no gate and relies on reviewer discipline.
   Security fixes bypass the age with focused proof. Explicit `bun run update:rc`
-  updates also bypass the age for the Solid/Effect prerelease family and its
-  Solid compiler/Vite/testing companions only, resolving compatible package
-  tags individually and saving exact pins. All other dependencies retain the
-  ten-day gate, including unrelated transitive resolutions through the explicit
-  `minimumReleaseAgeExcludes` list in `bunfig.toml`.
+  updates also bypass the age for the Solid/Effect prerelease families and
+  their required runtime, serialization, compiler, Vite, and testing companions
+  listed in `bunfig.toml`, resolving compatible tags individually and saving
+  exact pins. All other dependencies retain the ten-day gate. Compiler platform
+  packages belong to that family: omitting them let installation pass while
+  leaving the required compiler unavailable at build time.
 - Outcome: weekly Dependabot version updates for Cargo and the text `bun.lock`
   ecosystem use the same 10-day cooldown, compatible-update groups, and a low
   PR limit.
@@ -219,30 +253,6 @@ git history and closed issues own superseded chronology.
   wire contract must remain non-nullable; keep focused owner and generated-type
   proof beside that exception.
 
-## 2026-08-09 - FFmpeg 9 Uses a Minimal Source-Provenance Vendor (#441)
-
-- Outcome: ABB moves `ffmpeg-next` and `ffmpeg-sys-next` together to 9.0.0 and
-  retains a minimal `ffmpeg-sys-next` vendor to replace its mutable
-  `release/9.0` clone with FFmpeg tag `n9.0`, verified at peeled commit
-  `d32b387f2b0a484599d4587d651891f0c63c4238`, and restore the `CoreAudio`
-  framework required by FFmpeg's AudioToolbox device symbols. Distributed
-  DMG builds enable `build-portable`; ordinary source builds target their
-  compiling Apple Silicon host natively. The owned QuickTime chapter patch
-  preserves a nonzero first chapter start; build caches include its hash.
-- Evidence: exact v1.3.1 source compiled unchanged against Homebrew FFmpeg 9
-  and completed an upstream bundled FFmpeg 9 build; upstream sys 9.0.0 still
-  follows a mutable release branch. The first bundled runtime-test link then
-  failed on `AudioObjectGetPropertyData*` until `CoreAudio` was restored.
-  Prepending chapterless audio reproduced incorrect chapter offsets on n9.0;
-  the media regression checks accepted chapters and raw QuickTime timing.
-- Guardrail: keep the vendor diff limited to source selection, commit
-  verification, the chapter initialization fix, and the proven `CoreAudio`
-  link requirement; advance the FFmpeg tag/commit deliberately with
-  wrapper/sys review and the media,
-  packaging, and release proof in issue #441. Only builds producing a
-  distributable DMG use `bundled-ffmpeg-portable`; local development, tests,
-  app builds, and developer installs use `bundled-ffmpeg`.
-
 ## 2026-08-09 - FileList Sort Changes Processing Order
 
 - Outcome: filename sorting rewrites the queue using natural numeric basename order; FileList retains path-keyed arrival ordinals and exposes Restore import order when visible order diverges.
@@ -255,17 +265,6 @@ git history and closed issues own superseded chronology.
 - Outcome: webview errors and unhandled rejections reach the local captured dev log through the bounded `log_frontend` Runtime Boundary command.
 - Evidence: `src/lib/frontendLogBridge.ts`, `src-tauri/src/commands/frontend_log.rs`, and `scripts/dev-log-analysis.test.ts`.
 - Guardrail: forward only a short sanitized error name/category and message; arbitrary rejection values, provider payloads, and secrets do not cross the boundary.
-
-## 2026-07-04 - Encoder Settings Carry No Inert Knobs
-
-- `EncoderSettings` has no `threads` or `twoloop` field: AAC encoders (native
-  `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, and FFmpeg's native
-  coder default is already twoloop — both knobs were end-to-end no-ops.
-- The in-process engine refuses `FdkHeAac` with a typed error; FDK is owned
-  exclusively by the external FFmpeg adapter (evidence: adapter routing in
-  `processor/adapter.rs`, encoder guard in `processor/encoder/context.rs`).
-- Guardrail: reintroducing an encoder knob requires evidence it changes output
-  for at least one shipped encoder path.
 
 ## 2026-07-04 - Resampler Tail Is Bounded And Flushed At File Boundaries
 

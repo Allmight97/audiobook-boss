@@ -259,10 +259,10 @@ describe('UI Workflow Smoke Test', () => {
 				document.getElementById('adv-encoder') as HTMLSelectElement,
 				'native_aac',
 			);
-			await user.selectOptions(
-				document.getElementById('output-bitrate') as HTMLSelectElement,
-				'96',
-			);
+			const targetBitrate = document.getElementById('output-bitrate') as HTMLInputElement;
+			await user.clear(targetBitrate);
+			await user.type(targetBitrate, '96');
+			await user.tab();
 			await user.selectOptions(
 				document.getElementById('output-samplerate') as HTMLSelectElement,
 				'44100',
@@ -292,7 +292,8 @@ describe('UI Workflow Smoke Test', () => {
 						bitrateKbps: 96,
 						bitrateMode: { mode: 'cbr' },
 						channels: 'mono',
-						afterburner: false,
+						afterburner: true,
+						nativeAacSpeed: 0,
 					},
 					sampleRate: { explicit: 44100 },
 					jobType: 'batch',

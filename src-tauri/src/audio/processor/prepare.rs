@@ -38,12 +38,14 @@ pub(crate) fn validate_processing_inputs(
 pub(crate) fn prepare_workspace(
     context: &ProcessingContext,
     files: &[AudioFile],
+    cleanup: &mut crate::audio::CleanupGuard,
 ) -> Result<ProcessingWorkflow> {
     let temp_dir = crate::audio::processor::staging::create_processing_workspace_dir(
         context.session.uuid(),
         context.processing_workspace_root(),
     )?;
 
+    cleanup.add_path(&temp_dir);
     let total_duration = progress_total_duration(files, context.preview.as_ref());
 
     if context.is_cancelled() {
@@ -81,12 +83,13 @@ pub(crate) fn progress_total_duration(files: &[AudioFile], preview: Option<&Prev
 pub(crate) fn validate_and_prepare(
     context: &ProcessingContext,
     files: &[AudioFile],
+    cleanup: &mut crate::audio::CleanupGuard,
 ) -> Result<ProcessingWorkflow> {
     validate_processing_inputs(context, files)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
-    prepare_workspace(context, files)
+    prepare_workspace(context, files, cleanup)
 }
 
 #[cfg(test)]
@@ -114,6 +117,44 @@ mod tests {
             is_valid,
             error: None,
         }
+    }
+
+    #[tokio::test]
+    async fn cancellation_after_workspace_creation_keeps_cleanup_ownership() {
+        use crate::audio::{
+            BitrateMode, ChannelConfig, CleanupGuard, EncoderSettings, EncoderType,
+            SampleRateConfig,
+        };
+        use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
+        let registry = JobRegistry::new(1);
+        let (job, _permit) = registry.register_job().await.expect("register test job");
+        let checker = registry.cancellation_checker(job).await;
+        registry.cancel_job(job).await.expect("cancel test job");
+        let root = tempfile::TempDir::new().expect("create isolated test directory");
+        let workspace = root.path().join("sessions");
+        let context = ProcessingContext::new_headless_with_workspace_root(
+            std::sync::Arc::new(ProcessingSession::from_job_registry(job.0, checker)),
+            EncoderSettings {
+                encoder_type: EncoderType::NativeAac,
+                bitrate_kbps: 64,
+                bitrate_mode: BitrateMode::Cbr,
+                channels: ChannelConfig::Mono,
+                afterburner: false,
+                native_aac_speed: 0,
+            },
+            SampleRateConfig::Auto,
+            OutputConfig::new(root.path().join("output.m4b")),
+            workspace.clone(),
+        );
+        let mut cleanup = CleanupGuard::new(context.session.id());
+        assert!(prepare_workspace(&context, &[], &mut cleanup).is_err());
+        drop(cleanup);
+        assert_eq!(
+            std::fs::read_dir(workspace)
+                .expect("inspect workspace residue")
+                .count(),
+            0
+        );
     }
 
     #[test]

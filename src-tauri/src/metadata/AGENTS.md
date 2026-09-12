@@ -66,6 +66,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   naming projection, write plans, validation/normalization, and cover-art
   handling.
 - Preserve external audiobook tag interoperability.
+- FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
+  described comments, with lexical key order breaking ties. Explicit comment
+  set/clear removes those user-comment aliases; noop preserves them. `iTun*`
+  COMM descriptors are technical passthrough records, never display or clear
+  candidates. This policy lives in `field_schema::comment_key_rank`.
 - MP4 artist and composer reads join repeated values with `;`, matching FFmpeg's
   text projection. Artist values take precedence over album-artist fallback.
   Unrelated save intent preserves repeated source values; processing and explicit

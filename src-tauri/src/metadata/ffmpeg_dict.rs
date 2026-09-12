@@ -252,6 +252,41 @@ mod tests {
     }
 
     #[test]
+    fn comment_edits_replace_language_aliases_and_preserve_technical_comments() {
+        for comment in [None, Some(""), Some("New comment")] {
+            let mut source = ff::Dictionary::new();
+            for (key, value) in [
+                ("comment-eng", "English"),
+                ("comment-comment-fra", "French"),
+                ("comment-reader note-eng", "Reader note"),
+                ("comment-iTunSMPB-eng", "gapless timing"),
+                ("comment-iTunNORM-eng", "normalization"),
+            ] {
+                source.set(key, value);
+            }
+            let plan = MetadataWritePlan::from_metadata(AudiobookMetadata {
+                comment: comment.map(str::to_owned),
+                ..Default::default()
+            });
+            let merged =
+                merge_metadata_with_plan(source, &plan).expect("apply comment edit to source tags");
+            assert_eq!(merged.get("comment-iTunSMPB-eng"), Some("gapless timing"));
+            assert_eq!(merged.get("comment-iTunNORM-eng"), Some("normalization"));
+            for key in [
+                "comment-eng",
+                "comment-comment-fra",
+                "comment-reader note-eng",
+            ] {
+                assert_eq!(merged.get(key).is_some(), comment.is_none());
+            }
+            assert_eq!(
+                merged.get("comment"),
+                comment.filter(|value| !value.is_empty())
+            );
+        }
+    }
+
+    #[test]
     fn merge_metadata_preserves_album_sort_without_explicit_intent() {
         let plan = MetadataWritePlan {
             metadata: AudiobookMetadata {

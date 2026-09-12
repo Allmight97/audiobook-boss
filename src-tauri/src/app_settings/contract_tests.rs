@@ -152,6 +152,30 @@ fn update_merges_top_level_patch_and_persists() {
 }
 
 #[test]
+fn native_target_and_speed_survive_settings_reload() {
+    let temp = TempDir::new().expect("create isolated test directory");
+    let mut defaults = EncoderDefaults::default();
+    defaults.settings.encoder_type = EncoderType::NativeAac;
+    defaults.settings.bitrate_mode = BitrateMode::Cbr;
+    defaults.settings.native_aac_speed = 4;
+    defaults.settings.bitrate_kbps = 193;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(defaults.clone()),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("persist native target and speed");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("reload persisted encoder settings")
+            .encoder_defaults,
+        defaults
+    );
+}
+
+#[test]
 fn serialized_updates_preserve_independent_patches() {
     let temp = TempDir::new().expect("temp dir");
     let config_dir = Arc::new(temp.path().to_path_buf());

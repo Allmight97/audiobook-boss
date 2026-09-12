@@ -2,7 +2,6 @@ import { formatFileSize } from '../../types/audio';
 
 export type EstimateEncoderRequest = {
 	readonly bitrateKbps: number;
-	readonly channels: string;
 };
 
 export function estimateEncodedSizeBytes(
@@ -14,9 +13,6 @@ export function estimateEncodedSizeBytes(
 	}
 
 	let sizeBytes = (durationSeconds * request.bitrateKbps * 1000) / 8;
-	if (request.channels === 'stereo') {
-		sizeBytes *= 1.5;
-	}
 	sizeBytes *= 1.03;
 	return Math.round(sizeBytes);
 }

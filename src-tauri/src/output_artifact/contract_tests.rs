@@ -114,11 +114,11 @@ fn output_artifact_commit_contract_promotes_temp_output_and_reports_success() {
     assert!(final_output.exists());
     assert!(!outcome.cancelled);
 
-    let preview_success = finalized_output_success(OutputKind::Preview, &final_output, false);
+    let preview_success = finalized_output_success(OutputKind::Preview, &final_output, false, None);
     assert_eq!(preview_success.ui_message, "Preview created successfully");
     assert!(preview_success.result_message.contains("preview"));
 
-    let final_success = finalized_output_success(OutputKind::Final, &final_output, false);
+    let final_success = finalized_output_success(OutputKind::Final, &final_output, false, None);
     assert_eq!(final_success.ui_message, "Processing complete");
     assert!(final_success.result_message.contains("audiobook"));
 }

@@ -39,7 +39,9 @@
   settings come from that context so the request cannot carry conflicting copies.
 - Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
-- Constants: `VALID_ENCODER_BITRATES`.
+- Target bitrate bounds and native speed bounds come from
+  `EncoderSettingsCapabilities`. Native target bitrate also checks the resolved
+  AAC ceiling; opened NMR settings must match the request.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
 - Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled
@@ -120,7 +122,9 @@
   channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
 - Keep Native AAC, Apple AAC/AAC-AT, and external FDK behavior distinct. They are different encoder/toolchain targets with different sample formats and quality profiles.
-- Treat Native AAC as a compatibility path. Do not hide quality limitations behind silent downgrade behavior.
+- Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
+  bitrate and search speed. Auto preserves the selected mode, and the resolved
+  encoder rejects incompatible intent.
 
 ## Hard Invariants
 

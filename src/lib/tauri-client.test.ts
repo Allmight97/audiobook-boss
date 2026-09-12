@@ -442,7 +442,7 @@ describe('tauriClient nullish adapters', () => {
 		const [commandName, args = {}] = lastCall as [string, Record<string, unknown>?];
 		expect(commandName).toBe('get_runtime_settings_capabilities');
 		expect(args).toEqual({});
-		expect(capabilities.encoder.bitrateKbpsOptions).toContain(128);
+		expect(capabilities.encoder.bitrateKbpsMax).toBe(1152);
 		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
 
@@ -721,8 +721,9 @@ describe('tauriClient nullish adapters', () => {
 					statusMessage: 'FDK AAC detected and ready.',
 				},
 				encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
-				autoResolutionOrder: ['fdk_he_aac', 'aac_at', 'native_aac'],
-				bitrateKbpsOptions: [64],
+				bitrateKbpsMin: 1,
+				bitrateKbpsMax: 1152,
+				nativeSpeedMax: 4,
 				bitrateModesByEncoder: [
 					{ encoderType: 'auto', allowedModes: ['vbr'], defaultMode: { mode: 'vbr', value: 3 } },
 				],

@@ -17,8 +17,17 @@
 
 ## Hard Invariants
 
-- Request-shaped truth. VBR quality is not the sticky CBR/CVBR `bitrateKbps`.
-  Estimate kbps uses the VBR table; it never parses `Est: ~60 kbps`.
+- FDK quality, target kbps, and NMR speed stay independent across session encoder
+  switches. FDK estimates use its quality table; target bitrate already includes
+  all channels.
+- Derive rate mode from the effective encoder's backend capability. Views expose
+  FDK quality or a numeric target; rate mode is not separately selected. While
+  discovery is pending, preserve the validated hydrated mode so saved Native or
+  Apple requests stay usable. `request()` rejects Auto without capabilities;
+  estimates and saved defaults remain readable. Processing surfaces the rejection
+  before preparation or submission. Build typed requests directly from this owner's state.
+- Backend capabilities own numeric bounds. Apply bounds when hydrating defaults
+  or reloading capabilities as well as accepting user edits.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`
   do not persist. Only `select` and `setAfterburner` persist last-used
   defaults through the injected Settings `rememberEncoderDefaults` intent.
@@ -33,7 +42,7 @@
 - Afterburner is encoding truth. The checkbox stays in the Settings dialog.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.
-- Estimated-size bytes stay in Output; this owner supplies kbps and channels.
+- Estimated-size bytes stay in Output; this owner supplies total kbps.
   The `~ 12.3 MB` span stays in EncoderView.
 
 ## Testing
