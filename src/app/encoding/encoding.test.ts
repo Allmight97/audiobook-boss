@@ -120,6 +120,30 @@ describe('encoding owner', () => {
 		});
 	});
 
+	it.each([
+		{ encoderType: 'native_aac', mode: 'cbr' },
+		{ encoderType: 'aac_at', mode: 'cvbr' },
+	] as const)(
+		'keeps hydrated $encoderType intent while discovery is pending',
+		async ({ encoderType, mode }) => {
+			let finish!: (capabilities: EncoderSettingsCapabilities) => void;
+			const pending = new Promise<EncoderSettingsCapabilities>((resolve) => {
+				finish = resolve;
+			});
+			mounted = mountEncoding({ load: () => pending });
+			mounted.owner.applyDefaults({
+				...vbrDefaults(3),
+				settings: { ...vbrDefaults(3).settings, encoderType, bitrateMode: { mode } },
+			});
+			expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode });
+			expect(mounted.owner.view().showQuality).toBe(false);
+			finish(encoderCaps());
+			await ready(mounted.owner);
+			expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode });
+			expect(mounted.persist).not.toHaveBeenCalled();
+		},
+	);
+
 	it('does not treat sticky CBR bitrate as VBR quality', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);
@@ -132,6 +156,71 @@ describe('encoding owner', () => {
 		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode: 'cbr' });
 		expect(mounted.owner.request().encoderSettings.bitrateKbps).toBe(96);
 		expect(mounted.owner.estimateKbps()).toBe(96);
+	});
+
+	it('derives each encoder mode while retaining quality, target and native speed', async () => {
+		mounted = mountEncoding();
+		await ready(mounted.owner);
+		mounted.owner.select('quality', '4');
+		mounted.owner.select('encoder', 'native_aac');
+		mounted.owner.select('nativeSpeed', '4');
+		mounted.owner.select('bitrate', '193');
+		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode: 'cbr' });
+		mounted.owner.select('encoder', 'aac_at');
+		expect(mounted.owner.request().encoderSettings).toMatchObject({
+			bitrateMode: { mode: 'cvbr' },
+			bitrateKbps: 193,
+			nativeAacSpeed: 4,
+		});
+		mounted.owner.select('encoder', 'fdk_he_aac');
+		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode: 'vbr', value: 4 });
+		mounted.owner.select('encoder', 'native_aac');
+		expect(mounted.owner.readDefaults().settings).toMatchObject({
+			bitrateMode: { mode: 'cbr' },
+			bitrateKbps: 193,
+			nativeAacSpeed: 4,
+		});
+	});
+
+	it('clamps hydrated controls and capability changes without persisting', async () => {
+		const capabilities = encoderCaps({
+			bitrateKbpsMin: 24,
+			bitrateKbpsMax: 256,
+			nativeSpeedMax: 2,
+			vbrLevelMin: 2,
+			vbrLevelMax: 4,
+			explicitSampleRates: [22050],
+			channelOptions: ['mono'],
+		});
+		mounted = mountEncoding({ capabilities });
+		mounted.owner.select('bitrate', '1000');
+		expect(mounted.owner.request().encoderSettings.bitrateKbps).toBe(64);
+		await ready(mounted.owner);
+		const defaults = vbrDefaults(5);
+		defaults.settings.bitrateKbps = 1000;
+		defaults.settings.nativeAacSpeed = 4;
+		defaults.settings.channels = 'stereo';
+		defaults.sampleRate = { explicit: 44100 };
+		mounted.owner.applyDefaults(defaults);
+		expect(mounted.owner.request()).toMatchObject({
+			encoderSettings: {
+				bitrateKbps: 256,
+				bitrateMode: { mode: 'vbr', value: 4 },
+				nativeAacSpeed: 2,
+				channels: 'mono',
+			},
+			sampleRate: 'auto',
+		});
+		await mounted.owner.reloadCapabilities({
+			...capabilities,
+			bitrateKbpsMax: 128,
+			nativeSpeedMax: 1,
+		});
+		expect(mounted.owner.request().encoderSettings).toMatchObject({
+			bitrateKbps: 128,
+			nativeAacSpeed: 1,
+		});
+		expect(mounted.persist).not.toHaveBeenCalled();
 	});
 
 	it('snaps an unavailable explicit flavor to auto without persisting', async () => {
@@ -152,6 +241,7 @@ describe('encoding owner', () => {
 		mounted.owner.select('encoder', 'aac_at');
 		flush();
 		expect(mounted.owner.request().encoderSettings.encoderType).toBe('auto');
+		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode: 'cbr' });
 		expect(mounted.persist).not.toHaveBeenCalled();
 	});
 

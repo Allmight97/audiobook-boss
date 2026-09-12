@@ -72,7 +72,7 @@ export type OutputOwnerDeps = {
 	readonly persistDefaults: (defaults: OutputDefaults) => void;
 	readonly input: InputOwner;
 	readonly metadataView: Accessor<MetadataView>;
-	readonly encoding: Pick<EncodingOwner, 'request' | 'estimateKbps'>;
+	readonly encoding: Pick<EncodingOwner, 'estimateKbps'>;
 	readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 };
 
@@ -116,10 +116,8 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 
 	const estimatedSizeText = createMemo(() => {
 		const input = deps.input.view();
-		const request = deps.encoding.request();
 		return formatEstimatedSizeText(input.hasFiles, input.totalDurationSeconds, {
 			bitrateKbps: deps.encoding.estimateKbps(),
-			channels: request.encoderSettings.channels,
 		});
 	});
 
