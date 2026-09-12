@@ -1117,6 +1117,89 @@ fn write_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
     );
 }
 
+#[test]
+fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("comments.mp3");
+    write_sine_mp3(&path, 0.1, 440.0);
+    let audio = fs::read(&path).unwrap();
+    let offset = if audio.starts_with(b"ID3") {
+        10 + audio[6..10]
+            .iter()
+            .fold(0usize, |size, byte| (size << 7) | usize::from(*byte))
+    } else {
+        0
+    };
+    let mut frames = Vec::new();
+    for (language, descriptor, text) in [
+        ("eng", "", "English comment"),
+        ("fra", "comment", "French comment"),
+        ("eng", "iTunNORM", "technical normalization"),
+    ] {
+        let mut payload = vec![0];
+        payload.extend_from_slice(language.as_bytes());
+        payload.extend_from_slice(descriptor.as_bytes());
+        payload.push(0);
+        payload.extend_from_slice(text.as_bytes());
+        frames.extend_from_slice(b"COMM");
+        frames.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+        frames.extend_from_slice(&[0, 0]);
+        frames.extend_from_slice(&payload);
+    }
+    let size = frames.len();
+    let mut tagged = b"ID3\x03\x00\x00".to_vec();
+    for shift in [21, 14, 7, 0] {
+        tagged.push(((size >> shift) & 0x7f) as u8);
+    }
+    tagged.extend(frames);
+    tagged.extend_from_slice(&audio[offset..]);
+    fs::write(&path, tagged).unwrap();
+    assert_eq!(
+        read_metadata(&path).unwrap().comment.as_deref(),
+        Some("English comment")
+    );
+    save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            genre: PatchOp::Set("Audiobook".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    {
+        let input = ffmpeg_next::format::input(&path).unwrap();
+        let tags = input.metadata();
+        assert_eq!(tags.get("comment-eng"), Some("English comment"));
+        assert_eq!(tags.get("comment-comment-fra"), Some("French comment"));
+    }
+    save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            comment: PatchOp::Set("New comment".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        read_metadata(&path).unwrap().comment.as_deref(),
+        Some("New comment")
+    );
+    save_metadata_intent(
+        &path,
+        &MetadataIntentPatch {
+            comment: PatchOp::Clear,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(read_metadata(&path).unwrap().comment, None);
+    let input = ffmpeg_next::format::input(&path).unwrap();
+    assert_eq!(
+        input.metadata().get("comment-iTunNORM-eng"),
+        Some("technical normalization")
+    );
+}
+
 /// MP3 is the other common real input. The fixture is a genuine lame-encoded
 /// MP3 synthesized at test time; the assertions mirror the M4B-input test:
 /// decodable output, truthful duration, and tags re-read from the artifact.

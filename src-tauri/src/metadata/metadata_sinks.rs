@@ -166,6 +166,9 @@ pub fn apply_ops_to_ffmpeg_dict(
 }
 
 pub fn should_remove_key_for_metadata(metadata: &AudiobookMetadata, key: &str) -> bool {
+    if metadata.comment.is_some() && super::field_schema::comment_key_rank(key).is_some() {
+        return true;
+    }
     TagField::ALL
         .iter()
         .copied()
