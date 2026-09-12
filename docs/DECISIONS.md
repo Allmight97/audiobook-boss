@@ -30,7 +30,8 @@ git history and closed issues own superseded chronology.
   Native and Apple accept numeric targets; FDK keeps its quality control.
   Encoding owns typed request construction, avoiding a second normalization
   layer or a separately mutable rate-mode choice. Pending capability discovery
-  preserves the validated saved mode instead of substituting Auto's default.
+  preserves the validated saved mode for explicit encoders. Auto submission
+  requires capabilities so its effective encoder determines the mode.
 - Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,
   `src/app/encoding/`, and the encoder interaction and media execution tests.
 - Guardrail: encoder controls must change a shipped path. FDK stays owned by

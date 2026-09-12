@@ -23,7 +23,9 @@
 - Derive rate mode from the effective encoder's backend capability. Views expose
   FDK quality or a numeric target; rate mode is not separately selected. While
   discovery is pending, preserve the validated hydrated mode so saved Native or
-  Apple requests stay usable. Build typed requests directly from this owner's state.
+  Apple requests stay usable. `request()` rejects Auto without capabilities;
+  estimates and saved defaults remain readable. Processing surfaces the rejection
+  before preparation or submission. Build typed requests directly from this owner's state.
 - Backend capabilities own numeric bounds. Apply bounds when hydrating defaults
   or reloading capabilities as well as accepting user edits.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`

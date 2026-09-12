@@ -124,6 +124,53 @@ describe('encoding owner', () => {
 		{ encoderType: 'native_aac', mode: 'cbr' },
 		{ encoderType: 'aac_at', mode: 'cvbr' },
 	] as const)(
+		'waits for discovery before resolving Auto to $encoderType',
+		async ({ encoderType, mode }) => {
+			let finish!: (capabilities: EncoderSettingsCapabilities) => void;
+			const pending = new Promise<EncoderSettingsCapabilities>((resolve) => {
+				finish = resolve;
+			});
+			mounted = mountEncoding({ load: () => pending });
+			mounted.owner.applyDefaults(vbrDefaults(3));
+			expect(() => mounted?.owner.request()).toThrow('Encoder availability is not ready');
+			expect(mounted.owner.estimateKbps()).toBeGreaterThan(0);
+			expect(mounted.owner.readDefaults().settings.encoderType).toBe('auto');
+			finish(
+				encoderCaps({
+					availability: {
+						...encoderCaps().availability,
+						fdkAvailable: false,
+						aacAtAvailable: encoderType === 'aac_at',
+						autoEncoder: encoderType,
+					},
+				}),
+			);
+			await ready(mounted.owner);
+			expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode });
+			expect(mounted.persist).not.toHaveBeenCalled();
+		},
+	);
+
+	it('keeps Auto blocked after discovery fails and recovers on a Settings reload', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+		try {
+			mounted = mountEncoding({ load: async () => Promise.reject(new Error('Scan failed')) });
+			await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+			expect(() => mounted?.owner.request()).toThrow('open Settings to retry detection');
+			await mounted.owner.reloadCapabilities(encoderCaps());
+			expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({
+				mode: 'vbr',
+				value: 3,
+			});
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it.each([
+		{ encoderType: 'native_aac', mode: 'cbr' },
+		{ encoderType: 'aac_at', mode: 'cvbr' },
+	] as const)(
 		'keeps hydrated $encoderType intent while discovery is pending',
 		async ({ encoderType, mode }) => {
 			let finish!: (capabilities: EncoderSettingsCapabilities) => void;
@@ -194,7 +241,7 @@ describe('encoding owner', () => {
 		});
 		mounted = mountEncoding({ capabilities });
 		mounted.owner.select('bitrate', '1000');
-		expect(mounted.owner.request().encoderSettings.bitrateKbps).toBe(64);
+		expect(mounted.owner.readDefaults().settings.bitrateKbps).toBe(64);
 		await ready(mounted.owner);
 		const defaults = vbrDefaults(5);
 		defaults.settings.bitrateKbps = 1000;

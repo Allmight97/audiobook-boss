@@ -15,6 +15,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Prevent early Auto processing or previews from using an unsupported bitrate mode.
 - Preserve MP3 comments carried in language or description variants, while keeping
   technical iTunes comment records separate from editable comments.
 - Keep completed output successful when temporary cleanup fails, show a cleanup
