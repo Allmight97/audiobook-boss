@@ -6,11 +6,21 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Improved
 
+- Native AAC uses the NMR encoder with target bitrate and an advanced speed control.
+- Enter numeric target bitrates for Native AAC and Apple AAC; each encoder shows
+  its applicable rate control automatically.
+- Refresh the Solid 2 and Effect 4 prereleases and their required compiler packages.
 - Dev-run summaries expose build/toolchain identity, effective encoder settings,
   metadata decisions and stage outcomes, artifact handoffs, and cleanup records.
 
 ### Fixed
 
+- Preserve MP3 comments carried in language or description variants, while keeping
+  technical iTunes comment records separate from editable comments.
+- Keep completed output successful when temporary cleanup fails, show a cleanup
+  warning, and retain failed paths for retry.
+- Clean newly created processing workspaces when cancellation arrives during setup.
+- Estimate stereo output size from the total target bitrate without an extra channel multiplier.
 - Recover unsupported saved encoder defaults explicitly in Settings, preserving
   other preferences and backing up the original file.
 - Keep the full settings reset available when a settings file cannot be loaded.
