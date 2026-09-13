@@ -4,6 +4,9 @@
 - Processing Plan: import from `crate::processing::plan`, not private helpers.
   Functions: `resolve_preflight_plan`, `prepare_execution_plan`. Types:
   `ExecutionProcessingPlan`, `ResolvedProcessingPlan`, `PlannedProcessingJob`.
+  Callers provide the fresh phase `FileListInfo`; planning never re-inspects
+  inputs. Merge execution retains that inspection, while queued batch jobs
+  inspect again when scheduled to run.
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
   `crate::processing`, not `audio`, `commands`, or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
