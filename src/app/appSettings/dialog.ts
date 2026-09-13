@@ -17,6 +17,8 @@ export type AppSettingsDialogState = {
 	ffmpegPathDraft: string;
 	saveState: SettingsSaveState;
 	saveError: string;
+	powerSaveState: SettingsSaveState;
+	powerSaveError: string;
 	encoderAvailability: EncoderAvailability | null;
 	checkingFdk: boolean;
 	fdkCheckError: string;
@@ -36,6 +38,8 @@ function createInitialState(): AppSettingsDialogState {
 		ffmpegPathDraft: '',
 		saveState: 'idle',
 		saveError: '',
+		powerSaveState: 'idle',
+		powerSaveError: '',
 		encoderAvailability: null,
 		checkingFdk: false,
 		fdkCheckError: '',
@@ -61,6 +65,7 @@ export type SettingsDialog = {
 	clearFfmpegPathDraft(): void;
 	setFfmpegPathDraft(value: string): void;
 	saveToolchainPreference(): Promise<void>;
+	setKeepAwakeWhileWorking(enabled: boolean): Promise<void>;
 	recheckFdk(): Promise<void>;
 	openFdkSetup(): Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
@@ -173,6 +178,8 @@ export function createSettingsDialog(deps: {
 				draft.isOpen = true;
 				draft.saveState = 'idle';
 				draft.saveError = '';
+				draft.powerSaveState = 'idle';
+				draft.powerSaveError = '';
 				draft.startupSaveState = 'idle';
 				draft.startupSaveError = '';
 			});
@@ -255,6 +262,29 @@ export function createSettingsDialog(deps: {
 				});
 			}
 			await refreshEncoderAvailability(started);
+		},
+		async setKeepAwakeWhileWorking(enabled) {
+			const started = generation;
+			const update = guardedUpdate(started);
+			if (dialog.powerSaveState === 'saving') return;
+			update((draft) => {
+				draft.powerSaveState = 'saving';
+				draft.powerSaveError = '';
+			});
+			try {
+				const settings = await deps
+					.capability()
+					.updateAppSettings({ keepAwakeWhileWorking: enabled });
+				update((draft) => {
+					draft.settings = settings;
+					draft.powerSaveState = 'saved';
+				});
+			} catch (error) {
+				update((draft) => {
+					draft.powerSaveState = 'error';
+					draft.powerSaveError = describeError(error);
+				});
+			}
 		},
 		async saveCurrentSettingsAsPinnedDefaults() {
 			const started = generation;

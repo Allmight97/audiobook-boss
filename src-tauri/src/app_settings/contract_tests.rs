@@ -14,6 +14,43 @@ fn missing_settings_file_returns_defaults() {
     assert_eq!(settings, AppSettings::default());
 }
 
+#[test]
+fn awake_preference_defaults_on_and_persists_explicit_opt_out() {
+    let temp = TempDir::new().expect("temp dir");
+    let mut original =
+        serde_json::to_value(AppSettings::default()).expect("settings preference operation");
+    original
+        .as_object_mut()
+        .expect("settings preference operation")
+        .remove("keepAwakeWhileWorking");
+    std::fs::write(temp.path().join("app-settings.json"), original.to_string())
+        .expect("settings preference operation");
+    assert!(
+        get_app_settings(temp.path())
+            .expect("settings preference operation")
+            .keep_awake_while_working
+    );
+
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            keep_awake_while_working: Some(false),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("settings preference operation");
+    assert!(
+        !get_app_settings(temp.path())
+            .expect("settings preference operation")
+            .keep_awake_while_working
+    );
+    assert!(
+        reset_app_settings(temp.path())
+            .expect("settings preference operation")
+            .keep_awake_while_working
+    );
+}
+
 fn settings_with_future_encoder(scope: EncoderDefaultsScope) -> serde_json::Value {
     let mut value = serde_json::to_value(AppSettings::default()).expect("settings JSON");
     value["outputDefaults"]["outputDirectory"] = serde_json::json!("/books/output");

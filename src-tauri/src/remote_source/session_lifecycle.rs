@@ -118,6 +118,7 @@ impl RemoteAcquisitionLifecycle {
         job_id: String,
         job_dir: PathBuf,
     ) {
+        let _active_work = runtime.inner.power.begin();
         let result = match plan.provider_id {
             super::RemoteProviderId::Audible => {
                 super::providers::audible::AudibleProvider::acquire(

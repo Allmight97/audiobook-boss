@@ -4,6 +4,20 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-13 - Sleep Prevention Follows Active Work
+
+- Outcome: default-on, persisted opt-out prevents idle system sleep during
+  encoding/previews, Audible acquisition, Indexer handoff, and metadata saves. Display sleep
+  and the host's power mode stay under OS control. Browsing, an idle open app,
+  and downstream indexer downloads do not hold the host awake.
+- Evidence: an unattended encoding run lost 170 seconds to macOS idle sleep.
+  Existing job lifetimes bound the needed hold; one native assertion spans
+  overlapping work and is released when the last scope ends or the user opts out.
+- Implementation: the MIT-licensed `keepawake` crate is a macOS-only dependency
+  providing the IOKit handle, with display and explicit-sleep inhibition off.
+  No timer, helper process, or Windows/Linux behavior is added. Failure to acquire
+  the assertion is logged explicitly and does not change the underlying job result.
+
 ## 2026-09-11 - Native NMR Uses Pinned FFmpeg Source And Matching Wrappers
 
 - Outcome: `vendor/ffmpeg-sys-next-9.0.0/ffmpeg-revision` selects the immutable

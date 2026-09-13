@@ -31,6 +31,7 @@ vi.mock('../../lib/tauri/client', async () => {
 				},
 				toolchain: {},
 				startupBehavior: 'rememberLastState',
+				keepAwakeWhileWorking: true,
 			}),
 			updateAppSettings: vi.fn().mockResolvedValue(undefined),
 			resetAppSettings: vi.fn(),

@@ -12,6 +12,7 @@ pub mod ipc_contract;
 mod metadata;
 mod opened_audio;
 pub mod output_artifact;
+mod power;
 pub mod processing;
 pub mod remote_source;
 pub mod work_runtime;
@@ -135,6 +136,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(job_registry)
         .manage(work_runtime)
+        .manage(power::PowerManager::default())
         .manage(opened_audio::OpenedAudioFileQueue::default())
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
@@ -163,9 +165,12 @@ pub fn run() {
                 })
                 .and_then(|config_dir| app_settings::get_app_settings(&config_dir))
             {
-                Ok(settings) => audio::set_user_external_ffmpeg_path(
-                    settings.toolchain.external_ffmpeg_path.map(Into::into),
-                ),
+                Ok(settings) => {
+                    app.state::<power::PowerManager>().set_enabled(settings.keep_awake_while_working);
+                    audio::set_user_external_ffmpeg_path(
+                        settings.toolchain.external_ffmpeg_path.map(Into::into),
+                    );
+                }
                 Err(error) => log::warn!(
                     "Startup app settings hydration failed; using detected toolchain only: {error}"
                 ),

@@ -31,6 +31,14 @@ Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidec
 
 [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 
+## Unattended work
+
+Settings → Power enables **Keep computer awake while working** by default. It
+prevents macOS idle sleep during encoding, Audible acquisition, Indexer handoff,
+and metadata saves, while allowing display sleep. Turning it off takes effect
+during active work. Leaving ABB open and idle does not prevent sleep; manual sleep, lid
+closure, and low-battery sleep remain controlled by macOS.
+
 ## Toolchain
 
 - Package manager: **Bun 1.4.0**, pinned by `package.json` `packageManager`.

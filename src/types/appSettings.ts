@@ -48,5 +48,6 @@ export type AppSettingsPatch = Partial<{
 	toolchain: ToolchainPreferences | null;
 	startupBehavior: StartupBehavior | null;
 	defaultAcquisitionLane: AcquisitionLane | null;
+	keepAwakeWhileWorking: boolean | null;
 	pinnedDefaults: PinnedDefaults | null;
 }>;

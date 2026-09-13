@@ -8,6 +8,7 @@ use crate::processing::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tauri::Manager;
 
 pub type MetadataSaveSummary = OperationResultSummary;
 const METADATA_SAVE_CANCELLED_MESSAGE: &str = "Metadata save cancelled.";
@@ -118,6 +119,7 @@ pub async fn save_metadata_batch(
             return Err(error.into());
         }
     };
+    let _active_work = window.state::<crate::power::PowerManager>().begin();
     let cancellation = registry
         .cancellation_checker(job_id)
         .await

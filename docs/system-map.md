@@ -65,6 +65,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Command ingress | `src-tauri/src/commands` | Thin validation/adaptation into Rust owners. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
 | Processing | `src-tauri/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
 | WorkRuntime | `src-tauri/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
+| Active-work power | `src-tauri/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
 | Audio Engine | `src-tauri/src/audio` | Import facts, inspection, toolchain selection, media execution, staging, cleanup, and integrity facts. |
 | Metadata Outcome | `src-tauri/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `src-tauri/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |

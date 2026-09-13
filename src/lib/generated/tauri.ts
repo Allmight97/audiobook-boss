@@ -193,6 +193,7 @@ export type AppErrorEnvelope = {
 };
 
 export type AppSettings = {
+	keepAwakeWhileWorking?: boolean,
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
@@ -203,6 +204,7 @@ export type AppSettings = {
 };
 
 export type AppSettingsPatch = {
+	keepAwakeWhileWorking: boolean | null,
 	maxConcurrentJobs: ConcurrencyPreference | null,
 	encoderDefaults: EncoderDefaults | null,
 	outputDefaults: OutputDefaults | null,

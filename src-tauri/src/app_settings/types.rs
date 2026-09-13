@@ -5,6 +5,10 @@ use crate::audio::{
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
 
+fn default_keep_awake() -> bool {
+    true
+}
+
 #[derive(
     Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
 )]
@@ -18,6 +22,8 @@ pub enum AcquisitionLane {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default = "default_keep_awake")]
+    pub keep_awake_while_working: bool,
     pub max_concurrent_jobs: ConcurrencyPreference,
     pub encoder_defaults: EncoderDefaults,
     pub output_defaults: OutputDefaults,
@@ -34,6 +40,7 @@ pub struct AppSettings {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsPatch {
+    pub keep_awake_while_working: Option<bool>,
     pub max_concurrent_jobs: Option<ConcurrencyPreference>,
     pub encoder_defaults: Option<EncoderDefaults>,
     pub output_defaults: Option<OutputDefaults>,
@@ -134,6 +141,7 @@ pub enum ConcurrencyPreference {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            keep_awake_while_working: true,
             max_concurrent_jobs: ConcurrencyPreference::Auto,
             encoder_defaults: EncoderDefaults::default(),
             output_defaults: OutputDefaults::default(),
@@ -183,6 +191,9 @@ impl AppSettings {
         }
         if let Some(default_acquisition_lane) = patch.default_acquisition_lane {
             self.default_acquisition_lane = default_acquisition_lane;
+        }
+        if let Some(enabled) = patch.keep_awake_while_working {
+            self.keep_awake_while_working = enabled;
         }
         self.validate()?;
         Ok(self)
