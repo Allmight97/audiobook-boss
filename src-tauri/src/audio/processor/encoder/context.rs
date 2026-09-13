@@ -33,10 +33,11 @@ pub(crate) fn create_audio_encoder(
     resolved_settings.encoder_type = resolved_encoder;
     settings_encoder::validate_encoder_settings(&resolved_settings)?;
     if resolved_encoder == EncoderType::NativeAac {
-        let max_bps = 6 * u64::from(target_sample_rate) * target_channels as u64;
-        if u64::from(encoder_settings.bitrate_kbps) * 1000 > max_bps {
-            return Err(AppError::InvalidInput(format!("Native target bitrate exceeds {} kbps at {target_sample_rate} Hz / {target_channels} channel(s)", max_bps / 1000)));
-        }
+        settings_encoder::validate_native_target_bitrate(
+            encoder_settings.bitrate_kbps,
+            target_sample_rate,
+            target_channels as u32,
+        )?;
     }
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);

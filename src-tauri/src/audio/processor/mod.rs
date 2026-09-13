@@ -71,10 +71,59 @@ impl AudioExecutionRequest {
 pub fn validate_audio_engine_inputs(
     encoder_settings: &EncoderSettings,
     file_info: &FileListInfo,
+    sample_rate: &crate::audio::SampleRateConfig,
+    merge_inputs: bool,
 ) -> Result<()> {
     adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
-    adapter.validate_inputs(file_info)
+    adapter.validate_inputs(file_info)?;
+    if matches!(
+        adapter,
+        adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type: crate::audio::EncoderType::NativeAac
+        }
+    ) {
+        if merge_inputs {
+            validate_native_output_target(encoder_settings, sample_rate, &file_info.files)?;
+        } else {
+            for file in file_info.files.iter().filter(|file| file.is_valid) {
+                validate_native_output_target(
+                    encoder_settings,
+                    sample_rate,
+                    std::slice::from_ref(file),
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_native_output_target(
+    settings: &EncoderSettings,
+    sample_rate: &crate::audio::SampleRateConfig,
+    files: &[AudioFile],
+) -> Result<()> {
+    let channels = adapter::resolve_output_channels(settings.channels, files)?
+        .forced_channels()
+        .expect("output channels are resolved");
+    let rate = sample_rate
+        .explicit_rate()
+        .or_else(|| {
+            files
+                .iter()
+                .find(|file| file.is_valid)
+                .and_then(|file| file.sample_rate)
+        })
+        .ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Could not determine Native sample rate; choose it explicitly.".into(),
+            )
+        })?;
+    crate::audio::settings_encoder::validate_native_target_bitrate(
+        settings.bitrate_kbps,
+        rate,
+        u32::from(channels),
+    )
 }
 
 pub(crate) fn processing_workspace_root(cache_dir: &std::path::Path) -> std::path::PathBuf {

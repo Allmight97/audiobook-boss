@@ -207,7 +207,7 @@ mod tests {
     fn execution_inspection_rejects_a_source_replaced_after_preflight() {
         let temp_dir = TempDir::new().expect("temp dir");
         let source = temp_dir.path().join("source.wav");
-        write_silence_wav(&source);
+        write_silence_wav(&source, 1);
         let payload = process_payload(|payload| {
             payload.input_files = vec![source.to_string_lossy().to_string()];
             payload.output_dir = temp_dir.path().to_string_lossy().to_string();
@@ -233,19 +233,96 @@ mod tests {
         );
     }
 
-    fn write_silence_wav(path: &std::path::Path) {
+    #[test]
+    fn native_target_ceiling_is_checked_before_output_planning() {
+        use crate::audio::SampleRateConfig;
+        let temp = TempDir::new().expect("temp dir");
+        let source = temp.path().join("source.wav");
+        write_silence_wav(&source, 1);
+        let output = temp.path();
+        for (bitrate, channels, rate, accepted) in [
+            (600, ChannelConfig::Stereo, SampleRateConfig::Auto, false),
+            (529, ChannelConfig::Stereo, SampleRateConfig::Auto, true),
+            (300, ChannelConfig::Auto, SampleRateConfig::Auto, false),
+            (
+                600,
+                ChannelConfig::Stereo,
+                SampleRateConfig::Explicit(96_000),
+                true,
+            ),
+        ] {
+            let payload = process_payload(|payload| {
+                payload.input_files = vec![source.to_string_lossy().into_owned()];
+                payload.output_dir = output.to_string_lossy().into_owned();
+                payload.settings.encoder_type = EncoderType::NativeAac;
+                payload.settings.bitrate_mode = BitrateMode::Cbr;
+                payload.settings.bitrate_kbps = bitrate;
+                payload.settings.channels = channels;
+                payload.sample_rate = Some(rate);
+            });
+            let result = super::preflight_payload(payload, None, None);
+            if accepted {
+                result.expect("target within resolved ceiling should pass");
+            } else {
+                assert!(result
+                    .expect_err("over-ceiling target must fail preflight")
+                    .to_string()
+                    .contains("Native target bitrate exceeds"));
+            }
+            assert_eq!(
+                std::fs::read_dir(output)
+                    .expect("read output directory")
+                    .count(),
+                1,
+                "preflight must not create output directories"
+            );
+        }
+    }
+
+    #[test]
+    fn native_target_ceiling_uses_each_batch_output_but_combined_merge_channels() {
+        let temp = TempDir::new().expect("temp dir");
+        let mono = temp.path().join("mono.wav");
+        let stereo = temp.path().join("stereo.wav");
+        write_silence_wav(&mono, 1);
+        write_silence_wav(&stereo, 2);
+        for job_type in [JobType::Batch, JobType::Merge] {
+            let payload = process_payload(|payload| {
+                payload.input_files = vec![
+                    stereo.to_string_lossy().into_owned(),
+                    mono.to_string_lossy().into_owned(),
+                ];
+                payload.output_dir = temp.path().to_string_lossy().into_owned();
+                payload.job_type = Some(job_type);
+                payload.settings.encoder_type = EncoderType::NativeAac;
+                payload.settings.bitrate_mode = BitrateMode::Cbr;
+                payload.settings.bitrate_kbps = 300;
+            });
+            let result = super::preflight_payload(payload, None, None);
+            if job_type == JobType::Merge {
+                result.expect("combined stereo output permits 300 kbps");
+            } else {
+                assert!(result
+                    .expect_err("over-ceiling target must fail preflight")
+                    .to_string()
+                    .contains("264 kbps"));
+            }
+        }
+    }
+
+    fn write_silence_wav(path: &std::path::Path, channels: u16) {
         const SAMPLE_RATE: u32 = 44_100;
-        let data_len = SAMPLE_RATE * 2;
+        let data_len = SAMPLE_RATE * 2 * u32::from(channels);
         let mut bytes = Vec::with_capacity(44 + data_len as usize);
         bytes.extend_from_slice(b"RIFF");
         bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
         bytes.extend_from_slice(b"WAVEfmt ");
         bytes.extend_from_slice(&16u32.to_le_bytes());
         bytes.extend_from_slice(&1u16.to_le_bytes());
-        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&channels.to_le_bytes());
         bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
-        bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
-        bytes.extend_from_slice(&2u16.to_le_bytes());
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        bytes.extend_from_slice(&(2 * channels).to_le_bytes());
         bytes.extend_from_slice(&16u16.to_le_bytes());
         bytes.extend_from_slice(b"data");
         bytes.extend_from_slice(&data_len.to_le_bytes());

@@ -48,6 +48,11 @@ pub(crate) fn validate_external_processing_contract_with_file_info(
     payload: &ProcessPayload,
     file_info: &FileListInfo,
 ) -> Result<()> {
-    audio::validate_audio_engine_inputs(&payload.settings, file_info)?;
+    audio::validate_audio_engine_inputs(
+        &payload.settings,
+        file_info,
+        &resolve_sample_rate(payload)?,
+        payload.job_type == Some(crate::processing::JobType::Merge),
+    )?;
     Ok(())
 }

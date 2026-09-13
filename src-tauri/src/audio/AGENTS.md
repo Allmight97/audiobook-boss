@@ -41,7 +41,10 @@
   `BitrateModeKind`.
 - Target bitrate bounds and native speed bounds come from
   `EncoderSettingsCapabilities`. Native target bitrate also checks the resolved
-  AAC ceiling; opened NMR settings must match the request.
+  AAC ceiling during preflight and encoder setup. Input validation receives the
+  sample-rate choice and whether inputs share one output; batch ceilings are
+  checked per file, merge ceilings use the combined channels and first input rate.
+  Opened NMR settings must match the request.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
 - Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled

@@ -166,6 +166,21 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     Ok(())
 }
 
+pub(super) fn validate_native_target_bitrate(
+    bitrate_kbps: u16,
+    sample_rate: u32,
+    channels: u32,
+) -> Result<()> {
+    let max_bps = 6 * u64::from(sample_rate) * u64::from(channels);
+    if u64::from(bitrate_kbps) * 1000 > max_bps {
+        return Err(AppError::InvalidInput(format!(
+            "Native target bitrate exceeds {} kbps at {sample_rate} Hz / {channels} channel(s)",
+            max_bps / 1000
+        )));
+    }
+    Ok(())
+}
+
 fn validate_bitrate_mode(mode: BitrateMode) -> Result<()> {
     match mode {
         BitrateMode::Cbr | BitrateMode::Cvbr => Ok(()),
