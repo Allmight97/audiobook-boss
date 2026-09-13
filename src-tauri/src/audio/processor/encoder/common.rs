@@ -28,7 +28,11 @@ pub(crate) struct InProcessEncoderRunLog<'a> {
     pub status: &'a str,
     pub status_detail: Option<&'a str>,
     pub elapsed: Duration,
+    pub wallclock_elapsed: Option<Duration>,
     pub opened_encoder: Option<&'a str>,
+    pub opened_rate: Option<u32>,
+    pub opened_channels: Option<u32>,
+    pub input_facts: &'a [String],
     pub encoder_settings: &'a EncoderSettings,
     pub sample_rate: &'a SampleRateConfig,
     pub session_id: String,
@@ -130,7 +134,15 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
     if let Some(detail) = entry.status_detail {
         let _ = writeln!(output, "status_detail={detail}");
     }
-    let _ = writeln!(output, "elapsed_ms={}", entry.elapsed.as_millis());
+    super::super::run_diagnostics::write_common_run_fields(
+        &mut output,
+        (entry.elapsed, entry.wallclock_elapsed),
+        entry.encoder_settings,
+        entry.sample_rate,
+        entry.opened_encoder,
+        entry.opened_rate,
+        entry.opened_channels,
+    );
     let _ = writeln!(
         output,
         "target_duration_seconds={:.3}",
@@ -144,27 +156,7 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
         let _ = writeln!(output, "input_index={input_index}");
     }
     let _ = writeln!(output, "operation_kind={}", entry.operation_kind);
-    let _ = writeln!(
-        output,
-        "encoder={}",
-        entry.opened_encoder.unwrap_or("unavailable")
-    );
-    let _ = writeln!(
-        output,
-        "selected_encoder={}",
-        entry.encoder_settings.encoder_type
-    );
     let _ = writeln!(output, "preview={}", entry.preview);
-    let _ = writeln!(
-        output,
-        "encoder_settings encoder_type={:?} bitrate_mode={:?} bitrate_kbps={} channels={:?} sample_rate={:?} afterburner={}",
-        entry.encoder_settings.encoder_type,
-        entry.encoder_settings.bitrate_mode,
-        entry.encoder_settings.bitrate_kbps,
-        entry.encoder_settings.channels,
-        entry.sample_rate,
-        entry.encoder_settings.afterburner
-    );
     let _ = writeln!(
         output,
         "temp_output={}",
@@ -172,11 +164,15 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
     );
     let _ = writeln!(output, "inputs={}", entry.input_paths.len());
     for (index, path) in entry.input_paths.iter().enumerate() {
-        let _ = writeln!(
-            output,
-            "input[{index}] file={}",
-            sanitize_path_for_display(path)
-        );
+        if let Some(fact) = entry.input_facts.get(index) {
+            let _ = writeln!(output, "input[{index}] {fact}");
+        } else {
+            let _ = writeln!(
+                output,
+                "input[{index}] file={} codec=unknown rate=unknown channels=unknown",
+                sanitize_path_for_display(path)
+            );
+        }
     }
     output.push_str("--- end in-process-encoder run ---\n\n");
     output
@@ -322,7 +318,11 @@ mod tests {
             status: "success",
             status_detail: None,
             elapsed: Duration::from_millis(1200),
+            wallclock_elapsed: Some(Duration::from_millis(1250)),
             opened_encoder: Some("aac_at"),
+            opened_rate: Some(44_100),
+            opened_channels: Some(2),
+            input_facts: &[],
             encoder_settings: &encoder_settings,
             sample_rate: &sample_rate,
             session_id: "session-1".to_string(),
@@ -338,8 +338,10 @@ mod tests {
 
         assert!(formatted.starts_with("--- in-process-encoder run "));
         assert!(formatted.contains("status=success"));
-        assert!(formatted.contains("encoder=aac_at"));
-        assert!(formatted.contains("selected_encoder=aac_at"));
+        assert!(formatted.contains("elapsed_monotonic_ms=1200"));
+        assert!(formatted.contains("elapsed_wallclock_ms=1250"));
+        assert!(formatted.contains("native_aac_speed=0"));
+        assert!(formatted.contains("opened_settings encoder=aac_at rate=44100 channels=2"));
         assert!(formatted.contains("job_id=job-1"));
         assert!(formatted.contains("input[0] file=Book One.m4b"));
         assert!(formatted.contains("temp_output=worker-output.m4b"));
@@ -350,7 +352,6 @@ mod tests {
         entry.status = "failed";
         entry.opened_encoder = None;
         let formatted = format_in_process_encoding_log_entry(&entry);
-        assert!(formatted.contains("encoder=unavailable\n"));
-        assert!(formatted.contains("selected_encoder=aac_at\n"));
+        assert!(formatted.contains("opened_settings encoder=unknown rate=44100 channels=2"));
     }
 }

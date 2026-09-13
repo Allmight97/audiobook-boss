@@ -21,6 +21,7 @@ pub(crate) struct InputProcessingContext<'a> {
     pub(crate) target_sample_rate: u32,
     pub(crate) samples_per_frame: usize,
     pub(crate) emitter: &'a ProgressEmitter,
+    pub(crate) input_facts: Option<&'a mut Vec<String>>,
 }
 
 pub(crate) fn process_input_files(
@@ -97,6 +98,7 @@ pub(crate) fn process_input_files(
             idx,
             &mut ctx,
             &mut accumulator,
+            io.input_facts.as_deref_mut(),
         )?;
         log::info!(
             "✓ Completed processing input file {}/{}",

@@ -8,7 +8,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
 use std::sync::Mutex;
-use std::time::{Duration as StdDuration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
@@ -25,7 +25,7 @@ pub(super) async fn run_external_ffmpeg(
     total_duration_seconds: f64,
 ) -> Result<()> {
     log_external_inputs(files, selected_decoders);
-    let started = Instant::now();
+    let timing = super::super::run_diagnostics::RunTiming::start();
     let mut progress_diagnostics = ExternalFdkProgressDiagnostics::default();
     let mut child =
         spawn_external_ffmpeg(context, toolchain, files, selected_decoders, temp_output)?;
@@ -54,6 +54,7 @@ pub(super) async fn run_external_ffmpeg(
         )
         .await;
         let status_detail = error.to_string();
+        let (elapsed, wallclock_elapsed) = timing.elapsed();
         append_external_encoding_log_best_effort(&ExternalFdkRunLog {
             context,
             toolchain,
@@ -61,7 +62,8 @@ pub(super) async fn run_external_ffmpeg(
             selected_decoders,
             temp_output,
             total_duration_seconds,
-            elapsed: started.elapsed(),
+            elapsed,
+            wallclock_elapsed,
             status: "interrupted",
             status_detail: Some(status_detail.as_str()),
             stderr_output: &stderr_output,
@@ -77,6 +79,7 @@ pub(super) async fn run_external_ffmpeg(
             let stderr_output =
                 await_stderr_reader(stderr_task, "after external ffmpeg wait failed").await;
             let status_detail = error.to_string();
+            let (elapsed, wallclock_elapsed) = timing.elapsed();
             append_external_encoding_log_best_effort(&ExternalFdkRunLog {
                 context,
                 toolchain,
@@ -84,7 +87,8 @@ pub(super) async fn run_external_ffmpeg(
                 selected_decoders,
                 temp_output,
                 total_duration_seconds,
-                elapsed: started.elapsed(),
+                elapsed,
+                wallclock_elapsed,
                 status: "wait_error",
                 status_detail: Some(status_detail.as_str()),
                 stderr_output: &stderr_output,
@@ -96,6 +100,7 @@ pub(super) async fn run_external_ffmpeg(
     };
     let stderr_output = await_stderr_reader(stderr_task, "after external ffmpeg exit").await;
     let status_detail = format_exit_status(&status);
+    let (elapsed, wallclock_elapsed) = timing.elapsed();
     append_external_encoding_log_best_effort(&ExternalFdkRunLog {
         context,
         toolchain,
@@ -103,7 +108,8 @@ pub(super) async fn run_external_ffmpeg(
         selected_decoders,
         temp_output,
         total_duration_seconds,
-        elapsed: started.elapsed(),
+        elapsed,
+        wallclock_elapsed,
         status: if status.success() {
             "success"
         } else {
@@ -316,6 +322,7 @@ struct ExternalFdkRunLog<'a> {
     temp_output: &'a Path,
     total_duration_seconds: f64,
     elapsed: StdDuration,
+    wallclock_elapsed: Option<StdDuration>,
     status: &'a str,
     status_detail: Option<&'a str>,
     stderr_output: &'a str,
@@ -371,7 +378,15 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     if let Some(detail) = entry.status_detail {
         let _ = writeln!(output, "status_detail={detail}");
     }
-    let _ = writeln!(output, "elapsed_ms={}", entry.elapsed.as_millis());
+    super::super::run_diagnostics::write_common_run_fields(
+        &mut output,
+        (entry.elapsed, entry.wallclock_elapsed),
+        &entry.context.encoder_settings,
+        &entry.context.sample_rate,
+        None,
+        None,
+        None,
+    );
     let _ = writeln!(
         output,
         "target_duration_seconds={:.3}",
@@ -392,16 +407,6 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     );
     let _ = writeln!(
         output,
-        "encoder_settings encoder_type={:?} bitrate_mode={:?} bitrate_kbps={} channels={:?} sample_rate={:?} afterburner={}",
-        entry.context.encoder_settings.encoder_type,
-        entry.context.encoder_settings.bitrate_mode,
-        entry.context.encoder_settings.bitrate_kbps,
-        entry.context.encoder_settings.channels,
-        entry.context.sample_rate,
-        entry.context.encoder_settings.afterburner
-    );
-    let _ = writeln!(
-        output,
         "temp_output={}",
         sanitize_path_for_display(entry.temp_output)
     );
@@ -414,9 +419,12 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     {
         let _ = writeln!(
             output,
-            "input[{index}] file={} duration={:?} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
+            "input[{index}] file={} duration={:?} codec={} rate={} channels={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
             sanitize_path_for_display(&file.path),
             file.duration,
+            file.codec_label.as_deref().unwrap_or("unknown"),
+            file.sample_rate.map_or_else(|| "unknown".to_string(), |v| v.to_string()),
+            file.channels.map_or_else(|| "unknown".to_string(), |v| v.to_string()),
             selection
                 .as_ref()
                 .map(|value| value.decoder_id.as_str())
@@ -590,6 +598,7 @@ mod tests {
             temp_output: Path::new("/private/tmp/worker-output.m4b"),
             total_duration_seconds: 12.5,
             elapsed: StdDuration::from_millis(2450),
+            wallclock_elapsed: Some(StdDuration::from_millis(2460)),
             status: "success",
             status_detail: Some("exit_code=0"),
             stderr_output: "Input #0, mov, from '/private/input/Book One.m4b'\n",

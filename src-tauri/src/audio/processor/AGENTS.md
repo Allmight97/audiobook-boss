@@ -47,6 +47,12 @@
   preserves success with an explicit warning from Output Artifact.
 - Metadata finalize writes occur only for supported container paths and validated metadata payloads.
 
+## Encoder diagnostics
+
+- Shared encoder run records use the private `run_diagnostics` helper for requested
+  settings and monotonic/wall-clock timing. Adapter records add only facts owned by
+  that adapter; unavailable opened settings remain explicitly `unknown`.
+
 ## Done Criteria
 
 - Pipeline stages remain explicit and user-visible progress is truthful.

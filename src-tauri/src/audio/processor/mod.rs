@@ -36,6 +36,7 @@ mod frame_pipeline;
 mod plan;
 mod prepare;
 mod preview_state;
+mod run_diagnostics;
 mod staging;
 mod streams;
 
