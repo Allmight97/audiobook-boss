@@ -45,7 +45,7 @@ commands over invoking internals directly.
   owner decision. On a host with external FDK, explicitly run the ignored FAAC
   re-import proof with `cargo nextest run -p audiobook-boss --features
   bundled-ffmpeg --test all_tests --run-ignored only -E
-  'test(faac_reimport_through_external_fdk)'`.
+  'test(faac_reimport_through_external_fdk_preserves_audio_interval)'`.
 
 ## Command Menu
 

@@ -37,7 +37,9 @@ in-process Audio engine; the external adapter may force `aac_at` or
 `libfdk_aac` when the default decoder cannot handle the source. Bundled source
 revisions and wrapper changes are recorded under `vendor/`. ABB-produced FAAC
 files retain Apple-compatible gapless timing; ABB accounts for native decoder
-priming when reading them back, including through the external FDK route.
+priming when reading them back, including through the external FDK route. Mono
+FDK output explicitly declares that parametric stereo is absent so Apple and
+FFmpeg both read it as mono.
 FAAC's LGPL license and source provenance ship with the app; its corresponding
 source and build configuration live in `vendor/faac-sys/`. Public packaging
 also follows the release lane’s source/rebuild requirements for static linking.

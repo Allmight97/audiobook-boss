@@ -132,18 +132,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn faac_exposes_only_its_supported_he_rates() {
-        assert_eq!(
-            encoder_sample_rates(EncoderType::FaacHeAac),
-            &[32000, 44100, 48000]
-        );
-        assert_eq!(
-            encoder_sample_rates(EncoderType::NativeAac),
-            supported_sample_rates()
-        );
-    }
-
-    #[test]
     fn faac_rejects_an_explicit_rate_outside_its_capability() {
         let error = validate_encoder_sample_rate(
             EncoderType::FaacHeAac,

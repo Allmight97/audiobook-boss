@@ -4,6 +4,17 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-15 - FAAC Timing Follows the Produced File
+
+- Outcome: Audio recognizes ABB-produced FAAC files and applies the same
+  native-decoder interval in both processing routes. Other HE-AAC inputs retain
+  their existing timing policy.
+- Evidence: Apple needs the core-priming edit, while native FFmpeg also emits
+  SBR reconstruction delay. Changing the edit to fit native FFmpeg clips Apple
+  playback. `src-tauri/src/audio/processor/faac_timing.rs` owns the shared
+  interval; media execution tests prove Apple playback and both re-import routes.
+- Guardrail: encoder selection must not change the source's playable audio.
+
 ## 2026-09-13 - Sleep Prevention Follows Active Work
 
 - Outcome: default-on, persisted opt-out prevents idle system sleep during

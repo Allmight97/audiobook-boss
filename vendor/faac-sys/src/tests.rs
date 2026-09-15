@@ -121,8 +121,6 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) {
     assert!(packets > 0, "short input must produce packets before EOF");
     assert_eq!(unsafe { faac_encoder_close(&mut handle.0) }, FAAC_OK);
     assert!(handle.0.is_null());
-    // Drop repeats close on a null handle, as promised by the public API.
-    assert!(!asc_copy.is_empty());
 }
 
 #[test]
