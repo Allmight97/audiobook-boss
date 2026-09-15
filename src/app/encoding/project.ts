@@ -212,6 +212,7 @@ function availabilityHint(bag: EncodingBag): string {
 		if (effective === 'aac_at') return 'Auto will use Apple AAC. FDK AAC is not available.';
 		return `Auto will use Native AAC (NMR). FDK AAC is not available. ${NATIVE_AAC_HINT}`;
 	}
+	if (effective === 'faac_he_aac') return 'FAAC HE-AAC is included with ABB.';
 	if (effective === 'native_aac') {
 		if (!bag.availability.nativeAacAvailable) {
 			return 'Native AAC (NMR) is unavailable in this build.';

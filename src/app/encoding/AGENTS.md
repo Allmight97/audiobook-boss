@@ -30,6 +30,11 @@
   `request()` rejects Auto without capabilities; estimates and saved defaults
   remain readable. Processing surfaces the rejection before preparation or
   submission. Build typed requests directly from this owner's state.
+- Preserve a globally valid explicit sample rate when it is unsupported by the
+  selected encoder, including selection, hydration, and capability reload.
+  Show the unsupported-rate hint and disabled option; the user chooses the
+  replacement and backend preflight rejects the incompatible request. Do not
+  silently substitute Auto or a different explicit rate.
 - Backend capabilities own numeric bounds. Apply bounds when hydrating defaults
   or reloading capabilities as well as accepting user edits.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`
