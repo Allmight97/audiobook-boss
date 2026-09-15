@@ -10,8 +10,7 @@ invariant that keeps the unsafe operation contained.
 
 ## How To Read This
 
-In this repo, current production `unsafe` is concentrated around FFmpeg and
-FFmpeg-backed wrappers:
+In this repo, current production `unsafe` is concentrated around FFmpeg, bundled FAAC, and their wrappers:
 
 - raw FFmpeg pointers not exposed by `ffmpeg-next`
 - allocated FFmpeg audio frame buffers
@@ -46,8 +45,11 @@ behavior can break if that invariant is wrong?
 | Metadata stream disposition writes | `src-tauri/src/metadata/ffi.rs` `set_attached_pic_disposition`; `set_stream_disposition_and_clear_codec_tag` | Set `ATTACHED_PIC`, stream disposition bits, and clear codec tags not exposed by safe `ffmpeg-next` APIs. | Cover-art embedding compatibility and container metadata writes. | Validate format/stream pointers and stream index before mutation; preserve or deliberately set the expected disposition. |
 | Audio frame allocation and sample slices | `src-tauri/src/audio/buffer.rs`; `src-tauri/src/audio/processor/frame_pipeline.rs` | Allocate FFmpeg audio frames and create typed views over packed audio buffers. | Channel order, sample integrity, frame/tail handling, resampling correctness. | Frame format, channel layout, rate, and sample count are set before allocation; slice lengths are derived from frame/sample counts and format width. |
 | Encoder registry and bitrate fields | `src-tauri/src/audio/settings_encoder.rs`; `src-tauri/src/audio/processor/encoder/common.rs`; encoder option modules | Query named encoders and required NMR AVOptions, set native rate-control fields, and verify opened coder/speed/bitrate. | Encoder availability detection, AAC mode behavior, bitrate behavior, encode startup. | C strings are validated; option probes own their context, and opened-setting reads borrow the live encoder. Missing or changed NMR settings fail explicitly. |
-| Encoder context observation | `src-tauri/src/audio/processor/encoder/context.rs` | Read raw FFmpeg encoder context fields for logging/diagnostics. | Diagnostics only unless later code starts depending on logged values. | The live context is borrowed during the pre-open diagnostic read; behavioral readback stays in the native option owner. |
-| Codec extradata copy | `src-tauri/src/audio/processor/streams.rs` `read_codec_extradata` | Copy codec extradata for AAC profile/probe decisions when safe wrapper coverage is insufficient. | Decoder selection and xHE-AAC/AAC routing. | Read only during the lifetime of codec parameters; require non-null data and positive size; copy into owned memory immediately. |
+| Encoder context and provenance | `src-tauri/src/audio/processor/encoder/context.rs` | Read FFmpeg encoder fields for diagnostics and set the FAAC encoding-tool tag in the owned output dictionary. | Diagnostics and FAAC re-import timing recognition. | The live context is borrowed; dictionary writes copy bounded strings into FFmpeg-owned storage. Behavioral encoder readback stays in the option owner. |
+| FAAC encoder adapter | `src-tauri/src/audio/processor/encoder/faac.rs` | Own the FAAC C handle, pass bounded PCM/output buffers, copy borrowed ASC into FFmpeg-owned parameters. | HE-AAC sample integrity, ABI compatibility, channel declaration and handle lifetime. | Generated bindings match compiled headers; size-tagged structs and opened configuration are checked, buffers match declared lengths, and the handle closes on success or failed setup. |
+| Encoder packet padding | `src-tauri/src/audio/processor/encoder/write.rs` | Allocate FFmpeg skip-sample side data for the final HE access unit. | Playable duration and retention of decoder postroll. | The packet owns the initialized ten-byte payload; sample padding is computed from the submitted interval before timestamp rescaling. |
+| FAAC input timing | `src-tauri/src/audio/processor/faac_timing.rs` | Read source rate and attach native-decoder skip counts to packets. | Re-import sample count, alignment and tail audio. | Recognize ABB encoding provenance, derive the playable interval from integer stream timing, and bound skip counts to the known access unit. |
+| Codec profile and extradata reads | `src-tauri/src/audio/processor/streams.rs` `read_codec_extradata`, `aac_object_type_from_parameters` | Copy the probed profile and codec extradata for AAC profile/probe decisions when safe wrapper coverage is insufficient. | Decoder selection and xHE-AAC/AAC routing. | Read only during the lifetime of codec parameters; require non-null data and positive size; copy into owned memory immediately. |
 | MP4 audio index inspection | `src-tauri/src/audio/file_list.rs` `validate_mp4_audio_extent` | Read public FFmpeg index entry offsets and sizes absent from the safe wrapper to reject declared audio outside the local file. | MP4 import validity for all encoder routes. | Require the detected MP4 demuxer; borrow the live stream, copy fields before another FFmpeg call, check null entries, negative fields, addition overflow, and file bounds. Only known indexed packets are validated. |
 
 ## Non-Production Sightings
@@ -58,7 +60,7 @@ These are tracked at summary level so the register stays useful:
   unsafe frame allocation and raw sample slice helpers are used to build FFmpeg
   test frames and assert sample contents.
 - `vendor/ffmpeg-sys-next-9.0.0/**`: unsafe C wrapper functions belong to the
-  vendored FFmpeg sys layer. Treat this as dependency/sys surface unless local
+  vendored FFmpeg sys layer. `vendor/faac-sys/` similarly generates the raw FAAC FFI. Treat this as dependency/sys surface unless local
   production code calls a wrapper directly.
 - `src/AGENTS.md`: "unsafe `any` propagation" is TypeScript lint language, not
   Rust unsafe code.

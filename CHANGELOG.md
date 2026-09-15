@@ -4,6 +4,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Bundled FAAC HE-AAC with a numeric ABR target and 32, 44.1, or 48 kHz output.
+  Select it explicitly while evaluating real books; Auto keeps its existing order.
+
+### Fixed
+
+- Load saved FAAC encoder defaults from experimental builds without resetting
+  other preferences or requiring settings recovery.
+- Preserve FAAC output's playable interval and final audio through Apple playback
+  and ABB re-import on macOS.
+
 ## [1.9.0] - 2026-09-15
 
 ### Added

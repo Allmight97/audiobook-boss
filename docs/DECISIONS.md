@@ -41,15 +41,17 @@ git history and closed issues own superseded chronology.
   mode is outside the product contract. Long-book trials favored target bitrate
   for predictable size; quality mode took longer and varied substantially by book.
 - Outcome: the frontend derives rate mode from the effective backend capability.
-  Native and Apple accept numeric targets; FDK keeps its quality control.
-  Encoding owns typed request construction, avoiding a second normalization
-  layer or a separately mutable rate-mode choice. Pending capability discovery
-  preserves the validated saved mode for explicit encoders. Auto submission
-  requires capabilities so its effective encoder determines the mode.
+  Native, Apple, and bundled FAAC accept numeric targets; FAAC is ABR-only and
+  accepts explicit 32, 44.1, and 48 kHz output rates. FDK keeps its quality
+  control. Encoding owns typed request construction, avoiding a second
+  normalization layer or a separately mutable rate-mode choice. Pending
+  capability discovery preserves the validated saved mode for explicit
+  encoders. Auto submission requires capabilities so its effective encoder
+  determines the mode, and Auto remains FDK → Apple → Native.
 - Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,
   `src/app/encoding/`, and the encoder interaction and media execution tests.
 - Guardrail: encoder controls must change a shipped path. FDK stays owned by
-  the external FFmpeg adapter; the in-process engine rejects it explicitly.
+  the external FFmpeg adapter; bundled FAAC stays an explicit in-process route.
 
 ## 2026-09-10 - Development State Belongs To The Checkout
 
