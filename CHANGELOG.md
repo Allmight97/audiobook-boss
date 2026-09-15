@@ -4,17 +4,30 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
-### Improved
+## [1.9.0] - 2026-09-15
+
+### Added
+
+- Keep the Mac awake during active encoding, acquisition, Indexer handoffs, and
+  metadata saves. Enabled by default with a Settings opt-out; display sleep
+  remains available and an idle app does not prevent sleep.
+
+### Changed
 
 - Native AAC uses the NMR encoder with target bitrate and an advanced speed control.
 - Enter numeric target bitrates for Native AAC and Apple AAC; each encoder shows
   its applicable rate control automatically.
+- Reuse media inspection within each processing phase to reduce repeated preparation work.
+- Record comparable encoder timing and requested/opened audio formats in diagnostic logs.
 - Refresh the Solid 2 and Effect 4 prereleases and their required compiler packages.
 - Dev-run summaries expose build/toolchain identity, effective encoder settings,
   metadata decisions and stage outcomes, artifact handoffs, and cleanup records.
 
 ### Fixed
 
+- Reject Native bitrates above the selected output's sample-rate/channel ceiling
+  before starting a job.
+- Update rustls to 0.23.45 to correct TLS handshake validation (RUSTSEC-2026-0285).
 - Prevent early Auto processing or previews from using an unsupported bitrate mode.
 - Preserve MP3 comments carried in language or description variants, while keeping
   technical iTunes comment records separate from editable comments.

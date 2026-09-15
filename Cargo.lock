@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "audiobook-boss"
-version = "1.8.2"
+version = "1.9.0"
 dependencies = [
  "abb-audible-core",
  "abb-media-core",
