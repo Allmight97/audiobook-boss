@@ -1,0 +1,14 @@
+[package]
+name = "faac-sys"
+version = "2.1.0"
+edition = "2021"
+links = "faac"
+license = "LGPL-2.1-or-later"
+publish = false
+
+[build-dependencies]
+cc = "1.4.4"
+bindgen = { version = "0.72.1", default-features = false, features = ["runtime"] }
+
+[lints]
+workspace = true

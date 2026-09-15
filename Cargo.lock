@@ -1578,6 +1578,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "faac-sys"
+version = "2.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

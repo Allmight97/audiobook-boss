@@ -6,6 +6,7 @@ members = [
     "crates/abb-output-artifact-core",
     "crates/abb-processing-core",
     "crates/abb-remote-source-core",
+    "vendor/faac-sys",
     "src-tauri",
 ]
 resolver = "2"
