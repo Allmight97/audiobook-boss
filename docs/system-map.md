@@ -65,11 +65,12 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Command ingress | `src-tauri/src/commands` | Thin validation/adaptation into Rust owners. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
 | Processing | `src-tauri/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
 | WorkRuntime | `src-tauri/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
+| Active-work power | `src-tauri/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
 | Audio Engine | `src-tauri/src/audio` | Import facts, inspection, toolchain selection, media execution, staging, cleanup, and integrity facts. |
 | Metadata Outcome | `src-tauri/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `src-tauri/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `src-tauri/src/app_settings` + `src/app/appSettings` | Durable preferences plus frontend hydration, accepted-value coordination, and durability state. |
-| Encoding Configuration | `src/app/encoding` | Encoder/sample-rate/channel request, capability projection, auto-resolution hints, and estimate kbps. |
+| Encoding Configuration | `src/app/encoding` | Typed encoder/sample-rate/channel request, capability-derived rate mode, auto-resolution hints, and total estimate kbps. |
 | Remote Source | `src-tauri/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an existing owner; not additional product owners. |
 

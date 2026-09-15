@@ -27,9 +27,17 @@ bun run app:dev:log
 
 Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
 
-**AAC runtime contract**: output encoder and input decoder are separate. Normal processing uses in-process `ffmpeg-next`. FDK HE-AAC output uses an external FFmpeg/`libfdk_aac` adapter and may force `aac_at` or `libfdk_aac` when the default decoder cannot handle the source.
+**AAC runtime contract**: output encoder and input decoder are separate. Native AAC uses the bundled NMR coder with target bitrate and an advanced speed control; Apple AAC also uses a numeric target. FDK HE-AAC keeps its quality control through an external FFmpeg/`libfdk_aac` adapter. Normal processing uses in-process `ffmpeg-next`; the external adapter may force `aac_at` or `libfdk_aac` when the default decoder cannot handle the source. The bundled source revision and wrapper changes are recorded under `vendor/`.
 
 [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
+
+## Unattended work
+
+Settings → Power enables **Keep computer awake while working** by default. It
+prevents macOS idle sleep during encoding, Audible acquisition, Indexer handoff,
+and metadata saves, while allowing display sleep. Turning it off takes effect
+during active work. Leaving ABB open and idle does not prevent sleep; manual sleep, lid
+closure, and low-battery sleep remain controlled by macOS.
 
 ## Toolchain
 

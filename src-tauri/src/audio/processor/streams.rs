@@ -24,7 +24,7 @@ impl DecoderCandidate {
 
     fn display_label(self) -> &'static str {
         match self {
-            Self::Default => "Native AAC (FFmpeg)",
+            Self::Default => "FFmpeg default decoder",
             Self::Named("aac_at") => "Apple AAC",
             Self::Named("libfdk_aac") => "FDK AAC",
             Self::Named(name) => name,

@@ -17,6 +17,9 @@
 - Change private implementation files when targeted `audiobook-boss` Nextest
   and Public API Strip checks stay green.
 - Add behavior coverage inside this cluster when requested path, resolved path, collision, review, or commit behavior changes.
+- Successful publication fixes final artifact truth. Staged-source cleanup
+  happens afterward through the cleanup guard; failures surface a success
+  warning and remain owned for retry without deleting the published output.
 - Keep final artifact writes and replacement policy here; processor code should ask this boundary for artifact truth.
 - Use explicit cross-platform replacement semantics for final artifacts; do not rely on Unix-only rename-over-existing behavior.
 

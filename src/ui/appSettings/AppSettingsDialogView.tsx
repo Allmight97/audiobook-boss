@@ -431,6 +431,35 @@ export function AppSettingsDialogView(): JSX.Element {
 						{(_) => (
 							<>
 								<section class="app-settings-section">
+									<h4 class="app-settings-section-title">Power</h4>
+									<label class="checkbox-label" data-testid="app-settings-keep-awake-toggle">
+										<input
+											type="checkbox"
+											data-testid="app-settings-keep-awake-checkbox"
+											checked={state().settings?.keepAwakeWhileWorking ?? true}
+											disabled={state().powerSaveState === 'saving'}
+											onChange={(event) =>
+												void settings.setKeepAwakeWhileWorking(Boolean(event.currentTarget.checked))
+											}
+										/>
+										<span class="option-label">Keep computer awake while working</span>
+									</label>
+									<p class="muted-text">
+										During encoding, Audible acquisition, Indexer handoff, and metadata saves. The
+										display can sleep normally; ABB being open and idle does not keep the computer
+										awake.
+									</p>
+									<Show when={state().powerSaveState === 'error'}>
+										<p
+											class="app-settings-status app-settings-status-error"
+											data-testid="app-settings-power-error"
+											role="alert"
+										>
+											{state().powerSaveError}
+										</p>
+									</Show>
+								</section>
+								<section class="app-settings-section">
 									<h4 class="app-settings-section-title">Import</h4>
 									<p class="muted-text">
 										Choose which source the Import button opens by default. Use the caret to pick

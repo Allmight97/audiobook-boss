@@ -43,6 +43,7 @@ const lastUsed: AppSettings = {
 	toolchain: {},
 	startupBehavior: 'rememberLastState',
 	defaultAcquisitionLane: 'audible',
+	keepAwakeWhileWorking: true,
 };
 
 const pinned: PinnedDefaults = {

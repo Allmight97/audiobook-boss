@@ -35,6 +35,7 @@ pub struct RemoteSourceRuntime {
 }
 
 struct RemoteSourceRuntimeInner {
+    power: crate::power::PowerManager,
     config_dir: PathBuf,
     vault: Box<dyn SecretVault>,
     lifecycle: RemoteAcquisitionLifecycle,
@@ -52,6 +53,7 @@ impl RemoteSourceRuntime {
         })?;
         Ok(Self {
             inner: Arc::new(RemoteSourceRuntimeInner {
+                power: app.state::<crate::power::PowerManager>().inner().clone(),
                 config_dir,
                 vault: Box::new(KeyringSecretVault::for_app_identifier(
                     &app.config().identifier,
@@ -182,6 +184,7 @@ impl RemoteSourceRuntime {
         &self,
         request: types::RemoteReleaseGrabRequest,
     ) -> Result<types::RemoteReleaseGrabResponse> {
+        let _active_work = self.inner.power.begin();
         IndexerProvider::grab_release(
             &self.inner.config_dir,
             self.inner.vault.as_ref(),
@@ -303,6 +306,7 @@ mod tests {
     fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
         RemoteSourceRuntime {
             inner: Arc::new(RemoteSourceRuntimeInner {
+                power: crate::power::PowerManager::default(),
                 config_dir: root.path().to_path_buf(),
                 vault: Box::<TestSecretVault>::default(),
                 lifecycle: RemoteAcquisitionLifecycle::new(

@@ -13,24 +13,17 @@ use audiobook_boss_lib::audio::{
 fn exposed_encoder_capabilities_match_validators() {
     let capabilities = encoder_settings_capabilities();
 
-    assert_eq!(
-        capabilities.auto_resolution_order,
-        vec![
-            EncoderType::FdkHeAac,
-            EncoderType::AacAt,
-            EncoderType::NativeAac,
-        ]
-    );
-
-    for bitrate in &capabilities.bitrate_kbps_options {
+    for bitrate in [capabilities.bitrate_kbps_min, capabilities.bitrate_kbps_max] {
         let settings = EncoderSettings {
-            encoder_type: EncoderType::FdkHeAac,
-            bitrate_kbps: *bitrate,
-            bitrate_mode: BitrateMode::Vbr(capabilities.vbr_level_default),
+            encoder_type: EncoderType::NativeAac,
+            bitrate_kbps: bitrate,
+            bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Auto,
-            afterburner: true,
+            afterburner: false,
+            native_aac_speed: capabilities.native_speed_max,
         };
-        validate_encoder_settings(&settings).expect("exposed bitrate should validate for FDK VBR");
+        validate_encoder_settings(&settings)
+            .expect("exposed target and speed bounds should pass request validation");
     }
 
     for sample_rate in &capabilities.explicit_sample_rates {
@@ -50,6 +43,7 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
             bitrate_mode: entry.default_mode,
             channels: ChannelConfig::Auto,
             afterburner: true,
+            native_aac_speed: 0,
         };
 
         validate_encoder_settings(&settings)

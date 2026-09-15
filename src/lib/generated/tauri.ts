@@ -193,6 +193,7 @@ export type AppErrorEnvelope = {
 };
 
 export type AppSettings = {
+	keepAwakeWhileWorking?: boolean,
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
@@ -203,6 +204,7 @@ export type AppSettings = {
 };
 
 export type AppSettingsPatch = {
+	keepAwakeWhileWorking: boolean | null,
 	maxConcurrentJobs: ConcurrencyPreference | null,
 	encoderDefaults: EncoderDefaults | null,
 	outputDefaults: OutputDefaults | null,
@@ -380,7 +382,7 @@ export type EncoderDefaultsScope = "lastUsed" | "pinned";
 export type EncoderSettings = {
 	encoderType: EncoderType,
 	/**
-	 *  Allowed: 48|56|64|72|80|88|96|104|112|120|128 (kbps).
+	 *  Target kbps. Native AAC additionally checks the resolved rate/channel ceiling.
 	 *  Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
 	 */
 	bitrateKbps: number,
@@ -388,14 +390,17 @@ export type EncoderSettings = {
 	channels: ChannelConfig,
 	/**  Applies to FDK encoder only */
 	afterburner: boolean,
+	/**  Native NMR search speed, upstream default 0. */
+	nativeAacSpeed?: number,
 };
 
 export type EncoderSettingsCapabilities = {
 	availability: EncoderAvailability,
 	encoderTypes: EncoderType[],
-	autoResolutionOrder: EncoderType[],
-	bitrateKbpsOptions: number[],
+	bitrateKbpsMin: number,
 	bitrateModesByEncoder: EncoderBitrateModeCapability[],
+	bitrateKbpsMax: number,
+	nativeSpeedMax: number,
 	vbrLevelMin: number,
 	vbrLevelMax: number,
 	vbrLevelDefault: number,

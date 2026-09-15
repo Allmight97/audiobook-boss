@@ -57,7 +57,7 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
     metadata.album = dict.get("album").map(str::to_string);
     metadata.composer = dict.get("composer").map(str::to_string);
     metadata.genre = dict.get("genre").map(str::to_string);
-    metadata.comment = dict.get("comment").map(str::to_string);
+    metadata.comment = read_comment(&dict);
     metadata.description = dict.get("description").map(str::to_string);
     metadata.album_sort = dict.get("sort_album").map(str::to_string);
     metadata.track = parse_position_field(
@@ -97,6 +97,16 @@ fn read_metadata_with_ffmpeg_input(ictx: &ff::format::context::Input) -> Result<
     metadata.cover_art = extract_attached_pic(ictx);
 
     Ok(metadata)
+}
+
+fn read_comment(dict: &ff::DictionaryRef<'_>) -> Option<String> {
+    dict.iter()
+        .filter_map(|(key, value)| {
+            super::field_schema::comment_key_rank(key)
+                .map(|rank| (rank, key.to_ascii_lowercase(), value))
+        })
+        .min_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)))
+        .map(|(_, _, value)| value.to_owned())
 }
 
 fn normalize_cover_art(cover_art: Option<Vec<u8>>) -> Option<Vec<u8>> {
@@ -176,9 +186,24 @@ fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
 // EXCEPTION: tiny helper inline tests — first_tag_with_lookup is private, no I/O
 #[cfg(test)]
 mod tests {
+    use super::{ff, read_comment};
     use super::{first_tag_with_lookup, parse_position_field};
     use crate::metadata::field_schema::TagField;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn comment_read_prefers_undescribed_text_and_ignores_itunes_technical_records() {
+        let mut dict = ff::Dictionary::new();
+        dict.set("comment-iTunSMPB-eng", "gapless");
+        assert_eq!(read_comment(&dict), None);
+        dict.set("comment-reader note", "Note");
+        assert_eq!(read_comment(&dict).as_deref(), Some("Note"));
+        dict.set("comment-fra", "French");
+        dict.set("comment-eng", "English");
+        assert_eq!(read_comment(&dict).as_deref(), Some("English"));
+        dict.set("comment", "Canonical");
+        assert_eq!(read_comment(&dict).as_deref(), Some("Canonical"));
+    }
 
     #[test]
     fn prefers_canonical_series_part_key() {

@@ -1,10 +1,6 @@
 import { createRoot, createSignal, flush, runWithOwner, type Accessor } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	defaultEncoderSettings,
-	type EncodingRequestConfig,
-	type ProcessingPreflightPlan,
-} from '../../types/audio';
+import type { ProcessingPreflightPlan } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import { createAppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
@@ -72,13 +68,6 @@ function emptyMetadataView(): MetadataView {
 	};
 }
 
-function defaultEncodingRequest(): EncodingRequestConfig {
-	return {
-		encoderSettings: defaultEncoderSettings(),
-		sampleRate: 'auto',
-	};
-}
-
 function collisionPlan(): ProcessingPreflightPlan {
 	return {
 		jobType: 'batch',
@@ -116,42 +105,27 @@ function collisionPlan(): ProcessingPreflightPlan {
 
 type MountedOutput = {
 	readonly owner: OutputPlanOwner;
-	readonly setEncodingRequest: (config: EncodingRequestConfig) => void;
-	readonly setEncodingEstimateKbps: (kbps: number) => void;
 	dispose(): void;
 };
 
 function mountOutput(
 	runtime: ReturnType<typeof createAppRuntime>,
 	overrides: {
-		readonly encodingRequest?: EncodingRequestConfig;
-		readonly encodingEstimateKbps?: number;
 		readonly metadataView?: Accessor<MetadataView>;
 		readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 	} = {},
 ): MountedOutput {
 	return runWithOwner(null, () =>
 		createRoot((dispose) => {
-			const [encodingRequest, setEncodingRequest] = createSignal(
-				overrides.encodingRequest ?? defaultEncodingRequest(),
-			);
-			const [encodingEstimateKbps, setEncodingEstimateKbps] = createSignal(
-				overrides.encodingEstimateKbps ?? 64,
-			);
 			const owner = createOutputOwner({
 				persistDefaults: () => undefined,
 				input: runtime.input,
 				metadataView: overrides.metadataView ?? emptyMetadataView,
-				encoding: {
-					request: encodingRequest,
-					estimateKbps: encodingEstimateKbps,
-				},
+				encoding: runtime.encoding,
 				onMetadataValidation: overrides.onMetadataValidation,
 			});
 			return {
 				owner,
-				setEncodingRequest,
-				setEncodingEstimateKbps,
 				dispose,
 			};
 		}),
@@ -185,55 +159,38 @@ describe('output plan public view', () => {
 		expect(mounted.owner.readRequestConfig().outputDirectory).toBe('/books/out');
 	});
 
-	it('derives the encoder-header estimate from public Input duration and encoder request config', () => {
+	it('uses total target bitrate for mono and stereo encoder-header estimates', async () => {
 		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
-		mounted = mountOutput(runtime, {
-			encodingRequest: {
-				encoderSettings: {
-					...defaultEncoderSettings(),
-					bitrateMode: { mode: 'cbr' },
-					bitrateKbps: 64,
-					channels: 'stereo',
-				},
-				sampleRate: 'auto',
-			},
-			encodingEstimateKbps: 64,
+		mounted = mountOutput(runtime);
+		await vi.waitFor(() => {
+			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1);
 		});
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.2 MB');
+		runtime.encoding.select('encoder', 'native_aac');
+		runtime.encoding.select('bitrate', '64');
+		runtime.encoding.select('channels', 'mono');
+		flush();
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 804.7 KB');
+		runtime.encoding.select('channels', 'stereo');
+		flush();
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 804.7 KB');
 	});
 
-	it('changes the encoder-header size when FDK VBR quality changes encoded bitrate', () => {
+	it('changes the encoder-header size with FDK VBR quality while retaining target bitrate', async () => {
 		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
-		const stickyBitrateKbps = 64;
-		mounted = mountOutput(runtime, {
-			encodingRequest: {
-				encoderSettings: {
-					...defaultEncoderSettings(),
-					bitrateMode: { mode: 'vbr', value: 1 },
-					bitrateKbps: stickyBitrateKbps,
-					channels: 'auto',
-				},
-				sampleRate: 'auto',
-			},
-			encodingEstimateKbps: 32,
+		mounted = mountOutput(runtime);
+		await vi.waitFor(() => {
+			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1);
 		});
-		const quality1 = mounted.owner.estimatedSizeText();
-		mounted.setEncodingRequest({
-			encoderSettings: {
-				...defaultEncoderSettings(),
-				bitrateMode: { mode: 'vbr', value: 5 },
-				bitrateKbps: stickyBitrateKbps,
-				channels: 'auto',
-			},
-			sampleRate: 'auto',
-		});
-		mounted.setEncodingEstimateKbps(96);
+		runtime.encoding.select('encoder', 'fdk_he_aac');
+		runtime.encoding.select('quality', '1');
 		flush();
-		const quality5 = mounted.owner.estimatedSizeText();
-		expect(quality1).toBe('~ 402.3 KB');
-		expect(quality5).toBe('~ 1.2 MB');
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 402.3 KB');
+		runtime.encoding.select('quality', '5');
+		flush();
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.2 MB');
+		expect(runtime.encoding.request().encoderSettings.bitrateKbps).toBe(64);
 	});
 
 	it('keeps the empty estimate placeholder when Input has no files', () => {

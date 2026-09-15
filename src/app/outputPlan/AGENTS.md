@@ -19,13 +19,15 @@
 ## Hard Invariants
 
 - Estimated size is a derived view of public Input duration
-  (`input.view().totalDurationSeconds`), Encoding owner `request` channels,
-  and `estimateKbps`. Do not read private Input/encoder state, sample a UI
+  (`input.view().totalDurationSeconds`) and Encoding owner's total
+  `estimateKbps`. Do not read private Input/encoder state, sample a UI
   encoder getter, parse the encoder `Est: ~60 kbps` label, or cache a mirrored
   byte size.
 - `estimate.ts` and `estimate.test.ts` own the byte formula and empty-session
   placeholder. On FDK VBR, use injected `encodingEstimateKbps`, not the sticky
-  request `encoderSettings.bitrateKbps`. The encoder header owns presentation.
+  request `encoderSettings.bitrateKbps`. Bitrate is total across channels; do not
+  apply a stereo multiplier.
+  The encoder header owns presentation.
 - Path preview is a Solid `createEffect` on public Input, Metadata, output
   directory, naming preset, year, and the **committed** template. Live template
   typing updates the input immediately and commits after 150 ms. Do not preview

@@ -457,7 +457,7 @@ function parseExternalFdkRuns(input: string): {
 			continue;
 		}
 		if (
-			/^(encoder_settings |elapsed_ms=|target_duration_seconds=|progress |toolchain_ffmpeg=|status_detail=)/.test(
+			/^(encoder_settings |requested_settings |opened_settings |input\[|elapsed_ms=|elapsed_monotonic_ms=|elapsed_wallclock_ms=|target_duration_seconds=|progress |toolchain_ffmpeg=|status_detail=)/.test(
 				line,
 			)
 		) {
@@ -513,7 +513,7 @@ function parseInProcessEncoderRuns(input: string): {
 		}
 		if (!current) continue;
 		if (
-			/^(encoder=|encoder_settings |stage=|elapsed_ms=|target_duration_seconds=|ffmpeg_version=|faac_version=|profile=|output_rate=|submitted_samples=|first_packet_pts=|backend_diagnostics=)/.test(
+			/^(encoder=|encoder_settings |requested_settings |opened_settings |input\[|stage=|elapsed_ms=|elapsed_monotonic_ms=|elapsed_wallclock_ms=|target_duration_seconds=|ffmpeg_version=|faac_version=|profile=|output_rate=|submitted_samples=|first_packet_pts=|backend_diagnostics=)/.test(
 				line,
 			)
 		) {

@@ -9,6 +9,7 @@ describe('defaultEncoderSettings', () => {
 			bitrateMode: { mode: 'vbr', value: 3 },
 			channels: 'auto',
 			afterburner: true,
+			nativeAacSpeed: 0,
 		});
 	});
 });

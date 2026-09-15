@@ -29,10 +29,19 @@ pub(crate) async fn dispatch_merge_job(
 ) -> Result<ProcessCommandResult> {
     let ExecutionProcessingPlan {
         plan,
+        file_info,
         output_parent_cleanup,
     } = execution_plan;
-    let result =
-        dispatch_merge_plan(window, registry, workspace_root, payload, plan, options).await;
+    let result = dispatch_merge_plan(
+        window,
+        registry,
+        workspace_root,
+        payload,
+        plan,
+        file_info,
+        options,
+    )
+    .await;
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(
         result,
         output_parent_cleanup,
@@ -49,6 +58,7 @@ pub(crate) async fn dispatch_batch_jobs(
 ) -> Result<ProcessCommandResult> {
     let ExecutionProcessingPlan {
         plan,
+        file_info: _,
         output_parent_cleanup,
     } = execution_plan;
     let result =
@@ -65,6 +75,7 @@ async fn dispatch_merge_plan(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
+    file_info: audio::FileListInfo,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     if options.is_operation_cancelled() {
@@ -79,13 +90,6 @@ async fn dispatch_merge_plan(
         return Ok(ProcessCommandResult::new(JobType::Merge, vec![skipped]));
     }
 
-    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let mut file_info = audio::get_file_list_info(&paths)?;
-    audio::apply_chapter_plans(
-        &mut file_info,
-        payload.chapter_plans.as_ref(),
-        paths.len() > 1,
-    )?;
     let result = run_processing_job(ProcessingJobRequest {
         window,
         registry,

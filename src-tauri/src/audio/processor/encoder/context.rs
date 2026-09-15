@@ -5,7 +5,7 @@ use crate::errors::Result;
 use ffmpeg_next as ff;
 
 use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
-use super::options::{build_apple_options, build_native_options};
+use super::options::{build_apple_options, build_native_options, validate_native_options};
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
@@ -28,12 +28,17 @@ pub(crate) fn create_audio_encoder(
     }
 
     let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
-    let codec = if codec_name == "aac" {
-        ff::encoder::find(ff::codec::Id::AAC)
-            .ok_or_else(|| AppError::General("AAC encoder not found".to_string()))?
-    } else {
-        find_encoder_by_name(codec_name)?
-    };
+    let codec = find_encoder_by_name(codec_name)?;
+    let mut resolved_settings = encoder_settings.clone();
+    resolved_settings.encoder_type = resolved_encoder;
+    settings_encoder::validate_encoder_settings(&resolved_settings)?;
+    if resolved_encoder == EncoderType::NativeAac {
+        settings_encoder::validate_native_target_bitrate(
+            encoder_settings.bitrate_kbps,
+            target_sample_rate,
+            target_channels as u32,
+        )?;
+    }
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
     let sample_format = match resolved_encoder {
@@ -85,6 +90,9 @@ pub(crate) fn create_audio_encoder(
         .open_as_with(codec, opts)
         .map_err(|e| AppError::General(format!("Final open encoder failed: {e}")))?;
 
+    if resolved_encoder == EncoderType::NativeAac {
+        validate_native_options(&enc_ctx, encoder_settings)?;
+    }
     Ok(enc_ctx)
 }
 

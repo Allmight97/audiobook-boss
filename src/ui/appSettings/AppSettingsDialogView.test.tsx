@@ -35,6 +35,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		},
 		toolchain: {},
 		startupBehavior: 'rememberLastState',
+		keepAwakeWhileWorking: true,
 		...overrides,
 	};
 }
@@ -293,6 +294,41 @@ describe('AppSettingsDialogView', () => {
 			defaultAcquisitionLane: 'indexer',
 		});
 		expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer');
+	});
+
+	it('persists the awake preference, reloads its backend value, and preserves the old choice on error', async () => {
+		let persisted = true;
+		const update = vi.fn(async (patch: Parameters<SettingsCapability['updateAppSettings']>[0]) => {
+			if (patch.keepAwakeWhileWorking === true) throw new Error('Settings file is read-only');
+			persisted = patch.keepAwakeWhileWorking ?? persisted;
+			return settingsFixture({ keepAwakeWhileWorking: persisted });
+		});
+		await renderOpenDialog({
+			getAppSettings: vi.fn(async () => settingsFixture({ keepAwakeWhileWorking: persisted })),
+			updateAppSettings: update,
+		});
+
+		let awake = screen.getByTestId('app-settings-keep-awake-checkbox');
+		expect(awake).toBeChecked();
+		await fireEvent.click(awake);
+		await vi.waitFor(() => {
+			expect(awake).not.toBeChecked();
+			expect(awake).toBeEnabled();
+		});
+		expect(update).toHaveBeenCalledWith({ keepAwakeWhileWorking: false });
+
+		runtime!.settings.closeDialog();
+		await runtime!.settings.openDialog();
+		awake = screen.getByTestId('app-settings-keep-awake-checkbox');
+		expect(awake).not.toBeChecked();
+
+		await fireEvent.click(awake);
+		await vi.waitFor(() =>
+			expect(screen.getByTestId('app-settings-power-error')).toHaveTextContent(
+				'Settings file is read-only',
+			),
+		);
+		expect(awake).not.toBeChecked();
 	});
 
 	it('lets the user enable both audiobook categories from the collapsed picker', async () => {

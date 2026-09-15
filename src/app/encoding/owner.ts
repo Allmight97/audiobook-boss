@@ -114,6 +114,11 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		},
 		request: () => {
 			rev();
+			if (bag.flavor === 'auto' && bag.capabilities === null) {
+				throw new Error(
+					'Encoder availability is not ready. Try again in a moment, or open Settings to retry detection.',
+				);
+			}
 			return bagRequest(bag);
 		},
 		estimateKbps: () => {

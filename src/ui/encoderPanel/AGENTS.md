@@ -18,8 +18,9 @@
 - Render `runtime.encoding.view()` and dispatch `select`. Keep screen-local
   disclosure only.
 - The `estimated-size` span is the only consumer of Output Plan's estimated-size
-  text. Keep `~ 12.3 MB` / `~ --- MB` in this header; do not move the span into
-  Output.
+  text. Keep it in this header; do not move the span into Output.
+- NMR speed lives under the view-local Advanced disclosure. Rate mode is derived
+  by Encoding; the view exposes the applicable quality or target input.
 - Afterburner is encoding truth; the checkbox lives in the Settings dialog.
 
 ## Private Cluster

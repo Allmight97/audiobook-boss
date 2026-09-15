@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
+use tauri::Manager;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::processing::terminal_outcomes::{
@@ -63,6 +64,7 @@ pub(crate) async fn run_processing_job(
     .await?;
     let cancellation_checker =
         cancellation_checker.with_operation_flag(request.operation_cancel.clone());
+    let _active_work = request.window.state::<crate::power::PowerManager>().begin();
 
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
         window: request.window,

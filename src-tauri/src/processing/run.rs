@@ -11,7 +11,7 @@ mod run_options;
 mod run_validation;
 
 pub(crate) use run_options::ProcessingRunOptions;
-use run_validation::{log_encoder_summary, validate_external_processing_contract};
+use run_validation::{inspect_and_validate_external_processing_contract, log_encoder_summary};
 
 pub(crate) async fn process_payload(
     window: tauri::Window,
@@ -88,10 +88,11 @@ async fn dispatch_payload(
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     validate_encoder_settings(&payload.settings)?;
-    validate_external_processing_contract(&payload)?;
+    let file_info = inspect_and_validate_external_processing_contract(&payload)?;
     log_encoder_summary(&payload);
 
-    let execution_plan = prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds)?;
+    let execution_plan =
+        prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds, file_info)?;
     let job_type = execution_plan.plan.job_type;
 
     match job_type {
@@ -126,9 +127,9 @@ pub(crate) fn preflight_payload(
     preview_seconds: Option<f64>,
 ) -> Result<ProcessingPreflightPlan> {
     validate_encoder_settings(&payload.settings)?;
-    validate_external_processing_contract(&payload)?;
+    let file_info = inspect_and_validate_external_processing_contract(&payload)?;
 
-    resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds)
+    resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds, &file_info)
 }
 
 #[cfg(test)]
@@ -154,6 +155,7 @@ mod tests {
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
             afterburner: true,
+            native_aac_speed: 0,
         }
     }
 
@@ -173,6 +175,159 @@ mod tests {
         };
         overrides(&mut payload);
         payload
+    }
+
+    #[test]
+    fn preflight_rejects_symlink_before_metadata_projection() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let source = temp_dir.path().join("source.m4b");
+        std::fs::write(&source, b"path validation fixture").expect("write source");
+        let symlink = temp_dir.path().join("source-link.m4b");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&source, &symlink).expect("create symlink");
+        #[cfg(not(unix))]
+        std::os::windows::fs::symlink_file(&source, &symlink).expect("create symlink");
+
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![symlink.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+        });
+
+        let err = super::preflight_payload(payload, None, None)
+            .expect_err("symlink should be rejected before metadata projection");
+
+        assert!(
+            err.to_string().contains("Symlinks are not supported"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn execution_inspection_rejects_a_source_replaced_after_preflight() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let source = temp_dir.path().join("source.wav");
+        write_silence_wav(&source, 1);
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![source.to_string_lossy().to_string()];
+            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
+        });
+
+        super::preflight_payload(payload.clone(), None, None)
+            .expect("valid source should be accepted during preflight");
+
+        let original = temp_dir.path().join("source-original.wav");
+        std::fs::rename(&source, &original).expect("move accepted source");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&original, &source).expect("replace source with symlink");
+        #[cfg(not(unix))]
+        std::os::windows::fs::symlink_file(&original, &source)
+            .expect("replace source with symlink");
+
+        let err =
+            super::run_validation::inspect_and_validate_external_processing_contract(&payload)
+                .expect_err("execution must inspect the replaced source");
+        assert!(
+            err.to_string().contains("Symlinks are not supported"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn native_target_ceiling_is_checked_before_output_planning() {
+        use crate::audio::SampleRateConfig;
+        let temp = TempDir::new().expect("temp dir");
+        let source = temp.path().join("source.wav");
+        write_silence_wav(&source, 1);
+        let output = temp.path();
+        for (bitrate, channels, rate, accepted) in [
+            (600, ChannelConfig::Stereo, SampleRateConfig::Auto, false),
+            (529, ChannelConfig::Stereo, SampleRateConfig::Auto, true),
+            (300, ChannelConfig::Auto, SampleRateConfig::Auto, false),
+            (
+                600,
+                ChannelConfig::Stereo,
+                SampleRateConfig::Explicit(96_000),
+                true,
+            ),
+        ] {
+            let payload = process_payload(|payload| {
+                payload.input_files = vec![source.to_string_lossy().into_owned()];
+                payload.output_dir = output.to_string_lossy().into_owned();
+                payload.settings.encoder_type = EncoderType::NativeAac;
+                payload.settings.bitrate_mode = BitrateMode::Cbr;
+                payload.settings.bitrate_kbps = bitrate;
+                payload.settings.channels = channels;
+                payload.sample_rate = Some(rate);
+            });
+            let result = super::preflight_payload(payload, None, None);
+            if accepted {
+                result.expect("target within resolved ceiling should pass");
+            } else {
+                assert!(result
+                    .expect_err("over-ceiling target must fail preflight")
+                    .to_string()
+                    .contains("Native target bitrate exceeds"));
+            }
+            assert_eq!(
+                std::fs::read_dir(output)
+                    .expect("read output directory")
+                    .count(),
+                1,
+                "preflight must not create output directories"
+            );
+        }
+    }
+
+    #[test]
+    fn native_target_ceiling_uses_each_batch_output_but_combined_merge_channels() {
+        let temp = TempDir::new().expect("temp dir");
+        let mono = temp.path().join("mono.wav");
+        let stereo = temp.path().join("stereo.wav");
+        write_silence_wav(&mono, 1);
+        write_silence_wav(&stereo, 2);
+        for job_type in [JobType::Batch, JobType::Merge] {
+            let payload = process_payload(|payload| {
+                payload.input_files = vec![
+                    stereo.to_string_lossy().into_owned(),
+                    mono.to_string_lossy().into_owned(),
+                ];
+                payload.output_dir = temp.path().to_string_lossy().into_owned();
+                payload.job_type = Some(job_type);
+                payload.settings.encoder_type = EncoderType::NativeAac;
+                payload.settings.bitrate_mode = BitrateMode::Cbr;
+                payload.settings.bitrate_kbps = 300;
+            });
+            let result = super::preflight_payload(payload, None, None);
+            if job_type == JobType::Merge {
+                result.expect("combined stereo output permits 300 kbps");
+            } else {
+                assert!(result
+                    .expect_err("over-ceiling target must fail preflight")
+                    .to_string()
+                    .contains("264 kbps"));
+            }
+        }
+    }
+
+    fn write_silence_wav(path: &std::path::Path, channels: u16) {
+        const SAMPLE_RATE: u32 = 44_100;
+        let data_len = SAMPLE_RATE * 2 * u32::from(channels);
+        let mut bytes = Vec::with_capacity(44 + data_len as usize);
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+        bytes.extend_from_slice(b"WAVEfmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&channels.to_le_bytes());
+        bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        bytes.extend_from_slice(&(2 * channels).to_le_bytes());
+        bytes.extend_from_slice(&16u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        bytes.resize(44 + data_len as usize, 0);
+        std::fs::write(path, bytes).expect("write WAV fixture");
     }
 
     fn supplemental_asset(

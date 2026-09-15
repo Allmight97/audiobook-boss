@@ -497,6 +497,29 @@ describe('analyzeDevLog', () => {
 		expect(summary).not.toContain('job_id=job-0');
 	});
 
+	it('retains the shared requested/opened timing facts from new encoder records', () => {
+		const analysis = analyzeDevLog(
+			APP_START,
+			[
+				'--- in-process-encoder run 1 ---',
+				'status=success',
+				'elapsed_monotonic_ms=1200',
+				'elapsed_wallclock_ms=1250',
+				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=Explicit(44100) channels=Stereo afterburner=false native_aac_speed=2',
+				'opened_settings encoder=aac rate=44100 channels=2',
+				'--- end in-process-encoder run ---',
+			].join('\n'),
+			0,
+		);
+
+		expect(analysis.inProcessEncoderDetails[0]).toContain('elapsed_monotonic_ms=1200');
+		expect(analysis.inProcessEncoderDetails[0]).toContain('elapsed_wallclock_ms=1250');
+		expect(analysis.inProcessEncoderDetails[0]).toContain('native_aac_speed=2');
+		expect(analysis.inProcessEncoderDetails[0]).toContain(
+			'opened_settings encoder=aac rate=44100 channels=2',
+		);
+	});
+
 	it.each(['failed'])('classifies in-process encoder status=%s as failed', (status) => {
 		const encodingLog = [
 			'--- in-process-encoder run 1783700000 ---',

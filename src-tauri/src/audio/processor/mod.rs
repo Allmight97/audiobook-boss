@@ -36,6 +36,7 @@ mod frame_pipeline;
 mod plan;
 mod prepare;
 mod preview_state;
+mod run_diagnostics;
 mod staging;
 mod streams;
 
@@ -70,10 +71,59 @@ impl AudioExecutionRequest {
 pub fn validate_audio_engine_inputs(
     encoder_settings: &EncoderSettings,
     file_info: &FileListInfo,
+    sample_rate: &crate::audio::SampleRateConfig,
+    merge_inputs: bool,
 ) -> Result<()> {
     adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
-    adapter.validate_inputs(file_info)
+    adapter.validate_inputs(file_info)?;
+    if matches!(
+        adapter,
+        adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type: crate::audio::EncoderType::NativeAac
+        }
+    ) {
+        if merge_inputs {
+            validate_native_output_target(encoder_settings, sample_rate, &file_info.files)?;
+        } else {
+            for file in file_info.files.iter().filter(|file| file.is_valid) {
+                validate_native_output_target(
+                    encoder_settings,
+                    sample_rate,
+                    std::slice::from_ref(file),
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_native_output_target(
+    settings: &EncoderSettings,
+    sample_rate: &crate::audio::SampleRateConfig,
+    files: &[AudioFile],
+) -> Result<()> {
+    let channels = adapter::resolve_output_channels(settings.channels, files)?
+        .forced_channels()
+        .expect("output channels are resolved");
+    let rate = sample_rate
+        .explicit_rate()
+        .or_else(|| {
+            files
+                .iter()
+                .find(|file| file.is_valid)
+                .and_then(|file| file.sample_rate)
+        })
+        .ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Could not determine Native sample rate; choose it explicitly.".into(),
+            )
+        })?;
+    crate::audio::settings_encoder::validate_native_target_bitrate(
+        settings.bitrate_kbps,
+        rate,
+        u32::from(channels),
+    )
 }
 
 pub(crate) fn processing_workspace_root(cache_dir: &std::path::Path) -> std::path::PathBuf {
@@ -202,10 +252,9 @@ fn process_audiobook_with_context(
     let mut metrics = ProcessingMetrics::new();
 
     // Stage 1: Validate + Prepare (from prepare module)
-    let workflow = prepare::validate_and_prepare(&context, &files)?;
-    let workflow_temp_dir = workflow.temp_dir.clone();
     let mut workflow_cleanup = CleanupGuard::new(context.session.id());
-    workflow_cleanup.add_path(&workflow_temp_dir);
+    let workflow = prepare::validate_and_prepare(&context, &files, &mut workflow_cleanup)?;
+    let workflow_temp_dir = workflow.temp_dir.clone();
 
     // Extract passthrough metadata (chapters, original cover art) from all valid files.
     let passthrough_sources = passthrough_sources_from_audio_files(&files);

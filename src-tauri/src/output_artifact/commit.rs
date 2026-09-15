@@ -27,37 +27,6 @@ fn destination_refused_commit_error(final_path: &Path, error: impl std::fmt::Dis
     ))
 }
 
-fn remove_copied_temp_output_with<H, R>(
-    temp_output: &Path,
-    final_path: &Path,
-    source_handle: H,
-    remove_file: R,
-) -> Result<()>
-where
-    R: FnOnce(&Path) -> std::io::Result<()>,
-{
-    // SMB/NAS mounts can reject deleting a file while ABB still holds a read
-    // handle. Close the copied source before removing the staged output.
-    drop(source_handle);
-    remove_file(temp_output).map_err(|error| {
-        AppError::FileValidation(format!(
-            "Created final output '{}' but failed to remove temporary file: {}",
-            sanitize_path_for_display(final_path),
-            error
-        ))
-    })
-}
-
-fn remove_copied_temp_output<H>(
-    temp_output: &Path,
-    final_path: &Path,
-    source_handle: H,
-) -> Result<()> {
-    remove_copied_temp_output_with(temp_output, final_path, source_handle, |path| {
-        std::fs::remove_file(path)
-    })
-}
-
 fn copy_staged_output_to_new_file(temp_output: &Path, destination_path: &Path) -> Result<()> {
     let mut source = std::fs::File::open(temp_output).map_err(|error| {
         AppError::FileValidation(format!(
@@ -93,13 +62,6 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
 
     match std::fs::hard_link(temp_output, final_path) {
         Ok(()) => {
-            std::fs::remove_file(temp_output).map_err(|error| {
-                AppError::FileValidation(format!(
-                    "Created final output '{}' but failed to remove temporary file: {}",
-                    sanitize_path_for_display(final_path),
-                    error
-                ))
-            })?;
             log::info!(
                 "finalize_move method=hard-link status=ok elapsed_ms={} dest={}",
                 started.elapsed().as_millis(),
@@ -154,7 +116,8 @@ fn install_without_replacing(temp_output: &Path, final_path: &Path) -> Result<Pa
         destination
             .sync_all()
             .map_err(|error| destination_refused_commit_error(final_path, error))?;
-        remove_copied_temp_output(temp_output, final_path, source)?;
+        drop(source);
+        drop(destination);
         Ok(())
     })();
 
@@ -282,13 +245,6 @@ where
 
     match replace_file(&destination_temp, final_path) {
         Ok(()) => {
-            std::fs::remove_file(temp_output).map_err(|error| {
-                AppError::FileValidation(format!(
-                    "Created final output '{}' but failed to remove temporary file: {}",
-                    sanitize_path_for_display(final_path),
-                    error
-                ))
-            })?;
             log::info!(
                 "finalize_move method=copy-replace status=ok elapsed_ms={} dest={}",
                 started.elapsed().as_millis(),
@@ -341,6 +297,7 @@ fn commit_temp_output_to_artifact(
 pub(crate) struct OutputCommitOutcome {
     pub final_output: PathBuf,
     pub cancelled: bool,
+    pub cleanup_warning: Option<String>,
 }
 
 pub(crate) struct OutputCommitRequest<'a> {
@@ -371,18 +328,23 @@ where
     C: FnOnce() -> bool,
 {
     let final_output =
-        commit_temp_output_to_artifact(temp_output, request.final_path, request.action)?;
+        commit_temp_output_to_artifact(temp_output.clone(), request.final_path, request.action)?;
+    cleanup_guard.add_path(temp_output);
 
     // Destination output is now canonical and must not be cleaned up on cancellation.
     cleanup_guard.remove_path(&final_output);
     after_move();
 
     let cancelled = is_cancelled();
-    cleanup_guard.cleanup_now()?;
+    let cleanup_warning = cleanup_guard.cleanup_now().err().map(|error| {
+        log::warn!("Final output committed; temporary cleanup will retry on drop: {error}");
+        "The output is ready, but some temporary files could not be removed.".to_string()
+    });
 
     Ok(OutputCommitOutcome {
         final_output,
         cancelled,
+        cleanup_warning,
     })
 }
 
@@ -423,6 +385,7 @@ pub(crate) fn finalized_output_success(
     output_kind: OutputKind,
     final_output: &Path,
     cancelled_after_commit: bool,
+    cleanup_warning: Option<&str>,
 ) -> FinalizedOutputSuccess {
     if cancelled_after_commit {
         log::warn!(
@@ -431,7 +394,7 @@ pub(crate) fn finalized_output_success(
         );
     }
 
-    match output_kind {
+    let mut success = match output_kind {
         OutputKind::Preview => FinalizedOutputSuccess {
             ui_message: "Preview created successfully",
             result_message: format!("Successfully created preview: {}", final_output.display()),
@@ -440,7 +403,13 @@ pub(crate) fn finalized_output_success(
             ui_message: "Processing complete",
             result_message: format!("Successfully created audiobook: {}", final_output.display()),
         },
+    };
+    if let Some(warning) = cleanup_warning {
+        success.ui_message = "Output created; temporary cleanup needs attention";
+        success.result_message.push_str(". ");
+        success.result_message.push_str(warning);
     }
+    success
 }
 
 #[cfg(test)]

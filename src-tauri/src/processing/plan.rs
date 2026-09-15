@@ -1,4 +1,4 @@
-use crate::audio;
+use crate::audio::FileListInfo;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::metadata::{
     plan_metadata_outcome, CoverArtPassthroughPolicy, MetadataOutcomePlan, MetadataOutcomeRequest,
@@ -40,6 +40,7 @@ pub(crate) struct ResolvedProcessingPlan {
 
 pub(crate) struct ExecutionProcessingPlan {
     pub(crate) plan: ResolvedProcessingPlan,
+    pub(crate) file_info: FileListInfo,
     pub(crate) output_parent_cleanup: OutputParentDirCleanup,
 }
 
@@ -167,6 +168,7 @@ fn build_processing_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     inputs: &ProcessingInputs,
+    file_info: &FileListInfo,
 ) -> Result<ResolvedProcessingPlan> {
     let job_type = payload.job_type.unwrap_or(JobType::Batch);
     let collision_policy = resolve_collision_policy(payload);
@@ -182,6 +184,7 @@ fn build_processing_plan(
             output_kind,
             collision_policy,
             &mut output_ledger,
+            file_info,
         )?),
         JobType::Batch => jobs.extend(build_batch_processing_jobs(
             payload,
@@ -190,6 +193,7 @@ fn build_processing_plan(
             output_kind,
             collision_policy,
             &mut output_ledger,
+            file_info,
         )?),
     }
 
@@ -243,9 +247,10 @@ pub(crate) fn resolve_preflight_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
+    file_info: &FileListInfo,
 ) -> Result<ProcessingPreflightPlan> {
     let inputs = build_processing_inputs(payload, false, preview_seconds)?;
-    let plan = build_processing_plan(payload, metadata, &inputs)?;
+    let plan = build_processing_plan(payload, metadata, &inputs, file_info)?;
     log_output_plan("preflight", payload, &plan);
     Ok(plan.to_public())
 }
@@ -254,9 +259,10 @@ pub(crate) fn prepare_execution_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
+    file_info: FileListInfo,
 ) -> Result<ExecutionProcessingPlan> {
     let inputs = build_processing_inputs(payload, true, preview_seconds)?;
-    let plan = build_processing_plan(payload, metadata, &inputs)?;
+    let plan = build_processing_plan(payload, metadata, &inputs, &file_info)?;
     log_output_plan("process", payload, &plan);
     enforce_output_plan_review(
         OutputPlanReview {
@@ -272,6 +278,7 @@ pub(crate) fn prepare_execution_plan(
     )?;
     Ok(ExecutionProcessingPlan {
         plan,
+        file_info,
         output_parent_cleanup,
     })
 }
@@ -283,9 +290,8 @@ fn build_merge_processing_job(
     output_kind: OutputKind,
     collision_policy: CollisionPolicy,
     output_ledger: &mut OutputPlanLedger,
+    file_info: &FileListInfo,
 ) -> Result<PlannedProcessingJob> {
-    let paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    let file_info = audio::get_file_list_info(&paths)?;
     let merge_source_path = file_info
         .files
         .first()
@@ -337,18 +343,24 @@ fn build_batch_processing_jobs(
     output_kind: OutputKind,
     collision_policy: CollisionPolicy,
     output_ledger: &mut OutputPlanLedger,
+    file_info: &FileListInfo,
 ) -> Result<Vec<PlannedProcessingJob>> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
             "No input files provided for batch processing".to_string(),
         ));
     }
+    if file_info.files.len() != payload.input_files.len() {
+        return Err(AppError::InvalidInput(
+            "Inspected batch inputs do not match the processing request".to_string(),
+        ));
+    }
 
-    let validated_input_paths: Vec<PathBuf> = payload
-        .input_files
+    let validated_input_paths: Vec<PathBuf> = file_info
+        .files
         .iter()
-        .map(|input| audio::validate_input_audio_path(&PathBuf::from(input)))
-        .collect::<Result<_>>()?;
+        .map(|file| file.path.clone())
+        .collect();
 
     let mut jobs = Vec::new();
     for (index, path) in validated_input_paths.iter().cloned().enumerate() {
@@ -400,68 +412,5 @@ impl ResolvedProcessingPlan {
             plan_signature: self.plan_signature.clone(),
             outputs,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::resolve_preflight_plan;
-    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
-    use crate::processing::{JobType, ProcessPayload};
-    use tempfile::TempDir;
-
-    fn encoder_settings() -> EncoderSettings {
-        EncoderSettings {
-            encoder_type: EncoderType::Auto,
-            bitrate_kbps: 64,
-            bitrate_mode: BitrateMode::Vbr(3),
-            channels: ChannelConfig::Auto,
-            afterburner: true,
-        }
-    }
-
-    fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayload {
-        let mut payload = ProcessPayload {
-            chapter_plans: None,
-            input_files: vec!["/books/input.m4b".to_string()],
-            input_ids: None,
-            output_dir: "/tmp/out".to_string(),
-            settings: encoder_settings(),
-            sample_rate: None,
-            job_type: Some(JobType::Batch),
-            output_naming: None,
-            collision_policy: None,
-            preflight_signature: None,
-            supplemental_assets_by_input_id: None,
-        };
-        overrides(&mut payload);
-        payload
-    }
-
-    #[test]
-    fn batch_preflight_rejects_symlink_before_metadata_projection() {
-        let temp_dir = TempDir::new().expect("temp dir");
-        let source = temp_dir.path().join("source.m4b");
-        std::fs::write(&source, b"not audio, but enough for path validation")
-            .expect("write source");
-        let symlink = temp_dir.path().join("source-link.m4b");
-
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(&source, &symlink).expect("create symlink");
-        #[cfg(not(unix))]
-        std::os::windows::fs::symlink_file(&source, &symlink).expect("create symlink");
-
-        let payload = process_payload(|payload| {
-            payload.input_files = vec![symlink.to_string_lossy().to_string()];
-            payload.output_dir = temp_dir.path().to_string_lossy().to_string();
-        });
-
-        let err = resolve_preflight_plan(&payload, None, None)
-            .expect_err("symlink should be rejected before metadata projection");
-
-        assert!(
-            err.to_string().contains("Symlinks are not supported"),
-            "unexpected error: {err}"
-        );
     }
 }

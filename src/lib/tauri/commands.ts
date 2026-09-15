@@ -131,6 +131,7 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 				}
 			: null,
 		defaultAcquisitionLane: patch.defaultAcquisitionLane ?? null,
+		keepAwakeWhileWorking: patch.keepAwakeWhileWorking ?? null,
 	};
 }
 

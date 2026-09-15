@@ -26,8 +26,13 @@ pub(crate) fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::Sam
     Ok(sample_rate)
 }
 
-pub(crate) fn validate_external_processing_contract(payload: &ProcessPayload) -> Result<()> {
+pub(super) fn inspect_and_validate_external_processing_contract(
+    payload: &ProcessPayload,
+) -> Result<FileListInfo> {
     let input_paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
+    for path in &input_paths {
+        audio::validate_input_audio_path(path)?;
+    }
     let mut file_info = audio::get_file_list_info(&input_paths)?;
     audio::apply_chapter_plans(
         &mut file_info,
@@ -35,13 +40,19 @@ pub(crate) fn validate_external_processing_contract(payload: &ProcessPayload) ->
         payload.job_type == Some(crate::processing::JobType::Merge)
             && payload.input_files.len() > 1,
     )?;
-    validate_external_processing_contract_with_file_info(payload, &file_info)
+    validate_external_processing_contract_with_file_info(payload, &file_info)?;
+    Ok(file_info)
 }
 
 pub(crate) fn validate_external_processing_contract_with_file_info(
     payload: &ProcessPayload,
     file_info: &FileListInfo,
 ) -> Result<()> {
-    audio::validate_audio_engine_inputs(&payload.settings, file_info)?;
+    audio::validate_audio_engine_inputs(
+        &payload.settings,
+        file_info,
+        &resolve_sample_rate(payload)?,
+        payload.job_type == Some(crate::processing::JobType::Merge),
+    )?;
     Ok(())
 }

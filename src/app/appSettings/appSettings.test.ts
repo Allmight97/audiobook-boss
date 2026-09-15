@@ -29,6 +29,7 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		toolchain: {},
 		startupBehavior: 'rememberLastState',
 		defaultAcquisitionLane: 'audible',
+		keepAwakeWhileWorking: true,
 		...overrides,
 	};
 }

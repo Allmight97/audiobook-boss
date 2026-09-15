@@ -133,8 +133,8 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(first.encoding.request().encoderSettings.encoderType).toBe('native_aac');
-		expect(second.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(first.encoding.view().flavor).toBe('native_aac');
+		expect(second.encoding.view().flavor).toBe('auto');
 		expect(first.processing.status().statusText).toBe('first runtime only');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(first.remoteSource.view().isOpen).toBe(true);
@@ -146,7 +146,7 @@ describe('app runtime', () => {
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(second.encoding.view().flavor).toBe('auto');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
@@ -158,7 +158,7 @@ describe('app runtime', () => {
 		expect(third.output.collision().isOpen).toBe(false);
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
-		expect(third.encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(third.encoding.view().flavor).toBe('auto');
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});

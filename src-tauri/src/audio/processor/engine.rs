@@ -2,7 +2,6 @@
 
 use std::path::Path;
 use std::sync::Once;
-use std::time::Instant;
 
 use ffmpeg_next as ff;
 
@@ -20,8 +19,11 @@ use crate::processing::ProcessingContext;
 pub struct FfmpegNextProcessor;
 
 struct EncodingRunDiagnostics {
-    started: Instant,
+    timing: super::run_diagnostics::RunTiming,
     opened_encoder: Option<String>,
+    opened_rate: Option<u32>,
+    opened_channels: Option<u32>,
+    input_facts: Vec<String>,
 }
 
 impl FfmpegNextProcessor {
@@ -34,6 +36,7 @@ impl FfmpegNextProcessor {
         file_index: usize,
         ctx: &mut crate::audio::processor::frame_pipeline::FramePipelineCtx,
         accumulator: &mut crate::audio::buffer::SampleAccumulator,
+        input_facts: Option<&mut Vec<String>>,
     ) -> Result<PreviewAction> {
         use crate::errors::AppError;
 
@@ -63,6 +66,15 @@ impl FfmpegNextProcessor {
         log::info!("Setting up decoder and resampler for: {}", input_label);
         let (mut ictx, mut decoder, mut resampler, stream_index) =
             crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
+        if let Some(input_facts) = input_facts {
+            input_facts.push(format!(
+                "file={} codec={:?} rate={} channels={}",
+                sanitize_path_for_display(input_path),
+                decoder.id(),
+                decoder.rate(),
+                decoder.channels()
+            ));
+        }
         log::info!(
             "✓ Decoder and resampler setup complete for stream index: {}",
             stream_index
@@ -109,8 +121,11 @@ impl FfmpegNextProcessor {
         passthrough: Option<&crate::metadata::PassthroughMetadata>,
     ) -> Result<()> {
         let mut diagnostics = encoding_log_enabled().then(|| EncodingRunDiagnostics {
-            started: Instant::now(),
+            timing: super::run_diagnostics::RunTiming::start(),
             opened_encoder: None,
+            opened_rate: None,
+            opened_channels: None,
+            input_facts: Vec::new(),
         });
         let result =
             Self::execute_pipeline(plan, context, metadata, passthrough, diagnostics.as_mut());
@@ -125,7 +140,7 @@ impl FfmpegNextProcessor {
         context: &ProcessingContext,
         metadata: Option<&crate::metadata::AudiobookMetadata>,
         passthrough: Option<&crate::metadata::PassthroughMetadata>,
-        diagnostics: Option<&mut EncodingRunDiagnostics>,
+        mut diagnostics: Option<&mut EncodingRunDiagnostics>,
     ) -> Result<()> {
         // Initialize FFmpeg (idempotent)
         static INIT: Once = Once::new();
@@ -144,8 +159,10 @@ impl FfmpegNextProcessor {
                 passthrough,
             )?;
 
-        if let Some(diagnostics) = diagnostics {
+        if let Some(diagnostics) = diagnostics.as_deref_mut() {
             diagnostics.opened_encoder = enc_ctx.codec().map(|codec| codec.name().to_owned());
+            diagnostics.opened_rate = Some(enc_ctx.rate());
+            diagnostics.opened_channels = u32::try_from(enc_ctx.channel_layout().channels()).ok();
         }
 
         // Validate metadata compatibility if provided
@@ -169,6 +186,7 @@ impl FfmpegNextProcessor {
             target_sample_rate,
             samples_per_frame: frame_plan.samples_per_frame(),
             emitter: &emitter,
+            input_facts: diagnostics.map(|value| &mut value.input_facts),
         };
         let audio_end_pts =
             super::engine_orchestrator::process_input_files(plan, context, &mut io)?;
@@ -213,11 +231,16 @@ fn append_in_process_encoding_run(
         Err(error) => Some(error.to_string()),
     };
 
+    let (elapsed, wallclock_elapsed) = diagnostics.timing.elapsed();
     append_in_process_encoding_log_best_effort(&InProcessEncoderRunLog {
         status,
         status_detail: status_detail.as_deref(),
-        elapsed: diagnostics.started.elapsed(),
+        elapsed,
+        wallclock_elapsed,
         opened_encoder: diagnostics.opened_encoder.as_deref(),
+        opened_rate: diagnostics.opened_rate,
+        opened_channels: diagnostics.opened_channels,
+        input_facts: &diagnostics.input_facts,
         encoder_settings: &plan.encoder_settings,
         sample_rate: &plan.sample_rate,
         session_id: context.session.id(),

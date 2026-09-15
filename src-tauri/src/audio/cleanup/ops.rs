@@ -6,7 +6,7 @@ use super::CleanupGuard;
 
 impl CleanupGuard {
     /// Internal cleanup implementation that never panics
-    pub(crate) fn perform_cleanup(&self, paths: &[PathBuf]) -> Result<()> {
+    pub(crate) fn perform_cleanup(&mut self, paths: &[PathBuf]) -> Result<()> {
         let mut first_error: Option<AppError> = None;
 
         for path in paths {
@@ -30,6 +30,8 @@ impl CleanupGuard {
                 if first_error.is_none() {
                     first_error = Some(e);
                 }
+            } else {
+                self.remove_path(path);
             }
         }
 
@@ -47,16 +49,13 @@ impl CleanupGuard {
 
     /// Clean up a single path (file or directory)
     pub(crate) fn cleanup_single_path(&self, path: &Path) -> Result<()> {
-        if !path.exists() {
-            debug!(
-                "Session {}: Path already removed: {}",
-                self.raw_session_id(),
-                sanitize_path_for_display(path)
-            );
-            return Ok(());
-        }
+        let metadata = match std::fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(AppError::Io(error)),
+        };
 
-        if path.is_dir() {
+        if metadata.is_dir() {
             debug!(
                 "Session {}: Removing directory: {}",
                 self.raw_session_id(),

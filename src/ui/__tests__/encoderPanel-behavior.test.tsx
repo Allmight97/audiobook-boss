@@ -92,6 +92,35 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
+	it('edits native target bitrate and reveals speed under Advanced', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture(),
+		);
+		renderEncoder();
+		await waitForEncoderOptions();
+		changeSelectValue(document.getElementById('adv-encoder') as HTMLSelectElement, 'native_aac');
+		await vi.waitFor(() => expect(document.getElementById('native-speed')).not.toBeNull());
+		const advanced = document.querySelector('details.encoder-advanced') as HTMLDetailsElement;
+		expect(advanced.open).toBe(false);
+		advanced.querySelector('summary')!.click();
+		expect(advanced.open).toBe(true);
+		changeSelectValue(document.getElementById('native-speed') as HTMLSelectElement, '4');
+		const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
+		bitrate.value = '193';
+		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
+		await vi.waitFor(() => {
+			const settings = runtime!.encoding.request().encoderSettings;
+			expect(settings.bitrateMode).toEqual({ mode: 'cbr' });
+			expect(settings.bitrateKbps).toBe(193);
+			expect(settings.nativeAacSpeed).toBe(4);
+			expect(runtime!.encoding.readDefaults().settings).toEqual(settings);
+		});
+		bitrate.value = '0';
+		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(runtime!.encoding.request().encoderSettings.bitrateKbps).toBe(193);
+		expect(bitrate.value).toBe('193');
+	});
+
 	it('renders encoder option ranges from runtime capabilities', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
@@ -101,7 +130,8 @@ describe('encoder panel behavior controls', () => {
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
-					bitrateKbpsOptions: [64, 96],
+					bitrateKbpsMin: 24,
+					bitrateKbpsMax: 256,
 					explicitSampleRates: [44100],
 					channelOptions: ['auto', 'mono'],
 				},
@@ -112,9 +142,7 @@ describe('encoder panel behavior controls', () => {
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
-			const bitrateValues = Array.from(
-				(document.getElementById('output-bitrate') as HTMLSelectElement).options,
-			).map((option) => option.value);
+			const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
 			const sampleRateValues = Array.from(
 				(document.getElementById('output-samplerate') as HTMLSelectElement).options,
 			).map((option) => option.value);
@@ -122,7 +150,8 @@ describe('encoder panel behavior controls', () => {
 				(document.getElementById('output-channels') as HTMLSelectElement).options,
 			).map((option) => option.value);
 
-			expect(bitrateValues).toEqual(['64', '96']);
+			expect(bitrate.min).toBe('24');
+			expect(bitrate.max).toBe('256');
 			expect(sampleRateValues).toEqual(['auto', '44100']);
 			expect(channelValues).toEqual(['auto', 'mono']);
 		});
@@ -215,7 +244,7 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			expect(document.getElementById('output-quality')?.hidden).toBe(true);
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate');
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
 		});
 
 		changeSelectValue(encoderSelect, 'aac_at');
@@ -223,12 +252,13 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			expect(document.getElementById('output-quality')?.hidden).toBe(true);
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate');
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
 		});
 
-		const bitrateSelect = document.getElementById('output-bitrate') as HTMLSelectElement;
-		expect(bitrateSelect).toHaveAccessibleName('Bitrate');
-		changeSelectValue(bitrateSelect, '48');
+		const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
+		expect(bitrateInput).toHaveAccessibleName('Target kbps');
+		bitrateInput.value = '48';
+		bitrateInput.dispatchEvent(new Event('change', { bubbles: true }));
 
 		await vi.waitFor(() => {
 			expect(runtime!.encoding.request().encoderSettings.bitrateKbps).toBe(48);
@@ -331,9 +361,9 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('auto');
-			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (FFmpeg))');
+			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (NMR))');
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
-				'Auto will use Native AAC (FFmpeg).',
+				'Auto will use Native AAC (NMR).',
 			);
 			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
 		});

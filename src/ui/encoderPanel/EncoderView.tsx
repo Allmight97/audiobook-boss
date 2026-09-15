@@ -12,9 +12,10 @@ export function EncoderView(): JSX.Element {
 
 	function bind(field: EncodingField) {
 		return (event: Event) => {
-			const select = event.currentTarget as HTMLSelectElement;
+			const select = event.currentTarget as HTMLSelectElement | HTMLInputElement;
 			runtime.encoding.select(field, select.value);
 			if (field === 'encoder') select.value = view().flavor;
+			if (field === 'bitrate') select.value = String(view().bitrate);
 		};
 	}
 
@@ -80,24 +81,6 @@ export function EncoderView(): JSX.Element {
 					</div>
 				</div>
 				<div class="encoder-field-row">
-					<label for="adv-bitrate-mode">Bitrate Mode</label>
-					<select
-						id="adv-bitrate-mode"
-						data-testid="bitrate-mode-select"
-						value={view().bitrateMode}
-						disabled={view().bitrateModeDisabled}
-						onChange={bind('bitrateMode')}
-					>
-						<For each={view().bitrateModeOptions}>
-							{(option) => (
-								<option value={option.value} disabled={option.disabled}>
-									{option.label}
-								</option>
-							)}
-						</For>
-					</select>
-				</div>
-				<div class="encoder-field-row">
 					<label
 						for={view().showQuality ? 'output-quality' : 'output-bitrate'}
 						id="quality-bitrate-label"
@@ -116,17 +99,18 @@ export function EncoderView(): JSX.Element {
 								{(option) => <option value={option.value}>{option.label}</option>}
 							</For>
 						</select>
-						<select
+						<input
 							id="output-bitrate"
+							data-testid="bitrate-input"
+							type="number"
 							hidden={view().showQuality}
-							data-testid="bitrate-select"
+							min={view().bitrateKbpsMin}
+							max={view().bitrateKbpsMax}
+							step="1"
 							value={view().bitrate}
 							onChange={bind('bitrate')}
-						>
-							<For each={view().bitrateOptions}>
-								{(option) => <option value={option.value}>{option.label}</option>}
-							</For>
-						</select>
+							aria-describedby="estimated-bitrate"
+						/>
 						<p id="estimated-bitrate" class="field-hint" data-testid="estimated-bitrate">
 							{view().estimatedBitrateText}
 						</p>
@@ -155,6 +139,7 @@ export function EncoderView(): JSX.Element {
 						</p>
 					</div>
 				</div>
+
 				<div class="encoder-field-row">
 					<label for="output-channels">Channels</label>
 					<div class="encoder-field-stack">
@@ -174,6 +159,30 @@ export function EncoderView(): JSX.Element {
 						</p>
 					</div>
 				</div>
+				<Show when={view().native}>
+					<details class="encoder-advanced">
+						<summary>Advanced</summary>
+						<div class="encoder-field-row">
+							<label for="native-speed">NMR speed</label>
+							<div class="encoder-field-stack">
+								<select
+									id="native-speed"
+									data-testid="native-speed-select"
+									value={view().nativeSpeed}
+									onChange={bind('nativeSpeed')}
+									aria-describedby="native-speed-hint"
+								>
+									<For each={view().nativeSpeedOptions}>
+										{(option) => <option value={option.value}>{option.label}</option>}
+									</For>
+								</select>
+								<p id="native-speed-hint" class="field-hint">
+									Higher values trade some quality for faster encoding.
+								</p>
+							</div>
+						</div>
+					</details>
+				</Show>
 			</div>
 		</div>
 	);

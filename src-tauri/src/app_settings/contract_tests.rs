@@ -14,6 +14,43 @@ fn missing_settings_file_returns_defaults() {
     assert_eq!(settings, AppSettings::default());
 }
 
+#[test]
+fn awake_preference_defaults_on_and_persists_explicit_opt_out() {
+    let temp = TempDir::new().expect("temp dir");
+    let mut original =
+        serde_json::to_value(AppSettings::default()).expect("settings preference operation");
+    original
+        .as_object_mut()
+        .expect("settings preference operation")
+        .remove("keepAwakeWhileWorking");
+    std::fs::write(temp.path().join("app-settings.json"), original.to_string())
+        .expect("settings preference operation");
+    assert!(
+        get_app_settings(temp.path())
+            .expect("settings preference operation")
+            .keep_awake_while_working
+    );
+
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            keep_awake_while_working: Some(false),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("settings preference operation");
+    assert!(
+        !get_app_settings(temp.path())
+            .expect("settings preference operation")
+            .keep_awake_while_working
+    );
+    assert!(
+        reset_app_settings(temp.path())
+            .expect("settings preference operation")
+            .keep_awake_while_working
+    );
+}
+
 fn settings_with_future_encoder(scope: EncoderDefaultsScope) -> serde_json::Value {
     let mut value = serde_json::to_value(AppSettings::default()).expect("settings JSON");
     value["outputDefaults"]["outputDirectory"] = serde_json::json!("/books/output");
@@ -148,6 +185,30 @@ fn update_merges_top_level_patch_and_persists() {
     assert_eq!(
         reloaded.encoder_defaults,
         AppSettings::default().encoder_defaults
+    );
+}
+
+#[test]
+fn native_target_and_speed_survive_settings_reload() {
+    let temp = TempDir::new().expect("create isolated test directory");
+    let mut defaults = EncoderDefaults::default();
+    defaults.settings.encoder_type = EncoderType::NativeAac;
+    defaults.settings.bitrate_mode = BitrateMode::Cbr;
+    defaults.settings.native_aac_speed = 4;
+    defaults.settings.bitrate_kbps = 193;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(defaults.clone()),
+            ..AppSettingsPatch::default()
+        },
+    )
+    .expect("persist native target and speed");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("reload persisted encoder settings")
+            .encoder_defaults,
+        defaults
     );
 }
 

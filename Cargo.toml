@@ -23,4 +23,5 @@ dead_code = "warn"
 all = "warn"
 
 [patch.crates-io]
+ffmpeg-next = { path = "vendor/ffmpeg-next-9.0.0" }
 ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next-9.0.0" }

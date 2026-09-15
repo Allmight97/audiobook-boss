@@ -206,6 +206,30 @@ describe('ProcessingWorkflow', () => {
 		vi.clearAllMocks();
 	});
 
+	it.each([undefined, 30])(
+		'reports an unavailable request before preparation or submission (preview: %s)',
+		async (previewSeconds) => {
+			const ctx = workflowContext();
+			const { services, feedback } = workflowServices({
+				readProcessingRequestConfig: () => {
+					throw new Error('Encoder availability is not ready.');
+				},
+				getCurrentFileList: () => fileList(['/books/a.m4b', '/books/b.m4b']),
+				getSelectedFileIndices: () => new Set([0, 1]),
+				hasDirtyMetadataFields: () => true,
+			});
+			await startProcessing(ctx, { previewSeconds }, makeProcessingWorkflowServicesLayer(services));
+			expect(feedback.showError).toHaveBeenCalledWith(
+				expect.stringContaining('Encoder availability is not ready.'),
+			);
+			expect(services.stageMetadataToSelection).not.toHaveBeenCalled();
+			expect(services.runOutputPlanReviewWorkflow).not.toHaveBeenCalled();
+			expect(ctx.setProcessingState).not.toHaveBeenCalled();
+			expect(services.processAudiobookFiles).not.toHaveBeenCalled();
+			expect(services.submitProcessingOperation).not.toHaveBeenCalled();
+		},
+	);
+
 	it('coordinates approved processing through injected services without changing the public runtime API', async () => {
 		const ctx = workflowContext();
 		const { services } = workflowServices();

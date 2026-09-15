@@ -56,6 +56,7 @@ export type SettingsOwner = {
 	clearFfmpegPathDraft(): void;
 	setFfmpegPathDraft(value: string): void;
 	saveToolchainPreference(): Promise<void>;
+	setKeepAwakeWhileWorking(enabled: boolean): Promise<void>;
 	recheckFdk(): Promise<void>;
 	openFdkSetup(): Promise<void>;
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
@@ -378,6 +379,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 		openFdkSetup: () => dialog.openFdkSetup(),
 		saveToolchainPreference() {
 			return dialog.saveToolchainPreference();
+		},
+		setKeepAwakeWhileWorking(enabled) {
+			return dialog.setKeepAwakeWhileWorking(enabled);
 		},
 		saveCurrentSettingsAsPinnedDefaults() {
 			return dialog.saveCurrentSettingsAsPinnedDefaults();

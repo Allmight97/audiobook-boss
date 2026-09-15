@@ -38,6 +38,8 @@ pub fn recover_app_settings(
     expected: AppSettingsRecoveryPlan,
 ) -> CommandResult<AppSettingsRecoveryResult> {
     let result = app_settings::recover_app_settings(&app_settings_config_dir(&app)?, expected)?;
+    app.state::<crate::power::PowerManager>()
+        .set_enabled(result.settings.keep_awake_while_working);
     crate::audio::set_user_external_ffmpeg_path(
         result
             .settings
@@ -57,6 +59,8 @@ pub fn update_app_settings(
 ) -> CommandResult<AppSettings> {
     let config_dir = app_settings_config_dir(&app)?;
     let settings = app_settings::update_app_settings(&config_dir, patch)?;
+    app.state::<crate::power::PowerManager>()
+        .set_enabled(settings.keep_awake_while_working);
     crate::audio::set_user_external_ffmpeg_path(
         settings
             .toolchain
@@ -74,7 +78,10 @@ pub async fn reset_app_settings(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
 ) -> CommandResult<AppSettings> {
     let config_dir = app_settings_config_dir(&app)?;
-    Ok(reset_app_settings_from_config_dir(&config_dir, &registry).await?)
+    let settings = reset_app_settings_from_config_dir(&config_dir, &registry).await?;
+    app.state::<crate::power::PowerManager>()
+        .set_enabled(settings.keep_awake_while_working);
+    Ok(settings)
 }
 
 async fn reset_app_settings_from_config_dir(

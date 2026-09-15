@@ -13,6 +13,20 @@
 #define CUDA_VERSION 12000
 typedef struct CUctx_st *CUcontext;
 typedef struct CUstream_st *CUstream;
+typedef struct CUarray_st *CUarray;
+// ABI declarations only; no CUDA SDK implementation is bundled.
+// Layout verified against FFmpeg/nv-codec-headers eddcea9e27f6b772057c9b3f87de2cc1737faffc
+// include/ffnvcodec/dynlink_cuda.h (CUDA_ARRAY3D_DESCRIPTOR).
+#include <stddef.h>
+typedef int CUarray_format;
+typedef struct CUDA_ARRAY3D_DESCRIPTOR_st {
+    size_t Width;
+    size_t Height;
+    size_t Depth;
+    CUarray_format Format;
+    unsigned int NumChannels;
+    unsigned int Flags;
+} CUDA_ARRAY3D_DESCRIPTOR;
 #include <libavutil/hwcontext_cuda.h>
 #endif
 

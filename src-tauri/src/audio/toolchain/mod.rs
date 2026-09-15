@@ -88,7 +88,7 @@ pub fn detect_encoder_availability() -> EncoderAvailability {
 
 pub(crate) fn detect_encoder_availability_with_resolution(
 ) -> (EncoderAvailability, ToolchainResolution) {
-    let native_aac = settings_encoder::is_encoder_available_by_name("aac");
+    let native_aac = settings_encoder::is_native_nmr_available();
     let aac_at =
         cfg!(target_os = "macos") && settings_encoder::is_encoder_available_by_name("aac_at");
     let resolution = resolve_external_toolchain();
