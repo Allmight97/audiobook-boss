@@ -38,18 +38,18 @@
 	"dependencies": {
 		"@solidjs/web": "2.0.0-rc.8",
 		"@tauri-apps/api": "^2.11.1",
-		"@tauri-apps/plugin-dialog": "^2.7.2",
-		"@tauri-apps/plugin-opener": "^2.5.4",
+		"@tauri-apps/plugin-dialog": "^2.7.3",
+		"@tauri-apps/plugin-opener": "^2.5.5",
 		"effect": "4.0.0-rc.115",
 		"solid-js": "2.0.0-rc.8"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.11",
+		"@biomejs/biome": "^2.5.12",
 		"@solidjs/testing-library": "1.0.0-beta.3",
 		"@solidjs/vite-plugin": "3.0.0-next.43",
 		"@tauri-apps/cli": "^2.11.4",
 		"@testing-library/jest-dom": "^7.0.1",
-		"@testing-library/user-event": "^14.6.6",
+		"@testing-library/user-event": "^14.6.7",
 		"@typescript/native": "npm:typescript@7.0.2",
 		"jsdom": "^30.0.1",
 		"typescript": "npm:typescript@7.0.2",
