@@ -6,6 +6,10 @@ use ffmpeg_next as ff;
 
 use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
 use super::options::{build_apple_options, build_native_options, validate_native_options};
+use super::{
+    faac::FaacEncoder,
+    session::{Backend, EncoderSession},
+};
 
 /// Creates and configures an AAC audio encoder with optimal settings
 #[allow(clippy::too_many_lines)]
@@ -20,9 +24,12 @@ pub(crate) fn create_audio_encoder(
 
     // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
     // engine must refuse it rather than silently opening a different encoder.
-    if matches!(resolved_encoder, EncoderType::FdkHeAac) {
+    if matches!(
+        resolved_encoder,
+        EncoderType::FdkHeAac | EncoderType::FaacHeAac
+    ) {
         return Err(AppError::InvalidInput(
-            "FDK HE-AAC routes through the external FFmpeg adapter; the native engine cannot encode it."
+            "This encoder uses its own adapter and cannot be opened as an FFmpeg encoder."
                 .to_string(),
         ));
     }
@@ -62,7 +69,7 @@ pub(crate) fn create_audio_encoder(
     let opts = match resolved_encoder {
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
-        EncoderType::FdkHeAac | EncoderType::Auto => {
+        EncoderType::FaacHeAac | EncoderType::FdkHeAac | EncoderType::Auto => {
             unreachable!("create_audio_encoder requires a resolved in-process encoder type")
         }
     };
@@ -97,30 +104,24 @@ pub(crate) fn create_audio_encoder(
 }
 
 /// Sets up the output encoder context and stream with metadata support.
-/// Returns (output_context, encoder_context, output_stream_index, output_time_base, target_sample_rate, frame_plan)
+/// The returned session owns the codec, output handle, and sample timeline.
 ///
 /// When `skip_chapter_passthrough` is false and input files have chapters, they are copied
 /// to the output context before the header is written (#66).
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // Sequential codec/container/cover/chapter setup with fallible handoffs.
 pub(crate) fn setup_encoder(
     plan: &crate::audio::processor::plan::MediaProcessingPlan,
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     skip_chapter_passthrough: bool,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
-) -> Result<(
-    ff::format::context::Output,
-    ff::codec::encoder::audio::Encoder,
-    usize,
-    ff::Rational,
-    u32,
-    EncoderFramePlan,
-)> {
+) -> Result<EncoderSession> {
     use crate::errors::AppError;
 
     let (target_sample_rate, target_channels) =
         crate::audio::processor::engine::resolve_target_audio_params(plan)?;
 
     let resolved_encoder_type = plan.encoder_settings.encoder_type;
+    settings_encoder::validate_encoder_settings(&plan.encoder_settings)?;
 
     let mut octx = ff::format::output(&plan.output_path)
         .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
@@ -144,20 +145,28 @@ pub(crate) fn setup_encoder(
         .add_stream(codec)
         .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
-    let enc_ctx = create_audio_encoder(
-        &plan.encoder_settings,
-        resolved_encoder_type,
-        target_sample_rate,
-        target_channels,
-        requires_global_header,
-    )?;
+    let enc_ctx = if resolved_encoder_type == EncoderType::FaacHeAac {
+        Backend::Faac(FaacEncoder::open(
+            target_sample_rate,
+            target_channels,
+            plan.encoder_settings.bitrate_kbps,
+        )?)
+    } else {
+        Backend::Ffmpeg(create_audio_encoder(
+            &plan.encoder_settings,
+            resolved_encoder_type,
+            target_sample_rate,
+            target_channels,
+            requires_global_header,
+        )?)
+    };
 
     encoder_log(&format!("encoder_effective artifact={} encoder={:?} rate={} channels={} format={:?} frame_samples={} time_base={:?}",
         crate::diagnostics::artifact_id(&plan.output_path), resolved_encoder_type,
         enc_ctx.rate(), enc_ctx.channel_layout().channels(), enc_ctx.format(), enc_ctx.frame_size(), enc_ctx.time_base()));
 
     ost.set_time_base(enc_ctx.time_base());
-    ost.set_parameters(&enc_ctx);
+    ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
     let ost_time_base = ost.time_base();
 
@@ -218,6 +227,25 @@ pub(crate) fn setup_encoder(
     // Header
     octx.write_header()
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
+    if resolved_encoder_type == EncoderType::FaacHeAac {
+        let tool = std::ffi::CString::new(super::super::faac_timing::ENCODING_TOOL)
+            .expect("static tool name");
+        // SAFETY: the live output owns this dictionary; av_dict_set copies the
+        // strings and updates its allocation without replacing/leaking other tags.
+        let status = unsafe {
+            ff::sys::av_dict_set(
+                &mut (*octx.as_mut_ptr()).metadata,
+                c"encoding_tool".as_ptr(),
+                tool.as_ptr(),
+                0,
+            )
+        };
+        if status < 0 {
+            return Err(AppError::General(
+                "Cannot record FAAC output provenance.".into(),
+            ));
+        }
+    }
 
     // Post-header cover art packet
     if let Some((stream_index, format)) = cover_art_stream_info {
@@ -264,14 +292,17 @@ pub(crate) fn setup_encoder(
         plan.encoder_settings.bitrate_kbps,
         plan.encoder_settings
     );
-    let frame_plan = EncoderFramePlan::from_opened_encoder(&enc_ctx, resolved_encoder_type)?;
+    let frame_plan = EncoderFramePlan::from_raw_frame_size(
+        enc_ctx.frame_size() as usize,
+        resolved_encoder_type,
+    )?;
 
-    Ok((
-        octx,
+    Ok(EncoderSession::new(
         enc_ctx,
+        octx,
         ost_index,
         ost_time_base,
-        target_sample_rate,
-        frame_plan,
+        frame_plan.samples_per_frame(),
+        resolved_encoder_type,
     ))
 }

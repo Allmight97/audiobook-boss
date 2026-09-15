@@ -115,6 +115,12 @@ pub fn resolve_processor_adapter(
     encoder_settings: &EncoderSettings,
 ) -> Result<ResolvedProcessorAdapter> {
     let requested = encoder_settings.encoder_type;
+    if requested == EncoderType::FaacHeAac {
+        crate::audio::settings_encoder::validate_encoder_settings(encoder_settings)?;
+        return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type: requested,
+        });
+    }
     if matches!(requested, EncoderType::NativeAac | EncoderType::AacAt) {
         let platform_supported = requested != EncoderType::AacAt || cfg!(target_os = "macos");
         let available = platform_supported

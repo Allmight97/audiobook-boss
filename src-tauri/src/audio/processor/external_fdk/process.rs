@@ -15,20 +15,28 @@ use tokio::time::{sleep, Duration};
 
 static EXTERNAL_FDK_ENCODING_LOG_LOCK: Mutex<()> = Mutex::new(());
 
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Sequential child/pipe/diagnostic lifetime; source intervals travel with decoder selections.
 pub(super) async fn run_external_ffmpeg(
     context: &ProcessingContext,
     ui: &ProgressEmitter,
     toolchain: &ValidatedExternalToolchain,
     files: &[AudioFile],
     selected_decoders: &[Option<DecoderSelection>],
+    decode_windows: &[Option<super::super::faac_timing::FaacDecodeWindow>],
     temp_output: &Path,
     total_duration_seconds: f64,
 ) -> Result<()> {
     log_external_inputs(files, selected_decoders);
     let timing = super::super::run_diagnostics::RunTiming::start();
     let mut progress_diagnostics = ExternalFdkProgressDiagnostics::default();
-    let mut child =
-        spawn_external_ffmpeg(context, toolchain, files, selected_decoders, temp_output)?;
+    let mut child = spawn_external_ffmpeg(
+        context,
+        toolchain,
+        files,
+        selected_decoders,
+        decode_windows,
+        temp_output,
+    )?;
     let stdout = take_child_stdout(&mut child)?;
     let stderr = take_child_stderr(&mut child)?;
     let mut progress_lines = BufReader::new(stdout).lines();
@@ -149,6 +157,7 @@ fn spawn_external_ffmpeg(
     toolchain: &ValidatedExternalToolchain,
     files: &[AudioFile],
     selected_decoders: &[Option<DecoderSelection>],
+    decode_windows: &[Option<super::super::faac_timing::FaacDecodeWindow>],
     temp_output: &Path,
 ) -> Result<tokio::process::Child> {
     let mut command = Command::new(&toolchain.ffmpeg_path);
@@ -161,6 +170,7 @@ fn spawn_external_ffmpeg(
         context.preview.as_ref(),
         files,
         selected_decoders,
+        decode_windows,
         temp_output,
     ));
 

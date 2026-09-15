@@ -17,9 +17,11 @@
 ## Preferred Path
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
-- Resolve the encoder once at adapter dispatch and carry that choice into native
-  setup. Explicit Native/Apple selections validate their linked encoder without
-  probing external FDK; Auto still resolves the available toolchain. Do not repeat
+- Resolve the encoder once at adapter dispatch and carry that choice into the
+  in-process setup. Explicit Native/Apple selections validate their linked
+  encoder without probing external FDK; bundled FAAC is available without an
+  external toolchain. Auto still resolves the available toolchain in FDK →
+  Apple → Native order and does not select FAAC. Do not repeat
   external-toolchain detection while opening the encoder.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
@@ -32,7 +34,7 @@
 - Finalization reports success only after the output artifact boundary returns final artifact truth.
 - Processor code must not directly perform final artifact `rename`, `copy`, or
   `hard_link`; final artifact commit truth lives in `output_artifact`.
-- External FDK and native engine paths must use the shared final artifact commit
+- External FDK and in-process engine paths must use the shared final artifact commit
   handoff. Adapter-specific code may stage media locally, but final artifact
   commit and success wording remain centralized. MP4-family tag truth must route
   through the mp4ameta metadata writer, not a bare remux — the mov muxer
@@ -52,6 +54,22 @@
 - Shared encoder run records use the private `run_diagnostics` helper for requested
   settings and monotonic/wall-clock timing. Adapter records add only facts owned by
   that adapter; unavailable opened settings remain explicitly `unknown`.
+- The private `encoder::EncoderSession` owns the selected backend, PCM
+  submission, packet muxing, drain, and trailer. Callers submit contiguous
+  frames and finish the session; backend handles and packet mechanics stay
+  inside `encoder/`.
+  Declare its output cleanup guard before opening the session so handles close
+  before cleanup removes a failed output. Final publication stays Output Artifact-owned.
+
+## FAAC file timing
+
+- `faac_timing` owns the core priming used in MP4 and the native decoder's PCM
+  interval. Its standard encoding-tool tag identifies ABB-produced FAAC files;
+  never apply that interval to arbitrary HE-AAC files.
+- Re-import reads all FAAC access units, including decoder postroll, and trims
+  at source sample rate before preview, resampling, or concatenation. In-process
+  packet skip metadata and external FDK filters consume the same interval.
+  Encoder selection does not change the source's playable audio.
 
 ## Done Criteria
 

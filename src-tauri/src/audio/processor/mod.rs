@@ -31,6 +31,7 @@ mod engine;
 mod engine_orchestrator;
 mod execute;
 mod external_fdk;
+mod faac_timing;
 mod finalize;
 mod frame_pipeline;
 mod plan;
@@ -77,29 +78,37 @@ pub fn validate_audio_engine_inputs(
     adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     adapter.validate_inputs(file_info)?;
-    if matches!(
-        adapter,
-        adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
-            encoder_type: crate::audio::EncoderType::NativeAac
-        }
-    ) {
-        if merge_inputs {
-            validate_native_output_target(encoder_settings, sample_rate, &file_info.files)?;
-        } else {
-            for file in file_info.files.iter().filter(|file| file.is_valid) {
-                validate_native_output_target(
+    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = adapter {
+        crate::audio::settings::validate_encoder_sample_rate(encoder_type, sample_rate)?;
+        if matches!(
+            encoder_type,
+            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::FaacHeAac
+        ) {
+            if merge_inputs {
+                validate_output_target(
                     encoder_settings,
+                    encoder_type,
                     sample_rate,
-                    std::slice::from_ref(file),
+                    &file_info.files,
                 )?;
+            } else {
+                for file in file_info.files.iter().filter(|file| file.is_valid) {
+                    validate_output_target(
+                        encoder_settings,
+                        encoder_type,
+                        sample_rate,
+                        std::slice::from_ref(file),
+                    )?;
+                }
             }
         }
     }
     Ok(())
 }
 
-fn validate_native_output_target(
+fn validate_output_target(
     settings: &EncoderSettings,
+    encoder: crate::audio::EncoderType,
     sample_rate: &crate::audio::SampleRateConfig,
     files: &[AudioFile],
 ) -> Result<()> {
@@ -115,15 +124,28 @@ fn validate_native_output_target(
                 .and_then(|file| file.sample_rate)
         })
         .ok_or_else(|| {
-            crate::errors::AppError::InvalidInput(
-                "Could not determine Native sample rate; choose it explicitly.".into(),
-            )
+            crate::errors::AppError::InvalidInput(format!(
+                "Could not determine {encoder} sample rate; choose it explicitly."
+            ))
         })?;
-    crate::audio::settings_encoder::validate_native_target_bitrate(
-        settings.bitrate_kbps,
-        rate,
-        u32::from(channels),
-    )
+    crate::audio::settings::validate_encoder_sample_rate(
+        encoder,
+        &crate::audio::SampleRateConfig::Explicit(rate),
+    )?;
+    match encoder {
+        crate::audio::EncoderType::FaacHeAac => {
+            crate::audio::settings_encoder::validate_faac_target_bitrate(
+                settings.bitrate_kbps,
+                rate,
+                u32::from(channels),
+            )
+        }
+        _ => crate::audio::settings_encoder::validate_native_target_bitrate(
+            settings.bitrate_kbps,
+            rate,
+            u32::from(channels),
+        ),
+    }
 }
 
 pub(crate) fn processing_workspace_root(cache_dir: &std::path::Path) -> std::path::PathBuf {

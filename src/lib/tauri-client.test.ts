@@ -705,58 +705,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.sourcePath).toBe('/books/ch01.mp3');
 		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.m4b');
 	});
-
-	it('loads runtime settings capabilities through the Tauri boundary', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			encoder: {
-				availability: {
-					fdkAvailable: true,
-					fdkSource: 'detected',
-					aacAtAvailable: true,
-					nativeAacAvailable: true,
-					autoEncoder: 'fdk_he_aac',
-					detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
-					statusMessage: 'FDK AAC detected and ready.',
-				},
-				encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
-				bitrateKbpsMin: 1,
-				bitrateKbpsMax: 1152,
-				nativeSpeedMax: 4,
-				bitrateModesByEncoder: [
-					{ encoderType: 'auto', allowedModes: ['vbr'], defaultMode: { mode: 'vbr', value: 3 } },
-				],
-				vbrLevelMin: 1,
-				vbrLevelMax: 5,
-				vbrLevelDefault: 3,
-				sampleRateAuto: true,
-				explicitSampleRates: [44100],
-				channelOptions: ['auto', 'mono', 'stereo'],
-			},
-			maxConcurrentJobs: {
-				allowAuto: true,
-				autoEffective: 4,
-				fixedMin: 1,
-				fixedMax: 8,
-				fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
-			},
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const capabilities = await tauriClient.getRuntimeSettingsCapabilities();
-
-		const [commandName, args = {}] = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1] as [
-			string,
-			Record<string, unknown>?,
-		];
-		expect(commandName).toBe('get_runtime_settings_capabilities');
-		expect(args).toEqual({});
-		expect(capabilities.encoder.availability.detectedToolchainPath).toBe(
-			'/opt/homebrew/bin/ffmpeg',
-		);
-		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
-	});
 });
 
 describe('unwrapGeneratedResult', () => {

@@ -71,6 +71,55 @@ fn settings_with_future_encoder(scope: EncoderDefaultsScope) -> serde_json::Valu
 }
 
 #[test]
+fn saved_faac_defaults_load_without_recovery_and_survive_other_preference_updates() {
+    let temp = TempDir::new().expect("temp dir");
+    let path = temp.path().join("app-settings.json");
+    let mut value = serde_json::to_value(AppSettings::default()).expect("settings JSON");
+    // Persisted by the experimental build, before native speed was a preference.
+    let encoder = serde_json::json!({
+        "settings": { "encoderType": "faac_he_aac", "bitrateKbps": 64,
+            "bitrateMode": {"mode": "abr"}, "channels": "auto", "afterburner": false },
+        "sampleRate": { "explicit": 22050 }
+    });
+    value["encoderDefaults"] = encoder.clone();
+    value["pinnedDefaults"] = serde_json::json!({
+        "encoderDefaults": encoder, "maxConcurrentJobs": {"mode": "fixed", "value": 2},
+        "outputDefaults": value["outputDefaults"]
+    });
+    std::fs::write(&path, value.to_string()).expect("write saved FAAC settings");
+    let loaded = get_app_settings(temp.path()).expect("load saved FAAC choices");
+    assert_eq!(
+        loaded.encoder_defaults.settings.encoder_type,
+        EncoderType::FaacHeAac
+    );
+    assert_eq!(
+        loaded.encoder_defaults.settings.bitrate_mode,
+        BitrateMode::Abr
+    );
+    assert!(get_app_settings_recovery(temp.path())
+        .expect("inspect recovery")
+        .is_none());
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            keep_awake_while_working: Some(false),
+            ..Default::default()
+        },
+    )
+    .expect("update unrelated preference");
+    let reloaded = get_app_settings(temp.path()).expect("reload settings");
+    assert_eq!(reloaded.encoder_defaults, loaded.encoder_defaults);
+    assert_eq!(reloaded.pinned_defaults, loaded.pinned_defaults);
+    assert_eq!(
+        std::fs::read_dir(temp.path())
+            .expect("list settings files")
+            .count(),
+        1,
+        "no recovery backup is needed"
+    );
+}
+
+#[test]
 fn explicit_recovery_backs_up_original_and_changes_only_incompatible_encoder_defaults() {
     for scope in [EncoderDefaultsScope::LastUsed, EncoderDefaultsScope::Pinned] {
         let temp = TempDir::new().expect("temp dir");

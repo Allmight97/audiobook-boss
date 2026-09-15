@@ -255,6 +255,33 @@ describe('encoder panel behavior controls', () => {
 			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
 		});
 
+		runtime!.encoding.applyDefaults({
+			settings: {
+				...runtime!.encoding.readDefaults().settings,
+				encoderType: 'faac_he_aac',
+				bitrateMode: { mode: 'abr' },
+			},
+			sampleRate: { explicit: 22050 },
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime!.encoding.request().encoderSettings.bitrateMode).toEqual({ mode: 'abr' });
+			expect(document.getElementById('output-quality')?.hidden).toBe(true);
+			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
+			expect(document.getElementById('estimated-bitrate')?.textContent).toBe(
+				'Target: 64 kbps total',
+			);
+			const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
+			expect(bitrateInput.type).toBe('number');
+			expect(bitrateInput.value).toBe('64');
+			const sampleRate = document.getElementById('output-samplerate') as HTMLSelectElement;
+			expect(sampleRate.value).toBe('22050');
+			expect(
+				Array.from(sampleRate.options).find((option) => option.value === '22050')?.disabled,
+			).toBe(true);
+		});
+
 		const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
 		expect(bitrateInput).toHaveAccessibleName('Target kbps');
 		bitrateInput.value = '48';

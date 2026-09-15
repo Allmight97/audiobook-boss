@@ -98,6 +98,25 @@ fn test_encoder_mode_combo_validation() {
     assert!(validate_encoder_settings(&s).is_ok());
     s.bitrate_mode = BitrateMode::Cvbr;
     assert!(validate_encoder_settings(&s).is_ok());
+
+    s.encoder_type = EncoderType::FaacHeAac;
+    s.bitrate_mode = BitrateMode::Abr;
+    assert!(validate_encoder_settings(&s).is_ok());
+    s.bitrate_mode = BitrateMode::Cbr;
+    assert!(validate_encoder_settings(&s).is_err());
+}
+
+#[test]
+fn faac_settings_wire_values_are_stable() {
+    let value = serde_json::to_value(EncoderSettings {
+        encoder_type: EncoderType::FaacHeAac,
+        bitrate_mode: BitrateMode::Abr,
+        ..base_settings()
+    })
+    .expect("FAAC settings should serialize");
+
+    assert_eq!(value["encoderType"], "faac_he_aac");
+    assert_eq!(value["bitrateMode"]["mode"], "abr");
 }
 
 #[test]

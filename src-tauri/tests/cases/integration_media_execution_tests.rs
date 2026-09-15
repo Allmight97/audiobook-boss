@@ -1473,3 +1473,228 @@ async fn prepending_chapterless_audio_preserves_later_embedded_chapter_positions
     assert_quicktime_chapter_offset(&output, 1_250, 400);
     assert!(lane.residual_workspace_dirs().is_empty());
 }
+
+fn faac_encoder_settings() -> EncoderSettings {
+    EncoderSettings {
+        encoder_type: EncoderType::FaacHeAac,
+        bitrate_mode: BitrateMode::Abr,
+        ..native_encoder_settings()
+    }
+}
+
+#[tokio::test]
+async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
+    for rate in [32000, 44100, 48000] {
+        let lane = MediaLane::with_fixtures(&[0.13, 0.17])
+            .with_encoder(faac_encoder_settings())
+            .with_sample_rate(SampleRateConfig::Explicit(rate));
+        let mut metadata = AudiobookMetadata::new();
+        metadata.title = Some("FAAC Merge".into());
+        let output = lane.process(Some(metadata)).await;
+        let probe = get_file_list_info(&[&output]).unwrap();
+        assert_eq!(probe.valid_count, 1);
+        assert_eq!(probe.files[0].sample_rate, Some(rate));
+        assert_eq!(
+            probe.files[0].channels,
+            Some(1),
+            "mono HE must not be inferred as PS stereo"
+        );
+        assert!((probe.total_duration - 0.3).abs() < 0.002);
+        let tags = read_metadata(&output).unwrap();
+        assert_eq!(tags.title.as_deref(), Some("FAAC Merge"));
+        assert_eq!(probe.files[0].chapters.len(), 2);
+        assert!(lane.residual_workspace_dirs().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn faac_auto_merge_preserves_distinct_stereo_in_either_input_order() {
+    assert_auto_merge_stereo(faac_encoder_settings()).await;
+}
+
+#[tokio::test]
+async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residue() {
+    let lane = MediaLane::with_fixtures(&[6.0, 6.0]).with_encoder(faac_encoder_settings());
+    let mut context = lane.context(ProcessingSession::new());
+    context.preview = Some(audiobook_boss_lib::processing::PreviewConfig::new(10.0));
+    let info = get_file_list_info(&lane.inputs).unwrap();
+    execute_audio_engine(AudioExecutionRequest::new(
+        context,
+        info,
+        None,
+        CoverArtPassthroughPolicy::Preserve,
+    ))
+    .await
+    .unwrap();
+    let probe = get_file_list_info(&[lane.output_path()]).unwrap();
+    assert!(
+        (probe.total_duration - 10.0).abs() < 0.1,
+        "preview duration {}",
+        probe.total_duration
+    );
+    assert!(probe.files[0].chapters.is_empty());
+    assert!(lane.residual_workspace_dirs().is_empty());
+
+    let invalid = MediaLane::with_fixtures(&[0.1])
+        .with_encoder(faac_encoder_settings())
+        .with_sample_rate(SampleRateConfig::Explicit(22050));
+    assert!(
+        execute_audio_engine(invalid.execution_request(ProcessingSession::new(), None))
+            .await
+            .is_err()
+    );
+    assert!(!invalid.output_path().exists());
+    assert!(invalid.residual_workspace_dirs().is_empty());
+}
+
+/// Apple's HE reader must retain short clips and the tail after final tag writes.
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
+    for samples in [257, 4096, 12117] {
+        let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
+            .with_encoder(faac_encoder_settings());
+        let source = decode_pcm_f32(&lane.inputs[0]);
+        let output = lane.process(None).await;
+        let decoded_path = lane.tmp.path().join("apple.wav");
+        let converted = Command::new("afconvert")
+            .args(["-f", "WAVE", "-d", "LEF32"])
+            .arg(&output)
+            .arg(&decoded_path)
+            .output()
+            .unwrap();
+        assert!(
+            converted.status.success(),
+            "{}",
+            String::from_utf8_lossy(&converted.stderr)
+        );
+        let decoded = decode_pcm_f32(&decoded_path);
+        assert!(
+            decoded.len().abs_diff(source.len()) <= 1,
+            "source={} decoded={}",
+            source.len(),
+            decoded.len()
+        );
+        let tail = &decoded[decoded.len() - 32..];
+        let rms = (tail
+            .iter()
+            .map(|value| f64::from(*value).powi(2))
+            .sum::<f64>()
+            / 32.0)
+            .sqrt();
+        assert!(rms > 0.05, "missing final audio tail: {rms}");
+    }
+}
+
+/// Re-import must preserve position and the final audio,
+/// including clips whose last playable sample needs an extra HE access unit.
+#[tokio::test]
+async fn faac_reimport_preserves_audio_alignment_and_tail() {
+    assert_faac_reimport(
+        native_encoder_settings(),
+        &[
+            (32000, 4096),
+            (44100, 12117),
+            (48000, 22050),
+            (44100, 22050),
+        ],
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "requires external FFmpeg with libfdk_aac; run explicitly on an FDK host"]
+async fn faac_reimport_through_external_fdk_preserves_audio_interval() {
+    assert_faac_reimport(
+        EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: ChannelConfig::Stereo,
+            ..native_encoder_settings()
+        },
+        &[(44100, 22050)],
+    )
+    .await;
+}
+
+async fn assert_faac_reimport(output_settings: EncoderSettings, cases: &[(u32, u32)]) {
+    for &(rate, samples) in cases {
+        let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
+            .with_encoder(faac_encoder_settings());
+        let mut wav = fs::read(&lane.inputs[0]).unwrap();
+        wav[24..28].copy_from_slice(&rate.to_le_bytes());
+        wav[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
+        let mut state = 42u32;
+        let mut filtered = 0.0_f64;
+        for sample in wav[44..].chunks_exact_mut(2) {
+            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+            let noise = f64::from(state) / f64::from(u32::MAX) - 0.5;
+            filtered = filtered * 0.85 + noise * 0.15;
+            sample.copy_from_slice(&((filtered * 50000.0) as i16).to_le_bytes());
+        }
+        fs::write(&lane.inputs[0], wav).unwrap();
+        let source = decode_pcm_f32(&lane.inputs[0]);
+        let faac_output = lane.process(None).await;
+        if rate == 44100 && samples == 22050 {
+            save_metadata_intent(
+                &faac_output,
+                &MetadataIntentPatch {
+                    title: PatchOp::Set("Edited FAAC book".into()),
+                    ..Default::default()
+                },
+            )
+            .expect("unrelated metadata edit preserves timing provenance");
+        }
+        assert_ffprobe_tag(
+            &ffprobe_format_tags(&faac_output),
+            "encoder",
+            "AudioBook Boss FAAC HE-AAC",
+        );
+        let reimport =
+            MediaLane::for_inputs(vec![faac_output]).with_encoder(output_settings.clone());
+        let second_output = reimport.process(None).await;
+        let decoded = decode_pcm_f32(&second_output);
+        // A forced-stereo output carries the mono reference in each channel.
+        let decoded = if output_settings.channels == ChannelConfig::Stereo {
+            decoded
+                .chunks_exact(2)
+                .map(|frame| frame[0])
+                .collect::<Vec<_>>()
+        } else {
+            decoded
+        };
+        assert_eq!(
+            decoded.len(),
+            source.len(),
+            "playable count at {rate} Hz / {samples} samples"
+        );
+        let lag = best_signal_lag(&source, &decoded, 1200);
+        assert!(
+            lag.abs() <= 2,
+            "audio shifted by {lag} samples at {rate} Hz"
+        );
+        let tail = &decoded[decoded.len() - 512..];
+        let energy = tail.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / tail.len() as f64;
+        assert!(
+            energy.sqrt() > 0.03,
+            "missing tail at {rate} Hz / {samples} samples: rms={}",
+            energy.sqrt()
+        );
+    }
+}
+
+fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
+    // Compare a fixed interior window, so silence at either edge cannot improve a score.
+    let start = radius as usize;
+    let end = reference.len().min(decoded.len()) - radius as usize;
+    (-radius..=radius)
+        .map(|lag| {
+            let score = (start..end)
+                .map(|i| f64::from(reference[i]) * f64::from(decoded[(i as i32 + lag) as usize]))
+                .sum::<f64>();
+            (lag, score)
+        })
+        .max_by(|left, right| left.1.total_cmp(&right.1))
+        .unwrap()
+        .0
+}

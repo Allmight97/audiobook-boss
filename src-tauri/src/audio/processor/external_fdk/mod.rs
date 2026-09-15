@@ -57,6 +57,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
         sanitize_path_for_display(&toolchain.ffmpeg_path)
     );
     validate_external_input_decoders(&valid_files, &valid_selected_decoders, &toolchain)?;
+    let decode_windows = inspect_decode_windows(&valid_files).await?;
 
     let passthrough = cover_art_passthrough.apply_to_passthrough(
         passthrough::collect_passthrough_metadata(&valid_files, context.preview.is_some()),
@@ -88,6 +89,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
         &toolchain,
         &valid_files,
         &valid_selected_decoders,
+        &decode_windows,
         &temp_output,
         total_duration,
     )
@@ -115,6 +117,23 @@ pub(super) async fn process_audiobook_with_external_fdk(
     }
 
     super::finalize::complete_staged_output(&context, temp_output, &mut cleanup_guard)
+}
+
+async fn inspect_decode_windows(
+    files: &[AudioFile],
+) -> Result<Vec<Option<super::faac_timing::FaacDecodeWindow>>> {
+    let paths = files
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    tokio::task::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|path| super::faac_timing::inspect(path))
+            .collect()
+    })
+    .await
+    .map_err(|error| AppError::General(format!("FAAC input inspection task failed: {error}")))?
 }
 
 fn create_temp_dir(context: &ProcessingContext) -> Result<PathBuf> {

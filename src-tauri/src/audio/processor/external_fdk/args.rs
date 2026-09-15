@@ -1,3 +1,4 @@
+use crate::audio::processor::faac_timing::FaacDecodeWindow;
 use crate::audio::settings_encoder::{BitrateMode, ChannelConfig, EncoderSettings};
 use crate::audio::{AudioFile, DecoderSelection};
 use std::ffi::OsString;
@@ -9,6 +10,7 @@ pub(super) fn build_ffmpeg_args(
     preview: Option<&crate::processing::preview_config::PreviewConfig>,
     files: &[AudioFile],
     selected_decoders: &[Option<DecoderSelection>],
+    decode_windows: &[Option<FaacDecodeWindow>],
     temp_output: &Path,
 ) -> Vec<OsString> {
     let mut args = vec![
@@ -25,13 +27,22 @@ pub(super) fn build_ffmpeg_args(
         OsString::from("pipe:1"),
     ];
 
-    let preview_per_file = preview.map(|value| value.per_file_seconds(files.len()).to_string());
-    for (file, selection) in files.iter().zip(selected_decoders.iter()) {
-        if let Some(seconds) = preview_per_file.as_ref() {
+    let preview_per_file = preview.map(|value| value.per_file_seconds(files.len()));
+    debug_assert_eq!(files.len(), selected_decoders.len());
+    debug_assert_eq!(files.len(), decode_windows.len());
+    for ((file, selection), decode_window) in files
+        .iter()
+        .zip(selected_decoders.iter())
+        .zip(decode_windows.iter())
+    {
+        if let Some(seconds) = preview_per_file {
             args.push(OsString::from("-t"));
-            args.push(OsString::from(seconds));
+            let input_seconds = decode_window
+                .map(|window| preview_input_duration(window, seconds))
+                .unwrap_or_else(|| seconds.to_string());
+            args.push(OsString::from(input_seconds));
         }
-        args.extend(build_input_decoder_args(selection.as_ref()));
+        args.extend(build_input_decoder_args(selection.as_ref(), *decode_window));
         args.push(OsString::from("-i"));
         args.push(file.path.as_os_str().to_owned());
     }
@@ -44,11 +55,13 @@ pub(super) fn build_ffmpeg_args(
         OsString::from("-vn"),
     ]);
 
-    if files.len() > 1 {
+    if files.len() > 1 || decode_windows.iter().any(Option::is_some) {
         args.push(OsString::from("-filter_complex"));
         args.push(OsString::from(build_concat_filter(
             files.len(),
             settings.channels,
+            decode_windows,
+            preview_per_file,
         )));
         args.push(OsString::from("-map"));
         args.push(OsString::from("[outa]"));
@@ -86,7 +99,18 @@ pub(super) fn build_ffmpeg_args(
     args
 }
 
-fn build_input_decoder_args(selection: Option<&DecoderSelection>) -> Vec<OsString> {
+fn build_input_decoder_args(
+    selection: Option<&DecoderSelection>,
+    decode_window: Option<FaacDecodeWindow>,
+) -> Vec<OsString> {
+    if decode_window.is_some() {
+        return vec![
+            OsString::from("-ignore_editlist"),
+            OsString::from("1"),
+            OsString::from("-c:a"),
+            OsString::from("aac"),
+        ];
+    }
     let Some(decoder_name) = crate::audio::toolchain::forced_external_input_decoder(selection)
     else {
         return Vec::new();
@@ -95,30 +119,57 @@ fn build_input_decoder_args(selection: Option<&DecoderSelection>) -> Vec<OsStrin
     vec![OsString::from("-c:a"), OsString::from(decoder_name)]
 }
 
-fn build_concat_filter(input_count: usize, channels: ChannelConfig) -> String {
+fn preview_input_duration(window: FaacDecodeWindow, preview_seconds: f64) -> String {
+    let preview_samples = (preview_seconds * f64::from(window.rate)).ceil() as i64;
+    let input_samples = window
+        .start_sample
+        .saturating_add(preview_samples)
+        .saturating_add(2048);
+    (input_samples as f64 / f64::from(window.rate)).to_string()
+}
+
+fn build_concat_filter(
+    input_count: usize,
+    channels: ChannelConfig,
+    decode_windows: &[Option<FaacDecodeWindow>],
+    preview_seconds: Option<f64>,
+) -> String {
     let forced_layout = match channels {
         ChannelConfig::Auto => None,
         ChannelConfig::Mono => Some("mono"),
         ChannelConfig::Stereo => Some("stereo"),
     };
     let mut filter = String::new();
-    if let Some(layout) = forced_layout {
-        // Concat can otherwise downmix a later stereo input to a mono first
-        // input before the output's -ac option takes effect.
-        for index in 0..input_count {
-            filter.push_str(&format!(
-                "[{index}:a:0]aformat=channel_layouts={layout}[a{index}];"
+    let mut inputs = String::new();
+    for (index, window) in decode_windows.iter().enumerate() {
+        let mut steps = Vec::new();
+        if let Some(window) = window {
+            let end_sample = preview_seconds
+                .map(|seconds| {
+                    let preview_samples = (seconds * f64::from(window.rate)).ceil() as i64;
+                    window
+                        .start_sample
+                        .saturating_add(preview_samples)
+                        .min(window.end_sample)
+                })
+                .unwrap_or(window.end_sample);
+            steps.push(format!(
+                "atrim=start_sample={}:end_sample={end_sample}",
+                window.start_sample
             ));
+            steps.push("asetpts=PTS-STARTPTS".into());
         }
-    }
-    for index in 0..input_count {
-        if forced_layout.is_some() {
-            filter.push_str(&format!("[a{index}]"));
+        if let Some(layout) = forced_layout {
+            steps.push(format!("aformat=channel_layouts={layout}"));
+        }
+        if steps.is_empty() {
+            inputs.push_str(&format!("[{index}:a:0]"));
         } else {
-            filter.push_str(&format!("[{index}:a:0]"));
+            filter.push_str(&format!("[{index}:a:0]{}[a{index}];", steps.join(",")));
+            inputs.push_str(&format!("[a{index}]"));
         }
     }
-    filter.push_str(&format!("concat=n={}:v=0:a=1[outa]", input_count));
+    filter.push_str(&format!("{inputs}concat=n={input_count}:v=0:a=1[outa]"));
     filter
 }
 
@@ -158,6 +209,7 @@ mod tests {
                 None,
                 &files,
                 &[None, None],
+                &[None, None],
                 Path::new("output.m4b"),
             );
             assert!(args.iter().any(|arg| arg == "-xerror"));
@@ -190,6 +242,7 @@ mod tests {
             None,
             &[file],
             &[None],
+            &[None],
             &output_path,
         );
 
@@ -199,5 +252,59 @@ mod tests {
         assert!(args
             .iter()
             .any(|arg| arg.as_os_str() == output_path.as_os_str()));
+    }
+
+    #[test]
+    fn ffmpeg_args_trim_tagged_faac_before_mixed_preview_concat() {
+        let files = [
+            AudioFile::new("faac.m4b".into()),
+            AudioFile::new("chapter.wav".into()),
+        ];
+        let window = FaacDecodeWindow {
+            start_sample: 3041,
+            end_sample: 3041 + 441_000,
+            rate: 44_100,
+        };
+        let args = build_ffmpeg_args(
+            &encoder_settings(),
+            &SampleRateConfig::Auto,
+            Some(&crate::processing::PreviewConfig::new(10.0)),
+            &files,
+            &[None, None],
+            &[Some(window), None],
+            Path::new("output.m4b"),
+        );
+
+        let input_seconds: f64 = args
+            .windows(2)
+            .find(|pair| pair[0] == "-t")
+            .expect("preview input bound")[1]
+            .to_str()
+            .expect("numeric UTF-8 argument")
+            .parse()
+            .expect("duration number");
+        assert!(
+            (5.1..5.2).contains(&input_seconds),
+            "read a bounded preview with room for priming and postroll"
+        );
+        assert!(args.windows(5).any(|window| {
+            window[0] == "-ignore_editlist"
+                && window[1] == "1"
+                && window[2] == "-c:a"
+                && window[3] == "aac"
+                && window[4] == "-i"
+        }));
+        let filter = args
+            .windows(2)
+            .find(|pair| pair[0] == "-filter_complex")
+            .map(|pair| pair[1].to_string_lossy())
+            .expect("mixed input should use a filter graph");
+        assert!(filter.contains(
+            "[0:a:0]atrim=start_sample=3041:end_sample=223541,asetpts=PTS-STARTPTS[a0];"
+        ));
+        assert!(filter.contains("[a0][1:a:0]concat=n=2:v=0:a=1[outa]"));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair[0] == "-map" && pair[1] == "[outa]"));
     }
 }

@@ -6,7 +6,7 @@
 
 use audiobook_boss_lib::audio::{
     encoder_settings_capabilities, validate_encoder_settings, validate_sample_rate_config,
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
 };
 
 #[test]
@@ -35,8 +35,22 @@ fn exposed_encoder_capabilities_match_validators() {
 #[test]
 fn exposed_mode_defaults_validate_for_each_encoder() {
     let capabilities = encoder_settings_capabilities();
+    let described: Vec<_> = capabilities
+        .encoder_configurations
+        .iter()
+        .map(|entry| entry.encoder_type)
+        .collect();
+    assert_eq!(described, capabilities.encoder_types);
+    let faac = capabilities
+        .encoder_configurations
+        .iter()
+        .find(|entry| entry.encoder_type == EncoderType::FaacHeAac)
+        .unwrap();
+    assert_eq!(faac.allowed_modes, [BitrateModeKind::Abr]);
+    assert_eq!(faac.default_mode, BitrateMode::Abr);
+    assert_eq!(faac.explicit_sample_rates, [32000, 44100, 48000]);
 
-    for entry in capabilities.bitrate_modes_by_encoder {
+    for entry in capabilities.encoder_configurations {
         let settings = EncoderSettings {
             encoder_type: entry.encoder_type,
             bitrate_kbps: 64,

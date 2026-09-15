@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "audiobook-boss"
-version = "1.9.0"
+version = "1.10.0-beta.1"
 dependencies = [
  "abb-audible-core",
  "abb-media-core",
@@ -387,6 +387,7 @@ dependencies = [
  "base64 0.23.1",
  "bogon",
  "env_logger",
+ "faac-sys",
  "ffmpeg-next",
  "ffmpeg-sys-next",
  "image",

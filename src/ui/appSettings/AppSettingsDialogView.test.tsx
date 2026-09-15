@@ -91,7 +91,7 @@ describe('AppSettingsDialogView', () => {
 	it('offers targeted recovery after inspection and reports its backup only after success', async () => {
 		let recovered = false;
 		const plan: AppSettingsRecoveryPlan = {
-			incompatibleEncoders: [{ scope: 'pinned', encoderType: 'faac_he_aac' }],
+			incompatibleEncoders: [{ scope: 'pinned', encoderType: 'future_encoder' }],
 		};
 		const recover = vi.fn(async () => {
 			recovered = true;
@@ -108,7 +108,7 @@ describe('AppSettingsDialogView', () => {
 			getAppSettingsRecovery: vi.fn(async () => plan),
 			recoverAppSettings: recover,
 		});
-		expect(screen.getByRole('listitem')).toHaveTextContent('Pinned defaults: faac_he_aac');
+		expect(screen.getByRole('listitem')).toHaveTextContent('Pinned defaults: future_encoder');
 		expect(
 			screen.getByText(/Output folders and other preferences will be preserved/),
 		).toBeInTheDocument();

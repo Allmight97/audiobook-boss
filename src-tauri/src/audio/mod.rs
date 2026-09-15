@@ -128,7 +128,7 @@ pub use processor::{
 pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
 pub use settings::{validate_output_path, validate_sample_rate_config};
 pub use settings_capabilities::{
-    encoder_settings_capabilities, EncoderBitrateModeCapability, EncoderSettingsCapabilities,
+    encoder_settings_capabilities, EncoderConfigurationCapability, EncoderSettingsCapabilities,
 };
 pub use settings_encoder::{
     resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,

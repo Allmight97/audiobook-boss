@@ -1,12 +1,13 @@
 //! Audio processing settings validation utilities
 
-use super::SampleRateConfig;
+use super::{EncoderType, SampleRateConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
 const SUPPORTED_SAMPLE_RATES: &[u32] = &[
     7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
 ];
+const FAAC_SAMPLE_RATES: &[u32] = &[32000, 44100, 48000];
 
 /// Validates sample rate configuration
 pub fn validate_sample_rate_config(config: &SampleRateConfig) -> Result<()> {
@@ -28,6 +29,34 @@ fn validate_explicit_sample_rate(sample_rate: u32) -> Result<()> {
 
 pub fn supported_sample_rates() -> &'static [u32] {
     SUPPORTED_SAMPLE_RATES
+}
+
+/// Returns the output rates supported by the selected encoder. The general
+/// sample-rate list remains unchanged for existing encoders; FAAC HE-AAC has
+/// a narrower upstream-supported set for its explicit HE profile.
+pub(crate) fn encoder_sample_rates(encoder: EncoderType) -> &'static [u32] {
+    match encoder {
+        EncoderType::FaacHeAac => FAAC_SAMPLE_RATES,
+        _ => SUPPORTED_SAMPLE_RATES,
+    }
+}
+
+/// Validates an explicit rate against both the general audio settings and the
+/// selected encoder's supported rates.
+pub(crate) fn validate_encoder_sample_rate(
+    encoder: EncoderType,
+    config: &SampleRateConfig,
+) -> Result<()> {
+    validate_sample_rate_config(config)?;
+    if let SampleRateConfig::Explicit(rate) = config {
+        let supported = encoder_sample_rates(encoder);
+        if !supported.contains(rate) {
+            return Err(AppError::InvalidInput(format!(
+                "{encoder} does not support {rate} Hz. Choose one of {supported:?}."
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Validates output directory is writable by creating and removing a temp file
@@ -95,5 +124,32 @@ impl SampleRateConfig {
             SampleRateConfig::Explicit(rate) => Some(*rate),
             SampleRateConfig::Auto => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn faac_exposes_only_its_supported_he_rates() {
+        assert_eq!(
+            encoder_sample_rates(EncoderType::FaacHeAac),
+            &[32000, 44100, 48000]
+        );
+        assert_eq!(
+            encoder_sample_rates(EncoderType::NativeAac),
+            supported_sample_rates()
+        );
+    }
+
+    #[test]
+    fn faac_rejects_an_explicit_rate_outside_its_capability() {
+        let error = validate_encoder_sample_rate(
+            EncoderType::FaacHeAac,
+            &SampleRateConfig::Explicit(22050),
+        )
+        .expect_err("FAAC should reject rates below 32 kHz");
+        assert!(error.to_string().contains("does not support 22050 Hz"));
     }
 }

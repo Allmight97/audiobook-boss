@@ -58,28 +58,46 @@ export function runtimeSettingsCapabilitiesFixture(
 				detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
 				statusMessage: 'FDK AAC detected and ready.',
 			} satisfies GeneratedEncoderAvailability,
-			encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
+			encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac', 'faac_he_aac'],
 			bitrateKbpsMin: 1,
-			bitrateModesByEncoder: [
+			encoderConfigurations: [
 				{
 					encoderType: 'auto' as const,
 					allowedModes: ['vbr' as const, 'cvbr' as const, 'cbr' as const],
 					defaultMode: { mode: 'vbr' as const, value: 3 },
+					explicitSampleRates: [
+						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+					],
 				},
 				{
 					encoderType: 'fdk_he_aac' as const,
 					allowedModes: ['vbr' as const],
 					defaultMode: { mode: 'vbr' as const, value: 3 },
+					explicitSampleRates: [
+						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+					],
 				},
 				{
 					encoderType: 'aac_at' as const,
 					allowedModes: ['cvbr' as const],
 					defaultMode: { mode: 'cvbr' as const },
+					explicitSampleRates: [
+						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+					],
 				},
 				{
 					encoderType: 'native_aac' as const,
 					allowedModes: ['cbr' as const],
 					defaultMode: { mode: 'cbr' as const },
+					explicitSampleRates: [
+						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+					],
+				},
+				{
+					encoderType: 'faac_he_aac' as const,
+					allowedModes: ['abr' as const],
+					defaultMode: { mode: 'abr' as const },
+					explicitSampleRates: [32000, 44100, 48000],
 				},
 			],
 			bitrateKbpsMax: 1152,

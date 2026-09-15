@@ -1,7 +1,7 @@
 //! Encoder setup and packet writing utilities.
 //!
-//! This module configures the in-process (ffmpeg-next) AAC encoders: Apple AAC
-//! (aac_at) and native FFmpeg AAC. FDK HE-AAC routes through the external
+//! This module configures the in-process AAC encoders: Apple AAC (aac_at),
+//! Native NMR AAC through ffmpeg-next, and bundled FAAC HE-AAC. FDK routes through the external
 //! FFmpeg adapter (`processor/external_fdk/`), never this module; encoder
 //! creation refuses it with a typed error.
 //!
@@ -10,10 +10,14 @@
 //! - `options`: Encoder-specific option builders (Apple, Native)
 //! - `common`: Shared helpers for audio parameter resolution
 //! - `write`: Frame encoding and packet writing utilities
+//! - `session`: Codec, submitted sample timeline, muxing and drain ownership
+//! - `faac`: FAAC handle, PCM conversion and stream configuration
 
 mod common;
 mod context;
+mod faac;
 mod options;
+mod session;
 mod write;
 
 // Encoder boundary behavior pinned in src-tauri/src/audio/contract_tests.rs
@@ -24,4 +28,4 @@ pub(crate) use common::{
     append_in_process_encoding_log_best_effort, encoding_log_enabled, InProcessEncoderRunLog,
 };
 pub(crate) use context::setup_encoder;
-pub(crate) use write::{encode_and_write_frame, finalize_encoding};
+pub(crate) use session::EncoderSession;
