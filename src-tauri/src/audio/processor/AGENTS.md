@@ -28,6 +28,10 @@
 - Preserve finalize behavior that completes filesystem operations before success is reported.
 - Keep external FDK internals split by private mechanism under
   `external_fdk/`; callers should only use the adapter entrypoint.
+  Its mono output explicitly declares PS absent in the AAC configuration before
+  metadata finalization. This applies only to that freshly encoded mono stream;
+  stream-copy the compressed packets and keep the corrected output under the
+  same workspace cleanup owner.
 
 ## Hard Invariants
 

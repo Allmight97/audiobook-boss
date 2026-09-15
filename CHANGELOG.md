@@ -11,6 +11,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Keep FDK HE-AAC mono output mono in both Apple and FFmpeg readers.
 - Load saved FAAC encoder defaults from experimental builds without resetting
   other preferences or requiring settings recovery.
 - Preserve FAAC output's playable interval and final audio through Apple playback

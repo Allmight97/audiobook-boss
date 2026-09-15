@@ -77,6 +77,10 @@ pub(super) fn build_ffmpeg_args(
         OsString::from("aac_he"),
     ]);
 
+    if settings.channels == ChannelConfig::Mono {
+        args.extend([OsString::from("-signaling"), OsString::from("explicit_sbr")]);
+    }
+
     if let BitrateMode::Vbr(level) = settings.bitrate_mode {
         args.push(OsString::from("-vbr"));
         args.push(OsString::from(level.to_string()));
@@ -213,6 +217,11 @@ mod tests {
                 Path::new("output.m4b"),
             );
             assert!(args.iter().any(|arg| arg == "-xerror"));
+            assert_eq!(
+                args.windows(2)
+                    .any(|pair| pair[0] == "-signaling" && pair[1] == "explicit_sbr"),
+                channels == ChannelConfig::Mono
+            );
             let expected = OsString::from(format!(
                 "[0:a:0]aformat=channel_layouts={layout}[a0];\
                  [1:a:0]aformat=channel_layouts={layout}[a1];\

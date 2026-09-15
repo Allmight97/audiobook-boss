@@ -1,4 +1,5 @@
 mod args;
+mod mono;
 mod passthrough;
 mod process;
 mod progress;
@@ -95,6 +96,17 @@ pub(super) async fn process_audiobook_with_external_fdk(
     )
     .await;
     encode_stage.finish(encode_result)?;
+
+    let temp_output = if context.encoder_settings.channels == crate::audio::ChannelConfig::Mono {
+        let corrected = temp_dir.join("mono-output.m4b");
+        cleanup_guard.add_path(&corrected);
+        crate::diagnostics::stage("fdk_mono_signaling", &corrected, || {
+            mono::declare_mono(&temp_output, &corrected, &context)
+        })?;
+        corrected
+    } else {
+        temp_output
+    };
 
     log::info!(
         "media_handoff stage=encode_closed artifact={} {}",

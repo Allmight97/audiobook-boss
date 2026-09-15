@@ -1,4 +1,4 @@
-//! Media-execution lane (issue #341, closeout route: add now).
+//! Real-media execution proofs for Audio and Metadata handoffs.
 //!
 //! Smallest maintained real-media lane: every fixture is synthesized at test
 //! time (no committed media, no licensing exposure) — WAVs in pure Rust, MP3s
@@ -9,7 +9,7 @@
 //! These tests prove workflow behavior structural tests cannot:
 //! - import → configure → process → decodable M4B with truthful duration
 //! - real input formats: WAV, M4B (AAC decode→encode), and MP3
-//! - encoder routes: Native AAC and Apple AAC (AudioToolbox). External FDK
+//! - encoder routes: Native AAC, Apple AAC (AudioToolbox), and bundled FAAC. External FDK
 //!   is deliberately absent from the normal suite — it needs a user-supplied
 //!   libfdk_aac FFmpeg, which is environment-dependent by definition.
 //! - metadata save → re-read tags from the real output artifact
@@ -1605,16 +1605,18 @@ async fn faac_reimport_preserves_audio_alignment_and_tail() {
 #[tokio::test]
 #[ignore = "requires external FFmpeg with libfdk_aac; run explicitly on an FDK host"]
 async fn faac_reimport_through_external_fdk_preserves_audio_interval() {
-    assert_faac_reimport(
-        EncoderSettings {
-            encoder_type: EncoderType::FdkHeAac,
-            bitrate_mode: BitrateMode::Vbr(3),
-            channels: ChannelConfig::Stereo,
-            ..native_encoder_settings()
-        },
-        &[(44100, 22050)],
-    )
-    .await;
+    for channels in [ChannelConfig::Mono, ChannelConfig::Stereo] {
+        assert_faac_reimport(
+            EncoderSettings {
+                encoder_type: EncoderType::FdkHeAac,
+                bitrate_mode: BitrateMode::Vbr(3),
+                channels,
+                ..native_encoder_settings()
+            },
+            &[(32000, 16000), (44100, 22050), (48000, 24000)],
+        )
+        .await;
+    }
 }
 
 async fn assert_faac_reimport(output_settings: EncoderSettings, cases: &[(u32, u32)]) {
@@ -1653,6 +1655,44 @@ async fn assert_faac_reimport(output_settings: EncoderSettings, cases: &[(u32, u
         let reimport =
             MediaLane::for_inputs(vec![faac_output]).with_encoder(output_settings.clone());
         let second_output = reimport.process(None).await;
+        let expected_channels = if output_settings.channels == ChannelConfig::Stereo {
+            2
+        } else {
+            1
+        };
+        let inspected = get_file_list_info(std::slice::from_ref(&second_output)).unwrap();
+        assert_eq!(
+            inspected.files[0].channels,
+            Some(expected_channels),
+            "declared output channels"
+        );
+        #[cfg(target_os = "macos")]
+        if output_settings.encoder_type == EncoderType::FdkHeAac {
+            let apple_path = reimport.tmp.path().join("apple.wav");
+            let converted = Command::new("afconvert")
+                .args(["-f", "WAVE", "-d", "LEF32"])
+                .arg(&second_output)
+                .arg(&apple_path)
+                .output()
+                .unwrap();
+            assert!(
+                converted.status.success(),
+                "{}",
+                String::from_utf8_lossy(&converted.stderr)
+            );
+            let apple = get_file_list_info(std::slice::from_ref(&apple_path)).unwrap();
+            assert_eq!(
+                apple.files[0].channels,
+                Some(expected_channels),
+                "Apple output channels"
+            );
+            assert!(
+                decode_pcm_f32(&apple_path)
+                    .len()
+                    .abs_diff(source.len() * expected_channels as usize)
+                    <= expected_channels as usize
+            );
+        }
         let decoded = decode_pcm_f32(&second_output);
         // A forced-stereo output carries the mono reference in each channel.
         let decoded = if output_settings.channels == ChannelConfig::Stereo {
