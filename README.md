@@ -39,7 +39,8 @@ revisions and wrapper changes are recorded under `vendor/`. ABB-produced FAAC
 files retain Apple-compatible gapless timing; ABB accounts for native decoder
 priming when reading them back, including through the external FDK route.
 FAAC's LGPL license and source provenance ship with the app; its corresponding
-source and build configuration live in `vendor/faac-sys/`.
+source and build configuration live in `vendor/faac-sys/`. Public packaging
+also follows the release lane’s source/rebuild requirements for static linking.
 
 [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 

@@ -68,12 +68,19 @@ tagging or publishing.
 
 1. Use the selected version and accepted change's impact.
 2. Write the matching `CHANGELOG.md` section and run the version bump script.
-3. Run `bun run audit` so both Rust and JavaScript dependency graphs report
+3. For a build containing statically linked FAAC, verify the release provides
+   matching FAAC and ABB source/build materials that let recipients modify FAAC
+   and rebuild the app, alongside its license and usage notice. Use
+   `vendor/faac-sys/ABB-PROVENANCE.md` and `upstream/COPYING` there for the
+   shipped source identity and distribution terms. The app bundle currently
+   includes license/provenance only; verify the corresponding release source
+   and rebuild route before publishing.
+4. Run `bun run audit` so both Rust and JavaScript dependency graphs report
    before public packaging; any failure blocks the release. Run additional
    validation selected by the changed owner. For release-only metadata,
    `git diff --check` plus the dependency audit and artifact proof is sufficient
    unless a concrete safety, data, or contract invariant requires more.
-4. Build and verify the DMG:
+5. Build and verify the DMG:
 
    ```bash
    bun run app:build:dmg
@@ -83,11 +90,11 @@ tagging or publishing.
 
    Use `bun run app:build` only for explicit repo-local app validation; a normal
    DMG release already builds the app.
-5. If a local install was also requested, run `bun run app:install-local` after
+6. If a local install was also requested, run `bun run app:install-local` after
    DMG verification. This separate native rebuild is expected; the DMG lane
    may remove the intermediate portable app. Do not substitute
    `app:install-local:existing`.
-6. Commit and tag the accepted release:
+7. Commit and tag the accepted release:
 
    ```bash
    git add <accepted-code-and-release-metadata>
@@ -95,7 +102,7 @@ tagging or publishing.
    git tag v<x.y.z>
    ```
 
-7. Verify the release commit and tag identify the accepted work on the intended
+8. Verify the release commit and tag identify the accepted work on the intended
    branch. For a release from `main`, push:
 
    ```bash
@@ -103,7 +110,7 @@ tagging or publishing.
    git push origin v<x.y.z>
    ```
 
-8. Publish the verified artifact with the
+9. Publish the verified artifact with the
    matching changelog section as release notes:
 
    ```bash
