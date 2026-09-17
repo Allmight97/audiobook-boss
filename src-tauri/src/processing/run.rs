@@ -1,4 +1,3 @@
-use crate::audio::validate_encoder_settings;
 use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
 use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
 use crate::processing::{JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
@@ -87,7 +86,6 @@ async fn dispatch_payload(
     preview_seconds: Option<f64>,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
-    validate_encoder_settings(&payload.settings)?;
     let file_info = inspect_and_validate_external_processing_contract(&payload)?;
     log_encoder_summary(&payload);
 
@@ -126,7 +124,6 @@ pub(crate) fn preflight_payload(
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessingPreflightPlan> {
-    validate_encoder_settings(&payload.settings)?;
     let file_info = inspect_and_validate_external_processing_contract(&payload)?;
 
     resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds, &file_info)
@@ -165,7 +162,8 @@ mod tests {
             input_files: vec!["/books/input.m4b".to_string()],
             input_ids: None,
             output_dir: "/tmp/out".to_string(),
-            settings: encoder_settings(),
+            settings: Some(encoder_settings()),
+            audio_handling: None,
             sample_rate: None,
             job_type: Some(JobType::Batch),
             output_naming: None,
@@ -254,10 +252,26 @@ mod tests {
             let payload = process_payload(|payload| {
                 payload.input_files = vec![source.to_string_lossy().into_owned()];
                 payload.output_dir = output.to_string_lossy().into_owned();
-                payload.settings.encoder_type = EncoderType::NativeAac;
-                payload.settings.bitrate_mode = BitrateMode::Cbr;
-                payload.settings.bitrate_kbps = bitrate;
-                payload.settings.channels = channels;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .encoder_type = EncoderType::NativeAac;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .bitrate_mode = BitrateMode::Cbr;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .bitrate_kbps = bitrate;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .channels = channels;
                 payload.sample_rate = Some(rate);
             });
             let result = super::preflight_payload(payload, None, None);
@@ -294,9 +308,21 @@ mod tests {
                 ];
                 payload.output_dir = temp.path().to_string_lossy().into_owned();
                 payload.job_type = Some(job_type);
-                payload.settings.encoder_type = EncoderType::NativeAac;
-                payload.settings.bitrate_mode = BitrateMode::Cbr;
-                payload.settings.bitrate_kbps = 300;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .encoder_type = EncoderType::NativeAac;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .bitrate_mode = BitrateMode::Cbr;
+                payload
+                    .settings
+                    .as_mut()
+                    .expect("encode fixture settings")
+                    .bitrate_kbps = 300;
             });
             let result = super::preflight_payload(payload, None, None);
             if job_type == JobType::Merge {
@@ -388,9 +414,15 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp dir");
         let invalid_output = temp_dir.path().join("output.mp3");
 
-        if register_job_and_validate_output(&registry, &invalid_output, None, batch_log_context())
-            .await
-            .is_ok()
+        if register_job_and_validate_output(
+            &registry,
+            &invalid_output,
+            None,
+            batch_log_context(),
+            crate::processing::AudioHandling::Encode,
+        )
+        .await
+        .is_ok()
         {
             panic!("invalid extension should fail validation");
         }
@@ -448,6 +480,7 @@ mod tests {
             &invalid_output,
             None,
             batch_log_context(),
+            crate::processing::AudioHandling::Encode,
         )
         .await
         {

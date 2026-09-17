@@ -21,6 +21,7 @@ use crate::metadata::{
     extract_passthrough_metadata, prepare_output_cover_art, AudiobookMetadata,
     CoverArtPassthroughPolicy, PassthroughSource,
 };
+use crate::processing::AudioHandling;
 use crate::processing::ProcessingContext;
 use std::time::Duration;
 
@@ -36,11 +37,13 @@ mod finalize;
 mod frame_pipeline;
 mod plan;
 mod prepare;
+mod preserve;
 mod preview_state;
 mod run_diagnostics;
 mod staging;
 mod streams;
 
+pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 pub use streams::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
@@ -51,6 +54,8 @@ pub struct AudioExecutionRequest {
     file_info: FileListInfo,
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
+    handling: AudioHandling,
+    metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
 }
 
 impl AudioExecutionRequest {
@@ -65,7 +70,22 @@ impl AudioExecutionRequest {
             file_info,
             metadata,
             cover_art_passthrough,
+            handling: AudioHandling::Encode,
+            metadata_intent: None,
         }
+    }
+
+    pub fn with_handling(mut self, handling: AudioHandling) -> Self {
+        self.handling = handling;
+        self
+    }
+
+    pub fn with_metadata_intent(
+        mut self,
+        metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
+    ) -> Self {
+        self.metadata_intent = metadata_intent;
+        self
     }
 }
 
@@ -174,13 +194,29 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
 }
 
 pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
-    let requested_channels = request.context.encoder_settings.channels;
-    request.context.encoder_settings.channels =
+    if request.handling == AudioHandling::Preserve {
+        return tokio::task::spawn_blocking(move || {
+            preserve::execute_preserved_audio(
+                request.context,
+                request.file_info,
+                request.metadata_intent,
+            )
+        })
+        .await
+        .map_err(|error| {
+            crate::errors::AppError::General(format!("audio preservation task failed: {error}"))
+        })?;
+    }
+    let mut settings = request.context.required_encoder_settings()?.clone();
+    let requested_channels = settings.channels;
+    let resolved_channels =
         adapter::resolve_output_channels(requested_channels, &request.file_info.files)?;
+    settings.channels = resolved_channels;
+    request.context.encoder_settings = Some(settings);
     log::info!(
         "audio output channels: requested={:?} resolved={:?}",
         requested_channels,
-        request.context.encoder_settings.channels,
+        resolved_channels,
     );
     for file in request.file_info.files.iter().filter(|file| file.is_valid) {
         if file.cue_source.as_ref().is_some_and(|cue| {
@@ -206,7 +242,8 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         selected_decoders,
         ..
     } = request.file_info;
-    let adapter = adapter::resolve_processor_adapter(&request.context.encoder_settings)?;
+    let encoder_settings = request.context.required_encoder_settings()?;
+    let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     let adapter_label = match &adapter {
         adapter::ResolvedProcessorAdapter::NativeFfmpegNext { .. } => "native_ffmpeg_next",
         adapter::ResolvedProcessorAdapter::ExternalFdk { .. } => "external_fdk",
@@ -223,7 +260,7 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         .map_or_else(|| "none".to_string(), |index| index.to_string());
     log::info!(
         "audio engine adapter: operation_id={operation_id} job_id={job_id} input_index={input_index} kind={adapter_label} requested_encoder={:?}",
-        request.context.encoder_settings.encoder_type,
+        encoder_settings.encoder_type,
     );
     adapter
         .execute(

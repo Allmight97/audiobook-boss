@@ -229,6 +229,8 @@ mod entry_tests {
             output: output_plan(action, format!("/tmp/output-{index}.m4b")),
             metadata: None,
             cover_art_passthrough: crate::metadata::CoverArtPassthroughPolicy::Preserve,
+            audio_handling: crate::processing::AudioHandling::Encode,
+            metadata_intent: None,
         }
     }
 

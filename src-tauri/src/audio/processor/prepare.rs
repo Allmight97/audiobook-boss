@@ -110,6 +110,7 @@ mod tests {
             sample_rate: Some(44_100),
             channels: Some(2),
             codec_label: Some("AAC".to_string()),
+            preservation: None,
             selected_decoder: Some("Native AAC (FFmpeg)".to_string()),
             tag_title: None,
             tag_artist: None,

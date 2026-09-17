@@ -165,7 +165,7 @@ fn spawn_external_ffmpeg(
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
     command.args(super::args::build_ffmpeg_args(
-        &context.encoder_settings,
+        context.required_encoder_settings()?,
         &context.sample_rate,
         context.preview.as_ref(),
         files,
@@ -388,10 +388,14 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     if let Some(detail) = entry.status_detail {
         let _ = writeln!(output, "status_detail={detail}");
     }
+    let settings = entry
+        .context
+        .required_encoder_settings()
+        .expect("validated FDK settings");
     super::super::run_diagnostics::write_common_run_fields(
         &mut output,
         (entry.elapsed, entry.wallclock_elapsed),
-        &entry.context.encoder_settings,
+        settings,
         &entry.context.sample_rate,
         None,
         None,

@@ -107,7 +107,7 @@ export const commands = {
 	preset: NamingPreset,
 	includeYear: boolean,
 	customTemplate: string | null,
-} | null, sourcePath: string | null, outputKind: "final" | "preview" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind })),
+} | null, sourcePath: string | null, outputKind: "final" | "preview" | null, audioHandling: "encode" | "preserve" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, audioHandling })),
 	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
 	/**  Returns the current maximum concurrent jobs setting */
 	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
@@ -247,6 +247,11 @@ export type AudioFile = {
 	channels: number | null,
 	/**  Friendly codec label for display (None if unavailable) */
 	codecLabel: string | null,
+	/**
+	 *  Whether this source can be copied without re-encoding and whether the
+	 *  source meets the automatic low-bitrate recommendation.
+	 */
+	preservation?: AudioPreservation | null,
 	/**  Friendly selected decoder label for display only (None if unavailable) */
 	selectedDecoder: string | null,
 	/**  Title tag discovered during input analysis (None if unavailable) */
@@ -261,6 +266,13 @@ export type AudioFile = {
 	isValid: boolean,
 	/**  Error message if validation failed */
 	error: string | null,
+};
+
+export type AudioHandling = "encode" | "preserve";
+
+export type AudioPreservation = {
+	canPreserve: boolean,
+	recommended: boolean,
 };
 
 export type AudiobookMetadata = {
@@ -709,7 +721,12 @@ export type ProcessPayload = {
 	 */
 	inputIds: (string | null)[] | null,
 	outputDir: string,
-	settings: EncoderSettings,
+	settings: EncoderSettings | null,
+	/**
+	 *  Per-input audio handling aligned with `input_files`. Absent means encode
+	 *  every input, preserving the existing request shape.
+	 */
+	audioHandling: AudioHandling[] | null,
 	/**  Sample rate from frontend (optional, defaults to Auto) */
 	sampleRate: SampleRateConfig | null,
 	jobType: JobType | null,

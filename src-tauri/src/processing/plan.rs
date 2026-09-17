@@ -7,10 +7,10 @@ use crate::metadata::{
 use crate::output_artifact::OutputNamingConfig;
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
-    CollisionPolicy, OutputKind, OutputParentDirCleanup, OutputPlanLedger, OutputPlanReview,
-    PlannedOutputAction, ResolvedOutputPlan,
+    preserve_source_extension, CollisionPolicy, OutputKind, OutputParentDirCleanup,
+    OutputPlanLedger, OutputPlanReview, PlannedOutputAction, ResolvedOutputPlan,
 };
-use crate::processing::{JobType, ProcessPayload, ProcessingPreflightPlan};
+use crate::processing::{AudioHandling, JobType, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -27,6 +27,8 @@ pub(crate) struct PlannedProcessingJob {
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
+    pub(crate) audio_handling: AudioHandling,
+    pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
 }
 
 #[derive(Debug, Clone)]
@@ -116,7 +118,7 @@ fn build_plan_signature(
         let output_action = format!("{:?}", output.action);
         let collision_summary = format!("{collision_path}::{collision_detail}");
         lines.push(format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{:?}",
             job.input_index
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "merge".to_string()),
@@ -131,6 +133,7 @@ fn build_plan_signature(
             output_action,
             collision_kind,
             collision_summary,
+            job.audio_handling,
         ));
     }
 
@@ -176,6 +179,13 @@ fn build_processing_plan(
     let mut output_ledger = OutputPlanLedger::new();
     let mut jobs = Vec::new();
 
+    let requested_handling = resolve_requested_audio_handling(payload, file_info)?;
+    if inputs.preview_seconds.is_some() && requested_handling.contains(&AudioHandling::Preserve) {
+        return Err(AppError::InvalidInput(
+            "Preserve audio cannot be used for a preview.".to_string(),
+        ));
+    }
+
     match job_type {
         JobType::Merge => jobs.push(build_merge_processing_job(
             payload,
@@ -190,10 +200,10 @@ fn build_processing_plan(
             payload,
             metadata,
             inputs,
-            output_kind,
             collision_policy,
             &mut output_ledger,
             file_info,
+            &requested_handling,
         )?),
     }
 
@@ -207,6 +217,44 @@ fn build_processing_plan(
         plan_signature,
         jobs,
     })
+}
+
+fn resolve_requested_audio_handling(
+    payload: &ProcessPayload,
+    file_info: &FileListInfo,
+) -> Result<Vec<AudioHandling>> {
+    let handling = payload.resolved_audio_handling()?;
+    if file_info.files.len() != handling.len() {
+        return Err(AppError::InvalidInput(
+            "Inspected inputs do not match the audio handling request.".to_string(),
+        ));
+    }
+    for (index, requested) in handling.iter().enumerate() {
+        if *requested == AudioHandling::Preserve
+            && !file_info
+                .files
+                .get(index)
+                .and_then(|file| file.preservation)
+                .is_some_and(|value| value.can_preserve)
+        {
+            return Err(AppError::InvalidInput(format!(
+                "Input {} cannot preserve its original audio; choose Encode or use a supported AAC/MP3 source.",
+                index + 1
+            )));
+        }
+        if *requested == AudioHandling::Preserve
+            && file_info
+                .files
+                .get(index)
+                .and_then(|file| file.chapter_plan.as_ref())
+                .is_some_and(|plan| plan.from_cue)
+        {
+            return Err(AppError::InvalidInput(
+                "Preserve audio retains embedded chapters; ignore the CUE or re-encode to use its chapters.".to_string(),
+            ));
+        }
+    }
+    Ok(handling)
 }
 
 fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcessingPlan) {
@@ -333,6 +381,8 @@ fn build_merge_processing_job(
         output,
         metadata: metadata_outcome.effective_metadata,
         cover_art_passthrough: metadata_outcome.cover_art_passthrough,
+        audio_handling: AudioHandling::Encode,
+        metadata_intent: merge_patch,
     })
 }
 
@@ -340,10 +390,10 @@ fn build_batch_processing_jobs(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     inputs: &ProcessingInputs,
-    output_kind: OutputKind,
     collision_policy: CollisionPolicy,
     output_ledger: &mut OutputPlanLedger,
     file_info: &FileListInfo,
+    requested_handling: &[AudioHandling],
 ) -> Result<Vec<PlannedProcessingJob>> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
@@ -377,9 +427,14 @@ fn build_batch_processing_jobs(
             inputs.output_naming.clone(),
             Some(&path),
         )?;
+        let requested_output = if requested_handling[index] == AudioHandling::Preserve {
+            preserve_source_extension(requested_output, &path)?
+        } else {
+            requested_output
+        };
         let output = output_ledger.resolve(
             &requested_output,
-            output_kind,
+            resolve_output_kind(inputs.preview_seconds),
             collision_policy,
             &validated_input_paths,
         )?;
@@ -389,6 +444,8 @@ fn build_batch_processing_jobs(
             output,
             metadata: metadata_outcome.effective_metadata,
             cover_art_passthrough: metadata_outcome.cover_art_passthrough,
+            audio_handling: requested_handling[index],
+            metadata_intent: file_patch,
         });
     }
 

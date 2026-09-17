@@ -17,6 +17,10 @@
 ## Preferred Path
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
+- Preserve dispatch happens before encoder resolution. Its blocking worker
+  copies an eligible source into the tracked workspace, applies explicit metadata
+  intent through the metadata owner, and uses shared finalization. Copy cancellation
+  remains typed; source bytes are never the metadata writer target.
 - Resolve the encoder once at adapter dispatch and carry that choice into the
   in-process setup. Explicit Native/Apple selections validate their linked
   encoder without probing external FDK; bundled FAAC is available without an

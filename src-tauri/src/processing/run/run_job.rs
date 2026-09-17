@@ -9,7 +9,7 @@ use crate::output_artifact::{
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::job_registry::{CancellationChecker, JobId};
 use crate::processing::{
-    OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
+    AudioHandling, OperationKind, OutputConfig, PreviewConfig, ProcessPayload, ProcessResultEntry,
     ProcessResultStatus, ProcessingContext, ProcessingSession, SupplementalProcessingAsset,
 };
 use std::path::{Path, PathBuf};
@@ -27,7 +27,9 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) window: tauri::Window,
     pub(crate) registry: crate::ManagedJobRegistry,
     pub(crate) workspace_root: PathBuf,
-    pub(crate) encoder_settings: EncoderSettings,
+    pub(crate) encoder_settings: Option<EncoderSettings>,
+    pub(crate) audio_handling: AudioHandling,
+    pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
     pub(crate) sample_rate: audio::SampleRateConfig,
     pub(crate) input_index: Option<usize>,
     pub(crate) operation_kind: OperationKind,
@@ -42,6 +44,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) progress_listener: Option<ProgressEventListener>,
 }
 
+#[allow(clippy::too_many_lines)] // Keep registration, execution, and terminal cleanup in one lifecycle.
 pub(crate) async fn run_processing_job(
     request: ProcessingJobRequest,
 ) -> Result<ProcessResultEntry> {
@@ -60,6 +63,7 @@ pub(crate) async fn run_processing_job(
             input_index: request.input_index,
             operation_kind: request.operation_kind,
         },
+        request.audio_handling,
     )
     .await?;
     let cancellation_checker =
@@ -85,12 +89,16 @@ pub(crate) async fn run_processing_job(
         .emit_analyzing_start("Preparing audio job...");
     let preview_path = (request.output_plan.kind == OutputKind::Preview)
         .then(|| request.output_plan.resolved_path.display().to_string());
-    let result = match audio::execute_audio_engine(AudioExecutionRequest::new(
-        context,
-        request.file_info,
-        request.metadata,
-        request.cover_art_passthrough,
-    ))
+    let result = match audio::execute_audio_engine(
+        AudioExecutionRequest::new(
+            context,
+            request.file_info,
+            request.metadata,
+            request.cover_art_passthrough,
+        )
+        .with_handling(request.audio_handling)
+        .with_metadata_intent(request.metadata_intent),
+    )
     .await
     {
         Ok(message) => match commit_supplemental_assets(
@@ -200,6 +208,7 @@ pub(crate) async fn register_job_and_validate_output(
     output_path: &Path,
     operation_cancel: Option<Arc<AtomicBool>>,
     log_context: ProcessingJobLogContext,
+    audio_handling: AudioHandling,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
         .register_job_with_external_cancel(operation_cancel)
@@ -212,7 +221,11 @@ pub(crate) async fn register_job_and_validate_output(
         operation_kind: log_context.operation_kind,
     });
 
-    if let Err(error) = crate::audio::validate_output_path(output_path) {
+    let validation = match audio_handling {
+        AudioHandling::Encode => crate::audio::validate_output_path(output_path),
+        AudioHandling::Preserve => crate::audio::validate_preserved_output_path(output_path),
+    };
+    if let Err(error) = validation {
         let envelope = AppErrorEnvelope::from(&error);
         lifecycle_log.log_terminal(ProcessingJobLogStatus::Failed(&envelope));
         registry.fail_job(job_id, error.to_string()).await;
@@ -231,7 +244,7 @@ struct ProcessingContextRequest {
     window: tauri::Window,
     cancellation_checker: crate::processing::job_registry::CancellationChecker,
     job_id: crate::processing::job_registry::JobId,
-    encoder_settings: EncoderSettings,
+    encoder_settings: Option<EncoderSettings>,
     sample_rate: audio::SampleRateConfig,
     input_index: Option<usize>,
     operation_kind: OperationKind,
@@ -278,6 +291,66 @@ pub(crate) struct ProcessingJobLogIdentity {
 pub(crate) struct ProcessingJobLifecycleLog {
     identity: ProcessingJobLogIdentity,
     started_at: Instant,
+}
+
+#[cfg(test)]
+mod registration_tests {
+    use super::*;
+    use crate::processing::OperationKind;
+    use tempfile::TempDir;
+
+    fn log_context() -> ProcessingJobLogContext {
+        ProcessingJobLogContext {
+            operation_id: None,
+            input_index: Some(0),
+            operation_kind: OperationKind::ProcessingBatch,
+        }
+    }
+
+    #[tokio::test]
+    async fn preserve_registration_accepts_supported_extensions() {
+        let temp_dir = TempDir::new().expect("temp output directory");
+        let existing = temp_dir.path().join(".audiobook_boss_write_test");
+        std::fs::write(&existing, b"existing library file").expect("existing file");
+        let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+        for extension in ["m4b", "m4a", "mp3"] {
+            let output = temp_dir.path().join(format!("output.{extension}"));
+            let registered = register_job_and_validate_output(
+                &registry,
+                &output,
+                None,
+                log_context(),
+                AudioHandling::Preserve,
+            )
+            .await
+            .expect("preserve extension should be accepted");
+            registry.complete_job(registered.job_id).await;
+        }
+        assert_eq!(
+            std::fs::read(existing).expect("read untouched library file"),
+            b"existing library file"
+        );
+    }
+
+    #[tokio::test]
+    async fn encode_registration_still_rejects_mp3() {
+        let temp_dir = TempDir::new().expect("temp output directory");
+        let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
+        let output = temp_dir.path().join("output.mp3");
+        let error = match register_job_and_validate_output(
+            &registry,
+            &output,
+            None,
+            log_context(),
+            AudioHandling::Encode,
+        )
+        .await
+        {
+            Ok(_) => panic!("encode output must remain m4b"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains(".m4b"));
+    }
 }
 
 impl ProcessingJobLifecycleLog {

@@ -77,7 +77,9 @@ impl ResolvedProcessorAdapter {
     ) -> Result<String> {
         match self {
             Self::NativeFfmpegNext { encoder_type } => {
-                context.encoder_settings.encoder_type = encoder_type;
+                let mut settings = context.required_encoder_settings()?.clone();
+                settings.encoder_type = encoder_type;
+                context.encoder_settings = Some(settings);
                 // The native pipeline (prepare -> encode -> finalize) is fully
                 // synchronous, CPU-bound work. Offload it onto a blocking thread
                 // so it never occupies an async runtime worker. Progress emission
@@ -331,6 +333,7 @@ mod tests {
                 sample_rate: None,
                 channels: None,
                 codec_label: Some("AAC".to_string()),
+                preservation: None,
                 selected_decoder: Some("Apple AAC".to_string()),
                 tag_title: None,
                 tag_artist: None,

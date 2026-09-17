@@ -1,6 +1,6 @@
 //! Decoder and resampler setup.
 
-use crate::audio::DecoderSelection;
+use crate::audio::{AudioPreservation, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::path::Path;
@@ -59,6 +59,7 @@ struct OpenedAudioInput {
     stream_index: usize,
     selected_decoder: DecoderSelection,
     codec_label: Option<String>,
+    codec_id: ff::codec::Id,
     decode_window: Option<super::faac_timing::FaacDecodeWindow>,
 }
 
@@ -68,6 +69,7 @@ pub(crate) struct AudioDecoderInspection {
     pub bitrate: Option<u32>,
     pub selected_decoder: DecoderSelection,
     pub codec_label: Option<String>,
+    pub codec_id: ff::codec::Id,
 }
 
 fn open_input_context(path: &Path) -> Result<ff::format::context::Input> {
@@ -538,6 +540,7 @@ fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
         stream_index,
         selected_decoder: selected_candidate.selection(),
         codec_label,
+        codec_id: params.id(),
         decode_window,
     })
 }
@@ -558,7 +561,94 @@ pub(crate) fn inspect_audio_decoder(path: &Path) -> Result<AudioDecoderInspectio
         bitrate,
         selected_decoder: opened.selected_decoder,
         codec_label: opened.codec_label,
+        codec_id: opened.codec_id,
     })
+}
+
+pub(crate) fn assess_preservation(
+    extension: &str,
+    container_name: &str,
+    codec_id: ff::codec::Id,
+    bitrate: Option<u32>,
+    sample_rate: u32,
+    channels: u32,
+) -> AudioPreservation {
+    let mp4_container = container_name
+        .split(',')
+        .any(|name| matches!(name, "mov" | "mp4" | "m4a" | "3gp" | "3g2" | "mj2"));
+    let supported_container_codec =
+        (matches!(extension, "m4a" | "m4b") && mp4_container && codec_id == ff::codec::Id::AAC)
+            || (extension == "mp3"
+                && !mp4_container
+                && container_name.split(',').any(|name| name == "mp3")
+                && codec_id == ff::codec::Id::MP3);
+    let can_preserve = supported_container_codec;
+    let recommended = can_preserve
+        && bitrate.is_some_and(|value| (1..=72_000).contains(&value))
+        && (1..=44_100).contains(&sample_rate)
+        && matches!(channels, 1 | 2);
+    AudioPreservation {
+        can_preserve,
+        recommended,
+    }
+}
+
+#[cfg(test)]
+mod preservation_tests {
+    use super::assess_preservation;
+    use ffmpeg_next as ff;
+
+    #[test]
+    fn preservation_advisory_requires_each_compact_audio_fact() {
+        for (bitrate, rate, channels, recommended) in [
+            (Some(64_000), 22_050, 1, true),
+            (Some(72_000), 44_100, 2, true),
+            (Some(72_001), 44_100, 2, false),
+            (Some(0), 44_100, 2, false),
+            (None, 44_100, 2, false),
+            (Some(64_000), 0, 2, false),
+            (Some(64_000), 48_000, 2, false),
+            (Some(64_000), 44_100, 0, false),
+            (Some(64_000), 44_100, 6, false),
+        ] {
+            let result = assess_preservation(
+                "m4b",
+                "mov,mp4,m4a,3gp,3g2,mj2",
+                ff::codec::Id::AAC,
+                bitrate,
+                rate,
+                channels,
+            );
+            assert!(result.can_preserve, "manual choice remains available");
+            assert_eq!(
+                result.recommended, recommended,
+                "{bitrate:?}/{rate}/{channels}"
+            );
+        }
+    }
+
+    #[test]
+    fn unsupported_codec_or_container_cannot_preserve() {
+        assert!(
+            !assess_preservation(
+                "wav",
+                "mov,mp4,m4a,3gp,3g2,mj2",
+                ff::codec::Id::AAC,
+                Some(64_000),
+                44_100,
+                2
+            )
+            .can_preserve
+        );
+        assert!(
+            !assess_preservation("wav", "wav", ff::codec::Id::MP3, Some(64_000), 44_100, 2)
+                .can_preserve
+        );
+        assert!(
+            !assess_preservation("mp3", "mp3", ff::codec::Id::AAC, Some(64_000), 44_100, 2)
+                .can_preserve
+        );
+    }
 }
 
 /// Sets up decoder and resampler for a single input file.
@@ -591,6 +681,7 @@ pub(crate) fn setup_decoder_and_resampler(
         stream_index,
         selected_decoder,
         codec_label: _codec_label,
+        codec_id: _codec_id,
         decode_window,
     } = open_best_audio_decoder(input_path)?;
     log::info!(

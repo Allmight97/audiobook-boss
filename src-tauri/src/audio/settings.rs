@@ -78,9 +78,17 @@ fn validate_output_directory_writable<P: AsRef<Path>>(dir_path: P) -> Result<()>
     }
 
     // Probe write permission by creating and removing a temp file
-    let temp_file = dir.join(".audiobook_boss_write_test");
-    match std::fs::write(&temp_file, b"test") {
-        Ok(_) => {
+    let temp_file = dir.join(format!(
+        ".audiobook_boss_write_test_{}",
+        uuid::Uuid::new_v4()
+    ));
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp_file)
+    {
+        Ok(file) => {
+            drop(file);
             // Clean up test file
             let _ = std::fs::remove_file(&temp_file);
             Ok(())
@@ -108,6 +116,28 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
         ))),
         None => Err(AppError::InvalidInput(
             "Output file must have .m4b extension".to_string(),
+        )),
+    }
+}
+
+/// Validates an output path for a byte-preserved source artifact.
+pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        validate_output_directory_writable(parent)?;
+    }
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("m4b" | "m4a" | "mp3") => Ok(()),
+        Some(extension) => Err(AppError::InvalidInput(format!(
+            "Preserved output must be .m4b, .m4a, or .mp3, got: .{extension}"
+        ))),
+        None => Err(AppError::InvalidInput(
+            "Preserved output must have a supported audio extension".to_string(),
         )),
     }
 }

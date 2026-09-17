@@ -3,6 +3,7 @@
 //! This module handles file list management, audio settings, media probing,
 //! encoder/toolchain selection, and the media processor engine.
 
+use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -43,6 +44,10 @@ pub struct AudioFile {
     pub channels: Option<u32>,
     /// Friendly codec label for display (None if unavailable)
     pub codec_label: Option<String>,
+    /// Whether this source can be copied without re-encoding and whether the
+    /// source meets the automatic low-bitrate recommendation.
+    #[serde(default)]
+    pub preservation: Option<AudioPreservation>,
     /// Friendly selected decoder label for display only (None if unavailable)
     pub selected_decoder: Option<String>,
     /// Title tag discovered during input analysis (None if unavailable)
@@ -60,6 +65,13 @@ pub struct AudioFile {
     pub is_valid: bool,
     /// Error message if validation failed
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioPreservation {
+    pub can_preserve: bool,
+    pub recommended: bool,
 }
 
 pub type AudioChapter = crate::metadata::ChapterSpec;
@@ -93,6 +105,7 @@ impl AudioFile {
             sample_rate: None,
             channels: None,
             codec_label: None,
+            preservation: None,
             selected_decoder: None,
             tag_title: None,
             tag_artist: None,
@@ -126,7 +139,18 @@ pub use processor::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
 };
 pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
-pub use settings::{validate_output_path, validate_sample_rate_config};
+pub use settings::{
+    validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
+};
+
+pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
+    if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
+        return Err(AppError::InvalidInput(
+            "Source audio is not a supported AAC/MP3 container for preservation.".to_string(),
+        ));
+    }
+    Ok(())
+}
 pub use settings_capabilities::{
     encoder_settings_capabilities, EncoderConfigurationCapability, EncoderSettingsCapabilities,
 };

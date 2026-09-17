@@ -18,6 +18,7 @@ import {
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
 import type {
+	AudioHandling,
 	EncoderSettings,
 	ProcessPayload,
 	FileListInfo,
@@ -299,6 +300,7 @@ export const tauriClient = {
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 		outputKind?: OutputKind | null;
+		audioHandling?: AudioHandling | null;
 	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
 	preflightProcessingPlan: (args: {
 		payload: ProcessPayload;

@@ -25,7 +25,7 @@ pub(super) async fn process_audiobook_with_external_fdk(
     toolchain: ValidatedExternalToolchain,
 ) -> Result<String> {
     if !matches!(
-        context.encoder_settings.encoder_type,
+        context.required_encoder_settings()?.encoder_type,
         EncoderType::Auto | EncoderType::FdkHeAac
     ) {
         return Err(AppError::InvalidInput(
@@ -97,16 +97,17 @@ pub(super) async fn process_audiobook_with_external_fdk(
     .await;
     encode_stage.finish(encode_result)?;
 
-    let temp_output = if context.encoder_settings.channels == crate::audio::ChannelConfig::Mono {
-        let corrected = temp_dir.join("mono-output.m4b");
-        cleanup_guard.add_path(&corrected);
-        crate::diagnostics::stage("fdk_mono_signaling", &corrected, || {
-            mono::declare_mono(&temp_output, &corrected, &context)
-        })?;
-        corrected
-    } else {
-        temp_output
-    };
+    let temp_output =
+        if context.required_encoder_settings()?.channels == crate::audio::ChannelConfig::Mono {
+            let corrected = temp_dir.join("mono-output.m4b");
+            cleanup_guard.add_path(&corrected);
+            crate::diagnostics::stage("fdk_mono_signaling", &corrected, || {
+                mono::declare_mono(&temp_output, &corrected, &context)
+            })?;
+            corrected
+        } else {
+            temp_output
+        };
 
     log::info!(
         "media_handoff stage=encode_closed artifact={} {}",

@@ -18,13 +18,13 @@
   `crate::audio::processor`, `crate::audio::settings_encoder`,
   `crate::audio::toolchain`, `crate::audio::path_validation`, or
   `crate::audio::cleanup`.
-- Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
+- Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
 - Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
-  `validate_input_image_path`, `supported_audio_import_metadata`,
-  `discover_audio_import_paths`, `validate_output_path`,
+  `validate_input_image_path`, `validate_preservation_source`, `supported_audio_import_metadata`,
+  `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
   `validate_requested_encoder_available`,
   `encoder_settings_capabilities`,
@@ -37,6 +37,9 @@
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.
+  The request carries explicit audio handling and the original metadata intent
+  for preserving a single source. Inspection owns preservation capability and
+  the compact-source recommendation; neither fact automatically selects a mode.
 - Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
 - `EncoderSettingsCapabilities.encoder_configurations` is the single

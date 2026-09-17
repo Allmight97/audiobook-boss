@@ -95,6 +95,8 @@ async fn dispatch_merge_plan(
         registry,
         workspace_root,
         encoder_settings: payload.settings.clone(),
+        audio_handling: planned_job.audio_handling,
+        metadata_intent: planned_job.metadata_intent,
         sample_rate: resolve_sample_rate(payload)?,
         input_index: None,
         operation_kind: OperationKind::ProcessingMerge,
@@ -177,6 +179,8 @@ async fn dispatch_batch_plan(
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
         let progress_listener = options.progress_listener.clone();
         let chapter_plans = payload.chapter_plans.clone();
+        let audio_handling = planned_job.audio_handling;
+        let metadata_intent = planned_job.metadata_intent.clone();
 
         scheduled_jobs.push(Box::pin(async move {
             if operation_cancel
@@ -192,6 +196,8 @@ async fn dispatch_batch_plan(
                 registry: registry_cloned,
                 workspace_root: workspace_root_cloned,
                 encoder_settings: settings_cloned,
+                audio_handling,
+                metadata_intent,
                 sample_rate: sr_cloned,
                 input_index,
                 operation_kind: OperationKind::ProcessingBatch,
