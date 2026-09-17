@@ -239,7 +239,7 @@ export type AudioFile = {
 	duration: number | null,
 	/**  Audio format (None if unavailable) */
 	format: string | null,
-	/**  Bitrate in kbps (None if unavailable) */
+	/**  Source audio bitrate in bits per second (None if unavailable) */
 	bitrate: number | null,
 	/**  Sample rate in Hz (None if unavailable) */
 	sampleRate: number | null,

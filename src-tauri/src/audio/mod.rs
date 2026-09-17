@@ -35,7 +35,7 @@ pub struct AudioFile {
     pub duration: Option<f64>,
     /// Audio format (None if unavailable)
     pub format: Option<String>,
-    /// Bitrate in kbps (None if unavailable)
+    /// Source audio bitrate in bits per second (None if unavailable)
     pub bitrate: Option<u32>,
     /// Sample rate in Hz (None if unavailable)
     pub sample_rate: Option<u32>,
