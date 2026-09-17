@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,11 +57,25 @@ static float max_quant_limit;
  * Precomputed 2^(sfac/4) LUT eliminates repeated transcendental powf calls during gain coupling. */
 static float gain_lut[GAIN_LUT_SIZE];
 static float log10_width_sf_lut[128];
+/* ABB: publish these process-wide tables once, before any encoder uses them.
+ * See ABB-PROVENANCE.md. States: 0 = uninitialized, 1 = initializing, 2 = ready. */
+static atomic_int quantize_init_state = 0;
 
 #define SF_CHAIN_UNSET INT_MIN
 
 void QuantizeInit(void)
 {
+    int expected = 0;
+    if (atomic_load_explicit(&quantize_init_state, memory_order_acquire) == 2)
+        return;
+    if (!atomic_compare_exchange_strong_explicit(&quantize_init_state, &expected, 1,
+                                                memory_order_acq_rel, memory_order_acquire))
+    {
+        while (atomic_load_explicit(&quantize_init_state, memory_order_acquire) != 2)
+            ;
+        return;
+    }
+
     int i;
 #if defined(HAVE_SSE2)
     CPUCaps caps = get_cpu_caps();
@@ -82,6 +97,7 @@ void QuantizeInit(void)
     /* One-time constant: computed in double so the stored float is
      * correctly rounded, at zero runtime cost. */
     max_quant_limit = (float)pow((double)MAX_HUFF_ESC_VAL + 1.0 - (double)MAGIC_NUMBER, 4.0/3.0);
+    atomic_store_explicit(&quantize_init_state, 2, memory_order_release);
 }
 
 static inline float sfac_to_gain(int sfac)

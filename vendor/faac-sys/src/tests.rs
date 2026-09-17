@@ -21,7 +21,33 @@ fn float_raw_encoder_opens_drains_short_input_and_closes() {
     }
 }
 
-fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) {
+#[test]
+fn parallel_handles_produce_the_same_packets_as_sequential_handles() {
+    let start = std::sync::Barrier::new(8);
+    let parallel = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..8)
+            .map(|index| {
+                let start = &start;
+                scope.spawn(move || {
+                    start.wait();
+                    smoke_encode(FAAC_OBJ_HE_AAC_V1, 32_000, 1 + index % 2)
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("parallel encoder"))
+            .collect::<Vec<_>>()
+    });
+    for (index, packets) in parallel.into_iter().enumerate() {
+        assert_eq!(
+            packets,
+            smoke_encode(FAAC_OBJ_HE_AAC_V1, 32_000, 1 + index as u32 % 2)
+        );
+    }
+}
+
+fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) -> Vec<Vec<u8>> {
     let mut params = faac_params::default();
     assert_eq!(
         unsafe { faac_params_init(&mut params, size_of::<faac_params>() as u32) },
@@ -38,7 +64,7 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) {
     if profile == FAAC_OBJ_HE_AAC_V1 && rate < 32_000 {
         assert_eq!(status, FAAC_ERR_INVALID_ARGUMENT);
         assert!(handle.0.is_null());
-        return;
+        return Vec::new();
     }
     assert_eq!(
         status, FAAC_OK,
@@ -94,7 +120,10 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) {
         },
         FAAC_OK
     );
-    let mut packets = usize::from(written > 0);
+    let mut packets = Vec::new();
+    if written > 0 {
+        packets.push(output[..written as usize].to_vec());
+    }
     let mut drained = false;
     for _ in 0..16 {
         assert_eq!(
@@ -115,12 +144,16 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) {
             drained = true;
             break;
         }
-        packets += 1;
+        packets.push(output[..written as usize].to_vec());
     }
     assert!(drained, "encoder must reach EOF");
-    assert!(packets > 0, "short input must produce packets before EOF");
+    assert!(
+        !packets.is_empty(),
+        "short input must produce packets before EOF"
+    );
     assert_eq!(unsafe { faac_encoder_close(&mut handle.0) }, FAAC_OK);
     assert!(handle.0.is_null());
+    packets
 }
 
 #[test]

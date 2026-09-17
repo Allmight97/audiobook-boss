@@ -18,6 +18,16 @@ mono HE-AAC AudioSpecificConfig parametric-stereo signal, so no local timing
 patch is carried in this dependency slice. ABB explicitly selects `FAAC_RC_ABR` and verifies the opened mode. The sys
 smoke test also checks upstream AUTO resolution with a nonzero `bit_rate`.
 
+ABB carries one concurrency patch in `libfaac/quantize.c`: `QuantizeInit`
+publishes the shared lookup tables once with C11 acquire/release atomics.
+Upstream initializes them on every encoder open, racing with other opens and
+active encodes in a parallel batch. After publication the tables stay immutable;
+encoder handles remain independent. Retire this patch when upstream supplies
+equivalent thread-safe initialization. Keep `FAAC_STATS` disabled: its optional
+global counters are not synchronized. The sys tests compare parallel and
+sequential packet output; a standalone ThreadSanitizer probe reproduces the
+upstream initialization race and checks this repair.
+
 The caller owns each encoder handle and closes it with `faac_encoder_close`.
 AudioSpecificConfig pointers are library-owned until close and must be copied
 before release. `FAAC_INPUT_FLOAT` is interleaved PCM scaled to signed-16 units;
