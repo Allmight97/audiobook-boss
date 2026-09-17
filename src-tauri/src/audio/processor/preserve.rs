@@ -64,6 +64,8 @@ fn copy_with_cancellation(
     destination: &std::path::Path,
     context: &ProcessingContext,
 ) -> Result<()> {
+    // A queued job may reopen the source long after preflight inspected it.
+    let source = crate::audio::validate_input_audio_path(source)?;
     let mut input = std::fs::File::open(source)?;
     let total_bytes = input.metadata()?.len();
     let mut copied_bytes = 0_u64;
@@ -107,6 +109,35 @@ mod tests {
         atomic::{AtomicBool, Ordering},
         Arc,
     };
+
+    #[cfg(unix)]
+    #[test]
+    fn preserve_copy_rejects_a_source_replaced_with_a_symlink_after_inspection() {
+        let tmp = tempfile::tempdir().expect("copy workspace");
+        let source = tmp.path().join("source.mp3");
+        let replacement = tmp.path().join("replacement.mp3");
+        let staged = tmp.path().join("staged.mp3");
+        std::fs::write(&source, b"inspected source").expect("write source");
+        let inspected_path = crate::audio::validate_input_audio_path(&source)
+            .expect("source accepted before scheduler wait");
+        std::fs::write(&replacement, b"replacement audio").expect("write replacement");
+        std::fs::remove_file(&source).expect("remove old source");
+        std::os::unix::fs::symlink(&replacement, &source).expect("replace source with symlink");
+        let context = ProcessingContext::new_headless(
+            Arc::new(ProcessingSession::new()),
+            None,
+            crate::audio::SampleRateConfig::Auto,
+            OutputConfig::new(tmp.path().join("final.mp3")),
+        );
+        let error = copy_with_cancellation(&inspected_path, &staged, &context)
+            .expect_err("queued replacement must be rejected before copying");
+        assert!(matches!(error, AppError::InvalidInput(message) if message.contains("Symlinks")));
+        assert!(!staged.exists());
+        assert_eq!(
+            std::fs::read(replacement).expect("unchanged replacement"),
+            b"replacement audio"
+        );
+    }
 
     #[tokio::test]
     async fn preserve_copy_stops_after_cancellation_during_progress() {

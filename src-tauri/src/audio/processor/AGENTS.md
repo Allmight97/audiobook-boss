@@ -21,6 +21,8 @@
   copies an eligible source into the tracked workspace, applies explicit metadata
   intent through the metadata owner, and uses shared finalization. Copy cancellation
   remains typed; source bytes are never the metadata writer target.
+  Revalidate the source path at the copy boundary after any scheduler wait;
+  cached import validity does not authorize reopening a replaced path.
 - Resolve the encoder once at adapter dispatch and carry that choice into the
   in-process setup. Explicit Native/Apple selections validate their linked
   encoder without probing external FDK; bundled FAAC is available without an
