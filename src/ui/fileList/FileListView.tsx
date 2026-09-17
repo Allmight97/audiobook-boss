@@ -5,10 +5,25 @@ import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
+import { formatAudioBitrate, type AudioFile } from '../../types/audio';
 
 import { createFileListCoverThumbnails } from './coverThumbnails';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
 import './fileList.css';
+
+function audioPropertiesText(file: AudioFile): string {
+	const bitrate = file.bitrate ? formatAudioBitrate(file.bitrate) : 'Bitrate unknown';
+	const rate = file.sampleRate ? `${file.sampleRate / 1000} kHz` : 'Sample rate unknown';
+	const channels =
+		file.channels === 1
+			? 'Mono'
+			: file.channels === 2
+				? 'Stereo'
+				: file.channels
+					? `${file.channels} channels`
+					: 'Channels unknown';
+	return [bitrate, rate, channels, file.codecLabel?.trim() || 'Codec unknown'].join(' · ');
+}
 
 export function FileListView(props: {
 	readonly onHeaderClick: () => void;
@@ -261,6 +276,11 @@ export function FileListView(props: {
 												) : null}
 											</div>
 											<div class="file-details">{formatFileDetails(file)}</div>
+											<Show when={file.isValid}>
+												<div class="file-details file-audio-details">
+													{audioPropertiesText(file)}
+												</div>
+											</Show>
 											<Show when={file.cueSource}>
 												{(cue) => (
 													<div class="file-cue-details">

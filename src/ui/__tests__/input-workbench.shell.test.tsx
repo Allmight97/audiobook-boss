@@ -93,12 +93,23 @@ describe('Solid input workbench', () => {
 		const user = userEvent.setup();
 		const input = fakeInput({
 			openFiles: vi.fn(async () => ['/tmp/file1.mp3']),
+			analyzeAudioFiles: vi.fn(async () =>
+				analyzedList([
+					analyzedFile('/tmp/file1.mp3', {
+						bitrate: 125_589,
+						sampleRate: 22_050,
+						channels: 2,
+						codecLabel: 'MP3',
+					}),
+				]),
+			),
 		});
 		runtime = createAppRuntime({ input });
 		renderApp(runtime);
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
-		await screen.findByRole('option', { name: 'file1.mp3' });
+		const row = await screen.findByRole('option', { name: 'file1.mp3' });
+		expect(within(row).getByText('125.6 kbps · 22.05 kHz · Stereo · MP3')).toBeVisible();
 		expect(runtime.input.view().files).toHaveLength(1);
 		expect(runtime.input.jobType()).toBe('batch');
 

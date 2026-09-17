@@ -204,6 +204,12 @@
 	font-size: 0.75rem;
 }
 
+.file-audio-details {
+	margin-top: 0.125rem;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
 .file-list-item.dragging {
 	opacity: 0.5;
 }
