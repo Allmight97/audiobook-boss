@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { StatusPanelRuntime } from '../runtime';
+import { createStatusViewStore } from '../view';
 import {
 	makeProcessingWorkflowServicesLayer,
 	startProcessing,
@@ -393,25 +395,38 @@ describe('ProcessingWorkflow', () => {
 		expect(feedback.showError).not.toHaveBeenCalled();
 	});
 
-	it('surfaces failed processing commands through typed workflow failure handling', async () => {
-		const ctx = workflowContext();
-		const { services, feedback } = workflowServices({
-			submitProcessingOperation: vi.fn(async () => {
-				throw {
-					code: 'decoder_unavailable',
-					category: 'toolchain',
-					message: 'Decoder unavailable.',
-					detail: null,
-				};
-			}),
-		});
+	it.each(['preflight', 'submission'] as const)(
+		'keeps a %s rejection visible after returning the real status runtime to idle',
+		async (failureStage) => {
+			const view = createStatusViewStore();
+			const message =
+				'FAAC HE-AAC requires a supported output sample rate. Choose 32000, 44100, or 48000 Hz.';
+			const reject = async () => {
+				throw { code: 'invalid_input', category: 'validation', message };
+			};
+			const { services } = workflowServices({
+				feedback: { showError: (text) => view.showError(text) },
+				...(failureStage === 'preflight'
+					? { runOutputPlanReviewWorkflow: vi.fn(reject) }
+					: { submitProcessingOperation: vi.fn(reject) }),
+			});
+			const unlockWorkbench = vi.fn();
+			const runtime = new StatusPanelRuntime({
+				view,
+				unlockWorkbench,
+				workflowLayer: makeProcessingWorkflowServicesLayer(services),
+			});
 
-		await runWithServices(ctx, services);
+			await runtime.startProcessing();
 
-		expect(ctx.handleCancellation).not.toHaveBeenCalled();
-		expect(feedback.showError).toHaveBeenCalledWith('Processing failed: Decoder unavailable.');
-		expect(ctx.resetToIdle).toHaveBeenCalledTimes(1);
-	});
+			expect(view.snapshot().stepText).toBe(`Error: Processing failed: ${message}`);
+			expect(view.snapshot().isProcessing).toBe(false);
+			expect(unlockWorkbench).toHaveBeenCalled();
+			if (failureStage === 'preflight') {
+				expect(services.submitProcessingOperation).not.toHaveBeenCalled();
+			}
+		},
+	);
 
 	it('submits background processing inside Remote Source retention', async () => {
 		let allowSubmission!: () => void;

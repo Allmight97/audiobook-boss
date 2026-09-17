@@ -6,6 +6,7 @@ import {
 	runAppEffect,
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
+import { toUserMessage } from '../../lib/tauri/appError';
 import type {
 	CollisionPolicy,
 	OutputKind,
@@ -176,7 +177,11 @@ export function outputPlanReviewBody(
 			},
 			plan: reviewedPlan,
 		};
-	});
+	}).pipe(
+		Effect.mapError((error) =>
+			kit.failure(toUserMessage(error.cause, { fallback: error.message }), error.cause),
+		),
+	);
 }
 
 export async function updateMetadataIntentWarnings(

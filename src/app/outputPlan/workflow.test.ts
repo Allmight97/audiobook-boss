@@ -127,6 +127,23 @@ describe('OutputPlanWorkflow', () => {
 		});
 	});
 
+	it('preserves the actionable backend reason when preflight rejects', async () => {
+		const message = 'FAAC HE-AAC does not support 22050 Hz. Choose a supported output sample rate.';
+		const { layer, services } = makeHarness({
+			preflightProcessingPlan: vi.fn(async () => {
+				throw { code: 'invalid_input', category: 'validation', message };
+			}),
+		});
+		await expect(
+			runAppEffect(
+				outputPlanReviewBody({ payload: payload(), metadataIntentByPath: null }).pipe(
+					Effect.provide(layer),
+				),
+			),
+		).rejects.toMatchObject({ message });
+		expect(services.openCollisionDialog).not.toHaveBeenCalled();
+	});
+
 	it('approves clean preflight without collision review', async () => {
 		const cleanPlan = plan();
 		const harness = makeHarness({

@@ -333,8 +333,8 @@ function handleWorkflowError(
 			return;
 		}
 		services.console.error('Processing failed:', error.cause);
-		services.feedback.showError(`Processing failed: ${error.message}`);
 		context.resetToIdle();
+		services.feedback.showError(`Processing failed: ${error.message}`);
 	});
 }
 
