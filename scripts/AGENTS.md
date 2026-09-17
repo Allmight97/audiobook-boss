@@ -36,7 +36,8 @@ commands over invoking internals directly.
   real-execution proof for it is manual or env-gated only; Apple AAC is
   macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
   channel preservation (per-channel RMS),
-  cover art, chapters, metadata round-trips, and cancellation. All fixtures
+  cover art, chapters, metadata round-trips, preserved-audio copies, mixed-mode
+  preflight, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`

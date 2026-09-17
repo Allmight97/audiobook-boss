@@ -9,6 +9,7 @@ Convert, tag, and organize your audiobook library with metadata that works every
 - **Batch convert** MP3/M4A/M4B/AAC/WAV/FLAC to optimized M4B audiobooks
 - **Book Binder** — Merge multiple chapterized audio files into a single M4B with chapter markers and metadata.
 - **Audible acquire** — sign in, browse the library, and materialize AAX/AAXC titles through the bundled helper
+- **Keep original audio** — Export single-file M4B/M4A and MP3 books with updated tags, artwork, and library folders while keeping their audio and source format. Choose per book, including in mixed batches with books being encoded.
 - **Smart metadata** — series, narrator, cover art with Audiobookshelf/Apple Books dual-write compatibility
 - **Parallel processing** with real-time progress and per-job cancellation
 - **Metadata lookup** — search online databases and apply results in batch

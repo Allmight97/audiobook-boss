@@ -21,7 +21,7 @@ Import -> Inspect -> Decide -> Preflight -> Process -> Verify
 - **Import:** discover or materialize local audio, then validate and analyze it.
 - **Inspect:** probe audio, chapters, metadata, cover art, and compatibility.
   Cover-art load vs write-prep lives in `docs/cover-art-processing.md`.
-- **Decide:** stage metadata, naming, destination, encoder, and collision intent.
+- **Decide:** stage metadata, naming, destination, per-book audio handling, encoder, and collision intent.
 - **Preflight:** resolve paths, capabilities, collisions, and the execution plan.
 - **Process:** accept work, run jobs, publish progress, and settle cancellation or failure.
 - **Verify:** report backend terminal truth and leave trustworthy artifacts on disk.

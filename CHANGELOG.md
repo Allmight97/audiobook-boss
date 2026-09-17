@@ -6,11 +6,18 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Added
 
+- Keep original audio per book in mixed batches while exporting updated tags,
+  artwork, and library folders. Supports AAC in M4B/M4A and MP3 files.
+- Show each input’s bitrate, sample rate, channels, and codec, with a quiet
+  suggestion when its existing audio is already compact.
 - Bundled FAAC HE-AAC with a numeric ABR target and 32, 44.1, or 48 kHz output.
   Select it explicitly while evaluating real books; Auto keeps its existing order.
 
 ### Fixed
 
+- Show source bitrates in kbps throughout the interface.
+- Keep processing validation errors visible when the selected encoder cannot
+  use the source sample rate.
 - Keep FDK HE-AAC mono output mono in both Apple and FFmpeg readers.
 - Load saved FAAC encoder defaults from experimental builds without resetting
   other preferences or requiring settings recovery.

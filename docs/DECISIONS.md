@@ -4,6 +4,20 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-17 - Preserve Audio Within The Shared Export Workflow
+
+- Outcome: each single-file book can explicitly preserve its compressed audio
+  while using the existing metadata, naming, collision, and publication flow.
+  Mixed batches resolve that choice by input identity into immutable job plans.
+  Preserve retains the source container/extension and skips every encoder;
+  all-preserve requests need no encoder settings or availability discovery.
+- Evidence: compact AAC books at 22.05 kHz required no audio change to become
+  organized library copies; forcing them through encoding added work and could
+  require resampling. Audio inspection owns the suggestion separately from
+  manual preservation capability. Input owns the choice, not the recommendation.
+- Guardrail: copy into independently owned staging before explicit metadata edits;
+  use the shared Output Artifact commit and preserve source audio, timing, and chapters.
+
 ## 2026-09-15 - FAAC Timing Follows the Produced File
 
 - Outcome: Audio recognizes ABB-produced FAAC files and applies the same
