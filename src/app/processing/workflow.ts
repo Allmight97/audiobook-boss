@@ -1,6 +1,8 @@
 import { pathBasename } from '../../lib/path/basename';
 import { chapterPlansForProcessing } from '../inputSession';
 import type {
+	AudioFile,
+	AudioHandling,
 	ProcessCommandResult,
 	ProcessPayload,
 	ProcessingRequestConfig,
@@ -42,7 +44,8 @@ export interface ProcessingWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
 	getSelectedFileIndex: () => number;
 	getSelectedFileIndices: () => Set<number>;
-	readProcessingRequestConfig: () => ProcessingRequestConfig;
+	readProcessingRequestConfig: (audioHandling: readonly AudioHandling[]) => ProcessingRequestConfig;
+	getAudioHandling: (file: AudioFile) => AudioHandling;
 	getJobType: () => JobType;
 	hasDirtyMetadataFields: () => boolean;
 	readMetadataForm: (options?: {
@@ -241,9 +244,10 @@ function submitRetainedProcessingCommand(
 
 function readProcessingConfig(
 	services: ProcessingWorkflowServices,
+	audioHandling: readonly AudioHandling[],
 ): AppEffect<ProcessingRequestConfig | null> {
 	return Effect.try({
-		try: () => services.readProcessingRequestConfig(),
+		try: () => services.readProcessingRequestConfig(audioHandling),
 		catch: (cause) => cause,
 	}).pipe(
 		Effect.catch((error) =>
@@ -376,7 +380,11 @@ export function processingWorkflowProgram(
 			services.console.log('StatusPanel: Files validated, getting output configuration...'),
 		);
 
-		const processingRequestConfig = yield* readProcessingConfig(services);
+		const jobType = services.getJobType();
+		const audioHandling = fileList.files
+			.filter((file) => file.isValid)
+			.map(services.getAudioHandling);
+		const processingRequestConfig = yield* readProcessingConfig(services, audioHandling);
 		if (!processingRequestConfig) {
 			return;
 		}
@@ -395,7 +403,6 @@ export function processingWorkflowProgram(
 			return;
 		}
 
-		const jobType = services.getJobType();
 		yield* Effect.sync(() => context.setCurrentWorkKind(jobType));
 
 		const processPayload = buildProcessPayload(
@@ -404,6 +411,7 @@ export function processingWorkflowProgram(
 			processingRequestConfig,
 			jobType,
 			services.remoteSource.processingAssets(inputIds),
+			audioHandling,
 		);
 		processPayload.chapterPlans = yield* workflowPromise(
 			async () => chapterPlansForProcessing(fileList.files, jobType),

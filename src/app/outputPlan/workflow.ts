@@ -8,6 +8,7 @@ import {
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type {
+	AudioHandling,
 	CollisionPolicy,
 	OutputKind,
 	OutputNamingConfig,
@@ -23,6 +24,7 @@ import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
 export type OutputPathPreviewContext = {
 	readonly outputDirectory: string;
 	readonly sourcePath?: string;
+	readonly audioHandling?: AudioHandling;
 	readonly outputNaming: OutputNamingConfig;
 	readonly metadataDraft: OutputPathPreviewMetadataDraft;
 };
@@ -48,6 +50,7 @@ export async function computeOutputPathPreview(
 			metadata: context.metadataDraft,
 			outputNaming: context.outputNaming,
 			sourcePath: context.sourcePath,
+			audioHandling: context.audioHandling,
 			outputKind,
 		});
 		return { ok: true, text: previewPath, title: previewPath };

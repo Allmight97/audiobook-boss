@@ -193,6 +193,47 @@ describe('output plan public view', () => {
 		expect(runtime.encoding.request().encoderSettings.bitrateKbps).toBe(64);
 	});
 
+	it('keeps preserved source bytes in mixed estimates and previews its original format', async () => {
+		const previewOutputPath = vi
+			.spyOn(tauriClient, 'previewOutputPath')
+			.mockResolvedValue('/books/out/a.mp3');
+		runtime = createAppRuntime();
+		const session = sessionWithDuration(100);
+		const source = {
+			...session.fileList.files[0]!,
+			path: '/books/a.mp3',
+			size: 1_048_576,
+			preservation: { canPreserve: true, recommended: true },
+		};
+		session.fileList.files = [source, { ...source, path: '/books/b.m4b', duration: 100 }];
+		runtime.input.replaceSession(session);
+		mounted = mountOutput(runtime);
+		mounted.owner.applyDefaults({
+			outputDirectory: '/books/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await vi.waitFor(() =>
+			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1),
+		);
+		runtime.encoding.select('encoder', 'native_aac');
+		runtime.encoding.select('bitrate', '64');
+		runtime.input.setAudioHandling(source, 'preserve');
+		flush();
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.8 MB');
+		await vi.waitFor(() =>
+			expect(previewOutputPath).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					sourcePath: '/books/a.mp3',
+					audioHandling: 'preserve',
+				}),
+			),
+		);
+		runtime.input.setAudioHandling(session.fileList.files[1]!, 'preserve');
+		runtime.encoding.select('bitrate', '192');
+		flush();
+		expect(mounted.owner.estimatedSizeText()).toBe('~ 2.0 MB');
+	});
+
 	it('keeps the empty estimate placeholder when Input has no files', () => {
 		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);

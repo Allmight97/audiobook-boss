@@ -9,6 +9,7 @@ import { formatAudioBitrate, type AudioFile } from '../../types/audio';
 
 import { createFileListCoverThumbnails } from './coverThumbnails';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
+import { AudioHandlingControl } from './AudioHandlingControl';
 import './fileList.css';
 
 function audioPropertiesText(file: AudioFile): string {
@@ -23,6 +24,12 @@ function audioPropertiesText(file: AudioFile): string {
 					? `${file.channels} channels`
 					: 'Channels unknown';
 	return [bitrate, rate, channels, file.codecLabel?.trim() || 'Codec unknown'].join(' · ');
+}
+
+function isInteractiveListTarget(target: EventTarget | null): boolean {
+	return (
+		target instanceof HTMLElement && !!target.closest('button, input, select, textarea, a, label')
+	);
 }
 
 export function FileListView(props: {
@@ -44,6 +51,8 @@ export function FileListView(props: {
 	const toggleSort = input.toggleSort;
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
+	const audioHandling = input.audioHandling;
+	const setAudioHandling = input.setAudioHandling;
 	const thumbnails = createFileListCoverThumbnails((path) =>
 		capability().readAudioCoverThumbnail(path),
 	);
@@ -96,7 +105,12 @@ export function FileListView(props: {
 		return remoteSource.hasCompanions(inputId);
 	}
 
+	function handlePreservationToggle(file: AudioFile, preserve: boolean): void {
+		setAudioHandling(file, preserve ? 'preserve' : 'encode');
+	}
+
 	function handleFileListClick(index: number, event: MouseEvent): void {
+		if (isInteractiveListTarget(event.target)) return;
 		if (metadataView().saveInProgress) return;
 		if (reorderHandlers.consumePostDragClick()) return;
 		fileListContent?.focus({ preventScroll: true });
@@ -108,6 +122,7 @@ export function FileListView(props: {
 	}
 
 	function handleListKeyDown(event: KeyboardEvent): void {
+		if (isInteractiveListTarget(event.target)) return;
 		const command = interpretFileListKeyDown(event, {
 			fileCount: view().fileCount,
 			selectedAnchor: view().selectedAnchor,
@@ -274,13 +289,55 @@ export function FileListView(props: {
 														PDF
 													</span>
 												) : null}
+												<Show
+													when={file.preservation?.canPreserve && file.preservation.recommended}
+												>
+													<AudioHandlingControl
+														file={file}
+														index={index()}
+														orderLocked={view().orderLocked}
+														setAudioHandling={setAudioHandling}
+													/>
+												</Show>
 											</div>
 											<div class="file-details">{formatFileDetails(file)}</div>
-											<Show when={file.isValid}>
-												<div class="file-details file-audio-details">
-													{audioPropertiesText(file)}
-												</div>
-											</Show>
+											<div class="file-audio-row">
+												<Show when={file.isValid}>
+													<div class="file-details file-audio-details">
+														{audioPropertiesText(file)}
+													</div>
+												</Show>
+												<Show when={file.preservation?.canPreserve}>
+													<div class="file-preservation">
+														<fieldset class="preservation-choice-group">
+															<legend class="sr-only">Audio handling</legend>
+															<label class="preservation-toggle">
+																<input
+																	type="checkbox"
+																	checked={audioHandling(file) === 'preserve'}
+																	disabled={view().orderLocked}
+																	aria-label={`Keep original audio for ${displayedTitleForFile(file)}`}
+																	onClick={(event) => event.stopPropagation()}
+																	onChange={(event) =>
+																		handlePreservationToggle(file, event.currentTarget.checked)
+																	}
+																/>
+																<span>Keep original audio</span>
+															</label>
+														</fieldset>
+														<Show
+															when={
+																runtime.input.jobType() === 'merge' &&
+																audioHandling(file) === 'preserve'
+															}
+														>
+															<span class="preservation-warning" role="alert">
+																Turn off Keep original audio to merge, or turn off Merge files.
+															</span>
+														</Show>
+													</div>
+												</Show>
+											</div>
 											<Show when={file.cueSource}>
 												{(cue) => (
 													<div class="file-cue-details">

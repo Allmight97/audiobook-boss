@@ -85,6 +85,7 @@ function stagingServices(): ProcessingWorkflowServices {
 		getCurrentFileList: context.getCurrentFileListMock,
 		getSelectedFileIndex: context.getSelectedFileIndexMock,
 		getSelectedFileIndices: context.getSelectedFileIndicesMock,
+		getAudioHandling: () => 'encode',
 		readProcessingRequestConfig: context.readProcessingRequestConfigMock,
 		getJobType: context.getJobTypeMock,
 		hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,

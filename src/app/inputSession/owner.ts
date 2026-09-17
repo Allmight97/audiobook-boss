@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, ProcessPayload, JobType } from '../../types/audio';
+import type { AudioFile, AudioHandling, ProcessPayload, JobType } from '../../types/audio';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import { toInputView } from './display';
 import { runImportIntent } from './importWorkflow';
@@ -27,6 +27,8 @@ export type InputOwner = {
 	readonly session: Accessor<InputSessionState>;
 	readonly jobType: Accessor<JobType>;
 	readonly capability: Accessor<InputCapability>;
+	audioHandling(file: AudioFile): AudioHandling;
+	setAudioHandling(file: AudioFile, handling: AudioHandling): void;
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
 	selectFile(command: {
@@ -110,6 +112,22 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		session: sessionView,
 		jobType: jobTypeView,
 		capability,
+		audioHandling(file) {
+			rev();
+			return session.audioHandlingByIdentity[fileIdentityKey(file)] ?? 'encode';
+		},
+		setAudioHandling(file, handling) {
+			if (session.orderLocked) return;
+			const current = session.fileList?.files[currentIndex(file)];
+			if (!current || (handling === 'preserve' && !current.preservation?.canPreserve)) return;
+			commit({
+				...session,
+				audioHandlingByIdentity: {
+					...session.audioHandlingByIdentity,
+					[fileIdentityKey(current)]: handling,
+				},
+			});
+		},
 		chooseCue(inputId, choice) {
 			if (session.orderLocked) return;
 			const current = session;

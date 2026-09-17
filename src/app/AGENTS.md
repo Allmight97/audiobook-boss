@@ -46,6 +46,9 @@ dispatch intent; they do not keep parallel business state.
   requesting workflow's abort. An aborted gate cannot stage drafts, clear dirty
   state, or publish validation errors.
   Dependent workflows proceed only after selection and hydration succeed.
+- Input owns each book's explicit audio handling choice by stable input identity.
+  Reordering preserves choices; removal/reset clears them. Imported Audio
+  capability and recommendation facts do not select a mode automatically.
 - Choose AppEffect when its typed failure, dependency composition, or scoped
   work reduces coordination; direct capability workflows may use plain async.
   Read `src/lib/effect/AGENTS.md` before changing that shape.

@@ -1,4 +1,4 @@
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile, AudioHandling, FileListInfo } from '../../types/audio';
 
 export type InputSortDirection = 'none' | 'ascending' | 'descending';
 
@@ -18,6 +18,7 @@ export type InputSessionState = {
 	readonly supportText: string;
 	readonly importOrdinalByPath: Readonly<Record<string, number>>;
 	readonly nextImportOrdinal: number;
+	readonly audioHandlingByIdentity: Readonly<Record<string, AudioHandling>>;
 };
 
 export type InputView = {
@@ -59,6 +60,7 @@ export function emptyInputSession(): InputSessionState {
 		supportText: DEFAULT_SUPPORT_TEXT,
 		importOrdinalByPath: {},
 		nextImportOrdinal: 0,
+		audioHandlingByIdentity: {},
 	};
 }
 

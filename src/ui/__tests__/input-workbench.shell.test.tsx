@@ -6,6 +6,7 @@ import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
+import { tauriClient } from '../../lib/tauri/client';
 
 const metadata: SupportedAudioImportMetadata = {
 	formats: [{ extension: 'm4b', label: 'M4B' }],
@@ -117,6 +118,114 @@ describe('Solid input workbench', () => {
 		expect(runtime.input.jobType()).toBe('merge');
 		expect(runtime.input.view().files).toHaveLength(1);
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
+	});
+
+	it('exports five tagged books with three explicitly preserved and two using the selected encoder', async () => {
+		const user = userEvent.setup();
+		const books = ['Prey 1', 'Prey 2', 'Prey 3', 'Large', 'Standard'].map((title, index) =>
+			analyzedFile(`/books/${title}.m4b`, {
+				tagTitle: title,
+				bitrate: index < 3 ? 64_000 : 128_000,
+				sampleRate: index < 3 ? 22_050 : 44_100,
+				channels: 2,
+				codecLabel: 'AAC-LC',
+				preservation: { canPreserve: true, recommended: index < 3 },
+			}),
+		);
+		const readMetadata = vi
+			.spyOn(tauriClient, 'readAudioMetadata')
+			.mockResolvedValue({ title: 'Original' });
+		const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
+			jobType: 'batch',
+			collisionPolicy: 'fail',
+			planSignature: 'mixed-review',
+			outputs: books.map((file, inputIndex) => ({
+				inputIndex,
+				inputPath: file.path,
+				kind: 'final',
+				requestedPath: `/library/${inputIndex}.m4b`,
+				resolvedPath: `/library/${inputIndex}.m4b`,
+				action: 'write',
+			})),
+		});
+		const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
+		runtime = createAppRuntime({
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(books)) }),
+		});
+		renderApp(runtime);
+		try {
+			await runtime.input.importIntent({
+				type: 'importPaths',
+				paths: books.map((book) => book.path),
+			});
+			const rows = await within(screen.getByRole('listbox', { name: 'Audio files' })).findAllByRole(
+				'option',
+			);
+			const selected = [...runtime.input.view().selectedIndices];
+			expect(screen.getAllByRole('button', { name: /Why keep original audio/ })).toHaveLength(3);
+			expect(within(rows[0]!).getByText('64 kbps · 22.05 kHz · Stereo · AAC-LC')).toBeVisible();
+			const info = within(rows[0]!).getByRole('button', { name: /Why keep original audio/ });
+			await user.hover(info);
+			expect(within(rows[0]!).getByRole('note')).toHaveTextContent(
+				'This audiobook may not need re-encoding',
+			);
+			await fireEvent.keyDown(document.body, { key: 'Escape' });
+			expect(within(rows[0]!).queryByRole('note')).not.toBeInTheDocument();
+			await user.click(info);
+			await user.unhover(info);
+			expect(within(rows[0]!).getByRole('note')).toBeVisible();
+			await user.click(
+				within(rows[0]!).getByRole('button', { name: 'Keep original audio for Prey 1' }),
+			);
+			await user.keyboard('{Escape}');
+			expect(within(rows[0]!).queryByRole('note')).not.toBeInTheDocument();
+			for (const row of rows.slice(1, 3))
+				await user.click(within(row).getByText('Keep original audio'));
+			expect(runtime.input.view().selectedIndices).toEqual(selected);
+			expect(
+				within(rows[3]!).getByRole('checkbox', { name: 'Keep original audio for Large' }),
+			).not.toBeChecked();
+			expect(runtime.input.view().files.map((file) => runtime!.input.audioHandling(file))).toEqual([
+				'preserve',
+				'preserve',
+				'preserve',
+				'encode',
+				'encode',
+			]);
+			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
+			runtime.encoding.select('encoder', 'faac_he_aac');
+			runtime.encoding.select('sampleRate', '44100');
+			runtime.output.applyDefaults({
+				outputDirectory: '/library',
+				outputNaming: { preset: 'absDefault', includeYear: false },
+			});
+			const metadataIntent = Object.fromEntries(
+				books.map((file, index) => [
+					file.path,
+					{ title: { op: 'set' as const, value: `Library ${index + 1}` } },
+				]),
+			);
+			for (const file of books) runtime.metadata.stageIntent(file.path, metadataIntent[file.path]!);
+			await user.click(document.getElementById('process-button') as HTMLElement);
+			await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+			expect(submit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					payload: expect.objectContaining({
+						audioHandling: ['preserve', 'preserve', 'preserve', 'encode', 'encode'],
+						inputFiles: books.map((file) => file.path),
+						outputDir: '/library',
+						settings: expect.objectContaining({ encoderType: 'faac_he_aac' }),
+						sampleRate: { explicit: 44100 },
+						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
+					}),
+					metadataIntent,
+				}),
+			);
+		} finally {
+			readMetadata.mockRestore();
+			preflight.mockRestore();
+			submit.mockRestore();
+		}
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {

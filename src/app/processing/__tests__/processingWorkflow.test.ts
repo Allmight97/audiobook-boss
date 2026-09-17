@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StatusPanelRuntime } from '../runtime';
+import { createAppRuntime } from '../../runtime';
+import { tauriClient } from '../../../lib/tauri/client';
 import { createStatusViewStore } from '../view';
 import {
 	makeProcessingWorkflowServicesLayer,
@@ -166,6 +168,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		getCurrentFileList: vi.fn(() => fileList()),
 		getSelectedFileIndex: vi.fn(() => 0),
 		getSelectedFileIndices: vi.fn(() => new Set([0])),
+		getAudioHandling: () => 'encode',
 		readProcessingRequestConfig: vi.fn(() => processingConfig()),
 		getJobType: getJobTypeMock,
 		hasDirtyMetadataFields: vi.fn(() => false),
@@ -464,4 +467,104 @@ describe('ProcessingWorkflow', () => {
 		expect(withSubmissionRetention).toHaveBeenCalledWith(['input-1'], expect.any(Function));
 		expect(submittedWhileRetained).toEqual([true]);
 	});
+});
+
+describe('mixed preserved and encoded books', () => {
+	it('submits each valid book with its chosen route and metadata through one reviewed output plan', async () => {
+		const books = fileList([
+			'/books/prey1.m4b',
+			'/books/prey2.m4b',
+			'/books/prey3.m4b',
+			'/books/large.m4a',
+			'/books/standard.mp3',
+		]);
+		books.files.splice(
+			2,
+			0,
+			audioFile('/books/broken.m4b', { isValid: false, inputId: 'invalid' }),
+		);
+		books.invalidCount = 1;
+		const patches = Object.fromEntries(
+			books.files
+				.filter((file) => file.isValid)
+				.map((file, index) => [
+					file.path,
+					{ title: { op: 'set' as const, value: `Library title ${index + 1}` } },
+				]),
+		);
+		const { services } = workflowServices({
+			getCurrentFileList: () => books,
+			getJobType: () => 'batch',
+			getAudioHandling: (file) =>
+				['input-1', 'input-2', 'input-3'].includes(file.inputId ?? '') ? 'preserve' : 'encode',
+			intentsForProcess: vi.fn(async () => patches),
+		});
+		await runWithServices(workflowContext(), services);
+		expect(services.readProcessingRequestConfig).toHaveBeenCalledWith([
+			'preserve',
+			'preserve',
+			'preserve',
+			'encode',
+			'encode',
+		]);
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
+			payload: expect.objectContaining({
+				inputFiles: [
+					'/books/prey1.m4b',
+					'/books/prey2.m4b',
+					'/books/prey3.m4b',
+					'/books/large.m4a',
+					'/books/standard.mp3',
+				],
+				inputIds: ['input-1', 'input-2', 'input-3', 'input-4', 'input-5'],
+				audioHandling: ['preserve', 'preserve', 'preserve', 'encode', 'encode'],
+				outputDir: '/tmp/out',
+				preflightSignature: 'preflight-approved',
+			}),
+			metadataIntent: patches,
+		});
+	});
+});
+
+it('exports only-preserved books without asking the live Encoding owner for a usable encoder', async () => {
+	const books = fileList(['/books/original.mp3']);
+	books.files[0]!.preservation = { canPreserve: true, recommended: true };
+	const preflight = vi
+		.spyOn(tauriClient, 'preflightProcessingPlan')
+		.mockImplementation(async ({ payload }) => preflightPlan(payload));
+	const submit = vi
+		.spyOn(tauriClient, 'submitProcessingOperation')
+		.mockResolvedValue(acceptedSubmission('batch'));
+	const readMetadata = vi
+		.spyOn(tauriClient, 'readAudioMetadata')
+		.mockResolvedValue({ title: 'Original' });
+	const runtime = createAppRuntime();
+	const encoder = vi.spyOn(runtime.encoding, 'request').mockImplementation(() => {
+		throw new Error('Encoder unavailable');
+	});
+	try {
+		runtime.input.replaceSession({ ...runtime.input.session(), fileList: books });
+		runtime.input.setAudioHandling(books.files[0]!, 'preserve');
+		runtime.output.applyDefaults({
+			outputDirectory: '/tmp/out',
+			outputNaming: { preset: 'absDefault', includeYear: false },
+		});
+		await runtime.processing.start();
+		expect(encoder).not.toHaveBeenCalled();
+		expect(submit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({
+					audioHandling: ['preserve'],
+					settings: undefined,
+					sampleRate: undefined,
+				}),
+			}),
+		);
+	} finally {
+		runtime.dispose();
+		encoder.mockRestore();
+		readMetadata.mockRestore();
+		preflight.mockRestore();
+		submit.mockRestore();
+	}
 });

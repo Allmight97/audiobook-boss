@@ -67,7 +67,7 @@ function fileList(): FileListInfo {
 				size: 1024,
 				duration: 3600,
 				format: 'm4b',
-				bitrate: 64,
+				bitrate: 64_000,
 				sampleRate: 44100,
 				channels: 1,
 				codecLabel: 'AAC',
@@ -287,6 +287,7 @@ describe('UI Workflow Smoke Test', () => {
 				payload: {
 					inputFiles: [INPUT_PATH],
 					inputIds: ['input-dune'],
+					audioHandling: ['encode'],
 					outputDir: OUTPUT_DIRECTORY,
 					settings: {
 						encoderType: 'native_aac',
