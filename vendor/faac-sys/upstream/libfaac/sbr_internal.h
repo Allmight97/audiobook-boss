@@ -43,7 +43,7 @@ typedef struct SbrFrameData {
      * (SBR_NOISE_LEVEL_DEFAULT, SBR_INVF_MODE), so only the envelope is carried. */
     struct {
         int envData[SBR_MAX_ENVELOPES][SBR_MAX_BANDS];
-    } ch[SBR_MAX_CODED_CHANNELS];
+    } ch[MAX_CHANNELS];
 } SbrFrameData;
 
 struct SBRInfo {
@@ -55,7 +55,6 @@ struct SBRInfo {
     /* --- frequency band configuration (set at init, constant per stream) --- */
     int kx;
     int k2;
-    int dk;                /* master frequency table step (1 or 2 QMF bands) */
     int numBands;
     int bandEdges[SBR_MAX_BANDS + 1];
     int numBandsLow; /* low-res band count: every other high-res edge */
@@ -68,17 +67,18 @@ struct SBRInfo {
     int bs_stop_freq;
     int bs_xover_band;
     int bs_alter_scale;
+    int bs_freq_scale;     /* 1..3: log-spaced master table, 12/10/8 bands per octave */
 
     /* --- per-frame state --- */
     /* The header decision is made once per access unit, on the first write
-     * request after analysis: the writer runs again on every CBR retry and
-     * for rate control's bit accounting, and only access units that are
-     * actually written count toward the header period. */
+     * request after analysis: the writer runs once per element and again on
+     * every CBR retry, and only access units that are actually written count
+     * toward the header period. */
     int headerDecided;
     int sendHeaderThisFrame;
 
     /* --- per-channel state --- */
-    SBRChannel ch[SBR_MAX_CODED_CHANNELS]; /* one SCE or CPE, never all core channels */
+    SBRChannel ch[MAX_CHANNELS];
 
     /* QMF analysis twiddle factors. */
     float twidCos[SBR_QMF_BANDS_64];
@@ -130,8 +130,6 @@ void SbrEnd(SBRInfo *sbr);
 
 void SbrQmfAnalysis(SBRInfo *sbr, const float * restrict ovl_pos, float * restrict energy, int kx, int k2);
 /* Quantizes this frame's payload directly into *fd (a delay-line slot). */
-void SbrEncode(SBRInfo *sbr, float *timeDomain[MAX_CHANNELS], int numChannels, int numSamples, struct SignalAnalysis *sa, SbrFrameData *fd);
-/* Emits the payload in *fd, which is a delayed slot, not the newest one. */
-int SbrWrite(const SBRInfo *sbr, const SbrFrameData *fd, struct BitStream *bs, int id_aac, int writeFlag);
+void SbrEncode(SBRInfo *sbr, float *timeDomain[MAX_CHANNELS], int numChannels, const bool *isLfe, int numSamples, struct SignalAnalysis *sa, SbrFrameData *fd);
 
 #endif

@@ -167,6 +167,6 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(info.sbr_decimation, 1);
     assert_eq!(
         unsafe { CStr::from_ptr(info.version) }.to_bytes(),
-        b"2.1.0-dev.4d9c9b6"
+        b"2.1.0-dev.c3e082c"
     );
 }

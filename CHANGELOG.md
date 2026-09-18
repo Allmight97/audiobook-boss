@@ -13,6 +13,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Bundled FAAC HE-AAC with a numeric ABR target and 32, 44.1, or 48 kHz output.
   Select it explicitly while evaluating real books; Auto keeps its existing order.
 
+### Changed
+
+- Refresh FAAC to September 18 upstream source, including revised HE-AAC
+  high-frequency reconstruction. Retain safe initialization for parallel jobs.
+
 ### Fixed
 
 - Show source bitrates in kbps throughout the interface.

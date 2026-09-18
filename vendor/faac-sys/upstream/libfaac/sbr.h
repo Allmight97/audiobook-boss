@@ -25,6 +25,7 @@ typedef enum SbrFrameClass {
 } SbrFrameClass;
 
 #include "coder.h"
+#include "channels.h"
 #include "fft.h"
 #include "sbr_analysis.h"
 
@@ -47,11 +48,6 @@ typedef enum SbrFrameClass {
    *after* the coded one, so a transient gets a start window now and a short
    window next, whereas envelopes must land on the coded frame itself. */
 #define SBR_FRAME_FIFO (LOOKAHEAD_DEPTH + 2)
-
-/* What THIS encoder's SBR covers, not a format limit: MPEG-4 carries
-   sbr_extension_data() in a fill element after each SCE and CPE, so HE-AAC v1
-   5.1 is legal. Lifting this means one payload per element, none for the LFE. */
-#define SBR_MAX_CODED_CHANNELS 2
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,15 +77,22 @@ struct BitStream;
 /* log2(0) guard in envelope quantization: -200 dBFS^2, below all SBR quantizer ranges. */
 #define SBR_LOG_ENERGY_FLOOR            (1e-20f)
 /* Noise floor level, written for the single noise band of every noise
- * envelope (ISO 14496-3 §4.6.18.6.4). */
-#define SBR_NOISE_LEVEL_DEFAULT         4
+ * envelope (ISO 14496-3 §4.6.18.6.4). The decoder adds noise at
+ * 2^(6 - level) relative to the patched signal; quality keeps rising with
+ * the level until the fill is effectively off, so this keeps a floor at
+ * little cost. */
+#define SBR_NOISE_LEVEL_DEFAULT         12
 /* Inverse filtering mode, written for every channel (ISO 14496-3 §4.6.18.6.4). */
 #define SBR_INVF_MODE                   3
 /* 6 = log2(64): normalises 64-band QMF energy to per-band level. ISO 14496-3 §4.6.18.6.3. */
 #define SBR_ENV_LEVEL_LOG2_OFFSET       (6.0f)
 /* Rate-dependent resolution thresholds. */
 #define SBR_AMP_RES_BITRATE_BPS         20000u
-#define SBR_COARSE_TABLE_BITRATE_BPS    32000u
+/* Master table density, bands per octave 12/10/8 for bs_freq_scale 1/2/3:
+ * the coarsest table wins from 12 kbps/ch up to the fine table's rate, but
+ * below that it costs speech-like clips more than it saves. */
+#define SBR_FREQ_SCALE_FINE_BPS         24000u
+#define SBR_FREQ_SCALE_COARSE_BPS       12000u
 /* Stop-frequency search bounds (bs_stop_freq). 13 is the largest worth
  * searching: it already pins k2 to its 64-band ceiling at every supported
  * rate, so higher indices would just signal more range for the same band. */
@@ -114,7 +117,7 @@ void SbrContextEnd(SBRContext *sbrCtx);
 int SbrContextGetASC(SBRContext *sbrCtx, int coreSRIdx, int channels, unsigned char** ppBuffer, unsigned long* pSize);
 unsigned int SbrContextGetXOverBandwidth(SBRContext *sbrCtx);
 void SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate, FFT_Tables *fft_tables);
-void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, int realPerCh, int flushTick, float *inputFifo[MAX_CHANNELS], float *heHalfRate[MAX_CHANNELS]);
+void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe, int realPerCh, int flushTick, float *inputFifo[MAX_CHANNELS], float *heHalfRate[MAX_CHANNELS]);
 int SbrContextIsPresent(SBRContext *sCtx);
 void SbrContextRestoreRate(SBRContext *sCtx, unsigned long *sampleRate, unsigned int *sampleRateIdx, SR_INFO **srInfo);
 unsigned long SbrContextGetFullRate(SBRContext *sCtx, unsigned long defaultRate);
@@ -122,7 +125,8 @@ void SbrContextResolveRate(SBRContext *sCtx, unsigned long *sampleRate, unsigned
 int SbrContextIsAnalysisValid(SBRContext *sCtx);
 int SbrContextGetWantShort(SBRContext *sCtx, int channel, int index);
 
-int SbrContextGetBits(SBRContext *sCtx, struct BitStream *bs, int channels, int aacObjectType, int writeFlag);
+/* The EXT_SBR_DATA fill element following one SCE/CPE; none after an LFE. */
+int SbrContextGetBits(SBRContext *sCtx, struct BitStream *bs, const AACElement *elem, int aacObjectType);
 
 #ifdef __cplusplus
 }

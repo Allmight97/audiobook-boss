@@ -175,15 +175,10 @@ static faac_status validate_params(const faac_params *p)
     }
     if (p->sample_rate == 0)
         return FAAC_ERR_INVALID_ARGUMENT;
-    if (p->num_channels < 1 || p->num_channels > (uint32_t)MAX_CHANNELS)
+    if (GetChannelConfig((int)p->num_channels) == 0)
         return FAAC_ERR_INVALID_ARGUMENT;
     if (p->pns_level < 0 || p->pns_level > 10)
         return FAAC_ERR_INVALID_ARGUMENT;
-    /* AUTO resolves around this itself; this is for callers that named the
-     * profile. */
-    if (p->object_type == FAAC_OBJ_HE_AAC_V1
-        && p->num_channels > (uint32_t)SBR_MAX_CODED_CHANNELS)
-        return FAAC_ERR_UNSUPPORTED;
     if (p->channel_map) {
         uint32_t i;
         if (p->channel_map_count < p->num_channels)
