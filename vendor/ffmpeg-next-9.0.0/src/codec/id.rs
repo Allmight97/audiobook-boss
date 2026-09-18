@@ -723,6 +723,7 @@ pub enum Id {
     APPLE_APAC,
     PCM_DVDA,
     ITUT_T35,
+    ASTC,
 }
 
 impl Id {
@@ -1452,6 +1453,7 @@ impl From<AVCodecID> for Id {
             AV_CODEC_ID_APPLE_APAC => Id::APPLE_APAC,
             AV_CODEC_ID_PCM_DVDA => Id::PCM_DVDA,
             AV_CODEC_ID_ITUT_T35 => Id::ITUT_T35,
+            AV_CODEC_ID_ASTC => Id::ASTC,
 
             #[cfg(feature = "non-exhaustive-enums")]
             _ => unimplemented!(),
@@ -2176,6 +2178,7 @@ impl From<Id> for AVCodecID {
             Id::APPLE_APAC => AV_CODEC_ID_APPLE_APAC,
             Id::PCM_DVDA => AV_CODEC_ID_PCM_DVDA,
             Id::ITUT_T35 => AV_CODEC_ID_ITUT_T35,
+            Id::ASTC => AV_CODEC_ID_ASTC,
         }
     }
 }

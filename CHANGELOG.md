@@ -17,6 +17,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - Refresh FAAC to September 18 upstream source, including revised HE-AAC
   high-frequency reconstruction. Retain safe initialization for parallel jobs.
+- Refresh bundled FFmpeg with MP4 metadata-read fixes and current media handling;
+  retain the NMR encoder and nonzero chapter-start correction.
 
 ### Fixed
 
