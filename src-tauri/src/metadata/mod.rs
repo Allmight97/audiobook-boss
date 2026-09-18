@@ -15,7 +15,7 @@ mod cue;
 pub use abb_metadata_core::{
     parse_cue, validate_chapters, ChapterSpec, CueInterpretation, CueSheet,
 };
-pub(crate) use cue::{inspect_chapter_source, validate_chapter_plan};
+pub(crate) use cue::{inspect_chapter_source, validate_chapter_plan, validate_source_fingerprint};
 pub use cue::{ChapterPlan, CueSource, CueStatus};
 #[cfg(test)]
 mod contract_tests;

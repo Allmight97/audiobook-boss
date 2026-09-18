@@ -30,13 +30,26 @@ pub struct CueSource {
     pub message: String,
 }
 
-pub(crate) fn source_fingerprint(path: &Path) -> Result<String> {
-    let stat = std::fs::metadata(path)?;
+fn source_fingerprint_from_metadata(stat: &std::fs::Metadata) -> Result<String> {
     let modified = stat
         .modified()?
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| AppError::InvalidInput("Audio modification time is invalid".into()))?;
     Ok(format!("{}:{}", stat.len(), modified.as_nanos()))
+}
+
+pub(crate) fn source_fingerprint(path: &Path) -> Result<String> {
+    let stat = std::fs::metadata(path)?;
+    source_fingerprint_from_metadata(&stat)
+}
+
+pub(crate) fn validate_source_fingerprint(stat: &std::fs::Metadata, expected: &str) -> Result<()> {
+    if source_fingerprint_from_metadata(stat)? != expected {
+        return Err(AppError::InvalidInput(
+            "Audio changed since inspection. Remove and import it again.".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn inspect_chapter_source(
