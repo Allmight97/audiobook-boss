@@ -18,13 +18,13 @@
   `crate::audio::processor`, `crate::audio::settings_encoder`,
   `crate::audio::toolchain`, `crate::audio::path_validation`, or
   `crate::audio::cleanup`.
-- Types: `AudioFile`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
+- Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
   `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
 - Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
-  `validate_input_image_path`, `supported_audio_import_metadata`,
-  `discover_audio_import_paths`, `validate_output_path`,
+  `validate_input_image_path`, `validate_preservation_source`, `supported_audio_import_metadata`,
+  `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
   `validate_requested_encoder_available`,
   `encoder_settings_capabilities`,
@@ -37,13 +37,22 @@
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.
-- Capability types: `EncoderBitrateModeCapability`, `EncoderSettingsCapabilities`,
+  The request carries explicit audio handling and the original metadata intent
+  for preserving a single source. Inspection owns preservation capability and
+  the compact-source recommendation; neither fact automatically selects a mode.
+- Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
+- `EncoderSettingsCapabilities.encoder_configurations` is the single
+  per-encoder capability array for allowed modes, defaults, and explicit sample
+  rates. The global `explicit_sample_rates` list remains the rate list for the
+  existing encoders; bundled FAAC HE-AAC narrows its explicit choices to
+  32000, 44100, and 48000 Hz in its configuration entry.
 - Target bitrate bounds and native speed bounds come from
-  `EncoderSettingsCapabilities`. Native target bitrate also checks the resolved
-  AAC ceiling during preflight and encoder setup. Input validation receives the
-  sample-rate choice and whether inputs share one output; batch ceilings are
-  checked per file, merge ceilings use the combined channels and first input rate.
+  `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
+  check their resolved AAC ceilings during preflight and encoder setup. Input
+  validation receives the sample-rate choice and whether inputs share one
+  output; batch ceilings are checked per file, merge ceilings use the combined
+  channels and first input rate.
   Opened NMR settings must match the request.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
@@ -98,8 +107,9 @@
   green for the touched boundary.
 - Narrow accidental visibility when callers can use the Public API Strip without
   losing contract truth.
-- Keep Native AAC, Apple AAC/AAC-AT, and external FDK adapter differences inside
-  the private cluster unless a caller needs a stable capability fact.
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and external FDK adapter
+  differences inside the private cluster unless a caller needs a stable
+  capability fact.
 
 ## Boundary Changes
 
@@ -124,7 +134,11 @@
   overflowing before encoding. The standard downmix retains center/surround
   channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
-- Keep Native AAC, Apple AAC/AAC-AT, and external FDK behavior distinct. They are different encoder/toolchain targets with different sample formats and quality profiles.
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC HE-AAC, and external FDK
+  behavior distinct. They are different encoder/toolchain targets with
+  different sample formats and quality profiles. FAAC is an explicit-only,
+  bundled HE-AAC v1 route with a numeric ABR target; Auto remains FDK, then
+  Apple, then Native and never resolves to FAAC.
 - Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
   bitrate and search speed. Auto preserves the selected mode, and the resolved
   encoder rejects incompatible intent.

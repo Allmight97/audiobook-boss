@@ -6,12 +6,12 @@ The original license and source remain included. Registry bookkeeping, upstream
 CI configuration, and the crate-local lockfile are omitted.
 
 This patch adds exact Rust variants and bidirectional mappings for the selected
-FFmpeg source `efb0a7e5e78ab261ad8ac5af0ff867fe9ce8c99a`:
+FFmpeg source `be387f252de068a38e3b0f5f40404ec55c14578c`:
 
 - `AV_SAMPLE_FMT_DSD`
 - `AV_PIX_FMT_CUARRAY`
 - `AV_FRAME_DATA_DOWNMIX_MATRIX`
-- `AV_CODEC_ID_PCM_DVDA` and `AV_CODEC_ID_ITUT_T35`
+- `AV_CODEC_ID_PCM_DVDA`, `AV_CODEC_ID_ITUT_T35`, and `AV_CODEC_ID_ASTC`
 
 No fallback mapping or unknown-enum panic is introduced. The vendor is tied to
 ABB's pinned FFmpeg headers, including for unbundled developer builds. Retire

@@ -8,6 +8,13 @@ The upstream manifest declares WTFPL.
 Native AAC's NMR coder. The Rust build and Linux setup consume this file and
 verify the fetched commit. ABB retains the CoreAudio framework link.
 
+The September 18, 2026 selection is
+`be387f252de068a38e3b0f5f40404ec55c14578c`. Compared with the previous selection,
+NMR's `libavcodec/aaccoder_nmr.h` is unchanged. The refresh includes MP4 metadata
+allocation/read validation fixes and shared media I/O changes; it is not an NMR
+algorithm update. Existing feature selection and external dependencies remain
+unchanged. The wrapper represents the new ASTC codec identifier explicitly.
+
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted

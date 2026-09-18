@@ -452,7 +452,7 @@ fn processing_operation_title(kind: crate::processing::OperationKind, count: usi
             format!("Merge encode ({count} file{})", plural_suffix(count))
         }
         crate::processing::OperationKind::ProcessingBatch => {
-            format!("Batch encode ({count} file{})", plural_suffix(count))
+            format!("Batch export ({count} file{})", plural_suffix(count))
         }
         crate::processing::OperationKind::RemoteAcquisition => {
             format!("Remote acquisition ({count} title{})", plural_suffix(count))

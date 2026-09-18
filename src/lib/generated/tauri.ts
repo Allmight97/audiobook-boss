@@ -107,7 +107,7 @@ export const commands = {
 	preset: NamingPreset,
 	includeYear: boolean,
 	customTemplate: string | null,
-} | null, sourcePath: string | null, outputKind: "final" | "preview" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind })),
+} | null, sourcePath: string | null, outputKind: "final" | "preview" | null, audioHandling: "encode" | "preserve" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, audioHandling })),
 	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
 	/**  Returns the current maximum concurrent jobs setting */
 	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
@@ -239,7 +239,7 @@ export type AudioFile = {
 	duration: number | null,
 	/**  Audio format (None if unavailable) */
 	format: string | null,
-	/**  Bitrate in kbps (None if unavailable) */
+	/**  Source audio bitrate in bits per second (None if unavailable) */
 	bitrate: number | null,
 	/**  Sample rate in Hz (None if unavailable) */
 	sampleRate: number | null,
@@ -247,6 +247,11 @@ export type AudioFile = {
 	channels: number | null,
 	/**  Friendly codec label for display (None if unavailable) */
 	codecLabel: string | null,
+	/**
+	 *  Whether this source can be copied without re-encoding and whether the
+	 *  source meets the automatic low-bitrate recommendation.
+	 */
+	preservation?: AudioPreservation | null,
 	/**  Friendly selected decoder label for display only (None if unavailable) */
 	selectedDecoder: string | null,
 	/**  Title tag discovered during input analysis (None if unavailable) */
@@ -261,6 +266,13 @@ export type AudioFile = {
 	isValid: boolean,
 	/**  Error message if validation failed */
 	error: string | null,
+};
+
+export type AudioHandling = "encode" | "preserve";
+
+export type AudioPreservation = {
+	canPreserve: boolean,
+	recommended: boolean,
 };
 
 export type AudiobookMetadata = {
@@ -283,10 +295,10 @@ export type AudiobookMetadata = {
 };
 
 /**  Bitrate/quality control mode per encoder */
-export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "vbr"; value: number };
+export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number };
 
 /**  Bitrate mode capability without encoder-specific values. */
-export type BitrateModeKind = "cbr" | "cvbr" | "vbr";
+export type BitrateModeKind = "cbr" | "cvbr" | "abr" | "vbr";
 
 /**  Channel selection strategy */
 export type ChannelConfig = "auto" | "mono" | "stereo";
@@ -355,15 +367,21 @@ export type EncoderAvailability = {
 	statusMessage: string,
 };
 
-export type EncoderBitrateModeCapability = {
-	encoderType: EncoderType,
-	allowedModes: BitrateModeKind[],
-	defaultMode: BitrateMode,
-};
-
 export type EncoderCapabilitySource = "none" | "detected" |
 /**  Validated from the user-configured FFmpeg path in App Settings. */
 "user_configured";
+
+/**
+ *  Encoder-specific settings facts that cannot be represented by the global
+ *  controls below. In particular, FAAC's explicit HE-AAC sample-rate support
+ *  is narrower than the rates accepted by the other encoders.
+ */
+export type EncoderConfigurationCapability = {
+	encoderType: EncoderType,
+	allowedModes: BitrateModeKind[],
+	defaultMode: BitrateMode,
+	explicitSampleRates: number[],
+};
 
 export type EncoderDefaults = {
 	settings: EncoderSettings,
@@ -398,7 +416,7 @@ export type EncoderSettingsCapabilities = {
 	availability: EncoderAvailability,
 	encoderTypes: EncoderType[],
 	bitrateKbpsMin: number,
-	bitrateModesByEncoder: EncoderBitrateModeCapability[],
+	encoderConfigurations: EncoderConfigurationCapability[],
 	bitrateKbpsMax: number,
 	nativeSpeedMax: number,
 	vbrLevelMin: number,
@@ -418,7 +436,9 @@ export type EncoderType =
 /**  Apple AAC (AudioToolbox), macOS-only */
 "aac_at" |
 /**  Native FFmpeg AAC encoder (aac) */
-"native_aac";
+"native_aac" |
+/**  Bundled FAAC HE-AAC v1 using average bitrate control. */
+"faac_he_aac";
 
 /**
  *  Stage identifier emitted on `processing-progress` events.
@@ -701,7 +721,12 @@ export type ProcessPayload = {
 	 */
 	inputIds: (string | null)[] | null,
 	outputDir: string,
-	settings: EncoderSettings,
+	settings: EncoderSettings | null,
+	/**
+	 *  Per-input audio handling aligned with `input_files`. Absent means encode
+	 *  every input, preserving the existing request shape.
+	 */
+	audioHandling: AudioHandling[] | null,
 	/**  Sample rate from frontend (optional, defaults to Auto) */
 	sampleRate: SampleRateConfig | null,
 	jobType: JobType | null,

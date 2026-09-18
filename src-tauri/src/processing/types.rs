@@ -14,6 +14,13 @@ pub enum JobType {
     Batch,
 }
 
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AudioHandling {
+    Encode,
+    Preserve,
+}
+
 impl From<JobType> for OperationKind {
     fn from(value: JobType) -> Self {
         match value {
@@ -32,7 +39,10 @@ pub struct ProcessPayload {
     /// source sidecars without replacing path as the filesystem source label.
     pub input_ids: Option<Vec<Option<String>>>,
     pub output_dir: String,
-    pub settings: EncoderSettings,
+    pub settings: Option<EncoderSettings>,
+    /// Per-input audio handling aligned with `input_files`. Absent means encode
+    /// every input, preserving the existing request shape.
+    pub audio_handling: Option<Vec<AudioHandling>>,
     /// Sample rate from frontend (optional, defaults to Auto)
     pub sample_rate: Option<audio::SampleRateConfig>,
     pub job_type: Option<JobType>,
@@ -45,6 +55,26 @@ pub struct ProcessPayload {
     /// Supplemental assets keyed by input id. These are committed only after a
     /// matching final batch audiobook succeeds.
     pub supplemental_assets_by_input_id: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
+}
+
+impl ProcessPayload {
+    pub(crate) fn resolved_audio_handling(&self) -> crate::errors::Result<Vec<AudioHandling>> {
+        let handling = self
+            .audio_handling
+            .clone()
+            .unwrap_or_else(|| vec![AudioHandling::Encode; self.input_files.len()]);
+        if handling.len() != self.input_files.len() {
+            return Err(crate::errors::AppError::InvalidInput(
+                "Audio handling must align with the processing input files.".into(),
+            ));
+        }
+        if self.job_type == Some(JobType::Merge) && handling.contains(&AudioHandling::Preserve) {
+            return Err(crate::errors::AppError::InvalidInput(
+                "Keep original audio requires separate outputs. Turn off Merge files or re-encode these books.".into(),
+            ));
+        }
+        Ok(handling)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]

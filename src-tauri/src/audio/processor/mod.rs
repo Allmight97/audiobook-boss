@@ -21,6 +21,7 @@ use crate::metadata::{
     extract_passthrough_metadata, prepare_output_cover_art, AudiobookMetadata,
     CoverArtPassthroughPolicy, PassthroughSource,
 };
+use crate::processing::AudioHandling;
 use crate::processing::ProcessingContext;
 use std::time::Duration;
 
@@ -31,15 +32,18 @@ mod engine;
 mod engine_orchestrator;
 mod execute;
 mod external_fdk;
+mod faac_timing;
 mod finalize;
 mod frame_pipeline;
 mod plan;
 mod prepare;
+mod preserve;
 mod preview_state;
 mod run_diagnostics;
 mod staging;
 mod streams;
 
+pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
 pub use streams::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
@@ -50,6 +54,8 @@ pub struct AudioExecutionRequest {
     file_info: FileListInfo,
     metadata: Option<AudiobookMetadata>,
     cover_art_passthrough: CoverArtPassthroughPolicy,
+    handling: AudioHandling,
+    metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
 }
 
 impl AudioExecutionRequest {
@@ -64,7 +70,22 @@ impl AudioExecutionRequest {
             file_info,
             metadata,
             cover_art_passthrough,
+            handling: AudioHandling::Encode,
+            metadata_intent: None,
         }
+    }
+
+    pub fn with_handling(mut self, handling: AudioHandling) -> Self {
+        self.handling = handling;
+        self
+    }
+
+    pub fn with_metadata_intent(
+        mut self,
+        metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
+    ) -> Self {
+        self.metadata_intent = metadata_intent;
+        self
     }
 }
 
@@ -77,29 +98,37 @@ pub fn validate_audio_engine_inputs(
     adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     adapter.validate_inputs(file_info)?;
-    if matches!(
-        adapter,
-        adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
-            encoder_type: crate::audio::EncoderType::NativeAac
-        }
-    ) {
-        if merge_inputs {
-            validate_native_output_target(encoder_settings, sample_rate, &file_info.files)?;
-        } else {
-            for file in file_info.files.iter().filter(|file| file.is_valid) {
-                validate_native_output_target(
+    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = adapter {
+        crate::audio::settings::validate_encoder_sample_rate(encoder_type, sample_rate)?;
+        if matches!(
+            encoder_type,
+            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::FaacHeAac
+        ) {
+            if merge_inputs {
+                validate_output_target(
                     encoder_settings,
+                    encoder_type,
                     sample_rate,
-                    std::slice::from_ref(file),
+                    &file_info.files,
                 )?;
+            } else {
+                for file in file_info.files.iter().filter(|file| file.is_valid) {
+                    validate_output_target(
+                        encoder_settings,
+                        encoder_type,
+                        sample_rate,
+                        std::slice::from_ref(file),
+                    )?;
+                }
             }
         }
     }
     Ok(())
 }
 
-fn validate_native_output_target(
+fn validate_output_target(
     settings: &EncoderSettings,
+    encoder: crate::audio::EncoderType,
     sample_rate: &crate::audio::SampleRateConfig,
     files: &[AudioFile],
 ) -> Result<()> {
@@ -115,15 +144,28 @@ fn validate_native_output_target(
                 .and_then(|file| file.sample_rate)
         })
         .ok_or_else(|| {
-            crate::errors::AppError::InvalidInput(
-                "Could not determine Native sample rate; choose it explicitly.".into(),
-            )
+            crate::errors::AppError::InvalidInput(format!(
+                "Could not determine {encoder} sample rate; choose it explicitly."
+            ))
         })?;
-    crate::audio::settings_encoder::validate_native_target_bitrate(
-        settings.bitrate_kbps,
-        rate,
-        u32::from(channels),
-    )
+    crate::audio::settings::validate_encoder_sample_rate(
+        encoder,
+        &crate::audio::SampleRateConfig::Explicit(rate),
+    )?;
+    match encoder {
+        crate::audio::EncoderType::FaacHeAac => {
+            crate::audio::settings_encoder::validate_faac_target_bitrate(
+                settings.bitrate_kbps,
+                rate,
+                u32::from(channels),
+            )
+        }
+        _ => crate::audio::settings_encoder::validate_native_target_bitrate(
+            settings.bitrate_kbps,
+            rate,
+            u32::from(channels),
+        ),
+    }
 }
 
 pub(crate) fn processing_workspace_root(cache_dir: &std::path::Path) -> std::path::PathBuf {
@@ -152,13 +194,29 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
 }
 
 pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
-    let requested_channels = request.context.encoder_settings.channels;
-    request.context.encoder_settings.channels =
+    if request.handling == AudioHandling::Preserve {
+        return tokio::task::spawn_blocking(move || {
+            preserve::execute_preserved_audio(
+                request.context,
+                request.file_info,
+                request.metadata_intent,
+            )
+        })
+        .await
+        .map_err(|error| {
+            crate::errors::AppError::General(format!("audio preservation task failed: {error}"))
+        })?;
+    }
+    let mut settings = request.context.required_encoder_settings()?.clone();
+    let requested_channels = settings.channels;
+    let resolved_channels =
         adapter::resolve_output_channels(requested_channels, &request.file_info.files)?;
+    settings.channels = resolved_channels;
+    request.context.encoder_settings = Some(settings);
     log::info!(
         "audio output channels: requested={:?} resolved={:?}",
         requested_channels,
-        request.context.encoder_settings.channels,
+        resolved_channels,
     );
     for file in request.file_info.files.iter().filter(|file| file.is_valid) {
         if file.cue_source.as_ref().is_some_and(|cue| {
@@ -184,7 +242,8 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         selected_decoders,
         ..
     } = request.file_info;
-    let adapter = adapter::resolve_processor_adapter(&request.context.encoder_settings)?;
+    let encoder_settings = request.context.required_encoder_settings()?;
+    let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     let adapter_label = match &adapter {
         adapter::ResolvedProcessorAdapter::NativeFfmpegNext { .. } => "native_ffmpeg_next",
         adapter::ResolvedProcessorAdapter::ExternalFdk { .. } => "external_fdk",
@@ -201,7 +260,7 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
         .map_or_else(|| "none".to_string(), |index| index.to_string());
     log::info!(
         "audio engine adapter: operation_id={operation_id} job_id={job_id} input_index={input_index} kind={adapter_label} requested_encoder={:?}",
-        request.context.encoder_settings.encoder_type,
+        encoder_settings.encoder_type,
     );
     adapter
         .execute(

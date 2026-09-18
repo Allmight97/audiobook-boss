@@ -16,6 +16,7 @@ use crate::errors::AppError;
 pub(crate) use artifact::derive_output_artifact_path;
 pub(crate) use commit::{commit_output_artifact, finalized_output_success, OutputCommitRequest};
 pub use naming::build_output_path_preview;
+pub(crate) use naming::preserve_source_extension;
 pub(crate) use parent_dirs::{ensure_output_parent_dirs, OutputParentDirCleanup};
 pub(crate) use plan::OutputPlanLedger;
 pub(crate) use review::{enforce_output_plan_review, OutputPlanReview};

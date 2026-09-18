@@ -77,7 +77,7 @@ pub struct ProcessingContext {
     /// Processing session with state management
     pub session: Arc<ProcessingSession>,
     /// Encoder settings
-    pub encoder_settings: EncoderSettings,
+    pub encoder_settings: Option<EncoderSettings>,
     /// Sample rate configuration
     pub sample_rate: SampleRateConfig,
     /// Output configuration
@@ -120,7 +120,7 @@ impl ProcessingContext {
     pub fn new_with_workspace_root(
         window: Window,
         session: Arc<ProcessingSession>,
-        encoder_settings: EncoderSettings,
+        encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
         output: OutputConfig,
         workspace_root: PathBuf,
@@ -128,7 +128,7 @@ impl ProcessingContext {
         Self {
             window: Some(window),
             session,
-            encoder_settings,
+            encoder_settings: encoder_settings.into(),
             sample_rate,
             output,
             workspace_root,
@@ -144,7 +144,7 @@ impl ProcessingContext {
     /// Creates a headless ProcessingContext (no UI event emission).
     pub fn new_headless(
         session: Arc<ProcessingSession>,
-        encoder_settings: EncoderSettings,
+        encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
         output: OutputConfig,
     ) -> Self {
@@ -159,7 +159,7 @@ impl ProcessingContext {
 
     pub fn new_headless_with_workspace_root(
         session: Arc<ProcessingSession>,
-        encoder_settings: EncoderSettings,
+        encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
         output: OutputConfig,
         workspace_root: PathBuf,
@@ -167,7 +167,7 @@ impl ProcessingContext {
         Self {
             window: None,
             session,
-            encoder_settings,
+            encoder_settings: encoder_settings.into(),
             sample_rate,
             output,
             workspace_root,
@@ -178,6 +178,14 @@ impl ProcessingContext {
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
         }
+    }
+
+    pub(crate) fn required_encoder_settings(&self) -> Result<&EncoderSettings> {
+        self.encoder_settings.as_ref().ok_or_else(|| {
+            crate::errors::AppError::InvalidInput(
+                "Encoder settings are required for encode processing.".into(),
+            )
+        })
     }
 
     /// Emits an event to the frontend
@@ -236,6 +244,8 @@ impl ProcessingContext {
 
     /// Returns the effective bitrate in kbps
     pub fn effective_bitrate_kbps(&self) -> u32 {
-        self.encoder_settings.bitrate_kbps as u32
+        self.encoder_settings
+            .as_ref()
+            .map_or(0, |settings| settings.bitrate_kbps as u32)
     }
 }

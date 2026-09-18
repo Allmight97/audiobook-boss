@@ -62,7 +62,7 @@ pub(crate) fn merge_audio_files_with_context(
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
     let plan = MediaProcessingPlan::new(
         temp_output.clone(),
-        context.encoder_settings.clone(),
+        context.required_encoder_settings()?.clone(),
         context.sample_rate.clone(),
         file_paths,
         total_duration,
@@ -73,7 +73,7 @@ pub(crate) fn merge_audio_files_with_context(
         context.session.id(),
         context.job_id.as_deref().unwrap_or("unscoped"),
         crate::diagnostics::artifact_id(&temp_output),
-        context.encoder_settings.encoder_type
+        context.required_encoder_settings()?.encoder_type
     );
     crate::diagnostics::stage("encode_mux", &temp_output, || {
         FfmpegNextProcessor::execute(&plan, context, metadata, passthrough)

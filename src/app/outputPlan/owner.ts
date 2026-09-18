@@ -116,9 +116,20 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 
 	const estimatedSizeText = createMemo(() => {
 		const input = deps.input.view();
-		return formatEstimatedSizeText(input.hasFiles, input.totalDurationSeconds, {
-			bitrateKbps: deps.encoding.estimateKbps(),
-		});
+		let encodedDuration = 0;
+		let preservedBytes = 0;
+		for (const file of input.files.filter((file) => file.isValid)) {
+			if (deps.input.audioHandling(file) === 'preserve') preservedBytes += file.size ?? 0;
+			else encodedDuration += file.duration ?? 0;
+		}
+		return formatEstimatedSizeText(
+			input.hasFiles,
+			encodedDuration,
+			{
+				bitrateKbps: encodedDuration > 0 ? deps.encoding.estimateKbps() : 0,
+			},
+			preservedBytes,
+		);
 	});
 
 	const view: Accessor<OutputView> = () => {
@@ -201,9 +212,12 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		const input = deps.input.view();
 		metadataDraftKey();
 		const metadata = untrack(() => deps.metadataView());
+		const sourcePath = sourcePathFromInput(input);
+		const source = input.files.find((file) => file.path === sourcePath);
 		return {
 			outputDirectory: directory,
-			sourcePath: sourcePathFromInput(input),
+			sourcePath,
+			audioHandling: source ? deps.input.audioHandling(source) : undefined,
 			outputNaming: outputNamingFromPlan({
 				...emptyOutputPlan(),
 				outputDirectory: directory,

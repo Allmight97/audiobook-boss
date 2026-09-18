@@ -1,4 +1,4 @@
-import { formatFileSize, type AudioFile } from '../../types/audio';
+import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/audio';
 import { pathBasename } from '../../lib/path/basename';
 import type { InputSessionState, InputView } from './types';
 
@@ -108,7 +108,7 @@ function inspectorFromFiles(
 			contextText: pathBasename(file.path, { fallback: 'path' }),
 			contextVariant: 'single',
 			contextDetail: `${index + 1} of ${files.length}`,
-			bitrateText: file.bitrate ? `${file.bitrate} kb/s` : 'N/A',
+			bitrateText: formatAudioBitrate(file.bitrate),
 			sampleRateText: file.sampleRate ? `${file.sampleRate} Hz` : 'N/A',
 			channelsText: file.channels ? `${file.channels} ch` : 'N/A',
 			codecText: formatOptionalText(file.codecLabel),

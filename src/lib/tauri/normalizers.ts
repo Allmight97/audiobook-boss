@@ -71,7 +71,9 @@ const METADATA_FIELDS = [
 ] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
 
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
+	'settings',
 	'chapterPlans',
+	'audioHandling',
 	'inputIds',
 	'sampleRate',
 	'jobType',
@@ -213,7 +215,6 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 	return {
 		inputFiles: payload.inputFiles,
 		outputDir: payload.outputDir,
-		settings: payload.settings,
 		...nullableFields,
 	};
 }

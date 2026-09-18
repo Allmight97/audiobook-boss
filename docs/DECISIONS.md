@@ -4,6 +4,31 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-17 - Preserve Audio Within The Shared Export Workflow
+
+- Outcome: each single-file book can explicitly preserve its compressed audio
+  while using the existing metadata, naming, collision, and publication flow.
+  Mixed batches resolve that choice by input identity into immutable job plans.
+  Preserve retains the source container/extension and skips every encoder;
+  all-preserve requests need no encoder settings or availability discovery.
+- Evidence: compact AAC books at 22.05 kHz required no audio change to become
+  organized library copies; forcing them through encoding added work and could
+  require resampling. Audio inspection owns the suggestion separately from
+  manual preservation capability. Input owns the choice, not the recommendation.
+- Guardrail: copy into independently owned staging before explicit metadata edits;
+  use the shared Output Artifact commit and preserve source audio, timing, and chapters.
+
+## 2026-09-15 - FAAC Timing Follows the Produced File
+
+- Outcome: Audio recognizes ABB-produced FAAC files and applies the same
+  native-decoder interval in both processing routes. Other HE-AAC inputs retain
+  their existing timing policy.
+- Evidence: Apple needs the core-priming edit, while native FFmpeg also emits
+  SBR reconstruction delay. Changing the edit to fit native FFmpeg clips Apple
+  playback. `src-tauri/src/audio/processor/faac_timing.rs` owns the shared
+  interval; media execution tests prove Apple playback and both re-import routes.
+- Guardrail: encoder selection must not change the source's playable audio.
+
 ## 2026-09-13 - Sleep Prevention Follows Active Work
 
 - Outcome: default-on, persisted opt-out prevents idle system sleep during
@@ -41,15 +66,17 @@ git history and closed issues own superseded chronology.
   mode is outside the product contract. Long-book trials favored target bitrate
   for predictable size; quality mode took longer and varied substantially by book.
 - Outcome: the frontend derives rate mode from the effective backend capability.
-  Native and Apple accept numeric targets; FDK keeps its quality control.
-  Encoding owns typed request construction, avoiding a second normalization
-  layer or a separately mutable rate-mode choice. Pending capability discovery
-  preserves the validated saved mode for explicit encoders. Auto submission
-  requires capabilities so its effective encoder determines the mode.
+  Native, Apple, and bundled FAAC accept numeric targets; FAAC is ABR-only and
+  accepts explicit 32, 44.1, and 48 kHz output rates. FDK keeps its quality
+  control. Encoding owns typed request construction, avoiding a second
+  normalization layer or a separately mutable rate-mode choice. Pending
+  capability discovery preserves the validated saved mode for explicit
+  encoders. Auto submission requires capabilities so its effective encoder
+  determines the mode, and Auto remains FDK → Apple → Native.
 - Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,
   `src/app/encoding/`, and the encoder interaction and media execution tests.
 - Guardrail: encoder controls must change a shipped path. FDK stays owned by
-  the external FFmpeg adapter; the in-process engine rejects it explicitly.
+  the external FFmpeg adapter; bundled FAAC stays an explicit in-process route.
 
 ## 2026-09-10 - Development State Belongs To The Checkout
 

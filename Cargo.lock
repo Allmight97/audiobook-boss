@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "audiobook-boss"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "abb-audible-core",
  "abb-media-core",
@@ -387,6 +387,7 @@ dependencies = [
  "base64 0.23.1",
  "bogon",
  "env_logger",
+ "faac-sys",
  "ffmpeg-next",
  "ffmpeg-sys-next",
  "image",
@@ -1575,6 +1576,14 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "faac-sys"
+version = "2.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
 ]
 
 [[package]]

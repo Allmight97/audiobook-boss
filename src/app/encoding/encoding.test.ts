@@ -99,6 +99,66 @@ describe('encoding owner', () => {
 		flush();
 	}
 
+	it.each([true, false])(
+		'identifies bundled FAAC regardless of Apple availability (%s)',
+		async (aacAtAvailable) => {
+			const capabilities = encoderCaps();
+			mounted = mountEncoding({
+				capabilities: {
+					...capabilities,
+					availability: { ...capabilities.availability, aacAtAvailable },
+				},
+			});
+			await ready(mounted.owner);
+			mounted.owner.select('encoder', 'faac_he_aac');
+			flush();
+			expect(mounted.owner.view().availabilityHint).toBe('FAAC HE-AAC is included with ABB.');
+		},
+	);
+
+	it('hydrates FAAC as an explicit ABR encoder and preserves an unsupported rate', async () => {
+		mounted = mountEncoding();
+		await ready(mounted.owner);
+
+		mounted.owner.applyDefaults({
+			settings: {
+				...vbrDefaults(3).settings,
+				encoderType: 'faac_he_aac',
+				bitrateMode: { mode: 'abr' },
+			},
+			sampleRate: { explicit: 22050 },
+		});
+		flush();
+
+		expect(mounted.owner.request().encoderSettings).toMatchObject({
+			encoderType: 'faac_he_aac',
+			bitrateMode: { mode: 'abr' },
+		});
+		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 22050 });
+		expect(mounted.owner.view().showQuality).toBe(false);
+		expect(mounted.owner.view().qualityBitrateLabel).toBe('Target kbps');
+		expect(mounted.owner.view().estimatedBitrateText).toBe('Target: 64 kbps total');
+		expect(
+			mounted.owner.view().sampleRateOptions.find((option) => option.value === '22050')?.disabled,
+		).toBe(true);
+		expect(mounted.owner.view().sampleRateHint).toBe(
+			'Choose a supported sample rate for this encoder.',
+		);
+
+		mounted.owner.select('encoder', 'native_aac');
+		mounted.owner.select('encoder', 'faac_he_aac');
+		await mounted.owner.reloadCapabilities(encoderCaps());
+		flush();
+		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 22050 });
+		expect(mounted.owner.view().sampleRateHint).toBe(
+			'Choose a supported sample rate for this encoder.',
+		);
+
+		mounted.owner.select('sampleRate', '48000');
+		flush();
+		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 48000 });
+	});
+
 	it('hydrates VBR request without persisting, then persists only on select', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);

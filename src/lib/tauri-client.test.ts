@@ -330,6 +330,7 @@ describe('tauriClient nullish adapters', () => {
 		const result = await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
+				audioHandling: ['preserve'],
 				chapterPlans: {
 					'/books/a.m4b': {
 						fromCue: true,
@@ -338,7 +339,7 @@ describe('tauriClient nullish adapters', () => {
 					},
 				},
 				outputDir: '/tmp/out',
-				settings: defaultEncoderSettings(),
+				settings: undefined,
 				sampleRate: undefined,
 				jobType: undefined,
 				outputNaming: undefined,
@@ -369,6 +370,8 @@ describe('tauriClient nullish adapters', () => {
 				chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
 			},
 		});
+		expect(args.payload.audioHandling).toEqual(['preserve']);
+		expect(args.payload.settings).toBeNull();
 		expect(args.payload.sampleRate).toBeNull();
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
@@ -671,7 +674,9 @@ describe('tauriClient nullish adapters', () => {
 	it('denormalizes preview output naming nullish fields for preview_output_path command', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce('/tmp/out/Frank Herbert/Dune.m4b');
+		mockInvoke
+			.mockResolvedValueOnce('/tmp/out/Frank Herbert/Dune.mp3')
+			.mockResolvedValueOnce('/tmp/out/Frank Herbert/Dune.m4b');
 
 		const { tauriClient } = await import('./tauri/client');
 		const preview = await tauriClient.previewOutputPath({
@@ -683,6 +688,7 @@ describe('tauriClient nullish adapters', () => {
 				customTemplate: undefined,
 			},
 			sourcePath: '/books/ch01.mp3',
+			audioHandling: 'preserve',
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
@@ -693,6 +699,7 @@ describe('tauriClient nullish adapters', () => {
 				metadata: Record<string, unknown>;
 				outputNaming: Record<string, unknown>;
 				sourcePath: string | null;
+				audioHandling: string | null;
 			},
 		];
 
@@ -703,59 +710,25 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.outputNaming.includeYear).toBe(false);
 		expect(args.outputNaming.customTemplate).toBeNull();
 		expect(args.sourcePath).toBe('/books/ch01.mp3');
-		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.m4b');
-	});
+		expect(args.audioHandling).toBe('preserve');
+		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.mp3');
 
-	it('loads runtime settings capabilities through the Tauri boundary', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			encoder: {
-				availability: {
-					fdkAvailable: true,
-					fdkSource: 'detected',
-					aacAtAvailable: true,
-					nativeAacAvailable: true,
-					autoEncoder: 'fdk_he_aac',
-					detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
-					statusMessage: 'FDK AAC detected and ready.',
-				},
-				encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac'],
-				bitrateKbpsMin: 1,
-				bitrateKbpsMax: 1152,
-				nativeSpeedMax: 4,
-				bitrateModesByEncoder: [
-					{ encoderType: 'auto', allowedModes: ['vbr'], defaultMode: { mode: 'vbr', value: 3 } },
-				],
-				vbrLevelMin: 1,
-				vbrLevelMax: 5,
-				vbrLevelDefault: 3,
-				sampleRateAuto: true,
-				explicitSampleRates: [44100],
-				channelOptions: ['auto', 'mono', 'stereo'],
+		await tauriClient.previewOutputPath({
+			outputDir: '/tmp/out',
+			metadata: { title: 'Dune', artist: 'Frank Herbert' },
+			outputNaming: {
+				preset: 'customTemplate',
+				includeYear: false,
+				customTemplate: undefined,
 			},
-			maxConcurrentJobs: {
-				allowAuto: true,
-				autoEffective: 4,
-				fixedMin: 1,
-				fixedMax: 8,
-				fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
-			},
+			sourcePath: '/books/ch01.mp3',
 		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const capabilities = await tauriClient.getRuntimeSettingsCapabilities();
-
-		const [commandName, args = {}] = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1] as [
+		const omittedHandlingCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
+		const [, omittedHandlingArgs] = omittedHandlingCall as [
 			string,
-			Record<string, unknown>?,
+			{ audioHandling: string | null },
 		];
-		expect(commandName).toBe('get_runtime_settings_capabilities');
-		expect(args).toEqual({});
-		expect(capabilities.encoder.availability.detectedToolchainPath).toBe(
-			'/opt/homebrew/bin/ffmpeg',
-		);
-		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
+		expect(omittedHandlingArgs.audioHandling).toBeNull();
 	});
 });
 

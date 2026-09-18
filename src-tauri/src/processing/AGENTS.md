@@ -29,6 +29,15 @@
   vocabulary, job lifecycle, queue/progress event types, terminal result
   normalization, and their behavior tests.
 
+## Per-book Audio Handling
+
+- Resolve handling in input order and include it in the reviewed plan signature.
+  Preserve keeps the source extension before collision planning. Merge, preview,
+  and chapter reconstruction require encoding.
+- Encoder settings and sample-rate checks apply only to encoding jobs. An
+  all-preserve request can omit settings; it still follows normal job registration,
+  cancellation, output review, and terminal reporting.
+
 ## Progress / Stage Evolution
 
 - `processing-progress` and `processing-queue` are emitted by

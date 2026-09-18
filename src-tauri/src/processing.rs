@@ -40,6 +40,7 @@ pub use progress::{
 };
 pub use session::ProcessingSession;
 pub use types::{
-    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset,
+    AudioHandling, JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
+    ProcessResultStatus, ProcessResultSummary, ProcessingPreflightPlan,
+    SupplementalProcessingAsset,
 };

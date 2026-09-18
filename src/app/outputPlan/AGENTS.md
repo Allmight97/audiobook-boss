@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Owns output directory, naming, path preview, encoded-size estimate, and
+- Owns output directory, naming, path preview, export-size estimate, and
   collision review under `src/app/outputPlan/`.
 - Solid views live in `src/ui/outputPanel` and `src/ui/collisionDialog`. They
   render this owner; they do not keep a second plan store.
@@ -18,8 +18,8 @@
 
 ## Hard Invariants
 
-- Estimated size is a derived view of public Input duration
-  (`input.view().totalDurationSeconds`) and Encoding owner's total
+- Estimated size combines preserved source bytes with the estimate for inputs
+  that will encode, using public Input audio choices and Encoding's total
   `estimateKbps`. Do not read private Input/encoder state, sample a UI
   encoder getter, parse the encoder `Est: ~60 kbps` label, or cache a mirrored
   byte size.
@@ -28,6 +28,8 @@
   request `encoderSettings.bitrateKbps`. Bitrate is total across channels; do not
   apply a stereo multiplier.
   The encoder header owns presentation.
+- Path preview passes the source book's audio choice to Rust so retained MP3
+  and M4A extensions match the final plan. Extension policy stays backend-owned.
 - Path preview is a Solid `createEffect` on public Input, Metadata, output
   directory, naming preset, year, and the **committed** template. Live template
   typing updates the input immediately and commits after 150 ms. Do not preview

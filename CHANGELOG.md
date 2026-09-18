@@ -4,6 +4,36 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-18
+
+### Added
+
+- Keep original audio per book in mixed batches while exporting updated tags,
+  artwork, and library folders. Supports AAC in M4B/M4A and MP3 files.
+- Show each input’s bitrate, sample rate, channels, and codec, with a quiet
+  suggestion when its existing audio is already compact.
+- Bundled FAAC HE-AAC with a numeric ABR target and 32, 44.1, or 48 kHz output.
+  Select it explicitly; Auto keeps its existing order.
+
+### Changed
+
+- Refresh FAAC to September 18 upstream source, including revised HE-AAC
+  high-frequency reconstruction. Retain safe initialization for parallel jobs.
+- Refresh bundled FFmpeg with MP4 metadata-read fixes and current media handling;
+  retain the NMR encoder and nonzero chapter-start correction.
+
+### Fixed
+
+- Reject a changed source before a queued original-audio export copies it.
+- Show source bitrates in kbps throughout the interface.
+- Keep processing validation errors visible when the selected encoder cannot
+  use the source sample rate.
+- Keep FDK HE-AAC mono output mono in both Apple and FFmpeg readers.
+- Load saved FAAC encoder defaults from experimental builds without resetting
+  other preferences or requiring settings recovery.
+- Preserve FAAC output's playable interval and final audio through Apple playback
+  and ABB re-import on macOS.
+
 ## [1.9.0] - 2026-09-15
 
 ### Added

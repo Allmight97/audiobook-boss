@@ -491,3 +491,50 @@ it('rejects completed import analysis when processing locks the input meanwhile'
 		'Order locked while processing. Wait for completion to add files.',
 	);
 });
+
+describe('per-book audio handling', () => {
+	it('keeps explicit choices with book identity through reordering, removal, and reset', async () => {
+		const owner = createInputOwner({ capability: fakeInput() });
+		const compact = audioFile('/books/prey.m4b', {
+			preservation: { canPreserve: true, recommended: true },
+		});
+		const large = audioFile('/books/large.mp3', {
+			preservation: { canPreserve: true, recommended: false },
+		});
+		owner.replaceSession(sessionWith([compact, large]));
+		expect(owner.audioHandling(compact)).toBe('encode');
+		owner.setAudioHandling(compact, 'preserve');
+		owner.moveFile({ index: 0, direction: 'down' });
+		expect(owner.view().files.map((file) => owner.audioHandling(file))).toEqual([
+			'encode',
+			'preserve',
+		]);
+		owner.setAudioHandling(large, 'preserve');
+		expect(owner.audioHandling(large)).toBe('preserve');
+		owner.setOrderLocked(true);
+		owner.setAudioHandling(compact, 'encode');
+		expect(owner.audioHandling(compact)).toBe('preserve');
+		owner.setOrderLocked(false);
+		await owner.removeFile(1);
+		owner.replaceSession({ ...owner.session(), fileList: sessionWith([compact, large]).fileList });
+		expect(owner.audioHandling(compact)).toBe('encode');
+		owner.reset();
+		owner.replaceSession(sessionWith([large]));
+		expect(owner.audioHandling(large)).toBe('encode');
+	});
+
+	it('refuses preservation for ineligible sources and expired input identities', () => {
+		const owner = createInputOwner({ capability: fakeInput() });
+		const wav = audioFile('/books/source.wav', {
+			preservation: { canPreserve: false, recommended: false },
+		});
+		const removed = audioFile('/books/removed.m4b', {
+			preservation: { canPreserve: true, recommended: true },
+		});
+		owner.replaceSession(sessionWith([wav]));
+		owner.setAudioHandling(wav, 'preserve');
+		owner.setAudioHandling(removed, 'preserve');
+		expect(owner.audioHandling(wav)).toBe('encode');
+		expect(owner.audioHandling(removed)).toBe('encode');
+	});
+});

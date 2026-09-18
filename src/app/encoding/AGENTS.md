@@ -17,15 +17,24 @@
 
 ## Hard Invariants
 
-- FDK quality, target kbps, and NMR speed stay independent across session encoder
-  switches. FDK estimates use its quality table; target bitrate already includes
-  all channels.
+- FDK quality, numeric target kbps, and NMR speed stay independent across
+  session encoder switches. FDK estimates use its quality table; target bitrate
+  already includes all channels. Bundled FAAC uses the numeric target in ABR
+  mode.
 - Derive rate mode from the effective encoder's backend capability. Views expose
-  FDK quality or a numeric target; rate mode is not separately selected. While
-  discovery is pending, preserve the validated hydrated mode so saved Native or
-  Apple requests stay usable. `request()` rejects Auto without capabilities;
-  estimates and saved defaults remain readable. Processing surfaces the rejection
-  before preparation or submission. Build typed requests directly from this owner's state.
+  FDK quality or a numeric target; rate mode is not separately selected.
+  `encoderConfigurations` is the single per-encoder capability source for the
+  mode and explicit sample-rate choices. FAAC exposes ABR and explicit 32000,
+  44100, and 48000 Hz only. While discovery is pending, preserve the validated
+  hydrated mode so saved explicit encoder requests stay usable.
+  `request()` rejects Auto without capabilities; estimates and saved defaults
+  remain readable. Processing surfaces the rejection before preparation or
+  submission. Build typed requests directly from this owner's state.
+- Preserve a globally valid explicit sample rate when it is unsupported by the
+  selected encoder, including selection, hydration, and capability reload.
+  Show the unsupported-rate hint and disabled option; the user chooses the
+  replacement and backend preflight rejects the incompatible request. Do not
+  silently substitute Auto or a different explicit rate.
 - Backend capabilities own numeric bounds. Apply bounds when hydrating defaults
   or reloading capabilities as well as accepting user edits.
 - `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`

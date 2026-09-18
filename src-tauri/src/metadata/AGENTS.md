@@ -95,7 +95,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   sibling discovery, diagnostics, and source fingerprints; FILE text never
   chooses another audio path.
 - `ChapterPlan`, `CueSource`, and `CueStatus` carry intake facts. Audio consumes
-  crate-local `inspect_chapter_source` and `validate_chapter_plan`.
+  crate-local `inspect_chapter_source`, `validate_chapter_plan`, and
+  `validate_source_fingerprint`; the last compares metadata from an already-open
+  source handle with the fingerprint captured during inspection.
 - `PassthroughSource.chapters` carries accepted data when present; `None` is
   container discovery for artifact readers. `verify_chapters` checks names,
   starts, ends, and count after final metadata writes and before artifact commit.

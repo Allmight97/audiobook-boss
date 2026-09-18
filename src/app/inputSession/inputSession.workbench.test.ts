@@ -103,15 +103,15 @@ describe('input session workbench mutations', () => {
 	it('projects inspector values for single and mixed selections', () => {
 		const session = selectFileInSession(
 			sessionWith([
-				file('/a', { bitrate: 64, sampleRate: 44100, channels: 2, codecLabel: 'AAC' }),
-				file('/b', { bitrate: 96, sampleRate: 48000, channels: 1, codecLabel: 'AAC' }),
+				file('/a', { bitrate: 64_000, sampleRate: 44100, channels: 2, codecLabel: 'AAC' }),
+				file('/b', { bitrate: 96_000, sampleRate: 48000, channels: 1, codecLabel: 'AAC' }),
 			]),
 			0,
 			{ multi: false, range: false },
 		);
 		const single = toInspectorView(session, () => ({ text: '---', title: '' }));
 		expect(single.contextVariant).toBe('single');
-		expect(single.bitrateText).toBe('64 kb/s');
+		expect(single.bitrateText).toBe('64 kbps');
 		const multi = toInspectorView(selectAllInSession(session), () => ({
 			text: '1 PDF',
 			title: 'notes.pdf',

@@ -10,6 +10,7 @@ import {
 	type RemoteReleaseSearchRequest as GeneratedRemoteReleaseSearchRequest,
 } from '../generated/tauri';
 import type {
+	AudioHandling,
 	EncoderSettings,
 	OutputNamingConfig,
 	OutputKind,
@@ -312,6 +313,7 @@ export const commandSpecs = {
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 		outputKind?: OutputKind | null;
+		audioHandling?: AudioHandling | null;
 	}) =>
 		runGeneratedCommand(
 			generatedCommands.previewOutputPath(
@@ -320,6 +322,7 @@ export const commandSpecs = {
 				toGeneratedOutputNamingConfig(args.outputNaming),
 				args.sourcePath ?? null,
 				args.outputKind ?? null,
+				args.audioHandling ?? null,
 			),
 		),
 	preflight_processing_plan: (args: {

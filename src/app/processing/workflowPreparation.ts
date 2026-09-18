@@ -1,5 +1,6 @@
 import { Effect, type AppEffect } from '../../lib/effect/appEffect';
 import type {
+	AudioHandling,
 	FileListInfo,
 	JobType,
 	ProcessPayload,
@@ -37,9 +38,11 @@ export function buildProcessPayload(
 	processingRequestConfig: ProcessingRequestConfig,
 	jobType: JobType,
 	supplementalAssetsByInputId?: Record<string, SupplementalProcessingAsset[]>,
+	audioHandling?: AudioHandling[],
 ): ProcessPayload {
 	return {
 		inputFiles: filePaths,
+		audioHandling,
 		inputIds: toWireInputIds(inputIds),
 		outputDir: processingRequestConfig.outputDirectory,
 		settings: processingRequestConfig.encoderSettings,

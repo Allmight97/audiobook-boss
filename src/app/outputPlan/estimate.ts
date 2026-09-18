@@ -21,9 +21,10 @@ export function formatEstimatedSizeText(
 	hasFiles: boolean,
 	durationSeconds: number,
 	request: EstimateEncoderRequest,
+	preservedBytes = 0,
 ): string {
 	if (!hasFiles) {
 		return '~ --- MB';
 	}
-	return `~ ${formatFileSize(estimateEncodedSizeBytes(durationSeconds, request))}`;
+	return `~ ${formatFileSize(preservedBytes + estimateEncodedSizeBytes(durationSeconds, request))}`;
 }

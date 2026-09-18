@@ -31,17 +31,22 @@ commands over invoking internals directly.
 - Media execution: real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
-  the Native AAC and Apple AAC encoder routes (external FDK is excluded: it
-  needs a user-supplied libfdk_aac FFmpeg, so real-execution proof for it is
-  manual or env-gated only; Apple AAC is macOS-gated and skips elsewhere),
-  sample-rate-converted merges, stereo channel preservation (per-channel RMS),
-  cover art, chapters, metadata round-trips, and cancellation. All fixtures
+  the Native AAC, Apple AAC, and bundled FAAC HE-AAC encoder routes (external
+  FDK is excluded: it needs a user-supplied libfdk_aac FFmpeg, so
+  real-execution proof for it is manual or env-gated only; Apple AAC is
+  macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
+  channel preservation (per-channel RMS),
+  cover art, chapters, metadata round-trips, preserved-audio copies, mixed-mode
+  preflight, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
   (keep synthesized fixtures small). Do not
   add broad media gates or committed fixtures beyond this lane without a new
-  owner decision.
+  owner decision. On a host with external FDK, explicitly run the ignored FAAC
+  re-import proof with `cargo nextest run -p audiobook-boss --features
+  bundled-ffmpeg --test all_tests --run-ignored only -E
+  'test(faac_reimport_through_external_fdk_preserves_audio_interval)'`.
 
 ## Command Menu
 

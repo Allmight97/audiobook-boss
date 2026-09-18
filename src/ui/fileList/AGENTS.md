@@ -14,8 +14,12 @@
 
 ## Private Cluster
 
-- Files: `FileListView.tsx`, `fileList.css`, `pointerReorder.ts`,
-  `coverThumbnails.ts`.
+- Files: `FileListView.tsx`, `AudioHandlingControl.tsx`, `fileList.css`,
+  `pointerReorder.ts`, `coverThumbnails.ts`.
+
+The recommended preservation disclosure owns its transient hover, focus,
+click-pinned, and Escape state inside `AudioHandlingControl`; list selection
+and the persisted per-input handling choice remain Input Session truth.
 
 ## Preferred Path
 

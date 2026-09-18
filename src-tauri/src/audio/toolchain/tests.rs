@@ -210,6 +210,7 @@ fn external_decoder_contract_rejects_unsupported_named_decoder() {
         sample_rate: None,
         channels: None,
         codec_label: None,
+        preservation: None,
         selected_decoder: Some("Apple AAC".to_string()),
         tag_title: None,
         tag_artist: None,

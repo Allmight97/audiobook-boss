@@ -24,8 +24,9 @@ export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 		getCurrentFileList: () => fileListFromInput(deps.input.view()),
 		getSelectedFileIndex: () => deps.input.view().selectedAnchor,
 		getSelectedFileIndices: () => new Set(deps.input.view().selectedIndices),
-		readProcessingRequestConfig: () => ({
-			...deps.encoding.request(),
+		getAudioHandling: (file) => deps.input.audioHandling(file),
+		readProcessingRequestConfig: (audioHandling) => ({
+			...(audioHandling.includes('encode') ? deps.encoding.request() : {}),
 			...deps.output.readRequestConfig(),
 		}),
 		getJobType: () => deps.input.jobType(),

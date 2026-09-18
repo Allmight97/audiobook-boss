@@ -1,13 +1,14 @@
 // TypeScript interfaces for audio processing
 import type {
 	ChapterSpec as GeneratedAudioChapter,
+	AudioHandling as GeneratedAudioHandling,
 	BitrateMode as GeneratedBitrateMode,
 	ChannelConfig as GeneratedChannelConfig,
 	AudioFile as GeneratedAudioFile,
 	CollisionPolicy as GeneratedCollisionPolicy,
 	DecoderSelection as GeneratedDecoderSelection,
 	EncoderAvailability as GeneratedEncoderAvailability,
-	EncoderBitrateModeCapability as GeneratedEncoderBitrateModeCapability,
+	EncoderConfigurationCapability as GeneratedEncoderConfigurationCapability,
 	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	EncoderSettings as GeneratedEncoderSettings,
@@ -37,6 +38,7 @@ import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 type GeneratedAudioFileUi = NullToOptionalDeep<GeneratedAudioFile>;
+export type AudioHandling = GeneratedAudioHandling;
 export type AudioChapter = NullToOptionalDeep<GeneratedAudioChapter>;
 export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId' | 'chapters'> & {
 	inputId?: string;
@@ -62,7 +64,7 @@ export type ProcessingPreflightPlan = Omit<
 
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
-export type EncoderBitrateModeCapability = GeneratedEncoderBitrateModeCapability;
+export type EncoderConfigurationCapability = GeneratedEncoderConfigurationCapability;
 export type EncoderCapabilitySource = GeneratedEncoderCapabilitySource;
 export type BitrateMode = GeneratedBitrateMode;
 export type BitrateModeKind = GeneratedBitrateModeKind;
@@ -89,7 +91,7 @@ export interface OutputRequestConfig {
 }
 
 // Combined UI process configuration composed at the processing workflow boundary.
-export type ProcessingRequestConfig = EncodingRequestConfig & OutputRequestConfig;
+export type ProcessingRequestConfig = Partial<EncodingRequestConfig> & OutputRequestConfig;
 
 // Preview command typing helpers (Tauri boundary)
 export interface PreviewRequest {
@@ -119,7 +121,7 @@ export type JobType = GeneratedJobType;
 
 // Complete processing payload
 export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'settings'> & {
-	settings: EncoderSettings;
+	settings?: EncoderSettings;
 };
 export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
@@ -166,3 +168,7 @@ export const formatFileSize = (bytes: number | undefined): string => {
 
 	return `${size.toFixed(1)} ${units[unitIndex]}`;
 };
+
+/** Imported audio bitrate is bits per second; encoder targets use kilobits per second. */
+export const formatAudioBitrate = (bitsPerSecond: number | undefined): string =>
+	bitsPerSecond ? `${Math.round(bitsPerSecond / 100) / 10} kbps` : 'N/A';

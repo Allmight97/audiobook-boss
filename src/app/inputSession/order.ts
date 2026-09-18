@@ -37,11 +37,14 @@ export function removeFileFromSession(
 	const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
 	const importOrdinalByPath = { ...session.importOrdinalByPath };
 	delete importOrdinalByPath[removed.path];
+	const audioHandlingByIdentity = { ...session.audioHandlingByIdentity };
+	delete audioHandlingByIdentity[fileIdentityKey(removed)];
 	const next = reindexSelectionAfterRemoval(replaceFileListFiles(session, nextFiles), index);
 	return {
 		session: {
 			...next,
 			importOrdinalByPath,
+			audioHandlingByIdentity,
 		},
 		removed,
 	};

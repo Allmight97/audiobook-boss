@@ -19,6 +19,8 @@ pub enum EncoderType {
     AacAt,
     /// Native FFmpeg AAC encoder (aac)
     NativeAac,
+    /// Bundled FAAC HE-AAC v1 using average bitrate control.
+    FaacHeAac,
 }
 
 impl fmt::Display for EncoderType {
@@ -28,6 +30,7 @@ impl fmt::Display for EncoderType {
             EncoderType::FdkHeAac => "fdk_he_aac",
             EncoderType::AacAt => "aac_at",
             EncoderType::NativeAac => "native_aac",
+            EncoderType::FaacHeAac => "faac_he_aac",
         };
         write!(f, "{}", label)
     }
@@ -39,6 +42,7 @@ impl fmt::Display for EncoderType {
 pub enum BitrateMode {
     Cbr,
     Cvbr,
+    Abr,
     Vbr(u8),
 }
 
@@ -48,6 +52,7 @@ pub enum BitrateMode {
 pub enum BitrateModeKind {
     Cbr,
     Cvbr,
+    Abr,
     Vbr,
 }
 
@@ -56,6 +61,7 @@ impl BitrateModeKind {
         match mode {
             BitrateMode::Cbr => Self::Cbr,
             BitrateMode::Cvbr => Self::Cvbr,
+            BitrateMode::Abr => Self::Abr,
             BitrateMode::Vbr(_) => Self::Vbr,
         }
     }
@@ -107,11 +113,12 @@ pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u8> = 1..=5;
 /// Default FDK VBR level for audiobook speech output.
 pub const DEFAULT_VBR_LEVEL: u8 = 3;
 
-const ALL_ENCODER_TYPES: [EncoderType; 4] = [
+const ALL_ENCODER_TYPES: [EncoderType; 5] = [
     EncoderType::Auto,
     EncoderType::FdkHeAac,
     EncoderType::AacAt,
     EncoderType::NativeAac,
+    EncoderType::FaacHeAac,
 ];
 const AUTO_MODES: [BitrateModeKind; 3] = [
     BitrateModeKind::Vbr,
@@ -121,11 +128,12 @@ const AUTO_MODES: [BitrateModeKind; 3] = [
 const VBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Vbr];
 const CVBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cvbr];
 const CBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cbr];
+const ABR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Abr];
 
 pub const MAX_ENCODER_BITRATE: u16 = 1152;
 pub const NATIVE_SPEED_MAX: u8 = 4;
 
-pub fn all_encoder_types() -> [EncoderType; 4] {
+pub fn all_encoder_types() -> [EncoderType; 5] {
     ALL_ENCODER_TYPES
 }
 
@@ -135,6 +143,7 @@ pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [Bi
         EncoderType::FdkHeAac => &VBR_ONLY,
         EncoderType::AacAt => &CVBR_ONLY,
         EncoderType::NativeAac => &CBR_ONLY,
+        EncoderType::FaacHeAac => &ABR_ONLY,
     }
 }
 
@@ -143,15 +152,20 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
         EncoderType::Auto | EncoderType::FdkHeAac => BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
         EncoderType::AacAt => BitrateMode::Cvbr,
         EncoderType::NativeAac => BitrateMode::Cbr,
+        EncoderType::FaacHeAac => BitrateMode::Abr,
     }
 }
 
 /// Validates encoder settings (no engine side-effects)
 pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
-    if matches!(settings.bitrate_mode, BitrateMode::Cbr | BitrateMode::Cvbr)
-        && (settings.bitrate_kbps == 0 || settings.bitrate_kbps > MAX_ENCODER_BITRATE)
+    if matches!(
+        settings.bitrate_mode,
+        BitrateMode::Cbr | BitrateMode::Cvbr | BitrateMode::Abr
+    ) && (settings.bitrate_kbps == 0 || settings.bitrate_kbps > MAX_ENCODER_BITRATE)
     {
-        return Err(AppError::InvalidInput(format!("Target bitrate must be 1..={MAX_ENCODER_BITRATE} kbps; the encoder, sample rate and channels may lower this ceiling.")));
+        return Err(AppError::InvalidInput(format!(
+            "Target bitrate must be 1..={MAX_ENCODER_BITRATE} kbps; the encoder, sample rate and channels may lower this ceiling."
+        )));
     }
     if matches!(
         settings.encoder_type,
@@ -181,9 +195,31 @@ pub(super) fn validate_native_target_bitrate(
     Ok(())
 }
 
+/// Validates a whole-stream FAAC HE-AAC target against the ISO frame ceiling.
+/// FAAC's HE-AAC core runs at half the requested output rate, so its 6144
+/// bits/channel/frame limit permits 3 * sample_rate bits per channel/second.
+pub(crate) fn validate_faac_target_bitrate(
+    bitrate_kbps: u16,
+    sample_rate: u32,
+    channels: u32,
+) -> Result<()> {
+    if sample_rate == 0 || !matches!(channels, 1 | 2) {
+        return Err(AppError::InvalidInput(
+            "FAAC HE-AAC requires a non-zero sample rate and mono or stereo output.".into(),
+        ));
+    }
+    let max_kbps = (3 * u64::from(sample_rate) * u64::from(channels)) / 1000;
+    if u64::from(bitrate_kbps) > max_kbps {
+        return Err(AppError::InvalidInput(format!(
+            "FAAC target bitrate exceeds {max_kbps} kbps at {sample_rate} Hz / {channels} channel(s)"
+        )));
+    }
+    Ok(())
+}
+
 fn validate_bitrate_mode(mode: BitrateMode) -> Result<()> {
     match mode {
-        BitrateMode::Cbr | BitrateMode::Cvbr => Ok(()),
+        BitrateMode::Cbr | BitrateMode::Cvbr | BitrateMode::Abr => Ok(()),
         BitrateMode::Vbr(level) if VALID_VBR_LEVEL_RANGE.contains(&level) => Ok(()),
         BitrateMode::Vbr(level) => Err(AppError::InvalidInput(format!(
             "Unsupported VBR level: {} (allowed 1..=5)",
@@ -284,6 +320,7 @@ pub fn resolve_encoder_type(
         EncoderType::FdkHeAac if availability.fdk_available => EncoderType::FdkHeAac,
         EncoderType::AacAt if availability.aac_at_available => EncoderType::AacAt,
         EncoderType::NativeAac if availability.native_aac_available => EncoderType::NativeAac,
+        EncoderType::FaacHeAac => EncoderType::FaacHeAac,
         explicit => explicit,
     }
 }
@@ -293,7 +330,7 @@ pub fn encoder_available(
     availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> bool {
     match requested {
-        EncoderType::Auto => true,
+        EncoderType::Auto | EncoderType::FaacHeAac => true,
         EncoderType::FdkHeAac => availability.fdk_available,
         EncoderType::AacAt => availability.aac_at_available,
         EncoderType::NativeAac => availability.native_aac_available,
@@ -329,6 +366,7 @@ pub(super) fn validate_encoder_available(requested: EncoderType, available: bool
             }
         }
         EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),
+        EncoderType::FaacHeAac => unreachable!("FAAC is bundled and always available"),
     };
 
     Err(AppError::InvalidInput(message))
@@ -342,6 +380,7 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
         EncoderType::NativeAac => "aac",
         EncoderType::FdkHeAac => "libfdk_aac",
         EncoderType::AacAt => "aac_at",
+        EncoderType::FaacHeAac => "faac",
     }
 }
 
@@ -384,5 +423,17 @@ mod aac_at_message_tests {
             message.contains("Apple AAC (aac_at) is only available on macOS."),
             "unexpected message: {message}"
         );
+    }
+}
+
+#[cfg(test)]
+mod faac_target_bitrate_tests {
+    use super::*;
+
+    #[test]
+    fn faac_target_uses_the_he_frame_ceiling() {
+        assert!(validate_faac_target_bitrate(192, 32_000, 2).is_ok());
+        assert!(validate_faac_target_bitrate(193, 32_000, 2).is_err());
+        assert!(validate_faac_target_bitrate(288, 48_000, 2).is_ok());
     }
 }

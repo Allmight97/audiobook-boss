@@ -75,6 +75,7 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
             audio_file.sample_rate = properties.sample_rate;
             audio_file.channels = properties.channels;
             audio_file.codec_label = properties.codec_label;
+            audio_file.preservation = Some(properties.preservation);
             audio_file.tag_title = properties.tag_title;
             audio_file.tag_artist = properties.tag_artist;
             audio_file.chapters = properties.chapters;
@@ -119,6 +120,7 @@ struct AudioProperties {
     tag_artist: Option<String>,
     chapters: Vec<AudioChapter>,
     selected_decoder: Option<DecoderSelection>,
+    preservation: super::AudioPreservation,
 }
 
 /// Known MP4 audio packets must fit inside the local file, even when the
@@ -163,7 +165,7 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     // First check if we support the file extension
     let format = crate::audio::extensions::audio_format_for_path(path)?.label;
 
-    let (duration, chapters, (tag_title, tag_artist)) = {
+    let (duration, chapters, (tag_title, tag_artist), container_name) = {
         let ictx = ff::format::input(path).map_err(AppError::Ffmpeg)?;
         let audio_stream = ictx
             .streams()
@@ -199,7 +201,12 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
             })
             .collect();
         let display_tags = crate::metadata::display_tags_from_ffmpeg_dict(&ictx.metadata());
-        (duration, chapters, display_tags)
+        (
+            duration,
+            chapters,
+            display_tags,
+            ictx.format().name().to_string(),
+        )
     };
 
     // Validate that we got a reasonable duration
@@ -233,6 +240,18 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
         tag_artist,
         chapters,
         selected_decoder: Some(selected_decoder),
+        preservation: crate::audio::processor::assess_preservation(
+            &path
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default()
+                .to_ascii_lowercase(),
+            &container_name,
+            inspection.codec_id,
+            inspection.bitrate,
+            inspection.sample_rate,
+            inspection.channels,
+        ),
     })
 }
 
