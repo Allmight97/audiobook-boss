@@ -110,6 +110,13 @@ fn copy_with_cancellation(
             );
         }
     }
+    if copied_bytes != total_bytes {
+        return Err(AppError::InvalidInput(
+            "Audio changed since inspection. Remove and import it again.".to_string(),
+        ));
+    }
+    let source_metadata = input.metadata()?;
+    crate::metadata::validate_source_fingerprint(&source_metadata, expected_source_fingerprint)?;
     output.sync_all()?;
     Ok(())
 }
@@ -225,5 +232,74 @@ mod tests {
             std::fs::metadata(&source).expect("original source").len(),
             4 * 1024 * 1024
         );
+    }
+
+    #[test]
+    fn preserve_copy_rejects_source_truncated_during_copy() {
+        let tmp = tempfile::tempdir().expect("copy workspace");
+        let source = tmp.path().join("source.mp3");
+        let staged = tmp.path().join("staged.mp3");
+        std::fs::write(&source, vec![7_u8; 4 * 1024 * 1024]).expect("write copy source");
+        let source_fingerprint = inspect_source_fingerprint(&source);
+        let source_for_listener = source.clone();
+        let mut context = ProcessingContext::new_headless(
+            Arc::new(ProcessingSession::new()),
+            None,
+            crate::audio::SampleRateConfig::Auto,
+            OutputConfig::new(tmp.path().join("final.mp3")),
+        );
+        context.progress_listener = Some(Arc::new(move |_| {
+            std::fs::File::create(&source_for_listener).expect("truncate source during copy");
+        }));
+
+        let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context)
+            .expect_err("source truncation must be rejected after copy EOF");
+
+        assert!(
+            matches!(error, AppError::InvalidInput(message) if message.contains("changed since"))
+        );
+        assert_eq!(
+            std::fs::metadata(&source).expect("truncated source").len(),
+            0
+        );
+    }
+
+    #[test]
+    fn preserve_copy_rejects_same_size_source_overwrite_during_copy() {
+        let tmp = tempfile::tempdir().expect("copy workspace");
+        let source = tmp.path().join("source.mp3");
+        let staged = tmp.path().join("staged.mp3");
+        std::fs::write(&source, vec![7_u8; 4 * 1024 * 1024]).expect("write copy source");
+        let source_fingerprint = inspect_source_fingerprint(&source);
+        let source_for_listener = source.clone();
+        let mut context = ProcessingContext::new_headless(
+            Arc::new(ProcessingSession::new()),
+            None,
+            crate::audio::SampleRateConfig::Auto,
+            OutputConfig::new(tmp.path().join("final.mp3")),
+        );
+        context.progress_listener = Some(Arc::new(move |_| {
+            let mut source = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&source_for_listener)
+                .expect("open source during copy");
+            source
+                .write_all(&[9_u8; 4 * 1024 * 1024])
+                .expect("overwrite source during copy");
+            source
+                .set_modified(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1))
+                .expect("set source mtime");
+        }));
+
+        let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context)
+            .expect_err("same-size source overwrite must be rejected after copy EOF");
+
+        assert!(
+            matches!(error, AppError::InvalidInput(message) if message.contains("changed since"))
+        );
+        assert!(std::fs::read(&source)
+            .expect("overwritten source")
+            .iter()
+            .all(|byte| *byte == 9));
     }
 }
