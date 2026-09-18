@@ -73,7 +73,7 @@ These are tracked at summary level so the register stays useful:
 Use this from the repo root when refreshing the register:
 
 ```bash
-rg -n "\bunsafe\b" src-tauri/src src-tauri/tests vendor/ffmpeg-sys-next-9.0.0/src src/AGENTS.md --glob '!target'
+rg -n "\bunsafe\b" src-tauri/src src-tauri/tests vendor/ffmpeg-sys-next-9.0.0/src vendor/faac-sys/src src/AGENTS.md --glob '!target'
 ```
 
 Then classify hits as:

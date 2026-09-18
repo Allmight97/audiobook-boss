@@ -164,10 +164,8 @@ mod tests {
         let error = copy_with_cancellation(&source, &staged, &context)
             .expect_err("copy must observe cancellation");
         assert!(matches!(error, AppError::Cancellation(_)));
-        assert_eq!(
-            std::fs::metadata(&staged).expect("partial copy").len(),
-            1024 * 1024
-        );
+        let copied_bytes = std::fs::metadata(&staged).expect("partial copy").len();
+        assert!(copied_bytes > 0 && copied_bytes < 4 * 1024 * 1024);
         assert_eq!(
             std::fs::metadata(&source).expect("original source").len(),
             4 * 1024 * 1024

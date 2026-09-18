@@ -66,8 +66,9 @@ pub(crate) fn validate_external_processing_contract_with_file_info(
         )
     })?;
     let merge = payload.job_type == Some(JobType::Merge);
+    let filtered_info;
     let validation_info = if !handling.contains(&AudioHandling::Preserve) {
-        file_info.clone()
+        file_info
     } else {
         let mut filtered = file_info.clone();
         let modes = &handling;
@@ -89,11 +90,12 @@ pub(crate) fn validate_external_processing_contract_with_file_info(
         filtered.invalid_count = filtered.files.len().saturating_sub(filtered.valid_count);
         filtered.total_duration = filtered.files.iter().filter_map(|file| file.duration).sum();
         filtered.total_size = filtered.files.iter().filter_map(|file| file.size).sum();
-        filtered
+        filtered_info = filtered;
+        &filtered_info
     };
     audio::validate_audio_engine_inputs(
         settings,
-        &validation_info,
+        validation_info,
         &resolve_sample_rate(payload)?,
         merge,
     )?;

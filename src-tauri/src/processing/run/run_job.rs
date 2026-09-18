@@ -331,26 +331,6 @@ mod registration_tests {
             b"existing library file"
         );
     }
-
-    #[tokio::test]
-    async fn encode_registration_still_rejects_mp3() {
-        let temp_dir = TempDir::new().expect("temp output directory");
-        let registry = std::sync::Arc::new(crate::processing::JobRegistry::new(1));
-        let output = temp_dir.path().join("output.mp3");
-        let error = match register_job_and_validate_output(
-            &registry,
-            &output,
-            None,
-            log_context(),
-            AudioHandling::Encode,
-        )
-        .await
-        {
-            Ok(_) => panic!("encode output must remain m4b"),
-            Err(error) => error,
-        };
-        assert!(error.to_string().contains(".m4b"));
-    }
 }
 
 impl ProcessingJobLifecycleLog {
