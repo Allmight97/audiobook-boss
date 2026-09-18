@@ -42,8 +42,13 @@ priming when reading them back, including through the external FDK route. Mono
 FDK output explicitly declares that parametric stereo is absent so Apple and
 FFmpeg both read it as mono.
 FAAC's LGPL license and source provenance ship with the app; its corresponding
-source and build configuration live in `vendor/faac-sys/`. Public packaging
-also follows the release lane’s source/rebuild requirements for static linking.
+source and build configuration live in `vendor/faac-sys/`. Each public release
+provides the corresponding ABB source, including the modified FAAC source and
+build scripts. To rebuild with a modified FAAC library, extract the matching
+release source archive, edit `vendor/faac-sys/upstream/`, run
+`bun install --frozen-lockfile`, then `bun run app:build:dmg` on an Apple Silicon
+Mac with the prerequisites above. The build compiles and links that local FAAC
+source; no proprietary relinking tool is required.
 
 [Download latest release →](https://github.com/Allmight97/audiobook-boss/releases)
 

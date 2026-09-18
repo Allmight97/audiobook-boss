@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-18
+
 ### Added
 
 - Keep original audio per book in mixed batches while exporting updated tags,
@@ -11,7 +13,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Show each input’s bitrate, sample rate, channels, and codec, with a quiet
   suggestion when its existing audio is already compact.
 - Bundled FAAC HE-AAC with a numeric ABR target and 32, 44.1, or 48 kHz output.
-  Select it explicitly while evaluating real books; Auto keeps its existing order.
+  Select it explicitly; Auto keeps its existing order.
 
 ### Changed
 
@@ -22,6 +24,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Fixed
 
+- Reject a changed source before a queued original-audio export copies it.
 - Show source bitrates in kbps throughout the interface.
 - Keep processing validation errors visible when the selected encoder cannot
   use the source sample rate.

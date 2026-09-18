@@ -29,7 +29,8 @@ publishes the shared lookup tables once with C11 acquire/release atomics.
 Upstream initializes them on every encoder open, racing with other opens and
 active encodes in a parallel batch. After publication the tables stay immutable;
 encoder handles remain independent. Retire this patch when upstream supplies
-equivalent thread-safe initialization. Keep `FAAC_STATS` disabled: its optional
+equivalent thread-safe initialization; upstream follow-up is
+[FAAC #214](https://github.com/knik0/faac/issues/214). Keep `FAAC_STATS` disabled: its optional
 global counters are not synchronized. The sys tests compare parallel and
 sequential packet output; a standalone ThreadSanitizer probe reproduces the
 upstream initialization race and checks this repair.
