@@ -381,6 +381,7 @@ export type EncoderConfigurationCapability = {
 	allowedModes: BitrateModeKind[],
 	defaultMode: BitrateMode,
 	explicitSampleRates: number[],
+	faacProfiles: FaacProfileCapability[],
 };
 
 export type EncoderDefaults = {
@@ -401,7 +402,7 @@ export type EncoderSettings = {
 	encoderType: EncoderType,
 	/**
 	 *  Target kbps. Native AAC additionally checks the resolved rate/channel ceiling.
-	 *  Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
+	 *  Ignored in VBR mode, where the encoder's quality setting owns bitrate.
 	 */
 	bitrateKbps: number,
 	bitrateMode: BitrateMode,
@@ -410,6 +411,7 @@ export type EncoderSettings = {
 	afterburner: boolean,
 	/**  Native NMR search speed, upstream default 0. */
 	nativeAacSpeed?: number,
+	faacProfile?: FaacProfile,
 };
 
 export type EncoderSettingsCapabilities = {
@@ -419,6 +421,8 @@ export type EncoderSettingsCapabilities = {
 	encoderConfigurations: EncoderConfigurationCapability[],
 	bitrateKbpsMax: number,
 	nativeSpeedMax: number,
+	faacQualityPresets: number[],
+	faacQualityDefault: number,
 	vbrLevelMin: number,
 	vbrLevelMax: number,
 	vbrLevelDefault: number,
@@ -437,8 +441,8 @@ export type EncoderType =
 "aac_at" |
 /**  Native FFmpeg AAC encoder (aac) */
 "native_aac" |
-/**  Bundled FAAC HE-AAC v1 using average bitrate control. */
-"faac_he_aac";
+/**  Bundled FAAC AAC-LC / HE-AAC v1. */
+"faac";
 
 /**
  *  Stage identifier emitted on `processing-progress` events.
@@ -450,6 +454,14 @@ export type EncoderType =
  *  pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
  */
 export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "skipped" | "failed" | "cancelled";
+
+/**  FAAC resolves Auto once from the requested output configuration. */
+export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
+
+export type FaacProfileCapability = {
+	profile: FaacProfile,
+	explicitSampleRates: number[],
+};
 
 /**  Summary information for a file list */
 export type FileListInfo = {

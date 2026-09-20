@@ -1,6 +1,6 @@
 ---
 name: abb-library-research
-description: Resolve version-sensitive Effect, Solid, Tauri, Specta, or tauri-specta behavior when an ABB implementation or contract decision needs external-library evidence.
+description: Resolve version-sensitive Effect, Solid, Tauri, Specta, tauri-specta, or FAAC behavior when ABB needs external-library evidence, including FAAC revision updates and patch retirement.
 ---
 
 # ABB Library Research
@@ -11,8 +11,9 @@ Repository paths below are relative to the ABB root.
 ## Evidence
 
 Start with the owning ABB code, tests, and contract, then identify the resolved
-package version and source in `bun.lock` or `Cargo.lock`. Manifests state the
-intended range; lockfiles select the version.
+package version and source in `bun.lock` or `Cargo.lock`. For source-vendored
+libraries, use their vendor provenance and build configuration. Manifests
+state the intended range; lockfiles or vendor pins select the source.
 
 Use installed declarations/source or exact registry-packaged source for
 version-sensitive behavior. Exact-version public documentation may be enough
@@ -24,6 +25,7 @@ Load only the route card for the library involved:
 
 | Question | Reference |
 | --- | --- |
+| FAAC API, upstream updates, patch retirement, or quality/performance evaluation | [faac.md](references/faac.md) |
 | Effect workflows and APIs | [effect.md](references/effect.md) |
 | Solid rendering, reactivity, or component tests | [solid.md](references/solid.md) |
 | Tauri runtime, commands, capabilities, or bundling | [tauri.md](references/tauri.md) |

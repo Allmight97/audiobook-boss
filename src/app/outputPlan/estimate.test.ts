@@ -24,3 +24,12 @@ describe('formatEstimatedSizeText', () => {
 		expect(text).not.toBe('~ --- MB');
 	});
 });
+
+it('does not invent a size for quality-based FAAC, while preservation remains countable', () => {
+	expect(formatEstimatedSizeText(true, 60, { bitrateKbps: null }, 1000)).toBe(
+		'Size varies with audio',
+	);
+	expect(formatEstimatedSizeText(true, 0, { bitrateKbps: null }, 1000)).not.toBe(
+		'Size varies with audio',
+	);
+});

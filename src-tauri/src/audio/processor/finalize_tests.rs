@@ -16,6 +16,7 @@ fn encoder_settings() -> EncoderSettings {
         channels: ChannelConfig::Auto,
         afterburner: false,
         native_aac_speed: 0,
+        faac_profile: crate::audio::FaacProfile::Auto,
     }
 }
 

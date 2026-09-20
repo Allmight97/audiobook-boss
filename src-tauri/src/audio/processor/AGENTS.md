@@ -75,10 +75,14 @@
 
 ## FAAC file timing
 
-- `faac_timing` owns the core priming used in MP4 and the native decoder's PCM
-  interval. Its standard encoding-tool tag identifies ABB-produced FAAC files;
-  never apply that interval to arbitrary HE-AAC files.
-- Re-import reads all FAAC access units, including decoder postroll, and trims
+- `encoder/faac.rs` owns requested parameters and resolved configuration. Its
+  opened profile determines frame size, mux profile, priming, postroll policy,
+  and encoding-tool tag; profile Auto must work for both LC and HE.
+- `faac_timing` owns HE core priming in MP4 and the native decoder's PCM
+  interval. Its encoding-tool tag identifies ABB-produced HE files; LC uses
+  a distinct tag and its returned encoder delay. Apply the HE interval only
+  to the recognized HE provenance.
+- HE re-import reads all FAAC access units, including decoder postroll, and trims
   at source sample rate before preview, resampling, or concatenation. In-process
   packet skip metadata and external FDK filters consume the same interval.
   Encoder selection does not change the source's playable audio.

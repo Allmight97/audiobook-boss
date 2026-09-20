@@ -1,6 +1,6 @@
 //! Audio processing settings validation utilities
 
-use super::{EncoderType, SampleRateConfig};
+use super::{EncoderType, FaacProfile, SampleRateConfig};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::path::Path;
 
@@ -33,10 +33,10 @@ pub fn supported_sample_rates() -> &'static [u32] {
 
 /// Returns the output rates supported by the selected encoder. The general
 /// sample-rate list remains unchanged for existing encoders; FAAC HE-AAC has
-/// a narrower upstream-supported set for its explicit HE profile.
-pub(crate) fn encoder_sample_rates(encoder: EncoderType) -> &'static [u32] {
+/// a narrower ABB-supported set for its explicit HE profile.
+pub(crate) fn encoder_sample_rates(encoder: EncoderType, profile: FaacProfile) -> &'static [u32] {
     match encoder {
-        EncoderType::FaacHeAac => FAAC_SAMPLE_RATES,
+        EncoderType::Faac if profile == FaacProfile::HeAacV1 => FAAC_SAMPLE_RATES,
         _ => SUPPORTED_SAMPLE_RATES,
     }
 }
@@ -45,11 +45,12 @@ pub(crate) fn encoder_sample_rates(encoder: EncoderType) -> &'static [u32] {
 /// selected encoder's supported rates.
 pub(crate) fn validate_encoder_sample_rate(
     encoder: EncoderType,
+    profile: FaacProfile,
     config: &SampleRateConfig,
 ) -> Result<()> {
     validate_sample_rate_config(config)?;
     if let SampleRateConfig::Explicit(rate) = config {
-        let supported = encoder_sample_rates(encoder);
+        let supported = encoder_sample_rates(encoder, profile);
         if !supported.contains(rate) {
             return Err(AppError::InvalidInput(format!(
                 "{encoder} does not support {rate} Hz. Choose one of {supported:?}."
@@ -164,7 +165,8 @@ mod tests {
     #[test]
     fn faac_rejects_an_explicit_rate_outside_its_capability() {
         let error = validate_encoder_sample_rate(
-            EncoderType::FaacHeAac,
+            EncoderType::Faac,
+            FaacProfile::HeAacV1,
             &SampleRateConfig::Explicit(22050),
         )
         .expect_err("FAAC should reject rates below 32 kHz");

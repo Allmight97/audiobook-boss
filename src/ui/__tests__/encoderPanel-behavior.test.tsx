@@ -258,7 +258,8 @@ describe('encoder panel behavior controls', () => {
 		runtime!.encoding.applyDefaults({
 			settings: {
 				...runtime!.encoding.readDefaults().settings,
-				encoderType: 'faac_he_aac',
+				encoderType: 'faac',
+				faacProfile: 'he_aac_v1',
 				bitrateMode: { mode: 'abr' },
 			},
 			sampleRate: { explicit: 22050 },
@@ -320,6 +321,45 @@ describe('encoder panel behavior controls', () => {
 
 		await vi.waitFor(() => {
 			expect(document.getElementById('estimated-bitrate')?.textContent).toBe('Est: ~96 kbps');
+		});
+	});
+
+	it('wires FAAC profile and rate controls to the request and restores the ABR target', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture(),
+		);
+		renderEncoder();
+		await waitForEncoderOptions();
+		changeSelectValue(document.getElementById('adv-encoder') as HTMLSelectElement, 'faac');
+		await vi.waitFor(() => expect(document.getElementById('faac-profile')).not.toBeNull());
+		const profile = document.getElementById('faac-profile') as HTMLSelectElement;
+		const rate = document.getElementById('faac-rate-control') as HTMLSelectElement;
+		expect(profile).toHaveAccessibleName('Profile');
+		expect(profile.value).toBe('auto');
+		expect(rate).toHaveAccessibleName('Rate control');
+		expect(rate.value).toBe('abr');
+		changeSelectValue(rate, 'vbr');
+		await vi.waitFor(() => expect(document.getElementById('output-quality')?.hidden).toBe(false));
+		const quality = document.getElementById('output-quality') as HTMLSelectElement;
+		expect(Array.from(quality.options).map((option) => option.textContent)).toEqual([
+			'Smaller (50)',
+			'Standard (100)',
+			'Higher (200)',
+		]);
+		changeSelectValue(quality, '50');
+		changeSelectValue(profile, 'aac_lc');
+		await vi.waitFor(() => {
+			expect(runtime!.encoding.request().encoderSettings).toMatchObject({
+				faacProfile: 'aac_lc',
+				bitrateMode: { mode: 'vbr', value: 50 },
+			});
+			expect(document.getElementById('estimated-bitrate')?.textContent).toContain('choose ABR');
+		});
+		changeSelectValue(rate, 'abr');
+		await vi.waitFor(() => {
+			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
+			expect((document.getElementById('output-bitrate') as HTMLInputElement).value).toBe('64');
+			expect(runtime!.encoding.request().encoderSettings.faacProfile).toBe('aac_lc');
 		});
 	});
 

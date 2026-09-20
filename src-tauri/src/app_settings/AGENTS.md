@@ -26,6 +26,9 @@
   preference; retrying storage remains possible while jobs are active. Reset
   coordinates runtime defaults with storage and restores prior concurrency if
   storage reset fails.
+- Storage upgrades saved `faac_he_aac` defaults to `faac` with explicit HE
+  intent in last-used and pinned scopes. Fresh defaults use profile Auto;
+  current IPC accepts only the canonical encoder identity.
 - Unsupported persisted encoders require explicit targeted recovery. Inspection
   is read-only; recovery rechecks the reviewed encoder scopes, writes a complete
   backup before replacement, and resets only their encoder-default groups.

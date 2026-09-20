@@ -73,13 +73,49 @@ export function EncoderView(): JSX.Element {
 						</p>
 					</div>
 				</div>
-				<div class="encoder-field-row">
-					<span class="label">Profile</span>
-					<div class="profile-display profile-display-workbench" data-testid="profile-display">
-						<span id="encoder-profile-display">{view().profileDisplay}</span>
-						<span class="readonly-badge">read-only</span>
+				<Show
+					when={view().faac}
+					fallback={
+						<div class="encoder-field-row">
+							<span class="label">Profile</span>
+							<div class="profile-display profile-display-workbench" data-testid="profile-display">
+								<span id="encoder-profile-display">{view().profileDisplay}</span>
+								<span class="readonly-badge">read-only</span>
+							</div>
+						</div>
+					}
+				>
+					<div class="encoder-field-row">
+						<label for="faac-profile">Profile</label>
+						<div class="encoder-field-stack">
+							<select
+								id="faac-profile"
+								value={view().faacProfile}
+								onChange={bind('faacProfile')}
+								aria-describedby="faac-profile-hint"
+							>
+								<For each={view().faacProfileOptions}>
+									{(option) => <option value={option.value}>{option.label}</option>}
+								</For>
+							</select>
+							<p id="faac-profile-hint" class="field-hint">
+								{view().profileHint}
+							</p>
+						</div>
 					</div>
-				</div>
+					<div class="encoder-field-row">
+						<label for="faac-rate-control">Rate control</label>
+						<select
+							id="faac-rate-control"
+							value={view().rateControl}
+							onChange={bind('rateControl')}
+						>
+							<For each={view().rateControlOptions}>
+								{(option) => <option value={option.value}>{option.label}</option>}
+							</For>
+						</select>
+					</div>
+				</Show>
 				<div class="encoder-field-row">
 					<label
 						for={view().showQuality ? 'output-quality' : 'output-bitrate'}
@@ -92,6 +128,7 @@ export function EncoderView(): JSX.Element {
 							id="output-quality"
 							hidden={!view().showQuality}
 							data-testid="quality-select"
+							aria-describedby="estimated-bitrate"
 							value={view().quality}
 							onChange={bind('quality')}
 						>

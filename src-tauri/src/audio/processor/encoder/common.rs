@@ -222,7 +222,7 @@ impl EncoderFramePlan {
             EncoderType::AacAt | EncoderType::NativeAac => Ok(Self {
                 samples_per_frame: AAC_FRAME_QUANTUM_SAMPLES,
             }),
-            EncoderType::FaacHeAac | EncoderType::FdkHeAac | EncoderType::Auto => {
+            EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
                 Err(AppError::General(
                     "Encoder frame plan requires a resolved in-process encoder type.".to_string(),
                 ))
@@ -313,6 +313,7 @@ mod tests {
             channels: ChannelConfig::Stereo,
             afterburner: false,
             native_aac_speed: 0,
+            faac_profile: crate::audio::FaacProfile::Auto,
         };
         let sample_rate = SampleRateConfig::Explicit(44_100);
         let inputs = [PathBuf::from("/private/input/Book One.m4b")];

@@ -99,6 +99,7 @@ async fn native_aac_reprocessing_keeps_the_original_playable_sample_count() {
         native_encoder_settings(),
         EncoderSettings {
             native_aac_speed: 4,
+            faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
             ..native_encoder_settings()
         },
     ] {
@@ -363,6 +364,7 @@ fn native_encoder_settings() -> EncoderSettings {
         channels: ChannelConfig::Mono,
         afterburner: false,
         native_aac_speed: 0,
+        faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
     }
 }
 
@@ -1572,6 +1574,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         channels: ChannelConfig::Mono,
         afterburner: false,
         native_aac_speed: 0,
+        faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());
@@ -1802,7 +1805,8 @@ async fn prepending_chapterless_audio_preserves_later_embedded_chapter_positions
 
 fn faac_encoder_settings() -> EncoderSettings {
     EncoderSettings {
-        encoder_type: EncoderType::FaacHeAac,
+        encoder_type: EncoderType::Faac,
+        faac_profile: audiobook_boss_lib::audio::FaacProfile::HeAacV1,
         bitrate_mode: BitrateMode::Abr,
         ..native_encoder_settings()
     }
@@ -1877,38 +1881,46 @@ async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residu
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
-    for samples in [257, 4096, 12117] {
-        let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
-            .with_encoder(faac_encoder_settings());
-        let source = decode_pcm_f32(&lane.inputs[0]);
-        let output = lane.process(None).await;
-        let decoded_path = lane.tmp.path().join("apple.wav");
-        let converted = Command::new("afconvert")
-            .args(["-f", "WAVE", "-d", "LEF32"])
-            .arg(&output)
-            .arg(&decoded_path)
-            .output()
-            .unwrap();
-        assert!(
-            converted.status.success(),
-            "{}",
-            String::from_utf8_lossy(&converted.stderr)
-        );
-        let decoded = decode_pcm_f32(&decoded_path);
-        assert!(
-            decoded.len().abs_diff(source.len()) <= 1,
-            "source={} decoded={}",
-            source.len(),
-            decoded.len()
-        );
-        let tail = &decoded[decoded.len() - 32..];
-        let rms = (tail
-            .iter()
-            .map(|value| f64::from(*value).powi(2))
-            .sum::<f64>()
-            / 32.0)
-            .sqrt();
-        assert!(rms > 0.05, "missing final audio tail: {rms}");
+    for profile in [
+        audiobook_boss_lib::audio::FaacProfile::HeAacV1,
+        audiobook_boss_lib::audio::FaacProfile::AacLc,
+    ] {
+        for samples in [257, 4096, 12117] {
+            let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
+                .with_encoder(EncoderSettings {
+                    faac_profile: profile,
+                    ..faac_encoder_settings()
+                });
+            let source = decode_pcm_f32(&lane.inputs[0]);
+            let output = lane.process(None).await;
+            let decoded_path = lane.tmp.path().join("apple.wav");
+            let converted = Command::new("afconvert")
+                .args(["-f", "WAVE", "-d", "LEF32"])
+                .arg(&output)
+                .arg(&decoded_path)
+                .output()
+                .unwrap();
+            assert!(
+                converted.status.success(),
+                "{}",
+                String::from_utf8_lossy(&converted.stderr)
+            );
+            let decoded = decode_pcm_f32(&decoded_path);
+            assert!(
+                decoded.len().abs_diff(source.len()) <= 1,
+                "source={} decoded={}",
+                source.len(),
+                decoded.len()
+            );
+            let tail = &decoded[decoded.len() - 32..];
+            let rms = (tail
+                .iter()
+                .map(|value| f64::from(*value).powi(2))
+                .sum::<f64>()
+                / 32.0)
+                .sqrt();
+            assert!(rms > 0.05, "missing final audio tail: {rms}");
+        }
     }
 }
 
@@ -1917,6 +1929,8 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
 #[tokio::test]
 async fn faac_reimport_preserves_audio_alignment_and_tail() {
     assert_faac_reimport(
+        faac_encoder_settings(),
+        "AudioBook Boss FAAC HE-AAC",
         native_encoder_settings(),
         &[
             (32000, 4096),
@@ -1929,10 +1943,53 @@ async fn faac_reimport_preserves_audio_alignment_and_tail() {
 }
 
 #[tokio::test]
+async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
+    use audiobook_boss_lib::audio::FaacProfile;
+    for (profile, mode, tool) in [
+        (
+            FaacProfile::AacLc,
+            BitrateMode::Abr,
+            "AudioBook Boss FAAC AAC-LC",
+        ),
+        (
+            FaacProfile::Auto,
+            BitrateMode::Vbr(100),
+            "AudioBook Boss FAAC AAC-LC",
+        ),
+        (
+            FaacProfile::Auto,
+            BitrateMode::Vbr(50),
+            "AudioBook Boss FAAC HE-AAC",
+        ),
+        (
+            FaacProfile::HeAacV1,
+            BitrateMode::Vbr(100),
+            "AudioBook Boss FAAC HE-AAC",
+        ),
+    ] {
+        let input = EncoderSettings {
+            faac_profile: profile,
+            bitrate_mode: mode,
+            ..faac_encoder_settings()
+        };
+        let cases: &[(u32, u32)] = if profile == FaacProfile::AacLc {
+            &[(22050, 8192), (44100, 12117)]
+        } else if profile == FaacProfile::HeAacV1 {
+            &[(44100, 12117), (48000, 22050)]
+        } else {
+            &[(44100, 12117), (48000, 22050), (96000, 32768)]
+        };
+        assert_faac_reimport(input, tool, native_encoder_settings(), cases).await;
+    }
+}
+
+#[tokio::test]
 #[ignore = "requires external FFmpeg with libfdk_aac; run explicitly on an FDK host"]
 async fn faac_reimport_through_external_fdk_preserves_audio_interval() {
     for channels in [ChannelConfig::Mono, ChannelConfig::Stereo] {
         assert_faac_reimport(
+            faac_encoder_settings(),
+            "AudioBook Boss FAAC HE-AAC",
             EncoderSettings {
                 encoder_type: EncoderType::FdkHeAac,
                 bitrate_mode: BitrateMode::Vbr(3),
@@ -1945,10 +2002,15 @@ async fn faac_reimport_through_external_fdk_preserves_audio_interval() {
     }
 }
 
-async fn assert_faac_reimport(output_settings: EncoderSettings, cases: &[(u32, u32)]) {
+async fn assert_faac_reimport(
+    input_settings: EncoderSettings,
+    expected_tool: &str,
+    output_settings: EncoderSettings,
+    cases: &[(u32, u32)],
+) {
     for &(rate, samples) in cases {
         let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
-            .with_encoder(faac_encoder_settings());
+            .with_encoder(input_settings.clone());
         let mut wav = fs::read(&lane.inputs[0]).unwrap();
         wav[24..28].copy_from_slice(&rate.to_le_bytes());
         wav[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
@@ -1973,11 +2035,7 @@ async fn assert_faac_reimport(output_settings: EncoderSettings, cases: &[(u32, u
             )
             .expect("unrelated metadata edit preserves timing provenance");
         }
-        assert_ffprobe_tag(
-            &ffprobe_format_tags(&faac_output),
-            "encoder",
-            "AudioBook Boss FAAC HE-AAC",
-        );
+        assert_ffprobe_tag(&ffprobe_format_tags(&faac_output), "encoder", expected_tool);
         let reimport =
             MediaLane::for_inputs(vec![faac_output]).with_encoder(output_settings.clone());
         let second_output = reimport.process(None).await;

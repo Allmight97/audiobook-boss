@@ -193,7 +193,7 @@ describe('Solid input workbench', () => {
 				'encode',
 			]);
 			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
-			runtime.encoding.select('encoder', 'faac_he_aac');
+			runtime.encoding.select('encoder', 'faac');
 			runtime.encoding.select('sampleRate', '44100');
 			runtime.output.applyDefaults({
 				outputDirectory: '/library',
@@ -214,7 +214,7 @@ describe('Solid input workbench', () => {
 						audioHandling: ['preserve', 'preserve', 'preserve', 'encode', 'encode'],
 						inputFiles: books.map((file) => file.path),
 						outputDir: '/library',
-						settings: expect.objectContaining({ encoderType: 'faac_he_aac' }),
+						settings: expect.objectContaining({ encoderType: 'faac' }),
 						sampleRate: { explicit: 44100 },
 						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 					}),

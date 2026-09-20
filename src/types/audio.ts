@@ -13,6 +13,7 @@ import type {
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	EncoderSettings as GeneratedEncoderSettings,
 	EncoderType as GeneratedEncoderType,
+	FaacProfile as GeneratedFaacProfile,
 	BitrateModeKind as GeneratedBitrateModeKind,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
@@ -70,6 +71,7 @@ export type BitrateMode = GeneratedBitrateMode;
 export type BitrateModeKind = GeneratedBitrateModeKind;
 export type EncoderChannelConfig = GeneratedChannelConfig;
 export type EncoderType = GeneratedEncoderType;
+export type FaacProfile = GeneratedFaacProfile;
 export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
@@ -134,6 +136,7 @@ export const defaultEncoderSettings = (): EncoderSettings => ({
 	channels: 'auto',
 	afterburner: true,
 	nativeAacSpeed: 0,
+	faacProfile: 'auto',
 });
 
 // Utility functions

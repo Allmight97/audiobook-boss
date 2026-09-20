@@ -19,8 +19,9 @@
   disclosure only.
 - The `estimated-size` span is the only consumer of Output Plan's estimated-size
   text. Keep it in this header; do not move the span into Output.
-- NMR speed lives under the view-local Advanced disclosure. Rate mode is derived
-  by Encoding; the view exposes the applicable quality or target input.
+- FAAC exposes profile and ABR/VBR selectors plus the applicable quality or
+  target input. Other encoders use their derived mode. NMR speed stays under
+  the view-local Advanced disclosure; FAAC has no advanced tuning surface.
 - Afterburner is encoding truth; the checkbox lives in the Settings dialog.
 
 ## Private Cluster

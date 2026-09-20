@@ -20,7 +20,7 @@
   `crate::audio::cleanup`.
 - Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
-  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
+  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
 - Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
   `validate_input_image_path`, `validate_preservation_source`, `supported_audio_import_metadata`,
@@ -45,15 +45,17 @@
 - `EncoderSettingsCapabilities.encoder_configurations` is the single
   per-encoder capability array for allowed modes, defaults, and explicit sample
   rates. The global `explicit_sample_rates` list remains the rate list for the
-  existing encoders; bundled FAAC HE-AAC narrows its explicit choices to
-  32000, 44100, and 48000 Hz in its configuration entry.
+  existing encoders. FAAC profile-specific rates are carried by `faac_profiles`;
+  quality presets are backend-owned capability values. The adapter owns
+  upstream profile resolution and opened configuration readback.
 - Target bitrate bounds and native speed bounds come from
   `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
   check their resolved AAC ceilings during preflight and encoder setup. Input
   validation receives the sample-rate choice and whether inputs share one
   output; batch ceilings are checked per file, merge ceilings use the combined
   channels and first input rate.
-  Opened NMR settings must match the request.
+  Opened NMR and FAAC settings must match the request; FAAC preflight uses the
+  same adapter open/readback as execution, including upstream bitrate clamps.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
 - Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled
@@ -134,11 +136,10 @@
   overflowing before encoding. The standard downmix retains center/surround
   channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
-- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC HE-AAC, and external FDK
-  behavior distinct. They are different encoder/toolchain targets with
-  different sample formats and quality profiles. FAAC is an explicit-only,
-  bundled HE-AAC v1 route with a numeric ABR target; Auto remains FDK, then
-  Apple, then Native and never resolves to FAAC.
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and external FDK behavior
+  distinct. FAAC offers profile Auto/LC/HE and ABR/VBR, resolving its profile
+  once at open from output settings. Encoder Auto remains FDK, then Apple,
+  then Native and never resolves to FAAC.
 - Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
   bitrate and search speed. Auto preserves the selected mode, and the resolved
   encoder rejects incompatible intent.

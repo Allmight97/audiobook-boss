@@ -142,6 +142,7 @@ mod tests {
                 channels: ChannelConfig::Mono,
                 afterburner: false,
                 native_aac_speed: 0,
+                faac_profile: crate::audio::FaacProfile::Auto,
             },
             SampleRateConfig::Auto,
             OutputConfig::new(root.path().join("output.m4b")),

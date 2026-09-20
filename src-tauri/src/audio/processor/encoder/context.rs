@@ -24,10 +24,7 @@ pub(crate) fn create_audio_encoder(
 
     // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
     // engine must refuse it rather than silently opening a different encoder.
-    if matches!(
-        resolved_encoder,
-        EncoderType::FdkHeAac | EncoderType::FaacHeAac
-    ) {
+    if matches!(resolved_encoder, EncoderType::FdkHeAac | EncoderType::Faac) {
         return Err(AppError::InvalidInput(
             "This encoder uses its own adapter and cannot be opened as an FFmpeg encoder."
                 .to_string(),
@@ -69,7 +66,7 @@ pub(crate) fn create_audio_encoder(
     let opts = match resolved_encoder {
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
-        EncoderType::FaacHeAac | EncoderType::FdkHeAac | EncoderType::Auto => {
+        EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
             unreachable!("create_audio_encoder requires a resolved in-process encoder type")
         }
     };
@@ -145,11 +142,11 @@ pub(crate) fn setup_encoder(
         .add_stream(codec)
         .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
-    let enc_ctx = if resolved_encoder_type == EncoderType::FaacHeAac {
+    let enc_ctx = if resolved_encoder_type == EncoderType::Faac {
         Backend::Faac(FaacEncoder::open(
             target_sample_rate,
             target_channels,
-            plan.encoder_settings.bitrate_kbps,
+            &plan.encoder_settings,
         )?)
     } else {
         Backend::Ffmpeg(create_audio_encoder(
@@ -227,9 +224,8 @@ pub(crate) fn setup_encoder(
     // Header
     octx.write_header()
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
-    if resolved_encoder_type == EncoderType::FaacHeAac {
-        let tool = std::ffi::CString::new(super::super::faac_timing::ENCODING_TOOL)
-            .expect("static tool name");
+    if let Backend::Faac(encoder) = &enc_ctx {
+        let tool = std::ffi::CString::new(encoder.encoding_tool()).expect("static tool name");
         // SAFETY: the live output owns this dictionary; av_dict_set copies the
         // strings and updates its allocation without replacing/leaking other tags.
         let status = unsafe {

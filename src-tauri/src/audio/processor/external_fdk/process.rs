@@ -537,6 +537,7 @@ mod tests {
             channels: ChannelConfig::Auto,
             afterburner: true,
             native_aac_speed: 0,
+            faac_profile: crate::audio::FaacProfile::Auto,
         }
     }
 

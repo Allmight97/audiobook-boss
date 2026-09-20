@@ -27,7 +27,9 @@
   placeholder. On FDK VBR, use injected `encodingEstimateKbps`, not the sticky
   request `encoderSettings.bitrateKbps`. Bitrate is total across channels; do not
   apply a stereo multiplier.
-  The encoder header owns presentation.
+  A null estimate means encoded size is unknown, as with FAAC VBR. Preserve-only
+  exports still have a known size; mixed exports with unknown encoded size do
+  not show a partial total. The encoder header owns presentation.
 - Path preview passes the source book's audio choice to Rust so retained MP3
   and M4A extensions match the final plan. Extension policy stays backend-owned.
 - Path preview is a Solid `createEffect` on public Input, Metadata, output

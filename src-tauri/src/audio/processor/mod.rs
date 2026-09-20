@@ -99,10 +99,14 @@ pub fn validate_audio_engine_inputs(
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
     adapter.validate_inputs(file_info)?;
     if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = adapter {
-        crate::audio::settings::validate_encoder_sample_rate(encoder_type, sample_rate)?;
+        crate::audio::settings::validate_encoder_sample_rate(
+            encoder_type,
+            encoder_settings.faac_profile,
+            sample_rate,
+        )?;
         if matches!(
             encoder_type,
-            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::FaacHeAac
+            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::Faac
         ) {
             if merge_inputs {
                 validate_output_target(
@@ -150,15 +154,12 @@ fn validate_output_target(
         })?;
     crate::audio::settings::validate_encoder_sample_rate(
         encoder,
+        settings.faac_profile,
         &crate::audio::SampleRateConfig::Explicit(rate),
     )?;
     match encoder {
-        crate::audio::EncoderType::FaacHeAac => {
-            crate::audio::settings_encoder::validate_faac_target_bitrate(
-                settings.bitrate_kbps,
-                rate,
-                u32::from(channels),
-            )
+        crate::audio::EncoderType::Faac => {
+            encoder::validate_faac_configuration(settings, rate, u32::from(channels))
         }
         _ => crate::audio::settings_encoder::validate_native_target_bitrate(
             settings.bitrate_kbps,

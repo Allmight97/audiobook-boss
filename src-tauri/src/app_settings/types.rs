@@ -163,6 +163,7 @@ impl Default for EncoderDefaults {
                 channels: ChannelConfig::Auto,
                 afterburner: true,
                 native_aac_speed: 0,
+                faac_profile: crate::audio::FaacProfile::Auto,
             },
             sample_rate: SampleRateConfig::Auto,
         }

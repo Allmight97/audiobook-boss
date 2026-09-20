@@ -17,16 +17,17 @@
 
 ## Hard Invariants
 
-- FDK quality, numeric target kbps, and NMR speed stay independent across
-  session encoder switches. FDK estimates use its quality table; target bitrate
-  already includes all channels. Bundled FAAC uses the numeric target in ABR
-  mode.
-- Derive rate mode from the effective encoder's backend capability. Views expose
-  FDK quality or a numeric target; rate mode is not separately selected.
-  `encoderConfigurations` is the single per-encoder capability source for the
-  mode and explicit sample-rate choices. FAAC exposes ABR and explicit 32000,
-  44100, and 48000 Hz only. While discovery is pending, preserve the validated
-  hydrated mode so saved explicit encoder requests stay usable.
+- FDK quality, FAAC profile/rate/quality, numeric target kbps, and NMR speed
+  stay independent across session encoder switches. Target bitrate includes
+  all channels. FAAC ABR uses that target; FAAC VBR uses its capability presets
+  and returns `null` from `estimateKbps` because size depends on the audio.
+- Derive rate mode from the effective encoder's capability except FAAC, whose
+  ABR/VBR choice is explicit. `encoderConfigurations` owns mode and rate
+  support; its `faacProfiles` entries own profile-specific rates. Send profile
+  Auto to FAAC through the request; the frontend does not reproduce upstream
+  profile thresholds. Sample-rate/channel Auto still follows the input hints.
+  While discovery is pending, preserve the validated hydrated mode so saved
+  explicit encoder requests stay usable.
   `request()` rejects Auto without capabilities; estimates and saved defaults
   remain readable. Processing surfaces the rejection before preparation or
   submission. Build typed requests directly from this owner's state.
@@ -51,7 +52,8 @@
 - Afterburner is encoding truth. The checkbox stays in the Settings dialog.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.
-- Estimated-size bytes stay in Output; this owner supplies total kbps.
+- Estimated-size bytes stay in Output; this owner supplies total kbps or an
+  explicit unknown value for FAAC VBR.
   The `~ 12.3 MB` span stays in EncoderView.
 
 ## Testing

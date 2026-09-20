@@ -18,11 +18,31 @@ pub(super) fn load(config_dir: &Path) -> Result<AppSettings> {
         Err(error) => return Err(AppError::Io(error)),
     };
 
-    serde_json::from_str(&content).map_err(|error| {
+    serde_json::from_str::<serde_json::Value>(&content).and_then(|mut value| {
+        upgrade_faac_defaults(&mut value);
+        serde_json::from_value(value)
+    }).map_err(|error| {
         AppError::InvalidInput(format!(
             "App settings file could not be read by this version. Open App Settings to check recovery options, or reset app settings to restore defaults. ({error})"
         ))
     })
+}
+
+// Persisted FAAC HE/ABR requests predate selectable profiles. Migrate only
+// storage; current IPC accepts the canonical FAAC identity and explicit intent.
+fn upgrade_faac_defaults(value: &mut serde_json::Value) {
+    for pointer in [
+        "/encoderDefaults/settings",
+        "/pinnedDefaults/encoderDefaults/settings",
+    ] {
+        let Some(settings) = value.pointer_mut(pointer) else {
+            continue;
+        };
+        if settings.get("encoderType").and_then(|v| v.as_str()) == Some("faac_he_aac") {
+            settings["encoderType"] = serde_json::json!("faac");
+            settings["faacProfile"] = serde_json::json!("he_aac_v1");
+        }
+    }
 }
 
 pub(super) fn save(config_dir: &Path, settings: &AppSettings) -> Result<()> {
@@ -67,6 +87,7 @@ fn plan_recovery(content: &str) -> Result<Option<(AppSettingsRecoveryPlan, serde
     let Ok(mut value) = serde_json::from_str::<serde_json::Value>(content) else {
         return Ok(None);
     };
+    upgrade_faac_defaults(&mut value);
     let mut incompatible_encoders = Vec::new();
     for (pointer, scope) in [
         ("/encoderDefaults", EncoderDefaultsScope::LastUsed),

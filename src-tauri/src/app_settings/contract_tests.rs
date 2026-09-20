@@ -90,11 +90,15 @@ fn saved_faac_defaults_load_without_recovery_and_survive_other_preference_update
     let loaded = get_app_settings(temp.path()).expect("load saved FAAC choices");
     assert_eq!(
         loaded.encoder_defaults.settings.encoder_type,
-        EncoderType::FaacHeAac
+        EncoderType::Faac
     );
     assert_eq!(
         loaded.encoder_defaults.settings.bitrate_mode,
         BitrateMode::Abr
+    );
+    assert_eq!(
+        loaded.encoder_defaults.settings.faac_profile,
+        crate::audio::FaacProfile::HeAacV1
     );
     assert!(get_app_settings_recovery(temp.path())
         .expect("inspect recovery")
@@ -238,27 +242,33 @@ fn update_merges_top_level_patch_and_persists() {
 }
 
 #[test]
-fn native_target_and_speed_survive_settings_reload() {
+fn encoder_specific_controls_survive_settings_reload() {
     let temp = TempDir::new().expect("create isolated test directory");
     let mut defaults = EncoderDefaults::default();
     defaults.settings.encoder_type = EncoderType::NativeAac;
     defaults.settings.bitrate_mode = BitrateMode::Cbr;
     defaults.settings.native_aac_speed = 4;
     defaults.settings.bitrate_kbps = 193;
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(defaults.clone()),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("persist native target and speed");
-    assert_eq!(
-        get_app_settings(temp.path())
-            .expect("reload persisted encoder settings")
-            .encoder_defaults,
-        defaults
-    );
+    let mut faac = defaults.clone();
+    faac.settings.encoder_type = EncoderType::Faac;
+    faac.settings.faac_profile = crate::audio::FaacProfile::AacLc;
+    faac.settings.bitrate_mode = BitrateMode::Vbr(200);
+    for expected in [defaults, faac] {
+        update_app_settings(
+            temp.path(),
+            AppSettingsPatch {
+                encoder_defaults: Some(expected.clone()),
+                ..AppSettingsPatch::default()
+            },
+        )
+        .expect("persist encoder controls");
+        assert_eq!(
+            get_app_settings(temp.path())
+                .expect("reload persisted encoder settings")
+                .encoder_defaults,
+            expected
+        );
+    }
 }
 
 #[test]

@@ -117,7 +117,7 @@ pub fn resolve_processor_adapter(
     encoder_settings: &EncoderSettings,
 ) -> Result<ResolvedProcessorAdapter> {
     let requested = encoder_settings.encoder_type;
-    if requested == EncoderType::FaacHeAac {
+    if requested == EncoderType::Faac {
         crate::audio::settings_encoder::validate_encoder_settings(encoder_settings)?;
         return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
             encoder_type: requested,
@@ -370,6 +370,7 @@ mod tests {
             channels: ChannelConfig::Auto,
             afterburner: false,
             native_aac_speed: 0,
+            faac_profile: crate::audio::FaacProfile::Auto,
         }
     }
 

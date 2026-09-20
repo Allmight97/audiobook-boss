@@ -1,39 +1,36 @@
 # ABB bundled FAAC dependency
 
 The bundled source is selected from [knik0/faac](https://github.com/knik0/faac)
-at upstream revision `c3e082cb861923484b7ae1bd5416038176edb305` (2026-09-18,
-`channels: add ISO/IEC 14496-3 channel configuration mapping (#213)`).
+at upstream revision `67631b510fdbf38cb2d39fa502815074186cd985` (2026-09-20,
+`libfaac: build shared lookup tables once per process (#215)`). This was upstream HEAD
+when checked on 2026-09-20; builds use this immutable revision's source slice.
 
 `upstream/` contains the portable scalar files listed by upstream
-`libfaac/meson.build`, including the current `ratecontrol.c` module and its
-header, the public `include/faac.h`, and the LGPL license. The CLI, SIMD source,
-build outputs, and unrelated documentation are omitted. The Rust build compiles
-the same source list with `cc`, force-includes its generated configuration
-(`MAX_CHANNELS=2`, `FAAC_SBR_DECIMATION=1`, `PACKAGE_VERSION=2.1.0-dev.c3e082c`), and runs
-bindgen against the same public header used by the C build. This keeps compiled
-C and generated Rust bindings on one header/configuration contract.
+`libfaac/meson.build`, their headers (including `atomic.h`), the public
+`include/faac.h`, and the LGPL license. The CLI, SIMD source, build outputs,
+and unrelated documentation are omitted. The Rust build compiles the same
+source list with `cc`, force-includes its generated configuration
+(`MAX_CHANNELS=2`, `FAAC_SBR_DECIMATION=1`,
+`PACKAGE_VERSION=2.1.0-dev.67631b5`), and runs bindgen against the same public
+header used by the C build. Compiled C and generated Rust bindings therefore
+share one header/configuration contract.
 
-The current upstream source already includes the HE tail-drain path and the
-mono HE-AAC AudioSpecificConfig parametric-stereo signal, so no local timing
-patch is carried in this dependency slice. ABB explicitly selects `FAAC_RC_ABR` and verifies the opened mode. The sys
-smoke test also checks upstream AUTO resolution with a nonzero `bit_rate`.
+## Local changes and upstream initialization
 
-The September 18 refresh includes upstream #202's revised SBR noise floor and
-band table, which intentionally changes HE-AAC sound, plus windowing and channel
-handling changes. ABB's supported rates, mono/stereo ABR settings, and Auto
-preference order are unchanged. Compare listening results separately from timing
-and concurrency proof; encoded bytes need not match the previous FAAC revision.
+ABB carries no local changes to the selected upstream source files.
+[Upstream #215](https://github.com/knik0/faac/pull/215) replaces ABB's former
+quantizer initialization patch: upstream now initializes the shared quantizer,
+FFT, and window tables once before an encoder uses them. Per-encoder handles
+remain independent. Keep `FAAC_STATS` disabled because its optional global
+counters are unsynchronized. Sys tests compare parallel and sequential packet
+output; this is regression evidence, not an exhaustive race detector.
 
-ABB carries one concurrency patch in `libfaac/quantize.c`: `QuantizeInit`
-publishes the shared lookup tables once with C11 acquire/release atomics.
-Upstream initializes them on every encoder open, racing with other opens and
-active encodes in a parallel batch. After publication the tables stay immutable;
-encoder handles remain independent. Retire this patch when upstream supplies
-equivalent thread-safe initialization; upstream follow-up is
-[FAAC #214](https://github.com/knik0/faac/issues/214). Keep `FAAC_STATS` disabled: its optional
-global counters are not synchronized. The sys tests compare parallel and
-sequential packet output; a standalone ThreadSanitizer probe reproduces the
-upstream initialization race and checks this repair.
+Upstream already includes the HE tail-drain and mono HE-AAC
+AudioSpecificConfig signaling fixes. The shared-table change preserves full
+SBR analysis density; ABB has not measured a throughput improvement or a
+subjective quality improvement from this revision.
+
+## Adapter contract
 
 The caller owns each encoder handle and closes it with `faac_encoder_close`.
 AudioSpecificConfig pointers are library-owned until close and must be copied
@@ -41,13 +38,24 @@ before release. `FAAC_INPUT_FLOAT` is interleaved PCM scaled to signed-16 units;
 `bit_rate` is per channel and encode input counts are total samples across
 channels.
 
+ABB sends the requested Auto/LC/HE profile directly to FAAC. ABR supplies the
+total target divided by resolved channels; VBR supplies zero bitrate and the
+selected quality. FAAC resolves Auto once at open. The adapter reads the
+resolved profile, frame size, delay, rate control, bitrate, and quality before
+creating mux parameters, and rejects a silently clamped request. Profile Auto
+and rate-control Auto are independent upstream features; ABB exposes explicit
+ABR/VBR choices with ABR as FAAC’s initial mode.
+
+`src-tauri/src/audio/processor/faac_timing.rs` owns the HE-specific MP4 core
+priming and native-decoder interval. LC uses its returned delay and a distinct
+encoding-tool tag. Real-media tests cover Apple playback and ABB re-import
+alignment, sample count, and final-tail energy for both resolved profiles.
+Changes to this handoff need those regressions; an upstream timing fix alone
+does not establish that ABB's MP4/decoder adaptation can be removed.
+
+## License and distribution
+
 The selected library source and license are LGPL-2.1-or-later; see
 [upstream/COPYING](upstream/COPYING). Packaging must satisfy the LGPL
 requirements for the linked library, including the obligations that apply to
 static linking; this source dependency alone is not release proof.
-
-ABB's `processor/faac_timing.rs` owns the MP4/core-priming and native-decoder
-interval handoff. Changing FAAC timing requires the real-media Apple playback
-and ABB re-import regressions to pass; do not retain a revision merely because
-it was previously selected. This source was current upstream HEAD when refreshed on 2026-09-18,
-not the older 2.1 release that predates the tail and mono configuration fixes.

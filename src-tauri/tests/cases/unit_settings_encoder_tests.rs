@@ -16,6 +16,7 @@ fn base_settings() -> EncoderSettings {
         channels: ChannelConfig::Auto,
         afterburner: true,
         native_aac_speed: 0,
+        faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
     }
 }
 
@@ -99,9 +100,13 @@ fn test_encoder_mode_combo_validation() {
     s.bitrate_mode = BitrateMode::Cvbr;
     assert!(validate_encoder_settings(&s).is_ok());
 
-    s.encoder_type = EncoderType::FaacHeAac;
+    s.encoder_type = EncoderType::Faac;
     s.bitrate_mode = BitrateMode::Abr;
     assert!(validate_encoder_settings(&s).is_ok());
+    for quality in [0, 3, 5001] {
+        s.bitrate_mode = BitrateMode::Vbr(quality);
+        assert!(validate_encoder_settings(&s).is_err());
+    }
     s.bitrate_mode = BitrateMode::Cbr;
     assert!(validate_encoder_settings(&s).is_err());
 }
@@ -109,14 +114,15 @@ fn test_encoder_mode_combo_validation() {
 #[test]
 fn faac_settings_wire_values_are_stable() {
     let value = serde_json::to_value(EncoderSettings {
-        encoder_type: EncoderType::FaacHeAac,
+        encoder_type: EncoderType::Faac,
         bitrate_mode: BitrateMode::Abr,
         ..base_settings()
     })
     .expect("FAAC settings should serialize");
 
-    assert_eq!(value["encoderType"], "faac_he_aac");
+    assert_eq!(value["encoderType"], "faac");
     assert_eq!(value["bitrateMode"]["mode"], "abr");
+    assert_eq!(value["faacProfile"], "auto");
 }
 
 #[test]

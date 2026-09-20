@@ -110,9 +110,9 @@ describe('encoding owner', () => {
 				},
 			});
 			await ready(mounted.owner);
-			mounted.owner.select('encoder', 'faac_he_aac');
+			mounted.owner.select('encoder', 'faac');
 			flush();
-			expect(mounted.owner.view().availabilityHint).toBe('FAAC HE-AAC is included with ABB.');
+			expect(mounted.owner.view().availabilityHint).toBe('FAAC is included with ABB.');
 		},
 	);
 
@@ -123,7 +123,8 @@ describe('encoding owner', () => {
 		mounted.owner.applyDefaults({
 			settings: {
 				...vbrDefaults(3).settings,
-				encoderType: 'faac_he_aac',
+				encoderType: 'faac',
+				faacProfile: 'he_aac_v1',
 				bitrateMode: { mode: 'abr' },
 			},
 			sampleRate: { explicit: 22050 },
@@ -131,7 +132,8 @@ describe('encoding owner', () => {
 		flush();
 
 		expect(mounted.owner.request().encoderSettings).toMatchObject({
-			encoderType: 'faac_he_aac',
+			encoderType: 'faac',
+			faacProfile: 'he_aac_v1',
 			bitrateMode: { mode: 'abr' },
 		});
 		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 22050 });
@@ -146,7 +148,7 @@ describe('encoding owner', () => {
 		);
 
 		mounted.owner.select('encoder', 'native_aac');
-		mounted.owner.select('encoder', 'faac_he_aac');
+		mounted.owner.select('encoder', 'faac');
 		await mounted.owner.reloadCapabilities(encoderCaps());
 		flush();
 		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 22050 });
@@ -157,6 +159,56 @@ describe('encoding owner', () => {
 		mounted.owner.select('sampleRate', '48000');
 		flush();
 		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 48000 });
+	});
+
+	it('keeps FAAC profile and rate choices independent of source Auto and FDK quality', async () => {
+		mounted = mountEncoding();
+		await ready(mounted.owner);
+		mounted.owner.select('encoder', 'faac');
+		expect(mounted.owner.request()).toMatchObject({
+			sampleRate: 'auto',
+			encoderSettings: {
+				faacProfile: 'auto',
+				channels: 'auto',
+				bitrateKbps: 64,
+				bitrateMode: { mode: 'abr' },
+			},
+		});
+		mounted.owner.select('rateControl', 'vbr');
+		mounted.owner.select('quality', '200');
+		mounted.owner.select('faacProfile', 'aac_lc');
+		expect(mounted.owner.estimateKbps()).toBeNull();
+		mounted.owner.select('encoder', 'fdk_he_aac');
+		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({ mode: 'vbr', value: 3 });
+		mounted.owner.select('quality', '4');
+		mounted.owner.select('encoder', 'faac');
+		expect(mounted.owner.request().encoderSettings).toMatchObject({
+			faacProfile: 'aac_lc',
+			bitrateMode: { mode: 'vbr', value: 200 },
+		});
+		mounted.owner.select('rateControl', 'abr');
+		expect(mounted.owner.estimateKbps()).toBe(64);
+		mounted.owner.select('sampleRate', '22050');
+		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 22050 });
+		mounted.owner.select('faacProfile', 'he_aac_v1');
+		expect(mounted.owner.request().sampleRate).toEqual({ explicit: 22050 });
+		expect(mounted.owner.view().sampleRateHint).toContain('Choose a supported');
+		mounted.owner.select('faacProfile', 'auto');
+		expect(
+			mounted.owner.view().sampleRateOptions.find((option) => option.value === '22050')?.disabled,
+		).toBe(false);
+		mounted.owner.select('rateControl', 'vbr');
+		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({
+			mode: 'vbr',
+			value: 200,
+		});
+		const saved = mounted.owner.readDefaults();
+		mounted.owner.applyDefaults(saved);
+		await mounted.owner.reloadCapabilities(encoderCaps());
+		expect(mounted.owner.request().encoderSettings.bitrateMode).toEqual({
+			mode: 'vbr',
+			value: 200,
+		});
 	});
 
 	it('hydrates VBR request without persisting, then persists only on select', async () => {
