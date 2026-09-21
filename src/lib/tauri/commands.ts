@@ -11,7 +11,6 @@ import {
 } from '../generated/tauri';
 import type {
 	AudioHandling,
-	EncoderSettings,
 	OutputNamingConfig,
 	OutputKind,
 	ProcessPayload,
@@ -300,8 +299,6 @@ export const commandSpecs = {
 			),
 			normalizeNullish,
 		),
-	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
-		runGeneratedCommand(generatedCommands.validateEncoderSettings(args.settings)),
 	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>
 		runGeneratedCommand(
 			generatedCommands.getRuntimeSettingsCapabilities(),

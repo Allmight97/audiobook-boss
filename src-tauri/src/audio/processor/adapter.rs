@@ -1,8 +1,7 @@
 use crate::audio::file_list::FileListInfo;
 use crate::audio::settings_encoder::{
-    is_encoder_available_by_name, resolve_encoder_name, resolve_encoder_type,
-    validate_encoder_available, validate_requested_encoder_available, ChannelConfig,
-    EncoderSettings, EncoderType,
+    linked_encoder_available, resolve_encoder_type, validate_encoder_available,
+    validate_requested_encoder_available, ChannelConfig, EncoderSettings, EncoderType,
 };
 use crate::audio::toolchain::{
     detect_encoder_availability_with_resolution, validate_external_input_decoders,
@@ -124,14 +123,7 @@ pub fn resolve_processor_adapter(
         });
     }
     if matches!(requested, EncoderType::NativeAac | EncoderType::AacAt) {
-        let platform_supported = requested != EncoderType::AacAt || cfg!(target_os = "macos");
-        let available = platform_supported
-            && if requested == EncoderType::NativeAac {
-                crate::audio::settings_encoder::is_native_nmr_available()
-            } else {
-                is_encoder_available_by_name(resolve_encoder_name(requested))
-            };
-        validate_encoder_available(requested, available)?;
+        validate_encoder_available(requested, linked_encoder_available(requested))?;
         return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
             encoder_type: requested,
         });

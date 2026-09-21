@@ -1,19 +1,16 @@
 //! Common encoder helpers and utilities.
 
+use super::super::run_diagnostics::{
+    append_run_record, unix_timestamp_seconds, with_encoding_log_file,
+};
 use crate::audio::settings_encoder::{EncoderSettings, EncoderType};
 use crate::audio::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use ffmpeg_next as ff;
 use std::fmt::Write as _;
-use std::fs::OpenOptions;
 use std::io::Write as _;
 use std::path::Path;
-use std::sync::{Mutex, Once, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-static LOG_TARGET: OnceLock<Option<EncoderLogTarget>> = OnceLock::new();
-static TRUNCATE: Once = Once::new();
-static ENCODING_LOG_WRITE: Mutex<()> = Mutex::new(());
+use std::time::Duration;
 
 pub(super) fn encoder_log(message: &str) {
     let _ = with_encoding_log_file(|file| writeln!(file, "{message}"));
@@ -46,76 +43,8 @@ pub(crate) struct InProcessEncoderRunLog<'a> {
     pub target_duration_seconds: f64,
 }
 
-pub(crate) fn encoding_log_enabled() -> bool {
-    encoding_log_target().is_some()
-}
-
 pub(crate) fn append_in_process_encoding_log_best_effort(entry: &InProcessEncoderRunLog<'_>) {
-    if encoding_log_target().is_none() {
-        return;
-    }
-    if let Err(error) = with_encoding_log_file(|file| {
-        file.write_all(format_in_process_encoding_log_entry(entry).as_bytes())
-    }) {
-        log::warn!("Failed to append in-process encoding diagnostics: {error}");
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum EncoderLogTarget {
-    Shared(String),
-    Legacy(String),
-}
-
-impl EncoderLogTarget {
-    fn path(&self) -> &str {
-        match self {
-            Self::Shared(path) | Self::Legacy(path) => path,
-        }
-    }
-}
-
-fn encoding_log_target() -> Option<&'static EncoderLogTarget> {
-    LOG_TARGET
-        .get_or_init(|| {
-            encoder_log_target_from_env(
-                std::env::var("ABB_ENCODING_LOG").ok(),
-                std::env::var("ABB_LOG_FILE").ok(),
-            )
-        })
-        .as_ref()
-}
-
-fn with_encoding_log_file(
-    write: impl FnOnce(&mut std::fs::File) -> std::io::Result<()>,
-) -> std::io::Result<()> {
-    let Some(target) = encoding_log_target() else {
-        return Ok(());
-    };
-    if matches!(target, EncoderLogTarget::Legacy(_)) {
-        TRUNCATE.call_once(|| {
-            let _ = std::fs::remove_file(target.path());
-        });
-    }
-    if let Some(parent) = std::path::Path::new(target.path())
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-    let _guard = ENCODING_LOG_WRITE.lock().ok();
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(target.path())?;
-    write(&mut file)
-}
-
-fn unix_timestamp_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
+    append_run_record(|| format_in_process_encoding_log_entry(entry));
 }
 
 fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> String {
@@ -180,20 +109,6 @@ fn format_in_process_encoding_log_entry(entry: &InProcessEncoderRunLog<'_>) -> S
     }
     output.push_str("--- end in-process-encoder run ---\n\n");
     output
-}
-
-fn encoder_log_target_from_env(
-    shared_encoding_log: Option<String>,
-    legacy_log: Option<String>,
-) -> Option<EncoderLogTarget> {
-    shared_encoding_log
-        .filter(|path| !path.is_empty())
-        .map(EncoderLogTarget::Shared)
-        .or_else(|| {
-            legacy_log
-                .filter(|path| !path.is_empty())
-                .map(EncoderLogTarget::Legacy)
-        })
 }
 
 const AAC_FRAME_QUANTUM_SAMPLES: usize = 1024;
@@ -282,22 +197,6 @@ mod tests {
 
             assert!(err.to_string().contains("in-process encoder type"));
         }
-    }
-
-    #[test]
-    fn shared_encoding_log_takes_precedence_without_legacy_truncate() {
-        assert_eq!(
-            encoder_log_target_from_env(
-                Some("/tmp/encoding.log".to_string()),
-                Some("/tmp/legacy.log".to_string()),
-            ),
-            Some(EncoderLogTarget::Shared("/tmp/encoding.log".to_string()))
-        );
-        assert_eq!(
-            encoder_log_target_from_env(None, Some("/tmp/legacy.log".to_string())),
-            Some(EncoderLogTarget::Legacy("/tmp/legacy.log".to_string()))
-        );
-        assert_eq!(encoder_log_target_from_env(Some(String::new()), None), None);
     }
 
     #[test]

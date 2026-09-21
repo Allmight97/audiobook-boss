@@ -92,7 +92,7 @@ mod tests {
                 native_aac_speed: speed,
                 faac_profile: crate::audio::FaacProfile::Auto,
             };
-            let encoder = create_audio_encoder(&settings, EncoderType::NativeAac, 44100, 2, true)
+            let encoder = create_audio_encoder(&settings, 44100, 2, true)
                 .expect("open requested NMR encoder");
             validate_native_options(&encoder, &settings).expect("verify opened NMR settings");
             assert_eq!(
@@ -122,7 +122,7 @@ mod tests {
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
         };
-        let error = create_audio_encoder(&settings, EncoderType::NativeAac, 22050, 1, true)
+        let error = create_audio_encoder(&settings, 22050, 1, true)
             .err()
             .expect("reject a target above the resolved mono ceiling");
         assert!(

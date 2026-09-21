@@ -19,7 +19,6 @@ import {
 } from '../../types/events';
 import type {
 	AudioHandling,
-	EncoderSettings,
 	ProcessPayload,
 	FileListInfo,
 	ProcessCommandResult,
@@ -286,12 +285,6 @@ export const tauriClient = {
 		update: RemoteIndexerConnectionUpdate,
 	): Promise<RemoteIndexerConnectionTestResult> =>
 		commandSpecs.test_remote_source_indexer_connection({ update }),
-	validateEncoderSettings: (
-		settings: EncoderSettings,
-	): Promise<CommandResult<'validate_encoder_settings'>> =>
-		commandSpecs.validate_encoder_settings({
-			settings,
-		}),
 	getRuntimeSettingsCapabilities: (): Promise<RuntimeSettingsCapabilities> =>
 		commandSpecs.get_runtime_settings_capabilities(),
 	previewOutputPath: (args: {

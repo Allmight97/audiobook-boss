@@ -15,12 +15,13 @@ use super::{
 #[allow(clippy::too_many_lines)]
 pub(crate) fn create_audio_encoder(
     encoder_settings: &EncoderSettings,
-    resolved_encoder: EncoderType,
     target_sample_rate: u32,
     target_channels: i32,
     requires_global_header: bool,
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     use crate::errors::AppError;
+
+    let resolved_encoder = encoder_settings.encoder_type;
 
     // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
     // engine must refuse it rather than silently opening a different encoder.
@@ -33,9 +34,7 @@ pub(crate) fn create_audio_encoder(
 
     let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
     let codec = find_encoder_by_name(codec_name)?;
-    let mut resolved_settings = encoder_settings.clone();
-    resolved_settings.encoder_type = resolved_encoder;
-    settings_encoder::validate_encoder_settings(&resolved_settings)?;
+    settings_encoder::validate_encoder_settings(encoder_settings)?;
     if resolved_encoder == EncoderType::NativeAac {
         settings_encoder::validate_native_target_bitrate(
             encoder_settings.bitrate_kbps,
@@ -151,7 +150,6 @@ pub(crate) fn setup_encoder(
     } else {
         Backend::Ffmpeg(create_audio_encoder(
             &plan.encoder_settings,
-            resolved_encoder_type,
             target_sample_rate,
             target_channels,
             requires_global_header,

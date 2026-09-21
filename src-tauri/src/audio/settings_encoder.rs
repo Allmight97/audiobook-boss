@@ -250,7 +250,7 @@ fn ensure_ffmpeg_initialized() {
 }
 
 /// Checks whether an encoder by name is available in the current FFmpeg build
-pub fn is_encoder_available_by_name(name: &str) -> bool {
+fn is_encoder_available_by_name(name: &str) -> bool {
     use std::ffi::CString;
     ensure_ffmpeg_initialized();
     let result = unsafe {
@@ -274,7 +274,7 @@ pub fn is_encoder_available_by_name(name: &str) -> bool {
 
 /// Probe the required NMR controls on the named encoder's private options.
 /// Opening each requested configuration still performs authoritative readback.
-pub(crate) fn is_native_nmr_available() -> bool {
+fn is_native_nmr_available() -> bool {
     use ffmpeg_next as ff;
     ensure_ffmpeg_initialized();
     let Some(codec) = ff::encoder::find_by_name("aac") else {
@@ -301,25 +301,23 @@ pub(crate) fn is_native_nmr_available() -> bool {
     }
 }
 
-/// Resolves the actual encoder to use based on requested type + availability.
+/// Linked encoders are checked without discovering an external FFmpeg toolchain.
+pub(super) fn linked_encoder_available(encoder: EncoderType) -> bool {
+    match encoder {
+        EncoderType::NativeAac => is_native_nmr_available(),
+        EncoderType::AacAt => cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at"),
+        EncoderType::Faac => true,
+        EncoderType::Auto | EncoderType::FdkHeAac => false,
+    }
+}
+
+/// Uses the toolchain's Auto choice; explicit requests are validated separately.
 pub fn resolve_encoder_type(
     requested: &EncoderSettings,
     availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> EncoderType {
     match requested.encoder_type {
-        EncoderType::Auto => {
-            if availability.fdk_available {
-                EncoderType::FdkHeAac
-            } else if availability.aac_at_available {
-                EncoderType::AacAt
-            } else {
-                EncoderType::NativeAac
-            }
-        }
-        EncoderType::FdkHeAac if availability.fdk_available => EncoderType::FdkHeAac,
-        EncoderType::AacAt if availability.aac_at_available => EncoderType::AacAt,
-        EncoderType::NativeAac if availability.native_aac_available => EncoderType::NativeAac,
-        EncoderType::Faac => EncoderType::Faac,
+        EncoderType::Auto => availability.auto_encoder,
         explicit => explicit,
     }
 }

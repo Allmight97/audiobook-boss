@@ -63,8 +63,10 @@
 
 ## Encoder diagnostics
 
-- Shared encoder run records use the private `run_diagnostics` helper for requested
-  settings and monotonic/wall-clock timing. Adapter records add only facts owned by
+- Shared encoder run records use the private `run_diagnostics` helper for file
+  writes, requested settings, and monotonic/wall-clock timing. Both routes share
+  one write lock and prefer `ABB_ENCODING_LOG`; `ABB_LOG_FILE` is the legacy
+  fallback, truncated once per process. Adapter records add only facts owned by
   that adapter; unavailable opened settings remain explicitly `unknown`.
 - The private `encoder::EncoderSession` owns the selected backend, PCM
   submission, packet muxing, drain, and trailer. Callers submit contiguous

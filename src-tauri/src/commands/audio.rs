@@ -1,8 +1,6 @@
 use crate::audio;
 use crate::audio::{
-    detect_encoder_availability, encoder_settings_capabilities,
-    validate_encoder_settings as validate_encoder_settings_impl, validate_input_audio_path,
-    validate_requested_encoder_available, EncoderSettings, EncoderSettingsCapabilities,
+    encoder_settings_capabilities, validate_input_audio_path, EncoderSettingsCapabilities,
     FileListInfo, SupportedAudioImportMetadata,
 };
 use crate::commands::CommandResult;
@@ -106,18 +104,6 @@ pub fn take_opened_audio_files(
     queue: tauri::State<'_, OpenedAudioFileQueue>,
 ) -> CommandResult<Vec<String>> {
     Ok(queue.take_paths()?)
-}
-
-/// Validates encoder settings (no side effects)
-#[tauri::command]
-#[specta::specta]
-pub fn validate_encoder_settings(settings: EncoderSettings) -> CommandResult<String> {
-    validate_encoder_settings_impl(&settings)?;
-
-    let availability = detect_encoder_availability();
-    validate_requested_encoder_available(settings.encoder_type, &availability)?;
-
-    Ok("Encoder settings are valid".to_string())
 }
 
 /// Returns backend-owned runtime settings capabilities for UI controls.

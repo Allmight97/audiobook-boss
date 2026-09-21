@@ -387,52 +387,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
 	});
 
-	it('validates encoder settings without external toolchain input', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.validateEncoderSettings(defaultEncoderSettings());
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				settings: Record<string, unknown>;
-			},
-		];
-		expect(commandName).toBe('validate_encoder_settings');
-		expect(args).toEqual({ settings: defaultEncoderSettings() });
-	});
-
-	it('preserves a native boundary encoder payload through validate_encoder_settings', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
-
-		const boundarySettings = {
-			encoderType: 'native_aac',
-			bitrateKbps: 96,
-			bitrateMode: { mode: 'cbr' },
-			channels: 'stereo',
-			afterburner: false,
-		} satisfies EncoderSettings;
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.validateEncoderSettings(boundarySettings);
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				settings: Record<string, unknown>;
-			},
-		];
-		expect(commandName).toBe('validate_encoder_settings');
-		expect(args.settings).toEqual(boundarySettings);
-	});
-
 	it('loads runtime settings capabilities without external toolchain input', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -449,7 +403,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
 
-	it('compiles metadata intent map for process command payload', async () => {
+	it('preserves encoder settings and compiles metadata intent for processing', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
@@ -472,12 +426,22 @@ describe('tauriClient nullish adapters', () => {
 			],
 		});
 
+		const boundarySettings = {
+			encoderType: 'native_aac',
+			bitrateKbps: 96,
+			bitrateMode: { mode: 'cbr' },
+			channels: 'stereo',
+			afterburner: false,
+			nativeAacSpeed: 4,
+			faacProfile: 'auto',
+		} satisfies EncoderSettings;
+
 		const { tauriClient } = await import('./tauri/client');
 		await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
-				settings: defaultEncoderSettings(),
+				settings: boundarySettings,
 				sampleRate: undefined,
 				jobType: 'merge',
 				outputNaming: undefined,
@@ -492,12 +456,15 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [, args] = lastCall as [
+		const [commandName, args] = lastCall as [
 			string,
 			{
 				metadata: Record<string, Record<string, unknown>>;
+				payload: { settings: EncoderSettings };
 			},
 		];
+		expect(commandName).toBe('process_audiobook_files');
+		expect(args.payload.settings).toEqual(boundarySettings);
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
 		expect(args.metadata['/books/a.m4b']?.artist).toEqual({ op: 'set', value: 'Author X' });
 		expect(args.metadata['/books/a.m4b']?.series).toBeUndefined();

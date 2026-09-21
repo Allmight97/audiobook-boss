@@ -9,7 +9,7 @@ use crate::audio::processor::preview_state::PreviewState;
 use crate::errors::{sanitize_path_for_display, Result};
 use crate::processing::{ProcessingContext, ProgressEmitter};
 
-use super::engine::FfmpegNextProcessor;
+use super::engine;
 
 pub(crate) struct InputProcessingContext<'a> {
     pub(crate) enc_ctx: &'a mut super::encoder::EncoderSession,
@@ -82,7 +82,7 @@ pub(crate) fn process_input_files(
         ctx.current_file_name = file_label.to_string();
         let path = sanitize_path_for_display(in_path);
         log::info!("Processing input file {}/{}: {}", idx + 1, file_count, path);
-        let action = FfmpegNextProcessor::process_input_file(
+        let action = engine::process_input_file(
             in_path,
             io.enc_ctx,
             idx,

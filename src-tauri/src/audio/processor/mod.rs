@@ -7,7 +7,7 @@
 //!   - staging.rs   : app-cache local processing workspace directories
 //!   - adapter.rs   : native vs external processor adapter resolution
 //!
-//! The default path uses in-process ffmpeg-next (`FfmpegNextProcessor`).
+//! The default path uses the in-process ffmpeg-next engine.
 //! FDK HE-AAC routes through an external FFmpeg/libfdk_aac adapter when selected.
 
 // Imports for orchestrator function

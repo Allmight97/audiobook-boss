@@ -5,6 +5,8 @@
   `src/lib/tauri-public-api.contract.test.ts` independently pins it. Inspect
   those sources for the exact exports and methods before changing the strip.
 - Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
+- Encoder settings validation travels through processing preflight or App Settings
+  updates; there is no standalone encoder-validation command.
 
 ## Frontend Utility Surface
 - `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that

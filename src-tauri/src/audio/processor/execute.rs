@@ -14,7 +14,7 @@ use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
 use crate::processing::ProcessingContext;
 
-use super::engine::FfmpegNextProcessor;
+use super::engine;
 use super::plan::MediaProcessingPlan;
 use super::ProcessingWorkflow;
 
@@ -76,7 +76,7 @@ pub(crate) fn merge_audio_files_with_context(
         context.required_encoder_settings()?.encoder_type
     );
     crate::diagnostics::stage("encode_mux", &temp_output, || {
-        FfmpegNextProcessor::execute(&plan, context, metadata, passthrough)
+        engine::execute(&plan, context, metadata, passthrough)
     })?;
 
     Ok(temp_output)
