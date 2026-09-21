@@ -79,9 +79,10 @@
   opened profile determines frame size, mux profile, priming, postroll policy,
   and encoding-tool tag; profile Auto must work for both LC and HE.
 - `faac_timing` owns HE core priming in MP4 and the native decoder's PCM
-  interval. Its encoding-tool tag identifies ABB-produced HE files; LC uses
-  a distinct tag and its returned encoder delay. Apply the HE interval only
-  to the recognized HE provenance.
+  interval. Its encoding-tool tag identifies the timing convention of
+  ABB-produced HE files; retain each recognized convention when upgrading
+  upstream priming. LC uses a distinct tag and its returned encoder delay.
+  Apply the HE interval only to the recognized HE provenance.
 - HE re-import reads all FAAC access units, including decoder postroll, and trims
   at source sample rate before preview, resampling, or concatenation. In-process
   packet skip metadata and external FDK filters consume the same interval.

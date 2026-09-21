@@ -120,7 +120,7 @@ fn encode_configuration(
     );
     assert_eq!(
         info.encoder_delay,
-        if expected == FAAC_OBJ_LOW { 1024 } else { 3041 }
+        if expected == FAAC_OBJ_LOW { 1024 } else { 3042 }
     );
     assert_eq!(
         info.frame_samples,
@@ -206,6 +206,6 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(info.sbr_decimation, 1);
     assert_eq!(
         unsafe { CStr::from_ptr(info.version) }.to_bytes(),
-        b"2.1.0-dev.67631b5"
+        b"2.1.0-dev.9edb7db"
     );
 }

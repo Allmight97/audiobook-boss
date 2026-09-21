@@ -350,7 +350,16 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
                 if (!hEncoder->inputFifo[channel]) return 0;
             }
         hEncoder->inputFifoCap  = cap;
+        /* HE-AAC's pipeline delay is 3*FRAME_LEN - 31 full-rate samples, an odd
+         * count the core-rate container timescale cannot express. One zero
+         * sample ahead of the stream makes it even, so gapless trimming is
+         * exact; faacEncoderDelay reports the padded figure. */
         hEncoder->inputFifoFill = 0;
+        if (hEncoder->config.aacObjectType == HE_V1) {
+            for (channel = 0; channel < hEncoder->numChannels; channel++)
+                hEncoder->inputFifo[channel][0] = 0.0f;
+            hEncoder->inputFifoFill = 1;
+        }
     }
 
     hEncoder->config.maxBitRate = config->maxBitRate;
@@ -640,10 +649,7 @@ int faacEncClose(faacEncHandle hpEncoder)
  * front (realPerCh real samples/ch, the rest silence-padded), run SBR analysis
  * on it, then 2:1 downsample to produce the AAC-LC core signal. The FIFO is not
  * consumed here; the caller drops the frame after the core has read heHalfRate.
- * Cold path, kept out of the LC fast path. */
-#if defined(__GNUC__)
-__attribute__((cold, noinline))
-#endif
+ */
 static void doHEAACFrame(faacEncStruct *hEncoder, unsigned int realPerCh,
                          float *heHalfRate[MAX_CHANNELS])
 {

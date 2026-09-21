@@ -1906,9 +1906,14 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
                 String::from_utf8_lossy(&converted.stderr)
             );
             let decoded = decode_pcm_f32(&decoded_path);
+            // HE's half-rate timeline cannot express an odd full-rate duration.
+            // Even HE durations and LC must retain an exact sample count.
+            let tolerance = usize::from(
+                profile == audiobook_boss_lib::audio::FaacProfile::HeAacV1 && samples % 2 != 0,
+            );
             assert!(
-                decoded.len().abs_diff(source.len()) <= 1,
-                "source={} decoded={}",
+                decoded.len().abs_diff(source.len()) <= tolerance,
+                "Apple playable sample count: source={} decoded={}",
                 source.len(),
                 decoded.len()
             );
@@ -1930,7 +1935,7 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
 async fn faac_reimport_preserves_audio_alignment_and_tail() {
     assert_faac_reimport(
         faac_encoder_settings(),
-        "AudioBook Boss FAAC HE-AAC",
+        "AudioBook Boss FAAC HE-AAC timing-2",
         native_encoder_settings(),
         &[
             (32000, 4096),
@@ -1959,12 +1964,12 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
         (
             FaacProfile::Auto,
             BitrateMode::Vbr(50),
-            "AudioBook Boss FAAC HE-AAC",
+            "AudioBook Boss FAAC HE-AAC timing-2",
         ),
         (
             FaacProfile::HeAacV1,
             BitrateMode::Vbr(100),
-            "AudioBook Boss FAAC HE-AAC",
+            "AudioBook Boss FAAC HE-AAC timing-2",
         ),
     ] {
         let input = EncoderSettings {
@@ -1989,7 +1994,7 @@ async fn faac_reimport_through_external_fdk_preserves_audio_interval() {
     for channels in [ChannelConfig::Mono, ChannelConfig::Stereo] {
         assert_faac_reimport(
             faac_encoder_settings(),
-            "AudioBook Boss FAAC HE-AAC",
+            "AudioBook Boss FAAC HE-AAC timing-2",
             EncoderSettings {
                 encoder_type: EncoderType::FdkHeAac,
                 bitrate_mode: BitrateMode::Vbr(3),
