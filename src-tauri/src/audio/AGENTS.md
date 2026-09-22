@@ -101,7 +101,9 @@
 ## Path Display Policy
 
 - Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
-- Diagnostics and logs use sanitized display strings.
+- User-facing diagnostics use sanitized display strings. Local audio-inspection
+  logs include the validated canonical source path with debug escaping, so a
+  source can be located and same-named files remain distinguishable.
 - Lossy strings are allowed only for display ordering, never identity or command argv.
 
 ## Edit Rules

@@ -220,8 +220,8 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     let inspection = crate::audio::processor::inspect_audio_decoder(path)?;
     let selected_decoder = inspection.selected_decoder;
     log::info!(
-        "validate_audio_format path={} selected_decoder_id={} selected_decoder={}",
-        crate::errors::sanitize_path_for_display(path),
+        "validate_audio_format source_path={:?} selected_decoder_id={} selected_decoder={}",
+        path,
         selected_decoder.decoder_id.as_str(),
         selected_decoder.decoder_label.as_str()
     );

@@ -2286,3 +2286,41 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
     assert!(!destination.exists());
     assert!(!workspace.exists() || fs::read_dir(&workspace).unwrap().next().is_none());
 }
+
+#[test]
+fn mp3_title_stack_requires_encoding_and_names_the_incompatible_source() {
+    use audiobook_boss_lib::commands::audio::preflight_processing_plan;
+    use audiobook_boss_lib::processing::{AudioHandling, ProcessPayload};
+    let tmp = TempDir::new().expect("MP3 stack workspace");
+    let output_dir = tmp.path().join("out");
+    fs::create_dir(&output_dir).expect("output directory");
+    let first = tmp.path().join("part-one.mp3");
+    let second = tmp.path().join("part-two.mp3");
+    write_sine_mp3(&first, 0.1, 440.0);
+    fs::copy(&first, &second).expect("second MP3 source");
+    let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
+        "inputFiles": [first],
+        "titleSources": {first.to_str().unwrap(): [{"path": second}, {"path": first}]},
+        "outputDir": output_dir, "jobType": "batch",
+        "audioHandling": ["encode"], "settings": native_encoder_settings()
+    }))
+    .expect("MP3 stack request");
+    let plan =
+        preflight_processing_plan(payload.clone(), None, None).expect("encoding accepts MP3 stack");
+    assert_eq!(plan.outputs.len(), 1);
+    assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
+    let mut preserved = payload;
+    preserved.audio_handling = Some(vec![AudioHandling::Preserve]);
+    preserved.settings = None;
+    let error = preflight_processing_plan(preserved, None, None)
+        .expect_err("MP3 packet merge is unsupported");
+    assert!(error.message.contains("part-two.mp3"), "{}", error.message);
+    assert!(error.message.contains("AAC only"), "{}", error.message);
+    assert_eq!(
+        fs::read_dir(&output_dir)
+            .expect("read output directory")
+            .count(),
+        0,
+        "preflight must not publish output"
+    );
+}

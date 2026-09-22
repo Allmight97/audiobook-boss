@@ -45,7 +45,11 @@ fn open_source(file: &AudioFile) -> Result<(ff::format::context::Input, usize, C
         .ok_or_else(|| incompatible("an audio stream is missing"))?;
     let params = stream.parameters();
     if params.id() != ff::codec::Id::AAC {
-        return Err(incompatible("a merged M4B requires AAC sources"));
+        return Err(incompatible(&format!(
+            "merging without re-encoding currently supports AAC only; '{}' contains {}",
+            crate::errors::sanitize_path_for_display(&path),
+            params.id().name().to_uppercase(),
+        )));
     }
     let configuration = Configuration {
         extradata: super::streams::read_codec_extradata(&params)

@@ -188,6 +188,46 @@ describe('Solid input workbench', () => {
 		},
 	);
 
+	it.each([true, false])(
+		'resolves a stacked title’s mixed audio choice from its indicator (can preserve: %s)',
+		async (canPreserve) => {
+			const user = userEvent.setup();
+			const files = [
+				analyzedFile('/books/one.m4b', { preservation: { canPreserve: true, recommended: true } }),
+				analyzedFile('/books/two.m4b', { preservation: { canPreserve, recommended: canPreserve } }),
+			];
+			runtime = createAppRuntime({
+				input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
+			});
+			renderApp(runtime);
+			await runtime.input.importIntent({
+				type: 'importPaths',
+				paths: files.map((file) => file.path),
+			});
+			runtime.input.setAudioHandling(files[0]!, 'preserve');
+			await runtime.input.selectAll();
+			await runtime.input.groupSelected();
+			const indicator = screen.getByRole('button', {
+				name: canPreserve ? 'Keep original audio for one.m4b' : 'Re-encode audio for one.m4b',
+			});
+			expect(indicator).toHaveAttribute('aria-pressed', 'mixed');
+			await user.hover(indicator);
+			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
+			expect(within(screen.getByRole('tooltip')).queryByRole('button')).not.toBeInTheDocument();
+			await user.click(indicator);
+			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
+			expect(runtime.input.audioHandling(files[0]!)).toBe(canPreserve ? 'preserve' : 'encode');
+			if (canPreserve) {
+				await user.click(indicator);
+				expect(runtime.input.audioHandling(files[0]!)).toBe('encode');
+				runtime.input.setOrderLocked(true);
+				await waitFor(() => expect(indicator).toBeDisabled());
+				await user.click(indicator);
+				expect(runtime.input.audioHandling(files[0]!)).toBe('encode');
+			}
+		},
+	);
+
 	it('exports five tagged books with three explicitly preserved and two using the selected encoder', async () => {
 		const user = userEvent.setup();
 		const books = ['Prey 1', 'Prey 2', 'Prey 3', 'Large', 'Standard'].map((title, index) =>
@@ -230,22 +270,25 @@ describe('Solid input workbench', () => {
 				'option',
 			);
 			const selected = [...runtime.input.view().selectedIndices];
-			expect(screen.getAllByRole('button', { name: /Audio handling for/ })).toHaveLength(5);
-			const info = within(rows[0]!).getByRole('button', { name: /Audio handling for/ });
+			expect(screen.getAllByRole('button', { name: /Keep original audio for/ })).toHaveLength(5);
+			const info = within(rows[0]!).getByRole('button', { name: /Keep original audio for/ });
 			await user.hover(info);
-			expect(screen.getByRole('dialog', { name: 'Audio handling' })).toHaveTextContent(
-				'This audiobook may not need re-encoding',
-			);
+			expect(info).toHaveAttribute('aria-pressed', 'false');
+			expect(screen.getByRole('tooltip')).toHaveTextContent('This audio is already compact');
 			await user.keyboard('{Escape}');
-			expect(screen.queryByRole('dialog', { name: 'Audio handling' })).not.toBeInTheDocument();
+			expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
 			for (const row of rows.slice(0, 3)) {
-				await user.click(within(row).getByRole('button', { name: /Audio handling for/ }));
-				await user.click(screen.getByRole('button', { name: 'Keep original audio' }));
-				expect(screen.getByRole('dialog', { name: 'Audio handling' })).toHaveTextContent(
-					'Original audio kept',
-				);
+				await user.click(within(row).getByRole('button', { name: /Keep original audio for/ }));
+				expect(within(screen.getByRole('tooltip')).queryByRole('button')).not.toBeInTheDocument();
+				expect(screen.getByRole('tooltip')).toHaveTextContent('Original audio kept');
 				await user.keyboard('{Escape}');
 			}
+			info.focus();
+			await user.keyboard(' ');
+			expect(info).toHaveAttribute('aria-pressed', 'false');
+			await user.keyboard('{Enter}');
+			expect(info).toHaveAttribute('aria-pressed', 'true');
+			await user.keyboard('{Escape}');
 			expect(runtime.input.view().selectedIndices).toEqual(selected);
 			expect(
 				screen.queryByRole('checkbox', { name: /Keep original audio/ }),

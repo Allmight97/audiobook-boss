@@ -338,6 +338,89 @@ mod tests {
         }
     }
 
+    #[test]
+    fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
+        use crate::metadata::{MetadataIntentPatch, PatchOp};
+        use crate::processing::types::TitleSource;
+        let temp = TempDir::new().expect("title plan workspace");
+        let paths: Vec<_> = ["one.wav", "two.wav", "other.wav"]
+            .iter()
+            .map(|name| {
+                let path = temp.path().join(name);
+                write_silence_wav(&path, 1);
+                path.canonicalize().expect("canonical fixture")
+            })
+            .collect();
+        let names: Vec<_> = paths
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect();
+        let mut payload = process_payload(|payload| {
+            payload.input_files = vec![names[0].clone(), names[2].clone()];
+            payload.title_sources = Some(HashMap::from([(
+                names[0].clone(),
+                vec![
+                    TitleSource {
+                        path: names[1].clone(),
+                        input_id: Some("two".into()),
+                    },
+                    TitleSource {
+                        path: names[0].clone(),
+                        input_id: Some("one".into()),
+                    },
+                ],
+            )]));
+            payload.output_dir = temp.path().to_string_lossy().into_owned();
+            let settings = payload.settings.as_mut().expect("encode settings");
+            settings.encoder_type = EncoderType::NativeAac;
+            settings.bitrate_mode = BitrateMode::Cbr;
+        });
+        let metadata = HashMap::from([
+            (
+                names[0].clone(),
+                MetadataIntentPatch {
+                    title: PatchOp::Set("Combined title".into()),
+                    ..Default::default()
+                },
+            ),
+            (
+                names[2].clone(),
+                MetadataIntentPatch {
+                    title: PatchOp::Set("Separate title".into()),
+                    ..Default::default()
+                },
+            ),
+        ]);
+        let reviewed = super::preflight_payload(payload.clone(), Some(metadata.clone()), None)
+            .expect("review titles");
+        payload.preflight_signature = Some(reviewed.plan_signature);
+        let inspected =
+            super::run_validation::inspect_and_validate_external_processing_contract(&payload)
+                .expect("inspect all title sources");
+        let execution = crate::processing::plan::prepare_execution_plan(
+            &payload,
+            Some(&metadata),
+            None,
+            inspected,
+        )
+        .expect("prepare reviewed execution");
+        let jobs = execution.plan.jobs;
+        assert_eq!(jobs.len(), 2);
+        assert_eq!(jobs[0].input_path.as_ref(), Some(&paths[0]));
+        assert_eq!(jobs[0].source_paths, [paths[1].clone(), paths[0].clone()]);
+        assert_eq!(jobs[1].source_paths, [paths[2].clone()]);
+        for (job, title) in jobs.iter().zip(["Combined title", "Separate title"]) {
+            assert_eq!(
+                job.metadata
+                    .as_ref()
+                    .and_then(|value| value.title.as_deref()),
+                Some(title)
+            );
+            assert!(job.output.resolved_path.to_string_lossy().contains(title));
+            assert!(!job.output.resolved_path.exists());
+        }
+    }
+
     fn write_silence_wav(path: &std::path::Path, channels: u16) {
         const SAMPLE_RATE: u32 = 44_100;
         let data_len = SAMPLE_RATE * 2 * u32::from(channels);

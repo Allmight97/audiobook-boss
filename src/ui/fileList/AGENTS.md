@@ -19,8 +19,12 @@
 
 `AudioHandlingControl` owns its transient hover/focus disclosure, pointer
 travel grace, outside dismissal, and Escape cleanup. Its portal overlays the
-list without changing row height. The only audio choice control belongs to the
-title; source rows expose facts and order, not competing handling choices.
+list without changing row height. The indicator is the title's audio toggle
+(`aria-pressed`, with mixed state for unresolved choices); hover/focus reveals a
+read-only tooltip. Clicking or keyboard activation changes the choice. The
+kept state uses a check and explicit tooltip copy as well as blue. The only
+audio choice control belongs to the title; source rows expose facts and order,
+not competing handling choices.
 Title text selects and expands/collapses sources. `TitleSources` reuses the same
 pointer reorder helper as the outer list, with a hit test scoped to that title.
 List membership, source order, and persisted audio choices remain Input truth.
