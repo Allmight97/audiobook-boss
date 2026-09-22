@@ -27,9 +27,10 @@ export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 		getAudioHandling: (file) => deps.input.audioHandling(file),
 		sourcesFor: (file) => deps.input.sourcesFor(file),
 		readProcessingRequestConfig: (audioHandling) => {
-			if (deps.input.view().files.some((file) => deps.input.audioChoiceRequired(file)))
+			const titles = deps.input.view().files.filter((file) => file.isValid);
+			if (titles.some((file) => deps.input.audioChoiceRequired(file)))
 				throw new Error('Choose audio handling for each grouped title before processing.');
-			if (deps.input.view().sourceFiles.some((file) => !file.isValid))
+			if (titles.some((title) => deps.input.sourcesFor(title).some((source) => !source.isValid)))
 				throw new Error('Remove or replace invalid source files before processing.');
 			return {
 				...(audioHandling.includes('encode') ? deps.encoding.request() : {}),

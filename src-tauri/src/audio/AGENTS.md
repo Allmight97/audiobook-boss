@@ -52,9 +52,9 @@
 - Target bitrate bounds and native speed bounds come from
   `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
   check their resolved AAC ceilings during preflight and encoder setup. Input
-  validation receives the sample-rate choice and whether inputs share one
-  output; batch ceilings are checked per file, merge ceilings use the combined
-  channels and first input rate.
+  validation receives the sample-rate choice and inspected sources grouped by
+  output title. Resolve the adapter once per validation call; each title's
+  ceiling uses its combined channels and first input rate.
   Opened NMR and FAAC settings must match the request; FAAC preflight uses the
   same adapter open/readback as execution, including upstream bitrate clamps.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;

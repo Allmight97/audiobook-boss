@@ -20,14 +20,6 @@ type ProcessingWorkflowPromise = <A>(
 	message: string,
 ) => AppEffect<A, ProcessingWorkflowFailed>;
 
-export function validInputFilePaths(fileList: FileListInfo): string[] {
-	return fileList.files.filter((file) => file.isValid).map((file) => file.path);
-}
-
-export function validInputIds(fileList: FileListInfo): (string | undefined)[] {
-	return fileList.files.filter((file) => file.isValid).map((file) => file.inputId);
-}
-
 function toWireInputIds(inputIds: readonly (string | undefined)[]): (string | null)[] {
 	return inputIds.map((inputId) => inputId ?? null);
 }

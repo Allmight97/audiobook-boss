@@ -113,9 +113,80 @@ describe('Solid input workbench', () => {
 		expect(within(row).getByText('125.6 kbps · 22.05 kHz · Stereo · MP3')).toBeVisible();
 		expect(runtime.input.view().files).toHaveLength(1);
 		expect(screen.getByRole('button', { name: 'Group as one title' })).toBeDisabled();
-		expect(runtime.input.view().files).toHaveLength(1);
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
 	});
+
+	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
+		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
+		runtime = createAppRuntime({
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
+		});
+		vi.spyOn(runtime.remoteSource, 'hasCompanions').mockImplementation(
+			(inputId) => inputId === files[1]!.inputId,
+		);
+		renderApp(runtime);
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		await runtime.input.selectAll();
+		await runtime.input.groupSelected();
+		const row = screen.getByRole('option', { name: 'part1.m4b' });
+		expect(within(row).getByText('PDF')).toBeVisible();
+	});
+
+	it.each([false, true])(
+		'validates only submitted title sources (grouped: %s)',
+		async (grouped) => {
+			const files = [
+				analyzedFile('/books/valid.m4b', {
+					preservation: { canPreserve: true, recommended: true },
+				}),
+				analyzedFile('/books/invalid.m4b', { isValid: false }),
+			];
+			const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
+				jobType: 'batch',
+				collisionPolicy: 'fail',
+				planSignature: 'valid-titles',
+				outputs: [],
+			});
+			const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
+			runtime = createAppRuntime({
+				input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
+			});
+			await runtime.input.importIntent({
+				type: 'importPaths',
+				paths: files.map((file) => file.path),
+			});
+			runtime.input.setAudioHandling(files[0]!, 'preserve');
+			if (grouped) {
+				await runtime.input.selectAll();
+				await runtime.input.groupSelected();
+				runtime.input.setAudioHandling(files[0]!, 'encode');
+			}
+			runtime.output.applyDefaults({
+				outputDirectory: '/library',
+				outputNaming: { preset: 'absDefault', includeYear: false },
+			});
+			try {
+				await runtime.processing.start();
+				if (grouped) {
+					expect(preflight).not.toHaveBeenCalled();
+					expect(submit).not.toHaveBeenCalled();
+					expect(runtime.processing.status().stepText).toContain('invalid source');
+				} else {
+					expect(submit).toHaveBeenCalledWith(
+						expect.objectContaining({
+							payload: expect.objectContaining({ inputFiles: ['/books/valid.m4b'] }),
+						}),
+					);
+				}
+			} finally {
+				preflight.mockRestore();
+				submit.mockRestore();
+			}
+		},
+	);
 
 	it('exports five tagged books with three explicitly preserved and two using the selected encoder', async () => {
 		const user = userEvent.setup();

@@ -164,7 +164,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shared_encoding_log_takes_precedence_without_legacy_truncate() {
+    fn shared_encoding_log_takes_precedence_over_legacy_target() {
         assert_eq!(
             encoder_log_target_from_env(
                 Some("/tmp/encoding.log".into()),

@@ -102,40 +102,26 @@ impl AudioExecutionRequest {
 
 pub fn validate_audio_engine_inputs(
     encoder_settings: &EncoderSettings,
-    file_info: &FileListInfo,
+    titles: &[FileListInfo],
     sample_rate: &crate::audio::SampleRateConfig,
-    merge_inputs: bool,
 ) -> Result<()> {
-    adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
-    adapter.validate_inputs(file_info)?;
-    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = adapter {
+    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = &adapter {
         crate::audio::settings::validate_encoder_sample_rate(
-            encoder_type,
+            *encoder_type,
             encoder_settings.faac_profile,
             sample_rate,
         )?;
-        if matches!(
-            encoder_type,
-            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::Faac
-        ) {
-            if merge_inputs {
-                validate_output_target(
-                    encoder_settings,
-                    encoder_type,
-                    sample_rate,
-                    &file_info.files,
-                )?;
-            } else {
-                for file in file_info.files.iter().filter(|file| file.is_valid) {
-                    validate_output_target(
-                        encoder_settings,
-                        encoder_type,
-                        sample_rate,
-                        std::slice::from_ref(file),
-                    )?;
-                }
-            }
+    }
+    for title in titles {
+        adapter::resolve_output_channels(encoder_settings.channels, &title.files)?;
+        adapter.validate_inputs(title)?;
+        if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type:
+                encoder_type @ (crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::Faac),
+        } = &adapter
+        {
+            validate_output_target(encoder_settings, *encoder_type, sample_rate, &title.files)?;
         }
     }
     Ok(())

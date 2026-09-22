@@ -29,8 +29,6 @@ import {
 	buildProcessPayload,
 	reviewOutputPlan,
 	stagePendingMetadataIntent,
-	validInputIds,
-	validInputFilePaths,
 } from './workflowPreparation';
 import type { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
@@ -386,9 +384,7 @@ export function processingWorkflowProgram(
 			.map((file) => ({ file, sources: [...services.sourcesFor(file)] }));
 		const sourceFiles = titles.flatMap((title) => title.sources);
 		const sourceInputIds = sourceFiles.map((file) => file.inputId);
-		const audioHandling = fileList.files
-			.filter((file) => file.isValid)
-			.map(services.getAudioHandling);
+		const audioHandling = titles.map((title) => services.getAudioHandling(title.file));
 		const processingRequestConfig = yield* readProcessingConfig(services, audioHandling);
 		if (!processingRequestConfig) {
 			return;
@@ -401,8 +397,8 @@ export function processingWorkflowProgram(
 			),
 		);
 
-		const filePaths = validInputFilePaths(fileList);
-		const inputIds = validInputIds(fileList);
+		const filePaths = titles.map((title) => title.file.path);
+		const inputIds = titles.map((title) => title.file.inputId);
 		const metadataReady = yield* stagePendingMetadataIntent(services, fileList, workflowPromise);
 		if (!metadataReady) {
 			return;

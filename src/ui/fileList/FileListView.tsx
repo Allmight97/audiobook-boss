@@ -91,10 +91,6 @@ export function FileListView(props: {
 		return view().selectedIndices.includes(index);
 	}
 
-	function hasCompanion(inputId: string | undefined): boolean {
-		return remoteSource.hasCompanions(inputId);
-	}
-
 	function handleFileListClick(index: number, event: MouseEvent): void {
 		if (isInteractiveListTarget(event.target)) return;
 		if (metadataView().saveInProgress) return;
@@ -318,7 +314,7 @@ export function FileListView(props: {
 														<span class="title-source-count">{sources().length} files</span>
 													</Show>
 												</button>
-												{hasCompanion(file.inputId) ? (
+												{sources().some((source) => remoteSource.hasCompanions(source.inputId)) ? (
 													<span class="companion-chip" title="Supplemental PDF attached">
 														PDF
 													</span>
