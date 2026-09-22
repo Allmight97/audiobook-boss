@@ -2,7 +2,7 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
 import { buildFileListAppendResult } from './appendResult';
-import type { ImportIntent, InputSessionState } from './types';
+import { fileIdentityKey, type ImportIntent, type InputSessionState } from './types';
 
 type ImportUpdate = (session: InputSessionState) => InputSessionState;
 
@@ -115,7 +115,16 @@ function appendAnalyzedFiles(
 		return withError('Order locked while processing. Wait for completion to add files.')(session);
 	}
 	const existingFiles = session.fileList?.files ?? [];
-	const appendResult = buildFileListAppendResult(analyzed, {
+	const hiddenPaths = new Set(
+		existingFiles
+			.flatMap((file) => session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [])
+			.map((file) => file.path),
+	);
+	const incoming = {
+		...analyzed,
+		files: analyzed.files.filter((file) => !hiddenPaths.has(file.path)),
+	};
+	const appendResult = buildFileListAppendResult(incoming, {
 		existingFiles,
 		currentFileList: session.fileList,
 	});

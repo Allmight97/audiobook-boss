@@ -105,7 +105,7 @@ export const commands = {
 	preset: NamingPreset,
 	includeYear: boolean,
 	customTemplate: string | null,
-} | null, sourcePath: string | null, outputKind: "final" | "preview" | null, audioHandling: "encode" | "preserve" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, audioHandling })),
+} | null, sourcePath: string | null, outputKind: "final" | "preview" | null, audioHandling: "encode" | "preserve" | null, merged: boolean | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, audioHandling, merged })),
 	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
 	/**  Returns the current maximum concurrent jobs setting */
 	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
@@ -326,6 +326,7 @@ export type ChildJobSnapshot = {
 	sourcePath: string | null,
 	inputIndex: number | null,
 	inputId: string | null,
+	sourceInputIds: string[],
 	jobId: string | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
@@ -723,7 +724,10 @@ export type ProcessCommandResult = {
 };
 
 export type ProcessPayload = {
+	/**  One metadata anchor per output title. Source order never changes this identity. */
 	inputFiles: string[],
+	/**  Ordered sources for multi-file titles, keyed by their metadata anchor. */
+	titleSources: { [key in string]: TitleSource[] } | null,
 	chapterPlans: { [key in string]: ChapterPlan } | null,
 	/**
 	 *  Session/workbench identities aligned to `input_files`; used for acquired
@@ -1054,6 +1058,11 @@ export type SupportedAudioImportMetadata = {
 	extensions: string[],
 	formatsText: string,
 	supportText: string,
+};
+
+export type TitleSource = {
+	path: string,
+	inputId: string | null,
 };
 
 /**

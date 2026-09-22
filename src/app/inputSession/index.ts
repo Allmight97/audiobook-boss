@@ -4,6 +4,7 @@ export {
 	displayedArtistForFile,
 	displayedTitleForFile,
 	formatFileDetails,
+	formatAudioProperties,
 	toInputView,
 } from './display';
 export type { ImportIntent, InputView, SelectionModifiers } from './types';

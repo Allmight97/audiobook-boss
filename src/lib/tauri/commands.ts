@@ -311,6 +311,7 @@ export const commandSpecs = {
 		sourcePath?: string | null;
 		outputKind?: OutputKind | null;
 		audioHandling?: AudioHandling | null;
+		merged?: boolean;
 	}) =>
 		runGeneratedCommand(
 			generatedCommands.previewOutputPath(
@@ -320,6 +321,7 @@ export const commandSpecs = {
 				args.sourcePath ?? null,
 				args.outputKind ?? null,
 				args.audioHandling ?? null,
+				args.merged ?? false,
 			),
 		),
 	preflight_processing_plan: (args: {

@@ -38,6 +38,10 @@ function sessionWithDuration(totalDuration: number) {
 function emptyInputView(overrides: Partial<InputView> = {}): InputView {
 	return {
 		files: [],
+		sourceFiles: [],
+		selectedSourceFiles: (overrides.selectedIndices ?? []).flatMap(
+			(index) => overrides.files?.[index] ?? [],
+		),
 		selectedIndices: [],
 		selectedAnchor: -1,
 		fileCount: 0,

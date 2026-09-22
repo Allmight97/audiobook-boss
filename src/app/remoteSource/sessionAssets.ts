@@ -1,4 +1,4 @@
-import type { AudioFile, FileListInfo, SupplementalProcessingAsset } from '../../types/audio';
+import type { AudioFile, SupplementalProcessingAsset } from '../../types/audio';
 import { logAppError } from '../../lib/tauri/appError';
 import type { AcquisitionJob, SupplementalAsset } from '../../types/remoteSource';
 
@@ -13,7 +13,7 @@ export type CompanionAssetSummary = {
 };
 
 export type RemoteSourceSessionAssets = {
-	register(job: AcquisitionJob, fileList: FileListInfo | null): void;
+	register(job: AcquisitionJob, files: readonly AudioFile[]): void;
 	processingAssets(inputIds: readonly InputId[]): AssetsByInputId | undefined;
 	hasCompanions(inputId: InputId): boolean;
 	companionSummary(inputIds: readonly InputId[]): CompanionAssetSummary;
@@ -150,13 +150,11 @@ export function createRemoteSourceSessionAssets(deps: {
 	}
 
 	return {
-		register(job, fileList) {
-			if (!fileList) return;
-
+		register(job, files) {
 			const nextAssets = { ...supplementalAssetsByInputId };
 			const nextJobs = { ...jobIdsByInputId };
 			for (const materialized of job.materializedFiles) {
-				const importedFile = fileList.files.find((file) => file.path === materialized.path);
+				const importedFile = files.find((file) => file.path === materialized.path);
 				if (!importedFile?.inputId) continue;
 				nextJobs[importedFile.inputId] = job.jobId;
 

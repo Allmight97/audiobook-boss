@@ -161,20 +161,19 @@ pub(crate) fn supplemental_assets_for_input(
     let Some(index) = input_index else {
         return Vec::new();
     };
-    let Some(input_id) = payload
-        .input_ids
-        .as_ref()
-        .and_then(|ids| ids.get(index))
-        .and_then(|value| value.as_ref())
-    else {
-        return Vec::new();
-    };
     payload
-        .supplemental_assets_by_input_id
-        .as_ref()
-        .and_then(|assets| assets.get(input_id))
-        .cloned()
-        .unwrap_or_default()
+        .sources_for(index)
+        .into_iter()
+        .filter_map(|source| source.input_id)
+        .flat_map(|input_id| {
+            payload
+                .supplemental_assets_by_input_id
+                .as_ref()
+                .and_then(|assets| assets.get(&input_id))
+                .cloned()
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 pub(crate) fn commit_supplemental_assets(

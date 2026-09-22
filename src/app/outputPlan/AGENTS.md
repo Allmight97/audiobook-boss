@@ -30,8 +30,9 @@
   A null estimate means encoded size is unknown, as with FAAC VBR. Preserve-only
   exports still have a known size; mixed exports with unknown encoded size do
   not show a partial total. The encoder header owns presentation.
-- Path preview passes the source book's audio choice to Rust so retained MP3
-  and M4A extensions match the final plan. Extension policy stays backend-owned.
+- Path preview passes the title's audio choice and whether it has multiple
+  sources to Rust. Preserved single files retain their extension; grouped titles
+  produce M4B. Extension policy stays backend-owned.
 - Path preview is a Solid `createEffect` on public Input, Metadata, output
   directory, naming preset, year, and the **committed** template. Live template
   typing updates the input immediately and commits after 150 ms. Do not preview

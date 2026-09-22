@@ -286,6 +286,8 @@ describe('UI Workflow Smoke Test', () => {
 			expect(native.submitProcessingOperation).toHaveBeenCalledWith({
 				payload: {
 					inputFiles: [INPUT_PATH],
+					titleSources: {},
+					chapterPlans: {},
 					inputIds: ['input-dune'],
 					audioHandling: ['encode'],
 					outputDir: OUTPUT_DIRECTORY,
@@ -296,6 +298,7 @@ describe('UI Workflow Smoke Test', () => {
 						channels: 'mono',
 						afterburner: true,
 						nativeAacSpeed: 0,
+						faacProfile: 'auto',
 					},
 					sampleRate: { explicit: 44100 },
 					jobType: 'batch',
@@ -326,7 +329,6 @@ describe('UI Workflow Smoke Test', () => {
 						cover_art: { op: 'set', value: COVER_BYTES },
 					},
 				},
-				previewSeconds: undefined,
 			});
 		} finally {
 			runtime.dispose();

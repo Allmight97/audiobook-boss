@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
@@ -264,12 +264,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	}
 
 	function refreshCoverFromOwners(
-		jobType: JobType,
 		fileList: FileListInfo | null,
 		selectedFiles: ReadonlyArray<AudioFile>,
 		cover: CoverUiState,
 	): CoverUiState {
-		const displayPath = resolveCoverDisplayPath(jobType, fileList, [...selectedFiles], cache);
+		const displayPath = resolveCoverDisplayPath(fileList, [...selectedFiles], cache);
 		if (!displayPath) {
 			return displayCover(cover, null);
 		}
@@ -279,9 +278,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	function commitCoverToOwners(coverArtBytes: number[] | null, markRemoval: boolean): boolean {
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
-		const ownerPaths = resolveCoverOwnerPaths(deps.input.jobType(), session.fileList, [
-			...selected,
-		]);
+		const ownerPaths = resolveCoverOwnerPaths([...selected]);
 		if (ownerPaths.length === 0) {
 			return false;
 		}
@@ -303,12 +300,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		if (!commitCoverToOwners(bytes, false)) {
-			commit(
-				bumpCover(
-					current,
-					refreshCoverFromOwners(deps.input.jobType(), session.fileList, selected, current.cover),
-				),
-			);
+			commit(bumpCover(current, refreshCoverFromOwners(session.fileList, selected, current.cover)));
 			return;
 		}
 		commit(
@@ -390,7 +382,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	async function autoLoadCoverIfNeeded(
 		fileList: FileListInfo | null,
 		selectedFiles: ReadonlyArray<AudioFile>,
-		jobType: JobType,
 		hydrateRequestId: number,
 	): Promise<void> {
 		const started = generation;
@@ -399,8 +390,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		commit({ ...current, autoCoverRequestId });
 		const firstValid = fileList?.files.find((file) => file.isValid);
 		const selectedValid = selectedFiles.find((file) => file.isValid);
-		const targetPath =
-			jobType === 'merge' ? firstValid?.path : (selectedValid?.path ?? firstValid?.path);
+		const targetPath = selectedValid?.path ?? firstValid?.path;
 		if (!targetPath) {
 			return;
 		}
@@ -444,12 +434,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		});
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
-		commit(
-			bumpCover(
-				latest,
-				refreshCoverFromOwners(deps.input.jobType(), session.fileList, selected, latest.cover),
-			),
-		);
+		commit(bumpCover(latest, refreshCoverFromOwners(session.fileList, selected, latest.cover)));
 	}
 
 	return {
@@ -475,7 +460,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		async hydrateSelection(activeElement) {
 			const started = generation;
 			const session = deps.input.session();
-			const jobType = deps.input.jobType();
 			const start = editor;
 			const selectedFiles = selectedFilesFromSession(session);
 			const nextKey = selectionKeyFor(selectedFiles);
@@ -497,22 +481,14 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				});
 				return true;
 			}
-			syncRemovedFiles(files);
+			syncRemovedFiles(deps.input.view().sourceFiles);
 
 			if (nextKey === start.selectionKey) {
-				next = bumpCover(
-					next,
-					refreshCoverFromOwners(jobType, session.fileList, selectedFiles, next.cover),
-				);
+				next = bumpCover(next, refreshCoverFromOwners(session.fileList, selectedFiles, next.cover));
 				if (next !== start) {
 					commit(next);
 				}
-				await autoLoadCoverIfNeeded(
-					session.fileList,
-					selectedFiles,
-					jobType,
-					start.hydrateRequestId,
-				);
+				await autoLoadCoverIfNeeded(session.fileList, selectedFiles, start.hydrateRequestId);
 				return generation === started && editor.selectionKey === nextKey;
 			}
 
@@ -575,10 +551,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				form = { ...form, fields };
 			}
 			next = bumpForm(latest, form);
-			next = bumpCover(
-				next,
-				refreshCoverFromOwners(jobType, session.fileList, selectedFiles, next.cover),
-			);
+			next = bumpCover(next, refreshCoverFromOwners(session.fileList, selectedFiles, next.cover));
 			commit(next);
 
 			const focused = next.focusedFieldId;
@@ -588,7 +561,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				});
 			}
 
-			await autoLoadCoverIfNeeded(session.fileList, selectedFiles, jobType, requestId);
+			await autoLoadCoverIfNeeded(session.fileList, selectedFiles, requestId);
 			return generation === started && editor.hydrateRequestId === requestId;
 		},
 		setFieldValue(command) {
@@ -884,7 +857,9 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				commit(bumpForm(editor, resetDirtyState(editor.form)));
 
 				const validPaths = new Set(
-					(session.fileList?.files ?? []).filter((file) => file.isValid).map((file) => file.path),
+					(session.fileList?.files ?? [])
+						.filter((file) => file.isValid && deps.input.sourcesFor(file).length === 1)
+						.map((file) => file.path),
 				);
 				const pendingEntries = cache
 					.getPendingMetadataIntentEntries()
@@ -893,7 +868,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					commit({
 						...editor,
 						saveInProgress: false,
-						statusMessage: 'No pending metadata changes',
+						statusMessage: deps.input
+							.view()
+							.files.some((file) => deps.input.sourcesFor(file).length > 1)
+							? 'Title edits saved in this session. Process the title to write them to its merged audiobook.'
+							: 'No pending metadata changes',
 					});
 					return;
 				}

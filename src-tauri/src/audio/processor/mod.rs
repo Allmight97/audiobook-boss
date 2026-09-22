@@ -38,6 +38,17 @@ mod frame_pipeline;
 mod plan;
 mod prepare;
 mod preserve;
+mod preserve_merge;
+
+pub(crate) fn validate_preserved_title(files: &[AudioFile]) -> Result<()> {
+    for file in files {
+        crate::audio::validate_preservation_source(file)?;
+    }
+    if files.len() > 1 {
+        preserve_merge::validate(files)?;
+    }
+    Ok(())
+}
 mod preview_state;
 mod run_diagnostics;
 mod staging;
@@ -197,6 +208,14 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
 pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
     if request.handling == AudioHandling::Preserve {
         return tokio::task::spawn_blocking(move || {
+            if request.file_info.files.len() > 1 {
+                return preserve_merge::execute(
+                    request.context,
+                    request.file_info,
+                    request.metadata,
+                    request.cover_art_passthrough,
+                );
+            }
             preserve::execute_preserved_audio(
                 request.context,
                 request.file_info,

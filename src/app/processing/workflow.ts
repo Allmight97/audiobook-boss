@@ -20,7 +20,7 @@ import {
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
 import type { tauriClient } from '../../lib/tauri/client';
-import type { FileListInfo, JobType } from '../../types/audio';
+import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataStageResult } from '../metadataSession';
 import type { runOutputPlanReviewWorkflow } from '../outputPlan';
@@ -46,7 +46,7 @@ export interface ProcessingWorkflowServices {
 	getSelectedFileIndices: () => Set<number>;
 	readProcessingRequestConfig: (audioHandling: readonly AudioHandling[]) => ProcessingRequestConfig;
 	getAudioHandling: (file: AudioFile) => AudioHandling;
-	getJobType: () => JobType;
+	sourcesFor: (file: AudioFile) => readonly AudioFile[];
 	hasDirtyMetadataFields: () => boolean;
 	readMetadataForm: (options?: {
 		mode?: 'single' | 'multi';
@@ -380,7 +380,12 @@ export function processingWorkflowProgram(
 			services.console.log('StatusPanel: Files validated, getting output configuration...'),
 		);
 
-		const jobType = services.getJobType();
+		const jobType = 'batch';
+		const titles = fileList.files
+			.filter((file) => file.isValid)
+			.map((file) => ({ file, sources: [...services.sourcesFor(file)] }));
+		const sourceFiles = titles.flatMap((title) => title.sources);
+		const sourceInputIds = sourceFiles.map((file) => file.inputId);
 		const audioHandling = fileList.files
 			.filter((file) => file.isValid)
 			.map(services.getAudioHandling);
@@ -410,19 +415,29 @@ export function processingWorkflowProgram(
 			inputIds,
 			processingRequestConfig,
 			jobType,
-			services.remoteSource.processingAssets(inputIds),
+			services.remoteSource.processingAssets(sourceInputIds),
 			audioHandling,
 		);
+		processPayload.titleSources = Object.fromEntries(
+			titles
+				.filter((title) => title.sources.length > 1)
+				.map((title) => [
+					title.file.path,
+					title.sources.map((source) => ({ path: source.path, inputId: source.inputId })),
+				]),
+		);
 		processPayload.chapterPlans = yield* workflowPromise(
-			async () => chapterPlansForProcessing(fileList.files, jobType),
+			async () =>
+				Object.assign(
+					{},
+					...titles.map((title) =>
+						chapterPlansForProcessing(title.sources, title.sources.length > 1 ? 'merge' : jobType),
+					),
+				),
 			'Review CUE chapters before processing.',
 		);
-		const intentPaths =
-			processPayload.jobType === 'merge'
-				? processPayload.inputFiles.slice(0, 1)
-				: processPayload.inputFiles;
 		const metadataIntentByPath = yield* workflowPromise(
-			() => services.intentsForProcess(intentPaths),
+			() => services.intentsForProcess(processPayload.inputFiles),
 			'Failed to load batch metadata.',
 		);
 		const reviewResult = yield* reviewOutputPlan(
@@ -460,7 +475,7 @@ export function processingWorkflowProgram(
 		const accepted = yield* submitRetainedProcessingCommand(services, {
 			payload: reviewResult.payload,
 			metadataIntentByPath: metadataIntentByPath,
-			inputIds: inputIds,
+			inputIds: sourceInputIds,
 		});
 		yield* completeAcceptedSubmission(services, context, accepted);
 	}).pipe(

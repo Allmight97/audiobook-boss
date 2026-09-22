@@ -1,5 +1,6 @@
 import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/audio';
 import { pathBasename } from '../../lib/path/basename';
+import { toInputView } from './display';
 import type { InputSessionState, InputView } from './types';
 
 export type InspectorContextVariant = 'empty' | 'single' | 'multi';
@@ -41,12 +42,7 @@ export function toInspectorView(
 		readonly title: string;
 	},
 ): InspectorView {
-	return inspectorFromFiles(
-		session.fileList?.files ?? [],
-		session.selectedIndices,
-		session.fileList ? formatFileSize(session.fileList.totalSize) : '--- MB',
-		companionSummaryForInputIds,
-	);
+	return toInspectorViewFromInput(toInputView(session), companionSummaryForInputIds);
 }
 
 export function toInspectorViewFromInput(
@@ -57,9 +53,9 @@ export function toInspectorViewFromInput(
 	},
 ): InspectorView {
 	return inspectorFromFiles(
-		view.files,
-		view.selectedIndices,
-		view.hasFiles ? combinedSizeFromFiles(view.files) : '--- MB',
+		view.selectedSourceFiles,
+		view.selectedSourceFiles.map((_, index) => index),
+		view.hasFiles ? combinedSizeFromFiles(view.sourceFiles) : '--- MB',
 		companionSummaryForInputIds,
 	);
 }

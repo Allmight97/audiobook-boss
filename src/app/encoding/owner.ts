@@ -45,9 +45,7 @@ export type EncodingOwnerDeps = {
 
 function selectedFilesFromInput(input: Pick<InputOwner, 'view'>): AudioFile[] {
 	const view = input.view();
-	return view.selectedIndices
-		.map((index) => view.files[index])
-		.filter((file): file is AudioFile => Boolean(file));
+	return [...view.selectedSourceFiles];
 }
 
 export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
@@ -89,9 +87,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	createEffect(
 		() => deps.input.view(),
 		(inputView) => {
-			const selected = inputView.selectedIndices
-				.map((index) => inputView.files[index])
-				.filter((file): file is AudioFile => Boolean(file));
+			const selected = inputView.selectedSourceFiles;
 			const hints = resolveAutoResolutionHints(selected);
 			if (
 				bag.sampleRateHint === hints.sampleRateHint &&

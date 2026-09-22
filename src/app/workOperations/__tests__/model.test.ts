@@ -22,6 +22,7 @@ function operation(id: string, sequence: number, childCount = 1): OperationSnaps
 		sourcePath: `/tmp/${id}-${index}.m4b`,
 		inputIndex: index,
 		inputId: `${id}-${index}`,
+		sourceInputIds: [`${id}-${index}`].filter((id): id is string => Boolean(id)),
 		jobId: undefined,
 		cancellable: false,
 		cancelRequested: false,

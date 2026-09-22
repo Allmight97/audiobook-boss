@@ -538,3 +538,60 @@ describe('per-book audio handling', () => {
 		expect(owner.audioHandling(removed)).toBe('encode');
 	});
 });
+
+describe('output title groups', () => {
+	it('keeps the metadata anchor and source identities when reordering and splitting a stack', async () => {
+		const owner = createInputOwner();
+		const files = [
+			audioFile('/books/one.m4b'),
+			audioFile('/books/two.m4b'),
+			audioFile('/books/other.m4b'),
+		];
+		owner.replaceSession(sessionWith(files, [0, 1]));
+		await owner.groupSelected();
+		expect(owner.view().files).toEqual([files[0], files[2]]);
+		expect(owner.view().sourceFiles).toEqual(files);
+		owner.reorderSources(files[0]!, 0, 1);
+		expect(owner.view().files[0]).toBe(files[0]);
+		expect(owner.sourcesFor(files[0]!)).toEqual([files[1], files[0]]);
+		expect(owner.view().totalDurationSeconds).toBe(180);
+		await owner.ungroup(files[0]!);
+		expect(owner.view().files).toEqual([files[1], files[0], files[2]]);
+	});
+
+	it('requires an explicit title-level choice when grouped audio choices disagree', async () => {
+		const owner = createInputOwner();
+		const files = ['/books/one.m4b', '/books/two.m4b'].map((path) =>
+			audioFile(path, { preservation: { canPreserve: true, recommended: true } }),
+		);
+		owner.replaceSession(sessionWith(files, [0, 1]));
+		owner.setAudioHandling(files[1]!, 'preserve');
+		await owner.groupSelected();
+		expect(owner.audioChoiceRequired(files[0]!)).toBe(true);
+		owner.setAudioHandling(files[0]!, 'preserve');
+		expect(owner.audioChoiceRequired(files[0]!)).toBe(false);
+		expect(owner.audioHandling(files[0]!)).toBe('preserve');
+		await owner.removeFile(0);
+		expect(owner.view().sourceFiles).toEqual([]);
+		expect(owner.session().audioHandlingByIdentity).toEqual({});
+	});
+
+	it('does not group until the metadata draft gate accepts and does not reimport a hidden source', async () => {
+		const gate = vi.fn(async () => false);
+		const files = [audioFile('/books/one.m4b'), audioFile('/books/two.m4b')];
+		const owner = createInputOwner({
+			beforeSelectionChange: gate,
+			capability: fakeInput({
+				analyzeAudioFiles: async () => ({ ...analyzedFile(files[1]!.path), files: [files[1]!] }),
+			}),
+		});
+		owner.replaceSession(sessionWith(files, [0, 1]));
+		await owner.groupSelected();
+		expect(owner.view().files).toHaveLength(2);
+		gate.mockResolvedValue(true);
+		await owner.groupSelected();
+		await owner.importIntent({ type: 'importPaths', paths: [files[1]!.path] });
+		expect(owner.view().files).toHaveLength(1);
+		expect(owner.view().sourceFiles).toEqual(files);
+	});
+});

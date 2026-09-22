@@ -173,9 +173,7 @@ async fn dispatch_batch_plan(
         let operation_id = options.operation_id.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
-        let path = planned_job.input_path.clone().ok_or_else(|| {
-            AppError::InvalidInput("Missing batch input path in output plan".to_string())
-        })?;
+        let source_paths = planned_job.source_paths.clone();
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
         let progress_listener = options.progress_listener.clone();
         let chapter_plans = payload.chapter_plans.clone();
@@ -189,8 +187,12 @@ async fn dispatch_batch_plan(
             {
                 return Err(AppError::cancelled());
             }
-            let mut file_info = audio::get_file_list_info(std::slice::from_ref(&path))?;
-            audio::apply_chapter_plans(&mut file_info, chapter_plans.as_ref(), false)?;
+            let mut file_info = audio::get_file_list_info(&source_paths)?;
+            audio::apply_chapter_plans(
+                &mut file_info,
+                chapter_plans.as_ref(),
+                source_paths.len() > 1,
+            )?;
             run_processing_job(ProcessingJobRequest {
                 window: window_cloned,
                 registry: registry_cloned,

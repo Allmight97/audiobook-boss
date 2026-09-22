@@ -117,6 +117,7 @@ function mockOperationSnapshot(
 			sourcePath: path,
 			inputIndex: index,
 			inputId: null,
+			sourceInputIds: [],
 			jobId: null,
 			cancellable: false,
 			cancelRequested: false,

@@ -131,12 +131,12 @@ describe('remote source session assets', () => {
 	});
 
 	it('publishes when supplemental assets are registered', () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		expect(onChange).toHaveBeenCalledTimes(1);
 	});
 
 	it('rekeys provider supplemental assets to the imported file input id', () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		expect(assets.processingAssets(['current-input-1'])).toEqual({
 			'current-input-1': [
 				{
@@ -153,7 +153,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('summarizes single-file companion assets without exposing paths', () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		const summary = assets.companionSummary(['current-input-1']);
 
 		expect(summary).toEqual({
@@ -167,7 +167,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('summarizes multi-file companion assets by selected count', () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		const summary = assets.companionSummary(['current-input-1', 'current-input-2']);
 
 		expect(summary.text).toBe('1 PDF across 2 selected files');
@@ -177,7 +177,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('keeps multi-file companion summaries count-based for long PDF names', () => {
-		assets.register(multiTitleAcquisitionJob(), multiTitleFileList());
+		assets.register(multiTitleAcquisitionJob(), multiTitleFileList().files);
 		const summary = assets.companionSummary(['current-input-1', 'current-input-2']);
 
 		expect(summary.text).toBe('2 PDFs across 2 selected files');
@@ -189,7 +189,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('purges acquired session roots when inputs leave the session', async () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		await assets.reconcileInput(fileList().files);
 		await assets.reconcileInput([]);
 		expect(purgeRemoteSourceSessionMock).toHaveBeenCalledWith('remote-job-1');
@@ -197,7 +197,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('defers input cleanup while an accepted work operation retains the input', async () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		await assets.reconcileInput(fileList().files);
 		await assets.withSubmissionRetention(['current-input-1'], async () => 'accepted');
 		await assets.reconcileInput([]);
@@ -212,7 +212,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('does not purge a shared acquired session while a retained sibling remains in flight', async () => {
-		assets.register(multiTitleAcquisitionJob(), multiTitleFileList());
+		assets.register(multiTitleAcquisitionJob(), multiTitleFileList().files);
 		await assets.reconcileInput(multiTitleFileList().files);
 		await assets.withSubmissionRetention(['current-input-1'], async () => 'accepted');
 		await assets.withSubmissionRetention(['current-input-2'], async () => 'accepted');
@@ -232,7 +232,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('waits to purge shared acquisition sessions until every registered input is removable', async () => {
-		assets.register(multiTitleAcquisitionJob(), multiTitleFileList());
+		assets.register(multiTitleAcquisitionJob(), multiTitleFileList().files);
 		await assets.reconcileInput(multiTitleFileList().files);
 		await assets.reconcileInput([multiTitleFileList().files[1]!]);
 		expect(purgeRemoteSourceSessionMock).not.toHaveBeenCalled();
@@ -257,7 +257,7 @@ describe('remote source session assets', () => {
 	});
 
 	it('preserves the submission error after releasing pending cleanup', async () => {
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		await assets.reconcileInput(fileList().files);
 		const submissionError = new Error('submission failed');
 		const submission = assets.withSubmissionRetention(['current-input-1'], async () => {
@@ -270,7 +270,7 @@ describe('remote source session assets', () => {
 
 	it('keeps cleanup failure non-blocking and forgets the stale association', async () => {
 		purgeRemoteSourceSessionMock.mockRejectedValueOnce(new Error('busy'));
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		await assets.reconcileInput(fileList().files);
 		await expect(assets.reconcileInput([])).resolves.toBeUndefined();
 		expect(assets.processingAssets(['current-input-1'])).toBeUndefined();
@@ -281,7 +281,7 @@ describe('remote source session assets', () => {
 			purgeSession: vi.fn(async () => undefined),
 			onChange: vi.fn(),
 		});
-		assets.register(acquisitionJob(), fileList());
+		assets.register(acquisitionJob(), fileList().files);
 		expect(assets.hasCompanions('current-input-1')).toBe(true);
 		expect(other.hasCompanions('current-input-1')).toBe(false);
 	});

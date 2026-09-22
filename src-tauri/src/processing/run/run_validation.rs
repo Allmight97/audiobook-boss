@@ -2,7 +2,7 @@ use crate::audio;
 use crate::errors::Result;
 use crate::processing::ProcessPayload;
 use crate::processing::{AudioHandling, JobType};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::audio::FileListInfo;
 
@@ -36,10 +36,25 @@ pub(crate) fn resolve_sample_rate(payload: &ProcessPayload) -> Result<audio::Sam
 pub(super) fn inspect_and_validate_external_processing_contract(
     payload: &ProcessPayload,
 ) -> Result<FileListInfo> {
+    payload.validate_title_sources()?;
     payload.resolved_audio_handling()?;
-    let input_paths: Vec<PathBuf> = payload.input_files.iter().map(PathBuf::from).collect();
-    for path in &input_paths {
-        audio::validate_input_audio_path(path)?;
+    let input_paths: Vec<PathBuf> = (0..payload.input_files.len())
+        .flat_map(|index| payload.sources_for(index))
+        .map(|source| PathBuf::from(source.path))
+        .collect();
+    let input_paths = input_paths
+        .iter()
+        .map(|path| audio::validate_input_audio_path(path))
+        .collect::<Result<Vec<_>>>()?;
+    if input_paths
+        .iter()
+        .collect::<std::collections::HashSet<_>>()
+        .len()
+        != input_paths.len()
+    {
+        return Err(crate::errors::AppError::InvalidInput(
+            "An audio source can belong to only one output title.".into(),
+        ));
     }
     let mut file_info = audio::get_file_list_info(&input_paths)?;
     audio::apply_chapter_plans(
@@ -65,39 +80,30 @@ pub(crate) fn validate_external_processing_contract_with_file_info(
             "Encoder settings are required for encode processing.".to_string(),
         )
     })?;
-    let merge = payload.job_type == Some(JobType::Merge);
-    let filtered_info;
-    let validation_info = if !handling.contains(&AudioHandling::Preserve) {
-        file_info
-    } else {
-        let mut filtered = file_info.clone();
-        let modes = &handling;
-        filtered.files = file_info
-            .files
+    if payload.job_type == Some(JobType::Merge) {
+        return audio::validate_audio_engine_inputs(
+            settings,
+            file_info,
+            &resolve_sample_rate(payload)?,
+            true,
+        );
+    }
+    for (index, mode) in handling.iter().enumerate() {
+        if *mode == AudioHandling::Preserve {
+            continue;
+        }
+        let sources = payload.sources_for(index);
+        let paths = sources
             .iter()
-            .enumerate()
-            .filter(|(index, _)| modes.get(*index) != Some(&AudioHandling::Preserve))
-            .map(|(_, file)| file.clone())
-            .collect();
-        filtered.selected_decoders = file_info
-            .selected_decoders
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| modes.get(*index) != Some(&AudioHandling::Preserve))
-            .map(|(_, decoder)| decoder.clone())
-            .collect();
-        filtered.valid_count = filtered.files.iter().filter(|file| file.is_valid).count();
-        filtered.invalid_count = filtered.files.len().saturating_sub(filtered.valid_count);
-        filtered.total_duration = filtered.files.iter().filter_map(|file| file.duration).sum();
-        filtered.total_size = filtered.files.iter().filter_map(|file| file.size).sum();
-        filtered_info = filtered;
-        &filtered_info
-    };
-    audio::validate_audio_engine_inputs(
-        settings,
-        validation_info,
-        &resolve_sample_rate(payload)?,
-        merge,
-    )?;
+            .map(|source| audio::validate_input_audio_path(Path::new(&source.path)))
+            .collect::<Result<Vec<_>>>()?;
+        let selected = super::super::plan::title_file_info(file_info, &paths)?;
+        audio::validate_audio_engine_inputs(
+            settings,
+            &selected,
+            &resolve_sample_rate(payload)?,
+            paths.len() > 1,
+        )?;
+    }
     Ok(())
 }

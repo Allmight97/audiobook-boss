@@ -8,7 +8,10 @@ export type SelectionModifiers = {
 };
 
 export type InputSessionState = {
+	// Each visible entry anchors a title's metadata. Ordered sources live separately.
 	readonly fileList: FileListInfo | null;
+	readonly titleSourcesByIdentity: Readonly<Record<string, ReadonlyArray<AudioFile>>>;
+	readonly audioChoiceRequired: ReadonlyArray<string>;
 	readonly selectedIndices: ReadonlyArray<number>;
 	readonly selectedAnchor: number;
 	readonly sortDirection: InputSortDirection;
@@ -23,6 +26,8 @@ export type InputSessionState = {
 
 export type InputView = {
 	readonly files: ReadonlyArray<AudioFile>;
+	readonly sourceFiles: ReadonlyArray<AudioFile>;
+	readonly selectedSourceFiles: ReadonlyArray<AudioFile>;
 	readonly selectedIndices: ReadonlyArray<number>;
 	readonly selectedAnchor: number;
 	readonly fileCount: number;
@@ -51,6 +56,8 @@ export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
 export function emptyInputSession(): InputSessionState {
 	return {
 		fileList: null,
+		titleSourcesByIdentity: {},
+		audioChoiceRequired: [],
 		selectedIndices: [],
 		selectedAnchor: -1,
 		sortDirection: 'none',

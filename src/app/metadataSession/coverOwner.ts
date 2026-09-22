@@ -1,4 +1,4 @@
-import type { AudioFile, FileListInfo, JobType } from '../../types/audio';
+import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { MetadataCache } from './cache';
 
@@ -10,16 +10,7 @@ export function firstValidFilePath(fileList: FileListInfo | null): string | null
 	return firstValid?.path ?? null;
 }
 
-export function resolveCoverOwnerPaths(
-	jobType: JobType,
-	fileList: FileListInfo | null,
-	selectedFiles: AudioFile[],
-): string[] {
-	if (jobType === 'merge') {
-		const mergeKey = firstValidFilePath(fileList);
-		return mergeKey ? [mergeKey] : [];
-	}
-
+export function resolveCoverOwnerPaths(selectedFiles: AudioFile[]): string[] {
 	const validSelected = selectedFiles.filter((file) => file.isValid);
 	if (validSelected.length !== 1) {
 		return [];
@@ -73,15 +64,10 @@ function readCoverArtFromIntentPatch(
 }
 
 export function resolveCoverDisplayPath(
-	jobType: JobType,
 	fileList: FileListInfo | null,
 	selectedFiles: AudioFile[],
 	cache: MetadataCache,
 ): string | null {
-	if (jobType === 'merge') {
-		return firstValidFilePath(fileList);
-	}
-
 	const validSelected = selectedFiles.filter((file) => file.isValid);
 	if (validSelected.length === 1) {
 		return validSelected[0]?.path ?? null;

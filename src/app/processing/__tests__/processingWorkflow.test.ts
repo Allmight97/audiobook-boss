@@ -151,7 +151,6 @@ function workflowContext(): ProcessingWorkflowContext {
 
 function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 	const feedback = { showError: vi.fn() };
-	const getJobTypeMock = vi.fn((): JobType => 'merge');
 	const runOutputPlanReviewWorkflowMock: ProcessingWorkflowServices['runOutputPlanReviewWorkflow'] =
 		vi.fn(
 			async ({ payload }): Promise<OutputPlanReviewResult> => ({
@@ -168,9 +167,9 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		getCurrentFileList: vi.fn(() => fileList()),
 		getSelectedFileIndex: vi.fn(() => 0),
 		getSelectedFileIndices: vi.fn(() => new Set([0])),
+		sourcesFor: (file) => [file],
 		getAudioHandling: () => 'encode',
 		readProcessingRequestConfig: vi.fn(() => processingConfig()),
-		getJobType: getJobTypeMock,
 		hasDirtyMetadataFields: vi.fn(() => false),
 		readMetadataForm: vi.fn(() => ({})),
 		stageIntent: vi.fn(() => 'staged' as const),
@@ -184,7 +183,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 			fieldErrors: [],
 		})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
-		submitProcessingOperation: vi.fn(async () => acceptedSubmission(getJobTypeMock())),
+		submitProcessingOperation: vi.fn(async () => acceptedSubmission('batch')),
 		remoteSource,
 		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
@@ -299,6 +298,38 @@ describe('ProcessingWorkflow', () => {
 		);
 	});
 
+	it('submits a stack and a separate title while retaining every ordered source', async () => {
+		const anchor = audioFile('/books/one.m4b', { inputId: 'one' });
+		const second = audioFile('/books/two.m4b', { inputId: 'two' });
+		const separate = audioFile('/books/other.m4b', { inputId: 'other' });
+		const { services } = workflowServices({
+			getCurrentFileList: () => ({ ...fileList(), files: [anchor, separate], validCount: 2 }),
+			sourcesFor: (file) => (file.path === anchor.path ? [second, anchor] : [file]),
+			getAudioHandling: (file) => (file.path === anchor.path ? 'preserve' : 'encode'),
+		});
+		await runWithServices(workflowContext(), services);
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({
+					inputFiles: [anchor.path, separate.path],
+					inputIds: ['one', 'other'],
+					audioHandling: ['preserve', 'encode'],
+					titleSources: {
+						[anchor.path]: [
+							{ path: second.path, inputId: 'two' },
+							{ path: anchor.path, inputId: 'one' },
+						],
+					},
+				}),
+			}),
+		);
+		expect(services.intentsForProcess).toHaveBeenCalledWith([anchor.path, separate.path]);
+		expect(services.remoteSource.withSubmissionRetention).toHaveBeenCalledWith(
+			['two', 'one', 'other'],
+			expect.any(Function),
+		);
+	});
+
 	it('passes acquired supplemental PDF assets into processing payload by FileList input id', async () => {
 		const currentFileList: FileListInfo = {
 			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
@@ -324,7 +355,6 @@ describe('ProcessingWorkflow', () => {
 		const ctx = workflowContext();
 		const { services } = workflowServices({
 			getCurrentFileList: vi.fn(() => currentFileList),
-			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
 				processingAssets: vi.fn(() => supplementalAssetsByInputId),
 				withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
@@ -449,7 +479,6 @@ describe('ProcessingWorkflow', () => {
 			});
 		const submittedWhileRetained: boolean[] = [];
 		const { services } = workflowServices({
-			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
 				processingAssets: vi.fn(() => undefined),
 				withSubmissionRetention,
@@ -494,7 +523,6 @@ describe('mixed preserved and encoded books', () => {
 		);
 		const { services } = workflowServices({
 			getCurrentFileList: () => books,
-			getJobType: () => 'batch',
 			getAudioHandling: (file) =>
 				['input-1', 'input-2', 'input-3'].includes(file.inputId ?? '') ? 'preserve' : 'encode',
 			intentsForProcess: vi.fn(async () => patches),

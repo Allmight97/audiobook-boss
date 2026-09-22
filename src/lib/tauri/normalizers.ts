@@ -73,6 +73,7 @@ const METADATA_FIELDS = [
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
 	'settings',
 	'chapterPlans',
+	'titleSources',
 	'audioHandling',
 	'inputIds',
 	'sampleRate',
@@ -216,6 +217,14 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 		inputFiles: payload.inputFiles,
 		outputDir: payload.outputDir,
 		...nullableFields,
+		titleSources: payload.titleSources
+			? Object.fromEntries(
+					Object.entries(payload.titleSources).map(([key, sources]) => [
+						key,
+						sources.map((source) => ({ path: source.path, inputId: source.inputId ?? null })),
+					]),
+				)
+			: null,
 	};
 }
 

@@ -4,6 +4,7 @@ import { liveInputCapability, type InputCapability } from '../../lib/tauri/capab
 import { toInputView } from './display';
 import { runImportIntent } from './importWorkflow';
 import {
+	replaceFileListFiles,
 	clearAllFilesFromSession,
 	moveFileInSession,
 	removeFileFromSession,
@@ -25,8 +26,12 @@ import {
 export type InputOwner = {
 	readonly view: Accessor<InputView>;
 	readonly session: Accessor<InputSessionState>;
-	readonly jobType: Accessor<JobType>;
 	readonly capability: Accessor<InputCapability>;
+	sourcesFor(file: AudioFile): ReadonlyArray<AudioFile>;
+	groupSelected(): Promise<void>;
+	ungroup(file: AudioFile): Promise<void>;
+	reorderSources(file: AudioFile, from: number, to: number): void;
+	audioChoiceRequired(file: AudioFile): boolean;
 	audioHandling(file: AudioFile): AudioHandling;
 	setAudioHandling(file: AudioFile, handling: AudioHandling): void;
 	importIntent(intent: ImportIntent): Promise<void>;
@@ -46,7 +51,6 @@ export type InputOwner = {
 	toggleSort(): void;
 	restoreImportOrder(): void;
 	setOrderLocked(orderLocked: boolean): void;
-	setJobType(jobType: JobType): void;
 	chooseCue(inputId: string, choice: 'confirmHundredths' | 'ignore'): void;
 	replaceSession(session: InputSessionState): void;
 	reset(): void;
@@ -59,7 +63,6 @@ export type InputOwnerDeps = {
 
 export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	let session = emptyInputSession();
-	let jobType: JobType = 'batch';
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const capabilityValue = deps.capability ?? liveInputCapability;
 	const view: Accessor<InputView> = () => {
@@ -69,10 +72,6 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	const sessionView: Accessor<InputSessionState> = () => {
 		rev();
 		return session;
-	};
-	const jobTypeView: Accessor<JobType> = () => {
-		rev();
-		return jobType;
 	};
 	const capability: Accessor<InputCapability> = () => capabilityValue;
 	let selectionTransition: AbortController | undefined;
@@ -107,10 +106,92 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		);
 	}
 
+	function sourcesFor(file: AudioFile): ReadonlyArray<AudioFile> {
+		rev();
+		return session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
+	}
+
 	return {
+		sourcesFor,
+		audioChoiceRequired(file) {
+			rev();
+			return session.audioChoiceRequired.includes(fileIdentityKey(file));
+		},
+		async groupSelected() {
+			if (session.orderLocked || session.selectedIndices.length < 2) return;
+			const selected = [...session.selectedIndices]
+				.sort((a, b) => a - b)
+				.map((index) => session.fileList?.files[index])
+				.filter((file): file is AudioFile => Boolean(file));
+			if (!(await allowSelectionTransition()) || session.orderLocked) return;
+			if (selected.some((file) => currentIndex(file) < 0)) return;
+			const anchor = selected[0] ? session.fileList?.files[currentIndex(selected[0])] : undefined;
+			if (!anchor) return;
+			const key = fileIdentityKey(anchor);
+			const selectedKeys = new Set(selected.map(fileIdentityKey));
+			const sources = selected.flatMap((file) => {
+				const current = session.fileList?.files[currentIndex(file)];
+				return current ? sourcesFor(current) : [];
+			});
+			const choices = new Set(
+				selected.map((file) => session.audioHandlingByIdentity[fileIdentityKey(file)] ?? 'encode'),
+			);
+			const files = (session.fileList?.files ?? []).filter(
+				(file) => fileIdentityKey(file) === key || !selectedKeys.has(fileIdentityKey(file)),
+			);
+			const index = files.findIndex((file) => fileIdentityKey(file) === key);
+			commit({
+				...replaceFileListFiles(session, files),
+				titleSourcesByIdentity: { ...session.titleSourcesByIdentity, [key]: sources },
+				audioChoiceRequired: [
+					...session.audioChoiceRequired.filter((id) => !selectedKeys.has(id)),
+					...(choices.size > 1 ||
+					selected.some((file) => session.audioChoiceRequired.includes(fileIdentityKey(file)))
+						? [key]
+						: []),
+				],
+				selectedIndices: [index],
+				selectedAnchor: index,
+				sortDirection: 'none',
+			});
+		},
+		async ungroup(file) {
+			if (session.orderLocked || !(await allowSelectionTransition())) return;
+			const index = currentIndex(file);
+			const sources = sourcesFor(file);
+			if (index < 0 || sources.length < 2 || session.orderLocked) return;
+			const groups = { ...session.titleSourcesByIdentity };
+			for (const source of sources) delete groups[fileIdentityKey(source)];
+			const files = [...(session.fileList?.files ?? [])];
+			files.splice(index, 1, ...sources);
+			commit({
+				...replaceFileListFiles(session, files),
+				titleSourcesByIdentity: groups,
+				audioChoiceRequired: session.audioChoiceRequired.filter(
+					(id) => id !== fileIdentityKey(file),
+				),
+				selectedIndices: sources.map((_, offset) => index + offset),
+				selectedAnchor: index,
+			});
+		},
+		reorderSources(file, from, to) {
+			if (session.orderLocked || currentIndex(file) < 0) return;
+			const sources = [...sourcesFor(file)];
+			if (from < 0 || to < 0 || from >= sources.length || to >= sources.length || from === to)
+				return;
+			const [moved] = sources.splice(from, 1);
+			if (!moved) return;
+			sources.splice(to, 0, moved);
+			commit({
+				...session,
+				titleSourcesByIdentity: {
+					...session.titleSourcesByIdentity,
+					[fileIdentityKey(file)]: sources,
+				},
+			});
+		},
 		view,
 		session: sessionView,
-		jobType: jobTypeView,
 		capability,
 		audioHandling(file) {
 			rev();
@@ -119,9 +200,17 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		setAudioHandling(file, handling) {
 			if (session.orderLocked) return;
 			const current = session.fileList?.files[currentIndex(file)];
-			if (!current || (handling === 'preserve' && !current.preservation?.canPreserve)) return;
+			if (
+				!current ||
+				(handling === 'preserve' &&
+					!sourcesFor(current).every((source) => source.preservation?.canPreserve))
+			)
+				return;
 			commit({
 				...session,
+				audioChoiceRequired: session.audioChoiceRequired.filter(
+					(id) => id !== fileIdentityKey(current),
+				),
 				audioHandlingByIdentity: {
 					...session.audioHandlingByIdentity,
 					[fileIdentityKey(current)]: handling,
@@ -132,7 +221,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (session.orderLocked) return;
 			const current = session;
 			if (!current.fileList) return;
-			const files = current.fileList.files.map((file) => {
+			const updateFile = (file: AudioFile): AudioFile => {
 				if (file.inputId !== inputId || !file.cueSource) return file;
 				if (choice === 'confirmHundredths' && file.cueSource.status === 'needsConfirmation') {
 					return { ...file, cueSource: { ...file.cueSource, status: 'ready' as const } };
@@ -147,8 +236,15 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 					};
 				}
 				return file;
-			});
-			commit({ ...current, fileList: { ...current.fileList, files } });
+			};
+			const files = current.fileList.files.map(updateFile);
+			const titleSourcesByIdentity = Object.fromEntries(
+				Object.entries(current.titleSourcesByIdentity).map(([id, sources]) => [
+					id,
+					sources.map(updateFile),
+				]),
+			);
+			commit({ ...current, titleSourcesByIdentity, fileList: { ...current.fileList, files } });
 		},
 		async importIntent(intent) {
 			const epoch = importEpoch;
@@ -223,10 +319,6 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		setOrderLocked(orderLocked) {
 			commit(setOrderLockedInSession(session, orderLocked));
 		},
-		setJobType(next) {
-			jobType = next;
-			bump((n) => n + 1);
-		},
 		replaceSession(next) {
 			selectionTransition?.abort();
 			commit(next);
@@ -235,7 +327,6 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			selectionTransition?.abort();
 			selectionTransition = undefined;
 			importEpoch += 1;
-			jobType = 'batch';
 			commit(emptyInputSession());
 		},
 	};

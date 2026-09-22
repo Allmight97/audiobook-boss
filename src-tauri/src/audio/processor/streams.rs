@@ -234,7 +234,7 @@ fn open_audio_decoder_from_parameters(
     }
 }
 
-fn read_codec_extradata(params: &ff::codec::Parameters) -> Option<Vec<u8>> {
+pub(super) fn read_codec_extradata(params: &ff::codec::Parameters) -> Option<Vec<u8>> {
     // SAFETY: We only read the extradata slice for the lifetime of `params`
     // and immediately copy it into an owned Vec.
     unsafe {

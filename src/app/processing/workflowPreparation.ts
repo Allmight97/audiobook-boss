@@ -78,14 +78,9 @@ function stageMultiSelectionMetadata(
 }
 
 function metadataIntentTargetPath(
-	services: ProcessingWorkflowServices,
 	fileList: FileListInfo,
 	selectedFileIndex: number,
 ): string | undefined {
-	if (services.getJobType() === 'merge') {
-		return validInputFilePaths(fileList)[0];
-	}
-
 	if (selectedFileIndex >= 0) {
 		const selectedFile = fileList.files[selectedFileIndex];
 		if (selectedFile?.isValid) {
@@ -120,7 +115,7 @@ function stageSingleSelectionMetadata(
 		}
 
 		const intentPatch = validation.intentPatch;
-		const targetPath = metadataIntentTargetPath(services, fileList, selectedFileIndex);
+		const targetPath = metadataIntentTargetPath(fileList, selectedFileIndex);
 		if (!targetPath) {
 			yield* Effect.sync(() =>
 				services.feedback.showError('Select a valid input file before processing metadata edits.'),

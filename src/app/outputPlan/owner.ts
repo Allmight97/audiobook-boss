@@ -119,8 +119,14 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		let encodedDuration = 0;
 		let preservedBytes = 0;
 		for (const file of input.files.filter((file) => file.isValid)) {
-			if (deps.input.audioHandling(file) === 'preserve') preservedBytes += file.size ?? 0;
-			else encodedDuration += file.duration ?? 0;
+			if (deps.input.audioHandling(file) === 'preserve')
+				preservedBytes += deps.input
+					.sourcesFor(file)
+					.reduce((n, source) => n + (source.size ?? 0), 0);
+			else
+				encodedDuration += deps.input
+					.sourcesFor(file)
+					.reduce((n, source) => n + (source.duration ?? 0), 0);
 		}
 		return formatEstimatedSizeText(
 			input.hasFiles,
@@ -218,6 +224,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			outputDirectory: directory,
 			sourcePath,
 			audioHandling: source ? deps.input.audioHandling(source) : undefined,
+			merged: source ? deps.input.sourcesFor(source).length > 1 : false,
 			outputNaming: outputNamingFromPlan({
 				...emptyOutputPlan(),
 				outputDirectory: directory,

@@ -9,13 +9,11 @@ import './metadataManager.css';
 export function MetadataManagerView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const inputView = runtime.input.view;
-	const jobType = runtime.input.jobType;
 	const view = runtime.metadata.view;
 
 	createEffect(
 		() => ({
 			input: inputView(),
-			jobType: jobType(),
 		}),
 		() => {
 			untrack(() => {
@@ -36,7 +34,7 @@ export function MetadataManagerView(): JSX.Element {
 				class="muted-text metadata-selection-count"
 				hidden={snapshot().mode !== 'multi' || snapshot().selectionCount <= 1}
 			>
-				{snapshot().selectionCount} files selected
+				{snapshot().selectionCount} titles selected
 			</div>
 			<Show when={view().statusMessage}>
 				<p

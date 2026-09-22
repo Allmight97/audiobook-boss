@@ -128,6 +128,7 @@ pub fn preview_output_path(
     source_path: Option<String>,
     output_kind: Option<OutputKind>,
     audio_handling: Option<crate::processing::AudioHandling>,
+    merged: Option<bool>,
 ) -> CommandResult<String> {
     let base_output_dir = PathBuf::from(output_dir);
     let source_path_buf = source_path.as_deref().map(PathBuf::from);
@@ -141,7 +142,9 @@ pub fn preview_output_path(
     )?;
     let artifact =
         derive_output_artifact_path(&requested, output_kind.unwrap_or(OutputKind::Final))?;
-    let artifact = if audio_handling == Some(crate::processing::AudioHandling::Preserve) {
+    let artifact = if audio_handling == Some(crate::processing::AudioHandling::Preserve)
+        && !merged.unwrap_or(false)
+    {
         let source = source_path_buf.as_deref().ok_or_else(|| {
             AppError::InvalidInput("Keep original audio requires a source path.".into())
         })?;

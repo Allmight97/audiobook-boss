@@ -9,7 +9,7 @@ import { EncoderView } from './encoderPanel';
 import { OutputView } from './outputPanel/OutputView';
 import { FileImportView } from './fileImport/FileImportView';
 import { ConcurrencyControl } from './jobControls/ConcurrencyControl';
-import { MergeModeToggle } from './jobControls/MergeModeToggle';
+import { GroupTitlesButton } from './jobControls/GroupTitlesButton';
 import { FileInspectorView } from './leftColumn/FileInspectorView';
 import { MetadataLookupView } from './metadataLookup/MetadataLookupView';
 import { MetadataManagerView } from './metadataManager/MetadataManagerView';
@@ -66,7 +66,7 @@ export function App(): JSX.Element {
 					<div class="input-workflow-heading-row">
 						<h3 class="section-title input-workflow-heading">Input and File Order</h3>
 						<div class="input-workflow-controls">
-							<MergeModeToggle />
+							<GroupTitlesButton />
 							<ConcurrencyControl />
 						</div>
 					</div>

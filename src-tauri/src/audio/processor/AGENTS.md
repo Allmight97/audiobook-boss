@@ -25,6 +25,12 @@
   cached import validity does not authorize reopening a replaced path. Compare the
   inspected size/modified-time fingerprint against the opened source handle before
   creating the staged copy.
+- `preserve_merge` owns compatibility and packet-copy joining of AAC titles:
+  matching configuration/rate/channels/time base, complete contiguous frames,
+  and no per-source priming/trimming. Unsupported joins fail explicitly without
+  falling back to an encoder. Preflight scans timing; execution repeats the
+  check against fingerprint-validated private source copies. Metadata/chapter
+  finalization and output publication use their existing owners.
 - Resolve the encoder once at adapter dispatch and carry that choice into the
   in-process setup. Explicit Native/Apple selections validate their linked
   encoder without probing external FDK; bundled FAAC is available without an

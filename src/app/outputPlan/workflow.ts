@@ -25,6 +25,7 @@ export type OutputPathPreviewContext = {
 	readonly outputDirectory: string;
 	readonly sourcePath?: string;
 	readonly audioHandling?: AudioHandling;
+	readonly merged?: boolean;
 	readonly outputNaming: OutputNamingConfig;
 	readonly metadataDraft: OutputPathPreviewMetadataDraft;
 };
@@ -51,6 +52,7 @@ export async function computeOutputPathPreview(
 			outputNaming: context.outputNaming,
 			sourcePath: context.sourcePath,
 			audioHandling: context.audioHandling,
+			merged: context.merged,
 			outputKind,
 		});
 		return { ok: true, text: previewPath, title: previewPath };

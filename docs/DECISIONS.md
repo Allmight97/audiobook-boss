@@ -4,19 +4,22 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
-## 2026-09-17 - Preserve Audio Within The Shared Export Workflow
+## 2026-09-21 - Output Titles Own Grouping and Audio Handling
 
-- Outcome: each single-file book can explicitly preserve its compressed audio
-  while using the existing metadata, naming, collision, and publication flow.
-  Mixed batches resolve that choice by input identity into immutable job plans.
-  Preserve retains the source container/extension and skips every encoder;
-  all-preserve requests need no encoder settings or availability discovery.
-- Evidence: compact AAC books at 22.05 kHz required no audio change to become
-  organized library copies; forcing them through encoding added work and could
-  require resampling. Audio inspection owns the suggestion separately from
-  manual preservation capability. Input owns the choice, not the recommendation.
-- Guardrail: copy into independently owned staging before explicit metadata edits;
-  use the shared Output Artifact commit and preserve source audio, timing, and chapters.
+- Outcome: Input represents each intended output as a title with one or more
+  ordered sources. Grouping selected titles replaces the global merge switch;
+  metadata lookup, edits, audio handling, and processing operate on that title.
+  Its original metadata anchor stays stable when sources are reordered. Splitting
+  keeps title edits on that anchor and restores the other source drafts.
+- Evidence: multipart books need one metadata draft alongside independent titles,
+  and grouping should not force re-encoding. The shared batch planner now produces
+  one job per title and retains every source through background execution.
+- Preserve uses the existing metadata, naming, collision, and publication owners.
+  Single sources retain their container; compatible AAC stacks become one M4B by
+  copying compressed packets. Priming, trimming, or incompatible stream settings
+  block preservation explicitly, with no automatic encoder substitution.
+- Guardrail: original files stay untouched; preservation uses fingerprint-checked
+  private staging and the shared Output Artifact commit.
 
 ## 2026-09-15 - FAAC Timing Follows the Produced File
 

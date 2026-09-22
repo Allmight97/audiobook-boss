@@ -15,11 +15,15 @@
 ## Private Cluster
 
 - Files: `FileListView.tsx`, `AudioHandlingControl.tsx`, `fileList.css`,
-  `pointerReorder.ts`, `coverThumbnails.ts`.
+  `pointerReorder.ts`, `coverThumbnails.ts`, `TitleSources.tsx`.
 
-The recommended preservation disclosure owns its transient hover, focus,
-click-pinned, and Escape state inside `AudioHandlingControl`; list selection
-and the persisted per-input handling choice remain Input Session truth.
+`AudioHandlingControl` owns its transient hover/focus disclosure, pointer
+travel grace, outside dismissal, and Escape cleanup. Its portal overlays the
+list without changing row height. The only audio choice control belongs to the
+title; source rows expose facts and order, not competing handling choices.
+Title text selects and expands/collapses sources. `TitleSources` reuses the same
+pointer reorder helper as the outer list, with a hit test scoped to that title.
+List membership, source order, and persisted audio choices remain Input truth.
 
 ## Preferred Path
 

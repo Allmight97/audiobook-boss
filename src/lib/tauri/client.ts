@@ -294,6 +294,7 @@ export const tauriClient = {
 		sourcePath?: string | null;
 		outputKind?: OutputKind | null;
 		audioHandling?: AudioHandling | null;
+		merged?: boolean;
 	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
 	preflightProcessingPlan: (args: {
 		payload: ProcessPayload;

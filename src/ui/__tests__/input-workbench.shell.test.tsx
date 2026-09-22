@@ -90,7 +90,7 @@ describe('Solid input workbench', () => {
 		document.getElementById('cover-art-area')?.remove();
 	});
 
-	it('imports audio and preserves the selected list when switching to merge', async () => {
+	it('imports audio and enables grouping only for multiple selected titles', async () => {
 		const user = userEvent.setup();
 		const input = fakeInput({
 			openFiles: vi.fn(async () => ['/tmp/file1.mp3']),
@@ -112,10 +112,7 @@ describe('Solid input workbench', () => {
 		const row = await screen.findByRole('option', { name: 'file1.mp3' });
 		expect(within(row).getByText('125.6 kbps · 22.05 kHz · Stereo · MP3')).toBeVisible();
 		expect(runtime.input.view().files).toHaveLength(1);
-		expect(runtime.input.jobType()).toBe('batch');
-
-		await user.click(screen.getByLabelText('Merge files into one audiobook'));
-		expect(runtime.input.jobType()).toBe('merge');
+		expect(screen.getByRole('button', { name: 'Group as one title' })).toBeDisabled();
 		expect(runtime.input.view().files).toHaveLength(1);
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
 	});
@@ -162,29 +159,26 @@ describe('Solid input workbench', () => {
 				'option',
 			);
 			const selected = [...runtime.input.view().selectedIndices];
-			expect(screen.getAllByRole('button', { name: /Why keep original audio/ })).toHaveLength(3);
-			expect(within(rows[0]!).getByText('64 kbps · 22.05 kHz · Stereo · AAC-LC')).toBeVisible();
-			const info = within(rows[0]!).getByRole('button', { name: /Why keep original audio/ });
+			expect(screen.getAllByRole('button', { name: /Audio handling for/ })).toHaveLength(5);
+			const info = within(rows[0]!).getByRole('button', { name: /Audio handling for/ });
 			await user.hover(info);
-			expect(within(rows[0]!).getByRole('note')).toHaveTextContent(
+			expect(screen.getByRole('dialog', { name: 'Audio handling' })).toHaveTextContent(
 				'This audiobook may not need re-encoding',
 			);
-			await fireEvent.keyDown(document.body, { key: 'Escape' });
-			expect(within(rows[0]!).queryByRole('note')).not.toBeInTheDocument();
-			await user.click(info);
-			await user.unhover(info);
-			expect(within(rows[0]!).getByRole('note')).toBeVisible();
-			await user.click(
-				within(rows[0]!).getByRole('button', { name: 'Keep original audio for Prey 1' }),
-			);
 			await user.keyboard('{Escape}');
-			expect(within(rows[0]!).queryByRole('note')).not.toBeInTheDocument();
-			for (const row of rows.slice(1, 3))
-				await user.click(within(row).getByText('Keep original audio'));
+			expect(screen.queryByRole('dialog', { name: 'Audio handling' })).not.toBeInTheDocument();
+			for (const row of rows.slice(0, 3)) {
+				await user.click(within(row).getByRole('button', { name: /Audio handling for/ }));
+				await user.click(screen.getByRole('button', { name: 'Keep original audio' }));
+				expect(screen.getByRole('dialog', { name: 'Audio handling' })).toHaveTextContent(
+					'Original audio kept',
+				);
+				await user.keyboard('{Escape}');
+			}
 			expect(runtime.input.view().selectedIndices).toEqual(selected);
 			expect(
-				within(rows[3]!).getByRole('checkbox', { name: 'Keep original audio for Large' }),
-			).not.toBeChecked();
+				screen.queryByRole('checkbox', { name: /Keep original audio/ }),
+			).not.toBeInTheDocument();
 			expect(runtime.input.view().files.map((file) => runtime!.input.audioHandling(file))).toEqual([
 				'preserve',
 				'preserve',

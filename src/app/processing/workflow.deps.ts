@@ -25,11 +25,17 @@ export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 		getSelectedFileIndex: () => deps.input.view().selectedAnchor,
 		getSelectedFileIndices: () => new Set(deps.input.view().selectedIndices),
 		getAudioHandling: (file) => deps.input.audioHandling(file),
-		readProcessingRequestConfig: (audioHandling) => ({
-			...(audioHandling.includes('encode') ? deps.encoding.request() : {}),
-			...deps.output.readRequestConfig(),
-		}),
-		getJobType: () => deps.input.jobType(),
+		sourcesFor: (file) => deps.input.sourcesFor(file),
+		readProcessingRequestConfig: (audioHandling) => {
+			if (deps.input.view().files.some((file) => deps.input.audioChoiceRequired(file)))
+				throw new Error('Choose audio handling for each grouped title before processing.');
+			if (deps.input.view().sourceFiles.some((file) => !file.isValid))
+				throw new Error('Remove or replace invalid source files before processing.');
+			return {
+				...(audioHandling.includes('encode') ? deps.encoding.request() : {}),
+				...deps.output.readRequestConfig(),
+			};
+		},
 		hasDirtyMetadataFields: () => deps.metadata.readHasDirtyMetadata(),
 		readMetadataForm: () => deps.metadata.readMetadata(),
 		stageIntent: (filePath, patch) => deps.metadata.stageIntent(filePath, patch),

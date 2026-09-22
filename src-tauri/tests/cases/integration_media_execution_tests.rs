@@ -1478,6 +1478,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             .map(|path| path.to_string_lossy().to_string()),
     );
     let payload = ProcessPayload {
+        title_sources: None,
         input_files: paths.clone(),
         input_ids: None,
         chapter_plans: None,
@@ -2126,4 +2127,162 @@ fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
         .max_by(|left, right| left.1.total_cmp(&right.1))
         .unwrap()
         .0
+}
+
+fn write_complete_frame_aac(path: &Path, frequency: u32) {
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    let raw = path.with_extension("aac");
+    let status = Command::new(&binary)
+        .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
+        .arg(format!(
+            "sine=frequency={frequency}:sample_rate=44100:duration=0.2"
+        ))
+        .args(["-c:a", "aac", "-f", "adts"])
+        .arg(&raw)
+        .status()
+        .expect("AAC fixture encoder");
+    assert!(status.success());
+    let status = Command::new(&binary)
+        .args(["-v", "error", "-y", "-i"])
+        .arg(&raw)
+        .args(["-c:a", "copy"])
+        .arg(path)
+        .status()
+        .expect("AAC fixture muxer");
+    assert!(status.success());
+}
+
+fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
+    let mut input = ffmpeg_next::format::input(path).unwrap();
+    let index = input
+        .streams()
+        .best(ffmpeg_next::media::Type::Audio)
+        .unwrap()
+        .index();
+    input
+        .packets()
+        .filter(|(stream, _)| stream.index() == index)
+        .map(|(_, packet)| packet.data().unwrap().to_vec())
+        .collect()
+}
+
+#[tokio::test]
+async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptered_m4b() {
+    use audiobook_boss_lib::commands::audio::preflight_processing_plan;
+    use audiobook_boss_lib::processing::{AudioHandling, ProcessPayload};
+    let tmp = TempDir::new().unwrap();
+    let one = tmp.path().join("first.m4a");
+    let two = tmp.path().join("second.m4a");
+    write_complete_frame_aac(&one, 440);
+    write_complete_frame_aac(&two, 880);
+    let originals = [fs::read(&one).unwrap(), fs::read(&two).unwrap()];
+    let paths = vec![two.clone(), one.clone()];
+    let expected_packets: Vec<_> = paths
+        .iter()
+        .flat_map(|path| audio_packet_bytes(path))
+        .collect();
+    let samples: usize = paths.iter().map(|path| decode_pcm_f32(path).len()).sum();
+    let output_dir = tmp.path().join("out");
+    fs::create_dir(&output_dir).unwrap();
+    let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
+        "inputFiles": [one], "titleSources": {one.to_str().unwrap(): [{"path": two}, {"path": one}]},
+        "outputDir": output_dir, "audioHandling": ["preserve"], "jobType": "batch"
+    })).unwrap();
+    let metadata = std::collections::HashMap::from([(
+        one.to_string_lossy().into_owned(),
+        MetadataIntentPatch {
+            title: PatchOp::Set("One grouped title".into()),
+            ..Default::default()
+        },
+    )]);
+    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None)
+        .expect("compatible grouped preflight");
+    assert_eq!(plan.outputs.len(), 1);
+    assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
+    let mut reversed = payload.clone();
+    reversed
+        .title_sources
+        .as_mut()
+        .unwrap()
+        .get_mut(one.to_str().unwrap())
+        .unwrap()
+        .reverse();
+    let reordered = preflight_processing_plan(reversed, Some(metadata), None).unwrap();
+    assert_ne!(
+        plan.plan_signature, reordered.plan_signature,
+        "review pins source order"
+    );
+    let destination = tmp.path().join("joined.m4b");
+    let workspace = tmp.path().join("workspace");
+    let context = ProcessingContext::new_headless_with_workspace_root(
+        Arc::new(ProcessingSession::new()),
+        None,
+        SampleRateConfig::Auto,
+        OutputConfig::new(&destination),
+        workspace.clone(),
+    );
+    let info = get_file_list_info(&paths).unwrap();
+    let title_metadata = AudiobookMetadata {
+        title: Some("One grouped title".into()),
+        cover_art: Some(minimal_jpg_bytes()),
+        ..Default::default()
+    };
+    execute_audio_engine(
+        AudioExecutionRequest::new(
+            context,
+            info,
+            Some(title_metadata),
+            CoverArtPassthroughPolicy::Preserve,
+        )
+        .with_handling(AudioHandling::Preserve),
+    )
+    .await
+    .expect("packet-copy title merge");
+    assert_eq!(audio_packet_bytes(&destination), expected_packets);
+    assert_eq!(decode_pcm_f32(&destination).len(), samples);
+    let tags = read_metadata(&destination).unwrap();
+    assert_eq!(tags.title.as_deref(), Some("One grouped title"));
+    assert_eq!(tags.cover_art, Some(minimal_jpg_bytes()));
+    assert_eq!(
+        chapters_of(&destination)
+            .iter()
+            .map(|chapter| chapter.0.as_deref())
+            .collect::<Vec<_>>(),
+        vec![Some("second"), Some("first")]
+    );
+    assert_eq!(fs::read(&one).unwrap(), originals[0]);
+    assert_eq!(fs::read(&two).unwrap(), originals[1]);
+    assert!(!workspace.exists() || fs::read_dir(&workspace).unwrap().next().is_none());
+}
+
+#[tokio::test]
+async fn preserved_title_rejects_interior_priming_without_publishing() {
+    use audiobook_boss_lib::processing::AudioHandling;
+    let source_lane = MediaLane::with_fixtures(&[0.2]);
+    let source = source_lane.process(None).await;
+    let tmp = TempDir::new().unwrap();
+    let copy = tmp.path().join("second.m4b");
+    fs::copy(&source, &copy).unwrap();
+    let destination = tmp.path().join("must-not-exist.m4b");
+    let workspace = tmp.path().join("workspace");
+    let info = get_file_list_info(&[source, copy]).unwrap();
+    let context = ProcessingContext::new_headless_with_workspace_root(
+        Arc::new(ProcessingSession::new()),
+        None,
+        SampleRateConfig::Auto,
+        OutputConfig::new(&destination),
+        workspace.clone(),
+    );
+    let error = execute_audio_engine(
+        AudioExecutionRequest::new(context, info, None, CoverArtPassthroughPolicy::Preserve)
+            .with_handling(AudioHandling::Preserve),
+    )
+    .await
+    .expect_err("per-source priming cannot be lost at a join");
+    assert!(
+        error.to_string().contains("Re-encode this title"),
+        "{error}"
+    );
+    assert!(!destination.exists());
+    assert!(!workspace.exists() || fs::read_dir(&workspace).unwrap().next().is_none());
 }

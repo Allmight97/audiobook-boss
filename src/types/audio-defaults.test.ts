@@ -10,6 +10,7 @@ describe('defaultEncoderSettings', () => {
 			channels: 'auto',
 			afterburner: true,
 			nativeAacSpeed: 0,
+			faacProfile: 'auto',
 		});
 	});
 });

@@ -224,6 +224,7 @@ mod entry_tests {
 
     fn planned_batch_job(index: usize, action: PlannedOutputAction) -> PlannedProcessingJob {
         PlannedProcessingJob {
+            source_paths: vec![],
             input_index: Some(index),
             input_path: Some(PathBuf::from(format!("/tmp/input-{index}.m4b"))),
             output: output_plan(action, format!("/tmp/output-{index}.m4b")),

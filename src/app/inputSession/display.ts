@@ -1,5 +1,15 @@
-import { formatDuration, formatFileSize, type AudioFile } from '../../types/audio';
-import { orderDiffersFromImport, type InputSessionState, type InputView } from './types';
+import {
+	formatDuration,
+	formatFileSize,
+	formatAudioBitrate,
+	type AudioFile,
+} from '../../types/audio';
+import {
+	fileIdentityKey,
+	orderDiffersFromImport,
+	type InputSessionState,
+	type InputView,
+} from './types';
 
 export function displayedTitleForFile(file: AudioFile): string {
 	if (file.tagTitle?.trim()) {
@@ -27,10 +37,18 @@ export function formatFileDetails(file: AudioFile): string {
 
 export function toInputView(session: InputSessionState): InputView {
 	const files = session.fileList?.files ?? [];
+	const sourceFiles = files.flatMap(
+		(file) => session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file],
+	);
 	const locked = session.orderLocked;
 	const differs = orderDiffersFromImport(files, session.importOrdinalByPath);
 	return {
 		files,
+		sourceFiles,
+		selectedSourceFiles: session.selectedIndices.flatMap((index) => {
+			const file = files[index];
+			return file ? (session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file]) : [];
+		}),
 		selectedIndices: session.selectedIndices,
 		selectedAnchor: session.selectedAnchor,
 		fileCount: files.length,
@@ -45,6 +63,20 @@ export function toInputView(session: InputSessionState): InputView {
 		showSortButton: files.length > 1,
 		showClearButton: files.length > 0,
 		showRestoreImportOrder: differs && !locked,
-		totalDurationSeconds: session.fileList?.totalDuration ?? 0,
+		totalDurationSeconds: sourceFiles.reduce((sum, file) => sum + (file.duration ?? 0), 0),
 	};
+}
+
+export function formatAudioProperties(file: AudioFile): string {
+	const bitrate = file.bitrate ? formatAudioBitrate(file.bitrate) : 'Bitrate unknown';
+	const rate = file.sampleRate ? `${file.sampleRate / 1000} kHz` : 'Sample rate unknown';
+	const channels =
+		file.channels === 1
+			? 'Mono'
+			: file.channels === 2
+				? 'Stereo'
+				: file.channels
+					? `${file.channels} channels`
+					: 'Channels unknown';
+	return [bitrate, rate, channels, file.codecLabel?.trim() || 'Codec unknown'].join(' · ');
 }

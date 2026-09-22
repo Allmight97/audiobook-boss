@@ -135,6 +135,7 @@ pub use imports::{
     SupportedAudioImportMetadata,
 };
 pub use path_validation::{validate_input_audio_path, validate_input_image_path};
+pub(crate) use processor::validate_preserved_title;
 pub use processor::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
 };
