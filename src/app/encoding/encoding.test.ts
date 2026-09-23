@@ -151,8 +151,8 @@ describe('encoding owner', () => {
 		});
 		expect(mounted.owner.audioRequest().sampleRate).toEqual({ explicit: 22050 });
 		expect(mounted.owner.view().showQuality).toBe(false);
-		expect(mounted.owner.view().qualityBitrateLabel).toBe('Target kbps');
-		expect(mounted.owner.view().estimatedBitrateText).toBe('Target: 64 kbps total');
+		expect(mounted.owner.view().qualityBitrateLabel).toBe('Bitrate (kbps)');
+		expect(mounted.owner.view().estimatedBitrateText).toBe('');
 		expect(
 			mounted.owner.view().sampleRateOptions.find((option) => option.value === '22050')?.disabled,
 		).toBe(true);

@@ -197,24 +197,28 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(document.querySelector('[data-testid="auto-samplerate-hint"]')?.textContent).toBe(
-				'Auto -> source audio',
-			);
-			expect(document.querySelector('[data-testid="auto-channels-hint"]')?.textContent).toBe(
-				'Auto -> source audio',
-			);
+			expect(
+				(document.getElementById('output-samplerate') as HTMLSelectElement).selectedOptions[0]
+					?.textContent,
+			).toBe('Auto · Source audio');
+			expect(
+				(document.getElementById('output-channels') as HTMLSelectElement).selectedOptions[0]
+					?.textContent,
+			).toBe('Auto · Source audio');
 		});
 
 		changeSelectValue(document.getElementById('output-samplerate') as HTMLSelectElement, '44100');
 		changeSelectValue(document.getElementById('output-channels') as HTMLSelectElement, 'mono');
 
 		await vi.waitFor(() => {
-			expect(document.querySelector('[data-testid="auto-samplerate-hint"]')?.textContent).toBe(
-				'Using 44100 Hz.',
-			);
-			expect(document.querySelector('[data-testid="auto-channels-hint"]')?.textContent).toBe(
-				'Using Mono.',
-			);
+			expect(
+				(document.getElementById('output-samplerate') as HTMLSelectElement).selectedOptions[0]
+					?.textContent,
+			).toBe('44100 Hz');
+			expect(
+				(document.getElementById('output-channels') as HTMLSelectElement).selectedOptions[0]
+					?.textContent,
+			).toBe('Mono');
 		});
 	});
 
@@ -246,7 +250,7 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			expect(document.getElementById('output-quality')?.hidden).toBe(true);
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
 		});
 
 		changeSelectValue(encoderSelect, 'aac_at');
@@ -254,7 +258,7 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			expect(document.getElementById('output-quality')?.hidden).toBe(true);
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
 		});
 
 		runtime!.encoding.applyDefaults({
@@ -273,10 +277,8 @@ describe('encoder panel behavior controls', () => {
 			expect(runtime!.encoding.audioRequest().settings!.bitrateMode).toEqual({ mode: 'abr' });
 			expect(document.getElementById('output-quality')?.hidden).toBe(true);
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
-			expect(document.getElementById('estimated-bitrate')?.textContent).toBe(
-				'Target: 64 kbps total',
-			);
+			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
+			expect(document.getElementById('estimated-bitrate')).toBeNull();
 			const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
 			expect(bitrateInput.type).toBe('number');
 			expect(bitrateInput.value).toBe('64');
@@ -288,7 +290,7 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
-		expect(bitrateInput).toHaveAccessibleName('Target kbps');
+		expect(bitrateInput).toHaveAccessibleName('Bitrate (kbps)');
 		bitrateInput.value = '48';
 		bitrateInput.dispatchEvent(new Event('change', { bubbles: true }));
 

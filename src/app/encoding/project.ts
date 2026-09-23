@@ -48,7 +48,7 @@ export type EncodingView = {
 	readonly rateControl: string;
 	readonly rateControlOptions: ReadonlyArray<EncodingOption>;
 	readonly profileHint: string;
-	readonly qualityBitrateLabel: 'Quality' | 'Target kbps';
+	readonly qualityBitrateLabel: 'Quality' | 'Bitrate (kbps)';
 	readonly native: boolean;
 	readonly bitrateKbpsMax: number;
 	readonly nativeSpeed: number;
@@ -360,6 +360,13 @@ function channelsDetail(bag: EncodingBag): string {
 	return `Using ${channelLabel(bag.channels)}.${downmix}`;
 }
 
+function autoResolutionLabel(hint: string): string {
+	const detail = hint.replace(/^Auto\s*(?:->|→)\s*/, '');
+	return detail === hint
+		? 'Auto · Choose channels'
+		: `Auto · ${detail.charAt(0).toUpperCase()}${detail.slice(1)}`;
+}
+
 export function projectView(bag: EncodingBag): EncodingView {
 	const effective = effectiveEncoder(bag);
 	const estimate = bagEstimateKbps(bag);
@@ -395,13 +402,16 @@ export function projectView(bag: EncodingBag): EncodingView {
 				...bag.capabilities.explicitSampleRates.map(String),
 			].map((value) => ({
 				value,
-				label: sampleRateLabel(value),
+				label:
+					value === 'auto'
+						? autoResolutionLabel(sampleRateDetail({ ...bag, sampleRate: 'auto' }))
+						: sampleRateLabel(value),
 				disabled: value !== 'auto' && !allowedSampleRates(bag).includes(Number(value)),
 			}))
 		: [];
 	const channelOptions = (bag.capabilities?.channelOptions ?? []).map((value) => ({
 		value,
-		label: channelLabel(value),
+		label: value === 'auto' ? autoResolutionLabel(bag.channelsHint) : channelLabel(value),
 	}));
 
 	return {
@@ -414,7 +424,7 @@ export function projectView(bag: EncodingBag): EncodingView {
 		fdkSetupNeeded: !opus(bag) && bag.availability !== null && !bag.availability.fdkAvailable,
 		profileDisplay:
 			effective === 'faac' ? FAAC_PROFILES[bag.faacProfile] : ENCODER_PROFILES[effective],
-		qualityBitrateLabel: showQuality ? 'Quality' : 'Target kbps',
+		qualityBitrateLabel: showQuality ? 'Quality' : 'Bitrate (kbps)',
 		native,
 		faac,
 		faacProfile: bag.faacProfile,
@@ -451,7 +461,7 @@ export function projectView(bag: EncodingBag): EncodingView {
 				? 'Size varies. Start with Standard, or choose ABR for a bitrate target.'
 				: showQuality
 					? `Est: ~${estimate} kbps`
-					: `Target: ${estimate} kbps total`,
+					: '',
 		sampleRate: bag.sampleRate,
 		sampleRateOptions,
 		sampleRateDisabled: sampleRateOptions.length === 0,

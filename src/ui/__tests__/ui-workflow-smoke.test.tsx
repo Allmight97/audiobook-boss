@@ -274,7 +274,9 @@ describe('UI Workflow Smoke Test', () => {
 			const audioEditor = screen.getByRole('dialog', { name: 'Audio plan' });
 			await user.click(within(audioEditor).getByText('Encoding settings', { exact: true }));
 			await user.selectOptions(within(audioEditor).getByLabelText('Encoder'), 'native_aac');
-			const targetBitrate = within(audioEditor).getByLabelText('Target kbps') as HTMLInputElement;
+			const targetBitrate = within(audioEditor).getByLabelText(
+				'Bitrate (kbps)',
+			) as HTMLInputElement;
 			await user.clear(targetBitrate);
 			await user.type(targetBitrate, '96');
 			await user.tab();

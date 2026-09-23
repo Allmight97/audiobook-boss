@@ -180,6 +180,7 @@ export function EncoderView(
 													{(option) => <option value={option.value}>{option.label}</option>}
 												</For>
 											</select>
+
 											<p id={id('faac-profile-hint')} class="field-hint">
 												{view().profileHint}
 											</p>
@@ -216,7 +217,9 @@ export function EncoderView(
 												id={id('output-quality')}
 												hidden={!view().showQuality}
 												data-testid="quality-select"
-												aria-describedby={id('estimated-bitrate')}
+												aria-describedby={
+													view().estimatedBitrateText ? id('estimated-bitrate') : undefined
+												}
 												value={value('quality', view().quality)}
 												onChange={bind('quality')}
 											>
@@ -240,15 +243,19 @@ export function EncoderView(
 												step="1"
 												value={value('bitrate', view().bitrate)}
 												onChange={bind('bitrate')}
-												aria-describedby={id('estimated-bitrate')}
+												aria-describedby={
+													view().estimatedBitrateText ? id('estimated-bitrate') : undefined
+												}
 											/>
-											<p
-												id={id('estimated-bitrate')}
-												class="field-hint"
-												data-testid="estimated-bitrate"
-											>
-												{view().estimatedBitrateText}
-											</p>
+											<Show when={view().estimatedBitrateText}>
+												<p
+													id={id('estimated-bitrate')}
+													class="field-hint"
+													data-testid="estimated-bitrate"
+												>
+													{view().estimatedBitrateText}
+												</p>
+											</Show>
 										</div>
 									</div>
 								</Show>
@@ -275,13 +282,15 @@ export function EncoderView(
 												)}
 											</For>
 										</select>
-										<p
-											id={id('output-samplerate-effective')}
-											class="field-hint"
-											data-testid="auto-samplerate-hint"
-										>
-											{view().sampleRateHint}
-										</p>
+										<Show when={/choose/i.test(view().sampleRateHint)}>
+											<p
+												id={id('output-samplerate-effective')}
+												class="field-hint"
+												data-testid="auto-samplerate-hint"
+											>
+												{view().sampleRateHint}
+											</p>
+										</Show>
 									</div>
 								</div>
 
@@ -304,13 +313,15 @@ export function EncoderView(
 												{(option) => <option value={option.value}>{option.label}</option>}
 											</For>
 										</select>
-										<p
-											id={id('output-channels-effective')}
-											class="field-hint"
-											data-testid="auto-channels-hint"
-										>
-											{view().channelsHint}
-										</p>
+										<Show when={/choose|downmix/i.test(view().channelsHint)}>
+											<p
+												id={id('output-channels-effective')}
+												class="field-hint"
+												data-testid="auto-channels-hint"
+											>
+												{view().channelsHint}
+											</p>
+										</Show>
 									</div>
 								</div>
 								<Show when={view().native}>
