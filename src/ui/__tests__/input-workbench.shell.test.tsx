@@ -1,3 +1,4 @@
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
@@ -243,6 +244,75 @@ describe('Solid input workbench', () => {
 			expect(screen.getByRole('dialog', { name: 'Audio plan' })).not.toHaveTextContent(
 				'Sources cannot be joined',
 			);
+		} finally {
+			preview.mockRestore();
+		}
+	});
+
+	it('invalidates successful audio plans on capability reload without changing the title request', async () => {
+		const user = userEvent.setup();
+		const file = analyzedFile('/books/capabilities.m4b');
+		const settings = titleAudioRequest().settings;
+		if (!settings) throw new Error('Fixture requires encoder settings');
+		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
+			format: 'm4b',
+			handling: 'encode',
+			settings: titleAudioRequest().settings,
+			sampleRate: 44100,
+			channels: 2,
+			sourceCodec: 'AAC',
+			reason: null,
+		});
+		runtime = createAppRuntime({
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList([file])) }),
+		});
+		renderApp(runtime);
+		try {
+			await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
+			const capabilities = runtimeSettingsCapabilitiesFixture().encoder;
+			await runtime.encoding.reloadCapabilities(capabilities);
+			const request = runtime.encoding.audioRequest(file);
+			const indicator = screen.getByRole('button', { name: 'Audio plan for capabilities.m4b' });
+			await user.click(indicator);
+			await waitFor(() =>
+				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('Est.'),
+			);
+			await user.keyboard('{Escape}');
+			// Rechecking can change the toolchain even when its capability shape is identical.
+			preview.mockResolvedValueOnce({
+				format: 'm4b',
+				handling: 'encode',
+				settings: {
+					...settings,
+					encoderType: 'fdk_he_aac',
+					bitrateMode: { mode: 'vbr', value: 3 },
+				},
+				sampleRate: 44100,
+				channels: 2,
+				sourceCodec: 'AAC',
+				reason: null,
+			});
+			await runtime.encoding.reloadCapabilities(capabilities);
+			expect(runtime.encoding.audioRequest(file)).toEqual(request);
+			await waitFor(() =>
+				expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument(),
+			);
+			expect(preview).toHaveBeenCalledTimes(1);
+			await user.click(indicator);
+			await waitFor(() =>
+				expect(screen.getByTitle('Estimated output size')).toHaveTextContent(
+					'Size varies with audio',
+				),
+			);
+			// A successful plan must also disappear if a recheck now makes its encoder unavailable.
+			preview.mockRejectedValueOnce(new Error('FDK is unavailable'));
+			await runtime.encoding.reloadCapabilities(capabilities);
+			await waitFor(() =>
+				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent(
+					'FDK is unavailable',
+				),
+			);
+			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 		} finally {
 			preview.mockRestore();
 		}

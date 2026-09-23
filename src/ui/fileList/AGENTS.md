@@ -20,7 +20,9 @@
 `AudioHandlingControl` owns its transient hover/focus disclosure, pointer
 travel grace, outside dismissal, and Escape cleanup. Its portal overlays the
 list without changing row height. Hover/focus opens its audio-plan dialog; click
-pins it. The dialog calls the shared Rust planner and ignores stale results.
+pins it. The dialog calls the shared Rust planner and ignores stale results. Its cache
+key includes Encoding’s capability revision; rechecks clear successful plans
+and estimates even for unchanged title requests, without querying closed rows.
 Settings, per-title and selected-title controls reuse EncoderView.
 The title row reads Output Plan's per-title size estimate beside its audio
 summary. Recommended waits for the existing backend title preview; unknown

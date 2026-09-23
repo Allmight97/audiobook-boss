@@ -36,6 +36,7 @@ export type EncodingOwner = {
 	estimateTitleKbps(file: AudioFile, plan?: TitleAudioPlan): number | null;
 	selectTitle(file: AudioFile, field: EncodingField, value: string): void;
 	readonly view: Accessor<EncodingView>;
+	readonly capabilityRevision: Accessor<number>;
 	select(field: EncodingField, value: string): void;
 	applyDefaults(defaults: EncoderDefaults): void;
 	hydrateDefaults(defaults: EncoderDefaults): void;
@@ -70,6 +71,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	let generation = 0;
 	let defaultsEdited = false;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	const [capabilityRevision, invalidateCapabilities] = createSignal(0, { ownedWrite: true });
 
 	function publish(): void {
 		bump((n) => n + 1);
@@ -85,9 +87,11 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			const capabilities = supplied === undefined ? await deps.loadCapabilities() : supplied;
 			if (ticket !== generation) return;
 			applyCapabilities(bag, capabilities);
+			invalidateCapabilities((n) => n + 1);
 			publish();
 		} catch (error) {
 			if (ticket !== generation) return;
+			invalidateCapabilities((n) => n + 1);
 			console.warn('Failed to load encoder capabilities:', error);
 			publish();
 		}
@@ -142,6 +146,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	}
 
 	return {
+		capabilityRevision,
 		audioRequest(file) {
 			rev();
 			return file ? (deps.input.audioRequest(file) ?? requestFromBag(bag)) : requestFromBag(bag);
@@ -213,6 +218,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			generation += 1;
 			defaultsEdited = true;
 			bag = createDefaultBag();
+			invalidateCapabilities((n) => n + 1);
 			publish();
 		},
 	};

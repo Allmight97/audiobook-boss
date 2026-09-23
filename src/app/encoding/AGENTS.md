@@ -44,7 +44,9 @@
   Capabilities. `reloadCapabilities` accepts a fetched result from Settings
   and invalidates older loads; opening, rechecking, saving, and resetting
   share one scan across both owners after the configured path changes. Labels and
-  auto-hints are frontend-owned.
+  auto-hints are frontend-owned. `capabilityRevision` invalidates derived audio
+  previews after each current reload settles (including failure) and on reset,
+  even when capability values or title requests are unchanged.
 - Selecting unavailable FDK invokes the injected setup intent and preserves the
   current encoder request. The FDK option remains actionable; capability loss
   during hydration/reload retains the explicit request for backend validation.

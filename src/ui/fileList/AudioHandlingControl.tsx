@@ -82,6 +82,7 @@ export function AudioHandlingControl(props: {
 					cueSource: f.cueSource,
 				})),
 				request: request(),
+				capabilityRevision: runtime.encoding.capabilityRevision(),
 				needsChoice: needsChoice(),
 			}),
 		}),
