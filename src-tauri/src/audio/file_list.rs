@@ -248,9 +248,6 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
                 .to_ascii_lowercase(),
             &container_name,
             inspection.codec_id,
-            inspection.bitrate,
-            inspection.sample_rate,
-            inspection.channels,
         ),
     })
 }

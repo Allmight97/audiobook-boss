@@ -93,7 +93,9 @@ export interface OutputRequestConfig {
 }
 
 // Combined UI process configuration composed at the processing workflow boundary.
-export type ProcessingRequestConfig = Partial<EncodingRequestConfig> & OutputRequestConfig;
+export type ProcessingRequestConfig = OutputRequestConfig & {
+	audioRequests: import('../lib/generated/tauri').TitleAudioRequest[];
+};
 
 // Preview command typing helpers (Tauri boundary)
 export interface PreviewRequest {
@@ -122,8 +124,8 @@ export type BitrateKbps = EncoderSettings['bitrateKbps'];
 export type JobType = GeneratedJobType;
 
 // Complete processing payload
-export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'settings'> & {
-	settings?: EncoderSettings;
+export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'audioRequests'> & {
+	audioRequests: import('../lib/generated/tauri').TitleAudioRequest[];
 };
 export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
@@ -175,3 +177,10 @@ export const formatFileSize = (bytes: number | undefined): string => {
 /** Imported audio bitrate is bits per second; encoder targets use kilobits per second. */
 export const formatAudioBitrate = (bitsPerSecond: number | undefined): string =>
 	bitsPerSecond ? `${Math.round(bitsPerSecond / 100) / 10} kbps` : 'N/A';
+
+export type {
+	AudiobookFormat,
+	AudioIntent,
+	TitleAudioRequest,
+	TitleAudioPlan,
+} from '../lib/generated/tauri';

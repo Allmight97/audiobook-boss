@@ -41,8 +41,6 @@ export function FileListView(props: {
 	const toggleSort = input.toggleSort;
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
-	const audioHandling = input.audioHandling;
-	const setAudioHandling = input.setAudioHandling;
 	const thumbnails = createFileListCoverThumbnails((path) =>
 		capability().readAudioCoverThumbnail(path),
 	);
@@ -319,28 +317,11 @@ export function FileListView(props: {
 														PDF
 													</span>
 												) : null}
-												<Show
-													when={
-														sources().every((source) => source.preservation?.canPreserve) ||
-														input.audioChoiceRequired(file)
-													}
-												>
-													<AudioHandlingControl
-														file={file}
-														index={index()}
-														orderLocked={view().orderLocked}
-														setAudioHandling={setAudioHandling}
-														handling={audioHandling(file)}
-														choiceRequired={input.audioChoiceRequired(file)}
-														canPreserve={sources().every(
-															(source) => source.preservation?.canPreserve,
-														)}
-														grouped={grouped()}
-														recommended={sources().every(
-															(source) => source.preservation?.recommended,
-														)}
-													/>
-												</Show>
+												<AudioHandlingControl
+													file={file}
+													index={index()}
+													orderLocked={view().orderLocked}
+												/>
 											</div>
 											<div class="file-details">
 												{grouped()

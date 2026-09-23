@@ -1,11 +1,10 @@
 import { onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import { hydrateAppSettingsProduction } from '../app/appSettings';
 import { useAppRuntime } from '../app/runtime';
 import { AppSettingsDialogView, SettingsPersistenceNotice } from './appSettings';
 import { CollisionDialogView } from './collisionDialog/CollisionDialogView';
-import { EncoderView } from './encoderPanel';
+import { SelectedAudioSettings } from './fileList/SelectedAudioSettings';
 import { OutputView } from './outputPanel/OutputView';
 import { FileImportView } from './fileImport/FileImportView';
 import { ConcurrencyControl } from './jobControls/ConcurrencyControl';
@@ -26,16 +25,11 @@ export function App(): JSX.Element {
 	const hydrateConcurrency = runtime.settings.hydrateConcurrency;
 	const hydrateAcquisitionPreferences = runtime.settings.hydrateAcquisitionPreferences;
 	const openSettings = runtime.settings.openDialog;
-	const applyOutputDefaults = runtime.output.applyDefaults;
-	const applyEncodingDefaults = runtime.encoding.applyDefaults;
 	const initializeWork = runtime.workOperations.initialize;
 
 	onSettled(() => {
-		void hydrateAppSettingsProduction().then((defaults) => {
-			if (defaults) {
-				applyOutputDefaults(defaults.outputDefaults);
-				applyEncodingDefaults(defaults.encoderDefaults);
-			}
+		void runtime.initialize().catch((error: unknown) => {
+			console.warn('Could not load startup defaults:', error);
 		});
 		void hydrateConcurrency();
 		void hydrateAcquisitionPreferences();
@@ -67,6 +61,7 @@ export function App(): JSX.Element {
 						<h3 class="section-title input-workflow-heading">Input and File Order</h3>
 						<div class="input-workflow-controls">
 							<GroupTitlesButton />
+							<SelectedAudioSettings />
 							<ConcurrencyControl />
 						</div>
 					</div>
@@ -86,15 +81,9 @@ export function App(): JSX.Element {
 					<div class="encoding-workbench-frame">
 						<section
 							class="encoding-workbench"
-							aria-label="Encoding, output, and tags"
+							aria-label="Output and tags"
 							data-testid="encoding-workbench"
 						>
-							<div
-								class="workbench-block workbench-block-encoder"
-								data-testid="encoding-workbench-encoder"
-							>
-								<EncoderView />
-							</div>
 							<div
 								class="workbench-block workbench-block-output"
 								data-testid="encoding-workbench-output"

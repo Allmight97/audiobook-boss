@@ -57,6 +57,13 @@ pub(super) fn execute_preserved_audio(
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
+    let target_extension = context
+        .output
+        .final_path()
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| AppError::InvalidInput("Output extension is missing.".into()))?;
+    crate::metadata::remux_preserved_audio_container(&staged, target_extension)?;
     if let Some(patch) = metadata_intent.as_ref() {
         context
             .new_emitter()

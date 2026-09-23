@@ -13,20 +13,24 @@ use audiobook_boss_lib::audio::{
 fn exposed_encoder_capabilities_match_validators() {
     let capabilities = encoder_settings_capabilities();
 
-    for bitrate in [capabilities.bitrate_kbps_min, capabilities.bitrate_kbps_max] {
-        let settings = EncoderSettings {
-            encoder_type: EncoderType::NativeAac,
-            bitrate_kbps: bitrate,
-            bitrate_mode: BitrateMode::Cbr,
-            channels: ChannelConfig::Auto,
-            afterburner: false,
-            native_aac_speed: capabilities.native_speed_max,
-            faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
-        };
-        validate_encoder_settings(&settings)
-            .expect("exposed target and speed bounds should pass request validation");
+    for configuration in &capabilities.encoder_configurations {
+        for bitrate in [
+            configuration.bitrate_kbps_min,
+            configuration.bitrate_kbps_max,
+        ] {
+            let settings = EncoderSettings {
+                encoder_type: configuration.encoder_type,
+                bitrate_kbps: bitrate,
+                bitrate_mode: configuration.default_mode,
+                channels: ChannelConfig::Auto,
+                afterburner: false,
+                native_aac_speed: capabilities.native_speed_max,
+                faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
+            };
+            validate_encoder_settings(&settings)
+                .expect("exposed target and speed bounds should pass request validation");
+        }
     }
-
     for sample_rate in &capabilities.explicit_sample_rates {
         validate_sample_rate_config(&SampleRateConfig::Explicit(*sample_rate))
             .expect("exposed sample rate should validate");

@@ -90,6 +90,8 @@ describe('App Settings afterburner control', () => {
 		expect(checkbox?.checked).toBe(true);
 
 		runtime!.encoding.applyDefaults({
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,

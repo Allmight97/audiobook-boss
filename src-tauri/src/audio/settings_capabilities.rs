@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct EncoderConfigurationCapability {
     pub encoder_type: EncoderType,
+    pub bitrate_kbps_min: u16,
+    pub bitrate_kbps_max: u16,
     pub allowed_modes: Vec<BitrateModeKind>,
     pub default_mode: BitrateMode,
     pub explicit_sample_rates: Vec<u32>,
@@ -33,9 +35,7 @@ pub struct FaacProfileCapability {
 pub struct EncoderSettingsCapabilities {
     pub availability: EncoderAvailability,
     pub encoder_types: Vec<EncoderType>,
-    pub bitrate_kbps_min: u16,
     pub encoder_configurations: Vec<EncoderConfigurationCapability>,
-    pub bitrate_kbps_max: u16,
     pub native_speed_max: u8,
     pub faac_quality_presets: Vec<u16>,
     pub faac_quality_default: u16,
@@ -51,11 +51,14 @@ pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
     EncoderSettingsCapabilities {
         availability: detect_encoder_availability(),
         encoder_types: all_encoder_types().to_vec(),
-        bitrate_kbps_min: 1,
         encoder_configurations: all_encoder_types()
             .into_iter()
             .map(|encoder_type| EncoderConfigurationCapability {
                 encoder_type,
+                bitrate_kbps_min: *super::settings_encoder::encoder_bitrate_range(encoder_type)
+                    .start(),
+                bitrate_kbps_max: *super::settings_encoder::encoder_bitrate_range(encoder_type)
+                    .end(),
                 allowed_modes: allowed_bitrate_mode_kinds_for(encoder_type).to_vec(),
                 default_mode: default_bitrate_mode_for(encoder_type),
                 explicit_sample_rates: encoder_sample_rates(encoder_type, FaacProfile::Auto)
@@ -74,7 +77,6 @@ pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
                 },
             })
             .collect(),
-        bitrate_kbps_max: super::settings_encoder::MAX_ENCODER_BITRATE,
         faac_quality_presets: super::settings_encoder::FAAC_QUALITY_PRESETS.to_vec(),
         faac_quality_default: super::settings_encoder::DEFAULT_FAAC_QUALITY,
         native_speed_max: super::settings_encoder::NATIVE_SPEED_MAX,

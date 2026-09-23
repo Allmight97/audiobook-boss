@@ -2,9 +2,8 @@ use crate::audio::CleanupGuard;
 use crate::output_artifact::{
     commit_output_artifact, commit_supplemental_output_assets_for_output,
     enforce_output_plan_review, ensure_output_parent_dirs, finalized_output_success,
-    preserve_source_extension, CollisionPolicy, OutputCollisionKind, OutputCommitRequest,
-    OutputKind, OutputPlanLedger, OutputPlanReview, PlannedOutputAction,
-    SupplementalOutputAssetsCommitRequest,
+    CollisionPolicy, OutputCollisionKind, OutputCommitRequest, OutputKind, OutputPlanLedger,
+    OutputPlanReview, PlannedOutputAction, SupplementalOutputAssetsCommitRequest,
 };
 use tempfile::TempDir;
 
@@ -14,8 +13,7 @@ fn output_artifact_plan_contract_blocks_source_destination_overlap() {
     let source = temp_dir.path().join("book.mp3");
     std::fs::write(&source, b"source").expect("write source");
 
-    let requested = preserve_source_extension(temp_dir.path().join("book.m4b"), &source)
-        .expect("preserved extension");
+    let requested = temp_dir.path().join("book.mp3");
     assert_eq!(requested, source);
     let mut ledger = OutputPlanLedger::new();
     let plan = ledger

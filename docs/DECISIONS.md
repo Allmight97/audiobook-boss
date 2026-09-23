@@ -4,6 +4,19 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-22 — Title audio intent and output format
+
+- Outcome: one title request chooses output format and Recommended/Keep/Encode intent. Audio
+  resolves one plan shared by the popover, preflight and execution. AAC/M4B is
+  the default; MP3 pass-through and Opus/M4A or MKA are explicit alternatives.
+- Evidence: real media verifies compressed-packet identity, chapter timelines,
+  metadata and artwork for MP3 joins and Opus container round-trips. Recommended keeps compact audio (using the existing 72 kbps tolerance) when copying
+  satisfies the output; explicit Keep never substitutes encoding. Settings owns
+  defaults for future imports; per-title and selected-title edits share one editor.
+  Loaded titles retain their choices until explicitly edited or reset to defaults.
+- Guardrail: codec/container compatibility does not promise client direct play;
+  the Opus UI asks users to verify direct playback and chapters on their device.
+
 ## 2026-09-21 - Output Titles Own Grouping and Audio Handling
 
 - Outcome: Input represents each intended output as a title with one or more
@@ -15,8 +28,8 @@ git history and closed issues own superseded chronology.
   and grouping should not force re-encoding. The shared batch planner now produces
   one job per title and retains every source through background execution.
 - Preserve uses the existing metadata, naming, collision, and publication owners.
-  Single sources retain their container; compatible AAC stacks become one M4B by
-  copying compressed packets. Priming, trimming, or incompatible stream settings
+  Audio plans select the output format; AAC and MP3 stacks can join by copying
+  compressed packets. Priming, trimming, or incompatible stream settings
   block preservation explicitly, with no automatic encoder substitution.
 - Guardrail: original files stay untouched; preservation uses fingerprint-checked
   private staging and the shared Output Artifact commit.
@@ -75,7 +88,9 @@ git history and closed issues own superseded chronology.
   derives timing and mux parameters from the opened result. Encoding owns
   typed request construction and keeps each encoder's choices independent.
   Pending capability discovery preserves saved explicit requests. Encoder
-  Auto requires capabilities and remains FDK → Apple → Native.
+  Auto requires capabilities and prefers FDK → Native NMR. Unsupported Auto
+  rate-control modes adapt to the resolved encoder default; explicit encoder
+  requests remain strict.
 - Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,
   `src/app/encoding/`, and the encoder interaction and media execution tests.
 - Guardrail: encoder controls must change a shipped path. FDK stays owned by

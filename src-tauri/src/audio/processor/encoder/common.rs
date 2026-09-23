@@ -137,7 +137,7 @@ impl EncoderFramePlan {
             EncoderType::AacAt | EncoderType::NativeAac => Ok(Self {
                 samples_per_frame: AAC_FRAME_QUANTUM_SAMPLES,
             }),
-            EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
+            EncoderType::Opus | EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
                 Err(AppError::General(
                     "Encoder frame plan requires a resolved in-process encoder type.".to_string(),
                 ))

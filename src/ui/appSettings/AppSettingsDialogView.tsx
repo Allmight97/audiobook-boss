@@ -4,6 +4,7 @@ import type { JSX } from '@solidjs/web';
 import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
+import { EncoderView } from '../encoderPanel';
 import { SettingsPersistenceNotice } from './SettingsPersistenceNotice';
 import './appSettingsDialog.css';
 
@@ -307,7 +308,14 @@ export function AppSettingsDialogView(): JSX.Element {
 					</p>
 				</Show>
 				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
-					<section class="app-settings-section" ref={fdkSection}>
+					<section class="app-settings-section" ref={fdkSection} aria-label="Audio defaults">
+						<h4 class="app-settings-section-title">Audio defaults</h4>
+						<p class="muted-text">
+							Used for newly imported titles. Existing titles keep their settings.
+						</p>
+						<EncoderView />
+					</section>
+					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
 						<p class="muted-text">
 							FDK AAC is optional. ABB includes its standard audio tools; FDK requires a separate

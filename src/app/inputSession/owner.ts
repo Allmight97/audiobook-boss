@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, AudioHandling, ProcessPayload, JobType } from '../../types/audio';
+import type { AudioFile, ProcessPayload, JobType, TitleAudioRequest } from '../../types/audio';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import { toInputView } from './display';
 import { runImportIntent } from './importWorkflow';
@@ -24,6 +24,8 @@ import {
 } from './types';
 
 export type InputOwner = {
+	audioRequest(file: AudioFile): TitleAudioRequest | undefined;
+	setAudioRequest(file: AudioFile, request: TitleAudioRequest | undefined): void;
 	readonly view: Accessor<InputView>;
 	readonly session: Accessor<InputSessionState>;
 	readonly capability: Accessor<InputCapability>;
@@ -32,8 +34,6 @@ export type InputOwner = {
 	ungroup(file: AudioFile): Promise<void>;
 	reorderSources(file: AudioFile, from: number, to: number): void;
 	audioChoiceRequired(file: AudioFile): boolean;
-	audioHandling(file: AudioFile): AudioHandling;
-	setAudioHandling(file: AudioFile, handling: AudioHandling): void;
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
 	selectFile(command: {
@@ -58,6 +58,8 @@ export type InputOwner = {
 
 export type InputOwnerDeps = {
 	readonly capability?: InputCapability;
+	readonly audioDefaults?: () => TitleAudioRequest;
+	readonly beforeImport?: () => Promise<void>;
 	readonly beforeSelectionChange?: (signal?: AbortSignal) => boolean | Promise<boolean>;
 };
 
@@ -79,6 +81,15 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	let importEpoch = 0;
 
 	function commit(next: InputSessionState): void {
+		const missing = (next.fileList?.files ?? []).filter(
+			(file) => !next.audioRequestsByIdentity[fileIdentityKey(file)],
+		);
+		if (missing.length && deps.audioDefaults) {
+			const requests = { ...next.audioRequestsByIdentity };
+			for (const file of missing)
+				requests[fileIdentityKey(file)] = structuredClone(deps.audioDefaults());
+			next = { ...next, audioRequestsByIdentity: requests };
+		}
 		session = next;
 		bump((n) => n + 1);
 	}
@@ -112,6 +123,23 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	}
 
 	return {
+		audioRequest(file) {
+			rev();
+			return session.audioRequestsByIdentity[fileIdentityKey(file)];
+		},
+		setAudioRequest(file, request) {
+			if (session.orderLocked || currentIndex(file) < 0) return;
+			const requests = { ...session.audioRequestsByIdentity };
+			if (request) requests[fileIdentityKey(file)] = structuredClone(request);
+			else delete requests[fileIdentityKey(file)];
+			commit({
+				...session,
+				audioRequestsByIdentity: requests,
+				audioChoiceRequired: session.audioChoiceRequired.filter(
+					(id) => id !== fileIdentityKey(file),
+				),
+			});
+		},
 		sourcesFor,
 		audioChoiceRequired(file) {
 			rev();
@@ -134,7 +162,9 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 				return current ? sourcesFor(current) : [];
 			});
 			const choices = new Set(
-				selected.map((file) => session.audioHandlingByIdentity[fileIdentityKey(file)] ?? 'encode'),
+				selected.map((file) =>
+					JSON.stringify(session.audioRequestsByIdentity[fileIdentityKey(file)] ?? null),
+				),
 			);
 			const files = (session.fileList?.files ?? []).filter(
 				(file) => fileIdentityKey(file) === key || !selectedKeys.has(fileIdentityKey(file)),
@@ -193,30 +223,6 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		view,
 		session: sessionView,
 		capability,
-		audioHandling(file) {
-			rev();
-			return session.audioHandlingByIdentity[fileIdentityKey(file)] ?? 'encode';
-		},
-		setAudioHandling(file, handling) {
-			if (session.orderLocked) return;
-			const current = session.fileList?.files[currentIndex(file)];
-			if (
-				!current ||
-				(handling === 'preserve' &&
-					!sourcesFor(current).every((source) => source.preservation?.canPreserve))
-			)
-				return;
-			commit({
-				...session,
-				audioChoiceRequired: session.audioChoiceRequired.filter(
-					(id) => id !== fileIdentityKey(current),
-				),
-				audioHandlingByIdentity: {
-					...session.audioHandlingByIdentity,
-					[fileIdentityKey(current)]: handling,
-				},
-			});
-		},
 		chooseCue(inputId, choice) {
 			if (session.orderLocked) return;
 			const current = session;
@@ -252,6 +258,18 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 				if (epoch !== importEpoch) {
 					return;
 				}
+				try {
+					await deps.beforeImport?.();
+				} catch {
+					if (epoch === importEpoch)
+						commit({
+							...session,
+							errorMessage:
+								'Could not load audio defaults. Review Settings, then try importing again.',
+						});
+					return;
+				}
+				if (epoch !== importEpoch) return;
 				const applyImport = await runImportIntent(capabilityValue, session, intent);
 				if (epoch !== importEpoch) {
 					return;

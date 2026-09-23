@@ -646,3 +646,69 @@ fn settings_file_without_default_acquisition_lane_loads_with_default() {
 
     assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
 }
+
+#[test]
+fn saved_audio_defaults_upgrade_and_persist_format_and_intent() {
+    use crate::audio::{AudioIntent, AudiobookFormat};
+    let temp = TempDir::new().expect("settings directory");
+    let path = temp.path().join("app-settings.json");
+    let mut saved =
+        serde_json::to_value(AppSettings::default()).expect("serialize settings fixture");
+    saved["encoderDefaults"]
+        .as_object_mut()
+        .expect("encoder defaults object")
+        .remove("format");
+    saved["encoderDefaults"]
+        .as_object_mut()
+        .expect("encoder defaults object")
+        .remove("intent");
+    std::fs::write(&path, saved.to_string()).expect("write legacy settings");
+    let loaded = get_app_settings(temp.path()).expect("load persisted audio defaults");
+    assert_eq!(loaded.encoder_defaults.format, AudiobookFormat::M4b);
+    assert_eq!(loaded.encoder_defaults.intent, AudioIntent::Auto);
+    let mut defaults = loaded.encoder_defaults;
+    defaults.format = AudiobookFormat::Mp3;
+    defaults.intent = AudioIntent::Preserve;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(defaults.clone()),
+            ..Default::default()
+        },
+    )
+    .expect("persist audio defaults");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("load persisted audio defaults")
+            .encoder_defaults,
+        defaults
+    );
+    defaults.format = AudiobookFormat::M4aOpus;
+    assert!(
+        update_app_settings(
+            temp.path(),
+            AppSettingsPatch {
+                encoder_defaults: Some(defaults.clone()),
+                ..Default::default()
+            }
+        )
+        .is_err(),
+        "AAC settings cannot be saved as Opus output"
+    );
+    defaults.settings.encoder_type = EncoderType::Opus;
+    defaults.settings.bitrate_mode = BitrateMode::VbrTarget;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(defaults.clone()),
+            ..Default::default()
+        },
+    )
+    .expect("persist audio defaults");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("load persisted audio defaults")
+            .encoder_defaults,
+        defaults
+    );
+}

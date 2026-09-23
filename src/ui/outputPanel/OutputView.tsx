@@ -16,6 +16,9 @@ export function OutputView(): JSX.Element {
 		<div class="output-panel output-panel-workbench" data-testid="output-panel">
 			<div class="section-header">
 				<h3>Output</h3>
+				<span class="inline-info" id="estimated-size" data-testid="estimated-size">
+					{output.estimatedSizeText()}
+				</span>
 			</div>
 			<div class="output-panel-body">
 				<label for="output-dir-browse" class="output-subtitle">

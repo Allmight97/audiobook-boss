@@ -26,7 +26,7 @@ use crate::processing::ProcessingContext;
 use std::time::Duration;
 
 // Submodules
-mod adapter;
+pub(in crate::audio) mod adapter;
 mod encoder;
 mod engine;
 mod engine_orchestrator;
@@ -106,6 +106,16 @@ pub fn validate_audio_engine_inputs(
     sample_rate: &crate::audio::SampleRateConfig,
 ) -> Result<()> {
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
+    validate_resolved_audio_inputs(&adapter, encoder_settings, titles, sample_rate)
+}
+
+pub(in crate::audio) fn validate_resolved_audio_inputs(
+    adapter: &adapter::ResolvedProcessorAdapter,
+    encoder_settings: &EncoderSettings,
+    titles: &[FileListInfo],
+    sample_rate: &crate::audio::SampleRateConfig,
+) -> Result<()> {
+    crate::audio::settings_encoder::validate_encoder_settings(encoder_settings)?;
     if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = &adapter {
         crate::audio::settings::validate_encoder_sample_rate(
             *encoder_type,
@@ -143,6 +153,13 @@ fn validate_output_target(
                 .iter()
                 .find(|file| file.is_valid)
                 .and_then(|file| file.sample_rate)
+                .map(|rate| {
+                    crate::audio::settings::automatic_sample_rate(
+                        encoder,
+                        settings.faac_profile,
+                        rate,
+                    )
+                })
         })
         .ok_or_else(|| {
             crate::errors::AppError::InvalidInput(format!(

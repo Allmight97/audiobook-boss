@@ -72,9 +72,9 @@ describe('encoder panel behavior controls', () => {
 		await waitForEncoderOptions();
 
 		await vi.waitFor(() => {
-			const config = runtime!.encoding.request();
-			expect(config.encoderSettings.encoderType).toBe('auto');
-			expect(config.encoderSettings.afterburner).toBe(true);
+			const config = runtime!.encoding.audioRequest();
+			expect(config.settings!.encoderType).toBe('auto');
+			expect(config.settings!.afterburner).toBe(true);
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
 				'Afterburner on.',
 			);
@@ -83,9 +83,9 @@ describe('encoder panel behavior controls', () => {
 		runtime!.encoding.setAfterburner(false);
 
 		await vi.waitFor(() => {
-			const config = runtime!.encoding.request();
-			expect(config.encoderSettings.encoderType).toBe('auto');
-			expect(config.encoderSettings.afterburner).toBe(false);
+			const config = runtime!.encoding.audioRequest();
+			expect(config.settings!.encoderType).toBe('auto');
+			expect(config.settings!.afterburner).toBe(false);
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
 				'Afterburner off.',
 			);
@@ -109,7 +109,7 @@ describe('encoder panel behavior controls', () => {
 		bitrate.value = '193';
 		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
 		await vi.waitFor(() => {
-			const settings = runtime!.encoding.request().encoderSettings;
+			const settings = runtime!.encoding.audioRequest().settings!;
 			expect(settings.bitrateMode).toEqual({ mode: 'cbr' });
 			expect(settings.bitrateKbps).toBe(193);
 			expect(settings.nativeAacSpeed).toBe(4);
@@ -117,7 +117,7 @@ describe('encoder panel behavior controls', () => {
 		});
 		bitrate.value = '0';
 		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
-		expect(runtime!.encoding.request().encoderSettings.bitrateKbps).toBe(193);
+		expect(runtime!.encoding.audioRequest().settings!.bitrateKbps).toBe(193);
 		expect(bitrate.value).toBe('193');
 	});
 
@@ -130,8 +130,10 @@ describe('encoder panel behavior controls', () => {
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
-					bitrateKbpsMin: 24,
-					bitrateKbpsMax: 256,
+					encoderConfigurations:
+						runtimeSettingsCapabilitiesFixture().encoder.encoderConfigurations.map(
+							(configuration) => ({ ...configuration, bitrateKbpsMin: 24, bitrateKbpsMax: 256 }),
+						),
 					explicitSampleRates: [44100],
 					channelOptions: ['auto', 'mono'],
 				},
@@ -157,7 +159,7 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('shows compact auto sample-rate and channel resolutions', async () => {
+	it('keeps default source hints independent of the selected title', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -196,10 +198,10 @@ describe('encoder panel behavior controls', () => {
 
 		await vi.waitFor(() => {
 			expect(document.querySelector('[data-testid="auto-samplerate-hint"]')?.textContent).toBe(
-				'Auto -> 44.1 kHz',
+				'Auto -> source audio',
 			);
 			expect(document.querySelector('[data-testid="auto-channels-hint"]')?.textContent).toBe(
-				'Auto -> Stereo',
+				'Auto -> source audio',
 			);
 		});
 
@@ -256,6 +258,8 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		runtime!.encoding.applyDefaults({
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				...runtime!.encoding.readDefaults().settings,
 				encoderType: 'faac',
@@ -266,7 +270,7 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(runtime!.encoding.request().encoderSettings.bitrateMode).toEqual({ mode: 'abr' });
+			expect(runtime!.encoding.audioRequest().settings!.bitrateMode).toEqual({ mode: 'abr' });
 			expect(document.getElementById('output-quality')?.hidden).toBe(true);
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
 			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Target kbps');
@@ -289,14 +293,14 @@ describe('encoder panel behavior controls', () => {
 		bitrateInput.dispatchEvent(new Event('change', { bubbles: true }));
 
 		await vi.waitFor(() => {
-			expect(runtime!.encoding.request().encoderSettings.bitrateKbps).toBe(48);
+			expect(runtime!.encoding.audioRequest().settings!.bitrateKbps).toBe(48);
 		});
 
 		const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
 		changeSelectValue(channelsSelect, 'stereo');
 
 		await vi.waitFor(() => {
-			expect(runtime!.encoding.request().encoderSettings.channels).toBe('stereo');
+			expect(runtime!.encoding.audioRequest().settings!.channels).toBe('stereo');
 		});
 	});
 
@@ -349,7 +353,7 @@ describe('encoder panel behavior controls', () => {
 		changeSelectValue(quality, '50');
 		changeSelectValue(profile, 'aac_lc');
 		await vi.waitFor(() => {
-			expect(runtime!.encoding.request().encoderSettings).toMatchObject({
+			expect(runtime!.encoding.audioRequest().settings).toMatchObject({
 				faacProfile: 'aac_lc',
 				bitrateMode: { mode: 'vbr', value: 50 },
 			});
@@ -359,7 +363,7 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
 			expect((document.getElementById('output-bitrate') as HTMLInputElement).value).toBe('64');
-			expect(runtime!.encoding.request().encoderSettings.faacProfile).toBe('aac_lc');
+			expect(runtime!.encoding.audioRequest().settings!.faacProfile).toBe('aac_lc');
 		});
 	});
 
@@ -388,8 +392,8 @@ describe('encoder panel behavior controls', () => {
 				'Using external FDK AAC via /opt/homebrew/.../bin/ffmpeg. Afterburner on.',
 			);
 			expect(document.body.textContent).not.toContain('Toolchain');
-			expect(runtime!.encoding.request()).toMatchObject({
-				encoderSettings: expect.any(Object),
+			expect(runtime!.encoding.audioRequest()).toMatchObject({
+				settings: expect.any(Object),
 				sampleRate: expect.anything(),
 			});
 		});
@@ -428,11 +432,11 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('auto');
-			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (NMR))');
+			expect(select?.options[0]?.textContent).toBe('App default (Native AAC (NMR))');
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toContain(
 				'Auto will use Native AAC (NMR).',
 			);
-			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
+			expect(runtime!.encoding.audioRequest().settings!.encoderType).toBe('auto');
 		});
 	});
 
@@ -469,11 +473,11 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('auto');
-			expect(select?.options[0]?.textContent).toBe('Auto (Apple AAC)');
+			expect(select?.options[0]?.textContent).toBe('App default (Apple AAC)');
 			expect(document.getElementById('encoder-availability-hint')?.textContent).toBe(
 				'Auto will use Apple AAC. FDK AAC is not available. Set up FDK…',
 			);
-			expect(runtime!.encoding.request().encoderSettings.encoderType).toBe('auto');
+			expect(runtime!.encoding.audioRequest().settings!.encoderType).toBe('auto');
 		});
 	});
 });

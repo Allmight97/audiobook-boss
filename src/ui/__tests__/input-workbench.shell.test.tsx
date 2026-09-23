@@ -1,3 +1,4 @@
+import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -116,6 +117,49 @@ describe('Solid input workbench', () => {
 		expect(runtime.input.view().selectedIndices).toEqual([0]);
 	});
 
+	it('edits only selected titles through one mixed-value audio editor', async () => {
+		const user = userEvent.setup();
+		const files = ['first.m4b', 'second.m4b', 'other.m4b'].map((name) =>
+			analyzedFile(`/books/${name}`),
+		);
+		runtime = createAppRuntime({
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
+		});
+		renderApp(runtime);
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
+		runtime.encoding.selectTitle(files[0]!, 'channels', 'mono');
+		runtime.encoding.selectTitle(files[1]!, 'channels', 'stereo');
+		const untouched = runtime.encoding.audioRequest(files[2]!);
+		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
+		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
+		const editor = screen.getByRole('dialog', { name: 'Audio settings for 2 selected titles' });
+		await user.click(within(editor).getByText(/Encoding settings/));
+		expect(within(editor).getByLabelText('Channels')).toHaveValue('');
+		await user.selectOptions(within(editor).getByLabelText('Channels'), 'mono');
+		expect(runtime.encoding.audioRequest(files[0]!).settings?.channels).toBe('mono');
+		expect(runtime.encoding.audioRequest(files[1]!).settings?.channels).toBe('mono');
+		expect(runtime.encoding.audioRequest(files[2]!)).toEqual(untouched);
+		await user.selectOptions(within(editor).getByLabelText('Audio handling'), 'preserve');
+		expect(runtime.encoding.audioRequest(files[0]!).intent).toBe('preserve');
+		expect(runtime.encoding.audioRequest(files[1]!).intent).toBe('preserve');
+		await user.keyboard('{Escape}');
+		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
+		await user.click(screen.getByRole('button', { name: 'Audio plan for other.m4b' }));
+		const titleEditor = screen.getByRole('dialog', { name: 'Audio plan' });
+		await user.click(within(titleEditor).getByText('Encoding settings', { exact: true }));
+		expect(runtime.input.view().selectedIndices).toEqual([0, 1]);
+		expect(titleEditor).toBeInTheDocument();
+		await user.keyboard('{Escape}');
+		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
+		await runtime.input.selectFile({ index: 2, modifiers: { multi: false, range: false } });
+		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
+	});
+
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
 		runtime = createAppRuntime({
@@ -140,13 +184,14 @@ describe('Solid input workbench', () => {
 		async (grouped) => {
 			const files = [
 				analyzedFile('/books/valid.m4b', {
-					preservation: { canPreserve: true, recommended: true },
+					preservation: { canPreserve: true },
 				}),
 				analyzedFile('/books/invalid.m4b', { isValid: false }),
 			];
 			const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
 				jobType: 'batch',
 				collisionPolicy: 'fail',
+				audioPlans: [],
 				planSignature: 'valid-titles',
 				outputs: [],
 			});
@@ -158,11 +203,11 @@ describe('Solid input workbench', () => {
 				type: 'importPaths',
 				paths: files.map((file) => file.path),
 			});
-			runtime.input.setAudioHandling(files[0]!, 'preserve');
+			runtime.input.setAudioRequest(files[0]!, titleAudioRequest({ intent: 'auto' }));
 			if (grouped) {
 				await runtime.input.selectAll();
 				await runtime.input.groupSelected();
-				runtime.input.setAudioHandling(files[0]!, 'encode');
+				runtime.input.setAudioRequest(files[0]!, titleAudioRequest({ intent: 'encode' }));
 			}
 			runtime.output.applyDefaults({
 				outputDirectory: '/library',
@@ -188,149 +233,102 @@ describe('Solid input workbench', () => {
 		},
 	);
 
-	it.each([true, false])(
-		'resolves a stacked title’s mixed audio choice from its indicator (can preserve: %s)',
-		async (canPreserve) => {
-			const user = userEvent.setup();
-			const files = [
-				analyzedFile('/books/one.m4b', { preservation: { canPreserve: true, recommended: true } }),
-				analyzedFile('/books/two.m4b', { preservation: { canPreserve, recommended: canPreserve } }),
-			];
-			runtime = createAppRuntime({
-				input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
-			});
-			renderApp(runtime);
-			await runtime.input.importIntent({
-				type: 'importPaths',
-				paths: files.map((file) => file.path),
-			});
-			runtime.input.setAudioHandling(files[0]!, 'preserve');
-			await runtime.input.selectAll();
-			await runtime.input.groupSelected();
-			const indicator = screen.getByRole('button', {
-				name: canPreserve ? 'Keep original audio for one.m4b' : 'Re-encode audio for one.m4b',
-			});
-			expect(indicator).toHaveAttribute('aria-pressed', 'mixed');
-			await user.hover(indicator);
-			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
-			expect(within(screen.getByRole('tooltip')).queryByRole('button')).not.toBeInTheDocument();
-			await user.click(indicator);
-			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
-			expect(runtime.input.audioHandling(files[0]!)).toBe(canPreserve ? 'preserve' : 'encode');
-			if (canPreserve) {
-				await user.click(indicator);
-				expect(runtime.input.audioHandling(files[0]!)).toBe('encode');
-				runtime.input.setOrderLocked(true);
-				await waitFor(() => expect(indicator).toBeDisabled());
-				await user.click(indicator);
-				expect(runtime.input.audioHandling(files[0]!)).toBe('encode');
-			}
-		},
-	);
-
-	it('exports five tagged books with three explicitly preserved and two using the selected encoder', async () => {
+	it('edits one stack through its audio popover and submits it beside an independent title', async () => {
 		const user = userEvent.setup();
-		const books = ['Prey 1', 'Prey 2', 'Prey 3', 'Large', 'Standard'].map((title, index) =>
-			analyzedFile(`/books/${title}.m4b`, {
-				tagTitle: title,
-				bitrate: index < 3 ? 64_000 : 128_000,
-				sampleRate: index < 3 ? 22_050 : 44_100,
-				channels: 2,
-				codecLabel: 'AAC-LC',
-				preservation: { canPreserve: true, recommended: index < 3 },
-			}),
+		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
+			analyzedFile(`/books/${name}`, { sampleRate: 44100, channels: 1, codecLabel: 'MP3' }),
 		);
-		const readMetadata = vi
-			.spyOn(tauriClient, 'readAudioMetadata')
-			.mockResolvedValue({ title: 'Original' });
+		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
+			format: 'mp3',
+			handling: 'preserve',
+			settings: null,
+			sampleRate: 44100,
+			channels: 1,
+			sourceCodec: 'MP3',
+			reason: null,
+		});
 		const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
 			jobType: 'batch',
 			collisionPolicy: 'fail',
-			planSignature: 'mixed-review',
-			outputs: books.map((file, inputIndex) => ({
-				inputIndex,
-				inputPath: file.path,
-				kind: 'final',
-				requestedPath: `/library/${inputIndex}.m4b`,
-				resolvedPath: `/library/${inputIndex}.m4b`,
-				action: 'write',
-			})),
+			planSignature: 'stack-review',
+			audioPlans: [],
+			outputs: [],
 		});
 		const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
 		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(books)) }),
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
 		});
 		renderApp(runtime);
 		try {
 			await runtime.input.importIntent({
 				type: 'importPaths',
-				paths: books.map((book) => book.path),
+				paths: files.map((file) => file.path),
 			});
-			const rows = await within(screen.getByRole('listbox', { name: 'Audio files' })).findAllByRole(
-				'option',
-			);
-			const selected = [...runtime.input.view().selectedIndices];
-			expect(screen.getAllByRole('button', { name: /Keep original audio for/ })).toHaveLength(5);
-			const info = within(rows[0]!).getByRole('button', { name: /Keep original audio for/ });
-			await user.hover(info);
-			expect(info).toHaveAttribute('aria-pressed', 'false');
-			expect(screen.getByRole('tooltip')).toHaveTextContent('This audio is already compact');
-			await user.keyboard('{Escape}');
-			expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-			for (const row of rows.slice(0, 3)) {
-				await user.click(within(row).getByRole('button', { name: /Keep original audio for/ }));
-				expect(within(screen.getByRole('tooltip')).queryByRole('button')).not.toBeInTheDocument();
-				expect(screen.getByRole('tooltip')).toHaveTextContent('Original audio kept');
-				await user.keyboard('{Escape}');
-			}
-			info.focus();
-			await user.keyboard(' ');
-			expect(info).toHaveAttribute('aria-pressed', 'false');
-			await user.keyboard('{Enter}');
-			expect(info).toHaveAttribute('aria-pressed', 'true');
-			await user.keyboard('{Escape}');
-			expect(runtime.input.view().selectedIndices).toEqual(selected);
-			expect(
-				screen.queryByRole('checkbox', { name: /Keep original audio/ }),
-			).not.toBeInTheDocument();
-			expect(runtime.input.view().files.map((file) => runtime!.input.audioHandling(file))).toEqual([
-				'preserve',
-				'preserve',
-				'preserve',
-				'encode',
-				'encode',
-			]);
 			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
-			runtime.encoding.select('encoder', 'faac');
-			runtime.encoding.select('sampleRate', '44100');
+			runtime.encoding.select('quality', '4');
+			runtime.input.setAudioRequest(
+				files[0]!,
+				titleAudioRequest({ format: 'mp3', settings: null }),
+			);
+			await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+			await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
+			await runtime.input.groupSelected();
+			runtime.input.reorderSources(files[0]!, 0, 1);
+			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
+			const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+			await user.hover(indicator);
+			const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
+			expect(popup).toHaveTextContent('Choose this title’s audio');
+			expect(popup.parentElement).toBe(document.body);
+			await user.click(indicator);
+			await user.click(within(popup).getByRole('button', { name: 'Use defaults' }));
+			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
+			expect(runtime.encoding.audioRequest(files[0]!).format).toBe('m4b');
+			await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
+			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
+			await user.selectOptions(within(popup).getByLabelText('Audio handling'), 'encode');
+			await user.keyboard('{Escape}');
+			// Browser focus/hover can arrive after the popover unmounts.
+			fireEvent.focus(indicator);
+			fireEvent.mouseEnter(indicator);
+			expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
+			expect(runtime.encoding.audioRequest(files[0]!).format).toBe('m4aOpus');
+			expect(runtime.encoding.audioRequest(files[2]!).format).toBe('m4b');
+			expect(runtime.encoding.audioRequest(files[2]!).settings?.bitrateMode).toEqual({
+				mode: 'vbr',
+				value: 3,
+			});
 			runtime.output.applyDefaults({
 				outputDirectory: '/library',
 				outputNaming: { preset: 'absDefault', includeYear: false },
 			});
-			const metadataIntent = Object.fromEntries(
-				books.map((file, index) => [
-					file.path,
-					{ title: { op: 'set' as const, value: `Library ${index + 1}` } },
-				]),
-			);
-			for (const file of books) runtime.metadata.stageIntent(file.path, metadataIntent[file.path]!);
-			await user.click(document.getElementById('process-button') as HTMLElement);
-			await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+			await runtime.processing.start();
 			expect(submit).toHaveBeenCalledWith(
 				expect.objectContaining({
 					payload: expect.objectContaining({
-						audioHandling: ['preserve', 'preserve', 'preserve', 'encode', 'encode'],
-						inputFiles: books.map((file) => file.path),
-						outputDir: '/library',
-						settings: expect.objectContaining({ encoderType: 'faac' }),
-						sampleRate: { explicit: 44100 },
-						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
+						inputFiles: [files[0]!.path, files[2]!.path],
+						titleSources: {
+							[files[0]!.path]: [
+								{ path: files[1]!.path, inputId: files[1]!.inputId },
+								{ path: files[0]!.path, inputId: files[0]!.inputId },
+							],
+						},
+						audioRequests: [
+							expect.objectContaining({
+								format: 'm4aOpus',
+								intent: 'encode',
+								settings: expect.objectContaining({ encoderType: 'opus' }),
+							}),
+							expect.objectContaining({
+								format: 'm4b',
+								settings: expect.objectContaining({ bitrateMode: { mode: 'vbr', value: 3 } }),
+							}),
+						],
 					}),
-					metadataIntent,
 				}),
 			);
 		} finally {
-			readMetadata.mockRestore();
+			preview.mockRestore();
 			preflight.mockRestore();
 			submit.mockRestore();
 		}

@@ -1,3 +1,5 @@
+import { tauriClient } from '../../lib/tauri/client';
+import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AudioFile, FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
 import { createAppRuntime, type AppRuntime } from '../runtime';
@@ -92,6 +94,103 @@ describe('input session import tracer', () => {
 		runtime?.dispose();
 		runtime = undefined;
 	});
+
+	it('snapshots imported defaults and edits only the chosen titles without persisting title choices', async () => {
+		runtime = createAppRuntime({
+			input: fakeInput({
+				analyzeAudioFiles: vi.fn(async (paths) => {
+					const info = analyzedFile(paths[0]!);
+					return { ...info, files: info.files.map((file) => ({ ...file, inputId: file.path })) };
+				}),
+			}),
+		});
+		await runtime.initialize();
+		await runtime.encoding.reloadCapabilities();
+		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/first.m4b'] });
+		const first = runtime.input.view().files[0]!;
+		const original = structuredClone(runtime.encoding.audioRequest(first));
+		runtime.encoding.select('format', 'mkaOpus');
+		runtime.encoding.select('bitrate', '48');
+		await runtime.input.importIntent({ type: 'importPaths', paths: ['/books/second.m4b'] });
+		const second = runtime.input.view().files[1]!;
+		expect(runtime.encoding.audioRequest(first)).toEqual(original);
+		expect(runtime.encoding.audioRequest(second)).toMatchObject({
+			format: 'mkaOpus',
+			intent: 'auto',
+			settings: { encoderType: 'opus', bitrateKbps: 48 },
+		});
+		expect(runtime.encoding.selectionView([first, second]).mixedFields).toContain('format');
+		const savedDefaults = structuredClone(runtime.encoding.readDefaults());
+		runtime.encoding.selectTitles([first, second], 'format', 'm4b');
+		runtime.encoding.selectTitle(first, 'channels', 'mono');
+		runtime.encoding.selectTitles([first, second], 'encoder', 'native_aac');
+		runtime.encoding.selectTitles([first, second], 'bitrate', '80');
+		expect(runtime.encoding.audioRequest(first)).toMatchObject({
+			intent: 'encode',
+			settings: { channels: 'mono', bitrateKbps: 80 },
+		});
+		expect(runtime.encoding.audioRequest(second)).toMatchObject({
+			intent: 'encode',
+			settings: { channels: 'auto', bitrateKbps: 80 },
+		});
+		expect(runtime.encoding.readDefaults()).toEqual(savedDefaults);
+		runtime.encoding.selectTitle(first, 'intent', 'preserve');
+		runtime.encoding.applyDefaultsToTitles([second]);
+		expect(runtime.encoding.audioRequest(first).intent).toBe('preserve');
+		expect(runtime.encoding.audioRequest(second)).toMatchObject({
+			format: 'mkaOpus',
+			intent: 'auto',
+		});
+	});
+
+	it('keeps an imported MP3 rate choice when defaults change and only its handling is edited', async () => {
+		runtime = createAppRuntime();
+		await runtime.initialize();
+		await runtime.encoding.reloadCapabilities();
+		runtime.encoding.select('format', 'mp3');
+		runtime.encoding.select('sampleRate', '22050');
+		const file = audioFile('/books/original.mp3');
+		runtime.input.replaceSession(sessionWith([file]));
+		runtime.encoding.select('sampleRate', '48000');
+		runtime.encoding.selectTitle(file, 'intent', 'preserve');
+		expect(runtime.encoding.audioRequest(file)).toMatchObject({
+			settings: null,
+			sampleRate: { explicit: 22050 },
+		});
+		runtime.encoding.selectTitle(file, 'format', 'm4b');
+		expect(runtime.encoding.audioRequest(file).sampleRate).toEqual({ explicit: 22050 });
+	});
+
+	it.each([false, true])(
+		'waits for stored defaults and respects edits made during loading (%s)',
+		async (edited) => {
+			const defaults = await tauriClient.getAppSettings();
+			defaults.encoderDefaults.format = 'mkaOpus';
+			defaults.encoderDefaults.intent = 'preserve';
+			defaults.encoderDefaults.settings.encoderType = 'opus';
+			defaults.encoderDefaults.settings.bitrateMode = { mode: 'vbr_target' };
+			let finish!: (value: typeof defaults) => void;
+			const read = vi.spyOn(tauriClient, 'getAppSettings').mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+			const input = fakeInput();
+			runtime = createAppRuntime({ input });
+			const importing = runtime.input.importIntent({ type: 'pickFiles' });
+			await vi.waitFor(() => expect(read).toHaveBeenCalled());
+			expect(input.analyzeAudioFiles).not.toHaveBeenCalled();
+			if (edited) runtime.encoding.select('format', 'mp3');
+			finish(defaults);
+			await importing;
+			expect(runtime.encoding.audioRequest(runtime.input.view().files[0]!)).toMatchObject({
+				format: edited ? 'mp3' : 'mkaOpus',
+				intent: 'preserve',
+			});
+			read.mockRestore();
+		},
+	);
 
 	it('imports a local file through the capability and exposes a renderer-ready row', async () => {
 		const input = fakeInput();
@@ -496,46 +595,46 @@ describe('per-book audio handling', () => {
 	it('keeps explicit choices with book identity through reordering, removal, and reset', async () => {
 		const owner = createInputOwner({ capability: fakeInput() });
 		const compact = audioFile('/books/prey.m4b', {
-			preservation: { canPreserve: true, recommended: true },
+			preservation: { canPreserve: true },
 		});
 		const large = audioFile('/books/large.mp3', {
-			preservation: { canPreserve: true, recommended: false },
+			preservation: { canPreserve: true },
 		});
 		owner.replaceSession(sessionWith([compact, large]));
-		expect(owner.audioHandling(compact)).toBe('encode');
-		owner.setAudioHandling(compact, 'preserve');
+		expect(owner.audioRequest(compact)?.intent).toBeUndefined();
+		owner.setAudioRequest(compact, titleAudioRequest({ intent: 'auto' }));
 		owner.moveFile({ index: 0, direction: 'down' });
-		expect(owner.view().files.map((file) => owner.audioHandling(file))).toEqual([
-			'encode',
-			'preserve',
+		expect(owner.view().files.map((file) => owner.audioRequest(file)?.intent)).toEqual([
+			undefined,
+			'auto',
 		]);
-		owner.setAudioHandling(large, 'preserve');
-		expect(owner.audioHandling(large)).toBe('preserve');
+		owner.setAudioRequest(large, titleAudioRequest({ intent: 'auto' }));
+		expect(owner.audioRequest(large)?.intent).toBe('auto');
 		owner.setOrderLocked(true);
-		owner.setAudioHandling(compact, 'encode');
-		expect(owner.audioHandling(compact)).toBe('preserve');
+		owner.setAudioRequest(compact, titleAudioRequest({ intent: 'encode' }));
+		expect(owner.audioRequest(compact)?.intent).toBe('auto');
 		owner.setOrderLocked(false);
 		await owner.removeFile(1);
 		owner.replaceSession({ ...owner.session(), fileList: sessionWith([compact, large]).fileList });
-		expect(owner.audioHandling(compact)).toBe('encode');
+		expect(owner.audioRequest(compact)?.intent).toBeUndefined();
 		owner.reset();
 		owner.replaceSession(sessionWith([large]));
-		expect(owner.audioHandling(large)).toBe('encode');
+		expect(owner.audioRequest(large)?.intent).toBeUndefined();
 	});
 
-	it('refuses preservation for ineligible sources and expired input identities', () => {
+	it('stores intent independently of source eligibility and refuses expired identities', () => {
 		const owner = createInputOwner({ capability: fakeInput() });
 		const wav = audioFile('/books/source.wav', {
-			preservation: { canPreserve: false, recommended: false },
+			preservation: { canPreserve: false },
 		});
 		const removed = audioFile('/books/removed.m4b', {
-			preservation: { canPreserve: true, recommended: true },
+			preservation: { canPreserve: true },
 		});
 		owner.replaceSession(sessionWith([wav]));
-		owner.setAudioHandling(wav, 'preserve');
-		owner.setAudioHandling(removed, 'preserve');
-		expect(owner.audioHandling(wav)).toBe('encode');
-		expect(owner.audioHandling(removed)).toBe('encode');
+		owner.setAudioRequest(wav, titleAudioRequest({ intent: 'auto' }));
+		owner.setAudioRequest(removed, titleAudioRequest({ intent: 'auto' }));
+		expect(owner.audioRequest(wav)?.intent).toBe('auto');
+		expect(owner.audioRequest(removed)?.intent).toBeUndefined();
 	});
 });
 
@@ -562,18 +661,18 @@ describe('output title groups', () => {
 	it('requires an explicit title-level choice when grouped audio choices disagree', async () => {
 		const owner = createInputOwner();
 		const files = ['/books/one.m4b', '/books/two.m4b'].map((path) =>
-			audioFile(path, { preservation: { canPreserve: true, recommended: true } }),
+			audioFile(path, { preservation: { canPreserve: true } }),
 		);
 		owner.replaceSession(sessionWith(files, [0, 1]));
-		owner.setAudioHandling(files[1]!, 'preserve');
+		owner.setAudioRequest(files[1]!, titleAudioRequest({ intent: 'auto' }));
 		await owner.groupSelected();
 		expect(owner.audioChoiceRequired(files[0]!)).toBe(true);
-		owner.setAudioHandling(files[0]!, 'preserve');
+		owner.setAudioRequest(files[0]!, titleAudioRequest({ intent: 'auto' }));
 		expect(owner.audioChoiceRequired(files[0]!)).toBe(false);
-		expect(owner.audioHandling(files[0]!)).toBe('preserve');
+		expect(owner.audioRequest(files[0]!)?.intent).toBe('auto');
 		await owner.removeFile(0);
 		expect(owner.view().sourceFiles).toEqual([]);
-		expect(owner.session().audioHandlingByIdentity).toEqual({});
+		expect(owner.session().audioRequestsByIdentity).toEqual({});
 	});
 
 	it('does not group until the metadata draft gate accepts and does not reimport a hidden source', async () => {

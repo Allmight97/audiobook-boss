@@ -1,79 +1,155 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal, type JSX } from '@solidjs/web';
-import type { InputOwner } from '../../app/inputSession';
-import { displayedTitleForFile } from '../../app/inputSession';
-import type { AudioFile, AudioHandling } from '../../types/audio';
-
-const PRESERVATION_GUIDANCE =
-	'This audio is already compact. Skip re-encoding while updating tags, artwork, and its library folder.';
+import { chapterPlansForProcessing, displayedTitleForFile } from '../../app/inputSession';
+import { useAppRuntime } from '../../app/runtime';
+import { EncoderView } from '../encoderPanel';
+import { tauriClient } from '../../lib/tauri/client';
+import { toUserMessage } from '../../lib/tauri/appError';
+import type { AudioFile, TitleAudioPlan } from '../../types/audio';
 
 export function AudioHandlingControl(props: {
 	readonly file: AudioFile;
 	readonly index: number;
 	readonly orderLocked: boolean;
-	readonly handling: AudioHandling;
-	readonly choiceRequired: boolean;
-	readonly canPreserve: boolean;
-	readonly grouped: boolean;
-	readonly recommended: boolean;
-	readonly setAudioHandling: InputOwner['setAudioHandling'];
 }): JSX.Element {
+	const runtime = useAppRuntime();
 	const [open, setOpen] = createSignal(false);
+	const [plan, setPlan] = createSignal<TitleAudioPlan | undefined>(undefined);
+	const [error, setError] = createSignal('');
 	const [position, setPosition] = createSignal({ left: 0, top: 0 });
 	let trigger: HTMLButtonElement | undefined;
 	let panel: HTMLDivElement | undefined;
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
-	const kept = () => props.handling === 'preserve' && !props.choiceRequired;
-	const guidanceId = () => `preservation-guidance-${props.index}`;
-	function show(): void {
+	let pinned = false,
+		dismissed = false,
+		generation = 0,
+		cachedKey = '';
+	const request = () => runtime.encoding.audioRequest(props.file);
+	const sources = () => runtime.input.sourcesFor(props.file);
+	async function queryPlan() {
+		const files = sources();
+		return tauriClient.previewTitleAudio(
+			files.map((file) => file.path),
+			request(),
+			chapterPlansForProcessing(files, files.length > 1 ? 'merge' : 'batch'),
+		);
+	}
+	const needsChoice = () => runtime.input.audioChoiceRequired(props.file);
+	const kept = () => plan()?.handling === 'preserve';
+	const guidanceId = () => `audio-plan-${props.index}`;
+	const format = () =>
+		({ m4b: 'M4B', mp3: 'MP3', m4aOpus: 'M4A', mkaOpus: 'MKA' })[request().format];
+	const opus = () => request().format === 'm4aOpus' || request().format === 'mkaOpus';
+	function show() {
+		if (dismissed) return;
 		clearTimeout(closeTimer);
 		setOpen(true);
 	}
-	function leave(): void {
+	function close() {
 		clearTimeout(closeTimer);
-		closeTimer = setTimeout(() => setOpen(false), 160);
+		pinned = false;
+		setOpen(false);
 	}
-	onCleanup(() => clearTimeout(closeTimer));
+	function leave() {
+		clearTimeout(closeTimer);
+		if (!pinned)
+			closeTimer = setTimeout(() => {
+				if (!panel?.contains(document.activeElement)) close();
+			}, 180);
+	}
+	function dismiss() {
+		dismissed = true;
+		trigger?.focus();
+		close();
+	}
 	createEffect(
-		() => [open(), kept(), props.choiceRequired] as const,
+		() => props.orderLocked,
+		(locked) => {
+			if (locked) close();
+		},
+	);
+	onCleanup(() => {
+		generation++;
+		clearTimeout(closeTimer);
+	});
+	createEffect(
+		() => ({
+			open: open(),
+			key: JSON.stringify({
+				sources: sources().map((f) => ({
+					path: f.path,
+					chapterPlan: f.chapterPlan,
+					cueSource: f.cueSource,
+				})),
+				request: request(),
+				needsChoice: needsChoice(),
+			}),
+		}),
+		({ open: isOpen, key }) => {
+			if (key !== cachedKey) {
+				generation++;
+				setPlan(undefined);
+				setError('');
+			}
+			if (!isOpen || needsChoice() || key === cachedKey) return;
+			cachedKey = key;
+			const ticket = ++generation;
+			void queryPlan()
+				.then((value) => {
+					if (ticket === generation) setPlan(value);
+				})
+				.catch((err) => {
+					if (ticket === generation) setError(toUserMessage(err));
+				});
+		},
+	);
+	createEffect(
+		() => [open(), plan(), error()] as const,
 		([isOpen]) => {
 			if (!isOpen) return;
-			function place(): void {
+			function place() {
 				const rect = trigger?.getBoundingClientRect();
 				if (!rect) return;
-				const width = Math.min(360, window.innerWidth - 24);
-				const height = panel?.offsetHeight ?? 220;
+				const width = Math.min(430, window.innerWidth - 24),
+					height = panel?.offsetHeight ?? 300;
 				setPosition({
 					left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
-					top:
+					top: Math.max(
+						12,
 						rect.bottom + height + 12 < window.innerHeight
 							? rect.bottom + 8
-							: Math.max(12, rect.top - height - 8),
+							: rect.top - height - 8,
+					),
 				});
 			}
-			function dismiss(event: KeyboardEvent): void {
+			function onEscape(event: KeyboardEvent) {
 				if (event.key !== 'Escape') return;
 				event.preventDefault();
 				event.stopPropagation();
-				setOpen(false);
+				dismiss();
 			}
-			function outside(event: PointerEvent): void {
+			function outside(event: PointerEvent) {
 				if (
 					event.target instanceof Node &&
 					!panel?.contains(event.target) &&
 					!trigger?.contains(event.target)
 				)
-					setOpen(false);
+					close();
 			}
-			const frame = requestAnimationFrame(place);
+			const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(place);
+			const frame = requestAnimationFrame(() => {
+				if (panel) resize?.observe(panel);
+				place();
+			});
 			place();
-			document.addEventListener('keydown', dismiss, true);
+			document.addEventListener('keydown', onEscape, true);
 			document.addEventListener('pointerdown', outside, true);
 			window.addEventListener('resize', place);
 			window.addEventListener('scroll', place, true);
 			return () => {
 				cancelAnimationFrame(frame);
-				document.removeEventListener('keydown', dismiss, true);
+				resize?.disconnect();
+				document.removeEventListener('keydown', onEscape, true);
 				document.removeEventListener('pointerdown', outside, true);
 				window.removeEventListener('resize', place);
 				window.removeEventListener('scroll', place, true);
@@ -84,75 +160,163 @@ export function AudioHandlingControl(props: {
 		<>
 			<button
 				type="button"
-				ref={(element) => {
-					trigger = element;
+				ref={(el) => {
+					trigger = el;
 				}}
 				class={[
 					'preservation-info-trigger',
-					{ kept: kept(), recommended: props.recommended || props.choiceRequired },
+					{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
 				]}
-				aria-label={`${props.canPreserve ? 'Keep original audio' : 'Re-encode audio'} for ${displayedTitleForFile(props.file)}`}
-				aria-pressed={props.choiceRequired ? 'mixed' : kept() ? 'true' : 'false'}
-				aria-describedby={open() ? guidanceId() : undefined}
+				aria-label={`Audio plan for ${displayedTitleForFile(props.file)}`}
+				aria-haspopup="dialog"
+				aria-expanded={open() ? 'true' : 'false'}
+				aria-controls={guidanceId()}
 				disabled={props.orderLocked}
 				onMouseEnter={show}
-				onMouseLeave={leave}
+				onMouseLeave={() => {
+					dismissed = false;
+					leave();
+				}}
 				onFocus={show}
-				onBlur={() => setOpen(false)}
+				onBlur={() => {
+					dismissed = false;
+				}}
 				onClick={(event) => {
 					event.stopPropagation();
-					props.setAudioHandling(props.file, kept() || !props.canPreserve ? 'encode' : 'preserve');
+					pinned = true;
+					dismissed = false;
 					show();
+				}}
+				onKeyDown={(event) => {
+					if (event.key === 'Tab' && !event.shiftKey && open()) {
+						event.preventDefault();
+						pinned = true;
+						panel?.querySelector<HTMLButtonElement>('button')?.focus();
+					}
 				}}
 			>
 				{kept() ? '✓' : 'i'}
 			</button>
+			<span class="title-audio-summary">
+				{needsChoice() || error()
+					? 'Choose audio'
+					: kept()
+						? `Pass-through · ${format()}`
+						: `${request().intent === 'preserve' ? 'Keep original audio' : request().intent === 'auto' ? 'Recommended' : opus() ? 'Opus' : 'AAC'} · ${format()}`}
+			</span>
 			<Show when={open()}>
 				<Portal>
 					<div
-						ref={(element) => {
-							panel = element;
+						ref={(el) => {
+							panel = el;
 						}}
 						id={guidanceId()}
-						role="tooltip"
+						role="dialog"
+						aria-label="Audio plan"
 						class={[
 							'preservation-guidance',
-							{ kept: kept(), recommended: props.recommended || props.choiceRequired },
+							'title-audio-plan',
+							{ kept: kept(), 'needs-choice': needsChoice() || !!error() },
 						]}
 						style={{ left: `${position().left}px`, top: `${position().top}px` }}
 						onMouseEnter={show}
 						onMouseLeave={leave}
+						onClick={(event) => event.stopPropagation()}
+						onKeyDown={(event) => event.stopPropagation()}
+						onPointerDown={(event) => {
+							event.stopPropagation();
+							pinned = true;
+						}}
+						onFocusOut={(event) => {
+							if (
+								event.relatedTarget instanceof Node &&
+								!panel?.contains(event.relatedTarget) &&
+								!trigger?.contains(event.relatedTarget)
+							)
+								close();
+						}}
 					>
+						<button
+							type="button"
+							class="audio-plan-close"
+							aria-label="Close audio plan"
+							onClick={dismiss}
+						>
+							×
+						</button>
 						<strong>
-							{props.choiceRequired
-								? 'Choose audio handling'
-								: kept()
-									? 'Original audio kept'
-									: 'Keep original audio'}
+							{needsChoice()
+								? 'Choose this title’s audio'
+								: error()
+									? 'Choose audio settings'
+									: !plan()
+										? 'Audio plan'
+										: kept()
+											? 'Keeping original audio'
+											: `Using ${opus() ? 'Opus' : 'AAC'} with ${format()}`}
 						</strong>
 						<p>
-							{props.choiceRequired
-								? props.canPreserve
-									? 'These files had different audio choices. Choose one setting for this title.'
-									: 'These files cannot all keep their original audio. Re-encode this title to continue.'
-								: kept()
-									? 'Audio will be copied without re-encoding, with your updated tags, artwork, and library folder.'
-									: props.recommended
-										? PRESERVATION_GUIDANCE
-										: 'Keep the source audio without re-encoding while updating tags, artwork, and its library folder.'}
+							{needsChoice()
+								? 'These sources had different audio settings. Choose settings for this title or use your defaults.'
+								: error() ||
+									(!plan()
+										? 'Checking source audio…'
+										: kept()
+											? 'Audio stays unchanged. Tags, artwork and chapters will be updated.'
+											: `Convert ${plan()?.sourceCodec} to ${opus() ? 'Opus' : 'AAC'} and save as ${format()}.`)}
 						</p>
-						<Show when={props.grouped && props.canPreserve}>
-							<p class="muted-text">
-								Keeping audio in a merged title requires compatible AAC sources.
+						<p class="audio-plan-origin">
+							<button
+								type="button"
+								onClick={() => runtime.encoding.applyDefaultsToTitles([props.file])}
+							>
+								Use defaults
+							</button>
+						</p>
+						<EncoderView title={props.file} />
+						<Show when={plan()}>
+							{(resolved) => (
+								<dl class="audio-plan-properties">
+									<dt>Source audio</dt>
+									<dd>{resolved().handling === 'preserve' ? 'Pass-through' : 'Re-encoded'}</dd>
+									<dt>{opus() && !kept() ? 'Opus input rate' : 'Sample rate'}</dt>
+									<dd>
+										{sources()[0]?.sampleRate !== resolved().sampleRate
+											? `${(sources()[0]?.sampleRate ?? 0) / 1000} → `
+											: ''}
+										{resolved().sampleRate / 1000} kHz
+									</dd>
+									<dt>Channels</dt>
+									<dd>{resolved().channels === 1 ? 'Mono' : 'Stereo'}</dd>
+								</dl>
+							)}
+						</Show>
+						<Show when={plan()?.reason}>
+							<p>{plan()?.reason}</p>
+						</Show>
+						<Show when={opus() && !kept()}>
+							<p class="audio-plan-origin">Opus playback uses a 48 kHz clock.</p>
+						</Show>
+						<Show when={opus()}>
+							<p>
+								{request().format === 'm4aOpus'
+									? 'For Opus in Audiobookshelf, try M4A first. Confirm direct playback and chapters on your device.'
+									: 'Use with VLC or another Matroska-capable player. Apple and browser clients may need transcoding.'}{' '}
+								<button
+									type="button"
+									class="audio-compatibility-link"
+									onClick={() =>
+										void tauriClient.openUrl(
+											request().format === 'mkaOpus'
+												? 'https://www.videolan.org/vlc/features.html'
+												: 'https://www.audiobookshelf.org/docs/faq/server/',
+										)
+									}
+								>
+									Player compatibility
+								</button>
 							</p>
 						</Show>
-						<small>
-							{kept() || !props.canPreserve
-								? 'Click the indicator to re-encode.'
-								: props.choiceRequired
-									? 'Click to keep original audio; click again to re-encode.'
-									: 'Click the indicator to keep original audio.'}
-						</small>
 					</div>
 				</Portal>
 			</Show>

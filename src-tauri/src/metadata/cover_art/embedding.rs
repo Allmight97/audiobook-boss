@@ -21,6 +21,9 @@ pub fn add_cover_art_stream_pre_header(
         ));
     };
 
+    if octx.format().name() == "matroska" {
+        return add_matroska_cover(octx, cover_data, format).map(Some);
+    }
     let codec_id = format.codec_id();
     let Some(codec) = ff::encoder::find(codec_id) else {
         return Err(AppError::General(format!(
@@ -66,6 +69,12 @@ pub fn write_cover_art_packet_post_header(
         return Ok(());
     }
 
+    if octx
+        .stream(stream_index)
+        .is_some_and(|stream| stream.parameters().medium() == ff::media::Type::Attachment)
+    {
+        return Ok(()); // Matroska wrote the cover attachment with the header.
+    }
     let mut pkt = ff::Packet::copy(cover_data);
     pkt.set_stream(stream_index);
     pkt.set_flags(ff::packet::flag::Flags::KEY);
@@ -145,4 +154,39 @@ fn configure_cover_art_stream_parameters(
         height
     );
     Ok(())
+}
+
+fn add_matroska_cover(
+    octx: &mut ff::format::context::Output,
+    bytes: &[u8],
+    format: CoverFormat,
+) -> Result<(usize, CoverFormat)> {
+    let size = i32::try_from(bytes.len())
+        .map_err(|_| AppError::InvalidInput("Cover art is too large.".into()))?;
+    let mut parameters = ff::codec::Parameters::new();
+    // SAFETY: parameters owns the fresh allocation and the padded av_mallocz buffer.
+    // FFmpeg frees that extradata when the parameters/stream are dropped.
+    unsafe {
+        let raw = &mut *parameters.as_mut_ptr();
+        raw.codec_type = ff::sys::AVMediaType::AVMEDIA_TYPE_ATTACHMENT;
+        raw.codec_id = format.codec_id().into();
+        raw.extradata =
+            ff::sys::av_mallocz(bytes.len() + ff::sys::AV_INPUT_BUFFER_PADDING_SIZE as usize)
+                .cast();
+        if raw.extradata.is_null() {
+            return Err(AppError::General(
+                "Cannot allocate cover attachment.".into(),
+            ));
+        }
+        raw.extradata_size = size;
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), raw.extradata, bytes.len());
+    }
+    let mut stream = octx.add_stream(None)?;
+    stream.set_parameters(parameters);
+    let mut tags = ff::Dictionary::new();
+    let png = format.codec_id() == ff::codec::Id::PNG;
+    tags.set("filename", if png { "cover.png" } else { "cover.jpg" });
+    tags.set("mimetype", if png { "image/png" } else { "image/jpeg" });
+    stream.set_metadata(tags);
+    Ok((stream.index(), format))
 }

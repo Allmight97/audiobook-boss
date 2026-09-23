@@ -237,7 +237,7 @@
 	flex: 0 0 auto;
 	line-height: 1;
 }
-.preservation-info-trigger.recommended {
+.preservation-info-trigger.needs-choice {
 	color: #d97706;
 }
 .preservation-info-trigger.kept {
@@ -251,10 +251,10 @@
 .preservation-guidance {
 	position: fixed;
 	z-index: 1000;
-	width: min(360px, calc(100vw - 24px));
+	width: min(430px, calc(100vw - 24px));
 	box-sizing: border-box;
 	padding: 0.75rem;
-	border: 1px solid #d97706;
+	border: 1px solid var(--border-primary);
 	border-radius: 0.625rem;
 	background: var(--bg-panel);
 	color: var(--text-primary);
@@ -265,13 +265,11 @@
 .preservation-guidance.kept {
 	border-color: var(--accent-primary);
 }
+.preservation-guidance.needs-choice {
+	border-color: #d97706;
+}
 .preservation-guidance p {
 	margin: 0.375rem 0;
-}
-.preservation-guidance small {
-	display: block;
-	margin-top: 0.375rem;
-	color: var(--text-muted);
 }
 .title-disclosure {
 	display: flex;
@@ -479,4 +477,65 @@
 }
 .file-cue-details button {
 	margin-right: 8px;
+}
+
+.title-audio-plan {
+	max-height: calc(100vh - 24px);
+	overflow-y: auto;
+}
+.title-audio-plan .encoder-workbench-panel {
+	border: 0;
+	padding: 0;
+	background: transparent;
+}
+.title-audio-plan .encoder-workbench-grid {
+	gap: 8px;
+}
+.title-audio-plan .encoder-field-row {
+	grid-template-columns: minmax(5.5rem, 0.38fr) minmax(0, 1fr);
+	gap: 8px;
+}
+@media (max-width: 380px) {
+	.title-audio-plan .encoder-field-row {
+		grid-template-columns: 1fr;
+		gap: 4px;
+	}
+}
+.title-audio-plan .encoder-field-row select,
+.title-audio-plan .encoder-field-row input {
+	width: 100%;
+}
+.audio-plan-close {
+	float: right;
+	border: 0;
+	background: transparent;
+	color: var(--text-secondary);
+	font-size: 1.25rem;
+}
+.audio-plan-origin {
+	font-size: 0.85em;
+}
+.audio-plan-origin button,
+.audio-compatibility-link {
+	border: 0;
+	background: transparent;
+	color: var(--accent-primary);
+	text-decoration: underline;
+	padding: 0;
+}
+.audio-plan-properties {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 6px 12px;
+	border-top: 1px solid var(--border-primary);
+	padding-top: 12px;
+}
+.audio-plan-properties dd {
+	margin: 0;
+}
+
+.title-audio-summary {
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+	white-space: nowrap;
 }

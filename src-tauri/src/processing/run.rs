@@ -10,7 +10,7 @@ mod run_options;
 mod run_validation;
 
 pub(crate) use run_options::ProcessingRunOptions;
-use run_validation::{inspect_and_validate_external_processing_contract, log_encoder_summary};
+use run_validation::inspect_and_validate_external_processing_contract;
 
 pub(crate) async fn process_payload(
     window: tauri::Window,
@@ -87,7 +87,6 @@ async fn dispatch_payload(
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     let file_info = inspect_and_validate_external_processing_contract(&payload)?;
-    log_encoder_summary(&payload);
 
     let execution_plan =
         prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds, file_info)?;
@@ -164,9 +163,12 @@ mod tests {
             input_files: vec!["/books/input.m4b".to_string()],
             input_ids: None,
             output_dir: "/tmp/out".to_string(),
-            settings: Some(encoder_settings()),
-            audio_handling: None,
-            sample_rate: None,
+            audio_requests: vec![crate::audio::TitleAudioRequest {
+                format: crate::audio::AudiobookFormat::M4b,
+                intent: crate::audio::AudioIntent::Encode,
+                settings: Some(encoder_settings()),
+                sample_rate: crate::audio::SampleRateConfig::Auto,
+            }],
             job_type: Some(JobType::Batch),
             output_naming: None,
             collision_policy: None,
@@ -174,6 +176,14 @@ mod tests {
             supplemental_assets_by_input_id: None,
         };
         overrides(&mut payload);
+        let count = if payload.job_type == Some(JobType::Merge) {
+            1
+        } else {
+            payload.input_files.len()
+        };
+        payload
+            .audio_requests
+            .resize(count, payload.audio_requests[0].clone());
         payload
     }
 
@@ -254,27 +264,27 @@ mod tests {
             let payload = process_payload(|payload| {
                 payload.input_files = vec![source.to_string_lossy().into_owned()];
                 payload.output_dir = output.to_string_lossy().into_owned();
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .encoder_type = EncoderType::NativeAac;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .bitrate_mode = BitrateMode::Cbr;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .bitrate_kbps = bitrate;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .channels = channels;
-                payload.sample_rate = Some(rate);
+                payload.audio_requests[0].sample_rate = rate;
             });
             let result = super::preflight_payload(payload, None, None);
             if accepted {
@@ -310,17 +320,17 @@ mod tests {
                 ];
                 payload.output_dir = temp.path().to_string_lossy().into_owned();
                 payload.job_type = Some(job_type);
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .encoder_type = EncoderType::NativeAac;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .bitrate_mode = BitrateMode::Cbr;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
@@ -371,7 +381,10 @@ mod tests {
                 ],
             )]));
             payload.output_dir = temp.path().to_string_lossy().into_owned();
-            let settings = payload.settings.as_mut().expect("encode settings");
+            let settings = payload.audio_requests[0]
+                .settings
+                .as_mut()
+                .expect("encode settings");
             settings.encoder_type = EncoderType::NativeAac;
             settings.bitrate_mode = BitrateMode::Cbr;
         });
@@ -576,7 +589,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("Output must be .m4b file, got: .mp3"),
+                .contains("Encoded output must be .m4b, .m4a or .mka, got: .mp3"),
             "unexpected error: {error}"
         );
 

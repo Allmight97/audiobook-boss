@@ -67,7 +67,7 @@ describe('encoder panel encoder resolution', () => {
 			expect(hint?.textContent).toContain('Auto will use Native AAC (NMR).');
 			expect(hint?.textContent).toContain('NMR AAC-LC.');
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (Native AAC (NMR))');
+			expect(select?.options[0]?.textContent).toBe('App default (Native AAC (NMR))');
 		});
 	});
 
@@ -92,7 +92,7 @@ describe('encoder panel encoder resolution', () => {
 				'Auto will use Apple AAC. FDK AAC is not available. Set up FDK…',
 			);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (Apple AAC)');
+			expect(select?.options[0]?.textContent).toBe('App default (Apple AAC)');
 		});
 	});
 
@@ -117,7 +117,7 @@ describe('encoder panel encoder resolution', () => {
 				'Using external FDK AAC via /opt/homebrew/bin/ffmpeg. Afterburner on.',
 			);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');
+			expect(select?.options[0]?.textContent).toBe('App default (FDK AAC)');
 		});
 	});
 
@@ -138,14 +138,14 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');
+			expect(select?.options[0]?.textContent).toBe('App default (FDK AAC)');
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
 		changeSelectValue(select, 'aac_at');
 
 		await vi.waitFor(() => {
-			expect(select.options[0]?.textContent).toBe('Auto');
+			expect(select.options[0]?.textContent).toBe('App default');
 			const hint = document.getElementById('encoder-availability-hint');
 			expect(hint?.textContent).toBe('Apple AAC available');
 		});
@@ -168,7 +168,7 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('Auto (FDK AAC)');
+			expect(select?.options[0]?.textContent).toBe('App default (FDK AAC)');
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
@@ -177,7 +177,7 @@ describe('encoder panel encoder resolution', () => {
 		await vi.waitFor(() => {
 			const hint = document.getElementById('encoder-availability-hint');
 			expect(hint?.textContent).toContain('NMR AAC-LC.');
-			expect(select.options[0]?.textContent).toBe('Auto');
+			expect(select.options[0]?.textContent).toBe('App default');
 		});
 	});
 });

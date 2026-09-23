@@ -15,10 +15,11 @@
 
 ## Hard Invariants
 
-- Render `runtime.encoding.view()` and dispatch `select`. Keep screen-local
-  disclosure only.
-- The `estimated-size` span is the only consumer of Output Plan's estimated-size
-  text. Keep it in this header; do not move the span into Output.
+- One `EncoderView` serves Settings defaults, a single title, or selected titles.
+  Render the matching Encoding view and dispatch its matching intent.
+  Mixed selections show Mixed; choose a common format/encoder before editing
+  encoder-specific fields. Keep screen-local disclosure only.
+- Estimated size is rendered once by Output, outside title editors.
 - FAAC exposes profile and ABR/VBR selectors plus the applicable quality or
   target input. Other encoders use their derived mode. NMR speed stays under
   the view-local Advanced disclosure; FAAC has no advanced tuning surface.

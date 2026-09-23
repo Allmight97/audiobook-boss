@@ -37,13 +37,14 @@
   absent entries are single-source titles. Validate membership, uniqueness,
   every source path, and all source validity. One planned job and result index
   represent one output title. Source order participates in the review signature.
-- Resolve handling in title order. Single-source preservation keeps its source
-  extension; merged titles output M4B. Audio owns packet-copy compatibility.
-  Preview and CUE chapter reconstruction require encoding. Legacy global-merge
-  requests cannot also carry per-title groups.
-- Encoder settings and sample-rate checks apply only to encoding jobs. An
-  all-preserve request can omit settings; it still follows normal job registration,
-  cancellation, output review, and terminal reporting.
+- `audio_requests` contains one request per output title. Audio resolves each
+  request before output collision review; `audio_plans` exposes that result.
+  The resolved format sets the extension. Source order and resolved audio plan
+  participate in the review signature. Preview and CUE reconstruction require
+  encoding. Global-merge requests cannot also carry per-title groups.
+- Settings and sample-rate checks apply only to encoding plans. A copy plan
+  carries no encoder settings and follows normal registration, cancellation,
+  output review, and terminal reporting.
 
 ## Progress / Stage Evolution
 

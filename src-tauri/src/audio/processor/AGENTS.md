@@ -25,7 +25,7 @@
   cached import validity does not authorize reopening a replaced path. Compare the
   inspected size/modified-time fingerprint against the opened source handle before
   creating the staged copy.
-- `preserve_merge` owns compatibility and packet-copy joining of AAC titles:
+- `preserve_merge` owns compatibility and packet-copy joining of AAC or MP3 titles:
   matching configuration/rate/channels/time base, complete contiguous frames,
   and no per-source priming/trimming. Unsupported joins fail explicitly without
   falling back to an encoder. Preflight scans timing; execution repeats the
@@ -34,8 +34,7 @@
 - Resolve the encoder once at adapter dispatch and carry that choice into the
   in-process setup. Explicit Native/Apple selections validate their linked
   encoder without probing external FDK; bundled FAAC is available without an
-  external toolchain. Auto still resolves the available toolchain in FDK →
-  Apple → Native order and does not select FAAC. Do not repeat
+  external toolchain. Auto resolves FDK → Native NMR and does not select Apple or FAAC. Do not repeat
   external-toolchain detection while opening the encoder.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.

@@ -1,5 +1,6 @@
+import { titleAudioRequest } from '../../../test/fixtures/titleAudio';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultEncoderSettings, type ProcessPayload } from '../../../types/audio';
+import type { ProcessPayload } from '../../../types/audio';
 import type { MetadataIntentPatch } from '../../../types/metadataIntent';
 import type { ProcessingStatus } from '../state';
 import {
@@ -85,7 +86,6 @@ function stagingServices(): ProcessingWorkflowServices {
 		getSelectedFileIndex: context.getSelectedFileIndexMock,
 		getSelectedFileIndices: context.getSelectedFileIndicesMock,
 		sourcesFor: (file) => [file],
-		getAudioHandling: () => 'encode',
 		readProcessingRequestConfig: context.readProcessingRequestConfigMock,
 		hasDirtyMetadataFields: context.hasDirtyMetadataFieldsMock,
 		readMetadataForm: context.readMetadataFormMock,
@@ -159,8 +159,7 @@ describe('startProcessing metadata staging', () => {
 		context.getSelectedFileIndexMock.mockReturnValue(0);
 		context.getSelectedFileIndicesMock.mockReturnValue(new Set([0]));
 		context.readProcessingRequestConfigMock.mockReturnValue({
-			encoderSettings: defaultEncoderSettings(),
-			sampleRate: 'auto',
+			audioRequests: [titleAudioRequest()],
 			outputDirectory: '/tmp/out',
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});

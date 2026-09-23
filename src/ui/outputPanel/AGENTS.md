@@ -19,8 +19,8 @@
 ## Cross-Strip Coupling
 
 - `OutputView` reads Output Plan `view`.
-- Estimated size is rendered in the encoder header from Output Plan. Do not
-  add a second estimate readout here.
+- Render Output Plan’s estimated size once in the Output header. Title and
+  default audio editors do not render a batch estimate.
 
 ## Boundary Changes
 

@@ -18,7 +18,8 @@ import type { EncodingOwner } from '../encoding';
 import type { InputOwner } from '../inputSession';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 import { createCollisionReview, type CollisionView } from './collision';
-import { formatEstimatedSizeText } from './estimate';
+import { estimateEncodedSizeBytes } from './estimate';
+import { formatFileSize } from '../../types/audio';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import {
 	emptyOutputPlan,
@@ -72,7 +73,7 @@ export type OutputOwnerDeps = {
 	readonly persistDefaults: (defaults: OutputDefaults) => void;
 	readonly input: InputOwner;
 	readonly metadataView: Accessor<MetadataView>;
-	readonly encoding: Pick<EncodingOwner, 'estimateKbps'>;
+	readonly encoding: Pick<EncodingOwner, 'audioRequest' | 'estimateTitleKbps'>;
 	readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 };
 
@@ -116,26 +117,26 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 
 	const estimatedSizeText = createMemo(() => {
 		const input = deps.input.view();
-		let encodedDuration = 0;
-		let preservedBytes = 0;
+
+		let bytes = 0;
 		for (const file of input.files.filter((file) => file.isValid)) {
-			if (deps.input.audioHandling(file) === 'preserve')
-				preservedBytes += deps.input
-					.sourcesFor(file)
-					.reduce((n, source) => n + (source.size ?? 0), 0);
-			else
-				encodedDuration += deps.input
-					.sourcesFor(file)
-					.reduce((n, source) => n + (source.duration ?? 0), 0);
+			const request = deps.encoding.audioRequest(file);
+			// Auto can resolve to copy or encode only after backend inspection.
+			if (request.intent === 'auto') return input.hasFiles ? 'Size after audio planning' : '---';
+			if (request.intent === 'preserve') {
+				const sources = deps.input.sourcesFor(file);
+				if (sources.some((source) => source.size === undefined)) return 'Size after audio planning';
+				bytes += sources.reduce((total, source) => total + (source.size ?? 0), 0);
+				continue;
+			}
+			const kbps = deps.encoding.estimateTitleKbps(file);
+			if (kbps === null) return 'Size varies with audio';
+			const duration = deps.input
+				.sourcesFor(file)
+				.reduce((total, source) => total + (source.duration ?? 0), 0);
+			bytes += estimateEncodedSizeBytes(duration, kbps);
 		}
-		return formatEstimatedSizeText(
-			input.hasFiles,
-			encodedDuration,
-			{
-				bitrateKbps: encodedDuration > 0 ? deps.encoding.estimateKbps() : 0,
-			},
-			preservedBytes,
-		);
+		return input.hasFiles ? `~ ${formatFileSize(bytes)}` : '~ --- MB';
 	});
 
 	const view: Accessor<OutputView> = () => {
@@ -209,6 +210,12 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		].join('\0');
 	});
 
+	const previewFormat = createMemo(() => {
+		const input = deps.input.view();
+		return deps.encoding.audioRequest(
+			input.files.find((file) => file.path === sourcePathFromInput(input)),
+		).format;
+	});
 	const previewContext = createMemo(() => {
 		previewRev();
 		const directory = previewPlan.outputDirectory;
@@ -219,12 +226,10 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		metadataDraftKey();
 		const metadata = untrack(() => deps.metadataView());
 		const sourcePath = sourcePathFromInput(input);
-		const source = input.files.find((file) => file.path === sourcePath);
 		return {
 			outputDirectory: directory,
 			sourcePath,
-			audioHandling: source ? deps.input.audioHandling(source) : undefined,
-			merged: source ? deps.input.sourcesFor(source).length > 1 : false,
+			format: previewFormat(),
 			outputNaming: outputNamingFromPlan({
 				...emptyOutputPlan(),
 				outputDirectory: directory,

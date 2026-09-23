@@ -1,10 +1,11 @@
 //! Sample accumulation to build exact encoder-sized frames without truncation.
 //! Isolates frame sizing logic from the main pipeline. Supports F32 planar
-//! and S16 packed formats.
+//! and packed F32/S16 formats.
 //!
 //! ## Supported Formats
 //! - `F32(Planar)`: Native AAC encoder (ffmpeg's built-in aac)
 //! - `I16(Packed)`: AAC-AT encoder (macOS AudioToolbox)
+//! - `F32(Packed)`: Opus encoder
 //!
 //! Other formats and invalid frame sizes return an error at construction time to prevent
 //! silent data corruption.
@@ -17,13 +18,13 @@ use log;
 ///
 /// Only supports formats actually used by our encoders:
 /// - `F32Planar`: Separate buffers per channel with f32 samples (native AAC)
-/// - `S16Packed`: Single interleaved buffer with i16 samples (AAC-AT)
+/// - `Packed`: Interleaved sample bytes (AAC-AT or Opus)
 ///
 /// Attempting to use other formats or a zero frame size will return an error from
 /// `SampleAccumulator::new()`.
 enum SampleStorage {
     F32Planar(Vec<Vec<f32>>),
-    S16Packed(Vec<i16>), // Interleaved: [L0, R0, L1, R1, ...]
+    Packed(Vec<u8>), // Interleaved sample bytes: [L0, R0, L1, R1, ...]
 }
 
 pub struct SampleAccumulator {
@@ -74,19 +75,20 @@ impl SampleAccumulator {
                 );
                 (4, true, storage)
             }
-            ff::format::Sample::I16(ff::format::sample::Type::Packed) => {
-                // AAC-AT (macOS AudioToolbox) uses S16 packed/interleaved
+            ff::format::Sample::I16(ff::format::sample::Type::Packed)
+            | ff::format::Sample::F32(ff::format::sample::Type::Packed) => {
+                let bytes = format.bytes();
                 let storage =
-                    SampleStorage::S16Packed(Vec::with_capacity(frame_size * channels * 2));
-                (2, false, storage)
+                    SampleStorage::Packed(Vec::with_capacity(frame_size * channels * bytes * 2));
+                (bytes, false, storage)
             }
             unsupported => {
                 log::error!(
-                    "SampleAccumulator received unsupported format {:?}; only F32(Planar) and I16(Packed) are supported",
+                    "SampleAccumulator received unsupported format {:?}; only F32(Planar/Packed) and I16(Packed) are supported",
                     unsupported
                 );
                 return Err(AppError::General(format!(
-                    "Unsupported encoder sample format {:?}; SampleAccumulator supports only F32(Planar) and I16(Packed)",
+                    "Unsupported encoder sample format {:?}; SampleAccumulator supports only F32(Planar/Packed) and I16(Packed)",
                     unsupported
                 )));
             }
@@ -147,31 +149,13 @@ impl SampleAccumulator {
                         }
                     }
                 }
-                SampleStorage::S16Packed(buffer) => {
-                    // S16 packed: all channels interleaved in plane 0
-                    unsafe {
-                        let plane = frame.data(0);
-                        if !plane.is_empty() {
-                            // Total samples = bytes / 2 (S16)
-                            // Samples per channel = total / channels
-                            let total_samples = plane.len() / self.bytes_per_sample;
-                            let samples_per_channel = total_samples / self.channels;
-                            let expected_total = in_samples * self.channels;
-
-                            if total_samples < expected_total {
-                                log::warn!(
-                                    "S16 packed frame has fewer samples than reported (have={}, expected={}) – truncating copy",
-                                    samples_per_channel, in_samples
-                                );
-                            }
-
-                            let copy_samples = total_samples.min(expected_total);
-                            let slice = std::slice::from_raw_parts(
-                                plane.as_ptr() as *const i16,
-                                copy_samples,
-                            );
-                            buffer.extend_from_slice(slice);
-                        }
+                SampleStorage::Packed(buffer) => {
+                    let plane = frame.data(0);
+                    let expected = in_samples * self.channels * self.bytes_per_sample;
+                    let copied = plane.len().min(expected);
+                    buffer.extend_from_slice(&plane[..copied]);
+                    if copied < expected {
+                        log::warn!("Packed frame has fewer bytes than reported (have={copied}, expected={expected}); truncating copy");
                     }
                 }
             }
@@ -201,9 +185,9 @@ impl SampleAccumulator {
                 .map(|buffer| buffer.len().saturating_sub(self.consumed_samples))
                 .min()
                 .unwrap_or(0),
-            SampleStorage::S16Packed(buffer) => buffer
+            SampleStorage::Packed(buffer) => buffer
                 .len()
-                .saturating_div(self.channels)
+                .saturating_div(self.channels * self.bytes_per_sample)
                 .saturating_sub(self.consumed_samples),
         }
     }
@@ -228,8 +212,8 @@ impl SampleAccumulator {
             SampleStorage::F32Planar(buffers) => {
                 Self::drain_one_f32_planar(buffers, consumed_samples, allow_short, config)
             }
-            SampleStorage::S16Packed(buffer) => {
-                Self::drain_one_s16_packed(buffer, consumed_samples, allow_short, config)
+            SampleStorage::Packed(buffer) => {
+                Self::drain_one_packed(buffer, consumed_samples, allow_short, config)
             }
         };
 
@@ -307,13 +291,14 @@ impl SampleAccumulator {
         Some(frame)
     }
 
-    fn drain_one_s16_packed(
-        buffer: &[i16],
+    fn drain_one_packed(
+        buffer: &[u8],
         consumed_samples: &mut usize,
         allow_short: bool,
         config: DrainConfig,
     ) -> Option<ff::frame::Audio> {
-        let samples_available = buffer.len() / config.channels;
+        let bytes_per_frame = config.channels * config.format.bytes();
+        let samples_available = buffer.len() / bytes_per_frame;
         let available = samples_available.saturating_sub(*consumed_samples);
         if available == 0 {
             return None;
@@ -322,8 +307,8 @@ impl SampleAccumulator {
             return None;
         }
         let take = available.min(config.frame_size);
-        let take_total = take * config.channels;
-        let start = *consumed_samples * config.channels;
+        let take_total = take * bytes_per_frame;
+        let start = *consumed_samples * bytes_per_frame;
 
         let mut frame = ff::frame::Audio::empty();
         frame.set_format(config.format);
@@ -334,17 +319,28 @@ impl SampleAccumulator {
             frame.alloc(config.format, take, config.channel_layout);
         }
 
-        // S16 packed: all data goes in plane 0, interleaved
-        let plane = frame.data_mut(0);
-        if !plane.is_empty() {
-            let dst: &mut [i16] = unsafe {
-                std::slice::from_raw_parts_mut(plane.as_mut_ptr() as *mut i16, take_total)
-            };
-            let src = &buffer[start..start + take_total];
-
-            // No sanitization needed for integer samples (can't be NaN/Inf)
-            // Just copy directly
-            dst.copy_from_slice(src);
+        // Packed samples share plane zero; byte copies preserve alignment and precision.
+        let dst = &mut frame.data_mut(0)[..take_total];
+        dst.copy_from_slice(&buffer[start..start + take_total]);
+        if config.format == ff::format::Sample::F32(ff::format::sample::Type::Packed) {
+            let mut sanitized = 0;
+            for bytes in dst.chunks_exact_mut(4) {
+                let value = f32::from_ne_bytes(bytes.try_into().expect("four-byte float"));
+                let clean = if value.is_finite() {
+                    value.clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                };
+                if value != clean {
+                    sanitized += 1;
+                }
+                bytes.copy_from_slice(&clean.to_ne_bytes());
+            }
+            if sanitized > 0 {
+                log::warn!(
+                    "Accumulator sanitized {sanitized} packed float samples before encoding"
+                );
+            }
         }
 
         *consumed_samples += take;
@@ -358,7 +354,7 @@ impl SampleAccumulator {
 
         let total_samples = match &self.storage {
             SampleStorage::F32Planar(buffers) => buffers[0].len(),
-            SampleStorage::S16Packed(buffer) => buffer.len() / self.channels,
+            SampleStorage::Packed(buffer) => buffer.len() / (self.channels * self.bytes_per_sample),
         };
         let compact_threshold = self.frame_size.saturating_mul(2);
         let should_compact = self.consumed_samples >= compact_threshold
@@ -374,8 +370,8 @@ impl SampleAccumulator {
                     buffer.drain(..self.consumed_samples);
                 }
             }
-            SampleStorage::S16Packed(buffer) => {
-                let drop_total = self.consumed_samples * self.channels;
+            SampleStorage::Packed(buffer) => {
+                let drop_total = self.consumed_samples * self.channels * self.bytes_per_sample;
                 buffer.drain(..drop_total);
             }
         }

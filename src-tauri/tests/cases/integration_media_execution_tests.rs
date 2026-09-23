@@ -8,8 +8,8 @@
 //!
 //! These tests prove workflow behavior structural tests cannot:
 //! - import → configure → process → decodable M4B with truthful duration
-//! - real input formats: WAV, M4B (AAC decode→encode), and MP3
-//! - encoder routes: Native AAC, Apple AAC (AudioToolbox), and bundled FAAC. External FDK
+//! - real input formats: WAV, M4B (AAC decode→encode), MP3, and Opus
+//! - encoder routes: Native AAC, Apple AAC (AudioToolbox), bundled FAAC, and Opus. External FDK
 //!   is deliberately absent from the normal suite — it needs a user-supplied
 //!   libfdk_aac FFmpeg, which is environment-dependent by definition.
 //! - metadata save → re-read tags from the real output artifact
@@ -18,7 +18,7 @@
 //! - chapters: synthesized per source on merge, preserved on reprocess
 //! - cancellation → terminal error with no artifact and no staging residue
 //!
-//! Runtime budget: the module must stay under ~10s wall clock (currently ~1s).
+//! Runtime budget: the module must stay under ~10s wall clock.
 //! If it grows past that, shrink fixtures before widening the budget.
 
 use audiobook_boss_lib::audio::{
@@ -1319,7 +1319,10 @@ async fn preserve_copies_supported_m4b_and_mp3_without_mutating_source_bytes() {
 
 #[tokio::test]
 async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
-    let source_lane = MediaLane::with_fixtures(&[0.8, 0.7]);
+    let source_lane = MediaLane::with_fixtures(&[0.8, 0.7]).with_encoder(EncoderSettings {
+        bitrate_kbps: 128,
+        ..native_encoder_settings()
+    });
     let source = source_lane.process(None).await;
     let source_bytes = fs::read(&source).expect("read chaptered source");
     let source_pcm = decode_pcm_f32(&source);
@@ -1332,6 +1335,17 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
         ..Default::default()
     };
     let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
+    assert!(info.files[0].bitrate.unwrap() > 72_000);
+    let plan = audiobook_boss_lib::audio::resolve_title_audio(
+        &title_audio_request(
+            audiobook_boss_lib::processing::AudioHandling::Preserve,
+            native_encoder_settings(),
+        ),
+        &info,
+        false,
+    )
+    .expect("explicit Keep overrides the size-reduction recommendation");
+    assert!(plan.settings.is_none());
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         None,
@@ -1341,7 +1355,7 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     );
     execute_audio_engine(
         AudioExecutionRequest::new(context, info, None, CoverArtPassthroughPolicy::Preserve)
-            .with_handling(audiobook_boss_lib::processing::AudioHandling::Preserve)
+            .with_handling(plan.handling)
             .with_metadata_intent(Some(metadata)),
     )
     .await
@@ -1351,6 +1365,10 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     assert_eq!(reread.cover_art, Some(minimal_jpg_bytes()));
     assert_eq!(chapters_of(&destination), source_chapters);
     assert_eq!(decode_pcm_f32(&destination), source_pcm);
+    assert_eq!(
+        audio_packet_bytes(&destination),
+        audio_packet_bytes(&source)
+    );
     assert_eq!(
         fs::read(&source).expect("source remains unchanged"),
         source_bytes
@@ -1483,9 +1501,9 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         input_ids: None,
         chapter_plans: None,
         output_dir: output.to_string_lossy().to_string(),
-        settings: Some(faac_encoder_settings()),
-        sample_rate: Some(SampleRateConfig::Auto),
-        audio_handling: Some(vec![Preserve, Preserve, Preserve, Encode, Encode]),
+        audio_requests: [Preserve, Preserve, Preserve, Encode, Encode]
+            .map(|handling| title_audio_request(handling, faac_encoder_settings()))
+            .to_vec(),
         job_type: Some(JobType::Batch),
         output_naming: None,
         collision_policy: None,
@@ -1507,7 +1525,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         .collect();
     let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None).unwrap();
     assert_eq!(plan.outputs.len(), 5);
-    for (index, extension) in ["m4b", "m4a", "m4b", "m4b", "m4b"].iter().enumerate() {
+    for (index, extension) in ["m4b", "m4b", "m4b", "m4b", "m4b"].iter().enumerate() {
         assert_eq!(
             std::path::Path::new(&plan.outputs[index].resolved_path)
                 .extension()
@@ -1519,30 +1537,37 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             .contains(&format!("Library book {index}")));
     }
     let mut missing_settings = payload.clone();
-    missing_settings.settings = None;
+    missing_settings
+        .audio_requests
+        .iter_mut()
+        .for_each(|request| request.settings = None);
     assert!(
         preflight_processing_plan(missing_settings, Some(metadata.clone()), None)
             .unwrap_err()
             .message
-            .contains("Encoder settings")
+            .contains("encoding settings")
     );
     let mut encode_low_rate = payload.clone();
-    encode_low_rate.audio_handling.as_mut().unwrap()[0] = Encode;
+    encode_low_rate.audio_requests[0].intent = audiobook_boss_lib::audio::AudioIntent::Encode;
+    assert!(
+        preflight_processing_plan(encode_low_rate.clone(), Some(metadata.clone()), None).is_ok()
+    );
+    encode_low_rate.audio_requests[0].sample_rate = SampleRateConfig::Explicit(22_050);
     assert!(preflight_processing_plan(encode_low_rate, Some(metadata.clone()), None).is_err());
     let mut all_preserve = payload.clone();
     all_preserve.input_files.truncate(3);
-    all_preserve.audio_handling = Some(vec![Preserve; 3]);
-    all_preserve.settings = None;
-    all_preserve.sample_rate = Some(SampleRateConfig::Explicit(1)); // irrelevant encoder choice
+    all_preserve.audio_requests.truncate(3);
+    for request in &mut all_preserve.audio_requests {
+        request.settings = None;
+        request.sample_rate = SampleRateConfig::Explicit(1); // irrelevant while passing through
+    }
     let original_plan =
         preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), None).unwrap();
     assert!(
         preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), Some(1.0)).is_err()
     );
     let mut changed_mode = all_preserve.clone();
-    changed_mode.audio_handling = Some(vec![Encode; 3]);
-    changed_mode.settings = Some(native_encoder_settings());
-    changed_mode.sample_rate = Some(SampleRateConfig::Auto);
+    changed_mode.audio_requests = vec![title_audio_request(Encode, native_encoder_settings()); 3];
     let encode_plan =
         preflight_processing_plan(changed_mode, Some(metadata.clone()), None).unwrap();
     assert_ne!(original_plan.plan_signature, encode_plan.plan_signature);
@@ -1552,7 +1577,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         "preflight creates no library folders"
     );
     let mut misaligned = all_preserve;
-    misaligned.audio_handling = Some(vec![Preserve]);
+    misaligned.audio_requests.truncate(1);
     assert!(preflight_processing_plan(misaligned, Some(metadata), None)
         .unwrap_err()
         .message
@@ -1716,6 +1741,34 @@ async fn cue_chapters_survive_mp3_encoding_and_finalization() {
     let mp3 = tmp.path().join("book.mp3");
     write_sine_mp3(&mp3, 1.5, 440.0);
     fs::write(tmp.path().join("book.cue"), "FILE \"stale.mp3\" MP3\nTRACK 01 AUDIO\nTITLE \"Opening\"\nINDEX 01 00:00:00\nTRACK 02 AUDIO\nTITLE \"Near end\"\nINDEX 01 00:01:36\n").expect("write CUE");
+    // The popover must use the accepted chapter choice, just like preflight.
+    let info = get_file_list_info(std::slice::from_ref(&mp3)).unwrap();
+    let request = audiobook_boss_lib::audio::TitleAudioRequest {
+        format: audiobook_boss_lib::audio::AudiobookFormat::Mp3,
+        intent: audiobook_boss_lib::audio::AudioIntent::Auto,
+        settings: None,
+        sample_rate: SampleRateConfig::Auto,
+    };
+    let paths = vec![info.files[0].path.to_str().unwrap().to_owned()];
+    let preview = audiobook_boss_lib::commands::audio::preview_title_audio;
+    assert!(preview(paths.clone(), request.clone(), None).await.is_err());
+    let mut ignored = info.files[0].chapter_plan.clone().unwrap();
+    ignored.from_cue = false;
+    ignored.chapters.clear();
+    let plan = preview(
+        paths.clone(),
+        request,
+        Some(std::collections::HashMap::from([(
+            paths[0].clone(),
+            ignored,
+        )])),
+    )
+    .await
+    .expect("ignored CUE permits single-file MP3 pass-through");
+    assert_eq!(
+        plan.handling,
+        audiobook_boss_lib::processing::AudioHandling::Preserve
+    );
     let lane = MediaLane::for_inputs(vec![mp3]);
     let output = lane
         .process(Some(AudiobookMetadata {
@@ -1815,22 +1868,48 @@ fn faac_encoder_settings() -> EncoderSettings {
 
 #[tokio::test]
 async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
-    for rate in [32000, 44100, 48000] {
+    for (sample_rate, source_rate, expected_rate) in [
+        (SampleRateConfig::Explicit(32000), 44100_u32, 32000),
+        (SampleRateConfig::Explicit(44100), 44100, 44100),
+        (SampleRateConfig::Explicit(48000), 44100, 48000),
+        (SampleRateConfig::Auto, 22050, 32000),
+    ] {
         let lane = MediaLane::with_fixtures(&[0.13, 0.17])
             .with_encoder(faac_encoder_settings())
-            .with_sample_rate(SampleRateConfig::Explicit(rate));
+            .with_sample_rate(sample_rate);
+        if source_rate != SAMPLE_RATE {
+            for path in &lane.inputs {
+                let mut bytes = fs::read(path).unwrap();
+                bytes[24..28].copy_from_slice(&source_rate.to_le_bytes());
+                bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
+                fs::write(path, bytes).unwrap();
+            }
+            let plan = audiobook_boss_lib::audio::resolve_title_audio(
+                &title_audio_request(
+                    audiobook_boss_lib::processing::AudioHandling::Encode,
+                    faac_encoder_settings(),
+                ),
+                &get_file_list_info(&lane.inputs).unwrap(),
+                false,
+            )
+            .expect("FAAC HE Auto plans its required source-rate conversion");
+            assert_eq!(plan.sample_rate, expected_rate);
+        }
         let mut metadata = AudiobookMetadata::new();
         metadata.title = Some("FAAC Merge".into());
         let output = lane.process(Some(metadata)).await;
         let probe = get_file_list_info(&[&output]).unwrap();
         assert_eq!(probe.valid_count, 1);
-        assert_eq!(probe.files[0].sample_rate, Some(rate));
+        assert_eq!(probe.files[0].sample_rate, Some(expected_rate));
         assert_eq!(
             probe.files[0].channels,
             Some(1),
             "mono HE must not be inferred as PS stereo"
         );
-        assert!((probe.total_duration - 0.3).abs() < 0.002);
+        assert!(
+            (probe.total_duration - 0.3 * f64::from(SAMPLE_RATE) / f64::from(source_rate)).abs()
+                < 0.002
+        );
         let tags = read_metadata(&output).unwrap();
         assert_eq!(tags.title.as_deref(), Some("FAAC Merge"));
         assert_eq!(probe.files[0].chapters.len(), 2);
@@ -2186,7 +2265,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
     fs::create_dir(&output_dir).unwrap();
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [one], "titleSources": {one.to_str().unwrap(): [{"path": two}, {"path": one}]},
-        "outputDir": output_dir, "audioHandling": ["preserve"], "jobType": "batch"
+        "outputDir": output_dir, "audioRequests": [title_audio_request(AudioHandling::Preserve, native_encoder_settings())], "jobType": "batch"
     })).unwrap();
     let metadata = std::collections::HashMap::from([(
         one.to_string_lossy().into_owned(),
@@ -2280,7 +2359,7 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
     .await
     .expect_err("per-source priming cannot be lost at a join");
     assert!(
-        error.to_string().contains("Re-encode this title"),
+        error.to_string().contains("Pass-through is unavailable"),
         "{error}"
     );
     assert!(!destination.exists());
@@ -2288,7 +2367,7 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
 }
 
 #[test]
-fn mp3_title_stack_requires_encoding_and_names_the_incompatible_source() {
+fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
     use audiobook_boss_lib::commands::audio::preflight_processing_plan;
     use audiobook_boss_lib::processing::{AudioHandling, ProcessPayload};
     let tmp = TempDir::new().expect("MP3 stack workspace");
@@ -2302,7 +2381,7 @@ fn mp3_title_stack_requires_encoding_and_names_the_incompatible_source() {
         "inputFiles": [first],
         "titleSources": {first.to_str().unwrap(): [{"path": second}, {"path": first}]},
         "outputDir": output_dir, "jobType": "batch",
-        "audioHandling": ["encode"], "settings": native_encoder_settings()
+        "audioRequests": [title_audio_request(AudioHandling::Encode, native_encoder_settings())]
     }))
     .expect("MP3 stack request");
     let plan =
@@ -2310,12 +2389,16 @@ fn mp3_title_stack_requires_encoding_and_names_the_incompatible_source() {
     assert_eq!(plan.outputs.len(), 1);
     assert!(plan.outputs[0].resolved_path.ends_with(".m4b"));
     let mut preserved = payload;
-    preserved.audio_handling = Some(vec![AudioHandling::Preserve]);
-    preserved.settings = None;
+    preserved.audio_requests[0].format = audiobook_boss_lib::audio::AudiobookFormat::Mp3;
+    preserved.audio_requests[0].intent = audiobook_boss_lib::audio::AudioIntent::Auto;
+    preserved.audio_requests[0].settings = None;
     let error = preflight_processing_plan(preserved, None, None)
-        .expect_err("MP3 packet merge is unsupported");
-    assert!(error.message.contains("part-two.mp3"), "{}", error.message);
-    assert!(error.message.contains("AAC only"), "{}", error.message);
+        .expect_err("interior MP3 priming requires encoding");
+    assert!(
+        error.message.contains("priming") || error.message.contains("shifted"),
+        "{}",
+        error.message
+    );
     assert_eq!(
         fs::read_dir(&output_dir)
             .expect("read output directory")
@@ -2323,4 +2406,391 @@ fn mp3_title_stack_requires_encoding_and_names_the_incompatible_source() {
         0,
         "preflight must not publish output"
     );
+}
+
+#[tokio::test]
+async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_containers() {
+    use audiobook_boss_lib::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
+    use audiobook_boss_lib::commands::audio::preflight_processing_plan;
+    use audiobook_boss_lib::processing::ProcessPayload;
+    for (format, source_rate, input_rate) in [
+        (AudiobookFormat::M4aOpus, 22_050, 24_000),
+        (AudiobookFormat::MkaOpus, 44_100, 48_000),
+    ] {
+        let lane = MediaLane::with_fixtures(&[0.203, 0.307]);
+        let channels = if format == AudiobookFormat::MkaOpus {
+            write_stereo_sine_wav(&lane.inputs[1], 0.307, 440.0, 660.0);
+            2
+        } else {
+            1
+        };
+        if source_rate != SAMPLE_RATE {
+            for path in &lane.inputs {
+                let bytes = fs::read(path).unwrap();
+                let mut bytes = bytes;
+                bytes[24..28].copy_from_slice(&source_rate.to_le_bytes());
+                bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
+                fs::write(path, bytes).unwrap();
+            }
+        }
+        let paths = lane.inputs.iter().rev().cloned().collect::<Vec<_>>();
+        let anchor = lane.inputs[0].to_string_lossy().into_owned();
+        let out = lane.tmp.path().join("out");
+        fs::create_dir_all(&out).unwrap();
+        let request = TitleAudioRequest {
+            format,
+            intent: AudioIntent::Auto,
+            settings: Some(EncoderSettings {
+                encoder_type: EncoderType::Opus,
+                bitrate_mode: BitrateMode::VbrTarget,
+                channels: ChannelConfig::Auto,
+                ..native_encoder_settings()
+            }),
+            sample_rate: SampleRateConfig::Auto,
+        };
+        let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
+            "inputFiles": [&anchor], "titleSources": {&anchor: paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
+            "audioRequests": [request], "outputDir": out, "jobType": "batch"
+        })).unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Opus title".into()),
+            artist: Some("Test Author".into()),
+            cover_art: Some(minimal_jpg_bytes()),
+            ..Default::default()
+        };
+        let plan = preflight_processing_plan(payload, None, None).expect("Opus preflight");
+        let audio_plan = &plan.audio_plans[0];
+        assert_eq!(audio_plan.sample_rate, input_rate);
+        assert_eq!(audio_plan.channels, channels);
+        let destination = PathBuf::from(&plan.outputs[0].resolved_path);
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        assert_eq!(destination.extension().unwrap(), format.extension());
+        let info = get_file_list_info(&paths).unwrap();
+        let duration = info.total_duration;
+        let context = ProcessingContext::new_headless_with_workspace_root(
+            Arc::new(ProcessingSession::new()),
+            audio_plan.settings.clone(),
+            SampleRateConfig::Explicit(audio_plan.sample_rate),
+            OutputConfig::new(&destination),
+            lane.tmp.path().join("work"),
+        );
+        execute_audio_engine(
+            AudioExecutionRequest::new(
+                context,
+                info,
+                Some(metadata),
+                CoverArtPassthroughPolicy::Preserve,
+            )
+            .with_handling(audio_plan.handling),
+        )
+        .await
+        .expect("Opus title output");
+        let audio = get_file_list_info(std::slice::from_ref(&destination)).unwrap();
+        assert!(audio.files[0]
+            .codec_label
+            .as_deref()
+            .unwrap()
+            .to_lowercase()
+            .contains("opus"));
+        let decoded = decode_pcm_f32(&destination);
+        let decoded_seconds = decoded.len() as f64 / (48_000.0 * f64::from(channels));
+        assert!(
+            (decoded_seconds - duration).abs() < 0.002,
+            "{:?}: playable duration {} expected {}",
+            format,
+            decoded_seconds,
+            duration
+        );
+        if channels == 2 {
+            let difference_energy: f64 = decoded
+                .chunks_exact(2)
+                .map(|frame| f64::from(frame[0] - frame[1]).powi(2))
+                .sum();
+            assert!(
+                (difference_energy / (decoded.len() / 2) as f64).sqrt() > 0.05,
+                "packed float encoding must preserve distinct stereo channels"
+            );
+        }
+        let tags = read_metadata(&destination).expect("read output tags");
+        assert_eq!(tags.title.as_deref(), Some("Opus title"));
+        assert_eq!(tags.artist.as_deref(), Some("Test Author"));
+        assert_eq!(tags.cover_art, Some(minimal_jpg_bytes()));
+        let chapters = chapters_of(&destination);
+        assert_eq!(chapters.len(), 2);
+        assert_eq!(chapters[0].1, 0);
+        assert!(
+            (chapters[1].2 as f64 - duration * 1000.0).abs() <= 2.0,
+            "{chapters:?}"
+        );
+        let other_format = if format == AudiobookFormat::M4aOpus {
+            AudiobookFormat::MkaOpus
+        } else {
+            AudiobookFormat::M4aOpus
+        };
+        let info = get_file_list_info(std::slice::from_ref(&destination)).unwrap();
+        let copy_plan = audiobook_boss_lib::audio::resolve_title_audio(
+            &TitleAudioRequest {
+                format: other_format,
+                intent: AudioIntent::Preserve,
+                settings: None,
+                sample_rate: SampleRateConfig::Auto,
+            },
+            &info,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            copy_plan.handling,
+            audiobook_boss_lib::processing::AudioHandling::Preserve
+        );
+        let copied = lane
+            .tmp
+            .path()
+            .join("copy")
+            .with_extension(other_format.extension());
+        let context = ProcessingContext::new_headless_with_workspace_root(
+            Arc::new(ProcessingSession::new()),
+            None,
+            SampleRateConfig::Auto,
+            OutputConfig::new(&copied),
+            lane.tmp.path().join("work-copy"),
+        );
+        execute_audio_engine(
+            AudioExecutionRequest::new(context, info, None, CoverArtPassthroughPolicy::Preserve)
+                .with_handling(copy_plan.handling)
+                .with_metadata_intent(Some(MetadataIntentPatch {
+                    title: PatchOp::Set("Retagged Opus".into()),
+                    ..Default::default()
+                })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            audio_packet_bytes(&copied),
+            audio_packet_bytes(&destination)
+        );
+        assert!(
+            (decode_pcm_f32(&copied).len() as i64 - decoded.len() as i64).abs() <= 48,
+            "{:?}: copy={} source={}",
+            format,
+            decode_pcm_f32(&copied).len(),
+            decoded.len()
+        );
+        assert_eq!(chapters_of(&copied), chapters);
+        let copied_tags = read_metadata(&copied).unwrap();
+        assert_eq!(copied_tags.title.as_deref(), Some("Retagged Opus"));
+        assert_eq!(copied_tags.cover_art, Some(minimal_jpg_bytes()));
+
+        let aac_lane = MediaLane::for_inputs(vec![copied]).with_encoder(EncoderSettings {
+            channels: ChannelConfig::Auto,
+            ..native_encoder_settings()
+        });
+        let aac_output = aac_lane.process(None).await;
+        let aac_seconds =
+            decode_pcm_f32(&aac_output).len() as f64 / (48_000.0 * f64::from(channels));
+        assert!(
+            (aac_seconds - decoded_seconds).abs() < 0.003,
+            "Opus import through ABB must preserve the playable interval"
+        );
+        assert_eq!(chapters_of(&aac_output), chapters);
+    }
+}
+
+#[tokio::test]
+async fn opus_remux_keeps_variable_frame_timing_and_trim() {
+    use audiobook_boss_lib::processing::AudioHandling;
+    let tmp = TempDir::new().unwrap();
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    for (frame_ms, bitrate) in [("2.5", "64k"), ("60", "12k"), ("120", "64k")] {
+        let source = tmp.path().join(format!("source-{frame_ms}.mka"));
+        let destination = tmp.path().join(format!("copy-{frame_ms}.m4a"));
+        let created = Command::new(&binary)
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:sample_rate=48000:duration=0.413",
+            ])
+            .args([
+                "-c:a",
+                "libopus",
+                "-frame_duration",
+                frame_ms,
+                "-b:a",
+                bitrate,
+            ])
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(
+            created.status.success(),
+            "{}",
+            String::from_utf8_lossy(&created.stderr)
+        );
+        let source_samples = decode_pcm_f32(&source).len();
+        let info = get_file_list_info(std::slice::from_ref(&source)).unwrap();
+        let context = ProcessingContext::new_headless_with_workspace_root(
+            Arc::new(ProcessingSession::new()),
+            None,
+            SampleRateConfig::Auto,
+            OutputConfig::new(&destination),
+            tmp.path().join("work"),
+        );
+        execute_audio_engine(
+            AudioExecutionRequest::new(context, info, None, CoverArtPassthroughPolicy::Preserve)
+                .with_handling(AudioHandling::Preserve),
+        )
+        .await
+        .expect("Opus pass-through into M4A");
+        assert_eq!(
+            audio_packet_bytes(&destination),
+            audio_packet_bytes(&source)
+        );
+        assert!(
+            decode_pcm_f32(&destination).len().abs_diff(source_samples) <= 48,
+            "{frame_ms} ms packets retain the playable audio interval"
+        );
+    }
+}
+
+fn title_audio_request(
+    handling: audiobook_boss_lib::processing::AudioHandling,
+    settings: EncoderSettings,
+) -> audiobook_boss_lib::audio::TitleAudioRequest {
+    use audiobook_boss_lib::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
+    TitleAudioRequest {
+        format: AudiobookFormat::M4b,
+        intent: if handling == audiobook_boss_lib::processing::AudioHandling::Preserve {
+            AudioIntent::Preserve
+        } else {
+            AudioIntent::Encode
+        },
+        settings: Some(settings),
+        sample_rate: SampleRateConfig::Auto,
+    }
+}
+
+#[tokio::test]
+async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
+    use audiobook_boss_lib::audio::{AudioIntent, AudiobookFormat};
+    use audiobook_boss_lib::commands::audio::preflight_processing_plan;
+    use audiobook_boss_lib::processing::{AudioHandling, ProcessPayload};
+    let tmp = TempDir::new().unwrap();
+    let paths: Vec<_> = ["last.mp3", "first.mp3"]
+        .map(|name| tmp.path().join(name))
+        .to_vec();
+    let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    for (index, path) in paths.iter().enumerate() {
+        assert!(Command::new(&binary)
+            .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
+            .arg(format!(
+                "sine=frequency={}:sample_rate=44100:duration=0.31",
+                440 + index * 440
+            ))
+            .args(["-c:a", "libmp3lame", "-b:a", "96k", "-write_xing", "0"])
+            .arg(path)
+            .status()
+            .unwrap()
+            .success());
+    }
+    let expected_packets: Vec<_> = paths
+        .iter()
+        .flat_map(|path| audio_packet_bytes(path))
+        .collect();
+    let original_bytes: Vec<_> = paths.iter().map(|path| fs::read(path).unwrap()).collect();
+    let expected_samples: usize = paths.iter().map(|path| decode_pcm_f32(path).len()).sum();
+    let anchor = &paths[1];
+    let request = audiobook_boss_lib::audio::TitleAudioRequest {
+        format: AudiobookFormat::Mp3,
+        intent: AudioIntent::Auto,
+        settings: None,
+        sample_rate: SampleRateConfig::Auto,
+    };
+    let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
+        "inputFiles": [anchor], "titleSources": {anchor.to_str().unwrap(): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
+        "audioRequests": [request], "outputDir": tmp.path(), "jobType": "batch"
+    })).unwrap();
+    let plan = preflight_processing_plan(payload, None, None).unwrap();
+    assert_eq!(plan.audio_plans[0].handling, AudioHandling::Preserve);
+    assert!(plan.audio_plans[0].settings.is_none());
+    let destination = PathBuf::from(&plan.outputs[0].resolved_path);
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+    let context = ProcessingContext::new_headless_with_workspace_root(
+        Arc::new(ProcessingSession::new()),
+        None,
+        SampleRateConfig::Auto,
+        OutputConfig::new(&destination),
+        tmp.path().join("work"),
+    );
+    let metadata = AudiobookMetadata {
+        title: Some("Joined MP3".into()),
+        artist: Some("Author".into()),
+        cover_art: Some(minimal_jpg_bytes()),
+        ..Default::default()
+    };
+    execute_audio_engine(
+        AudioExecutionRequest::new(
+            context,
+            get_file_list_info(&paths).unwrap(),
+            Some(metadata),
+            CoverArtPassthroughPolicy::Preserve,
+        )
+        .with_handling(plan.audio_plans[0].handling),
+    )
+    .await
+    .unwrap();
+    assert_eq!(audio_packet_bytes(&destination), expected_packets);
+    assert_eq!(decode_pcm_f32(&destination).len(), expected_samples);
+    let metadata = read_metadata(&destination).unwrap();
+    assert_eq!(metadata.title.as_deref(), Some("Joined MP3"));
+    assert_eq!(metadata.artist.as_deref(), Some("Author"));
+    assert_eq!(metadata.cover_art, Some(minimal_jpg_bytes()));
+    let chapters = chapters_of(&destination);
+    assert_eq!(
+        chapters
+            .iter()
+            .map(|chapter| chapter.0.as_deref())
+            .collect::<Vec<_>>(),
+        [Some("last"), Some("first")]
+    );
+    assert!((chapters[1].2 as f64 - expected_samples as f64 / 44.1).abs() <= 2.0);
+    for (path, original) in paths.iter().zip(original_bytes) {
+        assert_eq!(fs::read(path).unwrap(), original);
+    }
+}
+
+#[tokio::test]
+async fn recommended_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() {
+    use audiobook_boss_lib::audio::{resolve_title_audio, AudioIntent, AudiobookFormat};
+    use audiobook_boss_lib::processing::AudioHandling;
+    for (bitrate_kbps, expected) in [(48, AudioHandling::Preserve), (128, AudioHandling::Encode)] {
+        let lane = MediaLane::with_fixtures(&[1.5]).with_encoder(EncoderSettings {
+            bitrate_kbps,
+            ..native_encoder_settings()
+        });
+        let source = lane.process(None).await;
+        let info = get_file_list_info(&[&source]).unwrap();
+        let bitrate = info.files[0].bitrate.unwrap();
+        assert_eq!(bitrate <= 72_000, expected == AudioHandling::Preserve);
+        let mut request = title_audio_request(AudioHandling::Encode, native_encoder_settings());
+        request.intent = AudioIntent::Auto;
+        let plan = resolve_title_audio(&request, &info, false).unwrap();
+        assert_eq!(plan.handling, expected);
+        assert_eq!(plan.sample_rate, info.files[0].sample_rate.unwrap());
+        assert_eq!(u32::from(plan.channels), info.files[0].channels.unwrap());
+        request.intent = AudioIntent::Preserve;
+        request.settings = None;
+        let kept = resolve_title_audio(&request, &info, false).unwrap();
+        assert_eq!(kept.handling, AudioHandling::Preserve);
+        assert!(kept.settings.is_none());
+        request.format = AudiobookFormat::Mp3;
+        assert!(resolve_title_audio(&request, &info, false)
+            .unwrap_err()
+            .to_string()
+            .contains("MP3 source audio"));
+        assert!(resolve_title_audio(&request, &info, true).is_err());
+    }
 }

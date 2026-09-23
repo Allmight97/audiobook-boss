@@ -5,15 +5,9 @@ use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
 #[test]
-fn auto_prefers_fdk_then_apple_then_native() {
-    for (fdk, apple, expected) in [
-        (true, true, EncoderType::FdkHeAac),
-        (true, false, EncoderType::FdkHeAac),
-        (false, true, EncoderType::AacAt),
-        (false, false, EncoderType::NativeAac),
-    ] {
-        assert_eq!(preferred_auto_encoder(fdk, apple), expected);
-    }
+fn auto_prefers_fdk_then_native() {
+    assert_eq!(preferred_auto_encoder(true), EncoderType::FdkHeAac);
+    assert_eq!(preferred_auto_encoder(false), EncoderType::NativeAac);
 }
 
 #[cfg(target_os = "linux")]

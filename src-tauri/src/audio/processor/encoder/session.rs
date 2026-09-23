@@ -46,7 +46,22 @@ impl Backend {
     }
     pub fn parameters(&self) -> Result<ff::codec::Parameters> {
         match self {
-            Self::Ffmpeg(e) => Ok(ff::codec::Parameters::from(e)),
+            Self::Ffmpeg(e) => {
+                let mut parameters = ff::codec::Parameters::from(e);
+                if e.id() == ff::codec::Id::OPUS {
+                    // Opus headers and decoded skip counts use the 48 kHz clock,
+                    // even when libopus consumes 24 kHz PCM. Keep mux timing on
+                    // that same clock so MP4 edit lists retain the full interval.
+                    // SAFETY: parameters owns this live AVCodecParameters allocation.
+                    unsafe {
+                        let raw = &mut *parameters.as_mut_ptr();
+                        raw.initial_padding = raw.initial_padding * 48_000 / raw.sample_rate;
+                        raw.frame_size = raw.frame_size * 48_000 / raw.sample_rate;
+                        raw.sample_rate = 48_000;
+                    }
+                }
+                Ok(parameters)
+            }
             Self::Faac(e) => e.parameters(),
         }
     }
@@ -111,6 +126,7 @@ impl EncoderSession {
         match self.resolved {
             EncoderType::Faac => "faac",
             EncoderType::AacAt => "aac_at",
+            EncoderType::Opus => "libopus",
             _ => "aac",
         }
     }
@@ -190,6 +206,7 @@ impl EncoderSession {
             Backend::Faac(e) => format!("faac_version={} profile={} rate_control={} target_bitrate_bps={} quant_quality={} bandwidth={} pns_level={} core_priming_samples={} reported_encoder_delay_samples={}",
                 faac::library_version(), e.profile_name(), if e.info.rate_control == faac_sys::FAAC_RC_VBR { "VBR" } else { "ABR" }, e.info.bit_rate * e.channels, e.info.quant_quality, e.info.bandwidth, e.info.pns_level, e.priming(), e.info.encoder_delay),
             Backend::Ffmpeg(_) if self.resolved == EncoderType::NativeAac => "profile=AAC-LC aac_coder=nmr options_verified=true".into(),
+            Backend::Ffmpeg(_) if self.resolved == EncoderType::Opus => "codec=Opus encoder=libopus rate_control=VBR".into(),
             Backend::Ffmpeg(_) => "profile=AAC-LC encoder=AudioToolbox".into(),
         };
         let seconds = self.submitted_samples as f64 / f64::from(self.rate());

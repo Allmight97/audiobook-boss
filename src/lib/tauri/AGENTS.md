@@ -36,8 +36,9 @@
   validation and normalization come from Rust metadata commands, not local TS
   rule tables.
 - Keep nullish and payload normalization centralized in the private cluster.
-  Processing may omit encoder settings for all-preserve exports; normalize
-  absent settings and audio handling to wire null rather than inventing defaults.
+  Processing sends one complete `TitleAudioRequest` per output title, with
+  explicit null settings for MP3 pass-through. `previewTitleAudio` and preflight
+  use the same Rust planner; IPC adapters never choose a fallback encoder.
 
 - `openFdkSetup` delegates the fixed bundled setup script through Audio; the
   promise means Terminal was opened, not that FDK was installed.

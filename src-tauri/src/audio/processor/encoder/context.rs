@@ -45,6 +45,7 @@ pub(crate) fn create_audio_encoder(
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
     let sample_format = match resolved_encoder {
+        EncoderType::Opus => ff::format::Sample::F32(ff::format::sample::Type::Packed),
         EncoderType::AacAt => ff::format::Sample::I16(ff::format::sample::Type::Packed),
         _ => ff::format::Sample::F32(ff::format::sample::Type::Planar),
     };
@@ -63,6 +64,14 @@ pub(crate) fn create_audio_encoder(
     // Build encoder-specific options Dictionary
     // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
     let opts = match resolved_encoder {
+        EncoderType::Opus => {
+            opened.set_bit_rate(usize::from(encoder_settings.bitrate_kbps) * 1000);
+            opened.set_compression(Some(10));
+            let mut options = ff::Dictionary::new();
+            options.set("vbr", "on");
+            options.set("application", "audio");
+            options
+        }
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
         EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
@@ -119,8 +128,15 @@ pub(crate) fn setup_encoder(
     let resolved_encoder_type = plan.encoder_settings.encoder_type;
     settings_encoder::validate_encoder_settings(&plan.encoder_settings)?;
 
-    let mut octx = ff::format::output(&plan.output_path)
-        .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
+    let mut octx = ff::format::output_as(
+        &plan.output_path,
+        if plan.output_path.extension().is_some_and(|ext| ext == "mka") {
+            "matroska"
+        } else {
+            "mp4"
+        },
+    )
+    .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
     if let Some(metadata) = metadata {
         crate::metadata::set_container_metadata(&mut octx, metadata)
@@ -128,7 +144,11 @@ pub(crate) fn setup_encoder(
         log::debug!("Container metadata set successfully");
     }
 
-    let stream_codec_id = ff::codec::Id::AAC;
+    let stream_codec_id = if resolved_encoder_type == EncoderType::Opus {
+        ff::codec::Id::OPUS
+    } else {
+        ff::codec::Id::AAC
+    };
     let codec = ff::encoder::find(stream_codec_id)
         .ok_or_else(|| AppError::General(format!("{:?} encoder not found", stream_codec_id)))?;
 
@@ -163,7 +183,6 @@ pub(crate) fn setup_encoder(
     ost.set_time_base(enc_ctx.time_base());
     ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
-    let ost_time_base = ost.time_base();
 
     // Pre-header cover art stream attempt
     // Prefer user-provided cover art; otherwise reuse passthrough cover art without reprocessing.
@@ -291,6 +310,10 @@ pub(crate) fn setup_encoder(
         resolved_encoder_type,
     )?;
 
+    let ost_time_base = octx
+        .stream(ost_index)
+        .expect("created audio stream")
+        .time_base();
     Ok(EncoderSession::new(
         enc_ctx,
         octx,

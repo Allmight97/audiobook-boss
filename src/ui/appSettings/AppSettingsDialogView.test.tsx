@@ -10,7 +10,6 @@ import {
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { tauriClient } from '../../lib/tauri/client';
-import { EncoderView } from '../encoderPanel';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -18,6 +17,8 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		defaultAcquisitionLane: 'audible',
 		maxConcurrentJobs: { mode: 'auto' },
 		encoderDefaults: {
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,
@@ -174,12 +175,6 @@ describe('AppSettingsDialogView', () => {
 				}),
 			),
 		});
-		app.settings.closeDialog();
-		render(() => (
-			<AppRuntimeProvider runtime={app}>
-				<EncoderView />
-			</AppRuntimeProvider>
-		));
 		const encoder = screen.getByTestId('encoder-select');
 		expect(screen.getByTestId('encoder-availability-hint')).toHaveTextContent(
 			'Auto will use Apple AAC. FDK AAC is not available.',

@@ -2,7 +2,6 @@ import { pathBasename } from '../../lib/path/basename';
 import { chapterPlansForProcessing } from '../inputSession';
 import type {
 	AudioFile,
-	AudioHandling,
 	ProcessCommandResult,
 	ProcessPayload,
 	ProcessingRequestConfig,
@@ -42,8 +41,7 @@ export interface ProcessingWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
 	getSelectedFileIndex: () => number;
 	getSelectedFileIndices: () => Set<number>;
-	readProcessingRequestConfig: (audioHandling: readonly AudioHandling[]) => ProcessingRequestConfig;
-	getAudioHandling: (file: AudioFile) => AudioHandling;
+	readProcessingRequestConfig: (titles: readonly AudioFile[]) => ProcessingRequestConfig;
 	sourcesFor: (file: AudioFile) => readonly AudioFile[];
 	hasDirtyMetadataFields: () => boolean;
 	readMetadataForm: (options?: {
@@ -242,10 +240,10 @@ function submitRetainedProcessingCommand(
 
 function readProcessingConfig(
 	services: ProcessingWorkflowServices,
-	audioHandling: readonly AudioHandling[],
+	titles: readonly AudioFile[],
 ): AppEffect<ProcessingRequestConfig | null> {
 	return Effect.try({
-		try: () => services.readProcessingRequestConfig(audioHandling),
+		try: () => services.readProcessingRequestConfig(titles),
 		catch: (cause) => cause,
 	}).pipe(
 		Effect.catch((error) =>
@@ -384,8 +382,10 @@ export function processingWorkflowProgram(
 			.map((file) => ({ file, sources: [...services.sourcesFor(file)] }));
 		const sourceFiles = titles.flatMap((title) => title.sources);
 		const sourceInputIds = sourceFiles.map((file) => file.inputId);
-		const audioHandling = titles.map((title) => services.getAudioHandling(title.file));
-		const processingRequestConfig = yield* readProcessingConfig(services, audioHandling);
+		const processingRequestConfig = yield* readProcessingConfig(
+			services,
+			titles.map((title) => title.file),
+		);
 		if (!processingRequestConfig) {
 			return;
 		}
@@ -412,7 +412,6 @@ export function processingWorkflowProgram(
 			processingRequestConfig,
 			jobType,
 			services.remoteSource.processingAssets(sourceInputIds),
-			audioHandling,
 		);
 		processPayload.titleSources = Object.fromEntries(
 			titles

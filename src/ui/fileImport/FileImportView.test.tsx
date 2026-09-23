@@ -12,6 +12,8 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		maxConcurrentJobs: { mode: 'auto' },
 		defaultAcquisitionLane: 'audible',
 		encoderDefaults: {
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,

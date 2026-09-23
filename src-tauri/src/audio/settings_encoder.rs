@@ -11,7 +11,7 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EncoderType {
-    /// Auto-detect best available (FDK > Apple > Native AAC)
+    /// Auto-detect best available (FDK > Native NMR)
     Auto,
     /// FDK HE-AAC VBR (libfdk_aac)
     FdkHeAac,
@@ -21,6 +21,8 @@ pub enum EncoderType {
     NativeAac,
     /// Bundled FAAC AAC-LC / HE-AAC v1.
     Faac,
+    /// Opus via bundled libopus.
+    Opus,
 }
 
 impl fmt::Display for EncoderType {
@@ -31,6 +33,7 @@ impl fmt::Display for EncoderType {
             EncoderType::AacAt => "aac_at",
             EncoderType::NativeAac => "native_aac",
             EncoderType::Faac => "faac",
+            EncoderType::Opus => "opus",
         };
         write!(f, "{}", label)
     }
@@ -57,6 +60,8 @@ pub enum BitrateMode {
     Cvbr,
     Abr,
     Vbr(u16),
+    /// Variable bitrate driven by target kbps (Opus).
+    VbrTarget,
 }
 
 /// Bitrate mode capability without encoder-specific values.
@@ -75,7 +80,7 @@ impl BitrateModeKind {
             BitrateMode::Cbr => Self::Cbr,
             BitrateMode::Cvbr => Self::Cvbr,
             BitrateMode::Abr => Self::Abr,
-            BitrateMode::Vbr(_) => Self::Vbr,
+            BitrateMode::Vbr(_) | BitrateMode::VbrTarget => Self::Vbr,
         }
     }
 }
@@ -122,18 +127,31 @@ pub struct EncoderSettings {
     pub faac_profile: FaacProfile,
 }
 
+impl EncoderSettings {
+    pub(in crate::audio) fn resolve_encoder(&mut self, encoder: EncoderType) {
+        if self.encoder_type == EncoderType::Auto
+            && !allowed_bitrate_mode_kinds_for(encoder)
+                .contains(&BitrateModeKind::from_mode(self.bitrate_mode))
+        {
+            self.bitrate_mode = default_bitrate_mode_for(encoder);
+        }
+        self.encoder_type = encoder;
+    }
+}
+
 /// Valid FDK VBR level range.
 pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u16> = 1..=5;
 
 /// Default FDK VBR level for audiobook speech output.
 pub const DEFAULT_VBR_LEVEL: u16 = 3;
 
-const ALL_ENCODER_TYPES: [EncoderType; 5] = [
+const ALL_ENCODER_TYPES: [EncoderType; 6] = [
     EncoderType::Auto,
     EncoderType::FdkHeAac,
     EncoderType::AacAt,
     EncoderType::NativeAac,
     EncoderType::Faac,
+    EncoderType::Opus,
 ];
 const AUTO_MODES: [BitrateModeKind; 3] = [
     BitrateModeKind::Vbr,
@@ -147,15 +165,23 @@ const FAAC_MODES: [BitrateModeKind; 2] = [BitrateModeKind::Abr, BitrateModeKind:
 
 pub const MAX_ENCODER_BITRATE: u16 = 1152;
 pub const NATIVE_SPEED_MAX: u8 = 4;
+pub const OPUS_BITRATE_RANGE: std::ops::RangeInclusive<u16> = 6..=510;
+pub fn encoder_bitrate_range(encoder: EncoderType) -> std::ops::RangeInclusive<u16> {
+    if encoder == EncoderType::Opus {
+        OPUS_BITRATE_RANGE
+    } else {
+        1..=MAX_ENCODER_BITRATE
+    }
+}
 
-pub fn all_encoder_types() -> [EncoderType; 5] {
+pub fn all_encoder_types() -> [EncoderType; 6] {
     ALL_ENCODER_TYPES
 }
 
 pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [BitrateModeKind] {
     match encoder_type {
         EncoderType::Auto => &AUTO_MODES,
-        EncoderType::FdkHeAac => &VBR_ONLY,
+        EncoderType::FdkHeAac | EncoderType::Opus => &VBR_ONLY,
         EncoderType::AacAt => &CVBR_ONLY,
         EncoderType::NativeAac => &CBR_ONLY,
         EncoderType::Faac => &FAAC_MODES,
@@ -168,6 +194,7 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
         EncoderType::AacAt => BitrateMode::Cvbr,
         EncoderType::NativeAac => BitrateMode::Cbr,
         EncoderType::Faac => BitrateMode::Abr,
+        EncoderType::Opus => BitrateMode::VbrTarget,
     }
 }
 
@@ -175,7 +202,7 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
 pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     if matches!(
         settings.bitrate_mode,
-        BitrateMode::Cbr | BitrateMode::Cvbr | BitrateMode::Abr
+        BitrateMode::Cbr | BitrateMode::Cvbr | BitrateMode::Abr | BitrateMode::VbrTarget
     ) && (settings.bitrate_kbps == 0 || settings.bitrate_kbps > MAX_ENCODER_BITRATE)
     {
         return Err(AppError::InvalidInput(format!(
@@ -188,6 +215,20 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
     ) && settings.native_aac_speed > NATIVE_SPEED_MAX
     {
         return Err(AppError::InvalidInput("NMR speed must be 0..=4".into()));
+    }
+    if (settings.encoder_type == EncoderType::Opus)
+        != (settings.bitrate_mode == BitrateMode::VbrTarget)
+    {
+        return Err(AppError::InvalidInput(
+            "Opus uses a VBR target bitrate.".into(),
+        ));
+    }
+    if settings.encoder_type == EncoderType::Opus
+        && !OPUS_BITRATE_RANGE.contains(&settings.bitrate_kbps)
+    {
+        return Err(AppError::InvalidInput(
+            "Opus target bitrate must be 6..=510 kbps.".into(),
+        ));
     }
     validate_bitrate_mode(settings.encoder_type, settings.bitrate_mode)?;
     validate_encoder_mode_combo(settings.encoder_type, settings.bitrate_mode)?;
@@ -307,6 +348,7 @@ pub(super) fn linked_encoder_available(encoder: EncoderType) -> bool {
         EncoderType::NativeAac => is_native_nmr_available(),
         EncoderType::AacAt => cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at"),
         EncoderType::Faac => true,
+        EncoderType::Opus => is_encoder_available_by_name("libopus"),
         EncoderType::Auto | EncoderType::FdkHeAac => false,
     }
 }
@@ -328,6 +370,7 @@ pub fn encoder_available(
 ) -> bool {
     match requested {
         EncoderType::Auto | EncoderType::Faac => true,
+        EncoderType::Opus => linked_encoder_available(EncoderType::Opus),
         EncoderType::FdkHeAac => availability.fdk_available,
         EncoderType::AacAt => availability.aac_at_available,
         EncoderType::NativeAac => availability.native_aac_available,
@@ -364,6 +407,7 @@ pub(super) fn validate_encoder_available(requested: EncoderType, available: bool
         }
         EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),
         EncoderType::Faac => unreachable!("FAAC is bundled and always available"),
+        EncoderType::Opus => "Opus is unavailable in this build.".into(),
     };
 
     Err(AppError::InvalidInput(message))
@@ -378,6 +422,7 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
         EncoderType::FdkHeAac => "libfdk_aac",
         EncoderType::AacAt => "aac_at",
         EncoderType::Faac => "faac",
+        EncoderType::Opus => "libopus",
     }
 }
 

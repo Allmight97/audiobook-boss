@@ -254,7 +254,14 @@ pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<
         })?;
     let target_sample_rate = match plan.sample_rate {
         SampleRateConfig::Explicit(rate) => rate,
-        SampleRateConfig::Auto => probe_first_sample_rate(plan)?,
+        SampleRateConfig::Auto => {
+            let rate = probe_first_sample_rate(plan)?;
+            super::super::settings::automatic_sample_rate(
+                plan.encoder_settings.encoder_type,
+                plan.encoder_settings.faac_profile,
+                rate,
+            )
+        }
     };
 
     Ok((target_sample_rate, target_channels))

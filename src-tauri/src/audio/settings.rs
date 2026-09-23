@@ -36,6 +36,7 @@ pub fn supported_sample_rates() -> &'static [u32] {
 /// a narrower ABB-supported set for its explicit HE profile.
 pub(crate) fn encoder_sample_rates(encoder: EncoderType, profile: FaacProfile) -> &'static [u32] {
     match encoder {
+        EncoderType::Opus => &[8000, 12000, 16000, 24000, 48000],
         EncoderType::Faac if profile == FaacProfile::HeAacV1 => FAAC_SAMPLE_RATES,
         _ => SUPPORTED_SAMPLE_RATES,
     }
@@ -111,12 +112,12 @@ pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
 
     // Check file extension
     match path.extension().and_then(|s| s.to_str()) {
-        Some("m4b") => Ok(()),
+        Some("m4b" | "m4a" | "mka") => Ok(()),
         Some(ext) => Err(AppError::InvalidInput(format!(
-            "Output must be .m4b file, got: .{ext}"
+            "Encoded output must be .m4b, .m4a or .mka, got: .{ext}"
         ))),
         None => Err(AppError::InvalidInput(
-            "Output file must have .m4b extension".to_string(),
+            "Encoded output requires an .m4b, .m4a or .mka extension".to_string(),
         )),
     }
 }
@@ -133,9 +134,9 @@ pub fn validate_preserved_output_path<P: AsRef<Path>>(path: P) -> Result<()> {
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("m4b" | "m4a" | "mp3") => Ok(()),
+        Some("m4b" | "m4a" | "mp3" | "mka") => Ok(()),
         Some(extension) => Err(AppError::InvalidInput(format!(
-            "Preserved output must be .m4b, .m4a, or .mp3, got: .{extension}"
+            "Preserved output must be .m4b, .m4a, .mka or .mp3, got: .{extension}"
         ))),
         None => Err(AppError::InvalidInput(
             "Preserved output must have a supported audio extension".to_string(),
@@ -158,9 +159,38 @@ impl SampleRateConfig {
     }
 }
 
+/// Auto retains supported source rates, otherwise uses the next supported rate,
+/// capped at the encoder/profile maximum. Explicit requests are validated unchanged.
+pub(in crate::audio) fn automatic_sample_rate(
+    encoder: EncoderType,
+    profile: FaacProfile,
+    source_rate: u32,
+) -> u32 {
+    let rates = encoder_sample_rates(encoder, profile);
+    rates
+        .iter()
+        .copied()
+        .find(|rate| *rate >= source_rate)
+        .unwrap_or_else(|| *rates.last().expect("encoder sample rates are nonempty"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn automatic_rate_changes_only_to_satisfy_the_encoder_profile() {
+        for (encoder, profile, source, expected) in [
+            (EncoderType::Faac, FaacProfile::HeAacV1, 22_050, 32_000),
+            (EncoderType::Faac, FaacProfile::HeAacV1, 96_000, 48_000),
+            (EncoderType::Faac, FaacProfile::AacLc, 22_050, 22_050),
+            (EncoderType::NativeAac, FaacProfile::Auto, 44_100, 44_100),
+            (EncoderType::Opus, FaacProfile::Auto, 22_050, 24_000),
+            (EncoderType::Opus, FaacProfile::Auto, 44_100, 48_000),
+        ] {
+            assert_eq!(automatic_sample_rate(encoder, profile, source), expected);
+        }
+    }
 
     #[test]
     fn faac_rejects_an_explicit_rate_outside_its_capability() {

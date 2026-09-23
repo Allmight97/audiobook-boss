@@ -16,10 +16,13 @@ fn supported_audio_import_metadata_comes_from_canonical_format_table() {
             .map(|format| format.extension.to_string())
             .collect::<Vec<_>>()
     );
-    assert_eq!(metadata.formats_text, "MP3, M4A/M4B, AAC, WAV, and FLAC");
+    assert_eq!(
+        metadata.formats_text,
+        "MKA, MP3, M4A/M4B, AAC, WAV, and FLAC"
+    );
     assert_eq!(
         metadata.support_text,
-        "Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files"
+        "Supports MKA, MP3, M4A/M4B, AAC, WAV, and FLAC audio files"
     );
 }
 

@@ -1,10 +1,7 @@
+import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import {
-	defaultEncoderSettings,
-	type FileListInfo,
-	type ProcessingPreflightPlan,
-} from '../../types/audio';
+import type { FileListInfo, ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { tauriClient } from '../../lib/tauri/client';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
@@ -83,6 +80,7 @@ function collisionPlan(): ProcessingPreflightPlan {
 		jobType: 'batch',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
+		audioPlans: [],
 		planSignature: 'sig-isolation',
 		outputs: [
 			{
@@ -213,8 +211,7 @@ describe('app runtime', () => {
 				payload: {
 					inputFiles: ['/books/a.m4b'],
 					outputDir: '/tmp/out',
-					settings: defaultEncoderSettings(),
-					sampleRate: 'auto',
+					audioRequests: [titleAudioRequest()],
 					jobType: 'merge',
 					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 				},

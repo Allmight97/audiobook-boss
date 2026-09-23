@@ -13,7 +13,7 @@ export type ProcessingWorkflowLiveDeps = {
 	readonly input: InputOwner;
 	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
-	readonly encoding: Pick<EncodingOwner, 'request'>;
+	readonly encoding: Pick<EncodingOwner, 'audioRequest'>;
 	readonly output: Pick<OutputPlanOwner, 'readRequestConfig' | 'openCollisionReview'>;
 	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 	readonly showError: (message: string) => void;
@@ -24,16 +24,14 @@ export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 		getCurrentFileList: () => fileListFromInput(deps.input.view()),
 		getSelectedFileIndex: () => deps.input.view().selectedAnchor,
 		getSelectedFileIndices: () => new Set(deps.input.view().selectedIndices),
-		getAudioHandling: (file) => deps.input.audioHandling(file),
 		sourcesFor: (file) => deps.input.sourcesFor(file),
-		readProcessingRequestConfig: (audioHandling) => {
-			const titles = deps.input.view().files.filter((file) => file.isValid);
+		readProcessingRequestConfig: (titles) => {
 			if (titles.some((file) => deps.input.audioChoiceRequired(file)))
 				throw new Error('Choose audio handling for each grouped title before processing.');
 			if (titles.some((title) => deps.input.sourcesFor(title).some((source) => !source.isValid)))
 				throw new Error('Remove or replace invalid source files before processing.');
 			return {
-				...(audioHandling.includes('encode') ? deps.encoding.request() : {}),
+				audioRequests: titles.map((file) => deps.encoding.audioRequest(file)),
 				...deps.output.readRequestConfig(),
 			};
 		},

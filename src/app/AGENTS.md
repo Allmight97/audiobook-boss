@@ -58,9 +58,10 @@ dispatch intent; they do not keep parallel business state.
   stages it for the output; it never writes that draft into a constituent
   source. Lookup targets the visible title once. Remote retention and summaries
   use all source identities, not only visible metadata anchors.
-- Input owns each title's audio choice by stable identity. Reordering preserves
-  choices; removal/reset clears them. Imported Audio capability and recommendation
-  facts do not select a mode automatically.
+- Input owns each title's complete audio request by stable identity. Runtime
+  initializes stored preferences before import; Input snapshots defaults as new
+  titles enter the list. Reordering preserves choices; removal/reset clears them.
+  Source recommendations stay Audio-owned; views do not infer pass-through.
 - Choose AppEffect when its typed failure, dependency composition, or scoped
   work reduces coordination; direct capability workflows may use plain async.
   Read `src/lib/effect/AGENTS.md` before changing that shape.

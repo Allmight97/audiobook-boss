@@ -1,6 +1,5 @@
 use super::lifecycle::{OperationKind, OperationResultSummary};
 use crate::audio;
-use crate::audio::EncoderSettings;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
 pub use abb_processing_core::ProcessResultStatus;
@@ -49,12 +48,8 @@ pub struct ProcessPayload {
     /// source sidecars without replacing path as the filesystem source label.
     pub input_ids: Option<Vec<Option<String>>>,
     pub output_dir: String,
-    pub settings: Option<EncoderSettings>,
-    /// Per-input audio handling aligned with `input_files`. Absent means encode
-    /// every input, preserving the existing request shape.
-    pub audio_handling: Option<Vec<AudioHandling>>,
-    /// Sample rate from frontend (optional, defaults to Auto)
-    pub sample_rate: Option<audio::SampleRateConfig>,
+    /// One audio request per output title (one request for a global merge).
+    pub audio_requests: Vec<audio::TitleAudioRequest>,
     pub job_type: Option<JobType>,
     /// Output naming configuration (defaults to ABS-compatible)
     pub output_naming: Option<OutputNamingConfig>,
@@ -127,22 +122,18 @@ impl ProcessPayload {
         Ok(())
     }
 
-    pub(crate) fn resolved_audio_handling(&self) -> crate::errors::Result<Vec<AudioHandling>> {
-        let handling = self
-            .audio_handling
-            .clone()
-            .unwrap_or_else(|| vec![AudioHandling::Encode; self.input_files.len()]);
-        if handling.len() != self.input_files.len() {
+    pub(crate) fn validate_audio_requests(&self) -> crate::errors::Result<()> {
+        let count = if self.job_type == Some(JobType::Merge) {
+            1
+        } else {
+            self.input_files.len()
+        };
+        if self.audio_requests.len() != count {
             return Err(crate::errors::AppError::InvalidInput(
-                "Audio handling must align with the processing input files.".into(),
+                "Audio requests must align with output titles.".into(),
             ));
         }
-        if self.job_type == Some(JobType::Merge) && handling.contains(&AudioHandling::Preserve) {
-            return Err(crate::errors::AppError::InvalidInput(
-                "Preserving grouped audio requires a title-source request.".into(),
-            ));
-        }
-        Ok(handling)
+        Ok(())
     }
 }
 
@@ -168,6 +159,7 @@ pub struct ProcessingPreflightPlan {
     pub collision_policy: CollisionPolicy,
     pub plan_signature: String,
     pub outputs: Vec<PlannedOutput>,
+    pub audio_plans: Vec<audio::TitleAudioPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]

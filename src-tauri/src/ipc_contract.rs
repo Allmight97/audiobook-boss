@@ -22,6 +22,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::metadata::save_batch::save_metadata_batch,
             crate::commands::search_online_metadata,
             crate::commands::analyze_audio_files,
+            crate::commands::preview_title_audio,
             crate::commands::get_supported_audio_import_metadata,
             crate::commands::discover_audio_import_paths,
             crate::commands::take_opened_audio_files,

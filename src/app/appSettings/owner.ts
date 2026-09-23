@@ -34,6 +34,7 @@ export type ConcurrencyView = {
 
 export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
+	loadStartupDefaults(): Promise<PinnedDefaults>;
 	rememberEncoderDefaults(defaults: EncoderDefaults): void;
 	rememberOutputDefaults(defaults: OutputDefaults): void;
 	retryPersistence(): Promise<void>;
@@ -269,6 +270,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 			rev();
 			return durability;
 		},
+		loadStartupDefaults: () => resolveStartupDefaults(capabilityValue),
 		rememberEncoderDefaults: (defaults) => {
 			void remember({ encoderDefaults: defaults });
 		},

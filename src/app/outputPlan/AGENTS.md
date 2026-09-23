@@ -14,26 +14,18 @@
 - Workbench callers that only need the composed UI strip import
   `src/ui/outputPanel` instead.
 - `index.ts` is the export surface. Do not import `owner.ts`,
-  `workflow.ts`, `collision.ts`, or `previewDraft.ts` from outside this owner.
+  `workflow.ts`, `collision.ts`, `estimate.ts`, or `previewDraft.ts` from outside this owner.
 
 ## Hard Invariants
 
-- Estimated size combines preserved source bytes with the estimate for inputs
-  that will encode, using public Input audio choices and Encoding's total
-  `estimateKbps`. Do not read private Input/encoder state, sample a UI
-  encoder getter, parse the encoder `Est: ~60 kbps` label, or cache a mirrored
-  byte size.
-- `estimate.ts` and `estimate.test.ts` own the byte formula and empty-session
-  placeholder. On FDK VBR, use injected `encodingEstimateKbps`, not the sticky
-  request `encoderSettings.bitrateKbps`. Bitrate is total across channels; do not
-  apply a stereo multiplier.
-  A null estimate means encoded size is unknown, as with FAAC VBR. Preserve-only
-  exports still have a known size; mixed exports with unknown encoded size do
-  not show a partial total. The encoder header owns presentation.
-- Path preview passes the title's audio choice and whether it has multiple
-  sources to Rust. Preserved single files retain their extension; grouped titles
-  produce M4B. Extension policy stays backend-owned.
-- Path preview is a Solid `createEffect` on public Input, Metadata, output
+- Explicit encoding estimates use each title's total source duration and
+  Encoding's `estimateTitleKbps`; a null value means unknown size. Auto reports
+  that size awaits audio planning rather than guessing copy compatibility.
+  Explicit Preserve estimates sum source sizes; they do not use encoder targets.
+  `estimate.ts` owns the byte formula; bitrate is total across channels.
+- Path preview passes the selected title format to Rust. Audio owns its extension;
+  changing quality or encoder availability alone does not re-run naming preview.
+- Path preview is a Solid async memo on public Input, Metadata, output
   directory, naming preset, year, and the **committed** template. Live template
   typing updates the input immediately and commits after 150 ms. Do not preview
   on every keystroke. Preview retriggers when Metadata series or subseries part
@@ -57,7 +49,7 @@
 
 ## Testing
 
-- `estimate.test.ts` pins the byte formula and empty-session placeholder.
+- `estimate.test.ts` pins the byte formula; `outputPlan.test.ts` covers its displayed estimate, unknown-size state and empty-session placeholder.
 - `outputPlan.test.ts` pins hydration, derived estimate (including FDK VBR
   quality vs sticky request `bitrateKbps`), live submit naming vs 150 ms
   preview debounce, series-part preview retrigger, preview draft/source-path
@@ -74,4 +66,4 @@
 - Adding, removing, or renaming a public export.
 - Reading private Input, Metadata, file-list, or encoder state to build
   preview, estimate, or submit config.
-- Moving the estimate formula or the encoder-header estimate span.
+- Moving the estimate formula or the Output header estimate span.

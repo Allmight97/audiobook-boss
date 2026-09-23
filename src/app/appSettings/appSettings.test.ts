@@ -11,6 +11,8 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 	return {
 		maxConcurrentJobs: { mode: 'auto' },
 		encoderDefaults: {
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,
@@ -543,6 +545,6 @@ describe('app settings concurrency', () => {
 			{ disabled: false, label: 'FDK AAC (Set up…)' },
 		);
 		encoding.select('encoder', 'fdk_he_aac');
-		expect(encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(encoding.audioRequest().settings!.encoderType).toBe('auto');
 	});
 });

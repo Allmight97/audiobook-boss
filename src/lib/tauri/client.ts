@@ -1,3 +1,4 @@
+import type { TitleAudioRequest } from '../../types/audio';
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
 	open as tauriOpen,
@@ -18,7 +19,6 @@ import {
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
 import type {
-	AudioHandling,
 	ProcessPayload,
 	FileListInfo,
 	ProcessCommandResult,
@@ -236,6 +236,11 @@ export const tauriClient = {
 		sources: MetadataSource[] | null;
 		limit?: number | null;
 	}): Promise<CommandResult<'search_online_metadata'>> => commandSpecs.search_online_metadata(args),
+	previewTitleAudio: (
+		filePaths: string[],
+		request: TitleAudioRequest,
+		chapterPlans?: ProcessPayload['chapterPlans'],
+	) => commandSpecs.preview_title_audio({ filePaths, request, chapterPlans }),
 	analyzeAudioFiles: (filePaths: string[]): Promise<FileListInfo> =>
 		commandSpecs.analyze_audio_files({ filePaths }),
 	getSupportedAudioImportMetadata: (): Promise<
@@ -293,8 +298,7 @@ export const tauriClient = {
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 		outputKind?: OutputKind | null;
-		audioHandling?: AudioHandling | null;
-		merged?: boolean;
+		format: import('../../types/audio').AudiobookFormat;
 	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
 	preflightProcessingPlan: (args: {
 		payload: ProcessPayload;

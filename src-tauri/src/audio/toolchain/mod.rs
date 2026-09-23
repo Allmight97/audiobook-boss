@@ -98,18 +98,16 @@ pub(crate) fn detect_encoder_availability_with_resolution(
         fdk_source: resolution.fdk_source,
         aac_at_available: aac_at,
         native_aac_available: native_aac,
-        auto_encoder: preferred_auto_encoder(fdk_available, aac_at),
+        auto_encoder: preferred_auto_encoder(fdk_available),
         detected_toolchain_path: resolution.detected_toolchain_path.clone(),
         status_message: resolution.status_message.clone(),
     };
     (availability, resolution)
 }
 
-fn preferred_auto_encoder(fdk_available: bool, aac_at_available: bool) -> EncoderType {
+fn preferred_auto_encoder(fdk_available: bool) -> EncoderType {
     if fdk_available {
         EncoderType::FdkHeAac
-    } else if aac_at_available {
-        EncoderType::AacAt
     } else {
         EncoderType::NativeAac
     }

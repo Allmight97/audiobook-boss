@@ -57,7 +57,9 @@ pub(crate) fn merge_audio_files_with_context(
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<PathBuf> {
-    let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
+    let temp_output = temp_dir
+        .join(TEMP_MERGED_FILENAME)
+        .with_extension(context.output.final_path().extension().unwrap_or_default());
 
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
     let plan = MediaProcessingPlan::new(

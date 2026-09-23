@@ -30,13 +30,14 @@ commands over invoking internals directly.
   `bun run aac-decoder-contract:check` have explicit binary commands.
 - Media execution: real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
-  and run inside the normal runtime suite. Covers WAV, M4B, and MP3 inputs,
-  the Native AAC, Apple AAC, and bundled FAAC LC/HE encoder routes (external
+  and run inside the normal runtime suite. Covers WAV, M4B, MP3, and Opus inputs,
+  the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (external
   FDK is excluded: it needs a user-supplied libfdk_aac FFmpeg, so
   real-execution proof for it is manual or env-gated only; Apple AAC is
   macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
   channel preservation (per-channel RMS),
-  cover art, chapters, metadata round-trips, preserved-audio copies, mixed-mode
+  cover art, chapters, metadata round-trips, MP3 stack pass-through, Opus M4A/MKA
+  timing and packet-preserved remuxing, mixed-mode
   preflight, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
@@ -159,7 +160,7 @@ commands over invoking internals directly.
   Codex environment UI supports package-version pins, set Rust to `1.95` and
   Bun to the `package.json` `packageManager` version before running the script.
   The script installs Ubuntu/Tauri build packages, builds pinned FFmpeg with
-  `libmp3lame`, makes FFmpeg discoverable after the setup shell exits, creates
+  `libmp3lame` and `libopus`, makes FFmpeg discoverable after the setup shell exits, creates
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`.
 - The runtime suite links FFmpeg at the revision selected by

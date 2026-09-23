@@ -127,8 +127,7 @@ pub fn preview_output_path(
     output_naming: Option<OutputNamingConfig>,
     source_path: Option<String>,
     output_kind: Option<OutputKind>,
-    audio_handling: Option<crate::processing::AudioHandling>,
-    merged: Option<bool>,
+    format: crate::audio::AudiobookFormat,
 ) -> CommandResult<String> {
     let base_output_dir = PathBuf::from(output_dir);
     let source_path_buf = source_path.as_deref().map(PathBuf::from);
@@ -142,16 +141,7 @@ pub fn preview_output_path(
     )?;
     let artifact =
         derive_output_artifact_path(&requested, output_kind.unwrap_or(OutputKind::Final))?;
-    let artifact = if audio_handling == Some(crate::processing::AudioHandling::Preserve)
-        && !merged.unwrap_or(false)
-    {
-        let source = source_path_buf.as_deref().ok_or_else(|| {
-            AppError::InvalidInput("Keep original audio requires a source path.".into())
-        })?;
-        crate::output_artifact::preserve_source_extension(artifact, source)?
-    } else {
-        artifact
-    };
+    let artifact = artifact.with_extension(format.extension());
     Ok(artifact.to_string_lossy().to_string())
 }
 
@@ -261,4 +251,24 @@ pub async fn open_fdk_setup(app: tauri::AppHandle) -> CommandResult<()> {
         .await
         .map_err(|error| AppError::General(error.to_string()))??;
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_title_audio(
+    file_paths: Vec<String>,
+    request: audio::TitleAudioRequest,
+    chapter_plans: Option<std::collections::HashMap<String, crate::metadata::ChapterPlan>>,
+) -> CommandResult<audio::TitleAudioPlan> {
+    let paths = file_paths
+        .iter()
+        .map(|path| validate_input_audio_path(std::path::Path::new(path)))
+        .collect::<crate::errors::Result<Vec<_>>>()?;
+    Ok(tokio::task::spawn_blocking(move || {
+        let mut info = audio::get_file_list_info(&paths)?;
+        audio::apply_chapter_plans(&mut info, chapter_plans.as_ref(), paths.len() > 1)?;
+        audio::resolve_title_audio(&request, &info, false)
+    })
+    .await
+    .map_err(|error| AppError::General(format!("Audio plan failed: {error}")))??)
 }

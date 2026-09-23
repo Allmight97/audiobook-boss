@@ -13,7 +13,8 @@
 ## View Interactions And Proof
 
 - Settings owns its scrolling body; all sections and the bottom actions remain
-  reachable. Opening Settings starts at recovery when offered, otherwise the FDK section. Homebrew details explain
+  reachable. Opening Settings starts at recovery when offered, otherwise Audio defaults. Audio defaults apply to future imports; existing
+  titles change only through their explicit Use defaults action. Homebrew details explain
   dependencies and the Terminal handoff before the user launches setup.
 
 - Indexer connection fields dispatch Remote Source intents. Its API key input

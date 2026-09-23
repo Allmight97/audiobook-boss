@@ -5,7 +5,7 @@
  * isolated branches; this test protects the user workflow that joins them at
  * the Tauri submission boundary.
  */
-import { cleanup, render, waitFor } from '@solidjs/testing-library';
+import { cleanup, render, waitFor, screen, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
@@ -43,6 +43,7 @@ const native = vi.hoisted(() => ({
 	setMaxConcurrentJobs: vi.fn(),
 	getRuntimeSettingsCapabilities: vi.fn(),
 	previewOutputPath: vi.fn(),
+	previewTitleAudio: vi.fn(),
 	preflightProcessingPlan: vi.fn(),
 	processAudiobookFiles: vi.fn(),
 	submitProcessingOperation: vi.fn(),
@@ -108,6 +109,8 @@ function appSettings(): AppSettings {
 	return {
 		maxConcurrentJobs: { mode: 'auto' },
 		encoderDefaults: {
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,
@@ -132,6 +135,7 @@ function approvedPlan(): ProcessingPreflightPlan {
 		jobType: 'batch',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
+		audioPlans: [],
 		planSignature: 'smoke-preflight',
 		outputs: [
 			{
@@ -220,6 +224,15 @@ describe('UI Workflow Smoke Test', () => {
 		native.previewOutputPath.mockResolvedValue(
 			`${OUTPUT_DIRECTORY}/Frank Herbert/Dune (1965)/Dune.m4b`,
 		);
+		native.previewTitleAudio.mockResolvedValue({
+			format: 'm4b',
+			handling: 'encode',
+			settings: settings.encoderDefaults.settings,
+			sampleRate: 44100,
+			channels: 1,
+			sourceCodec: 'AAC-LC',
+			reason: null,
+		});
 		native.preflightProcessingPlan.mockResolvedValue(approvedPlan());
 		native.submitProcessingOperation.mockResolvedValue(acceptedSubmission());
 		native.listWorkOperations.mockResolvedValue({ membershipRevision: 0, operations: [] });
@@ -256,20 +269,21 @@ describe('UI Workflow Smoke Test', () => {
 				expect(document.getElementById('cover-art-img')).not.toHaveClass('hidden');
 			});
 
-			await user.selectOptions(
-				document.getElementById('adv-encoder') as HTMLSelectElement,
-				'native_aac',
-			);
-			const targetBitrate = document.getElementById('output-bitrate') as HTMLInputElement;
+			await user.click(screen.getByTestId('metadata-lookup-close'));
+			await user.click(screen.getByRole('button', { name: /Audio plan for/ }));
+			const audioEditor = screen.getByRole('dialog', { name: 'Audio plan' });
+			await user.click(within(audioEditor).getByText('Encoding settings', { exact: true }));
+			await user.selectOptions(within(audioEditor).getByLabelText('Encoder'), 'native_aac');
+			const targetBitrate = within(audioEditor).getByLabelText('Target kbps') as HTMLInputElement;
 			await user.clear(targetBitrate);
 			await user.type(targetBitrate, '96');
 			await user.tab();
 			await user.selectOptions(
-				document.getElementById('output-samplerate') as HTMLSelectElement,
+				within(audioEditor).getByLabelText('Sample Rate') as HTMLSelectElement,
 				'44100',
 			);
 			await user.selectOptions(
-				document.getElementById('output-channels') as HTMLSelectElement,
+				within(audioEditor).getByLabelText('Channels') as HTMLSelectElement,
 				'mono',
 			);
 			await user.click(document.getElementById('output-dir-browse') as HTMLElement);
@@ -289,18 +303,23 @@ describe('UI Workflow Smoke Test', () => {
 					titleSources: {},
 					chapterPlans: {},
 					inputIds: ['input-dune'],
-					audioHandling: ['encode'],
 					outputDir: OUTPUT_DIRECTORY,
-					settings: {
-						encoderType: 'native_aac',
-						bitrateKbps: 96,
-						bitrateMode: { mode: 'cbr' },
-						channels: 'mono',
-						afterburner: true,
-						nativeAacSpeed: 0,
-						faacProfile: 'auto',
-					},
-					sampleRate: { explicit: 44100 },
+					audioRequests: [
+						{
+							format: 'm4b',
+							intent: 'encode',
+							settings: {
+								encoderType: 'native_aac',
+								bitrateKbps: 96,
+								bitrateMode: { mode: 'cbr' },
+								channels: 'mono',
+								afterburner: true,
+								nativeAacSpeed: 0,
+								faacProfile: 'auto',
+							},
+							sampleRate: { explicit: 44100 },
+						},
+					],
 					jobType: 'batch',
 					outputNaming: {
 						preset: 'absDefault',

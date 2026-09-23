@@ -162,7 +162,7 @@ install_linux_packages() {
 	run_as_root apt-get update
 	run_as_root apt-get install -y --no-install-recommends \
 		build-essential ca-certificates curl git make pkg-config \
-		clang nasm libmp3lame-dev \
+		clang nasm libmp3lame-dev libopus-dev \
 		libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev
 }
 
@@ -198,7 +198,8 @@ ensure_linux_ffmpeg() {
 		--enable-shared \
 		--disable-static \
 		--disable-doc \
-		--enable-libmp3lame
+		--enable-libmp3lame \
+		--enable-libopus
 	run_as_root make -j"$(cpu_count)"
 	run_as_root make install
 	printf '%s\n' "${source_identity}" | run_as_root tee "${ffmpeg_prefix}/abb-source-commit" >/dev/null
@@ -221,6 +222,7 @@ setup_macos() {
 	else
 		log "Installing macOS packages for FFmpeg-backed proof"
 		brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+		brew list opus >/dev/null 2>&1 || brew install opus
 		brew list pkg-config >/dev/null 2>&1 || brew install pkg-config
 	fi
 

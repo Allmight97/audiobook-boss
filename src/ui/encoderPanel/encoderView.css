@@ -2,21 +2,6 @@
 	min-width: 0;
 }
 
-.encoder-workbench-header {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 0.5rem;
-	margin-bottom: 0.45rem;
-}
-
-.encoder-workbench-header h3 {
-	margin: 0;
-	color: var(--text-secondary);
-	font-size: 0.875rem;
-	font-weight: 600;
-}
-
 .encoder-workbench-grid {
 	display: grid;
 	grid-template-columns: 1fr;
@@ -127,4 +112,10 @@
 
 .encoder-advanced[open] > summary {
 	margin-bottom: 0.25rem;
+}
+
+.encoder-conversion > summary {
+	cursor: pointer;
+	padding: 0.5rem 0;
+	color: var(--text-secondary);
 }

@@ -29,36 +29,59 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/abb-aaxclean-helper"],
+    "externalBin": [
+      "binaries/abb-aaxclean-helper"
+    ],
     "fileAssociations": [
       {
-        "ext": ["mp3"],
+        "ext": [
+          "mp3"
+        ],
         "mimeType": "audio/mpeg",
         "role": "Editor",
         "rank": "Alternate"
       },
       {
-        "ext": ["m4a", "m4b"],
+        "ext": [
+          "m4a",
+          "m4b"
+        ],
         "mimeType": "audio/mp4",
-        "contentTypes": ["public.mpeg-4-audio"],
+        "contentTypes": [
+          "public.mpeg-4-audio"
+        ],
         "role": "Editor",
         "rank": "Alternate"
       },
       {
-        "ext": ["aac"],
+        "ext": [
+          "aac"
+        ],
         "mimeType": "audio/aac",
         "role": "Editor",
         "rank": "Alternate"
       },
       {
-        "ext": ["wav"],
+        "ext": [
+          "wav"
+        ],
         "mimeType": "audio/wav",
         "role": "Editor",
         "rank": "Alternate"
       },
       {
-        "ext": ["flac"],
+        "ext": [
+          "flac"
+        ],
         "mimeType": "audio/flac",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": [
+          "mka"
+        ],
+        "mimeType": "audio/x-matroska",
         "role": "Editor",
         "rank": "Alternate"
       }
@@ -76,7 +99,9 @@
     "resources": {
       "src/audio/toolchain/fdk-setup.command": "fdk-setup.command",
       "../vendor/faac-sys/upstream/COPYING": "licenses/FAAC-LGPL-2.1.txt",
-      "../vendor/faac-sys/ABB-PROVENANCE.md": "licenses/FAAC-source.md"
+      "../vendor/faac-sys/ABB-PROVENANCE.md": "licenses/FAAC-source.md",
+      "../vendor/opus/COPYING": "licenses/Opus-BSD.txt",
+      "../vendor/opus/ABB-PROVENANCE.md": "licenses/Opus-source.md"
     }
   }
 }

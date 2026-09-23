@@ -23,11 +23,11 @@
 ## Hard Invariants
 
 - Compose submit config inside the runtime Processing owner from injected
-  Encoding Configuration and Output owners. Call `encoding.request()` only
-  when at least one valid input will encode; all-preserve exports omit encoder
-  settings and sample rate. Capture Input's audio choices in the same valid-file
-  order as paths and IDs before asynchronous preparation. Collision review calls
-  `runOutputPlanReviewWorkflow(request, output)` with that same owner.
+  Encoding Configuration and Output owners. Capture `encoding.audioRequest(title)`
+  in the same valid-title order as paths and IDs before asynchronous preparation.
+  The backend resolves copying versus encoding; the frontend submits intent.
+  Collision review calls `runOutputPlanReviewWorkflow(request, output)` with
+  that same owner.
   Do not restore `updateOutputPath`, `updateEstimatedSize`, or a
   process-wide encoding/output getter.
 - Title membership, ordered sources, and audio choices come from Input.

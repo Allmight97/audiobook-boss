@@ -230,7 +230,15 @@ mod entry_tests {
             output: output_plan(action, format!("/tmp/output-{index}.m4b")),
             metadata: None,
             cover_art_passthrough: crate::metadata::CoverArtPassthroughPolicy::Preserve,
-            audio_handling: crate::processing::AudioHandling::Encode,
+            audio_plan: crate::audio::TitleAudioPlan {
+                format: crate::audio::AudiobookFormat::M4b,
+                handling: crate::processing::AudioHandling::Encode,
+                settings: None,
+                sample_rate: 44_100,
+                channels: 1,
+                source_codec: "AAC".into(),
+                reason: None,
+            },
             metadata_intent: None,
         }
     }

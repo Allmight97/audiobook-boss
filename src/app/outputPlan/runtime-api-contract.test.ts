@@ -5,8 +5,6 @@ import * as outputPlan from '.';
 const EXPECTED_APP_OUTPUT_PLAN_EXPORTS = [
 	'CUSTOM_TEMPLATE_PLACEHOLDER',
 	'createOutputOwner',
-	'estimateEncodedSizeBytes',
-	'formatEstimatedSizeText',
 	'runOutputPlanReviewWorkflow',
 ] as const;
 

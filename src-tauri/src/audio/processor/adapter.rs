@@ -22,7 +22,7 @@ pub enum ResolvedProcessorAdapter {
     },
 }
 
-pub(super) fn resolve_output_channels(
+pub(in crate::audio) fn resolve_output_channels(
     requested: ChannelConfig,
     files: &[AudioFile],
 ) -> Result<ChannelConfig> {
@@ -74,11 +74,14 @@ impl ResolvedProcessorAdapter {
         metadata: Option<AudiobookMetadata>,
         cover_art_passthrough: CoverArtPassthroughPolicy,
     ) -> Result<String> {
+        let mut settings = context.required_encoder_settings()?.clone();
+        settings.resolve_encoder(match &self {
+            Self::NativeFfmpegNext { encoder_type } => *encoder_type,
+            Self::ExternalFdk { .. } => EncoderType::FdkHeAac,
+        });
+        context.encoder_settings = Some(settings);
         match self {
-            Self::NativeFfmpegNext { encoder_type } => {
-                let mut settings = context.required_encoder_settings()?.clone();
-                settings.encoder_type = encoder_type;
-                context.encoder_settings = Some(settings);
+            Self::NativeFfmpegNext { .. } => {
                 // The native pipeline (prepare -> encode -> finalize) is fully
                 // synchronous, CPU-bound work. Offload it onto a blocking thread
                 // so it never occupies an async runtime worker. Progress emission
@@ -122,7 +125,10 @@ pub fn resolve_processor_adapter(
             encoder_type: requested,
         });
     }
-    if matches!(requested, EncoderType::NativeAac | EncoderType::AacAt) {
+    if matches!(
+        requested,
+        EncoderType::NativeAac | EncoderType::AacAt | EncoderType::Opus
+    ) {
         validate_encoder_available(requested, linked_encoder_available(requested))?;
         return Ok(ResolvedProcessorAdapter::NativeFfmpegNext {
             encoder_type: requested,
@@ -141,7 +147,7 @@ fn resolve_processor_adapter_from_parts(
     let resolved_encoder = resolve_encoder_type(encoder_settings, availability);
     validate_requested_encoder_available(resolved_encoder, availability)?;
     let mut resolved_settings = encoder_settings.clone();
-    resolved_settings.encoder_type = resolved_encoder;
+    resolved_settings.resolve_encoder(resolved_encoder);
     crate::audio::settings_encoder::validate_encoder_settings(&resolved_settings)?;
 
     if !matches!(resolved_encoder, EncoderType::FdkHeAac) {
@@ -242,22 +248,20 @@ mod tests {
     }
 
     #[test]
-    fn auto_resolution_validates_the_requested_mode_for_the_resolved_encoder() {
+    fn auto_falls_back_from_fdk_quality_to_native_target_but_explicit_native_is_strict() {
         let available = availability(false, EncoderType::NativeAac);
         let mut requested = settings(EncoderType::Auto);
+        requested.bitrate_mode = BitrateMode::Vbr(4);
         let adapter = resolve_processor_adapter_from_parts(&requested, &available, None)
-            .expect("auto target request resolves to available Native AAC");
+            .expect("Auto can use Native when FDK is absent");
         assert!(matches!(
             adapter,
             ResolvedProcessorAdapter::NativeFfmpegNext {
                 encoder_type: EncoderType::NativeAac
             }
         ));
-
-        requested.bitrate_mode = BitrateMode::Vbr(3);
-        let error = resolve_processor_adapter_from_parts(&requested, &available, None)
-            .expect_err("stale FDK quality intent cannot become native target encoding");
-        assert!(matches!(error, AppError::InvalidInput(_)));
+        requested.encoder_type = EncoderType::NativeAac;
+        assert!(resolve_processor_adapter_from_parts(&requested, &available, None).is_err());
     }
 
     #[test]

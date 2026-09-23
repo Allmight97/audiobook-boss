@@ -1,5 +1,4 @@
 use super::run_job::{run_processing_job, supplemental_assets_for_input, ProcessingJobRequest};
-use super::run_validation::resolve_sample_rate;
 use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
@@ -73,7 +72,7 @@ async fn dispatch_merge_plan(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
-    payload: &ProcessPayload,
+    _payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
     file_info: audio::FileListInfo,
     options: ProcessingRunOptions,
@@ -94,10 +93,10 @@ async fn dispatch_merge_plan(
         window,
         registry,
         workspace_root,
-        encoder_settings: payload.settings.clone(),
-        audio_handling: planned_job.audio_handling,
+        encoder_settings: planned_job.audio_plan.settings.clone(),
+        audio_handling: planned_job.audio_plan.handling,
         metadata_intent: planned_job.metadata_intent,
-        sample_rate: resolve_sample_rate(payload)?,
+        sample_rate: audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate),
         input_index: None,
         operation_kind: OperationKind::ProcessingMerge,
         operation_id: options.operation_id,
@@ -142,7 +141,6 @@ async fn dispatch_batch_plan(
     let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
         Vec::new();
     let preview_seconds = plan.preview_seconds;
-    let sample_rate = resolve_sample_rate(payload)?;
     for planned_job in plan.jobs {
         if let Some(skipped_entry) =
             no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
@@ -163,8 +161,8 @@ async fn dispatch_batch_plan(
 
         let window_cloned = window.clone();
         let registry_cloned = registry.clone();
-        let settings_cloned = payload.settings.clone();
-        let sr_cloned = sample_rate.clone();
+        let settings_cloned = planned_job.audio_plan.settings.clone();
+        let sr_cloned = audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate);
         let md_cloned = planned_job.metadata.clone();
         let cover_art_passthrough = planned_job.cover_art_passthrough;
         let preview_cloned = preview_seconds;
@@ -177,7 +175,7 @@ async fn dispatch_batch_plan(
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
         let progress_listener = options.progress_listener.clone();
         let chapter_plans = payload.chapter_plans.clone();
-        let audio_handling = planned_job.audio_handling;
+        let audio_handling = planned_job.audio_plan.handling;
         let metadata_intent = planned_job.metadata_intent.clone();
 
         scheduled_jobs.push(Box::pin(async move {

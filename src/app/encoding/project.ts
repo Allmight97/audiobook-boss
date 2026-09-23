@@ -1,5 +1,7 @@
 import type { EncoderDefaults } from '../../types/appSettings';
 import type {
+	AudiobookFormat,
+	AudioIntent,
 	BitrateMode,
 	EncoderAvailability,
 	EncoderChannelConfig,
@@ -14,6 +16,8 @@ import { defaultEncoderSettings } from '../../types/audio';
 import { estimateKbpsFromRequest } from './estimate';
 
 export type EncodingField =
+	| 'format'
+	| 'intent'
 	| 'encoder'
 	| 'quality'
 	| 'faacProfile'
@@ -30,6 +34,8 @@ export type EncodingOption = {
 };
 
 export type EncodingView = {
+	readonly format: AudiobookFormat;
+	readonly intent: AudioIntent;
 	readonly flavor: string;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
@@ -65,6 +71,9 @@ export type EncodingView = {
 };
 
 export type EncodingBag = {
+	format: AudiobookFormat;
+	intent: AudioIntent;
+	opusBitrate: number;
 	flavor: EncoderType;
 	hydratedBitrateMode: BitrateMode;
 	faacProfile: FaacProfile;
@@ -92,6 +101,7 @@ const ENCODER_PROFILES: Record<Exclude<EncoderType, 'faac'>, string> = {
 	fdk_he_aac: 'HE-AAC v1',
 	aac_at: 'AAC-LC',
 	native_aac: 'AAC-LC',
+	opus: 'Opus',
 };
 
 const FAAC_PROFILES: Record<FaacProfile, string> = {
@@ -102,6 +112,9 @@ const FAAC_PROFILES: Record<FaacProfile, string> = {
 
 export function createDefaultBag(): EncodingBag {
 	return {
+		format: 'm4b',
+		intent: 'auto',
+		opusBitrate: 64,
 		flavor: 'auto',
 		hydratedBitrateMode: defaultEncoderSettings().bitrateMode,
 		faacProfile: 'auto',
@@ -139,8 +152,10 @@ function encoderFlavorLabel(flavor: EncoderType): string {
 			return 'Native AAC (NMR)';
 		case 'faac':
 			return 'FAAC';
+		case 'opus':
+			return 'Opus';
 		default:
-			return 'Auto';
+			return 'App default';
 	}
 }
 
@@ -162,7 +177,9 @@ function compactToolchainPath(path: string | null | undefined): string | null {
 	return root ? `${root}/.../${parent}/${filename}` : `.../${parent}/${filename}`;
 }
 
+const opus = (bag: EncodingBag) => bag.format === 'm4aOpus' || bag.format === 'mkaOpus';
 function effectiveEncoder(bag: EncodingBag): EncoderType {
+	if (opus(bag)) return 'opus';
 	if (bag.flavor !== 'auto') return bag.flavor;
 	return bag.availability?.autoEncoder ?? 'auto';
 }
@@ -193,6 +210,7 @@ function sampleRateFromBag(bag: EncodingBag): SampleRateConfig {
 }
 
 function bitrateModeFromBag(bag: EncodingBag): BitrateMode {
+	if (opus(bag)) return { mode: 'vbr_target' };
 	if (bag.flavor === 'faac')
 		return bag.faacMode === 'vbr' ? { mode: 'vbr', value: bag.faacQuality } : { mode: 'abr' };
 	const mode = encoderConfiguration(bag)?.defaultMode ?? bag.hydratedBitrateMode;
@@ -202,9 +220,9 @@ function bitrateModeFromBag(bag: EncodingBag): BitrateMode {
 export function bagRequest(bag: EncodingBag): EncodingRequestConfig {
 	return {
 		encoderSettings: {
-			encoderType: bag.flavor,
+			encoderType: opus(bag) ? 'opus' : bag.flavor,
 			channels: bag.channels,
-			bitrateKbps: bag.bitrate,
+			bitrateKbps: opus(bag) ? bag.opusBitrate : bag.bitrate,
 			bitrateMode: bitrateModeFromBag(bag),
 			afterburner: bag.afterburner,
 			nativeAacSpeed: bag.nativeSpeed,
@@ -219,6 +237,8 @@ export function bagDefaults(bag: EncodingBag): EncoderDefaults {
 	return {
 		settings: request.encoderSettings,
 		sampleRate: request.sampleRate,
+		format: bag.format,
+		intent: bag.intent,
 	};
 }
 
@@ -227,6 +247,7 @@ export function bagEstimateKbps(bag: EncodingBag): number | null {
 }
 
 function availabilityHint(bag: EncodingBag): string {
+	if (opus(bag)) return 'Opus · variable bitrate';
 	if (!bag.availability) return DEFAULT_AVAILABILITY_HINT;
 	const selected = bag.flavor;
 	const effective = effectiveEncoder(bag);
@@ -261,9 +282,9 @@ function fdkAvailabilityHint(bag: EncodingBag): string {
 
 function autoOptionLabel(bag: EncodingBag): string {
 	if (bag.flavor === 'auto' && bag.availability) {
-		return `Auto (${encoderFlavorLabel(effectiveEncoder(bag))})`;
+		return `App default (${encoderFlavorLabel(effectiveEncoder(bag))})`;
 	}
-	return 'Auto';
+	return 'App default';
 }
 
 function encoderLabel(bag: EncodingBag, value: string): string {
@@ -273,7 +294,7 @@ function encoderLabel(bag: EncodingBag, value: string): string {
 	if (value === 'fdk_he_aac' || value === 'aac_at' || value === 'native_aac' || value === 'faac') {
 		return encoderFlavorLabel(value);
 	}
-	return value;
+	return value === 'opus' ? 'Opus (libopus)' : value;
 }
 
 function qualityLabel(bag: EncodingBag, value: number): string {
@@ -318,13 +339,14 @@ function sampleRateDetail(bag: EncodingBag): string {
 		!allowedSampleRates(bag).includes(Number(bag.sampleRate))
 	)
 		return 'Choose a supported sample rate for this encoder.';
-	if (bag.sampleRate === 'auto') return bag.sampleRateHint;
+	if (bag.sampleRate === 'auto')
+		return opus(bag) ? 'Auto → next supported Opus input rate' : bag.sampleRateHint;
 	return `Using ${sampleRateLabel(bag.sampleRate)}.`;
 }
 
 function allowedSampleRates(bag: EncodingBag): readonly number[] {
 	const configuration = encoderConfiguration(bag);
-	if (bag.flavor === 'faac')
+	if (!opus(bag) && bag.flavor === 'faac')
 		return (
 			configuration?.faacProfiles.find((entry) => entry.profile === bag.faacProfile)
 				?.explicitSampleRates ?? []
@@ -343,19 +365,21 @@ export function projectView(bag: EncodingBag): EncodingView {
 	const estimate = bagEstimateKbps(bag);
 	const showQuality = bitrateModeFromBag(bag).mode === 'vbr';
 	const native = effectiveEncoder(bag) === 'native_aac';
-	const faac = bag.flavor === 'faac';
+	const faac = !opus(bag) && bag.flavor === 'faac';
 	const disabled = disabledEncoderOptions(bag.availability);
 	const flavorOptions: EncodingOption[] =
 		bag.capabilities === null
 			? [{ value: 'auto', label: 'Loading…', disabled: true }]
-			: bag.capabilities.encoderTypes.map((flavor) => ({
-					value: flavor,
-					label: encoderLabel(bag, flavor),
-					disabled:
-						flavor !== 'auto' &&
-						flavor !== 'fdk_he_aac' &&
-						Boolean(disabled[flavor as keyof typeof disabled]),
-				}));
+			: bag.capabilities.encoderTypes
+					.filter((flavor) => (opus(bag) ? flavor === 'opus' : flavor !== 'opus'))
+					.map((flavor) => ({
+						value: flavor,
+						label: encoderLabel(bag, flavor),
+						disabled:
+							flavor !== 'auto' &&
+							flavor !== 'fdk_he_aac' &&
+							Boolean(disabled[flavor as keyof typeof disabled]),
+					}));
 	const qualityOptions = bag.capabilities
 		? (faac
 				? bag.capabilities.faacQualityPresets
@@ -381,11 +405,13 @@ export function projectView(bag: EncodingBag): EncodingView {
 	}));
 
 	return {
-		flavor: bag.flavor,
+		format: bag.format,
+		intent: bag.intent,
+		flavor: opus(bag) ? 'opus' : bag.flavor,
 		flavorOptions,
-		flavorDisabled: bag.capabilities === null,
+		flavorDisabled: opus(bag) || bag.capabilities === null,
 		availabilityHint: availabilityHint(bag),
-		fdkSetupNeeded: bag.availability !== null && !bag.availability.fdkAvailable,
+		fdkSetupNeeded: !opus(bag) && bag.availability !== null && !bag.availability.fdkAvailable,
 		profileDisplay:
 			effective === 'faac' ? FAAC_PROFILES[bag.faacProfile] : ENCODER_PROFILES[effective],
 		qualityBitrateLabel: showQuality ? 'Quality' : 'Target kbps',
@@ -404,7 +430,7 @@ export function projectView(bag: EncodingBag): EncodingView {
 		profileHint:
 			bag.faacProfile === 'auto' ? 'FAAC chooses LC or HE once from the output settings.' : '',
 
-		bitrateKbpsMax: bag.capabilities?.bitrateKbpsMax ?? 0,
+		bitrateKbpsMax: encoderConfiguration(bag)?.bitrateKbpsMax ?? 0,
 		nativeSpeed: bag.nativeSpeed,
 		nativeSpeedOptions: rangeOptions(0, bag.capabilities?.nativeSpeedMax ?? 0).map((value) => ({
 			value: String(value),
@@ -418,8 +444,8 @@ export function projectView(bag: EncodingBag): EncodingView {
 		showQuality,
 		quality: faac ? bag.faacQuality : bag.quality,
 		qualityOptions,
-		bitrate: bag.bitrate,
-		bitrateKbpsMin: bag.capabilities?.bitrateKbpsMin ?? 1,
+		bitrate: opus(bag) ? bag.opusBitrate : bag.bitrate,
+		bitrateKbpsMin: encoderConfiguration(bag)?.bitrateKbpsMin ?? 1,
 		estimatedBitrateText:
 			faac && showQuality
 				? 'Size varies. Start with Standard, or choose ABR for a bitrate target.'
@@ -457,10 +483,17 @@ export function applyCapabilities(
 	bag.capabilities = capabilities;
 	bag.availability = capabilities?.availability ?? null;
 	if (!capabilities) return;
-	bag.bitrate = Math.min(
-		capabilities.bitrateKbpsMax,
-		Math.max(capabilities.bitrateKbpsMin, bag.bitrate),
-	);
+	for (const [format, field] of [
+		['m4b', 'bitrate'],
+		['m4aOpus', 'opusBitrate'],
+	] as const) {
+		const configuration = encoderConfiguration({ ...bag, format });
+		if (configuration)
+			bag[field] = Math.min(
+				configuration.bitrateKbpsMax,
+				Math.max(configuration.bitrateKbpsMin, bag[field]),
+			);
+	}
 	bag.quality = Math.min(capabilities.vbrLevelMax, Math.max(capabilities.vbrLevelMin, bag.quality));
 	if (!capabilities.faacQualityPresets.includes(bag.faacQuality))
 		bag.faacQuality = capabilities.faacQualityDefault;
@@ -479,7 +512,10 @@ export function applyCapabilities(
 
 export function applyDefaultsToBag(bag: EncodingBag, defaults: EncoderDefaults): void {
 	const settings = defaults.settings;
-	bag.flavor = settings.encoderType;
+	bag.flavor = settings.encoderType === 'opus' ? bag.flavor : settings.encoderType;
+	bag.format = defaults.format ?? 'm4b';
+	bag.intent = defaults.intent ?? 'auto';
+	if (settings.encoderType === 'opus') bag.opusBitrate = settings.bitrateKbps;
 	bag.hydratedBitrateMode = settings.bitrateMode;
 	bag.faacProfile = settings.faacProfile ?? 'auto';
 	if (settings.encoderType === 'faac') {
@@ -496,6 +532,15 @@ export function applyDefaultsToBag(bag: EncodingBag, defaults: EncoderDefaults):
 
 export function selectField(bag: EncodingBag, field: EncodingField, value: string): boolean {
 	switch (field) {
+		case 'format':
+			if (!['m4b', 'mp3', 'm4aOpus', 'mkaOpus'].includes(value)) return false;
+			bag.format = value as AudiobookFormat;
+			if (value === 'mp3') bag.intent = 'preserve';
+			return true;
+		case 'intent':
+			if (value !== 'auto' && value !== 'encode' && value !== 'preserve') return false;
+			bag.intent = value;
+			return true;
 		case 'encoder': {
 			if (
 				value !== 'auto' &&
@@ -554,16 +599,18 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 		}
 		case 'bitrate': {
 			const parsed = Number(value);
-			if (!Number.isInteger(parsed) || !value.trim()) return false;
+			const configuration = encoderConfiguration(bag);
 			if (
-				!bag.capabilities ||
-				parsed < bag.capabilities.bitrateKbpsMin ||
-				parsed > bag.capabilities.bitrateKbpsMax
-			) {
+				!Number.isInteger(parsed) ||
+				!value.trim() ||
+				!configuration ||
+				parsed < configuration.bitrateKbpsMin ||
+				parsed > configuration.bitrateKbpsMax
+			)
 				return false;
-			}
-			if (bag.bitrate === parsed) return false;
-			bag.bitrate = parsed;
+			const field = opus(bag) ? 'opusBitrate' : 'bitrate';
+			if (bag[field] === parsed) return false;
+			bag[field] = parsed;
 			return true;
 		}
 		case 'sampleRate': {
