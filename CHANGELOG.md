@@ -4,6 +4,42 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-09-23
+
+### Added
+
+- Group selected files into one audiobook title, reorder its sources, and edit
+  metadata and audio settings once for the whole title.
+- Set audio preferences in App Settings, edit individual titles in their audio
+  popovers, and apply changes to selected titles together.
+- Create tagged, chapterized MP3 titles by passing through suitable MP3 sources;
+  encode Opus titles in M4A or MKA with player compatibility guidance.
+- Choose FAAC profile Auto, AAC-LC, or HE-AAC v1 with ABR or quality-based VBR.
+
+### Changed
+
+- Recommended audio handling keeps suitable compact audio and otherwise uses
+  FDK AAC when available, with Native AAC (NMR) as fallback. User Preference
+  applies the saved encoding choices; Keep original audio never silently encodes.
+- Simplify encoder controls, show resolved Auto values inside selectors, and
+  place FDK Afterburner beside the encoder choice. Afterburner defaults to off.
+- Show estimates beside each title. Quality-based VBR says “Size varies with
+  audio” rather than presenting an unsupported bitrate estimate.
+- Update bundled FAAC to upstream `1cbe2a0`, Solid to 2.0.0-rc.9, and Effect to
+  4.0.0-rc.117. Retain the current NMR implementation, verified against upstream.
+- Record accepted audio decisions, ordered source paths, output paths, and
+  observed output audio properties in processing logs.
+
+### Fixed
+
+- Retain every source through grouped processing and mixed-result cleanup.
+- Reject queued sources changed after planning before encoding with stale settings.
+- Preserve chapter timing, packet boundaries, and metadata across supported
+  copied and encoded titles, including FAAC HE re-import.
+- Retry failed audio-plan queries on reopening, show invalid grouped sources
+  and multichannel pass-through accurately, and prevent MP3 encoding choices.
+- Read bounded MKA cover attachments and handle cover replacement and removal.
+
 ## [1.10.0] - 2026-09-18
 
 ### Added

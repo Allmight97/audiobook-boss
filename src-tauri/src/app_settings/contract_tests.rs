@@ -6,12 +6,30 @@ use std::thread;
 use tempfile::TempDir;
 
 #[test]
-fn missing_settings_file_returns_defaults() {
+fn fresh_settings_disable_afterburner_and_preserve_an_explicit_choice() {
     let temp = TempDir::new().expect("temp dir");
 
     let settings = get_app_settings(temp.path()).expect("load defaults");
 
     assert_eq!(settings, AppSettings::default());
+    assert!(!settings.encoder_defaults.settings.afterburner);
+    let mut encoder_defaults = settings.encoder_defaults;
+    encoder_defaults.settings.afterburner = true;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(encoder_defaults),
+            ..Default::default()
+        },
+    )
+    .expect("save explicit Afterburner choice");
+    assert!(
+        get_app_settings(temp.path())
+            .expect("reload settings")
+            .encoder_defaults
+            .settings
+            .afterburner
+    );
 }
 
 #[test]
@@ -90,11 +108,15 @@ fn saved_faac_defaults_load_without_recovery_and_survive_other_preference_update
     let loaded = get_app_settings(temp.path()).expect("load saved FAAC choices");
     assert_eq!(
         loaded.encoder_defaults.settings.encoder_type,
-        EncoderType::FaacHeAac
+        EncoderType::Faac
     );
     assert_eq!(
         loaded.encoder_defaults.settings.bitrate_mode,
         BitrateMode::Abr
+    );
+    assert_eq!(
+        loaded.encoder_defaults.settings.faac_profile,
+        crate::audio::FaacProfile::HeAacV1
     );
     assert!(get_app_settings_recovery(temp.path())
         .expect("inspect recovery")
@@ -238,27 +260,33 @@ fn update_merges_top_level_patch_and_persists() {
 }
 
 #[test]
-fn native_target_and_speed_survive_settings_reload() {
+fn encoder_specific_controls_survive_settings_reload() {
     let temp = TempDir::new().expect("create isolated test directory");
     let mut defaults = EncoderDefaults::default();
     defaults.settings.encoder_type = EncoderType::NativeAac;
     defaults.settings.bitrate_mode = BitrateMode::Cbr;
     defaults.settings.native_aac_speed = 4;
     defaults.settings.bitrate_kbps = 193;
-    update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            encoder_defaults: Some(defaults.clone()),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("persist native target and speed");
-    assert_eq!(
-        get_app_settings(temp.path())
-            .expect("reload persisted encoder settings")
-            .encoder_defaults,
-        defaults
-    );
+    let mut faac = defaults.clone();
+    faac.settings.encoder_type = EncoderType::Faac;
+    faac.settings.faac_profile = crate::audio::FaacProfile::AacLc;
+    faac.settings.bitrate_mode = BitrateMode::Vbr(200);
+    for expected in [defaults, faac] {
+        update_app_settings(
+            temp.path(),
+            AppSettingsPatch {
+                encoder_defaults: Some(expected.clone()),
+                ..AppSettingsPatch::default()
+            },
+        )
+        .expect("persist encoder controls");
+        assert_eq!(
+            get_app_settings(temp.path())
+                .expect("reload persisted encoder settings")
+                .encoder_defaults,
+            expected
+        );
+    }
 }
 
 #[test]
@@ -635,4 +663,70 @@ fn settings_file_without_default_acquisition_lane_loads_with_default() {
     let settings = get_app_settings(temp.path()).expect("load legacy settings");
 
     assert_eq!(settings.default_acquisition_lane, AcquisitionLane::Audible);
+}
+
+#[test]
+fn saved_audio_defaults_upgrade_and_persist_format_and_intent() {
+    use crate::audio::{AudioIntent, AudiobookFormat};
+    let temp = TempDir::new().expect("settings directory");
+    let path = temp.path().join("app-settings.json");
+    let mut saved =
+        serde_json::to_value(AppSettings::default()).expect("serialize settings fixture");
+    saved["encoderDefaults"]
+        .as_object_mut()
+        .expect("encoder defaults object")
+        .remove("format");
+    saved["encoderDefaults"]
+        .as_object_mut()
+        .expect("encoder defaults object")
+        .remove("intent");
+    std::fs::write(&path, saved.to_string()).expect("write legacy settings");
+    let loaded = get_app_settings(temp.path()).expect("load persisted audio defaults");
+    assert_eq!(loaded.encoder_defaults.format, AudiobookFormat::M4b);
+    assert_eq!(loaded.encoder_defaults.intent, AudioIntent::Auto);
+    let mut defaults = loaded.encoder_defaults;
+    defaults.format = AudiobookFormat::Mp3;
+    defaults.intent = AudioIntent::Preserve;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(defaults.clone()),
+            ..Default::default()
+        },
+    )
+    .expect("persist audio defaults");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("load persisted audio defaults")
+            .encoder_defaults,
+        defaults
+    );
+    defaults.format = AudiobookFormat::M4aOpus;
+    assert!(
+        update_app_settings(
+            temp.path(),
+            AppSettingsPatch {
+                encoder_defaults: Some(defaults.clone()),
+                ..Default::default()
+            }
+        )
+        .is_err(),
+        "AAC settings cannot be saved as Opus output"
+    );
+    defaults.settings.encoder_type = EncoderType::Opus;
+    defaults.settings.bitrate_mode = BitrateMode::VbrTarget;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(defaults.clone()),
+            ..Default::default()
+        },
+    )
+    .expect("persist audio defaults");
+    assert_eq!(
+        get_app_settings(temp.path())
+            .expect("load persisted audio defaults")
+            .encoder_defaults,
+        defaults
+    );
 }

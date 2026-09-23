@@ -63,7 +63,7 @@ impl WorkRuntime {
             .clone()
             .unwrap_or_else(|| processing_operation_title(kind, request.payload.input_files.len()));
         let input_ids = request.payload.input_ids.as_deref();
-        let snapshot = new_processing_snapshot(
+        let mut snapshot = new_processing_snapshot(
             operation_id.clone(),
             sequence,
             kind,
@@ -72,6 +72,20 @@ impl WorkRuntime {
             input_ids,
             now_ms(),
         );
+        snapshot.source_input_ids = (0..request.payload.input_files.len())
+            .flat_map(|index| request.payload.sources_for(index))
+            .filter_map(|source| source.input_id)
+            .collect();
+        for child in &mut snapshot.children {
+            if let Some(index) = child.input_index {
+                child.source_input_ids = request
+                    .payload
+                    .sources_for(index)
+                    .into_iter()
+                    .filter_map(|source| source.input_id)
+                    .collect();
+            }
+        }
         let cancel_flag = Arc::new(AtomicBool::new(false));
 
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
@@ -452,7 +466,7 @@ fn processing_operation_title(kind: crate::processing::OperationKind, count: usi
             format!("Merge encode ({count} file{})", plural_suffix(count))
         }
         crate::processing::OperationKind::ProcessingBatch => {
-            format!("Batch export ({count} file{})", plural_suffix(count))
+            format!("Export ({count} title{})", plural_suffix(count))
         }
         crate::processing::OperationKind::RemoteAcquisition => {
             format!("Remote acquisition ({count} title{})", plural_suffix(count))

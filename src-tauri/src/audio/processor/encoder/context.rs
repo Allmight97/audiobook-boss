@@ -15,19 +15,17 @@ use super::{
 #[allow(clippy::too_many_lines)]
 pub(crate) fn create_audio_encoder(
     encoder_settings: &EncoderSettings,
-    resolved_encoder: EncoderType,
     target_sample_rate: u32,
     target_channels: i32,
     requires_global_header: bool,
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     use crate::errors::AppError;
 
+    let resolved_encoder = encoder_settings.encoder_type;
+
     // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
     // engine must refuse it rather than silently opening a different encoder.
-    if matches!(
-        resolved_encoder,
-        EncoderType::FdkHeAac | EncoderType::FaacHeAac
-    ) {
+    if matches!(resolved_encoder, EncoderType::FdkHeAac | EncoderType::Faac) {
         return Err(AppError::InvalidInput(
             "This encoder uses its own adapter and cannot be opened as an FFmpeg encoder."
                 .to_string(),
@@ -36,9 +34,7 @@ pub(crate) fn create_audio_encoder(
 
     let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
     let codec = find_encoder_by_name(codec_name)?;
-    let mut resolved_settings = encoder_settings.clone();
-    resolved_settings.encoder_type = resolved_encoder;
-    settings_encoder::validate_encoder_settings(&resolved_settings)?;
+    settings_encoder::validate_encoder_settings(encoder_settings)?;
     if resolved_encoder == EncoderType::NativeAac {
         settings_encoder::validate_native_target_bitrate(
             encoder_settings.bitrate_kbps,
@@ -49,6 +45,7 @@ pub(crate) fn create_audio_encoder(
 
     let channel_layout = ff::channel_layout::ChannelLayout::default(target_channels);
     let sample_format = match resolved_encoder {
+        EncoderType::Opus => ff::format::Sample::F32(ff::format::sample::Type::Packed),
         EncoderType::AacAt => ff::format::Sample::I16(ff::format::sample::Type::Packed),
         _ => ff::format::Sample::F32(ff::format::sample::Type::Planar),
     };
@@ -67,9 +64,17 @@ pub(crate) fn create_audio_encoder(
     // Build encoder-specific options Dictionary
     // Options are passed to avcodec_open2 via open_as_with, which is how FFmpeg CLI does it
     let opts = match resolved_encoder {
+        EncoderType::Opus => {
+            opened.set_bit_rate(usize::from(encoder_settings.bitrate_kbps) * 1000);
+            opened.set_compression(Some(10));
+            let mut options = ff::Dictionary::new();
+            options.set("vbr", "on");
+            options.set("application", "audio");
+            options
+        }
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
-        EncoderType::FaacHeAac | EncoderType::FdkHeAac | EncoderType::Auto => {
+        EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
             unreachable!("create_audio_encoder requires a resolved in-process encoder type")
         }
     };
@@ -123,8 +128,15 @@ pub(crate) fn setup_encoder(
     let resolved_encoder_type = plan.encoder_settings.encoder_type;
     settings_encoder::validate_encoder_settings(&plan.encoder_settings)?;
 
-    let mut octx = ff::format::output(&plan.output_path)
-        .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
+    let mut octx = ff::format::output_as(
+        &plan.output_path,
+        if plan.output_path.extension().is_some_and(|ext| ext == "mka") {
+            "matroska"
+        } else {
+            "mp4"
+        },
+    )
+    .map_err(|e| AppError::General(format!("Create output failed: {e}")))?;
 
     if let Some(metadata) = metadata {
         crate::metadata::set_container_metadata(&mut octx, metadata)
@@ -132,7 +144,11 @@ pub(crate) fn setup_encoder(
         log::debug!("Container metadata set successfully");
     }
 
-    let stream_codec_id = ff::codec::Id::AAC;
+    let stream_codec_id = if resolved_encoder_type == EncoderType::Opus {
+        ff::codec::Id::OPUS
+    } else {
+        ff::codec::Id::AAC
+    };
     let codec = ff::encoder::find(stream_codec_id)
         .ok_or_else(|| AppError::General(format!("{:?} encoder not found", stream_codec_id)))?;
 
@@ -145,16 +161,15 @@ pub(crate) fn setup_encoder(
         .add_stream(codec)
         .map_err(|e| AppError::General(format!("Add output stream failed: {e}")))?;
 
-    let enc_ctx = if resolved_encoder_type == EncoderType::FaacHeAac {
+    let enc_ctx = if resolved_encoder_type == EncoderType::Faac {
         Backend::Faac(FaacEncoder::open(
             target_sample_rate,
             target_channels,
-            plan.encoder_settings.bitrate_kbps,
+            &plan.encoder_settings,
         )?)
     } else {
         Backend::Ffmpeg(create_audio_encoder(
             &plan.encoder_settings,
-            resolved_encoder_type,
             target_sample_rate,
             target_channels,
             requires_global_header,
@@ -168,7 +183,6 @@ pub(crate) fn setup_encoder(
     ost.set_time_base(enc_ctx.time_base());
     ost.set_parameters(enc_ctx.parameters()?);
     let ost_index = ost.index();
-    let ost_time_base = ost.time_base();
 
     // Pre-header cover art stream attempt
     // Prefer user-provided cover art; otherwise reuse passthrough cover art without reprocessing.
@@ -227,9 +241,8 @@ pub(crate) fn setup_encoder(
     // Header
     octx.write_header()
         .map_err(|e| AppError::General(format!("Write header failed: {e}")))?;
-    if resolved_encoder_type == EncoderType::FaacHeAac {
-        let tool = std::ffi::CString::new(super::super::faac_timing::ENCODING_TOOL)
-            .expect("static tool name");
+    if let Backend::Faac(encoder) = &enc_ctx {
+        let tool = std::ffi::CString::new(encoder.encoding_tool()).expect("static tool name");
         // SAFETY: the live output owns this dictionary; av_dict_set copies the
         // strings and updates its allocation without replacing/leaking other tags.
         let status = unsafe {
@@ -297,6 +310,10 @@ pub(crate) fn setup_encoder(
         resolved_encoder_type,
     )?;
 
+    let ost_time_base = octx
+        .stream(ost_index)
+        .expect("created audio stream")
+        .time_base();
     Ok(EncoderSession::new(
         enc_ctx,
         octx,

@@ -4,6 +4,7 @@ import type { JSX } from '@solidjs/web';
 import type { AcquisitionLane, AppSettings, PinnedDefaults } from '../../types/appSettings';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Dialog } from '../foundation';
+import { EncoderView } from '../encoderPanel';
 import { SettingsPersistenceNotice } from './SettingsPersistenceNotice';
 import './appSettingsDialog.css';
 
@@ -179,7 +180,6 @@ export function AppSettingsDialogView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const settings = runtime.settings;
 	const remoteSource = runtime.remoteSource;
-	const encoding = runtime.encoding;
 	const state = settings.dialog;
 	let fdkSection: HTMLElement | undefined;
 	createEffect(
@@ -243,7 +243,6 @@ export function AppSettingsDialogView(): JSX.Element {
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
 	const defaultAcquisitionLane = (): AcquisitionLane => settings.defaultAcquisitionLane();
-	const afterburner = () => encoding.view().afterburner;
 
 	return (
 		<Dialog
@@ -307,7 +306,14 @@ export function AppSettingsDialogView(): JSX.Element {
 					</p>
 				</Show>
 				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
-					<section class="app-settings-section" ref={fdkSection}>
+					<section class="app-settings-section" ref={fdkSection} aria-label="Audio defaults">
+						<h4 class="app-settings-section-title">Audio defaults</h4>
+						<p class="muted-text">
+							Used for newly imported titles. Existing titles keep their settings.
+						</p>
+						<EncoderView />
+					</section>
+					<section class="app-settings-section">
 						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
 						<p class="muted-text">
 							FDK AAC is optional. ABB includes its standard audio tools; FDK requires a separate
@@ -411,21 +417,6 @@ export function AppSettingsDialogView(): JSX.Element {
 								</p>
 							)}
 						</Show>
-						<label class="checkbox-label" data-testid="app-settings-afterburner-toggle">
-							<input
-								type="checkbox"
-								id="app-settings-afterburner"
-								data-testid="app-settings-afterburner-checkbox"
-								checked={afterburner()}
-								disabled={state().saveState === 'saving'}
-								onChange={(event) => encoding.setAfterburner(Boolean(event.currentTarget.checked))}
-							/>
-							<span class="option-label">FDK Afterburner</span>
-						</label>
-						<p class="muted-text">
-							Extra encoding effort for slightly higher quality on the FDK encoder. Leave on unless
-							encode speed matters more than quality.
-						</p>
 					</section>
 					<Show when={state().settings}>
 						{(_) => (

@@ -13,6 +13,7 @@ import type {
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	EncoderSettings as GeneratedEncoderSettings,
 	EncoderType as GeneratedEncoderType,
+	FaacProfile as GeneratedFaacProfile,
 	BitrateModeKind as GeneratedBitrateModeKind,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
@@ -70,6 +71,7 @@ export type BitrateMode = GeneratedBitrateMode;
 export type BitrateModeKind = GeneratedBitrateModeKind;
 export type EncoderChannelConfig = GeneratedChannelConfig;
 export type EncoderType = GeneratedEncoderType;
+export type FaacProfile = GeneratedFaacProfile;
 export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
@@ -91,7 +93,9 @@ export interface OutputRequestConfig {
 }
 
 // Combined UI process configuration composed at the processing workflow boundary.
-export type ProcessingRequestConfig = Partial<EncodingRequestConfig> & OutputRequestConfig;
+export type ProcessingRequestConfig = OutputRequestConfig & {
+	audioRequests: import('../lib/generated/tauri').TitleAudioRequest[];
+};
 
 // Preview command typing helpers (Tauri boundary)
 export interface PreviewRequest {
@@ -120,8 +124,8 @@ export type BitrateKbps = EncoderSettings['bitrateKbps'];
 export type JobType = GeneratedJobType;
 
 // Complete processing payload
-export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'settings'> & {
-	settings?: EncoderSettings;
+export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'audioRequests'> & {
+	audioRequests: import('../lib/generated/tauri').TitleAudioRequest[];
 };
 export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
@@ -132,8 +136,9 @@ export const defaultEncoderSettings = (): EncoderSettings => ({
 	bitrateKbps: 64,
 	bitrateMode: { mode: 'vbr', value: 3 },
 	channels: 'auto',
-	afterburner: true,
+	afterburner: false,
 	nativeAacSpeed: 0,
+	faacProfile: 'auto',
 });
 
 // Utility functions
@@ -172,3 +177,10 @@ export const formatFileSize = (bytes: number | undefined): string => {
 /** Imported audio bitrate is bits per second; encoder targets use kilobits per second. */
 export const formatAudioBitrate = (bitsPerSecond: number | undefined): string =>
 	bitsPerSecond ? `${Math.round(bitsPerSecond / 100) / 10} kbps` : 'N/A';
+
+export type {
+	AudiobookFormat,
+	AudioIntent,
+	TitleAudioRequest,
+	TitleAudioPlan,
+} from '../lib/generated/tauri';

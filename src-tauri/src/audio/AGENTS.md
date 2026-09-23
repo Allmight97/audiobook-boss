@@ -20,10 +20,11 @@
   `crate::audio::cleanup`.
 - Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
-  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `BitrateMode`,
-  `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`.
-- Functions: `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
-  `validate_input_image_path`, `validate_preservation_source`, `supported_audio_import_metadata`,
+  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
+  `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`,
+  `AudiobookFormat`, `AudioIntent`, `TitleAudioRequest`, `TitleAudioPlan`.
+- Functions: `resolve_title_audio`, `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
+  `validate_input_image_path`, `validate_preservation_source`, `validate_preserved_title`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
   `validate_requested_encoder_available`,
@@ -38,25 +39,27 @@
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.
   The request carries explicit audio handling and the original metadata intent
-  for preserving a single source. Inspection owns preservation capability and
-  the compact-source recommendation; neither fact automatically selects a mode.
+  for preserving source audio. Grouped preservation additionally carries effective
+  title metadata and cover policy. Inspection owns source preservation capability; the title planner owns the recommendation.
 - Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
 - `EncoderSettingsCapabilities.encoder_configurations` is the single
   per-encoder capability array for allowed modes, defaults, and explicit sample
-  rates. The global `explicit_sample_rates` list remains the rate list for the
-  existing encoders; bundled FAAC HE-AAC narrows its explicit choices to
-  32000, 44100, and 48000 Hz in its configuration entry.
+  rates and target bitrate bounds. The global `explicit_sample_rates` list remains the rate list for the
+  existing encoders. FAAC profile-specific rates are carried by `faac_profiles`;
+  quality presets are backend-owned capability values. The adapter owns
+  upstream profile resolution and opened configuration readback.
 - Target bitrate bounds and native speed bounds come from
   `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
   check their resolved AAC ceilings during preflight and encoder setup. Input
-  validation receives the sample-rate choice and whether inputs share one
-  output; batch ceilings are checked per file, merge ceilings use the combined
-  channels and first input rate.
-  Opened NMR settings must match the request.
+  validation receives the sample-rate choice and inspected sources grouped by
+  output title. Resolve the adapter once per validation call; each title's
+  ceiling uses its combined channels and first input rate.
+  Opened NMR and FAAC settings must match the request; FAAC preflight uses the
+  same adapter open/readback as execution, including upstream bitrate clamps.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
-- Crate-internal helpers: `CleanupGuard`, `open_fdk_setup` (opens the bundled
+- Crate-internal helpers: `AudioPlanner` (caches adapter resolution within one preflight), `CleanupGuard`, `open_fdk_setup` (opens the bundled
   Homebrew handoff in Terminal; its return confirms launch, not installation).
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event
@@ -67,7 +70,7 @@
 - Files: `buffer.rs`, `cleanup/`, `extensions.rs`,
   `constants.rs`, `file_list.rs`, `imports.rs`, `imports_tests.rs`, `metrics.rs`,
   `path_validation.rs`, `processor/`, `settings.rs`, `settings_capabilities.rs`,
-  `settings_encoder.rs`, and `toolchain/` (`mod.rs` = platform-neutral
+  `settings_encoder.rs`, `output_plan.rs`, and `toolchain/` (`mod.rs` = platform-neutral
   resolution/validation; `platform.rs` = the per-OS probe seam — candidate
   enumeration, binary-arch acceptance, and platform paths live ONLY there,
   cfg-dispatched per the `src-tauri/src/remote_source/vault.rs` pattern with pure rules
@@ -98,7 +101,10 @@
 ## Path Display Policy
 
 - Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
-- Diagnostics and logs use sanitized display strings.
+- User-facing diagnostics use sanitized display strings. Local audio-inspection
+  debug logs include the validated canonical source path. Started jobs record
+  ordered source paths at info level, with debug escaping so same-named files
+  remain distinguishable without repeated inspection noise.
 - Lossy strings are allowed only for display ordering, never identity or command argv.
 
 ## Edit Rules
@@ -107,7 +113,7 @@
   green for the touched boundary.
 - Narrow accidental visibility when callers can use the Public API Strip without
   losing contract truth.
-- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and external FDK adapter
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, Opus, and external FDK adapter
   differences inside the private cluster unless a caller needs a stable
   capability fact.
 
@@ -134,14 +140,11 @@
   overflowing before encoding. The standard downmix retains center/surround
   channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
-- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC HE-AAC, and external FDK
-  behavior distinct. They are different encoder/toolchain targets with
-  different sample formats and quality profiles. FAAC is an explicit-only,
-  bundled HE-AAC v1 route with a numeric ABR target; Auto remains FDK, then
-  Apple, then Native and never resolves to FAAC.
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and external FDK behavior
+  distinct. FAAC offers profile Auto/LC/HE and ABR/VBR, resolving its profile
+  once at open from output settings. Encoder Auto prefers FDK, then Native NMR; Apple and FAAC remain explicit choices.
 - Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
-  bitrate and search speed. Auto preserves the selected mode, and the resolved
-  encoder rejects incompatible intent.
+  bitrate and search speed. Auto adapts an unsupported bitrate mode to the resolved encoder default; explicit encoder requests reject incompatible modes.
 
 ## Hard Invariants
 
@@ -182,3 +185,23 @@ against the audio identity and duration before dispatch. CUE confirmation or
 Ignore is explicit; multi-source CUE merging is rejected. Encoder adapters
 consume accepted chapters, while passthrough source probing remains for cover
 art and external artifact readers. Preview continues to omit chapters.
+
+## Title Audio Plan
+
+`output_plan` resolves one output format and audio intent per title. M4B/AAC is
+the default; MP3 is packet pass-through; Opus supports M4A (MP4 muxer) and MKA.
+Auto copies joinable, matching audio when every source has a known bitrate at or
+below `COMPACT_AUDIO_MAX_BITRATE`; otherwise it plans encoding. Explicit Preserve
+copies regardless of bitrate and never silently encodes. MP3 output stays copy-only
+regardless of bitrate. Strict source/packet validation still applies to every copy. MP3 has no encoder route and rejects
+incompatible copy boundaries. Recommended M4B encoding uses the built-in AAC
+defaults (FDK VBR 3, otherwise NMR 64 kbps; source channels and automatic rate),
+independent of saved user preferences. Explicit Encode always applies the settings.
+Popover previews and processing preflight share this resolver. Only encoding
+plans resolve encoder availability, channels and input rate. Execution receives
+that resolved plan; it does not reinterpret frontend preferences.
+
+Auto keeps supported source rates and otherwise rounds upward to the next encoder/profile rate, capped at its maximum. Opus caps at 48 kHz; explicit FAAC HE starts at 32 kHz. Its headers and skip counts use the 48 kHz decoder clock even with
+24 kHz PCM input. Packet-copy Opus stacks require decoder resets that this join
+path cannot express; Auto therefore encodes them. Single Opus files can remux
+between supported containers without changing compressed packets.

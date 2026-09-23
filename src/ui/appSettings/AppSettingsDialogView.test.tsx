@@ -10,7 +10,6 @@ import {
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { tauriClient } from '../../lib/tauri/client';
-import { EncoderView } from '../encoderPanel';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -18,6 +17,8 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 		defaultAcquisitionLane: 'audible',
 		maxConcurrentJobs: { mode: 'auto' },
 		encoderDefaults: {
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,
@@ -174,20 +175,16 @@ describe('AppSettingsDialogView', () => {
 				}),
 			),
 		});
-		app.settings.closeDialog();
-		render(() => (
-			<AppRuntimeProvider runtime={app}>
-				<EncoderView />
-			</AppRuntimeProvider>
-		));
+		app.encoding.applyDefaults({ ...app.encoding.readDefaults(), intent: 'encode' });
+		flush();
 		const encoder = screen.getByTestId('encoder-select');
-		expect(screen.getByTestId('encoder-availability-hint')).toHaveTextContent(
-			'Auto will use Apple AAC. FDK AAC is not available.',
-		);
+		expect(encoder).toHaveValue('native_aac');
+		expect((encoder as HTMLSelectElement).options).toHaveLength(4);
+		expect(screen.queryByRole('button', { name: 'FDK Afterburner' })).toBeNull();
 		await fireEvent.change(encoder, { target: { value: 'fdk_he_aac' } });
 		await vi.waitFor(() => expect(app.settings.dialog().checkingFdk).toBe(false));
 		expect(app.settings.dialog().isOpen).toBe(true);
-		expect(encoder).toHaveValue('auto');
+		expect(encoder).toHaveValue('native_aac');
 		expect(settings.openFdkSetup).not.toHaveBeenCalled();
 		await fireEvent.click(await screen.findByText('Install or update with Homebrew…'));
 		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
@@ -196,9 +193,12 @@ describe('AppSettingsDialogView', () => {
 		fdkAvailable = true;
 		await fireEvent.click(screen.getByRole('button', { name: 'Recheck FDK' }));
 		await vi.waitFor(() =>
-			expect(app.encoding.view().availabilityHint).toContain('Using external FDK AAC'),
+			expect(
+				app.encoding.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
+			).toBe('FDK AAC'),
 		);
 		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(true);
+		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toBeInTheDocument();
 		expect(settings.updateAppSettings).not.toHaveBeenCalled();
 	});
 
@@ -233,20 +233,28 @@ describe('AppSettingsDialogView', () => {
 				throw new Error('Disk full');
 			}),
 		});
-		await fireEvent.click(screen.getByTestId('app-settings-afterburner-checkbox'));
+		runtime!.encoding.applyDefaults({ ...runtime!.encoding.readDefaults(), intent: 'encode' });
+		flush();
+		await fireEvent.click(screen.getByRole('button', { name: 'FDK Afterburner' }));
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
 		);
 		expect(screen.getByRole('status')).toHaveTextContent(
 			'Your current choices still apply for this session. Disk full',
 		);
-		expect(screen.getByTestId('app-settings-afterburner-checkbox')).not.toBeChecked();
+		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
 		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
 		await fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
 		await vi.waitFor(() =>
 			expect(screen.queryByText("Settings haven't been saved")).not.toBeInTheDocument(),
 		);
-		expect(screen.getByTestId('app-settings-afterburner-checkbox')).not.toBeChecked();
+		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
 	});
 
 	it('returns to idle when the confirm step is cancelled', async () => {

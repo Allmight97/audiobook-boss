@@ -53,10 +53,17 @@ pub(super) fn execute_preserved_audio(
     context
         .new_emitter()
         .emit_converting_start("Preserving original audio...");
-    copy_with_cancellation(&file.path, source_fingerprint, &staged, &context)?;
+    copy_with_cancellation(&file.path, source_fingerprint, &staged, &context, 0.0..1.0)?;
     if context.is_cancelled() {
         return Err(AppError::cancelled());
     }
+    let target_extension = context
+        .output
+        .final_path()
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| AppError::InvalidInput("Output extension is missing.".into()))?;
+    crate::metadata::remux_preserved_audio_container(&staged, target_extension)?;
     if let Some(patch) = metadata_intent.as_ref() {
         context
             .new_emitter()
@@ -69,11 +76,12 @@ pub(super) fn execute_preserved_audio(
     super::finalize::complete_staged_output(&context, staged, &mut cleanup)
 }
 
-fn copy_with_cancellation(
+pub(super) fn copy_with_cancellation(
     source: &std::path::Path,
     expected_source_fingerprint: &str,
     destination: &std::path::Path,
     context: &ProcessingContext,
+    progress_range: std::ops::Range<f32>,
 ) -> Result<()> {
     // A queued job may reopen the source long after preflight inspected it.
     let source = crate::audio::validate_input_audio_path(source)?;
@@ -83,7 +91,6 @@ fn copy_with_cancellation(
     let total_bytes = source_metadata.len();
     let mut copied_bytes = 0_u64;
     let mut reported_percent = 0_u64;
-    let progress = context.new_emitter();
     let mut output = std::fs::File::create(destination)?;
     let mut buffer = vec![0_u8; 1024 * 1024];
     loop {
@@ -99,14 +106,12 @@ fn copy_with_cancellation(
         let percent = copied_bytes.saturating_mul(100) / total_bytes.max(1);
         if percent > reported_percent {
             reported_percent = percent;
-            progress.emit_converting_progress(
-                crate::processing::progress::PROGRESS_CONVERTING_START
-                    + (crate::processing::progress::PROGRESS_CONVERTING_MAX
-                        - crate::processing::progress::PROGRESS_CONVERTING_START)
+            emit_progress(
+                context,
+                progress_range.start
+                    + (progress_range.end - progress_range.start)
                         * (percent.min(100) as f32 / 100.0),
                 "Preserving original audio...",
-                None,
-                None,
             );
         }
     }
@@ -119,6 +124,17 @@ fn copy_with_cancellation(
     crate::metadata::validate_source_fingerprint(&source_metadata, expected_source_fingerprint)?;
     output.sync_all()?;
     Ok(())
+}
+
+pub(super) fn emit_progress(context: &ProcessingContext, fraction: f32, message: &str) {
+    use crate::processing::progress::{PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START};
+    context.new_emitter().emit_converting_progress(
+        PROGRESS_CONVERTING_START
+            + (PROGRESS_CONVERTING_MAX - PROGRESS_CONVERTING_START) * fraction,
+        message,
+        None,
+        None,
+    );
 }
 
 #[cfg(test)]
@@ -135,6 +151,54 @@ mod tests {
             .expect("inspect source identity")
             .0
             .source_fingerprint
+    }
+
+    #[test]
+    fn copying_title_sources_advances_one_shared_progress_interval() {
+        let tmp = tempfile::tempdir().expect("copy workspace");
+        let source = tmp.path().join("source.mp3");
+        std::fs::write(&source, vec![7_u8; 2 * 1024 * 1024]).expect("write source");
+        let fingerprint = inspect_source_fingerprint(&source);
+        let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let events = observed.clone();
+        let mut context = ProcessingContext::new_headless(
+            Arc::new(ProcessingSession::new()),
+            None,
+            crate::audio::SampleRateConfig::Auto,
+            OutputConfig::new(tmp.path().join("out.m4b")),
+        );
+        context.progress_listener = Some(Arc::new(move |event| {
+            events
+                .lock()
+                .expect("capture progress")
+                .push(event.percentage)
+        }));
+        copy_with_cancellation(
+            &source,
+            &fingerprint,
+            &tmp.path().join("one.mp3"),
+            &context,
+            0.0..0.25,
+        )
+        .expect("copy source");
+        copy_with_cancellation(
+            &source,
+            &fingerprint,
+            &tmp.path().join("two.mp3"),
+            &context,
+            0.25..0.5,
+        )
+        .expect("copy source");
+        let progress = observed.lock().expect("read progress");
+        assert!(
+            progress.len() >= 4 && progress.windows(2).all(|pair| pair[0] <= pair[1]),
+            "{progress:?}"
+        );
+        assert!(
+            progress.last().expect("copy reports progress")
+                < &crate::processing::progress::PROGRESS_CONVERTING_MAX,
+            "joining must retain its own progress interval"
+        );
     }
 
     #[cfg(unix)]
@@ -157,8 +221,14 @@ mod tests {
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
-        let error = copy_with_cancellation(&inspected_path, &source_fingerprint, &staged, &context)
-            .expect_err("queued replacement must be rejected before copying");
+        let error = copy_with_cancellation(
+            &inspected_path,
+            &source_fingerprint,
+            &staged,
+            &context,
+            0.0..1.0,
+        )
+        .expect_err("queued replacement must be rejected before copying");
         assert!(matches!(error, AppError::InvalidInput(message) if message.contains("Symlinks")));
         assert!(!staged.exists());
         assert_eq!(
@@ -187,8 +257,14 @@ mod tests {
             OutputConfig::new(tmp.path().join("final.mp3")),
         );
 
-        let error = copy_with_cancellation(&inspected_path, &source_fingerprint, &staged, &context)
-            .expect_err("queued regular-file replacement must be rejected before copying");
+        let error = copy_with_cancellation(
+            &inspected_path,
+            &source_fingerprint,
+            &staged,
+            &context,
+            0.0..1.0,
+        )
+        .expect_err("queued regular-file replacement must be rejected before copying");
 
         assert!(
             matches!(error, AppError::InvalidInput(message) if message.contains("changed since"))
@@ -223,8 +299,9 @@ mod tests {
         context.progress_listener = Some(Arc::new(move |_| {
             cancelled.store(true, Ordering::Release);
         }));
-        let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context)
-            .expect_err("copy must observe cancellation");
+        let error =
+            copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
+                .expect_err("copy must observe cancellation");
         assert!(matches!(error, AppError::Cancellation(_)));
         let copied_bytes = std::fs::metadata(&staged).expect("partial copy").len();
         assert!(copied_bytes > 0 && copied_bytes < 4 * 1024 * 1024);
@@ -252,8 +329,9 @@ mod tests {
             std::fs::File::create(&source_for_listener).expect("truncate source during copy");
         }));
 
-        let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context)
-            .expect_err("source truncation must be rejected after copy EOF");
+        let error =
+            copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
+                .expect_err("source truncation must be rejected after copy EOF");
 
         assert!(
             matches!(error, AppError::InvalidInput(message) if message.contains("changed since"))
@@ -291,8 +369,9 @@ mod tests {
                 .expect("set source mtime");
         }));
 
-        let error = copy_with_cancellation(&source, &source_fingerprint, &staged, &context)
-            .expect_err("same-size source overwrite must be rejected after copy EOF");
+        let error =
+            copy_with_cancellation(&source, &source_fingerprint, &staged, &context, 0.0..1.0)
+                .expect_err("same-size source overwrite must be rejected after copy EOF");
 
         assert!(
             matches!(error, AppError::InvalidInput(message) if message.contains("changed since"))

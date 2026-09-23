@@ -14,7 +14,7 @@ use crate::audio::AudioFile;
 use crate::errors::{AppError, Result};
 use crate::processing::ProcessingContext;
 
-use super::engine::FfmpegNextProcessor;
+use super::engine;
 use super::plan::MediaProcessingPlan;
 use super::ProcessingWorkflow;
 
@@ -57,7 +57,9 @@ pub(crate) fn merge_audio_files_with_context(
     metadata: Option<&crate::metadata::AudiobookMetadata>,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<PathBuf> {
-    let temp_output = temp_dir.join(TEMP_MERGED_FILENAME);
+    let temp_output = temp_dir
+        .join(TEMP_MERGED_FILENAME)
+        .with_extension(context.output.final_path().extension().unwrap_or_default());
 
     let file_paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
     let plan = MediaProcessingPlan::new(
@@ -76,7 +78,7 @@ pub(crate) fn merge_audio_files_with_context(
         context.required_encoder_settings()?.encoder_type
     );
     crate::diagnostics::stage("encode_mux", &temp_output, || {
-        FfmpegNextProcessor::execute(&plan, context, metadata, passthrough)
+        engine::execute(&plan, context, metadata, passthrough)
     })?;
 
     Ok(temp_output)

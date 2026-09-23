@@ -125,6 +125,7 @@ pub struct ChildJobSnapshot {
     pub source_path: Option<String>,
     pub input_index: Option<usize>,
     pub input_id: Option<String>,
+    pub source_input_ids: Vec<String>,
     pub job_id: Option<String>,
     pub cancellable: bool,
     pub cancel_requested: bool,

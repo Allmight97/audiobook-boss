@@ -88,30 +88,29 @@ pub fn detect_encoder_availability() -> EncoderAvailability {
 
 pub(crate) fn detect_encoder_availability_with_resolution(
 ) -> (EncoderAvailability, ToolchainResolution) {
-    let native_aac = settings_encoder::is_native_nmr_available();
-    let aac_at =
-        cfg!(target_os = "macos") && settings_encoder::is_encoder_available_by_name("aac_at");
+    let native_aac = settings_encoder::linked_encoder_available(EncoderType::NativeAac);
+    let aac_at = settings_encoder::linked_encoder_available(EncoderType::AacAt);
     let resolution = resolve_external_toolchain();
     let fdk_available = resolution.validated.is_some();
-    let auto_encoder = if fdk_available {
-        EncoderType::FdkHeAac
-    } else if aac_at {
-        EncoderType::AacAt
-    } else {
-        EncoderType::NativeAac
-    };
-
     let availability = EncoderAvailability {
         fdk_available,
         fdk_setup_supported: cfg!(target_os = "macos"),
         fdk_source: resolution.fdk_source,
         aac_at_available: aac_at,
         native_aac_available: native_aac,
-        auto_encoder,
+        auto_encoder: preferred_auto_encoder(fdk_available),
         detected_toolchain_path: resolution.detected_toolchain_path.clone(),
         status_message: resolution.status_message.clone(),
     };
     (availability, resolution)
+}
+
+fn preferred_auto_encoder(fdk_available: bool) -> EncoderType {
+    if fdk_available {
+        EncoderType::FdkHeAac
+    } else {
+        EncoderType::NativeAac
+    }
 }
 
 pub(crate) fn resolve_external_toolchain() -> ToolchainResolution {

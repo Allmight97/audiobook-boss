@@ -1,6 +1,6 @@
 import { toUserMessage } from '../../lib/tauri/appError';
 import { releaseKey } from './selection';
-import type { FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type { AcquisitionLane } from '../../types/appSettings';
 import type {
 	AcquisitionJob,
@@ -85,7 +85,7 @@ type WorkflowScope = { readonly isCurrent: () => boolean; readonly providerId: P
 export function createRemoteSourceWorkflow(deps: {
 	readonly services: RemoteSourceWorkflowServices;
 	readonly state: RemoteSourceStateStore;
-	readonly registerSupplementalAssets: (job: AcquisitionJob, fileList: FileListInfo | null) => void;
+	readonly registerSupplementalAssets: (job: AcquisitionJob, files: readonly AudioFile[]) => void;
 }): RemoteSourceWorkflow {
 	let workflowGeneration = 0;
 	let acquisitionGeneration = 0;
@@ -211,7 +211,7 @@ export function createRemoteSourceWorkflow(deps: {
 		}
 
 		const importedAny = materializedPaths.some((path) =>
-			fileListHasPath(importResult.fileList, path),
+			importResult.files.some((file) => file.path === path),
 		);
 		if (!importedAny) {
 			await deps.services.purgeSession(job.jobId);
@@ -220,13 +220,13 @@ export function createRemoteSourceWorkflow(deps: {
 			patchWhenCurrent(scope, {
 				activeJob: cleanedJob,
 				lastJob: cleanedJob,
-				statusMessage: `${importResult.fileList ? 'Acquired titles were not added to the input session.' : 'Input session had no files after import.'} ${STAGED_FILES_REMOVED_SUFFIX}`,
+				statusMessage: `${importResult.files.length > 0 ? 'Acquired titles were not added to the input session.' : 'Input session had no files after import.'} ${STAGED_FILES_REMOVED_SUFFIX}`,
 			});
 			return;
 		}
 
 		if (!scope.isCurrent()) return;
-		deps.registerSupplementalAssets(job, importResult.fileList);
+		deps.registerSupplementalAssets(job, importResult.files);
 		patchWhenCurrent(scope, {
 			statusMessage: `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`,
 		});
@@ -605,8 +605,4 @@ export function createRemoteSourceWorkflow(deps: {
 			);
 		},
 	};
-}
-
-function fileListHasPath(fileList: FileListInfo | null, path: string): boolean {
-	return Boolean(fileList?.files.some((file) => file.path === path));
 }

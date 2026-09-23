@@ -46,9 +46,22 @@ dispatch intent; they do not keep parallel business state.
   requesting workflow's abort. An aborted gate cannot stage drafts, clear dirty
   state, or publish validation errors.
   Dependent workflows proceed only after selection and hydration succeed.
-- Input owns each book's explicit audio handling choice by stable input identity.
-  Reordering preserves choices; removal/reset clears them. Imported Audio
-  capability and recommendation facts do not select a mode automatically.
+- Input owns output titles and each title's ordered source files. The visible
+  `fileList` entries are stable metadata anchors; `titleSourcesByIdentity`
+  contains composition, and public `sourceFiles`/`selectedSourceFiles` include
+  hidden sources. A source reorder never changes the metadata anchor or title
+  identity. Grouping uses list order and the first selected title's metadata;
+  conflicting audio choices require an explicit title-level choice.
+  Grouping/separation use Metadata's draft gate. Separation keeps the title's
+  edits on its metadata anchor and restores the other sources' drafts.
+- Metadata drafts for hidden sources survive grouping. Saving a grouped draft
+  stages it for the output; it never writes that draft into a constituent
+  source. Lookup targets the visible title once. Remote retention and summaries
+  use all source identities, not only visible metadata anchors.
+- Input owns each title's complete audio request by stable identity. Runtime
+  initializes stored preferences before import; Input snapshots defaults as new
+  titles enter the list. Reordering preserves choices; removal/reset clears them.
+  Source recommendations stay Audio-owned; views do not infer pass-through.
 - Choose AppEffect when its typed failure, dependency composition, or scoped
   work reduces coordination; direct capability workflows may use plain async.
   Read `src/lib/effect/AGENTS.md` before changing that shape.

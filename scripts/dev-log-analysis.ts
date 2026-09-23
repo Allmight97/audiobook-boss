@@ -72,6 +72,7 @@ export interface DevLogAnalysis {
 	inProcessEncoderStatuses: Record<string, number>;
 	malformedInProcessEncoderRuns: number;
 	highSignalLines: string[];
+	audioDecisions: string[];
 	mediaDiagnostics: string[];
 	buildIdentities: string[];
 }
@@ -846,6 +847,9 @@ export function analyzeDevLog(
 			),
 		inProcessEncoderStatuses,
 		malformedInProcessEncoderRuns,
+		audioDecisions: lines
+			.filter((line) => /audio_decision |audio_source |audio_output /.test(line))
+			.slice(-100),
 		mediaDiagnostics: lines
 			.filter((line) =>
 				/media_stage |media_job |media_handoff |media_cleanup |metadata_plan |metadata_route |metadata_cover |metadata_chapters |metadata_chapter_mismatch |cover_art_plan |encoder_effective |encoder_config /.test(
@@ -985,6 +989,14 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'',
 		'```text',
 		...analysis.buildIdentities,
+		'```',
+		'',
+		'## Title Audio Decisions and Observed Outputs',
+		'',
+		'Recent title decisions, ordered source paths, and observed output properties. Publication records establish whether each observed staged file reached its destination.',
+		'',
+		'```text',
+		...analysis.audioDecisions,
 		'```',
 		'',
 		'## Encoding, Metadata, and File Handoffs',

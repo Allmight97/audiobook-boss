@@ -1,2 +1,2 @@
 export { ConcurrencyControl } from './ConcurrencyControl';
-export { MergeModeToggle } from './MergeModeToggle';
+export { GroupTitlesButton } from './GroupTitlesButton';

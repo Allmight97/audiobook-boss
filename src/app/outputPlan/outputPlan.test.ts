@@ -1,3 +1,4 @@
+import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { createRoot, createSignal, flush, runWithOwner, type Accessor } from 'solid-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingPreflightPlan } from '../../types/audio';
@@ -38,6 +39,10 @@ function sessionWithDuration(totalDuration: number) {
 function emptyInputView(overrides: Partial<InputView> = {}): InputView {
 	return {
 		files: [],
+		sourceFiles: [],
+		selectedSourceFiles: (overrides.selectedIndices ?? []).flatMap(
+			(index) => overrides.files?.[index] ?? [],
+		),
 		selectedIndices: [],
 		selectedAnchor: -1,
 		fileCount: 0,
@@ -73,6 +78,7 @@ function collisionPlan(): ProcessingPreflightPlan {
 		jobType: 'batch',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
+		audioPlans: [],
 		planSignature: 'sig-review',
 		outputs: [
 			{
@@ -159,41 +165,80 @@ describe('output plan public view', () => {
 		expect(mounted.owner.readRequestConfig().outputDirectory).toBe('/books/out');
 	});
 
-	it('uses total target bitrate for mono and stereo encoder-header estimates', async () => {
+	it('uses total target bitrate for mono and stereo output estimates', async () => {
 		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		mounted = mountOutput(runtime);
 		await vi.waitFor(() => {
 			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1);
 		});
-		runtime.encoding.select('encoder', 'native_aac');
-		runtime.encoding.select('bitrate', '64');
-		runtime.encoding.select('channels', 'mono');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'encoder', 'native_aac');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'bitrate', '64');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'channels', 'mono');
 		flush();
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 804.7 KB');
-		runtime.encoding.select('channels', 'stereo');
+		const title = runtime.input.view().files[0]!;
+		expect(mounted.owner.estimateTitleSizeText(title)).toBe('Est. ~ 804.7 KB');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'channels', 'stereo');
 		flush();
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 804.7 KB');
+		expect(mounted.owner.estimateTitleSizeText(title)).toBe('Est. ~ 804.7 KB');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'encoder', 'faac');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'rateControl', 'vbr');
+		flush();
+		expect(mounted.owner.estimateTitleSizeText(title)).toBe('Size varies with audio');
 	});
 
-	it('changes the encoder-header size with FDK VBR quality while retaining target bitrate', async () => {
+	it('labels FDK quality VBR size as variable instead of guessing from quality', async () => {
 		runtime = createAppRuntime();
 		runtime.input.replaceSession(sessionWithDuration(100));
 		mounted = mountOutput(runtime);
 		await vi.waitFor(() => {
 			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1);
 		});
-		runtime.encoding.select('encoder', 'fdk_he_aac');
-		runtime.encoding.select('quality', '1');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'encoder', 'fdk_he_aac');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'quality', '1');
 		flush();
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 402.3 KB');
-		runtime.encoding.select('quality', '5');
+		const title = runtime.input.view().files[0]!;
+		expect(mounted.owner.estimateTitleSizeText(title)).toBe('Size varies with audio');
+		runtime.encoding.selectTitles(runtime.input.view().files, 'quality', '5');
 		flush();
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.2 MB');
-		expect(runtime.encoding.request().encoderSettings.bitrateKbps).toBe(64);
+		expect(mounted.owner.estimateTitleSizeText(title)).toBe('Size varies with audio');
+		expect(runtime.encoding.audioRequest(runtime.input.view().files[0]).settings!.bitrateKbps).toBe(
+			64,
+		);
 	});
 
-	it('keeps preserved source bytes in mixed estimates and previews its original format', async () => {
+	it('estimates a stack from all source sizes or durations for its selected handling', async () => {
+		runtime = createAppRuntime();
+		const session = sessionWithDuration(100);
+		const first = session.fileList.files[0]!;
+		const second = { ...first, path: '/books/b.m4b', size: 2048, duration: 50 };
+		runtime.input.replaceSession({
+			...session,
+			titleSourcesByIdentity: { [first.path]: [first, second] },
+		});
+		mounted = mountOutput(runtime);
+		runtime.encoding.selectTitle(first, 'intent', 'preserve');
+		flush();
+		expect(mounted.owner.estimateTitleSizeText(first)).toBe('Est. ~ 3.0 KB');
+		await vi.waitFor(() =>
+			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1),
+		);
+		runtime.encoding.selectTitle(first, 'encoder', 'native_aac');
+		runtime.encoding.selectTitle(first, 'bitrate', '64');
+		expect(mounted.owner.estimateTitleSizeText(first)).toBe('Est. ~ 1.2 MB');
+		runtime.input.replaceSession({
+			...session,
+			titleSourcesByIdentity: {
+				[first.path]: [first, { ...second, size: undefined, duration: undefined }],
+			},
+		});
+		runtime.encoding.selectTitle(first, 'intent', 'preserve');
+		expect(mounted.owner.estimateTitleSizeText(first)).toBeNull();
+		runtime.encoding.selectTitle(first, 'intent', 'encode');
+		expect(mounted.owner.estimateTitleSizeText(first)).toBeNull();
+	});
+
+	it('waits for Auto audio planning before estimating size and previews the selected format', async () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')
 			.mockResolvedValue('/books/out/a.mp3');
@@ -203,7 +248,7 @@ describe('output plan public view', () => {
 			...session.fileList.files[0]!,
 			path: '/books/a.mp3',
 			size: 1_048_576,
-			preservation: { canPreserve: true, recommended: true },
+			preservation: { canPreserve: true },
 		};
 		session.fileList.files = [source, { ...source, path: '/books/b.m4b', duration: 100 }];
 		runtime.input.replaceSession(session);
@@ -217,27 +262,56 @@ describe('output plan public view', () => {
 		);
 		runtime.encoding.select('encoder', 'native_aac');
 		runtime.encoding.select('bitrate', '64');
-		runtime.input.setAudioHandling(source, 'preserve');
+		runtime.input.setAudioRequest(
+			source,
+			titleAudioRequest({ format: 'mp3', intent: 'auto', settings: null }),
+		);
 		flush();
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 1.8 MB');
+		expect(mounted.owner.estimateTitleSizeText(source)).toBeNull();
+		expect(
+			mounted.owner.estimateTitleSizeText(source, {
+				format: 'mp3',
+				handling: 'preserve',
+				settings: null,
+				sampleRate: 44100,
+				channels: 1,
+				sourceCodec: 'MP3',
+				reason: null,
+			}),
+		).toBe('Est. ~ 1.0 MB');
 		await vi.waitFor(() =>
 			expect(previewOutputPath).toHaveBeenLastCalledWith(
 				expect.objectContaining({
 					sourcePath: '/books/a.mp3',
-					audioHandling: 'preserve',
+					format: 'mp3',
 				}),
 			),
 		);
-		runtime.input.setAudioHandling(session.fileList.files[1]!, 'preserve');
+		runtime.input.setAudioRequest(
+			session.fileList.files[1]!,
+			titleAudioRequest({ intent: 'auto' }),
+		);
 		runtime.encoding.select('bitrate', '192');
 		flush();
-		expect(mounted.owner.estimatedSizeText()).toBe('~ 2.0 MB');
-	});
-
-	it('keeps the empty estimate placeholder when Input has no files', () => {
-		runtime = createAppRuntime();
-		mounted = mountOutput(runtime);
-		expect(mounted.owner.estimatedSizeText()).toBe('~ --- MB');
+		expect(mounted.owner.estimateTitleSizeText(source)).toBeNull();
+		runtime.input.setAudioRequest(
+			source,
+			titleAudioRequest({ format: 'mp3', intent: 'preserve', settings: null }),
+		);
+		flush();
+		expect(mounted.owner.estimateTitleSizeText(source)).toBe('Est. ~ 1.0 MB');
+		expect(mounted.owner.estimateTitleSizeText(session.fileList.files[1]!)).toBeNull();
+		expect(
+			mounted.owner.estimateTitleSizeText(session.fileList.files[1]!, {
+				format: 'm4b',
+				handling: 'encode',
+				sampleRate: 44100,
+				channels: 1,
+				sourceCodec: 'AAC',
+				reason: null,
+				settings: { ...titleAudioRequest().settings!, bitrateKbps: 80 },
+			}),
+		).toBe('Est. ~ 1005.9 KB');
 	});
 
 	it('reads live naming template on submit before preview debounce completes', async () => {

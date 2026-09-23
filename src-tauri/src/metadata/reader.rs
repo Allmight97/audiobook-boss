@@ -165,7 +165,7 @@ fn parse_total_value(value: &str) -> Option<u32> {
 }
 
 /// Extracts the first attached picture (cover art) from the container streams.
-fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
+pub(super) fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
     use ff::format::stream::Disposition;
 
     for stream in ictx.streams() {

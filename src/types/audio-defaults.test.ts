@@ -8,8 +8,9 @@ describe('defaultEncoderSettings', () => {
 			bitrateKbps: 64,
 			bitrateMode: { mode: 'vbr', value: 3 },
 			channels: 'auto',
-			afterburner: true,
+			afterburner: false,
 			nativeAacSpeed: 0,
+			faacProfile: 'auto',
 		});
 	});
 });

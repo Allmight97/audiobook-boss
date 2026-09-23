@@ -14,13 +14,7 @@ export function OutputView(): JSX.Element {
 
 	return (
 		<div class="output-panel output-panel-workbench" data-testid="output-panel">
-			<div class="section-header">
-				<h3>Output</h3>
-			</div>
 			<div class="output-panel-body">
-				<label for="output-dir-browse" class="output-subtitle">
-					Output Directory
-				</label>
 				<div class="output-preview-box">
 					<div
 						id="output-dir-text"
@@ -32,6 +26,7 @@ export function OutputView(): JSX.Element {
 					</div>
 					<button
 						id="output-dir-browse"
+						aria-label="Browse output directory"
 						class="output-browse-button"
 						type="button"
 						onClick={() => void browse()}

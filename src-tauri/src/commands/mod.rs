@@ -15,3 +15,5 @@ pub use metadata::*;
 pub use metadata_lookup::*;
 pub use remote_source::*;
 pub use work_runtime::*;
+
+pub use audio::preview_title_audio;

@@ -19,6 +19,9 @@
 
 - Own operation identity, immutable accepted submissions, operation snapshots,
   operation-scoped cancellation, and Work Center event truth.
+- Each output title is one child. Operation and child `source_input_ids` retain
+  all source identities so grouped acquired files survive submission and release
+  together at the correct terminal outcome, including mixed-success batches.
 - Own child `startedAtMs` / `finishedAtMs` in retained snapshots: first active
   progress through output completion (100%, excluding the earlier cleanup
   event). Keep each child's finish when the batch settles; missing timestamps

@@ -23,6 +23,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `extract_passthrough_metadata`, `add_chapters_to_output`. Private modules:
   `passthrough`, `mp4ameta_bridge`. Audio maps `AudioFile` → `PassthroughSource`
   at call sites; metadata must not import `crate::audio::AudioFile`.
+- Crate-local container support: `remux_preserved_audio_container` changes the
+  container of a staged copy and verifies chapters through this boundary.
 - Crate-local write-plan support: `MetadataWritePlan`, `AlbumSortWriteAction`.
 - Pure intent, validation, naming, and write-plan facts are packaged in
   `abb-metadata-core`; `src-tauri/src/metadata` owns container adapters and
@@ -54,7 +56,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `field_schema`.
 - Thumbnail ingestion stays allocation-bounded before decode or demux:
   `mp4_covr` bounds MP4 payload, nesting, and atom traversal; `embedded_cover`
-  reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg. Unknown
+  reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg.
+  `matroska_cover` bounds EBML traversal and cover payload allocation; its
+  recognized cover filenames/MIME types also govern attachment replacement.
+  Other attachments survive metadata edits. Unknown
   non-MP4 tag containers return no thumbnail instead of using an unbounded
   demux fallback.
 
@@ -102,3 +107,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   container discovery for artifact readers. `verify_chapters` checks names,
   starts, ends, and count after final metadata writes and before artifact commit.
   Selected chapter write/readback failures propagate; they are not best effort.
+
+## Opus Container Timing
+
+MP4 output uses the `mp4` muxer explicitly (`ipod` rejects Opus). Matroska covers
+are attachments with a filename and MIME type. Retagging reuses the selected
+cover bytes, preserving explicit-clear intent. For Opus Matroska→MP4 copies,
+packet framing restores the 48 kHz timeline lost to millisecond container
+rounding; discontinuities fail rather than discard audio. MP4 frame-size metadata
+must allow the muxer to honor trailing discard padding. MP3 sources without
+trim metadata stay free of an invented Xing decoder delay during remux.

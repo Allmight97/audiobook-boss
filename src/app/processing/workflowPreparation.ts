@@ -1,6 +1,5 @@
 import { Effect, type AppEffect } from '../../lib/effect/appEffect';
 import type {
-	AudioHandling,
 	FileListInfo,
 	JobType,
 	ProcessPayload,
@@ -20,14 +19,6 @@ type ProcessingWorkflowPromise = <A>(
 	message: string,
 ) => AppEffect<A, ProcessingWorkflowFailed>;
 
-export function validInputFilePaths(fileList: FileListInfo): string[] {
-	return fileList.files.filter((file) => file.isValid).map((file) => file.path);
-}
-
-export function validInputIds(fileList: FileListInfo): (string | undefined)[] {
-	return fileList.files.filter((file) => file.isValid).map((file) => file.inputId);
-}
-
 function toWireInputIds(inputIds: readonly (string | undefined)[]): (string | null)[] {
 	return inputIds.map((inputId) => inputId ?? null);
 }
@@ -38,15 +29,12 @@ export function buildProcessPayload(
 	processingRequestConfig: ProcessingRequestConfig,
 	jobType: JobType,
 	supplementalAssetsByInputId?: Record<string, SupplementalProcessingAsset[]>,
-	audioHandling?: AudioHandling[],
 ): ProcessPayload {
 	return {
 		inputFiles: filePaths,
-		audioHandling,
+		audioRequests: processingRequestConfig.audioRequests,
 		inputIds: toWireInputIds(inputIds),
 		outputDir: processingRequestConfig.outputDirectory,
-		settings: processingRequestConfig.encoderSettings,
-		sampleRate: processingRequestConfig.sampleRate,
 		jobType,
 		outputNaming: processingRequestConfig.outputNaming,
 		supplementalAssetsByInputId,
@@ -78,14 +66,9 @@ function stageMultiSelectionMetadata(
 }
 
 function metadataIntentTargetPath(
-	services: ProcessingWorkflowServices,
 	fileList: FileListInfo,
 	selectedFileIndex: number,
 ): string | undefined {
-	if (services.getJobType() === 'merge') {
-		return validInputFilePaths(fileList)[0];
-	}
-
 	if (selectedFileIndex >= 0) {
 		const selectedFile = fileList.files[selectedFileIndex];
 		if (selectedFile?.isValid) {
@@ -120,7 +103,7 @@ function stageSingleSelectionMetadata(
 		}
 
 		const intentPatch = validation.intentPatch;
-		const targetPath = metadataIntentTargetPath(services, fileList, selectedFileIndex);
+		const targetPath = metadataIntentTargetPath(fileList, selectedFileIndex);
 		if (!targetPath) {
 			yield* Effect.sync(() =>
 				services.feedback.showError('Select a valid input file before processing metadata edits.'),

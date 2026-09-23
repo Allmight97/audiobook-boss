@@ -1,30 +1,20 @@
-import { displayedTitleForFile, formatFileDetails } from '../../app/inputSession';
+import {
+	displayedTitleForFile,
+	formatFileDetails,
+	formatAudioProperties,
+} from '../../app/inputSession';
 import { interpretFileListKeyDown } from '../../app/inputSession/keyboardNavigation';
 import { pathBasename } from '../../lib/path/basename';
 import { useAppRuntime } from '../../app/runtime';
 import { Button } from '../foundation';
 import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
 import type { JSX } from '@solidjs/web';
-import { formatAudioBitrate, type AudioFile } from '../../types/audio';
 
 import { createFileListCoverThumbnails } from './coverThumbnails';
 import { createFileListPointerReorder, type FileListDragState } from './pointerReorder';
+import { TitleSources } from './TitleSources';
 import { AudioHandlingControl } from './AudioHandlingControl';
 import './fileList.css';
-
-function audioPropertiesText(file: AudioFile): string {
-	const bitrate = file.bitrate ? formatAudioBitrate(file.bitrate) : 'Bitrate unknown';
-	const rate = file.sampleRate ? `${file.sampleRate / 1000} kHz` : 'Sample rate unknown';
-	const channels =
-		file.channels === 1
-			? 'Mono'
-			: file.channels === 2
-				? 'Stereo'
-				: file.channels
-					? `${file.channels} channels`
-					: 'Channels unknown';
-	return [bitrate, rate, channels, file.codecLabel?.trim() || 'Codec unknown'].join(' · ');
-}
 
 function isInteractiveListTarget(target: EventTarget | null): boolean {
 	return (
@@ -51,8 +41,6 @@ export function FileListView(props: {
 	const toggleSort = input.toggleSort;
 	const restoreImportOrder = input.restoreImportOrder;
 	const clearAllFiles = input.clearAllFiles;
-	const audioHandling = input.audioHandling;
-	const setAudioHandling = input.setAudioHandling;
 	const thumbnails = createFileListCoverThumbnails((path) =>
 		capability().readAudioCoverThumbnail(path),
 	);
@@ -101,14 +89,6 @@ export function FileListView(props: {
 		return view().selectedIndices.includes(index);
 	}
 
-	function hasCompanion(inputId: string | undefined): boolean {
-		return remoteSource.hasCompanions(inputId);
-	}
-
-	function handlePreservationToggle(file: AudioFile, preserve: boolean): void {
-		setAudioHandling(file, preserve ? 'preserve' : 'encode');
-	}
-
 	function handleFileListClick(index: number, event: MouseEvent): void {
 		if (isInteractiveListTarget(event.target)) return;
 		if (metadataView().saveInProgress) return;
@@ -152,7 +132,8 @@ export function FileListView(props: {
 				<div class="file-list-toolbar-row">
 					<div class="file-list-meta">
 						<span class="muted-text file-list-meta-text" id="file-count-display">
-							{view().fileCount} {view().fileCount === 1 ? 'file' : 'files'}
+							{view().fileCount} {view().fileCount === 1 ? 'title' : 'titles'} ·{' '}
+							{view().sourceFiles.length} files
 						</span>
 						<span
 							class="muted-text file-list-meta-text"
@@ -228,6 +209,10 @@ export function FileListView(props: {
 				>
 					<For each={view().files}>
 						{(file, index) => {
+							const [expanded, setExpanded] = createSignal(false);
+							const sources = () => input.sourcesFor(file);
+							const grouped = () => sources().length > 1;
+							const invalidSource = () => sources().find((source) => !source.isValid);
 							const thumbnail = () => {
 								return thumbnails.read(file.path);
 							};
@@ -239,8 +224,8 @@ export function FileListView(props: {
 									class={[
 										'file-list-item',
 										{
-											valid: file.isValid,
-											invalid: !file.isValid,
+											valid: !invalidSource(),
+											invalid: !!invalidSource(),
 											selected: isSelected(index()),
 											dragging: drag().draggedIndex === index(),
 											'drag-over': drag().hoveredIndex === index(),
@@ -255,7 +240,7 @@ export function FileListView(props: {
 									tabindex={-1}
 									onClick={(event) => handleFileListClick(index(), event)}
 								>
-									<div class="file-item-content">
+									<div class={['file-item-content', { expanded: grouped() && expanded() }]}>
 										<button
 											type="button"
 											class="file-reorder-grip"
@@ -277,67 +262,90 @@ export function FileListView(props: {
 											})()}
 										</div>
 										<div
-											class={`file-status ${file.isValid ? 'file-status-valid' : 'file-status-invalid'}`}
+											class={`file-status ${!invalidSource() ? 'file-status-valid' : 'file-status-invalid'}`}
 										>
-											{file.isValid ? '✓' : '✗'}
+											{!invalidSource() ? '✓' : '✗'}
 										</div>
 										<div class="file-info">
 											<div class="file-name-row">
-												<div class="file-name">{displayedTitleForFile(file)}</div>
-												{hasCompanion(file.inputId) ? (
+												<button
+													type="button"
+													class="file-name title-disclosure"
+													aria-expanded={grouped() ? (expanded() ? 'true' : 'false') : undefined}
+													aria-controls={grouped() ? `title-sources-${index()}` : undefined}
+													onClick={async (event) => {
+														event.stopPropagation();
+														const accepted = await selectFile({
+															index: index(),
+															modifiers: {
+																multi: event.metaKey || event.ctrlKey,
+																range: event.shiftKey,
+															},
+														});
+														if (
+															accepted &&
+															grouped() &&
+															!event.metaKey &&
+															!event.ctrlKey &&
+															!event.shiftKey
+														)
+															setExpanded((value) => !value);
+													}}
+												>
+													<Show when={grouped()}>
+														<svg
+															aria-hidden="true"
+															class="stack-indicator"
+															viewBox="0 0 20 20"
+															width="18"
+															height="18"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+														>
+															<path d="M6 3h8M4 6h12" />
+															<rect x="2.5" y="9" width="15" height="8" rx="2" />
+														</svg>
+														<span aria-hidden="true">{expanded() ? '⌄' : '›'}</span>
+													</Show>
+													<span class="title-disclosure-label">{displayedTitleForFile(file)}</span>
+													<Show when={grouped()}>
+														<span class="title-source-count">{sources().length} files</span>
+													</Show>
+												</button>
+												{sources().some((source) => remoteSource.hasCompanions(source.inputId)) ? (
 													<span class="companion-chip" title="Supplemental PDF attached">
 														PDF
 													</span>
 												) : null}
-												<Show
-													when={file.preservation?.canPreserve && file.preservation.recommended}
-												>
-													<AudioHandlingControl
-														file={file}
-														index={index()}
-														orderLocked={view().orderLocked}
-														setAudioHandling={setAudioHandling}
-													/>
-												</Show>
+												<AudioHandlingControl
+													file={file}
+													index={index()}
+													orderLocked={view().orderLocked}
+												/>
 											</div>
-											<div class="file-details">{formatFileDetails(file)}</div>
+											<div class="file-details">
+												{grouped()
+													? invalidSource()
+														? formatFileDetails(invalidSource() ?? file)
+														: formatFileDetails({
+																...file,
+																duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
+																size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
+																chapters: sources().flatMap((f) => f.chapters ?? []),
+															})
+													: formatFileDetails(file)}
+											</div>
 											<div class="file-audio-row">
-												<Show when={file.isValid}>
+												<Show when={file.isValid && !grouped()}>
 													<div class="file-details file-audio-details">
-														{audioPropertiesText(file)}
-													</div>
-												</Show>
-												<Show when={file.preservation?.canPreserve}>
-													<div class="file-preservation">
-														<fieldset class="preservation-choice-group">
-															<legend class="sr-only">Audio handling</legend>
-															<label class="preservation-toggle">
-																<input
-																	type="checkbox"
-																	checked={audioHandling(file) === 'preserve'}
-																	disabled={view().orderLocked}
-																	aria-label={`Keep original audio for ${displayedTitleForFile(file)}`}
-																	onClick={(event) => event.stopPropagation()}
-																	onChange={(event) =>
-																		handlePreservationToggle(file, event.currentTarget.checked)
-																	}
-																/>
-																<span>Keep original audio</span>
-															</label>
-														</fieldset>
-														<Show
-															when={
-																runtime.input.jobType() === 'merge' &&
-																audioHandling(file) === 'preserve'
-															}
-														>
-															<span class="preservation-warning" role="alert">
-																Turn off Keep original audio to merge, or turn off Merge files.
-															</span>
-														</Show>
+														{formatAudioProperties(file)}
 													</div>
 												</Show>
 											</div>
+											<Show when={grouped() && expanded()}>
+												<TitleSources file={file} id={`title-sources-${index()}`} />
+											</Show>
 											<Show when={file.cueSource}>
 												{(cue) => (
 													<div class="file-cue-details">

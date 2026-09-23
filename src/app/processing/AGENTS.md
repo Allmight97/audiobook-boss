@@ -23,14 +23,15 @@
 ## Hard Invariants
 
 - Compose submit config inside the runtime Processing owner from injected
-  Encoding Configuration and Output owners. Call `encoding.request()` only
-  when at least one valid input will encode; all-preserve exports omit encoder
-  settings and sample rate. Capture Input's audio choices in the same valid-file
-  order as paths and IDs before asynchronous preparation. Collision review calls
-  `runOutputPlanReviewWorkflow(request, output)` with that same owner.
+  Encoding Configuration and Output owners. Capture `encoding.audioRequest(title)`
+  in the same valid-title order as paths and IDs before asynchronous preparation.
+  The backend resolves copying versus encoding; the frontend submits intent.
+  Collision review calls `runOutputPlanReviewWorkflow(request, output)` with
+  that same owner.
   Do not restore `updateOutputPath`, `updateEstimatedSize`, or a
   process-wide encoding/output getter.
-- File-list and job-type truth come from Input. Concurrency enable/disable uses
+- Title membership, ordered sources, and audio choices come from Input.
+  The workbench submits a batch of output titles; grouping is not a global mode. Concurrency enable/disable uses
   Settings. Metadata staging uses the Metadata public strip. Do not read
   leftover file-list or job-control stores.
 - Preview execution is direct `process_audiobook_files` with `previewSeconds`.
@@ -48,7 +49,8 @@
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.
   Submit goes through Processing `start`.
 - Supplemental payload assets come from the injected Remote Source owner.
-  Background submission runs inside its `withSubmissionRetention` operation;
+  Background submission retains every source identity, including hidden stack
+  members, inside `withSubmissionRetention`;
   Processing must not reproduce retain/release/purge ordering.
 - Each Processing owner instance owns its status view store and
   `StatusPanelRuntime`. Two live App Runtimes isolate preview status.

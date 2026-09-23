@@ -13,8 +13,7 @@ These directories arrange existing public views and own no business state:
 - `leftColumn/` — arranges the input workflow and selected-file inspector zones.
 - `metadataManager/` — right-column metadata composition.
 
-`encodingWorkbench/` is stylesheet-only: `src/ui/App.tsx` composes the encoder,
-output, and tags blocks inline and imports `encodingWorkbench.css`.
+`encodingWorkbench/` is stylesheet-only: `src/ui/App.tsx` composes the output and tags blocks inline and imports `encodingWorkbench.css`.
 
 `src/ui/App.tsx` is the rendering integration root. It composes public views;
 application state and intents cross `src/app/<owner>` Public API Strips through

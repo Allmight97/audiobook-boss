@@ -12,6 +12,7 @@ import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
 import type {
+	AppSettings,
 	FileListInfo,
 	MetadataIntentValidationResult,
 	MetadataLookupResponse,
@@ -117,6 +118,7 @@ function mockOperationSnapshot(
 			sourcePath: path,
 			inputIndex: index,
 			inputId: null,
+			sourceInputIds: [],
 			jobId: null,
 			cancellable: false,
 			cancelRequested: false,
@@ -157,6 +159,33 @@ vi.mock('@tauri-apps/api/core', () => ({
 				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
 				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
+			case 'get_app_settings':
+				return Promise.resolve({
+					keepAwakeWhileWorking: true,
+					maxConcurrentJobs: { mode: 'auto' },
+					encoderDefaults: {
+						format: 'm4b',
+						intent: 'auto',
+						sampleRate: 'auto',
+						settings: {
+							encoderType: 'auto',
+							bitrateKbps: 64,
+							bitrateMode: { mode: 'vbr', value: 3 },
+							channels: 'auto',
+							afterburner: true,
+							nativeAacSpeed: 0,
+							faacProfile: 'auto',
+						},
+					},
+					outputDefaults: {
+						outputDirectory: null,
+						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+					},
+					toolchain: { externalFfmpegPath: null },
+					startupBehavior: 'rememberLastState',
+					pinnedDefaults: null,
+					defaultAcquisitionLane: 'audible',
+				} satisfies AppSettings);
 			case 'update_app_settings':
 				return Promise.resolve(_args);
 			case 'read_audio_cover_thumbnail':

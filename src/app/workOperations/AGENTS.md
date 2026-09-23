@@ -38,6 +38,9 @@
 - Keep terminal Input projection and the operation-id tombstone here, then call
   the injected Remote Source owner's `settleTerminalWork` once. Do not import
   private Remote session files or reproduce retain/release/purge sequencing.
+- Terminal cleanup projects every child's `sourceInputIds`, including hidden
+  members of a title stack. Mixed outcomes release all operation sources and
+  purge only sources belonging to completed children.
 - Do not own processing submission, metadata staging, output-plan review, or
   provider auth.
 

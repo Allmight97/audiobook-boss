@@ -27,38 +27,16 @@ function makeFileList(files: AudioFile[]): FileListInfo {
 }
 
 describe('coverOwner', () => {
-	it('resolves merge owner to the first valid input file', () => {
-		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
-
-		expect(resolveCoverOwnerPaths('merge', fileList, [makeFile('/books/b.m4b')])).toEqual([
-			'/books/a.m4b',
-		]);
-	});
-
 	it('resolves batch owner to a single selected valid file only', () => {
-		const fileList = makeFileList([
-			makeFile('/books/a.m4b'),
-			makeFile('/books/b.m4b'),
-			makeFile('/books/c.m4b', false),
-		]);
-
 		expect(
-			resolveCoverOwnerPaths('batch', fileList, [
-				makeFile('/books/b.m4b'),
-				makeFile('/books/c.m4b', false),
-			]),
+			resolveCoverOwnerPaths([makeFile('/books/b.m4b'), makeFile('/books/c.m4b', false)]),
 		).toEqual(['/books/b.m4b']);
 	});
 
 	it('ignores batch multi-select cover ownership', () => {
-		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
-
-		expect(
-			resolveCoverOwnerPaths('batch', fileList, [
-				makeFile('/books/a.m4b'),
-				makeFile('/books/b.m4b'),
-			]),
-		).toEqual([]);
+		expect(resolveCoverOwnerPaths([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')])).toEqual(
+			[],
+		);
 	});
 
 	it('prefers intent patch cover art over stored metadata', () => {
@@ -87,7 +65,6 @@ describe('coverOwner', () => {
 
 		expect(
 			resolveCoverDisplayPath(
-				'batch',
 				fileList,
 				[makeFile('/books/a.m4b'), makeFile('/books/b.m4b')],
 				cache,
@@ -107,7 +84,6 @@ describe('coverOwner', () => {
 
 		expect(
 			resolveCoverDisplayPath(
-				'batch',
 				fileList,
 				[makeFile('/books/a.m4b'), makeFile('/books/b.m4b')],
 				cache,

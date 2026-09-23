@@ -4,9 +4,11 @@
 - Processing Plan: import from `crate::processing::plan`, not private helpers.
   Functions: `resolve_preflight_plan`, `prepare_execution_plan`. Types:
   `ExecutionProcessingPlan`, `ResolvedProcessingPlan`, `PlannedProcessingJob`.
+  Private `title_file_info` projects an inspected source set in title order.
   Callers provide the fresh phase `FileListInfo`; planning never re-inspects
-  inputs. Merge execution retains that inspection, while queued batch jobs
-  inspect again when scheduled to run.
+  inputs. Merge and batch execution retain that inspection, including source fingerprints.
+  Audio revalidates those identities after scheduler/permit waits; queued jobs
+  must not replace the inspected facts underneath an already-resolved audio plan.
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
   `crate::processing`, not `audio`, `commands`, or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
@@ -31,12 +33,19 @@
 
 ## Per-book Audio Handling
 
-- Resolve handling in input order and include it in the reviewed plan signature.
-  Preserve keeps the source extension before collision planning. Merge, preview,
-  and chapter reconstruction require encoding.
-- Encoder settings and sample-rate checks apply only to encoding jobs. An
-  all-preserve request can omit settings; it still follows normal job registration,
-  cancellation, output review, and terminal reporting.
+- `ProcessPayload.input_files` are output-title metadata anchors. Optional
+  `title_sources` maps multi-file anchors to ordered sources and their identities;
+  absent entries are single-source titles. Validate membership, uniqueness,
+  every source path, and all source validity. One planned job and result index
+  represent one output title. Source order participates in the review signature.
+- `audio_requests` contains one request per output title. Audio resolves each
+  request before output collision review; `audio_plans` exposes that result.
+  The resolved format sets the extension. Source order and resolved audio plan
+  participate in the review signature. Preview and CUE reconstruction require
+  encoding. Global-merge requests cannot also carry per-title groups.
+- Settings and sample-rate checks apply only to encoding plans. A copy plan
+  carries no encoder settings and follows normal registration, cancellation,
+  output review, and terminal reporting.
 
 ## Progress / Stage Evolution
 

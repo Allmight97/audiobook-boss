@@ -15,7 +15,7 @@ pub(crate) enum ContainerRoute {
 impl ContainerRoute {
     pub(crate) fn remux_output_format(&self) -> Option<&str> {
         match self {
-            Self::Mp4Family => None,
+            Self::Mp4Family => Some("mp4"),
             Self::Other {
                 remux_output_format,
             } => Some(remux_output_format.as_str()),

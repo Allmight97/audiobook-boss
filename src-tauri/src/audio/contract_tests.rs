@@ -41,6 +41,7 @@ fn audio_contract_rejects_invalid_encoder_bitrate() {
         channels: ChannelConfig::Mono,
         afterburner: true,
         native_aac_speed: 0,
+        faac_profile: crate::audio::FaacProfile::Auto,
     };
 
     let err = validate_encoder_settings(&settings).expect_err("invalid bitrate should fail");

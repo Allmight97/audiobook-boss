@@ -12,6 +12,10 @@ pub struct SupportedAudioFormat {
 
 pub const SUPPORTED_AUDIO_FORMATS: &[SupportedAudioFormat] = &[
     SupportedAudioFormat {
+        extension: "mka",
+        label: "MKA",
+    },
+    SupportedAudioFormat {
         extension: "mp3",
         label: "MP3",
     },
@@ -91,6 +95,9 @@ mod tests {
             .iter()
             .map(|format| format.extension)
             .collect::<Vec<_>>();
-        assert_eq!(extensions, ["mp3", "m4a", "m4b", "aac", "wav", "flac"]);
+        assert_eq!(
+            extensions,
+            ["mka", "mp3", "m4a", "m4b", "aac", "wav", "flac"]
+        );
     }
 }

@@ -14,300 +14,213 @@
  */
 
 #include <math.h>
-#include <stdlib.h>
 
 #include "fft.h"
 #include "util.h"
 
-#define LOGM_SHORT 6      /* logm for the 256-sample short block MDCT */
-#define LOGM_LONG  FFT_MAXLOGM /* logm for the 2048-sample long block MDCT */
+/* Radix-4 twiddles laid out in the order the butterflies consume them: stage
+ * by stage, six floats per butterfly (W^j, W^2j, W^3j as cos, -sin). One
+ * unit-stride stream instead of three gathers keeps the kernel's inner loop
+ * inside the register file. Built once per process and read-only afterwards,
+ * so every encoder handle shares them. */
 
-void fft_initialize(FFT_Tables *fft_tables)
+/* Butterflies per transform: n/4 + n/16 + ... over the radix-4 stages. */
+#define TW_SHORT (16 + 4 + 1)
+#define TW_LONG  (128 + 32 + 8 + 2)
+#define TW_OFFSET(logm) (6 * ((logm) == FFT_LOGM_SHORT ? 0 : TW_SHORT))
+static fftfloat twiddles[6 * (TW_SHORT + TW_LONG)];
+
+void fft_init(void)
 {
-    int i;
-    fft_tables->costbl = AllocMemory((FFT_MAXLOGM + 1) * sizeof(fft_tables->costbl[0]));
-    fft_tables->negsintbl = AllocMemory((FFT_MAXLOGM + 1) * sizeof(fft_tables->negsintbl[0]));
-    fft_tables->reordertbl = AllocMemory((FFT_MAXLOGM + 1) * sizeof(fft_tables->reordertbl[0]));
+    static const unsigned char logms[2] = { FFT_LOGM_SHORT, FFT_LOGM_LONG };
+    int t;
 
-    if (!fft_tables->costbl || !fft_tables->negsintbl || !fft_tables->reordertbl)
+    for (t = 0; t < 2; t++)
     {
-        if (fft_tables->costbl) FreeMemory(fft_tables->costbl);
-        if (fft_tables->negsintbl) FreeMemory(fft_tables->negsintbl);
-        if (fft_tables->reordertbl) FreeMemory(fft_tables->reordertbl);
-        fft_tables->costbl = NULL;
-        fft_tables->negsintbl = NULL;
-        fft_tables->reordertbl = NULL;
-        return;
-    }
+        int logm = logms[t];
+        int size = 1 << logm;
+        fftfloat *tw = twiddles + TW_OFFSET(logm);
+        int n2, i;
 
-    for (i = 0; i < FFT_MAXLOGM + 1; i++)
-    {
-        fft_tables->costbl[i] = NULL;
-        fft_tables->negsintbl[i] = NULL;
-        fft_tables->reordertbl[i] = NULL;
-    }
-
-    for (i = 0; i < FFT_MAXLOGM + 1; i++)
-    {
-        fft_tables->mdct_cos[i] = NULL;
-        fft_tables->mdct_sin[i] = NULL;
-    }
-
-    /* Precompute MDCT pre/post-twiddles for both block sizes now, so the
-       per-frame twiddle loop is a table lookup instead of a cos/sin recurrence. */
-    {
-        static const int logms[2] = { LOGM_SHORT, LOGM_LONG };
-        int t;
-        for (t = 0; t < 2; t++)
+        for (n2 = size >> 2; n2 >= 1; n2 >>= 2)
         {
-            int logm = logms[t];
-            int size = 1 << logm;
-            double freq = 2.0 * M_PI_DOUBLE / (double)(4 << logm);
-            fftfloat *c = AllocMemory(size * sizeof(fftfloat));
-            fftfloat *s = AllocMemory(size * sizeof(fftfloat));
-
-            if (!c || !s)
+            /* stage twiddle W_N^(j*size/(4*n2)) = exp(-2*pi*i*j/(4*n2)) */
+            for (i = 0; i < n2; i++)
             {
-                if (c) FreeMemory(c);
-                if (s) FreeMemory(s);
-                continue;
+                int m;
+                for (m = 1; m <= 3; m++)
+                {
+                    double theta = 2.0 * M_PI_DOUBLE * (double)(m * i) / (double)(4 * n2);
+                    *tw++ = (fftfloat)cos(theta);
+                    *tw++ = (fftfloat)-sin(theta);
+                }
             }
-
-            for (i = 0; i < size; i++)
-            {
-                double theta = freq * ((double)i + 0.125);
-                c[i] = (fftfloat)cos(theta);
-                s[i] = (fftfloat)sin(theta);
-            }
-            fft_tables->mdct_cos[logm] = c;
-            fft_tables->mdct_sin[logm] = s;
         }
     }
 }
 
-void fft_terminate(FFT_Tables *fft_tables)
-{
-    int i;
 
-    for (i = 0; i < FFT_MAXLOGM + 1; i++)
-    {
-        if (fft_tables->costbl[i] != NULL)
-            FreeMemory(fft_tables->costbl[i]);
-
-        if (fft_tables->negsintbl[i] != NULL)
-            FreeMemory(fft_tables->negsintbl[i]);
-
-        if (fft_tables->reordertbl[i] != NULL)
-            FreeMemory(fft_tables->reordertbl[i]);
-    }
-
-    for (i = 0; i < FFT_MAXLOGM + 1; i++)
-    {
-        if (fft_tables->mdct_cos[i] != NULL)
-            FreeMemory(fft_tables->mdct_cos[i]);
-        if (fft_tables->mdct_sin[i] != NULL)
-            FreeMemory(fft_tables->mdct_sin[i]);
-        fft_tables->mdct_cos[i] = NULL;
-        fft_tables->mdct_sin[i] = NULL;
-    }
-
-    FreeMemory(fft_tables->costbl);
-    FreeMemory(fft_tables->negsintbl);
-    FreeMemory(fft_tables->reordertbl);
-
-    fft_tables->costbl = NULL;
-    fft_tables->negsintbl = NULL;
-    fft_tables->reordertbl = NULL;
-}
-
-
-/* Radix-4 DIF. Swapping the 2nd/3rd butterfly outputs yields plain
- * bit-reversed order at the end, avoiding a digit-reversal permutation.
- * logm=9 (512) isn't a power of 4, so it ends with one radix-2 stage.
+/* Radix-4 DIF, self-sorting (Stockham). Stage k holds B = 4^k sub-transforms
+ * interleaved, element j of sub-transform c at j*B + c, so a butterfly reads
+ * the four quarters of src and writes four interleaved runs of dst. The output
+ * lands in natural order without a permutation pass. logm=9 (512) isn't a
+ * power of 4, so it ends with one radix-2 stage.
  */
 
-static void check_tables_radix4(FFT_Tables *fft_tables, int logm)
+#define BUTTERFLY_SUMS \
+    float t1 = r1 + r3, t2 = i1 + i3; \
+    float t3 = r2 + r4, t4 = i2 + i4; \
+    float t5 = r1 - r3, t6 = i1 - i3; \
+    float t7 = r2 - r4, t8 = i2 - i4
+
+/* Stage 0: a single sub-transform, so the twiddle changes every butterfly
+ * and the four outputs of butterfly j are adjacent at 4j. j=0's identity
+ * twiddle isn't special-cased: one butterfly in n/4 isn't worth a second
+ * copy of the loop body. */
+static void radix4_first_stage(
+    const float * restrict sr,
+    const float * restrict si,
+    float * restrict dr,
+    float * restrict di,
+    int n4,
+    const fftfloat * restrict tw)
 {
-    if (fft_tables->costbl[logm] == NULL)
+    int j;
+
+    for (j = 0; j < n4; j++)
     {
-        int size = 1 << logm;
-        int i;
-        /* one table serves all stages: stage k needs W_N^{k<<2k'} via tw_idx below */
-        fft_tables->costbl[logm] = AllocMemory(size * sizeof(*(fft_tables->costbl[0])));
-        fft_tables->negsintbl[logm] = AllocMemory(size * sizeof(*(fft_tables->negsintbl[0])));
+        const float c1 = tw[6 * j],     s1 = tw[6 * j + 1];
+        const float c2 = tw[6 * j + 2], s2 = tw[6 * j + 3];
+        const float c3 = tw[6 * j + 4], s3 = tw[6 * j + 5];
+        float * restrict o = dr + 4 * j;
+        float * restrict p = di + 4 * j;
 
-        if (!fft_tables->costbl[logm] || !fft_tables->negsintbl[logm])
-        {
-            if (fft_tables->costbl[logm]) FreeMemory(fft_tables->costbl[logm]);
-            if (fft_tables->negsintbl[logm]) FreeMemory(fft_tables->negsintbl[logm]);
-            fft_tables->costbl[logm] = fft_tables->negsintbl[logm] = NULL;
-            return;
-        }
+        float r1 = sr[j],          i1 = si[j];
+        float r2 = sr[j + n4],     i2 = si[j + n4];
+        float r3 = sr[j + 2 * n4], i3 = si[j + 2 * n4];
+        float r4 = sr[j + 3 * n4], i4 = si[j + 3 * n4];
+        BUTTERFLY_SUMS;
 
-        for (i = 0; i < size; i++)
-        {
-            double theta = 2.0 * M_PI_DOUBLE * (double)i / (double)size;
-            fft_tables->costbl[logm][i] = (fftfloat)cos(theta);
-            fft_tables->negsintbl[logm][i] = (fftfloat)-sin(theta);
-        }
+        o[0] = t1 + t3;
+        p[0] = t2 + t4;
+
+        r1 = t1 - t3; i1 = t2 - t4;
+        r2 = t5 + t8; i2 = t6 - t7;
+        r3 = t5 - t8; i3 = t6 + t7;
+
+        o[1] = r2 * c1 - i2 * s1;
+        p[1] = r2 * s1 + i2 * c1;
+        o[2] = r1 * c2 - i1 * s2;
+        p[2] = r1 * s2 + i1 * c2;
+        o[3] = r3 * c3 - i3 * s3;
+        p[3] = r3 * s3 + i3 * c3;
     }
 }
 
-static void radix4_dif_proc(
-    float * restrict xr,
-    float * restrict xi,
-    int logm,
-    const fftfloat * restrict costbl,
-    const fftfloat * restrict sintbl)
+/* B butterflies sharing one twiddle: element c of each of the four input
+ * quarters to element c of each of the four output runs. A restrict pointer
+ * per output run tells the vectorizer the runs can't overlap. */
+static inline void radix4_butterflies(
+    const float * restrict sr, const float * restrict si, int n4,
+    float * restrict o1r, float * restrict o1i,
+    float * restrict o2r, float * restrict o2i,
+    float * restrict o3r, float * restrict o3i,
+    float * restrict o4r, float * restrict o4i,
+    int B,
+    const fftfloat * restrict tw)
 {
+    const float c1 = tw[0], s1 = tw[1];
+    const float c2 = tw[2], s2 = tw[3];
+    const float c3 = tw[4], s3 = tw[5];
+    int c;
+
+    for (c = 0; c < B; c++)
+    {
+        float r1 = sr[c],          i1 = si[c];
+        float r2 = sr[c + n4],     i2 = si[c + n4];
+        float r3 = sr[c + 2 * n4], i3 = si[c + 2 * n4];
+        float r4 = sr[c + 3 * n4], i4 = si[c + 3 * n4];
+        BUTTERFLY_SUMS;
+
+        o1r[c] = t1 + t3;
+        o1i[c] = t2 + t4;
+
+        r1 = t1 - t3; i1 = t2 - t4;
+        r2 = t5 + t8; i2 = t6 - t7;
+        r3 = t5 - t8; i3 = t6 + t7;
+
+        o2r[c] = r2 * c1 - i2 * s1;
+        o2i[c] = r2 * s1 + i2 * c1;
+        o3r[c] = r1 * c2 - i1 * s2;
+        o3i[c] = r1 * s2 + i1 * c2;
+        o4r[c] = r3 * c3 - i3 * s3;
+        o4i[c] = r3 * s3 + i3 * c3;
+    }
+}
+
+/* Later stages: B = 4*B4 sub-transforms share each twiddle, so the inner
+ * loop is unit-stride over c. Passing B4 rather than B lets the vectorizer
+ * see the trip count is a multiple of four and skip the epilogue. */
+static void radix4_stage(
+    const float * restrict sr,
+    const float * restrict si,
+    float * restrict dr,
+    float * restrict di,
+    int n4,
+    int B4,
+    const fftfloat * restrict tw)
+{
+    const int B = 4 * B4;
+    int n2 = n4 / B;
+    int j;
+
+    for (j = 0; j < n2; j++, tw += 6, sr += B, si += B, dr += 4 * B, di += 4 * B)
+        radix4_butterflies(sr, si, n4, dr, di, dr + B, di + B,
+                           dr + 2 * B, di + 2 * B, dr + 3 * B, di + 3 * B,
+                           B, tw);
+}
+
+/* odd logm: 4^k can't fill it, one radix-2 stage mops up the remainder */
+static void radix2_stage(
+    const float * restrict r1p, const float * restrict i1p,
+    const float * restrict r2p, const float * restrict i2p,
+    float * restrict o1r, float * restrict o1i,
+    float * restrict o2r, float * restrict o2i,
+    int n2)
+{
+    int c;
+
+    for (c = 0; c < n2; c++)
+    {
+        float r1 = r1p[c], i1 = i1p[c];
+        float r2 = r2p[c], i2 = i2p[c];
+        o1r[c] = r1 + r2; o1i[c] = i1 + i2;
+        o2r[c] = r1 - r2; o2i[c] = i1 - i2;
+    }
+}
+
+void fft(float * restrict x, float * restrict y, int logm)
+{
+    const fftfloat *tw = twiddles + TW_OFFSET(logm);
     int n = 1 << logm;
-    int n2 = n;
-    int n1;
-    int i, j, k;
+    int n4 = n >> 2;
+    float *src = y, *dst = x;
+    int B4;
 
-    for (k = 0; k < (logm >> 1); k++)
+    /* Stages ping-pong x -> y -> x ...; both sizes take an odd number of
+     * them, so the result lands in y. */
+    radix4_first_stage(x, x + n, y, y + n, n4, tw);
+    tw += 6 * n4;
+    for (B4 = 1; 4 * B4 <= n4; B4 *= 4)
     {
-        n1 = n2;
-        n2 >>= 2;
-        for (i = 0; i < n; i += n1)
-        {
-            float * restrict r1p = xr + i;
-            float * restrict r2p = xr + i + n2;
-            float * restrict r3p = xr + i + 2*n2;
-            float * restrict r4p = xr + i + 3*n2;
-            float * restrict i1p = xi + i;
-            float * restrict i2p = xi + i + n2;
-            float * restrict i3p = xi + i + 2*n2;
-            float * restrict i4p = xi + i + 3*n2;
-
-            /* j=0 unrolled: skip the twiddle multiply, it's the identity here */
-            {
-                float r1 = *r1p, i1 = *i1p;
-                float r2 = *r2p, i2 = *i2p;
-                float r3 = *r3p, i3 = *i3p;
-                float r4 = *r4p, i4 = *i4p;
-
-                float t1 = r1 + r3, t2 = i1 + i3;
-                float t3 = r2 + r4, t4 = i2 + i4;
-                float t5 = r1 - r3, t6 = i1 - i3;
-                float t7 = r2 - r4, t8 = i2 - i4;
-
-                *r1p = t1 + t3; *i1p = t2 + t4;
-                *r3p = t5 + t8; *i3p = t6 - t7;
-                *r2p = t1 - t3; *i2p = t2 - t4;
-                *r4p = t5 - t8; *i4p = t6 + t7;
-
-                r1p++; r2p++; r3p++; r4p++;
-                i1p++; i2p++; i3p++; i4p++;
-            }
-
-            /* unit-stride pointers, not xr[i+j+...], so the compiler can vectorize this */
-            for (j = 1; j < n2; j++)
-            {
-                int tw_idx = j << (2 * k);
-                const float c1 = (float)costbl[tw_idx];
-                const float s1 = (float)sintbl[tw_idx];
-                const float c2 = (float)costbl[2 * tw_idx];
-                const float s2 = (float)sintbl[2 * tw_idx];
-                const float c3 = (float)costbl[3 * tw_idx];
-                const float s3 = (float)sintbl[3 * tw_idx];
-
-                float r1 = *r1p, i1 = *i1p;
-                float r2 = *r2p, i2 = *i2p;
-                float r3 = *r3p, i3 = *i3p;
-                float r4 = *r4p, i4 = *i4p;
-
-                float t1 = r1 + r3, t2 = i1 + i3;
-                float t3 = r2 + r4, t4 = i2 + i4;
-                float t5 = r1 - r3, t6 = i1 - i3;
-                float t7 = r2 - r4, t8 = i2 - i4;
-
-                *r1p = t1 + t3;
-                *i1p = t2 + t4;
-
-                r1 = t1 - t3; i1 = t2 - t4;
-                r2 = t5 + t8; i2 = t6 - t7;
-                r3 = t5 - t8; i3 = t6 + t7;
-
-                *r3p = r2 * c1 - i2 * s1;
-                *i3p = r2 * s1 + i2 * c1;
-                *r2p = r1 * c2 - i1 * s2;
-                *i2p = r1 * s2 + i1 * c2;
-                *r4p = r3 * c3 - i3 * s3;
-                *i4p = r3 * s3 + i3 * c3;
-
-                r1p++; r2p++; r3p++; r4p++;
-                i1p++; i2p++; i3p++; i4p++;
-            }
-        }
+        float *t;
+        radix4_stage(src, src + n, dst, dst + n, n4, B4, tw);
+        tw += 6 * (n4 / (4 * B4));
+        t = src; src = dst; dst = t;
     }
-
-    /* odd logm: 4^k can't fill it, one radix-2 stage mops up the remainder */
-    if (logm & 1)
-    {
-        float * restrict r1p = xr;
-        float * restrict r2p = xr + 1;
-        float * restrict i1p = xi;
-        float * restrict i2p = xi + 1;
-        for (i = 0; i < n; i += 2)
-        {
-            float r1 = *r1p, i1 = *i1p;
-            float r2 = *r2p, i2 = *i2p;
-            *r1p = r1 + r2; *i1p = i1 + i2;
-            *r2p = r1 - r2; *i2p = i1 - i2;
-            r1p += 2; r2p += 2; i1p += 2; i2p += 2;
-        }
-    }
-}
-
-static void bit_reverse(
-    float * restrict xr,
-    float * restrict xi,
-    int logm,
-    const unsigned short * restrict r)
-{
-    int i;
-    int size = 1 << logm;
-
-    for (i = 0; i < size; i++)
-    {
-        int j = (int)r[i];
-        if (j > i)
-        {
-            float tr = xr[i]; xr[i] = xr[j]; xr[j] = tr;
-            float ti = xi[i]; xi[i] = xi[j]; xi[j] = ti;
-        }
-    }
-}
-
-void fft(FFT_Tables *fft_tables, float *xr, float *xi, int logm)
-{
-    if (logm > FFT_MAXLOGM) return;
-    if (logm < 1) return;
-
-    check_tables_radix4(fft_tables, logm);
-
-    if (fft_tables->reordertbl[logm] == NULL)
-    {
-        int size = 1 << logm;
-        int i;
-        fft_tables->reordertbl[logm] = AllocMemory(size * sizeof(*(fft_tables->reordertbl[0])));
-        if (!fft_tables->reordertbl[logm]) return;
-
-        for (i = 0; i < size; i++)
-        {
-            int reversed = 0;
-            int b;
-            int tmp = i;
-            for (b = 0; b < logm; b++)
-            {
-                reversed = (reversed << 1) | (tmp & 1);
-                tmp >>= 1;
-            }
-            fft_tables->reordertbl[logm][i] = (unsigned short)reversed;
-        }
-    }
-
-    radix4_dif_proc(xr, xi, logm, fft_tables->costbl[logm], fft_tables->negsintbl[logm]);
-    bit_reverse(xr, xi, logm, fft_tables->reordertbl[logm]);
+    /* Odd logm stops at 4*B4 = n/2 sub-transforms of length 2, whose two
+     * elements sit n/2 apart: one radix-2 stage pairs them. */
+    if (4 * B4 < n)
+        radix2_stage(x, x + n, x + n / 2, x + n + n / 2,
+                     y, y + n, y + n / 2, y + n + n / 2, 4 * B4);
 }

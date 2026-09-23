@@ -72,6 +72,45 @@ describe('metadata session selection and save', () => {
 		runtime = undefined;
 	});
 
+	it('keeps one title draft across source reorder, save, and separation', async () => {
+		const metadata = fakeMetadata();
+		runtime = createAppRuntime({ metadata });
+		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list(files),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Alpha draft' });
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Beta draft' });
+		await runtime.input.selectAll();
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.input.groupSelected();
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha draft');
+		runtime.input.reorderSources(files[0]!, 0, 1);
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha draft');
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Grouped title' });
+		await runtime.metadata.save();
+		expect(metadata.saveMetadataBatch).not.toHaveBeenCalled();
+		expect(
+			(await runtime.metadata.intentsForProcess([files[0]!.path]))?.[files[0]!.path]?.title,
+		).toEqual({ op: 'set', value: 'Grouped title' });
+		await runtime.input.ungroup(files[0]!);
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Beta draft');
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Grouped title');
+	});
+
 	it('hydrates a single selection from native metadata reads', async () => {
 		const metadata = fakeMetadata();
 		runtime = createAppRuntime({ metadata });

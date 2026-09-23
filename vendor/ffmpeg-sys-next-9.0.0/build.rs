@@ -232,6 +232,15 @@ fn native_build_identity(sysroot: Option<&str>) -> io::Result<String> {
     for name in names {
         writeln!(identity, "{name}={:?}", env::var_os(&name)).unwrap();
     }
+    if env::var_os("CARGO_FEATURE_BUILD_LIB_OPUS").is_some() {
+        let opus = pkg_config::Config::new().cargo_metadata(false).statik(true)
+            .probe("opus").map_err(io::Error::other)?;
+        let archive = opus.link_paths.iter().flat_map(|path| [path.join("libopus.a"), path.join("opus.lib")])
+            .find(|path| path.is_file())
+            .ok_or_else(|| io::Error::other("Opus static library is required; install the libopus development package"))?;
+        println!("cargo:rerun-if-changed={}", archive.display());
+        writeln!(identity, "opus-version={}\nopus-archive={}\nopus-hash={}", opus.version, archive.display(), git_blob_hash(&archive)?).unwrap();
+    }
     let compiler = cc::Build::new().get_compiler();
     let version = compiler
         .to_command()
@@ -1295,7 +1304,13 @@ fn main() {
                 .iter()
                 .filter(|flag| flag.starts_with("-l"))
                 .map(|lib| &lib[2..])
-                .for_each(|lib| println!("cargo:rustc-link-lib={lib}"));
+                .for_each(|lib| {
+                    if lib == "opus" {
+                        println!("cargo:rustc-link-lib=static=opus");
+                    } else {
+                        println!("cargo:rustc-link-lib={lib}");
+                    }
+                });
 
             extra_linker_args
                 .iter()

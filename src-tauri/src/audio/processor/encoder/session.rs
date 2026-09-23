@@ -46,7 +46,22 @@ impl Backend {
     }
     pub fn parameters(&self) -> Result<ff::codec::Parameters> {
         match self {
-            Self::Ffmpeg(e) => Ok(ff::codec::Parameters::from(e)),
+            Self::Ffmpeg(e) => {
+                let mut parameters = ff::codec::Parameters::from(e);
+                if e.id() == ff::codec::Id::OPUS {
+                    // Opus headers and decoded skip counts use the 48 kHz clock,
+                    // even when libopus consumes 24 kHz PCM. Keep mux timing on
+                    // that same clock so MP4 edit lists retain the full interval.
+                    // SAFETY: parameters owns this live AVCodecParameters allocation.
+                    unsafe {
+                        let raw = &mut *parameters.as_mut_ptr();
+                        raw.initial_padding = raw.initial_padding * 48_000 / raw.sample_rate;
+                        raw.frame_size = raw.frame_size * 48_000 / raw.sample_rate;
+                        raw.sample_rate = 48_000;
+                    }
+                }
+                Ok(parameters)
+            }
             Self::Faac(e) => e.parameters(),
         }
     }
@@ -109,8 +124,9 @@ impl EncoderSession {
     }
     pub(crate) fn name(&self) -> &'static str {
         match self.resolved {
-            EncoderType::FaacHeAac => "faac",
+            EncoderType::Faac => "faac",
             EncoderType::AacAt => "aac_at",
+            EncoderType::Opus => "libopus",
             _ => "aac",
         }
     }
@@ -138,9 +154,9 @@ impl EncoderSession {
                         &mut self.output,
                         self.stream_index,
                         self.time_base,
-                        ff::Rational(1, self.backend.rate() as i32),
+                        ff::Rational(1, encoder.info.sample_rate as i32),
                         self.submitted_samples,
-                        true,
+                        encoder.is_he(),
                         &mut self.stats,
                     )?;
                 }
@@ -169,7 +185,7 @@ impl EncoderSession {
                         self.time_base,
                         ff::Rational(1, rate as i32),
                         self.submitted_samples,
-                        true,
+                        encoder.is_he(),
                         &mut self.stats,
                     )?;
                 }
@@ -187,9 +203,10 @@ impl EncoderSession {
         let ffmpeg_version =
             unsafe { CStr::from_ptr(ff::sys::av_version_info()) }.to_string_lossy();
         let codec = match &self.backend {
-            Backend::Faac(e) => format!("faac_version={} profile=HE-AAC-v1 target_bitrate_bps={} core_priming_samples={} decoder_delay_samples={} reported_encoder_delay_samples={} timing=core_edit_list_with_postroll",
-                faac::library_version(), e.info.bit_rate * e.channels, super::super::faac_timing::CORE_PRIMING, super::super::faac_timing::SBR_DELAY, e.info.encoder_delay),
+            Backend::Faac(e) => format!("faac_version={} profile={} rate_control={} target_bitrate_bps={} quant_quality={} bandwidth={} mpeg_version={} core_priming_samples={} reported_encoder_delay_samples={}",
+                faac::library_version(), e.profile_name(), if e.info.rate_control == faac_sys::FAAC_RC_VBR { "VBR" } else { "ABR" }, e.info.bit_rate * e.channels, e.info.quant_quality, e.info.bandwidth, e.info.mpeg_version, e.priming(), e.info.encoder_delay),
             Backend::Ffmpeg(_) if self.resolved == EncoderType::NativeAac => "profile=AAC-LC aac_coder=nmr options_verified=true".into(),
+            Backend::Ffmpeg(_) if self.resolved == EncoderType::Opus => "codec=Opus encoder=libopus rate_control=VBR".into(),
             Backend::Ffmpeg(_) => "profile=AAC-LC encoder=AudioToolbox".into(),
         };
         let seconds = self.submitted_samples as f64 / f64::from(self.rate());

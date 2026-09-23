@@ -9,9 +9,18 @@ use ff::{packet::Mut, Rescale};
 use ffmpeg_next as ff;
 use std::path::Path;
 
-pub(super) const ENCODING_TOOL: &str = "AudioBook Boss FAAC HE-AAC";
-pub(super) const CORE_PRIMING: i64 = 2079;
+pub(super) const ENCODING_TOOL: &str = "AudioBook Boss FAAC HE-AAC timing-2";
+pub(super) const CORE_PRIMING: i64 = 2080;
 pub(super) const SBR_DELAY: i64 = 962;
+
+fn core_priming(tool: Option<&str>) -> Option<i64> {
+    match tool {
+        Some(ENCODING_TOOL) => Some(CORE_PRIMING),
+        // Files written before upstream's one-sample HE input padding.
+        Some("AudioBook Boss FAAC HE-AAC") => Some(2079),
+        _ => None,
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct FaacDecodeWindow {
@@ -22,9 +31,9 @@ pub(super) struct FaacDecodeWindow {
 
 impl FaacDecodeWindow {
     pub fn from_input(input: &ff::format::context::Input) -> Result<Option<Self>> {
-        if input.metadata().get("encoder") != Some(ENCODING_TOOL) {
+        let Some(priming) = core_priming(input.metadata().get("encoder")) else {
             return Ok(None);
-        }
+        };
         let stream = input
             .streams()
             .best(ff::media::Type::Audio)
@@ -40,7 +49,7 @@ impl FaacDecodeWindow {
         let samples = stream
             .duration()
             .rescale(stream.time_base(), ff::Rational(1, rate));
-        let start_sample = CORE_PRIMING + SBR_DELAY;
+        let start_sample = priming + SBR_DELAY;
         let end_sample = start_sample
             .checked_add(samples)
             .filter(|end| *end > start_sample)
@@ -101,4 +110,22 @@ pub(super) fn inspect(path: &Path) -> Result<Option<FaacDecodeWindow>> {
         ))
     })?;
     FaacDecodeWindow::from_input(&input)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_provenance_preserves_old_he_timing_and_excludes_other_encoders() {
+        for (tool, expected) in [
+            (Some("AudioBook Boss FAAC HE-AAC"), Some(2079)),
+            (Some("AudioBook Boss FAAC HE-AAC timing-2"), Some(2080)),
+            (Some("AudioBook Boss FAAC AAC-LC"), None),
+            (Some("FAAC"), None),
+            (None, None),
+        ] {
+            assert_eq!(core_priming(tool), expected);
+        }
+    }
 }

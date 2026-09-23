@@ -17,6 +17,9 @@
 ## Preferred Path
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
+- Encoding preparation validates every source against its retained inspection
+  fingerprint before creating a workspace. A queued replacement must fail rather
+  than run with an audio plan resolved for the previous file.
 - Preserve dispatch happens before encoder resolution. Its blocking worker
   copies an eligible source into the tracked workspace, applies explicit metadata
   intent through the metadata owner, and uses shared finalization. Copy cancellation
@@ -25,11 +28,16 @@
   cached import validity does not authorize reopening a replaced path. Compare the
   inspected size/modified-time fingerprint against the opened source handle before
   creating the staged copy.
+- `preserve_merge` owns compatibility and packet-copy joining of AAC or MP3 titles:
+  matching configuration/rate/channels/time base, complete contiguous frames,
+  and no per-source priming/trimming. Unsupported joins fail explicitly without
+  falling back to an encoder. Preflight scans timing; execution repeats the
+  check against fingerprint-validated private source copies. Metadata/chapter
+  finalization and output publication use their existing owners.
 - Resolve the encoder once at adapter dispatch and carry that choice into the
   in-process setup. Explicit Native/Apple selections validate their linked
   encoder without probing external FDK; bundled FAAC is available without an
-  external toolchain. Auto still resolves the available toolchain in FDK →
-  Apple → Native order and does not select FAAC. Do not repeat
+  external toolchain. Auto resolves FDK → Native NMR and does not select Apple or FAAC. Do not repeat
   external-toolchain detection while opening the encoder.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
@@ -63,9 +71,14 @@
 
 ## Encoder diagnostics
 
-- Shared encoder run records use the private `run_diagnostics` helper for requested
-  settings and monotonic/wall-clock timing. Adapter records add only facts owned by
+- Shared encoder run records use the private `run_diagnostics` helper for file
+  writes, requested settings, and monotonic/wall-clock timing. Both routes share
+  one write lock and prefer `ABB_ENCODING_LOG`; `ABB_LOG_FILE` is the legacy
+  fallback, truncated once per process. Adapter records add only facts owned by
   that adapter; unavailable opened settings remain explicitly `unknown`.
+- Finalization emits `audio_output` from a read-only probe of the completed staged
+  file, before publication. These are observed file properties, not encoder
+  configuration; unavailable diagnostics never change processing success.
 - The private `encoder::EncoderSession` owns the selected backend, PCM
   submission, packet muxing, drain, and trailer. Callers submit contiguous
   frames and finish the session; backend handles and packet mechanics stay
@@ -75,10 +88,15 @@
 
 ## FAAC file timing
 
-- `faac_timing` owns the core priming used in MP4 and the native decoder's PCM
-  interval. Its standard encoding-tool tag identifies ABB-produced FAAC files;
-  never apply that interval to arbitrary HE-AAC files.
-- Re-import reads all FAAC access units, including decoder postroll, and trims
+- `encoder/faac.rs` owns requested parameters and resolved configuration. Its
+  opened profile determines frame size, mux profile, priming, postroll policy,
+  and encoding-tool tag; profile Auto must work for both LC and HE.
+- `faac_timing` owns HE core priming in MP4 and the native decoder's PCM
+  interval. Its encoding-tool tag identifies the timing convention of
+  ABB-produced HE files; retain each recognized convention when upgrading
+  upstream priming. LC uses a distinct tag and its returned encoder delay.
+  Apply the HE interval only to the recognized HE provenance.
+- HE re-import reads all FAAC access units, including decoder postroll, and trims
   at source sample rate before preview, resampling, or concatenation. In-process
   packet skip metadata and external FDK filters consume the same interval.
   Encoder selection does not change the source's playable audio.

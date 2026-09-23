@@ -1,3 +1,4 @@
+import { titleAudioRequest } from '../../../test/fixtures/titleAudio';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StatusPanelRuntime } from '../runtime';
 import { createAppRuntime } from '../../runtime';
@@ -9,15 +10,14 @@ import {
 	type ProcessingWorkflowContext,
 	type ProcessingWorkflowServices,
 } from '../workflow';
-import {
-	defaultEncoderSettings,
-	type AudioFile,
-	type FileListInfo,
-	type ProcessCommandResult,
-	type ProcessingPreflightPlan,
-	type ProcessingRequestConfig,
-	type ProcessPayload,
-	type JobType,
+import type {
+	AudioFile,
+	FileListInfo,
+	ProcessCommandResult,
+	ProcessingPreflightPlan,
+	ProcessingRequestConfig,
+	ProcessPayload,
+	JobType,
 } from '../../../types/audio';
 import type { WorkSubmissionAccepted } from '../../../types/workRuntime';
 import type { OutputPlanReviewResult } from '../../outputPlan';
@@ -27,7 +27,7 @@ function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile 
 		path,
 		size: 1,
 		duration: 1,
-		format: 'm4b',
+		format: 'm4b' as const,
 		bitrate: undefined,
 		sampleRate: undefined,
 		channels: undefined,
@@ -52,8 +52,7 @@ function fileList(paths = ['/books/a.m4b']): FileListInfo {
 
 function processingConfig(): ProcessingRequestConfig {
 	return {
-		encoderSettings: defaultEncoderSettings(),
-		sampleRate: 'auto',
+		audioRequests: [titleAudioRequest()],
 		outputDirectory: '/tmp/out',
 		outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 	};
@@ -64,6 +63,7 @@ function preflightPlan(payload: ProcessPayload): ProcessingPreflightPlan {
 		jobType: payload.jobType ?? 'merge',
 		previewSeconds: undefined,
 		collisionPolicy: payload.collisionPolicy ?? 'fail',
+		audioPlans: [],
 		planSignature: 'preflight-approved',
 		outputs: payload.inputFiles.map((inputPath, inputIndex) => ({
 			inputIndex,
@@ -151,7 +151,6 @@ function workflowContext(): ProcessingWorkflowContext {
 
 function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 	const feedback = { showError: vi.fn() };
-	const getJobTypeMock = vi.fn((): JobType => 'merge');
 	const runOutputPlanReviewWorkflowMock: ProcessingWorkflowServices['runOutputPlanReviewWorkflow'] =
 		vi.fn(
 			async ({ payload }): Promise<OutputPlanReviewResult> => ({
@@ -168,9 +167,11 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 		getCurrentFileList: vi.fn(() => fileList()),
 		getSelectedFileIndex: vi.fn(() => 0),
 		getSelectedFileIndices: vi.fn(() => new Set([0])),
-		getAudioHandling: () => 'encode',
-		readProcessingRequestConfig: vi.fn(() => processingConfig()),
-		getJobType: getJobTypeMock,
+		sourcesFor: (file) => [file],
+		readProcessingRequestConfig: vi.fn((titles: readonly AudioFile[]) => ({
+			...processingConfig(),
+			audioRequests: titles.map(() => titleAudioRequest()),
+		})),
 		hasDirtyMetadataFields: vi.fn(() => false),
 		readMetadataForm: vi.fn(() => ({})),
 		stageIntent: vi.fn(() => 'staged' as const),
@@ -184,7 +185,7 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 			fieldErrors: [],
 		})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
-		submitProcessingOperation: vi.fn(async () => acceptedSubmission(getJobTypeMock())),
+		submitProcessingOperation: vi.fn(async () => acceptedSubmission('batch')),
 		remoteSource,
 		runOutputPlanReviewWorkflow: runOutputPlanReviewWorkflowMock,
 		openGeneratedPreviewIfSingle: vi.fn(async () => undefined),
@@ -299,6 +300,43 @@ describe('ProcessingWorkflow', () => {
 		);
 	});
 
+	it('submits a stack and a separate title while retaining every ordered source', async () => {
+		const anchor = audioFile('/books/one.m4b', { inputId: 'one' });
+		const second = audioFile('/books/two.m4b', { inputId: 'two' });
+		const separate = audioFile('/books/other.m4b', { inputId: 'other' });
+		const { services } = workflowServices({
+			getCurrentFileList: () => ({ ...fileList(), files: [anchor, separate], validCount: 2 }),
+			sourcesFor: (file) => (file.path === anchor.path ? [second, anchor] : [file]),
+			readProcessingRequestConfig: (titles) => ({
+				...processingConfig(),
+				audioRequests: titles.map((file) =>
+					titleAudioRequest({ intent: file.path === anchor.path ? 'auto' : 'encode' }),
+				),
+			}),
+		});
+		await runWithServices(workflowContext(), services);
+		expect(services.submitProcessingOperation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.objectContaining({
+					inputFiles: [anchor.path, separate.path],
+					inputIds: ['one', 'other'],
+					audioRequests: [titleAudioRequest(), titleAudioRequest({ intent: 'encode' })],
+					titleSources: {
+						[anchor.path]: [
+							{ path: second.path, inputId: 'two' },
+							{ path: anchor.path, inputId: 'one' },
+						],
+					},
+				}),
+			}),
+		);
+		expect(services.intentsForProcess).toHaveBeenCalledWith([anchor.path, separate.path]);
+		expect(services.remoteSource.withSubmissionRetention).toHaveBeenCalledWith(
+			['two', 'one', 'other'],
+			expect.any(Function),
+		);
+	});
+
 	it('passes acquired supplemental PDF assets into processing payload by FileList input id', async () => {
 		const currentFileList: FileListInfo = {
 			files: [audioFile('/session/book.m4b', { inputId: 'current-input-1' })],
@@ -324,7 +362,6 @@ describe('ProcessingWorkflow', () => {
 		const ctx = workflowContext();
 		const { services } = workflowServices({
 			getCurrentFileList: vi.fn(() => currentFileList),
-			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
 				processingAssets: vi.fn(() => supplementalAssetsByInputId),
 				withSubmissionRetention: vi.fn(async (_inputIds, submit) => submit()),
@@ -449,7 +486,6 @@ describe('ProcessingWorkflow', () => {
 			});
 		const submittedWhileRetained: boolean[] = [];
 		const { services } = workflowServices({
-			getJobType: vi.fn((): JobType => 'batch'),
 			remoteSource: {
 				processingAssets: vi.fn(() => undefined),
 				withSubmissionRetention,
@@ -494,19 +530,22 @@ describe('mixed preserved and encoded books', () => {
 		);
 		const { services } = workflowServices({
 			getCurrentFileList: () => books,
-			getJobType: () => 'batch',
-			getAudioHandling: (file) =>
-				['input-1', 'input-2', 'input-3'].includes(file.inputId ?? '') ? 'preserve' : 'encode',
+			readProcessingRequestConfig: vi.fn((titles: readonly AudioFile[]) => ({
+				...processingConfig(),
+				audioRequests: titles.map((file) =>
+					titleAudioRequest({
+						intent: ['input-1', 'input-2', 'input-3'].includes(file.inputId ?? '')
+							? 'auto'
+							: 'encode',
+					}),
+				),
+			})),
 			intentsForProcess: vi.fn(async () => patches),
 		});
 		await runWithServices(workflowContext(), services);
-		expect(services.readProcessingRequestConfig).toHaveBeenCalledWith([
-			'preserve',
-			'preserve',
-			'preserve',
-			'encode',
-			'encode',
-		]);
+		expect(services.readProcessingRequestConfig).toHaveBeenCalledWith(
+			books.files.filter((file) => file.isValid),
+		);
 		expect(services.submitProcessingOperation).toHaveBeenCalledWith({
 			payload: expect.objectContaining({
 				inputFiles: [
@@ -517,7 +556,13 @@ describe('mixed preserved and encoded books', () => {
 					'/books/standard.mp3',
 				],
 				inputIds: ['input-1', 'input-2', 'input-3', 'input-4', 'input-5'],
-				audioHandling: ['preserve', 'preserve', 'preserve', 'encode', 'encode'],
+				audioRequests: [
+					titleAudioRequest(),
+					titleAudioRequest(),
+					titleAudioRequest(),
+					titleAudioRequest({ intent: 'encode' }),
+					titleAudioRequest({ intent: 'encode' }),
+				],
 				outputDir: '/tmp/out',
 				preflightSignature: 'preflight-approved',
 			}),
@@ -526,9 +571,9 @@ describe('mixed preserved and encoded books', () => {
 	});
 });
 
-it('exports only-preserved books without asking the live Encoding owner for a usable encoder', async () => {
+it('submits MP3 pass-through with no encoder settings', async () => {
 	const books = fileList(['/books/original.mp3']);
-	books.files[0]!.preservation = { canPreserve: true, recommended: true };
+	books.files[0]!.preservation = { canPreserve: true };
 	const preflight = vi
 		.spyOn(tauriClient, 'preflightProcessingPlan')
 		.mockImplementation(async ({ payload }) => preflightPlan(payload));
@@ -539,30 +584,27 @@ it('exports only-preserved books without asking the live Encoding owner for a us
 		.spyOn(tauriClient, 'readAudioMetadata')
 		.mockResolvedValue({ title: 'Original' });
 	const runtime = createAppRuntime();
-	const encoder = vi.spyOn(runtime.encoding, 'request').mockImplementation(() => {
-		throw new Error('Encoder unavailable');
-	});
+
 	try {
 		runtime.input.replaceSession({ ...runtime.input.session(), fileList: books });
-		runtime.input.setAudioHandling(books.files[0]!, 'preserve');
+		runtime.input.setAudioRequest(
+			books.files[0]!,
+			titleAudioRequest({ format: 'mp3', settings: null }),
+		);
 		runtime.output.applyDefaults({
 			outputDirectory: '/tmp/out',
 			outputNaming: { preset: 'absDefault', includeYear: false },
 		});
 		await runtime.processing.start();
-		expect(encoder).not.toHaveBeenCalled();
 		expect(submit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				payload: expect.objectContaining({
-					audioHandling: ['preserve'],
-					settings: undefined,
-					sampleRate: undefined,
+					audioRequests: [titleAudioRequest({ format: 'mp3', settings: null })],
 				}),
 			}),
 		);
 	} finally {
 		runtime.dispose();
-		encoder.mockRestore();
 		readMetadata.mockRestore();
 		preflight.mockRestore();
 		submit.mockRestore();

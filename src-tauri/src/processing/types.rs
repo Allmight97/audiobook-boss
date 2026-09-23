@@ -1,6 +1,5 @@
 use super::lifecycle::{OperationKind, OperationResultSummary};
 use crate::audio;
-use crate::audio::EncoderSettings;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
 pub use abb_processing_core::ProcessResultStatus;
@@ -30,21 +29,27 @@ impl From<JobType> for OperationKind {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TitleSource {
+    pub path: String,
+    pub input_id: Option<String>,
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessPayload {
+    /// One metadata anchor per output title. Source order never changes this identity.
     pub input_files: Vec<String>,
+    /// Ordered sources for multi-file titles, keyed by their metadata anchor.
+    pub title_sources: Option<HashMap<String, Vec<TitleSource>>>,
     pub chapter_plans: Option<HashMap<String, crate::metadata::ChapterPlan>>,
     /// Session/workbench identities aligned to `input_files`; used for acquired
     /// source sidecars without replacing path as the filesystem source label.
     pub input_ids: Option<Vec<Option<String>>>,
     pub output_dir: String,
-    pub settings: Option<EncoderSettings>,
-    /// Per-input audio handling aligned with `input_files`. Absent means encode
-    /// every input, preserving the existing request shape.
-    pub audio_handling: Option<Vec<AudioHandling>>,
-    /// Sample rate from frontend (optional, defaults to Auto)
-    pub sample_rate: Option<audio::SampleRateConfig>,
+    /// One audio request per output title (one request for a global merge).
+    pub audio_requests: Vec<audio::TitleAudioRequest>,
     pub job_type: Option<JobType>,
     /// Output naming configuration (defaults to ABS-compatible)
     pub output_naming: Option<OutputNamingConfig>,
@@ -58,22 +63,77 @@ pub struct ProcessPayload {
 }
 
 impl ProcessPayload {
-    pub(crate) fn resolved_audio_handling(&self) -> crate::errors::Result<Vec<AudioHandling>> {
-        let handling = self
-            .audio_handling
-            .clone()
-            .unwrap_or_else(|| vec![AudioHandling::Encode; self.input_files.len()]);
-        if handling.len() != self.input_files.len() {
-            return Err(crate::errors::AppError::InvalidInput(
-                "Audio handling must align with the processing input files.".into(),
+    pub(crate) fn sources_for(&self, index: usize) -> Vec<TitleSource> {
+        let anchor = &self.input_files[index];
+        self.title_sources
+            .as_ref()
+            .and_then(|groups| groups.get(anchor))
+            .cloned()
+            .unwrap_or_else(|| {
+                vec![TitleSource {
+                    path: anchor.clone(),
+                    input_id: self
+                        .input_ids
+                        .as_ref()
+                        .and_then(|ids| ids.get(index))
+                        .cloned()
+                        .flatten(),
+                }]
+            })
+    }
+
+    pub(crate) fn validate_title_sources(&self) -> crate::errors::Result<()> {
+        use crate::errors::AppError;
+        if self.title_sources.as_ref().is_some_and(|groups| {
+            groups
+                .keys()
+                .any(|anchor| !self.input_files.contains(anchor))
+        }) {
+            return Err(AppError::InvalidInput(
+                "Title sources must belong to a requested output title.".into(),
             ));
         }
-        if self.job_type == Some(JobType::Merge) && handling.contains(&AudioHandling::Preserve) {
-            return Err(crate::errors::AppError::InvalidInput(
-                "Keep original audio requires separate outputs. Turn off Merge files or re-encode these books.".into(),
+        if self.job_type == Some(JobType::Merge)
+            && self
+                .title_sources
+                .as_ref()
+                .is_some_and(|groups| !groups.is_empty())
+        {
+            return Err(AppError::InvalidInput(
+                "Title groups cannot be combined with a global merge request.".into(),
             ));
         }
-        Ok(handling)
+        let mut paths = std::collections::HashSet::new();
+        for (index, anchor) in self.input_files.iter().enumerate() {
+            let sources = self.sources_for(index);
+            if sources.is_empty() || !sources.iter().any(|source| &source.path == anchor) {
+                return Err(AppError::InvalidInput(
+                    "Every title needs its metadata source among its ordered audio sources.".into(),
+                ));
+            }
+            for source in sources {
+                if !paths.insert(source.path) {
+                    return Err(AppError::InvalidInput(
+                        "An audio source can belong to only one output title.".into(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_audio_requests(&self) -> crate::errors::Result<()> {
+        let count = if self.job_type == Some(JobType::Merge) {
+            1
+        } else {
+            self.input_files.len()
+        };
+        if self.audio_requests.len() != count {
+            return Err(crate::errors::AppError::InvalidInput(
+                "Audio requests must align with output titles.".into(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -99,6 +159,7 @@ pub struct ProcessingPreflightPlan {
     pub collision_policy: CollisionPolicy,
     pub plan_signature: String,
     pub outputs: Vec<PlannedOutput>,
+    pub audio_plans: Vec<audio::TitleAudioPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]

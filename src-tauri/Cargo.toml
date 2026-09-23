@@ -1,6 +1,6 @@
 [package]
 name = "audiobook-boss"
-version = "1.10.0"
+version = "1.11.0"
 description = "AudioBook Boss™ — Batch audiobook processing and metadata management"
 authors = ["JStar"]
 edition = "2021"
@@ -101,6 +101,7 @@ decoder-contract = []
 bundled-ffmpeg = [
     "ffmpeg-next/build",
     "ffmpeg-sys-next/build-audiotoolbox",
+    "ffmpeg-sys-next/build-lib-opus",
 ]
 bundled-ffmpeg-portable = [
     "bundled-ffmpeg",

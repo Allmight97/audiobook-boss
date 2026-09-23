@@ -58,6 +58,7 @@ export const commands = {
 	 *  Returns comprehensive file information including duration and size
 	 */
 	analyzeAudioFiles: (filePaths: string[]) => typedError<FileListInfo, AppErrorEnvelope>(__TAURI_INVOKE("analyze_audio_files", { filePaths })),
+	previewTitleAudio: (filePaths: string[], request: TitleAudioRequest, chapterPlans: { [key in string]: ChapterPlan } | null) => typedError<TitleAudioPlan, AppErrorEnvelope>(__TAURI_INVOKE("preview_title_audio", { filePaths, request, chapterPlans })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
 	/**  Recursively discovers supported local audio files from files and directories. */
@@ -79,8 +80,6 @@ export const commands = {
 	getRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_indexer_connection")),
 	updateRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("update_remote_source_indexer_connection", { update })),
 	testRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection", { update })),
-	/**  Validates encoder settings (no side effects) */
-	validateEncoderSettings: (settings: EncoderSettings) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_encoder_settings", { settings })),
 	/**  Returns backend-owned runtime settings capabilities for UI controls. */
 	getRuntimeSettingsCapabilities: () => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities")),
 	/**  Delegate an explicitly requested installation/update to Homebrew in Terminal. */
@@ -107,7 +106,7 @@ export const commands = {
 	preset: NamingPreset,
 	includeYear: boolean,
 	customTemplate: string | null,
-} | null, sourcePath: string | null, outputKind: "final" | "preview" | null, audioHandling: "encode" | "preserve" | null) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, audioHandling })),
+} | null, sourcePath: string | null, outputKind: "final" | "preview" | null, format: AudiobookFormat) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, format })),
 	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
 	/**  Returns the current maximum concurrent jobs setting */
 	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
@@ -270,10 +269,13 @@ export type AudioFile = {
 
 export type AudioHandling = "encode" | "preserve";
 
+export type AudioIntent = "auto" | "preserve" | "encode";
+
 export type AudioPreservation = {
 	canPreserve: boolean,
-	recommended: boolean,
 };
+
+export type AudiobookFormat = "m4b" | "mp3" | "m4aOpus" | "mkaOpus";
 
 export type AudiobookMetadata = {
 	title: string | null,
@@ -295,7 +297,9 @@ export type AudiobookMetadata = {
 };
 
 /**  Bitrate/quality control mode per encoder */
-export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number };
+export type BitrateMode = { mode: "cbr" } | { mode: "cvbr" } | { mode: "abr" } | { mode: "vbr"; value: number } |
+/**  Variable bitrate driven by target kbps (Opus). */
+{ mode: "vbr_target" };
 
 /**  Bitrate mode capability without encoder-specific values. */
 export type BitrateModeKind = "cbr" | "cvbr" | "abr" | "vbr";
@@ -328,6 +332,7 @@ export type ChildJobSnapshot = {
 	sourcePath: string | null,
 	inputIndex: number | null,
 	inputId: string | null,
+	sourceInputIds: string[],
 	jobId: string | null,
 	cancellable: boolean,
 	cancelRequested: boolean,
@@ -378,12 +383,17 @@ export type EncoderCapabilitySource = "none" | "detected" |
  */
 export type EncoderConfigurationCapability = {
 	encoderType: EncoderType,
+	bitrateKbpsMin: number,
+	bitrateKbpsMax: number,
 	allowedModes: BitrateModeKind[],
 	defaultMode: BitrateMode,
 	explicitSampleRates: number[],
+	faacProfiles: FaacProfileCapability[],
 };
 
 export type EncoderDefaults = {
+	format?: AudiobookFormat,
+	intent?: AudioIntent,
 	settings: EncoderSettings,
 	sampleRate: SampleRateConfig,
 };
@@ -401,7 +411,7 @@ export type EncoderSettings = {
 	encoderType: EncoderType,
 	/**
 	 *  Target kbps. Native AAC additionally checks the resolved rate/channel ceiling.
-	 *  Ignored by VBR-only encoders (FDK): the VBR level owns bitrate there.
+	 *  Ignored in VBR mode, where the encoder's quality setting owns bitrate.
 	 */
 	bitrateKbps: number,
 	bitrateMode: BitrateMode,
@@ -410,15 +420,16 @@ export type EncoderSettings = {
 	afterburner: boolean,
 	/**  Native NMR search speed, upstream default 0. */
 	nativeAacSpeed?: number,
+	faacProfile?: FaacProfile,
 };
 
 export type EncoderSettingsCapabilities = {
 	availability: EncoderAvailability,
 	encoderTypes: EncoderType[],
-	bitrateKbpsMin: number,
 	encoderConfigurations: EncoderConfigurationCapability[],
-	bitrateKbpsMax: number,
 	nativeSpeedMax: number,
+	faacQualityPresets: number[],
+	faacQualityDefault: number,
 	vbrLevelMin: number,
 	vbrLevelMax: number,
 	vbrLevelDefault: number,
@@ -429,7 +440,7 @@ export type EncoderSettingsCapabilities = {
 
 /**  Supported encoder types for audiobooks */
 export type EncoderType =
-/**  Auto-detect best available (FDK > Apple > Native AAC) */
+/**  Auto-detect best available (FDK > Native NMR) */
 "auto" |
 /**  FDK HE-AAC VBR (libfdk_aac) */
 "fdk_he_aac" |
@@ -437,8 +448,10 @@ export type EncoderType =
 "aac_at" |
 /**  Native FFmpeg AAC encoder (aac) */
 "native_aac" |
-/**  Bundled FAAC HE-AAC v1 using average bitrate control. */
-"faac_he_aac";
+/**  Bundled FAAC AAC-LC / HE-AAC v1. */
+"faac" |
+/**  Opus via bundled libopus. */
+"opus";
 
 /**
  *  Stage identifier emitted on `processing-progress` events.
@@ -450,6 +463,14 @@ export type EncoderType =
  *  pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
  */
 export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "skipped" | "failed" | "cancelled";
+
+/**  FAAC resolves Auto once from the requested output configuration. */
+export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
+
+export type FaacProfileCapability = {
+	profile: FaacProfile,
+	explicitSampleRates: number[],
+};
 
 /**  Summary information for a file list */
 export type FileListInfo = {
@@ -713,7 +734,10 @@ export type ProcessCommandResult = {
 };
 
 export type ProcessPayload = {
+	/**  One metadata anchor per output title. Source order never changes this identity. */
 	inputFiles: string[],
+	/**  Ordered sources for multi-file titles, keyed by their metadata anchor. */
+	titleSources: { [key in string]: TitleSource[] } | null,
 	chapterPlans: { [key in string]: ChapterPlan } | null,
 	/**
 	 *  Session/workbench identities aligned to `input_files`; used for acquired
@@ -721,14 +745,8 @@ export type ProcessPayload = {
 	 */
 	inputIds: (string | null)[] | null,
 	outputDir: string,
-	settings: EncoderSettings | null,
-	/**
-	 *  Per-input audio handling aligned with `input_files`. Absent means encode
-	 *  every input, preserving the existing request shape.
-	 */
-	audioHandling: AudioHandling[] | null,
-	/**  Sample rate from frontend (optional, defaults to Auto) */
-	sampleRate: SampleRateConfig | null,
+	/**  One audio request per output title (one request for a global merge). */
+	audioRequests: TitleAudioRequest[],
 	jobType: JobType | null,
 	/**  Output naming configuration (defaults to ABS-compatible) */
 	outputNaming: OutputNamingConfig | null,
@@ -761,6 +779,7 @@ export type ProcessingPreflightPlan = {
 	collisionPolicy: CollisionPolicy,
 	planSignature: string,
 	outputs: PlannedOutput[],
+	audioPlans: TitleAudioPlan[],
 };
 
 /**  Progress event structure for frontend communication */
@@ -1044,6 +1063,29 @@ export type SupportedAudioImportMetadata = {
 	extensions: string[],
 	formatsText: string,
 	supportText: string,
+};
+
+export type TitleAudioPlan = {
+	format: AudiobookFormat,
+	handling: AudioHandling,
+	settings: EncoderSettings | null,
+	sampleRate: number,
+	channels: number,
+	sourceCodec: string,
+	/**  Why Auto needs encoding even though the output codec matches. */
+	reason: string | null,
+};
+
+export type TitleAudioRequest = {
+	format: AudiobookFormat,
+	intent: AudioIntent,
+	settings: EncoderSettings | null,
+	sampleRate: SampleRateConfig,
+};
+
+export type TitleSource = {
+	path: string,
+	inputId: string | null,
 };
 
 /**

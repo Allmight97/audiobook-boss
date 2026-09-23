@@ -121,6 +121,9 @@ fn write_encoded_packets(
                 )))
             }
         }
+        if encoder.id() == ff::codec::Id::OPUS && encoder.rate() != 48_000 {
+            rescale_opus_skip_samples(&mut packet, encoder.rate())?;
+        }
         write_packet(
             packet,
             output_context,
@@ -200,5 +203,43 @@ pub(super) fn write_packet(
     stats.bytes += bytes;
     stats.first_pts.get_or_insert(pts);
     stats.last_pts = Some(pts);
+    Ok(())
+}
+
+fn rescale_opus_skip_samples(packet: &mut ff::Packet, input_rate: u32) -> Result<()> {
+    let Some(mut skip) = packet
+        .side_data()
+        .find(|side| side.kind() == ff::packet::side_data::Type::SkipSamples)
+        .map(|side| side.data().to_vec())
+    else {
+        return Ok(());
+    };
+    if skip.len() != 10 {
+        return Err(AppError::General("Invalid Opus trim metadata.".into()));
+    }
+    for offset in [0, 4] {
+        let count = u32::from_le_bytes(
+            skip[offset..offset + 4]
+                .try_into()
+                .expect("checked skip payload"),
+        );
+        let scaled = (u64::from(count) * 48_000 / u64::from(input_rate)) as u32;
+        skip[offset..offset + 4].copy_from_slice(&scaled.to_le_bytes());
+    }
+    // SAFETY: the packet owns its replacement ten-byte side-data allocation.
+    // libopus counts trims at input rate; Opus containers count decoded samples at 48 kHz.
+    unsafe {
+        let data = ff::sys::av_packet_new_side_data(
+            packet.as_mut_ptr(),
+            ff::sys::AVPacketSideDataType::AV_PKT_DATA_SKIP_SAMPLES,
+            10,
+        );
+        if data.is_null() {
+            return Err(AppError::General(
+                "Cannot allocate Opus trim metadata.".into(),
+            ));
+        }
+        std::ptr::copy_nonoverlapping(skip.as_ptr(), data, skip.len());
+    }
     Ok(())
 }

@@ -46,8 +46,9 @@ static int compute_kx(int sampleRate, int bs_start_freq)
 static int cmp_int16(const void *a, const void *b) { return (int)(*(const short *)a) - (int)(*(const short *)b); }
 static int cmp_int(const void *a, const void *b) { return *(const int *)a - *(const int *)b; }
 
-/* SBR stop frequency (k2). Bark-scale distribution maximizes bit efficiency. */
-static int compute_k2(int sampleRate, int kx, int bs_stop_freq)
+/* SBR stop frequency (k2), ISO 14496-3 §4.6.18.3.2.1. Decoders derive it
+ * from bs_stop_freq alone, so it can't be adjusted here. */
+static int compute_k2(int sampleRate, int bs_stop_freq)
 {
     if (bs_stop_freq == 14 || bs_stop_freq == 15) return 64;
     int temp = (sampleRate < 32000) ? 3000 : (sampleRate < 64000) ? 4000 : 5000;
@@ -72,20 +73,28 @@ static int compute_k2(int sampleRate, int kx, int bs_stop_freq)
         k2 = 64;
     }
 
-    int max_span = (sampleRate <= 32000) ? 48 : (sampleRate <= 44100) ? 35 : 32;
-    return clamp_int(k2, kx + 1, kx + max_span > 64 ? 64 : kx + max_span);
+    return k2;
 }
 
-/* Smallest stop-frequency index reaching targetHz, or the largest useful one.
- * Searched rather than tabulated: the index-to-frequency mapping comes from
- * compute_k2 and shifts with sample rate, so a fixed table would overshoot
- * at some rates. */
+/* Widest k2 - kx decoders accept (§4.6.18.3.2.1). */
+static int max_sbr_span(int sampleRate)
+{
+    return (sampleRate <= 32000) ? 48 : (sampleRate <= 44100) ? 35 : 32;
+}
+
+/* Smallest stop-frequency index reaching targetHz, or the widest one decoders
+ * accept. Searched rather than tabulated: the index-to-frequency mapping
+ * shifts with sample rate, so a fixed table would overshoot at some rates. */
 static int pick_stop_freq(int sampleRate, int kx, int targetHz)
 {
-    for (int sf = SBR_STOP_FREQ_MIN; sf < SBR_STOP_FREQ_MAX; sf++)
-        if ((long)compute_k2(sampleRate, kx, sf) * sampleRate / (2 * SBR_QMF_BANDS_64) >= targetHz)
-            return sf;
-    return SBR_STOP_FREQ_MAX;
+    int best = SBR_STOP_FREQ_MIN;
+    for (int sf = SBR_STOP_FREQ_MIN; sf <= SBR_STOP_FREQ_MAX; sf++) {
+        int k2 = compute_k2(sampleRate, sf);
+        if (k2 - kx > max_sbr_span(sampleRate)) break;
+        best = sf;
+        if ((long)k2 * sampleRate / (2 * SBR_QMF_BANDS_64) >= targetHz) break;
+    }
+    return best;
 }
 
 /* Master table (ISO 14496-3 §4.6.18.3.2.1). bs_freq_scale 0: uniform
@@ -127,7 +136,7 @@ static int build_freq_table(SBRInfo *sbr)
     return n_master;
 }
 
-SBRInfo *SbrInit(int channels, int sampleRate, unsigned long bitRate, FFT_Tables *fft_tables)
+SBRInfo *SbrInit(int channels, int sampleRate, unsigned long bitRate)
 {
     SBRInfo *sbr = (SBRInfo *)AllocMemory(sizeof(SBRInfo));
     if (!sbr) return NULL;
@@ -145,11 +154,6 @@ SBRInfo *SbrInit(int channels, int sampleRate, unsigned long bitRate, FFT_Tables
         sbr->oddCos[m] = (float)cos(M_PI_DOUBLE * (2 * m + 1) / 128.0);
         sbr->oddSin[m] = (float)sin(M_PI_DOUBLE * (2 * m + 1) / 128.0);
     }
-    /* Borrow the encoder's shared core FFT tables (same fft() routine, same
-     * logm=6 size as the short-block MDCT). The core owns init/terminate; the
-     * logm=6 table is built lazily on first use, single-threaded per encoder. */
-    sbr->fftTables = fft_tables;
-
     SbrUpdate(sbr, bitRate);
     return sbr;
 }
@@ -178,7 +182,7 @@ void SbrUpdate(SBRInfo *sbr, unsigned long bitRate)
      * bands above the target cost the same envelope bits as the ones below, so
      * there's no reason to stop short of what's audible. */
     sbr->bs_stop_freq = pick_stop_freq(sampleRate, sbr->kx, SBR_STOP_FREQ_TARGET_HZ);
-    sbr->k2 = compute_k2(sampleRate, sbr->kx, sbr->bs_stop_freq);
+    sbr->k2 = compute_k2(sampleRate, sbr->bs_stop_freq);
 
     build_freq_table(sbr);
 }
@@ -186,7 +190,6 @@ void SbrUpdate(SBRInfo *sbr, unsigned long bitRate)
 void SbrEnd(SBRInfo *sbr)
 {
     if (!sbr) return;
-    /* fftTables is borrowed from the encoder; the core terminates it. */
     FreeMemory(sbr);
 }
 
@@ -282,11 +285,11 @@ unsigned int SbrContextGetXOverBandwidth(SBRContext *sbrCtx)
                            (2 * SBR_QMF_BANDS_64));
 }
 
-void SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate, FFT_Tables *fft_tables)
+void SbrContextUpdateConfig(SBRContext *sCtx, int channels, unsigned long bitrate)
 {
     if (!sCtx) return;
     if (!sCtx->sbrInfo)
-        sCtx->sbrInfo = SbrInit(channels, sCtx->fullSampleRate, bitrate, fft_tables);
+        sCtx->sbrInfo = SbrInit(channels, sCtx->fullSampleRate, bitrate);
     else
         SbrUpdate(sCtx->sbrInfo, bitrate);
 }
@@ -310,7 +313,6 @@ void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe
             memset(rs->halfRate[channel], 0, FRAME_LEN * sizeof(float));
             heHalfRate[channel] = rs->halfRate[channel];
             sCtx->signalAnalysis.ch[channel].transientStrength = 0.0f;
-            sCtx->signalAnalysis.ch[channel].wantShort = 0;
         }
         sbr_frame_silence(fd);
     } else {
@@ -334,16 +336,6 @@ void SbrContextProcessFrame(SBRContext *sCtx, int numChannels, const bool *isLfe
         SbrEncode(sCtx->sbrInfo, fullPtrs, numChannels, isLfe, 2 * FRAME_LEN, &sCtx->signalAnalysis, fd);
         /* Dual-rate decimation: produces the halved-rate core signal. */
         Resample(rs, 2 * FRAME_LEN);
-    }
-
-    /* Update the transient FIFO. Shift down by one and push
-     * the newest decision at SBR_DETECT_FIFO-1; index 0 stays aligned with the
-     * core frame being coded (LOOKAHEAD_DEPTH frames behind this analysis). */
-    for (channel = 0; channel < (unsigned int)numChannels; channel++) {
-        memmove(&sCtx->transientStrengthFIFO[channel][0], &sCtx->transientStrengthFIFO[channel][1], (SBR_DETECT_FIFO - 1) * sizeof(float));
-        sCtx->transientStrengthFIFO[channel][SBR_DETECT_FIFO - 1] = sCtx->signalAnalysis.ch[channel].transientStrength;
-        memmove(&sCtx->wantShortFIFO[channel][0], &sCtx->wantShortFIFO[channel][1], (SBR_DETECT_FIFO - 1) * sizeof(int));
-        sCtx->wantShortFIFO[channel][SBR_DETECT_FIFO - 1] = sCtx->signalAnalysis.ch[channel].wantShort;
     }
 }
 
@@ -376,19 +368,6 @@ void SbrContextResolveRate(SBRContext *sCtx, unsigned long *sampleRate, unsigned
     }
 }
 
-int SbrContextIsAnalysisValid(SBRContext *sCtx)
-{
-    return sCtx ? sCtx->signalAnalysis.valid : 0;
-}
-
-int SbrContextGetWantShort(SBRContext *sCtx, int channel, int index)
-{
-    if (sCtx && channel < MAX_CHANNELS && index < SBR_DETECT_FIFO) {
-        return sCtx->wantShortFIFO[channel][index];
-    }
-    return 0;
-}
-
 int SbrContextIsPresent(SBRContext *sCtx)
 {
     return (sCtx && sCtx->sbrInfo) ? 1 : 0;
@@ -415,7 +394,9 @@ static inline float fast_log2(float x)
  * SBR bitstream only transmits envelope magnitudes. */
 void SbrQmfAnalysis(SBRInfo *sbr, const float * restrict ovl_pos, float * restrict energy, int kx, int k2)
 {
-    float xr[64], xi[64];
+    float x[128], y[128];
+    float * restrict xr = x, * restrict xi = x + 64;
+    const float * restrict yr = y, * restrict yi = y + 64;
     const sbrfloat * restrict p0 = qmf_c;
     for (int m = 0; m < 64; m++) {
         int n0 = 2 * m;
@@ -434,14 +415,14 @@ void SbrQmfAnalysis(SBRInfo *sbr, const float * restrict ovl_pos, float * restri
         xi[m] = -(a * sbr->twidSin[m] + b * sbr->twidCos[m]);
         p0 += 2;
     }
-    fft(sbr->fftTables, xr, xi, 6);
+    fft(x, y, FFT_LOGM_SHORT);
     for (int k = kx; k < k2; k++) {
         int kr = 63 - k;
         /* Separate the two real-subsequence DFTs by conjugate symmetry. */
-        float Ar = 0.5f * (xr[k] + xr[kr]);
-        float Ai = 0.5f * (xi[kr] - xi[k]);
-        float Br = -0.5f * (xi[k] + xi[kr]);
-        float Bi = 0.5f * (xr[kr] - xr[k]);
+        float Ar = 0.5f * (yr[k] + yr[kr]);
+        float Ai = 0.5f * (yi[kr] - yi[k]);
+        float Br = -0.5f * (yi[k] + yi[kr]);
+        float Bi = 0.5f * (yr[kr] - yr[k]);
         /* Sr = Ar + w_k_real * Br - w_k_imag * Bi
          * Si = Ai + w_k_real * Bi + w_k_imag * Br */
         float wr = sbr->oddCos[k];

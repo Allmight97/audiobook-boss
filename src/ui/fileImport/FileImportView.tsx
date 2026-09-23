@@ -25,7 +25,7 @@ export function FileImportView(): JSX.Element {
 	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
 	createEffect(
-		() => view().files,
+		() => view().sourceFiles,
 		(files) => {
 			void runtime.remoteSource.reconcileWithInput(files);
 		},

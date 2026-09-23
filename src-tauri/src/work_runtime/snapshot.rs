@@ -157,6 +157,7 @@ fn new_child(
         progress: ProgressSnapshot::pending("Queued.", total_items),
         source_path,
         input_index,
+        source_input_ids: input_id.iter().cloned().collect(),
         input_id,
         job_id: None,
         cancellable: false,

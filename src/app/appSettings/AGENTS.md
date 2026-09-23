@@ -4,8 +4,8 @@
 
 - Owns accepted preferences, automatic persistence and durability state,
   startup hydration, dialog intents, pinned-defaults capture, and reset.
-- Import `createSettingsOwner`, `hydrateAppSettingsProduction`, and owner types
-  from `src/app/appSettings`. `owner.ts`, `dialog.ts`, `hydrate.ts`, and
+- Import `createSettingsOwner` and owner types
+  from `src/app/appSettings`. `owner.ts`, `dialog.ts`, and
   `startupDefaults.ts` are private implementation files.
 - Views and sibling owners dispatch semantic Settings intents. Runtime
   composition injects `rememberEncoderDefaults` and `rememberOutputDefaults`;
@@ -24,6 +24,8 @@
 - Coalesce pending defaults by field, serialize writes, and retry the newest
   accepted values. Older completions cannot claim newer choices are saved.
   Persistence retries do not reconfigure concurrency.
+- Concurrency's Auto option displays the backend capability's `autoEffective`,
+  independently of the currently accepted fixed job count.
 - Reset waits for in-flight writes and supersedes older pending defaults only
   when it succeeds. Accepted changes requested after reset remain applied and
   pending until their own write succeeds. Reset reflects the runtime's
@@ -36,8 +38,10 @@
 ## Startup And Capture
 
 - Hydration and capability clamping never persist. Startup source selection
-  lives in `startupDefaults.ts`; panel appliers consume its resolved defaults.
-- Accepted user changes record top-level last-used values. Capture ("Use
+  lives in `startupDefaults.ts`; `loadStartupDefaults` feeds Runtime.initialize.
+  The runtime shares that initialization with Input import and ignores completion
+  after disposal, so OS-opened and remote imports receive stored audio defaults.
+- Audio edits in Settings record top-level defaults for future imports; title edits do not persist. Output and concurrency edits record their accepted values. Capture ("Use
   current settings as defaults") copies those values to `pinnedDefaults` after
   pending preferences are durable. A save failure blocks stale-default capture.
 - Reopening Settings must preserve an accepted acquisition choice after a

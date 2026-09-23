@@ -219,9 +219,9 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
     // Extract technical metadata
     let inspection = crate::audio::processor::inspect_audio_decoder(path)?;
     let selected_decoder = inspection.selected_decoder;
-    log::info!(
-        "validate_audio_format path={} selected_decoder_id={} selected_decoder={}",
-        crate::errors::sanitize_path_for_display(path),
+    log::debug!(
+        "validate_audio_format source_path={:?} selected_decoder_id={} selected_decoder={}",
+        path,
         selected_decoder.decoder_id.as_str(),
         selected_decoder.decoder_label.as_str()
     );
@@ -248,9 +248,6 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
                 .to_ascii_lowercase(),
             &container_name,
             inspection.codec_id,
-            inspection.bitrate,
-            inspection.sample_rate,
-            inspection.channels,
         ),
     })
 }

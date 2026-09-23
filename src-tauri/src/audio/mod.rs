@@ -71,7 +71,6 @@ pub struct AudioFile {
 #[serde(rename_all = "camelCase")]
 pub struct AudioPreservation {
     pub can_preserve: bool,
-    pub recommended: bool,
 }
 
 pub type AudioChapter = crate::metadata::ChapterSpec;
@@ -135,6 +134,7 @@ pub use imports::{
     SupportedAudioImportMetadata,
 };
 pub use path_validation::{validate_input_audio_path, validate_input_image_path};
+pub(crate) use processor::validate_preserved_title;
 pub use processor::{
     detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
 };
@@ -146,7 +146,8 @@ pub use settings::{
 pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     if !file.is_valid || !file.preservation.is_some_and(|value| value.can_preserve) {
         return Err(AppError::InvalidInput(
-            "Source audio is not a supported AAC/MP3 container for preservation.".to_string(),
+            "Source audio is not a supported AAC, MP3, or Opus container for preservation."
+                .to_string(),
         ));
     }
     Ok(())
@@ -157,7 +158,7 @@ pub use settings_capabilities::{
 pub use settings_encoder::{
     resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,
     validate_requested_encoder_available, BitrateMode, BitrateModeKind, ChannelConfig,
-    EncoderSettings, EncoderType,
+    EncoderSettings, EncoderType, FaacProfile,
 };
 pub use toolchain::{
     detect_encoder_availability, set_user_external_ffmpeg_path, EncoderAvailability,
@@ -181,3 +182,9 @@ pub(crate) fn cleanup_abandoned_processing_workspaces(
 mod contract_tests;
 
 pub(crate) use toolchain::open_fdk_setup;
+
+mod output_plan;
+pub(crate) use output_plan::AudioPlanner;
+pub use output_plan::{
+    resolve_title_audio, AudioIntent, AudiobookFormat, TitleAudioPlan, TitleAudioRequest,
+};

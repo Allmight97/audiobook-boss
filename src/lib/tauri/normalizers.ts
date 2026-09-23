@@ -71,11 +71,8 @@ const METADATA_FIELDS = [
 ] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
 
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
-	'settings',
-	'chapterPlans',
-	'audioHandling',
+	'titleSources',
 	'inputIds',
-	'sampleRate',
 	'jobType',
 	'outputNaming',
 	'collisionPolicy',
@@ -204,6 +201,25 @@ export function normalizeLookupResponse(
 	};
 }
 
+export function denormalizeChapterPlans(
+	plans: ProcessPayload['chapterPlans'],
+): GeneratedProcessPayload['chapterPlans'] {
+	return plans
+		? Object.fromEntries(
+				Object.entries(plans).map(([path, plan]) => [
+					path,
+					{
+						...plan,
+						chapters: plan.chapters.map((chapter) => ({
+							...chapter,
+							title: chapter.title ?? null,
+						})),
+					},
+				]),
+			)
+		: null;
+}
+
 export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedProcessPayload {
 	const nullableFields = toNullableShape<
 		GeneratedProcessPayload,
@@ -214,8 +230,18 @@ export function denormalizeProcessPayload(payload: ProcessPayload): GeneratedPro
 	);
 	return {
 		inputFiles: payload.inputFiles,
+		audioRequests: payload.audioRequests,
+		chapterPlans: denormalizeChapterPlans(payload.chapterPlans),
 		outputDir: payload.outputDir,
 		...nullableFields,
+		titleSources: payload.titleSources
+			? Object.fromEntries(
+					Object.entries(payload.titleSources).map(([key, sources]) => [
+						key,
+						sources.map((source) => ({ path: source.path, inputId: source.inputId ?? null })),
+					]),
+				)
+			: null,
 	};
 }
 

@@ -257,7 +257,7 @@ function makeServices(
 		purgeSession: vi.fn(async () => undefined),
 		importMaterializedPaths: vi.fn(async () => ({
 			status: 'imported' as const,
-			fileList: fileList(),
+			files: fileList().files,
 		})),
 		sleep: vi.fn(async () => undefined),
 		...overrides,

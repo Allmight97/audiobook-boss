@@ -1,7 +1,14 @@
-.merge-mode {
-	display: flex;
-	align-items: center;
-	gap: 0.375rem;
+.group-titles-button {
+	padding: 0.375rem 0.625rem;
+	border: 1px solid var(--border-primary);
+	border-radius: 0.375rem;
+	background: var(--bg-panel);
+	color: var(--text-primary);
+	font-size: var(--text-sm);
+	white-space: nowrap;
+}
+.group-titles-button:disabled {
+	opacity: 0.5;
 }
 
 .concurrency-control {
@@ -10,15 +17,14 @@
 	gap: var(--space-1);
 }
 
-.concurrency-label,
-.concurrency-effective {
+.concurrency-label {
 	font-size: var(--text-xs);
 	color: var(--text-muted);
 	white-space: nowrap;
 }
 
 .concurrency-select {
-	width: 3.5rem;
+	width: 6.5rem;
 	height: 24px;
 	padding: 0.125rem 0.25rem;
 	font-size: var(--text-xs);

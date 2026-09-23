@@ -45,11 +45,14 @@
 - Materialized audio becomes a normal Input session through
   Input `importIntent`. Do not call `handleImportedAudioPaths` or
   `getCurrentFileList`. If Input import is blocked or fails, purge the staged
-  remote session immediately.
+  remote session immediately. The private handoff returns the source-file array
+  used for path membership and supplemental-asset registration; it does not
+  synthesize decoder or aggregate file-list facts.
 - Supplemental assets are keyed by the imported file `inputId`, not by
   provider path after handoff. Do not add a second file-list store.
 - Remote Source purges sessions for input ids that leave the public Input
-  view. File Import keeps that lifetime subscription alive.
+  view (`sourceFiles`, including hidden stack members). File Import keeps that
+  lifetime subscription alive.
 - Indexer sort is session state: most seeders by default, or largest size with
   seeders as the tie-breaker. Filtering and sorting preserve release selection.
 - Release selection and per-release Grab outcomes use `releaseKey` for the

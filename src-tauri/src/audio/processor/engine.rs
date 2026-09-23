@@ -5,18 +5,16 @@ use std::sync::Once;
 
 use ffmpeg_next as ff;
 
+use super::run_diagnostics::encoding_log_enabled;
 use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::encoder::{
-    append_in_process_encoding_log_best_effort, encoding_log_enabled, InProcessEncoderRunLog,
+    append_in_process_encoding_log_best_effort, InProcessEncoderRunLog,
 };
 use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::SampleRateConfig;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::ProcessingContext;
-
-/// ffmpeg-next based processor
-pub struct FfmpegNextProcessor;
 
 struct EncodingRunDiagnostics {
     timing: super::run_diagnostics::RunTiming,
@@ -27,186 +25,181 @@ struct EncodingRunDiagnostics {
     encoder_details: Option<String>,
 }
 
-impl FfmpegNextProcessor {
-    /// Processes a single input file through the decode/resample/encode pipeline
-    /// Returns PreviewAction to signal adaptive preview transitions
-    pub(crate) fn process_input_file(
-        input_path: &Path,
-        encoder: &mut super::encoder::EncoderSession,
-        file_index: usize,
-        ctx: &mut crate::audio::processor::frame_pipeline::FramePipelineCtx,
-        accumulator: &mut crate::audio::buffer::SampleAccumulator,
-        input_facts: Option<&mut Vec<String>>,
-    ) -> Result<PreviewAction> {
-        use crate::errors::AppError;
+/// Processes a single input file through the decode/resample/encode pipeline
+/// Returns PreviewAction to signal adaptive preview transitions
+pub(crate) fn process_input_file(
+    input_path: &Path,
+    encoder: &mut super::encoder::EncoderSession,
+    file_index: usize,
+    ctx: &mut crate::audio::processor::frame_pipeline::FramePipelineCtx,
+    accumulator: &mut crate::audio::buffer::SampleAccumulator,
+    input_facts: Option<&mut Vec<String>>,
+) -> Result<PreviewAction> {
+    use crate::errors::AppError;
 
-        let input_label = sanitize_path_for_display(input_path);
-        log::info!("🎵 Starting to process input file: {}", input_label);
+    let input_label = sanitize_path_for_display(input_path);
+    log::info!("🎵 Starting to process input file: {}", input_label);
 
-        if ctx.context.is_cancelled() {
-            log::warn!(
-                "Processing was cancelled before processing file: {}",
-                input_label
-            );
-            ctx.emitter.emit_cancelled("Processing was cancelled");
-            return Err(AppError::cancelled());
-        }
-
-        // Initialize per-file preview state if adaptive preview is active
-        if let Some(ref mut ps) = ctx.preview_state {
-            ps.start_new_file(file_index);
-            log::info!(
-                "Adaptive preview: starting file {} '{}' at pts={}",
-                file_index + 1,
-                input_label,
-                *ctx.running_pts
-            );
-        }
-
-        log::info!("Setting up decoder and resampler for: {}", input_label);
-        let (mut ictx, mut decoder, mut resampler, stream_index, decode_window) =
-            crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
-        if let Some(input_facts) = input_facts {
-            input_facts.push(format!(
-                "file={} codec={:?} rate={} channels={}",
-                sanitize_path_for_display(input_path),
-                decoder.id(),
-                decoder.rate(),
-                decoder.channels()
-            ));
-        }
-        log::info!(
-            "✓ Decoder and resampler setup complete for stream index: {}",
-            stream_index
+    if ctx.context.is_cancelled() {
+        log::warn!(
+            "Processing was cancelled before processing file: {}",
+            input_label
         );
-
-        // Update context indices for this file
-        ctx.current_file_index = file_index;
-        ctx.current_stream_index = stream_index;
-        log::info!(
-            "Updated context: file_index={}, stream_index={}",
-            file_index,
-            stream_index
-        );
-
-        log::info!("Processing input packets from: {}", input_label);
-        let action = crate::audio::processor::frame_pipeline::process_input_packets(
-            &mut ictx,
-            &mut decoder,
-            encoder,
-            &mut resampler,
-            decode_window,
-            ctx,
-            accumulator,
-        )?;
-        log::info!(
-            "✓ Input packets processed successfully (action={:?})",
-            action
-        );
-
-        log::info!("✅ Completed processing file: {}", input_label);
-        Ok(action)
+        ctx.emitter.emit_cancelled("Processing was cancelled");
+        return Err(AppError::cancelled());
     }
+
+    // Initialize per-file preview state if adaptive preview is active
+    if let Some(ref mut ps) = ctx.preview_state {
+        ps.start_new_file(file_index);
+        log::info!(
+            "Adaptive preview: starting file {} '{}' at pts={}",
+            file_index + 1,
+            input_label,
+            *ctx.running_pts
+        );
+    }
+
+    log::info!("Setting up decoder and resampler for: {}", input_label);
+    let (mut ictx, mut decoder, mut resampler, stream_index, decode_window) =
+        crate::audio::processor::streams::setup_decoder_and_resampler(input_path, encoder)?;
+    if let Some(input_facts) = input_facts {
+        input_facts.push(format!(
+            "file={} codec={:?} rate={} channels={}",
+            sanitize_path_for_display(input_path),
+            decoder.id(),
+            decoder.rate(),
+            decoder.channels()
+        ));
+    }
+    log::info!(
+        "✓ Decoder and resampler setup complete for stream index: {}",
+        stream_index
+    );
+
+    // Update context indices for this file
+    ctx.current_file_index = file_index;
+    ctx.current_stream_index = stream_index;
+    log::info!(
+        "Updated context: file_index={}, stream_index={}",
+        file_index,
+        stream_index
+    );
+
+    log::info!("Processing input packets from: {}", input_label);
+    let action = crate::audio::processor::frame_pipeline::process_input_packets(
+        &mut ictx,
+        &mut decoder,
+        encoder,
+        &mut resampler,
+        decode_window,
+        ctx,
+        accumulator,
+    )?;
+    log::info!(
+        "✓ Input packets processed successfully (action={:?})",
+        action
+    );
+
+    log::info!("✅ Completed processing file: {}", input_label);
+    Ok(action)
 }
 
-impl FfmpegNextProcessor {
-    /// Executes a media processing plan through the native ffmpeg-next pipeline.
-    ///
-    /// Synchronous and CPU-bound; the caller offloads this onto a blocking
-    /// thread via `spawn_blocking` so it never occupies an async worker.
-    pub(crate) fn execute(
-        plan: &MediaProcessingPlan,
-        context: &ProcessingContext,
-        metadata: Option<&crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&crate::metadata::PassthroughMetadata>,
-    ) -> Result<()> {
-        let mut diagnostics = encoding_log_enabled().then(|| EncodingRunDiagnostics {
-            timing: super::run_diagnostics::RunTiming::start(),
-            opened_encoder: None,
-            opened_rate: None,
-            opened_channels: None,
-            input_facts: Vec::new(),
-            encoder_details: None,
-        });
-        let result =
-            Self::execute_pipeline(plan, context, metadata, passthrough, diagnostics.as_mut());
-        if let Some(diagnostics) = diagnostics {
-            append_in_process_encoding_run(plan, context, &diagnostics, &result);
-        }
-        result
+/// Executes a media processing plan through the native ffmpeg-next pipeline.
+///
+/// Synchronous and CPU-bound; the caller offloads this onto a blocking
+/// thread via `spawn_blocking` so it never occupies an async worker.
+pub(crate) fn execute(
+    plan: &MediaProcessingPlan,
+    context: &ProcessingContext,
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
+) -> Result<()> {
+    let mut diagnostics = encoding_log_enabled().then(|| EncodingRunDiagnostics {
+        timing: super::run_diagnostics::RunTiming::start(),
+        opened_encoder: None,
+        opened_rate: None,
+        opened_channels: None,
+        input_facts: Vec::new(),
+        encoder_details: None,
+    });
+    let result = execute_pipeline(plan, context, metadata, passthrough, diagnostics.as_mut());
+    if let Some(diagnostics) = diagnostics {
+        append_in_process_encoding_run(plan, context, &diagnostics, &result);
+    }
+    result
+}
+
+fn execute_pipeline(
+    plan: &MediaProcessingPlan,
+    context: &ProcessingContext,
+    metadata: Option<&crate::metadata::AudiobookMetadata>,
+    passthrough: Option<&crate::metadata::PassthroughMetadata>,
+    mut diagnostics: Option<&mut EncodingRunDiagnostics>,
+) -> Result<()> {
+    // Initialize FFmpeg (idempotent)
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _ = ff::init();
+    });
+
+    // Setup encoder and output context with metadata
+    // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
+    let skip_chapter_passthrough = context.preview.is_some();
+    // The session drops its codec/output handles before cleanup removes the path.
+    let mut cleanup_guard = CleanupGuard::new(context.session.id());
+    cleanup_guard.add_path(&plan.output_path);
+    let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(
+        plan,
+        metadata,
+        skip_chapter_passthrough,
+        passthrough,
+    )?;
+
+    if let Some(diagnostics) = diagnostics.as_deref_mut() {
+        diagnostics.opened_encoder = Some(enc_ctx.name().to_owned());
+        diagnostics.opened_rate = Some(enc_ctx.rate());
+        diagnostics.opened_channels = u32::try_from(enc_ctx.channel_layout().channels()).ok();
     }
 
-    fn execute_pipeline(
-        plan: &MediaProcessingPlan,
-        context: &ProcessingContext,
-        metadata: Option<&crate::metadata::AudiobookMetadata>,
-        passthrough: Option<&crate::metadata::PassthroughMetadata>,
-        mut diagnostics: Option<&mut EncodingRunDiagnostics>,
-    ) -> Result<()> {
-        // Initialize FFmpeg (idempotent)
-        static INIT: Once = Once::new();
-        INIT.call_once(|| {
-            let _ = ff::init();
-        });
-
-        // Setup encoder and output context with metadata
-        // Skip chapter passthrough in preview mode (chapters won't align with shortened output)
-        let skip_chapter_passthrough = context.preview.is_some();
-        // The session drops its codec/output handles before cleanup removes the path.
-        let mut cleanup_guard = CleanupGuard::new(context.session.id());
-        cleanup_guard.add_path(&plan.output_path);
-        let mut enc_ctx = crate::audio::processor::encoder::setup_encoder(
-            plan,
-            metadata,
-            skip_chapter_passthrough,
-            passthrough,
-        )?;
-
-        if let Some(diagnostics) = diagnostics.as_deref_mut() {
-            diagnostics.opened_encoder = Some(enc_ctx.name().to_owned());
-            diagnostics.opened_rate = Some(enc_ctx.rate());
-            diagnostics.opened_channels = u32::try_from(enc_ctx.channel_layout().channels()).ok();
+    // Validate metadata compatibility if provided
+    if let Some(md) = metadata {
+        let warnings = crate::metadata::validate_metadata_compatibility(md);
+        for warning in warnings {
+            log::warn!("Metadata compatibility: {}", warning);
         }
-
-        // Validate metadata compatibility if provided
-        if let Some(md) = metadata {
-            let warnings = crate::metadata::validate_metadata_compatibility(md);
-            for warning in warnings {
-                log::warn!("Metadata compatibility: {}", warning);
-            }
-        }
-
-        let emitter = context.new_emitter();
-        let result = (|| {
-            let mut io = super::engine_orchestrator::InputProcessingContext {
-                enc_ctx: &mut enc_ctx,
-                emitter: &emitter,
-                input_facts: diagnostics
-                    .as_deref_mut()
-                    .map(|value| &mut value.input_facts),
-            };
-            super::engine_orchestrator::process_input_files(plan, context, &mut io)?;
-            if context.is_cancelled() {
-                return Err(AppError::cancelled());
-            }
-            enc_ctx.finish()
-        })();
-        if let Some(diagnostics) = diagnostics {
-            diagnostics.encoder_details = Some(enc_ctx.diagnostics());
-        }
-        result?;
-
-        // Preserve output on success
-        let _ = cleanup_guard.remove_path(&plan.output_path);
-
-        if metadata.is_some() {
-            log::info!("Audio processing completed with metadata integration");
-        } else {
-            log::info!("Audio processing completed without metadata");
-        }
-
-        Ok(())
     }
+
+    let emitter = context.new_emitter();
+    let result = (|| {
+        let mut io = super::engine_orchestrator::InputProcessingContext {
+            enc_ctx: &mut enc_ctx,
+            emitter: &emitter,
+            input_facts: diagnostics
+                .as_deref_mut()
+                .map(|value| &mut value.input_facts),
+        };
+        super::engine_orchestrator::process_input_files(plan, context, &mut io)?;
+        if context.is_cancelled() {
+            return Err(AppError::cancelled());
+        }
+        enc_ctx.finish()
+    })();
+    if let Some(diagnostics) = diagnostics {
+        diagnostics.encoder_details = Some(enc_ctx.diagnostics());
+    }
+    result?;
+
+    // Preserve output on success
+    let _ = cleanup_guard.remove_path(&plan.output_path);
+
+    if metadata.is_some() {
+        log::info!("Audio processing completed with metadata integration");
+    } else {
+        log::info!("Audio processing completed without metadata");
+    }
+
+    Ok(())
 }
 
 fn append_in_process_encoding_run(
@@ -261,7 +254,14 @@ pub(crate) fn resolve_target_audio_params(plan: &MediaProcessingPlan) -> Result<
         })?;
     let target_sample_rate = match plan.sample_rate {
         SampleRateConfig::Explicit(rate) => rate,
-        SampleRateConfig::Auto => probe_first_sample_rate(plan)?,
+        SampleRateConfig::Auto => {
+            let rate = probe_first_sample_rate(plan)?;
+            super::super::settings::automatic_sample_rate(
+                plan.encoder_settings.encoder_type,
+                plan.encoder_settings.faac_profile,
+                rate,
+            )
+        }
     };
 
     Ok((target_sample_rate, target_channels))

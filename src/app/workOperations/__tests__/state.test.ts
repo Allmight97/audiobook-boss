@@ -61,6 +61,7 @@ function completedMergeOperation(operationId: string): OperationSnapshot {
 				sourcePath: undefined,
 				inputIndex: undefined,
 				inputId: undefined,
+				sourceInputIds: [],
 				jobId: 'job-1',
 				cancellable: false,
 				cancelRequested: false,
@@ -185,6 +186,32 @@ describe('Work Center state', () => {
 		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
 			inputIds: ['input-1', 'input-2'],
 			completedInputIds: ['input-1', 'input-2'],
+		});
+	});
+
+	it('settles every source of a completed title without purging a failed sibling', async () => {
+		const snapshot = completedMergeOperation('op-mixed-titles');
+		const child = snapshot.children[0];
+		session.applyOperationSnapshot({
+			...snapshot,
+			kind: 'processingBatch',
+			status: 'mixed',
+			sourceInputIds: ['input-1', 'input-2', 'input-3'],
+			children: [
+				{ ...child, inputId: 'input-1', sourceInputIds: ['input-2', 'input-1'] },
+				{
+					...child,
+					childJobId: 'failed-title',
+					inputId: 'input-3',
+					sourceInputIds: ['input-3'],
+					status: 'failed',
+				},
+			],
+		});
+		await Promise.resolve();
+		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
+			inputIds: ['input-1', 'input-2', 'input-3'],
+			completedInputIds: ['input-2', 'input-1'],
 		});
 	});
 

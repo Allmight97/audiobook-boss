@@ -4,6 +4,12 @@ use std::fs::{set_permissions, write};
 use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
+#[test]
+fn auto_prefers_fdk_then_native() {
+    assert_eq!(preferred_auto_encoder(true), EncoderType::FdkHeAac);
+    assert_eq!(preferred_auto_encoder(false), EncoderType::NativeAac);
+}
+
 #[cfg(target_os = "linux")]
 #[test]
 fn linux_auto_detection_validates_and_retains_a_symlink_alias() {

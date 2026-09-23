@@ -27,6 +27,8 @@ function capabilityFor(settings: AppSettings): SettingsCapability {
 const lastUsed: AppSettings = {
 	maxConcurrentJobs: { mode: 'fixed', value: 3 },
 	encoderDefaults: {
+		format: 'm4b',
+		intent: 'auto',
 		settings: {
 			encoderType: 'native_aac',
 			bitrateKbps: 64,
@@ -49,6 +51,8 @@ const lastUsed: AppSettings = {
 const pinned: PinnedDefaults = {
 	maxConcurrentJobs: { mode: 'auto' },
 	encoderDefaults: {
+		format: 'm4b',
+		intent: 'auto',
 		settings: {
 			encoderType: 'fdk_he_aac',
 			bitrateKbps: 128,

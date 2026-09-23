@@ -4,23 +4,45 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
-## 2026-09-17 - Preserve Audio Within The Shared Export Workflow
+## 2026-09-22 — Title audio intent and output format
 
-- Outcome: each single-file book can explicitly preserve its compressed audio
-  while using the existing metadata, naming, collision, and publication flow.
-  Mixed batches resolve that choice by input identity into immutable job plans.
-  Preserve retains the source container/extension and skips every encoder;
-  all-preserve requests need no encoder settings or availability discovery.
-- Evidence: compact AAC books at 22.05 kHz required no audio change to become
-  organized library copies; forcing them through encoding added work and could
-  require resampling. Audio inspection owns the suggestion separately from
-  manual preservation capability. Input owns the choice, not the recommendation.
-- Guardrail: copy into independently owned staging before explicit metadata edits;
-  use the shared Output Artifact commit and preserve source audio, timing, and chapters.
+- Outcome: one title request chooses output format and Recommended/Keep/Encode intent. Audio
+  resolves one plan shared by the popover, preflight and execution. AAC/M4B is
+  the default; MP3 pass-through and Opus/M4A or MKA are explicit alternatives.
+- Evidence: real media verifies compressed-packet identity, chapter timelines,
+  metadata and artwork for MP3 joins and Opus container round-trips. Recommended keeps compact audio (using the existing 72 kbps tolerance) when copying
+  satisfies the output; explicit Keep never substitutes encoding. Settings owns
+  defaults for future imports; per-title and selected-title edits share one editor.
+  Loaded titles retain their choices until explicitly edited or reset to defaults.
+- Recommended M4B encoding uses ABB's AAC defaults: FDK VBR 3 when available,
+  otherwise NMR at 64 kbps, with source channels and automatic sample rate.
+  User Preference applies the saved title settings. The shared editor exposes
+  encoding controls only for User Preference, and explicit encoder preferences
+  survive availability changes. Apply App Settings copies the current saved
+  preferences into the targeted titles.
+- Guardrail: codec/container compatibility does not promise client direct play;
+  the Opus UI asks users to verify direct playback and chapters on their device.
+
+## 2026-09-21 - Output Titles Own Grouping and Audio Handling
+
+- Outcome: Input represents each intended output as a title with one or more
+  ordered sources. Grouping selected titles replaces the global merge switch;
+  metadata lookup, edits, audio handling, and processing operate on that title.
+  Its original metadata anchor stays stable when sources are reordered. Splitting
+  keeps title edits on that anchor and restores the other source drafts.
+- Evidence: multipart books need one metadata draft alongside independent titles,
+  and grouping should not force re-encoding. The shared batch planner now produces
+  one job per title and retains every source through background execution.
+- Preserve uses the existing metadata, naming, collision, and publication owners.
+  Audio plans select the output format; AAC and MP3 stacks can join by copying
+  compressed packets. Priming, trimming, or incompatible stream settings
+  block preservation explicitly, with no automatic encoder substitution.
+- Guardrail: original files stay untouched; preservation uses fingerprint-checked
+  private staging and the shared Output Artifact commit.
 
 ## 2026-09-15 - FAAC Timing Follows the Produced File
 
-- Outcome: Audio recognizes ABB-produced FAAC files and applies the same
+- Outcome: Audio recognizes ABB-produced FAAC HE files and applies the same
   native-decoder interval in both processing routes. Other HE-AAC inputs retain
   their existing timing policy.
 - Evidence: Apple needs the core-priming edit, while native FFmpeg also emits
@@ -65,14 +87,16 @@ git history and closed issues own superseded chronology.
   its opened coder, speed, and bitrate must match the request. Native quality
   mode is outside the product contract. Long-book trials favored target bitrate
   for predictable size; quality mode took longer and varied substantially by book.
-- Outcome: the frontend derives rate mode from the effective backend capability.
-  Native, Apple, and bundled FAAC accept numeric targets; FAAC is ABR-only and
-  accepts explicit 32, 44.1, and 48 kHz output rates. FDK keeps its quality
-  control. Encoding owns typed request construction, avoiding a second
-  normalization layer or a separately mutable rate-mode choice. Pending
-  capability discovery preserves the validated saved mode for explicit
-  encoders. Auto submission requires capabilities so its effective encoder
-  determines the mode, and Auto remains FDK → Apple → Native.
+- Outcome: Native and Apple use target bitrate; FDK uses its quality control.
+  FAAC exposes profile Auto/LC/HE and explicit ABR/VBR, reusing the target and
+  sample-rate/channel controls. ABR defaults to 64 kbps; VBR has three labeled
+  presets and unknown size. FAAC owns Auto profile resolution; the adapter
+  derives timing and mux parameters from the opened result. Encoding owns
+  typed request construction and keeps each encoder's choices independent.
+  Pending capability discovery preserves saved explicit requests. Encoder
+  Auto requires capabilities and prefers FDK → Native NMR. Unsupported Auto
+  rate-control modes adapt to the resolved encoder default; explicit encoder
+  requests remain strict.
 - Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,
   `src/app/encoding/`, and the encoder interaction and media execution tests.
 - Guardrail: encoder controls must change a shipped path. FDK stays owned by

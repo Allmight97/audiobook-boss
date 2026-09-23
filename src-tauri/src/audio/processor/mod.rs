@@ -7,7 +7,7 @@
 //!   - staging.rs   : app-cache local processing workspace directories
 //!   - adapter.rs   : native vs external processor adapter resolution
 //!
-//! The default path uses in-process ffmpeg-next (`FfmpegNextProcessor`).
+//! The default path uses the in-process ffmpeg-next engine.
 //! FDK HE-AAC routes through an external FFmpeg/libfdk_aac adapter when selected.
 
 // Imports for orchestrator function
@@ -26,7 +26,7 @@ use crate::processing::ProcessingContext;
 use std::time::Duration;
 
 // Submodules
-mod adapter;
+pub(in crate::audio) mod adapter;
 mod encoder;
 mod engine;
 mod engine_orchestrator;
@@ -38,6 +38,17 @@ mod frame_pipeline;
 mod plan;
 mod prepare;
 mod preserve;
+mod preserve_merge;
+
+pub(crate) fn validate_preserved_title(files: &[AudioFile]) -> Result<()> {
+    for file in files {
+        crate::audio::validate_preservation_source(file)?;
+    }
+    if files.len() > 1 {
+        preserve_merge::validate(files)?;
+    }
+    Ok(())
+}
 mod preview_state;
 mod run_diagnostics;
 mod staging;
@@ -91,36 +102,36 @@ impl AudioExecutionRequest {
 
 pub fn validate_audio_engine_inputs(
     encoder_settings: &EncoderSettings,
-    file_info: &FileListInfo,
+    titles: &[FileListInfo],
     sample_rate: &crate::audio::SampleRateConfig,
-    merge_inputs: bool,
 ) -> Result<()> {
-    adapter::resolve_output_channels(encoder_settings.channels, &file_info.files)?;
     let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
-    adapter.validate_inputs(file_info)?;
-    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = adapter {
-        crate::audio::settings::validate_encoder_sample_rate(encoder_type, sample_rate)?;
-        if matches!(
-            encoder_type,
-            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::FaacHeAac
-        ) {
-            if merge_inputs {
-                validate_output_target(
-                    encoder_settings,
-                    encoder_type,
-                    sample_rate,
-                    &file_info.files,
-                )?;
-            } else {
-                for file in file_info.files.iter().filter(|file| file.is_valid) {
-                    validate_output_target(
-                        encoder_settings,
-                        encoder_type,
-                        sample_rate,
-                        std::slice::from_ref(file),
-                    )?;
-                }
-            }
+    validate_resolved_audio_inputs(&adapter, encoder_settings, titles, sample_rate)
+}
+
+pub(in crate::audio) fn validate_resolved_audio_inputs(
+    adapter: &adapter::ResolvedProcessorAdapter,
+    encoder_settings: &EncoderSettings,
+    titles: &[FileListInfo],
+    sample_rate: &crate::audio::SampleRateConfig,
+) -> Result<()> {
+    crate::audio::settings_encoder::validate_encoder_settings(encoder_settings)?;
+    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = &adapter {
+        crate::audio::settings::validate_encoder_sample_rate(
+            *encoder_type,
+            encoder_settings.faac_profile,
+            sample_rate,
+        )?;
+    }
+    for title in titles {
+        adapter::resolve_output_channels(encoder_settings.channels, &title.files)?;
+        adapter.validate_inputs(title)?;
+        if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
+            encoder_type:
+                encoder_type @ (crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::Faac),
+        } = &adapter
+        {
+            validate_output_target(encoder_settings, *encoder_type, sample_rate, &title.files)?;
         }
     }
     Ok(())
@@ -142,6 +153,13 @@ fn validate_output_target(
                 .iter()
                 .find(|file| file.is_valid)
                 .and_then(|file| file.sample_rate)
+                .map(|rate| {
+                    crate::audio::settings::automatic_sample_rate(
+                        encoder,
+                        settings.faac_profile,
+                        rate,
+                    )
+                })
         })
         .ok_or_else(|| {
             crate::errors::AppError::InvalidInput(format!(
@@ -150,15 +168,12 @@ fn validate_output_target(
         })?;
     crate::audio::settings::validate_encoder_sample_rate(
         encoder,
+        settings.faac_profile,
         &crate::audio::SampleRateConfig::Explicit(rate),
     )?;
     match encoder {
-        crate::audio::EncoderType::FaacHeAac => {
-            crate::audio::settings_encoder::validate_faac_target_bitrate(
-                settings.bitrate_kbps,
-                rate,
-                u32::from(channels),
-            )
+        crate::audio::EncoderType::Faac => {
+            encoder::validate_faac_configuration(settings, rate, u32::from(channels))
         }
         _ => crate::audio::settings_encoder::validate_native_target_bitrate(
             settings.bitrate_kbps,
@@ -196,6 +211,14 @@ pub(crate) fn passthrough_sources_from_audio_files(files: &[AudioFile]) -> Vec<P
 pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<String> {
     if request.handling == AudioHandling::Preserve {
         return tokio::task::spawn_blocking(move || {
+            if request.file_info.files.len() > 1 {
+                return preserve_merge::execute(
+                    request.context,
+                    request.file_info,
+                    request.metadata,
+                    request.cover_art_passthrough,
+                );
+            }
             preserve::execute_preserved_audio(
                 request.context,
                 request.file_info,

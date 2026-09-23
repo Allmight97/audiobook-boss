@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
-const MAX_CONTAINER_RECORDS: usize = 4096;
+pub(super) const MAX_CONTAINER_RECORDS: usize = 4096;
 const MAX_PICTURE_FRAME_OVERHEAD: u64 = 256 * 1024;
 const MAX_PICTURE_FRAME_BYTES: u64 =
     THUMBNAIL_MAX_ENCODED_BYTES as u64 + MAX_PICTURE_FRAME_OVERHEAD;
@@ -34,6 +34,9 @@ pub(super) fn read_bounded_non_mp4_cover_art(path: &Path) -> Result<Option<Vec<u
     file.read_exact(&mut prefix[..prefix_len])
         .map_err(|error| AppError::General(format!("Failed to probe audio cover tags: {error}")))?;
 
+    if prefix.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]) {
+        return super::matroska_cover::read(&mut file, file_len);
+    }
     if prefix.starts_with(b"ID3") {
         return read_id3_cover(&mut file, 0, file_len);
     }
@@ -491,7 +494,12 @@ fn ensure_picture_size(byte_len: usize) -> Result<()> {
     Ok(())
 }
 
-fn read_exact_at(file: &mut File, offset: u64, bytes: &mut [u8], bound: u64) -> Result<()> {
+pub(super) fn read_exact_at(
+    file: &mut File,
+    offset: u64,
+    bytes: &mut [u8],
+    bound: u64,
+) -> Result<()> {
     let end = offset
         .checked_add(bytes.len() as u64)
         .ok_or_else(|| cover_error("Cover-read offset overflow"))?;
@@ -504,7 +512,7 @@ fn read_exact_at(file: &mut File, offset: u64, bytes: &mut [u8], bound: u64) -> 
         .map_err(|error| AppError::General(format!("Failed to read audio cover tags: {error}")))
 }
 
-fn cover_error(message: impl Into<String>) -> AppError {
+pub(super) fn cover_error(message: impl Into<String>) -> AppError {
     AppError::ImageProcessing(message.into())
 }
 

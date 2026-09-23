@@ -1,19 +1,15 @@
+use super::super::run_diagnostics::{append_run_record, unix_timestamp_seconds};
 use crate::audio::toolchain::{last_nonempty_stderr_line, ValidatedExternalToolchain};
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 use crate::processing::{ProcessingContext, ProgressEmitter};
 use std::fmt::Write as _;
-use std::fs::OpenOptions;
-use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{ExitStatus, Stdio};
-use std::sync::Mutex;
-use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
+use std::time::Duration as StdDuration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
-
-static EXTERNAL_FDK_ENCODING_LOG_LOCK: Mutex<()> = Mutex::new(());
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Sequential child/pipe/diagnostic lifetime; source intervals travel with decoder selections.
 pub(super) async fn run_external_ffmpeg(
@@ -340,36 +336,7 @@ struct ExternalFdkRunLog<'a> {
 }
 
 fn append_external_encoding_log_best_effort(entry: &ExternalFdkRunLog<'_>) {
-    let Some(path) = encoding_log_path() else {
-        return;
-    };
-
-    if let Err(error) = append_external_encoding_log(&path, entry) {
-        log::warn!(
-            "Failed to append external FDK encoding diagnostics to {}: {}",
-            sanitize_path_for_display(&path),
-            error
-        );
-    }
-}
-
-fn encoding_log_path() -> Option<PathBuf> {
-    std::env::var_os("ABB_ENCODING_LOG")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-}
-
-fn append_external_encoding_log(path: &Path, entry: &ExternalFdkRunLog<'_>) -> std::io::Result<()> {
-    if let Some(parent) = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-    {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let _guard = EXTERNAL_FDK_ENCODING_LOG_LOCK.lock().ok();
-    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-    file.write_all(format_external_encoding_log_entry(entry).as_bytes())
+    append_run_record(|| format_external_encoding_log_entry(entry));
 }
 
 fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
@@ -433,8 +400,8 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     {
         let _ = writeln!(
             output,
-            "input[{index}] file={} duration={:?} codec={} rate={} channels={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
-            sanitize_path_for_display(&file.path),
+            "input[{index}] file={:?} duration={:?} codec={} rate={} channels={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
+            file.path,
             file.duration,
             file.codec_label.as_deref().unwrap_or("unknown"),
             file.sample_rate.map_or_else(|| "unknown".to_string(), |v| v.to_string()),
@@ -489,13 +456,6 @@ fn format_exit_status(status: &ExitStatus) -> String {
         .unwrap_or_else(|| "terminated_without_exit_code".to_string())
 }
 
-fn unix_timestamp_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
-}
-
 async fn terminate_external_child_best_effort(child: &mut tokio::process::Child, context: &str) {
     if let Err(error) = terminate_external_child(child).await {
         log::error!("Failed to terminate external ffmpeg child {context}: {error}");
@@ -537,6 +497,7 @@ mod tests {
             channels: ChannelConfig::Auto,
             afterburner: true,
             native_aac_speed: 0,
+            faac_profile: crate::audio::FaacProfile::Auto,
         }
     }
 
@@ -592,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn external_fdk_log_entry_sanitizes_structured_paths_and_keeps_raw_stderr() {
+    fn external_fdk_log_entry_retains_source_paths_and_raw_stderr() {
         let context = test_context();
         let toolchain = test_toolchain();
         let files = vec![test_audio_file()];
@@ -628,10 +589,9 @@ mod tests {
         assert!(structured.contains("status=success"));
         assert!(structured.contains("status_detail=exit_code=0"));
         assert!(structured.contains("toolchain_ffmpeg=ffmpeg"));
-        assert!(structured.contains("input[0] file=Book One.m4b"));
+        assert!(structured.contains("input[0] file=\"/private/input/Book One.m4b\""));
         assert!(structured.contains("temp_output=worker-output.m4b"));
         assert!(structured.contains("speed=1.25x"));
-        assert!(!structured.contains("/private/input"));
         assert!(!structured.contains("/private/tmp"));
         assert!(formatted.contains("from '/private/input/Book One.m4b'"));
     }

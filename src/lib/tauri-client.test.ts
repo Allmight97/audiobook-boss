@@ -1,3 +1,4 @@
+import { titleAudioRequest } from '../test/fixtures/titleAudio';
 /**
  * Tests for the Tauri tauri client boundary.
  *
@@ -330,7 +331,7 @@ describe('tauriClient nullish adapters', () => {
 		const result = await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
-				audioHandling: ['preserve'],
+				audioRequests: [titleAudioRequest({ settings: null })],
 				chapterPlans: {
 					'/books/a.m4b': {
 						fromCue: true,
@@ -339,8 +340,6 @@ describe('tauriClient nullish adapters', () => {
 					},
 				},
 				outputDir: '/tmp/out',
-				settings: undefined,
-				sampleRate: undefined,
 				jobType: undefined,
 				outputNaming: undefined,
 			},
@@ -370,9 +369,7 @@ describe('tauriClient nullish adapters', () => {
 				chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
 			},
 		});
-		expect(args.payload.audioHandling).toEqual(['preserve']);
-		expect(args.payload.settings).toBeNull();
-		expect(args.payload.sampleRate).toBeNull();
+		expect(args.payload.audioRequests).toEqual([titleAudioRequest({ settings: null })]);
 		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
@@ -387,52 +384,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
 	});
 
-	it('validates encoder settings without external toolchain input', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.validateEncoderSettings(defaultEncoderSettings());
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				settings: Record<string, unknown>;
-			},
-		];
-		expect(commandName).toBe('validate_encoder_settings');
-		expect(args).toEqual({ settings: defaultEncoderSettings() });
-	});
-
-	it('preserves a native boundary encoder payload through validate_encoder_settings', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce('Encoder settings are valid');
-
-		const boundarySettings = {
-			encoderType: 'native_aac',
-			bitrateKbps: 96,
-			bitrateMode: { mode: 'cbr' },
-			channels: 'stereo',
-			afterburner: false,
-		} satisfies EncoderSettings;
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.validateEncoderSettings(boundarySettings);
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				settings: Record<string, unknown>;
-			},
-		];
-		expect(commandName).toBe('validate_encoder_settings');
-		expect(args.settings).toEqual(boundarySettings);
-	});
-
 	it('loads runtime settings capabilities without external toolchain input', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -445,11 +396,14 @@ describe('tauriClient nullish adapters', () => {
 		const [commandName, args = {}] = lastCall as [string, Record<string, unknown>?];
 		expect(commandName).toBe('get_runtime_settings_capabilities');
 		expect(args).toEqual({});
-		expect(capabilities.encoder.bitrateKbpsMax).toBe(1152);
+		expect(
+			capabilities.encoder.encoderConfigurations.find((config) => config.encoderType === 'opus')
+				?.bitrateKbpsMax,
+		).toBe(510);
 		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
 
-	it('compiles metadata intent map for process command payload', async () => {
+	it('preserves encoder settings and compiles metadata intent for processing', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
@@ -472,13 +426,22 @@ describe('tauriClient nullish adapters', () => {
 			],
 		});
 
+		const boundarySettings = {
+			encoderType: 'native_aac',
+			bitrateKbps: 96,
+			bitrateMode: { mode: 'cbr' },
+			channels: 'stereo',
+			afterburner: false,
+			nativeAacSpeed: 4,
+			faacProfile: 'auto',
+		} satisfies EncoderSettings;
+
 		const { tauriClient } = await import('./tauri/client');
 		await tauriClient.processAudiobookFiles({
 			payload: {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
-				settings: defaultEncoderSettings(),
-				sampleRate: undefined,
+				audioRequests: [titleAudioRequest({ settings: boundarySettings })],
 				jobType: 'merge',
 				outputNaming: undefined,
 			},
@@ -492,12 +455,15 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [, args] = lastCall as [
+		const [commandName, args] = lastCall as [
 			string,
 			{
 				metadata: Record<string, Record<string, unknown>>;
+				payload: { audioRequests: { settings: EncoderSettings }[] };
 			},
 		];
+		expect(commandName).toBe('process_audiobook_files');
+		expect(args.payload.audioRequests[0]?.settings).toEqual(boundarySettings);
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
 		expect(args.metadata['/books/a.m4b']?.artist).toEqual({ op: 'set', value: 'Author X' });
 		expect(args.metadata['/books/a.m4b']?.series).toBeUndefined();
@@ -588,8 +554,7 @@ describe('tauriClient nullish adapters', () => {
 			payload: {
 				inputFiles: ['/books/a.m4b', '/books/b.m4b'],
 				outputDir: '/tmp/out',
-				settings: defaultEncoderSettings(),
-				sampleRate: undefined,
+				audioRequests: [titleAudioRequest(), titleAudioRequest()],
 				jobType: 'batch',
 				outputNaming: undefined,
 			},
@@ -688,7 +653,7 @@ describe('tauriClient nullish adapters', () => {
 				customTemplate: undefined,
 			},
 			sourcePath: '/books/ch01.mp3',
-			audioHandling: 'preserve',
+			format: 'mp3',
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
@@ -699,7 +664,7 @@ describe('tauriClient nullish adapters', () => {
 				metadata: Record<string, unknown>;
 				outputNaming: Record<string, unknown>;
 				sourcePath: string | null;
-				audioHandling: string | null;
+				format: string;
 			},
 		];
 
@@ -710,10 +675,11 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.outputNaming.includeYear).toBe(false);
 		expect(args.outputNaming.customTemplate).toBeNull();
 		expect(args.sourcePath).toBe('/books/ch01.mp3');
-		expect(args.audioHandling).toBe('preserve');
+		expect(args.format).toBe('mp3');
 		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.mp3');
 
 		await tauriClient.previewOutputPath({
+			format: 'm4b',
 			outputDir: '/tmp/out',
 			metadata: { title: 'Dune', artist: 'Frank Herbert' },
 			outputNaming: {
@@ -724,11 +690,8 @@ describe('tauriClient nullish adapters', () => {
 			sourcePath: '/books/ch01.mp3',
 		});
 		const omittedHandlingCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [, omittedHandlingArgs] = omittedHandlingCall as [
-			string,
-			{ audioHandling: string | null },
-		];
-		expect(omittedHandlingArgs.audioHandling).toBeNull();
+		const [, omittedHandlingArgs] = omittedHandlingCall as [string, { format: string }];
+		expect(omittedHandlingArgs.format).toBe('m4b');
 	});
 });
 

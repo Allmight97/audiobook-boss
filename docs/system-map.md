@@ -12,7 +12,8 @@ owns durable artifact and operation truth.
 ## Product Spine
 
 Audiobook Boss turns messy audiobook inputs plus user intent into organized,
-tagged, compatible M4B outputs.
+tagged, chapterized audiobook files. AAC/M4B is the default; title audio plans
+can choose MP3 pass-through or Opus in M4A/MKA.
 
 ```text
 Import -> Inspect -> Decide -> Preflight -> Process -> Verify
@@ -70,7 +71,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Metadata Outcome | `src-tauri/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `src-tauri/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `src-tauri/src/app_settings` + `src/app/appSettings` | Durable preferences plus frontend hydration, accepted-value coordination, and durability state. |
-| Encoding Configuration | `src/app/encoding` | Typed encoder/sample-rate/channel request, capability-derived rate mode, auto-resolution hints, and total estimate kbps. |
+| Encoding Configuration | `src/app/encoding` | Typed encoder/sample-rate/channel request, capability-derived controls, defaults and title edits, and total estimate kbps. |
 | Remote Source | `src-tauri/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an existing owner; not additional product owners. |
 

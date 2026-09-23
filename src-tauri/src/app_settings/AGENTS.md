@@ -16,6 +16,11 @@
 - Files: `types.rs`, `storage.rs`, `contract_tests.rs`.
 - The cluster owns durable preference schema, defaults, patch merge,
   validation, and private JSON storage under Tauri's app config directory.
+- Encoder defaults include output format and audio intent; older stored settings
+  default those fields to M4B and Auto. Format/encoder validation lives here,
+  while source-aware copy/encode decisions stay Audio-owned.
+- Fresh encoder defaults disable FDK Afterburner; saved explicit choices survive
+  hydration and encoder discovery.
 - Durable preferences validate against the owning runtime APIs; App Settings
   must not duplicate encoder or JobRegistry accept/reject rules.
 - `keep_awake_while_working` defaults on, including for settings written before
@@ -26,6 +31,9 @@
   preference; retrying storage remains possible while jobs are active. Reset
   coordinates runtime defaults with storage and restores prior concurrency if
   storage reset fails.
+- Storage upgrades saved `faac_he_aac` defaults to `faac` with explicit HE
+  intent in last-used and pinned scopes. Fresh defaults use profile Auto;
+  current IPC accepts only the canonical encoder identity.
 - Unsupported persisted encoders require explicit targeted recovery. Inspection
   is read-only; recovery rechecks the reviewed encoder scopes, writes a complete
   backup before replacement, and resets only their encoder-default groups.

@@ -7,10 +7,10 @@ use crate::metadata::{
 use crate::output_artifact::OutputNamingConfig;
 use crate::output_artifact::{
     build_output_path_preview, enforce_output_plan_review, ensure_output_parent_dirs,
-    preserve_source_extension, CollisionPolicy, OutputKind, OutputParentDirCleanup,
-    OutputPlanLedger, OutputPlanReview, PlannedOutputAction, ResolvedOutputPlan,
+    CollisionPolicy, OutputKind, OutputParentDirCleanup, OutputPlanLedger, OutputPlanReview,
+    PlannedOutputAction, ResolvedOutputPlan,
 };
-use crate::processing::{AudioHandling, JobType, ProcessPayload, ProcessingPreflightPlan};
+use crate::processing::{JobType, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -24,10 +24,11 @@ struct ProcessingInputs {
 pub(crate) struct PlannedProcessingJob {
     pub(crate) input_index: Option<usize>,
     pub(crate) input_path: Option<PathBuf>,
+    pub(crate) source_paths: Vec<PathBuf>,
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
-    pub(crate) audio_handling: AudioHandling,
+    pub(crate) audio_plan: crate::audio::TitleAudioPlan,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
 }
 
@@ -97,6 +98,10 @@ fn build_plan_signature(
     ];
 
     for job in jobs {
+        lines.push(format!(
+            "sources={:?};audio={:?}",
+            job.source_paths, job.audio_plan
+        ));
         let output = &job.output;
         let collision_kind = output
             .collision
@@ -133,7 +138,7 @@ fn build_plan_signature(
             output_action,
             collision_kind,
             collision_summary,
-            job.audio_handling,
+            job.audio_plan.handling,
         ));
     }
 
@@ -179,12 +184,7 @@ fn build_processing_plan(
     let mut output_ledger = OutputPlanLedger::new();
     let mut jobs = Vec::new();
 
-    let requested_handling = resolve_requested_audio_handling(payload, file_info)?;
-    if inputs.preview_seconds.is_some() && requested_handling.contains(&AudioHandling::Preserve) {
-        return Err(AppError::InvalidInput(
-            "Preserve audio cannot be used for a preview.".to_string(),
-        ));
-    }
+    payload.validate_audio_requests()?;
 
     match job_type {
         JobType::Merge => jobs.push(build_merge_processing_job(
@@ -203,7 +203,6 @@ fn build_processing_plan(
             collision_policy,
             &mut output_ledger,
             file_info,
-            &requested_handling,
         )?),
     }
 
@@ -217,44 +216,6 @@ fn build_processing_plan(
         plan_signature,
         jobs,
     })
-}
-
-fn resolve_requested_audio_handling(
-    payload: &ProcessPayload,
-    file_info: &FileListInfo,
-) -> Result<Vec<AudioHandling>> {
-    let handling = payload.resolved_audio_handling()?;
-    if file_info.files.len() != handling.len() {
-        return Err(AppError::InvalidInput(
-            "Inspected inputs do not match the audio handling request.".to_string(),
-        ));
-    }
-    for (index, requested) in handling.iter().enumerate() {
-        if *requested == AudioHandling::Preserve
-            && !file_info
-                .files
-                .get(index)
-                .and_then(|file| file.preservation)
-                .is_some_and(|value| value.can_preserve)
-        {
-            return Err(AppError::InvalidInput(format!(
-                "Input {} cannot preserve its original audio; choose Encode or use a supported AAC/MP3 source.",
-                index + 1
-            )));
-        }
-        if *requested == AudioHandling::Preserve
-            && file_info
-                .files
-                .get(index)
-                .and_then(|file| file.chapter_plan.as_ref())
-                .is_some_and(|plan| plan.from_cue)
-        {
-            return Err(AppError::InvalidInput(
-                "Preserve audio retains embedded chapters; ignore the CUE or re-encode to use its chapters.".to_string(),
-            ));
-        }
-    }
-    Ok(handling)
 }
 
 fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcessingPlan) {
@@ -368,6 +329,12 @@ fn build_merge_processing_job(
         .iter()
         .map(|file| file.path.clone())
         .collect::<Vec<_>>();
+    let audio_plan = crate::audio::resolve_title_audio(
+        &payload.audio_requests[0],
+        file_info,
+        inputs.preview_seconds.is_some(),
+    )?;
+    let requested_output = requested_output.with_extension(audio_plan.format.extension());
     let output = output_ledger.resolve(
         &requested_output,
         output_kind,
@@ -378,10 +345,11 @@ fn build_merge_processing_job(
     Ok(PlannedProcessingJob {
         input_index: None,
         input_path: None,
+        source_paths,
         output,
         metadata: metadata_outcome.effective_metadata,
         cover_art_passthrough: metadata_outcome.cover_art_passthrough,
-        audio_handling: AudioHandling::Encode,
+        audio_plan,
         metadata_intent: merge_patch,
     })
 }
@@ -393,19 +361,12 @@ fn build_batch_processing_jobs(
     collision_policy: CollisionPolicy,
     output_ledger: &mut OutputPlanLedger,
     file_info: &FileListInfo,
-    requested_handling: &[AudioHandling],
 ) -> Result<Vec<PlannedProcessingJob>> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
             "No input files provided for batch processing".to_string(),
         ));
     }
-    if file_info.files.len() != payload.input_files.len() {
-        return Err(AppError::InvalidInput(
-            "Inspected batch inputs do not match the processing request".to_string(),
-        ));
-    }
-
     let validated_input_paths: Vec<PathBuf> = file_info
         .files
         .iter()
@@ -413,8 +374,14 @@ fn build_batch_processing_jobs(
         .collect();
 
     let mut jobs = Vec::new();
-    for (index, path) in validated_input_paths.iter().cloned().enumerate() {
-        let input = &payload.input_files[index];
+    let mut audio_planner = crate::audio::AudioPlanner::default();
+    for (index, input) in payload.input_files.iter().enumerate() {
+        let path = crate::audio::validate_input_audio_path(Path::new(input))?;
+        let source_paths = payload
+            .sources_for(index)
+            .iter()
+            .map(|source| crate::audio::validate_input_audio_path(Path::new(&source.path)))
+            .collect::<Result<Vec<_>>>()?;
         let file_patch = metadata.and_then(|map| map.get(input)).cloned();
         let metadata_outcome = plan_metadata_outcome(MetadataOutcomeRequest {
             input_path: Some(&path),
@@ -427,11 +394,13 @@ fn build_batch_processing_jobs(
             inputs.output_naming.clone(),
             Some(&path),
         )?;
-        let requested_output = if requested_handling[index] == AudioHandling::Preserve {
-            preserve_source_extension(requested_output, &path)?
-        } else {
-            requested_output
-        };
+        let info = title_file_info(file_info, &source_paths)?;
+        let audio_plan = audio_planner.resolve(
+            &payload.audio_requests[index],
+            &info,
+            inputs.preview_seconds.is_some(),
+        )?;
+        let requested_output = requested_output.with_extension(audio_plan.format.extension());
         let output = output_ledger.resolve(
             &requested_output,
             resolve_output_kind(inputs.preview_seconds),
@@ -441,15 +410,45 @@ fn build_batch_processing_jobs(
         jobs.push(PlannedProcessingJob {
             input_index: Some(index),
             input_path: Some(path),
+            source_paths,
             output,
             metadata: metadata_outcome.effective_metadata,
             cover_art_passthrough: metadata_outcome.cover_art_passthrough,
-            audio_handling: requested_handling[index],
+            audio_plan,
             metadata_intent: file_patch,
         });
     }
 
     Ok(jobs)
+}
+
+pub(super) fn title_file_info(all: &FileListInfo, paths: &[PathBuf]) -> Result<FileListInfo> {
+    let mut info = FileListInfo {
+        files: Vec::with_capacity(paths.len()),
+        selected_decoders: Vec::with_capacity(paths.len()),
+        total_duration: 0.0,
+        total_size: 0.0,
+        valid_count: 0,
+        invalid_count: 0,
+    };
+    for path in paths {
+        let index = all
+            .files
+            .iter()
+            .position(|file| &file.path == path)
+            .ok_or_else(|| AppError::InvalidInput("A title source was not inspected.".into()))?;
+        info.files.push(all.files[index].clone());
+        info.selected_decoders
+            .push(all.selected_decoders.get(index).cloned().flatten());
+    }
+    info.valid_count = info.files.iter().filter(|file| file.is_valid).count();
+    info.invalid_count = info.files.len() - info.valid_count;
+    if info.invalid_count > 0 {
+        return Err(AppError::InvalidInput("Every source in an output title must be valid. Remove or replace invalid files before processing.".into()));
+    }
+    info.total_duration = info.files.iter().filter_map(|file| file.duration).sum();
+    info.total_size = info.files.iter().filter_map(|file| file.size).sum();
+    Ok(info)
 }
 
 impl ResolvedProcessingPlan {
@@ -468,6 +467,7 @@ impl ResolvedProcessingPlan {
             collision_policy: self.collision_policy,
             plan_signature: self.plan_signature.clone(),
             outputs,
+            audio_plans: self.jobs.iter().map(|job| job.audio_plan.clone()).collect(),
         }
     }
 }

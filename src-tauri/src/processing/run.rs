@@ -10,7 +10,7 @@ mod run_options;
 mod run_validation;
 
 pub(crate) use run_options::ProcessingRunOptions;
-use run_validation::{inspect_and_validate_external_processing_contract, log_encoder_summary};
+use run_validation::inspect_and_validate_external_processing_contract;
 
 pub(crate) async fn process_payload(
     window: tauri::Window,
@@ -87,7 +87,6 @@ async fn dispatch_payload(
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     let file_info = inspect_and_validate_external_processing_contract(&payload)?;
-    log_encoder_summary(&payload);
 
     let execution_plan =
         prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds, file_info)?;
@@ -153,18 +152,23 @@ mod tests {
             channels: ChannelConfig::Auto,
             afterburner: true,
             native_aac_speed: 0,
+            faac_profile: crate::audio::FaacProfile::Auto,
         }
     }
 
     fn process_payload(overrides: impl FnOnce(&mut ProcessPayload)) -> ProcessPayload {
         let mut payload = ProcessPayload {
+            title_sources: None,
             chapter_plans: None,
             input_files: vec!["/books/input.m4b".to_string()],
             input_ids: None,
             output_dir: "/tmp/out".to_string(),
-            settings: Some(encoder_settings()),
-            audio_handling: None,
-            sample_rate: None,
+            audio_requests: vec![crate::audio::TitleAudioRequest {
+                format: crate::audio::AudiobookFormat::M4b,
+                intent: crate::audio::AudioIntent::Encode,
+                settings: Some(encoder_settings()),
+                sample_rate: crate::audio::SampleRateConfig::Auto,
+            }],
             job_type: Some(JobType::Batch),
             output_naming: None,
             collision_policy: None,
@@ -172,6 +176,14 @@ mod tests {
             supplemental_assets_by_input_id: None,
         };
         overrides(&mut payload);
+        let count = if payload.job_type == Some(JobType::Merge) {
+            1
+        } else {
+            payload.input_files.len()
+        };
+        payload
+            .audio_requests
+            .resize(count, payload.audio_requests[0].clone());
         payload
     }
 
@@ -252,27 +264,27 @@ mod tests {
             let payload = process_payload(|payload| {
                 payload.input_files = vec![source.to_string_lossy().into_owned()];
                 payload.output_dir = output.to_string_lossy().into_owned();
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .encoder_type = EncoderType::NativeAac;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .bitrate_mode = BitrateMode::Cbr;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .bitrate_kbps = bitrate;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .channels = channels;
-                payload.sample_rate = Some(rate);
+                payload.audio_requests[0].sample_rate = rate;
             });
             let result = super::preflight_payload(payload, None, None);
             if accepted {
@@ -308,17 +320,17 @@ mod tests {
                 ];
                 payload.output_dir = temp.path().to_string_lossy().into_owned();
                 payload.job_type = Some(job_type);
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .encoder_type = EncoderType::NativeAac;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
                     .bitrate_mode = BitrateMode::Cbr;
-                payload
+                payload.audio_requests[0]
                     .settings
                     .as_mut()
                     .expect("encode fixture settings")
@@ -333,6 +345,92 @@ mod tests {
                     .to_string()
                     .contains("264 kbps"));
             }
+        }
+    }
+
+    #[test]
+    fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
+        use crate::metadata::{MetadataIntentPatch, PatchOp};
+        use crate::processing::types::TitleSource;
+        let temp = TempDir::new().expect("title plan workspace");
+        let paths: Vec<_> = ["one.wav", "two.wav", "other.wav"]
+            .iter()
+            .map(|name| {
+                let path = temp.path().join(name);
+                write_silence_wav(&path, 1);
+                path.canonicalize().expect("canonical fixture")
+            })
+            .collect();
+        let names: Vec<_> = paths
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect();
+        let mut payload = process_payload(|payload| {
+            payload.input_files = vec![names[0].clone(), names[2].clone()];
+            payload.title_sources = Some(HashMap::from([(
+                names[0].clone(),
+                vec![
+                    TitleSource {
+                        path: names[1].clone(),
+                        input_id: Some("two".into()),
+                    },
+                    TitleSource {
+                        path: names[0].clone(),
+                        input_id: Some("one".into()),
+                    },
+                ],
+            )]));
+            payload.output_dir = temp.path().to_string_lossy().into_owned();
+            let settings = payload.audio_requests[0]
+                .settings
+                .as_mut()
+                .expect("encode settings");
+            settings.encoder_type = EncoderType::NativeAac;
+            settings.bitrate_mode = BitrateMode::Cbr;
+        });
+        let metadata = HashMap::from([
+            (
+                names[0].clone(),
+                MetadataIntentPatch {
+                    title: PatchOp::Set("Combined title".into()),
+                    ..Default::default()
+                },
+            ),
+            (
+                names[2].clone(),
+                MetadataIntentPatch {
+                    title: PatchOp::Set("Separate title".into()),
+                    ..Default::default()
+                },
+            ),
+        ]);
+        let reviewed = super::preflight_payload(payload.clone(), Some(metadata.clone()), None)
+            .expect("review titles");
+        payload.preflight_signature = Some(reviewed.plan_signature);
+        let inspected =
+            super::run_validation::inspect_and_validate_external_processing_contract(&payload)
+                .expect("inspect all title sources");
+        let execution = crate::processing::plan::prepare_execution_plan(
+            &payload,
+            Some(&metadata),
+            None,
+            inspected,
+        )
+        .expect("prepare reviewed execution");
+        let jobs = execution.plan.jobs;
+        assert_eq!(jobs.len(), 2);
+        assert_eq!(jobs[0].input_path.as_ref(), Some(&paths[0]));
+        assert_eq!(jobs[0].source_paths, [paths[1].clone(), paths[0].clone()]);
+        assert_eq!(jobs[1].source_paths, [paths[2].clone()]);
+        for (job, title) in jobs.iter().zip(["Combined title", "Separate title"]) {
+            assert_eq!(
+                job.metadata
+                    .as_ref()
+                    .and_then(|value| value.title.as_deref()),
+                Some(title)
+            );
+            assert!(job.output.resolved_path.to_string_lossy().contains(title));
+            assert!(!job.output.resolved_path.exists());
         }
     }
 
@@ -491,7 +589,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("Output must be .m4b file, got: .mp3"),
+                .contains("Encoded output must be .m4b, .m4a or .mka, got: .mp3"),
             "unexpected error: {error}"
         );
 

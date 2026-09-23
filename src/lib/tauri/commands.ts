@@ -1,3 +1,4 @@
+import type { TitleAudioRequest } from '../../types/audio';
 import {
 	commands as generatedCommands,
 	type AppSettingsPatch as GeneratedAppSettingsPatch,
@@ -10,8 +11,6 @@ import {
 	type RemoteReleaseSearchRequest as GeneratedRemoteReleaseSearchRequest,
 } from '../generated/tauri';
 import type {
-	AudioHandling,
-	EncoderSettings,
 	OutputNamingConfig,
 	OutputKind,
 	ProcessPayload,
@@ -37,6 +36,7 @@ import type {
 import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
+	denormalizeChapterPlans,
 	denormalizeMetadata,
 	denormalizeNullish,
 	denormalizeProcessPayload,
@@ -101,6 +101,8 @@ function toGeneratedEncoderDefaults(
 	return {
 		settings: defaults.settings,
 		sampleRate: defaults.sampleRate,
+		format: defaults.format,
+		intent: defaults.intent,
 	};
 }
 
@@ -219,6 +221,18 @@ export const commandSpecs = {
 			generatedCommands.searchOnlineMetadata(args.query, args.sources, args.limit ?? null),
 			normalizeLookupResponse,
 		),
+	preview_title_audio: (args: {
+		filePaths: string[];
+		request: TitleAudioRequest;
+		chapterPlans?: ProcessPayload['chapterPlans'];
+	}) =>
+		runGeneratedCommand(
+			generatedCommands.previewTitleAudio(
+				args.filePaths,
+				args.request,
+				denormalizeChapterPlans(args.chapterPlans),
+			),
+		),
 	analyze_audio_files: (args: { filePaths: string[] }) =>
 		runGeneratedCommand(generatedCommands.analyzeAudioFiles(args.filePaths), normalizeFileList),
 	get_supported_audio_import_metadata: (_args?: undefined) =>
@@ -300,8 +314,6 @@ export const commandSpecs = {
 			),
 			normalizeNullish,
 		),
-	validate_encoder_settings: (args: { settings: EncoderSettings }) =>
-		runGeneratedCommand(generatedCommands.validateEncoderSettings(args.settings)),
 	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>
 		runGeneratedCommand(
 			generatedCommands.getRuntimeSettingsCapabilities(),
@@ -313,7 +325,7 @@ export const commandSpecs = {
 		outputNaming?: ProcessPayload['outputNaming'] | null;
 		sourcePath?: string | null;
 		outputKind?: OutputKind | null;
-		audioHandling?: AudioHandling | null;
+		format: import('../../types/audio').AudiobookFormat;
 	}) =>
 		runGeneratedCommand(
 			generatedCommands.previewOutputPath(
@@ -322,7 +334,7 @@ export const commandSpecs = {
 				toGeneratedOutputNamingConfig(args.outputNaming),
 				args.sourcePath ?? null,
 				args.outputKind ?? null,
-				args.audioHandling ?? null,
+				args.format,
 			),
 		),
 	preflight_processing_plan: (args: {

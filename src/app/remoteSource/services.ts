@@ -73,20 +73,13 @@ async function importMaterializedPathsThroughInput(
 		const after = bridge.inputView();
 		if (
 			after.errorMessage &&
-			!paths.some((path) => after.files.some((file) => file.path === path))
+			!paths.some((path) => after.sourceFiles.some((file) => file.path === path))
 		) {
 			return { status: 'failed', message: after.errorMessage };
 		}
 		return {
 			status: 'imported',
-			fileList: {
-				files: [...after.files],
-				selectedDecoders: after.files.map(() => null),
-				totalDuration: 0,
-				totalSize: 0,
-				validCount: after.files.filter((file) => file.isValid).length,
-				invalidCount: after.files.filter((file) => !file.isValid).length,
-			},
+			files: after.sourceFiles,
 		};
 	} catch (cause) {
 		return {

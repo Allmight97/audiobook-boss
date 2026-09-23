@@ -1,5 +1,5 @@
 use crate::audio::{
-    validate_encoder_settings, validate_sample_rate_config, BitrateMode, ChannelConfig,
+    validate_encoder_settings, validate_sample_rate_config, AudioIntent, AudiobookFormat,
     EncoderSettings, EncoderType, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
@@ -91,6 +91,10 @@ pub struct ToolchainPreferences {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EncoderDefaults {
+    #[serde(default)]
+    pub format: AudiobookFormat,
+    #[serde(default)]
+    pub intent: AudioIntent,
     pub settings: EncoderSettings,
     pub sample_rate: SampleRateConfig,
 }
@@ -156,14 +160,9 @@ impl Default for AppSettings {
 impl Default for EncoderDefaults {
     fn default() -> Self {
         Self {
-            settings: EncoderSettings {
-                encoder_type: EncoderType::Auto,
-                bitrate_kbps: 64,
-                bitrate_mode: BitrateMode::Vbr(3),
-                channels: ChannelConfig::Auto,
-                afterburner: true,
-                native_aac_speed: 0,
-            },
+            format: AudiobookFormat::default(),
+            intent: AudioIntent::default(),
+            settings: EncoderSettings::default(),
             sample_rate: SampleRateConfig::Auto,
         }
     }
@@ -245,6 +244,14 @@ impl ConcurrencyPreference {
 
 impl EncoderDefaults {
     fn validate(&mut self) -> Result<()> {
+        if self.format != AudiobookFormat::Mp3
+            && self.format.is_opus() != (self.settings.encoder_type == EncoderType::Opus)
+        {
+            return Err(AppError::InvalidInput(
+                "The default encoder must match the selected output format.".into(),
+            ));
+        }
+
         validate_encoder_settings(&self.settings)?;
         validate_sample_rate_config(&self.sample_rate)?;
         Ok(())

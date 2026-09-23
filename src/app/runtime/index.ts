@@ -21,6 +21,8 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const selectionGate: { check?: (signal?: AbortSignal) => Promise<boolean> } = {};
 			const input = createInputOwner({
 				capability: capabilities.input,
+				audioDefaults: () => encoding.audioRequest(),
+				beforeImport: () => initialize(),
 				beforeSelectionChange: (signal) => selectionGate.check?.(signal) ?? true,
 			});
 			const settings = createSettingsOwner({
@@ -67,11 +69,30 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			});
 			processingHolder.current = processing;
 			const workOperations = createWorkOperationsOwner({ remoteSource });
+			let startup: Promise<void> | undefined;
+			function initialize(): Promise<void> {
+				if (startup) return startup;
+				const initialOutput = JSON.stringify(output.readDefaults());
+				startup = settings
+					.loadStartupDefaults()
+					.then((defaults) => {
+						if (disposed) return;
+						encoding.hydrateDefaults(defaults.encoderDefaults);
+						if (JSON.stringify(output.readDefaults()) === initialOutput)
+							output.applyDefaults(defaults.outputDefaults);
+					})
+					.catch((error: unknown) => {
+						startup = undefined;
+						throw error;
+					});
+				return startup;
+			}
 			settings.bindAfterReset((defaults) => {
 				output.applyDefaults(defaults.outputDefaults);
 				encoding.applyDefaults(defaults.encoderDefaults);
 			});
 			return {
+				initialize,
 				input,
 				metadata,
 				lookup,

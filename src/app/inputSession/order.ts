@@ -36,15 +36,23 @@ export function removeFileFromSession(
 	}
 	const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
 	const importOrdinalByPath = { ...session.importOrdinalByPath };
-	delete importOrdinalByPath[removed.path];
-	const audioHandlingByIdentity = { ...session.audioHandlingByIdentity };
-	delete audioHandlingByIdentity[fileIdentityKey(removed)];
+	const sources = session.titleSourcesByIdentity[fileIdentityKey(removed)] ?? [removed];
+	for (const source of sources) delete importOrdinalByPath[source.path];
+	const titleSourcesByIdentity = { ...session.titleSourcesByIdentity };
+	for (const source of sources) delete titleSourcesByIdentity[fileIdentityKey(source)];
+	const audioRequestsByIdentity = { ...session.audioRequestsByIdentity };
+	for (const source of sources) delete audioRequestsByIdentity[fileIdentityKey(source)];
+
 	const next = reindexSelectionAfterRemoval(replaceFileListFiles(session, nextFiles), index);
 	return {
 		session: {
 			...next,
 			importOrdinalByPath,
-			audioHandlingByIdentity,
+			audioRequestsByIdentity,
+			titleSourcesByIdentity,
+			audioChoiceRequired: session.audioChoiceRequired.filter(
+				(id) => id !== fileIdentityKey(removed),
+			),
 		},
 		removed,
 	};
@@ -213,10 +221,4 @@ export function setOrderLockedInSession(
 		return session;
 	}
 	return { ...session, orderLocked };
-}
-
-export function inputIdsInSession(session: InputSessionState): ReadonlyArray<string> {
-	return (session.fileList?.files ?? [])
-		.map((file) => file.inputId)
-		.filter((inputId): inputId is string => Boolean(inputId));
 }

@@ -23,11 +23,7 @@ export function encoderAvailabilityFixture(
 		aacAtAvailable,
 		nativeAacAvailable,
 		fdkSource: fdkAvailable ? ('detected' as const) : ('none' as const),
-		autoEncoder: fdkAvailable
-			? ('fdk_he_aac' as const)
-			: aacAtAvailable
-				? ('aac_at' as const)
-				: ('native_aac' as const),
+		autoEncoder: fdkAvailable ? ('fdk_he_aac' as const) : ('native_aac' as const),
 		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : null,
 		statusMessage: fdkAvailable
 			? 'FDK AAC detected and ready.'
@@ -58,10 +54,21 @@ export function runtimeSettingsCapabilitiesFixture(
 				detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
 				statusMessage: 'FDK AAC detected and ready.',
 			} satisfies GeneratedEncoderAvailability,
-			encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac', 'faac_he_aac'],
-			bitrateKbpsMin: 1,
+			encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac', 'faac', 'opus'],
 			encoderConfigurations: [
 				{
+					encoderType: 'opus' as const,
+					allowedModes: ['vbr' as const],
+					defaultMode: { mode: 'vbr_target' as const },
+					explicitSampleRates: [8000, 12000, 16000, 24000, 48000],
+					faacProfiles: [],
+					bitrateKbpsMin: 6,
+					bitrateKbpsMax: 510,
+				},
+				{
+					faacProfiles: [],
+					bitrateKbpsMin: 1,
+					bitrateKbpsMax: 1152,
 					encoderType: 'auto' as const,
 					allowedModes: ['vbr' as const, 'cvbr' as const, 'cbr' as const],
 					defaultMode: { mode: 'vbr' as const, value: 3 },
@@ -70,6 +77,9 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
+					faacProfiles: [],
+					bitrateKbpsMin: 1,
+					bitrateKbpsMax: 1152,
 					encoderType: 'fdk_he_aac' as const,
 					allowedModes: ['vbr' as const],
 					defaultMode: { mode: 'vbr' as const, value: 3 },
@@ -78,6 +88,9 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
+					faacProfiles: [],
+					bitrateKbpsMin: 1,
+					bitrateKbpsMax: 1152,
 					encoderType: 'aac_at' as const,
 					allowedModes: ['cvbr' as const],
 					defaultMode: { mode: 'cvbr' as const },
@@ -86,6 +99,9 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
+					faacProfiles: [],
+					bitrateKbpsMin: 1,
+					bitrateKbpsMax: 1152,
 					encoderType: 'native_aac' as const,
 					allowedModes: ['cbr' as const],
 					defaultMode: { mode: 'cbr' as const },
@@ -94,14 +110,29 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
-					encoderType: 'faac_he_aac' as const,
-					allowedModes: ['abr' as const],
+					faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'].map((profile) => ({
+						profile: profile as 'auto' | 'aac_lc' | 'he_aac_v1',
+						explicitSampleRates:
+							profile === 'he_aac_v1'
+								? [32000, 44100, 48000]
+								: [
+										7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000,
+										88200, 96000,
+									],
+					})),
+					encoderType: 'faac' as const,
+					bitrateKbpsMin: 1,
+					bitrateKbpsMax: 1152,
+					allowedModes: ['abr' as const, 'vbr' as const],
 					defaultMode: { mode: 'abr' as const },
-					explicitSampleRates: [32000, 44100, 48000],
+					explicitSampleRates: [
+						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+					],
 				},
 			],
-			bitrateKbpsMax: 1152,
 			nativeSpeedMax: 4,
+			faacQualityPresets: [50, 100, 200],
+			faacQualityDefault: 100,
 			vbrLevelMin: 1,
 			vbrLevelMax: 5,
 			vbrLevelDefault: 3,

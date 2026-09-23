@@ -1,6 +1,6 @@
 use super::passthrough::PassthroughMetadata;
 use super::{AudiobookMetadata, MetadataWritePlan};
-use crate::errors::Result;
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 use std::time::Instant;
 
@@ -33,7 +33,6 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     output_format: Option<&str>,
 ) -> Result<()> {
     use crate::diagnostics::stage;
-    use crate::errors::AppError;
 
     let started = Instant::now();
     ff::init().map_err(AppError::Ffmpeg)?;
@@ -49,6 +48,13 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     let mut octx = stage("metadata_create_output", &temp_path, || {
         match output_format {
             Some(format) => ff::format::output_as(&temp_path, format),
+            None if matches!(
+                temp_path.extension().and_then(|ext| ext.to_str()),
+                Some("m4a" | "m4b")
+            ) =>
+            {
+                ff::format::output_as(&temp_path, "mp4")
+            }
             None => ff::format::output(&temp_path),
         }
         .map_err(AppError::Ffmpeg)
@@ -64,8 +70,22 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         crate::diagnostics::artifact_id(input_path), ictx.format().name(), octx.format().name(),
         passthrough.map_or(0, |value| value.chapters.len()));
     let metadata_value = metadata.map(|plan| &plan.metadata);
-    let (stream_mapping, output_time_bases) = stage("metadata_copy_streams", &temp_path, || {
-        copy_streams(&ictx, &mut octx, metadata_value)
+    let source_cover = if metadata_value
+        .and_then(|value| value.cover_art.as_ref())
+        .is_none()
+    {
+        super::reader::extract_attached_pic(&ictx)
+    } else {
+        None
+    };
+    let cover = ResolvedCover::select(metadata_value, passthrough)
+        .or_else(|| source_cover.as_ref().map(ResolvedCover::Passthrough));
+    let replace_cover = cover.is_some()
+        || metadata_value
+            .and_then(|value| value.cover_art.as_ref())
+            .is_some();
+    let stream_mapping = stage("metadata_copy_streams", &temp_path, || {
+        copy_streams(&ictx, &mut octx, replace_cover)
     })?;
     stage("metadata_copy_chapters", &temp_path, || {
         copy_chapters(&ictx, &mut octx, passthrough)
@@ -74,25 +94,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         copy_container_metadata(&ictx, &mut octx, metadata)
     })?;
 
-    let cover = ResolvedCover::select(metadata_value, passthrough);
-    log::info!(
-        "metadata_cover artifact={} writer=ffmpeg_remux source={} bytes={} format={:?} decision={}",
-        crate::diagnostics::artifact_id(input_path),
-        match cover {
-            Some(ResolvedCover::Explicit(_)) => "explicit",
-            Some(ResolvedCover::Passthrough(_)) => "passthrough",
-            None => "none",
-        },
-        cover.map_or(0, |s| s.bytes().len()),
-        cover.and_then(|s| super::cover_art::detect_cover_art_format(s.bytes())),
-        if cover.is_some() {
-            "embed"
-        } else if metadata_value.and_then(|m| m.cover_art.as_ref()).is_some() {
-            "explicit_clear"
-        } else {
-            "no_cover_data"
-        }
-    );
+    log_cover_selection(input_path, cover, metadata_value);
     let cover_stream_info = if let Some(selection) = cover {
         match add_cover_art_stream_pre_header(&mut octx, selection.bytes()) {
             Ok(stream_info) => stream_info,
@@ -105,7 +107,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         None
     };
     stage("metadata_write_header", &temp_path, || {
-        octx.write_header().map_err(AppError::Ffmpeg)
+        write_container_header(&ictx, &mut octx)
     })?;
 
     if let (Some(selection), Some((stream_index, format))) = (cover, cover_stream_info) {
@@ -117,7 +119,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     }
 
     stage("metadata_copy_packets", &temp_path, || {
-        stream_copy_packets(&mut ictx, &mut octx, &stream_mapping, &output_time_bases)
+        stream_copy_packets(&mut ictx, &mut octx, &stream_mapping)
     })?;
     stage("metadata_write_trailer", &temp_path, || {
         octx.write_trailer().map_err(AppError::Ffmpeg)
@@ -139,8 +141,6 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
 }
 
 fn build_temp_output_path(input_path: &std::path::Path) -> Result<std::path::PathBuf> {
-    use crate::errors::AppError;
-
     let parent = input_path
         .parent()
         .map(std::path::Path::to_path_buf)
@@ -164,13 +164,11 @@ fn build_temp_output_path(input_path: &std::path::Path) -> Result<std::path::Pat
 fn copy_streams(
     ictx: &ff::format::context::Input,
     octx: &mut ff::format::context::Output,
-    metadata: Option<&AudiobookMetadata>,
-) -> Result<(Vec<isize>, Vec<Option<ff::Rational>>)> {
-    use crate::errors::AppError;
-
+    replace_cover: bool,
+) -> Result<Vec<isize>> {
+    let octx_is_mp4 = octx.format().name() == "mp4";
     let stream_len = ictx.streams().len();
     let mut stream_mapping: Vec<isize> = vec![-1; stream_len];
-    let mut output_time_bases: Vec<Option<ff::Rational>> = vec![None; stream_len];
 
     for (index, istream) in ictx.streams().enumerate() {
         let medium = istream.parameters().medium();
@@ -186,11 +184,13 @@ fn copy_streams(
         let in_disposition = istream.disposition();
         let is_attached_pic =
             in_disposition.contains(ff::format::stream::Disposition::ATTACHED_PIC);
-        if is_attached_pic
-            && metadata
-                .and_then(|value| value.cover_art.as_ref())
-                .is_some()
-        {
+        let tags = istream.metadata();
+        let is_cover_attachment = medium == ff::media::Type::Attachment
+            && super::matroska_cover::is_cover(
+                tags.get("filename").unwrap_or(""),
+                tags.get("mimetype").unwrap_or(""),
+            );
+        if (is_attached_pic || is_cover_attachment) && replace_cover {
             log::info!("Skipping source attached_pic stream in favor of new cover art");
             continue;
         }
@@ -199,14 +199,23 @@ fn copy_streams(
             .map_err(AppError::Ffmpeg)?;
         let mut ostream = octx.add_stream_with(&codec_ctx).map_err(AppError::Ffmpeg)?;
         ostream.set_time_base(istream.time_base());
+        if istream.parameters().id() == ff::codec::Id::OPUS && octx_is_mp4 {
+            // FFmpeg MOV needs a frame size to honor final discard padding.
+            // Opus packets can vary in duration; use its smallest legal frame.
+            // SAFETY: the live output stream owns these parameters; this only
+            // updates its numeric frame-size hint before the muxer header.
+            unsafe {
+                (*ostream.parameters().as_mut_ptr()).frame_size = 120;
+            }
+            ostream.set_time_base((1, 48_000));
+        }
         ostream.set_metadata(istream.metadata().to_owned());
         set_stream_disposition_and_clear_codec_tag(&mut ostream, in_disposition);
 
         stream_mapping[index] = ostream.index() as isize;
-        output_time_bases[ostream.index()] = Some(ostream.time_base());
     }
 
-    Ok((stream_mapping, output_time_bases))
+    Ok(stream_mapping)
 }
 
 fn copy_chapters(
@@ -262,10 +271,10 @@ fn stream_copy_packets(
     ictx: &mut ff::format::context::Input,
     octx: &mut ff::format::context::Output,
     stream_mapping: &[isize],
-    output_time_bases: &[Option<ff::Rational>],
 ) -> Result<()> {
-    use crate::errors::AppError;
-
+    let exact_opus_clock =
+        ictx.format().name().contains("matroska") && octx.format().name() == "mp4";
+    let mut opus_positions = vec![None; ictx.streams().len()];
     for (input_stream, mut packet) in ictx.packets() {
         let in_index = input_stream.index();
         let out_index = *stream_mapping.get(in_index).unwrap_or(&-1);
@@ -273,15 +282,110 @@ fn stream_copy_packets(
             continue;
         }
 
-        let out_tb = output_time_bases
-            .get(out_index as usize)
-            .and_then(|time_base| *time_base)
-            .unwrap_or(input_stream.time_base());
+        let out_tb = octx
+            .stream(out_index as usize)
+            .ok_or_else(|| AppError::General("Remux audio stream is missing.".into()))?
+            .time_base();
 
         packet.set_stream(out_index as usize);
-        packet.rescale_ts(input_stream.time_base(), out_tb);
+        if exact_opus_clock && input_stream.parameters().id() == ff::codec::Id::OPUS {
+            // Matroska timestamps round to milliseconds. Recover the sample clock
+            // from packet framing, preserving priming and final discard padding.
+            // SAFETY: numeric field read borrows the live input stream.
+            let initial_padding = unsafe { (*input_stream.parameters().as_ptr()).initial_padding };
+            let position = opus_positions[in_index].get_or_insert(-i64::from(initial_padding));
+            use ff::Rescale;
+            let source_pts = packet
+                .pts()
+                .ok_or_else(|| {
+                    AppError::InvalidInput(
+                        "Opus source timestamps are missing. Use encoding settings for this title."
+                            .into(),
+                    )
+                })?
+                .rescale(input_stream.time_base(), (1, 48_000));
+            if source_pts.abs_diff(*position) > 48 {
+                return Err(AppError::InvalidInput("Opus source has a discontinuous timeline. Use encoding settings for this title.".into()));
+            }
+            let duration = opus_packet_samples(packet.data().unwrap_or_default())?;
+            packet.set_pts(Some(*position));
+            packet.set_dts(Some(*position));
+            packet.set_duration(duration);
+            *position += duration;
+            packet.rescale_ts((1, 48_000), out_tb);
+        } else {
+            packet.rescale_ts(input_stream.time_base(), out_tb);
+        }
         packet.write_interleaved(octx).map_err(AppError::Ffmpeg)?;
     }
 
     Ok(())
+}
+
+// RFC 6716 §3.1–3.2: TOC configuration gives frame duration; the packing
+// code gives frame count. This reads framing only, without decoding audio.
+fn opus_packet_samples(data: &[u8]) -> Result<i64> {
+    let invalid = || crate::errors::AppError::InvalidInput("Invalid Opus packet framing.".into());
+    let toc = *data.first().ok_or_else(invalid)?;
+    let config = toc >> 3;
+    let frame_samples = match config {
+        0..=11 => [480, 960, 1920, 2880][usize::from(config & 3)],
+        12..=15 => 480 << (config & 1),
+        _ => 120 << (config & 3),
+    };
+    let frames = match toc & 3 {
+        0 => 1,
+        1 | 2 => 2,
+        _ => i64::from(*data.get(1).ok_or_else(invalid)? & 63),
+    };
+    let samples = frame_samples * frames;
+    if !(120..=5760).contains(&samples) {
+        return Err(invalid());
+    }
+    Ok(samples)
+}
+
+fn write_container_header(
+    ictx: &ff::format::context::Input,
+    octx: &mut ff::format::context::Output,
+) -> Result<()> {
+    let mut options = ff::Dictionary::new();
+    // A new Xing header would invent decoder-delay trimming for a source
+    // that has none. Keep existing gapless timing when it is present.
+    if octx.format().name() == "mp3"
+        && ictx
+            .streams()
+            .best(ff::media::Type::Audio)
+            .is_some_and(|stream| stream.start_time() == 0)
+    {
+        options.set("write_xing", "0");
+    }
+    octx.write_header_with(options)
+        .map(|_| ())
+        .map_err(AppError::Ffmpeg)
+}
+
+fn log_cover_selection(
+    input_path: &std::path::Path,
+    cover: Option<ResolvedCover<'_>>,
+    metadata_value: Option<&AudiobookMetadata>,
+) {
+    log::info!(
+        "metadata_cover artifact={} writer=ffmpeg_remux source={} bytes={} format={:?} decision={}",
+        crate::diagnostics::artifact_id(input_path),
+        match cover {
+            Some(ResolvedCover::Explicit(_)) => "explicit",
+            Some(ResolvedCover::Passthrough(_)) => "passthrough",
+            None => "none",
+        },
+        cover.map_or(0, |s| s.bytes().len()),
+        cover.and_then(|s| super::cover_art::detect_cover_art_format(s.bytes())),
+        if cover.is_some() {
+            "embed"
+        } else if metadata_value.and_then(|m| m.cover_art.as_ref()).is_some() {
+            "explicit_clear"
+        } else {
+            "no_cover_data"
+        }
+    );
 }

@@ -7,9 +7,9 @@ Convert, tag, and organize your audiobook library with metadata that works every
 ## What it does
 
 - **Batch convert** MP3/M4A/M4B/AAC/WAV/FLAC to optimized M4B audiobooks
-- **Book Binder** — Merge multiple chapterized audio files into a single M4B with chapter markers and metadata.
+- **Title stacks** — Group ordered source files into one tagged audiobook with chapters, alongside independent titles.
 - **Audible acquire** — sign in, browse the library, and materialize AAX/AAXC titles through the bundled helper
-- **Keep original audio** — Export single-file M4B/M4A and MP3 books with updated tags, artwork, and library folders while keeping their audio and source format. Choose per book, including in mixed batches with books being encoded.
+- **Audio choices** — Default to AAC/M4B, keep original audio when the selected output supports it, or choose Opus in M4A/MKA. Edit one title or a selected group; set defaults for future imports in Settings. Tags, artwork, chapters, and library folders still update when audio passes through. Opus direct playback and chapter navigation depend on the library and player.
 - **Smart metadata** — series, narrator, cover art with Audiobookshelf/Apple Books dual-write compatibility
 - **Parallel processing** with real-time progress and per-job cancellation
 - **Metadata lookup** — search online databases and apply results in batch
@@ -29,21 +29,27 @@ bun run app:dev:log
 Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
-selects FDK, then Apple, then Native AAC; it does not select bundled FAAC.
+selects FDK, then Native NMR; Apple AAC and bundled FAAC are explicit choices.
 Native AAC uses the bundled NMR coder with a numeric target and speed control,
-Apple AAC uses a numeric target, and bundled FAAC provides explicit HE-AAC v1
-with numeric ABR at 32, 44.1, or 48 kHz. FDK HE-AAC keeps its quality control
+Apple AAC uses a numeric target. Bundled FAAC offers Auto, AAC-LC, and HE-AAC v1
+profiles with ABR or VBR. FAAC defaults to profile Auto and ABR; the shared
+target defaults to 64 kbps, and sample rate/channels retain their Auto behavior.
+FAAC chooses Auto’s profile from the requested output settings when encoding
+opens. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
+with the audio, so use ABR for a bitrate target. Explicit HE supports 32, 44.1,
+and 48 kHz; Auto and LC also support the other available output rates. Saved
+HE/ABR preferences retain that intent. FDK HE-AAC keeps its quality control
 through an external FFmpeg/`libfdk_aac` adapter. Normal processing uses the
 in-process Audio engine; the external adapter may force `aac_at` or
 `libfdk_aac` when the default decoder cannot handle the source. Bundled source
 revisions and wrapper changes are recorded under `vendor/`. ABB-produced FAAC
-files retain Apple-compatible gapless timing; ABB accounts for native decoder
+HE files retain Apple-compatible gapless timing; ABB accounts for native decoder
 priming when reading them back, including through the external FDK route. Mono
 FDK output explicitly declares that parametric stereo is absent so Apple and
 FFmpeg both read it as mono.
 FAAC's LGPL license and source provenance ship with the app; its corresponding
 source and build configuration live in `vendor/faac-sys/`. Each public release
-provides the corresponding ABB source, including the modified FAAC source and
+provides the corresponding ABB source, including the selected FAAC source and
 build scripts. To rebuild with a modified FAAC library, extract the matching
 release source archive, edit `vendor/faac-sys/upstream/`, run
 `bun install --frozen-lockfile`, then `bun run app:build:dmg` on an Apple Silicon

@@ -610,3 +610,22 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 	expect(summary).toContain('mux_finished=true');
 	expect(analysis.jobs).toEqual([]);
 });
+
+it('keeps title decisions and output observations visible despite stage noise', () => {
+	const decision = 'audio_decision job_id=book-1 request=Preserve action=Preserve';
+	const source = 'audio_source job_id=book-1 source_index=0 source_path="/books/source.m4b"';
+	const output = 'audio_output job_id=book-1 status=observed sample_rate=44100';
+	const analysis = analyzeDevLog(
+		[
+			APP_START,
+			decision,
+			source,
+			...Array(110).fill('media_stage stage=probe status=ok'),
+			output,
+		].join('\n'),
+		'',
+		0,
+	);
+	expect(analysis.audioDecisions).toEqual([decision, source, output]);
+	expect(renderDevLogAnalysis(analysis)).toContain(source);
+});

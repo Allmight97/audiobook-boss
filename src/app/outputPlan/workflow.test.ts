@@ -1,10 +1,7 @@
+import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { describe, expect, it, vi } from 'vitest';
 import { Effect, runAppEffect } from '../../lib/effect/appEffect';
-import {
-	defaultEncoderSettings,
-	type ProcessPayload,
-	type ProcessingPreflightPlan,
-} from '../../types/audio';
+import type { ProcessPayload, ProcessingPreflightPlan } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
 	computeOutputPathPreview,
@@ -19,8 +16,7 @@ function payload(overrides: Partial<ProcessPayload> = {}): ProcessPayload {
 	return {
 		inputFiles: ['/books/a.m4b'],
 		outputDir: '/tmp/out',
-		settings: defaultEncoderSettings(),
-		sampleRate: 'auto',
+		audioRequests: [titleAudioRequest()],
 		jobType: 'merge',
 		outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		...overrides,
@@ -32,6 +28,7 @@ function plan(overrides: Partial<ProcessingPreflightPlan> = {}): ProcessingPrefl
 		jobType: 'merge',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
+		audioPlans: [],
 		planSignature: 'sig-clean',
 		outputs: [
 			{
@@ -64,6 +61,7 @@ function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
 
 const previewContext = {
 	outputDirectory: '/tmp/out',
+	format: 'm4b' as const,
 	sourcePath: '/books/a.m4b',
 	outputNaming: { preset: 'absDefault' as const, includeYear: false, customTemplate: undefined },
 	metadataDraft: {
@@ -87,6 +85,7 @@ describe('OutputPlanWorkflow', () => {
 		expect(previewOutputPath).toHaveBeenCalledWith(
 			expect.objectContaining({
 				outputDir: '/tmp/out',
+				format: 'm4b' as const,
 				sourcePath: '/books/a.m4b',
 				outputKind: 'final',
 			}),
@@ -236,6 +235,7 @@ describe('OutputPlanWorkflow', () => {
 
 	it('runs reviewed preflight with the selected collision policy', async () => {
 		const initialPlan = plan({
+			audioPlans: [],
 			planSignature: 'sig-review',
 			outputs: [
 				{
@@ -252,6 +252,7 @@ describe('OutputPlanWorkflow', () => {
 		});
 		const reviewedPlan = plan({
 			collisionPolicy: 'rename_new',
+			audioPlans: [],
 			planSignature: 'sig-reviewed',
 			outputs: [{ ...initialPlan.outputs[0], action: 'rename_new' }],
 		});

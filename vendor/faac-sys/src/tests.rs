@@ -48,6 +48,33 @@ fn parallel_handles_produce_the_same_packets_as_sequential_handles() {
 }
 
 fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) -> Vec<Vec<u8>> {
+    encode_configuration(profile, rate, channels, 0, profile)
+}
+
+#[test]
+fn auto_profile_uses_output_rate_channels_and_quality() {
+    for (rate, channels, quality, expected) in [
+        (22050, 2, 0, FAAC_OBJ_LOW),
+        (32000, 2, 0, FAAC_OBJ_LOW),
+        (44100, 2, 0, FAAC_OBJ_LOW),
+        (48000, 2, 0, FAAC_OBJ_LOW),
+        (96000, 2, 0, FAAC_OBJ_LOW),
+        (48000, 1, 0, FAAC_OBJ_LOW),
+        (48000, 2, 50, FAAC_OBJ_HE_AAC_V1),
+        (48000, 2, 100, FAAC_OBJ_LOW),
+        (44100, 2, 200, FAAC_OBJ_LOW),
+    ] {
+        encode_configuration(FAAC_OBJ_AUTO, rate, channels, quality, expected);
+    }
+}
+
+fn encode_configuration(
+    profile: faac_object_type,
+    rate: u32,
+    channels: u32,
+    quality: u32,
+    expected: faac_object_type,
+) -> Vec<Vec<u8>> {
     let mut params = faac_params::default();
     assert_eq!(
         unsafe { faac_params_init(&mut params, size_of::<faac_params>() as u32) },
@@ -56,7 +83,8 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) -> Vec<Vec<
     params.sample_rate = rate;
     params.num_channels = channels;
     params.object_type = profile;
-    params.bit_rate = 64_000 / channels;
+    params.bit_rate = if quality == 0 { 64_000 / channels } else { 0 };
+    params.quant_quality = quality;
     params.output_format = FAAC_STREAM_RAW;
     params.input_format = FAAC_INPUT_FLOAT;
     let mut handle = Handle(ptr::null_mut());
@@ -80,12 +108,23 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) -> Vec<Vec<
         unsafe { faac_encoder_get_info(handle.0, &mut info) },
         FAAC_OK
     );
-    assert_eq!(info.object_type, profile);
+    assert_eq!(info.object_type, expected);
     assert_eq!(info.sample_rate, rate);
-    assert_eq!(info.rate_control, FAAC_RC_ABR);
+    assert_eq!(
+        info.rate_control,
+        if quality == 0 {
+            FAAC_RC_ABR
+        } else {
+            FAAC_RC_VBR
+        }
+    );
+    assert_eq!(
+        info.encoder_delay,
+        if expected == FAAC_OBJ_LOW { 1024 } else { 3042 }
+    );
     assert_eq!(
         info.frame_samples,
-        if profile == FAAC_OBJ_LOW { 1024 } else { 2048 }
+        if expected == FAAC_OBJ_LOW { 1024 } else { 2048 }
     );
     assert!(info.max_output_bytes > 0);
 
@@ -167,6 +206,6 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(info.sbr_decimation, 1);
     assert_eq!(
         unsafe { CStr::from_ptr(info.version) }.to_bytes(),
-        b"2.1.0-dev.c3e082c"
+        b"2.1.0-dev.1cbe2a0"
     );
 }

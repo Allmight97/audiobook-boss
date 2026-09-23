@@ -25,6 +25,7 @@ mod ffi;
 mod ffmpeg_dict;
 mod field_schema;
 mod intent_plan;
+mod matroska_cover;
 mod metadata_ops;
 mod metadata_sinks;
 mod mp4_covr;
@@ -146,4 +147,47 @@ pub(crate) fn write_finalized_metadata(
     metadata: &AudiobookMetadata,
 ) -> Result<()> {
     mp4ameta_bridge::write_metadata(path, metadata)
+}
+
+/// Changes only the container on an owned staging artifact, retaining its audio,
+/// accepted chapters, and metadata. Callers never pass an original source here.
+pub(crate) fn remux_preserved_audio_container(
+    path: &std::path::Path,
+    extension: &str,
+) -> Result<()> {
+    let target = match extension {
+        "m4a" | "m4b" => "mp4",
+        "mka" => "matroska",
+        "mp3" => "mp3",
+        _ => {
+            return Err(crate::errors::AppError::InvalidInput(
+                "Unsupported audiobook container.".into(),
+            ))
+        }
+    };
+    if container::classify(path)?.remux_output_format() == Some(target) {
+        return Ok(());
+    }
+    let metadata = read_metadata(path)?;
+    let passthrough = extract_passthrough_metadata(&[PassthroughSource {
+        path: path.into(),
+        duration: None,
+        is_valid: true,
+        chapters: None,
+    }])
+    .into_option();
+    let plan = MetadataWritePlan::from_metadata(metadata.clone());
+    remux::rewrite_metadata_with_ffmpeg_plan_as(
+        path,
+        Some(&plan),
+        passthrough.as_ref(),
+        Some(target),
+    )?;
+    if target == "mp4" {
+        write_finalized_metadata(path, &metadata)?;
+    }
+    if let Some(passthrough) = passthrough {
+        verify_chapters(path, &passthrough.chapters)?;
+    }
+    Ok(())
 }

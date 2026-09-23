@@ -2,7 +2,7 @@
 
 ## Public API Strip
 - Import from `crate::output_artifact`, not private child modules.
-- Functions: `build_output_path_preview`, `preserve_source_extension`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`.
+- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`.
 - Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
 - Pure naming/collision/review data facts are packaged in
   `abb-output-artifact-core`; `src-tauri/src/output_artifact` owns runtime file
@@ -20,8 +20,8 @@
 - Successful publication fixes final artifact truth. Staged-source cleanup
   happens afterward through the cleanup guard; failures surface a success
   warning and remain owned for retry without deleting the published output.
-- Resolve preserved source extensions before collision detection and review;
-  preview and execution planning use the same extension helper.
+- Audio resolves the output extension before collision detection and review.
+  Naming and collision policy consume that requested path without choosing a codec.
 - Keep final artifact writes and replacement policy here; processor code should ask this boundary for artifact truth.
 - Use explicit cross-platform replacement semantics for final artifacts; do not rely on Unix-only rename-over-existing behavior.
 

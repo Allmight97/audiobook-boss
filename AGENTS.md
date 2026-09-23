@@ -28,10 +28,11 @@
 
 ## Hard Invariants
 
-- Precedence: safety/data/contract invariants > explicit user request > completion bias > style.
-- Resolve safety and contract uncertainty from the owning code and proof before
-  changing behavior. Block and explain when data-loss risk, TS↔Rust parity,
-  path-safety guarantees, or an owning-boundary bypass remains unresolved.
+- Preserve data-loss protections, TS↔Rust parity, path safety, and owning
+  boundaries. Resolve uncertainty from the owning code and tests. An authorized
+  contract change includes updating its owner, callers, and focused proof;
+  pause the affected action when a consequential choice or data-loss risk
+  remains unresolved.
 - Runtime IPC stays centralized in `src/lib/tauri/*`.
 - Metadata intent adaptation stays at the Tauri runtime boundary.
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.

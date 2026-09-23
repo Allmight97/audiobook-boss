@@ -11,12 +11,14 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 	return {
 		maxConcurrentJobs: { mode: 'auto' },
 		encoderDefaults: {
+			format: 'm4b',
+			intent: 'auto',
 			settings: {
 				encoderType: 'auto',
 				bitrateKbps: 64,
 				bitrateMode: { mode: 'vbr', value: 3 },
 				channels: 'auto',
-				afterburner: true,
+				afterburner: false,
 			},
 			sampleRate: 'auto',
 		},
@@ -125,19 +127,19 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		runtime.output.setAbsIncludeYear(true);
 		await runtime.settings.retryPersistence();
 		expect(runtime.settings.durability().state).toBe('error');
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
 		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(true);
-		runtime.encoding.setAfterburner(true);
+		runtime.encoding.select('afterburner', 'false');
 		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
 		await runtime.settings.retryPersistence();
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: true }),
+					settings: expect.objectContaining({ afterburner: false }),
 				}),
 				outputDefaults: expect.objectContaining({
 					outputNaming: expect.objectContaining({ includeYear: true }),
@@ -158,9 +160,9 @@ describe('app settings concurrency', () => {
 			),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalledTimes(1));
-		runtime.encoding.setAfterburner(true);
+		runtime.encoding.select('afterburner', 'false');
 		finish(settingsFixture());
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalledTimes(2));
 		expect(runtime.settings.durability().state).toBe('saving');
@@ -213,15 +215,15 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		await vi.waitFor(() => expect(runtime!.settings.durability().state).toBe('error'));
 		await runtime.settings.openDialog();
 		await runtime.settings.recoverEncoderDefaults();
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: false }),
+					settings: expect.objectContaining({ afterburner: true }),
 				}),
 			}),
 		);
@@ -236,7 +238,7 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		await runtime.settings.saveCurrentSettingsAsPinnedDefaults();
 		expect(runtime.settings.dialog().startupSaveState).toBe('error');
 		expect(settings.updateAppSettings).not.toHaveBeenCalledWith(
@@ -255,7 +257,7 @@ describe('app settings concurrency', () => {
 			),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalledTimes(1));
 		runtime.output.setAbsIncludeYear(true);
 		const reset = runtime.settings.resetAllAppSettings();
@@ -263,7 +265,7 @@ describe('app settings concurrency', () => {
 		finish(settingsFixture());
 		await reset;
 		expect(settings.updateAppSettings).toHaveBeenCalledTimes(1);
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
 		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(false);
 		expect(runtime.settings.durability().state).toBe('saved');
 		await runtime.settings.retryPersistence();
@@ -286,12 +288,12 @@ describe('app settings concurrency', () => {
 		runtime = createAppRuntime({ settings });
 		const reset = runtime.settings.resetAllAppSettings();
 		await vi.waitFor(() => expect(settings.resetAppSettings).toHaveBeenCalled());
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		runtime.output.setAbsIncludeYear(true);
 		const changeLane = runtime.settings.setDefaultAcquisitionLane('indexer');
 		finishReset(settingsFixture());
 		await Promise.all([reset, changeLane]);
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
 		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(true);
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
 		expect(runtime.settings.durability()).toMatchObject({ state: 'error', message: 'Disk full' });
@@ -300,7 +302,7 @@ describe('app settings concurrency', () => {
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: false }),
+					settings: expect.objectContaining({ afterburner: true }),
 				}),
 				outputDefaults: expect.objectContaining({
 					outputNaming: expect.objectContaining({ includeYear: true }),
@@ -397,7 +399,7 @@ describe('app settings concurrency', () => {
 			),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalled());
 		runtime.dispose();
 		fail(new Error('Disk full'));
@@ -416,16 +418,16 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.setAfterburner(false);
+		runtime.encoding.select('afterburner', 'true');
 		await runtime.settings.resetAllAppSettings();
 		expect(runtime.settings.durability().state).toBe('error');
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
 		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
 		await runtime.settings.retryPersistence();
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: false }),
+					settings: expect.objectContaining({ afterburner: true }),
 				}),
 			}),
 		);
@@ -490,12 +492,15 @@ describe('app settings concurrency', () => {
 		});
 		runtime = createAppRuntime({ settings });
 		await runtime.settings.openDialog();
-		expect(runtime.encoding.view().fdkSetupNeeded).toBe(true);
+		expect(
+			runtime.encoding.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
+		).toBe('FDK AAC (Set up…)');
 		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
 		runtime.settings.setFfmpegPathDraft('/custom/bin/ffmpeg');
 		await runtime.settings.saveToolchainPreference();
-		expect(runtime.encoding.view().fdkSetupNeeded).toBe(false);
-		expect(runtime.encoding.view().availabilityHint).toContain('Using external FDK AAC');
+		expect(
+			runtime.encoding.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
+		).toBe('FDK AAC');
 		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
 		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
 		await runtime.settings.recheckFdk();
@@ -543,6 +548,6 @@ describe('app settings concurrency', () => {
 			{ disabled: false, label: 'FDK AAC (Set up…)' },
 		);
 		encoding.select('encoder', 'fdk_he_aac');
-		expect(encoding.request().encoderSettings.encoderType).toBe('auto');
+		expect(encoding.audioRequest().settings!.encoderType).toBe('auto');
 	});
 });

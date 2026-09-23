@@ -28,5 +28,6 @@ export type AppRuntime = {
 	readonly settings: SettingsOwner;
 	readonly processing: ProcessingOwner;
 	readonly workOperations: WorkOperationsOwner;
+	initialize(): Promise<void>;
 	dispose(): void;
 };

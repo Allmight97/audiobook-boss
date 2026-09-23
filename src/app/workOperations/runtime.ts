@@ -121,7 +121,7 @@ export function createWorkOperationsSession(
 				? operationInputIds
 				: operation.children
 						.filter((child) => child.status === 'completed')
-						.map((child) => child.inputId)
+						.flatMap((child) => child.sourceInputIds)
 						.filter((inputId): inputId is string => Boolean(inputId));
 		if (operationInputIds.length === 0 && completedInputIds.length === 0) return;
 
