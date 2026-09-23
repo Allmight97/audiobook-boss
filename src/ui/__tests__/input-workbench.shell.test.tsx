@@ -131,8 +131,20 @@ describe('Solid input workbench', () => {
 			paths: files.map((file) => file.path),
 		});
 		await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
+		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
+		runtime.encoding.selectTitle(files[0]!, 'intent', 'preserve');
+		await waitFor(() =>
+			expect(
+				within(screen.getByRole('option', { name: 'first.m4b' })).getByTitle(
+					'Estimated output size',
+				),
+			).toHaveTextContent('Est. ~ 1000.0 B'),
+		);
 		runtime.encoding.selectTitle(files[0]!, 'channels', 'mono');
 		runtime.encoding.selectTitle(files[1]!, 'channels', 'stereo');
+		runtime.encoding.selectTitle(files[0]!, 'afterburner', 'false');
+		runtime.encoding.selectTitle(files[1]!, 'afterburner', 'true');
+		const defaults = runtime.encoding.readDefaults();
 		const untouched = runtime.encoding.audioRequest(files[2]!);
 		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
 		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
@@ -140,6 +152,13 @@ describe('Solid input workbench', () => {
 		const editor = screen.getByRole('dialog', { name: 'Audio settings for 2 selected titles' });
 		await user.click(within(editor).getByText(/Encoding settings/));
 		expect(within(editor).getByLabelText('Channels')).toHaveValue('');
+		const afterburner = within(editor).getByRole('button', { name: 'FDK Afterburner' });
+		expect(afterburner).toHaveAttribute('aria-pressed', 'mixed');
+		await user.click(afterburner);
+		expect(afterburner).toHaveAttribute('aria-pressed', 'true');
+		expect(runtime.encoding.audioRequest(files[0]!).settings?.afterburner).toBe(true);
+		expect(runtime.encoding.audioRequest(files[1]!).settings?.afterburner).toBe(true);
+		expect(runtime.encoding.readDefaults()).toEqual(defaults);
 		await user.selectOptions(within(editor).getByLabelText('Channels'), 'mono');
 		expect(runtime.encoding.audioRequest(files[0]!).settings?.channels).toBe('mono');
 		expect(runtime.encoding.audioRequest(files[1]!).settings?.channels).toBe('mono');
@@ -151,13 +170,102 @@ describe('Solid input workbench', () => {
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
 		await user.click(screen.getByRole('button', { name: 'Audio plan for other.m4b' }));
 		const titleEditor = screen.getByRole('dialog', { name: 'Audio plan' });
-		await user.click(within(titleEditor).getByText('Encoding settings', { exact: true }));
+		await user.selectOptions(within(titleEditor).getByLabelText('Audio handling'), 'encode');
+		await user.click(within(titleEditor).getByText(/Encoding settings/));
 		expect(runtime.input.view().selectedIndices).toEqual([0, 1]);
 		expect(titleEditor).toBeInTheDocument();
 		await user.keyboard('{Escape}');
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
 		await runtime.input.selectFile({ index: 2, modifiers: { multi: false, range: false } });
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
+	});
+
+	it('refreshes a Recommended estimate after settings change away and back while closed', async () => {
+		const user = userEvent.setup();
+		const file = analyzedFile('/books/estimate.m4b');
+		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
+			format: 'm4b',
+			handling: 'preserve',
+			settings: null,
+			sampleRate: 44100,
+			channels: 1,
+			sourceCodec: 'AAC',
+			reason: null,
+		});
+		runtime = createAppRuntime({
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList([file])) }),
+		});
+		renderApp(runtime);
+		try {
+			await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
+			expect(preview).not.toHaveBeenCalled();
+			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
+			const indicator = screen.getByRole('button', { name: 'Audio plan for estimate.m4b' });
+			await user.click(indicator);
+			await waitFor(() =>
+				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B'),
+			);
+			await user.keyboard('{Escape}');
+			runtime.encoding.selectTitle(file, 'intent', 'encode');
+			await waitFor(() => expect(indicator.parentElement).toHaveTextContent('AAC · M4B'));
+			runtime.encoding.selectTitle(file, 'intent', 'auto');
+			await waitFor(() =>
+				expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument(),
+			);
+			expect(preview).toHaveBeenCalledTimes(1);
+			await user.click(indicator);
+			await waitFor(() =>
+				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B'),
+			);
+			expect(preview).toHaveBeenCalledTimes(2);
+			preview.mockRejectedValueOnce(new Error('Sources cannot be joined'));
+			runtime.encoding.selectTitle(file, 'intent', 'preserve');
+			await waitFor(() =>
+				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent(
+					'Sources cannot be joined',
+				),
+			);
+			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
+			await user.keyboard('{Escape}');
+			preview.mockResolvedValueOnce({
+				format: 'm4b',
+				handling: 'preserve',
+				settings: null,
+				sampleRate: 44100,
+				channels: 6,
+				sourceCodec: 'AAC',
+				reason: null,
+			});
+			await user.click(indicator);
+			await waitFor(() =>
+				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent('6 channels'),
+			);
+			expect(screen.getByRole('dialog', { name: 'Audio plan' })).not.toHaveTextContent(
+				'Sources cannot be joined',
+			);
+		} finally {
+			preview.mockRestore();
+		}
+	});
+
+	it('shows an invalid source in the grouped title status', async () => {
+		const files = [
+			analyzedFile('/books/valid.m4b'),
+			analyzedFile('/books/broken.m4b', { isValid: false, error: 'Broken audio source' }),
+		];
+		runtime = createAppRuntime({
+			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
+		});
+		renderApp(runtime);
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		await runtime.input.selectAll();
+		await runtime.input.groupSelected();
+		const row = screen.getByRole('option', { name: 'valid.m4b' });
+		expect(row).toHaveClass('invalid');
+		expect(row).toHaveTextContent('Broken audio source');
 	});
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
@@ -266,6 +374,7 @@ describe('Solid input workbench', () => {
 			});
 			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
 			runtime.encoding.select('quality', '4');
+			runtime.encoding.select('intent', 'auto');
 			runtime.input.setAudioRequest(
 				files[0]!,
 				titleAudioRequest({ format: 'mp3', settings: null }),
@@ -281,11 +390,24 @@ describe('Solid input workbench', () => {
 			expect(popup).toHaveTextContent('Choose this title’s audio');
 			expect(popup.parentElement).toBe(document.body);
 			await user.click(indicator);
-			await user.click(within(popup).getByRole('button', { name: 'Use defaults' }));
+			await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
 			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
 			expect(runtime.encoding.audioRequest(files[0]!).format).toBe('m4b');
+			await waitFor(() =>
+				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('Est. ~ 2.0 KB'),
+			);
+			expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
+			expect(within(popup).queryByTestId('estimated-bitrate')).not.toBeInTheDocument();
+			await user.selectOptions(within(popup).getByLabelText('Audio handling'), 'encode');
+			const defaultAfterburner = runtime.encoding.audioRequest().settings?.afterburner;
+			await user.click(within(popup).getByRole('button', { name: 'FDK Afterburner' }));
+			expect(runtime.encoding.audioRequest(files[0]!).settings?.afterburner).toBe(
+				!defaultAfterburner,
+			);
+			expect(runtime.encoding.audioRequest().settings?.afterburner).toBe(defaultAfterburner);
 			await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
 			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
+			expect(within(popup).getByRole('option', { name: 'User Preference' })).toBeInTheDocument();
 			await user.selectOptions(within(popup).getByLabelText('Audio handling'), 'encode');
 			await user.keyboard('{Escape}');
 			// Browser focus/hover can arrive after the popover unmounts.

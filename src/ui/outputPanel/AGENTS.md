@@ -19,8 +19,8 @@
 ## Cross-Strip Coupling
 
 - `OutputView` reads Output Plan `view`.
-- Render Output Plan’s estimated size once in the Output header. Title and
-  default audio editors do not render a batch estimate.
+- Output size estimates render beside individual titles in File List. Output
+  presents naming and destination without a batch estimate.
 
 ## Boundary Changes
 

@@ -23,11 +23,7 @@ export function encoderAvailabilityFixture(
 		aacAtAvailable,
 		nativeAacAvailable,
 		fdkSource: fdkAvailable ? ('detected' as const) : ('none' as const),
-		autoEncoder: fdkAvailable
-			? ('fdk_he_aac' as const)
-			: aacAtAvailable
-				? ('aac_at' as const)
-				: ('native_aac' as const),
+		autoEncoder: fdkAvailable ? ('fdk_he_aac' as const) : ('native_aac' as const),
 		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : null,
 		statusMessage: fdkAvailable
 			? 'FDK AAC detected and ready.'

@@ -116,7 +116,7 @@ describe('input session import tracer', () => {
 		expect(runtime.encoding.audioRequest(first)).toEqual(original);
 		expect(runtime.encoding.audioRequest(second)).toMatchObject({
 			format: 'mkaOpus',
-			intent: 'auto',
+			intent: 'encode',
 			settings: { encoderType: 'opus', bitrateKbps: 48 },
 		});
 		expect(runtime.encoding.selectionView([first, second]).mixedFields).toContain('format');
@@ -139,7 +139,7 @@ describe('input session import tracer', () => {
 		expect(runtime.encoding.audioRequest(first).intent).toBe('preserve');
 		expect(runtime.encoding.audioRequest(second)).toMatchObject({
 			format: 'mkaOpus',
-			intent: 'auto',
+			intent: 'encode',
 		});
 	});
 

@@ -9,6 +9,8 @@ import {
 import type { OutputDefaults } from '../../types/appSettings';
 import type {
 	CollisionPolicy,
+	TitleAudioPlan,
+	AudioFile,
 	OutputNamingConfig,
 	OutputRequestConfig,
 	ProcessingPreflightPlan,
@@ -54,7 +56,7 @@ type PreviewPlanBag = {
 
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
-	readonly estimatedSizeText: Accessor<string>;
+	estimateTitleSizeText(file: AudioFile, resolvedPlan?: TitleAudioPlan): string | null;
 	readonly collision: Accessor<CollisionView>;
 	applyDefaults(defaults: OutputDefaults): void;
 	browseDirectory(): Promise<void>;
@@ -115,29 +117,25 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		};
 	}
 
-	const estimatedSizeText = createMemo(() => {
-		const input = deps.input.view();
-
-		let bytes = 0;
-		for (const file of input.files.filter((file) => file.isValid)) {
-			const request = deps.encoding.audioRequest(file);
-			// Auto can resolve to copy or encode only after backend inspection.
-			if (request.intent === 'auto') return input.hasFiles ? 'Size after audio planning' : '---';
-			if (request.intent === 'preserve') {
-				const sources = deps.input.sourcesFor(file);
-				if (sources.some((source) => source.size === undefined)) return 'Size after audio planning';
-				bytes += sources.reduce((total, source) => total + (source.size ?? 0), 0);
-				continue;
-			}
-			const kbps = deps.encoding.estimateTitleKbps(file);
-			if (kbps === null) return 'Size varies with audio';
-			const duration = deps.input
-				.sourcesFor(file)
-				.reduce((total, source) => total + (source.duration ?? 0), 0);
-			bytes += estimateEncodedSizeBytes(duration, kbps);
+	function estimateTitleSizeText(file: AudioFile, resolvedPlan?: TitleAudioPlan): string | null {
+		if (!file.isValid) return null;
+		const request = deps.encoding.audioRequest(file);
+		const handling = request.intent === 'auto' ? resolvedPlan?.handling : request.intent;
+		// Recommended can copy or encode; wait for the backend's title preview.
+		if (!handling) return null;
+		const sources = deps.input.sourcesFor(file);
+		if (sources.length === 0) return null;
+		if (handling === 'preserve') {
+			if (sources.some((source) => source.size === undefined)) return null;
+			const bytes = sources.reduce((total, source) => total + (source.size ?? 0), 0);
+			return `Est. ~ ${formatFileSize(bytes)}`;
 		}
-		return input.hasFiles ? `~ ${formatFileSize(bytes)}` : '~ --- MB';
-	});
+		const kbps = deps.encoding.estimateTitleKbps(file, resolvedPlan);
+		if (sources.some((source) => source.duration === undefined)) return null;
+		if (kbps === null) return 'Size varies with audio';
+		const duration = sources.reduce((total, source) => total + (source.duration ?? 0), 0);
+		return `Est. ~ ${formatFileSize(estimateEncodedSizeBytes(duration, kbps))}`;
+	}
 
 	const view: Accessor<OutputView> = () => {
 		formRev();
@@ -156,7 +154,6 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			absHintHidden: preset !== 'absDefault',
 			templateRowHidden: preset !== 'customTemplate',
 			displayDirectory: directory || EMPTY_PREVIEW_TEXT,
-			estimatedSizeText: estimatedSizeText(),
 		};
 	};
 
@@ -272,7 +269,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 
 	const owner: OutputPlanOwner = {
 		view,
-		estimatedSizeText,
+		estimateTitleSizeText,
 		collision: collisionReview.view,
 		applyDefaults(defaults) {
 			clearTemplatePreviewTimer();

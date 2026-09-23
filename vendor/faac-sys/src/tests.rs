@@ -57,8 +57,8 @@ fn auto_profile_uses_output_rate_channels_and_quality() {
         (22050, 2, 0, FAAC_OBJ_LOW),
         (32000, 2, 0, FAAC_OBJ_LOW),
         (44100, 2, 0, FAAC_OBJ_LOW),
-        (48000, 2, 0, FAAC_OBJ_HE_AAC_V1),
-        (96000, 2, 0, FAAC_OBJ_HE_AAC_V1),
+        (48000, 2, 0, FAAC_OBJ_LOW),
+        (96000, 2, 0, FAAC_OBJ_LOW),
         (48000, 1, 0, FAAC_OBJ_LOW),
         (48000, 2, 50, FAAC_OBJ_HE_AAC_V1),
         (48000, 2, 100, FAAC_OBJ_LOW),
@@ -206,6 +206,6 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(info.sbr_decimation, 1);
     assert_eq!(
         unsafe { CStr::from_ptr(info.version) }.to_bytes(),
-        b"2.1.0-dev.9edb7db"
+        b"2.1.0-dev.1cbe2a0"
     );
 }

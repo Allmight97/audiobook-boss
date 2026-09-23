@@ -2,7 +2,7 @@
 	"name": "audiobook-boss",
 	"private": true,
 	"description": "AudioBook Boss™ — Batch audiobook processing and metadata management",
-	"version": "1.10.0",
+	"version": "1.11.0",
 	"type": "module",
 	"packageManager": "bun@1.4.0",
 	"scripts": {
@@ -36,17 +36,17 @@
 		"update:rc": "bun add --exact effect@rc solid-js@next @solidjs/web@next && bun add --dev --exact @solidjs/vite-plugin@latest @solidjs/testing-library@next"
 	},
 	"dependencies": {
-		"@solidjs/web": "2.0.0-rc.8",
+		"@solidjs/web": "2.0.0-rc.9",
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.2",
 		"@tauri-apps/plugin-opener": "^2.5.4",
-		"effect": "4.0.0-rc.115",
-		"solid-js": "2.0.0-rc.8"
+		"effect": "4.0.0-rc.117",
+		"solid-js": "2.0.0-rc.9"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.11",
 		"@solidjs/testing-library": "1.0.0-beta.3",
-		"@solidjs/vite-plugin": "3.0.0-next.43",
+		"@solidjs/vite-plugin": "3.0.0-next.44",
 		"@tauri-apps/cli": "^2.11.4",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/user-event": "^14.6.6",

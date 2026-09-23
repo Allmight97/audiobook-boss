@@ -181,6 +181,9 @@ impl AudioPlanner {
         let mut settings = request.settings.clone().ok_or_else(|| {
             AppError::InvalidInput("Choose encoding settings for this title.".into())
         })?;
+        if request.intent == AudioIntent::Auto && request.format == AudiobookFormat::M4b {
+            settings = EncoderSettings::default();
+        }
         if request.format.is_opus() != (settings.encoder_type == EncoderType::Opus) {
             return Err(AppError::InvalidInput(
                 "The encoder must match the selected output format.".into(),
@@ -203,8 +206,14 @@ impl AudioPlanner {
         };
         settings.resolve_encoder(encoder_type);
         settings.channels = resolve_output_channels(settings.channels, &info.files)?;
-        let sample_rate = match request.sample_rate {
-            SampleRateConfig::Explicit(rate) => rate,
+        let requested_rate =
+            if request.intent == AudioIntent::Auto && request.format == AudiobookFormat::M4b {
+                &SampleRateConfig::Auto
+            } else {
+                &request.sample_rate
+            };
+        let sample_rate = match requested_rate {
+            SampleRateConfig::Explicit(rate) => *rate,
             SampleRateConfig::Auto => super::settings::automatic_sample_rate(
                 settings.encoder_type,
                 settings.faac_profile,
@@ -306,9 +315,13 @@ esac
             valid_count: 2,
             invalid_count: 0,
         };
-        for encoder in ["auto", "fdk_he_aac"] {
+        for (encoder, intent) in [
+            ("auto", "encode"),
+            ("fdk_he_aac", "encode"),
+            ("faac", "auto"),
+        ] {
             let request: TitleAudioRequest = serde_json::from_value(serde_json::json!({
-                "format": "m4b", "intent": "encode", "sampleRate": "auto",
+                "format": "m4b", "intent": intent, "sampleRate": "auto",
                 "settings": { "encoderType": encoder, "bitrateKbps": 64,
                     "bitrateMode": { "mode": "vbr", "value": 3 }, "channels": "mono", "afterburner": false,
                     "nativeAacSpeed": 0, "faacProfile": "auto" }
@@ -323,9 +336,12 @@ esac
                     valid_count: 1,
                     ..info.clone()
                 };
-                planner
-                    .resolve(&request, &title, false)
+                let plan = planner
+                    .resolve(&request, &title, intent == "auto")
                     .expect("plan title audio");
+                let settings = plan.settings.expect("encoding plan settings");
+                assert_eq!(settings.encoder_type, EncoderType::FdkHeAac);
+                assert_eq!(settings.bitrate_mode, audio::BitrateMode::Vbr(3));
             }
             let calls = std::fs::read_to_string(temp.path().join("calls")).expect("read probe log");
             assert_eq!(

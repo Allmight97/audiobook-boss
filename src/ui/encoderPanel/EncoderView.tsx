@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createUniqueId } from 'solid-js';
+import { For, Show, createEffect, createSignal, createMemo, createUniqueId } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
@@ -18,9 +18,11 @@ export function EncoderView(
 					mixedFields: [] as readonly EncodingField[],
 				},
 	);
+	const [afterburnerInfoOpen, setAfterburnerInfoOpen] = createSignal(false);
 	const mixed = (field: EncodingField) => view().mixedFields.includes(field);
 	const value = (field: EncodingField, current: string | number) => (mixed(field) ? '' : current);
 	const editingTitles = () => !!props.title || !!props.titles;
+	const displayedFlavor = () => view().effectiveFlavor;
 	const instanceId = createUniqueId();
 	const id = (name: string) => (editingTitles() ? `${name}-${instanceId}` : name);
 	const choose = (field: EncodingField, selected: string) =>
@@ -30,11 +32,23 @@ export function EncoderView(
 				? runtime.encoding.selectTitle(props.title, field, selected)
 				: runtime.encoding.select(field, selected);
 
+	createEffect(afterburnerInfoOpen, (visible) => {
+		if (!visible) return;
+		const dismiss = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return;
+			event.preventDefault();
+			event.stopPropagation();
+			setAfterburnerInfoOpen(false);
+		};
+		window.addEventListener('keydown', dismiss, true);
+		return () => window.removeEventListener('keydown', dismiss, true);
+	});
+
 	function bind(field: EncodingField) {
 		return (event: Event) => {
 			const select = event.currentTarget as HTMLSelectElement | HTMLInputElement;
 			choose(field, select.value);
-			if (field === 'encoder') select.value = view().flavor;
+			if (field === 'encoder') select.value = displayedFlavor();
 			if (field === 'bitrate') select.value = String(view().bitrate);
 		};
 	}
@@ -78,17 +92,26 @@ export function EncoderView(
 						</Show>
 						<option value="auto">Recommended</option>
 						<option value="preserve">Keep original audio</option>
-						<option value="encode">Use encoding settings</option>
+						<option value="encode" disabled={view().format === 'mp3'}>
+							User Preference
+						</option>
 					</select>
 				</div>
 				<Show when={mixed('format')}>
 					<p class="field-hint">Choose one output format to edit encoding settings together.</p>
 				</Show>
-				<Show when={!mixed('format') && view().format !== 'mp3'}>
+				<Show
+					when={
+						!mixed('format') &&
+						!mixed('intent') &&
+						view().intent === 'encode' &&
+						view().format !== 'mp3'
+					}
+				>
 					<details class="encoder-conversion" open={!editingTitles()}>
 						<summary>
 							Encoding settings
-							<Show when={!editingTitles() || view().intent === 'encode'}>
+							<Show when={view().intent === 'encode'}>
 								{' '}
 								·{' '}
 								{mixed('encoder')
@@ -97,17 +120,65 @@ export function EncoderView(
 										? 'Mixed quality'
 										: view().flavor === 'opus'
 											? `Opus · ${view().bitrate} kbps VBR`
-											: `${view().flavorOptions.find((option) => option.value === view().flavor)?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
+											: `${view().flavorOptions.find((option) => option.value === displayedFlavor())?.label} · ${view().showQuality ? `VBR ${view().quality}` : `${view().bitrate} kbps`}`}
 							</Show>
 						</summary>
 						<div class="encoder-workbench-grid">
 							<div class="encoder-field-row">
-								<label for={id('adv-encoder')}>Encoder</label>
+								<div class="encoder-label-with-info">
+									<label for={id('adv-encoder')}>Encoder</label>
+									<Show when={!mixed('encoder') && view().effectiveFlavor === 'fdk_he_aac'}>
+										<fieldset
+											class="encoder-info"
+											onMouseEnter={() => setAfterburnerInfoOpen(true)}
+											onMouseLeave={() => setAfterburnerInfoOpen(false)}
+										>
+											<button
+												type="button"
+												class="encoder-info-toggle"
+												aria-label="FDK Afterburner"
+												aria-pressed={
+													mixed('afterburner') ? 'mixed' : view().afterburner ? 'true' : 'false'
+												}
+												aria-describedby={
+													afterburnerInfoOpen() ? id('afterburner-help') : undefined
+												}
+												disabled={
+													!editingTitles() && runtime.settings.dialog().saveState === 'saving'
+												}
+												onFocus={() => setAfterburnerInfoOpen(true)}
+												onBlur={() => setAfterburnerInfoOpen(false)}
+												onClick={() =>
+													choose('afterburner', String(mixed('afterburner') || !view().afterburner))
+												}
+											>
+												{mixed('afterburner') ? '−' : view().afterburner ? '✓' : 'i'}
+											</button>
+											<Show when={afterburnerInfoOpen()}>
+												<span
+													id={id('afterburner-help')}
+													class="encoder-info-tooltip"
+													role="tooltip"
+												>
+													<strong>
+														Afterburner{' '}
+														{mixed('afterburner') ? 'mixed' : view().afterburner ? 'on' : 'off'}
+													</strong>
+													<span>Higher quality, slower encoding.</span>
+													<span>
+														Click to{' '}
+														{mixed('afterburner') || !view().afterburner ? 'enable' : 'disable'}.
+													</span>
+												</span>
+											</Show>
+										</fieldset>
+									</Show>
+								</div>
 								<div class="encoder-field-stack">
 									<select
 										id={id('adv-encoder')}
 										data-testid="encoder-select"
-										value={value('encoder', view().flavor)}
+										value={value('encoder', displayedFlavor())}
 										disabled={view().flavorDisabled}
 										onChange={bind('encoder')}
 									>
@@ -124,27 +195,36 @@ export function EncoderView(
 											)}
 										</For>
 									</select>
-									<p
-										id={id('encoder-availability-hint')}
-										class="field-hint"
-										data-testid="encoder-availability-hint"
-									>
-										{view().availabilityHint}
-										<Show when={view().fdkSetupNeeded}>
-											{' '}
-											<button
-												type="button"
-												class="encoder-setup-link"
-												onClick={() => void runtime.settings.openDialog()}
-											>
-												Set up FDK…
-											</button>
-										</Show>
-									</p>
 								</div>
 							</div>
 							<Show when={mixed('encoder')}>
 								<p class="field-hint">Choose one encoder to edit its settings together.</p>
+							</Show>
+							<Show when={!mixed('encoder') && view().native}>
+								<div class="encoder-field-row">
+									<label for={id('native-speed')}>NMR speed</label>
+									<div class="encoder-field-stack">
+										<select
+											id={id('native-speed')}
+											data-testid="native-speed-select"
+											value={value('nativeSpeed', view().nativeSpeed)}
+											onChange={bind('nativeSpeed')}
+											aria-describedby={id('native-speed-hint')}
+										>
+											<Show when={mixed('nativeSpeed')}>
+												<option value="" disabled>
+													Mixed
+												</option>
+											</Show>
+											<For each={view().nativeSpeedOptions}>
+												{(option) => <option value={option.value}>{option.label}</option>}
+											</For>
+										</select>
+										<p id={id('native-speed-hint')} class="field-hint">
+											Higher values trade some quality for faster encoding.
+										</p>
+									</div>
+								</div>
 							</Show>
 							<Show when={!mixed('encoder')}>
 								<Show
@@ -169,7 +249,6 @@ export function EncoderView(
 												id={id('faac-profile')}
 												value={value('faacProfile', view().faacProfile)}
 												onChange={bind('faacProfile')}
-												aria-describedby={id('faac-profile-hint')}
 											>
 												<Show when={mixed('faacProfile')}>
 													<option value="" disabled>
@@ -180,10 +259,6 @@ export function EncoderView(
 													{(option) => <option value={option.value}>{option.label}</option>}
 												</For>
 											</select>
-
-											<p id={id('faac-profile-hint')} class="field-hint">
-												{view().profileHint}
-											</p>
 										</div>
 									</div>
 									<div class="encoder-field-row">
@@ -217,9 +292,6 @@ export function EncoderView(
 												id={id('output-quality')}
 												hidden={!view().showQuality}
 												data-testid="quality-select"
-												aria-describedby={
-													view().estimatedBitrateText ? id('estimated-bitrate') : undefined
-												}
 												value={value('quality', view().quality)}
 												onChange={bind('quality')}
 											>
@@ -243,19 +315,7 @@ export function EncoderView(
 												step="1"
 												value={value('bitrate', view().bitrate)}
 												onChange={bind('bitrate')}
-												aria-describedby={
-													view().estimatedBitrateText ? id('estimated-bitrate') : undefined
-												}
 											/>
-											<Show when={view().estimatedBitrateText}>
-												<p
-													id={id('estimated-bitrate')}
-													class="field-hint"
-													data-testid="estimated-bitrate"
-												>
-													{view().estimatedBitrateText}
-												</p>
-											</Show>
 										</div>
 									</div>
 								</Show>
@@ -324,35 +384,6 @@ export function EncoderView(
 										</Show>
 									</div>
 								</div>
-								<Show when={view().native}>
-									<details class="encoder-advanced">
-										<summary>Advanced</summary>
-										<div class="encoder-field-row">
-											<label for={id('native-speed')}>NMR speed</label>
-											<div class="encoder-field-stack">
-												<select
-													id={id('native-speed')}
-													data-testid="native-speed-select"
-													value={value('nativeSpeed', view().nativeSpeed)}
-													onChange={bind('nativeSpeed')}
-													aria-describedby={id('native-speed-hint')}
-												>
-													<Show when={mixed('nativeSpeed')}>
-														<option value="" disabled>
-															Mixed
-														</option>
-													</Show>
-													<For each={view().nativeSpeedOptions}>
-														{(option) => <option value={option.value}>{option.label}</option>}
-													</For>
-												</select>
-												<p id={id('native-speed-hint')} class="field-hint">
-													Higher values trade some quality for faster encoding.
-												</p>
-											</div>
-										</div>
-									</details>
-								</Show>
 							</Show>
 						</div>
 					</details>

@@ -23,14 +23,18 @@ export function ConcurrencyControl(): JSX.Element {
 					select.value = view().selection;
 				}}
 			>
-				{view().allowAuto && <option value="auto">Auto</option>}
+				{view().allowAuto && (
+					<option value="auto">
+						{view().autoEffective === null ? 'Auto' : `Auto · ${view().autoEffective} jobs`}
+					</option>
+				)}
 				<For each={[...view().fixedOptions]}>
 					{(option) => <option value={String(option)}>{option}</option>}
 				</For>
 			</select>
 			<span
 				id="max-concurrent-effective"
-				class="concurrency-effective"
+				class="sr-only"
 				aria-live="polite"
 				data-testid="max-concurrent-effective"
 			>

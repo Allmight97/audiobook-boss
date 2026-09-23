@@ -1,6 +1,6 @@
 use crate::audio::{
     validate_encoder_settings, validate_sample_rate_config, AudioIntent, AudiobookFormat,
-    BitrateMode, ChannelConfig, EncoderSettings, EncoderType, SampleRateConfig,
+    EncoderSettings, EncoderType, SampleRateConfig,
 };
 use crate::errors::{AppError, Result};
 use crate::output_artifact::OutputNamingConfig;
@@ -162,15 +162,7 @@ impl Default for EncoderDefaults {
         Self {
             format: AudiobookFormat::default(),
             intent: AudioIntent::default(),
-            settings: EncoderSettings {
-                encoder_type: EncoderType::Auto,
-                bitrate_kbps: 64,
-                bitrate_mode: BitrateMode::Vbr(3),
-                channels: ChannelConfig::Auto,
-                afterburner: true,
-                native_aac_speed: 0,
-                faac_profile: crate::audio::FaacProfile::Auto,
-            },
+            settings: EncoderSettings::default(),
             sample_rate: SampleRateConfig::Auto,
         }
     }

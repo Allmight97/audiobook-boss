@@ -26,6 +26,7 @@ export type ConcurrencyView = {
 	readonly errorMessage: string;
 	readonly selection: string;
 	readonly effective: number | null;
+	readonly autoEffective: number | null;
 	readonly effectiveLabel: string;
 	readonly controlsEnabled: boolean;
 	readonly allowAuto: boolean;
@@ -85,6 +86,7 @@ function emptyConcurrency(): ConcurrencyView {
 		errorMessage: '',
 		selection: 'auto',
 		effective: null,
+		autoEffective: null,
 		effectiveLabel: '',
 		controlsEnabled: true,
 		allowAuto: true,
@@ -312,6 +314,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps = {}): SettingsOwner
 					selection,
 					effective,
 					allowAuto: capabilities?.allowAuto ?? true,
+					autoEffective: capabilities?.autoEffective ?? null,
 					fixedOptions: capabilities?.fixedOptions ?? [],
 					effectiveLabel: labelFor(selection, effective),
 				});

@@ -15,6 +15,11 @@ allocation/read validation fixes and shared media I/O changes; it is not an NMR
 algorithm update. Existing feature selection and external dependencies remain
 unchanged. The wrapper represents the new ASTC codec identifier explicitly.
 
+On September 23, upstream HEAD `4a511dc8eba349b43817e49661b28d521c6b604a`
+contained no changes to the selected AAC/NMR encoder sources. ABB retains this
+pin rather than taking unrelated decoder, platform, and muxer changes solely
+to advance the revision label.
+
 Bundled cache reuse requires the source/patch identity and the effective build
 inputs: build-script contents, compiler/version, target, features, CPU flags,
 SDK/sysroot and relevant compiler environment. Rebuild notifications are emitted

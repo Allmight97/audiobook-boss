@@ -1,7 +1,13 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { EncoderDefaults } from '../../types/appSettings';
-import type { AudioFile, TitleAudioRequest, EncoderSettingsCapabilities } from '../../types/audio';
+import type {
+	AudioFile,
+	TitleAudioRequest,
+	EncoderSettingsCapabilities,
+	TitleAudioPlan,
+} from '../../types/audio';
 import type { InputOwner } from '../inputSession';
+import { estimateKbpsFromSettings } from './estimate';
 import { resolveAutoResolutionHints } from './hints';
 import {
 	applyCapabilities,
@@ -12,7 +18,6 @@ import {
 	createDefaultBag,
 	projectView,
 	selectField,
-	syncPolicy,
 	type EncodingBag,
 	type EncodingField,
 	type EncodingView,
@@ -28,11 +33,10 @@ export type EncodingOwner = {
 	): EncodingView & { mixedFields: readonly EncodingField[] };
 	selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void;
 	applyDefaultsToTitles(files: readonly AudioFile[]): void;
-	estimateTitleKbps(file: AudioFile): number | null;
+	estimateTitleKbps(file: AudioFile, plan?: TitleAudioPlan): number | null;
 	selectTitle(file: AudioFile, field: EncodingField, value: string): void;
 	readonly view: Accessor<EncodingView>;
 	select(field: EncodingField, value: string): void;
-	setAfterburner(enabled: boolean): void;
 	applyDefaults(defaults: EncoderDefaults): void;
 	hydrateDefaults(defaults: EncoderDefaults): void;
 	readDefaults(): EncoderDefaults;
@@ -55,6 +59,7 @@ const fieldKeys = {
 	faacProfile: 'faacProfile',
 	rateControl: 'rateControl',
 	nativeSpeed: 'nativeSpeed',
+	afterburner: 'afterburner',
 	bitrate: 'bitrate',
 	sampleRate: 'sampleRate',
 	channels: 'channels',
@@ -70,12 +75,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		bump((n) => n + 1);
 	}
 
-	function commitPolicy(): ReturnType<typeof syncPolicy> {
-		const result = syncPolicy(bag);
-		publish();
-		return result;
-	}
-
 	function persist(): void {
 		deps.persistDefaults?.(bagDefaults(bag));
 	}
@@ -86,7 +85,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			const capabilities = supplied === undefined ? await deps.loadCapabilities() : supplied;
 			if (ticket !== generation) return;
 			applyCapabilities(bag, capabilities);
-			syncPolicy(bag);
 			publish();
 		} catch (error) {
 			if (ticket !== generation) return;
@@ -148,7 +146,8 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			rev();
 			return file ? (deps.input.audioRequest(file) ?? requestFromBag(bag)) : requestFromBag(bag);
 		},
-		estimateTitleKbps(file) {
+		estimateTitleKbps(file, plan) {
+			if (plan?.settings) return estimateKbpsFromSettings(plan.settings);
 			return bagEstimateKbps(titleBag(file));
 		},
 		titleView(file) {
@@ -190,26 +189,19 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			}
 			if (!selectField(bag, field, value)) return;
 			defaultsEdited = true;
-			const { flavorReset } = commitPolicy();
-			if (flavorReset) return;
-			persist();
-		},
-		setAfterburner(enabled) {
-			if (bag.afterburner === enabled) return;
-			defaultsEdited = true;
-			bag.afterburner = enabled;
-			commitPolicy();
+			if (field !== 'format' && field !== 'intent') bag.intent = 'encode';
+			publish();
 			persist();
 		},
 		hydrateDefaults(defaults) {
 			if (defaultsEdited) return;
 			applyDefaultsToBag(bag, defaults);
-			commitPolicy();
+			publish();
 		},
 		applyDefaults(defaults) {
 			defaultsEdited = true;
 			applyDefaultsToBag(bag, defaults);
-			commitPolicy();
+			publish();
 		},
 		readDefaults() {
 			return bagDefaults(bag);

@@ -1,4 +1,5 @@
-import { cleanup, render } from '@solidjs/testing-library';
+import userEvent from '@testing-library/user-event';
+import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
@@ -60,6 +61,7 @@ describe('App Settings afterburner control', () => {
 	async function renderOpenDialog(): Promise<void> {
 		runtime = createAppRuntime();
 		await runtime.settings.openDialog();
+		runtime.encoding.select('intent', 'encode');
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<AppSettingsDialogView />
@@ -67,43 +69,40 @@ describe('App Settings afterburner control', () => {
 		));
 	}
 
-	it('owns the afterburner toggle and applies it to the encoder request truth', async () => {
+	it('toggles Afterburner from its keyboard-accessible info button', async () => {
+		const user = userEvent.setup();
 		await renderOpenDialog();
-
-		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
-		expect(checkbox).not.toBeNull();
-		expect(checkbox?.checked).toBe(true);
+		const button = screen.getByRole('button', { name: 'FDK Afterburner' });
+		expect(button).toHaveAttribute('aria-pressed', 'false');
+		await user.hover(button);
+		expect(screen.getByRole('tooltip')).toHaveTextContent('Afterburner off');
+		await user.click(button);
+		expect(button).toHaveAttribute('aria-pressed', 'true');
 		expect(runtime!.encoding.view().afterburner).toBe(true);
-
-		checkbox!.checked = false;
-		checkbox!.dispatchEvent(new Event('change', { bubbles: true }));
-
-		await vi.waitFor(() => {
-			expect(runtime!.encoding.view().afterburner).toBe(false);
-		});
+		expect(screen.getByRole('tooltip')).toHaveTextContent('Click to disable.');
+		await user.keyboard('{Escape}');
+		expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+		expect(runtime!.settings.dialog().isOpen).toBe(true);
+		await user.keyboard(' ');
+		expect(button).toHaveAttribute('aria-pressed', 'false');
+		expect(runtime!.encoding.view().afterburner).toBe(false);
 	});
 
-	it('reflects encoder hydration after the dialog has already mounted', async () => {
+	it('retains a saved Afterburner choice across encoder switches', async () => {
+		const user = userEvent.setup();
 		await renderOpenDialog();
-
-		const checkbox = document.getElementById('app-settings-afterburner') as HTMLInputElement | null;
-		expect(checkbox?.checked).toBe(true);
-
 		runtime!.encoding.applyDefaults({
-			format: 'm4b',
-			intent: 'auto',
-			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'vbr', value: 3 },
-				channels: 'auto',
-				afterburner: false,
-			},
-			sampleRate: 'auto',
+			...runtime!.encoding.readDefaults(),
+			settings: { ...runtime!.encoding.readDefaults().settings, afterburner: true },
 		});
-
-		await vi.waitFor(() => {
-			expect(checkbox?.checked).toBe(false);
-		});
+		const button = screen.getByRole('button', { name: 'FDK Afterburner' });
+		await vi.waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'true'));
+		await user.selectOptions(screen.getByLabelText('Encoder'), 'native_aac');
+		expect(screen.queryByRole('button', { name: 'FDK Afterburner' })).not.toBeInTheDocument();
+		await user.selectOptions(screen.getByLabelText('Encoder'), 'fdk_he_aac');
+		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
 	});
 });

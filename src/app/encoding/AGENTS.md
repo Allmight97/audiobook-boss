@@ -19,8 +19,8 @@
 
 - FDK quality, FAAC profile/rate/quality, numeric target kbps, and NMR speed
   stay independent across session encoder switches. Target bitrate includes
-  all channels. FAAC ABR uses that target; FAAC VBR uses its capability presets
-  and returns `null` from `estimateTitleKbps` because size depends on the audio.
+  all channels. FAAC ABR uses that target; FAAC VBR uses its capability presets. Quality-based FDK and FAAC VBR
+  return `null` from `estimateTitleKbps` because size depends on the audio.
 - Derive rate mode from the effective encoder's capability except FAAC, whose
   ABR/VBR choice is explicit. `encoderConfigurations` owns mode and rate
   support; its `faacProfiles` entries own profile-specific rates. Send profile
@@ -37,8 +37,8 @@
   silently substitute Auto or a different explicit rate.
 - Backend capabilities own numeric bounds. Apply bounds when hydrating defaults
   or reloading capabilities as well as accepting user edits.
-- `applyDefaults` and capability clamp / unavailable-flavor snap to `auto`
-  do not persist. Only Settings edits (`select` and `setAfterburner`) persist
+- `applyDefaults` and capability clamps do not persist. Explicit encoder choices
+  survive capability loss; unavailable choices cannot be newly selected. Only Settings `select` edits persist
   defaults through the injected Settings `rememberEncoderDefaults` intent.
 - Capability and availability facts come from backend Runtime Settings
   Capabilities. `reloadCapabilities` accepts a fetched result from Settings
@@ -47,13 +47,14 @@
   auto-hints are frontend-owned.
 - Selecting unavailable FDK invokes the injected setup intent and preserves the
   current encoder request. The FDK option remains actionable; capability loss
-  during hydration/reload still clamps an unavailable request to Auto.
-- Afterburner is encoding truth. The checkbox stays in the Settings dialog.
+  during hydration/reload retains the explicit request for backend validation.
+- Afterburner is encoding truth. The shared encoder view shows it only for FDK;
+  a title edit changes that title's request without changing saved defaults.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.
 - Estimated-size bytes stay in Output; this owner supplies total kbps or an
-  explicit unknown value for FAAC VBR.
-  Output owns the visible total estimate.
+  explicit unknown value for quality-based VBR.
+  Output Plan owns the per-title size estimate.
 
 ## Testing
 
@@ -79,7 +80,8 @@ explicit replacement action. `audioRequest(file)` owns request composition.
 `selectionView` projects common values and mixed fields; `selectTitles` applies
 only the edited field to each target title. Encoder/quality/rate/channel edits
 select Encode even when the selected value already matched. Editing encoding
-preferences in Settings leaves the default intent unchanged. Capability facts
+preferences in Settings also selects User Preference (Encode). Selecting
+Recommended retains those preferences for a later switch back. Capability facts
 are shared, while source hints are derived for the edited title or selection.
 
 `hydrateDefaults` accepts startup values only before explicit defaults edits; capability discovery does not count as a user edit. All output formats and intents persist through Settings. MP3 execution requests

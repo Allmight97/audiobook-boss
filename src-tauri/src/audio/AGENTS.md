@@ -194,7 +194,9 @@ Auto copies joinable, matching audio when every source has a known bitrate at or
 below `COMPACT_AUDIO_MAX_BITRATE`; otherwise it plans encoding. Explicit Preserve
 copies regardless of bitrate and never silently encodes. MP3 output stays copy-only
 regardless of bitrate. Strict source/packet validation still applies to every copy. MP3 has no encoder route and rejects
-incompatible copy boundaries. Explicit Encode always applies the settings.
+incompatible copy boundaries. Recommended M4B encoding uses the built-in AAC
+defaults (FDK VBR 3, otherwise NMR 64 kbps; source channels and automatic rate),
+independent of saved user preferences. Explicit Encode always applies the settings.
 Popover previews and processing preflight share this resolver. Only encoding
 plans resolve encoder availability, channels and input rate. Execution receives
 that resolved plan; it does not reinterpret frontend preferences.

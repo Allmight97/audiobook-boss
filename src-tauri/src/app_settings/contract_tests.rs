@@ -6,12 +6,30 @@ use std::thread;
 use tempfile::TempDir;
 
 #[test]
-fn missing_settings_file_returns_defaults() {
+fn fresh_settings_disable_afterburner_and_preserve_an_explicit_choice() {
     let temp = TempDir::new().expect("temp dir");
 
     let settings = get_app_settings(temp.path()).expect("load defaults");
 
     assert_eq!(settings, AppSettings::default());
+    assert!(!settings.encoder_defaults.settings.afterburner);
+    let mut encoder_defaults = settings.encoder_defaults;
+    encoder_defaults.settings.afterburner = true;
+    update_app_settings(
+        temp.path(),
+        AppSettingsPatch {
+            encoder_defaults: Some(encoder_defaults),
+            ..Default::default()
+        },
+    )
+    .expect("save explicit Afterburner choice");
+    assert!(
+        get_app_settings(temp.path())
+            .expect("reload settings")
+            .encoder_defaults
+            .settings
+            .afterburner
+    );
 }
 
 #[test]

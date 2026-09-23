@@ -127,6 +127,20 @@ pub struct EncoderSettings {
     pub faac_profile: FaacProfile,
 }
 
+impl Default for EncoderSettings {
+    fn default() -> Self {
+        Self {
+            encoder_type: EncoderType::Auto,
+            bitrate_kbps: 64,
+            bitrate_mode: BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
+            channels: ChannelConfig::Auto,
+            afterburner: false,
+            native_aac_speed: 0,
+            faac_profile: FaacProfile::Auto,
+        }
+    }
+}
+
 impl EncoderSettings {
     pub(in crate::audio) fn resolve_encoder(&mut self, encoder: EncoderType) {
         if self.encoder_type == EncoderType::Auto

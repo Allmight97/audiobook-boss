@@ -56,7 +56,10 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `field_schema`.
 - Thumbnail ingestion stays allocation-bounded before decode or demux:
   `mp4_covr` bounds MP4 payload, nesting, and atom traversal; `embedded_cover`
-  reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg. Unknown
+  reads bounded ID3/FLAC/WAVE picture records without opening FFmpeg.
+  `matroska_cover` bounds EBML traversal and cover payload allocation; its
+  recognized cover filenames/MIME types also govern attachment replacement.
+  Other attachments survive metadata edits. Unknown
   non-MP4 tag containers return no thumbnail instead of using an unbounded
   demux fallback.
 

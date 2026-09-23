@@ -212,6 +212,7 @@ export function FileListView(props: {
 							const [expanded, setExpanded] = createSignal(false);
 							const sources = () => input.sourcesFor(file);
 							const grouped = () => sources().length > 1;
+							const invalidSource = () => sources().find((source) => !source.isValid);
 							const thumbnail = () => {
 								return thumbnails.read(file.path);
 							};
@@ -223,8 +224,8 @@ export function FileListView(props: {
 									class={[
 										'file-list-item',
 										{
-											valid: file.isValid,
-											invalid: !file.isValid,
+											valid: !invalidSource(),
+											invalid: !!invalidSource(),
 											selected: isSelected(index()),
 											dragging: drag().draggedIndex === index(),
 											'drag-over': drag().hoveredIndex === index(),
@@ -261,9 +262,9 @@ export function FileListView(props: {
 											})()}
 										</div>
 										<div
-											class={`file-status ${file.isValid ? 'file-status-valid' : 'file-status-invalid'}`}
+											class={`file-status ${!invalidSource() ? 'file-status-valid' : 'file-status-invalid'}`}
 										>
-											{file.isValid ? '✓' : '✗'}
+											{!invalidSource() ? '✓' : '✗'}
 										</div>
 										<div class="file-info">
 											<div class="file-name-row">
@@ -325,12 +326,14 @@ export function FileListView(props: {
 											</div>
 											<div class="file-details">
 												{grouped()
-													? formatFileDetails({
-															...file,
-															duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
-															size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
-															chapters: sources().flatMap((f) => f.chapters ?? []),
-														})
+													? invalidSource()
+														? formatFileDetails(invalidSource() ?? file)
+														: formatFileDetails({
+																...file,
+																duration: sources().reduce((n, f) => n + (f.duration ?? 0), 0),
+																size: sources().reduce((n, f) => n + (f.size ?? 0), 0),
+																chapters: sources().flatMap((f) => f.chapters ?? []),
+															})
 													: formatFileDetails(file)}
 											</div>
 											<div class="file-audio-row">

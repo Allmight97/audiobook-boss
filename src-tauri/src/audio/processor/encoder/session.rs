@@ -203,8 +203,8 @@ impl EncoderSession {
         let ffmpeg_version =
             unsafe { CStr::from_ptr(ff::sys::av_version_info()) }.to_string_lossy();
         let codec = match &self.backend {
-            Backend::Faac(e) => format!("faac_version={} profile={} rate_control={} target_bitrate_bps={} quant_quality={} bandwidth={} pns_level={} core_priming_samples={} reported_encoder_delay_samples={}",
-                faac::library_version(), e.profile_name(), if e.info.rate_control == faac_sys::FAAC_RC_VBR { "VBR" } else { "ABR" }, e.info.bit_rate * e.channels, e.info.quant_quality, e.info.bandwidth, e.info.pns_level, e.priming(), e.info.encoder_delay),
+            Backend::Faac(e) => format!("faac_version={} profile={} rate_control={} target_bitrate_bps={} quant_quality={} bandwidth={} mpeg_version={} core_priming_samples={} reported_encoder_delay_samples={}",
+                faac::library_version(), e.profile_name(), if e.info.rate_control == faac_sys::FAAC_RC_VBR { "VBR" } else { "ABR" }, e.info.bit_rate * e.channels, e.info.quant_quality, e.info.bandwidth, e.info.mpeg_version, e.priming(), e.info.encoder_delay),
             Backend::Ffmpeg(_) if self.resolved == EncoderType::NativeAac => "profile=AAC-LC aac_coder=nmr options_verified=true".into(),
             Backend::Ffmpeg(_) if self.resolved == EncoderType::Opus => "codec=Opus encoder=libopus rate_control=VBR".into(),
             Backend::Ffmpeg(_) => "profile=AAC-LC encoder=AudioToolbox".into(),

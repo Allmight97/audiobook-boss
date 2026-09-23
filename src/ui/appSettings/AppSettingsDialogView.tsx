@@ -180,7 +180,6 @@ export function AppSettingsDialogView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const settings = runtime.settings;
 	const remoteSource = runtime.remoteSource;
-	const encoding = runtime.encoding;
 	const state = settings.dialog;
 	let fdkSection: HTMLElement | undefined;
 	createEffect(
@@ -244,7 +243,6 @@ export function AppSettingsDialogView(): JSX.Element {
 	const pinnedDefaults = (): PinnedDefaults | undefined => state().settings?.pinnedDefaults;
 	const startupBehavior = () => state().settings?.startupBehavior ?? 'rememberLastState';
 	const defaultAcquisitionLane = (): AcquisitionLane => settings.defaultAcquisitionLane();
-	const afterburner = () => encoding.view().afterburner;
 
 	return (
 		<Dialog
@@ -419,21 +417,6 @@ export function AppSettingsDialogView(): JSX.Element {
 								</p>
 							)}
 						</Show>
-						<label class="checkbox-label" data-testid="app-settings-afterburner-toggle">
-							<input
-								type="checkbox"
-								id="app-settings-afterburner"
-								data-testid="app-settings-afterburner-checkbox"
-								checked={afterburner()}
-								disabled={state().saveState === 'saving'}
-								onChange={(event) => encoding.setAfterburner(Boolean(event.currentTarget.checked))}
-							/>
-							<span class="option-label">FDK Afterburner</span>
-						</label>
-						<p class="muted-text">
-							Extra encoding effort for slightly higher quality on the FDK encoder. Leave on unless
-							encode speed matters more than quality.
-						</p>
 					</section>
 					<Show when={state().settings}>
 						{(_) => (

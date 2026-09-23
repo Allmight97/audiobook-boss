@@ -13,7 +13,7 @@ import type {
 	SampleRateConfig,
 } from '../../types/audio';
 import { defaultEncoderSettings } from '../../types/audio';
-import { estimateKbpsFromRequest } from './estimate';
+import { estimateKbpsFromSettings } from './estimate';
 
 export type EncodingField =
 	| 'format'
@@ -23,6 +23,7 @@ export type EncodingField =
 	| 'faacProfile'
 	| 'rateControl'
 	| 'nativeSpeed'
+	| 'afterburner'
 	| 'bitrate'
 	| 'sampleRate'
 	| 'channels';
@@ -37,17 +38,15 @@ export type EncodingView = {
 	readonly format: AudiobookFormat;
 	readonly intent: AudioIntent;
 	readonly flavor: string;
+	readonly effectiveFlavor: string;
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
-	readonly availabilityHint: string;
-	readonly fdkSetupNeeded: boolean;
 	readonly profileDisplay: string;
 	readonly faac: boolean;
 	readonly faacProfile: FaacProfile;
 	readonly faacProfileOptions: ReadonlyArray<EncodingOption>;
 	readonly rateControl: string;
 	readonly rateControlOptions: ReadonlyArray<EncodingOption>;
-	readonly profileHint: string;
 	readonly qualityBitrateLabel: 'Quality' | 'Bitrate (kbps)';
 	readonly native: boolean;
 	readonly bitrateKbpsMax: number;
@@ -58,7 +57,6 @@ export type EncodingView = {
 	readonly qualityOptions: ReadonlyArray<EncodingOption>;
 	readonly bitrate: number;
 	readonly bitrateKbpsMin: number;
-	readonly estimatedBitrateText: string;
 	readonly sampleRate: string;
 	readonly sampleRateOptions: ReadonlyArray<EncodingOption>;
 	readonly sampleRateDisabled: boolean;
@@ -94,8 +92,6 @@ export type EncodingBag = {
 
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const DEFAULT_CHANNELS_HINT = 'Auto -> source audio';
-const DEFAULT_AVAILABILITY_HINT = 'Checking encoder availability…';
-const NATIVE_AAC_HINT = 'NMR AAC-LC. Preview to compare settings on your audio.';
 const ENCODER_PROFILES: Record<Exclude<EncoderType, 'faac'>, string> = {
 	auto: 'HE-AAC v1',
 	fdk_he_aac: 'HE-AAC v1',
@@ -105,7 +101,7 @@ const ENCODER_PROFILES: Record<Exclude<EncoderType, 'faac'>, string> = {
 };
 
 const FAAC_PROFILES: Record<FaacProfile, string> = {
-	auto: 'Auto · let FAAC choose',
+	auto: 'Auto · FAAC chooses LC or HE',
 	aac_lc: 'AAC-LC',
 	he_aac_v1: 'HE-AAC v1',
 };
@@ -125,7 +121,7 @@ export function createDefaultBag(): EncodingBag {
 		bitrate: 64,
 		sampleRate: 'auto',
 		channels: 'auto',
-		afterburner: true,
+		afterburner: false,
 		capabilities: null,
 		availability: null,
 		sampleRateHint: DEFAULT_SAMPLE_RATE_HINT,
@@ -159,24 +155,6 @@ function encoderFlavorLabel(flavor: EncoderType): string {
 	}
 }
 
-function compactToolchainPath(path: string | null | undefined): string | null {
-	if (!path) return null;
-	if (path.length <= 38) return path;
-	const normalized = path.replace(/\\/g, '/');
-	const parts = normalized.split('/').filter(Boolean);
-	const parent = parts[parts.length - 2];
-	const filename = parts[parts.length - 1];
-	if (!parent || !filename) return path;
-	if (normalized.startsWith('/opt/homebrew/')) {
-		return `/opt/homebrew/.../${parent}/${filename}`;
-	}
-	if (normalized.startsWith('/usr/local/')) {
-		return `/usr/local/.../${parent}/${filename}`;
-	}
-	const root = normalized.startsWith('/') ? `/${parts[0]}` : (parts[0] ?? '');
-	return root ? `${root}/.../${parent}/${filename}` : `.../${parent}/${filename}`;
-}
-
 const opus = (bag: EncodingBag) => bag.format === 'm4aOpus' || bag.format === 'mkaOpus';
 function effectiveEncoder(bag: EncodingBag): EncoderType {
 	if (opus(bag)) return 'opus';
@@ -190,15 +168,6 @@ function disabledEncoderOptions(availability: EncoderAvailability | null) {
 		aac_at: availability ? !availability.aacAtAvailable : false,
 		native_aac: availability ? !availability.nativeAacAvailable : false,
 	};
-}
-
-function flavorIsUnavailable(bag: EncodingBag): boolean {
-	if (!bag.availability || bag.flavor === 'auto') return false;
-	const disabled = disabledEncoderOptions(bag.availability);
-	if (bag.flavor === 'fdk_he_aac') return disabled.fdk_he_aac;
-	if (bag.flavor === 'aac_at') return disabled.aac_at;
-	if (bag.flavor === 'native_aac') return disabled.native_aac;
-	return false;
 }
 
 function sampleRateFromBag(bag: EncodingBag): SampleRateConfig {
@@ -243,52 +212,10 @@ export function bagDefaults(bag: EncodingBag): EncoderDefaults {
 }
 
 export function bagEstimateKbps(bag: EncodingBag): number | null {
-	return estimateKbpsFromRequest(bagRequest(bag));
-}
-
-function availabilityHint(bag: EncodingBag): string {
-	if (opus(bag)) return 'Opus · variable bitrate';
-	if (!bag.availability) return DEFAULT_AVAILABILITY_HINT;
-	const selected = bag.flavor;
-	const effective = effectiveEncoder(bag);
-	if (selected === 'auto') {
-		if (effective === 'fdk_he_aac') return fdkAvailabilityHint(bag);
-		if (effective === 'aac_at') return 'Auto will use Apple AAC. FDK AAC is not available.';
-		return `Auto will use Native AAC (NMR). FDK AAC is not available. ${NATIVE_AAC_HINT}`;
-	}
-	if (effective === 'faac') return 'FAAC is included with ABB.';
-	if (effective === 'native_aac') {
-		if (!bag.availability.nativeAacAvailable) {
-			return 'Native AAC (NMR) is unavailable in this build.';
-		}
-		return NATIVE_AAC_HINT;
-	}
-	if (effective === 'fdk_he_aac') {
-		if (!bag.availability.fdkAvailable) {
-			return 'FDK AAC needs an auto-detectable FFmpeg with libfdk_aac.';
-		}
-		return fdkAvailabilityHint(bag);
-	}
-	if (!bag.availability.aacAtAvailable) return 'Apple AAC is unavailable in this build.';
-	return 'Apple AAC available';
-}
-
-function fdkAvailabilityHint(bag: EncodingBag): string {
-	const path = compactToolchainPath(bag.availability?.detectedToolchainPath);
-	const pathSegment = path ? ` via ${path}` : '';
-	const afterburnerSegment = bag.afterburner ? 'Afterburner on.' : 'Afterburner off.';
-	return `Using external FDK AAC${pathSegment}. ${afterburnerSegment}`;
-}
-
-function autoOptionLabel(bag: EncodingBag): string {
-	if (bag.flavor === 'auto' && bag.availability) {
-		return `App default (${encoderFlavorLabel(effectiveEncoder(bag))})`;
-	}
-	return 'App default';
+	return estimateKbpsFromSettings(bagRequest(bag).encoderSettings);
 }
 
 function encoderLabel(bag: EncodingBag, value: string): string {
-	if (value === 'auto') return autoOptionLabel(bag);
 	if (value === 'fdk_he_aac' && bag.availability && !bag.availability.fdkAvailable)
 		return 'FDK AAC (Set up…)';
 	if (value === 'fdk_he_aac' || value === 'aac_at' || value === 'native_aac' || value === 'faac') {
@@ -369,7 +296,6 @@ function autoResolutionLabel(hint: string): string {
 
 export function projectView(bag: EncodingBag): EncodingView {
 	const effective = effectiveEncoder(bag);
-	const estimate = bagEstimateKbps(bag);
 	const showQuality = bitrateModeFromBag(bag).mode === 'vbr';
 	const native = effectiveEncoder(bag) === 'native_aac';
 	const faac = !opus(bag) && bag.flavor === 'faac';
@@ -378,7 +304,9 @@ export function projectView(bag: EncodingBag): EncodingView {
 		bag.capabilities === null
 			? [{ value: 'auto', label: 'Loading…', disabled: true }]
 			: bag.capabilities.encoderTypes
-					.filter((flavor) => (opus(bag) ? flavor === 'opus' : flavor !== 'opus'))
+					.filter((flavor) =>
+						opus(bag) ? flavor === 'opus' : flavor !== 'opus' && flavor !== 'auto',
+					)
 					.map((flavor) => ({
 						value: flavor,
 						label: encoderLabel(bag, flavor),
@@ -418,10 +346,9 @@ export function projectView(bag: EncodingBag): EncodingView {
 		format: bag.format,
 		intent: bag.intent,
 		flavor: opus(bag) ? 'opus' : bag.flavor,
+		effectiveFlavor: effective,
 		flavorOptions,
 		flavorDisabled: opus(bag) || bag.capabilities === null,
-		availabilityHint: availabilityHint(bag),
-		fdkSetupNeeded: !opus(bag) && bag.availability !== null && !bag.availability.fdkAvailable,
 		profileDisplay:
 			effective === 'faac' ? FAAC_PROFILES[bag.faacProfile] : ENCODER_PROFILES[effective],
 		qualityBitrateLabel: showQuality ? 'Quality' : 'Bitrate (kbps)',
@@ -437,8 +364,6 @@ export function projectView(bag: EncodingBag): EncodingView {
 			value: mode,
 			label: mode === 'abr' ? 'Average bitrate (ABR)' : 'Quality (VBR)',
 		})),
-		profileHint:
-			bag.faacProfile === 'auto' ? 'FAAC chooses LC or HE once from the output settings.' : '',
 
 		bitrateKbpsMax: encoderConfiguration(bag)?.bitrateKbpsMax ?? 0,
 		nativeSpeed: bag.nativeSpeed,
@@ -456,12 +381,6 @@ export function projectView(bag: EncodingBag): EncodingView {
 		qualityOptions,
 		bitrate: opus(bag) ? bag.opusBitrate : bag.bitrate,
 		bitrateKbpsMin: encoderConfiguration(bag)?.bitrateKbpsMin ?? 1,
-		estimatedBitrateText:
-			faac && showQuality
-				? 'Size varies. Start with Standard, or choose ABR for a bitrate target.'
-				: showQuality
-					? `Est: ~${estimate} kbps`
-					: '',
 		sampleRate: bag.sampleRate,
 		sampleRateOptions,
 		sampleRateDisabled: sampleRateOptions.length === 0,
@@ -472,18 +391,6 @@ export function projectView(bag: EncodingBag): EncodingView {
 		channelsHint: channelsDetail(bag),
 		afterburner: bag.afterburner,
 	};
-}
-
-export type SyncResult = {
-	readonly flavorReset: boolean;
-};
-
-export function syncPolicy(bag: EncodingBag): SyncResult {
-	const flavorReset = flavorIsUnavailable(bag);
-	if (flavorReset) {
-		bag.flavor = 'auto';
-	}
-	return { flavorReset };
 }
 
 export function applyCapabilities(
@@ -549,9 +456,15 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 			return true;
 		case 'intent':
 			if (value !== 'auto' && value !== 'encode' && value !== 'preserve') return false;
+			if (bag.format === 'mp3' && value === 'encode') return false;
 			bag.intent = value;
 			return true;
 		case 'encoder': {
+			if (
+				bag.availability &&
+				disabledEncoderOptions(bag.availability)[value as 'aac_at' | 'native_aac']
+			)
+				return false;
 			if (
 				value !== 'auto' &&
 				value !== 'fdk_he_aac' &&
@@ -576,6 +489,13 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 			)
 				return false;
 			bag.nativeSpeed = speed;
+			return true;
+		}
+		case 'afterburner': {
+			if (value !== 'true' && value !== 'false') return false;
+			const next = value === 'true';
+			if (bag.afterburner === next) return false;
+			bag.afterburner = next;
 			return true;
 		}
 		case 'faacProfile': {

@@ -24,6 +24,8 @@
 - Coalesce pending defaults by field, serialize writes, and retry the newest
   accepted values. Older completions cannot claim newer choices are saved.
   Persistence retries do not reconfigure concurrency.
+- Concurrency's Auto option displays the backend capability's `autoEffective`,
+  independently of the currently accepted fixed job count.
 - Reset waits for in-flight writes and supersedes older pending defaults only
   when it succeeds. Accepted changes requested after reset remain applied and
   pending until their own write succeeds. Reset reflects the runtime's

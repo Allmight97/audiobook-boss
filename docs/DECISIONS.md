@@ -14,6 +14,12 @@ git history and closed issues own superseded chronology.
   satisfies the output; explicit Keep never substitutes encoding. Settings owns
   defaults for future imports; per-title and selected-title edits share one editor.
   Loaded titles retain their choices until explicitly edited or reset to defaults.
+- Recommended M4B encoding uses ABB's AAC defaults: FDK VBR 3 when available,
+  otherwise NMR at 64 kbps, with source channels and automatic sample rate.
+  User Preference applies the saved title settings. The shared editor exposes
+  encoding controls only for User Preference, and explicit encoder preferences
+  survive availability changes. Apply App Settings copies the current saved
+  preferences into the targeted titles.
 - Guardrail: codec/container compatibility does not promise client direct play;
   the Opus UI asks users to verify direct playback and chapters on their device.
 

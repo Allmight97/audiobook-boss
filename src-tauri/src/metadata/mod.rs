@@ -25,6 +25,7 @@ mod ffi;
 mod ffmpeg_dict;
 mod field_schema;
 mod intent_plan;
+mod matroska_cover;
 mod metadata_ops;
 mod metadata_sinks;
 mod mp4_covr;

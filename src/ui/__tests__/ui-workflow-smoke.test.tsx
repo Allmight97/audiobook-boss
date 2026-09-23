@@ -247,7 +247,7 @@ describe('UI Workflow Smoke Test', () => {
 
 		try {
 			await waitFor(() => {
-				expect(document.getElementById('adv-encoder')).not.toBeDisabled();
+				expect(runtime.encoding.view().flavorDisabled).toBe(false);
 			});
 			await user.click(document.querySelector('[aria-label="Add audio files"]') as HTMLElement);
 			await waitFor(() => {
@@ -272,7 +272,8 @@ describe('UI Workflow Smoke Test', () => {
 			await user.click(screen.getByTestId('metadata-lookup-close'));
 			await user.click(screen.getByRole('button', { name: /Audio plan for/ }));
 			const audioEditor = screen.getByRole('dialog', { name: 'Audio plan' });
-			await user.click(within(audioEditor).getByText('Encoding settings', { exact: true }));
+			await user.selectOptions(within(audioEditor).getByLabelText('Audio handling'), 'encode');
+			await user.click(within(audioEditor).getByText(/Encoding settings/));
 			await user.selectOptions(within(audioEditor).getByLabelText('Encoder'), 'native_aac');
 			const targetBitrate = within(audioEditor).getByLabelText(
 				'Bitrate (kbps)',

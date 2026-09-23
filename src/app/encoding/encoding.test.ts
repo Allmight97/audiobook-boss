@@ -110,22 +110,19 @@ describe('encoding owner', () => {
 		flush();
 	}
 
-	it.each([true, false])(
-		'identifies bundled FAAC regardless of Apple availability (%s)',
-		async (aacAtAvailable) => {
-			const capabilities = encoderCaps();
-			mounted = mountEncoding({
-				capabilities: {
-					...capabilities,
-					availability: { ...capabilities.availability, aacAtAvailable },
-				},
-			});
-			await ready(mounted.owner);
-			mounted.owner.select('encoder', 'faac');
-			flush();
-			expect(mounted.owner.view().availabilityHint).toBe('FAAC is included with ABB.');
-		},
-	);
+	it('keeps MP3 choices copy-only in saved preferences', async () => {
+		mounted = mountEncoding();
+		await ready(mounted.owner);
+		mounted.owner.select('format', 'mp3');
+		mounted.owner.select('intent', 'encode');
+		expect(mounted.owner.audioRequest()).toMatchObject({
+			format: 'mp3',
+			intent: 'preserve',
+			settings: null,
+		});
+		mounted.owner.select('intent', 'auto');
+		expect(mounted.owner.audioRequest().intent).toBe('auto');
+	});
 
 	it('hydrates FAAC as an explicit ABR encoder and preserves an unsupported rate', async () => {
 		mounted = mountEncoding();
@@ -152,7 +149,6 @@ describe('encoding owner', () => {
 		expect(mounted.owner.audioRequest().sampleRate).toEqual({ explicit: 22050 });
 		expect(mounted.owner.view().showQuality).toBe(false);
 		expect(mounted.owner.view().qualityBitrateLabel).toBe('Bitrate (kbps)');
-		expect(mounted.owner.view().estimatedBitrateText).toBe('');
 		expect(
 			mounted.owner.view().sampleRateOptions.find((option) => option.value === '22050')?.disabled,
 		).toBe(true);
@@ -395,7 +391,7 @@ describe('encoding owner', () => {
 		expect(mounted.persist).not.toHaveBeenCalled();
 	});
 
-	it('snaps an unavailable explicit flavor to auto without persisting', async () => {
+	it('keeps an explicit encoder preference across availability changes', async () => {
 		mounted = mountEncoding({
 			capabilities: encoderCaps({
 				availability: {
@@ -410,11 +406,19 @@ describe('encoding owner', () => {
 		await ready(mounted.owner);
 
 		mounted.persist.mockClear();
-		mounted.owner.select('encoder', 'aac_at');
+		mounted.owner.applyDefaults({
+			...vbrDefaults(3),
+			settings: {
+				...vbrDefaults(3).settings,
+				encoderType: 'aac_at',
+				bitrateMode: { mode: 'cvbr' },
+			},
+		});
 		flush();
-		expect(mounted.owner.audioRequest().settings!.encoderType).toBe('auto');
-		expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode: 'cbr' });
+		expect(mounted.owner.audioRequest().settings!.encoderType).toBe('aac_at');
 		expect(mounted.persist).not.toHaveBeenCalled();
+		await mounted.owner.reloadCapabilities(encoderCaps());
+		expect(mounted.owner.readDefaults().settings.encoderType).toBe('aac_at');
 	});
 
 	it('keeps a shared Settings scan when an older startup scan finishes later', async () => {
@@ -428,11 +432,15 @@ describe('encoding owner', () => {
 			availability: { ...encoderCaps().availability, fdkAvailable: false },
 		});
 		await mounted.owner.reloadCapabilities(missing);
-		expect(mounted.owner.view().fdkSetupNeeded).toBe(true);
+		expect(
+			mounted.owner.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
+		).toBe('FDK AAC (Set up…)');
 		finish(encoderCaps());
 		await pending;
 		flush();
-		expect(mounted.owner.view().fdkSetupNeeded).toBe(true);
+		expect(
+			mounted.owner.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
+		).toBe('FDK AAC (Set up…)');
 		expect(load).toHaveBeenCalledTimes(1);
 		expect(mounted.persist).not.toHaveBeenCalled();
 	});
@@ -440,14 +448,14 @@ describe('encoding owner', () => {
 	it('keeps afterburner across a capability reload', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);
-		mounted.owner.setAfterburner(false);
+		mounted.owner.select('afterburner', 'true');
 		flush();
-		expect(mounted.owner.audioRequest().settings!.afterburner).toBe(false);
+		expect(mounted.owner.audioRequest().settings!.afterburner).toBe(true);
 		mounted.persist.mockClear();
 
 		await mounted.owner.reloadCapabilities();
 		flush();
-		expect(mounted.owner.audioRequest().settings!.afterburner).toBe(false);
+		expect(mounted.owner.audioRequest().settings!.afterburner).toBe(true);
 		expect(mounted.persist).not.toHaveBeenCalled();
 	});
 

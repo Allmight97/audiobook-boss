@@ -2593,6 +2593,46 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             "Opus import through ABB must preserve the playable interval"
         );
         assert_eq!(chapters_of(&aac_output), chapters);
+        if format == AudiobookFormat::MkaOpus {
+            assert!(read_audio_cover_thumbnail(&destination).unwrap().is_some());
+            let packets = audio_packet_bytes(&destination);
+            let replacement = minimal_jpg_bytes();
+            save_metadata_intent(
+                &destination,
+                &MetadataIntentPatch {
+                    cover_art: PatchOp::Set(replacement),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            {
+                let input = ffmpeg_next::format::input(&destination).unwrap();
+                assert_eq!(
+                    input
+                        .streams()
+                        .filter(
+                            |s| s.parameters().medium() == ffmpeg_next::media::Type::Attachment
+                                || s.disposition().contains(
+                                    ffmpeg_next::format::stream::Disposition::ATTACHED_PIC
+                                )
+                        )
+                        .count(),
+                    1
+                );
+            }
+            assert!(read_audio_cover_thumbnail(&destination).unwrap().is_some());
+            save_metadata_intent(
+                &destination,
+                &MetadataIntentPatch {
+                    cover_art: PatchOp::Clear,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(read_audio_cover_thumbnail(&destination).unwrap(), None);
+            assert_eq!(audio_packet_bytes(&destination), packets);
+            assert_eq!(chapters_of(&destination), chapters);
+        }
     }
 }
 
@@ -2775,12 +2815,34 @@ async fn recommended_audio_plan_reduces_large_aac_but_explicit_keep_never_encode
         let info = get_file_list_info(&[&source]).unwrap();
         let bitrate = info.files[0].bitrate.unwrap();
         assert_eq!(bitrate <= 72_000, expected == AudioHandling::Preserve);
-        let mut request = title_audio_request(AudioHandling::Encode, native_encoder_settings());
+        let mut request = title_audio_request(
+            AudioHandling::Encode,
+            EncoderSettings {
+                encoder_type: EncoderType::Faac,
+                bitrate_kbps: 80,
+                bitrate_mode: BitrateMode::Abr,
+                ..native_encoder_settings()
+            },
+        );
         request.intent = AudioIntent::Auto;
         let plan = resolve_title_audio(&request, &info, false).unwrap();
         assert_eq!(plan.handling, expected);
         assert_eq!(plan.sample_rate, info.files[0].sample_rate.unwrap());
         assert_eq!(u32::from(plan.channels), info.files[0].channels.unwrap());
+        if let Some(settings) = &plan.settings {
+            assert!(matches!(
+                settings.encoder_type,
+                EncoderType::FdkHeAac | EncoderType::NativeAac
+            ));
+            assert_eq!(settings.bitrate_kbps, 64);
+        }
+        request.intent = AudioIntent::Encode;
+        let explicit = resolve_title_audio(&request, &info, false).unwrap();
+        assert_eq!(
+            explicit.settings.as_ref().unwrap().encoder_type,
+            EncoderType::Faac
+        );
+        assert_eq!(explicit.settings.as_ref().unwrap().bitrate_kbps, 80);
         request.intent = AudioIntent::Preserve;
         request.settings = None;
         let kept = resolve_title_audio(&request, &info, false).unwrap();

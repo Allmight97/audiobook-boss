@@ -36,6 +36,7 @@ describe('encoder panel encoder resolution', () => {
 	function renderEncoder() {
 		runtime?.dispose();
 		runtime = createAppRuntime();
+		runtime.encoding.select('intent', 'encode');
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />
@@ -47,7 +48,7 @@ describe('encoder panel encoder resolution', () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockReset();
 	});
 
-	it('shows NMR resolution when auto resolves to native AAC', async () => {
+	it('shows the resolved NMR encoder in Settings without an extra Auto choice', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -63,15 +64,14 @@ describe('encoder panel encoder resolution', () => {
 		renderEncoder();
 
 		await vi.waitFor(() => {
-			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toContain('Auto will use Native AAC (NMR).');
-			expect(hint?.textContent).toContain('NMR AAC-LC.');
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('App default (Native AAC (NMR))');
+			expect(select?.value).toBe('native_aac');
+			expect(select?.options.length).toBe(4);
+			expect(document.getElementById('native-speed')).not.toBeNull();
 		});
 	});
 
-	it('shows Apple resolution in the auto selector when non-native encoder is effective', async () => {
+	it('uses NMR when FDK is absent even when Apple AAC is available', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -87,41 +87,13 @@ describe('encoder panel encoder resolution', () => {
 		renderEncoder();
 
 		await vi.waitFor(() => {
-			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toBe(
-				'Auto will use Apple AAC. FDK AAC is not available. Set up FDK…',
-			);
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('App default (Apple AAC)');
+			expect(select?.value).toBe('native_aac');
+			expect(select?.options.length).toBe(4);
 		});
 	});
 
-	it('shows FDK resolution in the auto selector when FDK is available', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toBe(
-				'Using external FDK AAC via /opt/homebrew/bin/ffmpeg. Afterburner on.',
-			);
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('App default (FDK AAC)');
-		});
-	});
-
-	it('restores the auto option label when a manual encoder is selected', async () => {
+	it('shows FDK AAC when it is the resolved default', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -138,20 +110,41 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('App default (FDK AAC)');
+			expect(select?.value).toBe('fdk_he_aac');
+			expect(select?.options.length).toBe(4);
+		});
+	});
+
+	it('saves an explicit encoder choice from Settings', async () => {
+		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
+			runtimeSettingsCapabilitiesFixture({
+				encoder: {
+					availability: encoderAvailabilityFixture({
+						fdkAvailable: true,
+						aacAtAvailable: true,
+						nativeAacAvailable: true,
+					}),
+				},
+			}),
+		);
+
+		renderEncoder();
+
+		await vi.waitFor(() => {
+			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
+			expect(select?.value).toBe('fdk_he_aac');
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
 		changeSelectValue(select, 'aac_at');
 
 		await vi.waitFor(() => {
-			expect(select.options[0]?.textContent).toBe('App default');
-			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toBe('Apple AAC available');
+			expect(select.value).toBe('aac_at');
+			expect(runtime?.encoding.audioRequest().settings?.encoderType).toBe('aac_at');
 		});
 	});
 
-	it('shows NMR guidance when Native AAC is manually selected', async () => {
+	it('shows NMR speed when Native AAC is manually selected', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -168,16 +161,15 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.options[0]?.textContent).toBe('App default (FDK AAC)');
+			expect(select?.value).toBe('fdk_he_aac');
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
 		changeSelectValue(select, 'native_aac');
 
 		await vi.waitFor(() => {
-			const hint = document.getElementById('encoder-availability-hint');
-			expect(hint?.textContent).toContain('NMR AAC-LC.');
-			expect(select.options[0]?.textContent).toBe('App default');
+			expect(select.value).toBe('native_aac');
+			expect(document.getElementById('native-speed')).not.toBeNull();
 		});
 	});
 });

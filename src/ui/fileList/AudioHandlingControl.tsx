@@ -88,6 +88,7 @@ export function AudioHandlingControl(props: {
 		({ open: isOpen, key }) => {
 			if (key !== cachedKey) {
 				generation++;
+				cachedKey = '';
 				setPlan(undefined);
 				setError('');
 			}
@@ -99,7 +100,10 @@ export function AudioHandlingControl(props: {
 					if (ticket === generation) setPlan(value);
 				})
 				.catch((err) => {
-					if (ticket === generation) setError(toUserMessage(err));
+					if (ticket === generation) {
+						cachedKey = '';
+						setError(toUserMessage(err));
+					}
 				});
 		},
 	);
@@ -204,6 +208,19 @@ export function AudioHandlingControl(props: {
 						? `Pass-through · ${format()}`
 						: `${request().intent === 'preserve' ? 'Keep original audio' : request().intent === 'auto' ? 'Recommended' : opus() ? 'Opus' : 'AAC'} · ${format()}`}
 			</span>
+			<Show
+				when={
+					needsChoice() || error()
+						? null
+						: runtime.output.estimateTitleSizeText(props.file, plan() ?? undefined)
+				}
+			>
+				{(size) => (
+					<span class="title-output-size" title="Estimated output size">
+						{size()}
+					</span>
+				)}
+			</Show>
 			<Show when={open()}>
 				<Portal>
 					<div
@@ -257,7 +274,7 @@ export function AudioHandlingControl(props: {
 						</strong>
 						<p>
 							{needsChoice()
-								? 'These sources had different audio settings. Choose settings for this title or use your defaults.'
+								? 'These sources had different audio settings. Choose settings for this title or apply App Settings.'
 								: error() ||
 									(!plan()
 										? 'Checking source audio…'
@@ -270,7 +287,7 @@ export function AudioHandlingControl(props: {
 								type="button"
 								onClick={() => runtime.encoding.applyDefaultsToTitles([props.file])}
 							>
-								Use defaults
+								Apply App Settings
 							</button>
 						</p>
 						<EncoderView title={props.file} />
@@ -287,7 +304,13 @@ export function AudioHandlingControl(props: {
 										{resolved().sampleRate / 1000} kHz
 									</dd>
 									<dt>Channels</dt>
-									<dd>{resolved().channels === 1 ? 'Mono' : 'Stereo'}</dd>
+									<dd>
+										{resolved().channels === 1
+											? 'Mono'
+											: resolved().channels === 2
+												? 'Stereo'
+												: `${resolved().channels} channels`}
+									</dd>
 								</dl>
 							)}
 						</Show>

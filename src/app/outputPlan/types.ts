@@ -24,7 +24,6 @@ export type OutputView = {
 	readonly absHintHidden: boolean;
 	readonly templateRowHidden: boolean;
 	readonly displayDirectory: string;
-	readonly estimatedSizeText: string;
 };
 
 export type OutputPathPreviewMetadataDraft = AudiobookMetadata;

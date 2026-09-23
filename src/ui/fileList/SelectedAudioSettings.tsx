@@ -123,7 +123,7 @@ export function SelectedAudioSettings(): JSX.Element {
 								type="button"
 								onClick={() => runtime.encoding.applyDefaultsToTitles(selected())}
 							>
-								Use defaults
+								Apply App Settings
 							</button>
 						</p>
 						<EncoderView titles={selected()} />

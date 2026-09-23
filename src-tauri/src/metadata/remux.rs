@@ -184,7 +184,13 @@ fn copy_streams(
         let in_disposition = istream.disposition();
         let is_attached_pic =
             in_disposition.contains(ff::format::stream::Disposition::ATTACHED_PIC);
-        if is_attached_pic && replace_cover {
+        let tags = istream.metadata();
+        let is_cover_attachment = medium == ff::media::Type::Attachment
+            && super::matroska_cover::is_cover(
+                tags.get("filename").unwrap_or(""),
+                tags.get("mimetype").unwrap_or(""),
+            );
+        if (is_attached_pic || is_cover_attachment) && replace_cover {
             log::info!("Skipping source attached_pic stream in favor of new cover art");
             continue;
         }

@@ -18,10 +18,13 @@
 
 ## Hard Invariants
 
-- Explicit encoding estimates use each title's total source duration and
-  Encoding's `estimateTitleKbps`; a null value means unknown size. Auto reports
-  that size awaits audio planning rather than guessing copy compatibility.
-  Explicit Preserve estimates sum source sizes; they do not use encoder targets.
+- Per-title explicit encoding estimates use that title's total source duration
+  and Encoding's `estimateTitleKbps`; quality-based VBR displays
+  “Size varies with audio” instead of a numeric estimate. Auto has
+  no estimate until a backend title preview resolves its copy/encode choice.
+  Explicit Preserve estimates
+  sum source sizes; they do not use encoder targets. The file-list row renders
+  `estimateTitleSizeText` beside that title's audio summary.
   `estimate.ts` owns the byte formula; bitrate is total across channels.
 - Path preview passes the selected title format to Rust. Audio owns its extension;
   changing quality or encoder availability alone does not re-run naming preview.
@@ -49,9 +52,11 @@
 
 ## Testing
 
-- `estimate.test.ts` pins the byte formula; `outputPlan.test.ts` covers its displayed estimate, unknown-size state and empty-session placeholder.
-- `outputPlan.test.ts` pins hydration, derived estimate (including FDK VBR
-  quality vs sticky request `bitrateKbps`), live submit naming vs 150 ms
+- `estimate.test.ts` pins the byte formula; `outputPlan.test.ts` covers title
+  estimates and missing source facts. Resolved preview settings own Recommended
+  encoding estimates; saved preferences must not substitute for the accepted plan.
+- `outputPlan.test.ts` pins hydration, per-title estimate (including FDK VBR
+  uncertainty vs target-based estimates), live submit naming vs 150 ms
   preview debounce, series-part preview retrigger, preview draft/source-path
   projection, and collision resolve/cancel. Duration comes from
   `runtime.input.replaceSession`.
@@ -66,4 +71,4 @@
 - Adding, removing, or renaming a public export.
 - Reading private Input, Metadata, file-list, or encoder state to build
   preview, estimate, or submit config.
-- Moving the estimate formula or the Output header estimate span.
+- Moving the estimate formula or its title-row presentation.

@@ -1,9 +1,10 @@
 # ABB bundled FAAC dependency
 
 The bundled source is selected from [knik0/faac](https://github.com/knik0/faac)
-at upstream revision `9edb7dbf32101cbb2b4aed66e3142501ca6385eb` (2026-09-21,
-`frame: remove cold path attribute from doHEAACFrame (#216)`). This was upstream HEAD
-when checked on 2026-09-21; builds use this immutable revision's source slice.
+at upstream revision `1cbe2a02596bc510c7eeaf93837c6eb72e5bc551` (2026-09-23,
+`quantize: tighten quantizer kernels and vectorize the grouping energy sum (#226)`).
+This was upstream HEAD when checked on 2026-09-23; builds use this immutable
+revision's source slice.
 
 `upstream/` contains the portable scalar files listed by upstream
 `libfaac/meson.build`, their headers (including `atomic.h`), the public
@@ -11,7 +12,7 @@ when checked on 2026-09-21; builds use this immutable revision's source slice.
 and unrelated documentation are omitted. The Rust build compiles the same
 source list with `cc`, force-includes its generated configuration
 (`MAX_CHANNELS=2`, `FAAC_SBR_DECIMATION=1`,
-`PACKAGE_VERSION=2.1.0-dev.9edb7db`), and runs bindgen against the same public
+`PACKAGE_VERSION=2.1.0-dev.1cbe2a0`), and runs bindgen against the same public
 header used by the C build. Compiled C and generated Rust bindings therefore
 share one header/configuration contract.
 
@@ -37,6 +38,15 @@ or subjective quality improvement from these changes.
 zero sample so its delay is exactly representable at the AAC core rate. HE's
 reported delay becomes 3042 full-rate samples; LC remains at 1024. This changes
 HE alignment, not the profile decision or rate-control policy.
+
+The selected update also includes #219–#226: valid SBR stop-frequency signaling,
+short-block and transient tuning, encoder-owned PNS policy, removal of quiet-channel
+muting, and quantizer/Huffman improvements. The public header replaces `pns_level`
+with `use_pns` and reports the resolved MPEG version. ABB uses initialized library
+defaults and regenerates bindings against that header. Auto's bitrate crossover
+now selects LC above 22 kbps per channel; quality-VBR decisions remain upstream-owned.
+These changes can alter bitrate, profile, and encoded audio. Upstream's quality
+claims do not establish a measured perceptual improvement in ABB.
 
 ## Adapter contract
 
