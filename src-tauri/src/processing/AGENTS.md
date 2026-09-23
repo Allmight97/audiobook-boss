@@ -6,8 +6,9 @@
   `ExecutionProcessingPlan`, `ResolvedProcessingPlan`, `PlannedProcessingJob`.
   Private `title_file_info` projects an inspected source set in title order.
   Callers provide the fresh phase `FileListInfo`; planning never re-inspects
-  inputs. Merge execution retains that inspection, while queued batch jobs
-  inspect again when scheduled to run.
+  inputs. Merge and batch execution retain that inspection, including source fingerprints.
+  Audio revalidates those identities after scheduler/permit waits; queued jobs
+  must not replace the inspected facts underneath an already-resolved audio plan.
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
   `crate::processing`, not `audio`, `commands`, or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,

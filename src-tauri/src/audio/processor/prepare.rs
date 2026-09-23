@@ -26,7 +26,16 @@ pub(crate) fn validate_processing_inputs(
             )));
         }
         // Safety: ensure path passes our centralized validation again.
-        let _ = crate::audio::path_validation::validate_input_audio_path(&file.path)?;
+        let source = crate::audio::path_validation::validate_input_audio_path(&file.path)?;
+        let expected = file.chapter_plan.as_ref().ok_or_else(|| {
+            AppError::InvalidInput(
+                "Audio source identity is missing. Remove and import it again.".into(),
+            )
+        })?;
+        crate::metadata::validate_source_fingerprint(
+            &std::fs::metadata(source)?,
+            &expected.source_fingerprint,
+        )?;
     }
 
     crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;

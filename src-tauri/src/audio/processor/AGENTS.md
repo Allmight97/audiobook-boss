@@ -17,6 +17,9 @@
 ## Preferred Path
 
 - Keep stage flow explicit: prepare -> execute -> finalize.
+- Encoding preparation validates every source against its retained inspection
+  fingerprint before creating a workspace. A queued replacement must fail rather
+  than run with an audio plan resolved for the previous file.
 - Preserve dispatch happens before encoder resolution. Its blocking worker
   copies an eligible source into the tracked workspace, applies explicit metadata
   intent through the metadata owner, and uses shared finalization. Copy cancellation

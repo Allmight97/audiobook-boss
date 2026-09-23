@@ -33,6 +33,7 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 ### Fixed
 
 - Retain every source through grouped processing and mixed-result cleanup.
+- Reject queued sources changed after planning before encoding with stale settings.
 - Preserve chapter timing, packet boundaries, and metadata across supported
   copied and encoded titles, including FAAC HE re-import.
 - Retry failed audio-plan queries on reopening, show invalid grouped sources

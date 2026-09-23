@@ -57,11 +57,19 @@ pub(crate) async fn dispatch_batch_jobs(
 ) -> Result<ProcessCommandResult> {
     let ExecutionProcessingPlan {
         plan,
-        file_info: _,
+        file_info,
         output_parent_cleanup,
     } = execution_plan;
-    let result =
-        dispatch_batch_plan(window, registry, workspace_root, payload, plan, options).await;
+    let result = dispatch_batch_plan(
+        window,
+        registry,
+        workspace_root,
+        payload,
+        plan,
+        file_info,
+        options,
+    )
+    .await;
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(
         result,
         output_parent_cleanup,
@@ -122,6 +130,7 @@ async fn dispatch_batch_plan(
     workspace_root: PathBuf,
     payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
+    file_info: audio::FileListInfo,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
     if payload.input_files.is_empty() {
@@ -174,6 +183,7 @@ async fn dispatch_batch_plan(
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
         let source_paths = planned_job.source_paths.clone();
+        let mut title_info = crate::processing::plan::title_file_info(&file_info, &source_paths)?;
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
         let progress_listener = options.progress_listener.clone();
         let chapter_plans = payload.chapter_plans.clone();
@@ -189,9 +199,8 @@ async fn dispatch_batch_plan(
             {
                 return Err(AppError::cancelled());
             }
-            let mut file_info = audio::get_file_list_info(&source_paths)?;
             audio::apply_chapter_plans(
-                &mut file_info,
+                &mut title_info,
                 chapter_plans.as_ref(),
                 source_paths.len() > 1,
             )?;
@@ -210,7 +219,7 @@ async fn dispatch_batch_plan(
                 operation_id,
                 operation_cancel,
                 output_plan: output,
-                file_info,
+                file_info: title_info,
                 metadata: md_cloned,
                 cover_art_passthrough,
                 preview_seconds: preview_cloned,

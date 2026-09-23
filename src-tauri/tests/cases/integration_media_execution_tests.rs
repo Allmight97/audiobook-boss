@@ -2856,3 +2856,25 @@ async fn recommended_audio_plan_reduces_large_aac_but_explicit_keep_never_encode
         assert!(resolve_title_audio(&request, &info, true).is_err());
     }
 }
+
+#[tokio::test]
+async fn encoding_rejects_a_non_anchor_source_replaced_after_planning() {
+    let lane = MediaLane::with_fixtures(&[0.2, 0.2]);
+    let request = lane.execution_request(ProcessingSession::new(), None);
+    // Simulate replacement while this title waits in the processing queue.
+    write_sine_wav(&lane.inputs[1], 0.4, 880.0);
+    let replacement = fs::read(&lane.inputs[1]).expect("read replacement source");
+    let error = execute_audio_engine(request)
+        .await
+        .expect_err("reject stale source identity");
+    assert!(
+        error.to_string().contains("changed since inspection"),
+        "{error}"
+    );
+    assert!(!lane.output_path().exists());
+    assert!(lane.residual_workspace_dirs().is_empty());
+    assert_eq!(
+        fs::read(&lane.inputs[1]).expect("source retained"),
+        replacement
+    );
+}
