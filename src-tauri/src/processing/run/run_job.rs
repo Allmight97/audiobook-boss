@@ -29,6 +29,8 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) workspace_root: PathBuf,
     pub(crate) encoder_settings: Option<EncoderSettings>,
     pub(crate) audio_handling: AudioHandling,
+    pub(crate) audio_request: audio::TitleAudioRequest,
+    pub(crate) audio_reason: Option<String>,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
     pub(crate) sample_rate: audio::SampleRateConfig,
     pub(crate) input_index: Option<usize>,
@@ -66,6 +68,7 @@ pub(crate) async fn run_processing_job(
         request.audio_handling,
     )
     .await?;
+    log_audio_decision(&request, job_id);
     let cancellation_checker =
         cancellation_checker.with_operation_flag(request.operation_cancel.clone());
     let _active_work = request.window.state::<crate::power::PowerManager>().begin();
@@ -151,6 +154,33 @@ pub(crate) async fn run_processing_job(
                 envelope,
             ))
         }
+    }
+}
+
+fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
+    let reason = request
+        .audio_reason
+        .as_deref()
+        .unwrap_or(match request.audio_handling {
+            AudioHandling::Preserve => "Source audio can be copied into the selected output.",
+            AudioHandling::Encode if request.preview_seconds.is_some() => {
+                "Preview requires encoding."
+            }
+            AudioHandling::Encode => "Encoding settings were explicitly selected.",
+        });
+    log::info!(
+        "audio_decision operation_id={} job_id={} input_index={:?} request={:?} action={:?} resolved_settings={:?} resolved_rate={:?} reason={:?} output_path={:?}",
+        request.operation_id.as_deref().unwrap_or("foreground"), job_id,
+        request.input_index, request.audio_request, request.audio_handling,
+        request.encoder_settings, request.sample_rate, reason, request.output_plan.resolved_path
+    );
+    for (index, source) in request.file_info.files.iter().enumerate() {
+        log::info!(
+            "audio_source job_id={} source_index={} source_path={:?}",
+            job_id,
+            index,
+            source.path
+        );
     }
 }
 

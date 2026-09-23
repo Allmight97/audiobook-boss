@@ -72,7 +72,7 @@ async fn dispatch_merge_plan(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
-    _payload: &ProcessPayload,
+    payload: &ProcessPayload,
     plan: ResolvedProcessingPlan,
     file_info: audio::FileListInfo,
     options: ProcessingRunOptions,
@@ -95,6 +95,8 @@ async fn dispatch_merge_plan(
         workspace_root,
         encoder_settings: planned_job.audio_plan.settings.clone(),
         audio_handling: planned_job.audio_plan.handling,
+        audio_request: payload.audio_requests[0].clone(),
+        audio_reason: planned_job.audio_plan.reason.clone(),
         metadata_intent: planned_job.metadata_intent,
         sample_rate: audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate),
         input_index: None,
@@ -176,6 +178,8 @@ async fn dispatch_batch_plan(
         let progress_listener = options.progress_listener.clone();
         let chapter_plans = payload.chapter_plans.clone();
         let audio_handling = planned_job.audio_plan.handling;
+        let audio_request = payload.audio_requests[input_index.expect("batch title index")].clone();
+        let audio_reason = planned_job.audio_plan.reason.clone();
         let metadata_intent = planned_job.metadata_intent.clone();
 
         scheduled_jobs.push(Box::pin(async move {
@@ -197,6 +201,8 @@ async fn dispatch_batch_plan(
                 workspace_root: workspace_root_cloned,
                 encoder_settings: settings_cloned,
                 audio_handling,
+                audio_request,
+                audio_reason,
                 metadata_intent,
                 sample_rate: sr_cloned,
                 input_index,

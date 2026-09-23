@@ -69,6 +69,52 @@ pub(crate) fn write_common_run_fields(
     );
 }
 
+/// Observe the finalized staged file, without decoding or changing processing success.
+pub(super) fn log_output_observation(context: &crate::processing::ProcessingContext, path: &Path) {
+    if !encoding_log_enabled() && !log::log_enabled!(log::Level::Info) {
+        return;
+    }
+    let identity = format!(
+        "job_id={} output_path={:?}",
+        context.job_id.as_deref().unwrap_or("unscoped"),
+        context.output.final_path()
+    );
+    let record = match observe_output(path) {
+        Ok(properties) => format!("audio_output {identity} status=observed {properties}"),
+        Err(error) => format!("audio_output {identity} status=unavailable error={error:?}"),
+    };
+    log::info!("{record}");
+    append_run_record(|| format!("{record}\n"));
+}
+
+fn observe_output(path: &Path) -> Result<String, ffmpeg_next::Error> {
+    use ffmpeg_next as ff;
+    ff::init()?;
+    let input = ff::format::input(path)?;
+    let stream = input
+        .streams()
+        .best(ff::media::Type::Audio)
+        .ok_or(ff::Error::StreamNotFound)?;
+    let parameters = stream.parameters();
+    // SAFETY: parameters owns the live AVCodecParameters. Copy scalar fields only;
+    // no pointer escapes and the input is dropped before publication can move the file.
+    let (profile, rate, channels, bitrate) = unsafe {
+        let parameters = &*parameters.as_ptr();
+        (
+            parameters.profile,
+            parameters.sample_rate,
+            parameters.ch_layout.nb_channels,
+            parameters.bit_rate,
+        )
+    };
+    let profile = ff::codec::Profile::from((parameters.id(), profile));
+    let duration =
+        (input.duration() > 0).then(|| input.duration() as f64 / ff::ffi::AV_TIME_BASE as f64);
+    Ok(format!("codec={:?} profile={:?} sample_rate={} channels={} duration_seconds={:?} stream_bitrate_bps={:?} container_bitrate_bps={:?}",
+        parameters.id(), profile, rate, channels, duration, (bitrate > 0).then_some(bitrate),
+        (input.bit_rate() > 0).then_some(input.bit_rate())))
+}
+
 static LOG_TARGET: OnceLock<Option<EncoderLogTarget>> = OnceLock::new();
 static TRUNCATE: Once = Once::new();
 static ENCODING_LOG_WRITE: Mutex<()> = Mutex::new(());
@@ -162,6 +208,34 @@ fn encoder_log_target_from_env(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn output_observation_reads_media_instead_of_requested_settings() {
+        let directory = tempfile::tempdir().expect("fixture directory");
+        let path = directory.path().join("observed.wav");
+        let data_size = 16_000u32;
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_size).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&8_000u32.to_le_bytes());
+        wav.extend_from_slice(&16_000u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_size.to_le_bytes());
+        wav.resize(wav.len() + data_size as usize, 0);
+        std::fs::write(&path, &wav).expect("write wave");
+        let record = observe_output(&path).expect("read media properties");
+        assert!(record.contains("sample_rate=8000 channels=1 duration_seconds=Some(1.0)"));
+        assert!(record.contains("stream_bitrate_bps=Some(128000)"));
+        assert_eq!(std::fs::read(&path).expect("read unchanged media"), wav);
+        std::fs::write(&path, b"invalid media").expect("replace fixture");
+        assert!(observe_output(&path).is_err());
+    }
 
     #[test]
     fn shared_encoding_log_takes_precedence_over_legacy_target() {

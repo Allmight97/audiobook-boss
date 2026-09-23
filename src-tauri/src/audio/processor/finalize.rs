@@ -66,17 +66,8 @@ pub(super) fn complete_staged_output(
     staged_output: PathBuf,
     cleanup_guard: &mut CleanupGuard,
 ) -> Result<String> {
-    log::info!("🚀 Starting staged output completion");
-    log::info!(
-        "Temporary file: {}",
-        sanitize_path_for_display(&staged_output)
-    );
-    log::info!(
-        "Final output path: {}",
-        sanitize_path_for_display(context.output.final_path())
-    );
-
     ensure_not_cancelled_before_commit(context)?;
+    super::run_diagnostics::log_output_observation(context, &staged_output);
 
     let ui = context.new_emitter();
     ui.emit_cleanup("Cleaning up...");
@@ -93,7 +84,9 @@ pub(super) fn complete_staged_output(
         })
     })?;
     log::info!(
-        "media_handoff stage=published artifact={} {}",
+        "media_handoff stage=published job_id={} output_path={:?} artifact={} {}",
+        context.job_id.as_deref().unwrap_or("unscoped"),
+        outcome.final_output,
         crate::diagnostics::artifact_id(&outcome.final_output),
         crate::diagnostics::file_state(&outcome.final_output)
     );

@@ -102,8 +102,9 @@
 
 - Filesystem and process identity uses `Path`, `OsStr`, or `OsString`.
 - User-facing diagnostics use sanitized display strings. Local audio-inspection
-  logs include the validated canonical source path with debug escaping, so a
-  source can be located and same-named files remain distinguishable.
+  debug logs include the validated canonical source path. Started jobs record
+  ordered source paths at info level, with debug escaping so same-named files
+  remain distinguishable without repeated inspection noise.
 - Lossy strings are allowed only for display ordering, never identity or command argv.
 
 ## Edit Rules

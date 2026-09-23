@@ -73,6 +73,9 @@
   one write lock and prefer `ABB_ENCODING_LOG`; `ABB_LOG_FILE` is the legacy
   fallback, truncated once per process. Adapter records add only facts owned by
   that adapter; unavailable opened settings remain explicitly `unknown`.
+- Finalization emits `audio_output` from a read-only probe of the completed staged
+  file, before publication. These are observed file properties, not encoder
+  configuration; unavailable diagnostics never change processing success.
 - The private `encoder::EncoderSession` owns the selected backend, PCM
   submission, packet muxing, drain, and trailer. Callers submit contiguous
   frames and finish the session; backend handles and packet mechanics stay

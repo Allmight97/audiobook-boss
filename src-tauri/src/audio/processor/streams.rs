@@ -500,7 +500,7 @@ fn select_decoder_candidate(
 }
 
 fn open_best_audio_decoder(path: &Path) -> Result<OpenedAudioInput> {
-    log::info!("Opening FFmpeg input context...");
+    log::debug!("Opening FFmpeg input context...");
     let inspect_ctx = open_input_context(path)?;
     let params = {
         let inspect_stream = best_audio_stream(&inspect_ctx, path)?;

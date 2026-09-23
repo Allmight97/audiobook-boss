@@ -400,8 +400,8 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     {
         let _ = writeln!(
             output,
-            "input[{index}] file={} duration={:?} codec={} rate={} channels={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
-            sanitize_path_for_display(&file.path),
+            "input[{index}] file={:?} duration={:?} codec={} rate={} channels={} selected_decoder_id={} selected_decoder={} forced_input_decoder={}",
+            file.path,
             file.duration,
             file.codec_label.as_deref().unwrap_or("unknown"),
             file.sample_rate.map_or_else(|| "unknown".to_string(), |v| v.to_string()),
@@ -553,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn external_fdk_log_entry_sanitizes_structured_paths_and_keeps_raw_stderr() {
+    fn external_fdk_log_entry_retains_source_paths_and_raw_stderr() {
         let context = test_context();
         let toolchain = test_toolchain();
         let files = vec![test_audio_file()];
@@ -589,10 +589,9 @@ mod tests {
         assert!(structured.contains("status=success"));
         assert!(structured.contains("status_detail=exit_code=0"));
         assert!(structured.contains("toolchain_ffmpeg=ffmpeg"));
-        assert!(structured.contains("input[0] file=Book One.m4b"));
+        assert!(structured.contains("input[0] file=\"/private/input/Book One.m4b\""));
         assert!(structured.contains("temp_output=worker-output.m4b"));
         assert!(structured.contains("speed=1.25x"));
-        assert!(!structured.contains("/private/input"));
         assert!(!structured.contains("/private/tmp"));
         assert!(formatted.contains("from '/private/input/Book One.m4b'"));
     }
