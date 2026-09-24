@@ -124,7 +124,22 @@ pub(in crate::audio) fn validate_resolved_audio_inputs(
         )?;
     }
     for title in titles {
-        adapter::resolve_output_channels(encoder_settings.channels, &title.files)?;
+        let channels = adapter::resolve_output_channels(encoder_settings.channels, &title.files)?;
+        if matches!(
+            adapter,
+            adapter::ResolvedProcessorAdapter::ExternalFdk { .. }
+        ) {
+            let mut resolved = encoder_settings.clone();
+            resolved.channels = channels;
+            resolved.resolve_fdk_output(
+                sample_rate,
+                title
+                    .files
+                    .iter()
+                    .find(|file| file.is_valid)
+                    .and_then(|file| file.sample_rate),
+            )?;
+        }
         adapter.validate_inputs(title)?;
         if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
             encoder_type:

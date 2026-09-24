@@ -19,8 +19,8 @@
 - Encoder defaults include output format and audio intent; older stored settings
   default those fields to M4B and Auto. Format/encoder validation lives here,
   while source-aware copy/encode decisions stay Audio-owned.
-- Fresh encoder defaults disable FDK Afterburner; saved explicit choices survive
-  hydration and encoder discovery.
+- Fresh encoder defaults come from Audio's `EncoderSettings::default()`; saved
+  explicit choices survive hydration and encoder discovery.
 - Durable preferences validate against the owning runtime APIs; App Settings
   must not duplicate encoder or JobRegistry accept/reject rules.
 - `keep_awake_while_working` defaults on, including for settings written before

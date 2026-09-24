@@ -79,6 +79,16 @@ impl ResolvedProcessorAdapter {
             Self::NativeFfmpegNext { encoder_type } => *encoder_type,
             Self::ExternalFdk { .. } => EncoderType::FdkHeAac,
         });
+        if settings.encoder_type == EncoderType::FdkHeAac {
+            let rate = settings.resolve_fdk_output(
+                &context.sample_rate,
+                files
+                    .iter()
+                    .find(|file| file.is_valid)
+                    .and_then(|file| file.sample_rate),
+            )?;
+            context.sample_rate = crate::audio::SampleRateConfig::Explicit(rate);
+        }
         context.encoder_settings = Some(settings);
         match self {
             Self::NativeFfmpegNext { .. } => {
@@ -367,6 +377,7 @@ mod tests {
             afterburner: false,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
+            fdk_profile: crate::audio::FdkProfile::Auto,
         }
     }
 

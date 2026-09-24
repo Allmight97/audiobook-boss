@@ -19,8 +19,8 @@
 ## Hard Invariants
 
 - Per-title explicit encoding estimates use that title's total source duration
-  and Encoding's `estimateTitleKbps`; quality-based VBR displays
-  “Size varies with audio” instead of a numeric estimate. Auto has
+  and Encoding's `estimateTitleKbps`. Quality VBR displays a labeled rough
+  reference estimate when Encoding supplies one, otherwise “Size varies with audio”. Auto has
   no estimate until a backend title preview resolves its copy/encode choice.
   Explicit Preserve estimates
   sum source sizes; they do not use encoder targets. The file-list row renders
@@ -53,7 +53,7 @@
 ## Testing
 
 - `estimate.test.ts` pins the byte formula; `outputPlan.test.ts` covers title
-  estimates and missing source facts. Resolved preview settings own Recommended
+  estimates and missing source facts. Resolved preview settings own Default
   encoding estimates; saved preferences must not substitute for the accepted plan.
 - `outputPlan.test.ts` pins hydration, per-title estimate (including FDK VBR
   uncertainty vs target-based estimates), live submit naming vs 150 ms

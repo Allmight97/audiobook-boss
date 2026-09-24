@@ -17,13 +17,16 @@
 
 ## Hard Invariants
 
-- FDK quality, FAAC profile/rate/quality, numeric target kbps, and NMR speed
+- FDK profile/quality, FAAC profile/rate/quality, numeric target kbps, and NMR speed
   stay independent across session encoder switches. Target bitrate includes
-  all channels. FAAC ABR uses that target; FAAC VBR uses its capability presets. Quality-based FDK and FAAC VBR
-  return `null` from `estimateTitleKbps` because size depends on the audio.
+  all channels. FAAC ABR uses that target; FAAC VBR uses its capability presets. FAAC VBR and unsupported FDK combinations return `null` from `estimateTitleKbps`.
+  FDK estimates use guide stereo reference averages only for resolved matching
+  profile/quality pairs at 44.1/48 kHz; they are rough, not targets or ceilings.
 - Derive rate mode from the effective encoder's capability except FAAC, whose
   ABR/VBR choice is explicit. `encoderConfigurations` owns mode and rate
-  support; its `faacProfiles` entries own profile-specific rates. Send profile
+  support; its `faacProfiles` and `fdkProfiles` entries own profile-specific rates.
+  FDK Auto labels derive from backend mono/stereo VBR mappings; never copy the
+  mapping into frontend policy. Send profile
   Auto to FAAC through the request; the frontend does not reproduce upstream
   profile thresholds. Sample-rate/channel Auto still follows the input hints.
   While discovery is pending, preserve the validated hydrated mode so saved
@@ -55,7 +58,7 @@
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.
 - Estimated-size bytes stay in Output; this owner supplies total kbps or an
-  explicit unknown value for quality-based VBR.
+  explicit unknown value when no supported bitrate estimate exists.
   Output Plan owns the per-title size estimate.
 
 ## Testing
@@ -83,7 +86,7 @@ explicit replacement action. `audioRequest(file)` owns request composition.
 only the edited field to each target title. Encoder/quality/rate/channel edits
 select Encode even when the selected value already matched. Editing encoding
 preferences in Settings also selects User Preference (Encode). Selecting
-Recommended retains those preferences for a later switch back. Capability facts
+Default retains those preferences for a later switch back. Capability facts
 are shared, while source hints are derived for the edited title or selection.
 
 `hydrateDefaults` accepts startup values only before explicit defaults edits; capability discovery does not count as a user edit. All output formats and intents persist through Settings. MP3 execution requests

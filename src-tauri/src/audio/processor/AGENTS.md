@@ -37,15 +37,15 @@
 - Resolve the encoder once at adapter dispatch and carry that choice into the
   in-process setup. Explicit Native/Apple selections validate their linked
   encoder without probing external FDK; bundled FAAC is available without an
-  external toolchain. Auto resolves FDK → Native NMR and does not select Apple or FAAC. Do not repeat
+  external toolchain. Auto resolves Native NMR → FDK and does not select Apple or FAAC. Do not repeat
   external-toolchain detection while opening the encoder.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
 - Preserve finalize behavior that completes filesystem operations before success is reported.
 - Keep external FDK internals split by private mechanism under
   `external_fdk/`; callers should only use the adapter entrypoint.
-  Its mono output explicitly declares PS absent in the AAC configuration before
-  metadata finalization. This applies only to that freshly encoded mono stream;
+  Its HE-AAC v1 mono output explicitly declares PS absent in the AAC configuration before
+  metadata finalization. LC bypasses this HE-specific correction. This applies only to that freshly encoded mono stream;
   stream-copy the compressed packets and keep the corrected output under the
   same workspace cleanup owner.
 

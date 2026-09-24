@@ -133,6 +133,7 @@ describe('Solid input workbench', () => {
 		});
 		await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
+		runtime.encoding.select('encoder', 'fdk_he_aac');
 		runtime.encoding.selectTitle(files[0]!, 'intent', 'preserve');
 		await waitFor(() =>
 			expect(
@@ -143,6 +144,8 @@ describe('Solid input workbench', () => {
 		);
 		runtime.encoding.selectTitle(files[0]!, 'channels', 'mono');
 		runtime.encoding.selectTitle(files[1]!, 'channels', 'stereo');
+		runtime.encoding.selectTitle(files[0]!, 'encoder', 'fdk_he_aac');
+		runtime.encoding.selectTitle(files[1]!, 'encoder', 'fdk_he_aac');
 		runtime.encoding.selectTitle(files[0]!, 'afterburner', 'false');
 		runtime.encoding.selectTitle(files[1]!, 'afterburner', 'true');
 		const defaults = runtime.encoding.readDefaults();
@@ -181,7 +184,7 @@ describe('Solid input workbench', () => {
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
 	});
 
-	it('refreshes a Recommended estimate after settings change away and back while closed', async () => {
+	it('refreshes a Default estimate after settings change away and back while closed', async () => {
 		const user = userEvent.setup();
 		const file = analyzedFile('/books/estimate.m4b');
 		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
@@ -443,6 +446,7 @@ describe('Solid input workbench', () => {
 				paths: files.map((file) => file.path),
 			});
 			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
+			runtime.encoding.select('encoder', 'fdk_he_aac');
 			runtime.encoding.select('quality', '4');
 			runtime.encoding.select('intent', 'auto');
 			runtime.input.setAudioRequest(
@@ -487,8 +491,7 @@ describe('Solid input workbench', () => {
 			expect(runtime.encoding.audioRequest(files[0]!).format).toBe('m4aOpus');
 			expect(runtime.encoding.audioRequest(files[2]!).format).toBe('m4b');
 			expect(runtime.encoding.audioRequest(files[2]!).settings?.bitrateMode).toEqual({
-				mode: 'vbr',
-				value: 3,
+				mode: 'cbr',
 			});
 			runtime.output.applyDefaults({
 				outputDirectory: '/library',
@@ -513,7 +516,7 @@ describe('Solid input workbench', () => {
 							}),
 							expect.objectContaining({
 								format: 'm4b',
-								settings: expect.objectContaining({ bitrateMode: { mode: 'vbr', value: 3 } }),
+								settings: expect.objectContaining({ bitrateMode: { mode: 'cbr' } }),
 							}),
 						],
 					}),

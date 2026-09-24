@@ -20,7 +20,7 @@
   `crate::audio::cleanup`.
 - Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
-  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
+  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `FdkProfile`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`,
   `AudiobookFormat`, `AudioIntent`, `TitleAudioRequest`, `TitleAudioPlan`.
 - Functions: `resolve_title_audio`, `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
@@ -47,7 +47,8 @@
   per-encoder capability array for allowed modes, defaults, and explicit sample
   rates and target bitrate bounds. The global `explicit_sample_rates` list remains the rate list for the
   existing encoders. FAAC profile-specific rates are carried by `faac_profiles`;
-  quality presets are backend-owned capability values. The adapter owns
+  FDK's `fdk_profiles` carries profile rates and the Auto VBR mapping for mono
+  and stereo. Quality presets are backend-owned capability values. The adapter owns
   upstream profile resolution and opened configuration readback.
 - Target bitrate bounds and native speed bounds come from
   `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
@@ -142,7 +143,14 @@
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
 - Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and external FDK behavior
   distinct. FAAC offers profile Auto/LC/HE and ABR/VBR, resolving its profile
-  once at open from output settings. Encoder Auto prefers FDK, then Native NMR; Apple and FAAC remain explicit choices.
+  once at open from output settings. Encoder Auto prefers Native NMR, then FDK; Apple and FAAC remain explicit choices.
+- FDK Auto resolves once with output channels: VBR 1 uses HE v2 for stereo,
+  HE v1 for mono; VBR 2 uses HE v1; VBR 3–5 uses LC. Manual profiles retain
+  the requested VBR quality. `EncoderSettings::resolve_fdk_output` owns profile
+  and rate validation for planning, preflight, and direct execution. HE v2
+  requires stereo; HE starts at 16 kHz, LC at 8 kHz. Explicit incompatible
+  rates/channels fail; only Auto rate adapts. Stored settings without an FDK
+  profile adopt Auto.
 - Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
   bitrate and search speed. Auto adapts an unsupported bitrate mode to the resolved encoder default; explicit encoder requests reject incompatible modes.
 
@@ -194,8 +202,8 @@ Auto copies joinable, matching audio when every source has a known bitrate at or
 below `COMPACT_AUDIO_MAX_BITRATE`; otherwise it plans encoding. Explicit Preserve
 copies regardless of bitrate and never silently encodes. MP3 output stays copy-only
 regardless of bitrate. Strict source/packet validation still applies to every copy. MP3 has no encoder route and rejects
-incompatible copy boundaries. Recommended M4B encoding uses the built-in AAC
-defaults (FDK VBR 3, otherwise NMR 64 kbps; source channels and automatic rate),
+incompatible copy boundaries. Default M4B encoding uses the built-in AAC
+defaults (NMR 65 kbps target, source channels and automatic rate),
 independent of saved user preferences. Explicit Encode always applies the settings.
 Popover previews and processing preflight share this resolver. Only encoding
 plans resolve encoder availability, channels and input rate. Execution receives

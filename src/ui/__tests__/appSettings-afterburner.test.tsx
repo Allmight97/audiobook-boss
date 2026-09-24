@@ -72,6 +72,7 @@ describe('App Settings afterburner control', () => {
 	it('toggles Afterburner from its keyboard-accessible info button', async () => {
 		const user = userEvent.setup();
 		await renderOpenDialog();
+		await user.selectOptions(screen.getByLabelText('Encoder'), 'fdk_he_aac');
 		const button = screen.getByRole('button', { name: 'FDK Afterburner' });
 		expect(button).toHaveAttribute('aria-pressed', 'false');
 		await user.hover(button);
@@ -91,6 +92,7 @@ describe('App Settings afterburner control', () => {
 	it('retains a saved Afterburner choice across encoder switches', async () => {
 		const user = userEvent.setup();
 		await renderOpenDialog();
+		await user.selectOptions(screen.getByLabelText('Encoder'), 'fdk_he_aac');
 		runtime!.encoding.applyDefaults({
 			...runtime!.encoding.readDefaults(),
 			settings: { ...runtime!.encoding.readDefaults().settings, afterburner: true },

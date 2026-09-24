@@ -334,10 +334,10 @@ export function AppSettingsDialogView(): JSX.Element {
 						</Show>
 						<Show when={state().encoderAvailability?.fdkSetupSupported}>
 							<details class="app-settings-fdk-setup">
-								<summary>Install or update with Homebrew…</summary>
+								<summary>Check Homebrew FDK setup…</summary>
 								<p class="muted-text">
-									Opens Terminal to install or update the community homebrew-ffmpeg build with FDK
-									AAC and its dependencies. Homebrew manages the software. Building can take several
+									Opens Terminal to check whether the community homebrew-ffmpeg formula still offers
+									FDK AAC. If it does, Homebrew can install or update it. Building can take several
 									minutes.
 								</p>
 								<p class="muted-text">

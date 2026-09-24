@@ -156,7 +156,7 @@ impl AudioPlanner {
                 })
             })
         {
-            return Ok(Some("Encoding is recommended to reduce size. Choose Keep original audio to leave it unchanged.".into()));
+            return Ok(Some("Default will encode to reduce size. Choose Keep original audio to leave it unchanged.".into()));
         }
         match super::validate_preserved_title(&info.files) {
             Ok(()) => Ok(None),
@@ -212,13 +212,17 @@ impl AudioPlanner {
             } else {
                 &request.sample_rate
             };
-        let sample_rate = match requested_rate {
-            SampleRateConfig::Explicit(rate) => *rate,
-            SampleRateConfig::Auto => super::settings::automatic_sample_rate(
-                settings.encoder_type,
-                settings.faac_profile,
-                source_rate,
-            ),
+        let sample_rate = if encoder_type == EncoderType::FdkHeAac {
+            settings.resolve_fdk_output(requested_rate, Some(source_rate))?
+        } else {
+            match requested_rate {
+                SampleRateConfig::Explicit(rate) => *rate,
+                SampleRateConfig::Auto => super::settings::automatic_sample_rate(
+                    settings.encoder_type,
+                    settings.faac_profile,
+                    source_rate,
+                ),
+            }
         };
         super::processor::validate_resolved_audio_inputs(
             &adapter,
@@ -269,6 +273,9 @@ mod tests {
 
     #[test]
     fn batch_validation_probes_external_toolchain_once_for_all_titles() {
+        use audio::BitrateMode::{Cbr, Vbr};
+        use EncoderType::{FdkHeAac, NativeAac};
+
         let temp = tempfile::tempdir().expect("create isolated toolchain directory");
         let script = temp.path().join("ffmpeg");
         std::fs::write(
@@ -315,10 +322,10 @@ esac
             valid_count: 2,
             invalid_count: 0,
         };
-        for (encoder, intent) in [
-            ("auto", "encode"),
-            ("fdk_he_aac", "encode"),
-            ("faac", "auto"),
+        for (encoder, intent, expected_encoder, expected_mode, expected_bitrate, probe_count) in [
+            ("auto", "encode", NativeAac, Cbr, 64, 1),
+            ("fdk_he_aac", "encode", FdkHeAac, Vbr(3), 64, 1),
+            ("faac", "auto", NativeAac, Cbr, 65, 0),
         ] {
             let request: TitleAudioRequest = serde_json::from_value(serde_json::json!({
                 "format": "m4b", "intent": intent, "sampleRate": "auto",
@@ -340,31 +347,18 @@ esac
                     .resolve(&request, &title, intent == "auto")
                     .expect("plan title audio");
                 let settings = plan.settings.expect("encoding plan settings");
-                assert_eq!(settings.encoder_type, EncoderType::FdkHeAac);
-                assert_eq!(settings.bitrate_mode, audio::BitrateMode::Vbr(3));
+                assert_eq!(settings.encoder_type, expected_encoder);
+                assert_eq!(settings.bitrate_mode, expected_mode);
+                assert_eq!(settings.bitrate_kbps, expected_bitrate);
             }
             let calls = std::fs::read_to_string(temp.path().join("calls")).expect("read probe log");
-            assert_eq!(
-                calls
-                    .lines()
-                    .filter(|line| line.contains("-version"))
-                    .count(),
-                1
-            );
-            assert_eq!(
-                calls
-                    .lines()
-                    .filter(|line| line.contains("-encoders"))
-                    .count(),
-                1
-            );
-            assert_eq!(
-                calls
-                    .lines()
-                    .filter(|line| line.contains("-decoders"))
-                    .count(),
-                1
-            );
+            for probe in ["-version", "-encoders", "-decoders"] {
+                assert_eq!(
+                    calls.lines().filter(|line| line.contains(probe)).count(),
+                    probe_count,
+                    "unexpected {probe} probe count"
+                );
+            }
         }
     }
 }

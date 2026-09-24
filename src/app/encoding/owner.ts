@@ -58,6 +58,7 @@ const fieldKeys = {
 	encoder: 'flavor',
 	quality: 'quality',
 	faacProfile: 'faacProfile',
+	fdkProfile: 'fdkProfile',
 	rateControl: 'rateControl',
 	nativeSpeed: 'nativeSpeed',
 	afterburner: 'afterburner',
@@ -152,7 +153,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			return file ? (deps.input.audioRequest(file) ?? requestFromBag(bag)) : requestFromBag(bag);
 		},
 		estimateTitleKbps(file, plan) {
-			if (plan?.settings) return estimateKbpsFromSettings(plan.settings);
+			if (plan?.settings) return estimateKbpsFromSettings(plan.settings, plan.sampleRate);
 			return bagEstimateKbps(titleBag(file));
 		},
 		titleView(file) {

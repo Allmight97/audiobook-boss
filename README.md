@@ -29,16 +29,18 @@ bun run app:dev:log
 Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
-selects FDK, then Native NMR; Apple AAC and bundled FAAC are explicit choices.
-Native AAC uses the bundled NMR coder with a numeric target and speed control,
+selects Native NMR, then FDK; Apple AAC and bundled FAAC are explicit choices.
+Native AAC uses the bundled NMR coder with a numeric target and speed control.
+FDK offers Auto or manual AAC-LC/HE-AAC v1/HE-AAC v2 profiles; Auto follows
+VBR quality. Supported stereo settings show rough, content-dependent size estimates.
 Apple AAC uses a numeric target. Bundled FAAC offers Auto, AAC-LC, and HE-AAC v1
 profiles with ABR or VBR. FAAC defaults to profile Auto and ABR; the shared
-target defaults to 64 kbps, and sample rate/channels retain their Auto behavior.
+target defaults to 65 kbps, and sample rate/channels retain their Auto behavior.
 FAAC chooses Auto’s profile from the requested output settings when encoding
 opens. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
 with the audio, so use ABR for a bitrate target. Explicit HE supports 32, 44.1,
 and 48 kHz; Auto and LC also support the other available output rates. Saved
-HE/ABR preferences retain that intent. FDK HE-AAC keeps its quality control
+HE/ABR preferences retain that intent. FDK AAC keeps its quality control
 through an external FFmpeg/`libfdk_aac` adapter. Normal processing uses the
 in-process Audio engine; the external adapter may force `aac_at` or
 `libfdk_aac` when the default decoder cannot handle the source. Bundled source

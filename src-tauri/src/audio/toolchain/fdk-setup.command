@@ -4,6 +4,12 @@
 install_fdk() {
     local brew="$1" installed options
     local formula='homebrew-ffmpeg/ffmpeg/ffmpeg'
+    options=$("$brew" options "$formula") || return
+    if ! printf '%s\n' "$options" | /usr/bin/grep -Fxq -- '--with-fdk-aac'; then
+        printf '\nThe current homebrew-ffmpeg formula no longer offers FDK AAC. No changes were made.\n'
+        printf 'Use an existing FFmpeg built with libfdk_aac as a custom path in ABB, or choose a bundled encoder.\n'
+        return 1
+    fi
     installed=$("$brew" list --formula --full-name) || return
     if printf '%s\n' "$installed" | /usr/bin/grep -Eq '^(ffmpeg|homebrew/core/ffmpeg)$'; then
         printf '\nAnother Homebrew FFmpeg is already installed. Homebrew cannot install both formulas together.\n'
@@ -17,7 +23,7 @@ install_fdk() {
             printf '\nHomebrew will check for updates and upgrade its FDK-enabled FFmpeg if needed.\n'
             "$brew" update && "$brew" upgrade "$formula" || return
         else
-            printf '\nHomebrew will rebuild its FFmpeg with FDK AAC, preserving existing build options.\n'
+            printf '\nHomebrew will rebuild its FFmpeg with FDK AAC.\n'
             "$brew" reinstall "$formula" --with-fdk-aac || return
         fi
     else

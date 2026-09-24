@@ -365,6 +365,7 @@ fn native_encoder_settings() -> EncoderSettings {
         afterburner: false,
         native_aac_speed: 0,
         faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
+        fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
     }
 }
 
@@ -1601,6 +1602,7 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         afterburner: false,
         native_aac_speed: 0,
         faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
+        fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());
@@ -2065,6 +2067,54 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
             &[(44100, 12117), (48000, 22050), (96000, 32768)]
         };
         assert_faac_reimport(input, tool, native_encoder_settings(), cases).await;
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires external FFmpeg with libfdk_aac; run explicitly on an FDK host"]
+async fn external_fdk_profiles_preserve_requested_channel_shape() {
+    use audiobook_boss_lib::audio::FdkProfile;
+    for (profile, level, channels, expected) in [
+        (FdkProfile::Auto, 1, ChannelConfig::Stereo, "HE-AACv2"),
+        (FdkProfile::Auto, 1, ChannelConfig::Mono, "HE-AAC"),
+        (FdkProfile::Auto, 2, ChannelConfig::Stereo, "HE-AAC"),
+        (FdkProfile::Auto, 3, ChannelConfig::Mono, "LC"),
+        (FdkProfile::Auto, 5, ChannelConfig::Stereo, "LC"),
+        (FdkProfile::HeAacV1, 3, ChannelConfig::Mono, "HE-AAC"),
+    ] {
+        let lane = MediaLane::with_fixtures(&[0.5]).with_encoder(EncoderSettings {
+            encoder_type: EncoderType::FdkHeAac,
+            bitrate_mode: BitrateMode::Vbr(level),
+            channels,
+            fdk_profile: profile,
+            ..native_encoder_settings()
+        });
+        let output = lane.process(None).await;
+        let inspected = get_file_list_info(&[&output]).unwrap();
+        assert_eq!(
+            inspected.files[0].channels,
+            Some(if channels == ChannelConfig::Mono {
+                1
+            } else {
+                2
+            })
+        );
+        let probe =
+            Command::new(std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string()))
+                .args([
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "stream=profile",
+                    "-of",
+                    "default=nw=1:nk=1",
+                ])
+                .arg(&output)
+                .output()
+                .unwrap();
+        assert!(probe.status.success());
+        assert_eq!(String::from_utf8_lossy(&probe.stdout).trim(), expected);
+        assert!(!decode_pcm_f32(&output).is_empty());
     }
 }
 
@@ -2803,7 +2853,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
 }
 
 #[tokio::test]
-async fn recommended_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() {
+async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() {
     use audiobook_boss_lib::audio::{resolve_title_audio, AudioIntent, AudiobookFormat};
     use audiobook_boss_lib::processing::AudioHandling;
     for (bitrate_kbps, expected) in [(48, AudioHandling::Preserve), (128, AudioHandling::Encode)] {
@@ -2830,11 +2880,9 @@ async fn recommended_audio_plan_reduces_large_aac_but_explicit_keep_never_encode
         assert_eq!(plan.sample_rate, info.files[0].sample_rate.unwrap());
         assert_eq!(u32::from(plan.channels), info.files[0].channels.unwrap());
         if let Some(settings) = &plan.settings {
-            assert!(matches!(
-                settings.encoder_type,
-                EncoderType::FdkHeAac | EncoderType::NativeAac
-            ));
-            assert_eq!(settings.bitrate_kbps, 64);
+            assert_eq!(settings.encoder_type, EncoderType::NativeAac);
+            assert_eq!(settings.bitrate_mode, BitrateMode::Cbr);
+            assert_eq!(settings.bitrate_kbps, 65);
         }
         request.intent = AudioIntent::Encode;
         let explicit = resolve_title_audio(&request, &info, false).unwrap();

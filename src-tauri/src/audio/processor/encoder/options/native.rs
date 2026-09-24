@@ -91,6 +91,7 @@ mod tests {
                 afterburner: false,
                 native_aac_speed: speed,
                 faac_profile: crate::audio::FaacProfile::Auto,
+                fdk_profile: crate::audio::FdkProfile::Auto,
             };
             let encoder = create_audio_encoder(&settings, 44100, 2, true)
                 .expect("open requested NMR encoder");
@@ -121,6 +122,7 @@ mod tests {
             afterburner: false,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
+            fdk_profile: crate::audio::FdkProfile::Auto,
         };
         let error = create_audio_encoder(&settings, 22050, 1, true)
             .err()

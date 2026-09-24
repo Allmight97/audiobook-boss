@@ -120,7 +120,7 @@ describe('app runtime', () => {
 		void first.output.openCollisionReview(collisionPlan());
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
-		first.encoding.select('encoder', 'native_aac');
+		first.encoding.select('encoder', 'faac');
 		first.processing.pushTransientStatus('first runtime only');
 		void first.remoteSource.open();
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
@@ -131,8 +131,8 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(first.encoding.view().flavor).toBe('native_aac');
-		expect(second.encoding.view().flavor).toBe('auto');
+		expect(first.encoding.view().flavor).toBe('faac');
+		expect(second.encoding.view().flavor).toBe('native_aac');
 		expect(first.processing.status().statusText).toBe('first runtime only');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(first.remoteSource.view().isOpen).toBe(true);
@@ -144,7 +144,7 @@ describe('app runtime', () => {
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.encoding.view().flavor).toBe('auto');
+		expect(second.encoding.view().flavor).toBe('native_aac');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
@@ -156,7 +156,7 @@ describe('app runtime', () => {
 		expect(third.output.collision().isOpen).toBe(false);
 		expect(third.settings.dialog().isOpen).toBe(false);
 		expect(third.lookup.view().titleQuery).toBe('');
-		expect(third.encoding.view().flavor).toBe('auto');
+		expect(third.encoding.view().flavor).toBe('native_aac');
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});

@@ -3,7 +3,7 @@
 use super::settings::{encoder_sample_rates, supported_sample_rates};
 use super::settings_encoder::{
     all_encoder_types, allowed_bitrate_mode_kinds_for, default_bitrate_mode_for, BitrateMode,
-    BitrateModeKind, ChannelConfig, EncoderType, FaacProfile, VALID_VBR_LEVEL_RANGE,
+    BitrateModeKind, ChannelConfig, EncoderType, FaacProfile, FdkProfile, VALID_VBR_LEVEL_RANGE,
 };
 use super::toolchain::{detect_encoder_availability, EncoderAvailability};
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ pub struct EncoderConfigurationCapability {
     pub default_mode: BitrateMode,
     pub explicit_sample_rates: Vec<u32>,
     pub faac_profiles: Vec<FaacProfileCapability>,
+    pub fdk_profiles: Vec<FdkProfileCapability>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -28,6 +29,16 @@ pub struct EncoderConfigurationCapability {
 pub struct FaacProfileCapability {
     pub profile: FaacProfile,
     pub explicit_sample_rates: Vec<u32>,
+}
+
+/// Profile support and ABB's Auto mapping, shared with the settings view.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FdkProfileCapability {
+    pub profile: FdkProfile,
+    pub explicit_sample_rates: Vec<u32>,
+    pub auto_mono_vbr_levels: Vec<u16>,
+    pub auto_stereo_vbr_levels: Vec<u16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
@@ -63,6 +74,31 @@ pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
                 default_mode: default_bitrate_mode_for(encoder_type),
                 explicit_sample_rates: encoder_sample_rates(encoder_type, FaacProfile::Auto)
                     .to_vec(),
+                fdk_profiles: if encoder_type == EncoderType::FdkHeAac {
+                    [FdkProfile::AacLc, FdkProfile::HeAacV1, FdkProfile::HeAacV2]
+                        .into_iter()
+                        .map(|profile| FdkProfileCapability {
+                            profile,
+                            explicit_sample_rates: profile.sample_rates().to_vec(),
+                            auto_mono_vbr_levels: VALID_VBR_LEVEL_RANGE
+                                .filter(|level| {
+                                    FdkProfile::Auto
+                                        .resolve(BitrateMode::Vbr(*level), ChannelConfig::Mono)
+                                        == profile
+                                })
+                                .collect(),
+                            auto_stereo_vbr_levels: VALID_VBR_LEVEL_RANGE
+                                .filter(|level| {
+                                    FdkProfile::Auto
+                                        .resolve(BitrateMode::Vbr(*level), ChannelConfig::Stereo)
+                                        == profile
+                                })
+                                .collect(),
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                },
                 faac_profiles: if encoder_type == EncoderType::Faac {
                     [FaacProfile::Auto, FaacProfile::AacLc, FaacProfile::HeAacV1]
                         .into_iter()

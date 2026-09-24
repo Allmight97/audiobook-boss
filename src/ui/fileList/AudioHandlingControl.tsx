@@ -207,7 +207,7 @@ export function AudioHandlingControl(props: {
 					? 'Choose audio'
 					: kept()
 						? `Pass-through · ${format()}`
-						: `${request().intent === 'preserve' ? 'Keep original audio' : request().intent === 'auto' ? 'Recommended' : opus() ? 'Opus' : 'AAC'} · ${format()}`}
+						: `${request().intent === 'preserve' ? 'Keep original audio' : request().intent === 'auto' ? 'Default' : opus() ? 'Opus' : 'AAC'} · ${format()}`}
 			</span>
 			<Show
 				when={

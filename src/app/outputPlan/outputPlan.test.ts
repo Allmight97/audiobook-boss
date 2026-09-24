@@ -202,9 +202,44 @@ describe('output plan public view', () => {
 		runtime.encoding.selectTitles(runtime.input.view().files, 'quality', '5');
 		flush();
 		expect(mounted.owner.estimateTitleSizeText(title)).toBe('Size varies with audio');
-		expect(runtime.encoding.audioRequest(runtime.input.view().files[0]).settings!.bitrateKbps).toBe(
-			64,
+	});
+
+	it('shows a rough FDK stereo reference only for a resolved supported profile', async () => {
+		runtime = createAppRuntime();
+		runtime.input.replaceSession(sessionWithDuration(100));
+		mounted = mountOutput(runtime);
+		const title = runtime.input.view().files[0]!;
+		const plan = {
+			format: 'm4b' as const,
+			handling: 'encode' as const,
+			channels: 2,
+			sampleRate: 44100,
+			sourceCodec: 'aac',
+			reason: 'test',
+			settings: {
+				encoderType: 'fdk_he_aac' as const,
+				bitrateMode: { mode: 'vbr' as const, value: 3 },
+				bitrateKbps: 65,
+				channels: 'stereo' as const,
+				afterburner: false,
+				fdkProfile: 'aac_lc' as const,
+			},
+		};
+		expect(mounted.owner.estimateTitleSizeText(title, plan)).toBe(
+			'Rough est. ~ 1.4 MB · varies with audio',
 		);
+		expect(
+			mounted.owner.estimateTitleSizeText(title, {
+				...plan,
+				settings: { ...plan.settings, channels: 'mono' },
+			}),
+		).toBe('Size varies with audio');
+		expect(
+			mounted.owner.estimateTitleSizeText(title, {
+				...plan,
+				settings: { ...plan.settings, fdkProfile: 'he_aac_v1' },
+			}),
+		).toBe('Size varies with audio');
 	});
 
 	it('estimates a stack from all source sizes or durations for its selected handling', async () => {

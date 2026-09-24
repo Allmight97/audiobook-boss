@@ -6,16 +6,16 @@ git history and closed issues own superseded chronology.
 
 ## 2026-09-22 — Title audio intent and output format
 
-- Outcome: one title request chooses output format and Recommended/Keep/Encode intent. Audio
+- Outcome: one title request chooses output format and Default/Keep/Encode intent. Audio
   resolves one plan shared by the popover, preflight and execution. AAC/M4B is
   the default; MP3 pass-through and Opus/M4A or MKA are explicit alternatives.
 - Evidence: real media verifies compressed-packet identity, chapter timelines,
-  metadata and artwork for MP3 joins and Opus container round-trips. Recommended keeps compact audio (using the existing 72 kbps tolerance) when copying
+  metadata and artwork for MP3 joins and Opus container round-trips. Default keeps compact audio (using the existing 72 kbps tolerance) when copying
   satisfies the output; explicit Keep never substitutes encoding. Settings owns
   defaults for future imports; per-title and selected-title edits share one editor.
   Loaded titles retain their choices until explicitly edited or reset to defaults.
-- Recommended M4B encoding uses ABB's AAC defaults: FDK VBR 3 when available,
-  otherwise NMR at 64 kbps, with source channels and automatic sample rate.
+- Default M4B encoding uses NMR at a 65 kbps target with source channels and
+  automatic sample rate, independent of FDK availability.
   User Preference applies the saved title settings. The shared editor exposes
   encoding controls only for User Preference, and explicit encoder preferences
   survive availability changes. Apply App Settings copies the current saved
@@ -87,14 +87,18 @@ git history and closed issues own superseded chronology.
   its opened coder, speed, and bitrate must match the request. Native quality
   mode is outside the product contract. Long-book trials favored target bitrate
   for predictable size; quality mode took longer and varied substantially by book.
-- Outcome: Native and Apple use target bitrate; FDK uses its quality control.
+- Outcome: Native and Apple use target bitrate; FDK uses quality control with
+  Auto or manual LC/HE v1/HE v2 profiles. Auto follows the upstream guide's VBR
+  tuning (1→HE v2 stereo, 2→HE v1, 3–5→LC); mono VBR 1 uses HE v1 because PS
+  requires stereo. FDK 2.0.3 real encodes accept manual HE v1 at VBR 3, so ABB
+  does not reject that combination based on older FFmpeg documentation.
   FAAC exposes profile Auto/LC/HE and explicit ABR/VBR, reusing the target and
-  sample-rate/channel controls. ABR defaults to 64 kbps; VBR has three labeled
+  sample-rate/channel controls. ABR uses the shared target bitrate; VBR has three labeled
   presets and unknown size. FAAC owns Auto profile resolution; the adapter
   derives timing and mux parameters from the opened result. Encoding owns
   typed request construction and keeps each encoder's choices independent.
   Pending capability discovery preserves saved explicit requests. Encoder
-  Auto requires capabilities and prefers FDK → Native NMR. Unsupported Auto
+  Auto requires capabilities and prefers Native NMR → FDK. Unsupported Auto
   rate-control modes adapt to the resolved encoder default; explicit encoder
   requests remain strict.
 - Evidence: `audio/settings_capabilities.rs`, `audio/processor/encoder/`,

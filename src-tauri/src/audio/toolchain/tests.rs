@@ -5,9 +5,10 @@ use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
 #[test]
-fn auto_prefers_fdk_then_native() {
-    assert_eq!(preferred_auto_encoder(true), EncoderType::FdkHeAac);
-    assert_eq!(preferred_auto_encoder(false), EncoderType::NativeAac);
+fn auto_prefers_native_then_fdk() {
+    assert_eq!(preferred_auto_encoder(true, true), EncoderType::NativeAac);
+    assert_eq!(preferred_auto_encoder(true, false), EncoderType::NativeAac);
+    assert_eq!(preferred_auto_encoder(false, true), EncoderType::FdkHeAac);
 }
 
 #[cfg(target_os = "linux")]
@@ -337,6 +338,7 @@ fn homebrew_handoff_installs_updates_and_refuses_a_conflicting_formula() {
         &brew,
         r#"#!/bin/bash
 case "$1" in
+options) printf '%s\n' "$TEST_FDK_OPTION" ;;
 list) printf '%s\n' "$TEST_INSTALLED" ;;
 info) printf '%s\n' '{"formulae":[{"installed":[{"used_options":["--with-fdk-aac"]}]}]}' ;;
 *) printf '%s\n' "$*" >> "$TEST_LOG" ;;
@@ -348,18 +350,21 @@ esac
         .expect("make fake Homebrew executable");
     let script =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("src/audio/toolchain/fdk-setup.command");
-    for (installed, expected, success) in [
+    for (installed, option, expected, success) in [
         (
             "",
+            "--with-fdk-aac",
             "install homebrew-ffmpeg/ffmpeg/ffmpeg --with-fdk-aac\n",
             true,
         ),
         (
             "homebrew-ffmpeg/ffmpeg/ffmpeg",
+            "--with-fdk-aac",
             "update\nupgrade homebrew-ffmpeg/ffmpeg/ffmpeg\n",
             true,
         ),
-        ("ffmpeg", "", false),
+        ("ffmpeg", "--with-fdk-aac", "", false),
+        ("homebrew-ffmpeg/ffmpeg/ffmpeg", "", "", false),
     ] {
         write(&log, "").expect("reset action log");
         let output = Command::new("/bin/bash")
@@ -371,6 +376,7 @@ esac
             .arg(&script)
             .arg(&brew)
             .env("TEST_INSTALLED", installed)
+            .env("TEST_FDK_OPTION", option)
             .env("TEST_LOG", &log)
             .output()
             .expect("execute isolated Homebrew handoff");
@@ -388,5 +394,8 @@ esac
             String::from_utf8_lossy(&output.stdout).contains("Homebrew finished"),
             success
         );
+        if option.is_empty() {
+            assert!(String::from_utf8_lossy(&output.stdout).contains("No changes were made"));
+        }
     }
 }

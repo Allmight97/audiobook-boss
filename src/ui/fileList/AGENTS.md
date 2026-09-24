@@ -25,8 +25,8 @@ key includes Encoding’s capability revision; rechecks clear successful plans
 and estimates even for unchanged title requests, without querying closed rows.
 Settings, per-title and selected-title controls reuse EncoderView.
 The title row reads Output Plan's per-title size estimate beside its audio
-summary. Recommended waits for the existing backend title preview; unknown
-plans stay hidden until resolved; quality-based VBR shows “Size varies with audio”.
+summary. Default waits for the existing backend title preview; unknown
+plans stay hidden until resolved; quality-based VBR shows Output Plan’s rough estimate or “Size varies with audio”.
 `SelectedAudioSettings` owns only its toolbar editor disclosure and closes when
 selection changes or input locks. Bulk changes dispatch Encoding intents;
 Apply App Settings copies the current defaults into the explicitly targeted titles. A copied plan uses a check and

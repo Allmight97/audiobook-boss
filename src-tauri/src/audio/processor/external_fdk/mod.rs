@@ -24,8 +24,9 @@ pub(super) async fn process_audiobook_with_external_fdk(
     cover_art_passthrough: CoverArtPassthroughPolicy,
     toolchain: ValidatedExternalToolchain,
 ) -> Result<String> {
+    let settings = context.required_encoder_settings()?;
     if !matches!(
-        context.required_encoder_settings()?.encoder_type,
+        settings.encoder_type,
         EncoderType::Auto | EncoderType::FdkHeAac
     ) {
         return Err(AppError::InvalidInput(
@@ -97,17 +98,18 @@ pub(super) async fn process_audiobook_with_external_fdk(
     .await;
     encode_stage.finish(encode_result)?;
 
-    let temp_output =
-        if context.required_encoder_settings()?.channels == crate::audio::ChannelConfig::Mono {
-            let corrected = temp_dir.join("mono-output.m4b");
-            cleanup_guard.add_path(&corrected);
-            crate::diagnostics::stage("fdk_mono_signaling", &corrected, || {
-                mono::declare_mono(&temp_output, &corrected, &context)
-            })?;
-            corrected
-        } else {
-            temp_output
-        };
+    let temp_output = if settings.channels == crate::audio::ChannelConfig::Mono
+        && settings.fdk_profile == crate::audio::FdkProfile::HeAacV1
+    {
+        let corrected = temp_dir.join("mono-output.m4b");
+        cleanup_guard.add_path(&corrected);
+        crate::diagnostics::stage("fdk_mono_signaling", &corrected, || {
+            mono::declare_mono(&temp_output, &corrected, &context)
+        })?;
+        corrected
+    } else {
+        temp_output
+    };
 
     log::info!(
         "media_handoff stage=encode_closed artifact={} {}",
@@ -184,6 +186,7 @@ mod tests {
             afterburner: false,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
+            fdk_profile: crate::audio::FdkProfile::Auto,
         }
     }
 

@@ -90,7 +90,7 @@ export function EncoderView(
 								Mixed
 							</option>
 						</Show>
-						<option value="auto">Recommended</option>
+						<option value="auto">Default</option>
 						<option value="preserve">Keep original audio</option>
 						<option value="encode" disabled={view().format === 'mp3'}>
 							User Preference
@@ -231,14 +231,34 @@ export function EncoderView(
 									when={view().faac}
 									fallback={
 										<div class="encoder-field-row">
-											<span class="label">Profile</span>
-											<div
-												class="profile-display profile-display-workbench"
-												data-testid="profile-display"
-											>
-												<span id={id('encoder-profile-display')}>{view().profileDisplay}</span>
-												<span class="readonly-badge">read-only</span>
-											</div>
+											<Show when={view().fdk} fallback={<span class="label">Profile</span>}>
+												<label for={id('fdk-profile')}>Profile</label>
+											</Show>
+											<Show when={view().fdk}>
+												<select
+													id={id('fdk-profile')}
+													value={value('fdkProfile', view().fdkProfile)}
+													onChange={bind('fdkProfile')}
+												>
+													<Show when={mixed('fdkProfile')}>
+														<option value="" disabled>
+															Mixed
+														</option>
+													</Show>
+													<For each={view().fdkProfileOptions}>
+														{(option) => <option value={option.value}>{option.label}</option>}
+													</For>
+												</select>
+											</Show>
+											<Show when={!view().fdk}>
+												<div
+													class="profile-display profile-display-workbench"
+													data-testid="profile-display"
+												>
+													<span id={id('encoder-profile-display')}>{view().profileDisplay}</span>
+													<span class="readonly-badge">read-only</span>
+												</div>
+											</Show>
 										</div>
 									}
 								>

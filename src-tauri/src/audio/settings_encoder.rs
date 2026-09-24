@@ -11,9 +11,9 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EncoderType {
-    /// Auto-detect best available (FDK > Native NMR)
+    /// Auto-detect best available (Native NMR > FDK)
     Auto,
-    /// FDK HE-AAC VBR (libfdk_aac)
+    /// External FDK AAC (libfdk_aac)
     FdkHeAac,
     /// Apple AAC (AudioToolbox), macOS-only
     AacAt,
@@ -47,6 +47,69 @@ pub enum FaacProfile {
     Auto,
     AacLc,
     HeAacV1,
+}
+
+/// ABB resolves Auto from VBR quality and the output channel count.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum FdkProfile {
+    #[default]
+    Auto,
+    AacLc,
+    HeAacV1,
+    HeAacV2,
+}
+
+impl FdkProfile {
+    pub(in crate::audio) fn resolve(self, mode: BitrateMode, channels: ChannelConfig) -> Self {
+        if self != Self::Auto {
+            return self;
+        }
+        match mode {
+            BitrateMode::Vbr(1) if channels == ChannelConfig::Stereo => Self::HeAacV2,
+            BitrateMode::Vbr(1 | 2) => Self::HeAacV1,
+            _ => Self::AacLc,
+        }
+    }
+
+    pub(in crate::audio) fn sample_rates(self) -> &'static [u32] {
+        match self {
+            Self::HeAacV1 | Self::HeAacV2 => &[
+                16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+            ],
+            Self::Auto | Self::AacLc => &[
+                8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+            ],
+        }
+    }
+
+    pub(in crate::audio) fn validate(self, rate: u32, channels: ChannelConfig) -> Result<()> {
+        if self == Self::Auto {
+            return Err(AppError::InvalidInput(
+                "FDK profile must be resolved before encoding.".into(),
+            ));
+        }
+        if self == Self::HeAacV2 && channels != ChannelConfig::Stereo {
+            return Err(AppError::InvalidInput(
+                "FDK HE-AAC v2 requires stereo output. Choose Stereo or another profile.".into(),
+            ));
+        }
+        if !self.sample_rates().contains(&rate) {
+            return Err(AppError::InvalidInput(format!(
+                "FDK {self:?} does not support {rate} Hz. Choose a supported rate or Auto."
+            )));
+        }
+        Ok(())
+    }
+
+    pub(in crate::audio) fn ffmpeg_name(self) -> &'static str {
+        match self {
+            Self::AacLc => "aac_low",
+            Self::HeAacV1 => "aac_he",
+            Self::HeAacV2 => "aac_he_v2",
+            Self::Auto => unreachable!("FDK profile is resolved before execution"),
+        }
+    }
 }
 
 pub const FAAC_QUALITY_PRESETS: &[u16] = &[50, 100, 200];
@@ -125,23 +188,53 @@ pub struct EncoderSettings {
     pub native_aac_speed: u8,
     #[serde(default)]
     pub faac_profile: FaacProfile,
+    #[serde(default)]
+    pub fdk_profile: FdkProfile,
 }
 
 impl Default for EncoderSettings {
     fn default() -> Self {
         Self {
-            encoder_type: EncoderType::Auto,
-            bitrate_kbps: 64,
-            bitrate_mode: BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
+            encoder_type: EncoderType::NativeAac,
+            bitrate_kbps: 65,
+            bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Auto,
             afterburner: false,
             native_aac_speed: 0,
             faac_profile: FaacProfile::Auto,
+            fdk_profile: FdkProfile::Auto,
         }
     }
 }
 
 impl EncoderSettings {
+    /// Called with resolved output channels by planning and direct execution.
+    pub(in crate::audio) fn resolve_fdk_output(
+        &mut self,
+        rate: &super::SampleRateConfig,
+        source_rate: Option<u32>,
+    ) -> Result<u32> {
+        self.fdk_profile = self.fdk_profile.resolve(self.bitrate_mode, self.channels);
+        let rate = match rate {
+            super::SampleRateConfig::Explicit(rate) => *rate,
+            super::SampleRateConfig::Auto => {
+                let source = source_rate.ok_or_else(|| {
+                    AppError::InvalidInput(
+                        "Could not determine FDK sample rate; choose it explicitly.".into(),
+                    )
+                })?;
+                self.fdk_profile
+                    .sample_rates()
+                    .iter()
+                    .copied()
+                    .find(|rate| *rate >= source)
+                    .unwrap_or(96000)
+            }
+        };
+        self.fdk_profile.validate(rate, self.channels)?;
+        Ok(rate)
+    }
+
     pub(in crate::audio) fn resolve_encoder(&mut self, encoder: EncoderType) {
         if self.encoder_type == EncoderType::Auto
             && !allowed_bitrate_mode_kinds_for(encoder)
@@ -204,9 +297,9 @@ pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [Bi
 
 pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
     match encoder_type {
-        EncoderType::Auto | EncoderType::FdkHeAac => BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
+        EncoderType::Auto | EncoderType::NativeAac => BitrateMode::Cbr,
+        EncoderType::FdkHeAac => BitrateMode::Vbr(DEFAULT_VBR_LEVEL),
         EncoderType::AacAt => BitrateMode::Cvbr,
-        EncoderType::NativeAac => BitrateMode::Cbr,
         EncoderType::Faac => BitrateMode::Abr,
         EncoderType::Opus => BitrateMode::VbrTarget,
     }
@@ -395,6 +488,12 @@ pub fn validate_requested_encoder_available(
     requested: EncoderType,
     availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> Result<()> {
+    if requested == EncoderType::FdkHeAac && !availability.fdk_available {
+        return Err(AppError::toolchain_required(format!(
+            "FDK AAC requires a validated external FFmpeg toolchain. {}",
+            availability.status_message
+        )));
+    }
     validate_encoder_available(requested, encoder_available(requested, availability))
 }
 
@@ -441,7 +540,7 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
 }
 
 #[cfg(test)]
-mod aac_at_message_tests {
+mod tests {
     use super::*;
     use crate::audio::toolchain::{EncoderAvailability, EncoderCapabilitySource};
 
@@ -456,6 +555,63 @@ mod aac_at_message_tests {
             detected_toolchain_path: None,
             status_message: String::new(),
         }
+    }
+
+    #[test]
+    fn fdk_auto_resolves_profile_and_rate_without_upmixing_or_changing_explicit_rates() {
+        for (channels, level, expected) in [
+            (ChannelConfig::Mono, 1, FdkProfile::HeAacV1),
+            (ChannelConfig::Stereo, 1, FdkProfile::HeAacV2),
+            (ChannelConfig::Mono, 2, FdkProfile::HeAacV1),
+            (ChannelConfig::Stereo, 2, FdkProfile::HeAacV1),
+            (ChannelConfig::Mono, 3, FdkProfile::AacLc),
+            (ChannelConfig::Stereo, 4, FdkProfile::AacLc),
+            (ChannelConfig::Stereo, 5, FdkProfile::AacLc),
+        ] {
+            let mut settings = EncoderSettings {
+                encoder_type: EncoderType::FdkHeAac,
+                channels,
+                bitrate_mode: BitrateMode::Vbr(level),
+                ..Default::default()
+            };
+            let rate = settings
+                .resolve_fdk_output(&crate::audio::SampleRateConfig::Auto, Some(8000))
+                .unwrap();
+            assert_eq!(settings.fdk_profile, expected);
+            assert_eq!(settings.channels, channels);
+            assert_eq!(
+                rate,
+                if expected == FdkProfile::AacLc {
+                    8000
+                } else {
+                    16000
+                }
+            );
+            if expected != FdkProfile::AacLc {
+                assert!(settings
+                    .resolve_fdk_output(
+                        &crate::audio::SampleRateConfig::Explicit(8000),
+                        Some(44100)
+                    )
+                    .is_err());
+            }
+        }
+        assert!(FdkProfile::HeAacV2
+            .validate(44100, ChannelConfig::Mono)
+            .is_err());
+        assert!(FdkProfile::AacLc
+            .validate(7350, ChannelConfig::Stereo)
+            .is_err());
+        let mut manual = EncoderSettings {
+            fdk_profile: FdkProfile::HeAacV1,
+            bitrate_mode: BitrateMode::Vbr(3),
+            channels: ChannelConfig::Mono,
+            ..Default::default()
+        };
+        manual
+            .resolve_fdk_output(&crate::audio::SampleRateConfig::Auto, Some(44100))
+            .unwrap();
+        assert_eq!(manual.fdk_profile, FdkProfile::HeAacV1);
     }
 
     /// Per-OS assertion pattern from `processor/streams.rs`: the rejection

@@ -36,6 +36,7 @@ pub fn supported_sample_rates() -> &'static [u32] {
 /// a narrower ABB-supported set for its explicit HE profile.
 pub(crate) fn encoder_sample_rates(encoder: EncoderType, profile: FaacProfile) -> &'static [u32] {
     match encoder {
+        EncoderType::FdkHeAac => super::FdkProfile::AacLc.sample_rates(),
         EncoderType::Opus => &[8000, 12000, 16000, 24000, 48000],
         EncoderType::Faac if profile == FaacProfile::HeAacV1 => FAAC_SAMPLE_RATES,
         _ => SUPPORTED_SAMPLE_RATES,

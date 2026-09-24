@@ -4,6 +4,32 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-23
+
+### Added
+
+- FDK profile selection: Auto follows VBR quality, with manual AAC-LC, HE-AAC v1,
+  and HE-AAC v2 choices. Auto uses HE v2 for stereo VBR 1 (HE v1 for mono),
+  HE v1 for VBR 2, and AAC-LC for VBR 3–5. Existing FDK settings adopt Auto.
+- Rough FDK size estimates for supported stereo profile/quality combinations
+  at 44.1/48 kHz, using FDK's published reference averages. Other combinations
+  retain “Size varies with audio”.
+
+### Changed
+
+- Default audio handling uses Native AAC (NMR) at a 65 kbps target when encoding
+  is needed. FDK AAC remains available as an explicit choice with VBR 3 as its
+  encoder default.
+- Rename the Recommended audio-handling choice to Default throughout the app.
+
+### Fixed
+
+- Validate FDK profile sample-rate/channel requirements before processing, and
+  apply mono signaling correction only to HE-AAC v1 output.
+- Show the concrete FFmpeg detection failure when FDK AAC is unavailable.
+- Check whether the Homebrew FFmpeg formula still offers FDK before its setup
+  script installs, reinstalls, or upgrades anything.
+
 ## [1.11.0] - 2026-09-23
 
 ### Added

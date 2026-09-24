@@ -71,29 +71,7 @@ describe('encoder panel encoder resolution', () => {
 		});
 	});
 
-	it('uses NMR when FDK is absent even when Apple AAC is available', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: false,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(4);
-		});
-	});
-
-	it('shows FDK AAC when it is the resolved default', async () => {
+	it('shows NMR as the default even when FDK is available', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
@@ -110,7 +88,7 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('fdk_he_aac');
+			expect(select?.value).toBe('native_aac');
 			expect(select?.options.length).toBe(4);
 		});
 	});
@@ -132,15 +110,15 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('fdk_he_aac');
+			expect(select?.value).toBe('native_aac');
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(select, 'aac_at');
+		changeSelectValue(select, 'fdk_he_aac');
 
 		await vi.waitFor(() => {
-			expect(select.value).toBe('aac_at');
-			expect(runtime?.encoding.audioRequest().settings?.encoderType).toBe('aac_at');
+			expect(select.value).toBe('fdk_he_aac');
+			expect(runtime?.encoding.audioRequest().settings?.encoderType).toBe('fdk_he_aac');
 		});
 	});
 
@@ -161,10 +139,11 @@ describe('encoder panel encoder resolution', () => {
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('fdk_he_aac');
+			expect(select?.value).toBe('native_aac');
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
+		changeSelectValue(select, 'fdk_he_aac');
 		changeSelectValue(select, 'native_aac');
 
 		await vi.waitFor(() => {

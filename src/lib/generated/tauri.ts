@@ -389,6 +389,7 @@ export type EncoderConfigurationCapability = {
 	defaultMode: BitrateMode,
 	explicitSampleRates: number[],
 	faacProfiles: FaacProfileCapability[],
+	fdkProfiles: FdkProfileCapability[],
 };
 
 export type EncoderDefaults = {
@@ -421,6 +422,7 @@ export type EncoderSettings = {
 	/**  Native NMR search speed, upstream default 0. */
 	nativeAacSpeed?: number,
 	faacProfile?: FaacProfile,
+	fdkProfile?: FdkProfile,
 };
 
 export type EncoderSettingsCapabilities = {
@@ -440,9 +442,9 @@ export type EncoderSettingsCapabilities = {
 
 /**  Supported encoder types for audiobooks */
 export type EncoderType =
-/**  Auto-detect best available (FDK > Native NMR) */
+/**  Auto-detect best available (Native NMR > FDK) */
 "auto" |
-/**  FDK HE-AAC VBR (libfdk_aac) */
+/**  External FDK AAC (libfdk_aac) */
 "fdk_he_aac" |
 /**  Apple AAC (AudioToolbox), macOS-only */
 "aac_at" |
@@ -470,6 +472,17 @@ export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
 export type FaacProfileCapability = {
 	profile: FaacProfile,
 	explicitSampleRates: number[],
+};
+
+/**  ABB resolves Auto from VBR quality and the output channel count. */
+export type FdkProfile = "auto" | "aac_lc" | "he_aac_v1" | "he_aac_v2";
+
+/**  Profile support and ABB's Auto mapping, shared with the settings view. */
+export type FdkProfileCapability = {
+	profile: FdkProfile,
+	explicitSampleRates: number[],
+	autoMonoVbrLevels: number[],
+	autoStereoVbrLevels: number[],
 };
 
 /**  Summary information for a file list */

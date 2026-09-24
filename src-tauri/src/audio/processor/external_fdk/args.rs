@@ -74,10 +74,12 @@ pub(super) fn build_ffmpeg_args(
         OsString::from("-c:a"),
         OsString::from("libfdk_aac"),
         OsString::from("-profile:a"),
-        OsString::from("aac_he"),
+        OsString::from(settings.fdk_profile.ffmpeg_name()),
     ]);
 
-    if settings.channels == ChannelConfig::Mono {
+    if settings.channels == ChannelConfig::Mono
+        && settings.fdk_profile == crate::audio::FdkProfile::HeAacV1
+    {
         args.extend([OsString::from("-signaling"), OsString::from("explicit_sbr")]);
     }
 
@@ -191,6 +193,7 @@ mod tests {
             afterburner: true,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
+            fdk_profile: crate::audio::FdkProfile::HeAacV1,
         }
     }
 

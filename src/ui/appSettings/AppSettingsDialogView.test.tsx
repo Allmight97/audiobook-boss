@@ -186,7 +186,7 @@ describe('AppSettingsDialogView', () => {
 		expect(app.settings.dialog().isOpen).toBe(true);
 		expect(encoder).toHaveValue('native_aac');
 		expect(settings.openFdkSetup).not.toHaveBeenCalled();
-		await fireEvent.click(await screen.findByText('Install or update with Homebrew…'));
+		await fireEvent.click(await screen.findByText('Check Homebrew FDK setup…'));
 		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
 		await vi.waitFor(() => expect(settings.openFdkSetup).toHaveBeenCalledTimes(1));
 		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(false);
@@ -198,15 +198,16 @@ describe('AppSettingsDialogView', () => {
 			).toBe('FDK AAC'),
 		);
 		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(true);
+		await fireEvent.change(encoder, { target: { value: 'fdk_he_aac' } });
 		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toBeInTheDocument();
-		expect(settings.updateAppSettings).not.toHaveBeenCalled();
+		expect(settings.updateAppSettings).toHaveBeenCalledTimes(1);
 	});
 
 	it('shows setup-launch and recheck failures without claiming FDK is ready', async () => {
 		const app = await renderOpenDialog({
 			openFdkSetup: vi.fn().mockRejectedValue(new Error('Terminal unavailable')),
 		});
-		await fireEvent.click(await screen.findByText('Install or update with Homebrew…'));
+		await fireEvent.click(await screen.findByText('Check Homebrew FDK setup…'));
 		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
 		await vi.waitFor(() => expect(screen.getByText('Terminal unavailable')).toBeInTheDocument());
 		vi.mocked(settings.getRuntimeSettingsCapabilities).mockRejectedValue(new Error('Probe failed'));
@@ -235,6 +236,9 @@ describe('AppSettingsDialogView', () => {
 		});
 		runtime!.encoding.applyDefaults({ ...runtime!.encoding.readDefaults(), intent: 'encode' });
 		flush();
+		await fireEvent.change(screen.getByTestId('encoder-select'), {
+			target: { value: 'fdk_he_aac' },
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'FDK Afterburner' }));
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),

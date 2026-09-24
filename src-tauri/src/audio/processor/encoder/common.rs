@@ -213,6 +213,7 @@ mod tests {
             afterburner: false,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
+            fdk_profile: crate::audio::FdkProfile::Auto,
         };
         let sample_rate = SampleRateConfig::Explicit(44_100);
         let inputs = [PathBuf::from("/private/input/Book One.m4b")];

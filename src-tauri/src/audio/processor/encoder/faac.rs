@@ -300,6 +300,7 @@ mod tests {
             afterburner: false,
             native_aac_speed: 0,
             faac_profile: FaacProfile::HeAacV1,
+            fdk_profile: crate::audio::FdkProfile::Auto,
         };
         assert!(FaacEncoder::open(32000, 2, &settings).is_err());
         settings.bitrate_kbps = 192;

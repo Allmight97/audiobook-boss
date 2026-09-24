@@ -158,7 +158,7 @@ pub use settings_capabilities::{
 pub use settings_encoder::{
     resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,
     validate_requested_encoder_available, BitrateMode, BitrateModeKind, ChannelConfig,
-    EncoderSettings, EncoderType, FaacProfile,
+    EncoderSettings, EncoderType, FaacProfile, FdkProfile,
 };
 pub use toolchain::{
     detect_encoder_availability, set_user_external_ffmpeg_path, EncoderAvailability,

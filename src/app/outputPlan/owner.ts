@@ -121,7 +121,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		if (!file.isValid) return null;
 		const request = deps.encoding.audioRequest(file);
 		const handling = request.intent === 'auto' ? resolvedPlan?.handling : request.intent;
-		// Recommended can copy or encode; wait for the backend's title preview.
+		// Default can copy or encode; wait for the backend's title preview.
 		if (!handling) return null;
 		const sources = deps.input.sourcesFor(file);
 		if (sources.length === 0) return null;
@@ -134,7 +134,8 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		if (sources.some((source) => source.duration === undefined)) return null;
 		if (kbps === null) return 'Size varies with audio';
 		const duration = sources.reduce((total, source) => total + (source.duration ?? 0), 0);
-		return `Est. ~ ${formatFileSize(estimateEncodedSizeBytes(duration, kbps))}`;
+		const rough = resolvedPlan?.settings?.bitrateMode.mode === 'vbr';
+		return `${rough ? 'Rough est.' : 'Est.'} ~ ${formatFileSize(estimateEncodedSizeBytes(duration, kbps))}${rough ? ' · varies with audio' : ''}`;
 	}
 
 	const view: Accessor<OutputView> = () => {

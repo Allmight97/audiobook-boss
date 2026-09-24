@@ -14,6 +14,7 @@ import type {
 	EncoderSettings as GeneratedEncoderSettings,
 	EncoderType as GeneratedEncoderType,
 	FaacProfile as GeneratedFaacProfile,
+	FdkProfile as GeneratedFdkProfile,
 	BitrateModeKind as GeneratedBitrateModeKind,
 	FileListInfo as GeneratedFileListInfo,
 	JobType as GeneratedJobType,
@@ -72,6 +73,7 @@ export type BitrateModeKind = GeneratedBitrateModeKind;
 export type EncoderChannelConfig = GeneratedChannelConfig;
 export type EncoderType = GeneratedEncoderType;
 export type FaacProfile = GeneratedFaacProfile;
+export type FdkProfile = GeneratedFdkProfile;
 export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
@@ -129,16 +131,16 @@ export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, '
 };
 export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
-// Default encoder settings with runtime auto resolution.
-// Auto uses VBR by default to satisfy Rust boundary validation for `EncoderType::Auto`.
+// Match Rust's fresh and Default M4B encoding defaults.
 export const defaultEncoderSettings = (): EncoderSettings => ({
-	encoderType: 'auto',
-	bitrateKbps: 64,
-	bitrateMode: { mode: 'vbr', value: 3 },
+	encoderType: 'native_aac',
+	bitrateKbps: 65,
+	bitrateMode: { mode: 'cbr' },
 	channels: 'auto',
 	afterburner: false,
 	nativeAacSpeed: 0,
 	faacProfile: 'auto',
+	fdkProfile: 'auto',
 });
 
 // Utility functions

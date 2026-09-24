@@ -51,14 +51,15 @@ pub(crate) fn write_common_run_fields(
     );
     let _ = writeln!(
         output,
-        "requested_settings encoder={:?} bitrate_mode={:?} bitrate_kbps={} rate={:?} channels={:?} afterburner={} native_aac_speed={}",
+        "requested_settings encoder={:?} bitrate_mode={:?} bitrate_kbps={} rate={:?} channels={:?} afterburner={} native_aac_speed={} fdk_profile={:?}",
         settings.encoder_type,
         settings.bitrate_mode,
         settings.bitrate_kbps,
         sample_rate,
         settings.channels,
         settings.afterburner,
-        settings.native_aac_speed
+        settings.native_aac_speed,
+        settings.fdk_profile
     );
     let _ = writeln!(
         output,

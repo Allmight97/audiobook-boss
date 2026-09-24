@@ -9,6 +9,7 @@ import type {
 	EncoderSettingsCapabilities,
 	EncoderType,
 	FaacProfile,
+	FdkProfile,
 	EncodingRequestConfig,
 	SampleRateConfig,
 } from '../../types/audio';
@@ -21,6 +22,7 @@ export type EncodingField =
 	| 'encoder'
 	| 'quality'
 	| 'faacProfile'
+	| 'fdkProfile'
 	| 'rateControl'
 	| 'nativeSpeed'
 	| 'afterburner'
@@ -42,6 +44,9 @@ export type EncodingView = {
 	readonly flavorOptions: ReadonlyArray<EncodingOption>;
 	readonly flavorDisabled: boolean;
 	readonly profileDisplay: string;
+	readonly fdk: boolean;
+	readonly fdkProfile: FdkProfile;
+	readonly fdkProfileOptions: ReadonlyArray<EncodingOption>;
 	readonly faac: boolean;
 	readonly faacProfile: FaacProfile;
 	readonly faacProfileOptions: ReadonlyArray<EncodingOption>;
@@ -75,6 +80,7 @@ export type EncodingBag = {
 	flavor: EncoderType;
 	hydratedBitrateMode: BitrateMode;
 	faacProfile: FaacProfile;
+	fdkProfile: FdkProfile;
 	faacMode: 'abr' | 'vbr';
 	faacQuality: number;
 	quality: number;
@@ -92,12 +98,20 @@ export type EncodingBag = {
 
 const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
 const DEFAULT_CHANNELS_HINT = 'Auto -> source audio';
-const ENCODER_PROFILES: Record<Exclude<EncoderType, 'faac'>, string> = {
-	auto: 'HE-AAC v1',
-	fdk_he_aac: 'HE-AAC v1',
+const ENCODER_PROFILES: Record<EncoderType, string> = {
+	auto: 'AAC-LC',
+	fdk_he_aac: 'AAC',
+	faac: 'AAC',
 	aac_at: 'AAC-LC',
 	native_aac: 'AAC-LC',
 	opus: 'Opus',
+};
+
+const FDK_PROFILES: Record<FdkProfile, string> = {
+	auto: 'Auto',
+	aac_lc: 'AAC-LC',
+	he_aac_v1: 'HE-AAC v1',
+	he_aac_v2: 'HE-AAC v2',
 };
 
 const FAAC_PROFILES: Record<FaacProfile, string> = {
@@ -111,14 +125,15 @@ export function createDefaultBag(): EncodingBag {
 		format: 'm4b',
 		intent: 'auto',
 		opusBitrate: 64,
-		flavor: 'auto',
+		flavor: 'native_aac',
 		hydratedBitrateMode: defaultEncoderSettings().bitrateMode,
 		faacProfile: 'auto',
+		fdkProfile: 'auto',
 		faacMode: 'abr',
 		faacQuality: 100,
 		quality: 3,
 		nativeSpeed: 0,
-		bitrate: 64,
+		bitrate: 65,
 		sampleRate: 'auto',
 		channels: 'auto',
 		afterburner: false,
@@ -196,6 +211,7 @@ export function bagRequest(bag: EncodingBag): EncodingRequestConfig {
 			afterburner: bag.afterburner,
 			nativeAacSpeed: bag.nativeSpeed,
 			faacProfile: bag.faacProfile,
+			fdkProfile: bag.fdkProfile,
 		},
 		sampleRate: sampleRateFromBag(bag),
 	};
@@ -231,7 +247,7 @@ function qualityLabel(bag: EncodingBag, value: number): string {
 		return `${label} (${value})`;
 	}
 	if (value === bag.capabilities?.vbrLevelMin) return `${value} (Smallest)`;
-	if (value === bag.capabilities?.vbrLevelDefault) return `${value} (Recommended)`;
+	if (value === bag.capabilities?.vbrLevelDefault) return `${value} (Default)`;
 	if (value === bag.capabilities?.vbrLevelMax) return `${value} (Largest)`;
 	return String(value);
 }
@@ -266,6 +282,10 @@ function sampleRateDetail(bag: EncodingBag): string {
 		!allowedSampleRates(bag).includes(Number(bag.sampleRate))
 	)
 		return 'Choose a supported sample rate for this encoder.';
+	if (bag.sampleRate === 'auto' && effectiveEncoder(bag) === 'fdk_he_aac') {
+		const minimum = allowedSampleRates(bag)[0];
+		return minimum ? `Auto → source rate, at least ${minimum} Hz` : bag.sampleRateHint;
+	}
 	if (bag.sampleRate === 'auto')
 		return opus(bag) ? 'Auto → next supported Opus input rate' : bag.sampleRateHint;
 	return `Using ${sampleRateLabel(bag.sampleRate)}.`;
@@ -273,6 +293,14 @@ function sampleRateDetail(bag: EncodingBag): string {
 
 function allowedSampleRates(bag: EncodingBag): readonly number[] {
 	const configuration = encoderConfiguration(bag);
+	if (effectiveEncoder(bag) === 'fdk_he_aac') {
+		const profiles = fdkProfiles(bag);
+		return (
+			profiles[0]?.explicitSampleRates.filter((rate) =>
+				profiles.every((p) => p.explicitSampleRates.includes(rate)),
+			) ?? []
+		);
+	}
 	if (!opus(bag) && bag.flavor === 'faac')
 		return (
 			configuration?.faacProfiles.find((entry) => entry.profile === bag.faacProfile)
@@ -281,7 +309,26 @@ function allowedSampleRates(bag: EncodingBag): readonly number[] {
 	return configuration?.explicitSampleRates ?? [];
 }
 
+function fdkProfiles(bag: EncodingBag) {
+	const profiles = encoderConfiguration(bag)?.fdkProfiles ?? [];
+	if (bag.fdkProfile !== 'auto') return profiles.filter((p) => p.profile === bag.fdkProfile);
+	return profiles.filter(
+		(p) =>
+			(bag.channels !== 'stereo' && p.autoMonoVbrLevels.includes(bag.quality)) ||
+			(bag.channels !== 'mono' && p.autoStereoVbrLevels.includes(bag.quality)),
+	);
+}
+
+function fdkAutoLabel(bag: EncodingBag): string {
+	const names = fdkProfiles({ ...bag, fdkProfile: 'auto' }).map((p) => FDK_PROFILES[p.profile]);
+	return names.length
+		? `Auto · ${names.join(' / ')}${names.length > 1 ? ' (mono / stereo)' : ''}`
+		: 'Auto · by VBR quality';
+}
+
 function channelsDetail(bag: EncodingBag): string {
+	if (effectiveEncoder(bag) === 'fdk_he_aac' && bag.fdkProfile === 'he_aac_v2')
+		return 'HE-AAC v2 requires stereo output.';
 	if (bag.channels === 'auto') return bag.channelsHint;
 	const downmix = bag.hasMultichannelInput ? ' Surround downmix omits bass effects (LFE).' : '';
 	return `Using ${channelLabel(bag.channels)}.${downmix}`;
@@ -349,11 +396,19 @@ export function projectView(bag: EncodingBag): EncodingView {
 		effectiveFlavor: effective,
 		flavorOptions,
 		flavorDisabled: opus(bag) || bag.capabilities === null,
-		profileDisplay:
-			effective === 'faac' ? FAAC_PROFILES[bag.faacProfile] : ENCODER_PROFILES[effective],
+		profileDisplay: ENCODER_PROFILES[effective],
 		qualityBitrateLabel: showQuality ? 'Quality' : 'Bitrate (kbps)',
 		native,
 		faac,
+		fdk: effective === 'fdk_he_aac',
+		fdkProfile: bag.fdkProfile,
+		fdkProfileOptions: [
+			{ value: 'auto', label: fdkAutoLabel(bag) },
+			...(encoderConfiguration(bag)?.fdkProfiles ?? []).map(({ profile }) => ({
+				value: profile,
+				label: FDK_PROFILES[profile],
+			})),
+		],
 		faacProfile: bag.faacProfile,
 		faacProfileOptions: (encoderConfiguration(bag)?.faacProfiles ?? []).map(({ profile }) => ({
 			value: profile,
@@ -435,6 +490,7 @@ export function applyDefaultsToBag(bag: EncodingBag, defaults: EncoderDefaults):
 	if (settings.encoderType === 'opus') bag.opusBitrate = settings.bitrateKbps;
 	bag.hydratedBitrateMode = settings.bitrateMode;
 	bag.faacProfile = settings.faacProfile ?? 'auto';
+	bag.fdkProfile = settings.fdkProfile ?? 'auto';
 	if (settings.encoderType === 'faac') {
 		bag.faacMode = settings.bitrateMode.mode === 'vbr' ? 'vbr' : 'abr';
 		if (settings.bitrateMode.mode === 'vbr') bag.faacQuality = settings.bitrateMode.value;
@@ -496,6 +552,13 @@ export function selectField(bag: EncodingBag, field: EncodingField, value: strin
 			const next = value === 'true';
 			if (bag.afterburner === next) return false;
 			bag.afterburner = next;
+			return true;
+		}
+		case 'fdkProfile': {
+			if (value !== 'auto' && value !== 'aac_lc' && value !== 'he_aac_v1' && value !== 'he_aac_v2')
+				return false;
+			if (bag.fdkProfile === value) return false;
+			bag.fdkProfile = value;
 			return true;
 		}
 		case 'faacProfile': {

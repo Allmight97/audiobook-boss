@@ -23,7 +23,11 @@ export function encoderAvailabilityFixture(
 		aacAtAvailable,
 		nativeAacAvailable,
 		fdkSource: fdkAvailable ? ('detected' as const) : ('none' as const),
-		autoEncoder: fdkAvailable ? ('fdk_he_aac' as const) : ('native_aac' as const),
+		autoEncoder: nativeAacAvailable
+			? ('native_aac' as const)
+			: fdkAvailable
+				? ('fdk_he_aac' as const)
+				: ('native_aac' as const),
 		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : null,
 		statusMessage: fdkAvailable
 			? 'FDK AAC detected and ready.'
@@ -50,7 +54,7 @@ export function runtimeSettingsCapabilitiesFixture(
 				aacAtAvailable: true,
 				nativeAacAvailable: true,
 				fdkSource: 'detected' as const,
-				autoEncoder: 'fdk_he_aac' as const,
+				autoEncoder: 'native_aac' as const,
 				detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
 				statusMessage: 'FDK AAC detected and ready.',
 			} satisfies GeneratedEncoderAvailability,
@@ -61,22 +65,46 @@ export function runtimeSettingsCapabilitiesFixture(
 					allowedModes: ['vbr' as const],
 					defaultMode: { mode: 'vbr_target' as const },
 					explicitSampleRates: [8000, 12000, 16000, 24000, 48000],
+					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 6,
 					bitrateKbpsMax: 510,
 				},
 				{
+					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
 					encoderType: 'auto' as const,
 					allowedModes: ['vbr' as const, 'cvbr' as const, 'cbr' as const],
-					defaultMode: { mode: 'vbr' as const, value: 3 },
+					defaultMode: { mode: 'cbr' as const },
 					explicitSampleRates: [
 						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
 					],
 				},
 				{
+					fdkProfiles: [
+						{
+							profile: 'aac_lc' as const,
+							explicitSampleRates: [
+								8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
+							],
+							autoMonoVbrLevels: [3, 4, 5],
+							autoStereoVbrLevels: [3, 4, 5],
+						},
+						{
+							profile: 'he_aac_v1' as const,
+							explicitSampleRates: [16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000],
+							autoMonoVbrLevels: [1, 2],
+							autoStereoVbrLevels: [2],
+						},
+						{
+							profile: 'he_aac_v2' as const,
+							explicitSampleRates: [16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000],
+							autoMonoVbrLevels: [],
+							autoStereoVbrLevels: [1],
+						},
+					],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
@@ -88,6 +116,7 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
+					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
@@ -99,6 +128,7 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
+					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
@@ -110,6 +140,7 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
+					fdkProfiles: [],
 					faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'].map((profile) => ({
 						profile: profile as 'auto' | 'aac_lc' | 'he_aac_v1',
 						explicitSampleRates:

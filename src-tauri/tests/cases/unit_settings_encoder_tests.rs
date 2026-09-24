@@ -17,6 +17,7 @@ fn base_settings() -> EncoderSettings {
         afterburner: true,
         native_aac_speed: 0,
         faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
+        fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
     }
 }
 
@@ -179,7 +180,7 @@ fn test_validate_requested_encoder_available_rejects_unavailable_explicit_encode
     ));
     assert_eq!(
         fdk_error.to_string(),
-        "FDK AAC requires a validated external FFmpeg toolchain."
+        "FDK AAC requires a validated external FFmpeg toolchain. No external FFmpeg toolchain with libfdk_aac was detected."
     );
 
     let aac_at_error =

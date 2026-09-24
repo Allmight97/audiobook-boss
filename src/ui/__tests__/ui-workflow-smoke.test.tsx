@@ -319,6 +319,7 @@ describe('UI Workflow Smoke Test', () => {
 								afterburner: true,
 								nativeAacSpeed: 0,
 								faacProfile: 'auto',
+								fdkProfile: 'auto',
 							},
 							sampleRate: { explicit: 44100 },
 						},
