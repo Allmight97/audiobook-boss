@@ -37,6 +37,21 @@ fn target_bitrate_accepts_typed_values_and_rejects_invalid_bounds() {
 }
 
 #[test]
+fn opus_target_bitrate_uses_its_own_bounds() {
+    let mut settings = base_settings();
+    settings.encoder_type = EncoderType::Opus;
+    settings.bitrate_mode = BitrateMode::VbrTarget;
+    for (bitrate, valid) in [(5, false), (6, true), (510, true), (511, false)] {
+        settings.bitrate_kbps = bitrate;
+        assert_eq!(
+            validate_encoder_settings(&settings).is_ok(),
+            valid,
+            "{bitrate} kbps"
+        );
+    }
+}
+
+#[test]
 fn native_speed_accepts_boundaries_and_rejects_out_of_range_intent() {
     let mut settings = base_settings();
     settings.bitrate_mode = BitrateMode::Cbr;

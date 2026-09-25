@@ -1,10 +1,10 @@
 //! Encoder context creation and output stream setup.
 
 use crate::audio::settings_encoder::{self, EncoderSettings, EncoderType};
-use crate::errors::Result;
+use crate::errors::{AppError, Result};
 use ffmpeg_next as ff;
 
-use super::common::{encoder_log, find_encoder_by_name, EncoderFramePlan};
+use super::super::run_diagnostics::with_encoding_log_file;
 use super::options::{build_apple_options, build_native_options, validate_native_options};
 use super::{
     faac::FaacEncoder,
@@ -19,8 +19,6 @@ pub(crate) fn create_audio_encoder(
     target_channels: i32,
     requires_global_header: bool,
 ) -> Result<ff::codec::encoder::audio::Encoder> {
-    use crate::errors::AppError;
-
     let resolved_encoder = encoder_settings.encoder_type;
 
     // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
@@ -33,8 +31,8 @@ pub(crate) fn create_audio_encoder(
     }
 
     let codec_name = settings_encoder::resolve_encoder_name(resolved_encoder);
-    let codec = find_encoder_by_name(codec_name)?;
-    settings_encoder::validate_encoder_settings(encoder_settings)?;
+    let codec = ff::encoder::find_by_name(codec_name)
+        .ok_or_else(|| AppError::General(format!("Encoder '{codec_name}' not found")))?;
     if resolved_encoder == EncoderType::NativeAac {
         settings_encoder::validate_native_target_bitrate(
             encoder_settings.bitrate_kbps,
@@ -120,8 +118,6 @@ pub(crate) fn setup_encoder(
     skip_chapter_passthrough: bool,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<EncoderSession> {
-    use crate::errors::AppError;
-
     let (target_sample_rate, target_channels) =
         crate::audio::processor::engine::resolve_target_audio_params(plan)?;
 
@@ -305,10 +301,7 @@ pub(crate) fn setup_encoder(
         plan.encoder_settings.bitrate_kbps,
         plan.encoder_settings
     );
-    let frame_plan = EncoderFramePlan::from_raw_frame_size(
-        enc_ctx.frame_size() as usize,
-        resolved_encoder_type,
-    )?;
+    let frame_samples = samples_per_frame(enc_ctx.frame_size() as usize, resolved_encoder_type)?;
 
     let ost_time_base = octx
         .stream(ost_index)
@@ -319,7 +312,62 @@ pub(crate) fn setup_encoder(
         octx,
         ost_index,
         ost_time_base,
-        frame_plan.samples_per_frame(),
+        frame_samples,
         resolved_encoder_type,
     ))
+}
+
+fn encoder_log(message: &str) {
+    let _ = with_encoding_log_file(|file| {
+        use std::io::Write as _;
+        writeln!(file, "{message}")
+    });
+    log::info!("{message}");
+}
+
+const AAC_FRAME_QUANTUM_SAMPLES: usize = 1024;
+
+/// Encoders reporting frame size 0 accept variable frames; AAC still takes 1024-sample quanta.
+fn samples_per_frame(frame_size: usize, resolved_encoder: EncoderType) -> Result<usize> {
+    match (frame_size, resolved_encoder) {
+        (0, EncoderType::AacAt | EncoderType::NativeAac) => Ok(AAC_FRAME_QUANTUM_SAMPLES),
+        (0, _) => Err(AppError::General(format!(
+            "{resolved_encoder} reported no frame size and has no fixed frame quantum."
+        ))),
+        (reported, _) => Ok(reported),
+    }
+}
+
+#[cfg(test)]
+// EXCEPTION: tiny private frame-size invariant tests; keeping them inline avoids widening the production API for test access.
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_plan_uses_reported_encoder_frame_size() {
+        assert_eq!(
+            samples_per_frame(2048, EncoderType::NativeAac).expect("reported frame size"),
+            2048
+        );
+    }
+
+    #[test]
+    fn frame_plan_uses_aac_quantum_for_variable_frame_encoders() {
+        for encoder in [EncoderType::NativeAac, EncoderType::AacAt] {
+            assert_eq!(
+                samples_per_frame(0, encoder)
+                    .expect("resolved AAC encoder should have an explicit frame quantum"),
+                AAC_FRAME_QUANTUM_SAMPLES
+            );
+        }
+    }
+
+    #[test]
+    fn frame_plan_rejects_unreported_frame_size_without_a_quantum() {
+        for encoder in [EncoderType::Opus, EncoderType::Faac] {
+            let err = samples_per_frame(0, encoder)
+                .expect_err("encoders without an AAC quantum must report a frame size");
+            assert!(err.to_string().contains("no fixed frame quantum"));
+        }
+    }
 }

@@ -27,6 +27,45 @@ impl RunTiming {
     }
 }
 
+/// Opens an adapter run record; `adapter` names the matching `--- end {adapter} run ---` footer.
+pub(super) fn write_run_header(
+    output: &mut String,
+    adapter: &str,
+    status: &str,
+    status_detail: Option<&str>,
+) {
+    let _ = writeln!(output, "--- {adapter} run {} ---", unix_timestamp_seconds());
+    let _ = writeln!(
+        output,
+        "run_id={}",
+        std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".to_string())
+    );
+    let _ = writeln!(output, "status={status}");
+    if let Some(detail) = status_detail {
+        let _ = writeln!(output, "status_detail={detail}");
+    }
+}
+
+/// Operation identity shared by every adapter record.
+pub(super) fn write_run_identity(
+    output: &mut String,
+    context: &crate::processing::ProcessingContext,
+    target_duration_seconds: f64,
+) {
+    let _ = writeln!(
+        output,
+        "target_duration_seconds={target_duration_seconds:.3}"
+    );
+    let _ = writeln!(output, "session_id={}", context.session.id());
+    if let Some(job_id) = context.job_id.as_deref() {
+        let _ = writeln!(output, "job_id={job_id}");
+    }
+    if let Some(input_index) = context.input_index {
+        let _ = writeln!(output, "input_index={input_index}");
+    }
+    let _ = writeln!(output, "operation_kind={:?}", context.operation_kind);
+}
+
 pub(crate) fn write_common_run_fields(
     output: &mut String,
     (monotonic_elapsed, wallclock_elapsed): (Duration, Option<Duration>),
@@ -185,7 +224,7 @@ pub(super) fn with_encoding_log_file(
     write(&mut file)
 }
 
-pub(super) fn unix_timestamp_seconds() -> u64 {
+fn unix_timestamp_seconds() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())

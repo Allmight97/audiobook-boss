@@ -5,11 +5,11 @@ use std::sync::Once;
 
 use ffmpeg_next as ff;
 
-use super::run_diagnostics::encoding_log_enabled;
-use crate::audio::cleanup::CleanupGuard;
-use crate::audio::processor::encoder::{
-    append_in_process_encoding_log_best_effort, InProcessEncoderRunLog,
+use super::run_diagnostics::{
+    append_run_record, encoding_log_enabled, write_common_run_fields, write_run_header,
+    write_run_identity,
 };
+use crate::audio::cleanup::CleanupGuard;
 use crate::audio::processor::frame_pipeline::PreviewAction;
 use crate::audio::processor::plan::MediaProcessingPlan;
 use crate::audio::SampleRateConfig;
@@ -125,7 +125,7 @@ pub(crate) fn execute(
     });
     let result = execute_pipeline(plan, context, metadata, passthrough, diagnostics.as_mut());
     if let Some(diagnostics) = diagnostics {
-        append_in_process_encoding_run(plan, context, &diagnostics, &result);
+        append_run_record(|| format_in_process_run(plan, context, &diagnostics, &result));
     }
     result
 }
@@ -202,44 +202,61 @@ fn execute_pipeline(
     Ok(())
 }
 
-fn append_in_process_encoding_run(
+fn format_in_process_run(
     plan: &MediaProcessingPlan,
     context: &ProcessingContext,
     diagnostics: &EncodingRunDiagnostics,
     result: &Result<()>,
-) {
+) -> String {
+    use std::fmt::Write as _;
+
     let status = match result {
         Ok(()) => "success",
         Err(AppError::Cancellation(_)) => "cancelled",
         Err(_) => "failed",
     };
-    let status_detail = match result {
-        Ok(()) => None,
-        Err(error) => Some(error.to_string()),
-    };
-
-    let (elapsed, wallclock_elapsed) = diagnostics.timing.elapsed();
-    append_in_process_encoding_log_best_effort(&InProcessEncoderRunLog {
+    let status_detail = result.as_ref().err().map(ToString::to_string);
+    let mut output = String::new();
+    write_run_header(
+        &mut output,
+        "in-process-encoder",
         status,
-        status_detail: status_detail.as_deref(),
-        elapsed,
-        wallclock_elapsed,
-        opened_encoder: diagnostics.opened_encoder.as_deref(),
-        opened_rate: diagnostics.opened_rate,
-        opened_channels: diagnostics.opened_channels,
-        input_facts: &diagnostics.input_facts,
-        encoder_details: diagnostics.encoder_details.as_deref(),
-        encoder_settings: &plan.encoder_settings,
-        sample_rate: &plan.sample_rate,
-        session_id: context.session.id(),
-        job_id: context.job_id.as_deref(),
-        input_index: context.input_index,
-        operation_kind: format!("{:?}", context.operation_kind),
-        preview: context.preview.is_some(),
-        temp_output: &plan.output_path,
-        input_paths: &plan.input_file_paths,
-        target_duration_seconds: plan.total_duration,
-    });
+        status_detail.as_deref(),
+    );
+    output.push_str("stage=encode_mux\n");
+    write_common_run_fields(
+        &mut output,
+        diagnostics.timing.elapsed(),
+        &plan.encoder_settings,
+        &plan.sample_rate,
+        diagnostics.opened_encoder.as_deref(),
+        diagnostics.opened_rate,
+        diagnostics.opened_channels,
+    );
+    write_run_identity(&mut output, context, plan.total_duration);
+    let _ = writeln!(output, "preview={}", context.preview.is_some());
+    let _ = writeln!(
+        output,
+        "temp_output={}",
+        sanitize_path_for_display(&plan.output_path)
+    );
+    let _ = writeln!(output, "inputs={}", plan.input_file_paths.len());
+    for (index, path) in plan.input_file_paths.iter().enumerate() {
+        if let Some(fact) = diagnostics.input_facts.get(index) {
+            let _ = writeln!(output, "input[{index}] {fact}");
+        } else {
+            let _ = writeln!(
+                output,
+                "input[{index}] file={} codec=unknown rate=unknown channels=unknown",
+                sanitize_path_for_display(path)
+            );
+        }
+    }
+    if let Some(details) = diagnostics.encoder_details.as_deref() {
+        output.push_str(details);
+    }
+    output.push_str("--- end in-process-encoder run ---\n\n");
+    output
 }
 
 /// Resolves sample rate after the shared Audio boundary has chosen output channels.
@@ -281,4 +298,67 @@ fn probe_first_sample_rate(plan: &MediaProcessingPlan) -> Result<u32> {
         inspection.channels
     );
     Ok(inspection.sample_rate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
+    use crate::processing::{OutputConfig, ProcessingSession};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    #[test]
+    fn in_process_run_record_sanitizes_paths_and_names_the_encoder() {
+        let settings = EncoderSettings {
+            encoder_type: EncoderType::AacAt,
+            bitrate_mode: BitrateMode::Cvbr,
+            channels: ChannelConfig::Stereo,
+            ..EncoderSettings::default()
+        };
+        let plan = MediaProcessingPlan::new(
+            PathBuf::from("/private/tmp/worker-output.m4b"),
+            settings.clone(),
+            SampleRateConfig::Explicit(44_100),
+            vec![PathBuf::from("/private/input/Book One.m4b")],
+            12.5,
+        );
+        let context = ProcessingContext::new_headless(
+            Arc::new(ProcessingSession::new()),
+            settings,
+            SampleRateConfig::Explicit(44_100),
+            OutputConfig::new(Path::new("/tmp/final/Book.m4b")),
+        );
+        let mut diagnostics = EncodingRunDiagnostics {
+            timing: super::super::run_diagnostics::RunTiming::start(),
+            opened_encoder: Some("aac_at".to_string()),
+            opened_rate: Some(44_100),
+            opened_channels: Some(2),
+            input_facts: Vec::new(),
+            encoder_details: None,
+        };
+
+        let formatted = format_in_process_run(&plan, &context, &diagnostics, &Ok(()));
+        assert!(formatted.starts_with("--- in-process-encoder run "));
+        assert!(formatted.contains("status=success"));
+        assert!(formatted.contains("elapsed_monotonic_ms="));
+        assert!(formatted.contains("opened_settings encoder=aac_at rate=44100 channels=2"));
+        assert!(formatted.contains("target_duration_seconds=12.500"));
+        assert!(formatted.contains("input[0] file=Book One.m4b"));
+        assert!(formatted.contains("temp_output=worker-output.m4b"));
+        assert!(formatted.ends_with("--- end in-process-encoder run ---\n\n"));
+        assert!(!formatted.contains("/private/input"));
+        assert!(!formatted.contains("/private/tmp"));
+
+        diagnostics.opened_encoder = None;
+        let formatted = format_in_process_run(
+            &plan,
+            &context,
+            &diagnostics,
+            &Err(AppError::General("boom".into())),
+        );
+        assert!(formatted.contains("status=failed"));
+        assert!(formatted.contains("status_detail="));
+        assert!(formatted.contains("opened_settings encoder=unknown rate=44100 channels=2"));
+    }
 }

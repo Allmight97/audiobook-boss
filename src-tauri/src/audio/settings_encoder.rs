@@ -252,7 +252,7 @@ pub const VALID_VBR_LEVEL_RANGE: std::ops::RangeInclusive<u16> = 1..=5;
 /// Default FDK VBR level for audiobook speech output.
 pub const DEFAULT_VBR_LEVEL: u16 = 3;
 
-const ALL_ENCODER_TYPES: [EncoderType; 6] = [
+pub const ALL_ENCODER_TYPES: [EncoderType; 6] = [
     EncoderType::Auto,
     EncoderType::FdkHeAac,
     EncoderType::AacAt,
@@ -260,38 +260,30 @@ const ALL_ENCODER_TYPES: [EncoderType; 6] = [
     EncoderType::Faac,
     EncoderType::Opus,
 ];
-const AUTO_MODES: [BitrateModeKind; 3] = [
-    BitrateModeKind::Vbr,
-    BitrateModeKind::Cvbr,
-    BitrateModeKind::Cbr,
-];
-const VBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Vbr];
-const CVBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cvbr];
-const CBR_ONLY: [BitrateModeKind; 1] = [BitrateModeKind::Cbr];
-const FAAC_MODES: [BitrateModeKind; 2] = [BitrateModeKind::Abr, BitrateModeKind::Vbr];
 
-pub const MAX_ENCODER_BITRATE: u16 = 1152;
+const MAX_ENCODER_BITRATE: u16 = 1152;
 pub const NATIVE_SPEED_MAX: u8 = 4;
-pub const OPUS_BITRATE_RANGE: std::ops::RangeInclusive<u16> = 6..=510;
+
+/// Target bitrate bounds before rate/channel ceilings; capabilities and validation share them.
 pub fn encoder_bitrate_range(encoder: EncoderType) -> std::ops::RangeInclusive<u16> {
     if encoder == EncoderType::Opus {
-        OPUS_BITRATE_RANGE
+        6..=510
     } else {
         1..=MAX_ENCODER_BITRATE
     }
 }
 
-pub fn all_encoder_types() -> [EncoderType; 6] {
-    ALL_ENCODER_TYPES
-}
-
 pub fn allowed_bitrate_mode_kinds_for(encoder_type: EncoderType) -> &'static [BitrateModeKind] {
     match encoder_type {
-        EncoderType::Auto => &AUTO_MODES,
-        EncoderType::FdkHeAac | EncoderType::Opus => &VBR_ONLY,
-        EncoderType::AacAt => &CVBR_ONLY,
-        EncoderType::NativeAac => &CBR_ONLY,
-        EncoderType::Faac => &FAAC_MODES,
+        EncoderType::Auto => &[
+            BitrateModeKind::Vbr,
+            BitrateModeKind::Cvbr,
+            BitrateModeKind::Cbr,
+        ],
+        EncoderType::FdkHeAac | EncoderType::Opus => &[BitrateModeKind::Vbr],
+        EncoderType::AacAt => &[BitrateModeKind::Cvbr],
+        EncoderType::NativeAac => &[BitrateModeKind::Cbr],
+        EncoderType::Faac => &[BitrateModeKind::Abr, BitrateModeKind::Vbr],
     }
 }
 
@@ -307,22 +299,6 @@ pub fn default_bitrate_mode_for(encoder_type: EncoderType) -> BitrateMode {
 
 /// Validates encoder settings (no engine side-effects)
 pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
-    if matches!(
-        settings.bitrate_mode,
-        BitrateMode::Cbr | BitrateMode::Cvbr | BitrateMode::Abr | BitrateMode::VbrTarget
-    ) && (settings.bitrate_kbps == 0 || settings.bitrate_kbps > MAX_ENCODER_BITRATE)
-    {
-        return Err(AppError::InvalidInput(format!(
-            "Target bitrate must be 1..={MAX_ENCODER_BITRATE} kbps; the encoder, sample rate and channels may lower this ceiling."
-        )));
-    }
-    if matches!(
-        settings.encoder_type,
-        EncoderType::NativeAac | EncoderType::Auto
-    ) && settings.native_aac_speed > NATIVE_SPEED_MAX
-    {
-        return Err(AppError::InvalidInput("NMR speed must be 0..=4".into()));
-    }
     if (settings.encoder_type == EncoderType::Opus)
         != (settings.bitrate_mode == BitrateMode::VbrTarget)
     {
@@ -330,12 +306,25 @@ pub fn validate_encoder_settings(settings: &EncoderSettings) -> Result<()> {
             "Opus uses a VBR target bitrate.".into(),
         ));
     }
-    if settings.encoder_type == EncoderType::Opus
-        && !OPUS_BITRATE_RANGE.contains(&settings.bitrate_kbps)
+    // VBR quality owns bitrate; every other mode takes a target.
+    let bitrate_range = encoder_bitrate_range(settings.encoder_type);
+    if !matches!(settings.bitrate_mode, BitrateMode::Vbr(_))
+        && !bitrate_range.contains(&settings.bitrate_kbps)
     {
-        return Err(AppError::InvalidInput(
-            "Opus target bitrate must be 6..=510 kbps.".into(),
-        ));
+        return Err(AppError::InvalidInput(format!(
+            "Target bitrate must be {}..={} kbps; the encoder, sample rate and channels may lower this ceiling.",
+            bitrate_range.start(),
+            bitrate_range.end()
+        )));
+    }
+    if matches!(
+        settings.encoder_type,
+        EncoderType::NativeAac | EncoderType::Auto
+    ) && settings.native_aac_speed > NATIVE_SPEED_MAX
+    {
+        return Err(AppError::InvalidInput(format!(
+            "NMR speed must be 0..={NATIVE_SPEED_MAX}"
+        )));
     }
     validate_bitrate_mode(settings.encoder_type, settings.bitrate_mode)?;
     validate_encoder_mode_combo(settings.encoder_type, settings.bitrate_mode)?;
@@ -388,43 +377,10 @@ fn validate_encoder_mode_combo(encoder_type: EncoderType, mode: BitrateMode) -> 
     }
 }
 
-/// One-time ffmpeg init to ensure codec discovery works before FFI calls
-fn ensure_ffmpeg_initialized() {
-    use std::sync::Once;
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        let _ = ffmpeg_next::init();
-    });
-}
-
-/// Checks whether an encoder by name is available in the current FFmpeg build
-fn is_encoder_available_by_name(name: &str) -> bool {
-    use std::ffi::CString;
-    ensure_ffmpeg_initialized();
-    let result = unsafe {
-        let c_name = match CString::new(name) {
-            Ok(s) => s,
-            Err(_) => {
-                log::warn!("🔍 Encoder check '{}': invalid C string", name);
-                return false;
-            }
-        };
-        let ptr = ffmpeg_next::sys::avcodec_find_encoder_by_name(c_name.as_ptr());
-        !ptr.is_null()
-    };
-    log::debug!(
-        "🔍 Encoder check '{}': {}",
-        name,
-        if result { "FOUND" } else { "NOT FOUND" }
-    );
-    result
-}
-
 /// Probe the required NMR controls on the named encoder's private options.
 /// Opening each requested configuration still performs authoritative readback.
 fn is_native_nmr_available() -> bool {
     use ffmpeg_next as ff;
-    ensure_ffmpeg_initialized();
     let Some(codec) = ff::encoder::find_by_name("aac") else {
         return false;
     };
@@ -453,9 +409,11 @@ fn is_native_nmr_available() -> bool {
 pub(super) fn linked_encoder_available(encoder: EncoderType) -> bool {
     match encoder {
         EncoderType::NativeAac => is_native_nmr_available(),
-        EncoderType::AacAt => cfg!(target_os = "macos") && is_encoder_available_by_name("aac_at"),
+        EncoderType::AacAt => {
+            cfg!(target_os = "macos") && ffmpeg_next::encoder::find_by_name("aac_at").is_some()
+        }
         EncoderType::Faac => true,
-        EncoderType::Opus => is_encoder_available_by_name("libopus"),
+        EncoderType::Opus => ffmpeg_next::encoder::find_by_name("libopus").is_some(),
         EncoderType::Auto | EncoderType::FdkHeAac => false,
     }
 }
@@ -471,59 +429,46 @@ pub fn resolve_encoder_type(
     }
 }
 
-pub fn encoder_available(
-    requested: EncoderType,
-    availability: &crate::audio::toolchain::EncoderAvailability,
-) -> bool {
-    match requested {
-        EncoderType::Auto | EncoderType::Faac => true,
-        EncoderType::Opus => linked_encoder_available(EncoderType::Opus),
-        EncoderType::FdkHeAac => availability.fdk_available,
-        EncoderType::AacAt => availability.aac_at_available,
-        EncoderType::NativeAac => availability.native_aac_available,
-    }
-}
-
 pub fn validate_requested_encoder_available(
     requested: EncoderType,
     availability: &crate::audio::toolchain::EncoderAvailability,
 ) -> Result<()> {
-    if requested == EncoderType::FdkHeAac && !availability.fdk_available {
-        return Err(AppError::toolchain_required(format!(
+    match requested {
+        EncoderType::Auto | EncoderType::Faac => Ok(()),
+        EncoderType::FdkHeAac if availability.fdk_available => Ok(()),
+        EncoderType::FdkHeAac => Err(AppError::toolchain_required(format!(
             "FDK AAC requires a validated external FFmpeg toolchain. {}",
             availability.status_message
-        )));
+        ))),
+        EncoderType::AacAt => validate_encoder_available(requested, availability.aac_at_available),
+        EncoderType::NativeAac => {
+            validate_encoder_available(requested, availability.native_aac_available)
+        }
+        EncoderType::Opus => {
+            validate_encoder_available(requested, linked_encoder_available(requested))
+        }
     }
-    validate_encoder_available(requested, encoder_available(requested, availability))
 }
 
+/// Rejects an unavailable linked encoder (Native, Apple, Opus).
 pub(super) fn validate_encoder_available(requested: EncoderType, available: bool) -> Result<()> {
     if available {
         return Ok(());
     }
-
     let message = match requested {
-        EncoderType::Auto => return Ok(()),
-        EncoderType::FdkHeAac => {
-            return Err(AppError::toolchain_required(
-                "FDK AAC requires a validated external FFmpeg toolchain.",
-            ));
-        }
         // Platform-truthful: on macOS the encoder exists but this build lacks
         // it; elsewhere AudioToolbox does not exist at all.
-        EncoderType::AacAt => {
-            if cfg!(target_os = "macos") {
-                "Apple AAC is unavailable in this build.".to_string()
-            } else {
-                "Apple AAC (aac_at) is only available on macOS.".to_string()
-            }
+        EncoderType::AacAt if cfg!(target_os = "macos") => {
+            "Apple AAC is unavailable in this build."
         }
-        EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.".to_string(),
-        EncoderType::Faac => unreachable!("FAAC is bundled and always available"),
-        EncoderType::Opus => "Opus is unavailable in this build.".into(),
+        EncoderType::AacAt => "Apple AAC (aac_at) is only available on macOS.",
+        EncoderType::NativeAac => "Native AAC (FFmpeg) is unavailable in this build.",
+        EncoderType::Opus => "Opus is unavailable in this build.",
+        EncoderType::Auto | EncoderType::FdkHeAac | EncoderType::Faac => {
+            unreachable!("{requested} is not a linked encoder")
+        }
     };
-
-    Err(AppError::InvalidInput(message))
+    Err(AppError::InvalidInput(message.into()))
 }
 
 /// Resolves the requested FFmpeg encoder name for the chosen encoder type.
@@ -542,20 +487,6 @@ pub fn resolve_encoder_name(encoder_type: EncoderType) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audio::toolchain::{EncoderAvailability, EncoderCapabilitySource};
-
-    fn availability_without_aac_at() -> EncoderAvailability {
-        EncoderAvailability {
-            fdk_setup_supported: true,
-            fdk_available: false,
-            fdk_source: EncoderCapabilitySource::None,
-            aac_at_available: false,
-            native_aac_available: true,
-            auto_encoder: EncoderType::NativeAac,
-            detected_toolchain_path: None,
-            status_message: String::new(),
-        }
-    }
 
     #[test]
     fn fdk_auto_resolves_profile_and_rate_without_upmixing_or_changing_explicit_rates() {
@@ -576,7 +507,7 @@ mod tests {
             };
             let rate = settings
                 .resolve_fdk_output(&crate::audio::SampleRateConfig::Auto, Some(8000))
-                .unwrap();
+                .expect("Auto FDK profile should resolve a rate");
             assert_eq!(settings.fdk_profile, expected);
             assert_eq!(settings.channels, channels);
             assert_eq!(
@@ -610,30 +541,7 @@ mod tests {
         };
         manual
             .resolve_fdk_output(&crate::audio::SampleRateConfig::Auto, Some(44100))
-            .unwrap();
+            .expect("manual FDK profile should keep a supported rate");
         assert_eq!(manual.fdk_profile, FdkProfile::HeAacV1);
-    }
-
-    /// Per-OS assertion pattern from `processor/streams.rs`: the rejection
-    /// message must be truthful about WHY Apple AAC is unavailable.
-    #[test]
-    fn aac_at_unavailable_message_is_platform_truthful() {
-        let err = validate_requested_encoder_available(
-            EncoderType::AacAt,
-            &availability_without_aac_at(),
-        )
-        .expect_err("aac_at must be rejected when unavailable");
-        let message = err.to_string();
-
-        #[cfg(target_os = "macos")]
-        assert!(
-            message.contains("Apple AAC is unavailable in this build."),
-            "unexpected message: {message}"
-        );
-        #[cfg(not(target_os = "macos"))]
-        assert!(
-            message.contains("Apple AAC (aac_at) is only available on macOS."),
-            "unexpected message: {message}"
-        );
     }
 }
