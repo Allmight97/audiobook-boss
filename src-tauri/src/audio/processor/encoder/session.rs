@@ -123,12 +123,7 @@ impl EncoderSession {
         self.frame_samples
     }
     pub(crate) fn name(&self) -> &'static str {
-        match self.resolved {
-            EncoderType::Faac => "faac",
-            EncoderType::AacAt => "aac_at",
-            EncoderType::Opus => "libopus",
-            _ => "aac",
-        }
+        crate::audio::settings_encoder::resolve_encoder_name(self.resolved)
     }
 
     pub(crate) fn submit(&mut self, frame: &ff::frame::Audio) -> Result<()> {

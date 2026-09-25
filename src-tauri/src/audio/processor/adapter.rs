@@ -153,7 +153,6 @@ fn resolve_processor_adapter_from_parts(
     availability: &EncoderAvailability,
     toolchain: Option<ValidatedExternalToolchain>,
 ) -> Result<ResolvedProcessorAdapter> {
-    validate_requested_encoder_available(encoder_settings.encoder_type, availability)?;
     let resolved_encoder = resolve_encoder_type(encoder_settings, availability);
     validate_requested_encoder_available(resolved_encoder, availability)?;
     let mut resolved_settings = encoder_settings.clone();

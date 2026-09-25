@@ -26,6 +26,16 @@
   snapshots as research material. Build provenance explicitly owned by ABB,
   such as the patched FFmpeg sys crate under `vendor/`, is a separate concern.
 
+## Golden Path
+
+Import one or more titles from any supported source, adjust metadata and
+encoding preferences, and output a title my audiobook library immediately
+recognizes as correctly tagged and validly structured.
+
+When a rule, check, abstraction, or cautious step has a cost, name which part
+of this path or which hard invariant below it protects. Caution that protects
+neither earns no preference over the simpler design.
+
 ## Hard Invariants
 
 - Preserve data-loss protections, TS↔Rust parity, path safety, and owning

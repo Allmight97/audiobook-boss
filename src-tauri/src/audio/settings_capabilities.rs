@@ -2,8 +2,8 @@
 
 use super::settings::{encoder_sample_rates, supported_sample_rates};
 use super::settings_encoder::{
-    all_encoder_types, allowed_bitrate_mode_kinds_for, default_bitrate_mode_for, BitrateMode,
-    BitrateModeKind, ChannelConfig, EncoderType, FaacProfile, FdkProfile, VALID_VBR_LEVEL_RANGE,
+    allowed_bitrate_mode_kinds_for, default_bitrate_mode_for, BitrateMode, BitrateModeKind,
+    ChannelConfig, EncoderType, FaacProfile, FdkProfile, ALL_ENCODER_TYPES, VALID_VBR_LEVEL_RANGE,
 };
 use super::toolchain::{detect_encoder_availability, EncoderAvailability};
 use serde::{Deserialize, Serialize};
@@ -61,8 +61,8 @@ pub struct EncoderSettingsCapabilities {
 pub fn encoder_settings_capabilities() -> EncoderSettingsCapabilities {
     EncoderSettingsCapabilities {
         availability: detect_encoder_availability(),
-        encoder_types: all_encoder_types().to_vec(),
-        encoder_configurations: all_encoder_types()
+        encoder_types: ALL_ENCODER_TYPES.to_vec(),
+        encoder_configurations: ALL_ENCODER_TYPES
             .into_iter()
             .map(|encoder_type| EncoderConfigurationCapability {
                 encoder_type,

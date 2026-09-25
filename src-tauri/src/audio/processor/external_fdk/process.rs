@@ -1,4 +1,4 @@
-use super::super::run_diagnostics::{append_run_record, unix_timestamp_seconds};
+use super::super::run_diagnostics::{append_run_record, write_run_header, write_run_identity};
 use crate::audio::toolchain::{last_nonempty_stderr_line, ValidatedExternalToolchain};
 use crate::audio::{AudioFile, DecoderSelection};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -341,20 +341,12 @@ fn append_external_encoding_log_best_effort(entry: &ExternalFdkRunLog<'_>) {
 
 fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
     let mut output = String::new();
-    let _ = writeln!(
-        output,
-        "--- external-fdk run {} ---",
-        unix_timestamp_seconds()
+    write_run_header(
+        &mut output,
+        "external-fdk",
+        entry.status,
+        entry.status_detail,
     );
-    let _ = writeln!(
-        output,
-        "run_id={}",
-        std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".to_string())
-    );
-    let _ = writeln!(output, "status={}", entry.status);
-    if let Some(detail) = entry.status_detail {
-        let _ = writeln!(output, "status_detail={detail}");
-    }
     let settings = entry
         .context
         .required_encoder_settings()
@@ -368,19 +360,7 @@ fn format_external_encoding_log_entry(entry: &ExternalFdkRunLog<'_>) -> String {
         None,
         None,
     );
-    let _ = writeln!(
-        output,
-        "target_duration_seconds={:.3}",
-        entry.total_duration_seconds
-    );
-    let _ = writeln!(output, "session_id={}", entry.context.session.id());
-    if let Some(job_id) = entry.context.job_id.as_deref() {
-        let _ = writeln!(output, "job_id={job_id}");
-    }
-    if let Some(input_index) = entry.context.input_index {
-        let _ = writeln!(output, "input_index={input_index}");
-    }
-    let _ = writeln!(output, "operation_kind={:?}", entry.context.operation_kind);
+    write_run_identity(&mut output, entry.context, entry.total_duration_seconds);
     let _ = writeln!(
         output,
         "toolchain_ffmpeg={}",
