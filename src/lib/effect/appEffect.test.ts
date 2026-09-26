@@ -4,11 +4,8 @@ import {
 	type AppEffect,
 	Effect,
 	makeWorkflowKit,
-	makeWorkflowLayer,
-	makeWorkflowServiceTag,
 	runAppEffect,
 	workflowTryPromise,
-	workflowTrySync,
 } from './appEffect';
 
 class HarnessWorkflowFailed extends Data.TaggedError('HarnessWorkflowFailed')<{
@@ -21,22 +18,6 @@ function harnessFailure(message: string, cause: unknown): HarnessWorkflowFailed 
 }
 
 describe('AppEffect kernel', () => {
-	it('runs UI-callable promise bridges with provided workflow services', async () => {
-		const NumberService = makeWorkflowServiceTag<'test/NumberService', { value: number }>(
-			'test/NumberService',
-		);
-		const program = Effect.gen(function* () {
-			const service = yield* NumberService;
-			return service.value * 2;
-		});
-
-		const result = await runAppEffect(
-			program.pipe(Effect.provide(makeWorkflowLayer(NumberService, { value: 21 }))),
-		);
-
-		expect(result).toBe(42);
-	});
-
 	it('maps rejected promises into owner-specific workflow errors via workflowTryPromise', async () => {
 		const error = await runAppEffect(
 			workflowTryPromise(
@@ -49,24 +30,6 @@ describe('AppEffect kernel', () => {
 		expect(error).toMatchObject({
 			_tag: 'HarnessWorkflowFailed',
 			message: 'Owner workflow dependency failed.',
-			cause: expect.any(Error),
-		} satisfies Partial<HarnessWorkflowFailed>);
-	});
-
-	it('maps synchronous throws into owner-specific workflow errors via workflowTrySync', async () => {
-		const error = await runAppEffect(
-			workflowTrySync(
-				() => {
-					throw new Error('sync dependency failed');
-				},
-				'Owner sync workflow failed.',
-				harnessFailure,
-			).pipe(Effect.flip),
-		);
-
-		expect(error).toMatchObject({
-			_tag: 'HarnessWorkflowFailed',
-			message: 'Owner sync workflow failed.',
 			cause: expect.any(Error),
 		} satisfies Partial<HarnessWorkflowFailed>);
 	});

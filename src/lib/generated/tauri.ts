@@ -576,12 +576,14 @@ export type MetadataSaveRequest = {
 	metadataPatch: MetadataIntentPatch,
 };
 
+/**
+ *  Per-file outcome the frontend uses to clear or retain drafts. The reason
+ *  for each outcome is the operation child's terminal message in Work Center.
+ */
 export type MetadataSaveResultEntry = {
 	inputIndex: number,
 	filePath: string,
 	status: MetadataSaveResultStatus,
-	message: string,
-	error: AppErrorEnvelope | null,
 };
 
 export type MetadataSaveResultStatus = "success" | "cancelled" | "failed";

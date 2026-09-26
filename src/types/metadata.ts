@@ -28,7 +28,6 @@ import type {
 	MetadataSource as GeneratedMetadataSource,
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
 } from '../lib/generated/tauri';
-import type { AppErrorEnvelope } from '../lib/tauri/appError';
 import type { NullToOptionalDeep } from './ipc';
 
 /**
@@ -58,20 +57,8 @@ export type MetadataLookupResponse = Omit<
 
 export type MetadataSaveRequest = GeneratedMetadataSaveRequest;
 
-export type MetadataSaveResultError = AppErrorEnvelope;
+export type MetadataSaveResultEntry = GeneratedMetadataSaveResultEntry;
 
-export type MetadataSaveResultEntry = Omit<
-	NullToOptionalDeep<GeneratedMetadataSaveResultEntry>,
-	'error'
-> & {
-	error?: MetadataSaveResultError | null;
-};
-
-export type MetadataSaveBatchResult = Omit<
-	NullToOptionalDeep<GeneratedMetadataSaveBatchResult>,
-	'results'
-> & {
-	results: MetadataSaveResultEntry[];
-};
+export type MetadataSaveBatchResult = GeneratedMetadataSaveBatchResult;
 
 export type MetadataSaveResultStatus = GeneratedMetadataSaveResultStatus;

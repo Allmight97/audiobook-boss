@@ -1,9 +1,7 @@
 import { createEffect, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
-import {
-	nativeDropTargetAtPoint,
-} from '../../app/inputSession/nativeIngress';
+import { nativeDropTargetAtPoint } from '../../app/inputSession/nativeIngress';
 import { useAppRuntime } from '../../app/runtime';
 import type { AcquisitionLane } from '../../types/appSettings';
 import { isFileDropEvent } from '../../types/events';

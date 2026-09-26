@@ -825,10 +825,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 						)
 							cache.clearPendingMetadataForFile(entry.filePath);
 					} else if (entry.status === 'failed') {
-						console.error(
-							`Failed metadata save for ${entry.filePath}:`,
-							entry.error ?? entry.message,
-						);
+						console.error(`Failed metadata save for ${entry.filePath}; see Work Center.`);
 					}
 				}
 				const latest = editor;

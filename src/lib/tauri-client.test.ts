@@ -198,21 +198,17 @@ describe('tauriClient nullish adapters', () => {
 					inputIndex: 0,
 					filePath: '/books/a.m4b',
 					status: 'success',
-					message: 'ok',
-					error: null,
 				},
 				{
 					inputIndex: 1,
 					filePath: '/books/b.m4b',
 					status: 'failed',
-					message: 'bad',
-					error: null,
 				},
 			],
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.saveMetadataBatch([
+		await tauriClient.saveMetadataBatch([
 			{
 				filePath: '/books/a.m4b',
 				metadataPatch: { title: { op: 'set', value: 'A' } },
@@ -238,7 +234,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.items[0]?.metadataPatch.title).toEqual({ op: 'set', value: 'A' });
 		expect(args.items[1]?.metadataPatch.title).toEqual({ op: 'clear' });
 		expect(args.items[1]?.metadataPatch.cover_art).toEqual({ op: 'clear' });
-		expect(result.results[1]?.error).toBeUndefined();
 	});
 
 	it('normalizes nullable metadata fields from backend responses', async () => {

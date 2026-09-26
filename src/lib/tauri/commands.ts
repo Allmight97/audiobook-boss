@@ -43,7 +43,6 @@ import {
 	normalizeFileList,
 	normalizeLookupResponse,
 	normalizeMetadata,
-	normalizeMetadataSaveBatchResult,
 	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
@@ -201,7 +200,6 @@ export const commandSpecs = {
 	save_metadata_batch: (args: { items: MetadataSaveRequest[] }) =>
 		runGeneratedCommand(
 			generatedCommands.saveMetadataBatch(compileMetadataSaveRequests(args.items)),
-			normalizeMetadataSaveBatchResult,
 		),
 	search_online_metadata: (args: {
 		query: string;

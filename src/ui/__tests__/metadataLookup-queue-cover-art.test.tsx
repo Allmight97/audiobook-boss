@@ -93,7 +93,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 				inputIndex,
 				filePath: item.filePath,
 				status: 'success' as const,
-				message: 'ok',
 			})),
 			summary: {
 				succeeded: items.length,

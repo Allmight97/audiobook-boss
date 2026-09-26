@@ -193,6 +193,14 @@
 	color: var(--text-secondary);
 }
 
+.work-child-reason {
+	padding-left: 0.5rem;
+	font-size: 0.6875rem;
+	line-height: 1.3;
+	color: var(--text-error);
+	overflow-wrap: anywhere;
+}
+
 .work-child-status {
 	min-width: 4.5rem;
 	flex-shrink: 0;

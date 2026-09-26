@@ -6,10 +6,12 @@
   - `submit_processing_operation` (spawned background batch/merge, returns
     `WorkSubmissionAccepted`).
   - inline metadata-save lifecycle hooks — `begin_metadata_save_operation`,
-    `record_metadata_save_progress`, `finish_metadata_save_operation`,
-    `fail_metadata_save_operation` — orchestrated by `src-tauri/src/commands/metadata/save_batch.rs`
-    (the command owns the metadata executor; WorkRuntime owns the operation
-    lifecycle/snapshots/cancellation).
+    `record_metadata_save_progress`, and `finish_metadata_save_operation`
+    (takes the run's outcome: `InlineRunTerminal` results or the aborting
+    error) — orchestrated by `src-tauri/src/commands/metadata/save_batch.rs`.
+    The command owns the metadata executor and each child's reason;
+    WorkRuntime owns the lifecycle, snapshots, cancellation, and terminal
+    classification, shared with processing runs.
 - `OperationId`
 - operation snapshot, child snapshot, progress, summary, lane, and submit request types
 - `WORK_OPERATION_SNAPSHOT_EVENT_NAME`

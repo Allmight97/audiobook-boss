@@ -145,6 +145,7 @@ export function WorkCenterView(): JSX.Element {
 									<div class="work-child-list">
 										<For each={operation.children}>
 											{(child) => (
+												<>
 												<div class={`work-child-row is-${child.status}`}>
 													<span class="work-child-label" title={child.sourcePath ?? child.label}>
 														{child.label}
@@ -168,6 +169,14 @@ export function WorkCenterView(): JSX.Element {
 														</button>
 													</Show>
 												</div>
+												<Show when={child.status === 'failed' && child.message}>
+													{(reason) => (
+														<div class="work-child-reason" title={reason()}>
+															{reason()}
+														</div>
+													)}
+												</Show>
+												</>
 											)}
 										</For>
 									</div>

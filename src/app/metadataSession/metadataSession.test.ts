@@ -46,7 +46,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 				inputIndex,
 				filePath: item.filePath,
 				status: 'success' as const,
-				message: 'ok',
 			})),
 			summary: {
 				succeeded: items.length,
@@ -688,7 +687,6 @@ describe('metadata session selection and save', () => {
 										inputIndex: 0,
 										filePath: '/books/alpha.m4b',
 										status: 'success',
-										message: 'ok',
 									},
 								],
 								summary: {

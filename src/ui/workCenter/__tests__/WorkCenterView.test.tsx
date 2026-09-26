@@ -102,3 +102,19 @@ it('keeps durations beyond an hour in minutes and seconds', () => {
 	showOperation(operation);
 	expect(screen.getByText('Completed in 61:01')).toBeVisible();
 });
+
+it('shows each failed file with its own reason', () => {
+	const operation = completedOperation();
+	operation.status = 'mixed';
+	operation.children[0] = {
+		...operation.children[0]!,
+		status: 'failed',
+		message: 'File validation failed: File not found: A Change of Plans.m4b',
+	};
+	operation.children[1] = { ...operation.children[1]!, message: 'Saved metadata: Feedback.m4b' };
+	showOperation(operation);
+	expect(
+		screen.getByText('File validation failed: File not found: A Change of Plans.m4b'),
+	).toBeVisible();
+	expect(screen.queryByText('Saved metadata: Feedback.m4b')).not.toBeInTheDocument();
+});
