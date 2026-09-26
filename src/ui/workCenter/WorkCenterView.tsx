@@ -146,36 +146,38 @@ export function WorkCenterView(): JSX.Element {
 										<For each={operation.children}>
 											{(child) => (
 												<>
-												<div class={`work-child-row is-${child.status}`}>
-													<span class="work-child-label" title={child.sourcePath ?? child.label}>
-														{child.label}
-													</span>
-													<span class="work-child-status">
-														{childStatusLabel(child)}
-														<Show
-															when={child.status === 'running' && child.progress.etaSeconds != null}
-														>
-															· {formatEtaRemaining(child.progress.etaSeconds ?? 0)}
+													<div class={`work-child-row is-${child.status}`}>
+														<span class="work-child-label" title={child.sourcePath ?? child.label}>
+															{child.label}
+														</span>
+														<span class="work-child-status">
+															{childStatusLabel(child)}
+															<Show
+																when={
+																	child.status === 'running' && child.progress.etaSeconds != null
+																}
+															>
+																· {formatEtaRemaining(child.progress.etaSeconds ?? 0)}
+															</Show>
+														</span>
+														<Show when={child.sourcePath}>
+															<button
+																class="work-child-source"
+																type="button"
+																title="Open source file"
+																onClick={() => void workOperations.openSource(child)}
+															>
+																Source
+															</button>
 														</Show>
-													</span>
-													<Show when={child.sourcePath}>
-														<button
-															class="work-child-source"
-															type="button"
-															title="Open source file"
-															onClick={() => void workOperations.openSource(child)}
-														>
-															Source
-														</button>
+													</div>
+													<Show when={child.status === 'failed' && child.message}>
+														{(reason) => (
+															<div class="work-child-reason" title={reason()}>
+																{reason()}
+															</div>
+														)}
 													</Show>
-												</div>
-												<Show when={child.status === 'failed' && child.message}>
-													{(reason) => (
-														<div class="work-child-reason" title={reason()}>
-															{reason()}
-														</div>
-													)}
-												</Show>
 												</>
 											)}
 										</For>

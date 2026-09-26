@@ -13,8 +13,8 @@
   `src/app/metadataLookup`.
 - `index.ts` is the export surface. `workflow.ts`, `state.ts`, and
   `services.ts` are private implementation modules.
-- Keep the Effect fake layer private: workflow tests import
-  `makeMetadataLookupWorkflowServicesLayer` from `workflow.ts`. Do not
+- The workflow is plain async over injected services; workflow tests call
+  `runMetadataLookupWorkflow` from `workflow.ts` with fake services. Do not
   re-export cover-preview globals, `bumpPreview`, or a module-global cache.
 
 ## Hard Invariants
@@ -43,8 +43,7 @@
 
 - `src/lib/media/__tests__/coverArtPreviewScheduler.test.ts` pins scheduler
   behavior, clear/Apply lifetime, and two-instance isolation.
-- Workflow tests inject `makeMetadataLookupWorkflowServicesLayer` with a
-  harness-owned preview factory.
+- Workflow tests inject fake services with a harness-owned preview scheduler.
 - Two-runtime preview isolation lives in `src/app/runtime/runtime.test.ts`.
 
 ## Breaking-Change Triggers

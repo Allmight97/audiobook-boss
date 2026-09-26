@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onSettled } from 'solid-js';
+import { createEffect, createSignal, For } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
@@ -88,10 +88,6 @@ export function MetadataLookupView(): JSX.Element {
 	const setApplyMode = lookup.setApplyMode;
 	const setReplaceCover = lookup.setReplaceCover;
 	const [restoreFocus, setRestoreFocus] = createSignal(true);
-
-	onSettled(() => {
-		void runLookup({ type: 'init' });
-	});
 
 	createEffect(
 		() => {
@@ -226,7 +222,7 @@ export function MetadataLookupView(): JSX.Element {
 						<Button
 							id="metadata-lookup-skip-btn"
 							data-testid="metadata-lookup-skip-btn"
-							disabled={!view().skipEnabled}
+							disabled={!view().isQueueMode}
 							onClick={() => void runLookup({ type: 'skipQueueItem' })}
 						>
 							Skip

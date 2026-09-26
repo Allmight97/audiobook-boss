@@ -57,7 +57,6 @@ export function updateApplyModeOptions(services: MetadataLookupWorkflowServices)
 	const state = services.getLookupState();
 	state.isQueueMode = multi;
 	state.applyMode = multi ? 'queue' : 'current';
-	state.skipEnabled = multi;
 }
 
 export function resetResults(services: MetadataLookupWorkflowServices): void {

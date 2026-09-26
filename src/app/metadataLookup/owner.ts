@@ -14,11 +14,7 @@ import {
 	type MetadataLookupSource,
 	type MetadataLookupState,
 } from './state';
-import {
-	makeMetadataLookupWorkflowServicesLayer,
-	runMetadataLookupWorkflow,
-	type MetadataLookupWorkflowAction,
-} from './workflow';
+import { runMetadataLookupWorkflow, type MetadataLookupWorkflowAction } from './workflow';
 
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
@@ -88,9 +84,8 @@ export function createMetadataLookupOwner(deps: {
 			pendingRequest?.abort();
 			const request = new AbortController();
 			pendingRequest = request;
-			const layer = makeMetadataLookupWorkflowServicesLayer(services(request.signal));
 			try {
-				await runMetadataLookupWorkflow(layer, action);
+				await runMetadataLookupWorkflow(services(request.signal), action);
 				if (!request.signal.aborted) publish();
 			} catch (error) {
 				if (request.signal.aborted) return;

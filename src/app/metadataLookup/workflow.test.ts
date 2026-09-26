@@ -7,11 +7,7 @@ import type {
 	OnlineMetadataResult,
 } from '../../types/metadata';
 import { createCoverArtPreviewScheduler } from '../../lib/media/coverArtPreviewScheduler';
-import {
-	makeMetadataLookupWorkflowServicesLayer,
-	runMetadataLookupWorkflow,
-	type MetadataLookupWorkflowServices,
-} from './workflow';
+import { runMetadataLookupWorkflow, type MetadataLookupWorkflowServices } from './workflow';
 import type {
 	MetadataLookupQueueItem,
 	MetadataLookupQueueState,
@@ -99,7 +95,6 @@ function defaultLookupState(overrides: Partial<MetadataLookupState> = {}): Metad
 		queueContext: 'No files selected.',
 		results: [],
 		isQueueMode: false,
-		skipEnabled: false,
 		hasSearched: false,
 		...overrides,
 	};
@@ -191,7 +186,7 @@ function makeHarness(options?: {
 	} satisfies MetadataLookupWorkflowServices;
 
 	return {
-		layer: makeMetadataLookupWorkflowServicesLayer(services),
+		services,
 		lookupState,
 		queueState,
 		metadataByFile,
@@ -226,7 +221,7 @@ describe('MetadataLookupWorkflow', () => {
 		});
 
 		await harness.previews.loadBytes(result.coverUrl!);
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledTimes(1);
 		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
@@ -253,7 +248,7 @@ describe('MetadataLookupWorkflow', () => {
 		});
 
 		await harness.previews.loadBytes(firstCoverUrl);
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith(secondCoverUrl);
 		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
@@ -278,7 +273,7 @@ describe('MetadataLookupWorkflow', () => {
 
 		harness.previews.schedule([result.coverUrl!]);
 		await flushAsync();
-		const pendingApply = runMetadataLookupWorkflow(harness.layer, {
+		const pendingApply = runMetadataLookupWorkflow(harness.services, {
 			type: 'applyResult',
 			index: 0,
 		});
@@ -300,7 +295,7 @@ describe('MetadataLookupWorkflow', () => {
 			currentFileList: fileList([audioFile('/books/invalid.m4b', false)]),
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'open' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'open' });
 
 		expect(harness.queueState.queue).toEqual([]);
 		expect(harness.lookupState.titleQuery).toBe('');
@@ -316,7 +311,7 @@ describe('MetadataLookupWorkflow', () => {
 			searchOnlineMetadata: () => request.promise,
 		});
 
-		const opening = runMetadataLookupWorkflow(harness.layer, { type: 'open' });
+		const opening = runMetadataLookupWorkflow(harness.services, { type: 'open' });
 		await flushAsync();
 
 		expect(harness.lookupState.isOpen).toBe(true);
@@ -331,7 +326,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('opens a selected-file queue and immediately searches the first item', async () => {
 		const harness = makeHarness();
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'open' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'open' });
 
 		expect(harness.queueState.queue.map((item) => item.file.path)).toEqual([
 			'/books/alpha.m4b',
@@ -340,7 +335,7 @@ describe('MetadataLookupWorkflow', () => {
 		expect(harness.lookupState.titleQuery).toBe('Alpha Existing');
 		expect(harness.lookupState.queueContext).toBe('1 of 2 • alpha.m4b');
 		expect(harness.lookupState.applyMode).toBe('queue');
-		expect(harness.lookupState.skipEnabled).toBe(true);
+		expect(harness.lookupState.isQueueMode).toBe(true);
 		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
 			query: 'Alpha Existing',
 			sources: ['audnexus', 'openlibrary'],
@@ -353,7 +348,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('rejects empty searches without calling the backend', async () => {
 		const harness = makeHarness({ lookupState: { titleQuery: '   ', authorQuery: '  ' } });
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'search' });
 
 		expect(harness.mocks.searchOnlineMetadata).not.toHaveBeenCalled();
 		expect(harness.lookupState.statusMessage).toBe('Enter a title, author, or ASIN to search.');
@@ -367,7 +362,7 @@ describe('MetadataLookupWorkflow', () => {
 			searchOnlineMetadata: async () => lookupResponse([result]),
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'search' });
 
 		expect(harness.mocks.searchOnlineMetadata).toHaveBeenCalledWith({
 			query: 'alpha',
@@ -395,7 +390,7 @@ describe('MetadataLookupWorkflow', () => {
 				}),
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'search' });
 
 		expect(harness.lookupState.results).toEqual([result]);
 		expect(harness.lookupState.hasSearched).toBe(true);
@@ -414,7 +409,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'search' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'search' });
 
 		expect(harness.mocks.consoleError).toHaveBeenCalledWith('Metadata lookup failed:', cause);
 		expect(harness.lookupState.results).toEqual([]);
@@ -431,7 +426,7 @@ describe('MetadataLookupWorkflow', () => {
 			queueState: { queue: [{ file: audioFile('/books/alpha.m4b'), index: 0 }], index: 0 },
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.selectFile).toHaveBeenCalledWith(
 			expect.objectContaining({ path: '/books/alpha.m4b' }),
@@ -457,7 +452,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
 			expect.objectContaining({ path: '/books/alpha.m4b' }),
@@ -492,7 +487,7 @@ describe('MetadataLookupWorkflow', () => {
 			loadCoverArtFromUrl: async () => [9, 9, 9],
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
 		expect(harness.mocks.applyMetadataToForm).toHaveBeenCalledWith(
@@ -520,7 +515,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.consoleWarn).toHaveBeenCalledWith(
 			'Failed to load cover art from lookup:',
@@ -548,7 +543,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.consoleWarn).toHaveBeenCalledWith(
 			'Failed to load cover art from lookup:',
@@ -576,7 +571,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'skipQueueItem' });
 
 		expect(harness.mocks.applyMetadataToForm).not.toHaveBeenCalled();
 		expect(harness.queueState.index).toBe(1);
@@ -604,7 +599,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 			selectFile: async () => false,
 		});
-		await runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'skipQueueItem' });
 		expect(harness.queueState.index).toBe(0);
 		expect(harness.lookupState.results).toEqual([result]);
 		expect(harness.lookupState.statusVariant).toBe('error');
@@ -622,7 +617,7 @@ describe('MetadataLookupWorkflow', () => {
 			},
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' });
+		await runMetadataLookupWorkflow(harness.services, { type: 'skipQueueItem' });
 
 		expect(harness.lookupState.statusMessage).toBe('Queue complete.');
 	});
@@ -633,7 +628,7 @@ describe('MetadataLookupWorkflow', () => {
 			queueState: { queue: [{ file: audioFile('/books/alpha.m4b'), index: 0 }], index: 0 },
 		});
 
-		await runMetadataLookupWorkflow(harness.layer, { type: 'applyResult', index: 0 });
+		await runMetadataLookupWorkflow(harness.services, { type: 'applyResult', index: 0 });
 
 		expect(harness.mocks.applyMetadataToForm).not.toHaveBeenCalled();
 		expect(harness.lookupState.statusMessage).toBe('');
@@ -656,7 +651,7 @@ describe('MetadataLookupWorkflow', () => {
 		});
 
 		await expect(
-			runMetadataLookupWorkflow(harness.layer, { type: 'skipQueueItem' }),
+			runMetadataLookupWorkflow(harness.services, { type: 'skipQueueItem' }),
 		).resolves.toBeUndefined();
 		expect(harness.lookupState.statusMessage).toBe(
 			'Metadata lookup failed. Check console and try again.',

@@ -6,13 +6,6 @@ import type {
 	OnlineMetadataResult,
 } from '../../types/metadata';
 import {
-	Effect,
-	type AppLayer,
-	type AppEffect,
-	makeWorkflowKit,
-	runAppEffect,
-} from '../../lib/effect/appEffect';
-import {
 	deriveAuthorQueryFromFile,
 	deriveTitleQueryFromFile,
 	mapResultToMetadata,
@@ -56,22 +49,6 @@ export interface MetadataLookupWorkflowServices {
 	publishView?: () => void;
 }
 
-export type MetadataLookupWorkflowServicesId = 'MetadataLookup/WorkflowServices';
-export type MetadataLookupWorkflowLayer = AppLayer<MetadataLookupWorkflowServicesId>;
-
-const kit = makeWorkflowKit(
-	'MetadataLookup/WorkflowServices',
-	'MetadataLookupWorkflowFailed',
-)<MetadataLookupWorkflowServices>();
-
-export const MetadataLookupWorkflowServicesTag = kit.Tag;
-
-export function makeMetadataLookupWorkflowServicesLayer(
-	services: MetadataLookupWorkflowServices,
-): MetadataLookupWorkflowLayer {
-	return kit.makeLive(services);
-}
-
 const METADATA_TITLE_INPUT_ID = 'meta-title';
 
 type QueueAdvanceReason = 'applied' | 'skipped';
@@ -94,17 +71,19 @@ type CoverArtApplyResult =
 export type MetadataLookupWorkflowAction =
 	| { type: 'applyResult'; index: number }
 	| { type: 'close' }
-	| { type: 'init' }
 	| { type: 'manualEntry' }
 	| { type: 'open' }
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
 
-export const MetadataLookupWorkflowFailed = kit.Failed;
-export type MetadataLookupWorkflowFailed = InstanceType<typeof kit.Failed>;
-
-const workflowSync = kit.trySync;
-const workflowPromise = kit.tryPromise;
+const FAILURE_MESSAGES: Record<MetadataLookupWorkflowAction['type'], string> = {
+	applyResult: 'Failed to apply metadata lookup result.',
+	close: 'Failed to close metadata lookup.',
+	manualEntry: 'Failed to switch to manual metadata entry.',
+	open: 'Failed to open metadata lookup.',
+	search: 'Failed to search online metadata sources.',
+	skipQueueItem: 'Failed to skip metadata lookup queue item.',
+};
 
 function setStatus(
 	services: MetadataLookupWorkflowServices,
@@ -329,15 +308,6 @@ async function openWorkflow(services: MetadataLookupWorkflowServices): Promise<v
 	}
 }
 
-function initWorkflow(services: MetadataLookupWorkflowServices): void {
-	const state = services.getLookupState();
-	state.isOpen = false;
-	state.results = [];
-	state.hasSearched = false;
-	state.statusMessage = '';
-	services.clearMetadataLookupQueue();
-}
-
 function useManualEntry(services: MetadataLookupWorkflowServices): void {
 	hideModal(services);
 	services.queueMicrotask(() => {
@@ -345,79 +315,48 @@ function useManualEntry(services: MetadataLookupWorkflowServices): void {
 	});
 }
 
-function reportWorkflowFailure(
+async function runAction(
 	services: MetadataLookupWorkflowServices,
-	error: MetadataLookupWorkflowFailed,
-): AppEffect<void> {
-	return Effect.sync(() => {
-		if (!services.isCurrent()) return;
-		services.console.error(`Metadata lookup workflow failed: ${error.message}`, error.cause);
-		setStatus(services, 'Metadata lookup failed. Check console and try again.', 'error');
-	});
-}
-
-function metadataLookupWorkflowBody(
-	action: MetadataLookupWorkflowAction,
-): AppEffect<void, MetadataLookupWorkflowFailed, MetadataLookupWorkflowServicesId> {
-	return Effect.gen(function* () {
-		const services = yield* MetadataLookupWorkflowServicesTag;
-		if (!services.isCurrent()) return;
-		switch (action.type) {
-			case 'applyResult': {
-				yield* workflowPromise(async () => {
-					const result = services.getLookupState().results[action.index];
-					if (!result) return;
-					await applyResult(services, result);
-				}, 'Failed to apply metadata lookup result.');
-				return;
-			}
-			case 'close':
-				yield* workflowSync(() => hideModal(services), 'Failed to close metadata lookup.');
-				return;
-			case 'init':
-				yield* workflowSync(() => initWorkflow(services), 'Failed to initialize metadata lookup.');
-				return;
-			case 'manualEntry':
-				yield* workflowSync(
-					() => useManualEntry(services),
-					'Failed to switch to manual metadata entry.',
-				);
-				return;
-			case 'open':
-				yield* workflowPromise(() => openWorkflow(services), 'Failed to open metadata lookup.');
-				return;
-			case 'search':
-				yield* workflowPromise(
-					() => runSearch(services),
-					'Failed to search online metadata sources.',
-				);
-				return;
-			case 'skipQueueItem':
-				yield* workflowPromise(
-					() => advanceQueue(services, 'skipped'),
-					'Failed to skip metadata lookup queue item.',
-				);
-				return;
-		}
-	});
-}
-
-export function metadataLookupWorkflowProgram(
-	action: MetadataLookupWorkflowAction,
-): AppEffect<void, never, MetadataLookupWorkflowServicesId> {
-	return metadataLookupWorkflowBody(action).pipe(
-		Effect.catch((error) =>
-			Effect.gen(function* () {
-				const services = yield* MetadataLookupWorkflowServicesTag;
-				yield* reportWorkflowFailure(services, error);
-			}),
-		),
-	);
-}
-
-export function runMetadataLookupWorkflow(
-	layer: MetadataLookupWorkflowLayer,
 	action: MetadataLookupWorkflowAction,
 ): Promise<void> {
-	return runAppEffect(metadataLookupWorkflowProgram(action).pipe(Effect.provide(layer)));
+	switch (action.type) {
+		case 'applyResult': {
+			const result = services.getLookupState().results[action.index];
+			if (result) await applyResult(services, result);
+			return;
+		}
+		case 'close':
+			hideModal(services);
+			return;
+		case 'manualEntry':
+			useManualEntry(services);
+			return;
+		case 'open':
+			await openWorkflow(services);
+			return;
+		case 'search':
+			await runSearch(services);
+			return;
+		case 'skipQueueItem':
+			await advanceQueue(services, 'skipped');
+			return;
+	}
+}
+
+/** Runs one Lookup action; an unexpected failure is reported while the action is current. */
+export async function runMetadataLookupWorkflow(
+	services: MetadataLookupWorkflowServices,
+	action: MetadataLookupWorkflowAction,
+): Promise<void> {
+	if (!services.isCurrent()) return;
+	try {
+		await runAction(services, action);
+	} catch (error) {
+		if (!services.isCurrent()) return;
+		services.console.error(
+			`Metadata lookup workflow failed: ${FAILURE_MESSAGES[action.type]}`,
+			error,
+		);
+		setStatus(services, 'Metadata lookup failed. Check console and try again.', 'error');
+	}
 }

@@ -28,7 +28,6 @@ export type MetadataLookupState = {
 	queueContext: string;
 	results: OnlineMetadataResult[];
 	isQueueMode: boolean;
-	skipEnabled: boolean;
 	hasSearched: boolean;
 };
 
@@ -45,7 +44,6 @@ export function createMetadataLookupState(): MetadataLookupState {
 		queueContext: 'No files selected.',
 		results: [],
 		isQueueMode: false,
-		skipEnabled: false,
 		hasSearched: false,
 	};
 }
