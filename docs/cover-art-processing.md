@@ -17,6 +17,19 @@ User-picked file and URL covers are already converted at command ingress
 not converted at import. Conversion happens at write-prep so display reads stay
 raw source truth.
 
+Cover intent comes only from cover actions (load, drop, clear). A text edit or
+Lookup apply that keeps the cover leaves cover intent noop, so saves do not
+rewrite unchanged art.
+
+## Load policy
+
+`src-tauri/src/commands/metadata.rs` owns ingress limits. URL loads are HTTPS
+only; the typed host must be a domain or public IP literal at entry and on
+every redirect, resolved domains drop private addresses, environment proxies
+are ignored, and logs keep only the URL origin. Downloads cap at 10 MB and
+local files at 32 MB; reading and decoding run off the async runtime. HTTP
+401/403 messages tell the user to load the image from a file.
+
 ## Flow
 
 ```mermaid
@@ -39,7 +52,7 @@ flowchart TD
   sinks -->|Native, Apple, or FAAC| mux[Mux JPEG attached_pic during encode]
   sinks -->|FDK| encode[Encode audio only, no cover]
   encode --> remux[finalize_artifact_metadata remux JPEG]
-  mux --> mp4[mp4ameta covr and tags]
+  mux --> mp4[finish_artifact_tags: mp4ameta covr/tags, chapter check]
   remux --> mp4
   mp4 --> commit[output_artifact commit]
 ```
@@ -54,7 +67,7 @@ flowchart TD
 | Include vs suppress after clear | `CoverArtPassthroughPolicy` |
 | Write-ready bytes | `prepare_output_cover_art` after merge |
 | FFmpeg attached_pic mux | Metadata `embedding.rs` |
-| MP4 `covr` atom | mp4ameta |
+| MP4 `covr` atom and tags | `finish_artifact_tags` via mp4ameta |
 | Final file move | `output_artifact` |
 
 Do not convert in the FFmpeg encoder-open helper, the file-list loader, or

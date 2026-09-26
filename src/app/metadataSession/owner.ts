@@ -739,7 +739,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				case 'noTarget':
 					return result;
 				case 'ready':
-					if (result.prepared) commitPreparedMetadataDrafts(result.prepared, cache);
+					if (result.prepared) {
+						commitPreparedMetadataDrafts(result.prepared, cache);
+						// Staged values become the baseline Keep restores.
+						commit(bumpForm(editor, resetDirtyState(editor.form)));
+					}
 					return { status: 'staged' };
 			}
 		},

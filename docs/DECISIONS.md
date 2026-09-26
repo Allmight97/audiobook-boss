@@ -421,11 +421,11 @@ git history and closed issues own superseded chronology.
 - Evidence: `src/app/metadataSession/index.ts`,
   `src/app/metadataSession/metadataSession.test.ts`, and
   `src/ui/__tests__/ui-workflow-smoke.test.tsx`.
-- Guardrail: pending markers are created only via MetadataOwner `stageIntent`
-  (save workflow clears on success; lifecycle clears via owner `reset` and
-  removed-path drop). No caller-side merge/equality staging or parallel
-  form/tag store. Cache maps live on the runtime-scoped owner and require
-  isolation proof.
+- Guardrail: pending intent is staged only inside the Metadata owner (draft
+  gate, `stageCurrentSelection`, save, and cover actions); save clears it on
+  success, and `reset` and removed-path drop clear it with the session. No
+  caller-side merge/equality staging or parallel form/tag store. Cache maps
+  live on the runtime-scoped owner and require isolation proof.
 
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
 

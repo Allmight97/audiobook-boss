@@ -309,4 +309,20 @@ describe('metadata edit intent', () => {
 			[alpha.path]: { cover_art: { op: 'clear' } },
 		});
 	});
+
+	it('Keep after a processing stage keeps the staged value and its intent in step', async () => {
+		const app = await open([alpha, beta], [0, 1], capability([alpha, beta]));
+		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
+		expect(await app.metadata.stageCurrentSelection()).toEqual({ status: 'staged' });
+		app.metadata.setFieldAction({ actionId: 'meta-genre-action', action: 'blank' });
+		app.metadata.setFieldAction({ actionId: 'meta-genre-action', action: 'keep' });
+		expect(app.metadata.view().form.fields['meta-genre']).toMatchObject({
+			value: 'Mystery',
+			dirty: false,
+		});
+		expect(await app.metadata.intentsForProcess([alpha.path, beta.path])).toEqual({
+			[alpha.path]: genre,
+			[beta.path]: genre,
+		});
+	});
 });
