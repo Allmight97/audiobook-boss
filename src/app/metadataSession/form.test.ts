@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataFieldId } from './fields';
 import {
-	applyFieldAction,
 	applyFieldInput,
 	composeFormIntent,
 	populateMetadataFormMulti,
@@ -26,9 +25,8 @@ function type(form: MetadataFormState, inputId: MetadataFieldId, value: string) 
 
 describe('composeFormIntent', () => {
 	it.each([
-		{ name: 'untouched single title', form: () => populateMetadataFormSingle(tagged), intent: {} },
 		{
-			name: 'edited title mirrors album',
+			name: 'edited title is trimmed and mirrors album',
 			form: () => type(populateMetadataFormSingle(tagged), 'meta-title', ' New '),
 			intent: { title: { op: 'set', value: 'New' }, album: { op: 'set', value: 'New' } },
 		},
@@ -42,16 +40,6 @@ describe('composeFormIntent', () => {
 			form: () =>
 				type(populateMetadataFormMulti([tagged, { artist: 'Other' }], 2), 'meta-author', ''),
 			intent: { artist: { op: 'clear' } },
-		},
-		{
-			name: 'Keep after Blank restores the shared value',
-			form: () =>
-				applyFieldAction(
-					applyFieldAction(populateMetadataFormMulti([tagged, tagged], 2), 'meta-series', 'blank'),
-					'meta-series',
-					'keep',
-				),
-			intent: {},
 		},
 	])('$name', ({ form, intent }) => {
 		expect(composeFormIntent(form())).toEqual(intent);

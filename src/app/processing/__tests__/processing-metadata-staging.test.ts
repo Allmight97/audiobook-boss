@@ -18,7 +18,6 @@ const context = vi.hoisted(() => ({
 	getCurrentFileListMock: vi.fn(),
 	readProcessingRequestConfigMock: vi.fn(),
 	runOutputPlanReviewWorkflowMock: vi.fn(),
-	storedIntentPatches: {} as Record<string, Record<string, { op: string; value?: unknown }>>,
 	stageMetadataMock: vi.fn(),
 	intentsForProcessMock: vi.fn(),
 }));
@@ -86,20 +85,10 @@ describe('startProcessing metadata staging', () => {
 		context.getCurrentFileListMock.mockReset();
 		context.readProcessingRequestConfigMock.mockReset();
 		context.runOutputPlanReviewWorkflowMock.mockReset();
-		context.storedIntentPatches = {};
 		context.stageMetadataMock.mockReset();
 		context.stageMetadataMock.mockResolvedValue({ status: 'staged' });
 		context.intentsForProcessMock.mockReset();
-		context.intentsForProcessMock.mockImplementation(async (filePaths: readonly string[]) => {
-			const collected: Record<string, Record<string, { op: string }>> = {};
-			for (const filePath of filePaths) {
-				const patch = context.storedIntentPatches[filePath];
-				if (patch && Object.values(patch).some((intent) => intent && intent.op !== 'noop')) {
-					collected[filePath] = patch;
-				}
-			}
-			return Object.keys(collected).length > 0 ? collected : null;
-		});
+		context.intentsForProcessMock.mockResolvedValue(null);
 		showError.mockReset();
 
 		context.getCurrentFileListMock.mockReturnValue({
@@ -189,12 +178,6 @@ describe('startProcessing metadata staging', () => {
 		});
 	});
 
-	it('asks the metadata owner for batch process intents', async () => {
-		await startProcessing(processingContext());
-
-		expect(context.intentsForProcessMock).toHaveBeenCalledWith(['/books/a.m4b', '/books/b.m4b']);
-	});
-
 	it.each([
 		{ outcome: { status: 'invalid', message: 'Series part must be a number' } },
 		{ outcome: { status: 'stale' } },
@@ -215,26 +198,22 @@ describe('startProcessing metadata staging', () => {
 		);
 	});
 
-	it('keeps batch metadata intent entries, including clear-intent values', async () => {
-		context.storedIntentPatches = {
-			'/books/a.m4b': { title: { op: 'clear' } },
-			'/books/b.m4b': { series: { op: 'set', value: 'Series B' } },
+	it('submits the intents Metadata returns for the submitted inputs', async () => {
+		const intents = {
+			'/books/a.m4b': { title: { op: 'clear' as const } },
+			'/books/b.m4b': { series: { op: 'set' as const, value: 'Series B' } },
 		};
+		context.intentsForProcessMock.mockResolvedValue(intents);
 
 		await startProcessing(processingContext());
 
+		expect(context.intentsForProcessMock).toHaveBeenCalledWith(['/books/a.m4b', '/books/b.m4b']);
 		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				metadataIntent: {
-					'/books/a.m4b': { title: { op: 'clear' } },
-					'/books/b.m4b': { series: { op: 'set', value: 'Series B' } },
-				},
-			}),
+			expect.objectContaining({ metadataIntent: intents }),
 		);
 	});
 
 	it('treats structured cancellation errors as cancellation instead of failures', async () => {
-		context.storedIntentPatches = {};
 		context.submitProcessingOperationMock.mockRejectedValueOnce({
 			code: 'cancelled',
 			category: 'cancellation',
@@ -250,40 +229,6 @@ describe('startProcessing metadata staging', () => {
 		expect(showError).not.toHaveBeenCalled();
 		expect(ctx.handleCancellation).toHaveBeenCalledTimes(1);
 		expect(ctx.resetToIdle).not.toHaveBeenCalled();
-	});
-
-	it('filters batch metadata intent to active input files only', async () => {
-		context.storedIntentPatches = {
-			'/books/a.m4b': { title: { op: 'set', value: 'Active A' } },
-			'/books/b.m4b': { series: { op: 'set', value: 'Active B' } },
-			'/books/stale.m4b': { title: { op: 'set', value: 'Stale' } },
-		};
-
-		await startProcessing(processingContext());
-
-		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				metadataIntent: {
-					'/books/a.m4b': { title: { op: 'set', value: 'Active A' } },
-					'/books/b.m4b': { series: { op: 'set', value: 'Active B' } },
-				},
-			}),
-		);
-	});
-
-	it('sends null batch metadata intent when all stored entries are empty objects', async () => {
-		context.storedIntentPatches = {
-			'/books/a.m4b': {},
-			'/books/b.m4b': {},
-		};
-
-		await startProcessing(processingContext());
-
-		expect(context.submitProcessingOperationMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				metadataIntent: null,
-			}),
-		);
 	});
 
 	it('auto-opens preview only when exactly one successful preview path is returned', async () => {

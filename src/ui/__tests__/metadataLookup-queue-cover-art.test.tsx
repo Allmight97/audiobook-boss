@@ -201,11 +201,11 @@ describe('metadata lookup queue cover art isolation', () => {
 			expect(getStatusText()).toContain('Metadata applied.');
 		});
 		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('https://example.com/cover.jpg');
-		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual(
-			expect.objectContaining({
-				cover_art: [1, 1, 1],
-			}),
-		);
+		await runtime.metadata.save();
+		const [items] = vi.mocked(metadata.saveMetadataBatch).mock.calls[0]!;
+		const alpha = items.find((item) => item.filePath === '/books/alpha.m4b');
+		expect(alpha?.metadataPatch.title).toEqual({ op: 'set', value: 'Lookup Title' });
+		expect(alpha?.metadataPatch).not.toHaveProperty('cover_art');
 	});
 
 	it('does not mutate metadata when skipping queue item', async () => {

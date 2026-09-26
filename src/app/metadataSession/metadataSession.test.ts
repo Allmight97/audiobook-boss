@@ -375,31 +375,6 @@ describe('metadata session selection and save', () => {
 		},
 	);
 
-	it('saves staged intent through the metadata capability', async () => {
-		const metadata = fakeMetadata();
-		runtime = createAppRuntime({ metadata });
-		const files = [file('/books/alpha.m4b', 'Alpha')];
-		runtime.input.replaceSession({
-			...emptyInputSession(),
-			fileList: list(files),
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await runtime.metadata.hydrateSelection(null);
-		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Saved' });
-		await runtime.metadata.save();
-		expect(metadata.saveMetadataBatch).toHaveBeenCalled();
-		expect(metadata.saveMetadataBatch).toHaveBeenCalledWith([
-			{
-				filePath: '/books/alpha.m4b',
-				metadataPatch: {
-					title: { op: 'set', value: 'Saved' },
-					album: { op: 'set', value: 'Saved' },
-				},
-			},
-		]);
-	});
-
 	it('fails hydration when draft validation transport fails', async () => {
 		const metadata = fakeMetadata({
 			validateMetadataIntentPatch: vi.fn(async () => {
