@@ -14,8 +14,6 @@ import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_ART_IMAGE_EXTENSION_HINT_PATTERN,
 	createEmptyCoverUiState,
-	formatCoverArtError,
-	parseCoverArtUrl,
 	type CoverUiState,
 } from './cover';
 import {
@@ -95,7 +93,7 @@ export type MetadataOwner = {
 	setCustomCoverArt(coverArtBytes: number[] | null): void;
 	clearCoverArt(): void;
 	loadCoverArtFromPicker(): Promise<void>;
-	loadCoverArtFromUrl(rawInput: string): Promise<string | null>;
+	loadCoverArtFromUrl(rawInput: string): Promise<void>;
 	applyCoverArtDrop(paths: ReadonlyArray<string>): Promise<boolean>;
 	applyLookupMetadata(
 		file: AudioFile,
@@ -256,6 +254,22 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			}),
 		);
 		scheduleCoverMessageClear();
+	}
+
+	function failCoverLoad(error: unknown, context: CoverLoadContext, fallback: string): void {
+		if (!coverLoadStillValid(context)) return;
+		console.error('Failed to load cover art:', error);
+		surfaceCoverFailure(toUserMessage(error, { fallback }));
+	}
+
+	async function loadCoverFromFile(path: string, context: CoverLoadContext): Promise<boolean> {
+		try {
+			applyLoadedCoverArt(await capability().loadCoverArtFile(path), context);
+			return true;
+		} catch (error) {
+			failCoverLoad(error, context, 'Unable to load cover art.');
+			return false;
+		}
 	}
 
 	function syncRemovedFiles(sessionFiles: ReadonlyArray<AudioFile>): void {
@@ -427,8 +441,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		}
 		if (
 			effectiveCoverForFile(targetPath, cache) !== null ||
-			cache.getMetadataIntentPatchForFile(targetPath)?.cover_art
+			cache.getMetadataIntentPatchForFile(targetPath)?.cover_art ||
+			isUsableMetadataCache(cache.getMetadataForFile(targetPath))
 		) {
+			// A cached read already answered whether this file has art.
 			return;
 		}
 		let metadata: Partial<AudiobookMetadata> | null;
@@ -438,12 +454,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			if (generation !== started || editor.hydrateRequestId !== hydrateRequestId) {
 				return;
 			}
-			surfaceCoverFailure(
-				formatCoverArtError(
-					toUserMessage(error, { fallback: 'Unable to load cover art.' }),
-					'Unable to load cover art.',
-				),
-			);
+			surfaceCoverFailure(toUserMessage(error, { fallback: 'Unable to load cover art.' }));
 			return;
 		}
 		const latest = editor;
@@ -641,59 +652,33 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 		async loadCoverArtFromPicker() {
 			const loadContext = readCoverLoadContext(editor);
+			let selectedFile: string | null;
 			try {
-				const selectedFile = await capability().openFile({
+				selectedFile = await capability().openFile({
 					title: 'Select Cover Art Image',
 					filters: [{ name: 'Image Files', extensions: [...COVER_ART_IMAGE_EXTENSION_HINTS] }],
 				});
-				if (!selectedFile) return;
-				const imageData = await capability().loadCoverArtFile(selectedFile);
-				applyLoadedCoverArt(imageData, loadContext);
 			} catch (error) {
-				if (!coverLoadStillValid(loadContext)) return;
-				console.error('Failed to open file dialog:', error);
-				surfaceCoverFailure(
-					formatCoverArtError(
-						toUserMessage(error, { fallback: 'Unable to load cover art.' }),
-						'Unable to load cover art.',
-					),
-				);
+				failCoverLoad(error, loadContext, 'Unable to open the image picker.');
+				return;
 			}
+			if (selectedFile) await loadCoverFromFile(selectedFile, loadContext);
 		},
 		async loadCoverArtFromUrl(rawInput) {
-			const raw = rawInput.trim();
-			const current = editor;
-			if (!raw) {
+			const url = rawInput.trim();
+			if (!url) {
 				commit(
-					bumpCover(current, { message: { kind: 'error', text: 'Paste an image URL first.' } }),
+					bumpCover(editor, { message: { kind: 'error', text: 'Paste an image URL first.' } }),
 				);
-				return null;
+				return;
 			}
-			const parsed = parseCoverArtUrl(raw);
-			if (!parsed) {
-				commit(bumpCover(editor, { message: { kind: 'error', text: 'Invalid URL format.' } }));
-				return null;
-			}
-			if (parsed.protocol !== 'https:') {
-				commit(
-					bumpCover(editor, {
-						message: { kind: 'error', text: 'Only HTTPS URLs are supported.' },
-					}),
-				);
-				return null;
-			}
-			const normalized = parsed.toString();
 			const loadContext = readCoverLoadContext(editor);
 			commit(
-				bumpCover(editor, {
-					urlInputValue: normalized,
-					isLoading: true,
-					message: { kind: 'hidden' },
-				}),
+				bumpCover(editor, { urlInputValue: url, isLoading: true, message: { kind: 'hidden' } }),
 			);
 			try {
-				const imageData = await capability().loadCoverArtFromUrl(normalized);
-				if (!coverLoadStillValid(loadContext)) return null;
+				const imageData = await capability().loadCoverArtFromUrl(url);
+				if (!coverLoadStillValid(loadContext)) return;
 				applyLoadedCoverArt(imageData, loadContext);
 				commit(
 					bumpCover(editor, {
@@ -702,39 +687,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					}),
 				);
 				scheduleCoverMessageClear();
-				return normalized;
 			} catch (error) {
-				if (!coverLoadStillValid(loadContext)) return null;
-				surfaceCoverFailure(
-					formatCoverArtError(
-						toUserMessage(error, { fallback: 'Unable to load image.' }),
-						'Unable to load image.',
-					),
-				);
-				return null;
+				failCoverLoad(error, loadContext, 'Unable to load image.');
 			}
 		},
 		async applyCoverArtDrop(paths) {
 			const imageFile = paths.find((path) => COVER_ART_IMAGE_EXTENSION_HINT_PATTERN.test(path));
-			if (!imageFile) {
-				return false;
-			}
-			const loadContext = readCoverLoadContext(editor);
-			try {
-				const imageData = await capability().loadCoverArtFile(imageFile);
-				applyLoadedCoverArt(imageData, loadContext);
-				return true;
-			} catch (error) {
-				if (!coverLoadStillValid(loadContext)) return false;
-				console.error('Failed to load cover art file:', error);
-				surfaceCoverFailure(
-					formatCoverArtError(
-						toUserMessage(error, { fallback: 'Unable to load cover art.' }),
-						'Unable to load cover art.',
-					),
-				);
-				return false;
-			}
+			return imageFile ? loadCoverFromFile(imageFile, readCoverLoadContext(editor)) : false;
 		},
 		applyLookupMetadata(file, metadata, coverArtBytes) {
 			const current = editor;

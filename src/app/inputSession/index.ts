@@ -13,6 +13,6 @@ export {
 	interpretFileListKeyDown,
 	resolveFileListNavigationTarget,
 } from './keyboardNavigation';
-export { nativeDropLooksLikeCoverArt, nativeDropTargetAtPoint } from './nativeIngress';
+export { nativeDropTargetAtPoint } from './nativeIngress';
 export { toInspectorView, toInspectorViewFromInput } from './inspector';
 export type { InspectorView } from './inspector';

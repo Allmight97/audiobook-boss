@@ -519,7 +519,11 @@ describe('output path preview projection', () => {
 		const view: MetadataView = {
 			form,
 			cover: { ...createEmptyCoverUiState(), currentCoverArt: [1, 2, 3] },
-			tags: { ...projectTagPreviewValues(createEmptyFormState()), title: 'Dune', artist: 'Herbert' },
+			tags: {
+				...projectTagPreviewValues(createEmptyFormState()),
+				title: 'Dune',
+				artist: 'Herbert',
+			},
 			saveInProgress: false,
 			focusedFieldId: null,
 			statusMessage: '',

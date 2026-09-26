@@ -6,7 +6,7 @@ import type {
 	MetadataLookupResponse,
 	OnlineMetadataResult,
 } from '../../types/metadata';
-import { createMetadataLookupCoverPreviews } from './coverPreview';
+import { createCoverArtPreviewScheduler } from '../../lib/media/coverArtPreviewScheduler';
 import {
 	makeMetadataLookupWorkflowServicesLayer,
 	runMetadataLookupWorkflow,
@@ -156,9 +156,10 @@ function makeHarness(options?: {
 		options?.searchOnlineMetadata ?? (async () => lookupResponse()),
 	);
 	const loadCoverArtFromUrl = vi.fn(options?.loadCoverArtFromUrl ?? (async () => [9, 9, 9]));
-	const previews = createMetadataLookupCoverPreviews({
-		loadCoverArtFromUrl,
+	const previews = createCoverArtPreviewScheduler({
+		load: loadCoverArtFromUrl,
 		onChange: () => undefined,
+		failureLogMessage: 'Failed to load metadata lookup cover preview:',
 	});
 	const focusElementById = vi.fn();
 	const queueMicrotask = vi.fn((callback: () => void) => callback());

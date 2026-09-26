@@ -66,6 +66,8 @@ reqwest = { version = "0.13.4", default-features = false, features = ["rustls", 
 audible-reqwest = { package = "reqwest", version = "0.12.28", features = ["json"] }
 mp4ameta = "0.13.0"
 bogon = "0.3"
+# Typed URL hosts for the cover-fetch SSRF policy; same version reqwest resolves.
+url = "2.5.8"
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }

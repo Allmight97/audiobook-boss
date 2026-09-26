@@ -14,33 +14,45 @@ export type CoverArtPreviewState =
 export type CoverArtPreviewLoader = (url: string) => Promise<number[]>;
 
 type CoverArtPreviewSchedulerOptions = {
-	failureLogMessage: string;
+	readonly load: CoverArtPreviewLoader;
+	/** Called after every preview state change so owners can publish. */
+	readonly onChange: () => void;
+	readonly failureLogMessage: string;
 };
 
+/** One owner instance's preview cache; each owner creates its own. */
 export type CoverArtPreviewScheduler = {
 	clear: () => void;
 	cancel: () => void;
 	getState: (coverUrl: string | null | undefined) => CoverArtPreviewState;
-	getCachedBytes: (coverUrl: string) => number[] | null;
-	schedule: (
-		coverUrls: ReadonlyArray<string | null | undefined>,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
-	) => void;
-	loadBytes: (coverUrl: string, loadCoverArtFromUrl: CoverArtPreviewLoader) => Promise<number[]>;
+	schedule: (coverUrls: ReadonlyArray<string | null | undefined>) => void;
+	/** Returns the URL's bytes, joining a scheduled request already in flight. */
+	loadBytes: (coverUrl: string) => Promise<number[]>;
 };
 
 export function createCoverArtPreviewScheduler(
-	previewByUrl: Record<string, CoverArtPreviewState>,
 	options: CoverArtPreviewSchedulerOptions,
 ): CoverArtPreviewScheduler {
+	const previewByUrl: Record<string, CoverArtPreviewState> = {};
+	const loadCoverArtFromUrl = options.load;
 	const inflightByUrl = new Map<string, Promise<number[]>>();
 	const cacheOrder: string[] = [];
 	const scheduledPreviewQueue = createBoundedGenerationQueue(DEFAULT_COVER_ART_PREVIEW_CONCURRENCY);
 
+	function setPreview(coverUrl: string, state: CoverArtPreviewState): void {
+		previewByUrl[coverUrl] = state;
+		options.onChange();
+	}
+
+	function deletePreview(coverUrl: string): void {
+		delete previewByUrl[coverUrl];
+		options.onChange();
+	}
+
 	function clear(): void {
 		cancel();
 		for (const key of Object.keys(previewByUrl)) {
-			delete previewByUrl[key];
+			deletePreview(key);
 		}
 		cacheOrder.length = 0;
 		inflightByUrl.clear();
@@ -50,7 +62,7 @@ export function createCoverArtPreviewScheduler(
 		scheduledPreviewQueue.cancel();
 		for (const [coverUrl, state] of Object.entries(previewByUrl)) {
 			if (state.status === 'queued' || state.status === 'loading') {
-				delete previewByUrl[coverUrl];
+				deletePreview(coverUrl);
 			}
 		}
 	}
@@ -62,15 +74,7 @@ export function createCoverArtPreviewScheduler(
 		return previewByUrl[coverUrl] ?? { status: 'idle' };
 	}
 
-	function getCachedBytes(coverUrl: string): number[] | null {
-		const state = previewByUrl[coverUrl];
-		return state?.status === 'ready' ? state.bytes : null;
-	}
-
-	function schedule(
-		coverUrls: ReadonlyArray<string | null | undefined>,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
-	): void {
+	function schedule(coverUrls: ReadonlyArray<string | null | undefined>): void {
 		const uniqueUrls = uniqueCoverUrls(coverUrls);
 		scheduledPreviewQueue.schedule(uniqueUrls, {
 			visibleKeysChanged: (visibleUrls) => {
@@ -78,7 +82,7 @@ export function createCoverArtPreviewScheduler(
 					if (visibleUrls.has(coverUrl)) continue;
 					const state = previewByUrl[coverUrl];
 					if (state.status === 'queued' || state.status === 'loading') {
-						delete previewByUrl[coverUrl];
+						deletePreview(coverUrl);
 					}
 				}
 			},
@@ -90,22 +94,19 @@ export function createCoverArtPreviewScheduler(
 				}
 				const inflight = inflightByUrl.get(coverUrl);
 				if (inflight) {
-					previewByUrl[coverUrl] = { status: 'loading' };
+					setPreview(coverUrl, { status: 'loading' });
 					attachScheduledInflightCompletion(coverUrl, inflight, generation);
 					return false;
 				}
-				previewByUrl[coverUrl] = { status: 'queued' };
+				setPreview(coverUrl, { status: 'queued' });
 				return true;
 			},
 			start: (coverUrl, generation, complete) =>
-				startScheduledPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, complete),
+				startScheduledPreviewFetch(coverUrl, generation, complete),
 		});
 	}
 
-	async function loadBytes(
-		coverUrl: string,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
-	): Promise<number[]> {
+	async function loadBytes(coverUrl: string): Promise<number[]> {
 		const existing = previewByUrl[coverUrl];
 		if (existing?.status === 'ready') {
 			touchCacheEntry(coverUrl);
@@ -122,12 +123,7 @@ export function createCoverArtPreviewScheduler(
 			});
 		}
 		return scheduledPreviewQueue.track(
-			startPreviewFetch(
-				coverUrl,
-				loadCoverArtFromUrl,
-				scheduledPreviewQueue.currentGeneration(),
-				true,
-			),
+			startPreviewFetch(coverUrl, scheduledPreviewQueue.currentGeneration(), true),
 		);
 	}
 
@@ -155,7 +151,7 @@ export function createCoverArtPreviewScheduler(
 			.catch((error) => {
 				if (shouldCommitPreviewCompletion(coverUrl, generation, false)) {
 					console.warn(options.failureLogMessage, error);
-					previewByUrl[coverUrl] = { status: 'error' };
+					setPreview(coverUrl, { status: 'error' });
 					touchCacheEntry(coverUrl);
 					prunePreviewCache();
 				}
@@ -164,7 +160,6 @@ export function createCoverArtPreviewScheduler(
 
 	function startScheduledPreviewFetch(
 		coverUrl: string,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
 		generation: number,
 		onComplete: () => void,
 	): Promise<number[]> {
@@ -179,17 +174,16 @@ export function createCoverArtPreviewScheduler(
 			attachScheduledInflightCompletion(coverUrl, inflight, generation);
 			return inflight.finally(onComplete);
 		}
-		return startPreviewFetch(coverUrl, loadCoverArtFromUrl, generation, false, onComplete);
+		return startPreviewFetch(coverUrl, generation, false, onComplete);
 	}
 
 	function startPreviewFetch(
 		coverUrl: string,
-		loadCoverArtFromUrl: CoverArtPreviewLoader,
 		generation: number,
 		allowOffscreenCompletion: boolean,
 		onComplete?: () => void,
 	): Promise<number[]> {
-		previewByUrl[coverUrl] = { status: 'loading' };
+		setPreview(coverUrl, { status: 'loading' });
 		let promise!: Promise<number[]>;
 		promise = loadCoverArtFromUrl(coverUrl)
 			.then((bytes): number[] => {
@@ -201,7 +195,7 @@ export function createCoverArtPreviewScheduler(
 			.catch((error): never => {
 				if (shouldCommitPreviewCompletion(coverUrl, generation, allowOffscreenCompletion)) {
 					console.warn(options.failureLogMessage, error);
-					previewByUrl[coverUrl] = { status: 'error' };
+					setPreview(coverUrl, { status: 'error' });
 					touchCacheEntry(coverUrl);
 					prunePreviewCache();
 				}
@@ -219,21 +213,25 @@ export function createCoverArtPreviewScheduler(
 	}
 
 	function commitReadyPreview(coverUrl: string, bytes: number[]): void {
-		previewByUrl[coverUrl] = {
-			status: 'ready',
-			bytes,
-			dataUrl: coverArtBytesToDataUrl(bytes),
-		};
+		setPreview(coverUrl, { status: 'ready', bytes, dataUrl: coverArtBytesToDataUrl(bytes) });
 		touchCacheEntry(coverUrl);
 		prunePreviewCache();
 	}
 
+	/**
+	 * Scheduled loads commit only while their URL is still visible. Apply's
+	 * direct loads may commit offscreen, but never after a cancel, clear, or
+	 * reschedule has started a newer generation.
+	 */
 	function shouldCommitPreviewCompletion(
 		coverUrl: string,
 		generation: number,
 		allowOffscreenCompletion: boolean,
 	): boolean {
-		return allowOffscreenCompletion || scheduledPreviewQueue.isCurrent(coverUrl, generation);
+		if (allowOffscreenCompletion) {
+			return generation === scheduledPreviewQueue.currentGeneration();
+		}
+		return scheduledPreviewQueue.isCurrent(coverUrl, generation);
 	}
 
 	function touchCacheEntry(coverUrl: string): void {
@@ -259,16 +257,9 @@ export function createCoverArtPreviewScheduler(
 				cacheOrder.push(coverUrl);
 				continue;
 			}
-			delete previewByUrl[coverUrl];
+			deletePreview(coverUrl);
 		}
 	}
 
-	return {
-		clear,
-		cancel,
-		getState,
-		getCachedBytes,
-		schedule,
-		loadBytes,
-	};
+	return { clear, cancel, getState, schedule, loadBytes };
 }

@@ -186,8 +186,6 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.validateFiles(args.filePaths)),
 	read_audio_metadata: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
-	write_cover_art: (args: { filePath: string; coverData: number[] }) =>
-		runGeneratedCommand(generatedCommands.writeCoverArt(args.filePath, args.coverData)),
 	load_cover_art_file: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.loadCoverArtFile(args.filePath)),
 	load_cover_art_from_url: (args: { url: string }) =>
@@ -197,13 +195,6 @@ export const commandSpecs = {
 	validate_metadata_intent_patch: (args: { metadataIntent: MetadataIntentPatch }) =>
 		runGeneratedCommand(
 			generatedCommands.validateMetadataIntentPatch(
-				compileMetadataIntentPatch(args.metadataIntent),
-			),
-		),
-	save_metadata_to_file: (args: { filePath: string; metadataIntent: MetadataIntentPatch }) =>
-		runGeneratedCommand(
-			generatedCommands.saveMetadataToFile(
-				args.filePath,
 				compileMetadataIntentPatch(args.metadataIntent),
 			),
 		),

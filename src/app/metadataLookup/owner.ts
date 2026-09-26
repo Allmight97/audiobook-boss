@@ -2,9 +2,9 @@ import { createSignal, type Accessor } from 'solid-js';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
 import {
-	createMetadataLookupCoverPreviews,
-	type MetadataLookupCoverPreviewState,
-} from './coverPreview';
+	createCoverArtPreviewScheduler,
+	type CoverArtPreviewState,
+} from '../../lib/media/coverArtPreviewScheduler';
 import { makeProductionLookupServices } from './services';
 import {
 	createMetadataLookupQueueState,
@@ -22,7 +22,7 @@ import {
 
 export type MetadataLookupOwner = {
 	readonly view: Accessor<MetadataLookupState>;
-	coverPreview(coverUrl: string | null | undefined): MetadataLookupCoverPreviewState;
+	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;
 	run(action: MetadataLookupWorkflowAction): Promise<void>;
@@ -44,9 +44,10 @@ export function createMetadataLookupOwner(deps: {
 	let snapshot = snapshotMetadataLookupState(lookupState);
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
-	const previews = createMetadataLookupCoverPreviews({
-		loadCoverArtFromUrl: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
+	const previews = createCoverArtPreviewScheduler({
+		load: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
 		onChange: () => bumpPreviews((revision) => revision + 1),
+		failureLogMessage: 'Failed to load metadata lookup cover preview:',
 	});
 
 	function publish(): void {

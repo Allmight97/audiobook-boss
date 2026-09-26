@@ -36,7 +36,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'reset_app_settings',
 	'recover_app_settings',
 	'save_metadata_batch',
-	'save_metadata_to_file',
 	'search_online_metadata',
 	'search_remote_source_releases',
 	'set_max_concurrent_jobs',
@@ -49,7 +48,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'update_remote_source_indexer_connection',
 	'validate_files',
 	'validate_metadata_intent_patch',
-	'write_cover_art',
 ] as const;
 
 const EXPECTED_APP_EVENT_NAMES = [
@@ -101,7 +99,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'resetAppSettings',
 	'recoverAppSettings',
 	'saveMetadataBatch',
-	'saveMetadataIntentToFile',
 	'searchOnlineMetadata',
 	'searchRemoteSourceReleases',
 	'setMaxConcurrentJobs',
@@ -114,7 +111,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'updateRemoteSourceIndexerConnection',
 	'validateFiles',
 	'validateMetadataIntentPatch',
-	'writeCoverArt',
 ] as const;
 
 describe('Tauri Runtime Boundary public API contract', () => {

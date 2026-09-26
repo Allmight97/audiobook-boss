@@ -2,7 +2,6 @@ import { createEffect, onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import {
-	nativeDropLooksLikeCoverArt,
 	nativeDropTargetAtPoint,
 } from '../../app/inputSession/nativeIngress';
 import { useAppRuntime } from '../../app/runtime';
@@ -70,7 +69,7 @@ export function FileImportView(): JSX.Element {
 				const coverHit = nativeDropTargetAtPoint(payload.position, coverArea, null) === 'cover';
 				const filesHit =
 					nativeDropTargetAtPoint(payload.position, null, fileManagementContainer) === 'files';
-				if (coverHit && nativeDropLooksLikeCoverArt(payload.paths)) {
+				if (coverHit) {
 					void applyCoverArtDrop([...payload.paths]);
 					return;
 				}

@@ -1,7 +1,7 @@
 import type { FileListInfo } from '../../types/audio';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
-import type { MetadataLookupCoverPreviews } from './coverPreview';
+import type { CoverArtPreviewScheduler } from '../../lib/media/coverArtPreviewScheduler';
 import type { MetadataLookupQueueState, MetadataLookupState } from './state';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
@@ -11,7 +11,7 @@ export function makeProductionLookupServices(
 		readonly metadata: MetadataOwner;
 		readonly lookupState: MetadataLookupState;
 		readonly queueState: MetadataLookupQueueState;
-		readonly coverPreviews: MetadataLookupCoverPreviews;
+		readonly coverPreviews: CoverArtPreviewScheduler;
 		readonly signal: AbortSignal;
 	},
 	publishView?: () => void,

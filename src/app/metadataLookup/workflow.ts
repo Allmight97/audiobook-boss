@@ -219,10 +219,7 @@ async function applyResult(
 	if (!services.isCurrent()) return;
 	const selected = await services.selectFile(current.file);
 	if (!services.isCurrent()) return;
-	if (
-		!selected ||
-		!services.applyMetadataToForm(current.file, metadata, coverArtBytes)
-	) {
+	if (!selected || !services.applyMetadataToForm(current.file, metadata, coverArtBytes)) {
 		setStatus(
 			services,
 			'Could not apply metadata to the selected file. Review pending edits and try again.',

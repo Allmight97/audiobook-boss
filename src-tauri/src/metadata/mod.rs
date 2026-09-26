@@ -126,15 +126,6 @@ pub fn finalize_artifact_metadata(
     Ok(())
 }
 
-pub(crate) fn write_cover_art_to_file(path: &std::path::Path, cover_data: Vec<u8>) -> Result<()> {
-    let metadata = AudiobookMetadata {
-        cover_art: Some(cover_data),
-        ..Default::default()
-    };
-    let plan = MetadataWritePlan::from_metadata(metadata);
-    save_metadata_with_plan(path, &plan)
-}
-
 pub(crate) fn should_write_finalized_metadata(path: &std::path::Path) -> Result<bool> {
     Ok(matches!(
         crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?,

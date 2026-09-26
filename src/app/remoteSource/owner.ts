@@ -10,9 +10,9 @@ import {
 } from './selection';
 import type { InputOwner } from '../inputSession';
 import {
-	createRemoteSourceCoverPreviews,
-	type RemoteSourceCoverPreviewState,
-} from './coverPreview';
+	createCoverArtPreviewScheduler,
+	type CoverArtPreviewState,
+} from '../../lib/media/coverArtPreviewScheduler';
 import {
 	createIndexerConnectionSettings,
 	type IndexerConnectionSettingsView,
@@ -63,7 +63,7 @@ export type RemoteSourceOwner = {
 	runAction(
 		action: Exclude<RemoteSourceWorkflowAction, { type: 'enterLane' | 'refreshAccount' }>,
 	): Promise<void>;
-	coverPreview(coverUrl: string | null | undefined): RemoteSourceCoverPreviewState;
+	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;
 	companionSummary(inputIds: readonly InputId[]): CompanionAssetSummary;
@@ -118,9 +118,10 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		purgeSession: services.purgeSession,
 		onChange: () => bumpAssets((revision) => revision + 1),
 	});
-	const previews = createRemoteSourceCoverPreviews({
-		loadCoverArtFromUrl: deps.loadCoverArtFromUrl ?? tauriClient.loadCoverArtFromUrl,
+	const previews = createCoverArtPreviewScheduler({
+		load: deps.loadCoverArtFromUrl ?? tauriClient.loadCoverArtFromUrl,
 		onChange: () => bumpPreviews((revision) => revision + 1),
+		failureLogMessage: 'Failed to load remote source cover preview:',
 	});
 	const workflow = createRemoteSourceWorkflow({
 		services,

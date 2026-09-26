@@ -784,6 +784,46 @@ describe('metadata session selection and save', () => {
 		expect(readAudioMetadata).toHaveBeenCalledTimes(2);
 	});
 
+	it('shows the backend cover rejection and leaves URL policy to the backend', async () => {
+		const metadata = fakeMetadata({
+			loadCoverArtFromUrl: vi.fn(async () => {
+				throw {
+					code: 'invalid_input',
+					category: 'validation',
+					message: 'Invalid input: Only HTTPS URLs are supported',
+				};
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.metadata.loadCoverArtFromUrl(' http://example.com/a.jpg ');
+		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('http://example.com/a.jpg');
+		expect(runtime.metadata.view().cover).toMatchObject({
+			isLoading: false,
+			message: { kind: 'error', text: 'Invalid input: Only HTTPS URLs are supported' },
+		});
+	});
+
+	it('does not reread a coverless file whose metadata is already cached', async () => {
+		const metadata = fakeMetadata();
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.metadata.hydrateSelection(null);
+		expect(metadata.readAudioMetadata).toHaveBeenCalledTimes(1);
+	});
+
 	it('does not export process-global cache helpers', () => {
 		expect(metadataSessionApi).not.toHaveProperty('cacheMetadataForFile');
 		expect(metadataSessionApi).not.toHaveProperty('getMetadataForFile');

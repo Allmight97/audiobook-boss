@@ -1,6 +1,5 @@
 use super::cover_art::format::{detect_cover_art_format, detect_image_dimensions, CoverFormat};
-use super::reader;
-use crate::errors::{AppError, Result};
+use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::io::Cursor;
 use std::path::Path;
 
@@ -14,7 +13,24 @@ const THUMBNAIL_MAX_DECODER_ALLOC_BYTES: u64 = 96 * 1024 * 1024;
 
 /// Reads an audio file's embedded cover and returns a small display thumbnail.
 pub fn read_audio_cover_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
-    render_cover_thumbnail(reader::read_cover_art_for_thumbnail(path)?)
+    render_cover_thumbnail(read_embedded_cover_bytes(path)?)
+}
+
+fn read_embedded_cover_bytes(path: &Path) -> Result<Option<Vec<u8>>> {
+    if !path.exists() {
+        return Err(AppError::FileValidation(format!(
+            "File not found: {}",
+            sanitize_path_for_display(path)
+        )));
+    }
+
+    // MP4-family: bound artwork via atom walk without opening FFmpeg (which can
+    // materialize a full attached-pic / covr packet during demuxer open).
+    if super::mp4_covr::looks_like_mp4_family_file(path)? {
+        return super::mp4_covr::read_bounded_mp4_cover_art(path, THUMBNAIL_MAX_ENCODED_BYTES);
+    }
+
+    super::embedded_cover::read_bounded_non_mp4_cover_art(path)
 }
 
 pub(crate) fn optimize_cover_art(bytes: &[u8]) -> Result<Vec<u8>> {

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-	createMetadataLookupCoverPreviews,
-	MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES,
-	type MetadataLookupCoverPreviews,
-} from './coverPreview';
+	createCoverArtPreviewScheduler,
+	DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES,
+	type CoverArtPreviewScheduler,
+} from '../coverArtPreviewScheduler';
 
 type Deferred<T> = {
 	promise: Promise<T>;
@@ -29,16 +29,15 @@ async function flushAsync(): Promise<void> {
 	await Promise.resolve();
 }
 
-function makePreviews(
-	loadCoverArtFromUrl: (url: string) => Promise<number[]>,
-): MetadataLookupCoverPreviews {
-	return createMetadataLookupCoverPreviews({
-		loadCoverArtFromUrl,
+function makePreviews(load: (url: string) => Promise<number[]>): CoverArtPreviewScheduler {
+	return createCoverArtPreviewScheduler({
+		load,
 		onChange: () => undefined,
+		failureLogMessage: 'preview failed',
 	});
 }
 
-describe('metadata lookup cover preview scheduler', () => {
+describe('cover art preview scheduler', () => {
 	it('bounds eager preview concurrency', async () => {
 		const requests: Array<Deferred<number[]>> = [];
 		const loadCoverArtFromUrl = vi.fn((url: string) => {
@@ -167,11 +166,47 @@ describe('metadata lookup cover preview scheduler', () => {
 		expect(previews.getState('https://example.com/clear.jpg').status).toBe('idle');
 	});
 
+	it.each(['direct', 'joined'] as const)(
+		'does not repopulate cache after clear while a %s Apply load is in flight',
+		async (route) => {
+			const request = createDeferred<number[]>();
+			const previews = makePreviews(() => request.promise);
+			const coverUrl = 'https://example.com/apply-clear.jpg';
+
+			if (route === 'joined') {
+				previews.schedule([coverUrl]);
+				await flushAsync();
+			}
+			const bytes = previews.loadBytes(coverUrl);
+			previews.clear();
+			request.resolve([9]);
+
+			await expect(bytes).resolves.toEqual([9]);
+			await flushAsync();
+			expect(previews.getState(coverUrl).status).toBe('idle');
+		},
+	);
+
+	it('notifies the owner when preview state changes', async () => {
+		const onChange = vi.fn();
+		const previews = createCoverArtPreviewScheduler({
+			load: async () => [1],
+			onChange,
+			failureLogMessage: 'preview failed',
+		});
+
+		previews.schedule(['https://example.com/notify.jpg']);
+		await flushAsync();
+
+		expect(previews.getState('https://example.com/notify.jpg').status).toBe('ready');
+		expect(onChange).toHaveBeenCalled();
+	});
+
 	it('caps cached previews by pruning the oldest ready entries', async () => {
 		const loadCoverArtFromUrl = vi.fn(async (url: string) => [url.length]);
 		const previews = makePreviews(loadCoverArtFromUrl);
 		const urls = Array.from(
-			{ length: MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES + 1 },
+			{ length: DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES + 1 },
 			(_, index) => `https://example.com/cache-${index}.jpg`,
 		);
 
@@ -188,7 +223,7 @@ describe('metadata lookup cover preview scheduler', () => {
 		const loadCoverArtFromUrl = vi.fn(async (url: string) => [url.length]);
 		const previews = makePreviews(loadCoverArtFromUrl);
 		const urls = Array.from(
-			{ length: MAX_METADATA_LOOKUP_PREVIEW_CACHE_ENTRIES + 1 },
+			{ length: DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES + 1 },
 			(_, index) => `https://example.com/visible-${index}.jpg`,
 		);
 

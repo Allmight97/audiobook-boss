@@ -11,8 +11,8 @@
 
 - Import `createMetadataLookupOwner` and owner types from
   `src/app/metadataLookup`.
-- `index.ts` is the export surface. `workflow.ts`, `coverPreview.ts`,
-  `state.ts`, and `services.ts` are private implementation modules.
+- `index.ts` is the export surface. `workflow.ts`, `state.ts`, and
+  `services.ts` are private implementation modules.
 - Keep the Effect fake layer private: workflow tests import
   `makeMetadataLookupWorkflowServicesLayer` from `workflow.ts`. Do not
   re-export cover-preview globals, `bumpPreview`, or a module-global cache.
@@ -41,7 +41,8 @@
 
 ## Testing
 
-- `coverPreview.test.ts` pins scheduler behavior and two-instance isolation.
+- `src/lib/media/__tests__/coverArtPreviewScheduler.test.ts` pins scheduler
+  behavior, clear/Apply lifetime, and two-instance isolation.
 - Workflow tests inject `makeMetadataLookupWorkflowServicesLayer` with a
   harness-owned preview factory.
 - Two-runtime preview isolation lives in `src/app/runtime/runtime.test.ts`.

@@ -151,31 +151,6 @@ describe('tauriClient nullish adapters', () => {
 		});
 	});
 
-	it('compiles metadata intent patch on save before denormalization', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce(null);
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.saveMetadataIntentToFile('/books/a.m4b', {
-			title: { op: 'clear' },
-			series_part: { op: 'set', value: '2.0' },
-			cover_art: { op: 'clear' },
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{ filePath: string; metadataPatch: Record<string, unknown> },
-		];
-		expect(commandName).toBe('save_metadata_to_file');
-		expect(args.filePath).toBe('/books/a.m4b');
-		expect(args.metadataPatch.title).toEqual({ op: 'clear' });
-		expect(args.metadataPatch.series_part).toEqual({ op: 'set', value: '2.0' });
-		expect(args.metadataPatch.cover_art).toEqual({ op: 'clear' });
-		expect(args.metadataPatch.artist).toBeUndefined();
-	});
-
 	it('compiles metadata intent patch for validation', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -264,13 +239,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(args.items[1]?.metadataPatch.title).toEqual({ op: 'clear' });
 		expect(args.items[1]?.metadataPatch.cover_art).toEqual({ op: 'clear' });
 		expect(result.results[1]?.error).toBeUndefined();
-	});
-
-	it('exposes metadata-save helpers without the legacy metadata alias', async () => {
-		const { tauriClient } = await import('./tauri/client');
-		expect(typeof tauriClient.saveMetadataIntentToFile).toBe('function');
-		expect(typeof tauriClient.saveMetadataBatch).toBe('function');
-		expect('saveMetadataToFile' in tauriClient).toBe(false);
 	});
 
 	it('normalizes nullable metadata fields from backend responses', async () => {

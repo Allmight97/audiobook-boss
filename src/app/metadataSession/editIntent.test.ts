@@ -31,7 +31,12 @@ function sessionOf(books: ReadonlyArray<Book>, selected: number[]) {
 		validCount: files.filter((file) => file.isValid).length,
 		invalidCount: files.filter((file) => !file.isValid).length,
 	};
-	return { ...emptyInputSession(), fileList, selectedIndices: selected, selectedAnchor: selected[0] };
+	return {
+		...emptyInputSession(),
+		fileList,
+		selectedIndices: selected,
+		selectedAnchor: selected[0],
+	};
 }
 
 function capability(
@@ -54,7 +59,13 @@ function capability(
 				status: 'success' as const,
 				message: 'ok',
 			})),
-			summary: { succeeded: items.length, failed: 0, cancelled: 0, skipped: 0, total: items.length },
+			summary: {
+				succeeded: items.length,
+				failed: 0,
+				cancelled: 0,
+				skipped: 0,
+				total: items.length,
+			},
 		})),
 		openFile: vi.fn(async () => null),
 		loadCoverArtFile: vi.fn(async () => [1, 2, 3]),
@@ -103,7 +114,11 @@ describe('metadata edit intent', () => {
 		runtime = undefined;
 	});
 
-	async function open(books: ReadonlyArray<Book>, selected: number[], metadata: MetadataCapability) {
+	async function open(
+		books: ReadonlyArray<Book>,
+		selected: number[],
+		metadata: MetadataCapability,
+	) {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession(sessionOf(books, selected));
 		await runtime.metadata.hydrateSelection(null);
@@ -115,19 +130,22 @@ describe('metadata edit intent', () => {
 		{ inputId: 'meta-genre', actionId: 'meta-genre-action', shown: '' },
 		{ inputId: 'meta-year', actionId: 'meta-year-action', shown: '' },
 		{ inputId: 'meta-title', actionId: 'meta-title-action', shown: '' },
-	])('Keep after Blank on $inputId revokes the bulk clear', async ({ inputId, actionId, shown }) => {
-		const metadata = capability([alpha, beta]);
-		const app = await open([alpha, beta], [0, 1], metadata);
-		app.metadata.setFieldAction({ actionId, action: 'blank' });
-		app.metadata.setFieldAction({ actionId, action: 'keep' });
-		expect(app.metadata.view().form.fields[inputId as 'meta-title']).toMatchObject({
-			value: shown,
-			dirty: false,
-		});
-		app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
-		await app.metadata.save();
-		expect(savedPatches(metadata)).toEqual({ [alpha.path]: genre, [beta.path]: genre });
-	});
+	])(
+		'Keep after Blank on $inputId revokes the bulk clear',
+		async ({ inputId, actionId, shown }) => {
+			const metadata = capability([alpha, beta]);
+			const app = await open([alpha, beta], [0, 1], metadata);
+			app.metadata.setFieldAction({ actionId, action: 'blank' });
+			app.metadata.setFieldAction({ actionId, action: 'keep' });
+			expect(app.metadata.view().form.fields[inputId as 'meta-title']).toMatchObject({
+				value: shown,
+				dirty: false,
+			});
+			app.metadata.setFieldValue({ inputId: 'meta-genre', value: 'Mystery' });
+			await app.metadata.save();
+			expect(savedPatches(metadata)).toEqual({ [alpha.path]: genre, [beta.path]: genre });
+		},
+	);
 
 	it('Blank clears the field and its album mirror on every selected title', async () => {
 		const metadata = capability([alpha, beta]);
@@ -154,7 +172,13 @@ describe('metadata edit intent', () => {
 				isValid: !patch.series_part,
 				metadataPatch: patch,
 				fieldErrors: patch.series_part
-					? [{ field: 'series_part' as const, code: 'series_part_contains_slash' as const, message: 'Bad part' }]
+					? [
+							{
+								field: 'series_part' as const,
+								code: 'series_part_contains_slash' as const,
+								message: 'Bad part',
+							},
+						]
 					: [],
 			})),
 		});
@@ -170,7 +194,10 @@ describe('metadata edit intent', () => {
 		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Renamed' });
 		await app.metadata.save();
 		expect(savedPatches(metadata)).toEqual({
-			[alpha.path]: { title: { op: 'set', value: 'Renamed' }, album: { op: 'set', value: 'Renamed' } },
+			[alpha.path]: {
+				title: { op: 'set', value: 'Renamed' },
+				album: { op: 'set', value: 'Renamed' },
+			},
 		});
 	});
 
