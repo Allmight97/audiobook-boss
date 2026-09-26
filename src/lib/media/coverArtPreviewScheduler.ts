@@ -1,7 +1,7 @@
 import { coverArtBytesToDataUrl } from './coverArtDataUrl';
 import { createBoundedGenerationQueue } from './boundedGenerationQueue';
 
-export const DEFAULT_COVER_ART_PREVIEW_CONCURRENCY = 2;
+const DEFAULT_COVER_ART_PREVIEW_CONCURRENCY = 2;
 export const DEFAULT_COVER_ART_PREVIEW_CACHE_ENTRIES = 64;
 
 export type CoverArtPreviewState =
@@ -11,7 +11,7 @@ export type CoverArtPreviewState =
 	| { status: 'ready'; bytes: number[]; dataUrl: string }
 	| { status: 'error' };
 
-export type CoverArtPreviewLoader = (url: string) => Promise<number[]>;
+type CoverArtPreviewLoader = (url: string) => Promise<number[]>;
 
 type CoverArtPreviewSchedulerOptions = {
 	readonly load: CoverArtPreviewLoader;

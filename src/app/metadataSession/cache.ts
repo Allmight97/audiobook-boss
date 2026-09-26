@@ -68,7 +68,7 @@ export function isUsableMetadataCache(
 	return true;
 }
 
-export type MetadataStageResult = 'staged' | 'unchanged' | 'noop';
+type MetadataStageResult = 'staged' | 'unchanged' | 'noop';
 
 export function createMetadataCache() {
 	const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();

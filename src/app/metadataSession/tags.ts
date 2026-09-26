@@ -17,7 +17,7 @@ export type TagField =
 
 export type TagPreviewValues = Record<TagField, string>;
 
-export function calculateTSOA(series: string, part: string, title: string): string {
+function calculateTSOA(series: string, part: string, title: string): string {
 	const trimmedSeries = series.trim();
 	const trimmedTitle = title.trim();
 	if (!trimmedSeries || !trimmedTitle) return '';

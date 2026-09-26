@@ -12,7 +12,7 @@ import {
 
 export type { MetadataFormState };
 
-export type MetadataFormValidationWarnings = {
+type MetadataFormValidationWarnings = {
 	readonly byField?: {
 		readonly series_part?: string;
 		readonly subseries_part?: string;

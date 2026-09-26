@@ -1,6 +1,6 @@
 import type { AudiobookMetadata } from '../../types/metadata';
 
-export type MetadataFormMode = 'single' | 'multi';
+type MetadataFormMode = 'single' | 'multi';
 export type MetadataFieldAction = 'keep' | 'blank';
 export type MetadataFieldId =
 	| 'meta-title'
@@ -13,7 +13,7 @@ export type MetadataFieldId =
 	| 'meta-subseries'
 	| 'meta-subseries-part'
 	| 'meta-description';
-export type MetadataActionId =
+type MetadataActionId =
 	| 'meta-title-action'
 	| 'meta-author-action'
 	| 'meta-narrator-action'
@@ -25,7 +25,7 @@ export type MetadataActionId =
 	| 'meta-subseries-part-action'
 	| 'meta-description-action';
 
-export type MetadataFieldDefinition = {
+type MetadataFieldDefinition = {
 	readonly inputId: MetadataFieldId;
 	readonly actionId: MetadataActionId;
 	readonly key: keyof AudiobookMetadata;
@@ -130,7 +130,7 @@ export const METADATA_FIELD_DEFINITIONS = [
 	},
 ] as const satisfies readonly MetadataFieldDefinition[];
 
-export type MetadataFieldState = {
+type MetadataFieldState = {
 	readonly value: string;
 	readonly action: MetadataFieldAction;
 	readonly dirty: boolean;
@@ -140,7 +140,7 @@ export type MetadataFieldState = {
 	readonly hydrated: { readonly value: string; readonly mixed: boolean };
 };
 
-export type MetadataWarningState = {
+type MetadataWarningState = {
 	readonly message: string;
 	readonly visible: boolean;
 };
@@ -153,7 +153,7 @@ export type MetadataFormState = {
 	readonly subseriesPartWarning: MetadataWarningState;
 };
 
-export const EMPTY_WARNING_STATE: MetadataWarningState = {
+const EMPTY_WARNING_STATE: MetadataWarningState = {
 	message: '',
 	visible: false,
 };

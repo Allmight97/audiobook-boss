@@ -1,7 +1,7 @@
 import type { AudioFile } from '../../types/audio';
 import type { MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 
-export type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
+type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
 export type MetadataLookupApplyMode = 'current' | 'queue';
 export type MetadataLookupSource = 'auto' | MetadataSource;
 export type MetadataLookupQueueItem = {

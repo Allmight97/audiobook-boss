@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { populateMetadataFormSingle } from './form';
-import { calculateTSOA, projectTagPreviewValues } from './tags';
+import { projectTagPreviewValues } from './tags';
 
 describe('tag preview projection', () => {
-	it('pads series part and skips missing series or title', () => {
-		expect(calculateTSOA('The Stormlight Archive', '3', 'Oathbringer')).toBe(
-			'The Stormlight Archive 03 - Oathbringer',
-		);
-		expect(calculateTSOA('Series', '12', 'Finale')).toBe('Series 12 - Finale');
-		expect(calculateTSOA('', '1', 'Book')).toBe('');
-		expect(calculateTSOA('Series', '1', '')).toBe('');
-		expect(calculateTSOA('Series', '0', 'Book')).toBe('Series 00 - Book');
+	it.each([
+		['The Stormlight Archive', '3', 'Oathbringer', 'The Stormlight Archive 03 - Oathbringer'],
+		['Series', '12', 'Finale', 'Series 12 - Finale'],
+		['', '1', 'Book', ''],
+		['Series', '1', '', ''],
+		['Series', '0', 'Book', 'Series 00 - Book'],
+	])('sort-album preview for %s #%s %s is %j', (series, part, title, tsoa) => {
+		const form = populateMetadataFormSingle({ series, series_part: part, title });
+		expect(projectTagPreviewValues(form).tsoa).toBe(tsoa);
 	});
 
 	it('maps form fields onto tag names including album and tsoa', () => {

@@ -8,7 +8,7 @@ import { isUsableMetadataCache, type MetadataCache } from './cache';
 import { composeFormIntent, type MetadataFormState } from './form';
 import { validateMetadataIntent, type ValidateMetadataIntentPatch } from './validation';
 
-export type PreparedMetadataDraft = {
+type PreparedMetadataDraft = {
 	readonly targets: ReadonlyArray<AudioFile>;
 	readonly intentPatch: MetadataIntentPatch;
 	readonly snapshotsByPath: Readonly<Record<string, Partial<AudiobookMetadata>>>;

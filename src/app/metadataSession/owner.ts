@@ -50,7 +50,7 @@ import {
 import { projectTagPreviewValues } from './tags';
 import type { MetadataDraftValidation } from './validation';
 
-export type MetadataEditorState = {
+type MetadataEditorState = {
 	readonly form: MetadataFormState;
 	readonly cover: CoverUiState;
 	readonly saveInProgress: boolean;
@@ -110,7 +110,7 @@ export type MetadataOwner = {
 	reset(): void;
 };
 
-export type MetadataOwnerDeps = {
+type MetadataOwnerDeps = {
 	readonly input: InputOwner;
 	readonly capability?: MetadataCapability;
 	readonly isForegroundProcessing?: () => boolean;

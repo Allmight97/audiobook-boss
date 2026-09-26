@@ -186,7 +186,7 @@ export function normalizeRuntimeSettingsCapabilities(
 	return normalizeNullish(capabilities);
 }
 
-export function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
+function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
 	return normalizeNullish(result);
 }
 
