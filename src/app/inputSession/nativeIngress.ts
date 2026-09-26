@@ -1,11 +1,5 @@
 export type NativeDropTarget = 'cover' | 'files' | 'ignore';
 
-const COVER_ART_IMAGE_EXTENSION_HINT_PATTERN = /\.(jpg|jpeg|png|webp)$/i;
-
-export function nativeDropLooksLikeCoverArt(paths: ReadonlyArray<string>): boolean {
-	return paths.some((path) => COVER_ART_IMAGE_EXTENSION_HINT_PATTERN.test(path));
-}
-
 export function nativeDropTargetAtPoint(
 	position: { readonly x: number; readonly y: number },
 	coverArtArea: HTMLElement | null,

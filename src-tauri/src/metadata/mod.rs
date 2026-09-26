@@ -17,8 +17,6 @@ pub use abb_metadata_core::{
 };
 pub(crate) use cue::{inspect_chapter_source, validate_chapter_plan, validate_source_fingerprint};
 pub use cue::{ChapterPlan, CueSource, CueStatus};
-#[cfg(test)]
-mod contract_tests;
 mod cover_art;
 mod embedded_cover;
 mod ffi;
@@ -59,10 +57,8 @@ pub use reader::{display_tags_from_ffmpeg_dict, read_metadata};
 pub use thumbnail::read_audio_cover_thumbnail;
 pub(crate) use thumbnail::{optimize_cover_art, prepare_cover_art_for_write};
 
-pub use cover_art::{
-    add_cover_art_stream_pre_header, write_cover_art_packet_post_header, CoverFormat,
-};
-pub use ffmpeg_dict::{set_container_metadata, validate_metadata_compatibility};
+pub use cover_art::{add_cover_art_stream_pre_header, write_cover_art_packet_post_header};
+pub use ffmpeg_dict::set_container_metadata;
 pub(crate) use passthrough::prepare_output_cover_art;
 pub use passthrough::{
     add_chapters_to_output, extract_passthrough_metadata, verify_chapters, PassthroughMetadata,
@@ -114,39 +110,47 @@ pub fn finalize_artifact_metadata(
     crate::diagnostics::stage("metadata_remux", path, || {
         remux::rewrite_metadata_with_ffmpeg(path, metadata, passthrough)
     })?;
-
-    if let Some(metadata) = metadata {
-        if should_write_finalized_metadata(path)? {
-            write_finalized_metadata(path, metadata)?;
-        }
-    }
-    if let Some(passthrough) = passthrough {
-        verify_chapters(path, &passthrough.chapters)?;
-    }
+    finish_artifact_tags(
+        path,
+        metadata,
+        passthrough.map(|value| value.chapters.as_slice()),
+        || {},
+    )?;
     Ok(())
 }
 
-pub(crate) fn write_cover_art_to_file(path: &std::path::Path, cover_data: Vec<u8>) -> Result<()> {
-    let metadata = AudiobookMetadata {
-        cover_art: Some(cover_data),
-        ..Default::default()
-    };
-    let plan = MetadataWritePlan::from_metadata(metadata);
-    save_metadata_with_plan(path, &plan)
-}
-
-pub(crate) fn should_write_finalized_metadata(path: &std::path::Path) -> Result<bool> {
-    Ok(matches!(
-        crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?,
-        container::ContainerRoute::Mp4Family
-    ))
-}
-
-pub(crate) fn write_finalized_metadata(
+/// Last metadata step on a produced artifact, after muxing or remuxing:
+/// MP4-family tag truth is rewritten through mp4ameta (the mov muxer drops
+/// series, freeform, and sort keys), then accepted chapters are verified.
+/// `before_tag_write` runs only when that rewrite happens, so callers can
+/// report progress without knowing the container strategy. Returns whether
+/// tags were rewritten.
+pub(crate) fn finish_artifact_tags(
     path: &std::path::Path,
-    metadata: &AudiobookMetadata,
-) -> Result<()> {
-    mp4ameta_bridge::write_metadata(path, metadata)
+    metadata: Option<&AudiobookMetadata>,
+    chapters: Option<&[ChapterSpec]>,
+    before_tag_write: impl FnOnce(),
+) -> Result<bool> {
+    let mut rewrote = false;
+    if let Some(metadata) = metadata {
+        let route =
+            crate::diagnostics::stage("metadata_classify", path, || container::classify(path))?;
+        if route == container::ContainerRoute::Mp4Family {
+            before_tag_write();
+            let started = std::time::Instant::now();
+            mp4ameta_bridge::write_metadata(path, metadata)?;
+            log::info!(
+                "artifact_tag_write status=ok elapsed_ms={} artifact={}",
+                started.elapsed().as_millis(),
+                crate::diagnostics::artifact_id(path)
+            );
+            rewrote = true;
+        }
+    }
+    if let Some(chapters) = chapters {
+        verify_chapters(path, chapters)?;
+    }
+    Ok(rewrote)
 }
 
 /// Changes only the container on an owned staging artifact, retaining its audio,
@@ -183,11 +187,11 @@ pub(crate) fn remux_preserved_audio_container(
         passthrough.as_ref(),
         Some(target),
     )?;
-    if target == "mp4" {
-        write_finalized_metadata(path, &metadata)?;
-    }
-    if let Some(passthrough) = passthrough {
-        verify_chapters(path, &passthrough.chapters)?;
-    }
+    finish_artifact_tags(
+        path,
+        Some(&metadata),
+        passthrough.as_ref().map(|value| value.chapters.as_slice()),
+        || {},
+    )?;
     Ok(())
 }

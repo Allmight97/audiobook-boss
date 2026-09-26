@@ -20,8 +20,7 @@ import {
 } from '../../lib/effect/appEffect';
 import type { tauriClient } from '../../lib/tauri/client';
 import type { FileListInfo } from '../../types/audio';
-import type { AudiobookMetadata } from '../../types/metadata';
-import type { MetadataStageResult } from '../metadataSession';
+import type { MetadataStageOutcome } from '../metadataSession';
 import type { runOutputPlanReviewWorkflow } from '../outputPlan';
 import type { RemoteSourceOwner } from '../remoteSource';
 import {
@@ -39,23 +38,14 @@ type StatusPanelFeedbackService = {
 
 export interface ProcessingWorkflowServices {
 	getCurrentFileList: () => FileListInfo | null;
-	getSelectedFileIndex: () => number;
-	getSelectedFileIndices: () => Set<number>;
 	readProcessingRequestConfig: (titles: readonly AudioFile[]) => ProcessingRequestConfig;
 	sourcesFor: (file: AudioFile) => readonly AudioFile[];
-	hasDirtyMetadataFields: () => boolean;
-	readMetadataForm: (options?: {
-		mode?: 'single' | 'multi';
-		onlyDirty?: boolean;
-	}) => Partial<AudiobookMetadata>;
-	stageIntent: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
+	stageMetadata: () => Promise<MetadataStageOutcome>;
 	intentsForProcess: (
 		filePaths: readonly string[],
 	) => Promise<Record<string, MetadataIntentPatch> | null>;
-	stageMetadataToSelection: (options?: { showStatus?: boolean }) => Promise<boolean>;
 	setJobControlsEnabled: (enabled: boolean) => void;
 	setFileOrderLocked: (locked: boolean) => void;
-	validateMetadataIntentPatch: typeof tauriClient.validateMetadataIntentPatch;
 	processAudiobookFiles: typeof tauriClient.processAudiobookFiles;
 	submitProcessingOperation: typeof tauriClient.submitProcessingOperation;
 	runOutputPlanReviewWorkflow: (
@@ -399,7 +389,7 @@ export function processingWorkflowProgram(
 
 		const filePaths = titles.map((title) => title.file.path);
 		const inputIds = titles.map((title) => title.file.inputId);
-		const metadataReady = yield* stagePendingMetadataIntent(services, fileList, workflowPromise);
+		const metadataReady = yield* stagePendingMetadataIntent(services, workflowPromise);
 		if (!metadataReady) {
 			return;
 		}

@@ -22,35 +22,21 @@ export const commands = {
 	 *  Returns metadata as JSON-serializable struct
 	 */
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
-	/**
-	 *  Writes cover art to an M4B file
-	 *  Accepts file path and base64-encoded image data
-	 */
-	writeCoverArt: (filePath: string, coverData: number[]) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("write_cover_art", { filePath, coverData })),
-	/**
-	 *  Loads image file from disk and returns as byte array
-	 *  Supports common image formats: jpg, jpeg, png, webp
-	 */
+	/**  Loads a cover image from disk and returns write-ready JPEG bytes. */
 	loadCoverArtFile: (filePath: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_file", { filePath })),
 	/**
-	 *  Loads cover art from a remote URL and returns optimized image bytes
-	 *  HTTPS-only with size and content-type validation for safety.
-	 *  Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
+	 *  Loads cover art from a remote URL and returns write-ready JPEG bytes.
+	 *
+	 *  HTTPS-only with size and content-type validation. SSRF protection: literal
+	 *  hosts must be public addresses, resolved domains drop private/reserved
+	 *  addresses, every redirect is rechecked, and environment proxies are ignored
+	 *  so the destination is always resolved here.
 	 */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
 	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Validates and normalizes metadata intent without writing files. */
 	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch) => typedError<MetadataIntentValidationResult, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
-	/**
-	 *  Saves metadata to an audio file using explicit write intent (metadata-only editing)
-	 *
-	 *  This command is designed for metadata-only editing (Cmd+S workflow):
-	 *  1. Preserves album sort unless explicit set, clear, or recompute intent is provided
-	 *  2. Writes metadata non-destructively (preserves existing cover art if not replaced)
-	 *  3. Handles cover art: preserves existing if not provided, replaces if new art given
-	 */
-	saveMetadataToFile: (filePath: string, metadataPatch: MetadataIntentPatch) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_to_file", { filePath, metadataPatch })),
 	saveMetadataBatch: (items: MetadataSaveRequest[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
 	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<MetadataLookupResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
 	/**
@@ -590,12 +576,14 @@ export type MetadataSaveRequest = {
 	metadataPatch: MetadataIntentPatch,
 };
 
+/**
+ *  Per-file outcome the frontend uses to clear or retain drafts. The reason
+ *  for each outcome is the operation child's terminal message in Work Center.
+ */
 export type MetadataSaveResultEntry = {
 	inputIndex: number,
 	filePath: string,
 	status: MetadataSaveResultStatus,
-	message: string,
-	error: AppErrorEnvelope | null,
 };
 
 export type MetadataSaveResultStatus = "success" | "cancelled" | "failed";

@@ -188,59 +188,25 @@ impl WorkRuntime {
         self.apply_progress_and_emit(window, operation_id, event);
     }
 
-    /// Terminalize a metadata-save operation from its result summary plus
-    /// per-child terminal facts, then emit and drop its cancel flag.
+    /// Terminalize a metadata-save operation from its run outcome, then emit
+    /// and drop its cancel flag. A finished run maps its summary through the
+    /// canonical classifier and terminalizes children by `input_index`; an
+    /// aborted run resolves to Cancelled for a cancellation and Failed
+    /// otherwise, exactly as a processing run does.
     pub fn finish_metadata_save_operation(
         &self,
         window: &tauri::Window,
         operation_id: &OperationId,
-        summary: &OperationResultSummary,
-        child_terminals: &[(usize, ProcessResultStatus, String)],
+        outcome: std::result::Result<InlineRunTerminal<'_>, &AppError>,
     ) -> Result<OperationSnapshot> {
         let snapshot = {
             let mut state = lock_state(&self.inner.state)?;
-            state.complete_from_summary(operation_id, summary, child_terminals, now_ms())?
-        };
-        log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
-        self.emit_snapshot(window, &snapshot);
-        self.emit_list(window);
-        self.remove_cancel_flag(operation_id);
-        Ok(snapshot)
-    }
-
-    /// Fail a metadata-save operation when its run aborts before producing a
-    /// result (e.g. an infrastructure error), then emit and drop its cancel flag.
-    pub fn fail_metadata_save_operation(
-        &self,
-        window: &tauri::Window,
-        operation_id: &OperationId,
-        message: String,
-    ) -> Result<OperationSnapshot> {
-        let snapshot = {
-            let mut state = lock_state(&self.inner.state)?;
-            state.fail(operation_id, message, now_ms())?
-        };
-        log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
-        self.emit_snapshot(window, &snapshot);
-        self.emit_list(window);
-        self.remove_cancel_flag(operation_id);
-        Ok(snapshot)
-    }
-
-    /// Cancel-terminalize a metadata-save operation that aborted via cancellation
-    /// (e.g. the operation cancel flag flipped during the permit wait, before the
-    /// save loop). Mirrors the processing path's `AppError::Cancellation =>
-    /// state.cancel` so a cancelled metadata save resolves to `Cancelled`, not
-    /// `Failed`.
-    pub fn cancel_metadata_save_operation(
-        &self,
-        window: &tauri::Window,
-        operation_id: &OperationId,
-        message: String,
-    ) -> Result<OperationSnapshot> {
-        let snapshot = {
-            let mut state = lock_state(&self.inner.state)?;
-            state.cancel(operation_id, message, now_ms())?
+            match outcome {
+                Ok(run) => {
+                    state.complete_from_summary(operation_id, run.summary, run.children, now_ms())
+                }
+                Err(error) => terminalize_aborted_run(&mut state, operation_id, error),
+            }?
         };
         log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
         self.emit_snapshot(window, &snapshot);
@@ -316,18 +282,10 @@ impl WorkRuntime {
         operation_id: &OperationId,
         result: Result<crate::processing::ProcessCommandResult>,
     ) {
-        let snapshot_result = match result {
-            Ok(result) => lock_state(&self.inner.state).and_then(|mut state| {
-                state.complete_from_process_result(operation_id, &result, now_ms())
-            }),
-            Err(AppError::Cancellation(message)) => lock_state(&self.inner.state)
-                .and_then(|mut state| state.cancel(operation_id, message, now_ms())),
-            Err(error) => {
-                let message = error.to_string();
-                lock_state(&self.inner.state)
-                    .and_then(|mut state| state.fail(operation_id, message, now_ms()))
-            }
-        };
+        let snapshot_result = lock_state(&self.inner.state).and_then(|mut state| match &result {
+            Ok(result) => state.complete_from_process_result(operation_id, result, now_ms()),
+            Err(error) => terminalize_aborted_run(&mut state, operation_id, error),
+        });
 
         match snapshot_result {
             Ok(snapshot) => {
@@ -482,6 +440,26 @@ fn plural_suffix(count: usize) -> &'static str {
         ""
     } else {
         "s"
+    }
+}
+
+/// Result facts for a command-driven inline run: its summary and each child's
+/// `(input_index, status, reason)` terminal.
+pub struct InlineRunTerminal<'a> {
+    pub summary: &'a OperationResultSummary,
+    pub children: &'a [(usize, ProcessResultStatus, String)],
+}
+
+/// A run that aborted before producing results: cancellation → Cancelled,
+/// anything else → Failed.
+fn terminalize_aborted_run(
+    state: &mut WorkRuntimeState,
+    operation_id: &OperationId,
+    error: &AppError,
+) -> Result<OperationSnapshot> {
+    match error {
+        AppError::Cancellation(message) => state.cancel(operation_id, message.clone(), now_ms()),
+        error => state.fail(operation_id, error.to_string(), now_ms()),
     }
 }
 

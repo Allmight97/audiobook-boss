@@ -2,7 +2,7 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { MetadataCache } from './cache';
 
-export function firstValidFilePath(fileList: FileListInfo | null): string | null {
+function firstValidFilePath(fileList: FileListInfo | null): string | null {
 	if (!fileList?.files.length) {
 		return null;
 	}

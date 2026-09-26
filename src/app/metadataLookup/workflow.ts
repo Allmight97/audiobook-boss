@@ -5,27 +5,14 @@ import type {
 	MetadataSource,
 	OnlineMetadataResult,
 } from '../../types/metadata';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import type { MetadataStageResult } from '../metadataSession';
 import {
-	Effect,
-	type AppLayer,
-	type AppEffect,
-	makeWorkflowKit,
-	runAppEffect,
-} from '../../lib/effect/appEffect';
-import {
-	buildQueueMetadataPatch,
 	deriveAuthorQueryFromFile,
 	deriveTitleQueryFromFile,
 	mapResultToMetadata,
-	persistQueueMetadata,
 	resetResults,
 	selectedSources,
 	updateApplyModeOptions,
 	updateQueueContext,
-	type QueueCoverState,
-	type QueueItemState,
 } from './workflowDomain';
 import type {
 	MetadataLookupQueueItem,
@@ -43,17 +30,12 @@ export interface MetadataLookupWorkflowServices {
 	getSelectedFileIndices: () => Set<number>;
 	getCurrentFileList: () => FileListInfo | null;
 	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
-	stageMetadataIntentPatch: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
 	selectFile: (file: AudioFile) => Promise<boolean>;
 	applyMetadataToForm: (
 		file: AudioFile,
 		metadata: Partial<AudiobookMetadata>,
 		coverArtBytes?: number[],
 	) => boolean;
-	readMetadataForm: (options?: {
-		mode?: 'single' | 'multi';
-		includeCoverArt?: boolean;
-	}) => Partial<AudiobookMetadata>;
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;
@@ -65,22 +47,6 @@ export interface MetadataLookupWorkflowServices {
 	queueMicrotask: (callback: () => void) => void;
 	console: Pick<Console, 'error' | 'warn'>;
 	publishView?: () => void;
-}
-
-export type MetadataLookupWorkflowServicesId = 'MetadataLookup/WorkflowServices';
-export type MetadataLookupWorkflowLayer = AppLayer<MetadataLookupWorkflowServicesId>;
-
-const kit = makeWorkflowKit(
-	'MetadataLookup/WorkflowServices',
-	'MetadataLookupWorkflowFailed',
-)<MetadataLookupWorkflowServices>();
-
-export const MetadataLookupWorkflowServicesTag = kit.Tag;
-
-export function makeMetadataLookupWorkflowServicesLayer(
-	services: MetadataLookupWorkflowServices,
-): MetadataLookupWorkflowLayer {
-	return kit.makeLive(services);
 }
 
 const METADATA_TITLE_INPUT_ID = 'meta-title';
@@ -105,17 +71,19 @@ type CoverArtApplyResult =
 export type MetadataLookupWorkflowAction =
 	| { type: 'applyResult'; index: number }
 	| { type: 'close' }
-	| { type: 'init' }
 	| { type: 'manualEntry' }
 	| { type: 'open' }
 	| { type: 'search' }
 	| { type: 'skipQueueItem' };
 
-export const MetadataLookupWorkflowFailed = kit.Failed;
-export type MetadataLookupWorkflowFailed = InstanceType<typeof kit.Failed>;
-
-const workflowSync = kit.trySync;
-const workflowPromise = kit.tryPromise;
+const FAILURE_MESSAGES: Record<MetadataLookupWorkflowAction['type'], string> = {
+	applyResult: 'Failed to apply metadata lookup result.',
+	close: 'Failed to close metadata lookup.',
+	manualEntry: 'Failed to switch to manual metadata entry.',
+	open: 'Failed to open metadata lookup.',
+	search: 'Failed to search online metadata sources.',
+	skipQueueItem: 'Failed to skip metadata lookup queue item.',
+};
 
 function setStatus(
 	services: MetadataLookupWorkflowServices,
@@ -217,12 +185,12 @@ async function applyResult(
 	const current = queue[services.getQueueState().index];
 	if (!current) return;
 
-	let queueCoverState: QueueCoverState = { intent: 'keep' };
+	let coverArtBytes: number[] | undefined;
 	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
 		const coverArtResult = await applyCoverArt(services, result);
 		if (coverArtResult.status === 'applied' && coverArtResult.bytes.length > 0) {
-			queueCoverState = { intent: 'replace', bytes: coverArtResult.bytes };
+			coverArtBytes = coverArtResult.bytes;
 		} else if (coverArtResult.status === 'failed') {
 			coverArtFailed = true;
 		}
@@ -230,14 +198,7 @@ async function applyResult(
 	if (!services.isCurrent()) return;
 	const selected = await services.selectFile(current.file);
 	if (!services.isCurrent()) return;
-	if (
-		!selected ||
-		!services.applyMetadataToForm(
-			current.file,
-			metadata,
-			queueCoverState.intent === 'replace' ? queueCoverState.bytes : undefined,
-		)
-	) {
+	if (!selected || !services.applyMetadataToForm(current.file, metadata, coverArtBytes)) {
 		setStatus(
 			services,
 			'Could not apply metadata to the selected file. Review pending edits and try again.',
@@ -246,12 +207,9 @@ async function applyResult(
 		return;
 	}
 
+	// Applied values are form edits; advancing passes Metadata's draft gate,
+	// which validates and stages them like any other edit.
 	if (mode === 'queue') {
-		const queueState: QueueItemState = {
-			metadataPatch: buildQueueMetadataPatch(services),
-			cover: queueCoverState,
-		};
-		persistQueueMetadata(services, current.file, queueState);
 		await advanceQueue(services, 'applied', { coverArtFailed });
 		return;
 	}
@@ -350,15 +308,6 @@ async function openWorkflow(services: MetadataLookupWorkflowServices): Promise<v
 	}
 }
 
-function initWorkflow(services: MetadataLookupWorkflowServices): void {
-	const state = services.getLookupState();
-	state.isOpen = false;
-	state.results = [];
-	state.hasSearched = false;
-	state.statusMessage = '';
-	services.clearMetadataLookupQueue();
-}
-
 function useManualEntry(services: MetadataLookupWorkflowServices): void {
 	hideModal(services);
 	services.queueMicrotask(() => {
@@ -366,79 +315,48 @@ function useManualEntry(services: MetadataLookupWorkflowServices): void {
 	});
 }
 
-function reportWorkflowFailure(
+async function runAction(
 	services: MetadataLookupWorkflowServices,
-	error: MetadataLookupWorkflowFailed,
-): AppEffect<void> {
-	return Effect.sync(() => {
-		if (!services.isCurrent()) return;
-		services.console.error(`Metadata lookup workflow failed: ${error.message}`, error.cause);
-		setStatus(services, 'Metadata lookup failed. Check console and try again.', 'error');
-	});
-}
-
-function metadataLookupWorkflowBody(
-	action: MetadataLookupWorkflowAction,
-): AppEffect<void, MetadataLookupWorkflowFailed, MetadataLookupWorkflowServicesId> {
-	return Effect.gen(function* () {
-		const services = yield* MetadataLookupWorkflowServicesTag;
-		if (!services.isCurrent()) return;
-		switch (action.type) {
-			case 'applyResult': {
-				yield* workflowPromise(async () => {
-					const result = services.getLookupState().results[action.index];
-					if (!result) return;
-					await applyResult(services, result);
-				}, 'Failed to apply metadata lookup result.');
-				return;
-			}
-			case 'close':
-				yield* workflowSync(() => hideModal(services), 'Failed to close metadata lookup.');
-				return;
-			case 'init':
-				yield* workflowSync(() => initWorkflow(services), 'Failed to initialize metadata lookup.');
-				return;
-			case 'manualEntry':
-				yield* workflowSync(
-					() => useManualEntry(services),
-					'Failed to switch to manual metadata entry.',
-				);
-				return;
-			case 'open':
-				yield* workflowPromise(() => openWorkflow(services), 'Failed to open metadata lookup.');
-				return;
-			case 'search':
-				yield* workflowPromise(
-					() => runSearch(services),
-					'Failed to search online metadata sources.',
-				);
-				return;
-			case 'skipQueueItem':
-				yield* workflowPromise(
-					() => advanceQueue(services, 'skipped'),
-					'Failed to skip metadata lookup queue item.',
-				);
-				return;
-		}
-	});
-}
-
-export function metadataLookupWorkflowProgram(
-	action: MetadataLookupWorkflowAction,
-): AppEffect<void, never, MetadataLookupWorkflowServicesId> {
-	return metadataLookupWorkflowBody(action).pipe(
-		Effect.catch((error) =>
-			Effect.gen(function* () {
-				const services = yield* MetadataLookupWorkflowServicesTag;
-				yield* reportWorkflowFailure(services, error);
-			}),
-		),
-	);
-}
-
-export function runMetadataLookupWorkflow(
-	layer: MetadataLookupWorkflowLayer,
 	action: MetadataLookupWorkflowAction,
 ): Promise<void> {
-	return runAppEffect(metadataLookupWorkflowProgram(action).pipe(Effect.provide(layer)));
+	switch (action.type) {
+		case 'applyResult': {
+			const result = services.getLookupState().results[action.index];
+			if (result) await applyResult(services, result);
+			return;
+		}
+		case 'close':
+			hideModal(services);
+			return;
+		case 'manualEntry':
+			useManualEntry(services);
+			return;
+		case 'open':
+			await openWorkflow(services);
+			return;
+		case 'search':
+			await runSearch(services);
+			return;
+		case 'skipQueueItem':
+			await advanceQueue(services, 'skipped');
+			return;
+	}
+}
+
+/** Runs one Lookup action; an unexpected failure is reported while the action is current. */
+export async function runMetadataLookupWorkflow(
+	services: MetadataLookupWorkflowServices,
+	action: MetadataLookupWorkflowAction,
+): Promise<void> {
+	if (!services.isCurrent()) return;
+	try {
+		await runAction(services, action);
+	} catch (error) {
+		if (!services.isCurrent()) return;
+		services.console.error(
+			`Metadata lookup workflow failed: ${FAILURE_MESSAGES[action.type]}`,
+			error,
+		);
+		setStatus(services, 'Metadata lookup failed. Check console and try again.', 'error');
+	}
 }

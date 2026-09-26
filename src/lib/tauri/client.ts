@@ -206,11 +206,6 @@ export const tauriClient = {
 		commandSpecs.validate_files({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
-	writeCoverArt: (
-		filePath: string,
-		coverData: number[],
-	): Promise<CommandResult<'write_cover_art'>> =>
-		commandSpecs.write_cover_art({ filePath, coverData }),
 	loadCoverArtFile: (filePath: string): Promise<CommandResult<'load_cover_art_file'>> =>
 		commandSpecs.load_cover_art_file({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
@@ -223,11 +218,6 @@ export const tauriClient = {
 		metadataIntent: MetadataIntentPatch,
 	): Promise<MetadataIntentValidationResult> =>
 		commandSpecs.validate_metadata_intent_patch({ metadataIntent }),
-	saveMetadataIntentToFile: (
-		filePath: string,
-		metadataIntent: MetadataIntentPatch,
-	): Promise<CommandResult<'save_metadata_to_file'>> =>
-		commandSpecs.save_metadata_to_file({ filePath, metadataIntent }),
 	saveMetadataBatch: (
 		items: MetadataSaveRequest[],
 	): Promise<CommandResult<'save_metadata_batch'>> => commandSpecs.save_metadata_batch({ items }),

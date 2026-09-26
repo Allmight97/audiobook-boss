@@ -12,7 +12,6 @@ it('pins the Input public export strip', () => {
 			'formatAudioProperties',
 			'formatFileDetails',
 			'interpretFileListKeyDown',
-			'nativeDropLooksLikeCoverArt',
 			'nativeDropTargetAtPoint',
 			'resolveFileListNavigationTarget',
 			'toInputView',

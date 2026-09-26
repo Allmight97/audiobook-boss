@@ -534,6 +534,12 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     metadata.artist = Some("Lane Narrator".to_string());
     metadata.album = Some("Lane Album".to_string());
     metadata.genre = Some("Audiobook".to_string());
+    // The MP4 muxer drops these keys; they reach the artifact only through the
+    // finalized tag write.
+    metadata.series = Some("Lane Saga".to_string());
+    metadata.series_part = Some("2".to_string());
+    metadata.subseries = Some("Lane Arc".to_string());
+    metadata.subseries_part = Some("1".to_string());
 
     execute_audio_engine(lane.execution_request(ProcessingSession::new(), Some(metadata)))
         .await
@@ -544,6 +550,35 @@ async fn metadata_saved_during_processing_rereads_from_output_artifact() {
     assert_eq!(reread.artist.as_deref(), Some("Lane Narrator"));
     assert_eq!(reread.album.as_deref(), Some("Lane Album"));
     assert_eq!(reread.genre.as_deref(), Some("Audiobook"));
+    assert_eq!(reread.series.as_deref(), Some("Lane Saga"));
+    assert_eq!(reread.series_part.as_deref(), Some("2"));
+    assert_eq!(reread.subseries.as_deref(), Some("Lane Arc"));
+    assert_eq!(reread.subseries_part.as_deref(), Some("1"));
+}
+
+/// A remux save that fails after creating its temporary output leaves the
+/// source untouched and no `.abb_meta_*` sibling beside it.
+#[test]
+fn failed_remux_save_leaves_source_bytes_and_no_temporary_residue() {
+    let dir = TempDir::new().expect("temp dir");
+    let source = dir.path().join("book.wav");
+    write_sine_wav(&source, 0.5, 440.0);
+    let before = fs::read(&source).expect("read source");
+
+    let patch = MetadataIntentPatch {
+        title: PatchOp::Set("Retitled".to_string()),
+        cover_art: PatchOp::Set(minimal_jpg_bytes()),
+        ..Default::default()
+    };
+    save_metadata_intent(&source, &patch).expect_err("WAV cannot carry explicit cover art");
+
+    assert_eq!(fs::read(&source).expect("reread source"), before);
+    let residue: Vec<_> = fs::read_dir(dir.path())
+        .expect("list dir")
+        .map(|entry| entry.expect("entry").file_name())
+        .filter(|name| name != "book.wav")
+        .collect();
+    assert!(residue.is_empty(), "unexpected residue: {residue:?}");
 }
 
 #[tokio::test]

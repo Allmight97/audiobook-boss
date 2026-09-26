@@ -18,12 +18,6 @@ pub mod remote_source;
 pub mod work_runtime;
 // Re-export key public types needed by external integration tests without exposing full internal module structure
 pub use metadata::{
-    add_cover_art_stream_pre_header as ffmpeg_add_cover_art_stream_pre_header,
-    set_container_metadata as ffmpeg_set_container_metadata,
-    write_cover_art_packet_post_header as ffmpeg_write_cover_art_packet_post_header,
-    CoverFormat as FfmpegCoverFormat,
-};
-pub use metadata::{
     extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
     read_metadata, save_metadata_intent, AlbumSortPatchOp, AudiobookMetadata,
     CoverArtPassthroughPolicy, MetadataIntentPatch, NamingMetadata, PassthroughSource, PatchOp,

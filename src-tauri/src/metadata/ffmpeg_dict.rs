@@ -7,14 +7,10 @@ use super::{
 use crate::errors::Result;
 use crate::metadata::field_schema::TagField;
 use crate::metadata::metadata_sinks::{
-    apply_metadata_field_ops_to_ffmpeg_dict, should_remove_key_for_metadata,
+    apply_metadata_field_ops_to_ffmpeg_dict, ExistingKeyRemoval,
 };
 
 use ffmpeg_next as ff;
-
-use super::cover_art::format::{
-    classify_cover_art_format, detect_image_dimensions, CoverArtFormatClassification, CoverFormat,
-};
 
 pub fn metadata_to_ffmpeg_dict(metadata: &AudiobookMetadata) -> Result<ff::Dictionary<'_>> {
     let mut dict = ff::Dictionary::new();
@@ -36,9 +32,14 @@ pub(crate) fn merge_metadata_with_plan<'a>(
     plan: &MetadataWritePlan,
 ) -> Result<ff::Dictionary<'a>> {
     let metadata = &plan.metadata;
+    let removal = ExistingKeyRemoval::for_metadata(metadata);
+    let clears_album_sort = matches!(
+        plan.album_sort,
+        AlbumSortWriteAction::Clear | AlbumSortWriteAction::Recompute
+    );
     let mut merged = ff::Dictionary::new();
     for (key, value) in existing.iter() {
-        if should_remove_key(metadata, &plan.album_sort, key) {
+        if (clears_album_sort && key == "sort_album") || removal.removes(key) {
             continue;
         }
         merged.set(key, value);
@@ -65,22 +66,6 @@ pub(crate) fn merge_metadata_with_plan<'a>(
     }
 
     Ok(merged)
-}
-
-fn should_remove_key(
-    metadata: &AudiobookMetadata,
-    album_sort: &AlbumSortWriteAction,
-    key: &str,
-) -> bool {
-    if matches!(
-        album_sort,
-        AlbumSortWriteAction::Clear | AlbumSortWriteAction::Recompute
-    ) && key == "sort_album"
-    {
-        return true;
-    }
-
-    should_remove_key_for_metadata(metadata, key)
 }
 
 fn compute_album_sort_from_dict(dict: &ff::Dictionary<'_>) -> Option<String> {
@@ -131,97 +116,6 @@ pub fn set_container_metadata(
     Ok(())
 }
 
-/// Returns pre-encode warnings for cover-art compatibility (size, format, dimensions).
-/// Track/disk preservation is validated via metadata sink proofs, not here.
-pub fn validate_metadata_compatibility(metadata: &AudiobookMetadata) -> Vec<String> {
-    let mut warnings = Vec::new();
-
-    // Validate cover art comprehensively
-    if let Some(ref cover_data) = metadata.cover_art {
-        // Detect format up-front so we can tailor size heuristics
-        let classification = classify_cover_art_format(cover_data);
-        let detected_format = match classification {
-            CoverArtFormatClassification::Supported(format) => Some(format),
-            CoverArtFormatClassification::KnownUnsupported
-            | CoverArtFormatClassification::Unrecognized => None,
-        };
-
-        // Size validation (allow tiny placeholder images if format is detectable)
-        if cover_data.is_empty() {
-            warnings.push("Cover art data is empty".to_string());
-        } else if cover_data.len() > 10 * 1024 * 1024 {
-            // 10MB limit
-            warnings.push("Cover art exceeds recommended size limit (10MB)".to_string());
-        } else if cover_data.len() < 100 {
-            // Only warn about being too small if we *cannot* positively detect a supported format.
-            // Rationale: test fixtures and some real feeds may supply minimal valid JPEG/PNG headers
-            // (e.g. JFIF without SOF marker) for placeholder artwork. We treat those as acceptable.
-            if detected_format.is_none() {
-                warnings.push("Cover art data seems too small to be a valid image".to_string());
-            }
-        }
-
-        // Format validation & dimension heuristics
-        match classification {
-            CoverArtFormatClassification::Supported(format) => {
-                validate_supported_cover_art_format(format, cover_data, &mut warnings);
-            }
-            CoverArtFormatClassification::KnownUnsupported => {
-                warnings.push("Cover art format not supported for native embedding (only JPEG and PNG are supported) - cover art will be skipped".to_string());
-            }
-            CoverArtFormatClassification::Unrecognized => {
-                log::debug!("Cover art bytes not recognized as JPEG/PNG; proceeding without native embedding warning");
-            }
-        }
-    }
-
-    warnings
-}
-
-fn validate_supported_cover_art_format(
-    format: CoverFormat,
-    cover_data: &[u8],
-    warnings: &mut Vec<String>,
-) {
-    log::debug!(
-        "Cover art format validation: {} detected and supported",
-        format.display_name()
-    );
-    check_cover_art_dimensions(format, cover_data, warnings);
-    check_cover_art_codec(format, warnings);
-}
-
-fn check_cover_art_dimensions(format: CoverFormat, cover_data: &[u8], warnings: &mut Vec<String>) {
-    if let Some((width, height)) = detect_image_dimensions(cover_data, format) {
-        if width > 2000 || height > 2000 {
-            warnings.push(format!(
-                "Cover art dimensions ({}x{}) are very large and may cause compatibility issues",
-                width, height
-            ));
-        } else if width < 100 || height < 100 {
-            warnings.push(format!(
-                "Cover art dimensions ({}x{}) are very small and may not display well",
-                width, height
-            ));
-        }
-    } else if cover_data.len() >= 100 {
-        // Suppress dimension warning for tiny (<100B) placeholder images.
-        warnings.push(format!(
-            "Could not detect {} dimensions - file may be corrupted",
-            format.display_name()
-        ));
-    }
-}
-
-fn check_cover_art_codec(format: CoverFormat, warnings: &mut Vec<String>) {
-    if ff::encoder::find(format.codec_id()).is_none() {
-        warnings.push(format!(
-            "FFmpeg codec for {:?} format not available in this build - cover art will be skipped",
-            format
-        ));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,22 +127,6 @@ mod tests {
         dict.set("series-part", "1");
         dict.set("sort_album", "Custom Sort");
         dict
-    }
-
-    fn png_with_dimensions(width: u32, height: u32) -> Vec<u8> {
-        let mut bytes = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
-        bytes.extend_from_slice(&[0, 0, 0, 13]);
-        bytes.extend_from_slice(b"IHDR");
-        bytes.extend_from_slice(&width.to_be_bytes());
-        bytes.extend_from_slice(&height.to_be_bytes());
-        bytes
-    }
-
-    fn metadata_with_cover_art(cover_art: Vec<u8>) -> AudiobookMetadata {
-        AudiobookMetadata {
-            cover_art: Some(cover_art),
-            ..Default::default()
-        }
     }
 
     #[test]
@@ -380,102 +258,5 @@ mod tests {
         assert_eq!(dict.get("track"), Some("4/32"));
         assert_eq!(dict.get("disc"), Some("1/3"));
         assert_eq!(dict.get("media_type"), Some("2"));
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_warns_for_known_unsupported_cover_art_format() {
-        let metadata = metadata_with_cover_art(b"RIFF\x00\x00\x00\x00WEBP".to_vec());
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(
-            warnings
-                .iter()
-                .any(|warning| warning
-                    .contains("Cover art format not supported for native embedding"))
-        );
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_leaves_unrecognized_cover_art_bytes_quiet() {
-        let metadata = metadata_with_cover_art(vec![0; 128]);
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_warns_for_large_cover_art_dimensions() {
-        let metadata = metadata_with_cover_art(png_with_dimensions(2001, 600));
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(warnings
-            .iter()
-            .any(|warning| warning.contains("Cover art dimensions (2001x600) are very large")));
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_warns_for_small_cover_art_dimensions() {
-        let metadata = metadata_with_cover_art(png_with_dimensions(99, 600));
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(warnings
-            .iter()
-            .any(|warning| warning.contains("Cover art dimensions (99x600) are very small")));
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_warns_for_supported_format_without_dimensions() {
-        let mut cover_art = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
-        cover_art.resize(100, 0);
-        let metadata = metadata_with_cover_art(cover_art);
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(warnings
-            .iter()
-            .any(|warning| warning == "Could not detect PNG dimensions - file may be corrupted"));
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_warns_when_cover_art_exceeds_10mb() {
-        let metadata = metadata_with_cover_art(vec![0u8; 15 * 1024 * 1024]);
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(warnings
-            .iter()
-            .any(|warning| { warning == "Cover art exceeds recommended size limit (10MB)" }));
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_is_silent_at_10mb_boundary() {
-        let metadata = metadata_with_cover_art(vec![0u8; 10 * 1024 * 1024]);
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(
-            warnings.is_empty(),
-            "10MB cover art should not generate size warnings: {warnings:?}"
-        );
-    }
-
-    #[test]
-    fn validate_metadata_compatibility_ignores_track_and_disk() {
-        let metadata = AudiobookMetadata {
-            track: Some((1, Some(12))),
-            disk: Some((1, Some(3))),
-            ..Default::default()
-        };
-
-        let warnings = validate_metadata_compatibility(&metadata);
-
-        assert!(
-            warnings.is_empty(),
-            "track/disk preservation is proven in metadata_sinks, not here: {warnings:?}"
-        );
     }
 }

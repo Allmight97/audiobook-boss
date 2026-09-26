@@ -374,12 +374,14 @@ describe('app runtime', () => {
 			selectedAnchor: 0,
 		});
 		await first.metadata.hydrateSelection(null);
-		first.metadata.stageIntent('/books/alpha.m4b', {
-			title: { op: 'set', value: 'Staged On A' },
-		});
+		first.metadata.setFieldValue({ inputId: 'meta-title', value: 'Staged On A' });
+		expect(await first.metadata.stageCurrentSelection()).toEqual({ status: 'staged' });
 		expect(first.metadata.readCached('/books/alpha.m4b')?.title).toBe('Staged On A');
 		expect(await first.metadata.intentsForProcess(['/books/alpha.m4b'])).toEqual({
-			'/books/alpha.m4b': { title: { op: 'set', value: 'Staged On A' } },
+			'/books/alpha.m4b': {
+				title: { op: 'set', value: 'Staged On A' },
+				album: { op: 'set', value: 'Staged On A' },
+			},
 		});
 
 		second.input.replaceSession({

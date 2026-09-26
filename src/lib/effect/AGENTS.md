@@ -57,8 +57,8 @@ const kit = makeWorkflowKit(
   factory built on `kit.Failed` (for example `ProcessingWorkflow` normalizes
   `AppError` into the message and forks a hand-written
   `ProcessingWorkflowCancelled`).
-- `workflowTryPromise` / `workflowTrySync` remain exported for the escape-hatch
-  path; kit wrappers are the default.
+- `workflowTryPromise` remains exported for the escape-hatch path; kit
+  wrappers are the default.
 - Introduce a service layer when it clarifies a real dependency or failure
   boundary. Direct capability workflows such as Input import and Remote Source
   use plain async; a capability call alone does not justify a kernel wrapper.

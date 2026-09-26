@@ -6,7 +6,7 @@ mod state_tests;
 mod terminal;
 mod types;
 
-pub use runtime::WorkRuntime;
+pub use runtime::{InlineRunTerminal, WorkRuntime};
 pub use types::{
     ChildJobSnapshot, ChildJobStatus, OperationId, OperationListSnapshot, OperationLogEntry,
     OperationSnapshot, OperationTerminalSummary, ProgressSnapshot, ResourceLane,

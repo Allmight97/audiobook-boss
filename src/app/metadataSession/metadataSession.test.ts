@@ -46,7 +46,6 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 				inputIndex,
 				filePath: item.filePath,
 				status: 'success' as const,
-				message: 'ok',
 			})),
 			summary: {
 				succeeded: items.length,
@@ -376,27 +375,6 @@ describe('metadata session selection and save', () => {
 		},
 	);
 
-	it('saves staged intent through the metadata capability', async () => {
-		const metadata = fakeMetadata();
-		runtime = createAppRuntime({ metadata });
-		const files = [file('/books/alpha.m4b', 'Alpha')];
-		runtime.input.replaceSession({
-			...emptyInputSession(),
-			fileList: list(files),
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
-		await runtime.metadata.save();
-		expect(metadata.saveMetadataBatch).toHaveBeenCalled();
-		expect(metadata.saveMetadataBatch).toHaveBeenCalledWith([
-			{
-				filePath: '/books/alpha.m4b',
-				metadataPatch: { title: { op: 'set', value: 'Saved' } },
-			},
-		]);
-	});
-
 	it('fails hydration when draft validation transport fails', async () => {
 		const metadata = fakeMetadata({
 			validateMetadataIntentPatch: vi.fn(async () => {
@@ -493,7 +471,7 @@ describe('metadata session selection and save', () => {
 			inputId: 'meta-title',
 			value: 'Edited Alpha',
 		});
-		const stagePromise = runtime.metadata.stageCurrentSelectionForProcess();
+		const stagePromise = runtime.metadata.stageCurrentSelection();
 		runtime.input.replaceSession({
 			...runtime.input.session(),
 			selectedIndices: [1],
@@ -501,7 +479,7 @@ describe('metadata session selection and save', () => {
 		});
 		await runtime.metadata.hydrateSelection(null);
 		releaseValidate?.();
-		expect(await stagePromise).toBe(false);
+		expect(await stagePromise).toEqual({ status: 'stale' });
 		expect(await runtime.metadata.intentsForProcess(['/books/beta.m4b'])).toBeNull();
 		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
@@ -535,7 +513,7 @@ describe('metadata session selection and save', () => {
 		expect(await selection).toBe(false);
 		expect(runtime.input.session().selectedIndices).toEqual([0]);
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Newer edit');
-		expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+		expect(runtime.metadata.view().form.fields['meta-title'].dirty).toBe(true);
 		expect(await runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
 	});
 
@@ -573,7 +551,7 @@ describe('metadata session selection and save', () => {
 			expect(metadata.saveMetadataBatch).not.toHaveBeenCalled();
 			if (change === 'edit') {
 				expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Newer');
-				expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+				expect(runtime.metadata.view().form.fields['meta-title'].dirty).toBe(true);
 			} else expect(runtime.metadata.readCached('/books/alpha.m4b')).toBeUndefined();
 		},
 	);
@@ -602,7 +580,7 @@ describe('metadata session selection and save', () => {
 		await hydrate;
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Typed while loading');
 		expect(runtime.metadata.view().form.fields['meta-author'].value).toBe('Author');
-		expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+		expect(runtime.metadata.view().form.fields['meta-title'].dirty).toBe(true);
 	});
 
 	it('invalidates reads across reset even when a new hydration reuses its request number', async () => {
@@ -684,7 +662,6 @@ describe('metadata session selection and save', () => {
 										inputIndex: 0,
 										filePath: '/books/alpha.m4b',
 										status: 'success',
-										message: 'ok',
 									},
 								],
 								summary: {
@@ -706,7 +683,8 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Saved' });
 		const save = runtime.metadata.save();
 		await vi.waitFor(() => {
 			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
@@ -777,6 +755,46 @@ describe('metadata session selection and save', () => {
 		await expect(runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).resolves.toBeNull();
 		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ title: 'Loaded From Disk' });
 		expect(readAudioMetadata).toHaveBeenCalledTimes(2);
+	});
+
+	it('shows the backend cover rejection and leaves URL policy to the backend', async () => {
+		const metadata = fakeMetadata({
+			loadCoverArtFromUrl: vi.fn(async () => {
+				throw {
+					code: 'invalid_input',
+					category: 'validation',
+					message: 'Invalid input: Only HTTPS URLs are supported',
+				};
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.metadata.loadCoverArtFromUrl(' http://example.com/a.jpg ');
+		expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith('http://example.com/a.jpg');
+		expect(runtime.metadata.view().cover).toMatchObject({
+			isLoading: false,
+			message: { kind: 'error', text: 'Invalid input: Only HTTPS URLs are supported' },
+		});
+	});
+
+	it('does not reread a coverless file whose metadata is already cached', async () => {
+		const metadata = fakeMetadata();
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.metadata.hydrateSelection(null);
+		expect(metadata.readAudioMetadata).toHaveBeenCalledTimes(1);
 	});
 
 	it('does not export process-global cache helpers', () => {

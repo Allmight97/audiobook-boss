@@ -331,6 +331,26 @@ mod tests {
     }
 
     #[test]
+    fn outcome_plan_populates_naming_from_resolved_metadata() {
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Patched Title".to_string()),
+            series: PatchOp::Set("Series".to_string()),
+            series_part: PatchOp::Set("7".to_string()),
+            ..Default::default()
+        };
+        let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
+            input_path: None,
+            intent_patch: Some(&patch),
+        })
+        .expect("metadata outcome should resolve");
+        let naming = outcome.naming_metadata.expect("naming metadata");
+
+        assert_eq!(naming.title(), Some("Patched Title"));
+        assert_eq!(naming.series(), Some("Series"));
+        assert_eq!(naming.series_part(), Some("7"));
+    }
+
+    #[test]
     fn outcome_plan_reports_cover_art_clear_policy() {
         let patch = MetadataIntentPatch {
             cover_art: PatchOp::Clear,

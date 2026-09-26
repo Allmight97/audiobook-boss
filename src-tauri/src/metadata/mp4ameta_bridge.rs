@@ -50,16 +50,6 @@ fn join_contributors<'a>(values: impl Iterator<Item = &'a str>) -> Option<String
     (!values.is_empty()).then(|| values.join(";"))
 }
 
-pub(crate) fn read_cover_art_for_thumbnail(path: &Path) -> Result<Option<Vec<u8>>> {
-    match super::mp4_covr::read_bounded_mp4_cover_art(
-        path,
-        super::thumbnail::THUMBNAIL_MAX_ENCODED_BYTES,
-    )? {
-        Some(bytes) => Ok(Some(bytes)),
-        None => Ok(None),
-    }
-}
-
 fn read_tuple_field((number, total): (Option<u16>, Option<u16>)) -> Option<(u32, Option<u32>)> {
     number.map(|number| (u32::from(number), total.map(u32::from)))
 }

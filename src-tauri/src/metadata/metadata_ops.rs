@@ -109,41 +109,6 @@ fn push_built_series_op(ops: &mut Vec<MetadataOp>, value: Option<String>, field:
     }
 }
 
-pub(crate) fn field_has_clear_intent(metadata: &AudiobookMetadata, field: TagField) -> bool {
-    match field {
-        TagField::Title => metadata.title.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Artist => metadata
-            .artist
-            .as_ref()
-            .is_some_and(|v| v.trim().is_empty()),
-        TagField::Album => metadata.album.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Composer => metadata
-            .composer
-            .as_ref()
-            .is_some_and(|v| v.trim().is_empty()),
-        TagField::Genre => metadata.genre.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Date => metadata.date.as_ref().is_some_and(|v| v.trim().is_empty()),
-        TagField::Comment => metadata
-            .comment
-            .as_ref()
-            .is_some_and(|v| v.trim().is_empty()),
-        TagField::Description => metadata
-            .description
-            .as_ref()
-            .is_some_and(|v| v.trim().is_empty()),
-        TagField::Series => metadata
-            .series
-            .as_ref()
-            .is_some_and(|v| v.trim().is_empty()),
-        TagField::SeriesPart => metadata
-            .series_part
-            .as_ref()
-            .is_some_and(|v| v.trim().is_empty()),
-        TagField::Track => metadata.track.is_some_and(|(number, _)| number == 0),
-        TagField::Disk => metadata.disk.is_some_and(|(number, _)| number == 0),
-    }
-}
-
 pub(crate) fn log_write_plan(plan: &super::MetadataWritePlan, writer: &str, artifact: &str) {
     let sort = match &plan.album_sort {
         super::AlbumSortWriteAction::Preserve => "preserve",

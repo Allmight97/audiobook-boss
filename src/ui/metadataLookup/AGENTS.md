@@ -9,8 +9,9 @@
 ## Public API Strip
 
 - Import `MetadataLookupView` from `src/ui/metadataLookup`.
-- Result application stages through the runtime Metadata owner
-  (`stageIntent`). Do not add a lookup-private staging path.
+- Result application writes Lookup values into the runtime Metadata owner's
+  form (`applyLookupMetadata`); queue advance stages them through Metadata's
+  draft gate. Do not add a lookup-private staging path.
 
 ## Hard Invariants
 

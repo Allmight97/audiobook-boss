@@ -259,22 +259,28 @@ git history and closed issues own superseded chronology.
   `src-tauri/Cargo.toml`, `package.json`, `bunfig.toml`, and
   `.github/dependabot.yml`.
 
-## 2026-08-24 - Function Complexity Is An Attention Ratchet, Not A Gate (#454)
+## 2026-08-24 - Function Complexity Is An Attention Ratchet, Not A Gate
 
-- Outcome: CCN >8 stays an attention prompt adjudicated by issue #454's four
-  questions (consequence, proof, structure, change pressure). New or reshaped
-  functions target roughly CCN ≤10 / cognitive ≤15, with named exceptions for
-  dispatch `match`/`switch` and sequential `?` lifecycle chains. The existing
-  high-CCN findings are grandfathered: adjudicate each at its next change
-  point; coverage decides sequencing (pin behavior, then reshape), never
-  whether a function is worth reducing.
-- Evidence: source audit of the top five #454 candidates found Rust `?`
-  inflates CCN on cohesive orchestrators (`materialize`, `setup_encoder`,
-  `rewrite_metadata_with_ffmpeg_plan_as`) whose splits would scatter RAII and
-  ordering invariants, while `readMetadataForm` (CCN 38) is duplicated control
-  flow over the existing `METADATA_FIELD_DEFINITIONS` table; the threshold
-  literature defends 10/15 as testability convention, not a measured defect
-  cliff (McCabe 1976, NIST SP 500-235, Shepperd 1988, El Emam 2001).
+- Outcome: CCN >8 prompts attention; it is not a gate. Adjudicate a flagged
+  function at its next change point by consequence (what golden-path or
+  invariant failure a defect there causes), proof (which maintained test
+  executes its paths), structure (separable responsibilities versus one
+  cohesive sequence), and change pressure (whether it is changing now).
+  Record one disposition with its evidence, sufficient proof, and next
+  trigger: Proof-first (pin behavior, then decide), Reduce (remove duplicated
+  or separable control flow), Preserve (cohesive; leave the shape), or
+  Observe (low consequence and pressure; revisit on the trigger). New or
+  reshaped functions target roughly CCN ≤10 / cognitive ≤15, with named
+  exceptions for dispatch `match`/`switch` and sequential `?` lifecycle
+  chains. Coverage decides sequencing, never whether a function is worth
+  reducing.
+- Evidence: Rust `?` inflates CCN on cohesive orchestrators (`materialize`,
+  `setup_encoder`, `rewrite_metadata_with_ffmpeg_plan_as`) whose splits would
+  scatter RAII and ordering invariants, while `readMetadataForm` (CCN 38) was
+  duplicated control flow over `METADATA_FIELD_DEFINITIONS` and reduced to one
+  edited-field projection (#509). The 10/15 targets are testability
+  convention, not a measured defect cliff (McCabe 1976, NIST SP 500-235,
+  Shepperd 1988, El Emam 2001).
 - Guardrail: no repo-wide CCN reduction campaign; the new-code threshold
   loosens only by explicit owner decision — agents do not move it.
 
@@ -415,11 +421,11 @@ git history and closed issues own superseded chronology.
 - Evidence: `src/app/metadataSession/index.ts`,
   `src/app/metadataSession/metadataSession.test.ts`, and
   `src/ui/__tests__/ui-workflow-smoke.test.tsx`.
-- Guardrail: pending markers are created only via MetadataOwner `stageIntent`
-  (save workflow clears on success; lifecycle clears via owner `reset` and
-  removed-path drop). No caller-side merge/equality staging or parallel
-  form/tag store. Cache maps live on the runtime-scoped owner and require
-  isolation proof.
+- Guardrail: pending intent is staged only inside the Metadata owner (draft
+  gate, `stageCurrentSelection`, save, and cover actions); save clears it on
+  success, and `reset` and removed-path drop clear it with the session. No
+  caller-side merge/equality staging or parallel form/tag store. Cache maps
+  live on the runtime-scoped owner and require isolation proof.
 
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)
 

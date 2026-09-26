@@ -22,8 +22,6 @@ export type ProcessingWorkflowLiveDeps = {
 export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 	const services: ProcessingWorkflowServices = {
 		getCurrentFileList: () => fileListFromInput(deps.input.view()),
-		getSelectedFileIndex: () => deps.input.view().selectedAnchor,
-		getSelectedFileIndices: () => new Set(deps.input.view().selectedIndices),
 		sourcesFor: (file) => deps.input.sourcesFor(file),
 		readProcessingRequestConfig: (titles) => {
 			if (titles.some((file) => deps.input.audioChoiceRequired(file)))
@@ -35,25 +33,14 @@ export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 				...deps.output.readRequestConfig(),
 			};
 		},
-		hasDirtyMetadataFields: () => deps.metadata.readHasDirtyMetadata(),
-		readMetadataForm: () => deps.metadata.readMetadata(),
-		stageIntent: (filePath, patch) => deps.metadata.stageIntent(filePath, patch),
+		stageMetadata: () => deps.metadata.stageCurrentSelection(),
 		intentsForProcess: (filePaths) => deps.metadata.intentsForProcess(filePaths),
-		async stageMetadataToSelection(options) {
-			const staged = await deps.metadata.stageCurrentSelectionForProcess();
-			if (!staged && options?.showStatus) {
-				deps.showError('Fix metadata validation errors before processing.');
-			}
-			return staged;
-		},
 		setJobControlsEnabled: (enabled) => {
 			deps.settings.setControlsEnabled(enabled);
 		},
 		setFileOrderLocked: (locked) => {
 			deps.input.setOrderLocked(locked);
 		},
-		validateMetadataIntentPatch: (patch) =>
-			deps.metadata.capability().validateMetadataIntentPatch(patch),
 		processAudiobookFiles: tauriClient.processAudiobookFiles,
 		submitProcessingOperation: tauriClient.submitProcessingOperation,
 		remoteSource: deps.remoteSource,

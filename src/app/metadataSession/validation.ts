@@ -28,11 +28,18 @@ export interface MetadataDraftValidation {
 	result: MetadataIntentValidationResult;
 }
 
-export async function validateMetadataDraft(
+export function validateMetadataDraft(
 	metadata: Partial<AudiobookMetadata>,
 	validate: ValidateMetadataIntentPatch,
 ): Promise<MetadataDraftValidation> {
-	const result = await validate(buildMetadataDraftIntent(metadata));
+	return validateMetadataIntent(buildMetadataDraftIntent(metadata), validate);
+}
+
+export async function validateMetadataIntent(
+	patch: MetadataIntentPatch,
+	validate: ValidateMetadataIntentPatch,
+): Promise<MetadataDraftValidation> {
+	const result = await validate(patch);
 	const byField: Partial<Record<MetadataIntentValidationField, string>> = {};
 	for (const error of result.fieldErrors) {
 		if (byField[error.field] === undefined) {

@@ -1,7 +1,7 @@
 import type { FileListInfo } from '../../types/audio';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
-import type { MetadataLookupCoverPreviews } from './coverPreview';
+import type { CoverArtPreviewScheduler } from '../../lib/media/coverArtPreviewScheduler';
 import type { MetadataLookupQueueState, MetadataLookupState } from './state';
 import type { MetadataLookupWorkflowServices } from './workflow';
 
@@ -11,7 +11,7 @@ export function makeProductionLookupServices(
 		readonly metadata: MetadataOwner;
 		readonly lookupState: MetadataLookupState;
 		readonly queueState: MetadataLookupQueueState;
-		readonly coverPreviews: MetadataLookupCoverPreviews;
+		readonly coverPreviews: CoverArtPreviewScheduler;
 		readonly signal: AbortSignal;
 	},
 	publishView?: () => void,
@@ -34,7 +34,6 @@ export function makeProductionLookupServices(
 		getSelectedFileIndices: () => new Set(deps.input.session().selectedIndices ?? []),
 		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
 		getMetadataForFile: (path) => deps.metadata.readCached(path),
-		stageMetadataIntentPatch: (path, patch) => deps.metadata.stageIntent(path, patch),
 		selectFile: async (file) => {
 			const index =
 				deps.input
@@ -56,7 +55,6 @@ export function makeProductionLookupServices(
 		},
 		applyMetadataToForm: (file, metadata, coverArtBytes) =>
 			deps.metadata.applyLookupMetadata(file, metadata, coverArtBytes),
-		readMetadataForm: () => deps.metadata.readMetadata() ?? {},
 		searchOnlineMetadata: (args) => deps.metadata.capability().searchOnlineMetadata(args),
 		loadLookupCoverBytes: (url) => deps.coverPreviews.loadBytes(url),
 		clearCoverPreviews: () => deps.coverPreviews.clear(),

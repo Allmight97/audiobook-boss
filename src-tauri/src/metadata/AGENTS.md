@@ -25,6 +25,12 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   at call sites; metadata must not import `crate::audio::AudioFile`.
 - Crate-local container support: `remux_preserved_audio_container` changes the
   container of a staged copy and verifies chapters through this boundary.
+- Crate-local artifact finish: `finish_artifact_tags` is the one last step
+  after any mux or remux (native, external adapter, preserve): MP4-family tag
+  rewrite, then accepted-chapter verification. Its pre-write callback lets
+  Audio report progress; Audio does not ask which container strategy applies.
+- Remux owns its sibling `.abb_meta_*` output from creation until it replaces
+  the source; any failure removes it after FFmpeg's handles close.
 - Crate-local write-plan support: `MetadataWritePlan`, `AlbumSortWriteAction`.
 - Pure intent, validation, naming, and write-plan facts are packaged in
   `abb-metadata-core`; `src-tauri/src/metadata` owns container adapters and
@@ -36,7 +42,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   construction, so this validation can see source metadata.
 
 ## Private Cluster
-- Files: `intent_plan.rs`, `contract_tests.rs`, `field_schema.rs`, `metadata_ops.rs`,
+- Files: `intent_plan.rs`, `field_schema.rs`, `metadata_ops.rs`,
   `metadata_sinks.rs`; `mod.rs` owns the public re-export strip.
 - `field_schema` + `metadata_ops` own container-neutral tag mapping, read aliases,
   clear groups, and field op planning (fan-outs, track/disk tuples). Container

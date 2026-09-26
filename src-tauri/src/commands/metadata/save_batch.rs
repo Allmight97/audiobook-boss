@@ -6,6 +6,7 @@ use crate::processing::{
     CancellationChecker, EventStage, OperationKind, OperationResultSummary, ProcessResultStatus,
     ProgressEvent,
 };
+use crate::work_runtime::InlineRunTerminal;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::Manager;
@@ -28,14 +29,14 @@ pub enum MetadataSaveResultStatus {
     Failed,
 }
 
+/// Per-file outcome the frontend uses to clear or retain drafts. The reason
+/// for each outcome is the operation child's terminal message in Work Center.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MetadataSaveResultEntry {
     pub input_index: usize,
     pub file_path: String,
     pub status: MetadataSaveResultStatus,
-    pub message: String,
-    pub error: Option<AppErrorEnvelope>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -43,6 +44,37 @@ pub struct MetadataSaveResultEntry {
 pub struct MetadataSaveBatchResult {
     pub summary: MetadataSaveSummary,
     pub results: Vec<MetadataSaveResultEntry>,
+}
+
+/// A finished batch plus each file's `(input_index, status, reason)` terminal
+/// for its WorkRuntime child.
+struct SavedMetadataBatch {
+    result: MetadataSaveBatchResult,
+    children: Vec<(usize, ProcessResultStatus, String)>,
+}
+
+impl SavedMetadataBatch {
+    fn new(outcomes: Vec<(MetadataSaveResultEntry, String)>) -> Self {
+        let children = outcomes
+            .iter()
+            .map(|(entry, reason)| (entry.input_index, entry.status.into(), reason.clone()))
+            .collect();
+        let entries = outcomes.into_iter().map(|(entry, _)| entry).collect();
+        Self {
+            result: MetadataSaveBatchResult::new(entries),
+            children,
+        }
+    }
+}
+
+impl From<MetadataSaveResultStatus> for ProcessResultStatus {
+    fn from(status: MetadataSaveResultStatus) -> Self {
+        match status {
+            MetadataSaveResultStatus::Success => ProcessResultStatus::Success,
+            MetadataSaveResultStatus::Cancelled => ProcessResultStatus::Cancelled,
+            MetadataSaveResultStatus::Failed => ProcessResultStatus::Failed,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -108,11 +140,10 @@ pub async fn save_metadata_batch(
         Err(error) => {
             // The operation is already Running + cancellable when the permit wait
             // begins, so a cancel during that wait surfaces here as
-            // `AppError::Cancellation`. Terminalize it as Cancelled (not Failed),
-            // mirroring the processing path's cancellation handling. The command
-            // still returns per-file results so the frontend can preserve pending
-            // drafts without surfacing an intentional cancel as a save failure.
-            terminalize_metadata_save_abort(&runtime, &window, &operation_id, &error)?;
+            // `AppError::Cancellation`, which WorkRuntime terminalizes as
+            // Cancelled. The command still returns per-file results so the
+            // frontend preserves pending drafts without reporting a failure.
+            runtime.finish_metadata_save_operation(&window, &operation_id, Err(&error))?;
             if matches!(error, AppError::Cancellation(_)) {
                 return Ok(cancelled_metadata_save_batch(items));
             }
@@ -144,39 +175,18 @@ pub async fn save_metadata_batch(
 
     match result {
         Ok(batch) => {
-            let child_terminals = metadata_save_child_terminals(&batch);
-            runtime.finish_metadata_save_operation(
-                &window,
-                &operation_id,
-                &batch.summary,
-                &child_terminals,
-            )?;
-            Ok(batch)
+            let run = InlineRunTerminal {
+                summary: &batch.result.summary,
+                children: &batch.children,
+            };
+            runtime.finish_metadata_save_operation(&window, &operation_id, Ok(run))?;
+            Ok(batch.result)
         }
         Err(error) => {
-            terminalize_metadata_save_abort(&runtime, &window, &operation_id, &error)?;
+            runtime.finish_metadata_save_operation(&window, &operation_id, Err(&error))?;
             Err(error.into())
         }
     }
-}
-
-/// Terminalizes a metadata-save operation that aborted before producing a result.
-/// A cancellation (e.g. cancel during the permit wait) resolves to `Cancelled`;
-/// any other abort resolves to `Failed`. Keeps cancel-vs-failure terminal truth
-/// symmetric with the processing path.
-fn terminalize_metadata_save_abort(
-    runtime: &crate::work_runtime::WorkRuntime,
-    window: &tauri::Window,
-    operation_id: &crate::work_runtime::OperationId,
-    error: &AppError,
-) -> Result<()> {
-    let message = error.to_string();
-    if matches!(error, AppError::Cancellation(_)) {
-        runtime.cancel_metadata_save_operation(window, operation_id, message)?;
-    } else {
-        runtime.fail_metadata_save_operation(window, operation_id, message)?;
-    }
-    Ok(())
 }
 
 fn cancelled_metadata_save_batch(items: Vec<MetadataSaveRequest>) -> MetadataSaveBatchResult {
@@ -188,8 +198,6 @@ fn cancelled_metadata_save_batch(items: Vec<MetadataSaveRequest>) -> MetadataSav
                 input_index,
                 file_path: item.file_path,
                 status: MetadataSaveResultStatus::Cancelled,
-                message: METADATA_SAVE_CANCELLED_MESSAGE.to_string(),
-                error: None,
             })
             .collect(),
     )
@@ -199,12 +207,12 @@ async fn save_metadata_batch_impl<F>(
     items: Vec<MetadataSaveRequest>,
     cancellation: CancellationChecker,
     mut emit_progress: F,
-) -> Result<MetadataSaveBatchResult>
+) -> Result<SavedMetadataBatch>
 where
     F: FnMut(MetadataSaveProgress),
 {
     let total = items.len();
-    let mut results = Vec::with_capacity(total);
+    let mut outcomes = Vec::with_capacity(total);
 
     for (index, item) in items.into_iter().enumerate() {
         if cancellation.is_cancelled() {
@@ -216,13 +224,14 @@ where
                 percentage: 0.0,
                 message: format!("{} {}/{}", message, index + 1, total),
             });
-            results.push(MetadataSaveResultEntry {
-                input_index: index,
-                file_path: item.file_path,
-                status: MetadataSaveResultStatus::Cancelled,
+            outcomes.push((
+                MetadataSaveResultEntry {
+                    input_index: index,
+                    file_path: item.file_path,
+                    status: MetadataSaveResultStatus::Cancelled,
+                },
                 message,
-                error: None,
-            });
+            ));
             continue;
         }
 
@@ -254,37 +263,39 @@ where
                     percentage: 100.0,
                     message: message.clone(),
                 });
-                results.push(MetadataSaveResultEntry {
-                    input_index: index,
-                    file_path,
-                    status: MetadataSaveResultStatus::Success,
+                outcomes.push((
+                    MetadataSaveResultEntry {
+                        input_index: index,
+                        file_path,
+                        status: MetadataSaveResultStatus::Success,
+                    },
                     message,
-                    error: None,
-                });
+                ));
             }
             Err(error) => {
-                let envelope = AppErrorEnvelope::from(error);
-                let message = format!("Failed metadata save: {}", display_name);
-                log::error!("{}: {}", message, envelope.message);
+                // The envelope message is the sanitized, user-facing reason.
+                let reason = AppErrorEnvelope::from(error).message;
+                log::error!("Failed metadata save: {display_name}: {reason}");
                 emit_progress(MetadataSaveProgress {
                     input_index: index,
                     file_path: file_path.clone(),
                     stage: EventStage::Failed,
                     percentage: 100.0,
-                    message: envelope.message.clone(),
+                    message: reason.clone(),
                 });
-                results.push(MetadataSaveResultEntry {
-                    input_index: index,
-                    file_path,
-                    status: MetadataSaveResultStatus::Failed,
-                    message,
-                    error: Some(envelope),
-                });
+                outcomes.push((
+                    MetadataSaveResultEntry {
+                        input_index: index,
+                        file_path,
+                        status: MetadataSaveResultStatus::Failed,
+                    },
+                    reason,
+                ));
             }
         }
     }
 
-    Ok(MetadataSaveBatchResult::new(results))
+    Ok(SavedMetadataBatch::new(outcomes))
 }
 
 fn save_metadata_item(file_path: &str, metadata_patch: MetadataIntentPatch) -> Result<()> {
@@ -313,25 +324,6 @@ fn metadata_save_progress_event(progress: MetadataSaveProgress) -> ProgressEvent
         job_id: None,
         input_index: Some(progress.input_index),
     }
-}
-
-/// Maps the per-file batch result to the `(input_index, status, message)` child
-/// terminals the WorkRuntime uses to authoritatively terminalize each child.
-fn metadata_save_child_terminals(
-    batch: &MetadataSaveBatchResult,
-) -> Vec<(usize, ProcessResultStatus, String)> {
-    batch
-        .results
-        .iter()
-        .map(|entry| {
-            let status = match entry.status {
-                MetadataSaveResultStatus::Success => ProcessResultStatus::Success,
-                MetadataSaveResultStatus::Cancelled => ProcessResultStatus::Cancelled,
-                MetadataSaveResultStatus::Failed => ProcessResultStatus::Failed,
-            };
-            (entry.input_index, status, entry.message.clone())
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -364,9 +356,10 @@ mod tests {
         let (job_id, _permit) = registry.register_job().await.expect("register job");
         let cancellation = registry.cancellation_checker(job_id).await;
 
-        let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
+        let batch = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
             .await
             .expect("batch should report per-file failures");
+        let result = &batch.result;
 
         assert_eq!(result.summary.total, 2);
         assert_eq!(result.summary.succeeded, 0);
@@ -380,6 +373,19 @@ mod tests {
         assert_eq!(progress[1].stage, EventStage::Failed);
         assert_eq!(progress[2].stage, EventStage::Writing);
         assert_eq!(progress[3].stage, EventStage::Failed);
+        // Each failed child keeps its own actionable reason for Work Center.
+        for (child, name) in batch
+            .children
+            .iter()
+            .zip(["missing-a.m4b", "missing-b.m4b"])
+        {
+            assert_eq!(child.1, ProcessResultStatus::Failed);
+            assert!(
+                child.2.contains(name) && !child.2.starts_with("Failed metadata save"),
+                "child reason should explain the failure: {}",
+                child.2
+            );
+        }
     }
 
     #[tokio::test]
@@ -402,7 +408,8 @@ mod tests {
 
         let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
             .await
-            .expect("cancelled batch should return terminal item results");
+            .expect("cancelled batch should return terminal item results")
+            .result;
 
         assert_eq!(result.summary.total, 2);
         assert_eq!(result.summary.succeeded, 0);
@@ -438,10 +445,9 @@ mod tests {
         assert_eq!(result.results[0].file_path, "/books/a.m4b");
         assert_eq!(result.results[1].input_index, 1);
         assert_eq!(result.results[1].file_path, "/books/b.m4b");
-        assert!(result.results.iter().all(|entry| {
-            entry.status == MetadataSaveResultStatus::Cancelled
-                && entry.message == METADATA_SAVE_CANCELLED_MESSAGE
-                && entry.error.is_none()
-        }));
+        assert!(result
+            .results
+            .iter()
+            .all(|entry| entry.status == MetadataSaveResultStatus::Cancelled));
     }
 }

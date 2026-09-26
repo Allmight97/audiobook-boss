@@ -11,7 +11,7 @@ import type { CollisionView } from './collision';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
 import { createEmptyCoverUiState } from '../metadataSession/cover';
 import { createEmptyFormState, replaceField } from '../metadataSession/fields';
-import { createEmptyTagPreviewValues } from '../metadataSession/tags';
+import { projectTagPreviewValues } from '../metadataSession/tags';
 import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 
 function sessionWithDuration(totalDuration: number) {
@@ -66,7 +66,7 @@ function emptyMetadataView(): MetadataView {
 	return {
 		form: createEmptyFormState(),
 		cover: createEmptyCoverUiState(),
-		tags: createEmptyTagPreviewValues(),
+		tags: projectTagPreviewValues(createEmptyFormState()),
 		saveInProgress: false,
 		focusedFieldId: null,
 		statusMessage: '',
@@ -408,7 +408,7 @@ describe('output plan public view', () => {
 		const [metadataView, setMetadataView] = createSignal<MetadataView>({
 			form,
 			cover: createEmptyCoverUiState(),
-			tags: createEmptyTagPreviewValues(),
+			tags: projectTagPreviewValues(createEmptyFormState()),
 			saveInProgress: false,
 			focusedFieldId: null,
 			statusMessage: '',
@@ -519,7 +519,11 @@ describe('output path preview projection', () => {
 		const view: MetadataView = {
 			form,
 			cover: { ...createEmptyCoverUiState(), currentCoverArt: [1, 2, 3] },
-			tags: { ...createEmptyTagPreviewValues(), title: 'Dune', artist: 'Herbert' },
+			tags: {
+				...projectTagPreviewValues(createEmptyFormState()),
+				title: 'Dune',
+				artist: 'Herbert',
+			},
 			saveInProgress: false,
 			focusedFieldId: null,
 			statusMessage: '',

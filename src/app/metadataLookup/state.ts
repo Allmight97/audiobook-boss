@@ -1,7 +1,7 @@
 import type { AudioFile } from '../../types/audio';
 import type { MetadataSource, OnlineMetadataResult } from '../../types/metadata';
 
-export type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
+type MetadataLookupStatusVariant = 'error' | 'success' | 'info';
 export type MetadataLookupApplyMode = 'current' | 'queue';
 export type MetadataLookupSource = 'auto' | MetadataSource;
 export type MetadataLookupQueueItem = {
@@ -28,7 +28,6 @@ export type MetadataLookupState = {
 	queueContext: string;
 	results: OnlineMetadataResult[];
 	isQueueMode: boolean;
-	skipEnabled: boolean;
 	hasSearched: boolean;
 };
 
@@ -45,7 +44,6 @@ export function createMetadataLookupState(): MetadataLookupState {
 		queueContext: 'No files selected.',
 		results: [],
 		isQueueMode: false,
-		skipEnabled: false,
 		hasSearched: false,
 	};
 }

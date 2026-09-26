@@ -1,19 +1,5 @@
-import type { MetadataFormPreviewValues } from './form';
-
-export const TAG_FIELDS = [
-	'title',
-	'album',
-	'artist',
-	'albumArtist',
-	'composer',
-	'series',
-	'part',
-	'subseries',
-	'subpart',
-	'tsoa',
-	'year',
-	'genre',
-] as const;
+import type { MetadataFormState } from './fields';
+import { formValue } from './form';
 
 export type TagField =
 	| 'title'
@@ -31,26 +17,7 @@ export type TagField =
 
 export type TagPreviewValues = Record<TagField, string>;
 
-const EMPTY_VALUES: TagPreviewValues = {
-	title: '',
-	album: '',
-	artist: '',
-	albumArtist: '',
-	composer: '',
-	series: '',
-	part: '',
-	subseries: '',
-	subpart: '',
-	tsoa: '',
-	year: '',
-	genre: '',
-};
-
-export function createEmptyTagPreviewValues(): TagPreviewValues {
-	return { ...EMPTY_VALUES };
-}
-
-export function calculateTSOA(series: string, part: string, title: string): string {
+function calculateTSOA(series: string, part: string, title: string): string {
 	const trimmedSeries = series.trim();
 	const trimmedTitle = title.trim();
 	if (!trimmedSeries || !trimmedTitle) return '';
@@ -59,25 +26,23 @@ export function calculateTSOA(series: string, part: string, title: string): stri
 	return `${trimmedSeries} ${paddedPart} - ${trimmedTitle}`;
 }
 
-const TAG_FIELD_MAPPINGS: Record<TagField, (preview: MetadataFormPreviewValues) => string> = {
-	title: (preview) => preview.title,
-	album: (preview) => preview.title,
-	artist: (preview) => preview.author,
-	albumArtist: (preview) => preview.author,
-	composer: (preview) => preview.narrator,
-	series: (preview) => preview.series,
-	part: (preview) => preview.seriesPart,
-	subseries: (preview) => preview.subseries,
-	subpart: (preview) => preview.subseriesPart,
-	year: (preview) => preview.year,
-	genre: (preview) => preview.genre,
-	tsoa: (preview) => calculateTSOA(preview.series, preview.seriesPart, preview.title),
-};
-
-export function projectTagPreviewValues(preview: MetadataFormPreviewValues): TagPreviewValues {
-	const values = createEmptyTagPreviewValues();
-	for (const field of Object.keys(TAG_FIELD_MAPPINGS) as TagField[]) {
-		values[field] = TAG_FIELD_MAPPINGS[field](preview);
-	}
-	return values;
+export function projectTagPreviewValues(form: MetadataFormState): TagPreviewValues {
+	const title = formValue(form, 'meta-title');
+	const author = formValue(form, 'meta-author');
+	const series = formValue(form, 'meta-series');
+	const part = formValue(form, 'meta-series-part');
+	return {
+		title,
+		album: title,
+		artist: author,
+		albumArtist: author,
+		composer: formValue(form, 'meta-narrator'),
+		series,
+		part,
+		subseries: formValue(form, 'meta-subseries'),
+		subpart: formValue(form, 'meta-subseries-part'),
+		tsoa: calculateTSOA(series, part, title),
+		year: formValue(form, 'meta-year'),
+		genre: formValue(form, 'meta-genre'),
+	};
 }

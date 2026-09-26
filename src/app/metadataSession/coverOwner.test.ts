@@ -3,7 +3,6 @@ import type { AudioFile, FileListInfo } from '../../types/audio';
 import { createMetadataCache } from './cache';
 import {
 	effectiveCoverForFile,
-	firstValidFilePath,
 	resolveCoverDisplayPath,
 	resolveCoverOwnerPaths,
 } from './coverOwner';
@@ -91,12 +90,14 @@ describe('coverOwner', () => {
 		).toBe('/books/a.m4b');
 	});
 
-	it('finds first valid file path in list order', () => {
+	it('shows the first valid file cover when nothing is selected', () => {
 		const fileList = makeFileList([
 			makeFile('/books/invalid.m4b', false),
 			makeFile('/books/first-valid.m4b'),
 		]);
 
-		expect(firstValidFilePath(fileList)).toBe('/books/first-valid.m4b');
+		expect(resolveCoverDisplayPath(fileList, [], createMetadataCache())).toBe(
+			'/books/first-valid.m4b',
+		);
 	});
 });

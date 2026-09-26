@@ -7,11 +7,13 @@ use crate::metadata::{
 };
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::CONTENT_TYPE;
-use std::io;
+use reqwest::StatusCode;
+use std::io::{self, Read};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use url::Host;
 
 pub(crate) mod save_batch;
 pub use save_batch::{
@@ -50,33 +52,6 @@ pub async fn read_audio_cover_thumbnail(file_path: String) -> CommandResult<Opti
     Ok(result?)
 }
 
-/// Saves metadata to an audio file using explicit write intent (metadata-only editing)
-///
-/// This command is designed for metadata-only editing (Cmd+S workflow):
-/// 1. Preserves album sort unless explicit set, clear, or recompute intent is provided
-/// 2. Writes metadata non-destructively (preserves existing cover art if not replaced)
-/// 3. Handles cover art: preserves existing if not provided, replaces if new art given
-#[tauri::command]
-#[specta::specta]
-pub async fn save_metadata_to_file(
-    file_path: String,
-    metadata_patch: MetadataIntentPatch,
-) -> CommandResult<()> {
-    let result: Result<()> = tokio::task::spawn_blocking(move || {
-        let path = PathBuf::from(&file_path);
-        let validated_path = validate_input_audio_path(&path)?;
-
-        crate::metadata::save_metadata_intent(&validated_path, &metadata_patch)?;
-
-        log::info!("Metadata saved to: {}", validated_path.display());
-        Ok(())
-    })
-    .await
-    .map_err(|e| AppError::General(format!("Metadata write task failed: {e}")))?;
-
-    Ok(result?)
-}
-
 /// Validates and normalizes metadata intent without writing files.
 #[tauri::command]
 #[specta::specta]
@@ -88,63 +63,64 @@ pub fn validate_metadata_intent_patch(
     ))
 }
 
-/// Writes cover art to an M4B file
-/// Accepts file path and base64-encoded image data
-#[tauri::command]
-#[specta::specta]
-pub fn write_cover_art(file_path: String, cover_data: Vec<u8>) -> CommandResult<()> {
-    let path = PathBuf::from(&file_path);
-    let validated_path = validate_input_audio_path(&path)?;
-    crate::metadata::write_cover_art_to_file(&validated_path, cover_data)?;
-    Ok(())
-}
-
-/// Loads image file from disk and returns as byte array
-/// Supports common image formats: jpg, jpeg, png, webp
+/// Loads a cover image from disk and returns write-ready JPEG bytes.
 #[tauri::command]
 #[specta::specta]
 pub async fn load_cover_art_file(file_path: String) -> CommandResult<Vec<u8>> {
-    use std::fs;
+    let result: Result<Vec<u8>> = tokio::task::spawn_blocking(move || {
+        let validated_path = validate_input_image_path(&PathBuf::from(&file_path))?;
+        let image_data = read_bounded_image(&validated_path)?;
+        optimize_cover_art(&image_data)
+    })
+    .await
+    .map_err(|e| AppError::General(format!("Cover art load task failed: {e}")))?;
 
-    let path = PathBuf::from(&file_path);
-    let validated_path = validate_input_image_path(&path)?;
-
-    // Read file contents using the validated canonical path
-    let image_data = fs::read(&validated_path).map_err(AppError::Io)?;
-
-    // Validate it's not empty
-    if image_data.is_empty() {
-        return Err(AppError::InvalidInput("Image file appears to be empty".to_string()).into());
-    }
-
-    // Optimize cover art: resize, flatten transparency, convert to JPEG
-    // Format validation is handled by with_guessed_format() in optimize_cover_art (#32)
-    let optimized = optimize_cover_art(&image_data)?;
-
-    Ok(optimized)
+    Ok(result?)
 }
 
-/// Loads cover art from a remote URL and returns optimized image bytes
-/// HTTPS-only with size and content-type validation for safety.
-/// Includes SSRF protection: blocks requests to private/loopback/link-local IPs.
+fn read_bounded_image(path: &std::path::Path) -> Result<Vec<u8>> {
+    let file = std::fs::File::open(path).map_err(AppError::Io)?;
+    let mut image_data = Vec::new();
+    file.take(COVER_ART_MAX_FILE_BYTES + 1)
+        .read_to_end(&mut image_data)
+        .map_err(AppError::Io)?;
+    if image_data.len() as u64 > COVER_ART_MAX_FILE_BYTES {
+        return Err(AppError::InvalidInput(
+            "Image file exceeds 32 MB limit".to_string(),
+        ));
+    }
+    if image_data.is_empty() {
+        return Err(AppError::InvalidInput(
+            "Image file appears to be empty".to_string(),
+        ));
+    }
+    Ok(image_data)
+}
+
+/// Loads cover art from a remote URL and returns write-ready JPEG bytes.
+///
+/// HTTPS-only with size and content-type validation. SSRF protection: literal
+/// hosts must be public addresses, resolved domains drop private/reserved
+/// addresses, every redirect is rechecked, and environment proxies are ignored
+/// so the destination is always resolved here.
 #[tauri::command]
 #[specta::specta]
 pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
     let validated_url = validate_cover_art_url(&url)?;
-    let url_for_log = validated_url.as_str().to_string();
+    let origin = url_origin_for_log(&validated_url);
     let client = cover_art_http_client()?;
 
     let mut response = client.get(validated_url).send().await.map_err(|e| {
-        log::error!("Failed to fetch image URL {}: {}", url_for_log, e);
+        log::error!(
+            "Failed to fetch cover image from {origin}: {}",
+            e.without_url()
+        );
         AppError::General("Failed to fetch image URL".to_string())
     })?;
 
-    if !response.status().is_success() {
-        return Err(AppError::InvalidInput(format!(
-            "Image request failed with status {}",
-            response.status()
-        ))
-        .into());
+    let status = response.status();
+    if !status.is_success() {
+        return Err(AppError::InvalidInput(cover_status_message(status)).into());
     }
 
     if let Some(content_length) = response.content_length() {
@@ -172,7 +148,10 @@ pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
 
     let mut downloaded = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|e| {
-        log::error!("Failed to read image data from URL {}: {}", url_for_log, e);
+        log::error!(
+            "Failed to read cover image from {origin}: {}",
+            e.without_url()
+        );
         AppError::General("Failed to read image data".to_string())
     })? {
         if downloaded.len() + chunk.len() > COVER_ART_MAX_DOWNLOAD_BYTES {
@@ -185,8 +164,20 @@ pub async fn load_cover_art_from_url(url: String) -> CommandResult<Vec<u8>> {
         return Err(AppError::InvalidInput("Image response was empty".to_string()).into());
     }
 
-    let optimized = optimize_cover_art(&downloaded)?;
+    let optimized = tokio::task::spawn_blocking(move || optimize_cover_art(&downloaded))
+        .await
+        .map_err(|e| AppError::General(format!("Cover art decode task failed: {e}")))??;
     Ok(optimized)
+}
+
+fn cover_status_message(status: StatusCode) -> String {
+    if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
+        return format!(
+            "That URL blocked the image request (HTTP {}). Download the image and load it from a file.",
+            status.as_u16()
+        );
+    }
+    format!("Image request failed with status {status}")
 }
 
 static COVER_ART_HTTP_CLIENT: OnceLock<std::result::Result<reqwest::Client, String>> =
@@ -203,41 +194,22 @@ fn cover_art_http_client() -> Result<&'static reqwest::Client> {
 }
 
 fn build_cover_art_http_client() -> std::result::Result<reqwest::Client, String> {
-    let resolver = Arc::new(BogonFilteringResolver);
     reqwest::Client::builder()
         .timeout(Duration::from_secs(COVER_ART_FETCH_TIMEOUT_SECS))
-        .dns_resolver(resolver)
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            let redirect_count = attempt.previous().len();
-            if redirect_count >= COVER_ART_MAX_REDIRECTS {
-                log::warn!(
-                    "Blocked redirect due to limit (count={}): {}",
-                    redirect_count,
-                    attempt.url()
-                );
-                return attempt.error("too many redirects");
-            }
-
-            let url = attempt.url();
-            if url.scheme() != "https" {
-                log::warn!("Blocked redirect to non-HTTPS URL: {}", url);
-                return attempt.error("Only HTTPS URLs are supported");
-            }
-
-            let Some(host) = url.host_str() else {
-                log::warn!("Blocked redirect without host: {}", url);
-                return attempt.error("Redirect URL has no host");
-            };
-
-            if let Ok(ip) = host.parse::<IpAddr>() {
-                if bogon::is_bogon(ip) {
-                    log::warn!("Blocked redirect to bogon IP {} for host {}", ip, host);
-                    return attempt.error("Redirect to private IP blocked");
+        .dns_resolver(Arc::new(BogonFilteringResolver))
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::custom(
+            |attempt| match check_cover_redirect(attempt.url(), attempt.previous().len()) {
+                Ok(()) => attempt.follow(),
+                Err(reason) => {
+                    log::warn!(
+                        "Blocked cover redirect to {}: {reason}",
+                        url_origin_for_log(attempt.url())
+                    );
+                    attempt.error(reason)
                 }
-            }
-
-            attempt.follow()
-        }))
+            },
+        ))
         .user_agent("audiobook-boss/cover-art")
         .build()
         .map_err(|error| error.to_string())
@@ -245,6 +217,8 @@ fn build_cover_art_http_client() -> std::result::Result<reqwest::Client, String>
 
 /// Max download size for remote cover art (DoS prevention)
 const COVER_ART_MAX_DOWNLOAD_BYTES: usize = 10 * 1024 * 1024;
+/// Max size of a local cover image read before decoding
+const COVER_ART_MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
 /// HTTP fetch timeout for cover art
 const COVER_ART_FETCH_TIMEOUT_SECS: u64 = 30;
 /// Max redirects for cover art URL fetch
@@ -253,26 +227,42 @@ const COVER_ART_MAX_REDIRECTS: usize = 5;
 fn validate_cover_art_url(url: &str) -> Result<reqwest::Url> {
     let parsed =
         reqwest::Url::parse(url).map_err(|_| AppError::InvalidInput("Invalid URL".to_string()))?;
-
-    if parsed.scheme() != "https" {
-        return Err(AppError::InvalidInput(
-            "Only HTTPS URLs are supported".to_string(),
-        ));
-    }
-
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| AppError::InvalidInput("URL must include a host".to_string()))?;
-
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        if bogon::is_bogon(ip) {
-            return Err(AppError::InvalidInput(
-                "URL resolves to a private or reserved IP address".to_string(),
-            ));
-        }
-    }
-
+    check_cover_url(&parsed).map_err(|reason| AppError::InvalidInput(reason.to_string()))?;
     Ok(parsed)
+}
+
+/// Accepts HTTPS URLs whose host is a domain (checked again at resolution) or
+/// a public IP literal. IP literals never reach the resolver, so they are
+/// judged here from the typed host rather than its bracketed text.
+fn check_cover_url(url: &reqwest::Url) -> std::result::Result<(), &'static str> {
+    if url.scheme() != "https" {
+        return Err("Only HTTPS URLs are supported");
+    }
+    let ip = match url.host() {
+        None => return Err("URL must include a host"),
+        Some(Host::Domain(_)) => return Ok(()),
+        Some(Host::Ipv4(ip)) => IpAddr::V4(ip),
+        Some(Host::Ipv6(ip)) => IpAddr::V6(ip),
+    };
+    if bogon::is_bogon(ip) {
+        return Err("URL resolves to a private or reserved IP address");
+    }
+    Ok(())
+}
+
+fn check_cover_redirect(
+    url: &reqwest::Url,
+    previous_redirects: usize,
+) -> std::result::Result<(), &'static str> {
+    if previous_redirects >= COVER_ART_MAX_REDIRECTS {
+        return Err("too many redirects");
+    }
+    check_cover_url(url)
+}
+
+/// Scheme, host, and port only: paths, queries, and credentials stay out of logs.
+fn url_origin_for_log(url: &reqwest::Url) -> String {
+    url.origin().ascii_serialization()
 }
 
 #[derive(Debug)]

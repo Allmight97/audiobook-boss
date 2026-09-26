@@ -257,10 +257,6 @@ impl MetadataIntentPatch {
         self.apply_to_metadata(AudiobookMetadata::new())
     }
 
-    pub fn to_write_plan(&self) -> Result<MetadataWritePlan> {
-        self.to_write_plan_with_optional_source(None)
-    }
-
     pub fn to_write_plan_with_source(
         &self,
         source_metadata: AudiobookMetadata,
@@ -305,66 +301,6 @@ impl MetadataIntentPatch {
             metadata,
             album_sort,
         })
-    }
-}
-
-impl From<AudiobookMetadata> for MetadataIntentPatch {
-    fn from(metadata: AudiobookMetadata) -> Self {
-        let to_string_patch = |value: Option<String>| match value {
-            Some(text) if text.trim().is_empty() => PatchOp::Clear,
-            Some(text) => PatchOp::Set(text),
-            None => PatchOp::Noop,
-        };
-
-        let date = match metadata.date {
-            Some(date) => {
-                let trimmed = date.trim();
-                if trimmed.is_empty() {
-                    PatchOp::Clear
-                } else if let Some(normalized) = normalize_publication_date(trimmed) {
-                    PatchOp::Set(normalized)
-                } else {
-                    PatchOp::Set(trimmed.to_string())
-                }
-            }
-            None => PatchOp::Noop,
-        };
-
-        let cover_art = match metadata.cover_art {
-            Some(bytes) if bytes.is_empty() => PatchOp::Clear,
-            Some(bytes) => PatchOp::Set(bytes),
-            None => PatchOp::Noop,
-        };
-        let album_sort = match metadata.album_sort {
-            Some(text) if text.trim().is_empty() => AlbumSortPatchOp::Clear,
-            Some(text) => AlbumSortPatchOp::Set(text),
-            None => AlbumSortPatchOp::Noop,
-        };
-
-        let to_position_patch = |value: Option<(u32, Option<u32>)>| match value {
-            Some((0, _)) => PatchOp::Clear,
-            Some(position) => PatchOp::Set(position),
-            None => PatchOp::Noop,
-        };
-
-        Self {
-            title: to_string_patch(metadata.title),
-            artist: to_string_patch(metadata.artist),
-            album: to_string_patch(metadata.album),
-            composer: to_string_patch(metadata.composer),
-            genre: to_string_patch(metadata.genre),
-            date,
-            description: to_string_patch(metadata.description),
-            series: to_string_patch(metadata.series),
-            series_part: to_string_patch(metadata.series_part),
-            subseries: to_string_patch(metadata.subseries),
-            subseries_part: to_string_patch(metadata.subseries_part),
-            album_sort,
-            cover_art,
-            comment: to_string_patch(metadata.comment),
-            track: to_position_patch(metadata.track),
-            disk: to_position_patch(metadata.disk),
-        }
     }
 }
 
@@ -784,7 +720,7 @@ mod tests {
         };
 
         let metadata = patch
-            .to_write_plan()
+            .to_write_plan_with_source(AudiobookMetadata::default())
             .expect("patch conversion should succeed")
             .metadata;
 
@@ -803,7 +739,7 @@ mod tests {
         };
 
         let plan = patch
-            .to_write_plan()
+            .to_write_plan_with_source(AudiobookMetadata::default())
             .expect("write plan should preserve album sort");
 
         assert_eq!(plan.metadata.genre.as_deref(), Some("Sci-Fi"));
@@ -817,7 +753,7 @@ mod tests {
             album_sort: AlbumSortPatchOp::Set("Custom Sort".to_string()),
             ..Default::default()
         }
-        .to_write_plan()
+        .to_write_plan_with_source(AudiobookMetadata::default())
         .expect("album sort set should compile");
         assert_eq!(set_plan.metadata.album_sort.as_deref(), Some("Custom Sort"));
         assert_eq!(
@@ -829,7 +765,7 @@ mod tests {
             album_sort: AlbumSortPatchOp::Clear,
             ..Default::default()
         }
-        .to_write_plan()
+        .to_write_plan_with_source(AudiobookMetadata::default())
         .expect("album sort clear should compile");
         assert_eq!(clear_plan.metadata.album_sort.as_deref(), Some(""));
         assert_eq!(clear_plan.album_sort, AlbumSortWriteAction::Clear);
@@ -838,7 +774,7 @@ mod tests {
             album_sort: AlbumSortPatchOp::Recompute,
             ..Default::default()
         }
-        .to_write_plan()
+        .to_write_plan_with_source(AudiobookMetadata::default())
         .expect("album sort recompute should compile");
         assert_eq!(recompute_plan.metadata.album_sort, None);
         assert_eq!(recompute_plan.album_sort, AlbumSortWriteAction::Recompute);
@@ -852,7 +788,7 @@ mod tests {
         };
 
         let err = patch
-            .to_write_plan()
+            .to_write_plan_with_source(AudiobookMetadata::default())
             .expect_err("invalid year should be rejected");
 
         assert!(err.to_string().contains("YYYY"), "unexpected error: {err}");
@@ -866,7 +802,7 @@ mod tests {
         };
 
         let err = patch
-            .to_write_plan()
+            .to_write_plan_with_source(AudiobookMetadata::default())
             .expect_err("series part with slash should be rejected");
 
         assert!(
@@ -877,44 +813,20 @@ mod tests {
     }
 
     #[test]
-    fn metadata_intent_patch_from_metadata_maps_set_clear_and_noop() {
-        let patch = MetadataIntentPatch::from(AudiobookMetadata {
-            title: Some("The Way of Kings".to_string()),
-            artist: Some(String::new()),
-            genre: None,
-            date: Some(String::new()),
-            album_sort: Some("Stormlight 01 - The Way of Kings".to_string()),
-            cover_art: Some(Vec::new()),
-            ..Default::default()
-        });
-
-        assert_eq!(patch.title, PatchOp::Set("The Way of Kings".to_string()));
-        assert_eq!(patch.artist, PatchOp::Clear);
-        assert_eq!(patch.genre, PatchOp::Noop);
-        assert_eq!(patch.date, PatchOp::Clear);
-        assert_eq!(patch.cover_art, PatchOp::Clear);
-        assert_eq!(
-            patch.album_sort,
-            AlbumSortPatchOp::Set("Stormlight 01 - The Way of Kings".to_string())
-        );
-    }
-
-    #[test]
     fn metadata_intent_patch_write_contract_carries_explicit_artifact_intent_only() {
         // #281 posture: artifact fields (comment/track/disk) enter write
-        // intent only when the caller states them; From<AudiobookMetadata>
-        // carries present values as explicit Set intent, and a default patch
-        // (see artifact_noop_intents_preserve_values) leaves them untouched.
-        let patch = MetadataIntentPatch::from(AudiobookMetadata {
-            title: Some("Read Compatible".to_string()),
-            track: Some((3, Some(12))),
-            disk: Some((1, Some(2))),
-            comment: Some("Reader note".to_string()),
+        // intent only when the caller states them; a default patch (see
+        // artifact_noop_intents_preserve_values) leaves them untouched.
+        let patch = MetadataIntentPatch {
+            title: PatchOp::Set("Read Compatible".to_string()),
+            track: PatchOp::Set((3, Some(12))),
+            disk: PatchOp::Set((1, Some(2))),
+            comment: PatchOp::Set("Reader note".to_string()),
             ..Default::default()
-        });
+        };
 
         let resolved = patch
-            .to_write_plan()
+            .to_write_plan_with_source(AudiobookMetadata::default())
             .expect("write metadata compiles with explicit artifact intent")
             .metadata;
 
@@ -1176,12 +1088,11 @@ mod tests {
 
     #[test]
     fn metadata_intent_validation_preserves_invalid_date_for_validation() {
-        let patch = MetadataIntentPatch::from(AudiobookMetadata {
-            date: Some("not a date".to_string()),
+        let patch = MetadataIntentPatch {
+            date: PatchOp::Set("not a date".to_string()),
             ..Default::default()
-        });
+        };
 
-        assert_eq!(patch.date, PatchOp::Set("not a date".to_string()));
         let result = validate_metadata_intent_patch(&patch);
         assert!(!result.is_valid);
         assert_eq!(
@@ -1226,7 +1137,9 @@ mod tests {
             ..Default::default()
         };
 
-        let plan = patch.to_write_plan().expect("write plan");
+        let plan = patch
+            .to_write_plan_with_source(AudiobookMetadata::default())
+            .expect("write plan");
 
         assert_eq!(
             plan.metadata.comment,
@@ -1281,26 +1194,10 @@ mod tests {
         assert_eq!(merged.disk, Some((1, Some(2))));
 
         let plan = MetadataIntentPatch::default()
-            .to_write_plan()
+            .to_write_plan_with_source(AudiobookMetadata::default())
             .expect("write plan");
         assert_eq!(plan.metadata.comment, None, "noop must not clear at write");
         assert_eq!(plan.metadata.track, None);
         assert_eq!(plan.metadata.disk, None);
-    }
-
-    #[test]
-    fn metadata_to_patch_round_trips_artifact_fields() {
-        let metadata = AudiobookMetadata {
-            comment: Some("note".to_string()),
-            track: Some((7, Some(42))),
-            disk: Some((0, Some(5))),
-            ..AudiobookMetadata::new()
-        };
-
-        let patch = MetadataIntentPatch::from(metadata);
-
-        assert_eq!(patch.comment, PatchOp::Set("note".to_string()));
-        assert_eq!(patch.track, PatchOp::Set((7, Some(42))));
-        assert_eq!(patch.disk, PatchOp::Clear, "zero position means clear");
     }
 }

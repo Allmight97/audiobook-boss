@@ -1,55 +1,18 @@
 import type { AudiobookMetadata } from '../../types/metadata';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import { buildMetadataDraftIntent } from './draft';
 import {
-	EMPTY_WARNING_STATE,
 	METADATA_FIELD_DEFINITIONS,
 	createEmptyFormState,
 	replaceField,
 	type MetadataFieldAction,
 	type MetadataFieldId,
-	type MetadataFormMode,
 	type MetadataFormState,
 } from './fields';
 
 export type { MetadataFormState };
 
-export type MetadataFormPreviewKey =
-	| 'title'
-	| 'author'
-	| 'narrator'
-	| 'series'
-	| 'seriesPart'
-	| 'subseries'
-	| 'subseriesPart'
-	| 'year'
-	| 'genre';
-
-export type MetadataFormPreviewValues = Record<MetadataFormPreviewKey, string>;
-
-const INPUT_ID_TO_PREVIEW_KEY: Partial<Record<MetadataFieldId, MetadataFormPreviewKey>> = {
-	'meta-title': 'title',
-	'meta-author': 'author',
-	'meta-narrator': 'narrator',
-	'meta-series': 'series',
-	'meta-series-part': 'seriesPart',
-	'meta-subseries': 'subseries',
-	'meta-subseries-part': 'subseriesPart',
-	'meta-year': 'year',
-	'meta-genre': 'genre',
-};
-
-export const EMPTY_METADATA_FORM_PREVIEW_VALUES: MetadataFormPreviewValues = {
-	title: '',
-	author: '',
-	narrator: '',
-	series: '',
-	seriesPart: '',
-	subseries: '',
-	subseriesPart: '',
-	year: '',
-	genre: '',
-};
-
-export type MetadataFormValidationWarnings = {
+type MetadataFormValidationWarnings = {
 	readonly byField?: {
 		readonly series_part?: string;
 		readonly subseries_part?: string;
@@ -60,28 +23,27 @@ function fieldValueFromMetadata(
 	metadata: Partial<AudiobookMetadata>,
 	key: (typeof METADATA_FIELD_DEFINITIONS)[number]['key'],
 ): string {
-	if (key === 'date') {
-		const date = metadata.date;
-		return typeof date === 'string' && date.trim() ? date : '';
-	}
 	const raw = metadata[key];
+	if (key === 'date') {
+		return typeof raw === 'string' && raw.trim() ? raw : '';
+	}
 	return typeof raw === 'string' ? raw : '';
 }
 
-export function readMetadataFormPreviewValues(form: MetadataFormState): MetadataFormPreviewValues {
-	const preview = { ...EMPTY_METADATA_FORM_PREVIEW_VALUES };
-	for (const field of METADATA_FIELD_DEFINITIONS) {
-		const key = INPUT_ID_TO_PREVIEW_KEY[field.inputId];
-		if (!key) continue;
-		preview[key] = form.fields[field.inputId].value.trim();
-	}
-	return preview;
+function hydratedField(value: string, mixed: boolean) {
+	return { value, mixed, dirty: false, action: 'keep' as const, hydrated: { value, mixed } };
 }
 
+export function formValue(form: MetadataFormState, inputId: MetadataFieldId): string {
+	return form.fields[inputId].value.trim();
+}
+
+/** Accepts the current values as the new baseline once their edits are staged. */
 export function resetDirtyState(form: MetadataFormState): MetadataFormState {
 	let next = form;
 	for (const field of METADATA_FIELD_DEFINITIONS) {
-		next = replaceField(next, field.inputId, { dirty: false, action: 'keep' });
+		const state = next.fields[field.inputId];
+		next = replaceField(next, field.inputId, hydratedField(state.value, state.mixed));
 	}
 	return next;
 }
@@ -89,18 +51,13 @@ export function resetDirtyState(form: MetadataFormState): MetadataFormState {
 export function populateMetadataFormSingle(
 	metadata: Partial<AudiobookMetadata>,
 ): MetadataFormState {
-	let form: MetadataFormState = {
-		...createEmptyFormState(),
-		mode: 'single',
-		selectionCount: 0,
-	};
+	let form: MetadataFormState = { ...createEmptyFormState(), mode: 'single', selectionCount: 0 };
 	for (const field of METADATA_FIELD_DEFINITIONS) {
-		form = replaceField(form, field.inputId, {
-			value: fieldValueFromMetadata(metadata, field.key),
-			mixed: false,
-			dirty: false,
-			action: 'keep',
-		});
+		form = replaceField(
+			form,
+			field.inputId,
+			hydratedField(fieldValueFromMetadata(metadata, field.key), false),
+		);
 	}
 	return form;
 }
@@ -109,76 +66,32 @@ export function populateMetadataFormMulti(
 	metadataList: ReadonlyArray<Partial<AudiobookMetadata>>,
 	selectionCount: number,
 ): MetadataFormState {
-	let form: MetadataFormState = {
-		...createEmptyFormState(),
-		mode: 'multi',
-		selectionCount,
-	};
-	const hasMetadata = metadataList.length > 0;
+	let form: MetadataFormState = { ...createEmptyFormState(), mode: 'multi', selectionCount };
 	for (const field of METADATA_FIELD_DEFINITIONS) {
-		if (!hasMetadata) {
-			form = replaceField(form, field.inputId, {
-				value: '',
-				mixed: false,
-				dirty: false,
-				action: 'keep',
-			});
-			continue;
-		}
-		const values = metadataList.map((metadata) =>
-			field.key === 'date'
-				? fieldValueFromMetadata(metadata, field.key)
-				: fieldValueFromMetadata(metadata, field.key).trim(),
+		const values = new Set(
+			metadataList.map((metadata) => {
+				const value = fieldValueFromMetadata(metadata, field.key);
+				return field.key === 'date' ? value : value.trim();
+			}),
 		);
-		const uniqueValues = new Set(values);
-		if (uniqueValues.size === 1) {
-			form = replaceField(form, field.inputId, {
-				value: values[0] ?? '',
-				mixed: false,
-				dirty: false,
-				action: 'keep',
-			});
-			continue;
-		}
-		form = replaceField(form, field.inputId, {
-			value: '',
-			mixed: true,
-			dirty: false,
-			action: 'keep',
-		});
+		const shared = values.size <= 1;
+		const value = shared ? ([...values][0] ?? '') : '';
+		form = replaceField(form, field.inputId, hydratedField(value, !shared));
 	}
 	return form;
 }
 
-export function applyMetadataToForm(
+/** Applies Lookup's values to a single-title form as explicit edits. */
+export function applyLookupValues(
 	form: MetadataFormState,
 	metadata: Partial<AudiobookMetadata>,
-	options?: { readonly mode?: MetadataFormMode; readonly markDirty?: boolean },
 ): MetadataFormState {
-	const mode = options?.mode ?? form.mode;
-	const shouldMarkDirty = options?.markDirty ?? true;
-	let next = { ...form, mode };
+	let next = form;
 	for (const field of METADATA_FIELD_DEFINITIONS) {
-		let value: string | null = null;
-		if (field.key === 'date') {
-			const date = metadata.date;
-			if (typeof date === 'string') {
-				value = date.trim();
-			}
-		} else {
-			const raw = metadata[field.key];
-			if (typeof raw === 'string') {
-				value = raw;
-			}
-		}
-		if (value === null) continue;
-		next = replaceField(next, field.inputId, {
-			value,
-			mixed: false,
-			dirty: shouldMarkDirty ? true : next.fields[field.inputId].dirty,
-			action:
-				mode === 'multi' ? (value.trim() ? 'keep' : 'blank') : next.fields[field.inputId].action,
-		});
+		const raw = metadata[field.key];
+		if (typeof raw !== 'string') continue;
+		const value = field.key === 'date' ? raw.trim() : raw;
+		next = replaceField(next, field.inputId, { value, mixed: false, dirty: true });
 	}
 	return next;
 }
@@ -195,195 +108,80 @@ export function applyFieldInput(
 	return next;
 }
 
+/** Blank clears the field on every selected title; Keep revokes that pending edit. */
 export function applyFieldAction(
 	form: MetadataFormState,
 	inputId: MetadataFieldId,
 	action: MetadataFieldAction,
 ): MetadataFormState {
-	let next = replaceField(form, inputId, { action });
+	const field = form.fields[inputId];
+	if (field.action === action) return form;
 	if (action === 'blank') {
-		next = replaceField(next, inputId, { value: '', dirty: true });
+		return replaceField(form, inputId, { action, value: '', dirty: true });
 	}
-	return next;
+	return replaceField(form, inputId, { action, ...field.hydrated, dirty: false });
 }
 
-function updateSeriesPartWarning(
-	form: MetadataFormState,
-	metadata: Partial<AudiobookMetadata>,
-	seriesPartError: string | null,
-): MetadataFormState {
-	if (seriesPartError) {
-		return { ...form, seriesPartWarning: { message: seriesPartError, visible: true } };
-	}
-	const seriesValue = metadata.series?.trim() ?? '';
-	const seriesPartValue = metadata.series_part?.trim() ?? '';
-	const subseriesValue = metadata.subseries?.trim() ?? '';
-	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
-	if (
-		seriesValue.length > 0 &&
-		subseriesValue.length > 0 &&
-		seriesPartValue.length > 0 &&
-		subseriesPartValue.length > 0 &&
-		seriesPartValue === subseriesPartValue
-	) {
+function seriesPartWarning(form: MetadataFormState, error: string | null) {
+	if (error) return { message: error, visible: true };
+	const series = formValue(form, 'meta-series');
+	const seriesPart = formValue(form, 'meta-series-part');
+	const subseriesPart = formValue(form, 'meta-subseries-part');
+	if (series && formValue(form, 'meta-subseries') && seriesPart && seriesPart === subseriesPart) {
 		return {
-			...form,
-			seriesPartWarning: {
-				message:
-					'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.',
-				visible: true,
-			},
+			message:
+				'Book # matches sub-series #. Keep them aligned only when both series use the same sequence.',
+			visible: true,
 		};
 	}
 	return {
-		...form,
-		seriesPartWarning: {
-			message: 'Series detected - add Book # (series sequence) for ABS ordering.',
-			visible: seriesValue.length > 0 && seriesPartValue.length === 0,
-		},
+		message: 'Series detected - add Book # (series sequence) for ABS ordering.',
+		visible: series.length > 0 && seriesPart.length === 0,
 	};
 }
 
-function updateSubseriesPartWarning(
-	form: MetadataFormState,
-	metadata: Partial<AudiobookMetadata>,
-	subseriesPartError: string | null,
-): MetadataFormState {
-	if (subseriesPartError) {
-		return { ...form, subseriesPartWarning: { message: subseriesPartError, visible: true } };
-	}
-	const subseriesValue = metadata.subseries?.trim() ?? '';
-	const subseriesPartValue = metadata.subseries_part?.trim() ?? '';
+function subseriesPartWarning(form: MetadataFormState, error: string | null) {
+	if (error) return { message: error, visible: true };
 	return {
-		...form,
-		subseriesPartWarning: {
-			message: 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.',
-			visible: subseriesValue.length > 0 && subseriesPartValue.length === 0,
-		},
+		message: 'Sub-series detected - add sub-series # (series sequence) for ABS ordering.',
+		visible:
+			formValue(form, 'meta-subseries').length > 0 &&
+			formValue(form, 'meta-subseries-part').length === 0,
 	};
 }
 
 export function applyMetadataFormValidationWarnings(
 	form: MetadataFormState,
-	metadata: Partial<AudiobookMetadata>,
 	errors: MetadataFormValidationWarnings,
 ): MetadataFormState {
-	return updateSubseriesPartWarning(
-		updateSeriesPartWarning(form, metadata, errors.byField?.series_part ?? null),
-		metadata,
-		errors.byField?.subseries_part ?? null,
-	);
-}
-
-export function resetMetadataFormWarnings(form: MetadataFormState): MetadataFormState {
 	return {
 		...form,
-		seriesPartWarning: EMPTY_WARNING_STATE,
-		subseriesPartWarning: EMPTY_WARNING_STATE,
+		seriesPartWarning: seriesPartWarning(form, errors.byField?.series_part ?? null),
+		subseriesPartWarning: subseriesPartWarning(form, errors.byField?.subseries_part ?? null),
 	};
 }
 
-export function hasDirtyMetadataFields(
-	form: MetadataFormState,
-	cover: { readonly hasCustomCoverArt: boolean; readonly coverArtRemovalRequested: boolean },
-): boolean {
-	const hasDirtyTextFields = METADATA_FIELD_DEFINITIONS.some(
-		(field) => form.fields[field.inputId].dirty,
-	);
-	return hasDirtyTextFields || cover.coverArtRemovalRequested || cover.hasCustomCoverArt;
+export function hasDirtyFields(form: MetadataFormState): boolean {
+	return METADATA_FIELD_DEFINITIONS.some((field) => form.fields[field.inputId].dirty);
 }
 
-export function readMetadataForm(
-	form: MetadataFormState,
-	options?: {
-		readonly mode?: MetadataFormMode;
-		readonly onlyDirty?: boolean;
-		readonly includeCoverArt?: boolean;
-		readonly coverArtBytes?: number[] | null;
-		readonly coverArtRemovalRequested?: boolean;
-	},
-): Partial<AudiobookMetadata> {
-	const mode = options?.mode ?? form.mode;
-	const onlyDirty = options?.onlyDirty ?? false;
-	const includeCoverArt = options?.includeCoverArt ?? true;
-	const metadata: Partial<AudiobookMetadata> = {};
-	const setMetadataValue = <K extends keyof AudiobookMetadata>(
-		key: K,
-		value: AudiobookMetadata[K],
-	): void => {
-		metadata[key] = value;
-	};
-
+/**
+ * The edit intent the form carries: only fields the user changed (including
+ * explicit Blank) become set/clear operations; everything else stays noop so
+ * inherited values are neither rewritten nor revalidated. Cover intent is
+ * staged by the cover actions themselves.
+ */
+export function composeFormIntent(form: MetadataFormState): MetadataIntentPatch {
+	const draft: Partial<Record<keyof AudiobookMetadata, string>> = {};
 	for (const field of METADATA_FIELD_DEFINITIONS) {
-		const raw = form.fields[field.inputId].value.trim();
-		const dirty = form.fields[field.inputId].dirty;
-
-		if (mode === 'multi') {
-			const action = form.fields[field.inputId].action;
-			if (action === 'blank') {
-				if (field.key === 'date') {
-					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
-				} else {
-					setMetadataValue(field.key, '' as AudiobookMetadata[typeof field.key]);
-					if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
-						metadata.album = '';
-					}
-				}
-				continue;
-			}
-
-			const hasSharedValue = !form.fields[field.inputId].mixed && raw.length > 0;
-			if (!dirty && (onlyDirty || !hasSharedValue)) continue;
-
-			if (field.key === 'date') {
-				if (!raw) {
-					setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
-					continue;
-				}
-				setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
-				continue;
-			}
-
-			setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
-			if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
-				metadata.album = raw;
-			}
-			continue;
-		}
-
-		if (onlyDirty && !dirty) continue;
-
-		if (field.key === 'date') {
-			if (raw) {
-				setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
-			} else if (dirty) {
-				setMetadataValue(field.key, undefined as AudiobookMetadata[typeof field.key]);
-			}
-			continue;
-		}
-
-		const shouldInclude =
-			raw || dirty || ('unconditional' in field && field.unconditional && !onlyDirty);
-		if (!shouldInclude) continue;
-
-		setMetadataValue(field.key, raw as AudiobookMetadata[typeof field.key]);
-		if ('mapToAlbum' in field && field.mapToAlbum && field.key === 'title') {
-			metadata.album = raw;
-		}
+		const state = form.fields[field.inputId];
+		const blank = state.action === 'blank';
+		if (!state.dirty && !blank) continue;
+		const value = blank ? '' : state.value.trim();
+		draft[field.key] = value;
+		if ('mapToAlbum' in field && field.mapToAlbum) draft.album = value;
 	}
-
-	if (mode === 'single' && includeCoverArt) {
-		if (options?.coverArtRemovalRequested) {
-			metadata.cover_art = [];
-		} else {
-			const coverBytes = options?.coverArtBytes;
-			if (coverBytes && coverBytes.length > 0) {
-				metadata.cover_art = coverBytes;
-			}
-		}
-	}
-
-	return metadata;
+	return buildMetadataDraftIntent(draft as Partial<AudiobookMetadata>);
 }
 
 export function commitFocusedControlValue(
