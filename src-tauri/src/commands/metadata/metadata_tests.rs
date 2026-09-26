@@ -34,9 +34,9 @@ fn cover_url_policy_accepts_only_https_domains_and_public_literals() {
 
 #[test]
 fn cover_redirects_recheck_the_target_and_stop_at_the_limit() {
-    let public: reqwest::Url = "https://example.com/next.jpg".parse().unwrap();
-    let private: reqwest::Url = "https://[::1]/next.jpg".parse().unwrap();
-    let plain: reqwest::Url = "http://example.com/next.jpg".parse().unwrap();
+    let public: reqwest::Url = "https://example.com/next.jpg".parse().expect("url");
+    let private: reqwest::Url = "https://[::1]/next.jpg".parse().expect("url");
+    let plain: reqwest::Url = "http://example.com/next.jpg".parse().expect("url");
 
     assert!(check_cover_redirect(&public, COVER_ART_MAX_REDIRECTS - 1).is_ok());
     assert!(check_cover_redirect(&public, COVER_ART_MAX_REDIRECTS).is_err());
@@ -48,7 +48,7 @@ fn cover_redirects_recheck_the_target_and_stop_at_the_limit() {
 fn cover_logs_keep_origin_without_path_query_or_credentials() {
     let url: reqwest::Url = "https://user:secret@example.com:8443/art.jpg?token=abc"
         .parse()
-        .unwrap();
+        .expect("url");
     assert_eq!(url_origin_for_log(&url), "https://example.com:8443");
 }
 
@@ -65,18 +65,21 @@ fn blocked_cover_requests_suggest_loading_from_a_file() {
 
 #[test]
 fn local_cover_reads_are_bounded_and_reject_empty_files() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir");
     let oversized = dir.path().join("large.png");
-    let file = std::fs::File::create(&oversized).unwrap();
-    file.set_len(COVER_ART_MAX_FILE_BYTES + 1).unwrap();
+    let file = std::fs::File::create(&oversized).expect("create");
+    file.set_len(COVER_ART_MAX_FILE_BYTES + 1).expect("size");
     let empty = dir.path().join("empty.png");
-    std::fs::write(&empty, []).unwrap();
+    std::fs::write(&empty, []).expect("write empty");
     let small = dir.path().join("small.png");
-    std::fs::write(&small, [1, 2, 3]).unwrap();
+    std::fs::write(&small, [1, 2, 3]).expect("write small");
 
     assert!(read_bounded_image(&oversized).is_err());
     assert!(read_bounded_image(&empty).is_err());
-    assert_eq!(read_bounded_image(&small).unwrap(), vec![1, 2, 3]);
+    assert_eq!(
+        read_bounded_image(&small).expect("small read"),
+        vec![1, 2, 3]
+    );
 }
 
 #[test]

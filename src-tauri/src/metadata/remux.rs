@@ -39,14 +39,13 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     let mut ictx = stage("metadata_open_input", input_path, || {
         ff::format::input(input_path).map_err(AppError::Ffmpeg)
     })?;
-    // Declared before the output context so an early return closes FFmpeg's
-    // handle first, then removes the partial file.
+    // Declared before `octx`: an early return closes FFmpeg's handle, then removes the file.
     let temp = RemuxTemp::own(build_temp_output_path(input_path)?);
     let temp_path = temp.path.as_path();
     log::info!(
         "media_handoff stage=remux_create source_artifact={} destination_artifact={}",
         crate::diagnostics::artifact_id(input_path),
-        crate::diagnostics::artifact_id(&temp_path)
+        crate::diagnostics::artifact_id(temp_path)
     );
     let mut octx = stage("metadata_create_output", temp_path, || {
         match output_format {
@@ -132,10 +131,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     drop(octx);
     drop(ictx);
 
-    stage("metadata_replace", input_path, || {
-        crate::file_replace::replace_file(temp_path, input_path).map_err(AppError::Io)
-    })?;
-    temp.release();
+    stage("metadata_replace", input_path, || temp.replace(input_path))?;
     log::info!(
         "metadata_remux status=ok elapsed_ms={} path={}",
         started.elapsed().as_millis(),
@@ -155,9 +151,11 @@ impl RemuxTemp {
         Self { path, owned: true }
     }
 
-    /// The file became the source through replacement; nothing remains to remove.
-    fn release(mut self) {
+    /// Installs the finished output over `source`; afterwards nothing remains to remove.
+    fn replace(mut self, source: &std::path::Path) -> Result<()> {
+        crate::file_replace::replace_file(&self.path, source).map_err(AppError::Io)?;
         self.owned = false;
+        Ok(())
     }
 }
 
