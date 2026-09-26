@@ -34,7 +34,6 @@ export function makeProductionLookupServices(
 		getSelectedFileIndices: () => new Set(deps.input.session().selectedIndices ?? []),
 		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
 		getMetadataForFile: (path) => deps.metadata.readCached(path),
-		stageMetadataIntentPatch: (path, patch) => deps.metadata.stageIntent(path, patch),
 		selectFile: async (file) => {
 			const index =
 				deps.input
@@ -56,7 +55,6 @@ export function makeProductionLookupServices(
 		},
 		applyMetadataToForm: (file, metadata, coverArtBytes) =>
 			deps.metadata.applyLookupMetadata(file, metadata, coverArtBytes),
-		readMetadataForm: () => deps.metadata.readMetadata() ?? {},
 		searchOnlineMetadata: (args) => deps.metadata.capability().searchOnlineMetadata(args),
 		loadLookupCoverBytes: (url) => deps.coverPreviews.loadBytes(url),
 		clearCoverPreviews: () => deps.coverPreviews.clear(),

@@ -1,16 +1,7 @@
 import { pathBasename } from '../../lib/path/basename';
 import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata, MetadataSource, OnlineMetadataResult } from '../../types/metadata';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { buildMetadataDraftIntent } from '../metadataSession';
 import type { MetadataLookupWorkflowServices } from './workflow';
-
-export type QueueCoverState = { intent: 'keep' } | { intent: 'replace'; bytes: number[] };
-
-export type QueueItemState = {
-	metadataPatch: MetadataIntentPatch;
-	cover: QueueCoverState;
-};
 
 function formatFileName(path: string): string {
 	return pathBasename(path, { fallback: 'path' });
@@ -74,28 +65,6 @@ export function resetResults(services: MetadataLookupWorkflowServices): void {
 	state.results = [];
 	state.hasSearched = false;
 	services.clearCoverPreviews();
-}
-
-export function buildQueueMetadataPatch(
-	services: MetadataLookupWorkflowServices,
-): MetadataIntentPatch {
-	return buildMetadataDraftIntent(
-		services.readMetadataForm({ mode: 'single', includeCoverArt: false }),
-	);
-}
-
-export function persistQueueMetadata(
-	services: MetadataLookupWorkflowServices,
-	file: AudioFile,
-	state: QueueItemState,
-): void {
-	if (!file.isValid) return;
-	const intentPatch: MetadataIntentPatch = { ...state.metadataPatch };
-	if (state.cover.intent === 'replace') {
-		intentPatch.cover_art = { op: 'set', value: state.cover.bytes };
-	}
-
-	services.stageMetadataIntentPatch(file.path, intentPatch);
 }
 
 export function mapResultToMetadata(result: OnlineMetadataResult): Partial<AudiobookMetadata> {

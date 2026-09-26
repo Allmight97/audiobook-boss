@@ -1,10 +1,10 @@
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
-	applyMetadataDraftIntent,
-	hasActionableMetadataDraftIntent,
-	mergeMetadataDraftIntents,
-} from './draft';
+	applyMetadataIntentPatch,
+	hasActionableMetadataIntentPatch,
+	mergeMetadataIntentPatches,
+} from '../../types/metadataIntent';
 
 const isNullish = (value: unknown): value is null | undefined => value == null;
 
@@ -92,17 +92,17 @@ export function createMetadataCache() {
 			filePath: string,
 			intentPatch: MetadataIntentPatch,
 		): MetadataStageResult {
-			if (!hasActionableMetadataDraftIntent(intentPatch)) {
+			if (!hasActionableMetadataIntentPatch(intentPatch)) {
 				return 'noop';
 			}
 			const existing = metadataByFile.get(filePath) ?? {};
-			const merged = applyMetadataDraftIntent(existing, intentPatch);
+			const merged = applyMetadataIntentPatch(existing, intentPatch);
 			if (metadataEqualsNullish(existing, merged)) {
 				return 'unchanged';
 			}
 			metadataByFile.set(filePath, merged);
 			const existingIntent = metadataIntentByFile.get(filePath) ?? {};
-			metadataIntentByFile.set(filePath, mergeMetadataDraftIntents(existingIntent, intentPatch));
+			metadataIntentByFile.set(filePath, mergeMetadataIntentPatches(existingIntent, intentPatch));
 			pendingSavePaths.add(filePath);
 			return 'staged';
 		},
@@ -115,7 +115,7 @@ export function createMetadataCache() {
 			const collected: Record<string, MetadataIntentPatch> = {};
 			for (const filePath of filePaths) {
 				const patch = metadataIntentByFile.get(filePath);
-				if (patch && hasActionableMetadataDraftIntent(patch)) {
+				if (patch && hasActionableMetadataIntentPatch(patch)) {
 					collected[filePath] = patch;
 				}
 			}

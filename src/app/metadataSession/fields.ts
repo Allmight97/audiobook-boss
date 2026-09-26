@@ -34,7 +34,6 @@ export type MetadataFieldDefinition = {
 	readonly span: 1 | 2 | 3 | 4;
 	readonly kind: 'input' | 'textarea';
 	readonly mapToAlbum?: boolean;
-	readonly unconditional?: boolean;
 };
 
 export const METADATA_FIELD_DEFINITIONS = [
@@ -83,7 +82,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		label: 'Series',
 		span: 2,
 		kind: 'input',
-		unconditional: true,
 	},
 	{
 		inputId: 'meta-series-part',
@@ -93,7 +91,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		label: 'Book #',
 		span: 1,
 		kind: 'input',
-		unconditional: true,
 	},
 	{
 		inputId: 'meta-subseries',
@@ -103,7 +100,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		label: 'Sub-series',
 		span: 2,
 		kind: 'input',
-		unconditional: true,
 	},
 	{
 		inputId: 'meta-subseries-part',
@@ -113,7 +109,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		label: 'Sub-series #',
 		span: 1,
 		kind: 'input',
-		unconditional: true,
 	},
 	{
 		inputId: 'meta-genre',
@@ -132,7 +127,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		label: 'Description',
 		span: 4,
 		kind: 'textarea',
-		unconditional: true,
 	},
 ] as const satisfies readonly MetadataFieldDefinition[];
 
@@ -142,6 +136,8 @@ export type MetadataFieldState = {
 	readonly dirty: boolean;
 	readonly mixed: boolean;
 	readonly placeholder: string;
+	/** Value shown when the selection was hydrated; Keep restores it. */
+	readonly hydrated: { readonly value: string; readonly mixed: boolean };
 };
 
 export type MetadataWarningState = {
@@ -169,10 +165,11 @@ function createEmptyFieldState(definition: MetadataFieldDefinition): MetadataFie
 		dirty: false,
 		mixed: false,
 		placeholder: definition.placeholder,
+		hydrated: { value: '', mixed: false },
 	};
 }
 
-export function createEmptyFieldsState(): Record<MetadataFieldId, MetadataFieldState> {
+function createEmptyFieldsState(): Record<MetadataFieldId, MetadataFieldState> {
 	const fields = {} as Record<MetadataFieldId, MetadataFieldState>;
 	for (const definition of METADATA_FIELD_DEFINITIONS) {
 		fields[definition.inputId] = createEmptyFieldState(definition);

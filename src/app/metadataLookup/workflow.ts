@@ -5,8 +5,6 @@ import type {
 	MetadataSource,
 	OnlineMetadataResult,
 } from '../../types/metadata';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import type { MetadataStageResult } from '../metadataSession';
 import {
 	Effect,
 	type AppLayer,
@@ -15,17 +13,13 @@ import {
 	runAppEffect,
 } from '../../lib/effect/appEffect';
 import {
-	buildQueueMetadataPatch,
 	deriveAuthorQueryFromFile,
 	deriveTitleQueryFromFile,
 	mapResultToMetadata,
-	persistQueueMetadata,
 	resetResults,
 	selectedSources,
 	updateApplyModeOptions,
 	updateQueueContext,
-	type QueueCoverState,
-	type QueueItemState,
 } from './workflowDomain';
 import type {
 	MetadataLookupQueueItem,
@@ -43,17 +37,12 @@ export interface MetadataLookupWorkflowServices {
 	getSelectedFileIndices: () => Set<number>;
 	getCurrentFileList: () => FileListInfo | null;
 	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
-	stageMetadataIntentPatch: (filePath: string, patch: MetadataIntentPatch) => MetadataStageResult;
 	selectFile: (file: AudioFile) => Promise<boolean>;
 	applyMetadataToForm: (
 		file: AudioFile,
 		metadata: Partial<AudiobookMetadata>,
 		coverArtBytes?: number[],
 	) => boolean;
-	readMetadataForm: (options?: {
-		mode?: 'single' | 'multi';
-		includeCoverArt?: boolean;
-	}) => Partial<AudiobookMetadata>;
 	searchOnlineMetadata: (args: {
 		query: string;
 		sources: MetadataSource[] | null;
@@ -217,12 +206,12 @@ async function applyResult(
 	const current = queue[services.getQueueState().index];
 	if (!current) return;
 
-	let queueCoverState: QueueCoverState = { intent: 'keep' };
+	let coverArtBytes: number[] | undefined;
 	let coverArtFailed = false;
 	if (services.getLookupState().replaceCoverArt) {
 		const coverArtResult = await applyCoverArt(services, result);
 		if (coverArtResult.status === 'applied' && coverArtResult.bytes.length > 0) {
-			queueCoverState = { intent: 'replace', bytes: coverArtResult.bytes };
+			coverArtBytes = coverArtResult.bytes;
 		} else if (coverArtResult.status === 'failed') {
 			coverArtFailed = true;
 		}
@@ -232,11 +221,7 @@ async function applyResult(
 	if (!services.isCurrent()) return;
 	if (
 		!selected ||
-		!services.applyMetadataToForm(
-			current.file,
-			metadata,
-			queueCoverState.intent === 'replace' ? queueCoverState.bytes : undefined,
-		)
+		!services.applyMetadataToForm(current.file, metadata, coverArtBytes)
 	) {
 		setStatus(
 			services,
@@ -246,12 +231,9 @@ async function applyResult(
 		return;
 	}
 
+	// Applied values are form edits; advancing passes Metadata's draft gate,
+	// which validates and stages them like any other edit.
 	if (mode === 'queue') {
-		const queueState: QueueItemState = {
-			metadataPatch: buildQueueMetadataPatch(services),
-			cover: queueCoverState,
-		};
-		persistQueueMetadata(services, current.file, queueState);
 		await advanceQueue(services, 'applied', { coverArtFailed });
 		return;
 	}

@@ -165,25 +165,15 @@ function workflowServices(overrides: Partial<ProcessingWorkflowServices> = {}) {
 	};
 	const services: ProcessingWorkflowServices = {
 		getCurrentFileList: vi.fn(() => fileList()),
-		getSelectedFileIndex: vi.fn(() => 0),
-		getSelectedFileIndices: vi.fn(() => new Set([0])),
 		sourcesFor: (file) => [file],
 		readProcessingRequestConfig: vi.fn((titles: readonly AudioFile[]) => ({
 			...processingConfig(),
 			audioRequests: titles.map(() => titleAudioRequest()),
 		})),
-		hasDirtyMetadataFields: vi.fn(() => false),
-		readMetadataForm: vi.fn(() => ({})),
-		stageIntent: vi.fn(() => 'staged' as const),
+		stageMetadata: vi.fn(async () => ({ status: 'staged' as const })),
 		intentsForProcess: vi.fn(async () => null),
-		stageMetadataToSelection: vi.fn(async () => true),
 		setJobControlsEnabled: vi.fn(),
 		setFileOrderLocked: vi.fn(),
-		validateMetadataIntentPatch: vi.fn(async (metadataPatch) => ({
-			isValid: true,
-			metadataPatch,
-			fieldErrors: [],
-		})),
 		processAudiobookFiles: vi.fn(async () => successResult()),
 		submitProcessingOperation: vi.fn(async () => acceptedSubmission('batch')),
 		remoteSource,
@@ -221,14 +211,12 @@ describe('ProcessingWorkflow', () => {
 					throw new Error('Encoder availability is not ready.');
 				},
 				getCurrentFileList: () => fileList(['/books/a.m4b', '/books/b.m4b']),
-				getSelectedFileIndices: () => new Set([0, 1]),
-				hasDirtyMetadataFields: () => true,
 			});
 			await startProcessing(ctx, { previewSeconds }, makeProcessingWorkflowServicesLayer(services));
 			expect(feedback.showError).toHaveBeenCalledWith(
 				expect.stringContaining('Encoder availability is not ready.'),
 			);
-			expect(services.stageMetadataToSelection).not.toHaveBeenCalled();
+			expect(services.stageMetadata).not.toHaveBeenCalled();
 			expect(services.runOutputPlanReviewWorkflow).not.toHaveBeenCalled();
 			expect(ctx.setProcessingState).not.toHaveBeenCalled();
 			expect(services.processAudiobookFiles).not.toHaveBeenCalled();

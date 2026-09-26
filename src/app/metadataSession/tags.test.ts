@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_METADATA_FORM_PREVIEW_VALUES } from './form';
+import { populateMetadataFormSingle } from './form';
 import { calculateTSOA, projectTagPreviewValues } from './tags';
 
 describe('tag preview projection', () => {
@@ -13,20 +13,21 @@ describe('tag preview projection', () => {
 		expect(calculateTSOA('Series', '0', 'Book')).toBe('Series 00 - Book');
 	});
 
-	it('maps preview fields onto tag names including album and tsoa', () => {
+	it('maps form fields onto tag names including album and tsoa', () => {
 		expect(
-			projectTagPreviewValues({
-				...EMPTY_METADATA_FORM_PREVIEW_VALUES,
-				title: 'Mistborn',
-				author: 'Brandon Sanderson',
-				narrator: 'Michael Kramer',
-				series: 'The Mistborn Saga',
-				seriesPart: '1',
-				subseries: 'Era 1',
-				subseriesPart: '2',
-				year: '2006',
-				genre: 'Fantasy',
-			}),
+			projectTagPreviewValues(
+				populateMetadataFormSingle({
+					title: 'Mistborn',
+					artist: 'Brandon Sanderson',
+					composer: 'Michael Kramer',
+					series: 'The Mistborn Saga',
+					series_part: '1',
+					subseries: 'Era 1',
+					subseries_part: '2',
+					date: '2006',
+					genre: 'Fantasy',
+				}),
+			),
 		).toEqual({
 			title: 'Mistborn',
 			album: 'Mistborn',

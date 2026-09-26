@@ -1,13 +1,11 @@
 import { Effect, type AppEffect } from '../../lib/effect/appEffect';
 import type {
-	FileListInfo,
 	JobType,
 	ProcessPayload,
 	ProcessingRequestConfig,
 	SupplementalProcessingAsset,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { validateMetadataDraft } from '../metadataSession';
 import type { OutputPlanReviewResult } from '../outputPlan';
 import type { ProcessingWorkflowFailed } from './workflow';
 import type { ProcessingWorkflowServices } from './workflow';
@@ -41,98 +39,27 @@ export function buildProcessPayload(
 	};
 }
 
-function stageMultiSelectionMetadata(
-	services: ProcessingWorkflowServices,
-	selectionCount: number,
-	workflowPromise: ProcessingWorkflowPromise,
-): AppEffect<boolean, ProcessingWorkflowFailed> {
-	return Effect.gen(function* () {
-		if (selectionCount <= 1) {
-			return true;
-		}
-
-		const staged = yield* workflowPromise(
-			() => services.stageMetadataToSelection({ showStatus: false }),
-			'Failed to stage metadata for processing.',
-		);
-		if (!staged) {
-			yield* Effect.sync(() =>
-				services.feedback.showError('Fix metadata validation errors before processing.'),
-			);
-			return false;
-		}
-		return true;
-	});
-}
-
-function metadataIntentTargetPath(
-	fileList: FileListInfo,
-	selectedFileIndex: number,
-): string | undefined {
-	if (selectedFileIndex >= 0) {
-		const selectedFile = fileList.files[selectedFileIndex];
-		if (selectedFile?.isValid) {
-			return selectedFile.path;
-		}
-	}
-
-	return undefined;
-}
-
-function stageSingleSelectionMetadata(
-	services: ProcessingWorkflowServices,
-	fileList: FileListInfo,
-	selectionCount: number,
-	workflowPromise: ProcessingWorkflowPromise,
-): AppEffect<boolean, ProcessingWorkflowFailed> {
-	return Effect.gen(function* () {
-		if (selectionCount > 1 || !services.hasDirtyMetadataFields()) {
-			return true;
-		}
-
-		const selectedFileIndex = services.getSelectedFileIndex();
-		const formMetadata = services.readMetadataForm({ mode: 'single' });
-		const validation = yield* workflowPromise(
-			() => validateMetadataDraft(formMetadata, services.validateMetadataIntentPatch),
-			'Failed to validate metadata intent for processing.',
-		);
-		if (!validation.ok) {
-			const validationError = validation.errors.first ?? 'Metadata validation failed.';
-			yield* Effect.sync(() => services.feedback.showError(validationError));
-			return false;
-		}
-
-		const intentPatch = validation.intentPatch;
-		const targetPath = metadataIntentTargetPath(fileList, selectedFileIndex);
-		if (!targetPath) {
-			yield* Effect.sync(() =>
-				services.feedback.showError('Select a valid input file before processing metadata edits.'),
-			);
-			return false;
-		}
-		services.stageIntent(targetPath, intentPatch);
-
-		return true;
-	});
-}
+const STAGE_FAILURE_MESSAGES = {
+	stale: 'Metadata changed while preparing to process. Start processing again.',
+	noTarget: 'Select a valid input file before processing metadata edits.',
+} as const;
 
 export function stagePendingMetadataIntent(
 	services: ProcessingWorkflowServices,
-	fileList: FileListInfo,
 	workflowPromise: ProcessingWorkflowPromise,
 ): AppEffect<boolean, ProcessingWorkflowFailed> {
 	return Effect.gen(function* () {
-		const selectionCount = services.getSelectedFileIndices().size;
-		const multiSelectionStaged = yield* stageMultiSelectionMetadata(
-			services,
-			selectionCount,
-			workflowPromise,
+		const outcome = yield* workflowPromise(
+			() => services.stageMetadata(),
+			'Failed to stage metadata for processing.',
 		);
-		if (!multiSelectionStaged) {
-			return false;
+		if (outcome.status === 'staged') {
+			return true;
 		}
-
-		return yield* stageSingleSelectionMetadata(services, fileList, selectionCount, workflowPromise);
+		const message =
+			outcome.status === 'invalid' ? outcome.message : STAGE_FAILURE_MESSAGES[outcome.status];
+		yield* Effect.sync(() => services.feedback.showError(message));
+		return false;
 	});
 }
 

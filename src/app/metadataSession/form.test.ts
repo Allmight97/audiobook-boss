@@ -1,64 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { createEmptyCoverUiState } from './cover';
-import { createEmptyFormState, replaceField } from './fields';
+import type { AudiobookMetadata } from '../../types/metadata';
+import type { MetadataFieldId } from './fields';
 import {
-	hasDirtyMetadataFields,
+	applyFieldAction,
+	applyFieldInput,
+	composeFormIntent,
 	populateMetadataFormMulti,
 	populateMetadataFormSingle,
-	readMetadataForm,
+	type MetadataFormState,
 } from './form';
+import { replaceField } from './fields';
 
-describe('metadata form projection', () => {
-	it('maps single-mode fields including album alias and cover bytes', () => {
-		const form = populateMetadataFormSingle({
-			title: 'Title',
-			artist: 'Author',
-			composer: 'Narrator',
-			date: '2024-07',
-			genre: 'Fiction',
-			series: 'Series',
-			series_part: '2',
-			subseries: 'Sub-series',
-			subseries_part: '4',
-			description: 'Desc',
-		});
-		const metadata = readMetadataForm(form, {
-			mode: 'single',
-			coverArtBytes: [1, 2, 3],
-		});
-		expect(metadata).toMatchObject({
-			title: 'Title',
-			album: 'Title',
-			artist: 'Author',
-			composer: 'Narrator',
-			date: '2024-07',
-			cover_art: [1, 2, 3],
-		});
-	});
+const tagged: Partial<AudiobookMetadata> = {
+	title: 'Title',
+	artist: 'Author',
+	date: '2024-07',
+	series: 'Saga',
+	series_part: '7/8',
+	cover_art: [1, 2, 3],
+};
 
-	it('emits empty cover_art when removal is requested', () => {
-		const metadata = readMetadataForm(createEmptyFormState(), {
-			coverArtRemovalRequested: true,
-		});
-		expect(metadata.cover_art).toEqual([]);
-		expect(
-			hasDirtyMetadataFields(createEmptyFormState(), {
-				...createEmptyCoverUiState(),
-				coverArtRemovalRequested: true,
-			}),
-		).toBe(true);
-	});
+function type(form: MetadataFormState, inputId: MetadataFieldId, value: string) {
+	return applyFieldInput(replaceField(form, inputId, { value }), inputId);
+}
 
-	it('uses bulk blank and ignores cover in multi mode', () => {
-		let form = populateMetadataFormMulti([{ title: 'A' }, { title: 'B' }], 2);
-		form = replaceField(form, 'meta-year', { action: 'blank', dirty: true });
-		const metadata = readMetadataForm(form, {
-			mode: 'multi',
-			onlyDirty: true,
-			coverArtBytes: [1, 2, 3],
-			coverArtRemovalRequested: true,
-		});
-		expect(metadata.date).toBeUndefined();
-		expect(metadata.cover_art).toBeUndefined();
+describe('composeFormIntent', () => {
+	it.each([
+		{ name: 'untouched single title', form: () => populateMetadataFormSingle(tagged), intent: {} },
+		{
+			name: 'edited title mirrors album',
+			form: () => type(populateMetadataFormSingle(tagged), 'meta-title', ' New '),
+			intent: { title: { op: 'set', value: 'New' }, album: { op: 'set', value: 'New' } },
+		},
+		{
+			name: 'emptied date clears',
+			form: () => type(populateMetadataFormSingle(tagged), 'meta-year', ''),
+			intent: { date: { op: 'clear' } },
+		},
+		{
+			name: 'emptied mixed field is a bulk blank',
+			form: () =>
+				type(populateMetadataFormMulti([tagged, { artist: 'Other' }], 2), 'meta-author', ''),
+			intent: { artist: { op: 'clear' } },
+		},
+		{
+			name: 'Keep after Blank restores the shared value',
+			form: () =>
+				applyFieldAction(
+					applyFieldAction(populateMetadataFormMulti([tagged, tagged], 2), 'meta-series', 'blank'),
+					'meta-series',
+					'keep',
+				),
+			intent: {},
+		},
+	])('$name', ({ form, intent }) => {
+		expect(composeFormIntent(form())).toEqual(intent);
 	});
 });

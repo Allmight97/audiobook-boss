@@ -386,13 +386,17 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Saved' });
 		await runtime.metadata.save();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalled();
 		expect(metadata.saveMetadataBatch).toHaveBeenCalledWith([
 			{
 				filePath: '/books/alpha.m4b',
-				metadataPatch: { title: { op: 'set', value: 'Saved' } },
+				metadataPatch: {
+					title: { op: 'set', value: 'Saved' },
+					album: { op: 'set', value: 'Saved' },
+				},
 			},
 		]);
 	});
@@ -493,7 +497,7 @@ describe('metadata session selection and save', () => {
 			inputId: 'meta-title',
 			value: 'Edited Alpha',
 		});
-		const stagePromise = runtime.metadata.stageCurrentSelectionForProcess();
+		const stagePromise = runtime.metadata.stageCurrentSelection();
 		runtime.input.replaceSession({
 			...runtime.input.session(),
 			selectedIndices: [1],
@@ -501,7 +505,7 @@ describe('metadata session selection and save', () => {
 		});
 		await runtime.metadata.hydrateSelection(null);
 		releaseValidate?.();
-		expect(await stagePromise).toBe(false);
+		expect(await stagePromise).toEqual({ status: 'stale' });
 		expect(await runtime.metadata.intentsForProcess(['/books/beta.m4b'])).toBeNull();
 		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Edited Alpha');
 	});
@@ -535,7 +539,7 @@ describe('metadata session selection and save', () => {
 		expect(await selection).toBe(false);
 		expect(runtime.input.session().selectedIndices).toEqual([0]);
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Newer edit');
-		expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+		expect(runtime.metadata.view().form.fields['meta-title'].dirty).toBe(true);
 		expect(await runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
 	});
 
@@ -573,7 +577,7 @@ describe('metadata session selection and save', () => {
 			expect(metadata.saveMetadataBatch).not.toHaveBeenCalled();
 			if (change === 'edit') {
 				expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Newer');
-				expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+				expect(runtime.metadata.view().form.fields['meta-title'].dirty).toBe(true);
 			} else expect(runtime.metadata.readCached('/books/alpha.m4b')).toBeUndefined();
 		},
 	);
@@ -602,7 +606,7 @@ describe('metadata session selection and save', () => {
 		await hydrate;
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Typed while loading');
 		expect(runtime.metadata.view().form.fields['meta-author'].value).toBe('Author');
-		expect(runtime.metadata.readHasDirtyMetadata()).toBe(true);
+		expect(runtime.metadata.view().form.fields['meta-title'].dirty).toBe(true);
 	});
 
 	it('invalidates reads across reset even when a new hydration reuses its request number', async () => {
@@ -706,7 +710,8 @@ describe('metadata session selection and save', () => {
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
-		runtime.metadata.stageIntent('/books/alpha.m4b', { title: { op: 'set', value: 'Saved' } });
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-title', value: 'Saved' });
 		const save = runtime.metadata.save();
 		await vi.waitFor(() => {
 			expect(metadata.saveMetadataBatch).toHaveBeenCalled();
