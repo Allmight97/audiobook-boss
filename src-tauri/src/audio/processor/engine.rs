@@ -162,14 +162,6 @@ fn execute_pipeline(
         diagnostics.opened_channels = u32::try_from(enc_ctx.channel_layout().channels()).ok();
     }
 
-    // Validate metadata compatibility if provided
-    if let Some(md) = metadata {
-        let warnings = crate::metadata::validate_metadata_compatibility(md);
-        for warning in warnings {
-            log::warn!("Metadata compatibility: {}", warning);
-        }
-    }
-
     let emitter = context.new_emitter();
     let result = (|| {
         let mut io = super::engine_orchestrator::InputProcessingContext {

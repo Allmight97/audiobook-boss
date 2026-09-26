@@ -165,18 +165,36 @@ pub fn apply_ops_to_ffmpeg_dict(
     Ok(())
 }
 
-pub fn should_remove_key_for_metadata(metadata: &AudiobookMetadata, key: &str) -> bool {
-    if metadata.comment.is_some() && super::field_schema::comment_key_rank(key).is_some() {
-        return true;
-    }
-    TagField::ALL
-        .iter()
-        .copied()
-        .any(|field| field_has_clear_intent(metadata, field) && field.clear_keys().contains(&key))
+/// Existing-dictionary keys a merge drops before this metadata's values are
+/// written: every alias of a field the planner clears, and every user-comment
+/// alias when the comment is set or cleared.
+pub(crate) struct ExistingKeyRemoval {
+    cleared: Vec<TagField>,
+    comment_touched: bool,
 }
 
-fn field_has_clear_intent(metadata: &AudiobookMetadata, field: TagField) -> bool {
-    crate::metadata::metadata_ops::field_has_clear_intent(metadata, field)
+impl ExistingKeyRemoval {
+    pub(crate) fn for_metadata(metadata: &AudiobookMetadata) -> Self {
+        let cleared = crate::metadata::metadata_ops::plan_metadata_field_ops(metadata)
+            .into_iter()
+            .filter_map(|op| match op {
+                MetadataOp::Clear(field) => Some(field),
+                _ => None,
+            })
+            .collect();
+        Self {
+            cleared,
+            comment_touched: metadata.comment.is_some(),
+        }
+    }
+
+    pub(crate) fn removes(&self, key: &str) -> bool {
+        (self.comment_touched && super::field_schema::comment_key_rank(key).is_some())
+            || self
+                .cleared
+                .iter()
+                .any(|field| field.clear_keys().contains(&key))
+    }
 }
 
 fn format_position_field(number: u32, total: Option<u32>) -> String {

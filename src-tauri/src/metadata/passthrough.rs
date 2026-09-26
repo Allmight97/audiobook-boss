@@ -159,7 +159,7 @@ pub fn extract_passthrough_metadata(files: &[PassthroughSource]) -> PassthroughM
 
                 // Collect original cover art from the first file that provides it
                 if passthrough.cover_art.is_none() {
-                    passthrough.cover_art = extract_attached_pic(&ictx);
+                    passthrough.cover_art = super::reader::extract_attached_pic(&ictx);
                 }
             }
             Err(e) => {
@@ -293,24 +293,6 @@ fn verify_chapters_inner(path: &std::path::Path, expected: &[ChapterSpec]) -> Re
     Ok(())
 }
 
-fn extract_attached_pic(ictx: &ff::format::context::Input) -> Option<Vec<u8>> {
-    use ff::format::stream::Disposition;
-
-    for stream in ictx.streams() {
-        if stream.disposition().contains(Disposition::ATTACHED_PIC) {
-            unsafe {
-                let av_stream = stream.as_ptr();
-                let pic = (*av_stream).attached_pic;
-                if !pic.data.is_null() && pic.size > 0 {
-                    let bytes = std::slice::from_raw_parts(pic.data, pic.size as usize);
-                    return Some(bytes.to_vec());
-                }
-            }
-        }
-    }
-    None
-}
-
 fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
     use ffmpeg_next::Rational;
     use ffmpeg_next::Rescale;
@@ -321,9 +303,29 @@ fn rescale_to_ms(value: i64, time_base: ff::Rational) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        merge_passthrough_cover_art, prepare_output_cover_art, ChapterSpec, PassthroughMetadata,
+        extract_passthrough_metadata, merge_passthrough_cover_art, prepare_output_cover_art,
+        ChapterSpec, PassthroughMetadata, PassthroughSource,
     };
     use crate::metadata::{AudiobookMetadata, CoverArtPassthroughPolicy};
+
+    #[test]
+    fn chapterless_sources_synthesize_one_chapter_per_file() {
+        let source = |path: &str, duration: f64| PassthroughSource {
+            chapters: None,
+            path: std::path::PathBuf::from(path),
+            duration: Some(duration),
+            is_valid: true,
+        };
+
+        let passthrough = extract_passthrough_metadata(&[
+            source("chapter-one.m4b", 60.0),
+            source("chapter-two.m4b", 90.0),
+        ]);
+
+        assert_eq!(passthrough.chapters.len(), 2);
+        assert_eq!(passthrough.chapters[0].start_ms, 0);
+        assert_eq!(passthrough.chapters[1].start_ms, 60_000);
+    }
 
     #[test]
     fn into_option_returns_none_for_empty_passthrough() {

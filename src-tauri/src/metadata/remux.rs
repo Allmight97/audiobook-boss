@@ -39,23 +39,26 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     let mut ictx = stage("metadata_open_input", input_path, || {
         ff::format::input(input_path).map_err(AppError::Ffmpeg)
     })?;
-    let temp_path = build_temp_output_path(input_path)?;
+    // Declared before the output context so an early return closes FFmpeg's
+    // handle first, then removes the partial file.
+    let temp = RemuxTemp::own(build_temp_output_path(input_path)?);
+    let temp_path = temp.path.as_path();
     log::info!(
         "media_handoff stage=remux_create source_artifact={} destination_artifact={}",
         crate::diagnostics::artifact_id(input_path),
         crate::diagnostics::artifact_id(&temp_path)
     );
-    let mut octx = stage("metadata_create_output", &temp_path, || {
+    let mut octx = stage("metadata_create_output", temp_path, || {
         match output_format {
-            Some(format) => ff::format::output_as(&temp_path, format),
+            Some(format) => ff::format::output_as(temp_path, format),
             None if matches!(
                 temp_path.extension().and_then(|ext| ext.to_str()),
                 Some("m4a" | "m4b")
             ) =>
             {
-                ff::format::output_as(&temp_path, "mp4")
+                ff::format::output_as(temp_path, "mp4")
             }
-            None => ff::format::output(&temp_path),
+            None => ff::format::output(temp_path),
         }
         .map_err(AppError::Ffmpeg)
     })?;
@@ -84,13 +87,13 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         || metadata_value
             .and_then(|value| value.cover_art.as_ref())
             .is_some();
-    let stream_mapping = stage("metadata_copy_streams", &temp_path, || {
+    let stream_mapping = stage("metadata_copy_streams", temp_path, || {
         copy_streams(&ictx, &mut octx, replace_cover)
     })?;
-    stage("metadata_copy_chapters", &temp_path, || {
+    stage("metadata_copy_chapters", temp_path, || {
         copy_chapters(&ictx, &mut octx, passthrough)
     })?;
-    stage("metadata_copy_tags", &temp_path, || {
+    stage("metadata_copy_tags", temp_path, || {
         copy_container_metadata(&ictx, &mut octx, metadata)
     })?;
 
@@ -106,7 +109,7 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     } else {
         None
     };
-    stage("metadata_write_header", &temp_path, || {
+    stage("metadata_write_header", temp_path, || {
         write_container_header(&ictx, &mut octx)
     })?;
 
@@ -118,10 +121,10 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
         }
     }
 
-    stage("metadata_copy_packets", &temp_path, || {
+    stage("metadata_copy_packets", temp_path, || {
         stream_copy_packets(&mut ictx, &mut octx, &stream_mapping)
     })?;
-    stage("metadata_write_trailer", &temp_path, || {
+    stage("metadata_write_trailer", temp_path, || {
         octx.write_trailer().map_err(AppError::Ffmpeg)
     })?;
 
@@ -130,14 +133,51 @@ pub(crate) fn rewrite_metadata_with_ffmpeg_plan_as(
     drop(ictx);
 
     stage("metadata_replace", input_path, || {
-        crate::file_replace::replace_file(&temp_path, input_path).map_err(AppError::Io)
+        crate::file_replace::replace_file(temp_path, input_path).map_err(AppError::Io)
     })?;
+    temp.release();
     log::info!(
         "metadata_remux status=ok elapsed_ms={} path={}",
         started.elapsed().as_millis(),
         input_path.display()
     );
     Ok(())
+}
+
+/// Owns the sibling `.abb_meta_*` output until it replaces the source.
+struct RemuxTemp {
+    path: std::path::PathBuf,
+    owned: bool,
+}
+
+impl RemuxTemp {
+    fn own(path: std::path::PathBuf) -> Self {
+        Self { path, owned: true }
+    }
+
+    /// The file became the source through replacement; nothing remains to remove.
+    fn release(mut self) {
+        self.owned = false;
+    }
+}
+
+impl Drop for RemuxTemp {
+    fn drop(&mut self) {
+        if !self.owned {
+            return;
+        }
+        match std::fs::remove_file(&self.path) {
+            Ok(()) => log::warn!(
+                "metadata_remux cleanup removed_partial={}",
+                crate::diagnostics::artifact_id(&self.path)
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => log::error!(
+                "metadata_remux cleanup failed partial={} error={error}",
+                crate::diagnostics::artifact_id(&self.path)
+            ),
+        }
+    }
 }
 
 fn build_temp_output_path(input_path: &std::path::Path) -> Result<std::path::PathBuf> {

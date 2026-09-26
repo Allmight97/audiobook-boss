@@ -2,12 +2,11 @@
 //!
 //! Output artifact commit policy lives in `output_artifact`; this module
 //! sequences processor progress, cleanup registration, and success emission.
-//! Native muxing may write initial metadata; finalized MP4-family metadata can
-//! still be written here before artifact commit.
+//! Native muxing writes initial metadata; Metadata's finish step completes
+//! the artifact's tags and chapter checks before commit.
 //! Cancellation checks run after each sub-step to avoid unnecessary work.
 
-use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::path::PathBuf;
 
 use crate::audio::CleanupGuard;
 use crate::errors::{sanitize_path_for_display, AppError, Result};
@@ -18,37 +17,6 @@ use crate::output_artifact::{
 use crate::processing::ProcessingContext;
 
 use super::ProcessingWorkflow;
-
-// Note: cover art detection helper removed; metadata writes handled during mux
-
-/// Writes metadata if provided (UI emission included)
-pub(crate) fn write_metadata_stage(
-    _context: &ProcessingContext,
-    merged_output: &Path,
-    metadata: Option<AudiobookMetadata>,
-) -> Result<()> {
-    let Some(metadata) = metadata else {
-        log::debug!("Finalize metadata stage skipped; no metadata provided");
-        return Ok(());
-    };
-
-    if !crate::metadata::should_write_finalized_metadata(merged_output)? {
-        log::debug!("Finalize metadata stage skipped; ffmpeg-next handled metadata during mux");
-        return Ok(());
-    }
-
-    let ui = _context.new_emitter();
-    ui.emit_metadata_start("Writing metadata...");
-    let started = Instant::now();
-    crate::metadata::write_finalized_metadata(merged_output, &metadata)?;
-    log::info!(
-        "finalized_metadata_write status=ok elapsed_ms={} path={}",
-        started.elapsed().as_millis(),
-        sanitize_path_for_display(merged_output)
-    );
-    ui.emit_finalizing("Finalizing...");
-    Ok(())
-}
 
 fn ensure_not_cancelled_before_commit(context: &ProcessingContext) -> Result<()> {
     if context.is_cancelled() {
@@ -126,12 +94,16 @@ pub(crate) fn finalize_processing(
     metadata: Option<AudiobookMetadata>,
     passthrough: Option<&crate::metadata::PassthroughMetadata>,
 ) -> Result<String> {
-    write_metadata_stage(context, &merged_output, metadata)?;
-
-    if context.preview.is_none() {
-        if let Some(passthrough) = passthrough {
-            crate::metadata::verify_chapters(&merged_output, &passthrough.chapters)?;
-        }
+    let ui = context.new_emitter();
+    let chapters = passthrough
+        .filter(|_| context.preview.is_none())
+        .map(|value| value.chapters.as_slice());
+    let rewrote =
+        crate::metadata::finish_artifact_tags(&merged_output, metadata.as_ref(), chapters, || {
+            ui.emit_metadata_start("Writing metadata...")
+        })?;
+    if rewrote {
+        ui.emit_finalizing("Finalizing...");
     }
     complete_processing(context, workflow, merged_output)
 }
