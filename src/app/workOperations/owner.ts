@@ -12,7 +12,7 @@ export type WorkOperationsOwner = {
 	initialize(): Promise<void>;
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancel(operationId: OperationId, childJobId?: string): Promise<void>;
-	openSource(child: { sourcePath?: string | null }): Promise<void>;
+	revealOutput(child: { outputPath?: string | null }): Promise<void>;
 	reset(): void;
 };
 
@@ -40,8 +40,8 @@ export function createWorkOperationsOwner(deps: WorkOperationsOwnerDeps): WorkOp
 		cancel(operationId, childJobId) {
 			return session.cancel(operationId, childJobId);
 		},
-		openSource(child) {
-			return session.openSource(child);
+		revealOutput(child) {
+			return session.revealOutput(child);
 		},
 		reset() {
 			session.dispose();

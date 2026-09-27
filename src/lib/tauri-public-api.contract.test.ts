@@ -84,6 +84,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'openFile',
 	'openFiles',
 	'openPath',
+	'revealPath',
 	'openUrl',
 	'preflightProcessingPlan',
 	'previewOutputPath',

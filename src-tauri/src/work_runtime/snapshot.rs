@@ -145,6 +145,7 @@ fn new_child(
         cancellable: false,
         cancel_requested: false,
         message: None,
+        output_path: None,
         supplemental_warning: None,
     }
 }

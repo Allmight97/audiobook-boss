@@ -5,7 +5,11 @@ import {
 	type OpenDialogOptions,
 	type OpenDialogReturn,
 } from '@tauri-apps/plugin-dialog';
-import { openPath as tauriOpenPath, openUrl as tauriOpenUrl } from '@tauri-apps/plugin-opener';
+import {
+	openPath as tauriOpenPath,
+	openUrl as tauriOpenUrl,
+	revealItemInDir,
+} from '@tauri-apps/plugin-opener';
 
 import { events as generatedEvents } from '../generated/tauri';
 import {
@@ -321,6 +325,8 @@ export const tauriClient = {
 	openFiles,
 	openDirectory,
 	openPath: (path: string, openWith?: string): Promise<void> => tauriOpenPath(path, openWith),
+	/** Shows the file selected in the host OS file manager. */
+	revealPath: (path: string): Promise<void> => revealItemInDir(path),
 	openUrl: (url: string | URL, openWith?: string): Promise<void> => tauriOpenUrl(url, openWith),
 };
 

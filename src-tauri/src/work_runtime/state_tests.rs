@@ -182,7 +182,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
             status: ProcessResultStatus::Success,
             message: "first ok".to_string(),
             error: None,
-            preview_file_path: None,
+            output_path: Some("/library/first.m4b".to_string()),
             preview_actual_seconds: None,
             supplemental_warning: None,
             job_id: Some("job-1".to_string()),
@@ -192,7 +192,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
             status: ProcessResultStatus::Failed,
             message: "second failed".to_string(),
             error: None,
-            preview_file_path: None,
+            output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
             job_id: Some("job-2".to_string()),
@@ -211,6 +211,10 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
     assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
     assert_eq!(snapshot.children[1].status, ChildJobStatus::Failed);
     assert_eq!(snapshot.children[1].job_id.as_deref(), Some("job-2"));
+    assert_eq!(
+        snapshot.children[0].output_path.as_deref(),
+        Some("/library/first.m4b")
+    );
 }
 
 #[test]
@@ -246,7 +250,7 @@ fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry 
         status,
         message: format!("item {input_index}"),
         error: None,
-        preview_file_path: None,
+        output_path: None,
         preview_actual_seconds: None,
         supplemental_warning: None,
         job_id: Some(format!("job-{input_index}")),

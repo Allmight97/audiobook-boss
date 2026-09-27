@@ -6,7 +6,7 @@ pub(in crate::processing) use abb_processing_core::RunTerminalClass;
 pub(in crate::processing) enum ProcessingJobTerminalOutcome {
     Success {
         message: String,
-        preview_file_path: Option<String>,
+        output_path: Option<String>,
         preview_actual_seconds: Option<f64>,
         supplemental_warning: Option<String>,
     },

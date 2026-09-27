@@ -65,7 +65,7 @@ mod tests {
             status,
             message: "terminal".to_string(),
             error: None,
-            preview_file_path: None,
+            output_path: None,
             preview_actual_seconds: None,
             supplemental_warning: None,
             job_id: Some("job-1".to_string()),

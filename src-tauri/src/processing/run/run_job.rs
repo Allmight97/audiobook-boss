@@ -89,8 +89,7 @@ pub(crate) async fn run_processing_job(
     context
         .new_emitter()
         .emit_analyzing_start("Preparing audio job...");
-    let preview_path = (request.output_plan.kind == OutputKind::Preview)
-        .then(|| request.output_plan.resolved_path.display().to_string());
+    let output_path = Some(request.output_plan.resolved_path.display().to_string());
     let audio_result = audio::execute_audio_engine(
         AudioExecutionRequest::new(
             context,
@@ -102,7 +101,7 @@ pub(crate) async fn run_processing_job(
         .with_metadata_intent(request.metadata_intent),
     )
     .await;
-    let result = title_outcome(audio_result, preview_path, preview_seconds_resolved, || {
+    let result = title_outcome(audio_result, output_path, preview_seconds_resolved, || {
         commit_supplemental_assets(
             request.output_plan.kind,
             &request.supplemental_assets,
@@ -113,7 +112,7 @@ pub(crate) async fn run_processing_job(
     match result {
         ProcessingJobTerminalOutcome::Success {
             message,
-            preview_file_path,
+            output_path,
             preview_actual_seconds,
             supplemental_warning,
         } => {
@@ -124,7 +123,7 @@ pub(crate) async fn run_processing_job(
                 status: ProcessResultStatus::Success,
                 message,
                 error: None,
-                preview_file_path,
+                output_path,
                 preview_actual_seconds,
                 job_id: Some(job_id.to_string()),
                 supplemental_warning,
@@ -213,7 +212,7 @@ pub(crate) fn commit_supplemental_assets(
 /// successful title rather than failing it.
 pub(crate) fn title_outcome(
     audio: Result<String>,
-    preview_file_path: Option<String>,
+    output_path: Option<String>,
     preview_actual_seconds: Option<f64>,
     publish_companions: impl FnOnce() -> Result<()>,
 ) -> ProcessingJobTerminalOutcome {
@@ -227,7 +226,7 @@ pub(crate) fn title_outcome(
     });
     ProcessingJobTerminalOutcome::Success {
         message,
-        preview_file_path,
+        output_path,
         preview_actual_seconds,
         supplemental_warning,
     }
