@@ -117,7 +117,6 @@ function acceptedSubmission(): WorkSubmissionAccepted {
 			},
 			children: [],
 			terminalSummary: undefined,
-			warnings: [],
 			errors: [],
 			logTail: [],
 		},

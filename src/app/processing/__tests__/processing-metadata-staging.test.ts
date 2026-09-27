@@ -166,7 +166,6 @@ describe('startProcessing metadata staging', () => {
 				},
 				children: [],
 				terminalSummary: undefined,
-				warnings: [],
 				errors: [],
 			},
 		});

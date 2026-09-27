@@ -184,6 +184,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-1".to_string()),
         },
         ProcessResultEntry {
@@ -193,6 +194,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-2".to_string()),
         },
     ]);
@@ -211,6 +213,33 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
     assert_eq!(snapshot.children[1].job_id.as_deref(), Some("job-2"));
 }
 
+#[test]
+fn partial_publication_completes_child_and_carries_its_warning() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 150).expect("running");
+    let mut published_without_pdf = entry(0, ProcessResultStatus::Success);
+    published_without_pdf.supplemental_warning = Some("PDF was not saved".to_string());
+    let result = ProcessCommandResult::new(vec![
+        published_without_pdf,
+        entry(1, ProcessResultStatus::Success),
+    ]);
+
+    let snapshot = state
+        .complete_from_process_result(&operation_id, &result, 300)
+        .expect("complete");
+
+    assert_eq!(snapshot.status, WorkOperationStatus::Completed);
+    assert_eq!(snapshot.children[0].status, ChildJobStatus::Completed);
+    assert_eq!(
+        snapshot.children[0].supplemental_warning.as_deref(),
+        Some("PDF was not saved")
+    );
+    assert_eq!(snapshot.children[1].supplemental_warning, None);
+    assert!(snapshot.log_tail.iter().any(|entry| {
+        entry.message == "PDF was not saved" && entry.child_job_id.as_deref() == Some("input-0")
+    }));
+}
+
 fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry {
     ProcessResultEntry {
         input_index,
@@ -219,6 +248,7 @@ fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry 
         error: None,
         preview_file_path: None,
         preview_actual_seconds: None,
+        supplemental_warning: None,
         job_id: Some(format!("job-{input_index}")),
     }
 }

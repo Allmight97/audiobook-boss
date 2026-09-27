@@ -60,7 +60,6 @@ pub(crate) fn new_processing_snapshot(
         progress: ProgressSnapshot::pending("Accepted for background processing.", total_items),
         children,
         terminal_summary: None,
-        warnings: Vec::new(),
         errors: Vec::new(),
         log_tail: Vec::new(),
     }
@@ -113,7 +112,6 @@ pub(crate) fn new_metadata_save_snapshot(
         progress: ProgressSnapshot::pending("Queued for metadata save.", total_items),
         children,
         terminal_summary: None,
-        warnings: Vec::new(),
         errors: Vec::new(),
         log_tail: Vec::new(),
     }
@@ -147,6 +145,7 @@ fn new_child(
         cancellable: false,
         cancel_requested: false,
         message: None,
+        supplemental_warning: None,
     }
 }
 

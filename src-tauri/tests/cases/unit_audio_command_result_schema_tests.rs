@@ -13,6 +13,7 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
             preview_file_path: None,
             preview_actual_seconds: None,
             job_id: Some("job-1".to_string()),
+            supplemental_warning: None,
         },
         ProcessResultEntry {
             input_index: 1,
@@ -27,6 +28,7 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
             preview_file_path: None,
             preview_actual_seconds: None,
             job_id: Some("job-2".to_string()),
+            supplemental_warning: None,
         },
         ProcessResultEntry {
             input_index: 2,
@@ -41,6 +43,7 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
             preview_file_path: None,
             preview_actual_seconds: None,
             job_id: None,
+            supplemental_warning: None,
         },
     ];
 
@@ -70,6 +73,7 @@ fn process_result_entry_serializes_structured_error_envelope() {
         preview_file_path: None,
         preview_actual_seconds: None,
         job_id: None,
+        supplemental_warning: None,
     };
 
     let json = serde_json::to_value(&entry).expect("entry should serialize");

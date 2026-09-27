@@ -121,9 +121,9 @@ function mockOperationSnapshot(
 			cancellable: false,
 			cancelRequested: false,
 			message: null,
+			supplementalWarning: null,
 		})),
 		terminalSummary: null,
-		warnings: [],
 		errors: [],
 		logTail: [],
 	};
@@ -299,6 +299,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 							message: 'Processing started (mock)',
 							jobId,
 							error: null,
+							supplementalWarning: null,
 							previewFilePath: null,
 							previewActualSeconds: null,
 						},

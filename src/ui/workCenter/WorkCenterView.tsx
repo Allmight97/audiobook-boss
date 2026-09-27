@@ -170,7 +170,11 @@ export function WorkCenterView(): JSX.Element {
 															</button>
 														</Show>
 													</div>
-													<Show when={child.status === 'failed' && child.message}>
+													<Show
+														when={
+															child.status === 'failed' ? child.message : child.supplementalWarning
+														}
+													>
 														{(reason) => (
 															<div class="work-child-reason" title={reason()}>
 																{reason()}

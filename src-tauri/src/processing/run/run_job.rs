@@ -104,17 +104,15 @@ pub(crate) async fn run_processing_job(
     )
     .await
     {
-        Ok(message) => match commit_supplemental_assets(
-            request.output_plan.kind,
-            &request.supplemental_assets,
-            &request.output_plan.resolved_path,
-        ) {
-            Ok(()) => ProcessingJobTerminalOutcome::Success {
-                message,
-                preview_file_path: preview_path,
-                preview_actual_seconds: preview_seconds_resolved,
-            },
-            Err(error) => classify_processing_error(error),
+        Ok(message) => ProcessingJobTerminalOutcome::Success {
+            message,
+            preview_file_path: preview_path,
+            preview_actual_seconds: preview_seconds_resolved,
+            supplemental_warning: supplemental_publication_warning(commit_supplemental_assets(
+                request.output_plan.kind,
+                &request.supplemental_assets,
+                &request.output_plan.resolved_path,
+            )),
         },
         Err(error) => classify_processing_error(error),
     };
@@ -124,6 +122,7 @@ pub(crate) async fn run_processing_job(
             message,
             preview_file_path,
             preview_actual_seconds,
+            supplemental_warning,
         } => {
             request.registry.complete_job(job_id).await;
             lifecycle_log.log_terminal(ProcessingJobLogStatus::Success);
@@ -135,6 +134,7 @@ pub(crate) async fn run_processing_job(
                 preview_file_path,
                 preview_actual_seconds,
                 job_id: Some(job_id.to_string()),
+                supplemental_warning,
             })
         }
         ProcessingJobTerminalOutcome::Cancelled(error) => {
@@ -213,6 +213,15 @@ pub(crate) fn commit_supplemental_assets(
         |request, asset| request.with_asset(&asset.path, asset.size_bytes, &asset.sha256),
     );
     commit_supplemental_output_assets_for_output(request)
+}
+
+/// The audiobook is already published when companions commit, so a companion
+/// failure stays a warning on a successful title rather than failing it.
+pub(crate) fn supplemental_publication_warning(commit: Result<()>) -> Option<String> {
+    let error = commit.err()?;
+    let warning = AppErrorEnvelope::from(&error).message;
+    log::warn!("supplemental_pdf_commit status=failed title_status=success");
+    Some(warning)
 }
 
 /// Job identity known before registration, used for lifecycle records.

@@ -263,6 +263,7 @@ impl WorkRuntimeState {
             now_ms,
         );
 
+        let mut warning_logs = Vec::new();
         for entry in &result.results {
             if let Some(child) = snapshot
                 .children
@@ -276,7 +277,14 @@ impl WorkRuntimeState {
                 child.job_id = entry.job_id.clone();
                 child.cancellable = false;
                 child.message = Some(entry.message.clone());
+                child.supplemental_warning = entry.supplemental_warning.clone();
+                if let Some(warning) = &entry.supplemental_warning {
+                    warning_logs.push((warning.clone(), child.child_job_id.clone()));
+                }
             }
+        }
+        for (warning, child_job_id) in warning_logs {
+            push_operation_log(snapshot, now_ms, &warning, None, Some(child_job_id));
         }
 
         let snapshot = snapshot.clone();

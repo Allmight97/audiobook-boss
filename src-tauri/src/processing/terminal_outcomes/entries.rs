@@ -54,6 +54,7 @@ fn review_required_skipped_result(
         error: None,
         preview_file_path: None,
         preview_actual_seconds: None,
+        supplemental_warning: None,
         job_id,
     }
 }
@@ -74,6 +75,7 @@ pub(super) fn skipped_result(
         error: None,
         preview_file_path: None,
         preview_actual_seconds: None,
+        supplemental_warning: None,
         job_id,
     }
 }
@@ -96,6 +98,7 @@ pub(super) fn terminal_cancelled_result(
         )),
         preview_file_path: None,
         preview_actual_seconds: None,
+        supplemental_warning: None,
         job_id,
     }
 }
@@ -112,6 +115,7 @@ pub(in crate::processing) fn terminal_failure_result(
         error: Some(error),
         preview_file_path: None,
         preview_actual_seconds: None,
+        supplemental_warning: None,
         job_id,
     }
 }

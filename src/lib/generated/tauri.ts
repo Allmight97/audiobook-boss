@@ -318,6 +318,11 @@ export type ChildJobSnapshot = {
 	cancellable: boolean,
 	cancelRequested: boolean,
 	message: string | null,
+	/**
+	 *  The audiobook was published but its companion files were not; the
+	 *  child's sources stay retained. See `ProcessResultEntry`.
+	 */
+	supplementalWarning: string | null,
 };
 
 export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
@@ -653,7 +658,6 @@ export type OperationSnapshot = {
 	progress: ProgressSnapshot,
 	children: ChildJobSnapshot[],
 	terminalSummary: OperationTerminalSummary | null,
-	warnings: string[],
 	errors: string[],
 	logTail: OperationLogEntry[],
 };
@@ -761,6 +765,12 @@ export type ProcessResultEntry = {
 	previewFilePath: string | null,
 	previewActualSeconds: number | null,
 	jobId: string | null,
+	/**
+	 *  Set on a successful title whose audiobook was published but whose
+	 *  requested companion files (PDFs) were not. Its acquired sources stay
+	 *  retained so reprocessing can publish the companions.
+	 */
+	supplementalWarning: string | null,
 };
 
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";

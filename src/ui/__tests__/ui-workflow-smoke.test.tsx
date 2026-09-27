@@ -172,7 +172,6 @@ function acceptedSubmission(): WorkSubmissionAccepted {
 				totalItems: 1,
 			},
 			children: [],
-			warnings: [],
 			errors: [],
 			logTail: [],
 		},
