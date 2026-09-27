@@ -5,7 +5,7 @@ use super::types::{
 use crate::errors::{AppError, Result};
 use crate::processing::ProgressEvent;
 use crate::processing::{
-    EventStage, OperationResultSummary, ProcessCommandResult, ProcessResultStatus,
+    EventStage, OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultStatus,
 };
 use std::collections::BTreeMap;
 
@@ -125,9 +125,10 @@ impl WorkRuntimeState {
                 Some(WorkProgressStage::Analyzing),
                 None,
             );
+            let titles_cancellable = titles_cancel_individually(snapshot.kind);
             for child in &mut snapshot.children {
-                if child.status == ChildJobStatus::Queued {
-                    child.cancellable = true;
+                if child.status == ChildJobStatus::Queued && !child.cancel_requested {
+                    child.cancellable = titles_cancellable;
                 }
             }
         }
@@ -146,6 +147,7 @@ impl WorkRuntimeState {
         }
 
         let child_count = snapshot.children.len();
+        let titles_cancellable = titles_cancel_individually(snapshot.kind);
         let mut matched_child = false;
         let mut child_scoped_batch_event = false;
         let mut matched_child_job_id: Option<String> = None;
@@ -173,8 +175,10 @@ impl WorkRuntimeState {
             child.progress.percentage = finite_percentage(event.percentage);
             child.progress.message = event.message.clone();
             child.progress.eta_seconds = event.eta_seconds;
-            child.cancellable =
-                matches!(child_status, ChildJobStatus::Running) && event.job_id.is_some();
+            child.cancellable = titles_cancellable
+                && matches!(child_status, ChildJobStatus::Running)
+                && event.job_id.is_some()
+                && !child.cancel_requested;
             child.message = Some(event.message.clone());
         }
 
@@ -248,6 +252,48 @@ impl WorkRuntimeState {
             snapshot.finished_at_ms.get_or_insert(now_ms);
         }
         Ok(snapshot.clone())
+    }
+
+    /// Requests cancellation of one title. Returns its input index when this
+    /// call newly requested it; a repeated or already-finished request returns
+    /// the snapshot unchanged.
+    pub(crate) fn request_child_cancel(
+        &mut self,
+        operation_id: &OperationId,
+        child_job_id: &str,
+        now_ms: i64,
+    ) -> Result<(OperationSnapshot, Option<usize>)> {
+        let snapshot = self.snapshot_mut(operation_id)?;
+        if !titles_cancel_individually(snapshot.kind) {
+            return Err(AppError::InvalidInput(
+                "Items in this operation can't be cancelled one at a time.".to_string(),
+            ));
+        }
+        let operation_terminal = is_terminal(snapshot.status);
+        let child = snapshot
+            .children
+            .iter_mut()
+            .find(|child| child.child_job_id == child_job_id)
+            .ok_or_else(|| AppError::InvalidInput("Work item was not found.".to_string()))?;
+        if operation_terminal
+            || TERMINAL_CHILD_STATUSES.contains(&child.status)
+            || child.cancel_requested
+        {
+            return Ok((snapshot.clone(), None));
+        }
+        child.cancel_requested = true;
+        child.cancellable = false;
+        child.progress.message = "Cancellation requested.".to_string();
+        let title_index = child.input_index;
+        let message = format!("Cancellation requested for {}.", child.label);
+        push_operation_log(
+            snapshot,
+            now_ms,
+            &message,
+            Some(WorkProgressStage::Cleaning),
+            Some(child_job_id.to_string()),
+        );
+        Ok((snapshot.clone(), title_index))
     }
 
     pub(crate) fn complete_from_process_result(
@@ -441,6 +487,12 @@ impl WorkRuntimeState {
             self.membership_revision += 1;
         }
     }
+}
+
+/// Processing titles run as separate jobs, so each can be cancelled alone.
+/// An inline metadata save runs its files in one loop under one flag.
+fn titles_cancel_individually(kind: OperationKind) -> bool {
+    kind == OperationKind::ProcessingBatch
 }
 
 fn finite_percentage(percentage: f32) -> f32 {

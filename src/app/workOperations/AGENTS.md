@@ -2,9 +2,11 @@
 
 ## Scope
 
-- Owns the frontend read model for WorkRuntime operations, operation-level
-  cancel, source-open, and purge-tombstone retention under
-  `src/app/workOperations/`.
+- Owns the frontend read model for WorkRuntime operations, operation and
+  title cancel (`cancel(operationId, childJobId?)`), source-open, and
+  purge-tombstone retention under `src/app/workOperations/`. Only
+  whole-operation cancels track pending state; title cancels are idempotent
+  in the backend and appear in the returned snapshot.
 - Solid view lives in `src/ui/workCenter`. It renders this owner; it does not
   keep a second operation store.
 

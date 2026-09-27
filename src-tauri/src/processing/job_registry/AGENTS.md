@@ -19,8 +19,9 @@
   remove it on every terminal path. A failed, cancelled, or dropped admission
   removes itself.
 - Change concurrency via `update_max_concurrent` only when registry state is idle.
-- Cancellation is operation-scoped: `CancellationChecker::new` takes the
-  accepted operation's flag, and direct previews pass none. The registry holds
+- Cancellation is title-scoped: `CancellationChecker::new` takes the title's
+  cancel flag from WorkRuntime (set by title or whole-operation cancel), and
+  direct previews pass none. The registry holds
   no per-job or registry-wide cancel state.
 
 ## Hard Invariants

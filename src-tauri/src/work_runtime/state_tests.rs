@@ -875,3 +875,48 @@ fn child_completion_timing_excludes_queue_and_survives_later_batch_settlement() 
     assert_eq!(snapshot.children[1].started_at_ms, None);
     assert_eq!(snapshot.children[1].finished_at_ms, None);
 }
+
+#[test]
+fn cancelling_one_title_leaves_its_siblings_running_and_stays_cancelled() {
+    let (mut state, operation_id) = accepted_state();
+    state.mark_running(&operation_id, 100).expect("running");
+
+    let (snapshot, title_index) = state
+        .request_child_cancel(&operation_id, "input-0", 110)
+        .expect("cancel first title");
+    let (_, repeated) = state
+        .request_child_cancel(&operation_id, "input-0", 115)
+        .expect("repeat is harmless");
+    let after_progress = state
+        .apply_progress_event(&operation_id, &converting_event(40.0, "Encoding", 0), 120)
+        .expect("late progress");
+
+    assert_eq!(title_index, Some(0));
+    assert_eq!(repeated, None);
+    assert_eq!(snapshot.status, WorkOperationStatus::Running);
+    assert!(snapshot.children[0].cancel_requested);
+    assert!(!snapshot.children[1].cancel_requested && snapshot.children[1].cancellable);
+    assert!(
+        !after_progress.children[0].cancellable,
+        "progress must not re-offer cancel for a title already cancelling"
+    );
+}
+
+#[test]
+fn metadata_save_items_cannot_be_cancelled_one_at_a_time() {
+    let mut state = WorkRuntimeState::default();
+    let operation_id = OperationId("save".to_string());
+    state.insert_operation(new_metadata_save_snapshot(
+        operation_id.clone(),
+        1,
+        "Tags".to_string(),
+        &["/tmp/a.m4b".to_string(), "/tmp/b.m4b".to_string()],
+        100,
+    ));
+    let running = state.mark_running(&operation_id, 110).expect("running");
+
+    assert!(running.children.iter().all(|child| !child.cancellable));
+    assert!(state
+        .request_child_cancel(&operation_id, "metadata-0", 120)
+        .is_err());
+}

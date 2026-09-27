@@ -10,7 +10,8 @@ import {
 export type WorkOperationsOwner = {
 	readonly view: Accessor<WorkOperationsView>;
 	initialize(): Promise<void>;
-	cancel(operationId: OperationId): Promise<void>;
+	/** Cancels the whole operation, or only the title named by `childJobId`. */
+	cancel(operationId: OperationId, childJobId?: string): Promise<void>;
 	openSource(child: { sourcePath?: string | null }): Promise<void>;
 	reset(): void;
 };
@@ -36,8 +37,8 @@ export function createWorkOperationsOwner(deps: WorkOperationsOwnerDeps): WorkOp
 		initialize() {
 			return session.initialize();
 		},
-		cancel(operationId) {
-			return session.cancel(operationId);
+		cancel(operationId, childJobId) {
+			return session.cancel(operationId, childJobId);
 		},
 		openSource(child) {
 			return session.openSource(child);

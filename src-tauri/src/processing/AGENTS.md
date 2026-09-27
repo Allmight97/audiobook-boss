@@ -77,6 +77,10 @@
 - Change planner or runner internals when targeted `audiobook-boss` Nextest and
   Public API Strip checks stay green.
 - Keep preflight side-effect-free; execution may create and track output dirs only after review enforcement.
+- `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
+  from WorkRuntime; each job's admission and `CancellationChecker` observe only
+  its own title's flag. Cancelled titles finish as Cancelled results while
+  siblings continue.
 - Keep runner responsibilities to encoder request validation, job registration,
   scheduler dispatch, audio execution requests through `crate::audio`, and
   handoff to terminal outcome helpers. Toolchain selection stays audio-owned.

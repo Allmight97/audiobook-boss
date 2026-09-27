@@ -308,8 +308,11 @@ export const tauriClient = {
 		args: SubmitProcessingOperationRequest,
 	): Promise<WorkSubmissionAccepted> => commandSpecs.submit_processing_operation(args),
 	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
-	cancelWorkOperation: (operationId: OperationId): Promise<OperationSnapshot> =>
-		commandSpecs.cancel_work_operation({ operationId }),
+	/** Cancels the whole operation, or only the title named by `childJobId`. */
+	cancelWorkOperation: (
+		operationId: OperationId,
+		childJobId?: string,
+	): Promise<OperationSnapshot> => commandSpecs.cancel_work_operation({ operationId, childJobId }),
 	logFrontend: (entry: FrontendLogEntry): Promise<void> =>
 		commandSpecs.log_frontend({ entry }).then(() => undefined),
 	listen,
