@@ -23,12 +23,28 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Cover URLs can no longer reach private network addresses through IPv6
   literals, redirects, or environment proxies; local cover images over 32 MB
   are rejected, and a 401/403 response suggests loading the image from a file.
+- Cancelling a preview stays cancelled; a failure that arrives afterwards no
+  longer turns the row from Cancelled to Failed (#510).
+- An export rejected at collision review no longer leaves behind an empty
+  output folder it created, and a failed export removes every folder it
+  created (#510).
+- Logout is refused while an Audible acquisition is running, so titles not
+  yet handed to Input are not purged (#510).
+- A title Audible returns without usable audio shows one message instead of
+  two (#510).
 
 ### Changed
 
 - Metadata Lookup's queue apply validates each title when it moves to the next
   one, and the last title's applied values stay as form edits until saved or
   processed.
+- Work Center names each export after its books (for example "Tidy First + 1
+  more"), using a title edited in Metadata when there is one, so concurrent
+  exports can be told apart (#510).
+- A multi-title Audible acquisition shows one continuous progress bar instead
+  of restarting at each title (#510).
+- Retired the unused global merge route; grouped titles remain the way to
+  combine sources into one audiobook (#510).
 
 ## [1.12.1] - 2026-09-25
 
