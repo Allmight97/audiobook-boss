@@ -132,7 +132,6 @@ function appSettings(): AppSettings {
 
 function approvedPlan(): ProcessingPreflightPlan {
 	return {
-		jobType: 'batch',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
 		audioPlans: [],
@@ -324,7 +323,6 @@ describe('UI Workflow Smoke Test', () => {
 							sampleRate: { explicit: 44100 },
 						},
 					],
-					jobType: 'batch',
 					outputNaming: {
 						preset: 'absDefault',
 						includeYear: true,
@@ -352,6 +350,7 @@ describe('UI Workflow Smoke Test', () => {
 						cover_art: { op: 'set', value: COVER_BYTES },
 					},
 				},
+				title: 'Dune',
 			});
 		} finally {
 			runtime.dispose();

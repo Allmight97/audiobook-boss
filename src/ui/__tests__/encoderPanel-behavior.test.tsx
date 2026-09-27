@@ -172,21 +172,14 @@ describe('encoder panel behavior controls', () => {
 
 		runtime!.input.replaceSession({
 			...emptyInputSession(),
-			fileList: {
-				files: [
-					{
-						path: '/books/source.m4b',
-						isValid: true,
-						sampleRate: 44100,
-						channels: 2,
-					},
-				],
-				selectedDecoders: [null],
-				totalDuration: 0,
-				totalSize: 0,
-				validCount: 1,
-				invalidCount: 0,
-			},
+			files: [
+				{
+					path: '/books/source.m4b',
+					isValid: true,
+					sampleRate: 44100,
+					channels: 2,
+				},
+			],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});

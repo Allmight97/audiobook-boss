@@ -17,7 +17,6 @@ function payload(overrides: Partial<ProcessPayload> = {}): ProcessPayload {
 		inputFiles: ['/books/a.m4b'],
 		outputDir: '/tmp/out',
 		audioRequests: [titleAudioRequest()],
-		jobType: 'merge',
 		outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		...overrides,
 	};
@@ -25,7 +24,6 @@ function payload(overrides: Partial<ProcessPayload> = {}): ProcessPayload {
 
 function plan(overrides: Partial<ProcessingPreflightPlan> = {}): ProcessingPreflightPlan {
 	return {
-		jobType: 'merge',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
 		audioPlans: [],

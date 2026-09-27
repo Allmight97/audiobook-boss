@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import {
 	clearAllFilesFromSession,
 	moveFileInSession,
@@ -24,21 +24,13 @@ function file(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 }
 
 function sessionWith(files: AudioFile[], selected: number[] = []): InputSessionState {
-	const fileList: FileListInfo = {
-		files,
-		selectedDecoders: files.map(() => null),
-		totalDuration: files.length * 60,
-		totalSize: files.length * 1024,
-		validCount: files.length,
-		invalidCount: 0,
-	};
 	const importOrdinalByPath: Record<string, number> = {};
 	files.forEach((entry, index) => {
 		importOrdinalByPath[entry.path] = index;
 	});
 	return {
 		...emptyInputSession(),
-		fileList,
+		files,
 		selectedIndices: selected,
 		selectedAnchor: selected[selected.length - 1] ?? -1,
 		importOrdinalByPath,
@@ -56,7 +48,7 @@ describe('input session workbench mutations', () => {
 		expect(ranged.selectedIndices).toEqual([1, 2]);
 		expect(selectAllInSession(ranged).selectedIndices).toEqual([0, 1, 2]);
 		expect(clearSelectionInSession(ranged).selectedIndices).toEqual([]);
-		expect(ranged.fileList?.files).toEqual(session.fileList?.files);
+		expect(ranged.files).toEqual(session.files);
 	});
 
 	it('reorders and sorts while preserving selected identity', () => {
@@ -66,21 +58,21 @@ describe('input session workbench mutations', () => {
 			{ multi: false, range: false },
 		);
 		const moved = moveFileInSession(session, 0, 'down');
-		expect(moved.fileList?.files.map((entry) => entry.path)).toEqual([
+		expect(moved.files.map((entry) => entry.path)).toEqual([
 			'/books/a.m4b',
 			'/books/c.m4b',
 			'/books/b.m4b',
 		]);
 		expect(moved.selectedIndices).toEqual([1]);
 		const sorted = sortFilesInSession(moved);
-		expect(sorted.fileList?.files.map((entry) => entry.path)).toEqual([
+		expect(sorted.files.map((entry) => entry.path)).toEqual([
 			'/books/a.m4b',
 			'/books/b.m4b',
 			'/books/c.m4b',
 		]);
-		expect(sorted.fileList?.files[sorted.selectedAnchor]?.path).toBe('/books/c.m4b');
+		expect(sorted.files[sorted.selectedAnchor]?.path).toBe('/books/c.m4b');
 		const restored = restoreImportOrderInSession(sorted);
-		expect(restored.fileList?.files.map((entry) => entry.path)).toEqual([
+		expect(restored.files.map((entry) => entry.path)).toEqual([
 			'/books/c.m4b',
 			'/books/a.m4b',
 			'/books/b.m4b',
@@ -89,9 +81,13 @@ describe('input session workbench mutations', () => {
 
 	it('reorders by pointer insert index', () => {
 		const session = sessionWith([file('/a'), file('/b'), file('/c'), file('/d'), file('/e')]);
-		expect(reorderFilesInSession(session, 0, 2).fileList?.files.map((entry) => entry.path)).toEqual(
-			['/b', '/c', '/a', '/d', '/e'],
-		);
+		expect(reorderFilesInSession(session, 0, 2).files.map((entry) => entry.path)).toEqual([
+			'/b',
+			'/c',
+			'/a',
+			'/d',
+			'/e',
+		]);
 	});
 
 	it('blocks mutations while order is locked', () => {

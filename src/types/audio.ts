@@ -17,7 +17,6 @@ import type {
 	FdkProfile as GeneratedFdkProfile,
 	BitrateModeKind as GeneratedBitrateModeKind,
 	FileListInfo as GeneratedFileListInfo,
-	JobType as GeneratedJobType,
 	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
 	OutputCollisionInfo as GeneratedOutputCollisionInfo,
 	OutputCollisionKind as GeneratedOutputCollisionKind,
@@ -123,7 +122,6 @@ export type ProcessCommandResult = Omit<
 export type BitrateKbps = EncoderSettings['bitrateKbps'];
 
 // Job Type for batch processing (Issue #81)
-export type JobType = GeneratedJobType;
 
 // Complete processing payload
 export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'audioRequests'> & {

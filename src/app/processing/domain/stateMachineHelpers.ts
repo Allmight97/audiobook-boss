@@ -1,7 +1,7 @@
 import { STAGES, type EventStage, type ProcessingProgressEvent } from '../../../types/events';
 import type { ProcessCommandResult } from '../../../types/audio';
 import { extractFilenameFromProgress, formatAggregateMessage } from '../formatting';
-import { buildStatus, type JobProgress, type JobStatus } from '../state';
+import { buildStatus, type JobStatus } from '../state';
 import { calculateAggregateProgressAndStage } from './aggregate';
 import { buildJobKey } from './jobKeys';
 import type {
@@ -124,28 +124,12 @@ export function resolveProgressLabel(
 	return extracted ?? 'Processing';
 }
 
-export function resolveResultJobKey(
-	jobProgress: Map<string, JobProgress>,
-	entry: ProcessCommandResult['results'][number],
-): string | null {
-	if (typeof entry.inputIndex === 'number') {
-		return buildJobKey(entry.inputIndex, undefined);
-	}
-	if (entry.jobId == null) {
-		return null;
-	}
-	const keyedByInput = findJobKeyByJobId(jobProgress, entry.jobId);
-	return keyedByInput ?? buildJobKey(undefined, entry.jobId);
+export function resolveResultJobKey(entry: ProcessCommandResult['results'][number]): string {
+	return buildJobKey(entry.inputIndex, undefined);
 }
 
 export function resolveResultLabel(entry: ProcessCommandResult['results'][number]): string {
-	if (typeof entry.inputIndex === 'number') {
-		return `Input ${entry.inputIndex + 1}`;
-	}
-	if (entry.jobId) {
-		return entry.jobId.slice(0, 8);
-	}
-	return 'Processing';
+	return `Input ${entry.inputIndex + 1}`;
 }
 
 export function isTerminalProgressStage(stage: EventStage): boolean {
@@ -170,13 +154,4 @@ export function isTerminalJobStatus(status: JobStatus): boolean {
 	return (
 		status === 'completed' || status === 'skipped' || status === 'failed' || status === 'cancelled'
 	);
-}
-
-function findJobKeyByJobId(jobProgress: Map<string, JobProgress>, jobId: string): string | null {
-	for (const [key, job] of jobProgress.entries()) {
-		if (job.jobId === jobId) {
-			return key;
-		}
-	}
-	return null;
 }

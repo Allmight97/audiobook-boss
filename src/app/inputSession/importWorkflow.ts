@@ -114,25 +114,21 @@ function appendAnalyzedFiles(
 	if (session.orderLocked) {
 		return withError('Order locked while processing. Wait for completion to add files.')(session);
 	}
-	const existingFiles = session.fileList?.files ?? [];
+	const existingFiles = session.files;
 	const hiddenPaths = new Set(
 		existingFiles
 			.flatMap((file) => session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [])
 			.map((file) => file.path),
 	);
-	const incoming = {
-		...analyzed,
-		files: analyzed.files.filter((file) => !hiddenPaths.has(file.path)),
-	};
-	const appendResult = buildFileListAppendResult(incoming, {
+	const appendResult = buildFileListAppendResult(
+		analyzed.files.filter((file) => !hiddenPaths.has(file.path)),
 		existingFiles,
-		currentFileList: session.fileList,
-	});
+	);
 	if (appendResult.outcome === 'duplicateOnly') {
 		return withError('No new files added. All analyzed files were already in the list.')(session);
 	}
 
-	const fileList = appendResult.fileList;
+	const files = appendResult.files;
 	const importOrdinalByPath = { ...session.importOrdinalByPath };
 	let nextImportOrdinal = session.nextImportOrdinal;
 	if (appendResult.outcome === 'replace') {
@@ -148,10 +144,10 @@ function appendAnalyzedFiles(
 		}
 	}
 
-	const selected = selectionAfterAppend(session, appendResult.outcome, fileList.files);
+	const selected = selectionAfterAppend(session, appendResult.outcome, files);
 	return {
 		...session,
-		fileList,
+		files,
 		selectedIndices: selected.selectedIndices,
 		selectedAnchor: selected.selectedAnchor,
 		errorMessage: '',

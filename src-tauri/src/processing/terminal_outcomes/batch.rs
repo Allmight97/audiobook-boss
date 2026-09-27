@@ -8,7 +8,7 @@ use crate::processing::{ProcessResultEntry, ProcessResultStatus};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(in crate::processing) struct TerminalFailureEvent {
-    pub(in crate::processing) input_index: Option<usize>,
+    pub(in crate::processing) input_index: usize,
     pub(in crate::processing) job_id: Option<String>,
     pub(in crate::processing) message: String,
 }
@@ -56,21 +56,16 @@ fn normalize_batch_outcome(
     classifier: &mut RunTerminalClassifier,
 ) -> ProcessResultEntry {
     match outcome {
-        Ok(entry) => normalize_batch_entry(index, entry, failure_events, classifier),
+        Ok(entry) => normalize_batch_entry(entry, failure_events, classifier),
         Err(error) => normalize_batch_error(index, error, failure_events, classifier),
     }
 }
 
 fn normalize_batch_entry(
-    index: usize,
-    mut entry: ProcessResultEntry,
+    entry: ProcessResultEntry,
     failure_events: &mut Vec<TerminalFailureEvent>,
     classifier: &mut RunTerminalClassifier,
 ) -> ProcessResultEntry {
-    if entry.input_index.is_none() {
-        entry.input_index = Some(index);
-    }
-
     if let Some(error) = cancellation_error_for_failed_entry(&entry) {
         classifier.observe_cancelled();
         return terminal_cancelled_result(
@@ -105,17 +100,17 @@ fn normalize_batch_error(
 ) -> ProcessResultEntry {
     if is_cancellation_error(&error) {
         classifier.observe_cancelled();
-        return terminal_cancelled_result(Some(index), None, error.to_string());
+        return terminal_cancelled_result(index, None, error.to_string());
     }
     classifier.observe_failure();
 
     let envelope: AppErrorEnvelope = error.into();
     failure_events.push(TerminalFailureEvent {
-        input_index: Some(index),
+        input_index: index,
         job_id: None,
         message: envelope.message.clone(),
     });
-    terminal_failure_result(Some(index), None, envelope)
+    terminal_failure_result(index, None, envelope)
 }
 
 fn repair_missing_batch_results(
@@ -128,12 +123,12 @@ fn repair_missing_batch_results(
                 "Missing terminal result for queued input index {index}; marking as failed"
             );
             failure_events.push(TerminalFailureEvent {
-                input_index: Some(index),
+                input_index: index,
                 job_id: None,
                 message: error_message.clone(),
             });
             *slot = Some(terminal_failure_result(
-                Some(index),
+                index,
                 None,
                 AppErrorEnvelope::new(
                     crate::errors::AppErrorCode::InternalError,

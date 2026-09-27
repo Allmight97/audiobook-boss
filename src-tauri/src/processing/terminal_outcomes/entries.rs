@@ -2,13 +2,12 @@ use crate::errors::sanitize_path_for_display;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{PlannedOutputAction, ResolvedOutputPlan};
 use crate::processing::plan::ResolvedProcessingPlan;
-use crate::processing::{JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
 
 pub(in crate::processing) fn build_all_skipped_batch_result(
     plan: &ResolvedProcessingPlan,
 ) -> Option<ProcessCommandResult> {
-    if plan.job_type != JobType::Batch
-        || plan.jobs.is_empty()
+    if plan.jobs.is_empty()
         || !plan
             .jobs
             .iter()
@@ -22,11 +21,11 @@ pub(in crate::processing) fn build_all_skipped_batch_result(
         .iter()
         .map(|job| skipped_result(job.input_index, None, &job.output))
         .collect();
-    Some(ProcessCommandResult::new(JobType::Batch, skipped_results))
+    Some(ProcessCommandResult::new(skipped_results))
 }
 
 pub(in crate::processing) fn no_write_skipped_result(
-    input_index: Option<usize>,
+    input_index: usize,
     job_id: Option<String>,
     output: &ResolvedOutputPlan,
 ) -> Option<ProcessResultEntry> {
@@ -40,7 +39,7 @@ pub(in crate::processing) fn no_write_skipped_result(
 }
 
 fn review_required_skipped_result(
-    input_index: Option<usize>,
+    input_index: usize,
     job_id: Option<String>,
     output: &ResolvedOutputPlan,
 ) -> ProcessResultEntry {
@@ -60,7 +59,7 @@ fn review_required_skipped_result(
 }
 
 pub(super) fn skipped_result(
-    input_index: Option<usize>,
+    input_index: usize,
     job_id: Option<String>,
     output: &ResolvedOutputPlan,
 ) -> ProcessResultEntry {
@@ -80,7 +79,7 @@ pub(super) fn skipped_result(
 }
 
 pub(super) fn terminal_cancelled_result(
-    input_index: Option<usize>,
+    input_index: usize,
     job_id: Option<String>,
     message: impl Into<String>,
 ) -> ProcessResultEntry {
@@ -102,7 +101,7 @@ pub(super) fn terminal_cancelled_result(
 }
 
 pub(in crate::processing) fn terminal_failure_result(
-    input_index: Option<usize>,
+    input_index: usize,
     job_id: Option<String>,
     error: AppErrorEnvelope,
 ) -> ProcessResultEntry {

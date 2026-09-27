@@ -2,8 +2,8 @@ use super::snapshot::{new_metadata_save_snapshot, new_processing_snapshot};
 use super::state::WorkRuntimeState;
 use super::{ChildJobStatus, OperationId, ResourceLane, WorkOperationStatus, WorkProgressStage};
 use crate::processing::{
-    EventStage, JobType, OperationKind, OperationResultSummary, ProcessCommandResult,
-    ProcessResultEntry, ProcessResultStatus, ProgressEvent,
+    EventStage, OperationKind, OperationResultSummary, ProcessCommandResult, ProcessResultEntry,
+    ProcessResultStatus, ProgressEvent,
 };
 
 fn accepted_state() -> (WorkRuntimeState, OperationId) {
@@ -12,7 +12,6 @@ fn accepted_state() -> (WorkRuntimeState, OperationId) {
     state.insert_operation(new_processing_snapshot(
         operation_id.clone(),
         1,
-        OperationKind::ProcessingBatch,
         "Batch encode (2 files)".to_string(),
         &["/tmp/first.m4b".to_string(), "/tmp/second.m4b".to_string()],
         Some(&[Some("input-1".to_string()), Some("input-2".to_string())]),
@@ -177,29 +176,26 @@ fn late_progress_does_not_overwrite_pending_cancellation() {
 fn terminal_result_updates_summary_and_child_rows_in_input_order() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");
-    let result = ProcessCommandResult::new(
-        JobType::Batch,
-        vec![
-            ProcessResultEntry {
-                input_index: Some(0),
-                status: ProcessResultStatus::Success,
-                message: "first ok".to_string(),
-                error: None,
-                preview_file_path: None,
-                preview_actual_seconds: None,
-                job_id: Some("job-1".to_string()),
-            },
-            ProcessResultEntry {
-                input_index: Some(1),
-                status: ProcessResultStatus::Failed,
-                message: "second failed".to_string(),
-                error: None,
-                preview_file_path: None,
-                preview_actual_seconds: None,
-                job_id: Some("job-2".to_string()),
-            },
-        ],
-    );
+    let result = ProcessCommandResult::new(vec![
+        ProcessResultEntry {
+            input_index: 0,
+            status: ProcessResultStatus::Success,
+            message: "first ok".to_string(),
+            error: None,
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-1".to_string()),
+        },
+        ProcessResultEntry {
+            input_index: 1,
+            status: ProcessResultStatus::Failed,
+            message: "second failed".to_string(),
+            error: None,
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-2".to_string()),
+        },
+    ]);
 
     let snapshot = state
         .complete_from_process_result(&operation_id, &result, 300)
@@ -217,7 +213,7 @@ fn terminal_result_updates_summary_and_child_rows_in_input_order() {
 
 fn entry(input_index: usize, status: ProcessResultStatus) -> ProcessResultEntry {
     ProcessResultEntry {
-        input_index: Some(input_index),
+        input_index,
         status,
         message: format!("item {input_index}"),
         error: None,
@@ -300,7 +296,7 @@ fn apply_single_child_progress_stages_operation_stage_without_terminaling_operat
         .apply_progress_event(
             &single,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingMerge,
+                operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Completed,
                 percentage: 100.0,
                 message: "done".to_string(),
@@ -358,7 +354,7 @@ fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
         .apply_progress_event(
             &single,
             &ProgressEvent {
-                operation_kind: OperationKind::ProcessingMerge,
+                operation_kind: OperationKind::ProcessingBatch,
                 stage: EventStage::Failed,
                 percentage: 0.0,
                 message: "done".to_string(),
@@ -380,13 +376,10 @@ fn apply_single_child_progress_failure_terminalizes_operation_immediately() {
 fn success_plus_skipped_resolves_to_mixed_matching_canonical_classifier() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");
-    let result = ProcessCommandResult::new(
-        JobType::Batch,
-        vec![
-            entry(0, ProcessResultStatus::Success),
-            entry(1, ProcessResultStatus::Skipped),
-        ],
-    );
+    let result = ProcessCommandResult::new(vec![
+        entry(0, ProcessResultStatus::Success),
+        entry(1, ProcessResultStatus::Skipped),
+    ]);
 
     let snapshot = state
         .complete_from_process_result(&operation_id, &result, 300)
@@ -403,13 +396,10 @@ fn success_plus_skipped_resolves_to_mixed_matching_canonical_classifier() {
 fn skipped_plus_cancelled_reports_mixed_message_counts() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");
-    let result = ProcessCommandResult::new(
-        JobType::Batch,
-        vec![
-            entry(0, ProcessResultStatus::Skipped),
-            entry(1, ProcessResultStatus::Cancelled),
-        ],
-    );
+    let result = ProcessCommandResult::new(vec![
+        entry(0, ProcessResultStatus::Skipped),
+        entry(1, ProcessResultStatus::Cancelled),
+    ]);
 
     let snapshot = state
         .complete_from_process_result(&operation_id, &result, 300)
@@ -426,13 +416,10 @@ fn skipped_plus_cancelled_reports_mixed_message_counts() {
 fn skipped_only_resolves_to_completed() {
     let (mut state, operation_id) = accepted_state();
     state.mark_running(&operation_id, 150).expect("running");
-    let result = ProcessCommandResult::new(
-        JobType::Batch,
-        vec![
-            entry(0, ProcessResultStatus::Skipped),
-            entry(1, ProcessResultStatus::Skipped),
-        ],
-    );
+    let result = ProcessCommandResult::new(vec![
+        entry(0, ProcessResultStatus::Skipped),
+        entry(1, ProcessResultStatus::Skipped),
+    ]);
 
     let snapshot = state
         .complete_from_process_result(&operation_id, &result, 300)
@@ -694,7 +681,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
         state.insert_operation(new_processing_snapshot(
             id.clone(),
             sequence,
-            OperationKind::ProcessingBatch,
             format!("Batch {sequence}"),
             &["/tmp/f.m4b".to_string()],
             None,
@@ -710,7 +696,6 @@ fn prune_terminal_operations_keeps_cap_most_recent_and_never_prunes_active() {
     state.insert_operation(new_processing_snapshot(
         running_id.clone(),
         1,
-        OperationKind::ProcessingBatch,
         "Running".to_string(),
         &["/tmp/r.m4b".to_string()],
         None,
@@ -751,7 +736,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
     state.insert_operation(new_processing_snapshot(
         long_runner.clone(),
         1,
-        OperationKind::ProcessingBatch,
         "Long batch".to_string(),
         &["/tmp/long.m4b".to_string()],
         None,
@@ -765,7 +749,6 @@ fn prune_orders_by_terminalization_so_a_just_finished_long_runner_survives() {
         state.insert_operation(new_processing_snapshot(
             id.clone(),
             sequence,
-            OperationKind::ProcessingBatch,
             format!("Batch {sequence}"),
             &["/tmp/f.m4b".to_string()],
             None,
@@ -850,13 +833,10 @@ fn child_completion_timing_excludes_queue_and_survives_later_batch_settlement() 
     state
         .apply_progress_event(&operation_id, &complete, 15_000)
         .expect("operation timing snapshot");
-    let result = ProcessCommandResult::new(
-        JobType::Batch,
-        vec![
-            entry(0, ProcessResultStatus::Success),
-            entry(1, ProcessResultStatus::Skipped),
-        ],
-    );
+    let result = ProcessCommandResult::new(vec![
+        entry(0, ProcessResultStatus::Success),
+        entry(1, ProcessResultStatus::Skipped),
+    ]);
     let snapshot = state
         .complete_from_process_result(&operation_id, &result, 20_000)
         .expect("operation timing snapshot");

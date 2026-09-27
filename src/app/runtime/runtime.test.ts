@@ -77,7 +77,6 @@ function metadataFileList(path: string, title: string): FileListInfo {
 
 function collisionPlan(): ProcessingPreflightPlan {
 	return {
-		jobType: 'batch',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
 		audioPlans: [],
@@ -212,7 +211,6 @@ describe('app runtime', () => {
 					inputFiles: ['/books/a.m4b'],
 					outputDir: '/tmp/out',
 					audioRequests: [titleAudioRequest()],
-					jobType: 'merge',
 					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 				},
 				metadataIntentByPath: null,
@@ -369,7 +367,7 @@ describe('app runtime', () => {
 		const files = metadataFileList('/books/alpha.m4b', 'Alpha');
 		first.input.replaceSession({
 			...emptyInputSession(),
-			fileList: files,
+			files: files.files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -386,7 +384,7 @@ describe('app runtime', () => {
 
 		second.input.replaceSession({
 			...emptyInputSession(),
-			fileList: files,
+			files: files.files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});

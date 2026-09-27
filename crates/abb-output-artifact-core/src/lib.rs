@@ -83,8 +83,8 @@ pub struct OutputReviewRequirement {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlannedOutput {
-    pub input_index: Option<usize>,
-    pub input_path: Option<String>,
+    pub input_index: usize,
+    pub input_path: String,
     pub kind: OutputKind,
     pub requested_path: String,
     pub resolved_path: String,
@@ -188,14 +188,10 @@ impl OutputCollision {
 }
 
 impl ResolvedOutputPlan {
-    pub fn to_public(
-        &self,
-        input_index: Option<usize>,
-        input_path: Option<&Path>,
-    ) -> PlannedOutput {
+    pub fn to_public(&self, input_index: usize, input_path: &Path) -> PlannedOutput {
         PlannedOutput {
             input_index,
-            input_path: input_path.map(|value| value.display().to_string()),
+            input_path: input_path.display().to_string(),
             kind: self.kind,
             requested_path: self.requested_path.display().to_string(),
             resolved_path: self.resolved_path.display().to_string(),

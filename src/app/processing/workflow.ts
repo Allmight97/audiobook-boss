@@ -1,5 +1,5 @@
 import { pathBasename } from '../../lib/path/basename';
-import { chapterPlansForProcessing } from '../inputSession';
+import { chapterPlansForProcessing, displayedTitleForFile } from '../inputSession';
 import type {
 	AudioFile,
 	ProcessCommandResult,
@@ -19,7 +19,6 @@ import {
 	workflowTryPromise,
 } from '../../lib/effect/appEffect';
 import type { tauriClient } from '../../lib/tauri/client';
-import type { FileListInfo } from '../../types/audio';
 import type { MetadataStageOutcome } from '../metadataSession';
 import type { runOutputPlanReviewWorkflow } from '../outputPlan';
 import type { RemoteSourceOwner } from '../remoteSource';
@@ -37,7 +36,7 @@ type StatusPanelFeedbackService = {
 };
 
 export interface ProcessingWorkflowServices {
-	getCurrentFileList: () => FileListInfo | null;
+	currentTitles: () => ReadonlyArray<AudioFile>;
 	readProcessingRequestConfig: (titles: readonly AudioFile[]) => ProcessingRequestConfig;
 	sourcesFor: (file: AudioFile) => readonly AudioFile[];
 	stageMetadata: () => Promise<MetadataStageOutcome>;
@@ -78,7 +77,6 @@ export interface ProcessingWorkflowContext {
 	setProcessingState: (isProcessing: boolean) => void;
 	updateArtThumbnail: () => Promise<void>;
 	startProgressListener: () => Promise<void>;
-	setCurrentWorkKind: (workKind: 'merge' | 'batch') => void;
 	setBatchCompletionMessage: (message: string | null) => void;
 	reconcileProcessResult?: (result: ProcessCommandResult) => void;
 	handleCancellation: () => void;
@@ -106,10 +104,6 @@ function errorDisplayText(error: unknown): string {
 }
 
 function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]): string | null {
-	if (result.jobType !== 'batch') {
-		return null;
-	}
-
 	const total = result.summary?.total ?? result.results.length;
 	const succeeded =
 		result.summary?.succeeded ??
@@ -167,6 +161,25 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 	return `Processed ${succeeded}/${total}.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
 }
 
+function titleLabel(file: AudioFile, intents: MetadataIntentByPath | null): string {
+	const title = intents?.[file.path]?.title;
+	if (title?.op === 'set' && title.value.trim()) {
+		return title.value.trim();
+	}
+	return displayedTitleForFile(file);
+}
+
+// Work Center names each operation after its books so concurrent exports stay distinguishable.
+export function operationTitle(
+	titles: readonly AudioFile[],
+	intents: MetadataIntentByPath | null,
+): string {
+	const [first] = titles;
+	if (!first) return 'Export';
+	const label = titleLabel(first, intents);
+	return titles.length > 1 ? `${label} + ${titles.length - 1} more` : label;
+}
+
 function workflowFailure(message: string, cause: unknown): ProcessingWorkflowFailed {
 	return new ProcessingWorkflowFailed({
 		message: toUserMessage(cause, { fallback: message }),
@@ -214,6 +227,7 @@ function submitRetainedProcessingCommand(
 		payload: ProcessPayload;
 		metadataIntentByPath: MetadataIntentByPath | null;
 		inputIds: readonly (string | undefined)[];
+		title: string;
 	},
 ): AppEffect<WorkSubmissionAccepted, ProcessingWorkflowError> {
 	return Effect.tryPromise({
@@ -222,6 +236,7 @@ function submitRetainedProcessingCommand(
 				services.submitProcessingOperation({
 					payload: request.payload,
 					metadataIntent: request.metadataIntentByPath,
+					title: request.title,
 				}),
 			),
 		catch: toProcessingWorkflowError,
@@ -342,9 +357,8 @@ export function processingWorkflowProgram(
 			context.setBatchCompletionMessage(null);
 		});
 
-		const fileList = services.getCurrentFileList();
-		yield* Effect.sync(() => services.console.log('Current file list:', fileList));
-		if (!fileList?.files?.length) {
+		const currentTitles = services.currentTitles();
+		if (currentTitles.length === 0) {
 			yield* Effect.sync(() => {
 				services.console.log('StatusPanel: No files found');
 				services.feedback.showError('No audio files selected. Please add files to process.');
@@ -352,7 +366,10 @@ export function processingWorkflowProgram(
 			return;
 		}
 
-		if (fileList.validCount === 0) {
+		const titles = currentTitles
+			.filter((file) => file.isValid)
+			.map((file) => ({ file, sources: [...services.sourcesFor(file)] }));
+		if (titles.length === 0) {
 			yield* Effect.sync(() => {
 				services.console.log('StatusPanel: No valid files found');
 				services.feedback.showError(
@@ -362,14 +379,6 @@ export function processingWorkflowProgram(
 			return;
 		}
 
-		yield* Effect.sync(() =>
-			services.console.log('StatusPanel: Files validated, getting output configuration...'),
-		);
-
-		const jobType = 'batch';
-		const titles = fileList.files
-			.filter((file) => file.isValid)
-			.map((file) => ({ file, sources: [...services.sourcesFor(file)] }));
 		const sourceFiles = titles.flatMap((title) => title.sources);
 		const sourceInputIds = sourceFiles.map((file) => file.inputId);
 		const processingRequestConfig = yield* readProcessingConfig(
@@ -394,13 +403,10 @@ export function processingWorkflowProgram(
 			return;
 		}
 
-		yield* Effect.sync(() => context.setCurrentWorkKind(jobType));
-
 		const processPayload = buildProcessPayload(
 			filePaths,
 			inputIds,
 			processingRequestConfig,
-			jobType,
 			services.remoteSource.processingAssets(sourceInputIds),
 		);
 		processPayload.titleSources = Object.fromEntries(
@@ -413,12 +419,7 @@ export function processingWorkflowProgram(
 		);
 		processPayload.chapterPlans = yield* workflowPromise(
 			async () =>
-				Object.assign(
-					{},
-					...titles.map((title) =>
-						chapterPlansForProcessing(title.sources, title.sources.length > 1 ? 'merge' : jobType),
-					),
-				),
+				Object.assign({}, ...titles.map((title) => chapterPlansForProcessing(title.sources))),
 			'Review CUE chapters before processing.',
 		);
 		const metadataIntentByPath = yield* workflowPromise(
@@ -461,6 +462,10 @@ export function processingWorkflowProgram(
 			payload: reviewResult.payload,
 			metadataIntentByPath: metadataIntentByPath,
 			inputIds: sourceInputIds,
+			title: operationTitle(
+				titles.map((title) => title.file),
+				metadataIntentByPath,
+			),
 		});
 		yield* completeAcceptedSubmission(services, context, accepted);
 	}).pipe(

@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum OperationKind {
-    ProcessingMerge,
     #[default]
     ProcessingBatch,
     RemoteAcquisition,

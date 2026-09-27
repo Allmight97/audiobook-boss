@@ -10,7 +10,6 @@ use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::run::{
     preflight_payload, process_payload_with_options, ProcessingRunOptions,
 };
-use crate::processing::JobType;
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -49,6 +48,11 @@ impl WorkRuntime {
         workspace_root: PathBuf,
         request: SubmitProcessingOperationRequest,
     ) -> Result<WorkSubmissionAccepted> {
+        if request.title.trim().is_empty() {
+            return Err(AppError::InvalidInput(
+                "Processing operations need a title naming their books.".into(),
+            ));
+        }
         preflight_payload(
             request.payload.clone(),
             request.metadata.clone(),
@@ -57,16 +61,11 @@ impl WorkRuntime {
 
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
-        let kind = request.payload.job_type.unwrap_or(JobType::Batch).into();
-        let title = request
-            .title
-            .clone()
-            .unwrap_or_else(|| processing_operation_title(kind, request.payload.input_files.len()));
+        let title = request.title.trim().to_string();
         let input_ids = request.payload.input_ids.as_deref();
         let mut snapshot = new_processing_snapshot(
             operation_id.clone(),
             sequence,
-            kind,
             title,
             &request.payload.input_files,
             input_ids,
@@ -150,10 +149,8 @@ impl WorkRuntime {
     ) -> Result<(OperationId, Arc<AtomicBool>)> {
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
-        let title = processing_operation_title(
-            crate::processing::OperationKind::MetadataSave,
-            input_files.len(),
-        );
+        let count = input_files.len();
+        let title = format!("Metadata save ({count} file{})", plural_suffix(count));
         let snapshot = new_metadata_save_snapshot(
             operation_id.clone(),
             sequence,
@@ -418,23 +415,6 @@ fn work_operation_status_label(status: WorkOperationStatus) -> &'static str {
     }
 }
 
-fn processing_operation_title(kind: crate::processing::OperationKind, count: usize) -> String {
-    match kind {
-        crate::processing::OperationKind::ProcessingMerge => {
-            format!("Merge encode ({count} file{})", plural_suffix(count))
-        }
-        crate::processing::OperationKind::ProcessingBatch => {
-            format!("Export ({count} title{})", plural_suffix(count))
-        }
-        crate::processing::OperationKind::RemoteAcquisition => {
-            format!("Remote acquisition ({count} title{})", plural_suffix(count))
-        }
-        crate::processing::OperationKind::MetadataSave => {
-            format!("Metadata save ({count} file{})", plural_suffix(count))
-        }
-    }
-}
-
 fn plural_suffix(count: usize) -> &'static str {
     if count == 1 {
         ""
@@ -488,14 +468,12 @@ fn lock_cancel_flags(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::processing::OperationKind;
 
     #[test]
     fn work_operation_record_format_is_stable_and_path_free() {
         let mut snapshot = new_processing_snapshot(
             OperationId("operation-123".to_string()),
             1,
-            OperationKind::ProcessingBatch,
             "Batch encode".to_string(),
             &[
                 "/private/library/first.m4b".to_string(),

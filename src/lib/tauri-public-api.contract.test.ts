@@ -46,7 +46,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'test_remote_source_indexer_connection',
 	'update_app_settings',
 	'update_remote_source_indexer_connection',
-	'validate_files',
 	'validate_metadata_intent_patch',
 ] as const;
 
@@ -109,7 +108,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'testRemoteSourceIndexerConnection',
 	'updateAppSettings',
 	'updateRemoteSourceIndexerConnection',
-	'validateFiles',
 	'validateMetadataIntentPatch',
 ] as const;
 

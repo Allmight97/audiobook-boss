@@ -1,13 +1,9 @@
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { MetadataCache } from './cache';
 
-function firstValidFilePath(fileList: FileListInfo | null): string | null {
-	if (!fileList?.files.length) {
-		return null;
-	}
-	const firstValid = fileList.files.find((file) => file.isValid);
-	return firstValid?.path ?? null;
+function firstValidFilePath(files: ReadonlyArray<AudioFile>): string | null {
+	return files.find((file) => file.isValid)?.path ?? null;
 }
 
 export function resolveCoverOwnerPaths(selectedFiles: AudioFile[]): string[] {
@@ -64,7 +60,7 @@ function readCoverArtFromIntentPatch(
 }
 
 export function resolveCoverDisplayPath(
-	fileList: FileListInfo | null,
+	files: ReadonlyArray<AudioFile>,
 	selectedFiles: AudioFile[],
 	cache: MetadataCache,
 ): string | null {
@@ -79,5 +75,5 @@ export function resolveCoverDisplayPath(
 		return allSame ? (validSelected[0]?.path ?? null) : null;
 	}
 
-	return firstValidFilePath(fileList);
+	return firstValidFilePath(files);
 }

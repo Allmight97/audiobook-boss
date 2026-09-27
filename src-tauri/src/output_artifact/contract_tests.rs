@@ -31,8 +31,8 @@ fn output_artifact_plan_contract_blocks_source_destination_overlap() {
         Some(OutputCollisionKind::SourceDestinationOverlap)
     );
 
-    let public = plan.to_public(Some(0), Some(&source));
-    assert_eq!(public.input_index, Some(0));
+    let public = plan.to_public(0, &source);
+    assert_eq!(public.input_index, 0);
     assert_eq!(public.kind, OutputKind::Final);
     assert!(public.review.is_some_and(|review| !review.can_proceed));
 }

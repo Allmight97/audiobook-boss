@@ -205,7 +205,8 @@ pub struct SubmitProcessingOperationRequest {
     pub payload: ProcessPayload,
     pub metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     pub preview_seconds: Option<f64>,
-    pub title: Option<String>,
+    /// Names the submitted books so concurrent operations stay distinguishable.
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
@@ -153,10 +153,10 @@ function selectionKeyFor(files: ReadonlyArray<AudioFile>): string {
 }
 
 function selectedFilesFromSession(session: {
-	readonly fileList: FileListInfo | null;
+	readonly files: ReadonlyArray<AudioFile>;
 	readonly selectedIndices: ReadonlyArray<number>;
 }): AudioFile[] {
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	return session.selectedIndices
 		.map((index) => files[index])
 		.filter((file): file is AudioFile => Boolean(file));
@@ -295,11 +295,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	}
 
 	function refreshCoverFromOwners(
-		fileList: FileListInfo | null,
+		files: ReadonlyArray<AudioFile>,
 		selectedFiles: ReadonlyArray<AudioFile>,
 		cover: CoverUiState,
 	): CoverUiState {
-		const displayPath = resolveCoverDisplayPath(fileList, [...selectedFiles], cache);
+		const displayPath = resolveCoverDisplayPath(files, [...selectedFiles], cache);
 		if (!displayPath) {
 			return displayCover(cover, null);
 		}
@@ -331,7 +331,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		if (!commitCoverToOwners(bytes, false)) {
-			commit(bumpCover(current, refreshCoverFromOwners(session.fileList, selected, current.cover)));
+			commit(bumpCover(current, refreshCoverFromOwners(session.files, selected, current.cover)));
 			return;
 		}
 		commit(
@@ -425,7 +425,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	}
 
 	async function autoLoadCoverIfNeeded(
-		fileList: FileListInfo | null,
+		files: ReadonlyArray<AudioFile>,
 		selectedFiles: ReadonlyArray<AudioFile>,
 		hydrateRequestId: number,
 	): Promise<void> {
@@ -433,7 +433,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		const current = editor;
 		const autoCoverRequestId = current.autoCoverRequestId + 1;
 		commit({ ...current, autoCoverRequestId });
-		const firstValid = fileList?.files.find((file) => file.isValid);
+		const firstValid = files.find((file) => file.isValid);
 		const selectedValid = selectedFiles.find((file) => file.isValid);
 		const targetPath = selectedValid?.path ?? firstValid?.path;
 		if (!targetPath) {
@@ -476,7 +476,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		});
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
-		commit(bumpCover(latest, refreshCoverFromOwners(session.fileList, selected, latest.cover)));
+		commit(bumpCover(latest, refreshCoverFromOwners(session.files, selected, latest.cover)));
 	}
 
 	return {
@@ -513,7 +513,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				formRevision: committed.form === start.form ? start.formRevision : start.formRevision + 1,
 			};
 
-			const files = session.fileList?.files ?? [];
+			const files = session.files;
 			if (files.length === 0) {
 				generation += 1;
 				cache.clear();
@@ -526,11 +526,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			syncRemovedFiles(deps.input.view().sourceFiles);
 
 			if (nextKey === start.selectionKey) {
-				next = bumpCover(next, refreshCoverFromOwners(session.fileList, selectedFiles, next.cover));
+				next = bumpCover(next, refreshCoverFromOwners(session.files, selectedFiles, next.cover));
 				if (next !== start) {
 					commit(next);
 				}
-				await autoLoadCoverIfNeeded(session.fileList, selectedFiles, start.hydrateRequestId);
+				await autoLoadCoverIfNeeded(session.files, selectedFiles, start.hydrateRequestId);
 				return generation === started && editor.selectionKey === nextKey;
 			}
 
@@ -593,7 +593,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				form = { ...form, fields };
 			}
 			next = bumpForm(latest, form);
-			next = bumpCover(next, refreshCoverFromOwners(session.fileList, selectedFiles, next.cover));
+			next = bumpCover(next, refreshCoverFromOwners(session.files, selectedFiles, next.cover));
 			commit(next);
 
 			const focused = next.focusedFieldId;
@@ -603,7 +603,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				});
 			}
 
-			await autoLoadCoverIfNeeded(session.fileList, selectedFiles, requestId);
+			await autoLoadCoverIfNeeded(session.files, selectedFiles, requestId);
 			return generation === started && editor.hydrateRequestId === requestId;
 		},
 		setFieldValue(command) {
@@ -751,7 +751,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const started = generation;
 			const session = deps.input.session();
 			const current = editor;
-			if (!session.fileList?.files.length) {
+			if (!session.files.length) {
 				console.log('No files loaded - nothing to save');
 				return;
 			}
@@ -794,7 +794,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				}
 
 				const validPaths = new Set(
-					(session.fileList?.files ?? [])
+					session.files
 						.filter((file) => file.isValid && deps.input.sourcesFor(file).length === 1)
 						.map((file) => file.path),
 				);

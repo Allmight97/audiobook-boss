@@ -1,10 +1,9 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, ProcessPayload, JobType, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile, ProcessPayload, TitleAudioRequest } from '../../types/audio';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import { toInputView } from './display';
 import { runImportIntent } from './importWorkflow';
 import {
-	replaceFileListFiles,
 	clearAllFilesFromSession,
 	moveFileInSession,
 	removeFileFromSession,
@@ -81,7 +80,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	let importEpoch = 0;
 
 	function commit(next: InputSessionState): void {
-		const missing = (next.fileList?.files ?? []).filter(
+		const missing = next.files.filter(
 			(file) => !next.audioRequestsByIdentity[fileIdentityKey(file)],
 		);
 		if (missing.length && deps.audioDefaults) {
@@ -110,11 +109,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	}
 
 	function currentIndex(file: AudioFile): number {
-		return (
-			session.fileList?.files.findIndex(
-				(current) => fileIdentityKey(current) === fileIdentityKey(file),
-			) ?? -1
-		);
+		return session.files.findIndex((current) => fileIdentityKey(current) === fileIdentityKey(file));
 	}
 
 	function sourcesFor(file: AudioFile): ReadonlyArray<AudioFile> {
@@ -149,16 +144,16 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (session.orderLocked || session.selectedIndices.length < 2) return;
 			const selected = [...session.selectedIndices]
 				.sort((a, b) => a - b)
-				.map((index) => session.fileList?.files[index])
+				.map((index) => session.files[index])
 				.filter((file): file is AudioFile => Boolean(file));
 			if (!(await allowSelectionTransition()) || session.orderLocked) return;
 			if (selected.some((file) => currentIndex(file) < 0)) return;
-			const anchor = selected[0] ? session.fileList?.files[currentIndex(selected[0])] : undefined;
+			const anchor = selected[0] ? session.files[currentIndex(selected[0])] : undefined;
 			if (!anchor) return;
 			const key = fileIdentityKey(anchor);
 			const selectedKeys = new Set(selected.map(fileIdentityKey));
 			const sources = selected.flatMap((file) => {
-				const current = session.fileList?.files[currentIndex(file)];
+				const current = session.files[currentIndex(file)];
 				return current ? sourcesFor(current) : [];
 			});
 			const choices = new Set(
@@ -166,12 +161,13 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 					JSON.stringify(session.audioRequestsByIdentity[fileIdentityKey(file)] ?? null),
 				),
 			);
-			const files = (session.fileList?.files ?? []).filter(
+			const files = session.files.filter(
 				(file) => fileIdentityKey(file) === key || !selectedKeys.has(fileIdentityKey(file)),
 			);
 			const index = files.findIndex((file) => fileIdentityKey(file) === key);
 			commit({
-				...replaceFileListFiles(session, files),
+				...session,
+				files,
 				titleSourcesByIdentity: { ...session.titleSourcesByIdentity, [key]: sources },
 				audioChoiceRequired: [
 					...session.audioChoiceRequired.filter((id) => !selectedKeys.has(id)),
@@ -192,10 +188,11 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			if (index < 0 || sources.length < 2 || session.orderLocked) return;
 			const groups = { ...session.titleSourcesByIdentity };
 			for (const source of sources) delete groups[fileIdentityKey(source)];
-			const files = [...(session.fileList?.files ?? [])];
+			const files = [...session.files];
 			files.splice(index, 1, ...sources);
 			commit({
-				...replaceFileListFiles(session, files),
+				...session,
+				files,
 				titleSourcesByIdentity: groups,
 				audioChoiceRequired: session.audioChoiceRequired.filter(
 					(id) => id !== fileIdentityKey(file),
@@ -226,7 +223,6 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 		chooseCue(inputId, choice) {
 			if (session.orderLocked) return;
 			const current = session;
-			if (!current.fileList) return;
 			const updateFile = (file: AudioFile): AudioFile => {
 				if (file.inputId !== inputId || !file.cueSource) return file;
 				if (choice === 'confirmHundredths' && file.cueSource.status === 'needsConfirmation') {
@@ -243,14 +239,14 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 				}
 				return file;
 			};
-			const files = current.fileList.files.map(updateFile);
+			const files = current.files.map(updateFile);
 			const titleSourcesByIdentity = Object.fromEntries(
 				Object.entries(current.titleSourcesByIdentity).map(([id, sources]) => [
 					id,
 					sources.map(updateFile),
 				]),
 			);
-			commit({ ...current, titleSourcesByIdentity, fileList: { ...current.fileList, files } });
+			commit({ ...current, titleSourcesByIdentity, files });
 		},
 		async importIntent(intent) {
 			const epoch = importEpoch;
@@ -292,7 +288,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			} catch {}
 		},
 		async selectFile(command) {
-			const file = session.fileList?.files[command.index];
+			const file = session.files[command.index];
 			if (!file || !(await allowSelectionTransition(command.signal))) return false;
 			const index = currentIndex(file);
 			if (index < 0) return false;
@@ -314,7 +310,7 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 			commit({ ...session, isDragOver });
 		},
 		async removeFile(index) {
-			const file = session.fileList?.files[index];
+			const file = session.files[index];
 			if (!file || session.orderLocked || !(await allowSelectionTransition())) return;
 			commit(removeFileFromSession(session, currentIndex(file)).session);
 		},
@@ -350,18 +346,18 @@ export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
 	};
 }
 
+// Takes one output title's ordered sources; a title with several sources cannot carry CUE chapters.
 export function chapterPlansForProcessing(
-	files: readonly AudioFile[],
-	jobType: JobType,
+	sources: readonly AudioFile[],
 ): ProcessPayload['chapterPlans'] {
 	const plans: NonNullable<ProcessPayload['chapterPlans']> = {};
-	for (const file of files.filter((file) => file.isValid)) {
+	for (const file of sources.filter((file) => file.isValid)) {
 		if (file.cueSource?.status === 'needsConfirmation' || file.cueSource?.status === 'invalid') {
 			throw new Error(
 				`Review ${file.cueSource.fileName}: confirm its timestamp interpretation or ignore the CUE before converting.`,
 			);
 		}
-		if (jobType === 'merge' && files.length > 1 && file.chapterPlan?.fromCue) {
+		if (sources.length > 1 && file.chapterPlan?.fromCue) {
 			throw new Error(
 				'Merging CUE-bearing inputs is not supported. Convert separate jobs or ignore CUE chapters.',
 			);

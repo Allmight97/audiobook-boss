@@ -202,8 +202,6 @@ export const tauriClient = {
 		commandSpecs.update_app_settings({ patch }),
 	openFdkSetup: (): Promise<void> => commandSpecs.open_fdk_setup(),
 	resetAppSettings: (): Promise<AppSettings> => commandSpecs.reset_app_settings(),
-	validateFiles: (filePaths: string[]): Promise<CommandResult<'validate_files'>> =>
-		commandSpecs.validate_files({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
 	loadCoverArtFile: (filePath: string): Promise<CommandResult<'load_cover_art_file'>> =>

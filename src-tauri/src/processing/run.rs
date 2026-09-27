@@ -1,6 +1,6 @@
 use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
 use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
-use crate::processing::{JobType, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
+use crate::processing::{ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -90,32 +90,15 @@ async fn dispatch_payload(
 
     let execution_plan =
         prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds, file_info)?;
-    let job_type = execution_plan.plan.job_type;
-
-    match job_type {
-        JobType::Merge => {
-            run_dispatch::dispatch_merge_job(
-                window,
-                registry,
-                workspace_root,
-                &payload,
-                execution_plan,
-                options,
-            )
-            .await
-        }
-        JobType::Batch => {
-            run_dispatch::dispatch_batch_jobs(
-                window,
-                registry,
-                workspace_root,
-                &payload,
-                execution_plan,
-                options,
-            )
-            .await
-        }
-    }
+    run_dispatch::dispatch_title_jobs(
+        window,
+        registry,
+        workspace_root,
+        &payload,
+        execution_plan,
+        options,
+    )
+    .await
 }
 
 pub(crate) fn preflight_payload(
@@ -140,7 +123,7 @@ mod tests {
         classify_processing_error, ProcessingJobTerminalOutcome,
     };
     use crate::processing::OperationKind;
-    use crate::processing::{JobType, ProcessPayload, SupplementalProcessingAsset};
+    use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -170,21 +153,15 @@ mod tests {
                 settings: Some(encoder_settings()),
                 sample_rate: crate::audio::SampleRateConfig::Auto,
             }],
-            job_type: Some(JobType::Batch),
             output_naming: None,
             collision_policy: None,
             preflight_signature: None,
             supplemental_assets_by_input_id: None,
         };
         overrides(&mut payload);
-        let count = if payload.job_type == Some(JobType::Merge) {
-            1
-        } else {
-            payload.input_files.len()
-        };
         payload
             .audio_requests
-            .resize(count, payload.audio_requests[0].clone());
+            .resize(payload.input_files.len(), payload.audio_requests[0].clone());
         payload
     }
 
@@ -307,38 +284,42 @@ mod tests {
     }
 
     #[test]
-    fn native_target_ceiling_uses_each_batch_output_but_combined_merge_channels() {
+    fn native_target_ceiling_uses_each_separate_title_but_combined_grouped_channels() {
+        use crate::processing::types::TitleSource;
         let temp = TempDir::new().expect("temp dir");
         let mono = temp.path().join("mono.wav");
         let stereo = temp.path().join("stereo.wav");
         write_silence_wav(&mono, 1);
         write_silence_wav(&stereo, 2);
-        for job_type in [JobType::Batch, JobType::Merge] {
+        let stereo = stereo.to_string_lossy().into_owned();
+        let mono = mono.to_string_lossy().into_owned();
+        for grouped in [false, true] {
             let payload = process_payload(|payload| {
-                payload.input_files = vec![
-                    stereo.to_string_lossy().into_owned(),
-                    mono.to_string_lossy().into_owned(),
-                ];
+                payload.input_files = if grouped {
+                    payload.title_sources = Some(HashMap::from([(
+                        stereo.clone(),
+                        [&stereo, &mono]
+                            .map(|path| TitleSource {
+                                path: path.clone(),
+                                input_id: None,
+                            })
+                            .to_vec(),
+                    )]));
+                    vec![stereo.clone()]
+                } else {
+                    vec![stereo.clone(), mono.clone()]
+                };
                 payload.output_dir = temp.path().to_string_lossy().into_owned();
-                payload.job_type = Some(job_type);
-                payload.audio_requests[0]
+                let settings = payload.audio_requests[0]
                     .settings
                     .as_mut()
-                    .expect("encode fixture settings")
-                    .encoder_type = EncoderType::NativeAac;
-                payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings")
-                    .bitrate_mode = BitrateMode::Cbr;
-                payload.audio_requests[0]
-                    .settings
-                    .as_mut()
-                    .expect("encode fixture settings")
-                    .bitrate_kbps = 300;
+                    .expect("encode fixture settings");
+                settings.encoder_type = EncoderType::NativeAac;
+                settings.bitrate_mode = BitrateMode::Cbr;
+                settings.bitrate_kbps = 300;
             });
             let result = super::preflight_payload(payload, None, None);
-            if job_type == JobType::Merge {
+            if grouped {
                 result.expect("combined stereo output permits 300 kbps");
             } else {
                 assert!(result
@@ -420,7 +401,7 @@ mod tests {
         .expect("prepare reviewed execution");
         let jobs = execution.plan.jobs;
         assert_eq!(jobs.len(), 2);
-        assert_eq!(jobs[0].input_path.as_ref(), Some(&paths[0]));
+        assert_eq!(jobs[0].input_path, paths[0]);
         assert_eq!(jobs[0].source_paths, [paths[1].clone(), paths[0].clone()]);
         assert_eq!(jobs[1].source_paths, [paths[2].clone()]);
         for (job, title) in jobs.iter().zip(["Combined title", "Separate title"]) {
@@ -474,7 +455,7 @@ mod tests {
     fn batch_log_context() -> ProcessingJobLogContext {
         ProcessingJobLogContext {
             operation_id: None,
-            input_index: None,
+            input_index: 0,
             operation_kind: OperationKind::ProcessingBatch,
         }
     }
@@ -635,12 +616,8 @@ mod tests {
             payload.supplemental_assets_by_input_id = Some(assets);
         });
 
-        assert!(supplemental_assets_for_input(&payload, None).is_empty());
-        assert!(supplemental_assets_for_input(&payload, Some(0)).is_empty());
-        assert_eq!(
-            supplemental_assets_for_input(&payload, Some(1)),
-            vec![asset]
-        );
+        assert!(supplemental_assets_for_input(&payload, 0).is_empty());
+        assert_eq!(supplemental_assets_for_input(&payload, 1), vec![asset]);
     }
 
     #[test]

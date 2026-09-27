@@ -301,7 +301,6 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
 pub fn apply_chapter_plans(
     files: &mut FileListInfo,
     plans: Option<&std::collections::HashMap<String, crate::metadata::ChapterPlan>>,
-    merging: bool,
 ) -> Result<()> {
     for file in files.files.iter_mut().filter(|file| file.is_valid) {
         let accepted = plans.and_then(|plans| file.path.to_str().and_then(|path| plans.get(path)));
@@ -318,9 +317,6 @@ pub fn apply_chapter_plans(
                 "Review the sibling CUE in Input before processing, or explicitly ignore it."
                     .into(),
             ));
-        }
-        if merging && file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue) {
-            return Err(AppError::InvalidInput("Merging CUE-bearing inputs is not supported. Convert them as separate jobs or ignore their CUE chapters.".into()));
         }
     }
     Ok(())

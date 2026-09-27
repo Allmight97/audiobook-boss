@@ -1510,7 +1510,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
     use audiobook_boss_lib::commands::audio::preflight_processing_plan;
     use audiobook_boss_lib::processing::{
         AudioHandling::{Encode, Preserve},
-        JobType, ProcessPayload,
+        ProcessPayload,
     };
     let source_lane =
         MediaLane::with_fixtures(&[0.5]).with_sample_rate(SampleRateConfig::Explicit(22_050));
@@ -1540,7 +1540,6 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         audio_requests: [Preserve, Preserve, Preserve, Encode, Encode]
             .map(|handling| title_audio_request(handling, faac_encoder_settings()))
             .to_vec(),
-        job_type: Some(JobType::Batch),
         output_naming: None,
         collision_policy: None,
         preflight_signature: None,
@@ -2350,7 +2349,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
     fs::create_dir(&output_dir).unwrap();
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [one], "titleSources": {one.to_str().unwrap(): [{"path": two}, {"path": one}]},
-        "outputDir": output_dir, "audioRequests": [title_audio_request(AudioHandling::Preserve, native_encoder_settings())], "jobType": "batch"
+        "outputDir": output_dir, "audioRequests": [title_audio_request(AudioHandling::Preserve, native_encoder_settings())]
     })).unwrap();
     let metadata = std::collections::HashMap::from([(
         one.to_string_lossy().into_owned(),
@@ -2465,7 +2464,7 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [first],
         "titleSources": {first.to_str().unwrap(): [{"path": second}, {"path": first}]},
-        "outputDir": output_dir, "jobType": "batch",
+        "outputDir": output_dir,
         "audioRequests": [title_audio_request(AudioHandling::Encode, native_encoder_settings())]
     }))
     .expect("MP3 stack request");
@@ -2535,7 +2534,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         };
         let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
             "inputFiles": [&anchor], "titleSources": {&anchor: paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
-            "audioRequests": [request], "outputDir": out, "jobType": "batch"
+            "audioRequests": [request], "outputDir": out
         })).unwrap();
         let metadata = AudiobookMetadata {
             title: Some("Opus title".into()),
@@ -2836,7 +2835,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
     };
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [anchor], "titleSources": {anchor.to_str().unwrap(): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
-        "audioRequests": [request], "outputDir": tmp.path(), "jobType": "batch"
+        "audioRequests": [request], "outputDir": tmp.path()
     })).unwrap();
     let plan = preflight_processing_plan(payload, None, None).unwrap();
     assert_eq!(plan.audio_plans[0].handling, AudioHandling::Preserve);

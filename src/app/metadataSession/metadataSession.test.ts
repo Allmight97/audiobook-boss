@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import type { MetadataLookupResponse, MetadataSaveBatchResult } from '../../types/metadata';
 import { createAppRuntime } from '../runtime';
@@ -7,7 +7,7 @@ import type { AppRuntime } from '../runtime';
 import { emptyInputSession } from '../inputSession/types';
 import * as metadataSessionApi from './index';
 
-function file(path: string, title: string): FileListInfo['files'][number] {
+function file(path: string, title: string): AudioFile {
 	return {
 		path,
 		inputId: path,
@@ -16,17 +16,6 @@ function file(path: string, title: string): FileListInfo['files'][number] {
 		size: 1024,
 		format: 'm4b',
 		tagTitle: title,
-	};
-}
-
-function list(files: FileListInfo['files']): FileListInfo {
-	return {
-		files,
-		selectedDecoders: files.map(() => null),
-		totalDuration: files.length * 60,
-		totalSize: files.length * 1024,
-		validCount: files.length,
-		invalidCount: 0,
 	};
 }
 
@@ -77,7 +66,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -116,7 +105,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -143,7 +132,7 @@ describe('metadata session selection and save', () => {
 		});
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -174,7 +163,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+			files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -229,7 +218,7 @@ describe('metadata session selection and save', () => {
 			runtime = createAppRuntime({ metadata });
 			runtime.input.replaceSession({
 				...emptyInputSession(),
-				fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+				files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
 				selectedIndices: [0],
 				selectedAnchor: 0,
 			});
@@ -263,7 +252,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -296,7 +285,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -328,7 +317,7 @@ describe('metadata session selection and save', () => {
 			runtime = createAppRuntime({ metadata });
 			runtime.input.replaceSession({
 				...emptyInputSession(),
-				fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+				files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
 				selectedIndices: [0],
 				selectedAnchor: 0,
 			});
@@ -385,7 +374,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -419,7 +408,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -462,7 +451,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -497,7 +486,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')]),
+			files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -534,7 +523,7 @@ describe('metadata session selection and save', () => {
 			runtime = createAppRuntime({ metadata });
 			runtime.input.replaceSession({
 				...emptyInputSession(),
-				fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+				files: [file('/books/alpha.m4b', 'Alpha')],
 				selectedIndices: [0],
 				selectedAnchor: 0,
 			});
@@ -569,7 +558,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -600,7 +589,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -630,7 +619,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -679,7 +668,7 @@ describe('metadata session selection and save', () => {
 		const files = [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')];
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list(files),
+			files: files,
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -708,7 +697,7 @@ describe('metadata session selection and save', () => {
 		const beta = file('/books/beta.m4b', 'Beta');
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([alpha, beta]),
+			files: [alpha, beta],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -723,7 +712,7 @@ describe('metadata session selection and save', () => {
 		readAudioMetadata.mockClear();
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([alpha, beta]),
+			files: [alpha, beta],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -745,7 +734,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -770,7 +759,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});
@@ -788,7 +777,7 @@ describe('metadata session selection and save', () => {
 		runtime = createAppRuntime({ metadata });
 		runtime.input.replaceSession({
 			...emptyInputSession(),
-			fileList: list([file('/books/alpha.m4b', 'Alpha')]),
+			files: [file('/books/alpha.m4b', 'Alpha')],
 			selectedIndices: [0],
 			selectedAnchor: 0,
 		});

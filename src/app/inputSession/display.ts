@@ -36,7 +36,7 @@ export function formatFileDetails(file: AudioFile): string {
 }
 
 export function toInputView(session: InputSessionState): InputView {
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	const sourceFiles = files.flatMap(
 		(file) => session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file],
 	);

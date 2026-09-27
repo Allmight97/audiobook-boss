@@ -1,34 +1,18 @@
-import type { AudioFile, FileListInfo } from '../../types/audio';
-
-type SelectedDecoder = FileListInfo['selectedDecoders'][number];
-
-export type FileListAppendOutcome = 'replace' | 'duplicateOnly' | 'append';
-
-interface FileListAppendResultBase {
-	readonly incomingFiles: AudioFile[];
-	readonly appendedFiles: AudioFile[];
-	readonly existingFiles: AudioFile[];
-}
+import type { AudioFile } from '../../types/audio';
 
 export type FileListAppendResult =
-	| (FileListAppendResultBase & {
-			readonly outcome: 'replace';
-			readonly fileList: FileListInfo;
-	  })
-	| (FileListAppendResultBase & {
-			readonly outcome: 'duplicateOnly';
-			readonly fileList: null;
-	  })
-	| (FileListAppendResultBase & {
-			readonly outcome: 'append';
-			readonly fileList: FileListInfo;
-	  });
+	| { readonly outcome: 'duplicateOnly' }
+	| {
+			readonly outcome: 'replace' | 'append';
+			readonly files: AudioFile[];
+			readonly appendedFiles: AudioFile[];
+	  };
 
-export function collectUniqueFiles(
-	files: AudioFile[],
-	seenPaths: ReadonlySet<string> | null = null,
+function collectUniqueFiles(
+	files: ReadonlyArray<AudioFile>,
+	seenPaths: Iterable<string> = [],
 ): AudioFile[] {
-	const seen = new Set(seenPaths ?? []);
+	const seen = new Set(seenPaths);
 	const uniqueFiles: AudioFile[] = [];
 	for (const file of files) {
 		if (seen.has(file.path)) {
@@ -40,101 +24,22 @@ export function collectUniqueFiles(
 	return uniqueFiles;
 }
 
-export function buildSelectedDecoderByPath(
-	fileList: Pick<FileListInfo, 'files' | 'selectedDecoders'>,
-): Map<string, SelectedDecoder> {
-	const byPath = new Map<string, SelectedDecoder>();
-	for (const [index, file] of fileList.files.entries()) {
-		byPath.set(file.path, fileList.selectedDecoders[index] ?? null);
-	}
-	return byPath;
-}
-
-export function buildFileListInfoFromFiles(
-	files: AudioFile[],
-	decoderByPath: Map<string, SelectedDecoder> = new Map(),
-): FileListInfo {
-	const uniqueFiles = collectUniqueFiles(files);
-	const selectedDecoders: SelectedDecoder[] = [];
-	let totalDuration = 0;
-	let totalSize = 0;
-	let validCount = 0;
-	let invalidCount = 0;
-
-	for (const file of uniqueFiles) {
-		selectedDecoders.push(decoderByPath.get(file.path) ?? null);
-		if (file.isValid) {
-			validCount += 1;
-			totalDuration += file.duration ?? 0;
-			totalSize += file.size ?? 0;
-		} else {
-			invalidCount += 1;
-		}
-	}
-
-	return {
-		files: uniqueFiles,
-		selectedDecoders,
-		totalDuration,
-		totalSize,
-		validCount,
-		invalidCount,
-	};
-}
-
-export function normalizeFileListInfo(fileListInfo: FileListInfo): FileListInfo {
-	const decoderByPath = buildSelectedDecoderByPath(fileListInfo);
-	return buildFileListInfoFromFiles(fileListInfo.files, decoderByPath);
-}
-
 export function buildFileListAppendResult(
-	incomingFileList: FileListInfo,
-	options: {
-		readonly existingFiles: AudioFile[];
-		readonly currentFileList: FileListInfo | null;
-	},
+	incomingFiles: ReadonlyArray<AudioFile>,
+	existingFiles: ReadonlyArray<AudioFile>,
 ): FileListAppendResult {
-	const incomingFiles = collectUniqueFiles(incomingFileList.files);
-	const existingFiles = collectUniqueFiles(options.existingFiles);
-
-	if (existingFiles.length === 0) {
-		return {
-			outcome: 'replace',
-			fileList: normalizeFileListInfo(incomingFileList),
-			incomingFiles,
-			appendedFiles: incomingFiles,
-			existingFiles,
-		};
+	const existing = collectUniqueFiles(existingFiles);
+	if (existing.length === 0) {
+		const files = collectUniqueFiles(incomingFiles);
+		return { outcome: 'replace', files, appendedFiles: files };
 	}
 
-	const existingPathSet = new Set(existingFiles.map((file) => file.path));
-	const appendedFiles = collectUniqueFiles(incomingFiles, existingPathSet);
-
-	if (appendedFiles.length === 0) {
-		return {
-			outcome: 'duplicateOnly',
-			fileList: null,
-			incomingFiles,
-			appendedFiles,
-			existingFiles,
-		};
-	}
-
-	const decoderByPath = new Map<string, SelectedDecoder>();
-	if (options.currentFileList) {
-		for (const [path, selection] of buildSelectedDecoderByPath(options.currentFileList)) {
-			decoderByPath.set(path, selection);
-		}
-	}
-	for (const [path, selection] of buildSelectedDecoderByPath(incomingFileList)) {
-		decoderByPath.set(path, selection);
-	}
-
-	return {
-		outcome: 'append',
-		fileList: buildFileListInfoFromFiles([...existingFiles, ...appendedFiles], decoderByPath),
+	const appendedFiles = collectUniqueFiles(
 		incomingFiles,
-		appendedFiles,
-		existingFiles,
-	};
+		existing.map((file) => file.path),
+	);
+	if (appendedFiles.length === 0) {
+		return { outcome: 'duplicateOnly' };
+	}
+	return { outcome: 'append', files: [...existing, ...appendedFiles], appendedFiles };
 }

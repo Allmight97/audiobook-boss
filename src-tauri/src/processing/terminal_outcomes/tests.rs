@@ -9,7 +9,7 @@ mod classification_tests {
     #[test]
     fn terminal_classification_uses_structured_status_not_result_message() {
         let native_success = ProcessResultEntry {
-            input_index: Some(0),
+            input_index: 0,
             status: ProcessResultStatus::Success,
             message: "Successfully created audiobook: /tmp/native.m4b".to_string(),
             error: None,
@@ -18,7 +18,7 @@ mod classification_tests {
             job_id: Some("job-native".to_string()),
         };
         let external_success = ProcessResultEntry {
-            input_index: Some(1),
+            input_index: 1,
             status: ProcessResultStatus::Success,
             message: "Successfully created audiobook: /tmp/external.m4b".to_string(),
             error: None,
@@ -40,7 +40,7 @@ mod classification_tests {
     #[test]
     fn terminal_classification_preserves_post_commit_success_truth() {
         let post_commit_cancel_success = ProcessResultEntry {
-            input_index: None,
+            input_index: 0,
             status: ProcessResultStatus::Success,
             message: "Successfully created audiobook: /tmp/output.m4b".to_string(),
             error: None,
@@ -58,7 +58,7 @@ mod classification_tests {
     #[test]
     fn terminal_classification_distinguishes_cancelled_failed_and_mixed_results() {
         let cancelled = ProcessResultEntry {
-            input_index: Some(0),
+            input_index: 0,
             status: ProcessResultStatus::Cancelled,
             message: "Processing was cancelled".to_string(),
             error: None,
@@ -67,7 +67,7 @@ mod classification_tests {
             job_id: None,
         };
         let failed = ProcessResultEntry {
-            input_index: Some(1),
+            input_index: 1,
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -81,7 +81,7 @@ mod classification_tests {
             job_id: Some("job-2".to_string()),
         };
         let skipped = ProcessResultEntry {
-            input_index: Some(2),
+            input_index: 2,
             status: ProcessResultStatus::Skipped,
             message: "Skipped existing output at '/tmp/output.m4b'".to_string(),
             error: None,
@@ -129,7 +129,7 @@ mod classification_tests {
     #[test]
     fn cancellation_error_for_failed_entry_returns_cancelled_error() {
         let entry = ProcessResultEntry {
-            input_index: Some(2),
+            input_index: 2,
             status: ProcessResultStatus::Failed,
             message: "Processing was cancelled".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -152,7 +152,7 @@ mod classification_tests {
     #[test]
     fn non_cancellation_errors_stay_failed_results() {
         let entry = ProcessResultEntry {
-            input_index: Some(2),
+            input_index: 2,
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -176,7 +176,7 @@ mod classification_tests {
     fn mixed_cancel_and_fail_classification_keeps_failure_visible() {
         let cancelled = AppError::cancelled();
         let failed = ProcessResultEntry {
-            input_index: Some(1),
+            input_index: 1,
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -207,7 +207,7 @@ mod entry_tests {
         CollisionPolicy, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
     };
     use crate::processing::plan::{PlannedProcessingJob, ResolvedProcessingPlan};
-    use crate::processing::{JobType, ProcessResultStatus};
+    use crate::processing::ProcessResultStatus;
     use std::path::PathBuf;
 
     fn output_plan(action: PlannedOutputAction, path: impl Into<PathBuf>) -> ResolvedOutputPlan {
@@ -225,8 +225,8 @@ mod entry_tests {
     fn planned_batch_job(index: usize, action: PlannedOutputAction) -> PlannedProcessingJob {
         PlannedProcessingJob {
             source_paths: vec![],
-            input_index: Some(index),
-            input_path: Some(PathBuf::from(format!("/tmp/input-{index}.m4b"))),
+            input_index: index,
+            input_path: PathBuf::from(format!("/tmp/input-{index}.m4b")),
             output: output_plan(action, format!("/tmp/output-{index}.m4b")),
             metadata: None,
             cover_art_passthrough: crate::metadata::CoverArtPassthroughPolicy::Preserve,
@@ -245,7 +245,6 @@ mod entry_tests {
 
     fn batch_plan(jobs: Vec<PlannedProcessingJob>) -> ResolvedProcessingPlan {
         ResolvedProcessingPlan {
-            job_type: JobType::Batch,
             preview_seconds: None,
             collision_policy: CollisionPolicy::SkipExisting,
             plan_signature: "test-plan".to_string(),
@@ -262,9 +261,9 @@ mod entry_tests {
             None,
         );
 
-        let entry = terminal_failure_result(Some(4), Some("job-123".to_string()), error);
+        let entry = terminal_failure_result(4, Some("job-123".to_string()), error);
 
-        assert_eq!(entry.input_index, Some(4));
+        assert_eq!(entry.input_index, 4);
         assert_eq!(entry.job_id.as_deref(), Some("job-123"));
         assert_eq!(entry.status, ProcessResultStatus::Failed);
         assert!(entry.error.is_some());
@@ -272,13 +271,10 @@ mod entry_tests {
 
     #[test]
     fn terminal_cancelled_result_preserves_job_id_when_available() {
-        let entry = terminal_cancelled_result(
-            Some(4),
-            Some("job-123".to_string()),
-            "Processing was cancelled",
-        );
+        let entry =
+            terminal_cancelled_result(4, Some("job-123".to_string()), "Processing was cancelled");
 
-        assert_eq!(entry.input_index, Some(4));
+        assert_eq!(entry.input_index, 4);
         assert_eq!(entry.job_id.as_deref(), Some("job-123"));
         assert_eq!(entry.status, ProcessResultStatus::Cancelled);
         assert_eq!(entry.message, "Processing was cancelled");
@@ -302,7 +298,6 @@ mod entry_tests {
         let result =
             build_all_skipped_batch_result(&plan).expect("all skipped batch should short-circuit");
 
-        assert_eq!(result.job_type, JobType::Batch);
         assert_eq!(result.summary.total, 2);
         assert_eq!(result.summary.skipped, 2);
         assert_eq!(result.summary.succeeded, 0);
@@ -316,8 +311,8 @@ mod entry_tests {
                 .collect::<Vec<_>>(),
             vec![ProcessResultStatus::Skipped, ProcessResultStatus::Skipped]
         );
-        assert_eq!(result.results[0].input_index, Some(0));
-        assert_eq!(result.results[1].input_index, Some(1));
+        assert_eq!(result.results[0].input_index, 0);
+        assert_eq!(result.results[1].input_index, 1);
         assert!(result.results.iter().all(|entry| entry.job_id.is_none()));
     }
 
@@ -346,22 +341,22 @@ mod entry_tests {
         );
         let writable = output_plan(PlannedOutputAction::Write, "/tmp/new-output.m4b");
 
-        let skip_result = no_write_skipped_result(Some(0), None, &skip_existing)
+        let skip_result = no_write_skipped_result(0, None, &skip_existing)
             .expect("skip-existing output should become a skipped result");
         assert_eq!(skip_result.status, ProcessResultStatus::Skipped);
-        assert_eq!(skip_result.input_index, Some(0));
+        assert_eq!(skip_result.input_index, 0);
         assert!(skip_result.message.contains("Skipped existing output"));
 
-        let review_result = no_write_skipped_result(Some(1), None, &review_required)
+        let review_result = no_write_skipped_result(1, None, &review_required)
             .expect("review-required output should become a skipped result");
         assert_eq!(review_result.status, ProcessResultStatus::Skipped);
-        assert_eq!(review_result.input_index, Some(1));
+        assert_eq!(review_result.input_index, 1);
         assert!(review_result
             .message
             .contains("selected collision policy does not allow overwriting"));
 
         assert!(
-            no_write_skipped_result(Some(2), None, &writable).is_none(),
+            no_write_skipped_result(2, None, &writable).is_none(),
             "writable outputs must still enter normal processing"
         );
     }
@@ -378,7 +373,7 @@ mod batch_tests {
             2,
             vec![
                 Ok(ProcessResultEntry {
-                    input_index: Some(0),
+                    input_index: 0,
                     status: ProcessResultStatus::Success,
                     message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
                     error: None,
@@ -395,14 +390,14 @@ mod batch_tests {
         assert_eq!(results.results.len(), 2);
         assert_eq!(results.results[0].status, ProcessResultStatus::Success);
         assert_eq!(results.results[1].status, ProcessResultStatus::Cancelled);
-        assert_eq!(results.results[1].input_index, Some(1));
+        assert_eq!(results.results[1].input_index, 1);
         assert_eq!(results.results[1].message, "Processing was cancelled");
     }
 
     #[test]
     fn collect_batch_results_preserves_mixed_success_failure_and_cancelled_entries() {
         let failed = ProcessResultEntry {
-            input_index: Some(1),
+            input_index: 1,
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -420,7 +415,7 @@ mod batch_tests {
             3,
             vec![
                 Ok(ProcessResultEntry {
-                    input_index: Some(0),
+                    input_index: 0,
                     status: ProcessResultStatus::Success,
                     message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
                     error: None,
@@ -441,7 +436,7 @@ mod batch_tests {
         assert_eq!(
             results.failure_events,
             vec![TerminalFailureEvent {
-                input_index: Some(1),
+                input_index: 1,
                 job_id: Some("job-2".to_string()),
                 message: "decoder unavailable".to_string(),
             }]
@@ -453,7 +448,7 @@ mod batch_tests {
         let results = collect_batch_results(
             2,
             vec![Ok(ProcessResultEntry {
-                input_index: Some(0),
+                input_index: 0,
                 status: ProcessResultStatus::Success,
                 message: "Successfully created audiobook: /tmp/ok.m4b".to_string(),
                 error: None,
@@ -466,12 +461,12 @@ mod batch_tests {
 
         assert_eq!(results.results.len(), 2);
         assert_eq!(results.results[0].status, ProcessResultStatus::Success);
-        assert_eq!(results.results[1].input_index, Some(1));
+        assert_eq!(results.results[1].input_index, 1);
         assert_eq!(results.results[1].status, ProcessResultStatus::Failed);
         assert_eq!(
             results.failure_events,
             vec![TerminalFailureEvent {
-                input_index: Some(1),
+                input_index: 1,
                 job_id: None,
                 message: "Missing terminal result for queued input index 1; marking as failed"
                     .to_string(),

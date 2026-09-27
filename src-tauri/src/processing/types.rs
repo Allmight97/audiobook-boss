@@ -1,4 +1,4 @@
-use super::lifecycle::{OperationKind, OperationResultSummary};
+use super::lifecycle::OperationResultSummary;
 use crate::audio;
 use crate::errors::AppErrorEnvelope;
 use crate::output_artifact::{CollisionPolicy, OutputNamingConfig, PlannedOutput};
@@ -8,25 +8,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub enum JobType {
-    Merge,
-    Batch,
-}
-
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub enum AudioHandling {
     Encode,
     Preserve,
-}
-
-impl From<JobType> for OperationKind {
-    fn from(value: JobType) -> Self {
-        match value {
-            JobType::Merge => OperationKind::ProcessingMerge,
-            JobType::Batch => OperationKind::ProcessingBatch,
-        }
-    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -48,9 +32,8 @@ pub struct ProcessPayload {
     /// source sidecars without replacing path as the filesystem source label.
     pub input_ids: Option<Vec<Option<String>>>,
     pub output_dir: String,
-    /// One audio request per output title (one request for a global merge).
+    /// One audio request per output title.
     pub audio_requests: Vec<audio::TitleAudioRequest>,
-    pub job_type: Option<JobType>,
     /// Output naming configuration (defaults to ABS-compatible)
     pub output_naming: Option<OutputNamingConfig>,
     /// Explicit collision policy selected by the user after preflight review.
@@ -93,42 +76,19 @@ impl ProcessPayload {
                 "Title sources must belong to a requested output title.".into(),
             ));
         }
-        if self.job_type == Some(JobType::Merge)
-            && self
-                .title_sources
-                .as_ref()
-                .is_some_and(|groups| !groups.is_empty())
-        {
-            return Err(AppError::InvalidInput(
-                "Title groups cannot be combined with a global merge request.".into(),
-            ));
-        }
-        let mut paths = std::collections::HashSet::new();
         for (index, anchor) in self.input_files.iter().enumerate() {
             let sources = self.sources_for(index);
-            if sources.is_empty() || !sources.iter().any(|source| &source.path == anchor) {
+            if !sources.iter().any(|source| &source.path == anchor) {
                 return Err(AppError::InvalidInput(
                     "Every title needs its metadata source among its ordered audio sources.".into(),
                 ));
-            }
-            for source in sources {
-                if !paths.insert(source.path) {
-                    return Err(AppError::InvalidInput(
-                        "An audio source can belong to only one output title.".into(),
-                    ));
-                }
             }
         }
         Ok(())
     }
 
     pub(crate) fn validate_audio_requests(&self) -> crate::errors::Result<()> {
-        let count = if self.job_type == Some(JobType::Merge) {
-            1
-        } else {
-            self.input_files.len()
-        };
-        if self.audio_requests.len() != count {
+        if self.audio_requests.len() != self.input_files.len() {
             return Err(crate::errors::AppError::InvalidInput(
                 "Audio requests must align with output titles.".into(),
             ));
@@ -154,7 +114,6 @@ pub type ProcessResultSummary = OperationResultSummary;
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingPreflightPlan {
-    pub job_type: JobType,
     pub preview_seconds: Option<f64>,
     pub collision_policy: CollisionPolicy,
     pub plan_signature: String,
@@ -165,7 +124,7 @@ pub struct ProcessingPreflightPlan {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessResultEntry {
-    pub input_index: Option<usize>,
+    pub input_index: usize,
     pub status: ProcessResultStatus,
     pub message: String,
     pub error: Option<AppErrorEnvelope>,
@@ -177,7 +136,6 @@ pub struct ProcessResultEntry {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessCommandResult {
-    pub job_type: JobType,
     pub summary: ProcessResultSummary,
     /// Backend-owned terminal classification of the run. The UI renders this
     /// instead of re-deriving success/mixed/failed/skipped/cancelled precedence.
@@ -186,14 +144,13 @@ pub struct ProcessCommandResult {
 }
 
 impl ProcessCommandResult {
-    pub fn new(job_type: JobType, results: Vec<ProcessResultEntry>) -> Self {
+    pub fn new(results: Vec<ProcessResultEntry>) -> Self {
         let summary = abb_processing_core::summarize_result_statuses(
             results.iter().map(|result| result.status),
         );
         let terminal_class = abb_processing_core::classify_run_terminal(&summary);
 
         Self {
-            job_type,
             summary,
             terminal_class,
             results,

@@ -5,7 +5,7 @@ export function selectFileInSession(
 	index: number,
 	modifiers: SelectionModifiers,
 ): InputSessionState {
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	if (index < 0 || index >= files.length) {
 		return session;
 	}
@@ -35,7 +35,7 @@ export function selectFileInSession(
 }
 
 export function selectAllInSession(session: InputSessionState): InputSessionState {
-	const count = session.fileList?.files.length ?? 0;
+	const count = session.files.length;
 	if (count === 0) {
 		return session;
 	}
