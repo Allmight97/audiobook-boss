@@ -36,3 +36,12 @@ pub(in crate::processing) fn emit_terminal_skipped_event(
 ) {
     terminal_emitter(window, progress_listener, context).emit_terminal_skipped(message);
 }
+
+pub(in crate::processing) fn emit_terminal_cancelled_event(
+    window: &tauri::Window,
+    progress_listener: Option<&ProgressEventListener>,
+    context: EmitContext,
+    message: &str,
+) {
+    terminal_emitter(window, progress_listener, context).emit_terminal_cancelled(message);
+}

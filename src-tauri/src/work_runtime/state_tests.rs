@@ -900,6 +900,20 @@ fn cancelling_one_title_leaves_its_siblings_running_and_stays_cancelled() {
         !after_progress.children[0].cancellable,
         "progress must not re-offer cancel for a title already cancelling"
     );
+
+    // The dispatcher reports a cancelled title by index as soon as it stops.
+    let cancelled = ProgressEvent {
+        stage: EventStage::Cancelled,
+        job_id: None,
+        message: "Processing was cancelled".to_string(),
+        ..converting_event(0.0, "", 0)
+    };
+    let settled = state
+        .apply_progress_event(&operation_id, &cancelled, 130)
+        .expect("title cancelled");
+    assert_eq!(settled.children[0].status, ChildJobStatus::Cancelled);
+    assert_eq!(settled.children[1].status, ChildJobStatus::Queued);
+    assert_eq!(settled.status, WorkOperationStatus::Running);
 }
 
 #[test]
