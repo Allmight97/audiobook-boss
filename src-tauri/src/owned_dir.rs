@@ -31,7 +31,11 @@ impl OwnedRoot<'_> {
     }
 
     /// Refuses a root that is a symlink before an owner walks its children.
-    pub(crate) fn ensure_not_symlink(&self, path: &Path) -> Result<()> {
+    pub(crate) fn ensure_root_not_symlink(&self) -> Result<()> {
+        self.ensure_not_symlink(self.path)
+    }
+
+    fn ensure_not_symlink(&self, path: &Path) -> Result<()> {
         if std::fs::symlink_metadata(path)?.file_type().is_symlink() {
             return Err(AppError::ResourceCleanup(format!(
                 "Refusing to follow {} symlink during cleanup",
