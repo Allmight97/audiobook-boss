@@ -38,7 +38,7 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     let cancelled = Arc::new(AtomicBool::new(false));
     let checker = CancellationChecker::new(Some(Arc::clone(&cancelled)));
     let mut context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::from_job_registry(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         None,
         SampleRateConfig::Auto,
         OutputConfig::new(&destination),

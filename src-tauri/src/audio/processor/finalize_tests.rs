@@ -50,7 +50,7 @@ async fn complete_staged_output_commits_from_local_workspace_without_destination
     fs::write(&staged_output, b"audio").expect("write staged output");
 
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::from_job_registry(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),
@@ -88,7 +88,7 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
     fs::write(&final_output, b"existing").expect("write existing output");
 
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::from_job_registry(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),
@@ -137,7 +137,7 @@ async fn complete_staged_output_cleans_without_committing_when_cancelled_before_
     fs::write(&staged_output, b"audio").expect("write staged output");
 
     let context = ProcessingContext::new_headless_with_workspace_root(
-        Arc::new(ProcessingSession::from_job_registry(job_id.0, checker)),
+        Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
         encoder_settings(),
         SampleRateConfig::Auto,
         OutputConfig::new(&final_output),

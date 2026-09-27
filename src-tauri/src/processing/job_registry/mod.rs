@@ -27,7 +27,7 @@ pub const MAX_CONCURRENT_JOBS: usize = 8;
 /// Registry for managing concurrent processing jobs
 ///
 /// Uses a semaphore to limit the number of concurrent jobs. Cancellation is
-/// operation-scoped; see `CancellationChecker`.
+/// title-scoped; see `CancellationChecker`.
 pub struct JobRegistry {
     /// Admission state; one lock so reconfiguration and admission agree.
     admission: Mutex<Admission>,

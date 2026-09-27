@@ -51,7 +51,7 @@ path.
 Preview and accepted work are deliberately different lanes. Direct preview
 uses `process_audiobook_files` and foreground progress events; it has no backend
 cancel command. Final processing and metadata batch save use WorkRuntime,
-operation-scoped cancellation, and backend-authored operation snapshots. The
+operation and title cancellation, and backend-authored operation snapshots. The
 nearest Processing and WorkRuntime guidance owns the exact event rules.
 
 ## Owner Topology
@@ -88,7 +88,7 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | Session truth | One App Runtime owner | Read through its view/accessor and change through semantic intent. Never mirror it in another writable store. |
 | Workflow transient state | Private workflow owner | Use plain async or Effect per the owned coordination need; publish outcomes through the owner. |
 | Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
-| Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation-scoped cancellation. |
+| Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation and title cancellation. |
 | Durable preference | Rust App Settings store | Runtime owner accepts behavior before persistence records it. |
 | Artifact truth | Metadata, Audio, Output, and final disk readback | Success follows commit/finalization and any load-bearing verification. |
 | Provider secret/session | Backend Remote Source + OS credential store | Never cross into frontend state, logs, processing payloads, or metadata. |

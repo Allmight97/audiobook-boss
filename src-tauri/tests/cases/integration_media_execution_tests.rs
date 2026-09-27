@@ -671,7 +671,7 @@ async fn cancellation_yields_terminal_error_without_artifact_or_staging_residue(
     let checker = CancellationChecker::new(Some(std::sync::Arc::new(
         std::sync::atomic::AtomicBool::new(true),
     )));
-    let session = ProcessingSession::from_job_registry(uuid::Uuid::new_v4(), checker);
+    let session = ProcessingSession::with_cancellation(uuid::Uuid::new_v4(), checker);
 
     let err = execute_audio_engine(lane.execution_request(session, None))
         .await
@@ -1548,7 +1548,7 @@ async fn cancelled_preserve_does_not_publish_or_leave_staging_residue() {
     let checker = CancellationChecker::new(Some(std::sync::Arc::new(
         std::sync::atomic::AtomicBool::new(true),
     )));
-    let session = ProcessingSession::from_job_registry(job_id.0, checker);
+    let session = ProcessingSession::with_cancellation(job_id.0, checker);
     let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(session),

@@ -300,7 +300,7 @@ struct ProcessingContextRequest {
 
 fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingContext, Option<f64>) {
     let session =
-        ProcessingSession::from_job_registry(request.job_id.0, request.cancellation_checker);
+        ProcessingSession::with_cancellation(request.job_id.0, request.cancellation_checker);
     let mut context = ProcessingContext::new_with_workspace_root(
         request.window,
         std::sync::Arc::new(session),

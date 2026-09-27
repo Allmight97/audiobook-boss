@@ -153,7 +153,7 @@ fn require_preview_seconds(preview_seconds: Option<f64>) -> Result<f64, AppError
 /// Processes a direct preview with configurable encoder settings.
 ///
 /// Final processing must enter through WorkRuntime so it has durable
-/// operation identity, snapshots, and operation-scoped cancellation.
+/// operation identity, snapshots, and operation and title cancellation.
 #[tauri::command]
 #[specta::specta]
 pub async fn process_audiobook_files(

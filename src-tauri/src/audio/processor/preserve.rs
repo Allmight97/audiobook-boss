@@ -288,7 +288,7 @@ mod tests {
         let cancelled = Arc::new(AtomicBool::new(false));
         let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
         let mut context = ProcessingContext::new_headless(
-            Arc::new(ProcessingSession::from_job_registry(job_id.0, checker)),
+            Arc::new(ProcessingSession::with_cancellation(job_id.0, checker)),
             None,
             crate::audio::SampleRateConfig::Auto,
             OutputConfig::new(tmp.path().join("final.mp3")),

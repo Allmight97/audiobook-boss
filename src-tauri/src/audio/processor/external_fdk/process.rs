@@ -499,7 +499,7 @@ mod tests {
         use tokio::io::AsyncWriteExt;
 
         let cancel = Arc::new(AtomicBool::new(false));
-        let session = ProcessingSession::from_job_registry(
+        let session = ProcessingSession::with_cancellation(
             uuid::Uuid::new_v4(),
             CancellationChecker::new(Some(Arc::clone(&cancel))),
         );

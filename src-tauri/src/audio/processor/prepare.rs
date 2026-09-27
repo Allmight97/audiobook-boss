@@ -144,7 +144,7 @@ mod tests {
         let root = tempfile::TempDir::new().expect("create isolated test directory");
         let workspace = root.path().join("sessions");
         let context = ProcessingContext::new_headless_with_workspace_root(
-            std::sync::Arc::new(ProcessingSession::from_job_registry(job.0, checker)),
+            std::sync::Arc::new(ProcessingSession::with_cancellation(job.0, checker)),
             EncoderSettings {
                 encoder_type: EncoderType::NativeAac,
                 bitrate_kbps: 64,

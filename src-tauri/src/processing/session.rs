@@ -4,26 +4,7 @@
 //! and convenience methods for state management.
 
 use crate::processing::job_registry::CancellationChecker;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use uuid::Uuid;
-
-/// Cancellation source for the session
-enum CancellationSource {
-    /// Manual cancellation flag (primarily for tests)
-    Manual(Arc<AtomicBool>),
-    /// Modern: uses job registry cancellation checker
-    JobRegistry(CancellationChecker),
-}
-
-impl std::fmt::Debug for CancellationSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Manual(_) => write!(f, "CancellationSource::Manual"),
-            Self::JobRegistry(_) => write!(f, "CancellationSource::JobRegistry"),
-        }
-    }
-}
 
 /// A unique processing session that wraps cancellation state
 ///
@@ -33,26 +14,18 @@ impl std::fmt::Debug for CancellationSource {
 pub struct ProcessingSession {
     /// Unique identifier for this session
     id: Uuid,
-    /// Cancellation source (manual flag or job registry)
-    cancellation: CancellationSource,
+    cancellation: CancellationChecker,
 }
 
 impl ProcessingSession {
-    /// Creates a new processing session with a unique ID and fresh state
+    /// Creates a session with a unique ID that nothing can cancel.
     pub fn new() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            cancellation: CancellationSource::Manual(Arc::new(AtomicBool::new(false))),
-        }
+        Self::with_cancellation(Uuid::new_v4(), CancellationChecker::new(None))
     }
 
-    /// Creates a new processing session using the job registry cancellation checker.
-    /// This is the modern mode for parallel batch processing.
-    pub fn from_job_registry(id: Uuid, checker: CancellationChecker) -> Self {
-        Self {
-            id,
-            cancellation: CancellationSource::JobRegistry(checker),
-        }
+    /// Creates a session observing a title's cancel flag.
+    pub fn with_cancellation(id: Uuid, cancellation: CancellationChecker) -> Self {
+        Self { id, cancellation }
     }
 
     /// Gets the session ID as a string
@@ -67,10 +40,7 @@ impl ProcessingSession {
 
     /// Checks if the session has been cancelled
     pub fn is_cancelled(&self) -> bool {
-        match &self.cancellation {
-            CancellationSource::Manual(flag) => flag.load(Ordering::Acquire),
-            CancellationSource::JobRegistry(checker) => checker.is_cancelled(),
-        }
+        self.cancellation.is_cancelled()
     }
 }
 
