@@ -76,7 +76,11 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     );
     assert!(!destination.exists());
     assert!(
-        !workspace.exists() || std::fs::read_dir(&workspace).unwrap().next().is_none(),
+        !workspace.exists()
+            || std::fs::read_dir(&workspace)
+                .expect("read workspace")
+                .next()
+                .is_none(),
         "staged copies and the partial join are removed"
     );
     for (source, original) in sources.iter().zip(original_bytes) {
