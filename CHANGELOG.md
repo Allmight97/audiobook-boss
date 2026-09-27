@@ -32,6 +32,16 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   yet handed to Input are not purged (#510).
 - A title Audible returns without usable audio shows one message instead of
   two (#510).
+- When an audiobook exports but its companion PDF can't be saved, the title
+  shows Done with a warning instead of Failed, and its Audible download is
+  kept so reprocessing can save the PDF (#513).
+- Titles skipped because their output already exists keep their Audible
+  downloads until you remove them, log out, or relaunch; only fully exported
+  titles release their downloads (#513).
+- Cancelling an external FDK export now stops it promptly even while the
+  encoder is reporting progress quickly (#513).
+- Changing concurrency while an export is waiting to start is refused, so the
+  waiting export can't run under the old limit (#513).
 
 ### Changed
 
@@ -45,6 +55,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   of restarting at each title (#510).
 - Retired the unused global merge route; grouped titles remain the way to
   combine sources into one audiobook (#510).
+- The dev-log summary no longer counts small, inaudible clipping (up to
+  +1 dBFS) as an actionable warning; larger clipping and invalid samples still
+  warn (#513).
 
 ## [1.12.1] - 2026-09-25
 
