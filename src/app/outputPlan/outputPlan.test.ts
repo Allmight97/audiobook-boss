@@ -466,6 +466,54 @@ describe('output plan public view', () => {
 		validatePatch.mockRestore();
 	});
 
+	it('forwards only the newest metadata preview validation', async () => {
+		vi.spyOn(tauriClient, 'previewOutputPath').mockResolvedValue('/books/out/preview.m4b');
+		const pending: Array<(isValid: boolean) => void> = [];
+		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockImplementation(
+			(patch) =>
+				new Promise((resolve) =>
+					pending.push((isValid) =>
+						resolve({
+							isValid,
+							metadataPatch: patch,
+							fieldErrors: isValid
+								? []
+								: [
+										{
+											field: 'series_part',
+											code: 'series_part_contains_slash',
+											message: 'Bad part',
+										},
+									],
+						}),
+					),
+				),
+		);
+		const forwarded: boolean[] = [];
+		runtime = createAppRuntime();
+		const [metadataView, setMetadataView] = createSignal<MetadataView>({
+			...emptyMetadataView(),
+			form: replaceField(createEmptyFormState(), 'meta-series-part', { value: '7/8' }),
+		});
+		mounted = mountOutput(runtime, {
+			metadataView,
+			onMetadataValidation: (validation) => forwarded.push(validation.ok),
+		});
+		await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0));
+		const staleCount = pending.length;
+		setMetadataView((current) => ({
+			...current,
+			form: replaceField(current.form, 'meta-series-part', { value: '2' }),
+		}));
+		await vi.waitFor(() => expect(pending.length).toBeGreaterThan(staleCount));
+		pending[pending.length - 1]!(true);
+		for (const resolveStale of pending.slice(0, -1)) resolveStale(false);
+		await vi.waitFor(() => expect(forwarded).toContain(true));
+		await Promise.resolve();
+		expect(forwarded).toEqual([true]);
+		validatePatch.mockRestore();
+	});
+
 	it('still previews the path when metadata validation fails', async () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')

@@ -82,8 +82,13 @@ export function createMetadataCache() {
 	}
 
 	return {
+		/** Caches source tags with this session's pending intent still applied. */
 		cacheMetadataForFile(filePath: string, metadata: Partial<AudiobookMetadata>): void {
-			metadataByFile.set(filePath, metadata);
+			const pending = metadataIntentByFile.get(filePath);
+			metadataByFile.set(
+				filePath,
+				pending ? applyMetadataIntentPatch(metadata, pending) : metadata,
+			);
 		},
 		getMetadataForFile(filePath: string): Partial<AudiobookMetadata> | undefined {
 			return metadataByFile.get(filePath);

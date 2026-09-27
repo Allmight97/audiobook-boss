@@ -4,6 +4,32 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Metadata edits write only the fields you changed. Blank then Keep no longer
+  clears a field on every selected title; an invalid file in the selection no
+  longer clears untouched fields; an inherited series number like `7/8` no
+  longer blocks unrelated edits; and unchanged cover art is no longer
+  rewritten by text edits or Lookup applies (#509).
+- Edits changed while validation is running are no longer lost or overwritten
+  by the older result, including before processing and in the output-path
+  preview.
+- A replaced cover stays in place after saving a text edit on a file with no
+  text tags.
+- Failed metadata saves show each file's reason in Work Center, and save
+  errors show a readable message instead of "see console".
+- A failed save no longer leaves a hidden `.abb_meta_*` file beside the
+  audiobook.
+- Cover URLs can no longer reach private network addresses through IPv6
+  literals, redirects, or environment proxies; local cover images over 32 MB
+  are rejected, and a 401/403 response suggests loading the image from a file.
+
+### Changed
+
+- Metadata Lookup's queue apply validates each title when it moves to the next
+  one, and the last title's applied values stay as form edits until saved or
+  processed.
+
 ## [1.12.1] - 2026-09-25
 
 ### Changed

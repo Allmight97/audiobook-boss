@@ -261,10 +261,18 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 	createEffect(
 		() => previewContext().metadataDraft,
 		(draft) => {
-			void applyMetadataIntentWarnings(draft, deps.onMetadataValidation).catch((error) => {
+			// A newer draft or disposal retires this validation before it can publish.
+			let current = true;
+			void applyMetadataIntentWarnings(draft, (validation) => {
+				if (current) deps.onMetadataValidation?.(validation);
+			}).catch((error) => {
+				if (!current) return;
 				console.error('Metadata preview validation failed:', error);
 				showOutputError('Failed to validate metadata preview.');
 			});
+			return () => {
+				current = false;
+			};
 		},
 	);
 

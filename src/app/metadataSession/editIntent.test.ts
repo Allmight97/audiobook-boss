@@ -325,4 +325,15 @@ describe('metadata edit intent', () => {
 			[beta.path]: genre,
 		});
 	});
+
+	it('a saved cover replacement stays shown after a text edit on an untagged file', async () => {
+		const bare: Book = { path: '/books/bare.m4b', tags: { cover_art: [7, 7, 7] } };
+		const metadata = capability([bare], { loadCoverArtFile: vi.fn(async () => [9, 9, 9]) });
+		const app = await open([bare], [0], metadata);
+		await app.metadata.applyCoverArtDrop(['/art/new.jpg']);
+		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Bare' });
+		await app.metadata.save();
+		expect(savedPatches(metadata)[bare.path]?.cover_art).toEqual({ op: 'set', value: [9, 9, 9] });
+		expect(app.metadata.readCached(bare.path)?.cover_art).toEqual([9, 9, 9]);
+	});
 });

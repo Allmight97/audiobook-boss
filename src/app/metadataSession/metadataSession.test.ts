@@ -365,7 +365,7 @@ describe('metadata session selection and save', () => {
 			await vi.waitFor(() => expect(finish).toHaveLength(2));
 			finish[0](valid);
 			expect(await obsolete).toBe(false);
-			expect(runtime.metadata.view().form).toEqual(draft.form);
+			expect(runtime.metadata.view().form.fields).toEqual(draft.form.fields);
 			expect(runtime.metadata.view().statusMessage).toBe(draft.statusMessage);
 			expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha');
 			finish[1](true);
