@@ -15,15 +15,15 @@ function createDeferred<T>() {
 	return { promise, resolve, reject };
 }
 
-function completedMergeOperation(operationId: string): OperationSnapshot {
+function completedExportOperation(operationId: string): OperationSnapshot {
 	return {
 		operationId,
 		sequence: 1,
 		revision: 1,
 		createdRevision: 1,
-		kind: 'processingMerge',
+		kind: 'processingBatch',
 		status: 'completed',
-		title: 'Merge encode',
+		title: 'Tidy First',
 		createdAtMs: 1,
 		startedAtMs: 2,
 		finishedAtMs: 3,
@@ -140,7 +140,7 @@ describe('Work Center state', () => {
 		const listCall = vi.spyOn(tauriClient, 'listWorkOperations').mockReturnValue(list.promise);
 		const initialize = session.initialize();
 		await vi.waitFor(() => expect(listCall).toHaveBeenCalled());
-		const completed = completedMergeOperation('op-finished');
+		const completed = completedExportOperation('op-finished');
 		session.applyOperationSnapshot(completed);
 		list.resolve({ membershipRevision: 0, operations: [] });
 		await initialize;
@@ -169,7 +169,7 @@ describe('Work Center state', () => {
 		async (disposed) => {
 			const response = createDeferred<OperationSnapshot>();
 			vi.spyOn(tauriClient, 'cancelWorkOperation').mockReturnValue(response.promise);
-			const completed = { ...completedMergeOperation('op-cancel'), revision: 3 };
+			const completed = { ...completedExportOperation('op-cancel'), revision: 3 };
 			const cancel = session.cancel(completed.operationId);
 			session.applyOperationSnapshot(completed);
 			if (disposed) session.dispose();
@@ -180,7 +180,7 @@ describe('Work Center state', () => {
 	);
 
 	it('purges completed merge operation source ids even when the merge child has no input id', async () => {
-		session.applyOperationSnapshot(completedMergeOperation('op-merge-purge'));
+		session.applyOperationSnapshot(completedExportOperation('op-merge-purge'));
 		await Promise.resolve();
 
 		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
@@ -190,7 +190,7 @@ describe('Work Center state', () => {
 	});
 
 	it('settles every source of a completed title without purging a failed sibling', async () => {
-		const snapshot = completedMergeOperation('op-mixed-titles');
+		const snapshot = completedExportOperation('op-mixed-titles');
 		const child = snapshot.children[0];
 		session.applyOperationSnapshot({
 			...snapshot,
@@ -222,7 +222,7 @@ describe('Work Center state', () => {
 				resolvePurge = resolve;
 			}),
 		);
-		const snapshot = completedMergeOperation('op-merge-race');
+		const snapshot = completedExportOperation('op-merge-race');
 
 		session.applyOperationSnapshot(snapshot);
 		session.applyOperationSnapshot(snapshot);
@@ -269,7 +269,7 @@ describe('Work Center state', () => {
 		const other = createWorkOperationsSession(() => undefined, {
 			remoteSource: { settleTerminalWork: vi.fn(async () => undefined) },
 		});
-		session.applyOperationSnapshot(completedMergeOperation('op-isolation'));
+		session.applyOperationSnapshot(completedExportOperation('op-isolation'));
 		expect(session.view().operations).toHaveLength(1);
 		expect(other.view().operations).toEqual([]);
 		other.dispose();

@@ -31,7 +31,7 @@ export function AudioHandlingControl(props: {
 		return tauriClient.previewTitleAudio(
 			files.map((file) => file.path),
 			request(),
-			chapterPlansForProcessing(files, files.length > 1 ? 'merge' : 'batch'),
+			chapterPlansForProcessing(files),
 		);
 	}
 	const needsChoice = () => runtime.input.audioChoiceRequired(props.file);

@@ -1,6 +1,5 @@
 import { Effect, type AppEffect } from '../../lib/effect/appEffect';
 import type {
-	JobType,
 	ProcessPayload,
 	ProcessingRequestConfig,
 	SupplementalProcessingAsset,
@@ -25,7 +24,6 @@ export function buildProcessPayload(
 	filePaths: string[],
 	inputIds: (string | undefined)[],
 	processingRequestConfig: ProcessingRequestConfig,
-	jobType: JobType,
 	supplementalAssetsByInputId?: Record<string, SupplementalProcessingAsset[]>,
 ): ProcessPayload {
 	return {
@@ -33,7 +31,6 @@ export function buildProcessPayload(
 		audioRequests: processingRequestConfig.audioRequests,
 		inputIds: toWireInputIds(inputIds),
 		outputDir: processingRequestConfig.outputDirectory,
-		jobType,
 		outputNaming: processingRequestConfig.outputNaming,
 		supplementalAssetsByInputId,
 	};

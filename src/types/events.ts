@@ -46,7 +46,6 @@ export const STAGES: { readonly [K in EventStage]: K } = {
 } as const;
 
 export const OPERATION_KINDS: { readonly [K in OperationKind]: K } = {
-	processingMerge: 'processingMerge',
 	processingBatch: 'processingBatch',
 	remoteAcquisition: 'remoteAcquisition',
 	metadataSave: 'metadataSave',

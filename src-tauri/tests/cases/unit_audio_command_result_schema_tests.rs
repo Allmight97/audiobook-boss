@@ -1,6 +1,4 @@
-use audiobook_boss_lib::commands::{
-    JobType, ProcessCommandResult, ProcessResultEntry, ProcessResultStatus,
-};
+use audiobook_boss_lib::commands::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
 use audiobook_boss_lib::processing::RunTerminalClass;
 use audiobook_boss_lib::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 
@@ -8,7 +6,7 @@ use audiobook_boss_lib::{AppErrorCategory, AppErrorCode, AppErrorEnvelope};
 fn process_command_result_batch_summary_counts_success_cancelled_and_failures() {
     let results = vec![
         ProcessResultEntry {
-            input_index: Some(0),
+            input_index: 0,
             status: ProcessResultStatus::Success,
             message: "ok".to_string(),
             error: None,
@@ -17,7 +15,7 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
             job_id: Some("job-1".to_string()),
         },
         ProcessResultEntry {
-            input_index: Some(1),
+            input_index: 1,
             status: ProcessResultStatus::Cancelled,
             message: "Processing was cancelled".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -31,7 +29,7 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
             job_id: Some("job-2".to_string()),
         },
         ProcessResultEntry {
-            input_index: Some(2),
+            input_index: 2,
             status: ProcessResultStatus::Failed,
             message: "failed".to_string(),
             error: Some(AppErrorEnvelope::new(
@@ -46,9 +44,8 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
         },
     ];
 
-    let response = ProcessCommandResult::new(JobType::Batch, results.clone());
+    let response = ProcessCommandResult::new(results.clone());
 
-    assert_eq!(response.job_type, JobType::Batch);
     assert_eq!(response.summary.total, 3);
     assert_eq!(response.summary.succeeded, 1);
     assert_eq!(response.summary.cancelled, 1);
@@ -59,32 +56,9 @@ fn process_command_result_batch_summary_counts_success_cancelled_and_failures() 
 }
 
 #[test]
-fn process_command_result_merge_has_single_success_entry() {
-    let entry = ProcessResultEntry {
-        input_index: None,
-        status: ProcessResultStatus::Success,
-        message: "merged".to_string(),
-        error: None,
-        preview_file_path: Some("/tmp/out.preview.m4b".to_string()),
-        preview_actual_seconds: Some(30.0),
-        job_id: Some("job-merge".to_string()),
-    };
-
-    let response = ProcessCommandResult::new(JobType::Merge, vec![entry.clone()]);
-
-    assert_eq!(response.job_type, JobType::Merge);
-    assert_eq!(response.summary.total, 1);
-    assert_eq!(response.summary.succeeded, 1);
-    assert_eq!(response.summary.cancelled, 0);
-    assert_eq!(response.summary.failed, 0);
-    assert_eq!(response.terminal_class, RunTerminalClass::Success);
-    assert_eq!(response.results, vec![entry]);
-}
-
-#[test]
 fn process_result_entry_serializes_structured_error_envelope() {
     let entry = ProcessResultEntry {
-        input_index: Some(3),
+        input_index: 3,
         status: ProcessResultStatus::Failed,
         message: "Processing was cancelled".to_string(),
         error: Some(AppErrorEnvelope::new(

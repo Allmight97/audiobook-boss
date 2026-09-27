@@ -370,7 +370,6 @@ describe('Solid input workbench', () => {
 				analyzedFile('/books/invalid.m4b', { isValid: false }),
 			];
 			const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
-				jobType: 'batch',
 				collisionPolicy: 'fail',
 				audioPlans: [],
 				planSignature: 'valid-titles',
@@ -429,7 +428,6 @@ describe('Solid input workbench', () => {
 			reason: null,
 		});
 		const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
-			jobType: 'batch',
 			collisionPolicy: 'fail',
 			planSignature: 'stack-review',
 			audioPlans: [],

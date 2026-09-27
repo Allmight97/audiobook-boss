@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import { createMetadataCache } from './cache';
 import {
 	effectiveCoverForFile,
@@ -13,16 +13,6 @@ function makeFile(path: string, isValid = true): AudioFile {
 		isValid,
 		inputId: path,
 	} as AudioFile;
-}
-
-function makeFileList(files: AudioFile[]): FileListInfo {
-	return {
-		files,
-		validCount: files.filter((file) => file.isValid).length,
-		invalidCount: files.filter((file) => !file.isValid).length,
-		totalDuration: 0,
-		totalSize: 0,
-	} as FileListInfo;
 }
 
 describe('coverOwner', () => {
@@ -58,22 +48,18 @@ describe('coverOwner', () => {
 
 	it('returns null display path when batch multi-select covers differ', () => {
 		const cache = createMetadataCache();
-		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
+		const titles = [makeFile('/books/a.m4b'), makeFile('/books/b.m4b')];
 		cache.stageMetadataIntentPatch('/books/a.m4b', { cover_art: { op: 'set', value: [1] } });
 		cache.stageMetadataIntentPatch('/books/b.m4b', { cover_art: { op: 'set', value: [2] } });
 
 		expect(
-			resolveCoverDisplayPath(
-				fileList,
-				[makeFile('/books/a.m4b'), makeFile('/books/b.m4b')],
-				cache,
-			),
+			resolveCoverDisplayPath(titles, [makeFile('/books/a.m4b'), makeFile('/books/b.m4b')], cache),
 		).toBeNull();
 	});
 
 	it('returns first selected path when batch multi-select covers match', () => {
 		const cache = createMetadataCache();
-		const fileList = makeFileList([makeFile('/books/a.m4b'), makeFile('/books/b.m4b')]);
+		const titles = [makeFile('/books/a.m4b'), makeFile('/books/b.m4b')];
 		cache.stageMetadataIntentPatch('/books/a.m4b', {
 			cover_art: { op: 'set', value: [1, 2, 3] },
 		});
@@ -82,21 +68,14 @@ describe('coverOwner', () => {
 		});
 
 		expect(
-			resolveCoverDisplayPath(
-				fileList,
-				[makeFile('/books/a.m4b'), makeFile('/books/b.m4b')],
-				cache,
-			),
+			resolveCoverDisplayPath(titles, [makeFile('/books/a.m4b'), makeFile('/books/b.m4b')], cache),
 		).toBe('/books/a.m4b');
 	});
 
 	it('shows the first valid file cover when nothing is selected', () => {
-		const fileList = makeFileList([
-			makeFile('/books/invalid.m4b', false),
-			makeFile('/books/first-valid.m4b'),
-		]);
+		const titles = [makeFile('/books/invalid.m4b', false), makeFile('/books/first-valid.m4b')];
 
-		expect(resolveCoverDisplayPath(fileList, [], createMetadataCache())).toBe(
+		expect(resolveCoverDisplayPath(titles, [], createMetadataCache())).toBe(
 			'/books/first-valid.m4b',
 		);
 	});

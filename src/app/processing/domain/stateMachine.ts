@@ -22,10 +22,8 @@ import {
 } from './stateMachineHelpers';
 import {
 	BATCH_COMPLETION_HOLD_MS,
-	MERGE_SKIP_HOLD_MS,
 	PROGRESS_THROTTLE_MS,
 	SINGLE_COMPLETION_HOLD_MS,
-	type StatusPanelWorkKind,
 	type SingleCompletionHoldIntent,
 	type StatusPanelCompletionFeedback,
 	type StatusPanelIntent,
@@ -36,7 +34,6 @@ import {
 
 export {
 	BATCH_COMPLETION_HOLD_MS,
-	MERGE_SKIP_HOLD_MS,
 	SINGLE_COMPLETION_HOLD_MS,
 	buildBatchCompletionFeedback,
 	isTerminalProgressStage,
@@ -67,16 +64,6 @@ export function withBatchCompletionMessage(
 	return {
 		...model,
 		batchCompletionMessageOverride: message,
-	};
-}
-
-export function withCurrentWorkKind(
-	model: StatusPanelModel,
-	workKind: StatusPanelWorkKind | null,
-): StatusPanelModel {
-	return {
-		...model,
-		currentWorkKind: workKind,
 	};
 }
 
@@ -187,61 +174,26 @@ export function reconcileProcessResult(
 	model: StatusPanelModel,
 	result: ProcessCommandResult,
 	now: number,
-	options?: { mergeOutputLabel?: string },
 ): StatusPanelReducerResult {
-	if (result.jobType === 'merge') {
-		const skippedMergeEntry = result.results.find((entry) => entry.status === 'skipped');
-		if (skippedMergeEntry) {
-			const next = cloneModel(model);
-			const mergeKey = buildJobKey(undefined, skippedMergeEntry.jobId ?? undefined);
-			const label = options?.mergeOutputLabel ?? 'Merge output';
-			next.jobProgress.set(mergeKey, {
-				inputIndex: skippedMergeEntry.inputIndex ?? undefined,
-				jobId: skippedMergeEntry.jobId ?? undefined,
-				label,
-				status: 'skipped',
-				stage: STAGES.skipped,
-				percentage: 100,
-				message: skippedMergeEntry.message,
-				lastUpdate: now,
-			});
-			const updated = recomputeStatus(next);
-			return {
-				model: updated,
-				intents: [
-					{
-						kind: 'merge-skip-hold',
-						jobKey: mergeKey,
-						message: skippedMergeEntry.message,
-						holdMs: MERGE_SKIP_HOLD_MS,
-					},
-				],
-			};
-		}
+	// The foreground/preview lane is uncancellable at the backend, so its result
+	// still arrives after a user cancel. The user's cancellation settles both the
+	// verdict and the rows; a late backend result must not overwrite either.
+	if (model.cancellationLatched) {
+		return { model, intents: [] };
 	}
-
 	const next = cloneModel(model);
 	// The backend owns the terminal verdict (`classify_run_terminal` →
 	// `RunTerminalClass`); carry it so the completion toast renders backend truth
 	// instead of re-deriving precedence from per-job statuses. Set even when an
 	// all-success run repairs no rows below — it still needs its verdict.
-	// EXCEPT after a user-initiated local cancellation: the foreground/preview lane
-	// is uncancellable at the backend, so its result still arrives and reconciles;
-	// the user's cancellation verdict must win for the ephemeral preview lane rather
-	// than be overwritten by a late backend success/mixed verdict.
-	if (!next.cancellationLatched) {
-		next.terminalFeedback = feedbackFromResult(result);
-	}
+	next.terminalFeedback = feedbackFromResult(result);
 	let didUpdate = false;
 	for (const entry of result.results) {
 		if (entry.status === 'success') {
 			continue;
 		}
 
-		const key = resolveResultJobKey(next.jobProgress, entry);
-		if (!key) {
-			continue;
-		}
+		const key = resolveResultJobKey(entry);
 
 		const existing = next.jobProgress.get(key);
 		next.jobProgress.set(key, {
@@ -351,30 +303,6 @@ export function completeSingleCompletionHold(
 		return {
 			model: createStatusPanelModel(),
 			feedback: model.terminalFeedback ?? buildSingleCompletionFeedback(event),
-		};
-	}
-
-	return {
-		model: recomputeStatus(next),
-		feedback: null,
-	};
-}
-
-export function completeMergeSkipHold(
-	model: StatusPanelModel,
-	jobKey: string,
-	message: string,
-): {
-	model: StatusPanelModel;
-	feedback: StatusPanelCompletionFeedback | null;
-} {
-	const next = cloneModel(model);
-	next.jobProgress.delete(jobKey);
-
-	if (next.jobProgress.size === 0) {
-		return {
-			model: createStatusPanelModel(),
-			feedback: { kind: 'info', message },
 		};
 	}
 

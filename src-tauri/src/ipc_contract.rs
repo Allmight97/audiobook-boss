@@ -11,7 +11,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::reset_app_settings,
             crate::commands::get_app_settings_recovery,
             crate::commands::recover_app_settings,
-            crate::commands::validate_files,
             crate::commands::read_audio_metadata,
             crate::commands::load_cover_art_file,
             crate::commands::load_cover_art_from_url,

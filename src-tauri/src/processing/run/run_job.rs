@@ -33,7 +33,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) audio_reason: Option<String>,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
     pub(crate) sample_rate: audio::SampleRateConfig,
-    pub(crate) input_index: Option<usize>,
+    pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
     pub(crate) operation_id: Option<String>,
     pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
@@ -79,7 +79,7 @@ pub(crate) async fn run_processing_job(
         job_id,
         encoder_settings: request.encoder_settings.clone(),
         sample_rate: request.sample_rate,
-        input_index: request.input_index,
+        input_index: Some(request.input_index),
         operation_kind: request.operation_kind,
         operation_id,
         progress_listener: request.progress_listener,
@@ -186,11 +186,8 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
 
 pub(crate) fn supplemental_assets_for_input(
     payload: &ProcessPayload,
-    input_index: Option<usize>,
+    index: usize,
 ) -> Vec<SupplementalProcessingAsset> {
-    let Some(index) = input_index else {
-        return Vec::new();
-    };
     payload
         .sources_for(index)
         .into_iter()
@@ -221,7 +218,7 @@ pub(crate) fn commit_supplemental_assets(
 /// Job identity known before registration, used for lifecycle records.
 pub(crate) struct ProcessingJobLogContext {
     pub(crate) operation_id: Option<String>,
-    pub(crate) input_index: Option<usize>,
+    pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
 }
 
@@ -313,7 +310,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
 pub(crate) struct ProcessingJobLogIdentity {
     operation_id: Option<String>,
     job_id: String,
-    input_index: Option<usize>,
+    input_index: usize,
     operation_kind: OperationKind,
 }
 
@@ -331,7 +328,7 @@ mod registration_tests {
     fn log_context() -> ProcessingJobLogContext {
         ProcessingJobLogContext {
             operation_id: None,
-            input_index: Some(0),
+            input_index: 0,
             operation_kind: OperationKind::ProcessingBatch,
         }
     }
@@ -417,15 +414,12 @@ fn format_processing_job_record(
     elapsed_ms: Option<u128>,
 ) -> String {
     let operation_id = identity.operation_id.as_deref().unwrap_or("foreground");
-    let input_index = identity
-        .input_index
-        .map_or_else(|| "none".to_string(), |index| index.to_string());
     let mut record = format!(
         "processing_job event={} operation_id={} job_id={} input_index={} kind={} status={}",
         processing_job_event_label(event),
         operation_id,
         identity.job_id,
-        input_index,
+        identity.input_index,
         crate::processing::operation_kind_log_label(identity.operation_kind),
         processing_job_status_label(status),
     );
@@ -466,7 +460,7 @@ mod tests {
     fn log_identity(
         operation_id: Option<&str>,
         job_id: &str,
-        input_index: Option<usize>,
+        input_index: usize,
         operation_kind: OperationKind,
     ) -> ProcessingJobLogIdentity {
         ProcessingJobLogIdentity {
@@ -481,12 +475,12 @@ mod tests {
     fn processing_job_record_format_pins_started_and_terminal_contracts() {
         assert_eq!(
             format_processing_job_record(
-                &log_identity(None, "job-123", None, OperationKind::ProcessingMerge),
+                &log_identity(None, "job-123", 0, OperationKind::ProcessingBatch),
                 ProcessingJobLogEvent::Started,
                 ProcessingJobLogStatus::Running,
                 None,
             ),
-            "processing_job event=started operation_id=foreground job_id=job-123 input_index=none kind=processing_merge status=running"
+            "processing_job event=started operation_id=foreground job_id=job-123 input_index=0 kind=processing_batch status=running"
         );
 
         assert_eq!(
@@ -494,7 +488,7 @@ mod tests {
                 &log_identity(
                     Some("operation-123"),
                     "job-456",
-                    Some(4),
+                    4,
                     OperationKind::ProcessingBatch,
                 ),
                 ProcessingJobLogEvent::Terminal,
@@ -509,7 +503,7 @@ mod tests {
                 &log_identity(
                     Some("operation-123"),
                     "job-789",
-                    Some(5),
+                    5,
                     OperationKind::ProcessingBatch,
                 ),
                 ProcessingJobLogEvent::Terminal,
@@ -533,7 +527,7 @@ mod tests {
             &log_identity(
                 Some("operation-123"),
                 "job-456",
-                Some(2),
+                2,
                 OperationKind::ProcessingBatch,
             ),
             ProcessingJobLogEvent::Terminal,

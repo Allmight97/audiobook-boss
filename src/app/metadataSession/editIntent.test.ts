@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import type { FileListInfo } from '../../types/audio';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type {
 	MetadataIntentPatch,
@@ -23,17 +22,9 @@ function sessionOf(books: ReadonlyArray<Book>, selected: number[]) {
 		size: 1024,
 		format: 'm4b',
 	}));
-	const fileList: FileListInfo = {
-		files,
-		selectedDecoders: files.map(() => null),
-		totalDuration: files.length * 60,
-		totalSize: files.length * 1024,
-		validCount: files.filter((file) => file.isValid).length,
-		invalidCount: files.filter((file) => !file.isValid).length,
-	};
 	return {
 		...emptyInputSession(),
-		fileList,
+		files,
 		selectedIndices: selected,
 		selectedAnchor: selected[0],
 	};

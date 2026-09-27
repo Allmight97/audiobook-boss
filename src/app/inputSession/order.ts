@@ -1,23 +1,11 @@
 import type { AudioFile } from '../../types/audio';
 import { pathBasename } from '../../lib/path/basename';
-import { buildFileListInfoFromFiles, buildSelectedDecoderByPath } from './appendResult';
 import {
 	reindexSelectionAfterMove,
 	reindexSelectionAfterRemoval,
 	swapSelectionIndices,
 } from './selection';
 import { emptyInputSession, fileIdentityKey, type InputSessionState } from './types';
-
-export function replaceFileListFiles(
-	session: InputSessionState,
-	files: ReadonlyArray<AudioFile>,
-): InputSessionState {
-	const decoderByPath = session.fileList ? buildSelectedDecoderByPath(session.fileList) : new Map();
-	return {
-		...session,
-		fileList: buildFileListInfoFromFiles([...files], decoderByPath),
-	};
-}
 
 export function removeFileFromSession(
 	session: InputSessionState,
@@ -26,7 +14,7 @@ export function removeFileFromSession(
 	if (session.orderLocked) {
 		return { session, removed: null };
 	}
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	if (index < 0 || index >= files.length) {
 		return { session, removed: null };
 	}
@@ -43,7 +31,7 @@ export function removeFileFromSession(
 	const audioRequestsByIdentity = { ...session.audioRequestsByIdentity };
 	for (const source of sources) delete audioRequestsByIdentity[fileIdentityKey(source)];
 
-	const next = reindexSelectionAfterRemoval(replaceFileListFiles(session, nextFiles), index);
+	const next = reindexSelectionAfterRemoval({ ...session, files: nextFiles }, index);
 	return {
 		session: {
 			...next,
@@ -59,7 +47,7 @@ export function removeFileFromSession(
 }
 
 export function clearAllFilesFromSession(session: InputSessionState): InputSessionState {
-	if (session.orderLocked || !session.fileList) {
+	if (session.orderLocked || session.files.length === 0) {
 		return session;
 	}
 	return {
@@ -77,7 +65,7 @@ export function moveFileInSession(
 	if (session.orderLocked) {
 		return session;
 	}
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	const target = direction === 'up' ? index - 1 : index + 1;
 	if (index < 0 || index >= files.length || target < 0 || target >= files.length) {
 		return session;
@@ -91,7 +79,7 @@ export function moveFileInSession(
 	nextFiles[index] = swapped;
 	nextFiles[target] = current;
 	return {
-		...swapSelectionIndices(replaceFileListFiles(session, nextFiles), index, target),
+		...swapSelectionIndices({ ...session, files: nextFiles }, index, target),
 		sortDirection: 'none',
 	};
 }
@@ -104,7 +92,7 @@ export function reorderFilesInSession(
 	if (session.orderLocked) {
 		return session;
 	}
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	if (
 		fromIndex === toIndex ||
 		fromIndex < 0 ||
@@ -121,7 +109,7 @@ export function reorderFilesInSession(
 	}
 	nextFiles.splice(toIndex, 0, moved);
 	return {
-		...reindexSelectionAfterMove(replaceFileListFiles(session, nextFiles), fromIndex, toIndex),
+		...reindexSelectionAfterMove({ ...session, files: nextFiles }, fromIndex, toIndex),
 		sortDirection: 'none',
 	};
 }
@@ -130,7 +118,7 @@ export function sortFilesInSession(session: InputSessionState): InputSessionStat
 	if (session.orderLocked) {
 		return session;
 	}
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	if (files.length <= 1) {
 		return session;
 	}
@@ -147,7 +135,7 @@ export function sortFilesInSession(session: InputSessionState): InputSessionStat
 		return nextSortDirection === 'ascending' ? comparison : -comparison;
 	});
 	return withPreservedSelection(
-		{ ...replaceFileListFiles(session, nextFiles), sortDirection: nextSortDirection },
+		{ ...{ ...session, files: nextFiles }, sortDirection: nextSortDirection },
 		selectedKeys,
 		selectedAnchorKey,
 	);
@@ -157,7 +145,7 @@ export function restoreImportOrderInSession(session: InputSessionState): InputSe
 	if (session.orderLocked) {
 		return session;
 	}
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	if (files.length <= 1) {
 		return session;
 	}
@@ -173,14 +161,14 @@ export function restoreImportOrderInSession(session: InputSessionState): InputSe
 			(session.importOrdinalByPath[right.path] ?? 0),
 	);
 	return withPreservedSelection(
-		{ ...replaceFileListFiles(session, nextFiles), sortDirection: 'none' },
+		{ ...{ ...session, files: nextFiles }, sortDirection: 'none' },
 		selectedKeys,
 		selectedAnchorKey,
 	);
 }
 
 function selectedIdentityKeys(session: InputSessionState): ReadonlySet<string> {
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	return new Set(
 		session.selectedIndices
 			.map((index) => files[index])
@@ -190,7 +178,7 @@ function selectedIdentityKeys(session: InputSessionState): ReadonlySet<string> {
 }
 
 function identityKeyAt(session: InputSessionState, index: number): string | undefined {
-	const file = session.fileList?.files[index];
+	const file = session.files[index];
 	return file ? fileIdentityKey(file) : undefined;
 }
 
@@ -199,7 +187,7 @@ function withPreservedSelection(
 	selectedKeys: ReadonlySet<string>,
 	selectedAnchorKey: string | undefined,
 ): InputSessionState {
-	const files = session.fileList?.files ?? [];
+	const files = session.files;
 	const selectedIndices = files.flatMap((file, index) =>
 		selectedKeys.has(fileIdentityKey(file)) ? [index] : [],
 	);

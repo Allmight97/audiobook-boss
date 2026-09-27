@@ -28,7 +28,6 @@ import type {
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
 type ProcessPayloadForTest = {
 	inputFiles?: string[];
-	jobType?: 'batch' | 'merge' | null;
 };
 const eventListeners = new Map<string, Set<TestEventHandler>>();
 let mockJobCounter = 0;
@@ -57,15 +56,14 @@ function publishMockOperation(snapshot: OperationSnapshot): void {
 
 function mockOperationSnapshot(
 	operationId: string,
-	kind: 'processingBatch' | 'processingMerge' | 'metadataSave',
+	kind: 'processingBatch' | 'metadataSave',
 	inputFiles: string[],
+	submittedTitle?: string,
 ): OperationSnapshot {
 	const isMetadataSave = kind === 'metadataSave';
 	const title = isMetadataSave
 		? `Metadata save (${inputFiles.length} files)`
-		: kind === 'processingMerge'
-			? `Merge encode (${inputFiles.length} files)`
-			: `Batch encode (${inputFiles.length} files)`;
+		: (submittedTitle ?? `Batch encode (${inputFiles.length} files)`);
 	const lanes = (
 		isMetadataSave ? ['metadataWrite'] : ['analysis', 'encodeCpu', 'outputCommit']
 	) as OperationSnapshot['lanes'];
@@ -286,7 +284,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 					input_index: 0,
 				});
 				return Promise.resolve({
-					jobType: 'batch',
 					summary: {
 						total: 1,
 						succeeded: 1,
@@ -313,14 +310,18 @@ vi.mock('@tauri-apps/api/core', () => ({
 					| {
 							request?: {
 								payload?: ProcessPayloadForTest;
+								title?: string;
 							};
 					  }
 					| undefined;
 				const operationId = `mock-operation-${++mockJobCounter}`;
 				const inputFiles = args?.request?.payload?.inputFiles ?? [];
-				const kind =
-					args?.request?.payload?.jobType === 'merge' ? 'processingMerge' : 'processingBatch';
-				const snapshot = mockOperationSnapshot(operationId, kind, inputFiles);
+				const snapshot = mockOperationSnapshot(
+					operationId,
+					'processingBatch',
+					inputFiles,
+					args?.request?.title,
+				);
 				publishMockOperation(snapshot);
 				emitTestEvent('work-operation-list-snapshot', mockOperationList());
 				return Promise.resolve({

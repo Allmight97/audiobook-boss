@@ -15,7 +15,7 @@ const context = vi.hoisted(() => ({
 	processAudiobookFilesMock: vi.fn(),
 	submitProcessingOperationMock: vi.fn(),
 	openPathMock: vi.fn(),
-	getCurrentFileListMock: vi.fn(),
+	currentTitlesMock: vi.fn(),
 	readProcessingRequestConfigMock: vi.fn(),
 	runOutputPlanReviewWorkflowMock: vi.fn(),
 	stageMetadataMock: vi.fn(),
@@ -39,7 +39,6 @@ function processingContext() {
 		setProcessingState: vi.fn(),
 		updateArtThumbnail: vi.fn(async () => undefined),
 		startProgressListener: vi.fn(async () => undefined),
-		setCurrentWorkKind: vi.fn(),
 		setBatchCompletionMessage: vi.fn(),
 		handleCancellation: vi.fn(),
 		resetToIdle: vi.fn(),
@@ -48,7 +47,7 @@ function processingContext() {
 
 function stagingServices(): ProcessingWorkflowServices {
 	return {
-		getCurrentFileList: context.getCurrentFileListMock,
+		currentTitles: context.currentTitlesMock,
 		sourcesFor: (file) => [file],
 		readProcessingRequestConfig: context.readProcessingRequestConfigMock,
 		stageMetadata: context.stageMetadataMock,
@@ -82,7 +81,7 @@ describe('startProcessing metadata staging', () => {
 		context.processAudiobookFilesMock.mockReset();
 		context.submitProcessingOperationMock.mockReset();
 		context.openPathMock.mockReset();
-		context.getCurrentFileListMock.mockReset();
+		context.currentTitlesMock.mockReset();
 		context.readProcessingRequestConfigMock.mockReset();
 		context.runOutputPlanReviewWorkflowMock.mockReset();
 		context.stageMetadataMock.mockReset();
@@ -91,20 +90,16 @@ describe('startProcessing metadata staging', () => {
 		context.intentsForProcessMock.mockResolvedValue(null);
 		showError.mockReset();
 
-		context.getCurrentFileListMock.mockReturnValue({
-			files: [
-				{ path: '/books/a.m4b', isValid: true },
-				{ path: '/books/b.m4b', isValid: true },
-			],
-			validCount: 2,
-		});
+		context.currentTitlesMock.mockReturnValue([
+			{ path: '/books/a.m4b', isValid: true },
+			{ path: '/books/b.m4b', isValid: true },
+		]);
 		context.readProcessingRequestConfigMock.mockReturnValue({
 			audioRequests: [titleAudioRequest()],
 			outputDirectory: '/tmp/out',
 			outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
 		});
 		context.preflightProcessingPlanMock.mockImplementation(async ({ payload, previewSeconds }) => ({
-			jobType: payload.jobType ?? 'merge',
 			previewSeconds: previewSeconds ?? undefined,
 			collisionPolicy: payload.collisionPolicy ?? 'fail',
 			planSignature: 'preflight-clean',
@@ -120,7 +115,6 @@ describe('startProcessing metadata staging', () => {
 			})),
 		}));
 		context.processAudiobookFilesMock.mockResolvedValue({
-			jobType: 'merge',
 			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 			results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1' }],
 		});
@@ -150,9 +144,9 @@ describe('startProcessing metadata staging', () => {
 				sequence: 1,
 				revision: 1,
 				createdRevision: 1,
-				kind: 'processingMerge',
+				kind: 'processingBatch',
 				status: 'accepted',
-				title: 'Merge encode (2 files)',
+				title: 'a.m4b + 1 more',
 				createdAtMs: 1,
 				startedAtMs: undefined,
 				finishedAtMs: undefined,
@@ -233,7 +227,6 @@ describe('startProcessing metadata staging', () => {
 
 	it('auto-opens preview only when exactly one successful preview path is returned', async () => {
 		context.processAudiobookFilesMock.mockResolvedValue({
-			jobType: 'merge',
 			summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 			results: [
 				{
@@ -255,7 +248,6 @@ describe('startProcessing metadata staging', () => {
 
 	it('does not auto-open preview when multiple successful preview paths are returned', async () => {
 		context.processAudiobookFilesMock.mockResolvedValue({
-			jobType: 'batch',
 			summary: { total: 2, succeeded: 2, skipped: 0, cancelled: 0, failed: 0 },
 			results: [
 				{
@@ -282,7 +274,6 @@ describe('startProcessing metadata staging', () => {
 
 	it('does not auto-open preview for failed result entries', async () => {
 		context.processAudiobookFilesMock.mockResolvedValue({
-			jobType: 'merge',
 			summary: { total: 1, succeeded: 0, skipped: 0, cancelled: 0, failed: 1 },
 			results: [
 				{

@@ -1,5 +1,5 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
-import type { FileListInfo, ProcessCommandResult } from '../../types/audio';
+import type { AudioFile, ProcessCommandResult } from '../../types/audio';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
 import { startProcessing as startProcessingAction, type ProcessingWorkflowLayer } from './workflow';
 import {
@@ -22,24 +22,21 @@ import {
 	applyProgress,
 	applyQueueSnapshot,
 	completeBatchCompletionHold,
-	completeMergeSkipHold,
 	completeSingleCompletionHold,
 	createStatusPanelModel,
 	isTerminalProgressStage,
 	reconcileProcessResult,
 	resetStatusPanelModel,
 	withBatchCompletionMessage,
-	withCurrentWorkKind,
 	type StatusPanelCompletionFeedback,
 	type StatusPanelIntent,
 	type StatusPanelModel,
-	workKindFromOperationKind,
 } from './domain/stateMachine';
 import type { StatusViewStore } from './view';
 
 export type StatusPanelRuntimeDeps = {
 	readonly view: StatusViewStore;
-	readonly getCurrentFileList?: () => FileListInfo | null;
+	readonly validTitles?: () => ReadonlyArray<AudioFile>;
 	readonly unlockWorkbench?: () => void;
 	readonly concurrency?: () => ConcurrencyRead | undefined;
 	readonly workflowLayer?: ProcessingWorkflowLayer;
@@ -47,7 +44,7 @@ export type StatusPanelRuntimeDeps = {
 
 export class StatusPanelRuntime {
 	private readonly view: StatusViewStore;
-	private readonly readCurrentFileList: () => FileListInfo | null;
+	private readonly readValidTitles: () => ReadonlyArray<AudioFile>;
 	private readonly unlockWorkbench: () => void;
 	private readonly readConcurrency: () => ConcurrencyRead | undefined;
 	private readonly workflowLayer?: ProcessingWorkflowLayer;
@@ -63,12 +60,12 @@ export class StatusPanelRuntime {
 
 	constructor(deps: StatusPanelRuntimeDeps) {
 		this.view = deps.view;
-		this.readCurrentFileList = deps.getCurrentFileList ?? (() => null);
+		this.readValidTitles = deps.validTitles ?? (() => []);
 		this.unlockWorkbench = deps.unlockWorkbench ?? (() => undefined);
 		this.readConcurrency = deps.concurrency ?? (() => undefined);
 		this.workflowLayer = deps.workflowLayer;
 		this.coverArt = createCoverArtTracker({
-			getCurrentFileList: () => this.readCurrentFileList(),
+			validTitles: () => this.readValidTitles(),
 			displayCoverArt: (dataUrl) => this.view.setCoverArtDataUrl(dataUrl),
 			resetArtThumbnail: () => this.view.setCoverArtDataUrl(null),
 		});
@@ -94,9 +91,6 @@ export class StatusPanelRuntime {
 				},
 				updateArtThumbnail: () => this.coverArt.syncForCurrentList(),
 				startProgressListener: () => this.progressSubscription.start(),
-				setCurrentWorkKind: (workKind) => {
-					this.model = withCurrentWorkKind(this.model, workKind);
-				},
 				setBatchCompletionMessage: (message) => this.setBatchCompletionMessage(message),
 				reconcileProcessResult: (result) => this.reconcileProcessResult(result),
 				handleCancellation: () => this.handleProcessingCancellation(),
@@ -112,10 +106,7 @@ export class StatusPanelRuntime {
 	}
 
 	public reconcileProcessResult(result: ProcessCommandResult): void {
-		const mergeOutputLabel = this.buildMergeOutputLabel();
-		const transition = reconcileProcessResult(this.model, result, Date.now(), {
-			mergeOutputLabel,
-		});
+		const transition = reconcileProcessResult(this.model, result, Date.now());
 		this.model = transition.model;
 		this.renderModel();
 		this.handleIntents(transition.intents);
@@ -217,14 +208,6 @@ export class StatusPanelRuntime {
 	}
 
 	private buildInferredProgressLabel(event: ProcessingProgressEvent): string {
-		const fileList = this.readCurrentFileList();
-		const workKind = workKindFromOperationKind(event.operation_kind);
-		if (workKind === 'merge' && fileList?.files?.length) {
-			const firstValidFile = fileList.files.find((file) => file.isValid);
-			if (firstValidFile?.path) {
-				return buildQueueLabels([firstValidFile.path])[0] ?? firstValidFile.path;
-			}
-		}
 		if (typeof event.input_index === 'number') {
 			const path = this.findFilePathByIndex(event.input_index);
 			if (path) {
@@ -254,22 +237,12 @@ export class StatusPanelRuntime {
 		);
 	}
 
-	private buildMergeOutputLabel(): string {
-		const fileList = this.readCurrentFileList();
-		const firstValidPath = fileList?.files.find((file) => file.isValid)?.path;
-		return firstValidPath
-			? (buildQueueLabels([firstValidPath])[0] ?? firstValidPath)
-			: 'Merge output';
-	}
-
 	private handleIntents(intents: StatusPanelIntent[]): void {
 		for (const intent of intents) {
 			if (intent.kind === 'single-completion-hold') {
 				this.scheduleSingleCompletion(intent);
-			} else if (intent.kind === 'batch-completion-hold') {
-				this.scheduleBatchCompletion(intent.holdMs);
 			} else {
-				this.scheduleMergeSkipCompletion(intent.jobKey, intent.message, intent.holdMs);
+				this.scheduleBatchCompletion(intent.holdMs);
 			}
 		}
 	}
@@ -301,21 +274,6 @@ export class StatusPanelRuntime {
 				this.renderModel();
 			}
 		}, intent.holdMs);
-	}
-
-	private scheduleMergeSkipCompletion(jobKey: string, message: string, holdMs: number): void {
-		this.clearSingleCompletionTimeout();
-		this.singleCompletionTimeout = window.setTimeout(() => {
-			this.singleCompletionTimeout = undefined;
-			const result = completeMergeSkipHold(this.model, jobKey, message);
-			this.model = result.model;
-			if (result.feedback) {
-				this.applyIdleSideEffects();
-				this.showCompletionFeedback(result.feedback);
-			} else {
-				this.renderModel();
-			}
-		}, holdMs);
 	}
 
 	private clearBatchCompletionTimeout(): void {
@@ -427,10 +385,10 @@ export class StatusPanelRuntime {
 	}
 
 	private findFilePathByCurrentFile(currentFile: string): string | null {
-		return findFilePathByCurrentFileService(this.readCurrentFileList(), currentFile);
+		return findFilePathByCurrentFileService(this.readValidTitles(), currentFile);
 	}
 
 	private findFilePathByIndex(index: number): string | null {
-		return findFilePathByIndexService(this.readCurrentFileList(), index);
+		return findFilePathByIndexService(this.readValidTitles(), index);
 	}
 }

@@ -10,7 +10,7 @@ use crate::output_artifact::{
     CollisionPolicy, OutputKind, OutputParentDirCleanup, OutputPlanLedger, OutputPlanReview,
     PlannedOutputAction, ResolvedOutputPlan,
 };
-use crate::processing::{JobType, ProcessPayload, ProcessingPreflightPlan};
+use crate::processing::{ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -22,8 +22,8 @@ struct ProcessingInputs {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PlannedProcessingJob {
-    pub(crate) input_index: Option<usize>,
-    pub(crate) input_path: Option<PathBuf>,
+    pub(crate) input_index: usize,
+    pub(crate) input_path: PathBuf,
     pub(crate) source_paths: Vec<PathBuf>,
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
@@ -34,7 +34,6 @@ pub(crate) struct PlannedProcessingJob {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ResolvedProcessingPlan {
-    pub(crate) job_type: JobType,
     pub(crate) preview_seconds: Option<f64>,
     pub(crate) collision_policy: CollisionPolicy,
     pub(crate) plan_signature: String,
@@ -86,13 +85,11 @@ fn resolve_output_kind(preview_seconds: Option<f64>) -> OutputKind {
 }
 
 fn build_plan_signature(
-    job_type: JobType,
     preview_seconds: Option<f64>,
     collision_policy: CollisionPolicy,
     jobs: &[PlannedProcessingJob],
 ) -> String {
     let mut lines = vec![
-        format!("job_type={job_type:?}"),
         format!("preview_seconds={preview_seconds:?}"),
         format!("collision_policy={collision_policy:?}"),
     ];
@@ -124,9 +121,7 @@ fn build_plan_signature(
         let collision_summary = format!("{collision_path}::{collision_detail}");
         lines.push(format!(
             "{}|{}|{}|{}|{}|{}|{}|{}|{:?}",
-            job.input_index
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "merge".to_string()),
+            job.input_index,
             output.requested_path.display(),
             output.resolved_path.display(),
             output
@@ -178,39 +173,23 @@ fn build_processing_plan(
     inputs: &ProcessingInputs,
     file_info: &FileListInfo,
 ) -> Result<ResolvedProcessingPlan> {
-    let job_type = payload.job_type.unwrap_or(JobType::Batch);
     let collision_policy = resolve_collision_policy(payload);
-    let output_kind = resolve_output_kind(inputs.preview_seconds);
     let mut output_ledger = OutputPlanLedger::new();
-    let mut jobs = Vec::new();
 
     payload.validate_audio_requests()?;
 
-    match job_type {
-        JobType::Merge => jobs.push(build_merge_processing_job(
-            payload,
-            metadata,
-            inputs,
-            output_kind,
-            collision_policy,
-            &mut output_ledger,
-            file_info,
-        )?),
-        JobType::Batch => jobs.extend(build_batch_processing_jobs(
-            payload,
-            metadata,
-            inputs,
-            collision_policy,
-            &mut output_ledger,
-            file_info,
-        )?),
-    }
+    let jobs = build_title_processing_jobs(
+        payload,
+        metadata,
+        inputs,
+        collision_policy,
+        &mut output_ledger,
+        file_info,
+    )?;
 
-    let plan_signature =
-        build_plan_signature(job_type, inputs.preview_seconds, collision_policy, &jobs);
+    let plan_signature = build_plan_signature(inputs.preview_seconds, collision_policy, &jobs);
 
     Ok(ResolvedProcessingPlan {
-        job_type,
         preview_seconds: inputs.preview_seconds,
         collision_policy,
         plan_signature,
@@ -292,69 +271,7 @@ pub(crate) fn prepare_execution_plan(
     })
 }
 
-fn build_merge_processing_job(
-    payload: &ProcessPayload,
-    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    inputs: &ProcessingInputs,
-    output_kind: OutputKind,
-    collision_policy: CollisionPolicy,
-    output_ledger: &mut OutputPlanLedger,
-    file_info: &FileListInfo,
-) -> Result<PlannedProcessingJob> {
-    let merge_source_path = file_info
-        .files
-        .first()
-        .map(|file| file.path.clone())
-        .ok_or_else(|| {
-            AppError::InvalidInput("No input files provided for merge processing".to_string())
-        })?;
-    let merge_patch = payload
-        .input_files
-        .first()
-        .and_then(|key| metadata.and_then(|map| map.get(key)))
-        .cloned();
-    let metadata_outcome = plan_metadata_outcome(MetadataOutcomeRequest {
-        input_path: Some(&merge_source_path),
-        intent_patch: merge_patch.as_ref(),
-    })?;
-    let metadata_outcome: MetadataOutcomePlan = metadata_outcome;
-    let requested_output = build_requested_output_path(
-        &inputs.base_output_dir,
-        metadata_outcome.naming_metadata.as_ref(),
-        inputs.output_naming.clone(),
-        Some(&merge_source_path),
-    )?;
-    let source_paths = file_info
-        .files
-        .iter()
-        .map(|file| file.path.clone())
-        .collect::<Vec<_>>();
-    let audio_plan = crate::audio::resolve_title_audio(
-        &payload.audio_requests[0],
-        file_info,
-        inputs.preview_seconds.is_some(),
-    )?;
-    let requested_output = requested_output.with_extension(audio_plan.format.extension());
-    let output = output_ledger.resolve(
-        &requested_output,
-        output_kind,
-        collision_policy,
-        &source_paths,
-    )?;
-
-    Ok(PlannedProcessingJob {
-        input_index: None,
-        input_path: None,
-        source_paths,
-        output,
-        metadata: metadata_outcome.effective_metadata,
-        cover_art_passthrough: metadata_outcome.cover_art_passthrough,
-        audio_plan,
-        metadata_intent: merge_patch,
-    })
-}
-
-fn build_batch_processing_jobs(
+fn build_title_processing_jobs(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
     inputs: &ProcessingInputs,
@@ -364,7 +281,7 @@ fn build_batch_processing_jobs(
 ) -> Result<Vec<PlannedProcessingJob>> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
-            "No input files provided for batch processing".to_string(),
+            "No input files provided for processing".to_string(),
         ));
     }
     let validated_input_paths: Vec<PathBuf> = file_info
@@ -408,8 +325,8 @@ fn build_batch_processing_jobs(
             &validated_input_paths,
         )?;
         jobs.push(PlannedProcessingJob {
-            input_index: Some(index),
-            input_path: Some(path),
+            input_index: index,
+            input_path: path,
             source_paths,
             output,
             metadata: metadata_outcome.effective_metadata,
@@ -456,13 +373,9 @@ impl ResolvedProcessingPlan {
         let outputs = self
             .jobs
             .iter()
-            .map(|job| {
-                job.output
-                    .to_public(job.input_index, job.input_path.as_deref())
-            })
+            .map(|job| job.output.to_public(job.input_index, &job.input_path))
             .collect();
         ProcessingPreflightPlan {
-            job_type: self.job_type,
             preview_seconds: self.preview_seconds,
             collision_policy: self.collision_policy,
             plan_signature: self.plan_signature.clone(),

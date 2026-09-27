@@ -3,7 +3,6 @@ import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../../typ
 import type { ProcessCommandResult } from '../../../types/audio';
 import {
 	BATCH_COMPLETION_HOLD_MS,
-	MERGE_SKIP_HOLD_MS,
 	SINGLE_COMPLETION_HOLD_MS,
 	applyCancellation,
 	applyProgress,
@@ -62,15 +61,15 @@ describe('statusPanel state machine', () => {
 
 		expect(afterQueue.model.currentWorkKind).toBe('metadataSave');
 
-		const mergeProgress: ProcessingProgressEvent = {
-			operation_kind: 'processingMerge',
+		const batchProgress: ProcessingProgressEvent = {
+			operation_kind: 'processingBatch',
 			stage: 'converting',
 			percentage: 25,
-			message: 'Merging',
+			message: 'Converting',
 		};
-		const afterProgress = applyProgress(afterQueue.model, mergeProgress, 1_100);
+		const afterProgress = applyProgress(afterQueue.model, batchProgress, 1_100);
 
-		expect(afterProgress.model.currentWorkKind).toBe('merge');
+		expect(afterProgress.model.currentWorkKind).toBe('batch');
 	});
 
 	it('handles progress events that arrive before queue snapshot', () => {
@@ -294,10 +293,9 @@ describe('statusPanel state machine', () => {
 		const reconciled = reconcileProcessResult(
 			progress.model,
 			{
-				jobType: 'batch',
 				summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 				terminalClass: 'failed',
-				results: [{ status: 'success', message: 'ok', jobId: 'job-single' }],
+				results: [{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-single' }],
 			},
 			5_100,
 		);
@@ -362,38 +360,36 @@ describe('statusPanel state machine', () => {
 		});
 	});
 
-	it('creates a merge skip completion hold and label', () => {
-		const result = reconcileProcessResult(
+	it('keeps a cancelled preview row cancelled when its late backend result failed', () => {
+		const running = applyProgress(
 			createStatusPanelModel(),
 			{
-				jobType: 'merge',
-				summary: { total: 1, succeeded: 0, skipped: 1, cancelled: 0, failed: 0 },
-				terminalClass: 'skipped',
-				results: [
-					{
-						status: 'skipped',
-						message: 'Skipped existing output at /books/output.m4b',
-						error: null,
-						jobId: 'merge-job',
-					},
-				],
+				operation_kind: 'processingBatch',
+				input_index: 0,
+				job_id: 'job-0',
+				stage: 'converting',
+				percentage: 40,
+				message: 'Converting',
 			},
 			1_000,
 		);
+		const cancelled = applyCancellation(running.model, 1_100);
 
-		expect(result.intents).toEqual([
+		const late = reconcileProcessResult(
+			cancelled.model,
 			{
-				kind: 'merge-skip-hold',
-				jobKey: 'job:merge-job',
-				message: 'Skipped existing output at /books/output.m4b',
-				holdMs: MERGE_SKIP_HOLD_MS,
+				summary: { total: 1, succeeded: 0, skipped: 0, cancelled: 0, failed: 1 },
+				terminalClass: 'failed',
+				results: [{ inputIndex: 0, status: 'failed', message: 'Encoder exited', jobId: 'job-0' }],
 			},
-		]);
-		expect(result.model.jobProgress.get('job:merge-job')).toMatchObject({
-			label: 'Merge output',
-			status: 'skipped',
-			message: 'Skipped existing output at /books/output.m4b',
+			1_200,
+		);
+
+		expect(late.model.jobProgress.get('idx:0')).toMatchObject({
+			status: 'cancelled',
+			message: 'Processing was cancelled.',
 		});
+		expect(late.intents).toEqual([]);
 	});
 
 	it('marks active rows cancelled on cancellation when jobs are still running', () => {
@@ -539,12 +535,12 @@ describe('statusPanel state machine', () => {
 			1_100,
 		);
 		const reconcile: ProcessCommandResult = {
-			jobType: 'batch',
 			summary: { total: 3, succeeded: 0, skipped: 1, cancelled: 1, failed: 1 },
 			terminalClass: 'mixed',
 			results: [
 				{
 					status: 'skipped',
+					inputIndex: 0,
 					jobId: 'job-0',
 					message: 'Skipped existing',
 					error: null,
@@ -586,7 +582,6 @@ describe('statusPanel state machine', () => {
 		const result = reconcileProcessResult(
 			createStatusPanelModel(),
 			{
-				jobType: 'batch',
 				summary: { total: 2, succeeded: 1, skipped: 1, cancelled: 0, failed: 0 },
 				terminalClass: 'mixed',
 				results: [
@@ -610,7 +605,6 @@ describe('statusPanel state machine', () => {
 		const result = reconcileProcessResult(
 			createStatusPanelModel(),
 			{
-				jobType: 'batch',
 				summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
 				terminalClass: 'failed',
 				results: [{ inputIndex: 0, status: 'success', message: 'ok' }],

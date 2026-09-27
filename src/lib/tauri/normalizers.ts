@@ -71,7 +71,6 @@ const METADATA_FIELDS = [
 const PROCESS_PAYLOAD_NULLABLE_FIELDS = [
 	'titleSources',
 	'inputIds',
-	'jobType',
 	'outputNaming',
 	'collisionPolicy',
 	'preflightSignature',

@@ -13,11 +13,6 @@ export const commands = {
 } | null, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings_recovery")),
 	recoverAppSettings: (expected: AppSettingsRecoveryPlan) => typedError<AppSettingsRecoveryResult, AppErrorEnvelope>(__TAURI_INVOKE("recover_app_settings", { expected })),
 	/**
-	 *  Validates that all provided file paths exist and are files
-	 *  Accepts an array of file paths and checks file existence
-	 */
-	validateFiles: (filePaths: string[]) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("validate_files", { filePaths })),
-	/**
 	 *  Reads metadata from an audio file
 	 *  Returns metadata as JSON-serializable struct
 	 */
@@ -101,7 +96,7 @@ export const commands = {
 	/**
 	 *  Processes a direct preview with configurable encoder settings.
 	 *
-	 *  Final batch and merge work must enter through WorkRuntime so it has durable
+	 *  Final processing must enter through WorkRuntime so it has durable
 	 *  operation identity, snapshots, and operation-scoped cancellation.
 	 */
 	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
@@ -500,8 +495,6 @@ export type IncompatibleEncoderDefaults = {
 	encoderType: string,
 };
 
-export type JobType = "merge" | "batch";
-
 export type MaterializedSourceFile = {
 	inputId: string,
 	titleId: string,
@@ -613,7 +606,7 @@ export type OpenedAudioFilesEvent = Record<string, never>;
 
 export type OperationId = string;
 
-export type OperationKind = "processingMerge" | "processingBatch" | "remoteAcquisition" | "metadataSave";
+export type OperationKind = "processingBatch" | "remoteAcquisition" | "metadataSave";
 
 export type OperationListSnapshot = {
 	membershipRevision: number,
@@ -710,8 +703,8 @@ export type PinnedDefaults = {
 };
 
 export type PlannedOutput = {
-	inputIndex: number | null,
-	inputPath: string | null,
+	inputIndex: number,
+	inputPath: string,
 	kind: OutputKind,
 	requestedPath: string,
 	resolvedPath: string,
@@ -724,7 +717,6 @@ export type PlannedOutput = {
 export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | "skip_existing" | "review_required";
 
 export type ProcessCommandResult = {
-	jobType: JobType,
 	summary: OperationResultSummary,
 	/**
 	 *  Backend-owned terminal classification of the run. The UI renders this
@@ -746,9 +738,8 @@ export type ProcessPayload = {
 	 */
 	inputIds: (string | null)[] | null,
 	outputDir: string,
-	/**  One audio request per output title (one request for a global merge). */
+	/**  One audio request per output title. */
 	audioRequests: TitleAudioRequest[],
-	jobType: JobType | null,
 	/**  Output naming configuration (defaults to ABS-compatible) */
 	outputNaming: OutputNamingConfig | null,
 	/**  Explicit collision policy selected by the user after preflight review. */
@@ -763,7 +754,7 @@ export type ProcessPayload = {
 };
 
 export type ProcessResultEntry = {
-	inputIndex: number | null,
+	inputIndex: number,
 	status: ProcessResultStatus,
 	message: string,
 	error: AppErrorEnvelope | null,
@@ -775,7 +766,6 @@ export type ProcessResultEntry = {
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";
 
 export type ProcessingPreflightPlan = {
-	jobType: JobType,
 	previewSeconds: number | null,
 	collisionPolicy: CollisionPolicy,
 	planSignature: string,
@@ -1031,7 +1021,8 @@ export type SubmitProcessingOperationRequest = {
 	payload: ProcessPayload,
 	metadata: { [key in string]: MetadataIntentPatch } | null,
 	previewSeconds: number | null,
-	title: string | null,
+	/**  Names the submitted books so concurrent operations stay distinguishable. */
+	title: string,
 };
 
 export type SupplementalAsset = {

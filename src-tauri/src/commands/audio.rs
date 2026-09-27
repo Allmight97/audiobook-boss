@@ -13,7 +13,7 @@ use crate::output_artifact::{
 use crate::processing::run;
 use crate::processing::{JobRegistry, MaxConcurrentJobsCapabilities};
 pub use crate::processing::{
-    JobType, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
+    ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessResultSummary, ProcessingPreflightPlan,
 };
 use serde::{Deserialize, Serialize};
@@ -26,38 +26,6 @@ use tauri::Manager;
 pub struct RuntimeSettingsCapabilities {
     pub encoder: EncoderSettingsCapabilities,
     pub max_concurrent_jobs: MaxConcurrentJobsCapabilities,
-}
-
-/// Validates that all provided file paths exist and are files
-/// Accepts an array of file paths and checks file existence
-#[tauri::command]
-#[specta::specta]
-pub fn validate_files(file_paths: Vec<String>) -> CommandResult<String> {
-    if file_paths.is_empty() {
-        return Err(AppError::InvalidInput("No files provided for validation".to_string()).into());
-    }
-
-    let mut validated_count = 0;
-    let mut validation_errors = Vec::new();
-
-    for path_str in file_paths {
-        let path = PathBuf::from(&path_str);
-
-        match validate_input_audio_path(&path) {
-            Ok(_canonical_path) => {
-                validated_count += 1;
-            }
-            Err(e) => {
-                validation_errors.push(e.to_string());
-            }
-        }
-    }
-
-    if !validation_errors.is_empty() {
-        return Err(AppError::FileValidation(validation_errors.join("; ")).into());
-    }
-
-    Ok(format!("Successfully validated {validated_count} files"))
 }
 
 /// Validates and analyzes a list of audio files
@@ -184,7 +152,7 @@ fn require_preview_seconds(preview_seconds: Option<f64>) -> Result<f64, AppError
 
 /// Processes a direct preview with configurable encoder settings.
 ///
-/// Final batch and merge work must enter through WorkRuntime so it has durable
+/// Final processing must enter through WorkRuntime so it has durable
 /// operation identity, snapshots, and operation-scoped cancellation.
 #[tauri::command]
 #[specta::specta]
@@ -266,7 +234,7 @@ pub async fn preview_title_audio(
         .collect::<crate::errors::Result<Vec<_>>>()?;
     Ok(tokio::task::spawn_blocking(move || {
         let mut info = audio::get_file_list_info(&paths)?;
-        audio::apply_chapter_plans(&mut info, chapter_plans.as_ref(), paths.len() > 1)?;
+        audio::apply_chapter_plans(&mut info, chapter_plans.as_ref())?;
         audio::resolve_title_audio(&request, &info, false)
     })
     .await

@@ -47,22 +47,18 @@ function audioFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile 
 	};
 }
 
+function separateTitlePlans(files: readonly AudioFile[]) {
+	return Object.assign({}, ...files.map((file) => chapterPlansForProcessing([file])));
+}
+
 function sessionWith(files: AudioFile[], selected: number[] = []): InputSessionState {
-	const fileList: FileListInfo = {
-		files,
-		selectedDecoders: files.map(() => null),
-		totalDuration: files.length * 60,
-		totalSize: files.length * 1024,
-		validCount: files.length,
-		invalidCount: 0,
-	};
 	const importOrdinalByPath: Record<string, number> = {};
 	files.forEach((entry, index) => {
 		importOrdinalByPath[entry.path] = index;
 	});
 	return {
 		...emptyInputSession(),
-		fileList,
+		files,
 		selectedIndices: selected,
 		selectedAnchor: selected[selected.length - 1] ?? -1,
 		importOrdinalByPath,
@@ -230,7 +226,7 @@ describe('input session selection gate', () => {
 		expect(owner.session().selectedIndices).toEqual([0]);
 
 		await owner.clearAllFiles();
-		expect(owner.session().fileList?.files).toHaveLength(2);
+		expect(owner.session().files).toHaveLength(2);
 		expect(gate).toHaveBeenCalledTimes(3);
 	});
 
@@ -246,7 +242,7 @@ describe('input session selection gate', () => {
 		expect(owner.session().selectedIndices).toEqual([]);
 
 		await owner.clearAllFiles();
-		expect(owner.session().fileList).toBeNull();
+		expect(owner.session().files).toEqual([]);
 		expect(gate).toHaveBeenCalledTimes(3);
 	});
 });
@@ -448,23 +444,19 @@ it('carries folder CUE confirmation and explicit ignore into independent process
 	expect(capability.discoverAudioImportPaths).toHaveBeenCalledWith(['/books']);
 	expect(owner.view().files[0]?.chapterPlan?.chapters).toHaveLength(1);
 	expect(owner.view().files[0]?.cueSource?.fileName).toBe('book.cue');
-	expect(() => chapterPlansForProcessing(owner.view().files, 'batch')).toThrow('confirm');
+	expect(() => separateTitlePlans(owner.view().files)).toThrow('confirm');
 	owner.chooseCue('input-1', 'confirmHundredths');
-	expect(() => chapterPlansForProcessing(owner.view().files, 'batch')).toThrow('broken.cue');
+	expect(() => separateTitlePlans(owner.view().files)).toThrow('broken.cue');
 	expect(owner.view().files[1]?.cueSource?.message).toContain('multiple FILE');
 	owner.chooseCue('broken', 'ignore');
-	const accepted = chapterPlansForProcessing(owner.view().files, 'batch');
+	const accepted = separateTitlePlans(owner.view().files);
 	expect(accepted?.['/books/book.mp3']?.chapters).toEqual([
 		{ title: 'Opening', startMs: 940, endMs: 120000 },
 	]);
 	expect(accepted?.['/books/broken.mp3']?.chapters).toEqual([]);
-	expect(() => chapterPlansForProcessing(owner.view().files, 'merge')).toThrow(
-		'Merging CUE-bearing',
-	);
+	expect(() => chapterPlansForProcessing(owner.view().files)).toThrow('Merging CUE-bearing');
 	owner.chooseCue('input-1', 'ignore');
-	expect(
-		chapterPlansForProcessing(owner.view().files, 'merge')?.['/books/book.mp3']?.chapters,
-	).toEqual([]);
+	expect(chapterPlansForProcessing(owner.view().files)?.['/books/book.mp3']?.chapters).toEqual([]);
 	expect(accepted?.['/books/book.mp3']?.chapters[0]?.startMs).toBe(940);
 });
 
@@ -509,9 +501,9 @@ it.each(['confirmHundredths', 'ignore'] as const)(
 		expect(owner.view().files[0]?.cueSource?.status).toBe(
 			choice === 'ignore' ? 'ignored' : 'ready',
 		);
-		expect(
-			chapterPlansForProcessing(owner.view().files, 'batch')?.['/books/book.mp3']?.chapters,
-		).toHaveLength(choice === 'ignore' ? 0 : 1);
+		expect(separateTitlePlans(owner.view().files)?.['/books/book.mp3']?.chapters).toHaveLength(
+			choice === 'ignore' ? 0 : 1,
+		);
 	},
 );
 
@@ -615,7 +607,7 @@ describe('per-book audio handling', () => {
 		expect(owner.audioRequest(compact)?.intent).toBe('auto');
 		owner.setOrderLocked(false);
 		await owner.removeFile(1);
-		owner.replaceSession({ ...owner.session(), fileList: sessionWith([compact, large]).fileList });
+		owner.replaceSession({ ...owner.session(), files: sessionWith([compact, large]).files });
 		expect(owner.audioRequest(compact)?.intent).toBeUndefined();
 		owner.reset();
 		owner.replaceSession(sessionWith([large]));

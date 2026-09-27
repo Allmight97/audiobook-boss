@@ -1,13 +1,12 @@
 import { pathBasename } from '../../../lib/path/basename';
-import type { FileListInfo } from '../../../types/audio';
+import type { AudioFile } from '../../../types/audio';
 
 function fileBasename(filePath: string): string {
 	return pathBasename(filePath, { fallback: 'empty' });
 }
 
-export function findFilePathByName(fileList: FileListInfo | null, filename: string): string | null {
-	if (!fileList) return null;
-	const matches = fileList.files.filter((file) => fileBasename(file.path) === filename);
+function findFilePathByName(titles: ReadonlyArray<AudioFile>, filename: string): string | null {
+	const matches = titles.filter((file) => fileBasename(file.path) === filename);
 	return matches.length === 1 ? (matches[0]?.path ?? null) : null;
 }
 
@@ -19,25 +18,24 @@ function stripProgressSuffix(value: string): string {
 }
 
 export function findFilePathByCurrentFile(
-	fileList: FileListInfo | null,
+	titles: ReadonlyArray<AudioFile>,
 	currentFile: string,
 ): string | null {
-	if (!fileList) return null;
-
 	const normalized = stripProgressSuffix(currentFile);
 	if (!normalized) return null;
 
-	const exactMatch = fileList.files.find((file) => file.path === normalized);
+	const exactMatch = titles.find((file) => file.path === normalized);
 	if (exactMatch) {
 		return exactMatch.path;
 	}
 
-	return findFilePathByName(fileList, fileBasename(normalized));
+	return findFilePathByName(titles, fileBasename(normalized));
 }
 
-export function findFilePathByIndex(fileList: FileListInfo | null, index: number): string | null {
-	if (!fileList) return null;
+export function findFilePathByIndex(
+	titles: ReadonlyArray<AudioFile>,
+	index: number,
+): string | null {
 	if (!Number.isInteger(index)) return null;
-	if (index < 0 || index >= fileList.files.length) return null;
-	return fileList.files[index]?.path ?? null;
+	return titles[index]?.path ?? null;
 }

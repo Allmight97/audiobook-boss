@@ -270,7 +270,6 @@ describe('tauriClient nullish adapters', () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
-			jobType: 'batch',
 			summary: {
 				total: 1,
 				succeeded: 1,
@@ -303,7 +302,6 @@ describe('tauriClient nullish adapters', () => {
 					},
 				},
 				outputDir: '/tmp/out',
-				jobType: undefined,
 				outputNaming: undefined,
 			},
 			metadataIntent: {
@@ -333,12 +331,10 @@ describe('tauriClient nullish adapters', () => {
 			},
 		});
 		expect(args.payload.audioRequests).toEqual([titleAudioRequest({ settings: null })]);
-		expect(args.payload.jobType).toBeNull();
 		expect(args.payload.outputNaming).toBeNull();
 		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
 		expect(args.metadata['/books/a.m4b']?.cover_art).toEqual({ op: 'clear' });
 		expect(args.previewSeconds).toBe(30);
-		expect(result.jobType).toBe('batch');
 		expect(result.summary).toEqual({ total: 1, succeeded: 1, cancelled: 0, failed: 0 });
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0]?.inputIndex).toBe(0);
@@ -370,7 +366,6 @@ describe('tauriClient nullish adapters', () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
-			jobType: 'merge',
 			summary: {
 				total: 1,
 				succeeded: 0,
@@ -405,7 +400,6 @@ describe('tauriClient nullish adapters', () => {
 				inputFiles: ['/books/a.m4b'],
 				outputDir: '/tmp/out',
 				audioRequests: [titleAudioRequest({ settings: boundarySettings })],
-				jobType: 'merge',
 				outputNaming: undefined,
 			},
 			metadataIntent: {
@@ -478,7 +472,6 @@ describe('tauriClient nullish adapters', () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce({
-			jobType: 'batch',
 			summary: {
 				total: 2,
 				succeeded: 1,
@@ -518,7 +511,6 @@ describe('tauriClient nullish adapters', () => {
 				inputFiles: ['/books/a.m4b', '/books/b.m4b'],
 				outputDir: '/tmp/out',
 				audioRequests: [titleAudioRequest(), titleAudioRequest()],
-				jobType: 'batch',
 				outputNaming: undefined,
 			},
 			metadataIntent: null,

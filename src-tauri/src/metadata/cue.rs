@@ -202,6 +202,7 @@ mod tests {
             let mut file = crate::audio::AudioFile::new(path.clone());
             file.is_valid = true;
             file.duration = Some(2.0);
+            file.sample_rate = Some(44_100);
             file
         });
         let mut inputs = crate::audio::FileListInfo {
@@ -216,13 +217,24 @@ mod tests {
             (one.to_string_lossy().into_owned(), first.clone()),
             (two.to_string_lossy().into_owned(), second.clone()),
         ]);
-        crate::audio::apply_chapter_plans(&mut inputs, Some(&accepted), false)
+        crate::audio::apply_chapter_plans(&mut inputs, Some(&accepted))
             .expect("job handoff retains accepted data despite changed CUE");
         assert_eq!(inputs.files[0].chapter_plan.as_ref(), Some(&first));
         assert_eq!(inputs.files[1].chapter_plan.as_ref(), Some(&second));
         assert_eq!(first.chapters[0].start_ms, 940);
         assert_eq!(second.chapters[0].start_ms, 1000);
-        assert!(crate::audio::apply_chapter_plans(&mut inputs, Some(&accepted), true).is_err());
+        let grouped_title = crate::audio::TitleAudioRequest {
+            format: crate::audio::AudiobookFormat::M4b,
+            intent: crate::audio::AudioIntent::Encode,
+            settings: None,
+            sample_rate: crate::audio::SampleRateConfig::Auto,
+        };
+        assert!(
+            crate::audio::resolve_title_audio(&grouped_title, &inputs, false)
+                .expect_err("one title cannot compose CUE-bearing sources")
+                .to_string()
+                .contains("CUE-bearing")
+        );
         assert_eq!(
             inspect_chapter_source(&one, 2000, &[])
                 .expect("invalid diagnostic")

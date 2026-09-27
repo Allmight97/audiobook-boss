@@ -17,22 +17,15 @@ import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
 function sessionWithDuration(totalDuration: number) {
 	return {
 		...emptyInputSession(),
-		fileList: {
-			files: [
-				{
-					path: '/books/a.m4b',
-					isValid: true,
-					duration: totalDuration,
-					size: 1024,
-					format: 'm4b',
-				},
-			],
-			selectedDecoders: [null],
-			totalDuration,
-			totalSize: 1024,
-			validCount: 1,
-			invalidCount: 0,
-		},
+		files: [
+			{
+				path: '/books/a.m4b',
+				isValid: true,
+				duration: totalDuration,
+				size: 1024,
+				format: 'm4b',
+			},
+		],
 	};
 }
 
@@ -75,7 +68,6 @@ function emptyMetadataView(): MetadataView {
 
 function collisionPlan(): ProcessingPreflightPlan {
 	return {
-		jobType: 'batch',
 		previewSeconds: undefined,
 		collisionPolicy: 'fail',
 		audioPlans: [],
@@ -245,7 +237,7 @@ describe('output plan public view', () => {
 	it('estimates a stack from all source sizes or durations for its selected handling', async () => {
 		runtime = createAppRuntime();
 		const session = sessionWithDuration(100);
-		const first = session.fileList.files[0]!;
+		const first = session.files[0]!;
 		const second = { ...first, path: '/books/b.m4b', size: 2048, duration: 50 };
 		runtime.input.replaceSession({
 			...session,
@@ -280,12 +272,12 @@ describe('output plan public view', () => {
 		runtime = createAppRuntime();
 		const session = sessionWithDuration(100);
 		const source = {
-			...session.fileList.files[0]!,
+			...session.files[0]!,
 			path: '/books/a.mp3',
 			size: 1_048_576,
 			preservation: { canPreserve: true },
 		};
-		session.fileList.files = [source, { ...source, path: '/books/b.m4b', duration: 100 }];
+		session.files = [source, { ...source, path: '/books/b.m4b', duration: 100 }];
 		runtime.input.replaceSession(session);
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
@@ -322,10 +314,7 @@ describe('output plan public view', () => {
 				}),
 			),
 		);
-		runtime.input.setAudioRequest(
-			session.fileList.files[1]!,
-			titleAudioRequest({ intent: 'auto' }),
-		);
+		runtime.input.setAudioRequest(session.files[1]!, titleAudioRequest({ intent: 'auto' }));
 		runtime.encoding.select('bitrate', '192');
 		flush();
 		expect(mounted.owner.estimateTitleSizeText(source)).toBeNull();
@@ -335,9 +324,9 @@ describe('output plan public view', () => {
 		);
 		flush();
 		expect(mounted.owner.estimateTitleSizeText(source)).toBe('Est. ~ 1.0 MB');
-		expect(mounted.owner.estimateTitleSizeText(session.fileList.files[1]!)).toBeNull();
+		expect(mounted.owner.estimateTitleSizeText(session.files[1]!)).toBeNull();
 		expect(
-			mounted.owner.estimateTitleSizeText(session.fileList.files[1]!, {
+			mounted.owner.estimateTitleSizeText(session.files[1]!, {
 				format: 'm4b',
 				handling: 'encode',
 				sampleRate: 44100,

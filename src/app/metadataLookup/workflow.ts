@@ -1,4 +1,4 @@
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type {
 	AudiobookMetadata,
 	MetadataLookupResponse,
@@ -28,7 +28,7 @@ export interface MetadataLookupWorkflowServices {
 	clearMetadataLookupQueue: () => void;
 	setMetadataLookupQueueIndex: (index: number) => void;
 	getSelectedFileIndices: () => Set<number>;
-	getCurrentFileList: () => FileListInfo | null;
+	currentTitles: () => ReadonlyArray<AudioFile>;
 	getMetadataForFile: (filePath: string) => Partial<AudiobookMetadata> | undefined;
 	selectFile: (file: AudioFile) => Promise<boolean>;
 	applyMetadataToForm: (
@@ -274,10 +274,10 @@ async function runSearch(
 
 async function openWorkflow(services: MetadataLookupWorkflowServices): Promise<void> {
 	const selectedIndices = Array.from(services.getSelectedFileIndices()).sort((a, b) => a - b);
-	const fileList = services.getCurrentFileList();
+	const titles = services.currentTitles();
 	const queue = selectedIndices
 		.map((index) => {
-			const file = fileList?.files[index];
+			const file = titles[index];
 			if (!file?.isValid) return null;
 			return { file, index };
 		})

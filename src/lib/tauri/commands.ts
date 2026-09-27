@@ -181,8 +181,6 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.resetAppSettings(), (settings) =>
 			normalizeNullish(settings),
 		),
-	validate_files: (args: { filePaths: string[] }) =>
-		runGeneratedCommand(generatedCommands.validateFiles(args.filePaths)),
 	read_audio_metadata: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
 	load_cover_art_file: (args: { filePath: string }) =>

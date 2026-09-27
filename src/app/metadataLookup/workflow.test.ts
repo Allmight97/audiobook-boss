@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AudioFile, FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type {
 	AudiobookMetadata,
 	MetadataLookupResponse,
@@ -22,17 +22,6 @@ function audioFile(path: string, isValid = true): AudioFile {
 		size: 100,
 		format: 'm4b',
 	} as AudioFile;
-}
-
-function fileList(files: AudioFile[]): FileListInfo {
-	return {
-		files,
-		selectedDecoders: files.map(() => null),
-		totalDuration: files.length,
-		totalSize: files.length * 100,
-		validCount: files.filter((file) => file.isValid).length,
-		invalidCount: files.filter((file) => !file.isValid).length,
-	} as FileListInfo;
 }
 
 function lookupResult(overrides: Partial<OnlineMetadataResult> = {}): OnlineMetadataResult {
@@ -101,7 +90,7 @@ function defaultLookupState(overrides: Partial<MetadataLookupState> = {}): Metad
 }
 
 function makeHarness(options?: {
-	currentFileList?: FileListInfo | null;
+	currentTitles?: AudioFile[];
 	selectedIndices?: Set<number>;
 	lookupState?: Partial<MetadataLookupState>;
 	queueState?: Partial<MetadataLookupQueueState>;
@@ -123,8 +112,7 @@ function makeHarness(options?: {
 			['/books/beta.m4b', { title: 'Beta Existing', album: 'Beta Existing', cover_art: [2] }],
 		],
 	);
-	const currentFileList =
-		options?.currentFileList === undefined ? fileList(files) : options.currentFileList;
+	const titles = options?.currentTitles ?? files;
 	const selectedIndices = options?.selectedIndices ?? new Set<number>([0, 1]);
 
 	const getLookupState = vi.fn(() => lookupState);
@@ -141,7 +129,7 @@ function makeHarness(options?: {
 		queueState.index = index;
 	});
 	const getSelectedFileIndices = vi.fn(() => selectedIndices);
-	const getCurrentFileList = vi.fn(() => currentFileList);
+	const currentTitles = vi.fn(() => titles);
 	const getMetadataForFile = vi.fn((filePath: string) => metadataByFile.get(filePath));
 	const selectFile = vi.fn(
 		options?.selectFile ?? (async () => true),
@@ -169,7 +157,7 @@ function makeHarness(options?: {
 		clearMetadataLookupQueue,
 		setMetadataLookupQueueIndex,
 		getSelectedFileIndices,
-		getCurrentFileList,
+		currentTitles,
 		getMetadataForFile,
 		selectFile,
 		applyMetadataToForm,
@@ -292,7 +280,7 @@ describe('MetadataLookupWorkflow', () => {
 	it('opens with an error when no selected files are valid', async () => {
 		const harness = makeHarness({
 			selectedIndices: new Set<number>([0]),
-			currentFileList: fileList([audioFile('/books/invalid.m4b', false)]),
+			currentTitles: [audioFile('/books/invalid.m4b', false)],
 		});
 
 		await runMetadataLookupWorkflow(harness.services, { type: 'open' });

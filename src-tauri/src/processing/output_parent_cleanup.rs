@@ -43,7 +43,7 @@ mod tests {
     use crate::output_artifact::{
         ensure_output_parent_dirs, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
     };
-    use crate::processing::{JobType, ProcessResultEntry};
+    use crate::processing::ProcessResultEntry;
     use std::path::PathBuf;
     use tempfile::TempDir;
 
@@ -60,18 +60,15 @@ mod tests {
     }
 
     fn result(status: ProcessResultStatus) -> ProcessCommandResult {
-        ProcessCommandResult::new(
-            JobType::Batch,
-            vec![ProcessResultEntry {
-                input_index: Some(0),
-                status,
-                message: "terminal".to_string(),
-                error: None,
-                preview_file_path: None,
-                preview_actual_seconds: None,
-                job_id: Some("job-1".to_string()),
-            }],
-        )
+        ProcessCommandResult::new(vec![ProcessResultEntry {
+            input_index: 0,
+            status,
+            message: "terminal".to_string(),
+            error: None,
+            preview_file_path: None,
+            preview_actual_seconds: None,
+            job_id: Some("job-1".to_string()),
+        }])
     }
 
     #[test]

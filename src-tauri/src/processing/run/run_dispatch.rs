@@ -10,44 +10,15 @@ use crate::processing::terminal_outcomes::{
     emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::{
-    emit_queue_event, JobType, OperationKind, ProcessCommandResult, ProcessPayload,
-    ProcessResultEntry, QueueEvent, QueueItem,
+    emit_queue_event, OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
+    QueueEvent, QueueItem,
 };
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
 
-pub(crate) async fn dispatch_merge_job(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: &ProcessPayload,
-    execution_plan: ExecutionProcessingPlan,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    let ExecutionProcessingPlan {
-        plan,
-        file_info,
-        output_parent_cleanup,
-    } = execution_plan;
-    let result = dispatch_merge_plan(
-        window,
-        registry,
-        workspace_root,
-        payload,
-        plan,
-        file_info,
-        options,
-    )
-    .await;
-    crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(
-        result,
-        output_parent_cleanup,
-    )
-}
-
-pub(crate) async fn dispatch_batch_jobs(
+pub(crate) async fn dispatch_title_jobs(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
@@ -76,54 +47,6 @@ pub(crate) async fn dispatch_batch_jobs(
     )
 }
 
-async fn dispatch_merge_plan(
-    window: tauri::Window,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: &ProcessPayload,
-    plan: ResolvedProcessingPlan,
-    file_info: audio::FileListInfo,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    if options.is_operation_cancelled() {
-        return Err(AppError::cancelled());
-    }
-
-    let planned_job = plan.jobs.into_iter().next().ok_or_else(|| {
-        AppError::InvalidInput("No output plan entries were built for merge processing".to_string())
-    })?;
-
-    if let Some(skipped) = no_write_skipped_result(None, None, &planned_job.output) {
-        return Ok(ProcessCommandResult::new(JobType::Merge, vec![skipped]));
-    }
-
-    let result = run_processing_job(ProcessingJobRequest {
-        window,
-        registry,
-        workspace_root,
-        encoder_settings: planned_job.audio_plan.settings.clone(),
-        audio_handling: planned_job.audio_plan.handling,
-        audio_request: payload.audio_requests[0].clone(),
-        audio_reason: planned_job.audio_plan.reason.clone(),
-        metadata_intent: planned_job.metadata_intent,
-        sample_rate: audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate),
-        input_index: None,
-        operation_kind: OperationKind::ProcessingMerge,
-        operation_id: options.operation_id,
-        operation_cancel: options.operation_cancel.clone(),
-        output_plan: planned_job.output,
-        file_info,
-        metadata: planned_job.metadata,
-        cover_art_passthrough: planned_job.cover_art_passthrough,
-        preview_seconds: plan.preview_seconds,
-        supplemental_assets: Vec::new(),
-        progress_listener: options.progress_listener,
-    })
-    .await?;
-
-    Ok(ProcessCommandResult::new(JobType::Merge, vec![result]))
-}
-
 async fn dispatch_batch_plan(
     window: tauri::Window,
     registry: crate::ManagedJobRegistry,
@@ -135,7 +58,7 @@ async fn dispatch_batch_plan(
 ) -> Result<ProcessCommandResult> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
-            "No input files provided for batch processing".to_string(),
+            "No input files provided for processing".to_string(),
         ));
     }
 
@@ -162,7 +85,7 @@ async fn dispatch_batch_plan(
                 EmitContext {
                     operation_kind: OperationKind::ProcessingBatch,
                     job_id: skipped_entry.job_id.clone(),
-                    input_index: skipped_entry.input_index,
+                    input_index: Some(skipped_entry.input_index),
                 },
                 &skipped_entry.message,
             );
@@ -182,13 +105,12 @@ async fn dispatch_batch_plan(
         let operation_id = options.operation_id.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
-        let source_paths = planned_job.source_paths.clone();
-        let mut title_info = crate::processing::plan::title_file_info(&file_info, &source_paths)?;
+        let title_info =
+            crate::processing::plan::title_file_info(&file_info, &planned_job.source_paths)?;
         let supplemental_assets = supplemental_assets_for_input(payload, input_index);
         let progress_listener = options.progress_listener.clone();
-        let chapter_plans = payload.chapter_plans.clone();
         let audio_handling = planned_job.audio_plan.handling;
-        let audio_request = payload.audio_requests[input_index.expect("batch title index")].clone();
+        let audio_request = payload.audio_requests[input_index].clone();
         let audio_reason = planned_job.audio_plan.reason.clone();
         let metadata_intent = planned_job.metadata_intent.clone();
 
@@ -199,11 +121,6 @@ async fn dispatch_batch_plan(
             {
                 return Err(AppError::cancelled());
             }
-            audio::apply_chapter_plans(
-                &mut title_info,
-                chapter_plans.as_ref(),
-                source_paths.len() > 1,
-            )?;
             run_processing_job(ProcessingJobRequest {
                 window: window_cloned,
                 registry: registry_cloned,
@@ -238,7 +155,7 @@ async fn dispatch_batch_plan(
         options.progress_listener.as_ref(),
     )?;
 
-    Ok(ProcessCommandResult::new(JobType::Batch, finalized_results))
+    Ok(ProcessCommandResult::new(finalized_results))
 }
 
 fn emit_batch_queue_event(
@@ -280,7 +197,7 @@ fn finalize_batch_results(
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
                 job_id: event.job_id.clone(),
-                input_index: event.input_index,
+                input_index: Some(event.input_index),
             },
             &event.message,
         );

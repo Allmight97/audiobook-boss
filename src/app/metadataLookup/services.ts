@@ -1,4 +1,3 @@
-import type { FileListInfo } from '../../types/audio';
 import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
 import type { CoverArtPreviewScheduler } from '../../lib/media/coverArtPreviewScheduler';
@@ -32,15 +31,14 @@ export function makeProductionLookupServices(
 			deps.queueState.index = index;
 		},
 		getSelectedFileIndices: () => new Set(deps.input.session().selectedIndices ?? []),
-		getCurrentFileList: (): FileListInfo | null => deps.input.session().fileList ?? null,
+		currentTitles: () => deps.input.session().files,
 		getMetadataForFile: (path) => deps.metadata.readCached(path),
 		selectFile: async (file) => {
-			const index =
-				deps.input
-					.session()
-					.fileList?.files.findIndex(
-						(candidate) => candidate.path === file.path && candidate.inputId === file.inputId,
-					) ?? -1;
+			const index = deps.input
+				.session()
+				.files.findIndex(
+					(candidate) => candidate.path === file.path && candidate.inputId === file.inputId,
+				);
 			if (
 				index < 0 ||
 				!(await deps.input.selectFile({

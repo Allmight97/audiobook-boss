@@ -264,11 +264,10 @@ impl WorkRuntimeState {
         );
 
         for entry in &result.results {
-            let target_index = entry.input_index.unwrap_or(0);
             if let Some(child) = snapshot
                 .children
                 .iter_mut()
-                .find(|child| child.input_index.unwrap_or(0) == target_index)
+                .find(|child| child.input_index == Some(entry.input_index))
             {
                 child.status = child_status_from_result_status(entry.status);
                 child.progress.stage = stage_from_child_status(child.status);

@@ -43,7 +43,6 @@ function acceptedQueuePosition(
 
 function operationKindLabel(kind: OperationSnapshot['kind']): string {
 	if (kind === 'processingBatch') return 'Batch';
-	if (kind === 'processingMerge') return 'Merge';
 	if (kind === 'remoteAcquisition') return 'Acquisition';
 	return 'Metadata';
 }

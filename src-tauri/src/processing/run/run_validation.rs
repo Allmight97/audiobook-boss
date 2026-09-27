@@ -29,11 +29,6 @@ pub(super) fn inspect_and_validate_external_processing_contract(
         ));
     }
     let mut file_info = audio::get_file_list_info(&input_paths)?;
-    audio::apply_chapter_plans(
-        &mut file_info,
-        payload.chapter_plans.as_ref(),
-        payload.job_type == Some(crate::processing::JobType::Merge)
-            && payload.input_files.len() > 1,
-    )?;
+    audio::apply_chapter_plans(&mut file_info, payload.chapter_plans.as_ref())?;
     Ok(file_info)
 }

@@ -1,4 +1,4 @@
-import type { AudioFile, FileListInfo, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile, TitleAudioRequest } from '../../types/audio';
 
 export type InputSortDirection = 'none' | 'ascending' | 'descending';
 
@@ -9,7 +9,7 @@ export type SelectionModifiers = {
 
 export type InputSessionState = {
 	// Each visible entry anchors a title's metadata. Ordered sources live separately.
-	readonly fileList: FileListInfo | null;
+	readonly files: ReadonlyArray<AudioFile>;
 	readonly titleSourcesByIdentity: Readonly<Record<string, ReadonlyArray<AudioFile>>>;
 	readonly audioChoiceRequired: ReadonlyArray<string>;
 	readonly selectedIndices: ReadonlyArray<number>;
@@ -55,7 +55,7 @@ export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
 
 export function emptyInputSession(): InputSessionState {
 	return {
-		fileList: null,
+		files: [],
 		titleSourcesByIdentity: {},
 		audioChoiceRequired: [],
 		selectedIndices: [],

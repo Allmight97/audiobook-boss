@@ -8,7 +8,6 @@ use std::path::Path;
 pub(crate) fn new_processing_snapshot(
     operation_id: OperationId,
     sequence: u64,
-    kind: OperationKind,
     title: String,
     input_files: &[String],
     input_ids: Option<&[Option<String>]>,
@@ -19,47 +18,32 @@ pub(crate) fn new_processing_snapshot(
         .iter()
         .filter_map(|value| value.clone())
         .collect();
-    let total_items = match kind {
-        OperationKind::ProcessingMerge => Some(1),
-        _ => Some(input_files.len()),
-    };
-    let children = match kind {
-        OperationKind::ProcessingMerge => vec![new_child(
-            &operation_id,
-            "merge-output".to_string(),
-            merge_label(input_files),
-            input_files.first().cloned(),
-            None,
-            None,
-            ResourceLane::EncodeCpu,
-            total_items,
-        )],
-        _ => input_files
-            .iter()
-            .enumerate()
-            .map(|(index, path)| {
-                new_child(
-                    &operation_id,
-                    format!("input-{index}"),
-                    basename(path),
-                    Some(path.clone()),
-                    Some(index),
-                    input_ids
-                        .and_then(|ids| ids.get(index))
-                        .and_then(|value| value.clone()),
-                    ResourceLane::EncodeCpu,
-                    total_items,
-                )
-            })
-            .collect(),
-    };
+    let total_items = Some(input_files.len());
+    let children = input_files
+        .iter()
+        .enumerate()
+        .map(|(index, path)| {
+            new_child(
+                &operation_id,
+                format!("input-{index}"),
+                basename(path),
+                Some(path.clone()),
+                Some(index),
+                input_ids
+                    .and_then(|ids| ids.get(index))
+                    .and_then(|value| value.clone()),
+                ResourceLane::EncodeCpu,
+                total_items,
+            )
+        })
+        .collect();
 
     OperationSnapshot {
         operation_id,
         sequence,
         revision: 0,
         created_revision: 0,
-        kind,
+        kind: OperationKind::ProcessingBatch,
         status: WorkOperationStatus::Accepted,
         title,
         created_at_ms: now_ms,
@@ -172,18 +156,4 @@ fn basename(path: &str) -> String {
         .map(|value| value.to_string_lossy().into_owned())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| path.to_string())
-}
-
-fn merge_label(input_files: &[String]) -> String {
-    match input_files.first() {
-        Some(first) if input_files.len() > 1 => {
-            format!(
-                "Merge: {} + {} more",
-                basename(first),
-                input_files.len() - 1
-            )
-        }
-        Some(first) => format!("Merge: {}", basename(first)),
-        None => "Merge output".to_string(),
-    }
 }

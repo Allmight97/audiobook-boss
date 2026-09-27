@@ -1,5 +1,4 @@
 import { tauriClient } from '../../lib/tauri/client';
-import { fileListFromInput } from './input';
 import { runOutputPlanReviewWorkflow, type OutputPlanOwner } from '../outputPlan';
 import { makeProcessingWorkflowServicesLayer, type ProcessingWorkflowServices } from './workflow';
 import { openGeneratedPreviewIfSingle } from './preview';
@@ -21,7 +20,7 @@ export type ProcessingWorkflowLiveDeps = {
 
 export function makeProcessingWorkflowLive(deps: ProcessingWorkflowLiveDeps) {
 	const services: ProcessingWorkflowServices = {
-		getCurrentFileList: () => fileListFromInput(deps.input.view()),
+		currentTitles: () => deps.input.view().files,
 		sourcesFor: (file) => deps.input.sourcesFor(file),
 		readProcessingRequestConfig: (titles) => {
 			if (titles.some((file) => deps.input.audioChoiceRequired(file)))

@@ -1,33 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AudioFile, FileListInfo } from '../../../types/audio';
 import { createCoverArtTracker } from '../services/coverArtTracker';
 
-function makeFileList(files: Array<{ path: string; isValid: boolean }>): FileListInfo {
-	const audioFiles: AudioFile[] = files.map((file) => ({
-		path: file.path,
-		isValid: file.isValid,
-	}));
-
-	return {
-		files: audioFiles,
-		selectedDecoders: audioFiles.map(() => null),
-		totalDuration: 0,
-		totalSize: 0,
-		validCount: audioFiles.filter((file) => file.isValid).length,
-		invalidCount: audioFiles.filter((file) => !file.isValid).length,
-	};
-}
-
 describe('coverArtTracker', () => {
-	it('syncs the current file list through the injected file-list reader', async () => {
+	it('syncs the first valid title through the injected title reader', async () => {
 		const readCoverArtDataUrl = vi.fn(async () => 'data:image/png;base64,current');
 		const displayCoverArt = vi.fn();
 		const resetArtThumbnail = vi.fn();
-		const getCurrentFileList = vi.fn(() =>
-			makeFileList([{ path: '/books/current.m4b', isValid: true }]),
-		);
+		const validTitles = vi.fn(() => [{ path: '/books/current.m4b', isValid: true }]);
 		const tracker = createCoverArtTracker({
-			getCurrentFileList,
+			validTitles,
 			readCoverArtDataUrl,
 			displayCoverArt,
 			resetArtThumbnail,
@@ -35,32 +16,9 @@ describe('coverArtTracker', () => {
 
 		await tracker.syncForCurrentList();
 
-		expect(getCurrentFileList).toHaveBeenCalledTimes(1);
+		expect(validTitles).toHaveBeenCalledTimes(1);
 		expect(readCoverArtDataUrl).toHaveBeenCalledWith('/books/current.m4b');
 		expect(displayCoverArt).toHaveBeenCalledWith('data:image/png;base64,current');
-		expect(resetArtThumbnail).not.toHaveBeenCalled();
-	});
-
-	it('syncs the first valid file from a file list', async () => {
-		const readCoverArtDataUrl = vi.fn(async () => 'data:image/png;base64,alpha');
-		const displayCoverArt = vi.fn();
-		const resetArtThumbnail = vi.fn();
-		const tracker = createCoverArtTracker({
-			readCoverArtDataUrl,
-			displayCoverArt,
-			resetArtThumbnail,
-		});
-
-		await tracker.syncFromFileList(
-			makeFileList([
-				{ path: '/books/invalid.m4b', isValid: false },
-				{ path: '/books/alpha.m4b', isValid: true },
-			]),
-		);
-
-		expect(readCoverArtDataUrl).toHaveBeenCalledTimes(1);
-		expect(readCoverArtDataUrl).toHaveBeenCalledWith('/books/alpha.m4b');
-		expect(displayCoverArt).toHaveBeenCalledWith('data:image/png;base64,alpha');
 		expect(resetArtThumbnail).not.toHaveBeenCalled();
 	});
 
@@ -68,16 +26,16 @@ describe('coverArtTracker', () => {
 		const readCoverArtDataUrl = vi.fn(async () => 'data:image/png;base64,alpha');
 		const resetArtThumbnail = vi.fn();
 		const tracker = createCoverArtTracker({
+			validTitles: () => [],
 			readCoverArtDataUrl,
 			displayCoverArt: vi.fn(),
 			resetArtThumbnail,
 		});
 
-		await tracker.syncFromFileList(makeFileList([{ path: '/books/invalid.m4b', isValid: false }]));
-		await tracker.syncFromFileList(null);
+		await tracker.syncForCurrentList();
 
 		expect(readCoverArtDataUrl).not.toHaveBeenCalled();
-		expect(resetArtThumbnail).toHaveBeenCalledTimes(2);
+		expect(resetArtThumbnail).toHaveBeenCalledTimes(1);
 	});
 
 	it('does not re-read the same file path until reset', async () => {
