@@ -618,3 +618,7 @@ mod tests {
         assert!(!message.contains("secret"));
     }
 }
+
+#[cfg(test)]
+#[path = "lifecycle_tests.rs"]
+mod lifecycle_tests;

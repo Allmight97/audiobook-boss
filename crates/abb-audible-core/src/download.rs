@@ -62,34 +62,6 @@ pub fn classify_download_response(
     Err(DownloadResponseError::UnexpectedStatus(status))
 }
 
-/// Classify a download response, choosing range-aware rules for licensed audio
-/// and plain success rules otherwise.
-pub fn classify_download_response_for_mode(
-    licensed_audio: bool,
-    status: u16,
-    final_url_is_https: bool,
-    offset: u64,
-    content_length: Option<u64>,
-    content_range: Option<&str>,
-) -> Result<Option<u64>, DownloadResponseError> {
-    if licensed_audio {
-        return classify_download_response(
-            status,
-            final_url_is_https,
-            offset,
-            content_length,
-            content_range,
-        );
-    }
-    if !final_url_is_https {
-        return Err(DownloadResponseError::RedirectNotHttps);
-    }
-    if (200..=299).contains(&status) {
-        return Ok(content_length.map(|length| offset + length));
-    }
-    Err(DownloadResponseError::UnexpectedStatus(status))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,22 +101,6 @@ mod tests {
         assert_eq!(
             classify_download_response(HTTP_OK, false, 0, Some(42), None),
             Err(DownloadResponseError::RedirectNotHttps)
-        );
-        assert_eq!(
-            classify_download_response_for_mode(false, 200, false, 0, Some(1), None),
-            Err(DownloadResponseError::RedirectNotHttps)
-        );
-    }
-
-    #[test]
-    fn unlicensed_mode_accepts_any_2xx_with_length() {
-        assert_eq!(
-            classify_download_response_for_mode(false, 200, true, 0, Some(10), None),
-            Ok(Some(10))
-        );
-        assert_eq!(
-            classify_download_response_for_mode(false, 404, true, 0, Some(10), None),
-            Err(DownloadResponseError::UnexpectedStatus(404))
         );
     }
 

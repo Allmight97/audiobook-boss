@@ -117,6 +117,9 @@ base64 = "0.23.1"
 # Media-lane fixture synthesis (e.g. MP3 via libmp3lame). Same version as the
 # main dependency, so this adds zero extra compilation.
 ffmpeg-next = "9.0.0"
+# Local TLS stub for the Audible download harness (no real Audible account).
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["aws_lc_rs"] }
 
 [lints]
 workspace = true

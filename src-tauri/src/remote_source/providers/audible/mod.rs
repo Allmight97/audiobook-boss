@@ -307,12 +307,11 @@ mod probe;
 
 #[cfg(test)]
 mod tests {
-    use super::audio_download::{build_download_request, download_to_path};
+    use super::audio_download::build_download_request;
     use super::library_probe::library_probe_summary;
     use super::license::{license_request_payload, license_request_spec};
     use super::*;
     use crate::remote_source::scoped_output::partial_sibling;
-    use abb_remote_source_core::AcquisitionProgress;
     use reqwest::header::{RANGE, USER_AGENT};
     use std::path::Path;
 
@@ -460,28 +459,6 @@ mod tests {
         assert!(partial_sibling(&path)
             .to_string_lossy()
             .ends_with(".partial"));
-    }
-
-    #[tokio::test]
-    async fn download_to_path_rejects_cleartext_urls_without_fetching() {
-        let root = tempfile::TempDir::new().expect("temp root");
-        let target = root.path().join("book.m4b");
-        let mut ignore_progress = |_progress: AcquisitionProgress| {};
-
-        let error = download_to_path(
-            "http://provider.example/book.m4b?token=fake-secret",
-            &target,
-            None,
-            &mut ignore_progress,
-            &|| false,
-        )
-        .await
-        .expect_err("cleartext URL rejected");
-
-        assert!(error.to_string().contains("must use https"));
-        assert!(!error.to_string().contains("fake-secret"));
-        assert!(!target.exists());
-        assert!(!partial_sibling(&target).exists());
     }
 
     #[test]
