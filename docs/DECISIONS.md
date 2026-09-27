@@ -473,7 +473,8 @@ git history and closed issues own superseded chronology.
   `operation_id` foreground/background discriminator + the background double-emit
   (background ops emit WorkRuntime snapshots only); exported `RunTerminalClass`
   (`abb-processing-core`) onto `ProcessCommandResult`; retired foreground
-  `cancel_processing` (cancellation is operation-scoped via `cancel_work_operation`);
+  `cancel_processing` (cancellation goes through `cancel_work_operation`, for a
+  whole operation or one title);
   moved `save_metadata_batch` to a WorkRuntime `MetadataSave` operation (Work Center
   renders it) while keeping its synchronous `MetadataSaveBatchResult`; replaced the
   Status Panel's TS terminal-precedence re-derivation with `RunTerminalClass`.
