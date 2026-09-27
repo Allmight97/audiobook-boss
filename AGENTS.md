@@ -55,7 +55,8 @@ neither earns no preference over the simpler design.
 
 ## Refactor Discipline
 
-- Name the owned invariant and its owner before refactoring; move truth to the owning layer before extracting helpers or reshaping files.
+- Name the owned invariant and its owner before refactoring; move truth to the owning layer before extracting helpers or reshaping files. A rule several callers must each remember belongs in that owner.
+- When merging code paths into one, name what each old path relied on (reads it skipped, state it left alone, ordering); the merged path keeps each reliance or the change says which one it drops.
 - New or reshaped functions target one nameable responsibility at roughly CCN ≤10 / cognitive ≤15; exceeding that takes a named reason (dispatch `match`, sequential `?` lifecycle). Existing hotspots are adjudicated at their next change point per `docs/DECISIONS.md` 2026-08-24, not campaigned.
 - Before creating a new module, skill, CI step, abstraction, or canon rule, name the invariant it owns and the recurring upkeep cost it adds; if an existing owner can carry it, extend that instead.
 - Public API Strip tests must stay independent of implementation registries. Do not derive expected public surfaces from the command, event, or generated source they are meant to guard.
