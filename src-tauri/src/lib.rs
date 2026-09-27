@@ -160,12 +160,10 @@ pub fn run() {
                 })
                 .and_then(|config_dir| app_settings::get_app_settings(&config_dir))
             {
-                Ok(settings) => {
-                    app.state::<power::PowerManager>().set_enabled(settings.keep_awake_while_working);
-                    audio::set_user_external_ffmpeg_path(
-                        settings.toolchain.external_ffmpeg_path.map(Into::into),
-                    );
-                }
+                Ok(settings) => commands::app_settings::apply_settings_to_runtime(
+                    &app.state(),
+                    &settings,
+                ),
                 Err(error) => log::warn!(
                     "Startup app settings hydration failed; using detected toolchain only: {error}"
                 ),
