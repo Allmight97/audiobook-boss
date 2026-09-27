@@ -201,12 +201,19 @@ pub fn acquisition_progress(
     }
 }
 
+/// Scopes a title's stage progress to its batch. `item_index` is 1-based; the
+/// percentage covers the whole batch so a multi-title bar never restarts.
 pub fn acquisition_progress_for_current_title(
     mut progress: AcquisitionProgress,
     title_id: impl Into<String>,
     item_index: u32,
     total_items: u32,
 ) -> AcquisitionProgress {
+    if !progress.terminal && total_items > 0 {
+        let completed_titles = item_index.clamp(1, total_items) - 1;
+        progress.percentage =
+            (completed_titles as f32 * 100.0 + progress.percentage) / total_items as f32;
+    }
     progress.current_title_id = Some(title_id.into());
     progress.current_item_index = Some(item_index);
     progress.total_items = Some(total_items);
@@ -472,6 +479,19 @@ mod tests {
         assert_eq!(scoped_progress.current_item_index, Some(2));
         assert_eq!(scoped_progress.total_items, Some(3));
         assert_eq!(scoped_progress.stage, AcquisitionStage::Download);
+    }
+
+    #[test]
+    fn multi_title_progress_is_one_batch_bar() {
+        let halfway = || acquisition_progress(AcquisitionStage::Download, Some(0.5), None, None);
+
+        let first = acquisition_progress_for_current_title(halfway(), "B1", 1, 2);
+        let second = acquisition_progress_for_current_title(halfway(), "B2", 2, 2);
+        let only = acquisition_progress_for_current_title(halfway(), "B1", 1, 1);
+
+        assert!((first.percentage - 20.0).abs() < 0.001);
+        assert!((second.percentage - 70.0).abs() < 0.001);
+        assert!((only.percentage - 40.0).abs() < 0.001);
     }
 
     #[test]
