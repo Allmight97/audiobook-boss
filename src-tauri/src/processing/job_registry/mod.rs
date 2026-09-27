@@ -10,24 +10,24 @@ mod tests;
 mod types;
 
 use crate::errors::{AppError, Result};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::Semaphore;
 use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
-pub use types::{AggregateJobStatus, Job, JobId, MaxConcurrentJobsCapabilities};
+pub use types::{AggregateJobStatus, JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;
 pub const MAX_CONCURRENT_JOBS: usize = 8;
 
 /// Registry for managing concurrent processing jobs
 ///
-/// Uses a semaphore to limit the number of concurrent jobs and provides
-/// per-job cancellation support.
+/// Uses a semaphore to limit the number of concurrent jobs. Cancellation is
+/// operation-scoped; see `CancellationChecker`.
 pub struct JobRegistry {
     /// Admission state; one lock so reconfiguration and admission agree.
     admission: Mutex<Admission>,
@@ -39,8 +39,8 @@ pub struct JobRegistry {
 /// clones `semaphore` under the same lock. Reconfiguration therefore either
 /// sees that job and refuses, or swaps the semaphore before the job reads it.
 struct Admission {
-    /// Admitting and running jobs indexed by their ID
-    jobs: HashMap<Uuid, Job>,
+    /// Admitting and running jobs
+    jobs: HashSet<Uuid>,
     /// Semaphore limiting concurrent jobs
     semaphore: Arc<Semaphore>,
 }
@@ -156,7 +156,7 @@ impl JobRegistry {
         let effective_max = Self::normalize_max(max_concurrent);
         Self {
             admission: Mutex::new(Admission {
-                jobs: HashMap::new(),
+                jobs: HashSet::new(),
                 semaphore: Arc::new(Semaphore::new(effective_max)),
             }),
             max_concurrent: AtomicUsize::new(effective_max),
@@ -207,46 +207,6 @@ impl JobRegistry {
         BatchScheduler::new(self)
     }
 
-    /// Gets the cancellation flag for a specific job
-    pub async fn get_cancel_flag(&self, job_id: JobId) -> Arc<AtomicBool> {
-        let admission = self.admission();
-        admission
-            .jobs
-            .get(&job_id.0)
-            .map(|j| j.cancel_flag.clone())
-            .unwrap_or_else(|| Arc::new(AtomicBool::new(false)))
-    }
-
-    /// Checks if a specific job is cancelled
-    pub async fn is_cancelled(&self, job_id: JobId) -> bool {
-        let admission = self.admission();
-        admission
-            .jobs
-            .get(&job_id.0)
-            .map(|j| j.cancel_flag.load(Ordering::SeqCst))
-            .unwrap_or(false)
-    }
-
-    /// Returns a synchronous cancellation checker for use in processing loops
-    pub async fn cancellation_checker(&self, job_id: JobId) -> CancellationChecker {
-        CancellationChecker {
-            job_flag: self.get_cancel_flag(job_id).await,
-            operation_flag: None,
-        }
-    }
-
-    /// Cancels a specific job
-    pub async fn cancel_job(&self, job_id: JobId) -> Result<()> {
-        let admission = self.admission();
-        if let Some(job) = admission.jobs.get(&job_id.0) {
-            job.cancel_flag.store(true, Ordering::SeqCst);
-            log::info!("Job {} cancellation requested", job_id);
-            Ok(())
-        } else {
-            Err(AppError::InvalidInput(format!("Job {} not found", job_id)))
-        }
-    }
-
     /// Marks a job as completed and removes it from active tracking
     pub async fn complete_job(&self, job_id: JobId) {
         if self.remove_job(job_id) {
@@ -269,7 +229,7 @@ impl JobRegistry {
     }
 
     fn remove_job(&self, job_id: JobId) -> bool {
-        self.admission().jobs.remove(&job_id.0).is_some()
+        self.admission().jobs.remove(&job_id.0)
     }
 
     /// Gets aggregate progress information
@@ -282,12 +242,6 @@ impl JobRegistry {
             total_jobs: total,
             max_concurrent: self.max_concurrent(),
         }
-    }
-
-    /// Lists all active job IDs
-    pub async fn list_active_jobs(&self) -> Vec<JobId> {
-        let admission = self.admission();
-        admission.jobs.values().map(|j| j.id).collect()
     }
 
     /// Returns the maximum concurrency setting

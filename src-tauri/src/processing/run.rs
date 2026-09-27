@@ -607,10 +607,6 @@ mod tests {
         let status = registry.get_aggregate_status().await;
         assert_eq!(status.active_jobs, 0, "active jobs should be cleared");
         assert_eq!(status.total_jobs, 0, "tracked jobs should be cleared");
-        assert!(
-            registry.list_active_jobs().await.is_empty(),
-            "active job list should be empty after failed validation"
-        );
         assert_eq!(
             registry
                 .update_max_concurrent(1)

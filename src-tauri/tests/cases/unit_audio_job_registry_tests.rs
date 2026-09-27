@@ -83,35 +83,6 @@ async fn test_complete_job_removes_from_registry() {
 }
 
 #[tokio::test]
-async fn test_cancel_specific_job() {
-    let registry = JobRegistry::new(2);
-    let (job_id1, _permit1) = registry.register_job().await.expect("Should register job");
-    let (job_id2, _permit2) = registry.register_job().await.expect("Should register job");
-
-    // Cancel only job1
-    registry
-        .cancel_job(job_id1)
-        .await
-        .expect("Should cancel job");
-
-    // job1 should be cancelled, job2 should not
-    assert!(registry.is_cancelled(job_id1).await);
-    assert!(!registry.is_cancelled(job_id2).await);
-}
-
-#[tokio::test]
-async fn test_cancellation_checker() {
-    let registry = JobRegistry::new(2);
-    let (job_id, _permit) = registry.register_job().await.expect("Should register job");
-
-    let checker = registry.cancellation_checker(job_id).await;
-    assert!(!checker.is_cancelled());
-
-    registry.cancel_job(job_id).await.expect("cancel job");
-    assert!(checker.is_cancelled());
-}
-
-#[tokio::test]
 async fn test_semaphore_limits_concurrent_jobs() {
     let registry = Arc::new(JobRegistry::new(2));
 

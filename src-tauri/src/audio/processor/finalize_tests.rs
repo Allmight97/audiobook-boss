@@ -38,7 +38,7 @@ fn has_hidden_processing_artifact(root: &Path) -> bool {
 async fn complete_staged_output_commits_from_local_workspace_without_destination_residue() {
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = registry.cancellation_checker(job_id).await;
+    let checker = crate::processing::CancellationChecker::new(None);
 
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
@@ -75,7 +75,7 @@ async fn complete_staged_output_commits_from_local_workspace_without_destination
 async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = registry.cancellation_checker(job_id).await;
+    let checker = crate::processing::CancellationChecker::new(None);
 
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
@@ -123,8 +123,9 @@ async fn complete_staged_output_cleans_local_workspace_after_commit_failure() {
 async fn complete_staged_output_cleans_without_committing_when_cancelled_before_commit() {
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = registry.cancellation_checker(job_id).await;
-    registry.cancel_job(job_id).await.expect("cancel job");
+    let checker = crate::processing::CancellationChecker::new(Some(std::sync::Arc::new(
+        std::sync::atomic::AtomicBool::new(true),
+    )));
 
     let local = TempDir::new().expect("local workspace root");
     let destination = TempDir::new().expect("destination root");
