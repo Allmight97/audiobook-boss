@@ -47,7 +47,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::process_audiobook_files,
             crate::commands::submit_processing_operation,
             crate::commands::list_work_operations,
-            crate::commands::get_work_operation,
             crate::commands::cancel_work_operation,
             crate::commands::log_frontend,
         ])

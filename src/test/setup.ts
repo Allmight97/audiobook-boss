@@ -332,13 +332,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 			}
 			case 'list_work_operations':
 				return Promise.resolve(mockOperationList());
-			case 'get_work_operation': {
-				const args = _args as { operationId?: string } | undefined;
-				const snapshot = mockOperations.get(args?.operationId ?? '');
-				return snapshot
-					? Promise.resolve(snapshot)
-					: Promise.reject(new Error('Operation not found'));
-			}
 			case 'cancel_work_operation': {
 				const args = _args as { operationId?: string } | undefined;
 				const current = mockOperations.get(args?.operationId ?? '');

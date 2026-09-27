@@ -128,9 +128,6 @@ describe('Work Center state', () => {
 		const listed = await tauriClient.listWorkOperations();
 		expect(listed.operations).toEqual(operations);
 		expect(await tauriClient.listWorkOperations()).toEqual(listed);
-		for (const operation of operations) {
-			expect(await tauriClient.getWorkOperation(operation.operationId)).toEqual(operation);
-		}
 	});
 
 	it('keeps event state when a delayed initial listing arrives', async () => {
