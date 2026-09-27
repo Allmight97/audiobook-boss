@@ -603,9 +603,13 @@ async fn cancellation_yields_terminal_error_without_artifact_or_staging_residue(
     let lane = MediaLane::with_fixtures(&[1.0]);
 
     let registry = JobRegistry::new(1);
-    let checker = registry.cancellation_checker(JobId::new()).await;
+    let checker = registry
+        .cancellation_checker(JobId::new())
+        .await
+        .with_operation_flag(Some(std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(true),
+        )));
     let session = ProcessingSession::from_job_registry(uuid::Uuid::new_v4(), checker);
-    registry.cancel_all();
 
     let err = execute_audio_engine(lane.execution_request(session, None))
         .await

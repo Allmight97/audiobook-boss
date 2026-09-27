@@ -83,19 +83,6 @@ async fn test_complete_job_removes_from_registry() {
 }
 
 #[tokio::test]
-async fn test_cancel_all() {
-    let registry = JobRegistry::new(2);
-    let (job_id, _permit) = registry.register_job().await.expect("Should register job");
-
-    assert!(!registry.is_cancelled(job_id).await);
-
-    registry.cancel_all();
-
-    assert!(registry.is_cancelled(job_id).await);
-    assert!(registry.is_global_cancelled());
-}
-
-#[tokio::test]
 async fn test_cancel_specific_job() {
     let registry = JobRegistry::new(2);
     let (job_id1, _permit1) = registry.register_job().await.expect("Should register job");
@@ -120,65 +107,8 @@ async fn test_cancellation_checker() {
     let checker = registry.cancellation_checker(job_id).await;
     assert!(!checker.is_cancelled());
 
-    registry.cancel_all();
+    registry.cancel_job(job_id).await.expect("cancel job");
     assert!(checker.is_cancelled());
-}
-
-#[tokio::test]
-async fn test_cancel_all_blocks_queued_registration_until_explicit_reset() {
-    use tokio::sync::oneshot;
-    use tokio::time::{sleep, Duration};
-
-    let registry = Arc::new(JobRegistry::new(1));
-    let (job_id1, permit1) = registry
-        .register_job()
-        .await
-        .expect("Should register job 1");
-
-    let queued_registry = Arc::clone(&registry);
-    let (queued_tx, queued_rx) = oneshot::channel();
-    tokio::spawn(async move {
-        let result = queued_registry.register_job().await;
-        let _ = queued_tx.send(result);
-    });
-
-    sleep(Duration::from_millis(20)).await;
-
-    registry.cancel_all();
-    assert!(registry.is_global_cancelled());
-
-    drop(permit1);
-    registry.complete_job(job_id1).await;
-
-    let queued_result = queued_rx
-        .await
-        .expect("queued registration should complete");
-
-    assert!(
-        registry.is_global_cancelled(),
-        "queued registration must not clear cancel-all"
-    );
-    assert!(
-        queued_result.is_err(),
-        "queued registration should fail once cancel-all is active"
-    );
-
-    let direct_retry = registry.register_job().await;
-    assert!(
-        direct_retry.is_err(),
-        "new registration should stay blocked until a fresh command resets cancel-all"
-    );
-
-    registry.reset_global_cancel();
-    assert!(
-        !registry.is_global_cancelled(),
-        "explicit reset should clear the global cancellation flag"
-    );
-
-    let (_job_id2, _permit2) = registry
-        .register_job()
-        .await
-        .expect("fresh registration should succeed");
 }
 
 #[tokio::test]

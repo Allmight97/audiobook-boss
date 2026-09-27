@@ -13,8 +13,8 @@ use crate::errors::{AppError, Result};
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
-use tokio::sync::{RwLock, Semaphore};
+use std::sync::{Arc, Mutex, MutexGuard};
+use tokio::sync::Semaphore;
 use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
@@ -27,16 +27,22 @@ pub const MAX_CONCURRENT_JOBS: usize = 8;
 /// Registry for managing concurrent processing jobs
 ///
 /// Uses a semaphore to limit the number of concurrent jobs and provides
-/// per-job cancellation support with a global cancel-all capability.
+/// per-job cancellation support.
 pub struct JobRegistry {
-    /// Active jobs indexed by their ID
-    jobs: RwLock<HashMap<Uuid, Job>>,
-    /// Semaphore limiting concurrent jobs
-    semaphore: RwLock<Arc<Semaphore>>,
+    /// Admission state; one lock so reconfiguration and admission agree.
+    admission: Mutex<Admission>,
     /// Maximum number of concurrent jobs
     max_concurrent: AtomicUsize,
-    /// Global cancellation flag (cancels all jobs when set)
-    global_cancel: Arc<AtomicBool>,
+}
+
+/// A job enters `jobs` when it starts waiting for a permit, and admission
+/// clones `semaphore` under the same lock. Reconfiguration therefore either
+/// sees that job and refuses, or swaps the semaphore before the job reads it.
+struct Admission {
+    /// Admitting and running jobs indexed by their ID
+    jobs: HashMap<Uuid, Job>,
+    /// Semaphore limiting concurrent jobs
+    semaphore: Arc<Semaphore>,
 }
 
 /// Internal batch scheduler facade backed by JobRegistry concurrency settings.
@@ -149,10 +155,11 @@ impl JobRegistry {
     pub fn new(max_concurrent: usize) -> Self {
         let effective_max = Self::normalize_max(max_concurrent);
         Self {
-            jobs: RwLock::new(HashMap::new()),
-            semaphore: RwLock::new(Arc::new(Semaphore::new(effective_max))),
+            admission: Mutex::new(Admission {
+                jobs: HashMap::new(),
+                semaphore: Arc::new(Semaphore::new(effective_max)),
+            }),
             max_concurrent: AtomicUsize::new(effective_max),
-            global_cancel: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -202,52 +209,36 @@ impl JobRegistry {
 
     /// Gets the cancellation flag for a specific job
     pub async fn get_cancel_flag(&self, job_id: JobId) -> Arc<AtomicBool> {
-        let jobs = self.jobs.read().await;
-        jobs.get(&job_id.0)
+        let admission = self.admission();
+        admission
+            .jobs
+            .get(&job_id.0)
             .map(|j| j.cancel_flag.clone())
             .unwrap_or_else(|| Arc::new(AtomicBool::new(false)))
     }
 
-    /// Checks if a specific job is cancelled (per-job OR global)
+    /// Checks if a specific job is cancelled
     pub async fn is_cancelled(&self, job_id: JobId) -> bool {
-        // Check global cancel first
-        if self.global_cancel.load(Ordering::SeqCst) {
-            return true;
-        }
-
-        // Then check per-job flag
-        let jobs = self.jobs.read().await;
-        jobs.get(&job_id.0)
+        let admission = self.admission();
+        admission
+            .jobs
+            .get(&job_id.0)
             .map(|j| j.cancel_flag.load(Ordering::SeqCst))
             .unwrap_or(false)
     }
 
     /// Returns a synchronous cancellation checker for use in processing loops
     pub async fn cancellation_checker(&self, job_id: JobId) -> CancellationChecker {
-        let job_flag = self.get_cancel_flag(job_id).await;
         CancellationChecker {
-            job_flag,
-            global_flag: self.global_cancel.clone(),
+            job_flag: self.get_cancel_flag(job_id).await,
             operation_flag: None,
-            honor_global: true,
         }
-    }
-
-    /// Cancels all active jobs
-    pub fn cancel_all(&self) {
-        log::info!("Cancelling all jobs");
-        self.global_cancel.store(true, Ordering::SeqCst);
-    }
-
-    /// Clears the global cancellation flag for a new top-level processing command.
-    pub fn reset_global_cancel(&self) {
-        self.global_cancel.store(false, Ordering::SeqCst);
     }
 
     /// Cancels a specific job
     pub async fn cancel_job(&self, job_id: JobId) -> Result<()> {
-        let jobs = self.jobs.read().await;
-        if let Some(job) = jobs.get(&job_id.0) {
+        let admission = self.admission();
+        if let Some(job) = admission.jobs.get(&job_id.0) {
             job.cancel_flag.store(true, Ordering::SeqCst);
             log::info!("Job {} cancellation requested", job_id);
             Ok(())
@@ -258,25 +249,33 @@ impl JobRegistry {
 
     /// Marks a job as completed and removes it from active tracking
     pub async fn complete_job(&self, job_id: JobId) {
-        let mut jobs = self.jobs.write().await;
-        if jobs.remove(&job_id.0).is_some() {
+        if self.remove_job(job_id) {
             log::info!("Job {} completed", job_id);
         }
     }
 
     /// Marks a job as failed
     pub async fn fail_job(&self, job_id: JobId, error: String) {
-        let mut jobs = self.jobs.write().await;
-        if jobs.remove(&job_id.0).is_some() {
+        if self.remove_job(job_id) {
             log::error!("Job {} failed: {}", job_id, error);
         }
     }
 
+    fn admission(&self) -> MutexGuard<'_, Admission> {
+        // Admission holds no invariant a panicking holder could half-apply.
+        self.admission
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn remove_job(&self, job_id: JobId) -> bool {
+        self.admission().jobs.remove(&job_id.0).is_some()
+    }
+
     /// Gets aggregate progress information
     pub async fn get_aggregate_status(&self) -> AggregateJobStatus {
-        let jobs = self.jobs.read().await;
-        // Every tracked job is active; terminal paths remove it from the map.
-        let total = jobs.len();
+        // Every tracked job is admitting or active; terminal paths remove it.
+        let total = self.admission().jobs.len();
 
         AggregateJobStatus {
             active_jobs: total,
@@ -287,8 +286,8 @@ impl JobRegistry {
 
     /// Lists all active job IDs
     pub async fn list_active_jobs(&self) -> Vec<JobId> {
-        let jobs = self.jobs.read().await;
-        jobs.values().map(|j| j.id).collect()
+        let admission = self.admission();
+        admission.jobs.values().map(|j| j.id).collect()
     }
 
     /// Returns the maximum concurrency setting
@@ -296,25 +295,16 @@ impl JobRegistry {
         self.max_concurrent.load(Ordering::SeqCst)
     }
 
-    /// Checks if global cancellation is active
-    pub fn is_global_cancelled(&self) -> bool {
-        self.global_cancel.load(Ordering::SeqCst)
-    }
-
-    /// Updates the maximum concurrency. Requires no active or queued jobs.
+    /// Updates the maximum concurrency. Requires no admitting or active jobs.
     pub async fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
-        let status = self.get_aggregate_status().await;
-        if status.active_jobs > 0 {
+        let mut admission = self.admission();
+        if !admission.jobs.is_empty() {
             return Err(AppError::InvalidInput(
                 "Cannot change max concurrency while jobs are active".to_string(),
             ));
         }
-
-        {
-            let mut semaphore = self.semaphore.write().await;
-            *semaphore = Arc::new(Semaphore::new(effective));
-        }
+        admission.semaphore = Arc::new(Semaphore::new(effective));
         self.max_concurrent.store(effective, Ordering::SeqCst);
         Ok(effective)
     }
