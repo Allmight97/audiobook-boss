@@ -13,10 +13,7 @@ mod json_probe;
 mod license;
 mod naming;
 
-pub use download::{
-    classify_download_response, classify_download_response_for_mode, DownloadResponseError,
-    ParsedContentRange,
-};
+pub use download::{classify_download_response, DownloadResponseError, ParsedContentRange};
 pub use json_probe::{find_first_string_for_key, find_first_string_for_keys};
 pub use license::{
     audible_decryption_material_from_license, AudibleDecryptionMaterial,

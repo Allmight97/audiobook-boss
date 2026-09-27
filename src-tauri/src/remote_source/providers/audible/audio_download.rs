@@ -9,7 +9,7 @@ use super::{
 };
 use crate::errors::{AppError, Result};
 use crate::remote_source::scoped_output::{rollback_committed_file, StagedTempFile};
-use abb_audible_core::{classify_download_response_for_mode, title_ref, DownloadResponseError};
+use abb_audible_core::{classify_download_response, title_ref, DownloadResponseError};
 use abb_remote_source_core::{acquisition_progress, AcquisitionProgress, AcquisitionStage};
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 
@@ -75,11 +75,11 @@ pub(super) async fn download_audio(
     let bytes = download_to_path(
         content_url,
         path,
-        Some(DownloadLogContext {
+        DownloadLogContext {
             job_id,
             title_id,
             extension: &extension,
-        }),
+        },
         &mut download_progress,
         is_cancelled,
     )
@@ -101,7 +101,20 @@ pub(super) async fn download_audio(
 pub(super) async fn download_to_path(
     url: &str,
     path: &Path,
-    log_context: Option<DownloadLogContext<'_>>,
+    log_context: DownloadLogContext<'_>,
+    progress: &mut impl FnMut(AcquisitionProgress),
+    is_cancelled: &impl Fn() -> bool,
+) -> Result<u64> {
+    let client = audio_download_client(MAX_DOWNLOAD_REDIRECTS)
+        .map_err(|_| provider_private_failure("download client"))?;
+    download_to_path_with_client(&client, url, path, log_context, progress, is_cancelled).await
+}
+
+async fn download_to_path_with_client(
+    client: &reqwest::Client,
+    url: &str,
+    path: &Path,
+    log_context: DownloadLogContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<u64> {
@@ -116,6 +129,7 @@ pub(super) async fn download_to_path(
     let mut staged = StagedTempFile::new(path);
     staged.prepare()?;
     let bytes = download_to_partial_path(
+        client,
         parsed,
         staged.partial_path(),
         log_context,
@@ -128,22 +142,20 @@ pub(super) async fn download_to_path(
 }
 
 async fn download_to_partial_path(
+    client: &reqwest::Client,
     url: reqwest::Url,
     path: &Path,
-    log_context: Option<DownloadLogContext<'_>>,
+    log_context: DownloadLogContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<u64> {
     ensure_not_cancelled(is_cancelled)?;
-    let client = audio_download_client(MAX_DOWNLOAD_REDIRECTS)
-        .map_err(|_| provider_private_failure("download client"))?;
     let mut state = DownloadProgress::default();
-    let can_resume = log_context.is_some();
 
     for attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
         ensure_not_cancelled(is_cancelled)?;
         let outcome = run_download_attempt(
-            &client,
+            client,
             &url,
             path,
             &mut state,
@@ -155,7 +167,7 @@ async fn download_to_partial_path(
         match outcome {
             AttemptOutcome::Complete => return Ok(state.bytes_downloaded),
             AttemptOutcome::ReadFailed => {
-                if can_resume && attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
+                if attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
                     continue;
                 }
                 log_download_failed(
@@ -168,7 +180,7 @@ async fn download_to_partial_path(
                 return Err(download_failure("read"));
             }
             AttemptOutcome::Incomplete => {
-                if can_resume && attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
+                if attempt + 1 < MAX_DOWNLOAD_ATTEMPTS {
                     continue;
                 }
                 break;
@@ -208,16 +220,13 @@ async fn run_download_attempt(
     url: &reqwest::Url,
     path: &Path,
     state: &mut DownloadProgress,
-    log_context: Option<DownloadLogContext<'_>>,
+    log_context: DownloadLogContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<AttemptOutcome> {
     log_download_request_start(log_context, state.bytes_downloaded);
-    let request = if log_context.is_some() {
-        build_download_request(client, url.clone(), state.bytes_downloaded)
-    } else {
-        client.get(url.clone())
-    };
+    // Audio downloads always resume from the bytes already written.
+    let request = build_download_request(client, url.clone(), state.bytes_downloaded);
     let mut response = match request.send().await {
         Ok(response) => response,
         Err(_) => {
@@ -239,8 +248,7 @@ async fn run_download_attempt(
         .get(CONTENT_RANGE)
         .and_then(|value| value.to_str().ok());
     let final_url_is_https = response.url().scheme() == "https";
-    let response_total = match classify_download_response_for_mode(
-        log_context.is_some(),
+    let response_total = match classify_download_response(
         status.as_u16(),
         final_url_is_https,
         state.bytes_downloaded,
@@ -303,7 +311,7 @@ async fn stream_download_chunks(
     response: &mut reqwest::Response,
     file: &mut tokio::fs::File,
     state: &mut DownloadProgress,
-    log_context: Option<DownloadLogContext<'_>>,
+    log_context: DownloadLogContext<'_>,
     progress: &mut impl FnMut(AcquisitionProgress),
     is_cancelled: &impl Fn() -> bool,
 ) -> Result<bool> {
@@ -344,10 +352,7 @@ pub(super) fn build_download_request(
         .header(RANGE, format!("bytes={offset}-"))
 }
 
-fn log_download_request_start(context: Option<DownloadLogContext<'_>>, offset: u64) {
-    let Some(context) = context else {
-        return;
-    };
+fn log_download_request_start(context: DownloadLogContext<'_>, offset: u64) {
     log::info!(
         "remote_source audible stage=download_request_start job_id={} title_ref={} extension={} bytes={}",
         context.job_id,
@@ -358,14 +363,11 @@ fn log_download_request_start(context: Option<DownloadLogContext<'_>>, offset: u
 }
 
 fn log_download_request_status(
-    context: Option<DownloadLogContext<'_>>,
+    context: DownloadLogContext<'_>,
     status: reqwest::StatusCode,
     bytes_downloaded: u64,
     bytes_total: Option<u64>,
 ) {
-    let Some(context) = context else {
-        return;
-    };
     log::info!(
         "remote_source audible stage=download_request_status job_id={} title_ref={} extension={} http_status={} bytes={} bytes_total={}",
         context.job_id,
@@ -378,13 +380,10 @@ fn log_download_request_status(
 }
 
 fn log_download_progress_first_bytes(
-    context: Option<DownloadLogContext<'_>>,
+    context: DownloadLogContext<'_>,
     bytes_downloaded: u64,
     bytes_total: Option<u64>,
 ) {
-    let Some(context) = context else {
-        return;
-    };
     log::info!(
         "remote_source audible stage=download_progress_first_bytes job_id={} title_ref={} extension={} bytes={} bytes_total={}",
         context.job_id,
@@ -396,15 +395,12 @@ fn log_download_progress_first_bytes(
 }
 
 fn log_download_failed(
-    context: Option<DownloadLogContext<'_>>,
+    context: DownloadLogContext<'_>,
     category: &str,
     bytes_downloaded: u64,
     bytes_total: Option<u64>,
     status: Option<reqwest::StatusCode>,
 ) {
-    let Some(context) = context else {
-        return;
-    };
     log::warn!(
         "remote_source audible stage=download_failed job_id={} title_ref={} extension={} category={} http_status={} bytes={} bytes_total={}",
         context.job_id,
@@ -416,3 +412,7 @@ fn log_download_failed(
         bytes_total.unwrap_or(0)
     );
 }
+
+#[cfg(test)]
+#[path = "audio_download_tests.rs"]
+mod harness_tests;
