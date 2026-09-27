@@ -14,7 +14,6 @@ const EXPECTED_APP_REMOTE_SOURCE_EXPORTS = [
 	'releaseKey',
 	'releaseProtocolLabel',
 	'selectedRemoteTitleSummaryText',
-	'titleAvailability',
 	'visibleRemoteReleases',
 	'visibleRemoteTitles',
 ] as const;

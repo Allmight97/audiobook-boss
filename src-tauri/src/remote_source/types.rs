@@ -11,13 +11,6 @@ pub enum ProviderId {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub enum RemoteAuthFlow {
-    ExternalBrowserHandoff,
-    ApiKey,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub struct AccountRef {
     pub provider_id: ProviderId,
     pub account_id: String,
@@ -29,17 +22,6 @@ pub struct AccountRef {
 pub struct RemoteSourceProviderCapabilities {
     pub provider_id: ProviderId,
     pub label: String,
-    pub auth_flow: RemoteAuthFlow,
-    pub supports_library_scan: bool,
-    pub supports_paged_scan: bool,
-    pub supports_typeahead_filter: bool,
-    pub supports_supplemental_pdf: bool,
-    pub supports_materialized_audio: bool,
-    pub supports_release_search: bool,
-    pub supports_release_grab: bool,
-    pub supports_refresh: bool,
-    pub requires_live_session: bool,
-    pub known_unsupported_reasons: Vec<RemoteAcquisitionFailureKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]

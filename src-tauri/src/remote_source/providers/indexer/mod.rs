@@ -5,10 +5,10 @@ use std::path::Path;
 
 use crate::errors::{AppError, Result};
 use crate::remote_source::types::{
-    AccountRef, ProviderId, RemoteAccountStatus, RemoteAcquisitionFailureKind, RemoteAuthFlow,
-    RemoteIndexerConnection, RemoteIndexerConnectionUpdate, RemoteRelease,
-    RemoteReleaseGrabRequest, RemoteReleaseGrabResponse, RemoteReleaseSearchRequest,
-    RemoteReleaseSearchResponse, RemoteSourceAccountState, RemoteSourceProviderCapabilities,
+    AccountRef, ProviderId, RemoteAccountStatus, RemoteIndexerConnection,
+    RemoteIndexerConnectionUpdate, RemoteRelease, RemoteReleaseGrabRequest,
+    RemoteReleaseGrabResponse, RemoteReleaseSearchRequest, RemoteReleaseSearchResponse,
+    RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
 use crate::remote_source::vault::SecretVault;
 
@@ -27,21 +27,6 @@ impl IndexerProvider {
         RemoteSourceProviderCapabilities {
             provider_id: ProviderId::Indexer,
             label: "Indexer".to_string(),
-            auth_flow: RemoteAuthFlow::ApiKey,
-            supports_library_scan: false,
-            supports_paged_scan: false,
-            supports_typeahead_filter: false,
-            supports_supplemental_pdf: false,
-            supports_materialized_audio: false,
-            supports_release_search: true,
-            supports_release_grab: true,
-            supports_refresh: false,
-            requires_live_session: false,
-            known_unsupported_reasons: vec![
-                RemoteAcquisitionFailureKind::IndexerConnectionRequired,
-                RemoteAcquisitionFailureKind::ReleaseSearchFailed,
-                RemoteAcquisitionFailureKind::ReleaseGrabFailed,
-            ],
         }
     }
 

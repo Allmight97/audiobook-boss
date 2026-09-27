@@ -1,9 +1,4 @@
-import type {
-	AcquisitionJob,
-	AcquisitionProgress,
-	RemoteTitle,
-	RemoteTitleAvailability,
-} from '../../types/remoteSource';
+import type { AcquisitionJob, AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
 
 export type AcquisitionJobWithProgress = AcquisitionJob & {
 	progress?: AcquisitionProgress;
@@ -96,20 +91,6 @@ export function progressTitleLabel(progress: AcquisitionProgress, titles: Remote
 	return `${progress.message.replace(/\.$/, '')}: ${context}`;
 }
 
-export function titleAvailability(title: RemoteTitle): RemoteTitleAvailability {
-	return (
-		title.availability ?? {
-			status: title.unsupportedReasons.length > 0 ? 'providerUnavailable' : 'available',
-			acquirable: title.unsupportedReasons.length === 0,
-			label: title.unsupportedReasons.length > 0 ? 'Unavailable from Audible' : 'Available',
-			detail:
-				title.unsupportedReasons.length > 0
-					? 'Audible reports this title is not playable or downloadable for this account.'
-					: undefined,
-		}
-	);
-}
-
 export function isTitleAcquirable(title: RemoteTitle): boolean {
-	return titleAvailability(title).acquirable;
+	return title.availability.acquirable;
 }

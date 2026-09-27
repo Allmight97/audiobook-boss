@@ -17,7 +17,6 @@ import type {
 	RemoteSourceAccountState as GeneratedRemoteSourceAccountState,
 	RemoteSourceProviderCapabilities as GeneratedRemoteSourceProviderCapabilities,
 	RemoteTitle as GeneratedRemoteTitle,
-	RemoteTitleAvailability as GeneratedRemoteTitleAvailability,
 	RemoteTitleAvailabilityStatus as GeneratedRemoteTitleAvailabilityStatus,
 	SupplementalAsset as GeneratedSupplementalAsset,
 } from '../lib/generated/tauri';
@@ -31,7 +30,6 @@ export type RemoteAuthStartResponse = NullToOptionalDeep<GeneratedRemoteAuthStar
 export type RemoteAuthCompletionRequest = NullToOptionalDeep<GeneratedRemoteAuthCompletionRequest>;
 export type RemoteLibraryResponse = NullToOptionalDeep<GeneratedRemoteLibraryResponse>;
 export type RemoteTitle = NullToOptionalDeep<GeneratedRemoteTitle>;
-export type RemoteTitleAvailability = NullToOptionalDeep<GeneratedRemoteTitleAvailability>;
 export type RemoteTitleAvailabilityStatus = GeneratedRemoteTitleAvailabilityStatus;
 export type AcquisitionPlan = NullToOptionalDeep<GeneratedAcquisitionPlan>;
 export type AcquisitionJob = NullToOptionalDeep<GeneratedAcquisitionJob>;

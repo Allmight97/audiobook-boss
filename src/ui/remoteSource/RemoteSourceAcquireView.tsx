@@ -15,7 +15,6 @@ import {
 	releaseProtocolLabel,
 	type RemoteSourceView,
 	selectedRemoteTitleSummaryText,
-	titleAvailability,
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from '../../app/remoteSource';
@@ -440,9 +439,9 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										<span class="remote-title-meta">{title.authors.join(', ')}</span>
 										<Show when={!isTitleAcquirable(title)}>
 											<span class="remote-title-availability">
-												{titleAvailability(title).label}
+												{title.availability.label}
 											</span>
-											<Show when={titleAvailability(title).detail}>
+											<Show when={title.availability.detail}>
 												{(detail) => (
 													<span class="remote-title-availability-detail">{detail()}</span>
 												)}
