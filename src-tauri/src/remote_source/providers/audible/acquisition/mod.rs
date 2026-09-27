@@ -110,7 +110,7 @@ pub(super) async fn acquire(
                 total_items,
             },
         };
-        match acquire_one(
+        let outcome = acquire_one(
             &client,
             &auth,
             materializer,
@@ -118,38 +118,8 @@ pub(super) async fn acquire(
             &mut progress,
             &is_cancelled,
         )
-        .await
-        {
-            Ok(AcquiredTitle {
-                file: Some(file),
-                assets,
-                diagnostics,
-            }) => {
-                job.materialized_files.push(file);
-                job.supplemental_assets.extend(assets);
-                job.diagnostics.extend(diagnostics);
-            }
-            Ok(AcquiredTitle {
-                file: None,
-                assets,
-                diagnostics,
-            }) => {
-                job.supplemental_assets.extend(assets);
-                job.diagnostics.extend(diagnostics);
-                job.diagnostics.push(RemoteSourceDiagnostic {
-                    kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
-                    title_id: Some(selection.title_id.clone()),
-                    message: "Audible returned provider data, but no import-compatible audio was materialized.".to_string(),
-                });
-            }
-            Err(error) => {
-                if error.is_cancellation() {
-                    return Err(error.into_app_error());
-                }
-                job.diagnostics
-                    .push(error.into_diagnostic(Some(selection.title_id.clone())));
-            }
-        }
+        .await;
+        record_title_outcome(&mut job, &selection.title_id, outcome)?;
     }
 
     job.status = if job.materialized_files.is_empty() {
@@ -163,6 +133,34 @@ pub(super) async fn acquire(
         acquisition_progress(AcquisitionStage::ImportHandoff, Some(1.0), None, None)
     };
     Ok(job)
+}
+
+/// Folds one title's outcome into the job. A title without import-compatible
+/// audio already carries its own specific diagnostic.
+fn record_title_outcome(
+    job: &mut AcquisitionJob,
+    title_id: &str,
+    outcome: AudibleAcquisitionResult<AcquiredTitle>,
+) -> Result<()> {
+    match outcome {
+        Ok(AcquiredTitle {
+            file,
+            assets,
+            diagnostics,
+        }) => {
+            job.materialized_files.extend(file);
+            job.supplemental_assets.extend(assets);
+            job.diagnostics.extend(diagnostics);
+        }
+        Err(error) => {
+            if error.is_cancellation() {
+                return Err(error.into_app_error());
+            }
+            job.diagnostics
+                .push(error.into_diagnostic(Some(title_id.to_string())));
+        }
+    }
+    Ok(())
 }
 
 pub(in crate::remote_source::providers::audible) use crate::remote_source::cancellation::{
@@ -382,6 +380,38 @@ mod tests {
     use secrecy::ExposeSecret;
     use serde_json::json;
     use std::path::Path;
+
+    #[test]
+    fn a_title_without_usable_audio_reports_exactly_its_own_diagnostic() {
+        let mut job = AcquisitionJob {
+            job_id: "job-1".into(),
+            provider_id: ProviderId::Audible,
+            status: RemoteAcquisitionStatus::Acquiring,
+            progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+            materialized_files: Vec::new(),
+            supplemental_assets: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+        let specific = RemoteSourceDiagnostic {
+            kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,
+            title_id: Some("B000000001".into()),
+            message: "Audible returned Dash; not supported.".into(),
+        };
+
+        record_title_outcome(
+            &mut job,
+            "B000000001",
+            Ok(AcquiredTitle {
+                file: None,
+                assets: Vec::new(),
+                diagnostics: vec![specific.clone()],
+            }),
+        )
+        .expect("record outcome");
+
+        assert_eq!(job.diagnostics, vec![specific]);
+        assert!(job.materialized_files.is_empty());
+    }
 
     #[test]
     fn generated_staging_path_does_not_use_provider_title_id() {

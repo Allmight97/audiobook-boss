@@ -417,6 +417,8 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'logout': {
+				// Logout aborts acquisition and purges titles not yet handed to Input.
+				if (deps.state.current().isAcquiring) return;
 				const providerId = deps.state.current().providerId;
 				patchWhenCurrent(workflowScope, { isBusy: true });
 				try {
