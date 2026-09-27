@@ -859,8 +859,6 @@ export type RemoteAuthCompletionRequest = {
 	responseUrlHandoffPath: string | null,
 };
 
-export type RemoteAuthFlow = "externalBrowserHandoff" | "apiKey";
-
 export type RemoteAuthStartResponse = {
 	providerId: ProviderId,
 	authorizationUrl: string,
@@ -951,17 +949,6 @@ export type RemoteSourceDiagnostic = {
 export type RemoteSourceProviderCapabilities = {
 	providerId: ProviderId,
 	label: string,
-	authFlow: RemoteAuthFlow,
-	supportsLibraryScan: boolean,
-	supportsPagedScan: boolean,
-	supportsTypeaheadFilter: boolean,
-	supportsSupplementalPdf: boolean,
-	supportsMaterializedAudio: boolean,
-	supportsReleaseSearch: boolean,
-	supportsReleaseGrab: boolean,
-	supportsRefresh: boolean,
-	requiresLiveSession: boolean,
-	knownUnsupportedReasons: RemoteAcquisitionFailureKind[],
 };
 
 export type RemoteTitle = {

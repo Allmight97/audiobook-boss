@@ -22,8 +22,8 @@ use library::parse_library_titles;
 use crate::errors::{AppError, Result};
 use crate::remote_source::vault::SecretVault;
 use crate::remote_source::{
-    AccountRef, ProviderId, RemoteAccountStatus, RemoteAcquisitionFailureKind, RemoteAuthFlow,
-    RemoteLibraryResponse, RemoteSourceAccountState, RemoteSourceProviderCapabilities, RemoteTitle,
+    AccountRef, ProviderId, RemoteAccountStatus, RemoteLibraryResponse, RemoteSourceAccountState,
+    RemoteSourceProviderCapabilities, RemoteTitle,
 };
 
 const COUNTRY_CODE: &str = "us";
@@ -58,20 +58,6 @@ impl AudibleProvider {
         RemoteSourceProviderCapabilities {
             provider_id: ProviderId::Audible,
             label: "Audible".to_string(),
-            auth_flow: RemoteAuthFlow::ExternalBrowserHandoff,
-            supports_library_scan: true,
-            supports_paged_scan: true,
-            supports_typeahead_filter: true,
-            supports_supplemental_pdf: true,
-            supports_materialized_audio: true,
-            supports_release_search: false,
-            supports_release_grab: false,
-            supports_refresh: true,
-            requires_live_session: true,
-            known_unsupported_reasons: vec![
-                RemoteAcquisitionFailureKind::ProviderPrivateProtocolFailed,
-                RemoteAcquisitionFailureKind::ProtectedUnsupported,
-            ],
         }
     }
 
@@ -329,23 +315,6 @@ mod tests {
     use abb_remote_source_core::AcquisitionProgress;
     use reqwest::header::{RANGE, USER_AGENT};
     use std::path::Path;
-
-    #[test]
-    fn capabilities_stay_provider_neutral() {
-        let capabilities = AudibleProvider::capabilities();
-
-        assert_eq!(capabilities.provider_id, ProviderId::Audible);
-        assert_eq!(
-            capabilities.auth_flow,
-            RemoteAuthFlow::ExternalBrowserHandoff
-        );
-        assert!(capabilities.supports_library_scan);
-        assert!(capabilities.supports_supplemental_pdf);
-        assert!(capabilities.supports_materialized_audio);
-        assert!(capabilities
-            .known_unsupported_reasons
-            .contains(&RemoteAcquisitionFailureKind::ProtectedUnsupported));
-    }
 
     #[test]
     fn library_request_uses_audible_max_page_size() {

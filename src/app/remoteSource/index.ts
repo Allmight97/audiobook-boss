@@ -8,7 +8,6 @@ export {
 	progressPercent,
 	progressTitleLabel,
 	releaseProtocolLabel,
-	titleAvailability,
 } from './display';
 export {
 	releaseKey,
