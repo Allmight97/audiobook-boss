@@ -14,6 +14,22 @@ fn app_settings_config_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
     })
 }
 
+/// Applies the runtime side of accepted settings. Every entry point calls this
+/// only after storage succeeded: startup, update, reset, and recovery.
+pub(crate) fn apply_settings_to_runtime(
+    power: &crate::power::PowerManager,
+    settings: &AppSettings,
+) {
+    power.set_enabled(settings.keep_awake_while_working);
+    crate::audio::set_user_external_ffmpeg_path(
+        settings
+            .toolchain
+            .external_ffmpeg_path
+            .clone()
+            .map(Into::into),
+    );
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn get_app_settings(app: tauri::AppHandle) -> CommandResult<AppSettings> {
@@ -38,16 +54,7 @@ pub fn recover_app_settings(
     expected: AppSettingsRecoveryPlan,
 ) -> CommandResult<AppSettingsRecoveryResult> {
     let result = app_settings::recover_app_settings(&app_settings_config_dir(&app)?, expected)?;
-    app.state::<crate::power::PowerManager>()
-        .set_enabled(result.settings.keep_awake_while_working);
-    crate::audio::set_user_external_ffmpeg_path(
-        result
-            .settings
-            .toolchain
-            .external_ffmpeg_path
-            .clone()
-            .map(Into::into),
-    );
+    apply_settings_to_runtime(&app.state(), &result.settings);
     Ok(result)
 }
 
@@ -59,15 +66,7 @@ pub fn update_app_settings(
 ) -> CommandResult<AppSettings> {
     let config_dir = app_settings_config_dir(&app)?;
     let settings = app_settings::update_app_settings(&config_dir, patch)?;
-    app.state::<crate::power::PowerManager>()
-        .set_enabled(settings.keep_awake_while_working);
-    crate::audio::set_user_external_ffmpeg_path(
-        settings
-            .toolchain
-            .external_ffmpeg_path
-            .clone()
-            .map(Into::into),
-    );
+    apply_settings_to_runtime(&app.state(), &settings);
     Ok(settings)
 }
 
@@ -79,8 +78,7 @@ pub async fn reset_app_settings(
 ) -> CommandResult<AppSettings> {
     let config_dir = app_settings_config_dir(&app)?;
     let settings = reset_app_settings_from_config_dir(&config_dir, &registry).await?;
-    app.state::<crate::power::PowerManager>()
-        .set_enabled(settings.keep_awake_while_working);
+    apply_settings_to_runtime(&app.state(), &settings);
     Ok(settings)
 }
 
@@ -91,28 +89,16 @@ async fn reset_app_settings_from_config_dir(
     let rollback_concurrency = registry.max_concurrent();
     registry.reset_to_auto().await?;
 
-    match app_settings::reset_app_settings(config_dir) {
-        Ok(settings) => {
-            crate::audio::set_user_external_ffmpeg_path(
-                settings
-                    .toolchain
-                    .external_ffmpeg_path
-                    .clone()
-                    .map(Into::into),
+    let reset = app_settings::reset_app_settings(config_dir);
+    if reset.is_err() {
+        if let Err(rollback_error) = registry.update_max_concurrent(rollback_concurrency).await {
+            log::warn!(
+                "Failed to roll back max concurrency after settings reset failed: {}",
+                rollback_error
             );
-            Ok(settings)
-        }
-        Err(error) => {
-            if let Err(rollback_error) = registry.update_max_concurrent(rollback_concurrency).await
-            {
-                log::warn!(
-                    "Failed to roll back max concurrency after settings reset failed: {}",
-                    rollback_error
-                );
-            }
-            Err(error)
         }
     }
+    reset
 }
 
 #[cfg(test)]

@@ -24,8 +24,9 @@
 - Durable preferences validate against the owning runtime APIs; App Settings
   must not duplicate encoder or JobRegistry accept/reject rules.
 - `keep_awake_while_working` defaults on, including for settings written before
-  the preference existed. Successful update/reset/recovery applies the stored
-  choice to the managed PowerManager; opting out releases an active hold.
+  the preference existed. Startup and successful update/reset/recovery apply
+  the stored keep-awake choice and FFmpeg path through the one command-layer
+  helper `apply_settings_to_runtime`; opting out releases an active hold.
 - Updating preferences does not reconfigure JobRegistry. Concurrency is accepted
   through its runtime command before the frontend Settings owner records the
   preference; retrying storage remains possible while jobs are active. Reset
