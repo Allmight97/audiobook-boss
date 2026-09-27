@@ -5,7 +5,7 @@ use crate::processing::{
     AudioHandling, JobRegistry, OutputConfig, ProcessingContext, ProcessingSession,
 };
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Writes `frames` silent MPEG-1 Layer III mono frames at 128 kbps / 44.1 kHz.
@@ -46,11 +46,14 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
         OutputConfig::new(&destination),
         workspace.clone(),
     );
-    let joining_seen = Arc::new(AtomicBool::new(false));
-    let listener_seen = Arc::clone(&joining_seen);
+    // Joining is announced once before the first packet and again after each
+    // source; cancel after the first source's packets are in the partial join.
+    let joining_events = Arc::new(AtomicUsize::new(0));
+    let listener_events = Arc::clone(&joining_events);
     context.progress_listener = Some(Arc::new(move |event| {
-        if event.message.starts_with("Joining original audio") {
-            listener_seen.store(true, Ordering::Release);
+        if event.message.starts_with("Joining original audio")
+            && listener_events.fetch_add(1, Ordering::AcqRel) + 1 == 2
+        {
             cancelled.store(true, Ordering::Release);
         }
     }));
@@ -70,9 +73,10 @@ async fn cancelling_during_a_keep_audio_join_leaves_no_output_or_workspace_resid
     .expect_err("cancelled join must not publish");
 
     assert!(matches!(error, AppError::Cancellation(_)), "{error:?}");
-    assert!(
-        joining_seen.load(Ordering::Acquire),
-        "cancellation landed in the join"
+    assert_eq!(
+        joining_events.load(Ordering::Acquire),
+        2,
+        "cancellation landed after the first source was joined"
     );
     assert!(!destination.exists());
     assert!(
