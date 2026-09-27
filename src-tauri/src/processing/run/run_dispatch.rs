@@ -6,8 +6,8 @@ use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::progress::EmitContext;
 use crate::processing::terminal_outcomes::{
-    build_all_skipped_batch_result, collect_batch_results, emit_terminal_failed_event,
-    emit_terminal_skipped_event, no_write_skipped_result,
+    build_all_skipped_batch_result, collect_batch_results, emit_terminal_cancelled_event,
+    emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::{
     emit_queue_event, OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry,
@@ -93,58 +93,33 @@ async fn dispatch_batch_plan(
             continue;
         }
 
-        let window_cloned = window.clone();
-        let registry_cloned = registry.clone();
-        let settings_cloned = planned_job.audio_plan.settings.clone();
-        let sr_cloned = audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate);
-        let md_cloned = planned_job.metadata.clone();
-        let cover_art_passthrough = planned_job.cover_art_passthrough;
-        let preview_cloned = preview_seconds;
-        let workspace_root_cloned = workspace_root.clone();
-        let title_cancel = options.title_cancels.get(planned_job.input_index).cloned();
-        let operation_id = options.operation_id.clone();
         let input_index = planned_job.input_index;
-        let output = planned_job.output.clone();
-        let title_info =
-            crate::processing::plan::title_file_info(&file_info, &planned_job.source_paths)?;
-        let supplemental_assets = supplemental_assets_for_input(payload, input_index);
-        let progress_listener = options.progress_listener.clone();
-        let audio_handling = planned_job.audio_plan.handling;
-        let audio_request = payload.audio_requests[input_index].clone();
-        let audio_reason = planned_job.audio_plan.reason.clone();
-        let metadata_intent = planned_job.metadata_intent.clone();
-
-        scheduled_jobs.push(Box::pin(async move {
-            if title_cancel
-                .as_ref()
-                .is_some_and(|flag| flag.load(Ordering::Acquire))
-            {
-                return Err(AppError::cancelled());
-            }
-            run_processing_job(ProcessingJobRequest {
-                window: window_cloned,
-                registry: registry_cloned,
-                workspace_root: workspace_root_cloned,
-                encoder_settings: settings_cloned,
-                audio_handling,
-                audio_request,
-                audio_reason,
-                metadata_intent,
-                sample_rate: sr_cloned,
-                input_index,
-                operation_kind: OperationKind::ProcessingBatch,
-                operation_id,
-                title_cancel,
-                output_plan: output,
-                file_info: title_info,
-                metadata: md_cloned,
-                cover_art_passthrough,
-                preview_seconds: preview_cloned,
-                supplemental_assets,
-                progress_listener,
-            })
-            .await
-        }));
+        let request = ProcessingJobRequest {
+            window: window.clone(),
+            registry: registry.clone(),
+            workspace_root: workspace_root.clone(),
+            encoder_settings: planned_job.audio_plan.settings.clone(),
+            audio_handling: planned_job.audio_plan.handling,
+            audio_request: payload.audio_requests[input_index].clone(),
+            audio_reason: planned_job.audio_plan.reason.clone(),
+            metadata_intent: planned_job.metadata_intent.clone(),
+            sample_rate: audio::SampleRateConfig::Explicit(planned_job.audio_plan.sample_rate),
+            input_index,
+            operation_kind: OperationKind::ProcessingBatch,
+            operation_id: options.operation_id.clone(),
+            title_cancel: options.title_cancels.get(input_index).cloned(),
+            output_plan: planned_job.output.clone(),
+            file_info: crate::processing::plan::title_file_info(
+                &file_info,
+                &planned_job.source_paths,
+            )?,
+            metadata: planned_job.metadata.clone(),
+            cover_art_passthrough: planned_job.cover_art_passthrough,
+            preview_seconds,
+            supplemental_assets: supplemental_assets_for_input(payload, input_index),
+            progress_listener: options.progress_listener.clone(),
+        };
+        scheduled_jobs.push(Box::pin(run_title_job(request)));
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
@@ -156,6 +131,38 @@ async fn dispatch_batch_plan(
     )?;
 
     Ok(ProcessCommandResult::new(finalized_results))
+}
+
+/// Runs one title unless its cancel flag is already set. A title cancelled
+/// before its job started emits nothing else, so report it here instead of
+/// leaving its row cancelling until the batch ends. Background operations
+/// only; previews carry no flags.
+async fn run_title_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
+    let window = request.window.clone();
+    let listener = request.progress_listener.clone();
+    let input_index = request.input_index;
+    let cancelled = request
+        .title_cancel
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::Acquire));
+    let outcome = if cancelled {
+        Err(AppError::cancelled())
+    } else {
+        run_processing_job(request).await
+    };
+    if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
+        emit_terminal_cancelled_event(
+            &window,
+            listener.as_ref(),
+            EmitContext {
+                operation_kind: OperationKind::ProcessingBatch,
+                job_id: None,
+                input_index: Some(input_index),
+            },
+            "Processing was cancelled",
+        );
+    }
+    outcome
 }
 
 fn emit_batch_queue_event(

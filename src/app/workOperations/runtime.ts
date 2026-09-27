@@ -30,6 +30,9 @@ interface WorkCenterState extends WorkCenterModel {
 
 export const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 
+/** A later successful cancel clears an earlier cancel failure. */
+const CANCEL_ERROR_PREFIX = 'Failed to cancel';
+
 function emptyWorkCenterState(): WorkCenterState {
 	return {
 		membershipRevision: 0,
@@ -134,10 +137,14 @@ export function createWorkOperationsSession(
 		try {
 			const next = await tauriClient.cancelWorkOperation(operationId, childJobId);
 			if (started !== generation) return;
+			if (state.errorMessage?.startsWith(CANCEL_ERROR_PREFIX)) {
+				state.errorMessage = null;
+				commit();
+			}
 			applyOperationSnapshot(next);
 		} catch (error) {
 			if (started !== generation) return;
-			state.errorMessage = `Failed to cancel ${childJobId ? 'title' : 'operation'}: ${toUserMessage(error)}`;
+			state.errorMessage = `${CANCEL_ERROR_PREFIX} ${childJobId ? 'title' : 'operation'}: ${toUserMessage(error)}`;
 			commit();
 		}
 	}

@@ -24,9 +24,7 @@ pub struct WorkRuntime {
 
 struct WorkRuntimeInner {
     state: Mutex<WorkRuntimeState>,
-    /// Per-operation cancel flags: one per output title for processing, one
-    /// shared flag for an inline metadata save.
-    operation_cancel_flags: Mutex<HashMap<String, Vec<Arc<AtomicBool>>>>,
+    operation_cancel_flags: Mutex<HashMap<String, CancelFlags>>,
     sequence: AtomicU64,
 }
 
@@ -87,17 +85,13 @@ impl WorkRuntime {
                     .collect();
             }
         }
-        let title_cancels: Vec<_> = request
-            .payload
-            .input_files
-            .iter()
-            .map(|_| Arc::new(AtomicBool::new(false)))
-            .collect();
+        let cancel_flags = CancelFlags::per_title(request.payload.input_files.len());
+        let title_cancels = cancel_flags.titles();
 
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            flags.insert(operation_id.0.clone(), title_cancels.clone());
+            flags.insert(operation_id.0.clone(), cancel_flags);
         }
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
@@ -165,12 +159,13 @@ impl WorkRuntime {
             input_files,
             now_ms(),
         );
-        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let cancel_flags = CancelFlags::per_title(1);
+        let cancel_flag = Arc::clone(&cancel_flags.titles()[0]);
 
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            flags.insert(operation_id.0.clone(), vec![cancel_flag.clone()]);
+            flags.insert(operation_id.0.clone(), cancel_flags);
         }
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
@@ -262,9 +257,7 @@ impl WorkRuntime {
         if let Some(flags) =
             lock_cancel_flags(&self.inner.operation_cancel_flags)?.get(operation_id.as_str())
         {
-            flags
-                .iter()
-                .for_each(|flag| flag.store(true, Ordering::Release));
+            flags.cancel_all();
         }
         let snapshot = lock_state(&self.inner.state)?.request_cancel(operation_id, now_ms())?;
         if snapshot.status == WorkOperationStatus::Cancelling {
@@ -285,11 +278,10 @@ impl WorkRuntime {
         )?;
         if let Some(index) = title_index {
             let flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            if let Some(flag) = flags
+            if flags
                 .get(operation_id.as_str())
-                .and_then(|titles| titles.get(index))
+                .is_some_and(|flags| flags.cancel_title(index))
             {
-                flag.store(true, Ordering::Release);
                 log::info!(
                     "work_operation event=title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
                 );
@@ -497,9 +489,40 @@ fn lock_state(state: &Mutex<WorkRuntimeState>) -> Result<MutexGuard<'_, WorkRunt
         .map_err(|_| AppError::General("Work runtime state lock failed".to_string()))
 }
 
+/// One operation's cancel flags: one independent flag per output title for
+/// processing; an inline metadata save uses a single flag for all its files.
+struct CancelFlags(Vec<Arc<AtomicBool>>);
+
+impl CancelFlags {
+    fn per_title(count: usize) -> Self {
+        Self(
+            (0..count)
+                .map(|_| Arc::new(AtomicBool::new(false)))
+                .collect(),
+        )
+    }
+
+    fn titles(&self) -> Vec<Arc<AtomicBool>> {
+        self.0.clone()
+    }
+
+    fn cancel_all(&self) {
+        self.0
+            .iter()
+            .for_each(|flag| flag.store(true, Ordering::Release));
+    }
+
+    fn cancel_title(&self, index: usize) -> bool {
+        self.0
+            .get(index)
+            .map(|flag| flag.store(true, Ordering::Release))
+            .is_some()
+    }
+}
+
 fn lock_cancel_flags(
-    flags: &Mutex<HashMap<String, Vec<Arc<AtomicBool>>>>,
-) -> Result<MutexGuard<'_, HashMap<String, Vec<Arc<AtomicBool>>>>> {
+    flags: &Mutex<HashMap<String, CancelFlags>>,
+) -> Result<MutexGuard<'_, HashMap<String, CancelFlags>>> {
     flags
         .lock()
         .map_err(|_| AppError::General("Work runtime cancellation lock failed".to_string()))
@@ -508,6 +531,23 @@ fn lock_cancel_flags(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cancelling_one_title_sets_only_its_flag_and_whole_cancel_sets_all() {
+        let flags = CancelFlags::per_title(3);
+        let titles = flags.titles();
+
+        assert!(flags.cancel_title(1));
+        assert!(!flags.cancel_title(3), "unknown titles are not cancelled");
+        let cancelled: Vec<_> = titles
+            .iter()
+            .map(|flag| flag.load(Ordering::Acquire))
+            .collect();
+        assert_eq!(cancelled, [false, true, false]);
+
+        flags.cancel_all();
+        assert!(titles.iter().all(|flag| flag.load(Ordering::Acquire)));
+    }
 
     #[test]
     fn work_operation_record_format_is_stable_and_path_free() {

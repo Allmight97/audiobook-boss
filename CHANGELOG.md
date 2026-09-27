@@ -4,6 +4,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Work Center can cancel one title in a running multi-title export; the other
+  titles keep going, and the cancelled title keeps its Audible download (#513).
+
 ### Fixed
 
 - Metadata edits write only the fields you changed. Blank then Keep no longer
@@ -42,6 +47,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   encoder is reporting progress quickly (#513).
 - Changing concurrency while an export is waiting to start is refused, so the
   waiting export can't run under the old limit (#513).
+- Resetting settings while an export is running now says to wait for it to
+  finish, instead of showing a concurrency error under the FFmpeg path (#513).
 
 ### Changed
 
