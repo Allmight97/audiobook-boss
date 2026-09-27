@@ -80,7 +80,7 @@ function successResult(): ProcessCommandResult {
 				message: 'ok',
 				jobId: 'job-1',
 				error: undefined,
-				previewFilePath: undefined,
+				outputPath: undefined,
 				previewActualSeconds: undefined,
 			},
 		],

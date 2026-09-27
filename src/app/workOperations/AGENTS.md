@@ -3,7 +3,8 @@
 ## Scope
 
 - Owns the frontend read model for WorkRuntime operations, operation and
-  title cancel (`cancel(operationId, childJobId?)`), source-open, and
+  title cancel (`cancel(operationId, childJobId?)`), revealing a completed
+  title's exported file (`revealOutput`), and
   purge-tombstone retention under `src/app/workOperations/`. Only
   whole-operation cancels track pending state; title cancels are idempotent
   in the backend and appear in the returned snapshot.
@@ -53,7 +54,7 @@
 
 - `retention-caps.contract.test.ts` pins the frontend tombstone against the
   backend cap.
-- `state.test.ts` pins listener dispose, terminal purge races, and source-open
+- `state.test.ts` pins listener dispose, terminal purge races, and reveal
   rejection.
 - Work Center UI strip is pinned by
   `src/ui/workCenter/__tests__/runtime-api-contract.test.ts`.

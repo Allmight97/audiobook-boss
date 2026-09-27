@@ -283,7 +283,7 @@ describe('tauriClient nullish adapters', () => {
 					message: 'ok',
 					jobId: 'job-1',
 					error: null,
-					previewFilePath: null,
+					outputPath: null,
 					previewActualSeconds: null,
 				},
 			],
@@ -339,7 +339,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0]?.inputIndex).toBe(0);
 		expect(result.results[0]?.status).toBe('success');
-		expect(result.results[0]?.previewFilePath).toBeUndefined();
+		expect(result.results[0]?.outputPath).toBeUndefined();
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
 	});
 
@@ -378,7 +378,7 @@ describe('tauriClient nullish adapters', () => {
 					message: 'ok',
 					jobId: null,
 					error: 'bad output path',
-					previewFilePath: null,
+					outputPath: null,
 					previewActualSeconds: null,
 				},
 			],
@@ -485,7 +485,7 @@ describe('tauriClient nullish adapters', () => {
 					message: 'ok',
 					jobId: 'job-1',
 					error: null,
-					previewFilePath: null,
+					outputPath: null,
 					previewActualSeconds: null,
 				},
 				{
@@ -499,7 +499,7 @@ describe('tauriClient nullish adapters', () => {
 						message: 'decoder unavailable',
 						detail: 'ffmpeg missing',
 					},
-					previewFilePath: null,
+					outputPath: null,
 					previewActualSeconds: null,
 				},
 			],
@@ -529,7 +529,7 @@ describe('tauriClient nullish adapters', () => {
 				detail: 'ffmpeg missing',
 			},
 			jobId: undefined,
-			previewFilePath: undefined,
+			outputPath: undefined,
 			previewActualSeconds: undefined,
 		});
 	});

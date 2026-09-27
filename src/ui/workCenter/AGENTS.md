@@ -20,6 +20,8 @@
 - `WorkCenterView` reads Work Operations `view` and calls
   `workOperations.cancel`. A title row offers Cancel only in a multi-title
   operation whose child snapshot is `cancellable` and not yet cancelling.
+  A completed title with an `outputPath` offers a reveal button labelled for
+  the host file manager (Finder, File Explorer, or a generic folder).
 - Do not add a local operation store or subscribe to `processing-progress`.
 
 ## Boundary Changes

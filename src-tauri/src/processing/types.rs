@@ -128,7 +128,9 @@ pub struct ProcessResultEntry {
     pub status: ProcessResultStatus,
     pub message: String,
     pub error: Option<AppErrorEnvelope>,
-    pub preview_file_path: Option<String>,
+    /// Published artifact of a successful title: the audiobook for final
+    /// processing, the excerpt for a preview.
+    pub output_path: Option<String>,
     pub preview_actual_seconds: Option<f64>,
     pub job_id: Option<String>,
     /// Set on a successful title whose audiobook was published but whose

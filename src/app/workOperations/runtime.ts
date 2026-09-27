@@ -58,7 +58,7 @@ export type WorkOperationsSession = {
 	dispose(): void;
 	applyOperationSnapshot(snapshot: OperationSnapshot): void;
 	cancel(operationId: OperationId, childJobId?: string): Promise<void>;
-	openSource(child: { sourcePath?: string | null }): Promise<void>;
+	revealOutput(child: { outputPath?: string | null }): Promise<void>;
 };
 
 export type WorkOperationsSessionDeps = {
@@ -251,12 +251,12 @@ export function createWorkOperationsSession(
 				}
 			}
 		},
-		async openSource(child) {
-			if (!child.sourcePath) return;
+		async revealOutput(child) {
+			if (!child.outputPath) return;
 			try {
-				await tauriClient.openPath(child.sourcePath);
+				await tauriClient.revealPath(child.outputPath);
 			} catch (error) {
-				state.errorMessage = `Failed to open source file: ${toUserMessage(error)}`;
+				state.errorMessage = `Failed to show the exported file: ${toUserMessage(error)}`;
 				commit();
 			}
 		},

@@ -58,6 +58,14 @@ function childStatusLabel(child: ChildJobSnapshot): string {
 	return 'Failed';
 }
 
+/** Names the host file manager; WebView user agents identify the OS. */
+function revealLabel(): string {
+	const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+	if (agent.includes('Macintosh')) return 'Show in Finder';
+	if (agent.includes('Windows')) return 'Show in File Explorer';
+	return 'Show in Folder';
+}
+
 function canCancel(operation: OperationSnapshot): boolean {
 	return operation.cancellable && !operation.cancelRequested;
 }
@@ -172,7 +180,7 @@ export function WorkCenterView(): JSX.Element {
 														</span>
 														<Show when={canCancelTitle(operation, child)}>
 															<button
-																class="work-child-source"
+																class="work-child-action"
 																type="button"
 																title={`Cancel ${child.label} only`}
 																onClick={() =>
@@ -185,14 +193,14 @@ export function WorkCenterView(): JSX.Element {
 																Cancel
 															</button>
 														</Show>
-														<Show when={child.sourcePath}>
+														<Show when={child.status === 'completed' && child.outputPath}>
 															<button
-																class="work-child-source"
+																class="work-child-action"
 																type="button"
-																title="Open source file"
-																onClick={() => void workOperations.openSource(child)}
+																title={child.outputPath ?? undefined}
+																onClick={() => void workOperations.revealOutput(child)}
 															>
-																Source
+																{revealLabel()}
 															</button>
 														</Show>
 													</div>

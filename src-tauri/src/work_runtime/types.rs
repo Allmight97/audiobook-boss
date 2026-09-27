@@ -130,6 +130,8 @@ pub struct ChildJobSnapshot {
     pub cancellable: bool,
     pub cancel_requested: bool,
     pub message: Option<String>,
+    /// Published audiobook of a completed title, for revealing it.
+    pub output_path: Option<String>,
     /// The audiobook was published but its companion files were not; the
     /// child's sources stay retained. See `ProcessResultEntry`.
     pub supplemental_warning: Option<String>,

@@ -151,3 +151,22 @@ it('cancels one title in a running batch and hides title cancel for a single tit
 	showOperation({ ...operation, children: [operation.children[0]!] });
 	expect(screen.queryByTitle(/only$/)).not.toBeInTheDocument();
 });
+
+it('reveals only completed titles in the host file manager', () => {
+	const operation = completedOperation();
+	operation.children[0] = {
+		...operation.children[0]!,
+		outputPath: '/Library/A Change of Plans.m4b',
+	};
+	operation.children[1] = {
+		...operation.children[1]!,
+		status: 'cancelled' as const,
+		outputPath: '/x.m4b',
+	};
+	showOperation(operation);
+	const reveal = vi.spyOn(runtime!.workOperations, 'revealOutput').mockResolvedValue();
+	const buttons = screen.getAllByRole('button', { name: /^Show in / });
+	expect(buttons).toHaveLength(1);
+	buttons[0]!.click();
+	expect(reveal).toHaveBeenCalledWith(operation.children[0]);
+});

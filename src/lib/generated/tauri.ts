@@ -317,6 +317,8 @@ export type ChildJobSnapshot = {
 	cancellable: boolean,
 	cancelRequested: boolean,
 	message: string | null,
+	/**  Published audiobook of a completed title, for revealing it. */
+	outputPath: string | null,
 	/**
 	 *  The audiobook was published but its companion files were not; the
 	 *  child's sources stay retained. See `ProcessResultEntry`.
@@ -761,7 +763,11 @@ export type ProcessResultEntry = {
 	status: ProcessResultStatus,
 	message: string,
 	error: AppErrorEnvelope | null,
-	previewFilePath: string | null,
+	/**
+	 *  Published artifact of a successful title: the audiobook for final
+	 *  processing, the excerpt for a preview.
+	 */
+	outputPath: string | null,
 	previewActualSeconds: number | null,
 	jobId: string | null,
 	/**

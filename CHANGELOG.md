@@ -8,6 +8,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - Work Center can cancel one title in a running multi-title export; the other
   titles keep going, and the cancelled title keeps its Audible download (#513).
+- Each finished title in Work Center has a "Show in Finder" button (named for
+  your system's file manager) that reveals the exported audiobook (#513).
 
 ### Fixed
 
@@ -52,6 +54,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Work Center's Source button, which opened the original input file in its
+  default app, is replaced by the reveal button above (#513).
 - Metadata Lookup's queue apply validates each title when it moves to the next
   one, and the last title's applied values stay as form edits until saved or
   processed.

@@ -7,11 +7,9 @@ function isSuccessfulResultEntry(entry: ProcessCommandJobResult): boolean {
 
 function extractSuccessfulPreviewPaths(result: ProcessCommandResult): string[] {
 	return result.results
-		.filter(
-			(entry) => typeof entry.previewFilePath === 'string' && entry.previewFilePath.length > 0,
-		)
+		.filter((entry) => typeof entry.outputPath === 'string' && entry.outputPath.length > 0)
 		.filter(isSuccessfulResultEntry)
-		.map((entry) => entry.previewFilePath as string);
+		.map((entry) => entry.outputPath as string);
 }
 
 export async function openGeneratedPreviewIfSingle(result: ProcessCommandResult): Promise<void> {
@@ -22,7 +20,7 @@ export async function openGeneratedPreviewIfSingle(result: ProcessCommandResult)
 
 	const [previewPath] = previewPaths;
 	const successfulPreview = result.results.find(
-		(entry) => entry.previewFilePath === previewPath && isSuccessfulResultEntry(entry),
+		(entry) => entry.outputPath === previewPath && isSuccessfulResultEntry(entry),
 	);
 	const seconds =
 		typeof successfulPreview?.previewActualSeconds === 'number'

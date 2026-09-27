@@ -255,13 +255,13 @@ describe('Work Center state', () => {
 		resolvePurge();
 	});
 
-	it('surfaces source-open rejection without leaving an unhandled promise', async () => {
-		vi.spyOn(tauriClient, 'openPath').mockRejectedValueOnce('source application unavailable');
+	it('surfaces reveal rejection without leaving an unhandled promise', async () => {
+		vi.spyOn(tauriClient, 'revealPath').mockRejectedValueOnce('file manager unavailable');
 
-		await expect(session.openSource({ sourcePath: '/tmp/book.m4b' })).resolves.toBeUndefined();
+		await expect(session.revealOutput({ outputPath: '/tmp/book.m4b' })).resolves.toBeUndefined();
 
 		expect(session.view().errorMessage).toBe(
-			'Failed to open source file: source application unavailable',
+			'Failed to show the exported file: file manager unavailable',
 		);
 	});
 
