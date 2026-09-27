@@ -286,10 +286,7 @@ mod tests {
         let registry = JobRegistry::new(1);
         let (job_id, _permit) = registry.register_job().await.expect("register copy job");
         let cancelled = Arc::new(AtomicBool::new(false));
-        let checker = registry
-            .cancellation_checker(job_id)
-            .await
-            .with_operation_flag(Some(cancelled.clone()));
+        let checker = crate::processing::CancellationChecker::new(Some(cancelled.clone()));
         let mut context = ProcessingContext::new_headless(
             Arc::new(ProcessingSession::from_job_registry(job_id.0, checker)),
             None,

@@ -1,4 +1,4 @@
-use super::{Job, JobId, JobRegistry};
+use super::{JobId, JobRegistry};
 use crate::errors::{AppError, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -26,11 +26,9 @@ impl JobRegistry {
         }
 
         let job_id = JobId::new();
-        let job = Job::new(job_id);
-        let job_cancel = Arc::clone(&job.cancel_flag);
         let semaphore = {
             let mut admission = self.admission();
-            admission.jobs.insert(job_id.0, job);
+            admission.jobs.insert(job_id.0);
             admission.semaphore.clone()
         };
         let pending = PendingAdmission {
@@ -38,9 +36,7 @@ impl JobRegistry {
             job_id,
         };
 
-        // A queued job is tracked, so its own cancel flag ends admission too.
-        let cancelled =
-            || job_cancel.load(Ordering::SeqCst) || external_cancelled(&external_cancel);
+        let cancelled = || external_cancelled(&external_cancel);
         let acquired = acquire_permit(semaphore, &cancelled)
             .await
             .and_then(|permit| {

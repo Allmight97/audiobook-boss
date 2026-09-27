@@ -85,30 +85,3 @@ async fn dropped_admission_does_not_block_reconfiguration() {
         2
     );
 }
-
-#[tokio::test]
-async fn cancelling_a_queued_job_ends_its_admission() {
-    let registry = Arc::new(JobRegistry::new(1));
-    let (running, _held_permit) = registry.register_job().await.expect("first job");
-    let waiting_registry = Arc::clone(&registry);
-    let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
-    sleep(Duration::from_millis(20)).await;
-    let queued = registry
-        .list_active_jobs()
-        .await
-        .into_iter()
-        .find(|job| *job != running)
-        .expect("queued job is tracked");
-
-    registry
-        .cancel_job(queued)
-        .await
-        .expect("cancel queued job");
-    let result = timeout(Duration::from_millis(250), waiting)
-        .await
-        .expect("queued admission observes its own cancellation")
-        .expect("join waiting job");
-
-    assert!(matches!(result, Err(AppError::Cancellation(_))));
-    assert_eq!(registry.get_aggregate_status().await.total_jobs, 1);
-}

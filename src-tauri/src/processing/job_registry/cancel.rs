@@ -1,26 +1,24 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-/// Synchronous cancellation checker for use in tight processing loops
+/// Synchronous cancellation checker for use in tight processing loops.
 ///
-/// This avoids async overhead when checking cancellation frequently
+/// Cancellation is operation-scoped: accepted background work carries its
+/// operation's flag. Direct previews carry none and cannot be cancelled by
+/// the backend.
 pub struct CancellationChecker {
-    pub(crate) job_flag: Arc<AtomicBool>,
-    pub(crate) operation_flag: Option<Arc<AtomicBool>>,
+    operation_flag: Option<Arc<AtomicBool>>,
 }
 
 impl CancellationChecker {
-    pub fn with_operation_flag(mut self, flag: Option<Arc<AtomicBool>>) -> Self {
-        self.operation_flag = flag;
-        self
+    pub fn new(operation_flag: Option<Arc<AtomicBool>>) -> Self {
+        Self { operation_flag }
     }
 
-    /// Checks if processing should be cancelled (job or operation)
+    /// Checks if the owning operation was cancelled
     pub fn is_cancelled(&self) -> bool {
-        self.job_flag.load(Ordering::Acquire)
-            || self
-                .operation_flag
-                .as_ref()
-                .is_some_and(|flag| flag.load(Ordering::Acquire))
+        self.operation_flag
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Acquire))
     }
 }

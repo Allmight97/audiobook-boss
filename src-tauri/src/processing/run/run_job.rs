@@ -69,8 +69,6 @@ pub(crate) async fn run_processing_job(
     )
     .await?;
     log_audio_decision(&request, job_id);
-    let cancellation_checker =
-        cancellation_checker.with_operation_flag(request.operation_cancel.clone());
     let _active_work = request.window.state::<crate::power::PowerManager>().begin();
 
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
@@ -256,9 +254,9 @@ pub(crate) async fn register_job_and_validate_output(
     audio_handling: AudioHandling,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
-        .register_job_with_external_cancel(operation_cancel)
+        .register_job_with_external_cancel(operation_cancel.clone())
         .await?;
-    let cancellation_checker = registry.cancellation_checker(job_id).await;
+    let cancellation_checker = CancellationChecker::new(operation_cancel);
     let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
         operation_id: log_context.operation_id,
         job_id: job_id.to_string(),

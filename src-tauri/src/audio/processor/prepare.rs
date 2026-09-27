@@ -138,8 +138,9 @@ mod tests {
         use crate::processing::{JobRegistry, OutputConfig, ProcessingSession};
         let registry = JobRegistry::new(1);
         let (job, _permit) = registry.register_job().await.expect("register test job");
-        let checker = registry.cancellation_checker(job).await;
-        registry.cancel_job(job).await.expect("cancel test job");
+        let checker = crate::processing::CancellationChecker::new(Some(std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(true),
+        )));
         let root = tempfile::TempDir::new().expect("create isolated test directory");
         let workspace = root.path().join("sessions");
         let context = ProcessingContext::new_headless_with_workspace_root(

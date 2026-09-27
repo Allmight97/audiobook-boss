@@ -19,12 +19,13 @@
   remove it on every terminal path. A failed, cancelled, or dropped admission
   removes itself.
 - Change concurrency via `update_max_concurrent` only when registry state is idle.
-- Cancellation is per job or per operation (`CancellationChecker` job and
-  operation flags). There is no registry-wide cancel.
+- Cancellation is operation-scoped: `CancellationChecker::new` takes the
+  accepted operation's flag, and direct previews pass none. The registry holds
+  no per-job or registry-wide cancel state.
 
 ## Hard Invariants
 
-- `register_job` acquires/records permit and cancellation state before execution.
+- `register_job` records the job and acquires its permit before execution.
 - Scheduler preserves deterministic ordering while continuing to issue queued work after per-task errors.
 - Terminal job paths always release/remove tracked job state.
 - Queue snapshot items must always become terminal outcomes (success or failed) so UI state never hangs on missing indices.

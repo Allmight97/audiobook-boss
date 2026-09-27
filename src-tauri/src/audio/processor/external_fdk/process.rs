@@ -501,10 +501,7 @@ mod tests {
         let cancel = Arc::new(AtomicBool::new(false));
         let session = ProcessingSession::from_job_registry(
             uuid::Uuid::new_v4(),
-            CancellationChecker {
-                job_flag: Arc::clone(&cancel),
-                operation_flag: None,
-            },
+            CancellationChecker::new(Some(Arc::clone(&cancel))),
         );
         let mut context = test_context();
         context.session = Arc::new(session);

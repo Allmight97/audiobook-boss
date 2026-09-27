@@ -150,10 +150,7 @@ pub async fn save_metadata_batch(
         }
     };
     let _active_work = window.state::<crate::power::PowerManager>().begin();
-    let cancellation = registry
-        .cancellation_checker(job_id)
-        .await
-        .with_operation_flag(Some(cancel_flag));
+    let cancellation = CancellationChecker::new(Some(cancel_flag));
 
     let progress_runtime = (*runtime).clone();
     let progress_window = window.clone();
@@ -329,7 +326,6 @@ fn metadata_save_progress_event(progress: MetadataSaveProgress) -> ProgressEvent
 mod tests {
     use super::*;
     use crate::metadata::PatchOp;
-    use crate::processing::JobRegistry;
 
     fn title_patch(title: &str) -> MetadataIntentPatch {
         MetadataIntentPatch {
@@ -351,9 +347,7 @@ mod tests {
             },
         ];
         let mut progress = Vec::new();
-        let registry = JobRegistry::new(1);
-        let (job_id, _permit) = registry.register_job().await.expect("register job");
-        let cancellation = registry.cancellation_checker(job_id).await;
+        let cancellation = CancellationChecker::new(None);
 
         let batch = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))
             .await
@@ -399,10 +393,9 @@ mod tests {
                 metadata_patch: title_patch("B"),
             },
         ];
-        let registry = JobRegistry::new(1);
-        let (job_id, _permit) = registry.register_job().await.expect("register job");
-        let cancellation = registry.cancellation_checker(job_id).await;
-        registry.cancel_job(job_id).await.expect("cancel job");
+        let cancellation = CancellationChecker::new(Some(std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(true),
+        )));
         let mut progress = Vec::new();
 
         let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))

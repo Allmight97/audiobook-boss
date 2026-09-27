@@ -1,7 +1,5 @@
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Unique identifier for a processing job
@@ -31,28 +29,6 @@ impl Default for JobId {
 impl std::fmt::Display for JobId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-/// Represents a single active processing job.
-///
-/// Presence in the registry map is the job's only lifecycle state: a tracked
-/// job is running, and terminal paths (`complete_job`/`fail_job`) remove it.
-#[derive(Debug)]
-pub struct Job {
-    /// Unique job identifier
-    pub id: JobId,
-    /// Per-job cancellation flag
-    pub cancel_flag: Arc<AtomicBool>,
-}
-
-impl Job {
-    /// Creates a new job with the given ID
-    pub fn new(id: JobId) -> Self {
-        Self {
-            id,
-            cancel_flag: Arc::new(AtomicBool::new(false)),
-        }
     }
 }
 

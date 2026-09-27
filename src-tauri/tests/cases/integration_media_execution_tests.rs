@@ -25,7 +25,7 @@ use audiobook_boss_lib::audio::{
     execute_audio_engine, get_file_list_info, AudioExecutionRequest, BitrateMode, ChannelConfig,
     EncoderSettings, EncoderType, SampleRateConfig,
 };
-use audiobook_boss_lib::processing::job_registry::{JobId, JobRegistry};
+use audiobook_boss_lib::processing::job_registry::{CancellationChecker, JobRegistry};
 use audiobook_boss_lib::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use audiobook_boss_lib::{
     extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
@@ -668,13 +668,9 @@ async fn analysis_populates_display_tags_from_an_existing_tagged_fixture() {
 async fn cancellation_yields_terminal_error_without_artifact_or_staging_residue() {
     let lane = MediaLane::with_fixtures(&[1.0]);
 
-    let registry = JobRegistry::new(1);
-    let checker = registry
-        .cancellation_checker(JobId::new())
-        .await
-        .with_operation_flag(Some(std::sync::Arc::new(
-            std::sync::atomic::AtomicBool::new(true),
-        )));
+    let checker = CancellationChecker::new(Some(std::sync::Arc::new(
+        std::sync::atomic::AtomicBool::new(true),
+    )));
     let session = ProcessingSession::from_job_registry(uuid::Uuid::new_v4(), checker);
 
     let err = execute_audio_engine(lane.execution_request(session, None))
@@ -1549,8 +1545,9 @@ async fn cancelled_preserve_does_not_publish_or_leave_staging_residue() {
     let workspace = tmp.path().join("workspace");
     let registry = JobRegistry::new(1);
     let (job_id, _permit) = registry.register_job().await.expect("register job");
-    let checker = registry.cancellation_checker(job_id).await;
-    registry.cancel_job(job_id).await.expect("cancel job");
+    let checker = CancellationChecker::new(Some(std::sync::Arc::new(
+        std::sync::atomic::AtomicBool::new(true),
+    )));
     let session = ProcessingSession::from_job_registry(job_id.0, checker);
     let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
     let context = ProcessingContext::new_headless_with_workspace_root(
