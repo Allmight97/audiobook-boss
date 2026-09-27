@@ -62,7 +62,7 @@ pub(crate) fn cleanup_abandoned_processing_sessions(workspace_root: &Path) -> Re
     if !workspace_root.exists() {
         return Ok(());
     }
-    owned_root(workspace_root).ensure_not_symlink(workspace_root)?;
+    owned_root(workspace_root).ensure_root_not_symlink()?;
 
     for entry in std::fs::read_dir(workspace_root)? {
         let path = entry?.path();

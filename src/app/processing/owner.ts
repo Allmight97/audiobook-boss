@@ -5,7 +5,6 @@ import type { InputOwner } from '../inputSession';
 import type { MetadataOwner } from '../metadataSession';
 import type { OutputPlanOwner } from '../outputPlan';
 import type { RemoteSourceOwner } from '../remoteSource';
-import { validTitlesFromInput } from './input';
 import { renderConcurrencyStatus } from './render';
 import { StatusPanelRuntime } from './runtime';
 import { makeProcessingWorkflowLive } from './workflow.deps';
@@ -40,7 +39,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	statusView.bindPublisher(publish);
 	const statusRuntime = new StatusPanelRuntime({
 		view: statusView,
-		validTitles: () => validTitlesFromInput(deps.input.view()),
+		validTitles: () => deps.input.view().files.filter((file) => file.isValid),
 		unlockWorkbench: () => {
 			deps.settings.setControlsEnabled(true);
 			deps.input.setOrderLocked(false);
