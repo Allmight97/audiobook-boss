@@ -9,7 +9,7 @@ use std::process::{ExitStatus, Stdio};
 use std::time::Duration as StdDuration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval, Duration, MissedTickBehavior};
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Sequential child/pipe/diagnostic lifetime; source intervals travel with decoder selections.
 pub(super) async fn run_external_ffmpeg(
@@ -232,7 +232,16 @@ where
     let total_ms = (total_duration_seconds * 1000.0).max(1.0);
     let mut eta = crate::processing::progress::EtaEstimator::new();
     let mut last_progress_ms = f64::NEG_INFINITY;
+    // One persistent tick: progress lines arriving faster than the poll
+    // interval must not postpone the cancellation check.
+    let mut cancel_poll = interval(Duration::from_millis(200));
+    cancel_poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
+        if context.is_cancelled() {
+            terminate_external_child_best_effort(child, "after external ffmpeg cancellation").await;
+            ui.emit_cancelled("Processing was cancelled");
+            return Err(AppError::cancelled());
+        }
         tokio::select! {
             line = progress_lines.next_line() => {
                 match line {
@@ -254,17 +263,7 @@ where
                     }
                 }
             }
-            _ = sleep(Duration::from_millis(200)) => {
-                if context.is_cancelled() {
-                    terminate_external_child_best_effort(
-                        child,
-                        "after external ffmpeg cancellation",
-                    )
-                    .await;
-                    ui.emit_cancelled("Processing was cancelled");
-                    return Err(AppError::cancelled());
-                }
-            }
+            _ = cancel_poll.tick() => {}
         }
     }
     Ok(())
@@ -468,6 +467,7 @@ mod tests {
     use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
     use std::path::PathBuf;
     use std::sync::Arc;
+    use tokio::time::sleep;
 
     fn encoder_settings() -> EncoderSettings {
         EncoderSettings {
@@ -489,6 +489,67 @@ mod tests {
             SampleRateConfig::Explicit(44_100),
             OutputConfig::new(Path::new("/tmp/final/Book.m4b")),
         )
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cancellation_stops_child_while_progress_lines_keep_arriving() {
+        use crate::processing::job_registry::CancellationChecker;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use tokio::io::AsyncWriteExt;
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let session = ProcessingSession::from_job_registry(
+            uuid::Uuid::new_v4(),
+            CancellationChecker {
+                job_flag: Arc::clone(&cancel),
+                operation_flag: None,
+            },
+        );
+        let mut context = test_context();
+        context.session = Arc::new(session);
+        let ui = context.new_emitter();
+        let mut child = Command::new("sh")
+            .args(["-c", "sleep 30"])
+            .kill_on_drop(true)
+            .spawn()
+            .expect("spawn controlled child");
+        let (reader, mut writer) = tokio::io::duplex(1024);
+        let writer_task = tokio::spawn(async move {
+            // Faster than the 200 ms cancellation poll, like a busy encode.
+            for tick in 0u64.. {
+                let line = format!("out_time_ms={}\n", tick * 50_000);
+                if writer.write_all(line.as_bytes()).await.is_err() {
+                    break;
+                }
+                sleep(Duration::from_millis(20)).await;
+            }
+        });
+        let mut lines = BufReader::new(reader).lines();
+        let mut diagnostics = ExternalFdkProgressDiagnostics::default();
+        cancel.store(true, Ordering::SeqCst);
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(3),
+            monitor_external_progress(
+                &context,
+                &ui,
+                &mut child,
+                &mut lines,
+                3_600.0,
+                None,
+                &mut diagnostics,
+            ),
+        )
+        .await
+        .expect("cancellation must not wait for the progress stream to go quiet");
+
+        assert!(matches!(result, Err(AppError::Cancellation(_))));
+        assert!(
+            child.try_wait().expect("poll child").is_some(),
+            "cancelled external child is reaped"
+        );
+        writer_task.abort();
     }
 
     fn test_toolchain() -> ValidatedExternalToolchain {
