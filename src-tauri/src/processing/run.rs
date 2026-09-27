@@ -331,6 +331,37 @@ mod tests {
     }
 
     #[test]
+    fn execution_rejected_by_review_does_not_create_the_output_root() {
+        let temp = TempDir::new().expect("temp dir");
+        let source = temp.path().join("source.wav");
+        write_silence_wav(&source, 1);
+        let missing_root = temp.path().join("deleted-library");
+        let payload = process_payload(|payload| {
+            payload.input_files = vec![source.to_string_lossy().into_owned()];
+            payload.output_dir = missing_root.to_string_lossy().into_owned();
+            payload.preflight_signature = Some("stale review".into());
+        });
+        let inspected =
+            super::run_validation::inspect_and_validate_external_processing_contract(&payload)
+                .expect("inspect source");
+
+        let Err(error) =
+            crate::processing::plan::prepare_execution_plan(&payload, None, None, inspected)
+        else {
+            panic!("a stale review must reject execution");
+        };
+
+        assert!(
+            error.to_string().contains("review"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            !missing_root.exists(),
+            "review rejection must not leave a folder"
+        );
+    }
+
+    #[test]
     fn stacked_title_plan_keeps_source_order_metadata_and_separate_outputs() {
         use crate::metadata::{MetadataIntentPatch, PatchOp};
         use crate::processing::types::TitleSource;

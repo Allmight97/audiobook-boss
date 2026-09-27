@@ -158,3 +158,43 @@ fn cleanup_refuses_symlinked_output_parent() {
     assert!(err.to_string().contains("symlinked output directory"));
     assert!(outside.path().exists(), "outside target must remain");
 }
+
+#[test]
+fn creates_a_missing_output_root_and_cleanup_removes_it() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let root = temp_dir.path().join("library");
+    let output = output_plan(
+        PlannedOutputAction::Write,
+        root.join("author").join("book.m4b"),
+    );
+
+    let cleanup = ensure_output_parent_dirs(&root, [&output]).expect("output dirs");
+    assert!(root.join("author").is_dir());
+
+    cleanup.cleanup_now().expect("cleanup output dirs");
+    assert!(!root.exists(), "an ABB-created output root is rolled back");
+    assert!(temp_dir.path().exists());
+}
+
+#[test]
+fn a_failed_later_output_rolls_back_the_created_output_root() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let root = temp_dir.path().join("library");
+    let inside = output_plan(
+        PlannedOutputAction::Write,
+        root.join("author").join("book.m4b"),
+    );
+    let escaping = output_plan(
+        PlannedOutputAction::Write,
+        temp_dir.path().join("elsewhere").join("book.m4b"),
+    );
+
+    ensure_output_parent_dirs(&root, [&inside, &escaping])
+        .expect_err("an escaping output parent must fail");
+
+    assert!(
+        !root.exists(),
+        "no directory ABB created survives the failure"
+    );
+    assert!(!temp_dir.path().join("elsewhere").exists());
+}

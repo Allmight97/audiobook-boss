@@ -3,24 +3,24 @@ use crate::errors::{sanitize_path_for_display, AppError, Result};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
+/// Owns every directory execution created for its outputs, including a missing
+/// output root, until the run releases them or rolls them back.
 #[derive(Debug)]
 pub(crate) struct OutputParentDirCleanup {
-    output_root: PathBuf,
+    /// Canonical directory that existed before execution created anything; only
+    /// directories strictly below it can be removed.
+    existing_anchor: PathBuf,
     created_dirs: Vec<PathBuf>,
     active: bool,
 }
 
 impl OutputParentDirCleanup {
-    fn new(output_root: PathBuf) -> Self {
+    fn new(existing_anchor: PathBuf) -> Self {
         Self {
-            output_root,
+            existing_anchor,
             created_dirs: Vec::new(),
             active: true,
         }
-    }
-
-    fn add_created_dirs(&mut self, created_dirs: Vec<PathBuf>) {
-        self.created_dirs.extend(created_dirs);
     }
 
     pub(crate) fn release(mut self) {
@@ -40,7 +40,7 @@ impl OutputParentDirCleanup {
 
         let mut first_error = None;
         for dir in std::mem::take(&mut self.created_dirs).into_iter().rev() {
-            if let Err(error) = remove_created_empty_dir(&self.output_root, &dir) {
+            if let Err(error) = remove_created_empty_dir(&self.existing_anchor, &dir) {
                 log::warn!(
                     "output_parent_cleanup status=err dir={} err={}",
                     dir.display(),
@@ -69,10 +69,23 @@ impl Drop for OutputParentDirCleanup {
     }
 }
 
+/// Creates the output root and each writable output's parent after review has
+/// passed. Every directory is registered as soon as it exists, so an error part
+/// way through drops the returned guard and removes what this call created.
 pub(crate) fn ensure_output_parent_dirs<'a>(
     output_root: &Path,
     outputs: impl IntoIterator<Item = &'a ResolvedOutputPlan>,
 ) -> Result<OutputParentDirCleanup> {
+    let existing_anchor = nearest_existing_ancestor(output_root)?
+        .and_then(|path| path.canonicalize().ok())
+        .ok_or_else(|| {
+            AppError::FileValidation(format!(
+                "Cannot validate output root '{}'.",
+                sanitize_path_for_display(output_root)
+            ))
+        })?;
+    let mut cleanup = OutputParentDirCleanup::new(existing_anchor);
+    create_missing_dirs(output_root, &mut cleanup)?;
     let output_root = output_root.canonicalize().map_err(|error| {
         AppError::FileValidation(format!(
             "Cannot validate output root '{}': {}",
@@ -80,25 +93,23 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
             error
         ))
     })?;
-    let mut cleanup = OutputParentDirCleanup::new(output_root);
 
     for output in outputs {
         if !abb_output_artifact_core::action_requires_output_write(output.action) {
             continue;
         }
         if let Some(parent) = output.resolved_path.parent() {
-            ensure_output_parent_under_root(&cleanup.output_root, parent)?;
-            let created_dirs = create_missing_output_parent_dirs(parent)?;
-            cleanup.add_created_dirs(created_dirs);
+            ensure_output_parent_under_root(&output_root, parent)?;
+            create_missing_dirs(parent, &mut cleanup)?;
         }
     }
 
     Ok(cleanup)
 }
 
-fn create_missing_output_parent_dirs(parent: &Path) -> Result<Vec<PathBuf>> {
+fn create_missing_dirs(target: &Path, cleanup: &mut OutputParentDirCleanup) -> Result<()> {
     let mut missing_dirs = Vec::new();
-    let mut current = Some(parent);
+    let mut current = Some(target);
     while let Some(path) = current {
         if path.try_exists().map_err(AppError::Io)? {
             break;
@@ -107,10 +118,9 @@ fn create_missing_output_parent_dirs(parent: &Path) -> Result<Vec<PathBuf>> {
         current = path.parent();
     }
 
-    let mut created_dirs = Vec::new();
     for dir in missing_dirs.into_iter().rev() {
         match std::fs::create_dir(&dir) {
-            Ok(()) => created_dirs.push(dir),
+            Ok(()) => cleanup.created_dirs.push(dir),
             Err(error) if error.kind() == ErrorKind::AlreadyExists && dir.is_dir() => {}
             Err(error) => {
                 return Err(AppError::FileValidation(format!(
@@ -122,7 +132,7 @@ fn create_missing_output_parent_dirs(parent: &Path) -> Result<Vec<PathBuf>> {
         }
     }
 
-    Ok(created_dirs)
+    Ok(())
 }
 
 fn ensure_output_parent_under_root(output_root: &Path, parent: &Path) -> Result<()> {
@@ -161,7 +171,7 @@ fn nearest_existing_ancestor(path: &Path) -> Result<Option<PathBuf>> {
     Ok(None)
 }
 
-fn remove_created_empty_dir(output_root: &Path, dir: &Path) -> Result<()> {
+fn remove_created_empty_dir(existing_anchor: &Path, dir: &Path) -> Result<()> {
     if !dir.try_exists().map_err(AppError::Io)? {
         return Ok(());
     }
@@ -176,7 +186,7 @@ fn remove_created_empty_dir(output_root: &Path, dir: &Path) -> Result<()> {
     let canonical_dir = dir.canonicalize().map_err(|error| {
         AppError::ResourceCleanup(format!("Invalid output cleanup directory: {error}"))
     })?;
-    if canonical_dir == output_root || !canonical_dir.starts_with(output_root) {
+    if canonical_dir == existing_anchor || !canonical_dir.starts_with(existing_anchor) {
         return Err(AppError::ResourceCleanup(
             "Refusing to cleanup output directory outside configured output root".to_string(),
         ));

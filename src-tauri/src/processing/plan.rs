@@ -46,18 +46,15 @@ pub(crate) struct ExecutionProcessingPlan {
     pub(crate) output_parent_cleanup: OutputParentDirCleanup,
 }
 
-fn resolve_output_dir(output_dir: &str, create_if_missing: bool) -> Result<PathBuf> {
+/// Preflight requires an existing output folder. Execution may find it missing
+/// (removed after review); the output owner recreates it only after the
+/// reviewed plan is enforced.
+fn resolve_output_dir(output_dir: &str, allow_missing: bool) -> Result<PathBuf> {
     let base_output_dir = PathBuf::from(output_dir);
-    if create_if_missing && !base_output_dir.exists() {
-        std::fs::create_dir_all(&base_output_dir).map_err(|e| {
-            AppError::FileValidation(format!(
-                "Failed to create output directory '{}': {}",
-                sanitize_path_for_display(&base_output_dir),
-                e
-            ))
-        })?;
-    }
     if !base_output_dir.exists() {
+        if allow_missing {
+            return Ok(base_output_dir);
+        }
         return Err(AppError::FileValidation(format!(
             "Output directory does not exist: {}",
             sanitize_path_for_display(&base_output_dir)
@@ -151,12 +148,12 @@ fn build_requested_output_path(
 
 fn build_processing_inputs(
     payload: &ProcessPayload,
-    create_output_dir: bool,
+    allow_missing_output_dir: bool,
     preview_seconds: Option<f64>,
 ) -> Result<ProcessingInputs> {
     Ok(ProcessingInputs {
         output_naming: payload.output_naming.clone().unwrap_or_default(),
-        base_output_dir: resolve_output_dir(&payload.output_dir, create_output_dir)?,
+        base_output_dir: resolve_output_dir(&payload.output_dir, allow_missing_output_dir)?,
         preview_seconds: resolve_preview_seconds(preview_seconds),
     })
 }
