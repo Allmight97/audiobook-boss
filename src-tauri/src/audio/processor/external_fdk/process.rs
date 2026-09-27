@@ -527,7 +527,12 @@ mod tests {
         });
         let mut lines = BufReader::new(reader).lines();
         let mut diagnostics = ExternalFdkProgressDiagnostics::default();
-        cancel.store(true, Ordering::SeqCst);
+        let requested = Arc::clone(&cancel);
+        let cancel_task = tokio::spawn(async move {
+            // Cancel mid-stream, after several progress lines were consumed.
+            sleep(Duration::from_millis(300)).await;
+            requested.store(true, Ordering::SeqCst);
+        });
 
         let result = tokio::time::timeout(
             Duration::from_secs(3),
@@ -546,10 +551,15 @@ mod tests {
 
         assert!(matches!(result, Err(AppError::Cancellation(_))));
         assert!(
+            diagnostics.lines_seen > 5,
+            "progress was flowing before cancellation"
+        );
+        assert!(
             child.try_wait().expect("poll child").is_some(),
             "cancelled external child is reaped"
         );
         writer_task.abort();
+        cancel_task.await.expect("cancel task");
     }
 
     fn test_toolchain() -> ValidatedExternalToolchain {

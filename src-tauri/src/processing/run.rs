@@ -115,10 +115,11 @@ pub(crate) fn preflight_payload(
 mod tests {
     use super::run_job::{
         commit_supplemental_assets, register_job_and_validate_output,
-        supplemental_assets_for_input, supplemental_publication_warning, ProcessingJobLogContext,
+        supplemental_assets_for_input, title_outcome, ProcessingJobLogContext,
     };
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
     use crate::output_artifact::OutputKind;
+    use crate::processing::terminal_outcomes::ProcessingJobTerminalOutcome;
     use crate::processing::OperationKind;
     use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
     use std::collections::HashMap;
@@ -652,26 +653,49 @@ mod tests {
     fn supplemental_commit_failure_keeps_published_title_successful_with_warning() {
         let root = TempDir::new().expect("temp root");
         let original_bytes = b"%PDF-1.7\nbody";
-        let changed_bytes = b"%PDF-1.7\nBODY";
         let source = root.path().join("source.pdf");
         std::fs::write(&source, original_bytes).expect("write source pdf");
         let asset = supplemental_asset(source.clone(), "current-input-1", original_bytes);
-        std::fs::write(&source, changed_bytes).expect("change source pdf");
+        std::fs::write(&source, b"%PDF-1.7\nBODY").expect("change source pdf");
         let final_audio = root.path().join("Book.m4b");
+        std::fs::write(&final_audio, b"published audiobook").expect("published audio");
 
-        let warning = supplemental_publication_warning(commit_supplemental_assets(
-            OutputKind::Final,
-            &[asset],
-            &final_audio,
-        ))
-        .expect("stale supplemental commit should produce a warning");
+        let outcome = title_outcome(Ok("Exported Book.m4b".to_string()), None, None, || {
+            commit_supplemental_assets(OutputKind::Final, &[asset], &final_audio)
+        });
 
+        let ProcessingJobTerminalOutcome::Success {
+            message,
+            supplemental_warning: Some(warning),
+            ..
+        } = outcome
+        else {
+            panic!("a published title with a failed PDF stays successful: {outcome:?}");
+        };
+        assert_eq!(message, "Exported Book.m4b");
         assert!(
             warning.contains("Audiobook output 'Book.m4b' was created")
                 && warning.contains("requested Supplemental PDFs could not be committed")
                 && warning.contains("hash changed"),
             "unexpected warning: {warning}"
         );
-        assert_eq!(supplemental_publication_warning(Ok(())), None);
+        assert_eq!(
+            std::fs::read(&final_audio).expect("audiobook remains"),
+            b"published audiobook"
+        );
+    }
+
+    #[test]
+    fn failed_audio_never_publishes_companions() {
+        let outcome = title_outcome(
+            Err(crate::errors::AppError::FileValidation(
+                "encode failed".into(),
+            )),
+            None,
+            None,
+            || panic!("companions must not publish without an audiobook"),
+        );
+
+        assert!(matches!(outcome, ProcessingJobTerminalOutcome::Failed(_)));
     }
 }

@@ -92,7 +92,7 @@ pub(crate) async fn run_processing_job(
         .emit_analyzing_start("Preparing audio job...");
     let preview_path = (request.output_plan.kind == OutputKind::Preview)
         .then(|| request.output_plan.resolved_path.display().to_string());
-    let result = match audio::execute_audio_engine(
+    let audio_result = audio::execute_audio_engine(
         AudioExecutionRequest::new(
             context,
             request.file_info,
@@ -102,20 +102,14 @@ pub(crate) async fn run_processing_job(
         .with_handling(request.audio_handling)
         .with_metadata_intent(request.metadata_intent),
     )
-    .await
-    {
-        Ok(message) => ProcessingJobTerminalOutcome::Success {
-            message,
-            preview_file_path: preview_path,
-            preview_actual_seconds: preview_seconds_resolved,
-            supplemental_warning: supplemental_publication_warning(commit_supplemental_assets(
-                request.output_plan.kind,
-                &request.supplemental_assets,
-                &request.output_plan.resolved_path,
-            )),
-        },
-        Err(error) => classify_processing_error(error),
-    };
+    .await;
+    let result = title_outcome(audio_result, preview_path, preview_seconds_resolved, || {
+        commit_supplemental_assets(
+            request.output_plan.kind,
+            &request.supplemental_assets,
+            &request.output_plan.resolved_path,
+        )
+    });
 
     match result {
         ProcessingJobTerminalOutcome::Success {
@@ -215,13 +209,29 @@ pub(crate) fn commit_supplemental_assets(
     commit_supplemental_output_assets_for_output(request)
 }
 
-/// The audiobook is already published when companions commit, so a companion
-/// failure stays a warning on a successful title rather than failing it.
-pub(crate) fn supplemental_publication_warning(commit: Result<()>) -> Option<String> {
-    let error = commit.err()?;
-    let warning = AppErrorEnvelope::from(&error).message;
-    log::warn!("supplemental_pdf_commit status=failed title_status=success");
-    Some(warning)
+/// Maps audio execution to the title's outcome. Companions commit only after
+/// the audiobook is published, so a companion failure stays a warning on a
+/// successful title rather than failing it.
+pub(crate) fn title_outcome(
+    audio: Result<String>,
+    preview_file_path: Option<String>,
+    preview_actual_seconds: Option<f64>,
+    publish_companions: impl FnOnce() -> Result<()>,
+) -> ProcessingJobTerminalOutcome {
+    let message = match audio {
+        Ok(message) => message,
+        Err(error) => return classify_processing_error(error),
+    };
+    let supplemental_warning = publish_companions().err().map(|error| {
+        log::warn!("supplemental_pdf_commit status=failed title_status=success");
+        AppErrorEnvelope::from(&error).message
+    });
+    ProcessingJobTerminalOutcome::Success {
+        message,
+        preview_file_path,
+        preview_actual_seconds,
+        supplemental_warning,
+    }
 }
 
 /// Job identity known before registration, used for lifecycle records.
