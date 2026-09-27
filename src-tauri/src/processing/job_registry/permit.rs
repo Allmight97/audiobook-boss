@@ -21,60 +21,68 @@ impl JobRegistry {
         &self,
         external_cancel: Option<Arc<AtomicBool>>,
     ) -> Result<(JobId, OwnedSemaphorePermit)> {
-        let honor_global = external_cancel.is_none();
-        if (honor_global && self.global_cancel.load(Ordering::SeqCst))
-            || external_cancelled(&external_cancel)
-        {
-            return Err(AppError::cancelled());
-        }
-
-        let semaphore = { self.semaphore.read().await.clone() };
-        let permit = self
-            .acquire_permit_with_external_cancel(semaphore, external_cancel.clone(), honor_global)
-            .await?;
-
-        if (honor_global && self.global_cancel.load(Ordering::SeqCst))
-            || external_cancelled(&external_cancel)
-        {
-            drop(permit);
+        if external_cancelled(&external_cancel) {
             return Err(AppError::cancelled());
         }
 
         let job_id = JobId::new();
-        let job = Job::new(job_id);
+        let semaphore = {
+            let mut admission = self.admission();
+            admission.jobs.insert(job_id.0, Job::new(job_id));
+            admission.semaphore.clone()
+        };
+        let pending = PendingAdmission {
+            registry: self,
+            job_id,
+        };
 
-        {
-            let mut jobs = self.jobs.write().await;
-            jobs.insert(job_id.0, job);
-        }
-
+        let acquired = acquire_permit(semaphore, &external_cancel)
+            .await
+            .and_then(|permit| {
+                if external_cancelled(&external_cancel) {
+                    Err(AppError::cancelled())
+                } else {
+                    Ok(permit)
+                }
+            });
+        let permit = acquired?;
+        std::mem::forget(pending);
         log::info!("Job {} registered", job_id);
         Ok((job_id, permit))
     }
+}
 
-    async fn acquire_permit_with_external_cancel(
-        &self,
-        semaphore: Arc<Semaphore>,
-        external_cancel: Option<Arc<AtomicBool>>,
-        honor_global: bool,
-    ) -> Result<OwnedSemaphorePermit> {
-        let acquire = semaphore.acquire_owned();
-        tokio::pin!(acquire);
+/// Removes a job whose admission failed, was cancelled, or was dropped while
+/// waiting, so an abandoned admission never blocks reconfiguration.
+struct PendingAdmission<'a> {
+    registry: &'a JobRegistry,
+    job_id: JobId,
+}
 
-        loop {
-            if (honor_global && self.global_cancel.load(Ordering::SeqCst))
-                || external_cancelled(&external_cancel)
-            {
-                return Err(AppError::cancelled());
+impl Drop for PendingAdmission<'_> {
+    fn drop(&mut self) {
+        self.registry.remove_job(self.job_id);
+    }
+}
+
+async fn acquire_permit(
+    semaphore: Arc<Semaphore>,
+    external_cancel: &Option<Arc<AtomicBool>>,
+) -> Result<OwnedSemaphorePermit> {
+    let acquire = semaphore.acquire_owned();
+    tokio::pin!(acquire);
+
+    loop {
+        if external_cancelled(external_cancel) {
+            return Err(AppError::cancelled());
+        }
+
+        tokio::select! {
+            permit = &mut acquire => {
+                return permit
+                    .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string()));
             }
-
-            tokio::select! {
-                permit = &mut acquire => {
-                    return permit
-                        .map_err(|_| AppError::InvalidInput("Semaphore closed".to_string()));
-                }
-                _ = tokio::time::sleep(PERMIT_CANCEL_POLL_INTERVAL) => {}
-            }
+            _ = tokio::time::sleep(PERMIT_CANCEL_POLL_INTERVAL) => {}
         }
     }
 }

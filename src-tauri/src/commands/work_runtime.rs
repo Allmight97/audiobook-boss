@@ -15,9 +15,6 @@ pub async fn submit_processing_operation(
     registry: tauri::State<'_, crate::ManagedJobRegistry>,
     request: SubmitProcessingOperationRequest,
 ) -> CommandResult<WorkSubmissionAccepted> {
-    if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
-        registry.reset_global_cancel();
-    }
     let cache_dir = window
         .app_handle()
         .path()

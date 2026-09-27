@@ -14,9 +14,13 @@
 
 - Register processing work through `register_job` before work starts.
 - Use `BatchScheduler` to coordinate batch execution and preserve result ordering.
-- Presence in the registry map is the job's only lifecycle state: a tracked job
-  is active, and `complete_job`/`fail_job` remove it on every terminal path.
+- Presence in the registry map is the job's only lifecycle state: a job is
+  tracked from the moment it waits for a permit, and `complete_job`/`fail_job`
+  remove it on every terminal path. A failed, cancelled, or dropped admission
+  removes itself.
 - Change concurrency via `update_max_concurrent` only when registry state is idle.
+- Cancellation is per job or per operation (`CancellationChecker` job and
+  operation flags). There is no registry-wide cancel.
 
 ## Hard Invariants
 
@@ -25,6 +29,9 @@
 - Terminal job paths always release/remove tracked job state.
 - Queue snapshot items must always become terminal outcomes (success or failed) so UI state never hangs on missing indices.
 - Concurrency reconfiguration is idle-only to prevent dangling permits and inconsistent UI job counts.
+  Admission and reconfiguration share one lock: admission records the job and
+  clones the semaphore together, and reconfiguration checks for tracked jobs
+  and swaps the semaphore together.
 
 ## Done Criteria
 

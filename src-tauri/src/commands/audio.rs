@@ -165,9 +165,6 @@ pub async fn process_audiobook_files(
 ) -> CommandResult<ProcessCommandResult> {
     let preview_seconds = require_preview_seconds(preview_seconds)?;
 
-    if registry.is_global_cancelled() && registry.get_aggregate_status().await.total_jobs == 0 {
-        registry.reset_global_cancel();
-    }
     let cache_dir = window
         .app_handle()
         .path()

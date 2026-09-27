@@ -126,8 +126,7 @@ pub async fn save_metadata_batch(
     // The command still awaits and returns the per-file `MetadataSaveBatchResult`
     // (the frontend clears drafts only for files that succeeded), while progress
     // and terminal truth flow through the operation snapshot. Cancellation is
-    // operation-scoped (`cancel_work_operation`); it does not honor the legacy
-    // global-cancel flag.
+    // operation-scoped (`cancel_work_operation`).
     let file_paths: Vec<String> = items.iter().map(|item| item.file_path.clone()).collect();
     let (operation_id, cancel_flag) =
         runtime.begin_metadata_save_operation(&window, &file_paths)?;
@@ -403,7 +402,7 @@ mod tests {
         let registry = JobRegistry::new(1);
         let (job_id, _permit) = registry.register_job().await.expect("register job");
         let cancellation = registry.cancellation_checker(job_id).await;
-        registry.cancel_all();
+        registry.cancel_job(job_id).await.expect("cancel job");
         let mut progress = Vec::new();
 
         let result = save_metadata_batch_impl(items, cancellation, |event| progress.push(event))

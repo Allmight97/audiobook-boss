@@ -27,35 +27,61 @@ async fn external_cancel_interrupts_waiting_permit_acquire() {
         result.expect_err("registration should be cancelled"),
         AppError::Cancellation(_)
     ));
+    assert_eq!(
+        registry.get_aggregate_status().await.total_jobs,
+        1,
+        "the cancelled admission is no longer tracked"
+    );
 }
 
 #[tokio::test]
-async fn operation_scoped_jobs_ignore_legacy_global_cancel() {
-    let registry = JobRegistry::new(1);
-    registry.cancel_all();
-    let operation_cancel = Arc::new(AtomicBool::new(false));
+async fn reconfiguration_rejects_a_job_waiting_for_admission() {
+    let registry = Arc::new(JobRegistry::new(1));
+    let (finished_job, finishing_permit) = registry.register_job().await.expect("first job");
+    registry.complete_job(finished_job).await;
+    let waiting_registry = Arc::clone(&registry);
+    let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
+    sleep(Duration::from_millis(20)).await;
 
-    let (job_id, _permit) = registry
-        .register_job_with_external_cancel(Some(operation_cancel.clone()))
-        .await
-        .expect("operation scoped registration should not honor global cancel");
-    let cancellation = registry
-        .cancellation_checker(job_id)
-        .await
-        .with_operation_flag(Some(operation_cancel));
+    let result = registry.update_max_concurrent(4).await;
 
-    assert!(!cancellation.is_cancelled());
+    assert!(
+        result.is_err(),
+        "a job queued for a permit must block reconfiguration"
+    );
+    assert_eq!(registry.max_concurrent(), 1);
+    drop(finishing_permit);
+    let (job_id, _permit) = waiting
+        .await
+        .expect("join waiting job")
+        .expect("waiting job admitted");
+    registry.complete_job(job_id).await;
+    assert_eq!(
+        registry
+            .update_max_concurrent(4)
+            .await
+            .expect("idle update"),
+        4
+    );
 }
 
 #[tokio::test]
-async fn legacy_jobs_honor_global_cancel() {
-    let registry = JobRegistry::new(1);
-    registry.cancel_all();
+async fn dropped_admission_does_not_block_reconfiguration() {
+    let registry = Arc::new(JobRegistry::new(1));
+    let (finished_job, _finishing_permit) = registry.register_job().await.expect("first job");
+    registry.complete_job(finished_job).await;
+    let waiting_registry = Arc::clone(&registry);
+    let waiting = tokio::spawn(async move { waiting_registry.register_job().await });
+    sleep(Duration::from_millis(20)).await;
 
-    let result = registry.register_job().await;
+    waiting.abort();
+    let _ = waiting.await;
 
-    assert!(matches!(
-        result.expect_err("legacy registration should be cancelled"),
-        AppError::Cancellation(_)
-    ));
+    assert_eq!(
+        registry
+            .update_max_concurrent(2)
+            .await
+            .expect("abandoned admission must not stay tracked"),
+        2
+    );
 }
