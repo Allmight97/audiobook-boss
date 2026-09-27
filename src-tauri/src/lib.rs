@@ -12,6 +12,7 @@ pub mod ipc_contract;
 mod metadata;
 mod opened_audio;
 pub mod output_artifact;
+mod owned_dir;
 mod power;
 pub mod processing;
 pub mod remote_source;

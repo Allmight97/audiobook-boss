@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::errors::{sanitize_path_for_display, AppError, Result};
+use crate::owned_dir::OwnedRoot;
 use uuid::Uuid;
 
 const STAGING_DIR_PREFIX: &str = ".abb-processing-";
@@ -49,16 +50,19 @@ pub(crate) fn create_processing_workspace_dir(
     Ok(staging_dir)
 }
 
+fn owned_root(workspace_root: &Path) -> OwnedRoot<'_> {
+    OwnedRoot {
+        path: workspace_root,
+        label: "processing workspace",
+    }
+}
+
+/// Startup policy: sweep each abandoned session but keep the workspace root.
 pub(crate) fn cleanup_abandoned_processing_sessions(workspace_root: &Path) -> Result<()> {
     if !workspace_root.exists() {
         return Ok(());
     }
-    let metadata = std::fs::symlink_metadata(workspace_root)?;
-    if metadata.file_type().is_symlink() {
-        return Err(AppError::ResourceCleanup(
-            "Refusing to follow processing workspace symlink during cleanup".to_string(),
-        ));
-    }
+    owned_root(workspace_root).ensure_not_symlink(workspace_root)?;
 
     for entry in std::fs::read_dir(workspace_root)? {
         let path = entry?.path();
@@ -76,38 +80,8 @@ pub(crate) fn cleanup_abandoned_processing_sessions(workspace_root: &Path) -> Re
     Ok(())
 }
 
-fn ensure_owned_child(root: &Path, child: &Path) -> Result<()> {
-    let root = root
-        .canonicalize()
-        .map_err(|error| AppError::ResourceCleanup(format!("Invalid processing root: {error}")))?;
-    let child = child.canonicalize().map_err(|error| {
-        AppError::ResourceCleanup(format!("Invalid processing workspace child: {error}"))
-    })?;
-    if child.starts_with(root) {
-        return Ok(());
-    }
-    Err(AppError::ResourceCleanup(
-        "Refusing to cleanup path outside ABB processing workspace root".to_string(),
-    ))
-}
-
 pub(crate) fn purge_processing_session(workspace_root: &Path, session_dir: &Path) -> Result<()> {
-    if !session_dir.exists() {
-        return Ok(());
-    }
-    ensure_owned_child(workspace_root, session_dir)?;
-    remove_owned_dir(session_dir)
-}
-
-fn remove_owned_dir(path: &Path) -> Result<()> {
-    let metadata = std::fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() {
-        return Err(AppError::ResourceCleanup(
-            "Refusing to follow processing workspace symlink during cleanup".to_string(),
-        ));
-    }
-    std::fs::remove_dir_all(path)?;
-    Ok(())
+    owned_root(workspace_root).remove_child(session_dir)
 }
 
 #[cfg(test)]
