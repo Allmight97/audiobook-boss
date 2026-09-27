@@ -69,6 +69,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - The dev-log summary no longer counts small, inaudible clipping (up to
   +1 dBFS) as an actionable warning; larger clipping and invalid samples still
   warn (#513).
+- Cancelling an export or a title no longer marks the dev-log session
+  degraded or indeterminate (#513).
 
 ## [1.12.1] - 2026-09-25
 
