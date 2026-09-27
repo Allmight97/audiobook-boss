@@ -3,7 +3,7 @@
 ## Scope
 
 - Solid Work Center view under `src/ui/workCenter/`.
-- WorkRuntime snapshots, cancel, source-open, and purge tombstones live in
+- WorkRuntime snapshots, cancel, output reveal, and purge tombstones live in
   `src/app/workOperations`. This owner renders that view.
 
 ## Public API Strip
