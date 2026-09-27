@@ -261,31 +261,11 @@ impl SampleAccumulator {
             let start = *consumed_samples;
             let src = &buffer[start..start + take];
 
-            // Sanitize float samples: clamp to [-1.0, 1.0], fix NaN/Inf
-            let mut clipped = 0usize;
-            let mut non_finite = 0usize;
-            let mut clipped_peak = 0.0_f32;
-            for i in 0..take {
-                let mut v = src[i];
-                if !v.is_finite() {
-                    v = 0.0;
-                    non_finite += 1;
-                } else if v > 1.0 {
-                    clipped_peak = clipped_peak.max(v);
-                    v = 1.0;
-                    clipped += 1;
-                } else if v < -1.0 {
-                    clipped_peak = clipped_peak.max(-v);
-                    v = -1.0;
-                    clipped += 1;
-                }
-                dst[i] = v;
+            let mut report = SanitizeReport::default();
+            for (dst, &src) in dst[..take].iter_mut().zip(src) {
+                *dst = report.sanitize(src);
             }
-            if clipped + non_finite > 0 {
-                log::warn!(
-                    "Accumulator sanitized float samples before encoding: channel_index={ch} clipped={clipped} non_finite={non_finite} clipped_peak={clipped_peak:.6} frame_size={take}"
-                );
-            }
+            report.log(&format!("channel_index={ch}"), take);
         }
         *consumed_samples += take;
         Some(frame)
@@ -323,24 +303,12 @@ impl SampleAccumulator {
         let dst = &mut frame.data_mut(0)[..take_total];
         dst.copy_from_slice(&buffer[start..start + take_total]);
         if config.format == ff::format::Sample::F32(ff::format::sample::Type::Packed) {
-            let mut sanitized = 0;
+            let mut report = SanitizeReport::default();
             for bytes in dst.chunks_exact_mut(4) {
                 let value = f32::from_ne_bytes(bytes.try_into().expect("four-byte float"));
-                let clean = if value.is_finite() {
-                    value.clamp(-1.0, 1.0)
-                } else {
-                    0.0
-                };
-                if value != clean {
-                    sanitized += 1;
-                }
-                bytes.copy_from_slice(&clean.to_ne_bytes());
+                bytes.copy_from_slice(&report.sanitize(value).to_ne_bytes());
             }
-            if sanitized > 0 {
-                log::warn!(
-                    "Accumulator sanitized {sanitized} packed float samples before encoding"
-                );
-            }
+            report.log("channel_index=packed", take);
         }
 
         *consumed_samples += take;
@@ -378,3 +346,57 @@ impl SampleAccumulator {
         self.consumed_samples = 0;
     }
 }
+
+/// Clamped peaks up to +1 dBFS are routine for lossy decodes and resampling
+/// of masters normalized near 0 dBFS, and the clamp is inaudible. Larger
+/// excursions suggest a gain, format, or layout mismatch worth investigating.
+const CLIP_WARN_PEAK: f32 = 1.122;
+
+/// Float sample repair before encoding: clamp to [-1.0, 1.0], zero NaN/Inf.
+#[derive(Default)]
+struct SanitizeReport {
+    clipped: usize,
+    non_finite: usize,
+    clipped_peak: f32,
+}
+
+impl SanitizeReport {
+    fn sanitize(&mut self, value: f32) -> f32 {
+        if !value.is_finite() {
+            self.non_finite += 1;
+            return 0.0;
+        }
+        if value.abs() > 1.0 {
+            self.clipped += 1;
+            self.clipped_peak = self.clipped_peak.max(value.abs());
+        }
+        value.clamp(-1.0, 1.0)
+    }
+
+    /// NaN/Inf always warn; clipping warns only above `CLIP_WARN_PEAK`.
+    fn level(&self) -> Option<log::Level> {
+        if self.non_finite > 0 || self.clipped_peak > CLIP_WARN_PEAK {
+            Some(log::Level::Warn)
+        } else if self.clipped > 0 {
+            Some(log::Level::Debug)
+        } else {
+            None
+        }
+    }
+
+    fn log(&self, scope: &str, frame_size: usize) {
+        if let Some(level) = self.level() {
+            log::log!(
+                level,
+                "Accumulator sanitized float samples before encoding: {scope} clipped={} non_finite={} clipped_peak={:.6} frame_size={frame_size}",
+                self.clipped,
+                self.non_finite,
+                self.clipped_peak
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "buffer_tests.rs"]
+mod tests;

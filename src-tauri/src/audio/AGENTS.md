@@ -68,7 +68,7 @@
 
 ## Private Cluster
 
-- Files: `buffer.rs`, `cleanup/`, `extensions.rs`,
+- Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
   `constants.rs`, `file_list.rs`, `imports.rs`, `imports_tests.rs`, `metrics.rs`,
   `path_validation.rs`, `processor/`, `settings.rs`, `settings_capabilities.rs`,
   `settings_encoder.rs`, `output_plan.rs`, and `toolchain/` (`mod.rs` = platform-neutral
@@ -160,6 +160,10 @@
 - Byte `linesize` is not per-channel audio truth for planar frames. A zero byte linesize on channel index `> 0` must not be interpreted as a missing channel without typed-plane or raw-plane confirmation.
 - Silence padding is allowed only for a deliberate short-frame/tail policy or a verified missing-plane condition, and the behavior must have regression coverage.
 - Sample sanitization may repair NaN/Inf or clamp out-of-range floats before encoding, but it must not mask channel-layout, frame-size, or format mismatches.
+  `buffer.rs` owns the log threshold: NaN/Inf always warn; clamped peaks up to
+  `CLIP_WARN_PEAK` (+1 dBFS) log at debug, larger excursions warn. The dev-log
+  summary counts WARN lines as actionable, so keep the threshold in the log
+  level rather than in `scripts/dev-log-analysis.ts`.
 - Resampler output buffers must account for pending swr delay plus input samples
   scaled to the output rate; EOF drains must stream flushed frames through the
   accumulator/encoder instead of collecting the whole drain.
