@@ -173,6 +173,69 @@ async fn assert_reprocessing_sample_count(settings: EncoderSettings) {
     }
 }
 
+/// Stream `duration_ts` of the first audio stream: playable length including
+/// any padding the encoder or muxer declared.
+fn audio_duration_ts(path: &Path) -> u64 {
+    let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
+    let probe = Command::new(binary)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=duration_ts",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .output()
+        .expect("ffprobe duration_ts");
+    assert!(probe.status.success());
+    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+    facts["streams"][0]["duration_ts"]
+        .as_u64()
+        .expect("audio duration_ts")
+}
+
+/// A mono 44.1 kHz AAC M4B decodes to float planar mono at 44.1 kHz, which is
+/// exactly what the Native AAC encoder takes, so reprocessing it uses the
+/// decoder-format fast path. `ABB_DISABLE_FASTPATH` forces the same input
+/// through the resampler. Both routes must hand the encoder the same audio.
+/// Nextest runs each test in its own process, so the variable stays local.
+#[tokio::test]
+async fn fast_path_and_resampler_route_produce_the_same_audio() {
+    let source = MediaLane::with_fixtures(&[1.5]);
+    let m4b = source.process(None).await;
+
+    let fast = MediaLane::for_inputs(vec![m4b.clone()]);
+    let fast_output = fast.process(None).await;
+    std::env::set_var("ABB_DISABLE_FASTPATH", "1");
+    let resampled = MediaLane::for_inputs(vec![m4b]);
+    let resampled_output = resampled.process(None).await;
+    std::env::remove_var("ABB_DISABLE_FASTPATH");
+
+    assert_eq!(
+        audio_duration_ts(&fast_output),
+        audio_duration_ts(&resampled_output),
+        "both routes declare the same playable length and padding"
+    );
+    let fast_samples = decode_pcm_f32(&fast_output);
+    let resampled_samples = decode_pcm_f32(&resampled_output);
+    assert_eq!(fast_samples.len(), resampled_samples.len());
+    // Identity resampling is exact for float planar input; allow only
+    // float rounding in case swresample touches the samples.
+    let max_difference = fast_samples
+        .iter()
+        .zip(&resampled_samples)
+        .map(|(fast, resampled)| (fast - resampled).abs())
+        .fold(0.0_f32, f32::max);
+    assert!(
+        max_difference < 1e-4,
+        "fast path diverged from the resampler route by {max_difference}"
+    );
+}
+
 fn decode_pcm_f32(path: &Path) -> Vec<f32> {
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".to_string());
     let decoded = Command::new(binary)

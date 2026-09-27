@@ -308,3 +308,7 @@ fn validate_mp3_start(frame: &[u8]) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "preserve_merge_tests.rs"]
+mod tests;
