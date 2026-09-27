@@ -26,9 +26,11 @@ impl JobRegistry {
         }
 
         let job_id = JobId::new();
+        let job = Job::new(job_id);
+        let job_cancel = Arc::clone(&job.cancel_flag);
         let semaphore = {
             let mut admission = self.admission();
-            admission.jobs.insert(job_id.0, Job::new(job_id));
+            admission.jobs.insert(job_id.0, job);
             admission.semaphore.clone()
         };
         let pending = PendingAdmission {
@@ -36,10 +38,13 @@ impl JobRegistry {
             job_id,
         };
 
-        let acquired = acquire_permit(semaphore, &external_cancel)
+        // A queued job is tracked, so its own cancel flag ends admission too.
+        let cancelled =
+            || job_cancel.load(Ordering::SeqCst) || external_cancelled(&external_cancel);
+        let acquired = acquire_permit(semaphore, &cancelled)
             .await
             .and_then(|permit| {
-                if external_cancelled(&external_cancel) {
+                if cancelled() {
                     Err(AppError::cancelled())
                 } else {
                     Ok(permit)
@@ -67,13 +72,13 @@ impl Drop for PendingAdmission<'_> {
 
 async fn acquire_permit(
     semaphore: Arc<Semaphore>,
-    external_cancel: &Option<Arc<AtomicBool>>,
+    cancelled: &impl Fn() -> bool,
 ) -> Result<OwnedSemaphorePermit> {
     let acquire = semaphore.acquire_owned();
     tokio::pin!(acquire);
 
     loop {
-        if external_cancelled(external_cancel) {
+        if cancelled() {
             return Err(AppError::cancelled());
         }
 
