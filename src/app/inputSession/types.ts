@@ -51,7 +51,7 @@ export type ImportIntent =
 	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> }
 	| { readonly type: 'drainOpened' };
 
-export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
+const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
 
 export function emptyInputSession(): InputSessionState {
 	return {

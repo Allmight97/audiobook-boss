@@ -14,7 +14,7 @@ export type FileListPointerReorderHandlers = {
 
 const REORDER_DRAG_THRESHOLD_PX = 4;
 
-export function fileListRowHitFromPoint(clientX: number, clientY: number): FileListRowHit | null {
+function fileListRowHitFromPoint(clientX: number, clientY: number): FileListRowHit | null {
 	if (typeof document.elementFromPoint !== 'function') return null;
 	const row = document
 		.elementFromPoint(clientX, clientY)

@@ -203,15 +203,7 @@ impl RemoteAcquisitionLifecycle {
         if let Ok(mut jobs) = self.jobs.lock() {
             let job = jobs
                 .entry(job_id.to_string())
-                .or_insert_with(|| RemoteAcquisitionJob {
-                    job_id: job_id.to_string(),
-                    provider_id,
-                    status: types::RemoteAcquisitionStatus::Failed,
-                    progress: acquisition_progress(AcquisitionStage::Failed, Some(1.0), None, None),
-                    materialized_files: Vec::new(),
-                    supplemental_assets: Vec::new(),
-                    diagnostics: Vec::new(),
-                });
+                .or_insert_with(|| placeholder_job(job_id, provider_id));
             if job.status == types::RemoteAcquisitionStatus::Cancelled {
                 return;
             }
@@ -229,35 +221,8 @@ impl RemoteAcquisitionLifecycle {
         if let Ok(mut jobs) = self.jobs.lock() {
             let job = jobs
                 .entry(job_id.to_string())
-                .or_insert_with(|| RemoteAcquisitionJob {
-                    job_id: job_id.to_string(),
-                    provider_id,
-                    status: types::RemoteAcquisitionStatus::Cancelled,
-                    progress: acquisition_progress(
-                        AcquisitionStage::Cancelled,
-                        Some(1.0),
-                        None,
-                        None,
-                    ),
-                    materialized_files: Vec::new(),
-                    supplemental_assets: Vec::new(),
-                    diagnostics: Vec::new(),
-                });
-            job.status = types::RemoteAcquisitionStatus::Cancelled;
-            job.progress = acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
-            job.materialized_files.clear();
-            job.supplemental_assets.clear();
-            if !job
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.kind == types::RemoteAcquisitionFailureKind::Cancelled)
-            {
-                job.diagnostics.push(types::RemoteSourceDiagnostic {
-                    kind: types::RemoteAcquisitionFailureKind::Cancelled,
-                    title_id: None,
-                    message: "Remote source acquisition was cancelled.".to_string(),
-                });
-            }
+                .or_insert_with(|| placeholder_job(job_id, provider_id));
+            mark_cancelled(job);
         }
     }
 
@@ -365,21 +330,7 @@ impl RemoteAcquisitionLifecycle {
         let job = jobs.get_mut(job_id).ok_or_else(|| {
             AppError::InvalidInput("Remote acquisition job was not found.".to_string())
         })?;
-        job.status = types::RemoteAcquisitionStatus::Cancelled;
-        job.progress = acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
-        job.materialized_files.clear();
-        job.supplemental_assets.clear();
-        if !job
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.kind == types::RemoteAcquisitionFailureKind::Cancelled)
-        {
-            job.diagnostics.push(types::RemoteSourceDiagnostic {
-                kind: types::RemoteAcquisitionFailureKind::Cancelled,
-                title_id: None,
-                message: "Remote source acquisition was cancelled.".to_string(),
-            });
-        }
+        mark_cancelled(job);
         let cancelled_job = job.clone();
         drop(jobs);
         self.abort_acquisition_task(job_id);
@@ -409,5 +360,37 @@ impl RemoteSourceRuntime {
 
     pub fn purge_session(&self, job_id: &str) -> Result<()> {
         self.inner.lifecycle.purge_session(job_id)
+    }
+}
+
+/// A job record for an acquisition that terminalized before its record existed;
+/// callers overwrite status and progress immediately.
+fn placeholder_job(job_id: &str, provider_id: RemoteProviderId) -> RemoteAcquisitionJob {
+    RemoteAcquisitionJob {
+        job_id: job_id.to_string(),
+        provider_id,
+        status: types::RemoteAcquisitionStatus::Acquiring,
+        progress: acquisition_progress(AcquisitionStage::License, Some(0.0), None, None),
+        materialized_files: Vec::new(),
+        supplemental_assets: Vec::new(),
+        diagnostics: Vec::new(),
+    }
+}
+
+fn mark_cancelled(job: &mut RemoteAcquisitionJob) {
+    job.status = types::RemoteAcquisitionStatus::Cancelled;
+    job.progress = acquisition_progress(AcquisitionStage::Cancelled, Some(1.0), None, None);
+    job.materialized_files.clear();
+    job.supplemental_assets.clear();
+    if !job
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.kind == types::RemoteAcquisitionFailureKind::Cancelled)
+    {
+        job.diagnostics.push(types::RemoteSourceDiagnostic {
+            kind: types::RemoteAcquisitionFailureKind::Cancelled,
+            title_id: None,
+            message: "Remote source acquisition was cancelled.".to_string(),
+        });
     }
 }

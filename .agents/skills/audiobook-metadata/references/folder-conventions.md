@@ -5,7 +5,7 @@ relative to the ABB root.
 
 ## ABB Naming Owner
 
-`src-tauri/src/output_artifact/naming.rs` adapts the public preview call to
+`build_output_path_preview` in `src-tauri/src/output_artifact/mod.rs` adapts the public preview call to
 `crates/abb-output-artifact-core/src/lib.rs`. The core owns ABS-default and
 custom-template rendering, optional series/subseries folders, year insertion,
 sanitization, fallback names, and template safety. Read its implementation and

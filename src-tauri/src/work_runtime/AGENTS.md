@@ -3,8 +3,9 @@
 ## Public API Strip
 
 - `WorkRuntime`, including:
-  - `submit_processing_operation` (spawned background batch/merge, returns
-    `WorkSubmissionAccepted`).
+  - `submit_processing_operation` (spawned background export, returns
+    `WorkSubmissionAccepted`). Callers name the operation after its books;
+    the request `title` is required and non-empty.
   - inline metadata-save lifecycle hooks — `begin_metadata_save_operation`,
     `record_metadata_save_progress`, and `finish_metadata_save_operation`
     (takes the run's outcome: `InlineRunTerminal` results or the aborting

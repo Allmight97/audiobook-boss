@@ -100,7 +100,7 @@ export function swapSelectionIndices(
 	return withAnchoredSelection({ ...session, selectedAnchor }, selectedIndices);
 }
 
-export function mapIndexForMove(index: number, fromIndex: number, toIndex: number): number {
+function mapIndexForMove(index: number, fromIndex: number, toIndex: number): number {
 	if (index === fromIndex) return toIndex;
 	if (fromIndex < toIndex && index > fromIndex && index <= toIndex) return index - 1;
 	if (fromIndex > toIndex && index >= toIndex && index < fromIndex) return index + 1;

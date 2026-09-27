@@ -1,5 +1,5 @@
-use super::artifact::derive_output_artifact_path;
 use super::collision::{detect_output_collision, next_rename_candidate, OutputCollisionCache};
+use super::derive_output_artifact_path;
 use super::types::{
     CollisionPolicy, OutputCollisionKind, OutputKind, PlannedOutputAction, ResolvedOutputPlan,
 };

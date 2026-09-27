@@ -18,7 +18,7 @@
   outcome rather than choosing MP4/FFmpeg strategy modules.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
-- Final batch/merge processing enters WorkRuntime through
+- Final processing enters WorkRuntime through
   `submit_processing_operation`. `process_audiobook_files` is direct
   preview and requires `preview_seconds`. Read the Processing owner guidance
   when changing either lifecycle.
