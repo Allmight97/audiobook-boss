@@ -36,7 +36,7 @@
   leftover file-list or job-control stores.
 - Preview execution is direct `process_audiobook_files` with `previewSeconds`.
   It does not enter WorkRuntime, and command ingress rejects an omitted preview
-  duration. Background batch/merge submits through WorkRuntime; Status Panel
+  duration. Background export submits through WorkRuntime with a title naming its books; Status Panel
   is not a WorkRuntime consumer.
 - `processing-progress` and `processing-queue` are direct-preview events with
   no operation-id discriminator. Do not consume them as background-operation
@@ -76,7 +76,7 @@
   architecture decision.
 - Restoring `bindProcessing*` or a module-global status publisher.
 
-- Input's `chapterPlansForProcessing` owns confirmation/Ignore gating. Processing
+- Input's `chapterPlansForProcessing(sources)` takes one title's ordered sources and owns confirmation/Ignore gating. Processing
   includes the returned plans in the immutable submission; runtime validates
   the source fingerprint and chapter intervals. Do not rediscover CUE in an
   encoder adapter or reinterpret timestamps in the frontend.

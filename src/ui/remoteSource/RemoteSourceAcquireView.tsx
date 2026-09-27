@@ -438,9 +438,7 @@ export function RemoteSourceAcquireView(): JSX.Element {
 										<span class="remote-title-name">{title.title}</span>
 										<span class="remote-title-meta">{title.authors.join(', ')}</span>
 										<Show when={!isTitleAcquirable(title)}>
-											<span class="remote-title-availability">
-												{title.availability.label}
-											</span>
+											<span class="remote-title-availability">{title.availability.label}</span>
 											<Show when={title.availability.detail}>
 												{(detail) => (
 													<span class="remote-title-availability-detail">{detail()}</span>

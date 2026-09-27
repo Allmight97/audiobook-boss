@@ -1,4 +1,4 @@
-use super::types::{CollisionPolicy, OutputCollisionKind, PlannedOutputAction, ResolvedOutputPlan};
+use super::types::{CollisionPolicy, PlannedOutputAction, ResolvedOutputPlan};
 use crate::errors::{sanitize_path_for_display, AppError, Result};
 
 pub(crate) struct OutputPlanReview<'a> {
@@ -8,18 +8,10 @@ pub(crate) struct OutputPlanReview<'a> {
 }
 
 fn output_plan_review_message(output: &ResolvedOutputPlan) -> String {
-    let destination = sanitize_path_for_display(&output.requested_path);
-    match output.collision.as_ref().map(|value| value.kind) {
-        Some(OutputCollisionKind::SourceDestinationOverlap)
-        | Some(OutputCollisionKind::CanonicalPathOverlap) => format!(
-            "Output path '{}' targets an input source file. Choose a different destination.",
-            destination
-        ),
-        _ => format!(
-            "Output collision review is required for '{}'. Re-run preflight and choose how to handle the collision.",
-            destination
-        ),
-    }
+    abb_output_artifact_core::output_plan_review_message(
+        output,
+        &sanitize_path_for_display(&output.requested_path),
+    )
 }
 
 pub(crate) fn enforce_output_plan_review<'a>(

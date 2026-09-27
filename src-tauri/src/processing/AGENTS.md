@@ -6,7 +6,7 @@
   `ExecutionProcessingPlan`, `ResolvedProcessingPlan`, `PlannedProcessingJob`.
   Private `title_file_info` projects an inspected source set in title order.
   Callers provide the fresh phase `FileListInfo`; planning never re-inspects
-  inputs. Merge and batch execution retain that inspection, including source fingerprints.
+  inputs. Execution retains that inspection, including source fingerprints.
   Audio revalidates those identities after scheduler/permit waits; queued jobs
   must not replace the inspected facts underneath an already-resolved audio plan.
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
@@ -42,7 +42,9 @@
   request before output collision review; `audio_plans` exposes that result.
   The resolved format sets the extension. Source order and resolved audio plan
   participate in the review signature. Preview and CUE reconstruction require
-  encoding. Global-merge requests cannot also carry per-title groups.
+  encoding. One title cannot compose CUE-bearing sources; the Audio planner
+  rejects it in preflight and execution alike. Chapter plans are applied once,
+  in the validation preflight and execution share.
 - Settings and sample-rate checks apply only to encoding plans. A copy plan
   carries no encoder settings and follows normal registration, cancellation,
   output review, and terminal reporting.

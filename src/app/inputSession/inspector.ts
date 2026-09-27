@@ -20,7 +20,7 @@ export type InspectorView = {
 	readonly combinedSizeText: string;
 };
 
-export const EMPTY_INSPECTOR_VIEW: InspectorView = {
+const EMPTY_INSPECTOR_VIEW: InspectorView = {
 	contextText: 'No file selected',
 	contextVariant: 'empty',
 	contextDetail: '',

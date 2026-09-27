@@ -206,12 +206,9 @@ impl ResolvedOutputPlan {
     }
 }
 
-fn output_plan_review_message(output: &ResolvedOutputPlan) -> String {
-    let destination = output
-        .requested_path
-        .file_name()
-        .map(|value| value.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "[path]".to_string());
+/// Review message for an output that needs a collision decision. Callers
+/// choose how much of the destination to display.
+pub fn output_plan_review_message(output: &ResolvedOutputPlan, destination: &str) -> String {
     match output.collision.as_ref().map(|value| value.kind) {
         Some(OutputCollisionKind::SourceDestinationOverlap)
         | Some(OutputCollisionKind::CanonicalPathOverlap) => format!(
@@ -228,7 +225,14 @@ fn output_plan_review_message(output: &ResolvedOutputPlan) -> String {
 fn output_review_requirement(output: &ResolvedOutputPlan) -> Option<OutputReviewRequirement> {
     (output.action == PlannedOutputAction::ReviewRequired).then(|| OutputReviewRequirement {
         can_proceed: !plan_is_hard_block(output),
-        message: output_plan_review_message(output),
+        message: output_plan_review_message(
+            output,
+            &output
+                .requested_path
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "[path]".to_string()),
+        ),
     })
 }
 

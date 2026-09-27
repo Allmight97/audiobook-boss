@@ -9,8 +9,8 @@
   I/O and final commit behavior.
 
 ## Private Cluster
-- Files: `artifact.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `naming.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
-- The cluster owns artifact path derivation, collision detection, review signatures, parent-dir creation and cleanup of ABB-created empty parent dirs, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
+- Files: `mod.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
+- The cluster owns artifact path derivation, collision detection, review signatures, output-root and parent-dir creation after review plus cleanup of the empty dirs ABB created, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
 
 ## Edit Rules
 - Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.

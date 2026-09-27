@@ -6,7 +6,7 @@ export type FileListNavigationCommand =
 	| 'pagePrevious'
 	| 'pageNext';
 
-export const DEFAULT_FILE_LIST_PAGE_STEP = 10;
+const DEFAULT_FILE_LIST_PAGE_STEP = 10;
 
 type KeyboardNavigationEvent = Pick<
 	KeyboardEvent,
