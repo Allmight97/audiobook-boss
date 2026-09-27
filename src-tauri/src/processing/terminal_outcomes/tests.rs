@@ -15,6 +15,7 @@ mod classification_tests {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-native".to_string()),
         };
         let external_success = ProcessResultEntry {
@@ -24,6 +25,7 @@ mod classification_tests {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-external".to_string()),
         };
 
@@ -46,6 +48,7 @@ mod classification_tests {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-123".to_string()),
         };
 
@@ -64,6 +67,7 @@ mod classification_tests {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: None,
         };
         let failed = ProcessResultEntry {
@@ -78,6 +82,7 @@ mod classification_tests {
             )),
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-2".to_string()),
         };
         let skipped = ProcessResultEntry {
@@ -87,6 +92,7 @@ mod classification_tests {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: None,
         };
 
@@ -140,6 +146,7 @@ mod classification_tests {
             )),
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-123".to_string()),
         };
 
@@ -163,6 +170,7 @@ mod classification_tests {
             )),
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-123".to_string()),
         };
 
@@ -187,6 +195,7 @@ mod classification_tests {
             )),
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-2".to_string()),
         };
 
@@ -379,6 +388,7 @@ mod batch_tests {
                     error: None,
                     preview_file_path: None,
                     preview_actual_seconds: None,
+                    supplemental_warning: None,
                     job_id: Some("job-1".to_string()),
                 }),
                 Err(AppError::cancelled()),
@@ -408,6 +418,7 @@ mod batch_tests {
             )),
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-2".to_string()),
         };
 
@@ -421,6 +432,7 @@ mod batch_tests {
                     error: None,
                     preview_file_path: None,
                     preview_actual_seconds: None,
+                    supplemental_warning: None,
                     job_id: Some("job-1".to_string()),
                 }),
                 Ok(failed),
@@ -454,6 +466,7 @@ mod batch_tests {
                 error: None,
                 preview_file_path: None,
                 preview_actual_seconds: None,
+                supplemental_warning: None,
                 job_id: Some("job-1".to_string()),
             })],
         )

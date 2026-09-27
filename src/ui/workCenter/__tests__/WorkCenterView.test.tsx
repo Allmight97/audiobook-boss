@@ -57,7 +57,6 @@ function completedOperation(): OperationSnapshot {
 				finishedAtMs: 15_150,
 			},
 		],
-		warnings: [],
 		errors: [],
 		logTail: [],
 	};
@@ -117,4 +116,17 @@ it('shows each failed file with its own reason', () => {
 		screen.getByText('File validation failed: File not found: A Change of Plans.m4b'),
 	).toBeVisible();
 	expect(screen.queryByText('Saved metadata: Feedback.m4b')).not.toBeInTheDocument();
+});
+
+it('shows a finished file whose PDF was not saved as done with the warning', () => {
+	const operation = completedOperation();
+	operation.children[0] = {
+		...operation.children[0]!,
+		supplementalWarning: 'Audiobook output was created, but the PDF could not be committed.',
+	};
+	showOperation(operation);
+	expect(screen.getByText('Done in 00:18')).toBeVisible();
+	expect(
+		screen.getByText('Audiobook output was created, but the PDF could not be committed.'),
+	).toBeVisible();
 });

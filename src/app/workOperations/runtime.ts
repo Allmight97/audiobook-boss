@@ -116,13 +116,11 @@ export function createWorkOperationsSession(
 				: operation.children
 						.map((child) => child.inputId)
 						.filter((inputId): inputId is string => Boolean(inputId));
-		const completedInputIds =
-			operation.status === 'completed'
-				? operationInputIds
-				: operation.children
-						.filter((child) => child.status === 'completed')
-						.flatMap((child) => child.sourceInputIds)
-						.filter((inputId): inputId is string => Boolean(inputId));
+		// Purge only sources whose title was fully published. Skipped titles and
+		// titles missing a companion PDF keep their downloads for a retry.
+		const completedInputIds = operation.children
+			.filter((child) => child.status === 'completed' && !child.supplementalWarning)
+			.flatMap((child) => child.sourceInputIds);
 		if (operationInputIds.length === 0 && completedInputIds.length === 0) return;
 
 		await deps.remoteSource.settleTerminalWork({

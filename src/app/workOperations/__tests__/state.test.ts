@@ -60,12 +60,13 @@ function completedExportOperation(operationId: string): OperationSnapshot {
 				},
 				sourcePath: undefined,
 				inputIndex: undefined,
-				inputId: undefined,
-				sourceInputIds: [],
+				inputId: 'input-1',
+				sourceInputIds: ['input-1', 'input-2'],
 				jobId: 'job-1',
 				cancellable: false,
 				cancelRequested: false,
 				message: 'Complete.',
+				supplementalWarning: undefined,
 			},
 		],
 		terminalSummary: {
@@ -76,7 +77,6 @@ function completedExportOperation(operationId: string): OperationSnapshot {
 			failed: 0,
 			message: 'Completed 1/1.',
 		},
-		warnings: [],
 		errors: [],
 		logTail: [],
 	};
@@ -179,13 +179,39 @@ describe('Work Center state', () => {
 		},
 	);
 
-	it('purges completed merge operation source ids even when the merge child has no input id', async () => {
-		session.applyOperationSnapshot(completedExportOperation('op-merge-purge'));
+	it('purges every source of a completed grouped title', async () => {
+		session.applyOperationSnapshot(completedExportOperation('op-grouped-purge'));
 		await Promise.resolve();
 
 		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
 			inputIds: ['input-1', 'input-2'],
 			completedInputIds: ['input-1', 'input-2'],
+		});
+	});
+
+	it('releases but keeps downloads for titles that were skipped or published without their PDF', async () => {
+		const snapshot = completedExportOperation('op-unpublished');
+		const child = snapshot.children[0];
+		session.applyOperationSnapshot({
+			...snapshot,
+			status: 'completed',
+			sourceInputIds: ['input-1', 'input-2', 'input-3'],
+			children: [
+				{ ...child, sourceInputIds: ['input-1'], status: 'skipped' },
+				{
+					...child,
+					childJobId: 'pdf-missing',
+					sourceInputIds: ['input-2'],
+					supplementalWarning: 'The PDF could not be saved.',
+				},
+				{ ...child, childJobId: 'published', sourceInputIds: ['input-3'] },
+			],
+		});
+		await Promise.resolve();
+
+		expect(settleRemoteSourceMock).toHaveBeenCalledWith({
+			inputIds: ['input-1', 'input-2', 'input-3'],
+			completedInputIds: ['input-3'],
 		});
 	});
 

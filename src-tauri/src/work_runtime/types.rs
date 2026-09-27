@@ -130,6 +130,9 @@ pub struct ChildJobSnapshot {
     pub cancellable: bool,
     pub cancel_requested: bool,
     pub message: Option<String>,
+    /// The audiobook was published but its companion files were not; the
+    /// child's sources stay retained. See `ProcessResultEntry`.
+    pub supplemental_warning: Option<String>,
 }
 
 /// Bounded per-operation activity tail rendered by the Work Center's op-card
@@ -180,7 +183,6 @@ pub struct OperationSnapshot {
     pub progress: ProgressSnapshot,
     pub children: Vec<ChildJobSnapshot>,
     pub terminal_summary: Option<OperationTerminalSummary>,
-    pub warnings: Vec<String>,
     pub errors: Vec<String>,
     pub log_tail: Vec<OperationLogEntry>,
 }

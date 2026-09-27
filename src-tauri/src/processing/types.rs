@@ -131,6 +131,10 @@ pub struct ProcessResultEntry {
     pub preview_file_path: Option<String>,
     pub preview_actual_seconds: Option<f64>,
     pub job_id: Option<String>,
+    /// Set on a successful title whose audiobook was published but whose
+    /// requested companion files (PDFs) were not. Its acquired sources stay
+    /// retained so reprocessing can publish the companions.
+    pub supplemental_warning: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]

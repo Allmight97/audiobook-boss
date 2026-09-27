@@ -115,13 +115,10 @@ pub(crate) fn preflight_payload(
 mod tests {
     use super::run_job::{
         commit_supplemental_assets, register_job_and_validate_output,
-        supplemental_assets_for_input, ProcessingJobLogContext,
+        supplemental_assets_for_input, supplemental_publication_warning, ProcessingJobLogContext,
     };
     use crate::audio::{BitrateMode, ChannelConfig, EncoderSettings, EncoderType};
     use crate::output_artifact::OutputKind;
-    use crate::processing::terminal_outcomes::{
-        classify_processing_error, ProcessingJobTerminalOutcome,
-    };
     use crate::processing::OperationKind;
     use crate::processing::{ProcessPayload, SupplementalProcessingAsset};
     use std::collections::HashMap;
@@ -652,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn supplemental_commit_failure_classifies_processing_as_terminal_failed() {
+    fn supplemental_commit_failure_keeps_published_title_successful_with_warning() {
         let root = TempDir::new().expect("temp root");
         let original_bytes = b"%PDF-1.7\nbody";
         let changed_bytes = b"%PDF-1.7\nBODY";
@@ -662,28 +659,19 @@ mod tests {
         std::fs::write(&source, changed_bytes).expect("change source pdf");
         let final_audio = root.path().join("Book.m4b");
 
-        let error = commit_supplemental_assets(OutputKind::Final, &[asset], &final_audio)
-            .expect_err("stale output-artifact supplemental commit should fail");
-        let outcome = classify_processing_error(error);
+        let warning = supplemental_publication_warning(commit_supplemental_assets(
+            OutputKind::Final,
+            &[asset],
+            &final_audio,
+        ))
+        .expect("stale supplemental commit should produce a warning");
 
-        let ProcessingJobTerminalOutcome::Failed(envelope) = outcome else {
-            panic!("Supplemental PDF commit failure should produce failed terminal outcome");
-        };
         assert!(
-            envelope
-                .message
-                .contains("Audiobook output 'Book.m4b' was created"),
-            "unexpected envelope: {envelope:?}"
+            warning.contains("Audiobook output 'Book.m4b' was created")
+                && warning.contains("requested Supplemental PDFs could not be committed")
+                && warning.contains("hash changed"),
+            "unexpected warning: {warning}"
         );
-        assert!(
-            envelope
-                .message
-                .contains("requested Supplemental PDFs could not be committed"),
-            "unexpected envelope: {envelope:?}"
-        );
-        assert!(
-            envelope.message.contains("hash changed"),
-            "unexpected envelope: {envelope:?}"
-        );
+        assert_eq!(supplemental_publication_warning(Ok(())), None);
     }
 }

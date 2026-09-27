@@ -67,6 +67,7 @@ mod tests {
             error: None,
             preview_file_path: None,
             preview_actual_seconds: None,
+            supplemental_warning: None,
             job_id: Some("job-1".to_string()),
         }])
     }

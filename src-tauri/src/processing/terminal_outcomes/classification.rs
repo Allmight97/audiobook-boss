@@ -8,6 +8,7 @@ pub(in crate::processing) enum ProcessingJobTerminalOutcome {
         message: String,
         preview_file_path: Option<String>,
         preview_actual_seconds: Option<f64>,
+        supplemental_warning: Option<String>,
     },
     Cancelled(AppError),
     Failed(AppErrorEnvelope),

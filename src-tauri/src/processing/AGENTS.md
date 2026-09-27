@@ -49,6 +49,10 @@
   carries no encoder settings and follows normal registration, cancellation,
   output review, and terminal reporting.
 
+- Companion PDFs commit after the audiobook is published. A companion
+  failure leaves the title Success with `ProcessResultEntry.supplemental_warning`
+  set; it never reclassifies a published title as Failed.
+
 ## Progress / Stage Evolution
 
 - `processing-progress` and `processing-queue` are emitted by
