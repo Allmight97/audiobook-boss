@@ -498,6 +498,9 @@ fn process_packet_frames(
             );
             Ok(action)
         }
+        // A user cancel is not a pipeline failure; the job's terminal record
+        // reports it, and dev-log analysis counts ERROR lines as degradation.
+        Err(e @ crate::errors::AppError::Cancellation(_)) => Err(e),
         Err(e) => {
             log::error!(
                 "✗ Failed to process decoded frames for packet {}: {}",

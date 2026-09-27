@@ -283,7 +283,9 @@ impl WorkRuntime {
                 .is_some_and(|flags| flags.cancel_title(index))
             {
                 log::info!(
-                    "work_operation event=title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
+                    // Not a `work_operation` lifecycle record: dev-log analysis validates
+                    // those events; the job's own terminal record carries the outcome.
+                    "title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
                 );
             }
         }
