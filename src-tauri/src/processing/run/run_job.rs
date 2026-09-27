@@ -36,7 +36,8 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) input_index: usize,
     pub(crate) operation_kind: OperationKind,
     pub(crate) operation_id: Option<String>,
-    pub(crate) operation_cancel: Option<Arc<AtomicBool>>,
+    /// This title's cancel flag; set by title or whole-operation cancel.
+    pub(crate) title_cancel: Option<Arc<AtomicBool>>,
     pub(crate) output_plan: ResolvedOutputPlan,
     pub(crate) file_info: FileListInfo,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
@@ -59,7 +60,7 @@ pub(crate) async fn run_processing_job(
     } = register_job_and_validate_output(
         &request.registry,
         &request.output_plan.resolved_path,
-        request.operation_cancel.clone(),
+        request.title_cancel.clone(),
         ProcessingJobLogContext {
             operation_id: operation_id.clone(),
             input_index: request.input_index,
@@ -249,14 +250,14 @@ pub(crate) struct RegisteredProcessingJob {
 pub(crate) async fn register_job_and_validate_output(
     registry: &crate::ManagedJobRegistry,
     output_path: &Path,
-    operation_cancel: Option<Arc<AtomicBool>>,
+    title_cancel: Option<Arc<AtomicBool>>,
     log_context: ProcessingJobLogContext,
     audio_handling: AudioHandling,
 ) -> Result<RegisteredProcessingJob> {
     let (job_id, permit) = registry
-        .register_job_with_external_cancel(operation_cancel.clone())
+        .register_job_with_external_cancel(title_cancel.clone())
         .await?;
-    let cancellation_checker = CancellationChecker::new(operation_cancel);
+    let cancellation_checker = CancellationChecker::new(title_cancel);
     let lifecycle_log = ProcessingJobLifecycleLog::start(ProcessingJobLogIdentity {
         operation_id: log_context.operation_id,
         job_id: job_id.to_string(),

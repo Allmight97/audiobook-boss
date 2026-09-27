@@ -18,7 +18,8 @@
 ## Cross-Strip Coupling
 
 - `WorkCenterView` reads Work Operations `view` and calls
-  `workOperations.cancel`.
+  `workOperations.cancel`. A title row offers Cancel only in a multi-title
+  operation whose child snapshot is `cancellable` and not yet cancelling.
 - Do not add a local operation store or subscribe to `processing-progress`.
 
 ## Boundary Changes

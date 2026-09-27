@@ -49,6 +49,7 @@ function operationKindLabel(kind: OperationSnapshot['kind']): string {
 
 function childStatusLabel(child: ChildJobSnapshot): string {
 	const { status } = child;
+	if ((status === 'queued' || status === 'running') && child.cancelRequested) return 'Cancelling';
 	if (status === 'queued') return 'Queued';
 	if (status === 'running') return 'Running';
 	if (status === 'completed') return completedLabel('Done', child);
@@ -59,6 +60,16 @@ function childStatusLabel(child: ChildJobSnapshot): string {
 
 function canCancel(operation: OperationSnapshot): boolean {
 	return operation.cancellable && !operation.cancelRequested;
+}
+
+/** A single-title operation already has the operation Cancel button. */
+function canCancelTitle(operation: OperationSnapshot, child: ChildJobSnapshot): boolean {
+	return (
+		operation.children.length > 1 &&
+		canCancel(operation) &&
+		child.cancellable &&
+		!child.cancelRequested
+	);
 }
 
 function summaryText(operation: OperationSnapshot): string {
@@ -159,6 +170,21 @@ export function WorkCenterView(): JSX.Element {
 																· {formatEtaRemaining(child.progress.etaSeconds ?? 0)}
 															</Show>
 														</span>
+														<Show when={canCancelTitle(operation, child)}>
+															<button
+																class="work-child-source"
+																type="button"
+																title={`Cancel ${child.label} only`}
+																onClick={() =>
+																	void workOperations.cancel(
+																		operation.operationId,
+																		child.childJobId,
+																	)
+																}
+															>
+																Cancel
+															</button>
+														</Show>
 														<Show when={child.sourcePath}>
 															<button
 																class="work-child-source"

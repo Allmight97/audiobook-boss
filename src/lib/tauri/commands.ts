@@ -366,9 +366,9 @@ export const commandSpecs = {
 		),
 	list_work_operations: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),
-	cancel_work_operation: (args: { operationId: OperationId }) =>
+	cancel_work_operation: (args: { operationId: OperationId; childJobId?: string }) =>
 		runGeneratedCommand(
-			generatedCommands.cancelWorkOperation(args.operationId),
+			generatedCommands.cancelWorkOperation(args.operationId, args.childJobId ?? null),
 			normalizeOperationSnapshot,
 		),
 	log_frontend: (args: { entry: FrontendLogEntry }) =>

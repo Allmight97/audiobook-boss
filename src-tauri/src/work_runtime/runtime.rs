@@ -24,7 +24,9 @@ pub struct WorkRuntime {
 
 struct WorkRuntimeInner {
     state: Mutex<WorkRuntimeState>,
-    operation_cancel_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    /// Per-operation cancel flags: one per output title for processing, one
+    /// shared flag for an inline metadata save.
+    operation_cancel_flags: Mutex<HashMap<String, Vec<Arc<AtomicBool>>>>,
     sequence: AtomicU64,
 }
 
@@ -85,12 +87,17 @@ impl WorkRuntime {
                     .collect();
             }
         }
-        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let title_cancels: Vec<_> = request
+            .payload
+            .input_files
+            .iter()
+            .map(|_| Arc::new(AtomicBool::new(false)))
+            .collect();
 
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            flags.insert(operation_id.0.clone(), cancel_flag.clone());
+            flags.insert(operation_id.0.clone(), title_cancels.clone());
         }
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
@@ -121,7 +128,7 @@ impl WorkRuntime {
                 request.preview_seconds,
                 ProcessingRunOptions {
                     operation_id: Some(operation_id_for_task.to_string()),
-                    operation_cancel: Some(cancel_flag),
+                    title_cancels,
                     progress_listener,
                 },
             )
@@ -163,7 +170,7 @@ impl WorkRuntime {
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
-            flags.insert(operation_id.0.clone(), cancel_flag.clone());
+            flags.insert(operation_id.0.clone(), vec![cancel_flag.clone()]);
         }
 
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
@@ -234,23 +241,60 @@ impl WorkRuntime {
         Ok(lock_state(&self.inner.state)?.list())
     }
 
+    /// Cancels a whole operation, or one of its titles when `child_job_id`
+    /// names a child. Repeating a cancel returns the current snapshot.
     pub fn cancel_operation(
         &self,
         window: &tauri::Window,
         operation_id: OperationId,
+        child_job_id: Option<String>,
     ) -> Result<OperationSnapshot> {
-        if let Some(flag) = lock_cancel_flags(&self.inner.operation_cancel_flags)?
-            .get(operation_id.as_str())
-            .cloned()
+        let snapshot = match child_job_id {
+            None => self.cancel_whole_operation(&operation_id)?,
+            Some(child_job_id) => self.cancel_title(&operation_id, &child_job_id)?,
+        };
+        self.emit_snapshot(window, &snapshot);
+        self.emit_list(window);
+        Ok(snapshot)
+    }
+
+    fn cancel_whole_operation(&self, operation_id: &OperationId) -> Result<OperationSnapshot> {
+        if let Some(flags) =
+            lock_cancel_flags(&self.inner.operation_cancel_flags)?.get(operation_id.as_str())
         {
-            flag.store(true, Ordering::Release);
+            flags
+                .iter()
+                .for_each(|flag| flag.store(true, Ordering::Release));
         }
-        let snapshot = lock_state(&self.inner.state)?.request_cancel(&operation_id, now_ms())?;
+        let snapshot = lock_state(&self.inner.state)?.request_cancel(operation_id, now_ms())?;
         if snapshot.status == WorkOperationStatus::Cancelling {
             log_work_operation(WorkOperationLogEvent::CancelRequested, &snapshot);
         }
-        self.emit_snapshot(window, &snapshot);
-        self.emit_list(window);
+        Ok(snapshot)
+    }
+
+    fn cancel_title(
+        &self,
+        operation_id: &OperationId,
+        child_job_id: &str,
+    ) -> Result<OperationSnapshot> {
+        let (snapshot, title_index) = lock_state(&self.inner.state)?.request_child_cancel(
+            operation_id,
+            child_job_id,
+            now_ms(),
+        )?;
+        if let Some(index) = title_index {
+            let flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
+            if let Some(flag) = flags
+                .get(operation_id.as_str())
+                .and_then(|titles| titles.get(index))
+            {
+                flag.store(true, Ordering::Release);
+                log::info!(
+                    "work_operation event=title_cancel_requested operation_id={operation_id} child_job_id={child_job_id}"
+                );
+            }
+        }
         Ok(snapshot)
     }
 
@@ -454,8 +498,8 @@ fn lock_state(state: &Mutex<WorkRuntimeState>) -> Result<MutexGuard<'_, WorkRunt
 }
 
 fn lock_cancel_flags(
-    flags: &Mutex<HashMap<String, Arc<AtomicBool>>>,
-) -> Result<MutexGuard<'_, HashMap<String, Arc<AtomicBool>>>> {
+    flags: &Mutex<HashMap<String, Vec<Arc<AtomicBool>>>>,
+) -> Result<MutexGuard<'_, HashMap<String, Vec<Arc<AtomicBool>>>>> {
     flags
         .lock()
         .map_err(|_| AppError::General("Work runtime cancellation lock failed".to_string()))

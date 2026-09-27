@@ -45,6 +45,7 @@ pub fn cancel_work_operation(
     window: tauri::Window,
     runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
     operation_id: OperationId,
+    child_job_id: Option<String>,
 ) -> CommandResult<OperationSnapshot> {
-    Ok(runtime.cancel_operation(&window, operation_id)?)
+    Ok(runtime.cancel_operation(&window, operation_id, child_job_id)?)
 }

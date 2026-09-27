@@ -101,7 +101,7 @@ async fn dispatch_batch_plan(
         let cover_art_passthrough = planned_job.cover_art_passthrough;
         let preview_cloned = preview_seconds;
         let workspace_root_cloned = workspace_root.clone();
-        let operation_cancel = options.operation_cancel.clone();
+        let title_cancel = options.title_cancels.get(planned_job.input_index).cloned();
         let operation_id = options.operation_id.clone();
         let input_index = planned_job.input_index;
         let output = planned_job.output.clone();
@@ -115,7 +115,7 @@ async fn dispatch_batch_plan(
         let metadata_intent = planned_job.metadata_intent.clone();
 
         scheduled_jobs.push(Box::pin(async move {
-            if operation_cancel
+            if title_cancel
                 .as_ref()
                 .is_some_and(|flag| flag.load(Ordering::Acquire))
             {
@@ -134,7 +134,7 @@ async fn dispatch_batch_plan(
                 input_index,
                 operation_kind: OperationKind::ProcessingBatch,
                 operation_id,
-                operation_cancel,
+                title_cancel,
                 output_plan: output,
                 file_info: title_info,
                 metadata: md_cloned,

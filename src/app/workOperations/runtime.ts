@@ -54,7 +54,7 @@ export type WorkOperationsSession = {
 	initialize(): Promise<void>;
 	dispose(): void;
 	applyOperationSnapshot(snapshot: OperationSnapshot): void;
-	cancel(operationId: OperationId): Promise<void>;
+	cancel(operationId: OperationId, childJobId?: string): Promise<void>;
 	openSource(child: { sourcePath?: string | null }): Promise<void>;
 };
 
@@ -127,6 +127,19 @@ export function createWorkOperationsSession(
 			inputIds: operationInputIds,
 			completedInputIds,
 		});
+	}
+
+	async function sendCancel(operationId: OperationId, childJobId?: string): Promise<void> {
+		const started = generation;
+		try {
+			const next = await tauriClient.cancelWorkOperation(operationId, childJobId);
+			if (started !== generation) return;
+			applyOperationSnapshot(next);
+		} catch (error) {
+			if (started !== generation) return;
+			state.errorMessage = `Failed to cancel ${childJobId ? 'title' : 'operation'}: ${toUserMessage(error)}`;
+			commit();
+		}
 	}
 
 	function applyOperationSnapshot(next: OperationSnapshot): void {
@@ -207,7 +220,13 @@ export function createWorkOperationsSession(
 			commit();
 		},
 		applyOperationSnapshot,
-		async cancel(operationId) {
+		async cancel(operationId, childJobId) {
+			// A title cancel is idempotent in the backend and its snapshot shows
+			// the request at once, so only whole-operation cancels track pending.
+			if (childJobId !== undefined) {
+				await sendCancel(operationId, childJobId);
+				return;
+			}
 			const started = generation;
 			state.cancelPendingByOperationId = {
 				...state.cancelPendingByOperationId,
@@ -215,13 +234,7 @@ export function createWorkOperationsSession(
 			};
 			commit();
 			try {
-				const next = await tauriClient.cancelWorkOperation(operationId);
-				if (started !== generation) return;
-				applyOperationSnapshot(next);
-			} catch (error) {
-				if (started !== generation) return;
-				state.errorMessage = `Failed to cancel operation: ${toUserMessage(error)}`;
-				commit();
+				await sendCancel(operationId);
 			} finally {
 				if (started === generation) {
 					const next = { ...state.cancelPendingByOperationId };

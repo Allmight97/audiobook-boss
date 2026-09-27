@@ -130,3 +130,24 @@ it('shows a finished file whose PDF was not saved as done with the warning', () 
 		screen.getByText('Audiobook output was created, but the PDF could not be committed.'),
 	).toBeVisible();
 });
+
+it('cancels one title in a running batch and hides title cancel for a single title', () => {
+	const operation = completedOperation();
+	operation.status = 'running';
+	operation.cancellable = true;
+	operation.children = operation.children.map((child) => ({
+		...child,
+		status: 'running',
+		cancellable: true,
+	}));
+	showOperation(operation);
+	const cancel = vi.spyOn(runtime!.workOperations, 'cancel').mockResolvedValue();
+
+	screen.getByTitle('Cancel Feedback.m4b only').click();
+
+	expect(cancel).toHaveBeenCalledWith('batch', 'second');
+	cleanup();
+	runtime?.dispose();
+	showOperation({ ...operation, children: [operation.children[0]!] });
+	expect(screen.queryByTitle(/only$/)).not.toBeInTheDocument();
+});

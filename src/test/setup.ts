@@ -333,9 +333,22 @@ vi.mock('@tauri-apps/api/core', () => ({
 			case 'list_work_operations':
 				return Promise.resolve(mockOperationList());
 			case 'cancel_work_operation': {
-				const args = _args as { operationId?: string } | undefined;
+				const args = _args as { operationId?: string; childJobId?: string | null } | undefined;
 				const current = mockOperations.get(args?.operationId ?? '');
 				if (!current) return Promise.reject(new Error('Operation not found'));
+				if (args?.childJobId) {
+					const snapshot: OperationSnapshot = {
+						...current,
+						revision: current.revision + 1,
+						children: current.children.map((child) =>
+							child.childJobId === args.childJobId
+								? { ...child, cancelRequested: true, cancellable: false }
+								: child,
+						),
+					};
+					publishMockOperation(snapshot);
+					return Promise.resolve(snapshot);
+				}
 				if (!current.cancellable) return Promise.resolve(current);
 				const snapshot: OperationSnapshot = {
 					...current,

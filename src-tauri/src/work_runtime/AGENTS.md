@@ -21,7 +21,13 @@
 ## Ownership
 
 - Own operation identity, immutable accepted submissions, operation snapshots,
-  operation-scoped cancellation, and Work Center event truth.
+  operation and title cancellation, and Work Center event truth.
+- Cancellation: a processing operation holds one cancel flag per output title,
+  and whole-operation cancel sets them all. `cancel_operation` with a
+  `child_job_id` cancels only that title. Only processing titles are
+  cancellable one at a time; a metadata save's files share one flag. Repeating
+  a cancel, or cancelling a finished title, returns the current snapshot.
+  Child `cancellable` is the authority for offering title cancel.
 - Each output title is one child. Operation and child `source_input_ids` retain
   all source identities so grouped acquired files survive submission and release
   together at the correct terminal outcome, including mixed-success batches.
