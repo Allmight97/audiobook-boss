@@ -125,11 +125,9 @@ function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]
 			result.results
 				.filter((entry) => entry.status === 'failed')
 				.map((entry) => {
-					if (typeof entry.inputIndex === 'number') {
-						const path = filePaths[entry.inputIndex];
-						if (path) {
-							return pathBasename(path, { fallback: 'path' });
-						}
+					const path = filePaths[entry.inputIndex];
+					if (path) {
+						return pathBasename(path, { fallback: 'path' });
 					}
 					if (entry.error != null) {
 						const errorMessage = toUserMessage(entry.error, { fallback: '' });
