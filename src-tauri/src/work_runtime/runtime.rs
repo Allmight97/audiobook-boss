@@ -234,10 +234,6 @@ impl WorkRuntime {
         Ok(lock_state(&self.inner.state)?.list())
     }
 
-    pub fn get_operation(&self, operation_id: OperationId) -> Result<OperationSnapshot> {
-        lock_state(&self.inner.state)?.get(&operation_id)
-    }
-
     pub fn cancel_operation(
         &self,
         window: &tauri::Window,

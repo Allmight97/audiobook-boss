@@ -41,15 +41,6 @@ pub fn list_work_operations(
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_work_operation(
-    runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
-    operation_id: OperationId,
-) -> CommandResult<OperationSnapshot> {
-    Ok(runtime.get_operation(operation_id)?)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub fn cancel_work_operation(
     window: tauri::Window,
     runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,

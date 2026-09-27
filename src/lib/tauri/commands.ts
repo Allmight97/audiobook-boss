@@ -366,11 +366,6 @@ export const commandSpecs = {
 		),
 	list_work_operations: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),
-	get_work_operation: (args: { operationId: OperationId }) =>
-		runGeneratedCommand(
-			generatedCommands.getWorkOperation(args.operationId),
-			normalizeOperationSnapshot,
-		),
 	cancel_work_operation: (args: { operationId: OperationId }) =>
 		runGeneratedCommand(
 			generatedCommands.cancelWorkOperation(args.operationId),
