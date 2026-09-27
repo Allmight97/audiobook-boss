@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
 import type { FileListInfo, ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { liveSettingsCapability } from '../../lib/tauri/capabilities/settings';
+import type { AppSettings } from '../../types/appSettings';
 import { tauriClient } from '../../lib/tauri/client';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
 import { createAppRuntime } from './index';
@@ -279,6 +281,42 @@ describe('app runtime', () => {
 		const second = createAppRuntime();
 		dispose = () => second.dispose();
 		expect(second.input.view().errorMessage).toBe('');
+	});
+
+	it('publishes nothing when startup settings finish loading after disposal', async () => {
+		const load = createDeferred<AppSettings>();
+		const runtime = createAppRuntime({
+			settings: { ...liveSettingsCapability, getAppSettings: () => load.promise },
+		});
+		const startup = runtime.initialize();
+		runtime.dispose();
+		const encodingAfterDispose = runtime.encoding.readDefaults();
+		const outputAfterDispose = runtime.output.readDefaults();
+
+		load.resolve({
+			maxConcurrentJobs: { mode: 'auto' },
+			encoderDefaults: {
+				format: 'mp3',
+				intent: 'encode',
+				settings: {
+					encoderType: 'native_aac',
+					bitrateKbps: 128,
+					bitrateMode: { mode: 'cbr' },
+					channels: 'stereo',
+					afterburner: false,
+				},
+				sampleRate: { explicit: 48000 },
+			},
+			outputDefaults: { outputNaming: { preset: 'absDefault', includeYear: true } },
+			toolchain: {},
+			startupBehavior: 'rememberLastState',
+			keepAwakeWhileWorking: true,
+			defaultAcquisitionLane: 'audible',
+		});
+		await startup;
+
+		expect(runtime.encoding.readDefaults()).toEqual(encodingAfterDispose);
+		expect(runtime.output.readDefaults()).toEqual(outputAfterDispose);
 	});
 
 	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {
