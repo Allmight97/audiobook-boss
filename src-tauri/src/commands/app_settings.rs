@@ -87,7 +87,12 @@ async fn reset_app_settings_from_config_dir(
     registry: &crate::ManagedJobRegistry,
 ) -> Result<AppSettings> {
     let rollback_concurrency = registry.max_concurrent();
-    registry.reset_to_auto().await?;
+    registry.reset_to_auto().await.map_err(|_| {
+        AppError::InvalidInput(
+            "Settings can't be reset while exports are running. Try again when they finish."
+                .to_string(),
+        )
+    })?;
 
     let reset = app_settings::reset_app_settings(config_dir);
     if reset.is_err() {
@@ -123,5 +128,25 @@ mod tests {
 
         assert!(matches!(error, AppError::Io(_)));
         assert_eq!(registry.max_concurrent(), 2);
+    }
+
+    #[tokio::test]
+    async fn settings_reset_during_an_export_explains_why_and_changes_nothing() {
+        let temp = TempDir::new().expect("temp dir");
+        let registry = Arc::new(JobRegistry::new(2));
+        let (_job_id, _permit) = registry.register_job().await.expect("running export");
+
+        let error = reset_app_settings_from_config_dir(temp.path(), &registry)
+            .await
+            .expect_err("reset waits for running exports");
+
+        assert!(
+            error
+                .to_string()
+                .contains("can't be reset while exports are running"),
+            "{error}"
+        );
+        assert_eq!(registry.max_concurrent(), 2);
+        assert!(!temp.path().join("app-settings.json").exists());
     }
 }
