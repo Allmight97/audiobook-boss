@@ -19,7 +19,7 @@ pub(crate) enum ResolvedCover<'a> {
 
 impl<'a> ResolvedCover<'a> {
     /// Select the cover to write: an explicit metadata cover wins over a
-    /// passthrough cover, and an empty cover is dropped (`set | clear | noop`).
+    /// passthrough cover, and an empty cover is dropped (`set | clear | absent`).
     pub(crate) fn select(
         metadata: Option<&'a AudiobookMetadata>,
         passthrough: Option<&'a PassthroughMetadata>,

@@ -192,7 +192,7 @@ describe('metadata edit intent', () => {
 		});
 	});
 
-	it('Lookup queue apply with the existing cover leaves cover intent noop', async () => {
+	it('Lookup queue apply with the existing cover leaves cover intent absent', async () => {
 		const metadata = capability([alpha, beta], {
 			searchOnlineMetadata: vi.fn(async () => ({
 				results: [

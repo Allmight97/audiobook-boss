@@ -167,7 +167,7 @@ export function hasDirtyFields(form: MetadataFormState): boolean {
 
 /**
  * The edit intent the form carries: only fields the user changed (including
- * explicit Blank) become set/clear operations; everything else stays noop so
+ * explicit Blank) become set/clear operations; everything else stays absent so
  * inherited values are neither rewritten nor revalidated. Cover intent is
  * staged by the cover actions themselves.
  */

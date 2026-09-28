@@ -87,6 +87,36 @@ describe('metadata session selection and save', () => {
 		});
 	});
 
+	it('a late album sort preview for a previous selection does not replace the current one', async () => {
+		const pending: Array<(value: string) => void> = [];
+		const metadata = fakeMetadata({
+			previewAlbumSort: vi.fn(
+				(draft) =>
+					new Promise<string | null>((resolve) => {
+						pending.push(() => resolve(`${draft.title} sort`));
+					}),
+			),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(pending.length).toBeGreaterThan(1));
+		const alphaResolvers = pending.slice(0, -1);
+		pending[pending.length - 1]?.('');
+		await vi.waitFor(() => expect(runtime?.metadata.view().tags.tsoa).toBe('Beta sort'));
+		for (const resolve of alphaResolvers) resolve('');
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(runtime.metadata.view().tags.tsoa).toBe('Beta sort');
+	});
+
 	it('keeps one title draft across source reorder, save, and separation', async () => {
 		const metadata = fakeMetadata();
 		runtime = createAppRuntime({ metadata });
