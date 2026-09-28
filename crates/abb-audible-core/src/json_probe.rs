@@ -25,6 +25,54 @@ pub fn find_first_string_for_keys(value: &Value, keys: &[&str]) -> Option<String
         .find_map(|key| find_first_string_for_key(value, key))
 }
 
+/// Nearest-first search: at each object, tries every key in order before
+/// descending, and skips empty strings. License facts read with this; unlike
+/// [`find_first_string_for_keys`], a shallower lower-priority key wins over a
+/// deeper higher-priority one.
+pub fn find_nearest_non_empty_string_for_keys(value: &Value, keys: &[&str]) -> Option<String> {
+    match value {
+        Value::Object(map) => {
+            for key in keys {
+                if let Some(found) = map.get(*key).and_then(Value::as_str) {
+                    if !found.is_empty() {
+                        return Some(found.to_string());
+                    }
+                }
+            }
+            map.values()
+                .find_map(|entry| find_nearest_non_empty_string_for_keys(entry, keys))
+        }
+        Value::Array(values) => values
+            .iter()
+            .find_map(|entry| find_nearest_non_empty_string_for_keys(entry, keys)),
+        _ => None,
+    }
+}
+
+/// Whether any key in `keys` holds a non-empty object anywhere in the tree.
+pub fn has_non_empty_object_for_keys(value: &Value, keys: &[&str]) -> bool {
+    match value {
+        Value::Object(map) => {
+            for key in keys {
+                if let Some(found @ Value::Object(object)) = map.get(*key) {
+                    if !object.is_empty() {
+                        return true;
+                    }
+                    if has_non_empty_object_for_keys(found, keys) {
+                        return true;
+                    }
+                }
+            }
+            map.values()
+                .any(|entry| has_non_empty_object_for_keys(entry, keys))
+        }
+        Value::Array(values) => values
+            .iter()
+            .any(|entry| has_non_empty_object_for_keys(entry, keys)),
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
