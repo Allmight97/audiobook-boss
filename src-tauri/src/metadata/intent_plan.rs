@@ -42,6 +42,9 @@ pub(crate) struct MetadataOutcomePlan {
     pub(crate) effective_metadata: Option<AudiobookMetadata>,
     pub(crate) naming_metadata: Option<NamingMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
+    /// The patch a route that writes onto the source's own tags applies: the
+    /// user's intent plus the processing album sort when the user stated none.
+    pub(crate) write_intent: Option<MetadataIntentPatch>,
 }
 
 pub(crate) fn plan_metadata_outcome(
@@ -54,10 +57,12 @@ pub(crate) fn plan_metadata_outcome(
         request.input_path,
         request.intent_patch,
     );
+    let write_intent = processing_write_intent(request.intent_patch, effective_metadata.as_ref());
     Ok(MetadataOutcomePlan {
         effective_metadata,
         naming_metadata,
         cover_art_passthrough: CoverArtPassthroughPolicy::from_intent_patch(request.intent_patch),
+        write_intent,
     })
 }
 
@@ -67,6 +72,19 @@ pub(crate) fn plan_metadata_write_for_path(
 ) -> Result<MetadataWritePlan> {
     let source_metadata = crate::metadata::read_metadata(input_path)?;
     Ok(patch.to_write_plan_with_source(source_metadata)?)
+}
+
+fn processing_write_intent(
+    patch: Option<&MetadataIntentPatch>,
+    effective: Option<&AudiobookMetadata>,
+) -> Option<MetadataIntentPatch> {
+    let mut write_intent = patch.cloned().unwrap_or_default();
+    if write_intent.album_sort.is_none() {
+        write_intent.album_sort = effective
+            .and_then(|metadata| metadata.album_sort.clone())
+            .map(crate::metadata::AlbumSortPatchOp::Set);
+    }
+    (write_intent != MetadataIntentPatch::default()).then_some(write_intent)
 }
 
 fn resolve_effective_processing_metadata(
@@ -200,6 +218,38 @@ mod tests {
             album_sort(Some(AlbumSortPatchOp::Set("Custom".to_string()))).as_deref(),
             Some("Custom")
         );
+    }
+
+    #[test]
+    fn write_intent_carries_the_processing_album_sort_for_source_tag_routes() {
+        let plan = |patch: Option<&MetadataIntentPatch>| {
+            plan_metadata_outcome(MetadataOutcomeRequest {
+                input_path: None,
+                intent_patch: patch,
+            })
+            .expect("metadata resolves")
+            .write_intent
+        };
+        let series = MetadataIntentPatch {
+            title: Some(PatchOp::Set("Sunreach".to_string())),
+            series: Some(PatchOp::Set("Skyward".to_string())),
+            series_part: Some(PatchOp::Set("2.5".to_string())),
+            ..Default::default()
+        };
+        assert_eq!(
+            plan(Some(&series)).and_then(|intent| intent.album_sort),
+            Some(AlbumSortPatchOp::Set("Skyward 02.5 - Sunreach".to_string()))
+        );
+
+        let cleared = MetadataIntentPatch {
+            album_sort: Some(AlbumSortPatchOp::Clear),
+            ..series
+        };
+        assert_eq!(
+            plan(Some(&cleared)).and_then(|intent| intent.album_sort),
+            Some(AlbumSortPatchOp::Clear)
+        );
+        assert_eq!(plan(None), None, "nothing to write without intent or a key");
     }
 
     #[test]
