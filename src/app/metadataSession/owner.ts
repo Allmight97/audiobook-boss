@@ -330,7 +330,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			return cache.getMetadataForFile(file.path) ?? null;
 		} catch (error) {
 			console.warn('Failed to load metadata:', error);
-			return null;
+			// Still show what this session knows (saved values, pending edits).
+			return cache.getMetadataForFile(file.path) ?? null;
 		}
 	}
 
