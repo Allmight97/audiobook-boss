@@ -135,8 +135,8 @@ mod tests {
     #[test]
     fn effective_processing_metadata_partial_set_and_clear_patch() {
         let patch = MetadataIntentPatch {
-            series: PatchOp::Set("once again".to_string()),
-            artist: PatchOp::Clear,
+            series: Some(PatchOp::Set("once again".to_string())),
+            artist: Some(PatchOp::Clear),
             ..Default::default()
         };
 
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn effective_processing_metadata_uses_overlay_without_source_file() {
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Overlay Only".to_string()),
+            title: Some(PatchOp::Set("Overlay Only".to_string())),
             ..Default::default()
         };
 
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn effective_processing_metadata_rejects_invalid_patch_values() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set("2024-99".to_string()),
+            date: Some(PatchOp::Set("2024-99".to_string())),
             ..Default::default()
         };
 
@@ -191,7 +191,7 @@ mod tests {
     fn resolved_metadata_drives_naming_and_encoding_metadata_coherently() {
         let base = sample_source_metadata();
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Renamed Title".to_string()),
+            title: Some(PatchOp::Set("Renamed Title".to_string())),
             ..Default::default()
         };
         let effective = patch
@@ -268,7 +268,7 @@ mod tests {
             ..Default::default()
         };
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Renamed".to_string()),
+            title: Some(PatchOp::Set("Renamed".to_string())),
             ..Default::default()
         };
 
@@ -305,7 +305,7 @@ mod tests {
             ..Default::default()
         };
         let patch = MetadataIntentPatch {
-            series: PatchOp::Set("Renamed Series".to_string()),
+            series: Some(PatchOp::Set("Renamed Series".to_string())),
             ..Default::default()
         };
 
@@ -333,9 +333,9 @@ mod tests {
     #[test]
     fn outcome_plan_populates_naming_from_resolved_metadata() {
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Patched Title".to_string()),
-            series: PatchOp::Set("Series".to_string()),
-            series_part: PatchOp::Set("7".to_string()),
+            title: Some(PatchOp::Set("Patched Title".to_string())),
+            series: Some(PatchOp::Set("Series".to_string())),
+            series_part: Some(PatchOp::Set("7".to_string())),
             ..Default::default()
         };
         let outcome = plan_metadata_outcome(MetadataOutcomeRequest {
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn outcome_plan_reports_cover_art_clear_policy() {
         let patch = MetadataIntentPatch {
-            cover_art: PatchOp::Clear,
+            cover_art: Some(PatchOp::Clear),
             ..Default::default()
         };
 

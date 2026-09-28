@@ -73,13 +73,13 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
 - Change runtime/container adapters when targeted `audiobook-boss` Nextest and
   Public API Strip checks stay green.
-- Preserve `set | clear | noop` semantics across save, processing projection,
-  naming projection, write plans, validation/normalization, and cover-art
-  handling.
+- Preserve `set | clear | absent` field semantics (absent keeps the source
+  value) across save, processing projection, naming projection, write plans,
+  validation/normalization, and cover-art handling.
 - Preserve external audiobook tag interoperability.
 - FFmpeg COMM reads prefer `comment`, then undescribed language keys, then
   described comments, with lexical key order breaking ties. Explicit comment
-  set/clear removes those user-comment aliases; noop preserves them. `iTun*`
+  set/clear removes those user-comment aliases; an absent field preserves them. `iTun*`
   COMM descriptors are technical passthrough records, never display or clear
   candidates. This policy lives in `field_schema::comment_key_rank`.
 - MP4 artist and composer reads join repeated values with `;`, matching FFmpeg's

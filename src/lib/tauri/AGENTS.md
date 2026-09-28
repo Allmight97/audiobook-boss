@@ -31,8 +31,8 @@
 - Change private adapters when generated-binding, Public API Strip, and targeted
   runtime Vitest checks stay green.
 - Keep command and type names semantic; avoid `_v1`/`_v2` version suffixes and `_cmd` command suffixes. Breaking changes get a new product-meaningful name.
-- Keep metadata intent operations explicit as `set | clear | noop`; compile
-  patch intent here, not in scattered UI callsites. Canonical metadata
+- Keep metadata intent fields explicit as `set | clear`, with an absent field
+  keeping the source value; compile patch intent here, not in scattered UI callsites. Canonical metadata
   validation and normalization come from Rust metadata commands, not local TS
   rule tables.
 - Keep nullish and payload normalization centralized in the private cluster.

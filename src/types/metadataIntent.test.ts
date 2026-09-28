@@ -70,20 +70,6 @@ describe('metadata intent patch helpers', () => {
 		});
 	});
 
-	it('omits noop operations when compiling backend payloads', () => {
-		const payload = compileMetadataIntentPatch({
-			title: { op: 'noop' },
-			artist: { op: 'clear' },
-			date: { op: 'set', value: '2024-07' },
-		});
-
-		expect(payload).toEqual({
-			artist: { op: 'clear' },
-			date: { op: 'set', value: '2024-07' },
-		});
-		expect('title' in payload).toBe(false);
-	});
-
 	it('applies patches on top of existing metadata', () => {
 		const merged = applyMetadataIntentPatch(
 			{ title: 'Old', artist: 'Author', series: 'Series A', album_sort: 'Custom Sort' },

@@ -31,8 +31,8 @@ export const commands = {
 	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Validates and normalizes metadata intent without writing files. */
-	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch) => typedError<MetadataIntentValidationResult, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
-	saveMetadataBatch: (items: MetadataSaveRequest[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
+	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch_Deserialize) => typedError<MetadataIntentValidationResult_Serialize, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
+	saveMetadataBatch: (items: MetadataSaveRequest_Deserialize[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
 	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<MetadataLookupResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
 	/**
 	 *  Validates and analyzes a list of audio files
@@ -88,7 +88,7 @@ export const commands = {
 	includeYear: boolean,
 	customTemplate: string | null,
 } | null, sourcePath: string | null, outputKind: "final" | "preview" | null, format: AudiobookFormat) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, format })),
-	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
+	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch_Deserialize } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
 	/**  Returns the current maximum concurrent jobs setting */
 	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
 	/**  Updates the maximum concurrent jobs setting (requires idle state) */
@@ -99,8 +99,8 @@ export const commands = {
 	 *  Final processing must enter through WorkRuntime so it has durable
 	 *  operation identity, snapshots, and operation and title cancellation.
 	 */
-	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
-	submitProcessingOperation: (request: SubmitProcessingOperationRequest) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),
+	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch_Deserialize } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
+	submitProcessingOperation: (request: SubmitProcessingOperationRequest_Deserialize) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
@@ -158,7 +158,7 @@ export type AcquisitionSelection = {
 
 export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
 
-export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | { op: "recompute" } | { op: "noop" };
+export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | { op: "recompute" };
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
@@ -523,7 +523,31 @@ export type MetadataIntentFieldError = {
 	message: string,
 };
 
-export type MetadataIntentPatch = {
+/**  The fields a user asked to change; absent fields keep their source value. */
+export type MetadataIntentPatch = MetadataIntentPatch_Serialize | MetadataIntentPatch_Deserialize;
+
+/**  The fields a user asked to change; absent fields keep their source value. */
+export type MetadataIntentPatch_Deserialize = {
+	title?: PatchOp<string>,
+	artist?: PatchOp<string>,
+	album?: PatchOp<string>,
+	composer?: PatchOp<string>,
+	genre?: PatchOp<string>,
+	date?: PatchOp<string>,
+	description?: PatchOp<string>,
+	series?: PatchOp<string>,
+	series_part?: PatchOp<string>,
+	subseries?: PatchOp<string>,
+	subseries_part?: PatchOp<string>,
+	album_sort?: AlbumSortPatchOp,
+	cover_art?: PatchOp<number[]>,
+	comment?: PatchOp<string>,
+	track?: PatchOp<[number, number | null]>,
+	disk?: PatchOp<[number, number | null]>,
+};
+
+/**  The fields a user asked to change; absent fields keep their source value. */
+export type MetadataIntentPatch_Serialize = {
 	title?: PatchOp<string>,
 	artist?: PatchOp<string>,
 	album?: PatchOp<string>,
@@ -546,9 +570,17 @@ export type MetadataIntentValidationCode = "publication_date_syntax" | "series_p
 
 export type MetadataIntentValidationField = "date" | "series_part" | "subseries_part";
 
-export type MetadataIntentValidationResult = {
+export type MetadataIntentValidationResult = MetadataIntentValidationResult_Serialize | MetadataIntentValidationResult_Deserialize;
+
+export type MetadataIntentValidationResult_Deserialize = {
 	isValid: boolean,
-	metadataPatch: MetadataIntentPatch,
+	metadataPatch: MetadataIntentPatch_Deserialize,
+	fieldErrors: MetadataIntentFieldError[],
+};
+
+export type MetadataIntentValidationResult_Serialize = {
+	isValid: boolean,
+	metadataPatch: MetadataIntentPatch_Serialize,
 	fieldErrors: MetadataIntentFieldError[],
 };
 
@@ -570,9 +602,16 @@ export type MetadataSaveBatchResult = {
 	results: MetadataSaveResultEntry[],
 };
 
-export type MetadataSaveRequest = {
+export type MetadataSaveRequest = MetadataSaveRequest_Serialize | MetadataSaveRequest_Deserialize;
+
+export type MetadataSaveRequest_Deserialize = {
 	filePath: string,
-	metadataPatch: MetadataIntentPatch,
+	metadataPatch: MetadataIntentPatch_Deserialize,
+};
+
+export type MetadataSaveRequest_Serialize = {
+	filePath: string,
+	metadataPatch: MetadataIntentPatch_Serialize,
 };
 
 /**
@@ -698,7 +737,11 @@ export type OutputReviewRequirement = {
 	message: string,
 };
 
-export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" } | { op: "noop" };
+/**
+ *  One requested field change. A field the user left alone is absent from
+ *  [`MetadataIntentPatch`]; there is no in-band "no change" operation.
+ */
+export type PatchOp<T> = { op: "set"; value: T } | { op: "clear" };
 
 /**  A deliberately captured snapshot of the panel-owned durable preferences. */
 export type PinnedDefaults = {
@@ -1019,9 +1062,19 @@ export type StartupBehavior =
  */
 "pinnedDefaults";
 
-export type SubmitProcessingOperationRequest = {
+export type SubmitProcessingOperationRequest = SubmitProcessingOperationRequest_Serialize | SubmitProcessingOperationRequest_Deserialize;
+
+export type SubmitProcessingOperationRequest_Deserialize = {
 	payload: ProcessPayload,
-	metadata: { [key in string]: MetadataIntentPatch } | null,
+	metadata: { [key in string]: MetadataIntentPatch_Deserialize } | null,
+	previewSeconds: number | null,
+	/**  Names the submitted books so concurrent operations stay distinguishable. */
+	title: string,
+};
+
+export type SubmitProcessingOperationRequest_Serialize = {
+	payload: ProcessPayload,
+	metadata: { [key in string]: MetadataIntentPatch_Serialize } | null,
 	previewSeconds: number | null,
 	/**  Names the submitted books so concurrent operations stay distinguishable. */
 	title: string,

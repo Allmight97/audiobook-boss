@@ -1,5 +1,4 @@
 import type { AudioFile } from '../../types/audio';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { MetadataCache } from './cache';
 
 function firstValidFilePath(files: ReadonlyArray<AudioFile>): string | null {
@@ -30,33 +29,8 @@ function coverBytesEqual(left: number[] | null, right: number[] | null): boolean
 }
 
 export function effectiveCoverForFile(filePath: string, cache: MetadataCache): number[] | null {
-	const intentPatch = cache.getMetadataIntentPatchForFile(filePath);
-	const intentCover = readCoverArtFromIntentPatch(intentPatch);
-	if (intentCover !== undefined) {
-		return intentCover;
-	}
-
-	const stored = cache.getMetadataForFile(filePath)?.cover_art;
-	if (stored && stored.length > 0) {
-		return stored;
-	}
-
-	return null;
-}
-
-function readCoverArtFromIntentPatch(
-	intentPatch: MetadataIntentPatch | undefined,
-): number[] | null | undefined {
-	if (!intentPatch?.cover_art) {
-		return undefined;
-	}
-	if (intentPatch.cover_art.op === 'clear') {
-		return null;
-	}
-	if (intentPatch.cover_art.op === 'set') {
-		return intentPatch.cover_art.value.length > 0 ? intentPatch.cover_art.value : null;
-	}
-	return undefined;
+	const cover = cache.getMetadataForFile(filePath)?.cover_art;
+	return cover && cover.length > 0 ? cover : null;
 }
 
 export function resolveCoverDisplayPath(

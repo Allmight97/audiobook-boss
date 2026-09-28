@@ -403,14 +403,14 @@ mod tests {
             (
                 names[0].clone(),
                 MetadataIntentPatch {
-                    title: PatchOp::Set("Combined title".into()),
+                    title: Some(PatchOp::Set("Combined title".into())),
                     ..Default::default()
                 },
             ),
             (
                 names[2].clone(),
                 MetadataIntentPatch {
-                    title: PatchOp::Set("Separate title".into()),
+                    title: Some(PatchOp::Set("Separate title".into())),
                     ..Default::default()
                 },
             ),

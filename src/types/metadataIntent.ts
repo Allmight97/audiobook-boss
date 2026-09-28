@@ -1,8 +1,8 @@
 import type {
 	MetadataIntentFieldError as GeneratedMetadataIntentFieldError,
-	MetadataIntentPatch as GeneratedMetadataIntentPatch,
+	MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch,
 	MetadataIntentValidationField as GeneratedMetadataIntentValidationField,
-	MetadataIntentValidationResult as GeneratedMetadataIntentValidationResult,
+	MetadataIntentValidationResult_Serialize as GeneratedMetadataIntentValidationResult,
 } from '../lib/generated/tauri';
 import type { AudiobookMetadata } from './metadata';
 
@@ -38,33 +38,35 @@ type MetadataIntentValue<K extends MetadataIntentField> = K extends 'track' | 'd
 	? MetadataPositionValue
 	: NonNullable<MetadataIntentValueMap[K]>;
 
-type MetadataSetClearNoopIntent<K extends MetadataIntentField> =
+type MetadataSetClearIntent<K extends MetadataIntentField> =
 	| {
 			op: 'set';
 			value: MetadataIntentValue<K>;
 	  }
 	| {
 			op: 'clear';
-	  }
-	| {
-			op: 'noop';
 	  };
 
 export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentField> =
-	| MetadataSetClearNoopIntent<K>
+	| MetadataSetClearIntent<K>
 	| (K extends 'album_sort'
 			? {
 					op: 'recompute';
 				}
 			: never);
 
+/** The fields a user asked to change; an absent field keeps its source value. */
 export type MetadataIntentPatch = Partial<{
 	[K in MetadataIntentField]: MetadataFieldIntent<K>;
 }>;
 
 export type MetadataIntentValidationField = GeneratedMetadataIntentValidationField;
 export type MetadataIntentFieldError = GeneratedMetadataIntentFieldError;
-export type MetadataIntentValidationResult = GeneratedMetadataIntentValidationResult;
+/** Rust's canonical form of the submitted patch: the same fields, normalized. */
+export type MetadataIntentValidationResult = Omit<
+	GeneratedMetadataIntentValidationResult,
+	'metadataPatch'
+> & { metadataPatch: MetadataIntentPatch };
 
 type MetadataIntentPatchRecord = Partial<Record<MetadataIntentField, MetadataFieldIntent>>;
 
@@ -98,25 +100,27 @@ export function hasActionableMetadataIntentPatch(
 	if (!patch) {
 		return false;
 	}
-	return Object.values(patch).some((intent) => intent && intent.op !== 'noop');
+	return METADATA_INTENT_FIELDS.some((key) => patch[key] !== undefined);
 }
 
+/** A later request for a field replaces the earlier one; fields `next` omits keep `base`'s. */
 export function mergeMetadataIntentPatches(
 	base: MetadataIntentPatch,
 	next: MetadataIntentPatch,
 ): MetadataIntentPatch {
-	if (!hasActionableMetadataIntentPatch(base)) {
-		return { ...next };
+	const merged: MetadataIntentPatch = { ...base };
+	for (const key of METADATA_INTENT_FIELDS) {
+		const intent = next[key];
+		if (intent !== undefined) {
+			setMetadataIntent(merged, key, intent);
+		}
 	}
-	if (!hasActionableMetadataIntentPatch(next)) {
-		return { ...base };
-	}
-	return { ...base, ...next };
+	return merged;
 }
 
 function toGeneratedPatchOp(
-	intent: Exclude<MetadataFieldIntent, { op: 'noop' }>,
-): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'recompute' } | { op: 'noop' } {
+	intent: MetadataFieldIntent,
+): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'recompute' } {
 	if (intent.op === 'clear') {
 		return { op: 'clear' };
 	}
@@ -132,7 +136,7 @@ export function compileMetadataIntentPatch(
 	const compiled: Record<string, unknown> = {};
 	for (const key of METADATA_INTENT_FIELDS) {
 		const intent = patch[key];
-		if (!intent || intent.op === 'noop') {
+		if (!intent) {
 			continue;
 		}
 		compiled[key] = toGeneratedPatchOp(intent);
@@ -147,7 +151,7 @@ export function applyMetadataIntentPatch(
 	const next: Partial<AudiobookMetadata> = { ...base };
 	for (const key of METADATA_INTENT_FIELDS) {
 		const intent = patch[key];
-		if (!intent || intent.op === 'noop') {
+		if (!intent) {
 			continue;
 		}
 		if (intent.op === 'clear') {

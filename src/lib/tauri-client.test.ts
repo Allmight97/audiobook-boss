@@ -171,14 +171,12 @@ describe('tauriClient nullish adapters', () => {
 		const { tauriClient } = await import('./tauri/client');
 		const result = await tauriClient.validateMetadataIntentPatch({
 			date: { op: 'set', value: 'not a date' },
-			title: { op: 'noop' },
 		});
 
 		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
 		const [commandName, args] = lastCall as [string, { metadataPatch: Record<string, unknown> }];
 		expect(commandName).toBe('validate_metadata_intent_patch');
 		expect(args.metadataPatch.date).toEqual({ op: 'set', value: 'not a date' });
-		expect(args.metadataPatch.title).toBeUndefined();
 		expect(result.fieldErrors[0]?.field).toBe('date');
 	});
 

@@ -8,7 +8,7 @@ import type {
 	OperationTerminalSummary as GeneratedOperationTerminalSummary,
 	ProgressSnapshot as GeneratedProgressSnapshot,
 	ResourceLane as GeneratedResourceLane,
-	SubmitProcessingOperationRequest as GeneratedSubmitProcessingOperationRequest,
+	SubmitProcessingOperationRequest_Deserialize as GeneratedSubmitProcessingOperationRequest,
 	WorkOperationStatus as GeneratedWorkOperationStatus,
 	WorkProgressStage as GeneratedWorkProgressStage,
 	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,

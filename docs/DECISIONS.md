@@ -604,9 +604,15 @@ git history and closed issues own superseded chronology.
 ## 2026-05-27 - Metadata Intent Validation
 
 - Rust owns metadata intent validation and returns field errors as data for UI preflight.
-- TypeScript compiles explicit `set | clear | noop` intent.
+- A patch field is `set`, `clear`, or absent; absent keeps the source value on
+  both sides of IPC, and validation returns the submitted fields normalized.
+  Evidence: an in-band `noop` echoed by validation overwrote staged edits in the
+  TS merge, silently dropping a multi-title author from processing.
 - Publication-date normalization and series/subseries slash rejection stay out of TypeScript.
 - Output-preview warning validation is non-blocking; save/process workflows still block on validation before persisting or executing metadata intent.
+- Guardrail: absent fields stay off the wire via `skip_serializing_if`, which
+  makes Specta emit `_Serialize`/`_Deserialize` patch variants; do not trade
+  that for nullable fields, which add a second "no change" marker.
 
 ## 2026-05-27 - Metadata/Audio Dependency Scope
 

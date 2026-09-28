@@ -18,7 +18,7 @@ not converted at import. Conversion happens at write-prep so display reads stay
 raw source truth.
 
 Cover intent comes only from cover actions (load, drop, clear). A text edit or
-Lookup apply that keeps the cover leaves cover intent noop, so saves do not
+Lookup apply that keeps the cover leaves cover intent absent, so saves do not
 rewrite unchanged art.
 
 ## Load policy

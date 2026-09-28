@@ -19,7 +19,6 @@
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
 	MetadataSaveBatchResult as GeneratedMetadataSaveBatchResult,
-	MetadataSaveRequest as GeneratedMetadataSaveRequest,
 	MetadataSaveResultEntry as GeneratedMetadataSaveResultEntry,
 	MetadataSaveResultStatus as GeneratedMetadataSaveResultStatus,
 	MetadataLookupDiagnostic as GeneratedMetadataLookupDiagnostic,
@@ -29,6 +28,7 @@ import type {
 	OnlineMetadataResult as GeneratedOnlineMetadataResult,
 } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
+import type { MetadataIntentPatch } from './metadataIntent';
 
 /**
  * Represents metadata for an audiobook file
@@ -55,7 +55,10 @@ export type MetadataLookupResponse = Omit<
 	diagnostics: MetadataLookupDiagnostic[];
 };
 
-export type MetadataSaveRequest = GeneratedMetadataSaveRequest;
+export type MetadataSaveRequest = {
+	readonly filePath: string;
+	readonly metadataPatch: MetadataIntentPatch;
+};
 
 export type MetadataSaveResultEntry = GeneratedMetadataSaveResultEntry;
 

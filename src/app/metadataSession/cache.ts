@@ -53,7 +53,7 @@ function metadataEqualsNullish(
 	return true;
 }
 
-export function isUsableMetadataCache(
+function isUsableMetadataCache(
 	metadata: Partial<AudiobookMetadata> | undefined,
 ): metadata is Partial<AudiobookMetadata> {
 	if (!metadata) return false;
@@ -68,58 +68,63 @@ export function isUsableMetadataCache(
 	return true;
 }
 
-type MetadataStageResult = 'staged' | 'unchanged' | 'noop';
+type MetadataStageResult = 'staged' | 'unchanged' | 'empty';
 
+/**
+ * Per-file session metadata: the tags last read from each file and the
+ * changes the user asked for. What callers read is derived from both, so the
+ * form can never show a value that save or processing will not send.
+ */
 export function createMetadataCache() {
-	const metadataByFile = new Map<string, Partial<AudiobookMetadata>>();
-	const metadataIntentByFile = new Map<string, MetadataIntentPatch>();
-	const pendingSavePaths = new Set<string>();
+	const sourceByFile = new Map<string, Partial<AudiobookMetadata>>();
+	const intentByFile = new Map<string, MetadataIntentPatch>();
+
+	function effectiveMetadata(filePath: string): Partial<AudiobookMetadata> | undefined {
+		const source = sourceByFile.get(filePath);
+		const intent = intentByFile.get(filePath);
+		return intent ? applyMetadataIntentPatch(source ?? {}, intent) : source;
+	}
 
 	function removeMetadataForFile(filePath: string): void {
-		metadataByFile.delete(filePath);
-		metadataIntentByFile.delete(filePath);
-		pendingSavePaths.delete(filePath);
+		sourceByFile.delete(filePath);
+		intentByFile.delete(filePath);
 	}
 
 	return {
-		/** Caches source tags with this session's pending intent still applied. */
-		cacheMetadataForFile(filePath: string, metadata: Partial<AudiobookMetadata>): void {
-			const pending = metadataIntentByFile.get(filePath);
-			metadataByFile.set(
-				filePath,
-				pending ? applyMetadataIntentPatch(metadata, pending) : metadata,
-			);
+		/** Records tags as read from the file; pending changes still apply on top. */
+		recordSourceMetadata(filePath: string, metadata: Partial<AudiobookMetadata>): void {
+			sourceByFile.set(filePath, metadata);
 		},
-		getMetadataForFile(filePath: string): Partial<AudiobookMetadata> | undefined {
-			return metadataByFile.get(filePath);
+		/** Whether this session holds a usable read of the file's own tags. */
+		hasSourceMetadata(filePath: string): boolean {
+			return isUsableMetadataCache(sourceByFile.get(filePath));
 		},
+		/** The file's tags with this session's pending changes applied. */
+		getMetadataForFile: effectiveMetadata,
 		stageMetadataIntentPatch(
 			filePath: string,
 			intentPatch: MetadataIntentPatch,
 		): MetadataStageResult {
 			if (!hasActionableMetadataIntentPatch(intentPatch)) {
-				return 'noop';
+				return 'empty';
 			}
-			const existing = metadataByFile.get(filePath) ?? {};
-			const merged = applyMetadataIntentPatch(existing, intentPatch);
-			if (metadataEqualsNullish(existing, merged)) {
+			const current = effectiveMetadata(filePath) ?? {};
+			if (metadataEqualsNullish(current, applyMetadataIntentPatch(current, intentPatch))) {
 				return 'unchanged';
 			}
-			metadataByFile.set(filePath, merged);
-			const existingIntent = metadataIntentByFile.get(filePath) ?? {};
-			metadataIntentByFile.set(filePath, mergeMetadataIntentPatches(existingIntent, intentPatch));
-			pendingSavePaths.add(filePath);
+			const pending = intentByFile.get(filePath) ?? {};
+			intentByFile.set(filePath, mergeMetadataIntentPatches(pending, intentPatch));
 			return 'staged';
 		},
 		getMetadataIntentPatchForFile(filePath: string): MetadataIntentPatch | undefined {
-			return metadataIntentByFile.get(filePath);
+			return intentByFile.get(filePath);
 		},
 		collectActionableMetadataIntent(
 			filePaths: readonly string[],
 		): Record<string, MetadataIntentPatch> | null {
 			const collected: Record<string, MetadataIntentPatch> = {};
 			for (const filePath of filePaths) {
-				const patch = metadataIntentByFile.get(filePath);
+				const patch = intentByFile.get(filePath);
 				if (patch && hasActionableMetadataIntentPatch(patch)) {
 					collected[filePath] = patch;
 				}
@@ -127,21 +132,22 @@ export function createMetadataCache() {
 			return Object.keys(collected).length > 0 ? collected : null;
 		},
 		getPendingMetadataIntentEntries(): Array<[string, MetadataIntentPatch]> {
-			return Array.from(pendingSavePaths)
-				.map((filePath) => [filePath, metadataIntentByFile.get(filePath)] as const)
-				.filter((entry): entry is [string, MetadataIntentPatch] => Boolean(entry[1]));
+			return Array.from(intentByFile.entries());
 		},
-		clearPendingMetadataForFile(filePath: string): void {
-			pendingSavePaths.delete(filePath);
-			metadataIntentByFile.delete(filePath);
+		/**
+		 * Accepts `saved` as written to the file: it folds into the recorded
+		 * source tags and stops being pending. A change staged after `saved` was
+		 * submitted keeps the whole pending patch for the next save.
+		 */
+		commitSavedIntent(filePath: string, saved: MetadataIntentPatch): void {
+			if (intentByFile.get(filePath) !== saved) return;
+			const source = sourceByFile.get(filePath);
+			if (source) sourceByFile.set(filePath, applyMetadataIntentPatch(source, saved));
+			intentByFile.delete(filePath);
 		},
 		removeMetadataForFile,
 		dropRemovedPaths(livePaths: ReadonlySet<string>): void {
-			const known = new Set([
-				...metadataByFile.keys(),
-				...metadataIntentByFile.keys(),
-				...pendingSavePaths,
-			]);
+			const known = new Set([...sourceByFile.keys(), ...intentByFile.keys()]);
 			for (const filePath of known) {
 				if (!livePaths.has(filePath)) {
 					removeMetadataForFile(filePath);
@@ -149,9 +155,8 @@ export function createMetadataCache() {
 			}
 		},
 		clear(): void {
-			metadataByFile.clear();
-			metadataIntentByFile.clear();
-			pendingSavePaths.clear();
+			sourceByFile.clear();
+			intentByFile.clear();
 		},
 	};
 }
