@@ -68,6 +68,8 @@ mp4ameta = "0.13.0"
 bogon = "0.3"
 # Typed URL hosts for the cover-fetch SSRF policy; same version reqwest resolves.
 url = "2.5.8"
+# Exact pins: a prerelease family whose generated TS contract can change between
+# RCs. Bump together, deliberately, and regenerate bindings.
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }

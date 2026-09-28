@@ -62,6 +62,10 @@ pub fn builder() -> Builder<tauri::Wry> {
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,
         // counts, indices, and sequence values. They remain below JavaScript's exact
         // integer range, and frontend consumers intentionally perform number arithmetic.
+        // A float field may use `#[specta(type = specta_typescript::Number)]` only when
+        // its Rust owner normalizes it to a finite value and the wire contract must stay
+        // non-nullable. Add JS `bigint` or lossless-float semantics only for a payload
+        // that needs them.
         .dangerously_cast_bigints_to_number()
 }
 

@@ -83,6 +83,8 @@ impl FdkProfile {
         }
     }
 
+    /// Explicit profile and VBR-level pairs are accepted as entered: real FDK
+    /// 2.0.3 encodes accept manual HE v1 at VBR 3 despite older FFmpeg docs.
     pub(in crate::audio) fn validate(self, rate: u32, channels: ChannelConfig) -> Result<()> {
         if self == Self::Auto {
             return Err(AppError::InvalidInput(

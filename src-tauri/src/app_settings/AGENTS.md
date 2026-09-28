@@ -49,6 +49,8 @@
   durable settings.
 - Treat persisted user paths as preference data only. Runtime owners still
   validate paths before reads or writes.
+- Settings writes serialize through one process-wide update lock
+  (`SETTINGS_UPDATE_LOCK`); keep a single write path.
 
 ## Boundary Changes
 

@@ -78,4 +78,5 @@ fields are presence hints, not direct-download facts.
 
 Remote providers may return typed unsupported/protected/auth statuses. They must
 not fake acquisition success, silently fall back to manual import, or enqueue
-placeholder files as materialized sources.
+placeholder files as materialized sources. Dash/Widevine acquisition stays
+unsupported until ABB has its own CDM, MPD/PSSH, and content-key design.

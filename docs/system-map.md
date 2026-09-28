@@ -100,14 +100,14 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | What does the product do? | `README.md` and the Product Spine above. |
 | Who owns this behavior? | Owner topology above, then its public module and nearest `AGENTS.md`. |
 | What crosses TS and Rust? | `src-tauri/src/ipc_contract.rs`, generated bindings, and `src/lib/tauri/client.ts`. |
-| Why was a durable choice made? | The relevant entry in `docs/DECISIONS.md`; do not load the ledger without a decision question. |
+| Why was a durable choice made? | The rationale beside the rule: the owning `AGENTS.md` or the enforcing code's comment; history is in PR bodies and git. |
 | What might be worked next? | A relevant open issue, verified against `main`, the owning interface, and tests. Issue state is evidence, not authority. |
 | Which command proves it? | `scripts/AGENTS.md`, the nearest owner guidance, and live package scripts. |
 | What happened in a run? | Typed results, Work Center/Status Panel, artifact readback, then run-scoped logs as supporting evidence. |
 
 When sources disagree, determine which source owns the question. Code and
-executed proof show observed behavior; guidance states protected invariants; a
-decision records durable rationale; an issue proposes mutable work. Reconcile a
+executed proof show observed behavior; guidance states protected invariants and
+the rationale beside them; an issue proposes mutable work. Reconcile a
 mismatch instead of blending the sources.
 
 ## Cross-Owner Invariants

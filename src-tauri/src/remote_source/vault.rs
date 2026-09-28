@@ -54,6 +54,10 @@ fn ensure_native_store() -> Result<()> {
     Ok(())
 }
 
+/// The legacy file Keychain: the Data Protection Keychain needs Developer ID
+/// signing and a `keychain-access-groups` entitlement the unsigned build lacks.
+/// Moving stores waits for that signing; a vault error stays a typed error,
+/// never `NeedsAuth` or an empty result.
 #[cfg(target_os = "macos")]
 fn register_native_store() -> Result<()> {
     let store = apple_native_keyring_store::keychain::Store::new().map_err(store_unavailable)?;
