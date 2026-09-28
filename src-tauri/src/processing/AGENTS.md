@@ -76,6 +76,11 @@
   `cargo nextest run -p abb-processing-core` stays green.
 - Change planner or runner internals when targeted `audiobook-boss` Nextest and
   Public API Strip checks stay green.
+- `run.rs`'s `metadata_workflow` tests connect production preflight/planning to
+  real encode and preserve writers, then inspect output atoms. They complement
+  frontend edit-retention and IPC-contract proof; they do not exercise the
+  Tauri window, scheduler, or UI. Keep this proof crate-local rather than
+  exposing planner internals for tests; commands live in `scripts/AGENTS.md`.
 - Keep preflight side-effect-free; execution may create and track output dirs only after review enforcement.
 - `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
   from WorkRuntime; each job's admission and `CancellationChecker` observe only

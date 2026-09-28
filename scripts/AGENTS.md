@@ -19,7 +19,8 @@ commands over invoking internals directly.
   not a PR gate or broad test route.
 - Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
   `abb-*-core` crates' tests and `clippy -D warnings` on PRs and `main` pushes
-  that touch Rust. The `src-tauri` runtime suite, media lane, and
+  that touch core crates, workspace manifests/lockfile, the Rust toolchain, or
+  that workflow. The `src-tauri` runtime suite, media lane, and
   generated-binding proof stay local/release-owned through the commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
@@ -72,6 +73,11 @@ commands over invoking internals directly.
 - Runtime shell or Rust integration:
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib` or
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
+- Metadata planner-to-file workflow (two titles, two processing passes, encode
+  and preserve, actual tag readback and source-save policy):
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib -E 'test(metadata_workflow)'`.
+  Use alongside the frontend metadata-owner and IPC checks when a change spans
+  edit retention and file output; this is headless backend proof, not UI automation.
 - Manual Tauri dev with captured logs:
   `bun run app:dev:log`; inspect `.logs/tauri-dev-summary.md` for the semantic
   session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for

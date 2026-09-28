@@ -525,10 +525,20 @@ export type MetadataIntentFieldError = {
 	message: string,
 };
 
-/**  The fields a user asked to change; absent fields keep their source value. */
+/**
+ *  The fields a user asked to change; absent fields keep their source value.
+ *  `skip_serializing_if` keeps absent fields off the wire (Specta therefore emits
+ *  `_Serialize`/`_Deserialize` variants). Nullable fields would add a second
+ *  "no change" marker the frontend could merge over a real edit.
+ */
 export type MetadataIntentPatch = MetadataIntentPatch_Serialize | MetadataIntentPatch_Deserialize;
 
-/**  The fields a user asked to change; absent fields keep their source value. */
+/**
+ *  The fields a user asked to change; absent fields keep their source value.
+ *  `skip_serializing_if` keeps absent fields off the wire (Specta therefore emits
+ *  `_Serialize`/`_Deserialize` variants). Nullable fields would add a second
+ *  "no change" marker the frontend could merge over a real edit.
+ */
 export type MetadataIntentPatch_Deserialize = {
 	title?: PatchOp<string>,
 	artist?: PatchOp<string>,
@@ -548,7 +558,12 @@ export type MetadataIntentPatch_Deserialize = {
 	disk?: PatchOp<[number, number | null]>,
 };
 
-/**  The fields a user asked to change; absent fields keep their source value. */
+/**
+ *  The fields a user asked to change; absent fields keep their source value.
+ *  `skip_serializing_if` keeps absent fields off the wire (Specta therefore emits
+ *  `_Serialize`/`_Deserialize` variants). Nullable fields would add a second
+ *  "no change" marker the frontend could merge over a real edit.
+ */
 export type MetadataIntentPatch_Serialize = {
 	title?: PatchOp<string>,
 	artist?: PatchOp<string>,

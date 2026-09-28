@@ -465,6 +465,209 @@ mod tests {
         std::fs::write(path, bytes).expect("write WAV fixture");
     }
 
+    // Exercise the production planner's two metadata representations through the
+    // real writers. Supplying metadata directly to the engine misses this handoff.
+    async fn execute_reviewed_metadata_batch(
+        mut payload: ProcessPayload,
+        metadata: &HashMap<String, crate::metadata::MetadataIntentPatch>,
+        workspace: &std::path::Path,
+    ) -> Vec<std::path::PathBuf> {
+        use crate::audio::{execute_audio_engine, AudioExecutionRequest, SampleRateConfig};
+        use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
+        let reviewed = super::preflight_payload(payload.clone(), Some(metadata.clone()), None)
+            .expect("review metadata batch");
+        payload.preflight_signature = Some(reviewed.plan_signature);
+        let inspected =
+            super::run_validation::inspect_and_validate_external_processing_contract(&payload)
+                .expect("inspect metadata batch");
+        let execution = super::prepare_execution_plan(&payload, Some(metadata), None, inspected)
+            .expect("plan metadata batch");
+        let mut outputs = Vec::new();
+        for job in execution.plan.jobs {
+            let info =
+                crate::processing::plan::title_file_info(&execution.file_info, &job.source_paths)
+                    .expect("retain title inspection");
+            outputs.push(job.output.resolved_path.clone());
+            let context = ProcessingContext::new_headless_with_workspace_root(
+                std::sync::Arc::new(ProcessingSession::new()),
+                job.audio_plan.settings,
+                SampleRateConfig::Explicit(job.audio_plan.sample_rate),
+                OutputConfig::from_plan(job.output),
+                workspace.to_path_buf(),
+            );
+            execute_audio_engine(
+                AudioExecutionRequest::new(context, info, job.metadata, job.cover_art_passthrough)
+                    .with_handling(job.audio_plan.handling)
+                    .with_metadata_intent(job.metadata_intent),
+            )
+            .await
+            .expect("write planned metadata to audio artifact");
+        }
+        outputs
+    }
+
+    fn metadata_batch_payload(
+        paths: &[std::path::PathBuf],
+        output: &std::path::Path,
+        intent: crate::audio::AudioIntent,
+    ) -> ProcessPayload {
+        std::fs::create_dir_all(output).expect("create output folder");
+        process_payload(|payload| {
+            payload.input_files = paths
+                .iter()
+                .map(|path| path.to_string_lossy().into())
+                .collect();
+            payload.output_dir = output.to_string_lossy().into();
+            payload.audio_requests[0].intent = intent;
+            let settings = payload.audio_requests[0]
+                .settings
+                .as_mut()
+                .expect("settings");
+            settings.encoder_type = EncoderType::NativeAac;
+            settings.bitrate_mode = BitrateMode::Cbr;
+            if intent == crate::audio::AudioIntent::Preserve {
+                payload.audio_requests[0].settings = None;
+            }
+        })
+    }
+
+    async fn metadata_source_fixtures(
+        root: &std::path::Path,
+        workspace: &std::path::Path,
+    ) -> Vec<std::path::PathBuf> {
+        use crate::metadata::{
+            save_metadata_intent, AlbumSortPatchOp, MetadataIntentPatch, PatchOp,
+        };
+        let wavs: Vec<_> = ["alpha.wav", "beta.wav"]
+            .map(|name| {
+                let path = root.join(name);
+                write_silence_wav(&path, 1);
+                path
+            })
+            .into();
+        let seeds = execute_reviewed_metadata_batch(
+            metadata_batch_payload(
+                &wavs,
+                &root.join("sources"),
+                crate::audio::AudioIntent::Encode,
+            ),
+            &HashMap::new(),
+            workspace,
+        )
+        .await;
+        // External books may carry a stale sort key or none at all.
+        for (index, (source, title)) in seeds.iter().zip(["Alpha", "Beta"]).enumerate() {
+            save_metadata_intent(
+                source,
+                &MetadataIntentPatch {
+                    title: Some(PatchOp::Set(title.into())),
+                    artist: Some(PatchOp::Set("Source Author".into())),
+                    series: Some(PatchOp::Set("Saga".into())),
+                    series_part: Some(PatchOp::Set("2.5".into())),
+                    album_sort: Some(if index == 0 {
+                        AlbumSortPatchOp::Set("Stale sort".into())
+                    } else {
+                        AlbumSortPatchOp::Clear
+                    }),
+                    ..Default::default()
+                },
+            )
+            .expect("seed external source tags");
+        }
+        seeds
+    }
+
+    async fn metadata_two_pass_workflow(intent: crate::audio::AudioIntent) {
+        use crate::metadata::{save_metadata_intent, MetadataIntentPatch, PatchOp};
+        let temp = TempDir::new().expect("metadata workflow workspace");
+        let workspace = temp.path().join("workspace");
+        let seeds = metadata_source_fixtures(temp.path(), &workspace).await;
+        let cover = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/minimal.jpg"
+        ))
+        .expect("existing JPEG fixture");
+        let mut edits: HashMap<_, _> = seeds
+            .iter()
+            .map(|source| {
+                (
+                    source.to_string_lossy().into_owned(),
+                    MetadataIntentPatch {
+                        artist: Some(PatchOp::Set("Edited Author".into())),
+                        cover_art: Some(PatchOp::Set(cover.clone())),
+                        ..Default::default()
+                    },
+                )
+            })
+            .collect();
+        for (pass, titles) in [["Alpha", "Beta"], ["Retitled Alpha", "Retitled Beta"]]
+            .iter()
+            .enumerate()
+        {
+            if pass == 1 {
+                // The frontend owner proves retention of these earlier edits;
+                // this half proves that both accumulated requests reach disk.
+                for (source, title) in seeds.iter().zip(titles) {
+                    edits
+                        .get_mut(&source.to_string_lossy().into_owned())
+                        .expect("pending patch")
+                        .title = Some(PatchOp::Set((*title).into()));
+                }
+            }
+            let outputs = execute_reviewed_metadata_batch(
+                metadata_batch_payload(&seeds, &temp.path().join(format!("pass-{pass}")), intent),
+                &edits,
+                &workspace,
+            )
+            .await;
+            assert_eq!(outputs.len(), 2);
+            for (output, title) in outputs.iter().zip(titles) {
+                // Read atoms independently of ABB's read_metadata projection.
+                let tags = mp4ameta::Tag::read_from_path(output).expect("read actual output tags");
+                assert_eq!(tags.title(), Some(*title));
+                assert_eq!(tags.artist(), Some("Edited Author"));
+                assert_eq!(
+                    tags.album_sort_order(),
+                    Some(format!("Saga 02.5 - {title}").as_str())
+                );
+                assert_eq!(tags.artwork().expect("written cover").data, cover);
+            }
+        }
+        for (index, source) in seeds.iter().enumerate() {
+            let tags = mp4ameta::Tag::read_from_path(source).expect("read untouched source");
+            assert_eq!(tags.artist(), Some("Source Author"));
+            assert_eq!(
+                tags.album_sort_order(),
+                (index == 0).then_some("Stale sort")
+            );
+            assert!(tags.artwork().is_none());
+            save_metadata_intent(
+                source,
+                &MetadataIntentPatch {
+                    artist: Some(PatchOp::Set("Saved Author".into())),
+                    ..Default::default()
+                },
+            )
+            .expect("save source metadata");
+            let saved = mp4ameta::Tag::read_from_path(source).expect("read saved source");
+            assert_eq!(saved.artist(), Some("Saved Author"));
+            assert_eq!(
+                saved.album_sort_order(),
+                (index == 0).then_some("Stale sort")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn metadata_workflow_two_pass_encode_writes_planned_tags() {
+        metadata_two_pass_workflow(crate::audio::AudioIntent::Encode).await;
+    }
+
+    #[tokio::test]
+    async fn metadata_workflow_two_pass_preserve_writes_planned_tags() {
+        metadata_two_pass_workflow(crate::audio::AudioIntent::Preserve).await;
+    }
+
     fn supplemental_asset(
         path: std::path::PathBuf,
         input_id: &str,

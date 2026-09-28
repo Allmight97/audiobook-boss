@@ -60,7 +60,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   novellas sort between books), else the source's own; explicit album-sort
   intent wins. Every processing route takes it from `plan_metadata_outcome`
   (effective metadata, or `write_intent` for single-file preserve). Metadata
-  saves preserve TSOA, because a save edits the user's own source file.
+  saves preserve TSOA unless explicitly changed, because a save edits the user's
+  own source file.
 - `AlbumSortWriteAction` stays on `MetadataWritePlan`; do not fold album_sort into
   generic field set/clear ops.
 - Track/disk are read-compatible passthrough fields: the form never edits them,
@@ -82,6 +83,11 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
 - Change runtime/container adapters when targeted `audiobook-boss` Nextest and
   Public API Strip checks stay green.
+- When metadata policy crosses planning and writing, prove the changed handoff
+  through the production processing planner and read tags from actual output
+  files on each affected route. Direct engine tests with supplied metadata
+  cannot prove planner forwarding. Also prove source tags stay untouched by
+  processing and retain Save's distinct policy.
 - Preserve `set | clear | absent` field semantics (absent keeps the source
   value) across save, processing projection, naming projection, write plans,
   validation/normalization, and cover-art handling.
