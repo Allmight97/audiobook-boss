@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-27
+
 ### Added
 
 - Work Center can cancel one title in a running multi-title export; the other
@@ -71,6 +73,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   warn (#513).
 - Cancelling an export or a title no longer marks the dev-log session
   degraded or indeterminate (#513).
+- Updated the frontend to Solid 2.0.0-rc.10 and Effect 4.0.0-rc.118, and
+  refreshed build and test tooling (Vitest 5, Vite 8.3, Biome 2.5.14) and the
+  Tauri dialog/opener plugins.
 
 ## [1.12.1] - 2026-09-25
 
