@@ -11,7 +11,6 @@ import { validateMetadataIntent, type ValidateMetadataIntentPatch } from './vali
 type PreparedMetadataDraft = {
 	readonly targets: ReadonlyArray<AudioFile>;
 	readonly intentPatch: MetadataIntentPatch;
-	readonly snapshotsByPath: Readonly<Record<string, Partial<AudiobookMetadata>>>;
 };
 
 export type PrepareMetadataDraftsResult =
@@ -28,7 +27,7 @@ export async function prepareMetadataDrafts(options: {
 	readonly form: MetadataFormState;
 	readonly files: ReadonlyArray<AudioFile>;
 	readonly validate: ValidateMetadataIntentPatch;
-	readonly readUncachedMetadata: (file: AudioFile) => Promise<Partial<AudiobookMetadata> | null>;
+	readonly loadMetadata: (file: AudioFile) => Promise<Partial<AudiobookMetadata> | null>;
 }): Promise<PrepareMetadataDraftsResult> {
 	const intentPatch = composeFormIntent(options.form);
 	if (!hasActionableMetadataIntentPatch(intentPatch)) {
@@ -42,16 +41,10 @@ export async function prepareMetadataDrafts(options: {
 	if (!validation.ok) {
 		return { status: 'invalid', message: validation.errors.first ?? 'Metadata validation failed.' };
 	}
-	const snapshotsByPath: Record<string, Partial<AudiobookMetadata>> = {};
-	await Promise.all(
-		targets.map(async (file) => {
-			const snapshot = await options.readUncachedMetadata(file);
-			if (snapshot) snapshotsByPath[file.path] = snapshot;
-		}),
-	);
+	await Promise.all(targets.map(options.loadMetadata));
 	return {
 		status: 'ready',
-		prepared: { targets, intentPatch: validation.intentPatch, snapshotsByPath },
+		prepared: { targets, intentPatch: validation.intentPatch },
 	};
 }
 
@@ -59,25 +52,7 @@ export function commitPreparedMetadataDrafts(
 	prepared: PreparedMetadataDraft,
 	cache: MetadataCache,
 ): void {
-	for (const [path, metadata] of Object.entries(prepared.snapshotsByPath)) {
-		cache.recordSourceMetadata(path, metadata);
-	}
 	for (const file of prepared.targets) {
 		cache.stageMetadataIntentPatch(file.path, prepared.intentPatch);
-	}
-}
-
-export async function readUncachedMetadataSnapshot(
-	file: AudioFile,
-	readAudioMetadata: (path: string) => Promise<Partial<AudiobookMetadata>>,
-	cache: MetadataCache,
-): Promise<Partial<AudiobookMetadata> | null> {
-	if (!file.isValid) return null;
-	if (cache.hasSourceMetadata(file.path)) return null;
-	try {
-		return await readAudioMetadata(file.path);
-	} catch (error) {
-		console.warn('Failed to load metadata:', error);
-		return null;
 	}
 }

@@ -61,6 +61,50 @@ describe('metadata session selection and save', () => {
 		runtime = undefined;
 	});
 
+	it('a read started before a successful save cannot replace that saved author', async () => {
+		let finishRead: ((value: { title: string; artist: string }) => void) | undefined;
+		let deferOne = false;
+		const metadata = fakeMetadata({
+			readAudioMetadata: vi.fn(async (path) => {
+				if (path.includes('beta')) return { title: 'Beta', artist: 'Beta Author' };
+				if (deferOne) {
+					deferOne = false;
+					return await new Promise<{ title: string; artist: string }>((resolve) => {
+						finishRead = resolve;
+					});
+				}
+				throw new Error('source read unavailable');
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-author', value: 'Saved Author' });
+		await runtime.metadata.stageCurrentSelection();
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.artist).toBe('Saved Author');
+		deferOne = true;
+		const pendingHydration = runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(finishRead).toBeDefined());
+		await runtime.metadata.save();
+		expect(metadata.saveMetadataBatch).toHaveBeenCalledTimes(1);
+		expect(await runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
+		expect(runtime.metadata.readCached('/books/alpha.m4b')?.artist).toBe('Saved Author');
+		finishRead!({ title: 'Alpha', artist: 'Old Author' });
+		await pendingHydration;
+
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+
+		expect(runtime.metadata.view().form.fields['meta-author'].value).toBe('Saved Author');
+	});
+
 	it('tag preview shows the album sort Rust projects from the draft and source tags', async () => {
 		const metadata = fakeMetadata({
 			readAudioMetadata: vi.fn(async () => ({ title: 'Alpha', album_sort: 'Old 01 - Alpha' })),

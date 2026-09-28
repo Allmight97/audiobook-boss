@@ -45,7 +45,6 @@ import {
 import {
 	commitPreparedMetadataDrafts,
 	prepareMetadataDrafts,
-	readUncachedMetadataSnapshot,
 	type PrepareMetadataDraftsResult,
 } from './staging';
 import { projectTagPreviewValues } from './tags';
@@ -322,12 +321,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMetadata> | null> {
 		if (!file.isValid) return null;
 		const started = generation;
-		if (cache.hasSourceMetadata(file.path)) return cache.getMetadataForFile(file.path) ?? null;
 		try {
-			const metadata = await capability().readAudioMetadata(file.path);
+			const metadata = await cache.readSourceMetadata(file.path, (path) =>
+				capability().readAudioMetadata(path),
+			);
 			if (generation !== started) return null;
-			cache.recordSourceMetadata(file.path, metadata);
-			return cache.getMetadataForFile(file.path) ?? null;
+			return metadata ?? null;
 		} catch (error) {
 			console.warn('Failed to load metadata:', error);
 			// Still show what this session knows (saved values, pending edits).
@@ -413,8 +412,10 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				form: state.form,
 				files,
 				validate: (patch) => capability().validateMetadataIntentPatch(patch),
-				readUncachedMetadata: (file) =>
-					readUncachedMetadataSnapshot(file, (path) => capability().readAudioMetadata(path), cache),
+				loadMetadata: (file) =>
+					signal?.aborted || changedSince(snapshot)
+						? Promise.resolve(null)
+						: loadMetadataForFile(file),
 			});
 		} catch (error) {
 			result = { status: 'failed', error };
@@ -488,9 +489,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			// A cached read already answered whether this file has art.
 			return;
 		}
-		let metadata: Partial<AudiobookMetadata> | null;
+		let metadata: Partial<AudiobookMetadata> | undefined;
 		try {
-			metadata = await capability().readAudioMetadata(targetPath);
+			metadata = await cache.readSourceMetadata(targetPath, (path) =>
+				capability().readAudioMetadata(path),
+			);
 		} catch (error) {
 			if (generation !== started || editor.hydrateRequestId !== hydrateRequestId) {
 				return;
@@ -509,7 +512,6 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		) {
 			return;
 		}
-		cache.recordSourceMetadata(targetPath, metadata);
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		commit(bumpCover(latest, refreshCoverFromOwners(session.files, selected, latest.cover)));

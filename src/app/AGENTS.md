@@ -59,7 +59,12 @@ dispatch intent; they do not keep parallel business state.
   through both.
 - Metadata Session alone stages metadata intent. Its cache derives what the
   form shows from each file's known tags plus pending intent (`cache.ts`), so
-  callers never merge or compare intent themselves.
+  callers never merge or compare intent themselves. The cache owns source-read
+  acceptance: a read begun before an acknowledged save cannot replace saved
+  tags, and removal/reset invalidates outstanding reads. Draft preparation,
+  hydration, and cover discovery all read through that owner. Saved values
+  without a source read remain partial knowledge, not a complete baseline;
+  unknown source values cannot justify dropping an explicit Blank as unchanged.
 - Metadata drafts for hidden sources survive grouping. Saving a grouped draft
   stages it for the output; it never writes that draft into a constituent
   source. Lookup targets the visible title once. Remote retention and summaries
@@ -88,5 +93,9 @@ dispatch intent; they do not keep parallel business state.
 - Cross-owner reads use public strips; views render and dispatch only.
 - Focused owner tests prove semantic outcomes and lifetime races through the
   public interface. Add App Runtime two-instance proof when isolation changes.
+- Metadata edit-retention tests collect the first processing request, make a
+  later edit, and collect again; assert earlier text/cover intent survives.
+  Control read/save completion order when testing freshness. Actual output-tag
+  proof belongs to the Rust processing workflow (see its owner guidance).
 - Update a nested owner `AGENTS.md` only for non-obvious local invariants or
   public-surface changes; keep mutable execution state out of instructions.

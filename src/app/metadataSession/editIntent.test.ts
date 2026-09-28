@@ -318,21 +318,32 @@ describe('metadata edit intent', () => {
 		});
 	});
 
-	it('a shared author edit still reaches processing after a later title-only edit', async () => {
+	it('shared author and per-title covers survive a second processing request with a title edit', async () => {
 		const other: Book = {
 			path: '/books/other.m4b',
 			tags: { ...beta.tags, artist: 'Other Author' },
 		};
-		const app = await open([alpha, other], [0, 1], capability([alpha, other]));
+		const app = await open([alpha, other], [0], capability([alpha, other]));
+		app.metadata.setCustomCoverArt([8, 9]);
+		await app.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await app.metadata.hydrateSelection(null);
+		app.metadata.setCustomCoverArt([8, 9]);
+		await app.input.selectFile({ index: 0, modifiers: { multi: true, range: false } });
+		await app.metadata.hydrateSelection(null);
 		app.metadata.setFieldValue({ inputId: 'meta-author', value: 'FDK Decision' });
 		await app.metadata.stageCurrentSelection();
+		const author = { op: 'set', value: 'FDK Decision' };
+		const cover = { op: 'set', value: [8, 9] };
+		expect(await app.metadata.intentsForProcess([alpha.path, other.path])).toEqual({
+			[alpha.path]: { artist: author, cover_art: cover },
+			[other.path]: { artist: author, cover_art: cover },
+		});
 		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'NMR 64k' });
 		await app.metadata.stageCurrentSelection();
-		const author = { op: 'set', value: 'FDK Decision' };
 		const title = { op: 'set', value: 'NMR 64k' };
 		expect(await app.metadata.intentsForProcess([alpha.path, other.path])).toEqual({
-			[alpha.path]: { artist: author, title, album: title },
-			[other.path]: { artist: author, title, album: title },
+			[alpha.path]: { artist: author, cover_art: cover, title, album: title },
+			[other.path]: { artist: author, cover_art: cover, title, album: title },
 		});
 		expect(app.metadata.readCached(other.path)?.artist).toBe('FDK Decision');
 	});
