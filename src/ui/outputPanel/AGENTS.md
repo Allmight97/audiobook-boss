@@ -25,5 +25,4 @@
 ## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
-- Reintroducing a poke API (`updateOutputPath`, `updateEstimatedSize`) or a
-  local output store.
+- Adding a local output store or a poke/refresh API.

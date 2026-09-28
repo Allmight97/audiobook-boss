@@ -17,8 +17,7 @@
   owner.
 - Keep the Effect fake layer private: workflow tests import
   `makeProcessingWorkflowServicesLayer` from `workflow.ts`. Do not re-export
-  bind slots, `initStatusPanel`, `getStatusView`, or
-  `readProcessingRequestConfig`.
+  `readProcessingRequestConfig` or the status-view store.
 
 ## Hard Invariants
 
@@ -27,9 +26,7 @@
   in the same valid-title order as paths and IDs before asynchronous preparation.
   The backend resolves copying versus encoding; the frontend submits intent.
   Collision review calls `runOutputPlanReviewWorkflow(request, output)` with
-  that same owner.
-  Do not restore `updateOutputPath`, `updateEstimatedSize`, or a
-  process-wide encoding/output getter.
+  that same owner. Do not add a process-wide encoding/output getter.
 - Title membership, ordered sources, and audio choices come from Input.
   The workbench submits a batch of output titles; grouping is not a global mode. Concurrency enable/disable uses
   Settings. Metadata staging uses the Metadata public strip. Do not read
@@ -55,6 +52,10 @@
 - Each Processing owner instance owns its status view store and
   `StatusPanelRuntime`. Two live App Runtimes isolate preview status.
   Disposing A cannot publish into B.
+- Input's `chapterPlansForProcessing(sources)` takes one title's ordered sources and owns confirmation/Ignore gating. Processing
+  includes the returned plans in the immutable submission; runtime validates
+  the source fingerprint and chapter intervals. Do not rediscover CUE in an
+  encoder adapter or reinterpret timestamps in the frontend.
 
 ## Testing
 
@@ -74,9 +75,4 @@
   build a process payload.
 - Converting Status Panel into a WorkRuntime consumer without a documented
   architecture decision.
-- Restoring `bindProcessing*` or a module-global status publisher.
-
-- Input's `chapterPlansForProcessing(sources)` takes one title's ordered sources and owns confirmation/Ignore gating. Processing
-  includes the returned plans in the immutable submission; runtime validates
-  the source fingerprint and chapter intervals. Do not rediscover CUE in an
-  encoder adapter or reinterpret timestamps in the frontend.
+- Adding a module-global status publisher.

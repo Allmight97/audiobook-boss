@@ -3,7 +3,7 @@
 ## Ownership
 
 - `abb-*-core` crates package pure domain logic for existing ABB owners.
-- They are package boundaries, not new Grey-Box Public APIs.
+- They are package boundaries, not new Public API Strips.
 - `abb-remote-source-core` stays provider-neutral (stages, strategies, progress,
   materialized kinds). Provider protocol interpretation, such as Audible
   license keys and strategy choice, lives in that provider's core.

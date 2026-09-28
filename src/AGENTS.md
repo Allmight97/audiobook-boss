@@ -7,9 +7,8 @@
 - Runtime command/event/plugin adaptation follows `src/lib/tauri/AGENTS.md`.
   UI/runtime callers use `tauriClient`; generated invokers stay inside that
   boundary. Regenerate `src/lib/generated/tauri.ts` through the binding scripts.
-- Metadata intent adaptation stays at the Tauri boundary; canonical validation
-  and normalization stay with Rust Metadata Outcome. For metadata-save
-  lifecycle display, also read `src/app/workOperations/AGENTS.md`.
+- The metadata batch save runs as a WorkRuntime operation rendered by Work
+  Center; read `src/app/workOperations/AGENTS.md` when changing its display.
 - For Effect workflow or kernel changes, read `src/lib/effect/AGENTS.md`.
 - Durable preference hydration, acceptance, and persistence follow
   `src/app/appSettings/AGENTS.md`.

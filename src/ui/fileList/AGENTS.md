@@ -9,8 +9,6 @@
 ## Public API Strip
 
 - Import `FileListView` from `src/ui/fileList`.
-- Do not reintroduce `fileListSessionState` or a second file list beside
-  Input Session.
 
 ## Private Cluster
 

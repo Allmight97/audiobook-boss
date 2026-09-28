@@ -58,8 +58,8 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - `AlbumSortWriteAction` stays on `MetadataWritePlan`; do not fold album_sort into
   generic field set/clear ops.
 - Track/disk are read-compatible passthrough fields: the form never edits them,
-  `MetadataIntentPatch` carries them only as explicit artifact set/clear intent
-  (#281), and full `AudiobookMetadata` writes them when present.
+  `MetadataIntentPatch` carries them only as explicit artifact set/clear intent,
+  and full `AudiobookMetadata` writes them when present.
 - The broader metadata boundary owns passthrough, cover-art handling, remux helpers,
   and container routing. `tag_registry.rs` retains series constants folded by
   `field_schema`.
