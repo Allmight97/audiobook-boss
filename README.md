@@ -126,7 +126,8 @@ default broad review route.
   It is not part of the normal review path.
 - CI: GitHub runs Pages for `site/**`, a path-narrowed frontend clean-install
   alarm (frozen install, typecheck) after relevant `main` pushes, and the Rust
-  core crates' tests and Clippy on PRs and `main` pushes that touch Rust. The
+  core crates' tests and Clippy on PRs and `main` pushes that touch those crates
+  or their workspace/toolchain configuration. The
   `src-tauri` runtime suite, media lane, and generated-binding checks stay
   local or release-owned; a passing PR check list does not mean those ran.
 - Tooling policy: Bun is the package manager/script runner/test runner.

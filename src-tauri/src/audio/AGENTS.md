@@ -38,8 +38,8 @@
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.
-  The request carries explicit audio handling and the original metadata intent
-  for preserving source audio. Grouped preservation additionally carries effective
+  The request carries explicit audio handling and the Metadata Outcome's planned
+  write intent for preserving source audio. Grouped preservation additionally carries effective
   title metadata and cover policy. Inspection owns source preservation capability; the title planner owns the recommendation.
 - Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
   `BitrateModeKind`.
