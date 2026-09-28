@@ -117,6 +117,50 @@ describe('metadata session selection and save', () => {
 		expect(runtime.metadata.view().tags.tsoa).toBe('Beta sort');
 	});
 
+	it('a failed album sort preview shows no value and retries on the next change', async () => {
+		let down = false;
+		const previewAlbumSort = vi.fn<MetadataCapability['previewAlbumSort']>(async (draft) => {
+			if (down) throw new Error('ipc down');
+			return draft.series ? `${draft.series} 01 - Alpha` : 'Old sort';
+		});
+		runtime = createAppRuntime({ metadata: fakeMetadata({ previewAlbumSort }) });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			files: [file('/books/alpha.m4b', 'Alpha')],
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(runtime?.metadata.view().tags.tsoa).toBe('Old sort'));
+		down = true;
+		runtime.metadata.setFieldValue({ inputId: 'meta-series', value: 'Saga' });
+		await vi.waitFor(() => expect(runtime?.metadata.view().tags.tsoa).toBe(''));
+		const callsWhileDown = previewAlbumSort.mock.calls.length;
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(previewAlbumSort).toHaveBeenCalledTimes(callsWhileDown);
+		down = false;
+		runtime.metadata.setCoverHovered(true);
+		await vi.waitFor(() => expect(runtime?.metadata.view().tags.tsoa).toBe('Saga 01 - Alpha'));
+	});
+
+	it('reset starts no album sort preview request', async () => {
+		const metadata = fakeMetadata();
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			files: [file('/books/alpha.m4b', 'Alpha')],
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(metadata.previewAlbumSort).toHaveBeenCalled());
+		const calls = vi.mocked(metadata.previewAlbumSort).mock.calls.length;
+		runtime.metadata.reset();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(metadata.previewAlbumSort).toHaveBeenCalledTimes(calls);
+	});
+
 	it('keeps one title draft across source reorder, save, and separation', async () => {
 		const metadata = fakeMetadata();
 		runtime = createAppRuntime({ metadata });
