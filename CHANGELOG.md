@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-09-27
+
 ### Changed
 
 - Updated the bundled FAAC encoder to upstream `d841c4e` (2026-09-27): real
