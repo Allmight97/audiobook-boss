@@ -60,9 +60,7 @@ export function commitPreparedMetadataDrafts(
 	cache: MetadataCache,
 ): void {
 	for (const [path, metadata] of Object.entries(prepared.snapshotsByPath)) {
-		if (!cache.hasSourceMetadata(path)) {
-			cache.recordSourceMetadata(path, metadata);
-		}
+		cache.recordSourceMetadata(path, metadata);
 	}
 	for (const file of prepared.targets) {
 		cache.stageMetadataIntentPatch(file.path, prepared.intentPatch);

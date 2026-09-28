@@ -252,48 +252,6 @@ impl MetadataIntentPatch {
             || self.subseries_part.is_some()
     }
 
-    /// Requested field operations without values, e.g. `title=set,artist=clear`;
-    /// `none` when the patch requests nothing.
-    pub fn describe_ops(&self) -> String {
-        fn op<T>(patch: &Option<PatchOp<T>>) -> Option<&'static str> {
-            patch.as_ref().map(|op| match op {
-                PatchOp::Set(_) => "set",
-                PatchOp::Clear => "clear",
-            })
-        }
-        let album_sort = self.album_sort.as_ref().map(|op| match op {
-            AlbumSortPatchOp::Set(_) => "set",
-            AlbumSortPatchOp::Clear => "clear",
-            AlbumSortPatchOp::Recompute => "recompute",
-        });
-        let described = [
-            ("title", op(&self.title)),
-            ("artist", op(&self.artist)),
-            ("album", op(&self.album)),
-            ("composer", op(&self.composer)),
-            ("genre", op(&self.genre)),
-            ("date", op(&self.date)),
-            ("description", op(&self.description)),
-            ("series", op(&self.series)),
-            ("series_part", op(&self.series_part)),
-            ("subseries", op(&self.subseries)),
-            ("subseries_part", op(&self.subseries_part)),
-            ("album_sort", album_sort),
-            ("cover_art", op(&self.cover_art)),
-            ("comment", op(&self.comment)),
-            ("track", op(&self.track)),
-            ("disk", op(&self.disk)),
-        ]
-        .into_iter()
-        .filter_map(|(field, op)| op.map(|op| format!("{field}={op}")))
-        .collect::<Vec<_>>();
-        if described.is_empty() {
-            "none".to_string()
-        } else {
-            described.join(",")
-        }
-    }
-
     pub fn validate_and_normalize(&self) -> MetadataIntentValidationResult {
         validate_metadata_intent_patch(self)
     }

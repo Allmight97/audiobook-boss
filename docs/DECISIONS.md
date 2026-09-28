@@ -422,9 +422,11 @@ git history and closed issues own superseded chronology.
   `src/app/metadataSession/metadataSession.test.ts`, and
   `src/ui/__tests__/ui-workflow-smoke.test.tsx`.
 - Guardrail: pending intent is staged only inside the Metadata owner (draft
-  gate, `stageCurrentSelection`, save, and cover actions); save clears it on
-  success, and `reset` and removed-path drop clear it with the session. No
-  caller-side merge/equality staging or parallel form/tag store. Cache maps
+  gate, `stageCurrentSelection`, save, and cover actions); save folds it into
+  the recorded source tags on success, and `reset` and removed-path drop clear
+  it with the session. Displayed metadata is derived from source tags plus
+  pending intent, never stored separately. No caller-side merge/equality
+  staging or parallel form/tag store. Cache maps
   live on the runtime-scoped owner and require isolation proof.
 
 ## 2026-07-01 - Pre-Marketing Posture Decisions (#406 / #407 closeout)

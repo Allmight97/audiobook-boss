@@ -283,7 +283,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		try {
 			const metadata = await capability().readAudioMetadata(file.path);
 			if (generation !== started) return null;
-			if (!cache.hasSourceMetadata(file.path)) cache.recordSourceMetadata(file.path, metadata);
+			cache.recordSourceMetadata(file.path, metadata);
 			return cache.getMetadataForFile(file.path) ?? null;
 		} catch (error) {
 			console.warn('Failed to load metadata:', error);
@@ -465,7 +465,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		) {
 			return;
 		}
-		if (!cache.hasSourceMetadata(targetPath)) cache.recordSourceMetadata(targetPath, metadata);
+		cache.recordSourceMetadata(targetPath, metadata);
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		commit(bumpCover(latest, refreshCoverFromOwners(session.files, selected, latest.cover)));
