@@ -28,9 +28,9 @@ describe('coverOwner', () => {
 		);
 	});
 
-	it('prefers intent patch cover art over stored metadata', () => {
+	it('prefers intent patch cover art over stored metadata', async () => {
 		const cache = createMetadataCache();
-		cache.recordSourceMetadata('/books/a.m4b', { cover_art: [1, 2, 3] });
+		await cache.readSourceMetadata('/books/a.m4b', async () => ({ cover_art: [1, 2, 3] }));
 		cache.stageMetadataIntentPatch('/books/a.m4b', {
 			cover_art: { op: 'set', value: [9, 9, 9] },
 		});
@@ -38,9 +38,9 @@ describe('coverOwner', () => {
 		expect(effectiveCoverForFile('/books/a.m4b', cache)).toEqual([9, 9, 9]);
 	});
 
-	it('treats intent clear as no cover art', () => {
+	it('treats intent clear as no cover art', async () => {
 		const cache = createMetadataCache();
-		cache.recordSourceMetadata('/books/a.m4b', { cover_art: [1, 2, 3] });
+		await cache.readSourceMetadata('/books/a.m4b', async () => ({ cover_art: [1, 2, 3] }));
 		cache.stageMetadataIntentPatch('/books/a.m4b', { cover_art: { op: 'clear' } });
 
 		expect(effectiveCoverForFile('/books/a.m4b', cache)).toBeNull();

@@ -79,6 +79,7 @@ export function createMetadataCache() {
 	const knownTagsByFile = new Map<string, Partial<AudiobookMetadata>>();
 	const intentByFile = new Map<string, MetadataIntentPatch>();
 	const readPaths = new Set<string>();
+	const readVersions = new Map<string, symbol>();
 
 	function effectiveMetadata(filePath: string): Partial<AudiobookMetadata> | undefined {
 		const known = knownTagsByFile.get(filePath);
@@ -90,17 +91,28 @@ export function createMetadataCache() {
 		knownTagsByFile.delete(filePath);
 		intentByFile.delete(filePath);
 		readPaths.delete(filePath);
+		readVersions.delete(filePath);
 	}
 
 	return {
 		/**
-		 * Records tags read from the file until one usable read has landed; values
-		 * this session saved before then are kept where the read has no field.
+		 * Owns source-read acceptance for every caller. Saves and removal invalidate
+		 * older reads, so a late result cannot replace confirmed tags or revive a file.
 		 */
-		recordSourceMetadata(filePath: string, metadata: Partial<AudiobookMetadata>): void {
-			if (readPaths.has(filePath)) return;
-			knownTagsByFile.set(filePath, { ...knownTagsByFile.get(filePath), ...metadata });
-			if (isUsableMetadataCache(metadata)) readPaths.add(filePath);
+		async readSourceMetadata(
+			filePath: string,
+			read: (path: string) => Promise<Partial<AudiobookMetadata>>,
+		): Promise<Partial<AudiobookMetadata> | undefined> {
+			if (!readPaths.has(filePath)) {
+				const version = readVersions.get(filePath) ?? Symbol();
+				readVersions.set(filePath, version);
+				const metadata = await read(filePath);
+				if (readVersions.get(filePath) === version && !readPaths.has(filePath)) {
+					knownTagsByFile.set(filePath, { ...knownTagsByFile.get(filePath), ...metadata });
+					if (isUsableMetadataCache(metadata)) readPaths.add(filePath);
+				}
+			}
+			return effectiveMetadata(filePath);
 		},
 		/** Whether this session holds a usable read of the file's own tags. */
 		hasSourceMetadata(filePath: string): boolean {
@@ -108,11 +120,16 @@ export function createMetadataCache() {
 		},
 		/** The file's tags with this session's pending changes applied. */
 		getMetadataForFile: effectiveMetadata,
-		/** Adds `intentPatch` to the file's pending changes unless it would change nothing. */
+		/** Stages intent unless a source read proves that it would change nothing. */
 		stageMetadataIntentPatch(filePath: string, intentPatch: MetadataIntentPatch): void {
 			if (!hasActionableMetadataIntentPatch(intentPatch)) return;
 			const current = effectiveMetadata(filePath) ?? {};
-			if (metadataEqualsNullish(current, applyMetadataIntentPatch(current, intentPatch))) return;
+			// Unknown source fields are not known-empty: Blank must still reach Rust.
+			if (
+				readPaths.has(filePath) &&
+				metadataEqualsNullish(current, applyMetadataIntentPatch(current, intentPatch))
+			)
+				return;
 			const pending = intentByFile.get(filePath) ?? {};
 			intentByFile.set(filePath, mergeMetadataIntentPatches(pending, intentPatch));
 		},
@@ -141,14 +158,19 @@ export function createMetadataCache() {
 		 * the next save.
 		 */
 		commitSavedIntent(filePath: string, saved: MetadataIntentPatch): void {
-			if (intentByFile.get(filePath) !== saved) return;
+			if (!intentByFile.has(filePath)) return;
+			readVersions.delete(filePath);
 			const known = knownTagsByFile.get(filePath) ?? {};
 			knownTagsByFile.set(filePath, applyMetadataIntentPatch(known, saved));
-			intentByFile.delete(filePath);
+			if (intentByFile.get(filePath) === saved) intentByFile.delete(filePath);
 		},
 		removeMetadataForFile,
 		dropRemovedPaths(livePaths: ReadonlySet<string>): void {
-			const known = new Set([...knownTagsByFile.keys(), ...intentByFile.keys()]);
+			const known = new Set([
+				...knownTagsByFile.keys(),
+				...intentByFile.keys(),
+				...readVersions.keys(),
+			]);
 			for (const filePath of known) {
 				if (!livePaths.has(filePath)) {
 					removeMetadataForFile(filePath);
@@ -159,6 +181,7 @@ export function createMetadataCache() {
 			knownTagsByFile.clear();
 			intentByFile.clear();
 			readPaths.clear();
+			readVersions.clear();
 		},
 	};
 }
