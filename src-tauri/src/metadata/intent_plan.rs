@@ -79,9 +79,17 @@ fn processing_write_intent(
     effective: Option<&AudiobookMetadata>,
 ) -> Option<MetadataIntentPatch> {
     let mut write_intent = patch.cloned().unwrap_or_default();
+    // Only a derived key is written; an underivable one already equals the
+    // source's own value, so writing it would rewrite tags for no change.
     if write_intent.album_sort.is_none() {
         write_intent.album_sort = effective
-            .and_then(|metadata| metadata.album_sort.clone())
+            .and_then(|metadata| {
+                crate::metadata::compute_album_sort(
+                    metadata.series.as_deref()?,
+                    metadata.series_part.as_deref(),
+                    metadata.title.as_deref()?,
+                )
+            })
             .map(crate::metadata::AlbumSortPatchOp::Set);
     }
     (write_intent != MetadataIntentPatch::default()).then_some(write_intent)
@@ -250,6 +258,16 @@ mod tests {
             Some(AlbumSortPatchOp::Clear)
         );
         assert_eq!(plan(None), None, "nothing to write without intent or a key");
+
+        let no_series = MetadataIntentPatch {
+            title: Some(PatchOp::Set("Standalone".to_string())),
+            ..Default::default()
+        };
+        assert_eq!(
+            plan(Some(&no_series)).and_then(|intent| intent.album_sort),
+            None,
+            "an underivable key leaves the source's album sort untouched"
+        );
     }
 
     #[test]
