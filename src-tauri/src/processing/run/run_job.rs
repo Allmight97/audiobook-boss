@@ -167,7 +167,7 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         request.encoder_settings, request.sample_rate, reason, request.output_plan.resolved_path
     );
     log::info!(
-        "metadata_intent job_id={} input_index={} requested={}",
+        "metadata_intent job_id={} input_index={} intent={}",
         job_id,
         request.input_index,
         describe_requested_fields(request.metadata_intent.as_ref())
@@ -182,7 +182,8 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
     }
 }
 
-/// Lists requested field ops without tag values, e.g. `title=set,artist=clear`.
+/// Lists the field ops processing applies, without tag values, e.g.
+/// `title=set,album_sort=set`: the user's edits plus the derived album sort.
 /// Fields absent here keep the source tag; `metadata_plan` lines cannot tell the two apart.
 fn describe_requested_fields(patch: Option<&crate::metadata::MetadataIntentPatch>) -> String {
     // Drop cover bytes first: only the op name is logged, and serializing a

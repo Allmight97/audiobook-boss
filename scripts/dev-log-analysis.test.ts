@@ -614,7 +614,7 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 it('keeps title decisions and output observations visible despite stage noise', () => {
 	const decision = 'audio_decision job_id=book-1 request=Preserve action=Preserve';
 	const source = 'audio_source job_id=book-1 source_index=0 source_path="/books/source.m4b"';
-	const intent = 'metadata_intent job_id=book-1 input_index=0 requested=title=set,artist=set';
+	const intent = 'metadata_intent job_id=book-1 input_index=0 intent=title=set,artist=set';
 	const output = 'audio_output job_id=book-1 status=observed sample_rate=44100';
 	const analysis = analyzeDevLog(
 		[

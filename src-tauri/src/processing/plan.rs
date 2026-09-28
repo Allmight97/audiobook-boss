@@ -329,7 +329,7 @@ fn build_title_processing_jobs(
             metadata: metadata_outcome.effective_metadata,
             cover_art_passthrough: metadata_outcome.cover_art_passthrough,
             audio_plan,
-            metadata_intent: file_patch,
+            metadata_intent: metadata_outcome.write_intent,
         });
     }
 
