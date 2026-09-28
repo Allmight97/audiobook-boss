@@ -55,6 +55,12 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   `prepare_output_cover_art`: JPEG already at the write target is left
   untouched; other covers go through `optimize_cover_art` before native mux,
   remux, or mp4ameta.
+- Processed outputs carry the album sort (TSOA) from `processing_album_sort`:
+  derived from series, book # and title when possible (fractions kept, so
+  novellas sort between books), else the source's own; explicit album-sort
+  intent wins. Every processing route takes it from `plan_metadata_outcome`
+  (effective metadata, or `write_intent` for single-file preserve). Metadata
+  saves preserve TSOA, because a save edits the user's own source file.
 - `AlbumSortWriteAction` stays on `MetadataWritePlan`; do not fold album_sort into
   generic field set/clear ops.
 - Track/disk are read-compatible passthrough fields: the form never edits them,
