@@ -115,13 +115,17 @@ tagging or publishing.
 
    ```bash
    gh release create v<x.y.z> "<resolved-dmg-path>" --title "AudioBook Boss v<x.y.z>" --notes-file <notes-file>
-   gh release verify-asset v<x.y.z> "<resolved-dmg-path>"
    gh release view v<x.y.z>
    gh release list --limit 5
    ```
 
-   `verify-asset` must succeed for the exact local DMG that passed `hdiutil
-   verify`; it confirms the GitHub asset is byte-for-byte the tested file.
+   Confirm the published asset is byte-for-byte the tested DMG: download it
+   with `gh release download v<x.y.z> -D <temp-dir>` and compare its
+   `shasum -a 256` with the local DMG that passed `hdiutil verify`.
+   (`gh release verify-asset` needs release attestations, which ABB does not
+   publish.)
+10. After the asset is verified and any requested local install is done, run
+   `bun run clean` to drop release build output; the DMG now lives on GitHub.
 
 Check local/remote tag and branch SHA parity before reporting publication
 complete. If a push or publish result is uncertain, inspect remote state before

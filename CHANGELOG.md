@@ -4,6 +4,12 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Developer upkeep: `bun run clean` removes release build output, `dist/`, and
+  caches while keeping the incremental dev build; the release steps run it after
+  publishing and verify the published DMG by checksum.
+
 ## [1.13.1] - 2026-09-27
 
 ### Changed

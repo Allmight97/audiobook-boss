@@ -102,6 +102,10 @@ commands over invoking internals directly.
   `bundled-ffmpeg-portable` for the verified noninteractive DMG. A build that
   produces a DMG must never inherit host-native CPU tuning. Do not convert
   release work into a broad test mandate by default.
+- Disk upkeep: `bun run clean` removes release builds (including local DMG
+  copies), `dist/`, the Vite cache, and the AAXClean publish folder. It keeps
+  `target/debug`, so the next dev build stays incremental. Git worktrees each
+  hold their own `target/`; remove finished worktrees rather than sharing one.
 - Expected signal: Nextest reports per-test `PASS`/`FAIL` plus a summary; Vitest
   reports file/test counts; shell checks print `OK` or matched offending lines;
   `bun run build` may still show the known DEP0205 and Vite plugin-timing warnings.
