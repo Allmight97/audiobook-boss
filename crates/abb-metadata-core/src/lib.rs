@@ -1124,6 +1124,25 @@ mod tests {
     }
 
     #[test]
+    fn validation_reply_carries_only_requested_fields() {
+        // The frontend merges this reply into earlier pending edits; any field it
+        // carries for an untouched tag would overwrite an earlier requested change.
+        let result = validate_metadata_intent_patch(&MetadataIntentPatch {
+            title: Some(PatchOp::Set("NMR 64k".to_string())),
+            date: Some(PatchOp::Set("2024-07-15".to_string())),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            serde_json::to_value(&result).expect("serializes")["metadataPatch"],
+            serde_json::json!({
+                "title": { "op": "set", "value": "NMR 64k" },
+                "date": { "op": "set", "value": "2024-07" },
+            })
+        );
+    }
+
+    #[test]
     fn metadata_intent_validation_normalizes_valid_publication_date() {
         let patch = MetadataIntentPatch {
             date: Some(PatchOp::Set("2024-07-15T12:00:00Z".to_string())),

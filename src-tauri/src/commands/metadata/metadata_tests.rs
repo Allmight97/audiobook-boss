@@ -111,26 +111,6 @@ fn validate_metadata_intent_patch_command_returns_field_errors_as_data() {
     );
 }
 
-#[test]
-fn validate_metadata_intent_patch_reply_carries_only_requested_fields() {
-    // The frontend merges this reply into earlier pending edits; any field it
-    // carries for an untouched tag would overwrite an earlier requested change.
-    let result = super::validate_metadata_intent_patch(MetadataIntentPatch {
-        title: Some(PatchOp::Set("NMR 64k".to_string())),
-        date: Some(PatchOp::Set("2024-07-15".to_string())),
-        ..Default::default()
-    })
-    .expect("valid patch");
-
-    assert_eq!(
-        serde_json::to_value(&result).expect("serializes")["metadataPatch"],
-        serde_json::json!({
-            "title": { "op": "set", "value": "NMR 64k" },
-            "date": { "op": "set", "value": "2024-07" },
-        })
-    );
-}
-
 #[tokio::test]
 async fn resolver_rejects_localhost() {
     let resolver = BogonFilteringResolver;
