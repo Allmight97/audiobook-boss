@@ -1,11 +1,9 @@
 use abb_audible_core::{
-    audible_decryption_material_from_license, find_first_string_for_key,
-    find_first_string_for_keys, title_ref, AudibleDecryptionMaterial, AudibleLicenseDecryptContext,
+    audible_decryption_material_from_license, choose_acquisition_strategy,
+    find_first_string_for_key, find_first_string_for_keys, license_facts_from_value, title_ref,
+    AudibleDecryptionMaterial, AudibleLicenseDecryptContext, LicenseFacts,
 };
-use abb_remote_source_core::{
-    choose_acquisition_strategy, license_facts_from_value, AcquisitionProgress, AcquisitionStage,
-    AcquisitionStrategy, LicenseFacts,
-};
+use abb_remote_source_core::{AcquisitionProgress, AcquisitionStage, AcquisitionStrategy};
 use audible_api::api::Client as AudibleClient;
 use audible_api::auth::Auth;
 use serde_json::{json, Value};

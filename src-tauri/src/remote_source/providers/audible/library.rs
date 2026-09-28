@@ -1,3 +1,4 @@
+use abb_audible_core::find_first_string_for_key;
 use serde_json::Value;
 
 use crate::remote_source::{
@@ -134,22 +135,6 @@ fn find_array_for_key<'a>(value: &'a Value, key: &str) -> Option<&'a Vec<Value>>
         Value::Array(values) => values
             .iter()
             .find_map(|entry| find_array_for_key(entry, key)),
-        _ => None,
-    }
-}
-
-fn find_first_string_for_key(value: &Value, key: &str) -> Option<String> {
-    match value {
-        Value::Object(map) => {
-            if let Some(found) = map.get(key).and_then(Value::as_str) {
-                return Some(found.to_string());
-            }
-            map.values()
-                .find_map(|entry| find_first_string_for_key(entry, key))
-        }
-        Value::Array(values) => values
-            .iter()
-            .find_map(|entry| find_first_string_for_key(entry, key)),
         _ => None,
     }
 }
