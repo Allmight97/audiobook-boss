@@ -158,8 +158,7 @@ commands over invoking internals directly.
 - Bun version truth is `package.json#packageManager`. When it changes, set
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install
-  that version or exit; do not warn-and-continue. Do not copy the version
-  from the 2026-05-28 DECISIONS entry.
+  that version or exit; do not warn-and-continue.
 
 ## Linux Agent Environment (media lane)
 

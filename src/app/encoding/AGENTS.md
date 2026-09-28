@@ -69,7 +69,7 @@
 - EncoderView tests render through App Runtime; they do not import private
   encoder state.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a public export.
 - Reading encoder truth from `src/ui/encoderPanel` or a process-wide

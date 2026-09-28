@@ -21,6 +21,8 @@
 - Root owns repo-wide posture, proof, and cross-cutting invariants; local
   `AGENTS.md` files own path-specific surfaces and traps; skills own reusable
   procedures. Keep each meaning in one of those owners.
+- `README.md` is for people: what ABB is, how to install and run it, and a
+  command index. Do not put agent operating guidance there.
 - When an implementation or contract decision needs external-library evidence, use
   `.agents/skills/abb-library-research`. Do not commit upstream source
   snapshots as research material. Build provenance explicitly owned by ABB,

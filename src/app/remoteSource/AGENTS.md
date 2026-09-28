@@ -43,8 +43,7 @@
   Cancellation and app disposal invalidate the active acquisition generation
   so late Promise completions cannot overwrite terminal or reset state.
 - Materialized audio becomes a normal Input session through
-  Input `importIntent`. Do not call `handleImportedAudioPaths` or read
-  Input's session list directly. If Input import is blocked or fails, purge the staged
+  Input `importIntent`. Do not read Input's session list directly. If Input import is blocked or fails, purge the staged
   remote session immediately. The private handoff returns the source-file array
   used for path membership and supplemental-asset registration; it does not
   synthesize decoder or aggregate file-list facts.
@@ -97,5 +96,5 @@
 ## Boundary Changes
 
 - Exposing internal state mutation or moving asset coordination into the UI.
-- Dual-writing `fileListSessionState` or adding a parallel remote file list.
+- Adding a parallel remote file list.
 - Cancelling acquisition from dialog close.

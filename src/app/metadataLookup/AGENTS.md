@@ -15,7 +15,7 @@
   `services.ts` are private implementation modules.
 - The workflow is plain async over injected services; workflow tests call
   `runMetadataLookupWorkflow` from `workflow.ts` with fake services. Do not
-  re-export cover-preview globals, `bumpPreview`, or a module-global cache.
+  re-export cover-preview globals or a module-global cache.
 
 ## Hard Invariants
 
@@ -31,8 +31,7 @@
   cache. Two live App Runtimes isolate preview state. Disposing, cancelling,
   or clearing A cannot publish into B.
 - Views read `coverPreview` and dispatch `scheduleCoverPreviews` /
-  `cancelCoverPreviews`. Do not restore `bumpPreview`, `previewRevision`,
-  or a subscribe-to-global handshake.
+  `cancelCoverPreviews`.
 - Apply joins the owner's in-flight preview request through
   `loadLookupCoverBytes`. Do not fetch cover bytes around the scheduler.
 - Provider-controlled remote media URLs must not be rendered directly into
@@ -46,7 +45,7 @@
 - Workflow tests inject fake services with a harness-owned preview scheduler.
 - Two-runtime preview isolation lives in `src/app/runtime/runtime.test.ts`.
 
-## Breaking-Change Triggers
+## Boundary Changes
 
 - Adding, removing, or renaming a public export.
-- Restoring a module-global cover cache, listener set, or `bumpPreview`.
+- Adding a module-global cover cache or listener set.

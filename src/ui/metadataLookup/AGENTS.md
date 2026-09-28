@@ -21,7 +21,7 @@
 - Cover-preview cache, listeners, and scheduler belong to the runtime Metadata
   Lookup owner. The view reads `coverPreview` and dispatches
   `scheduleCoverPreviews` / `cancelCoverPreviews`. Do not import private
-  preview modules or restore `bumpPreview`.
+  preview modules.
 - Provider-controlled remote media URLs must not be rendered directly into DOM
   attributes. Cover previews route through the Tauri cover-art loader and
   render only app-owned data URLs from backend-validated bytes via

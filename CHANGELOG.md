@@ -16,6 +16,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ### Changed
 
+- Audible download progress now reads "Requesting download license." while
+  the license is fetched.
 - Developer upkeep: `bun run clean` removes release build output, `dist/`, and
   caches while keeping the incremental dev build; the release steps run it after
   publishing and verify the published DMG by checksum.

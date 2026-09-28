@@ -47,8 +47,7 @@
 - Processing submit and collision review use the injected Output owner
   (`readRequestConfig`, `openCollisionReview`). `readRequestConfig()` uses the
   live naming box (`namingTemplate`), not the 150 ms committed
-  `previewTemplate`. Preview stays on the committed copy. Do not restore
-  `updateOutputPath` or `updateEstimatedSize`, or a last-writer owner lookup.
+  `previewTemplate`. Preview stays on the committed copy.
 
 ## Testing
 

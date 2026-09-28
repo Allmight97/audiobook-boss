@@ -38,8 +38,8 @@ or infer provider-private Audible internals.
   → partial write → cancel check → same-directory `rename_and_commit`. Drop cleans
   uncommitted paths. `ProvisionalCommittedFile` holds committed audiobook output
   until validation and supplemental steps succeed.
-- Post-download cancel uses `rollback_committed_file`; do not revive generic
-  `cleanup_download_artifacts` helpers. No cross-device rename fallback here.
+- Post-download cancel uses `rollback_committed_file`. No cross-device rename
+  fallback here.
 - `providers/audible/library.rs` owns Audible library response shaping.
 - `providers/indexer/` owns Indexer connection persistence, release
   search/grab, and the first Prowlarr HTTP adapter. Indexer grabs do not create

@@ -8,7 +8,7 @@
 - This file owns audio integrity rules that cross local import discovery, stream
   probing, decoder setup, resampling, sample buffering, encoder setup, muxing,
   and output validation.
-- Audio is the **Audio Engine Deep Module** Grey-Box Public API owner. Its
+- Audio is the **Audio Engine Deep Module** Public API Strip owner. Its
   allowed import surface lives at `crate::audio`; processor internals stay
   private under `src-tauri/src/audio/processor/`.
 

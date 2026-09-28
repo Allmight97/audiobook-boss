@@ -21,7 +21,7 @@
 
 - `StatusPanelView` reads Processing `status` and submits through
   `processing.start`.
-- Do not add a local status store or restore `updateStatusPanelConcurrencyStatus`.
+- Do not add a local status store.
 
 ## Boundary Changes
 

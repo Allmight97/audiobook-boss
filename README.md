@@ -124,11 +124,11 @@ default broad review route.
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`
   It is not part of the normal review path.
-- CI: GitHub automatically runs Pages for `site/**` and a path-narrowed
-  frontend clean-install alarm (frozen install, typecheck) after
-  relevant `main` pushes. It is an alarm, not a PR gate. Rust tests and
-  generated-binding checks stay local or release-owned; an empty PR check list
-  does not mean those proofs ran on GitHub.
+- CI: GitHub runs Pages for `site/**`, a path-narrowed frontend clean-install
+  alarm (frozen install, typecheck) after relevant `main` pushes, and the Rust
+  core crates' tests and Clippy on PRs and `main` pushes that touch Rust. The
+  `src-tauri` runtime suite, media lane, and generated-binding checks stay
+  local or release-owned; a passing PR check list does not mean those ran.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a validated tooling
   decision changes that.
@@ -146,19 +146,5 @@ default broad review route.
 
 ## Project Operation
 
-- Agents: start in [AGENTS.md](AGENTS.md) and then follow the nearest nested `AGENTS.md`.
-- Load [docs/system-map.md](docs/system-map.md) only for repository onboarding,
-  unclear ownership, or work crossing frontend/backend or multiple product
-  owners. Its job is topology, not command inventory, local rules, or mutable
-  plan state.
-- For substantial planning and alignment, start from the owning interface; use global `grill-me` when action-changing forks remain. Default durable capture is GitHub issues (`docs/agents/issue-tracker.md`). Use `docs/specs/` only when explicitly requested. Session handoffs belong in OS temp, not the repo. External presentation artifacts belong under `/Users/jstar/Documents/Codex/artifacts/audiobook-boss`.
-- For external library/API behavior, use `.agents/skills/abb-library-research` as the control plane for lockfile versions, installed or registry-packaged source, Context7, exact public package docs, and exceptional ephemeral upstream retrieval.
-- Discover the current runtime command/event surface in
-  `src-tauri/src/ipc_contract.rs`, generated bindings, and
-  `src/lib/tauri/client.ts`; the nearest owner `AGENTS.md` defines any
-  non-obvious behavior-changing terminology.
-- UI work is not done from static inspection alone. Use targeted tests for deterministic behavior and browser-agent or human review for visual/UX outcomes.
-- Current behavior lives in code, manifests, generated contracts, and executed
-  proof. `AGENTS.md` owns operating invariants, `docs/DECISIONS.md` owns durable
-  rationale, and open GitHub issues are mutable candidate plans—not current
-  behavior. `.artifacts/` is temporary local state only.
+- Agents: start in [AGENTS.md](AGENTS.md) and follow the nearest nested
+  `AGENTS.md`; agent operating guidance lives there, not in this README.
