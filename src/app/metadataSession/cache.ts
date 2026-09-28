@@ -68,8 +68,6 @@ function isUsableMetadataCache(
 	return true;
 }
 
-type MetadataStageResult = 'staged' | 'unchanged' | 'empty';
-
 /**
  * Per-file session metadata: the tags last read from each file and the
  * changes the user asked for. What callers read is derived from both, so the
@@ -91,9 +89,9 @@ export function createMetadataCache() {
 	}
 
 	return {
-		/** Records tags as read from the file; pending changes still apply on top. */
+		/** Records tags as read from the file unless a usable read is already held. */
 		recordSourceMetadata(filePath: string, metadata: Partial<AudiobookMetadata>): void {
-			sourceByFile.set(filePath, metadata);
+			if (!isUsableMetadataCache(sourceByFile.get(filePath))) sourceByFile.set(filePath, metadata);
 		},
 		/** Whether this session holds a usable read of the file's own tags. */
 		hasSourceMetadata(filePath: string): boolean {
@@ -101,20 +99,13 @@ export function createMetadataCache() {
 		},
 		/** The file's tags with this session's pending changes applied. */
 		getMetadataForFile: effectiveMetadata,
-		stageMetadataIntentPatch(
-			filePath: string,
-			intentPatch: MetadataIntentPatch,
-		): MetadataStageResult {
-			if (!hasActionableMetadataIntentPatch(intentPatch)) {
-				return 'empty';
-			}
+		/** Adds `intentPatch` to the file's pending changes unless it would change nothing. */
+		stageMetadataIntentPatch(filePath: string, intentPatch: MetadataIntentPatch): void {
+			if (!hasActionableMetadataIntentPatch(intentPatch)) return;
 			const current = effectiveMetadata(filePath) ?? {};
-			if (metadataEqualsNullish(current, applyMetadataIntentPatch(current, intentPatch))) {
-				return 'unchanged';
-			}
+			if (metadataEqualsNullish(current, applyMetadataIntentPatch(current, intentPatch))) return;
 			const pending = intentByFile.get(filePath) ?? {};
 			intentByFile.set(filePath, mergeMetadataIntentPatches(pending, intentPatch));
-			return 'staged';
 		},
 		getMetadataIntentPatchForFile(filePath: string): MetadataIntentPatch | undefined {
 			return intentByFile.get(filePath);
