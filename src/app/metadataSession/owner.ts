@@ -262,7 +262,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 					if (albumSortRequest.id === id) commit({ ...editor, albumSortPreview: albumSort ?? '' });
 				},
 				(error: unknown) => {
-					if (albumSortRequest.id === id) console.warn('Failed to preview album sort:', error);
+					if (albumSortRequest.id !== id) return;
+					console.warn('Failed to preview album sort:', error);
+					// Show no value rather than an earlier input's, and let the next
+					// state change retry. Bypass commit so a failure cannot loop.
+					albumSortRequest = { key: '', id };
+					editor = { ...editor, albumSortPreview: '' };
+					bump((n) => n + 1);
 				},
 			);
 	}
@@ -894,13 +900,19 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		},
 		reset() {
 			generation += 1;
-			albumSortRequest = { key: '', id: albumSortRequest.id + 1 };
 			if (coverMessageTimeoutId !== null) {
 				window.clearTimeout(coverMessageTimeoutId);
 				coverMessageTimeoutId = null;
 			}
 			cache.clear();
-			commit(emptyEditor());
+			const empty = emptyEditor();
+			// Drop any pending preview and mark the empty state as already
+			// projected, so reset (including runtime dispose) starts no new request.
+			albumSortRequest = {
+				key: JSON.stringify(albumSortInput(empty)),
+				id: albumSortRequest.id + 1,
+			};
+			commit(empty);
 		},
 	};
 }
