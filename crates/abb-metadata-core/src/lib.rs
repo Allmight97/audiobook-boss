@@ -531,9 +531,10 @@ fn apply_effective_series_family_to_write_plan(
 /// `Series 03 - Title`; a fractional book number keeps its fraction
 /// (`Series 01.5 - Title`) so novellas sort between whole books.
 pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
-    let (whole, fraction) = match series_part?.trim().split_once('.') {
+    let part = series_part?.trim();
+    let (whole, fraction) = match part.split_once('.') {
         Some((whole, fraction)) => (whole, Some(fraction)),
-        None => (series_part?.trim(), None),
+        None => (part, None),
     };
     let whole_num = whole.parse::<u32>().ok()?;
     if let Some(fraction) = fraction {
