@@ -161,6 +161,28 @@ describe('metadata session selection and save', () => {
 		expect(metadata.previewAlbumSort).toHaveBeenCalledTimes(calls);
 	});
 
+	it('an unreadable file still shows its staged edits when selected again', async () => {
+		const metadata = fakeMetadata({
+			readAudioMetadata: vi.fn(async () => {
+				throw new Error('file busy');
+			}),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			files: [file('/books/alpha.m4b', 'Alpha'), file('/books/beta.m4b', 'Beta')],
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		runtime.metadata.setFieldValue({ inputId: 'meta-author', value: 'FDK Decision' });
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+		await runtime.metadata.hydrateSelection(null);
+		expect(runtime.metadata.view().form.fields['meta-author'].value).toBe('FDK Decision');
+	});
+
 	it('keeps one title draft across source reorder, save, and separation', async () => {
 		const metadata = fakeMetadata();
 		runtime = createAppRuntime({ metadata });

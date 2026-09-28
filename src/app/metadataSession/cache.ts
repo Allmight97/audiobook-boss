@@ -69,33 +69,42 @@ function isUsableMetadataCache(
 }
 
 /**
- * Per-file session metadata: the tags last read from each file and the
- * changes the user asked for. What callers read is derived from both, so the
- * form can never show a value that save or processing will not send.
+ * Per-file session metadata: the file's known tags (what was read plus what
+ * this session has saved) and the changes the user asked for. What callers
+ * read is derived from both, so the form can never show a value that save or
+ * processing will not send. Whether the file's own tags were ever read is
+ * tracked separately, so saved values never pass for a complete read.
  */
 export function createMetadataCache() {
-	const sourceByFile = new Map<string, Partial<AudiobookMetadata>>();
+	const knownTagsByFile = new Map<string, Partial<AudiobookMetadata>>();
 	const intentByFile = new Map<string, MetadataIntentPatch>();
+	const readPaths = new Set<string>();
 
 	function effectiveMetadata(filePath: string): Partial<AudiobookMetadata> | undefined {
-		const source = sourceByFile.get(filePath);
+		const known = knownTagsByFile.get(filePath);
 		const intent = intentByFile.get(filePath);
-		return intent ? applyMetadataIntentPatch(source ?? {}, intent) : source;
+		return intent ? applyMetadataIntentPatch(known ?? {}, intent) : known;
 	}
 
 	function removeMetadataForFile(filePath: string): void {
-		sourceByFile.delete(filePath);
+		knownTagsByFile.delete(filePath);
 		intentByFile.delete(filePath);
+		readPaths.delete(filePath);
 	}
 
 	return {
-		/** Records tags as read from the file unless a usable read is already held. */
+		/**
+		 * Records tags read from the file until one usable read has landed; values
+		 * this session saved before then are kept where the read has no field.
+		 */
 		recordSourceMetadata(filePath: string, metadata: Partial<AudiobookMetadata>): void {
-			if (!isUsableMetadataCache(sourceByFile.get(filePath))) sourceByFile.set(filePath, metadata);
+			if (readPaths.has(filePath)) return;
+			knownTagsByFile.set(filePath, { ...knownTagsByFile.get(filePath), ...metadata });
+			if (isUsableMetadataCache(metadata)) readPaths.add(filePath);
 		},
 		/** Whether this session holds a usable read of the file's own tags. */
 		hasSourceMetadata(filePath: string): boolean {
-			return isUsableMetadataCache(sourceByFile.get(filePath));
+			return readPaths.has(filePath);
 		},
 		/** The file's tags with this session's pending changes applied. */
 		getMetadataForFile: effectiveMetadata,
@@ -126,19 +135,20 @@ export function createMetadataCache() {
 			return Array.from(intentByFile.entries());
 		},
 		/**
-		 * Accepts `saved` as written to the file: it folds into the recorded
-		 * source tags and stops being pending. A change staged after `saved` was
-		 * submitted keeps the whole pending patch for the next save.
+		 * Accepts `saved` as written to the file: it folds into the known tags,
+		 * even when the file was never read, and stops being pending. A change
+		 * staged after `saved` was submitted keeps the whole pending patch for
+		 * the next save.
 		 */
 		commitSavedIntent(filePath: string, saved: MetadataIntentPatch): void {
 			if (intentByFile.get(filePath) !== saved) return;
-			const source = sourceByFile.get(filePath);
-			if (source) sourceByFile.set(filePath, applyMetadataIntentPatch(source, saved));
+			const known = knownTagsByFile.get(filePath) ?? {};
+			knownTagsByFile.set(filePath, applyMetadataIntentPatch(known, saved));
 			intentByFile.delete(filePath);
 		},
 		removeMetadataForFile,
 		dropRemovedPaths(livePaths: ReadonlySet<string>): void {
-			const known = new Set([...sourceByFile.keys(), ...intentByFile.keys()]);
+			const known = new Set([...knownTagsByFile.keys(), ...intentByFile.keys()]);
 			for (const filePath of known) {
 				if (!livePaths.has(filePath)) {
 					removeMetadataForFile(filePath);
@@ -146,8 +156,9 @@ export function createMetadataCache() {
 			}
 		},
 		clear(): void {
-			sourceByFile.clear();
+			knownTagsByFile.clear();
 			intentByFile.clear();
+			readPaths.clear();
 		},
 	};
 }

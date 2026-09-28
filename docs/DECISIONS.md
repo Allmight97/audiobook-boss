@@ -438,9 +438,10 @@ git history and closed issues own superseded chronology.
   `src/ui/__tests__/ui-workflow-smoke.test.tsx`.
 - Guardrail: pending intent is staged only inside the Metadata owner (draft
   gate, `stageCurrentSelection`, save, and cover actions); save folds it into
-  the recorded source tags on success, and `reset` and removed-path drop clear
-  it with the session. Displayed metadata is derived from source tags plus
-  pending intent, never stored separately. No caller-side merge/equality
+  the file's known tags on success (even when its tags were never read), and
+  `reset` and removed-path drop clear it with the session. Displayed metadata
+  is derived from known tags plus pending intent, never stored separately;
+  whether the file's own tags were read is tracked apart from known values. No caller-side merge/equality
   staging or parallel form/tag store. Cache maps
   live on the runtime-scoped owner and require isolation proof.
 
