@@ -16,8 +16,11 @@ commands over invoking internals directly.
 - Frontend clean-install alarm (`.github/workflows/ci.yml`) runs after relevant
   frontend/dependency/config pushes to `main`: frozen install and typecheck.
   It catches undeclared dependencies that a warm checkout can conceal; it is
-  not a PR gate or broad test route. Rust and generated-binding proof stay
-  local/release-owned through the commands below.
+  not a PR gate or broad test route.
+- Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
+  `abb-*-core` crates' tests and `clippy -D warnings` on PRs and `main` pushes
+  that touch Rust. The `src-tauri` runtime suite, media lane, and
+  generated-binding proof stay local/release-owned through the commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing
