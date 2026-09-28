@@ -144,7 +144,7 @@ export class StatusPanelRuntime {
 		// preview rendering, which has no backend cancel command. The cancel-all
 		// button stays in the UI; with an in-flight foreground job it settles the
 		// local render. The backend preview, if any, completes and auto-opens
-		// normally. See docs/DECISIONS.md (preview ephemeral lane) and #376.
+		// normally. Preview is an ephemeral render lane, never a Work Center row.
 		if (this.cancellableForegroundJobIds().length === 0) {
 			return;
 		}
@@ -346,7 +346,7 @@ export class StatusPanelRuntime {
 		// Per-row cancel: the foreground/direct lane has no backend cancel command
 		// (operation-scoped cancel lives in the Work Center). Settle the local
 		// foreground render; any in-flight preview completes and auto-opens
-		// normally. See docs/DECISIONS.md (preview ephemeral lane) and #376.
+		// normally. Preview is an ephemeral render lane, never a Work Center row.
 		this.handleProcessingCancellation();
 	}
 

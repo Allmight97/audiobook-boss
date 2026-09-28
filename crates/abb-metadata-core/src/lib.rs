@@ -113,6 +113,9 @@ pub struct MetadataIntentValidationResult {
 }
 
 /// The fields a user asked to change; absent fields keep their source value.
+/// `skip_serializing_if` keeps absent fields off the wire (Specta therefore emits
+/// `_Serialize`/`_Deserialize` variants). Nullable fields would add a second
+/// "no change" marker the frontend could merge over a real edit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
 pub struct MetadataIntentPatch {
     #[serde(skip_serializing_if = "Option::is_none")]

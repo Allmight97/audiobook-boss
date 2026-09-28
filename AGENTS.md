@@ -53,13 +53,13 @@ neither earns no preference over the simpler design.
 - External provider partial failure is handled at the owning command with explicit typed diagnostics; hard-fail when the selected contract cannot be satisfied.
 - No silent, hidden, or caller-side substitute behavior across IPC, metadata, path, or lifecycle boundaries.
 - Do not introduce new `any` escape paths across IPC or state boundaries; type safety at the runtime boundary is a contract concern, not style.
-- Solid 2 is the frontend baseline. Read `package.json` before changing Solid APIs; install and typecheck against this checkout's lockfile. Keep historical Solid-major checkouts in separate folders because Git does not isolate `node_modules`. Prerelease update policy lives in `docs/DECISIONS.md`.
+- Solid 2 is the frontend baseline. Read `package.json` before changing Solid APIs; install and typecheck against this checkout's lockfile. Keep historical Solid-major checkouts in separate folders because Git does not isolate `node_modules`. Dependency and prerelease update policy lives in `scripts/AGENTS.md`.
 
 ## Refactor Discipline
 
 - Name the owned invariant and its owner before refactoring; move truth to the owning layer before extracting helpers or reshaping files. A rule several callers must each remember belongs in that owner.
 - When merging code paths into one, name what each old path relied on (reads it skipped, state it left alone, ordering); the merged path keeps each reliance or the change says which one it drops.
-- New or reshaped functions target one nameable responsibility at roughly CCN ≤10 / cognitive ≤15; exceeding that takes a named reason (dispatch `match`, sequential `?` lifecycle). Existing hotspots are adjudicated at their next change point per `docs/DECISIONS.md` 2026-08-24, not campaigned.
+- New or reshaped functions target one nameable responsibility at roughly CCN ≤10 / cognitive ≤15; exceeding that takes a named reason (dispatch `match`, sequential `?` lifecycle). Existing hotspots are adjudicated at their next change point, not campaigned: weigh consequence, proof, structure, and change pressure, then record one disposition (Proof-first, Reduce, Preserve, or Observe) with its evidence and next trigger. Agents do not loosen the new-code target.
 - Before creating a new module, skill, CI step, abstraction, or canon rule, name the invariant it owns and the recurring upkeep cost it adds; if an existing owner can carry it, extend that instead.
 - Public API Strip tests must stay independent of implementation registries. Do not derive expected public surfaces from the command, event, or generated source they are meant to guard.
 - Treat pre-existing dead code, stale patterns, and suspicious seams as findings: report with evidence, and fix semantic findings in the same change only when inside the active owner boundary and affecting the invariant or proof. Trivial mechanical debt (formatting, import ordering, EOF newlines, lint whitespace) is exempt: fix and name it in the report rather than contorting new code to coexist with the drift. For findings left unfixed, classify `fix`, `defer`, or `reject` with impact and owner.
@@ -98,11 +98,12 @@ neither earns no preference over the simpler design.
   authority. Closed issues, merged branches, and chat are history until live
   evidence makes them relevant again.
 
-## Decisions
+## Rationale
 
-- Log only durable, non-obvious architecture, design, or organizational choices that change future behavior, in `docs/DECISIONS.md`.
-- Prefer title + outcome + concrete evidence + at most one guardrail line. Keep
-  only operative decisions; git history owns chronology, recaps, and superseded facts.
+- Record a durable, non-obvious "why" as one short line beside the rule it
+  justifies: in the owning `AGENTS.md`, or as a comment at the code that
+  enforces it. There is no separate decision ledger; PR bodies and git
+  history own chronology and superseded choices.
 
 ## Done
 

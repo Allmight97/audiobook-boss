@@ -54,6 +54,12 @@ dispatch intent; they do not keep parallel business state.
   conflicting audio choices require an explicit title-level choice.
   Grouping/separation use Metadata's draft gate. Separation keeps the title's
   edits on its metadata anchor and restores the other sources' drafts.
+- Filename sort rewrites the processing order by natural numeric basename;
+  a manual reorder clears the sort claim, and selection follows file identity
+  through both.
+- Metadata Session alone stages metadata intent. Its cache derives what the
+  form shows from each file's known tags plus pending intent (`cache.ts`), so
+  callers never merge or compare intent themselves.
 - Metadata drafts for hidden sources survive grouping. Saving a grouped draft
   stages it for the output; it never writes that draft into a constituent
   source. Lookup targets the visible title once. Remote retention and summaries

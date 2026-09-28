@@ -18,6 +18,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 - Audible download progress now reads "Requesting download license." while
   the license is fetched.
+- Developer docs: `docs/DECISIONS.md` is retired. Each still-operative design
+  reason now sits beside the rule it justifies, in the owning `AGENTS.md` or at
+  the enforcing code; PR bodies and git history keep the chronology.
 - Developer upkeep: `bun run clean` removes release build output, `dist/`, and
   caches while keeping the incremental dev build; the release steps run it after
   publishing and verify the published DMG by checksum.

@@ -1,3 +1,7 @@
+//! The one route for webview errors into the local dev log. It carries only a
+//! short sanitized level, scope, and message: never arbitrary rejection
+//! values, provider payloads, or secrets.
+
 use crate::commands::CommandResult;
 
 const FRONTEND_LOG_FIELD_MAX_CHARS: usize = 500;

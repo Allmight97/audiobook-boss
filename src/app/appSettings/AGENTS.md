@@ -37,6 +37,8 @@
 
 ## Startup And Capture
 
+- Each consuming owner hydrates its own settings slice; one owner's hydration
+  failure does not block another's.
 - Hydration and capability clamping never persist. Startup source selection
   lives in `startupDefaults.ts`; `loadStartupDefaults` feeds Runtime.initialize.
   The runtime shares that initialization with Input import and ignores completion

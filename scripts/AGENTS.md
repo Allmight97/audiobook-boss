@@ -145,8 +145,8 @@ commands over invoking internals directly.
 - TypeScript 7 lives in `@typescript/native` and in the `typescript` slot.
   Do not import `typescript` from ABB `src/` or `scripts/` (parse without
   the compiler API). The runtime-boundary text scanner stays a text scan;
-  do not grow it toward AST completeness. Rationale: `docs/DECISIONS.md`
-  2026-08-27 TypeScript 7 / Effect 4. Proof:
+  do not grow it toward AST completeness; replace it with a parser only when
+  TypeScript 7's programmatic API exists and an owner needs one. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
   The no-import tripwires match `from 'typescript'` and the full `effect`
   package family, so ordinary multiline named imports count; do not require
@@ -159,6 +159,23 @@ commands over invoking internals directly.
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install
   that version or exit; do not warn-and-continue.
+
+## Dependencies
+
+- `Cargo.lock` and `bun.lock` are resolution truth; CI and verification
+  installs run frozen or locked. Manifest ranges stay compatible; exact pins are
+  for prerelease families (Solid, Effect and their companions; Specta),
+  cross-version type boundaries, synchronized families, and vendored or
+  provenance-sensitive dependencies.
+- Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`) and
+  Dependabot uses the same cooldown, to limit exposure to fresh supply-chain
+  compromises. Cargo has no release-age gate, so review a manual `cargo update`
+  for that risk. Security fixes may bypass the wait with focused proof;
+  `bun run update:rc` updates the prerelease families listed in `bunfig.toml`.
+- `package.json` `overrides` keeps one `@tauri-apps/api` version across the app
+  and its plugins, matched to the Rust `tauri` crate; move them together.
+- Scope a dependency update to direct dependencies with a concrete trigger in
+  the touched owner; leave unrelated lockfile churn out.
 
 ## Linux Agent Environment (media lane)
 
