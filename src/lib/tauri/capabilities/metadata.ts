@@ -22,6 +22,8 @@ export interface MetadataOpenFileOptions {
 export interface MetadataCapability {
 	readAudioMetadata(filePath: string): Promise<Partial<AudiobookMetadata>>;
 	validateMetadataIntentPatch(patch: MetadataIntentPatch): Promise<MetadataIntentValidationResult>;
+	/** The album sort (TSOA) processing would write for `metadata`. */
+	previewAlbumSort(metadata: Partial<AudiobookMetadata>): Promise<string | null>;
 	saveMetadataBatch(items: ReadonlyArray<MetadataSaveRequest>): Promise<MetadataSaveBatchResult>;
 	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
 	loadCoverArtFile(filePath: string): Promise<number[]>;
@@ -36,6 +38,7 @@ export interface MetadataCapability {
 export const liveMetadataCapability: MetadataCapability = {
 	readAudioMetadata: (filePath) => tauriClient.readAudioMetadata(filePath),
 	validateMetadataIntentPatch: (patch) => tauriClient.validateMetadataIntentPatch(patch),
+	previewAlbumSort: (metadata) => tauriClient.previewAlbumSort(metadata),
 	saveMetadataBatch: (items) => tauriClient.saveMetadataBatch([...items]),
 	openFile: (options) =>
 		tauriClient.openFile(

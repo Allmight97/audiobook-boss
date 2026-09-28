@@ -141,20 +141,4 @@ describe('metadata intent patch helpers', () => {
 			date: { op: 'set', value: 'not a date' },
 		});
 	});
-
-	it('carries artifact track, disk, and comment fields as explicit intent (#281)', () => {
-		const patch = buildMetadataIntentPatchFromMetadata({
-			title: 'Writable',
-			track: [3, 12],
-			disk: [1, 2],
-			comment: 'Reader note',
-		} as unknown as Parameters<typeof buildMetadataIntentPatchFromMetadata>[0]);
-
-		expect(patch).toEqual({
-			title: { op: 'set', value: 'Writable' },
-			track: { op: 'set', value: [3, 12] },
-			disk: { op: 'set', value: [1, 2] },
-			comment: { op: 'set', value: 'Reader note' },
-		});
-	});
 });

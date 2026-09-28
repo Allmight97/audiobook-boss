@@ -32,6 +32,8 @@ export const commands = {
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
 	/**  Validates and normalizes metadata intent without writing files. */
 	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch_Deserialize) => typedError<MetadataIntentValidationResult_Serialize, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
+	/**  Returns the album sort (TSOA) processing would write for `metadata`. */
+	previewAlbumSort: (metadata: AudiobookMetadata) => typedError<string | null, AppErrorEnvelope>(__TAURI_INVOKE("preview_album_sort", { metadata })),
 	saveMetadataBatch: (items: MetadataSaveRequest_Deserialize[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
 	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<MetadataLookupResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
 	/**

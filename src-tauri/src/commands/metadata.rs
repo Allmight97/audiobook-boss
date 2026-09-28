@@ -63,6 +63,13 @@ pub fn validate_metadata_intent_patch(
     ))
 }
 
+/// Returns the album sort (TSOA) processing would write for `metadata`.
+#[tauri::command]
+#[specta::specta]
+pub fn preview_album_sort(metadata: AudiobookMetadata) -> CommandResult<Option<String>> {
+    Ok(crate::metadata::processing_album_sort(&metadata))
+}
+
 /// Loads a cover image from disk and returns write-ready JPEG bytes.
 #[tauri::command]
 #[specta::specta]

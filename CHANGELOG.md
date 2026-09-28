@@ -4,6 +4,16 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A shared metadata edit (for example Author across several selected titles)
+  is no longer dropped when a later edit changes a different field; the form
+  can no longer show a value that saving or processing won't write. A custom
+  cover followed by a text edit is kept the same way.
+- Processed books now get the series sort key (TSOA) the tag preview shows,
+  replacing a stale one from the source; novellas numbered like 2.5 sort
+  between whole books.
+
 ### Changed
 
 - Developer upkeep: `bun run clean` removes release build output, `dist/`, and

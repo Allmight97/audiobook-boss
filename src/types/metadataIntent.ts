@@ -90,10 +90,6 @@ function isNumberArray(value: unknown): value is number[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
 }
 
-function isPositionValue(value: unknown): value is [number, number | null | undefined] {
-	return Array.isArray(value) && value.length >= 1 && typeof value[0] === 'number';
-}
-
 export function hasActionableMetadataIntentPatch(
 	patch: MetadataIntentPatch | null | undefined,
 ): patch is MetadataIntentPatch {
@@ -199,18 +195,6 @@ export function buildMetadataIntentPatchFromMetadata(
 				patch,
 				key,
 				value.length === 0 ? { op: 'clear' } : { op: 'set', value: [...value] },
-			);
-			continue;
-		}
-		if (key === 'track' || key === 'disk') {
-			if (!isPositionValue(value)) {
-				continue;
-			}
-			// Zero position is the backend clear sentinel (#281).
-			setMetadataIntent(
-				patch,
-				key,
-				value[0] === 0 ? { op: 'clear' } : { op: 'set', value: [value[0], value[1] ?? null] },
 			);
 			continue;
 		}

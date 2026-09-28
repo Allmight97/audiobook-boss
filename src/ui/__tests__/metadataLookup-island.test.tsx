@@ -50,6 +50,7 @@ function fakeInput(): InputCapability {
 function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapability {
 	return {
 		readAudioMetadata: vi.fn(async () => ({})),
+		previewAlbumSort: vi.fn(async () => null),
 		validateMetadataIntentPatch: vi.fn(async (patch) => ({
 			isValid: true,
 			metadataPatch: patch,

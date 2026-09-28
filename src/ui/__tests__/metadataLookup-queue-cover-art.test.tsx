@@ -83,6 +83,7 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 			title: filePath.includes('beta') ? 'Beta Existing' : 'Alpha Existing',
 			cover_art: filePath.includes('beta') ? [2, 2, 2] : [1, 1, 1],
 		})),
+		previewAlbumSort: vi.fn(async () => null),
 		validateMetadataIntentPatch: vi.fn(async (patch) => ({
 			isValid: true,
 			metadataPatch: patch,

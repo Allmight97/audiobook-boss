@@ -73,15 +73,20 @@ fn resolve_effective_processing_metadata(
     input_path: Option<&Path>,
     patch: Option<&MetadataIntentPatch>,
 ) -> Result<Option<AudiobookMetadata>> {
-    match (input_path, patch) {
+    let mut effective = match (input_path, patch) {
         (Some(path), Some(patch)) => {
             let source_metadata = crate::metadata::read_metadata(path)?;
-            Ok(Some(patch.apply_to_metadata(source_metadata)?))
+            patch.apply_to_metadata(source_metadata)?
         }
-        (Some(path), None) => Ok(Some(crate::metadata::read_metadata(path)?)),
-        (None, Some(patch)) => Ok(Some(patch.to_processing_overlay()?)),
-        (None, None) => Ok(None),
+        (Some(path), None) => crate::metadata::read_metadata(path)?,
+        (None, Some(patch)) => patch.to_processing_overlay()?,
+        (None, None) => return Ok(None),
+    };
+    // Outputs carry a current series sort key unless the user stated one.
+    if patch.is_none_or(|patch| patch.album_sort.is_none()) {
+        effective.album_sort = crate::metadata::processing_album_sort(&effective);
     }
+    Ok(Some(effective))
 }
 
 fn resolve_naming_metadata(
@@ -103,7 +108,8 @@ fn resolve_naming_metadata(
 mod tests {
     use super::{plan_metadata_outcome, MetadataOutcomeRequest};
     use crate::metadata::{
-        AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch, PatchOp,
+        AlbumSortPatchOp, AudiobookMetadata, CoverArtPassthroughPolicy, MetadataIntentPatch,
+        PatchOp,
     };
     use crate::output_artifact::build_output_path_preview;
     use crate::output_artifact::OutputNamingConfig;
@@ -166,6 +172,33 @@ mod tests {
         assert_eq!(
             resolved.and_then(|value| value.title),
             Some("Overlay Only".to_string())
+        );
+    }
+
+    #[test]
+    fn processing_outputs_carry_series_album_sort_unless_intent_states_one() {
+        let album_sort = |album_sort| {
+            let patch = MetadataIntentPatch {
+                title: Some(PatchOp::Set("Sunreach".to_string())),
+                series: Some(PatchOp::Set("Skyward".to_string())),
+                series_part: Some(PatchOp::Set("2.5".to_string())),
+                album_sort,
+                ..Default::default()
+            };
+            plan_metadata_outcome(MetadataOutcomeRequest {
+                input_path: None,
+                intent_patch: Some(&patch),
+            })
+            .expect("metadata resolves")
+            .effective_metadata
+            .and_then(|metadata| metadata.album_sort)
+        };
+
+        assert_eq!(album_sort(None).as_deref(), Some("Skyward 02.5 - Sunreach"));
+        assert_eq!(album_sort(Some(AlbumSortPatchOp::Clear)), None);
+        assert_eq!(
+            album_sort(Some(AlbumSortPatchOp::Set("Custom".to_string()))).as_deref(),
+            Some("Custom")
         );
     }
 
