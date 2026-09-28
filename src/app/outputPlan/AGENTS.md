@@ -34,7 +34,8 @@
   on every keystroke. Preview retriggers when Metadata series or subseries part
   changes, not only title, album, or artist. Native path authority,
   metadata-intent validation, and request-id stale suppression stay in the
-  preview workflow. Preview validation forwards `MetadataDraftValidation`
+  preview workflow. Preview validation only reports (save and processing are
+  where invalid intent blocks); it forwards `MetadataDraftValidation`
   through the injected `onMetadataValidation` dep. Do not add a Metadata setter
   here.
 - Collision review is a separate preflight/review workflow
