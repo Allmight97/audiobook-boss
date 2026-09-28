@@ -528,14 +528,21 @@ fn apply_effective_series_family_to_write_plan(
     }
 }
 
+/// `Series 03 - Title`; a fractional book number keeps its fraction
+/// (`Series 01.5 - Title`) so novellas sort between whole books.
 pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) -> Option<String> {
-    let raw_part = series_part?.trim();
-    if raw_part.is_empty() {
-        return None;
+    let (whole, fraction) = match series_part?.trim().split_once('.') {
+        Some((whole, fraction)) => (whole, Some(fraction)),
+        None => (series_part?.trim(), None),
+    };
+    let whole_num = whole.parse::<u32>().ok()?;
+    if let Some(fraction) = fraction {
+        if fraction.is_empty() || !fraction.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
     }
-
-    let part_num = raw_part.parse::<u32>().ok()?;
-    if part_num == 0 {
+    let fraction_is_zero = fraction.is_none_or(|digits| digits.bytes().all(|byte| byte == b'0'));
+    if whole_num == 0 && fraction_is_zero {
         return None;
     }
 
@@ -543,12 +550,18 @@ pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) 
         return None;
     }
 
-    Some(format!(
-        "{} {:02} - {}",
-        series.trim(),
-        part_num,
-        title.trim()
-    ))
+    let part = match fraction {
+        Some(fraction) => format!("{whole_num:02}.{fraction}"),
+        None => format!("{whole_num:02}"),
+    };
+    Some(format!("{} {part} - {}", series.trim(), title.trim()))
+}
+
+/// The album sort (TSOA) a processed output carries: the key derived from its
+/// series, book number and title when they allow one, otherwise the value it
+/// already has. An explicit album-sort intent is applied by the patch instead.
+pub fn processing_album_sort(metadata: &AudiobookMetadata) -> Option<String> {
+    recompute_album_sort(metadata).or_else(|| metadata.album_sort.clone())
 }
 
 fn validate_date_patch(
@@ -899,11 +912,61 @@ mod tests {
 
     #[test]
     fn skips_album_sort_when_part_missing_or_invalid() {
-        assert!(compute_album_sort("Series", None, "Title").is_none());
-        assert!(compute_album_sort("Series", Some(""), "Title").is_none());
-        assert!(compute_album_sort("Series", Some("abc"), "Title").is_none());
-        assert!(compute_album_sort("Series", Some("0"), "Title").is_none());
-        assert!(compute_album_sort("Series", Some("1/5"), "Title").is_none());
+        for part in [
+            None,
+            Some(""),
+            Some("abc"),
+            Some("0"),
+            Some("0.0"),
+            Some("1/5"),
+        ] {
+            assert!(
+                compute_album_sort("Series", part, "Title").is_none(),
+                "{part:?}"
+            );
+        }
+        for part in ["1.", ".5", "1.5.2", "1.a"] {
+            assert!(
+                compute_album_sort("Series", Some(part), "Title").is_none(),
+                "{part}"
+            );
+        }
+    }
+
+    #[test]
+    fn computes_album_sort_with_fractional_part_between_whole_books() {
+        assert_eq!(
+            compute_album_sort("Skyward", Some("2.5"), "Sunreach").as_deref(),
+            Some("Skyward 02.5 - Sunreach")
+        );
+        assert_eq!(
+            compute_album_sort("Skyward", Some("0.5"), "Prequel").as_deref(),
+            Some("Skyward 00.5 - Prequel")
+        );
+    }
+
+    #[test]
+    fn processing_album_sort_replaces_stale_value_and_keeps_uncomputable_one() {
+        let stale = AudiobookMetadata {
+            title: Some("Skyward".to_string()),
+            series: Some("The Skyward Series".to_string()),
+            series_part: Some("1".to_string()),
+            album_sort: Some("Skyward Flight 01 - Skyward Flight Book 1: Skyward".to_string()),
+            ..AudiobookMetadata::new()
+        };
+        assert_eq!(
+            processing_album_sort(&stale).as_deref(),
+            Some("The Skyward Series 01 - Skyward")
+        );
+
+        let no_part = AudiobookMetadata {
+            series_part: None,
+            ..stale
+        };
+        assert_eq!(
+            processing_album_sort(&no_part).as_deref(),
+            Some("Skyward Flight 01 - Skyward Flight Book 1: Skyward")
+        );
     }
 
     #[test]

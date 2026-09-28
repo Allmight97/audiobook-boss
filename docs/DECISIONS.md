@@ -4,6 +4,19 @@ This ledger contains operative, durable choices that still change future
 behavior. Update or remove an entry when the implementation and decision move;
 git history and closed issues own superseded chronology.
 
+## 2026-09-28 — Processed outputs carry a current series sort key
+
+- Outcome: processing writes the album sort (TSOA) derived from series, book
+  number and title (`Series 03 - Title`; fractional numbers keep their fraction,
+  `Series 02.5 - Title`). When no key can be derived, the source's TSOA stays.
+  An explicit album-sort intent wins. Metadata saves still preserve TSOA. The
+  tag preview shows Rust's projection (`preview_album_sort`); TS has no formula.
+- Evidence: after album sort became preserve-unless-requested, the frontend
+  never requested it, so outputs kept stale or missing TSOA while the preview
+  showed a computed one. Sample libraries held stale keys naming an old series.
+- Guardrail: keep the rule in `abb-metadata-core::processing_album_sort`; the
+  preview and processing must call the same function.
+
 ## 2026-09-22 — Title audio intent and output format
 
 - Outcome: one title request chooses output format and Default/Keep/Encode intent. Audio

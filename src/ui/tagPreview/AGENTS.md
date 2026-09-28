@@ -17,9 +17,10 @@
 ## Cross-Strip Coupling
 
 - `TagPreviewView` reads Metadata Session `view().tags`.
-- TSOA calculation and tag-field projection live in
-  `src/app/metadataSession/tags.ts`. Do not add a local tag store, refresh
-  function, or listener that copies those values.
+- Tag-field projection lives in `src/app/metadataSession/tags.ts`; the TSOA
+  value comes from Rust (`preview_album_sort`) through Metadata Session. Do not
+  compute TSOA here or add a local tag store, refresh function, or listener
+  that copies those values.
 
 ## Boundary Changes
 

@@ -46,6 +46,7 @@ const EXPECTED_COMMAND_NAMES = [
 	'update_app_settings',
 	'update_remote_source_indexer_connection',
 	'validate_metadata_intent_patch',
+	'preview_album_sort',
 ] as const;
 
 const EXPECTED_APP_EVENT_NAMES = [
@@ -108,6 +109,7 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'updateAppSettings',
 	'updateRemoteSourceIndexerConnection',
 	'validateMetadataIntentPatch',
+	'previewAlbumSort',
 ] as const;
 
 describe('Tauri Runtime Boundary public API contract', () => {

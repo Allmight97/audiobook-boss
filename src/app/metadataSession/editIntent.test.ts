@@ -38,6 +38,7 @@ function capability(
 		readAudioMetadata: vi.fn(async (path: string) => ({
 			...books.find((book) => book.path === path)?.tags,
 		})),
+		previewAlbumSort: vi.fn(async () => null),
 		validateMetadataIntentPatch: vi.fn(async (patch) => ({
 			isValid: true,
 			metadataPatch: patch,

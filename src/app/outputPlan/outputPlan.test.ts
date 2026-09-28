@@ -59,7 +59,7 @@ function emptyMetadataView(): MetadataView {
 	return {
 		form: createEmptyFormState(),
 		cover: createEmptyCoverUiState(),
-		tags: projectTagPreviewValues(createEmptyFormState()),
+		tags: projectTagPreviewValues(createEmptyFormState(), ''),
 		saveInProgress: false,
 		focusedFieldId: null,
 		statusMessage: '',
@@ -397,7 +397,7 @@ describe('output plan public view', () => {
 		const [metadataView, setMetadataView] = createSignal<MetadataView>({
 			form,
 			cover: createEmptyCoverUiState(),
-			tags: projectTagPreviewValues(createEmptyFormState()),
+			tags: projectTagPreviewValues(createEmptyFormState(), ''),
 			saveInProgress: false,
 			focusedFieldId: null,
 			statusMessage: '',
@@ -557,7 +557,7 @@ describe('output path preview projection', () => {
 			form,
 			cover: { ...createEmptyCoverUiState(), currentCoverArt: [1, 2, 3] },
 			tags: {
-				...projectTagPreviewValues(createEmptyFormState()),
+				...projectTagPreviewValues(createEmptyFormState(), ''),
 				title: 'Dune',
 				artist: 'Herbert',
 			},

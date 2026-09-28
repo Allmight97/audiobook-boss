@@ -33,10 +33,10 @@ mod remux;
 mod thumbnail;
 
 pub use abb_metadata_core::{
-    build_series_list, compute_album_sort, normalize_publication_date, publication_year_from_date,
-    split_series_list, validate_metadata_intent_patch, AlbumSortPatchOp, AudiobookMetadata,
-    MetadataCoreError, MetadataIntentPatch, MetadataIntentValidationResult, NamingMetadata,
-    PatchOp,
+    build_series_list, compute_album_sort, normalize_publication_date, processing_album_sort,
+    publication_year_from_date, split_series_list, validate_metadata_intent_patch,
+    AlbumSortPatchOp, AudiobookMetadata, MetadataCoreError, MetadataIntentPatch,
+    MetadataIntentValidationResult, NamingMetadata, PatchOp,
 };
 pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
 pub use intent_plan::CoverArtPassthroughPolicy;

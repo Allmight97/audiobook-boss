@@ -197,6 +197,8 @@ export const commandSpecs = {
 				compileMetadataIntentPatch(args.metadataIntent),
 			),
 		),
+	preview_album_sort: (args: { metadata: Partial<AudiobookMetadata> }) =>
+		runGeneratedCommand(generatedCommands.previewAlbumSort(denormalizeMetadata(args.metadata))),
 	save_metadata_batch: (args: { items: MetadataSaveRequest[] }) =>
 		runGeneratedCommand(
 			generatedCommands.saveMetadataBatch(compileMetadataSaveRequests(args.items)),

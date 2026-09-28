@@ -36,6 +36,7 @@ import {
 	applyLookupValues,
 	applyMetadataFormValidationWarnings,
 	commitFocusedControlValue,
+	formValue,
 	hasDirtyFields,
 	populateMetadataFormMulti,
 	populateMetadataFormSingle,
@@ -62,6 +63,7 @@ type MetadataEditorState = {
 	readonly hydrateRequestId: number;
 	readonly autoCoverRequestId: number;
 	readonly statusMessage: string;
+	readonly albumSortPreview: string;
 };
 
 export type MetadataView = {
@@ -129,6 +131,7 @@ function emptyEditor(): MetadataEditorState {
 		hydrateRequestId: 0,
 		autoCoverRequestId: 0,
 		statusMessage: '',
+		albumSortPreview: '',
 	};
 }
 
@@ -194,7 +197,7 @@ function toView(editor: MetadataEditorState): MetadataView {
 	return {
 		form: editor.form,
 		cover: editor.cover,
-		tags: projectTagPreviewValues(editor.form),
+		tags: projectTagPreviewValues(editor.form, editor.albumSortPreview),
 		saveInProgress: editor.saveInProgress,
 		focusedFieldId: editor.focusedFieldId,
 		statusMessage: editor.statusMessage,
@@ -231,9 +234,43 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		);
 	}
 
+	let albumSortRequest = { key: '', id: 0 };
+
+	/** What Rust needs to project the album sort processing would write for the bound form. */
+	function albumSortInput(state: MetadataEditorState): Partial<AudiobookMetadata> {
+		const value = (id: MetadataFieldId) => formValue(state.form, id) || undefined;
+		const single = state.boundFiles.length === 1 ? state.boundFiles[0] : undefined;
+		return {
+			title: value('meta-title'),
+			series: value('meta-series'),
+			series_part: value('meta-series-part'),
+			album_sort: single ? cache.getMetadataForFile(single.path)?.album_sort : undefined,
+		};
+	}
+
+	function refreshAlbumSortPreview(state: MetadataEditorState): void {
+		const input = albumSortInput(state);
+		const key = JSON.stringify(input);
+		if (key === albumSortRequest.key) return;
+		const id = albumSortRequest.id + 1;
+		albumSortRequest = { key, id };
+		// A preview failure is logged and never interrupts the edit that triggered it.
+		Promise.resolve()
+			.then(() => capability().previewAlbumSort(input))
+			.then(
+				(albumSort) => {
+					if (albumSortRequest.id === id) commit({ ...editor, albumSortPreview: albumSort ?? '' });
+				},
+				(error: unknown) => {
+					if (albumSortRequest.id === id) console.warn('Failed to preview album sort:', error);
+				},
+			);
+	}
+
 	function commit(next: MetadataEditorState): void {
 		editor = next;
 		bump((n) => n + 1);
+		refreshAlbumSortPreview(next);
 	}
 
 	function scheduleCoverMessageClear(): void {
@@ -851,26 +888,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		readCached(filePath) {
 			return cache.getMetadataForFile(filePath);
 		},
+		// Rust reads each source's own tags during processing; only pending edits cross here.
 		async intentsForProcess(filePaths) {
-			const started = generation;
-			await Promise.all(
-				filePaths.map(async (filePath) => {
-					if (cache.hasSourceMetadata(filePath)) {
-						return;
-					}
-					try {
-						const metadata = await capability().readAudioMetadata(filePath);
-						if (generation !== started) return;
-						cache.recordSourceMetadata(filePath, metadata);
-					} catch (error) {
-						console.warn('Failed to load metadata for batch file:', filePath, error);
-					}
-				}),
-			);
-			return generation === started ? cache.collectActionableMetadataIntent(filePaths) : null;
+			return cache.collectActionableMetadataIntent(filePaths);
 		},
 		reset() {
 			generation += 1;
+			albumSortRequest = { key: '', id: albumSortRequest.id + 1 };
 			if (coverMessageTimeoutId !== null) {
 				window.clearTimeout(coverMessageTimeoutId);
 				coverMessageTimeoutId = null;

@@ -434,6 +434,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 					})),
 				} satisfies MetadataSaveBatchResult);
 			}
+			case 'preview_album_sort':
+				return Promise.resolve(null);
 			case 'validate_metadata_intent_patch': {
 				const args = _args as
 					| {

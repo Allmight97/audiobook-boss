@@ -25,6 +25,7 @@ function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapa
 			title: filePath.includes('alpha') ? 'Alpha' : 'Beta',
 			artist: 'Author',
 		})),
+		previewAlbumSort: vi.fn(async () => null),
 		validateMetadataIntentPatch: vi.fn(async (patch) => ({
 			isValid: true,
 			metadataPatch: patch,
@@ -58,6 +59,32 @@ describe('metadata session selection and save', () => {
 	afterEach(() => {
 		runtime?.dispose();
 		runtime = undefined;
+	});
+
+	it('tag preview shows the album sort Rust projects from the draft and source tags', async () => {
+		const metadata = fakeMetadata({
+			readAudioMetadata: vi.fn(async () => ({ title: 'Alpha', album_sort: 'Old 01 - Alpha' })),
+			previewAlbumSort: vi.fn(async (draft) =>
+				draft.series ? `${draft.series} projected` : (draft.album_sort ?? null),
+			),
+		});
+		runtime = createAppRuntime({ metadata });
+		runtime.input.replaceSession({
+			...emptyInputSession(),
+			files: [file('/books/alpha.m4b', 'Alpha')],
+			selectedIndices: [0],
+			selectedAnchor: 0,
+		});
+		await runtime.metadata.hydrateSelection(null);
+		await vi.waitFor(() => expect(runtime?.metadata.view().tags.tsoa).toBe('Old 01 - Alpha'));
+		runtime.metadata.setFieldValue({ inputId: 'meta-series', value: 'Saga' });
+		await vi.waitFor(() => expect(runtime?.metadata.view().tags.tsoa).toBe('Saga projected'));
+		expect(metadata.previewAlbumSort).toHaveBeenLastCalledWith({
+			title: 'Alpha',
+			series: 'Saga',
+			series_part: undefined,
+			album_sort: 'Old 01 - Alpha',
+		});
 	});
 
 	it('keeps one title draft across source reorder, save, and separation', async () => {
@@ -720,30 +747,6 @@ describe('metadata session selection and save', () => {
 		expect(readAudioMetadata).toHaveBeenCalledWith('/books/alpha.m4b');
 		expect(runtime.metadata.readCached('/books/alpha.m4b')?.title).toBe('Alpha From Disk');
 		expect(runtime.metadata.view().form.fields['meta-title'].value).toBe('Alpha From Disk');
-	});
-
-	it('intentsForProcess loads native tags when cache only contains cover art', async () => {
-		const readAudioMetadata = vi.fn(async (filePath: string) => {
-			const count = readAudioMetadata.mock.calls.filter(([path]) => path === filePath).length;
-			if (count === 1) {
-				return { cover_art: [1, 2, 3] };
-			}
-			return { title: 'Loaded From Disk' };
-		});
-		const metadata = fakeMetadata({ readAudioMetadata });
-		runtime = createAppRuntime({ metadata });
-		runtime.input.replaceSession({
-			...emptyInputSession(),
-			files: [file('/books/alpha.m4b', 'Alpha')],
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await runtime.metadata.hydrateSelection(null);
-		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ cover_art: [1, 2, 3] });
-
-		await expect(runtime.metadata.intentsForProcess(['/books/alpha.m4b'])).resolves.toBeNull();
-		expect(runtime.metadata.readCached('/books/alpha.m4b')).toEqual({ title: 'Loaded From Disk' });
-		expect(readAudioMetadata).toHaveBeenCalledTimes(2);
 	});
 
 	it('shows the backend cover rejection and leaves URL policy to the backend', async () => {

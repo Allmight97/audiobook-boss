@@ -220,6 +220,8 @@ export const tauriClient = {
 		metadataIntent: MetadataIntentPatch,
 	): Promise<MetadataIntentValidationResult> =>
 		commandSpecs.validate_metadata_intent_patch({ metadataIntent }),
+	previewAlbumSort: (metadata: Partial<AudiobookMetadata>): Promise<string | null> =>
+		commandSpecs.preview_album_sort({ metadata }),
 	saveMetadataBatch: (
 		items: MetadataSaveRequest[],
 	): Promise<CommandResult<'save_metadata_batch'>> => commandSpecs.save_metadata_batch({ items }),
