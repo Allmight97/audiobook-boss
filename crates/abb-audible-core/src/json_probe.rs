@@ -25,10 +25,9 @@ pub fn find_first_string_for_keys(value: &Value, keys: &[&str]) -> Option<String
         .find_map(|key| find_first_string_for_key(value, key))
 }
 
-/// Nearest-first search: at each object, tries every key in order before
-/// descending, and skips empty strings. License facts read with this; unlike
-/// [`find_first_string_for_keys`], a shallower lower-priority key wins over a
-/// deeper higher-priority one.
+/// Tries every key at an object before descending depth-first, skipping empty
+/// strings. Sibling traversal order wins across subtrees; callers needing
+/// global key priority search one key at a time.
 pub fn find_nearest_non_empty_string_for_keys(value: &Value, keys: &[&str]) -> Option<String> {
     match value {
         Value::Object(map) => {
