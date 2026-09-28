@@ -97,7 +97,7 @@ export const commands = {
 	 *  Processes a direct preview with configurable encoder settings.
 	 *
 	 *  Final processing must enter through WorkRuntime so it has durable
-	 *  operation identity, snapshots, and operation-scoped cancellation.
+	 *  operation identity, snapshots, and operation and title cancellation.
 	 */
 	processAudiobookFiles: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch } | null, previewSeconds: number | null) => typedError<ProcessCommandResult, AppErrorEnvelope>(__TAURI_INVOKE("process_audiobook_files", { payload, metadata, previewSeconds })),
 	submitProcessingOperation: (request: SubmitProcessingOperationRequest) => typedError<WorkSubmissionAccepted, AppErrorEnvelope>(__TAURI_INVOKE("submit_processing_operation", { request })),

@@ -57,7 +57,7 @@ function importsEffectPackage(source: string): boolean {
 }
 
 function importsEffectReactivity(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect\/unstable\/reactivity(?:\/[^'"]*)?['"]/.test(
+	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect\/(?:unstable\/)?reactivity(?:\/[^'"]*)?['"]/.test(
 		source,
 	);
 }
@@ -142,7 +142,7 @@ describe('frontend toolchain layout', () => {
 		expect(packageImportHits(importsEffectPackage, new Set([allowed]))).toEqual([]);
 	});
 
-	it('does not import effect/unstable/reactivity from ABB src/ or scripts/', () => {
+	it('does not import effect/reactivity from ABB src/ or scripts/', () => {
 		expect(packageImportHits(importsEffectReactivity)).toEqual([]);
 	});
 
