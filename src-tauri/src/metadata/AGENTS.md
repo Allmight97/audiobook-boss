@@ -5,7 +5,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 ## Public API Strip
 - Import metadata boundary symbols from `crate::metadata`, not private child modules.
 - Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,
-  `MetadataIntentValidationResult`, `validate_metadata_intent_patch`.
+  `MetadataIntentValidationResult`, `validate_metadata_intent_patch`,
+  `processing_album_sort` (the TSOA rule shared by processing and the
+  `preview_album_sort` command).
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,

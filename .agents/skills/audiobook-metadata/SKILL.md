@@ -24,7 +24,7 @@ policy stays under `src-tauri/src/output_artifact/AGENTS.md`.
 
 ## Verify The Changed Handoff
 
-Use owner tests for mapping, clear/noop behavior, and atom precedence. For a
+Use owner tests for mapping, clear/absent-field behavior, and atom precedence. For a
 changed writer or finalization path, inspect a generated M4B with:
 
 ```bash

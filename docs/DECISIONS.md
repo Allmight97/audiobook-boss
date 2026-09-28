@@ -15,7 +15,9 @@ git history and closed issues own superseded chronology.
   never requested it, so outputs kept stale or missing TSOA while the preview
   showed a computed one. Sample libraries held stale keys naming an old series.
 - Guardrail: keep the rule in `abb-metadata-core::processing_album_sort`; the
-  preview and processing must call the same function.
+  preview and processing must call the same function. With several titles
+  selected the preview omits each title's source TSOA, so it can show blank
+  where outputs keep their own, like other mixed fields.
 
 ## 2026-09-22 — Title audio intent and output format
 

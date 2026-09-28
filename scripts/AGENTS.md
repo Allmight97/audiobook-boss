@@ -64,8 +64,8 @@ commands over invoking internals directly.
   `src-tauri`'s gdk/gtk GUI libs, which core crates build without and which are
   absent in common agent sandboxes. Use the full `cargo clippy --workspace
   --all-targets` only when the change actually spans owners or includes
-  `src-tauri` (GUI libs must be present). GitHub does not run Clippy; it is a
-  local owner check. Workspace lint posture is centralized in root
+  `src-tauri` (GUI libs must be present). GitHub runs Clippy only for the core
+  crates (Rust core workflow); `src-tauri` Clippy is a local owner check. Workspace lint posture is centralized in root
   `Cargo.toml` `[workspace.lints]` (members opt in with
   `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.

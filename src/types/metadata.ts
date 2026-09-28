@@ -8,12 +8,13 @@
  * - series_part = Series sequence / book # within a series (series-part/freeform SERIES-PART)
  * - subseries = Secondary series name (2nd entry in SERIES list)
  * - subseries_part = Series sequence / book # within a sub-series (2nd entry in SERIES-PART list)
- * - album_sort = TSOA library sort value; preserved unless explicit set/clear/recompute intent is sent
+ * - album_sort = TSOA library sort value; processing derives it from series/book #/title
+ *   (Rust `processing_album_sort`), saves preserve it unless explicit intent is sent
  * - date = Publication date (YYYY or YYYY-MM in ©day)
  *
  * `track`, `disk`, and `comment` remain readable for compatibility, but ABB does
- * not expose them as supported UI draft write fields. `album_sort` is writable
- * only through explicit backend intent.
+ * not expose them as supported UI draft write fields. `album_sort` has no UI
+ * draft field; Rust owns its value.
  */
 
 import type {
