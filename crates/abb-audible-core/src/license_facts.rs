@@ -22,18 +22,19 @@ pub struct LicenseFacts {
 }
 
 pub fn license_facts_from_value(value: &Value) -> LicenseFacts {
-    let content_url = find_nearest_non_empty_string_for_keys(
-        value,
-        &[
-            "content_url",
-            "contentUrl",
-            "download_url",
-            "downloadUrl",
-            "offline_url",
-            "offlineUrl",
-            "url",
-        ],
-    );
+    // An audio-specific key outranks an unrelated generic URL anywhere in the
+    // response. Search each key separately while still skipping empty strings.
+    let content_url = [
+        "content_url",
+        "contentUrl",
+        "download_url",
+        "downloadUrl",
+        "offline_url",
+        "offlineUrl",
+        "url",
+    ]
+    .iter()
+    .find_map(|key| find_nearest_non_empty_string_for_keys(value, &[*key]));
     let media_container = content_url
         .as_deref()
         .map(classify_media_container_url)
@@ -116,6 +117,34 @@ fn classify_media_container_url(url: &str) -> MediaContainerKind {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn audio_url_priority_survives_competing_branches_and_empty_candidates() {
+        let book = "https://cdn.example.test/book.aaxc";
+        for response in [
+            json!({"a": {"url": "https://cdn.example.test/cover.jpg"},
+                "z": {"content_url": book}, "license": "voucher"}),
+            json!({"url": "https://cdn.example.test/sample.m4b",
+                "content_license": {"content_metadata": {"content_url": {"offline_url": book}}},
+                "license": "voucher"}),
+            json!({"a": {"content_url": ""}, "z": [{"content_url": book}],
+                "license": "voucher"}),
+        ] {
+            let facts = license_facts_from_value(&response);
+            assert_eq!(facts.content_url.as_deref(), Some(book));
+            assert_eq!(
+                choose_acquisition_strategy(&facts),
+                AcquisitionStrategy::DownloadThenDecryptAaxc
+            );
+        }
+        let fallback = license_facts_from_value(&json!({
+            "content_url": "", "nested": {"url": "https://cdn.example.test/book.m4b"}
+        }));
+        assert_eq!(
+            choose_acquisition_strategy(&fallback),
+            AcquisitionStrategy::DownloadImportReady
+        );
+    }
 
     #[test]
     fn license_response_facts_classify_content_protection_and_voucher() {
