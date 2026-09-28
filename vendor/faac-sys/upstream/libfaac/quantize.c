@@ -116,6 +116,7 @@ static float gain_with_overflow_clamp(int *sfac, float band_peak)
 #define LOUDNESS_EXPONENT      0.4f     // Zwicker-ish loudness compression
 #define AVG_ENERGY_FLOOR_FRAC  0.0010f  // -30 dB floor, keeps quiet bands from collapsing the target
 #define PEAK_ENERGY_FLOOR_FRAC 0.0050f  // ~-23 dB floor, same purpose for peak energy
+#define QUIET_BAND_FRAC        0.0003f  // ~-35 dB below the frame mean: masked by the frame as a whole
 
 typedef struct
 {
@@ -169,6 +170,18 @@ static float measure_band_energy(const CoderInfo * __restrict ci, const float * 
         }
         peak /= (float)gsize;
 
+        /* An M/S band is coded against half its weaker channel's L/R level;
+         * its own level would code the side as finely as the mid. A half
+         * that is silent on its own stays silent. */
+        float ms = ci->msEl[gnum * ci->sfbn + sfb];
+        if (ms > 0.0f && sum >= (SILENCE_RMS * SILENCE_RMS) * (float)(gsize * len))
+        {
+            float ref = 0.5f * fminf(ms, ci->msPeer[gnum * ci->sfbn + sfb]);
+            if (sum > 0.0f)
+                peak *= ref / sum;
+            sum = ref;
+        }
+
         out[sfb].sum = sum;
         out[sfb].peak_energy = peak;
         group_total += sum;
@@ -183,13 +196,13 @@ static float loudness(float energy_ratio)
 }
 
 // masking sensitivity drops above ~4 kHz; de-emphasize bands toward Nyquist
-static float treble_rolloff(int lo, int hi, float inv_block_len)
+static float treble_rolloff(int lo, int hi, float slope_per_line)
 {
-    return 10.0f / (1.0f + (float)(lo + hi) * inv_block_len);
+    return 10.0f / (1.0f + (float)(lo + hi) * slope_per_line);
 }
 
 static void derive_masking_targets(CoderInfo * __restrict ci, int gnum, float quality,
-                                    const BandEnergy * __restrict be, float group_total,
+                                    float treble_slope, const BandEnergy * __restrict be, float group_total,
                                     float * __restrict target_out)
 {
     int gsize = ci->groups.len[gnum];
@@ -208,6 +221,7 @@ static void derive_masking_targets(CoderInfo * __restrict ci, int gnum, float qu
 
     int block_len = (ci->block_type == ONLY_SHORT_WINDOW) ? BLOCK_LEN_SHORT : BLOCK_LEN_LONG;
     float inv_block_len = 1.0f / (float)block_len;
+    float slope_per_line = treble_slope * inv_block_len;
 
     for (sfb = 0; sfb < ci->sfbn; sfb++)
     {
@@ -227,7 +241,12 @@ static void derive_masking_targets(CoderInfo * __restrict ci, int gnum, float qu
 
         target = AVG_ENERGY_WEIGHT * loudness(avg / ref)
                + (1.0f - AVG_ENERGY_WEIGHT) * PEAK_ENERGY_WEIGHT * loudness(peak / ref_win);
-        target *= treble_rolloff(lo, hi, inv_block_len);
+        target *= treble_rolloff(lo, hi, slope_per_line);
+        /* A band this far under the frame is masked by it; the floors above
+         * would otherwise pin its target at the floor. Falls at half the
+         * loudness exponent. */
+        if (be[sfb].sum < ref * QUIET_BAND_FRAC)
+            target *= sqrtf(loudness(be[sfb].sum / (ref * QUIET_BAND_FRAC)));
 
         target_out[sfb] = target * quality;
     }
@@ -278,7 +297,7 @@ static float resolve_band_gain(int sfac, int sf_bias, float band_peak, int last_
 static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __restrict xr0,
                                    const float * __restrict target,
                                    const BandEnergy * __restrict be, int gnum, int pnslevel,
-                                   int * __restrict p_last_abs)
+                                   int * __restrict p_last_abs, int * __restrict qs, int * __restrict p_qlen)
 {
     int gsize = ci->groups.len[gnum];
     float pns_threshold = 0.1f * (float)pnslevel;
@@ -315,9 +334,27 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
         float sf_enrg_avg = log10f(avg_per_window) * SF_STEP_ENRG;
 
         /* PNS is fine inside TNS-covered bands -- the decoder's inverse
-         * TNS filter shapes the substituted noise too. */
-        if (target[sb] < pns_threshold)
+         * TNS filter shapes the substituted noise too. Decoders skip M/S on a
+         * noise band, so an M/S band that wants noise goes back to L/R noise
+         * in both channels, decided on the mid. Its flag isn't restored on a
+         * retry, so the fallback sticks. A side band left under M/S drops to
+         * zero instead, leaving the band mono. */
+        if (target[sb] < pns_threshold || (ci->msEl[band] > 0.0f && ci->msUsed && !ci->msUsed[band]))
         {
+            if (ci->msEl[band] > 0.0f)
+            {
+                CoderInfo *r = ci->partner;
+                if (!r)
+                {
+                    ci->book[band] = HCB_ZERO;
+                    ci->bandcnt++;
+                    continue;
+                }
+                ci->msUsed[band] = 0;
+                sf_enrg_avg = log10f(ci->msEl[band] / (float)gsize) * SF_STEP_ENRG;
+                r->book[band] = HCB_PNS;
+                r->sf[band] += lrintf(log10f(r->msEl[band] / (float)gsize) * SF_STEP_ENRG);
+            }
             ci->book[band] = HCB_PNS;
 #ifdef FAAC_STATS
             g_faacStats.pnsBands++;
@@ -340,7 +377,7 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
         {
             int sf_abs;
             float gain = resolve_band_gain(sfac, sf_bias, sqrtf(be[sb].peak_energy), *p_last_abs, &sf_rel, &sf_abs);
-            int xi[FRAME_LEN];
+            int *xi = qs + *p_qlen;
             int win, maxq = 0;
 
             for (win = 0; win < gsize; win++)
@@ -348,7 +385,11 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
                 int qm = qfunc(xr0 + win * BLOCK_LEN_SHORT + lo, xi + win * width, width >> 2, gain);
                 if (qm > maxq) maxq = qm;
             }
-            huffbook(ci, xi, gsize * width, maxq);
+            /* huffbook picks the final book; record the lowest that covers maxq */
+            ci->book[band] = !maxq ? HCB_ZERO : maxq <= LAV_1 ? HCB_1 : maxq <= LAV_2 ? HCB_3
+                           : maxq <= LAV_4 ? HCB_5 : maxq <= LAV_7 ? HCB_7 : maxq <= LAV_12 ? HCB_9 : HCB_ESC;
+            if (maxq)
+                *p_qlen += gsize * width;
             *p_last_abs = sf_abs;
         }
 
@@ -359,6 +400,12 @@ static void assign_band_codebooks(CoderInfo * __restrict ci, const float * __res
 void ResetCoderSections(CoderInfo *coder)
 {
     int i, n = coder->groups.n * coder->sfbn;
+    coder->partner = NULL;
+    coder->useRef = 0;
+    coder->msUsed = NULL;
+    coder->msPeer = NULL;
+    /* msEl[] is only read below n. */
+    memset(coder->msEl, 0, n * sizeof(coder->msEl[0]));
     for (i = 0; i < n; i++)
     {
         coder->book[i] = HCB_NONE;
@@ -377,11 +424,28 @@ static void assert_band_widths_align(const CoderInfo * __restrict ci)
         assert((ci->sfb_offset[sfb + 1] - ci->sfb_offset[sfb]) % 4 == 0);
 }
 
+/* Decoders disagree on whether an intensity band copies the left channel's
+ * substituted noise or its still-empty lines, so an intensity band over a
+ * noise band can decode silent. Code it as noise at the level the intensity
+ * position implies (both are 1.5 dB steps). Runs after the left
+ * channel's BlocQuant and before the right's. */
+static void ResolveIntensityNoise(const CoderInfo *left, CoderInfo *right)
+{
+    for (int i = 0; i < left->bandcnt; i++) {
+        int b = right->book[i];
+        if (left->book[i] == HCB_PNS && (b == HCB_INTENSITY || b == HCB_INTENSITY2)) {
+            right->book[i] = HCB_PNS;
+            right->sf[i] = left->sf[i] - right->sf[i];
+        }
+    }
+}
+
 int BlocQuant(CoderInfo * __restrict coder, float * __restrict xr, AACQuantCfg *aacquantCfg)
 {
     float target[MAX_SCFAC_BANDS];
     BandEnergy be[NSFB_LONG];
-    int i, lastsf = SF_CHAIN_UNSET;
+    int qs[FRAME_LEN];
+    int i, lastsf = SF_CHAIN_UNSET, qlen = 0;
     float *gxr = xr;
     int cutoff = (coder->block_type == ONLY_SHORT_WINDOW)
                ? aacquantCfg->max_l / 8 : coder->sfb_offset[coder->sfbn];
@@ -392,11 +456,14 @@ int BlocQuant(CoderInfo * __restrict coder, float * __restrict xr, AACQuantCfg *
     for (i = 0; i < coder->groups.n; i++)
     {
         float group_total = measure_band_energy(coder, gxr, i, cutoff, be);
+        if (coder->useRef)
+            group_total = coder->refTotal[i];
 
-        derive_masking_targets(coder, i, (float)aacquantCfg->quality / DEFQUAL, be, group_total, target);
-        assign_band_codebooks(coder, gxr, target, be, i, aacquantCfg->pnslevel, &lastsf);
+        derive_masking_targets(coder, i, (float)aacquantCfg->quality / DEFQUAL, aacquantCfg->treble_slope, be, group_total, target);
+        assign_band_codebooks(coder, gxr, target, be, i, aacquantCfg->pnslevel, &lastsf, qs, &qlen);
         gxr += coder->groups.len[i] * BLOCK_LEN_SHORT;
     }
+    huffbook(coder, qs);
 
     // global_gain must come from a regular band: it's an 8-bit bitstream field,
     // and intensity/PNS bands store stereo-position/noise-energy on a different
@@ -429,6 +496,8 @@ int BlocQuant(CoderInfo * __restrict coder, float * __restrict xr, AACQuantCfg *
             coder->sf[i] = lastpns;
         }
     }
+    if (coder->partner)
+        ResolveIntensityNoise(coder, coder->partner);
     return 1;
 }
 

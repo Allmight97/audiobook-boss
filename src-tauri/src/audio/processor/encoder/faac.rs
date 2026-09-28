@@ -6,9 +6,7 @@ use faac_sys as faac;
 use ffmpeg_next as ff;
 use std::{ffi::CStr, mem::size_of, ptr};
 
-use super::super::faac_timing::{
-    CORE_PRIMING as HE_PRIMING_SAMPLES, SBR_DELAY as HE_DECODER_DELAY_SAMPLES,
-};
+use super::super::faac_timing::CORE_PRIMING;
 
 pub(super) struct FaacEncoder {
     handle: *mut faac::faac_encoder,
@@ -115,7 +113,9 @@ impl FaacEncoder {
         )?;
         let (frame_samples, delay) = match self.info.object_type {
             faac::FAAC_OBJ_LOW => (1024, 1024),
-            faac::FAAC_OBJ_HE_AAC_V1 => (2048, HE_PRIMING_SAMPLES + HE_DECODER_DELAY_SAMPLES),
+            // FAAC reports HE priming without the SBR decoder delay; the MP4
+            // timing ABB writes (`faac_timing`) must match it exactly.
+            faac::FAAC_OBJ_HE_AAC_V1 => (2048, CORE_PRIMING),
             _ => {
                 return Err(AppError::General(
                     "FAAC returned an unsupported profile.".into(),
@@ -172,11 +172,7 @@ impl FaacEncoder {
     }
 
     pub fn priming(&self) -> i64 {
-        if self.is_he() {
-            HE_PRIMING_SAMPLES
-        } else {
-            i64::from(self.info.encoder_delay)
-        }
+        i64::from(self.info.encoder_delay)
     }
 
     pub fn encoding_tool(&self) -> &'static str {

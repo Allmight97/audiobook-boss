@@ -38,13 +38,13 @@
  * lands, the more spectrum SBR is rescuing. 8000 is HE-AAC's design floor and
  * the lowest rate measured. */
 #define HE_MIN_BITRATE_PER_CH 8000
-/* Crossover measured against the LC curve at 48 kHz: HE still leads at
- * 20000 per channel and trails from 24000; this is the midpoint. At
- * 44.1 kHz HE already trails at 32000, so the ceiling reaches this value
- * only at HE_MAX_SAMPLE_RATE. Either side moving (a wider LC core, a
- * better SBR) re-opens this constant. */
-#define HE_MAX_BITRATE_PER_CH 22000
-#define HE_MAX_SAMPLE_RATE    48000
+/* Highest rate at which HE-AAC still beats FAAC's own LC. At 32 kHz the
+ * Fs/2 core is only 8 kHz wide, so HE stops winning much sooner there; the
+ * ceiling ramps between the two sample rates. Either side moving (a wider
+ * LC core, a better SBR) re-opens these constants. */
+#define HE_MAX_BITRATE_PER_CH 32000
+#define HE_MAX_SAMPLE_RATE    44100
+#define HE_MIN_SR_MAX_BITRATE_PER_CH 12000
 /* Frozen, not derived: quantqual doesn't map onto a bitrate ceiling cleanly
  * (the two are off by 2-4.5x across the range), so this is set by measurement.
  * At matched bitrate HE leads LC well past this, further than under ABR,
@@ -61,6 +61,12 @@
  * the band above holds ~0.006% of programme energy and sits at the edge of
  * hearing. VBR, having no rate, codes at the top. */
 #define BANDWIDTH_CEILING     18750
+
+/* From this rate (bps per channel) the quantizer's treble de-emphasis is
+ * steepened by TREBLE_SLOPE_RICH; below it the steeper slope starves the
+ * treble of some material. */
+#define TREBLE_SLOPE_BITRATE  56000
+#define TREBLE_SLOPE_RICH     3.0f
 
 #if (defined WIN32 || defined _WIN32 || defined WIN64 || defined _WIN64) && !defined(PACKAGE_VERSION)
 #include "win32_ver.h"
@@ -214,14 +220,15 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
         unsigned long rate_per_ch = config->bitRate;
         int rate_ok;
         if (rate_per_ch > 0) {
-            /* Below 48 kHz, SBR has less core bandwidth to extend from, so the
-             * ceiling ramps down toward 20000 bps/ch at the HE_MIN_SAMPLE_RATE floor. */
+            /* Below 44.1 kHz, SBR has less core bandwidth to extend from, so the
+             * ceiling ramps down to HE_MIN_SR_MAX_BITRATE_PER_CH at the
+             * HE_MIN_SAMPLE_RATE floor. */
             unsigned int max_he_rate = 0;
             if (hEncoder->sampleRate >= HE_MAX_SAMPLE_RATE) {
                 max_he_rate = HE_MAX_BITRATE_PER_CH;
             } else if (hEncoder->sampleRate >= HE_MIN_SAMPLE_RATE) {
-                max_he_rate = 20000 + (unsigned int)((hEncoder->sampleRate - HE_MIN_SAMPLE_RATE) *
-                              (HE_MAX_BITRATE_PER_CH - 20000) / (HE_MAX_SAMPLE_RATE - HE_MIN_SAMPLE_RATE));
+                max_he_rate = HE_MIN_SR_MAX_BITRATE_PER_CH + (unsigned int)((hEncoder->sampleRate - HE_MIN_SAMPLE_RATE) *
+                              (HE_MAX_BITRATE_PER_CH - HE_MIN_SR_MAX_BITRATE_PER_CH) / (HE_MAX_SAMPLE_RATE - HE_MIN_SAMPLE_RATE));
             }
             rate_ok = (rate_per_ch >= HE_MIN_BITRATE_PER_CH && rate_per_ch <= max_he_rate);
         } else {
@@ -337,6 +344,10 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
     }
     /* set quantization quality */
     hEncoder->aacquantCfg.quality = config->quantqual;
+    /* A rate that already codes the treble well spends its margin better on
+     * the low bands, where the de-emphasis leaves the most audible error. */
+    hEncoder->aacquantCfg.treble_slope = (hEncoder->config.bitRate >= TREBLE_SLOPE_BITRATE)
+        ? TREBLE_SLOPE_RICH : 1.0f;
 
     if (hEncoder->config.aacObjectType == HE_V1) {
         SBRContext *sCtx = hEncoder->sbrContext;
@@ -403,7 +414,8 @@ int faacEncApplyConfig(faacEncStruct* hEncoder,
         const int *sfbOffset[2] = { hEncoder->sfbOffsetLong, hEncoder->sfbOffsetShort };
         const int  sfbn[2]      = { hEncoder->aacquantCfg.max_cbl, hEncoder->aacquantCfg.max_cbs };
         StereoConfigure(&hEncoder->stereoCfg, (JointMode)hEncoder->config.jointmode, hEncoder->sampleRate,
-                        hEncoder->config.bandWidth, hEncoder->config.bitRate, sfbOffset, sfbn);
+                        hEncoder->config.bandWidth, hEncoder->config.bitRate,
+                        hEncoder->config.aacObjectType == HE_V1, sfbOffset, sfbn);
     }
 
     // reset psymodel
@@ -1022,18 +1034,12 @@ int faacEncEncode(faacEncHandle hpEncoder,
                       &(hEncoder->aacquantCfg));
         }
 
-        // fix max_sfb in CPE mode
-        for (int e = 0; e < hEncoder->numElements; e++)
+        /* A common window shares one max_sfb between the two channels. */
+        for (channel = 0; channel < numChannels; channel++)
         {
-            if (hEncoder->elements[e].type == ID_CPE)
-            {
-                CoderInfo *cil, *cir;
-
-                cil = &coderInfo[hEncoder->elements[e].channels[0]];
-                cir = &coderInfo[hEncoder->elements[e].channels[1]];
-
+            CoderInfo *cil = &coderInfo[channel], *cir = cil->partner;
+            if (cir)
                 cil->sfbn = cir->sfbn = max(cil->sfbn, cir->sfbn);
-            }
         }
 
         /* Write the AAC bitstream; the write doubles as the size probe. */

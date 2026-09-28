@@ -4,6 +4,15 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the bundled FAAC encoder to upstream `d841c4e` (2026-09-27): real
+  mid/side stereo, better Huffman and quantizer choices, and realigned HE-AAC
+  analysis. With profile Auto, FAAC now picks HE-AAC up to 32 kbps per channel
+  (was 22), so a 64 kbps stereo book encodes as HE-AAC instead of AAC-LC.
+  Choose AAC-LC explicitly to keep the previous result. Timing of files ABB
+  writes, and re-import of older ABB FAAC files, is unchanged.
+
 ## [1.13.0] - 2026-09-27
 
 ### Added

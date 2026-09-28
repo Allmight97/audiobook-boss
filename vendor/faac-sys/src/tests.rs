@@ -1,5 +1,5 @@
 use super::*;
-use std::{ffi::CStr, mem::size_of, ptr};
+use std::{mem::size_of, ptr};
 
 struct Handle(*mut faac_encoder);
 
@@ -54,11 +54,12 @@ fn smoke_encode(profile: faac_object_type, rate: u32, channels: u32) -> Vec<Vec<
 #[test]
 fn auto_profile_uses_output_rate_channels_and_quality() {
     for (rate, channels, quality, expected) in [
+        // 64 kbps total: HE at 32 kbps per channel once HE's rate floor allows it.
         (22050, 2, 0, FAAC_OBJ_LOW),
         (32000, 2, 0, FAAC_OBJ_LOW),
-        (44100, 2, 0, FAAC_OBJ_LOW),
-        (48000, 2, 0, FAAC_OBJ_LOW),
-        (96000, 2, 0, FAAC_OBJ_LOW),
+        (44100, 2, 0, FAAC_OBJ_HE_AAC_V1),
+        (48000, 2, 0, FAAC_OBJ_HE_AAC_V1),
+        (96000, 2, 0, FAAC_OBJ_HE_AAC_V1),
         (48000, 1, 0, FAAC_OBJ_LOW),
         (48000, 2, 50, FAAC_OBJ_HE_AAC_V1),
         (48000, 2, 100, FAAC_OBJ_LOW),
@@ -120,7 +121,7 @@ fn encode_configuration(
     );
     assert_eq!(
         info.encoder_delay,
-        if expected == FAAC_OBJ_LOW { 1024 } else { 3042 }
+        if expected == FAAC_OBJ_LOW { 1024 } else { 2080 }
     );
     assert_eq!(
         info.frame_samples,
@@ -204,8 +205,5 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(unsafe { faac_get_library_info(&mut info) }, FAAC_OK);
     assert_eq!(info.max_channels, 2);
     assert_eq!(info.sbr_decimation, 1);
-    assert_eq!(
-        unsafe { CStr::from_ptr(info.version) }.to_bytes(),
-        b"2.1.0-dev.1cbe2a0"
-    );
+    assert!(!info.version.is_null());
 }

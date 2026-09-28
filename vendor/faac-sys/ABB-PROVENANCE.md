@@ -1,9 +1,9 @@
 # ABB bundled FAAC dependency
 
 The bundled source is selected from [knik0/faac](https://github.com/knik0/faac)
-at upstream revision `1cbe2a02596bc510c7eeaf93837c6eb72e5bc551` (2026-09-23,
-`quantize: tighten quantizer kernels and vectorize the grouping energy sum (#226)`).
-This was upstream HEAD when checked on 2026-09-23; builds use this immutable
+at upstream revision `d841c4e7063ec3a83e16cd57ae12e51e7317d0a5` (2026-09-27,
+`update .gitignore to include additional file patterns (#233)`).
+This was upstream HEAD when checked on 2026-09-27; builds use this immutable
 revision's source slice.
 
 `upstream/` contains the portable scalar files listed by upstream
@@ -12,7 +12,7 @@ revision's source slice.
 and unrelated documentation are omitted. The Rust build compiles the same
 source list with `cc`, force-includes its generated configuration
 (`MAX_CHANNELS=2`, `FAAC_SBR_DECIMATION=1`,
-`PACKAGE_VERSION=2.1.0-dev.1cbe2a0`), and runs bindgen against the same public
+`PACKAGE_VERSION=2.1.0-dev.d841c4e`), and runs bindgen against the same public
 header used by the C build. Compiled C and generated Rust bindings therefore
 share one header/configuration contract.
 
@@ -36,16 +36,22 @@ or subjective quality improvement from these changes.
 
 [Upstream #218](https://github.com/knik0/faac/pull/218) primes HE input with one
 zero sample so its delay is exactly representable at the AAC core rate. HE's
-reported delay becomes 3042 full-rate samples; LC remains at 1024. This changes
-HE alignment, not the profile decision or rate-control policy.
+full-rate delay became even. [Upstream #227](https://github.com/knik0/faac/pull/227)
+then removed the SBR decoder delay (962 samples) from the reported HE priming,
+matching the Apple and fdk-aac convention: `encoder_delay` is now 2080 for HE and
+1024 for LC. Encoded audio is unchanged by #227; only the reported priming moved.
 
 The selected update also includes #219–#226: valid SBR stop-frequency signaling,
 short-block and transient tuning, encoder-owned PNS policy, removal of quiet-channel
 muting, and quantizer/Huffman improvements. The public header replaces `pns_level`
 with `use_pns` and reports the resolved MPEG version. ABB uses initialized library
 defaults and regenerates bindings against that header. Auto's bitrate crossover
-now selects LC above 22 kbps per channel; quality-VBR decisions remain upstream-owned.
-These changes can alter bitrate, profile, and encoded audio. Upstream's quality
+selects LC above 32 kbps per channel at output rates where HE is allowed
+([upstream #231](https://github.com/knik0/faac/pull/231), raised from 22 kbps), so a
+64 kbps stereo ABR request with profile Auto now resolves to HE; quality-VBR
+decisions remain upstream-owned. #228–#232 also realign SBR envelope analysis,
+code real mid/side stereo, choose Huffman section codebooks jointly, and retune the
+quantizer toward low bands. These changes can alter bitrate, profile, and encoded audio. Upstream's quality
 claims do not establish a measured perceptual improvement in ABB.
 
 ## Adapter contract
@@ -64,6 +70,9 @@ creating mux parameters, and rejects a silently clamped request. Profile Auto
 and rate-control Auto are independent upstream features; ABB exposes explicit
 ABR/VBR choices with ABR as FAAC’s initial mode.
 
+The adapter requires FAAC's reported delay to equal the priming `faac_timing`
+writes (1024 LC, 2080 HE) and refuses to open otherwise, so an upstream delay
+change fails loudly instead of mistiming files.
 `src-tauri/src/audio/processor/faac_timing.rs` owns the HE-specific MP4 core
 priming and native-decoder interval. LC uses its returned delay and a distinct
 encoding-tool tag. New HE files use `AudioBook Boss FAAC HE-AAC timing-2`,
