@@ -166,6 +166,16 @@ fn log_audio_decision(request: &ProcessingJobRequest, job_id: JobId) {
         request.input_index, request.audio_request, request.audio_handling,
         request.encoder_settings, request.sample_rate, reason, request.output_plan.resolved_path
     );
+    // Fields absent here keep the source tag; metadata_plan lines cannot tell the two apart.
+    log::info!(
+        "metadata_intent job_id={} input_index={} requested={}",
+        job_id,
+        request.input_index,
+        request
+            .metadata_intent
+            .as_ref()
+            .map_or_else(|| "none".to_string(), |patch| patch.describe_ops())
+    );
     for (index, source) in request.file_info.files.iter().enumerate() {
         log::info!(
             "audio_source job_id={} source_index={} source_path={:?}",

@@ -317,6 +317,25 @@ describe('metadata edit intent', () => {
 		});
 	});
 
+	it('a shared author edit still reaches processing after a later title-only edit', async () => {
+		const other: Book = {
+			path: '/books/other.m4b',
+			tags: { ...beta.tags, artist: 'Other Author' },
+		};
+		const app = await open([alpha, other], [0, 1], capability([alpha, other]));
+		app.metadata.setFieldValue({ inputId: 'meta-author', value: 'FDK Decision' });
+		await app.metadata.stageCurrentSelection();
+		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'NMR 64k' });
+		await app.metadata.stageCurrentSelection();
+		const author = { op: 'set', value: 'FDK Decision' };
+		const title = { op: 'set', value: 'NMR 64k' };
+		expect(await app.metadata.intentsForProcess([alpha.path, other.path])).toEqual({
+			[alpha.path]: { artist: author, title, album: title },
+			[other.path]: { artist: author, title, album: title },
+		});
+		expect(app.metadata.readCached(other.path)?.artist).toBe('FDK Decision');
+	});
+
 	it('a saved cover replacement stays shown after a text edit on an untagged file', async () => {
 		const bare: Book = { path: '/books/bare.m4b', tags: { cover_art: [7, 7, 7] } };
 		const metadata = capability([bare], { loadCoverArtFile: vi.fn(async () => [9, 9, 9]) });

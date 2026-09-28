@@ -114,7 +114,7 @@ mismatch instead of blending the sources.
 
 - Every processing job has exactly one terminal outcome: `success`, `skipped`, `cancelled`, or `failed`.
 - UI renders backend terminal truth; it does not invent final status.
-- Metadata `set`, `clear`, and `noop` intent remains distinct across the runtime boundary.
+- Metadata `set`, `clear`, and absent (keep source) intent remain distinct across the runtime boundary.
 - Input, output, and artifact paths remain validated at their owning ingress, plan, or commit seam.
 - Accepted WorkRuntime submissions keep stable identity and immutable accepted inputs.
 - External-provider partial failure remains typed and explicit at the owning command.

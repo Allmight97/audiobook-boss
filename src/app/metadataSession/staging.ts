@@ -4,7 +4,7 @@ import {
 	hasActionableMetadataIntentPatch,
 	type MetadataIntentPatch,
 } from '../../types/metadataIntent';
-import { isUsableMetadataCache, type MetadataCache } from './cache';
+import type { MetadataCache } from './cache';
 import { composeFormIntent, type MetadataFormState } from './form';
 import { validateMetadataIntent, type ValidateMetadataIntentPatch } from './validation';
 
@@ -60,8 +60,8 @@ export function commitPreparedMetadataDrafts(
 	cache: MetadataCache,
 ): void {
 	for (const [path, metadata] of Object.entries(prepared.snapshotsByPath)) {
-		if (!isUsableMetadataCache(cache.getMetadataForFile(path))) {
-			cache.cacheMetadataForFile(path, metadata);
+		if (!cache.hasSourceMetadata(path)) {
+			cache.recordSourceMetadata(path, metadata);
 		}
 	}
 	for (const file of prepared.targets) {
@@ -75,7 +75,7 @@ export async function readUncachedMetadataSnapshot(
 	cache: MetadataCache,
 ): Promise<Partial<AudiobookMetadata> | null> {
 	if (!file.isValid) return null;
-	if (isUsableMetadataCache(cache.getMetadataForFile(file.path))) return null;
+	if (cache.hasSourceMetadata(file.path)) return null;
 	try {
 		return await readAudioMetadata(file.path);
 	} catch (error) {

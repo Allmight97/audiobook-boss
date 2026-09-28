@@ -49,23 +49,21 @@ impl AudiobookMetadata {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
+/// One requested field change. A field the user left alone is absent from
+/// [`MetadataIntentPatch`]; there is no in-band "no change" operation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "op", rename_all = "snake_case", content = "value")]
 pub enum PatchOp<T> {
     Set(T),
     Clear,
-    #[default]
-    Noop,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "op", rename_all = "snake_case", content = "value")]
 pub enum AlbumSortPatchOp {
     Set(String),
     Clear,
     Recompute,
-    #[default]
-    Noop,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,42 +112,59 @@ pub struct MetadataIntentValidationResult {
     pub field_errors: Vec<MetadataIntentFieldError>,
 }
 
+/// The fields a user asked to change; absent fields keep their source value.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type, Default)]
 pub struct MetadataIntentPatch {
-    #[serde(default)]
-    pub title: PatchOp<String>,
-    #[serde(default)]
-    pub artist: PatchOp<String>,
-    #[serde(default)]
-    pub album: PatchOp<String>,
-    #[serde(default)]
-    pub composer: PatchOp<String>,
-    #[serde(default)]
-    pub genre: PatchOp<String>,
-    #[serde(default)]
-    pub date: PatchOp<String>,
-    #[serde(default)]
-    pub description: PatchOp<String>,
-    #[serde(default)]
-    pub series: PatchOp<String>,
-    #[serde(default)]
-    pub series_part: PatchOp<String>,
-    #[serde(default)]
-    pub subseries: PatchOp<String>,
-    #[serde(default)]
-    pub subseries_part: PatchOp<String>,
-    #[serde(default)]
-    pub album_sort: AlbumSortPatchOp,
-    #[serde(default)]
-    pub cover_art: PatchOp<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub title: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub artist: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub album: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub composer: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub genre: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub date: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub description: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub series: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub series_part: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub subseries: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub subseries_part: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = AlbumSortPatchOp, optional)]
+    pub album_sort: Option<AlbumSortPatchOp>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<Vec<u8>>, optional)]
+    pub cover_art: Option<PatchOp<Vec<u8>>>,
     // Compatibility/provenance artifact fields (#281): preserved on normal
     // saves, editable/clearable only through explicit intent.
-    #[serde(default)]
-    pub comment: PatchOp<String>,
-    #[serde(default)]
-    pub track: PatchOp<(u32, Option<u32>)>,
-    #[serde(default)]
-    pub disk: PatchOp<(u32, Option<u32>)>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<String>, optional)]
+    pub comment: Option<PatchOp<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<(u32, Option<u32>)>, optional)]
+    pub track: Option<PatchOp<(u32, Option<u32>)>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = PatchOp<(u32, Option<u32>)>, optional)]
+    pub disk: Option<PatchOp<(u32, Option<u32>)>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -227,14 +242,56 @@ impl MetadataWritePlan {
 
 impl MetadataIntentPatch {
     pub fn clears_cover_art(&self) -> bool {
-        matches!(self.cover_art, PatchOp::Clear)
+        matches!(self.cover_art, Some(PatchOp::Clear))
     }
 
     pub fn touches_series_family(&self) -> bool {
-        !matches!(self.series, PatchOp::Noop)
-            || !matches!(self.series_part, PatchOp::Noop)
-            || !matches!(self.subseries, PatchOp::Noop)
-            || !matches!(self.subseries_part, PatchOp::Noop)
+        self.series.is_some()
+            || self.series_part.is_some()
+            || self.subseries.is_some()
+            || self.subseries_part.is_some()
+    }
+
+    /// Requested field operations without values, e.g. `title=set,artist=clear`;
+    /// `none` when the patch requests nothing.
+    pub fn describe_ops(&self) -> String {
+        fn op<T>(patch: &Option<PatchOp<T>>) -> Option<&'static str> {
+            patch.as_ref().map(|op| match op {
+                PatchOp::Set(_) => "set",
+                PatchOp::Clear => "clear",
+            })
+        }
+        let album_sort = self.album_sort.as_ref().map(|op| match op {
+            AlbumSortPatchOp::Set(_) => "set",
+            AlbumSortPatchOp::Clear => "clear",
+            AlbumSortPatchOp::Recompute => "recompute",
+        });
+        let described = [
+            ("title", op(&self.title)),
+            ("artist", op(&self.artist)),
+            ("album", op(&self.album)),
+            ("composer", op(&self.composer)),
+            ("genre", op(&self.genre)),
+            ("date", op(&self.date)),
+            ("description", op(&self.description)),
+            ("series", op(&self.series)),
+            ("series_part", op(&self.series_part)),
+            ("subseries", op(&self.subseries)),
+            ("subseries_part", op(&self.subseries_part)),
+            ("album_sort", album_sort),
+            ("cover_art", op(&self.cover_art)),
+            ("comment", op(&self.comment)),
+            ("track", op(&self.track)),
+            ("disk", op(&self.disk)),
+        ]
+        .into_iter()
+        .filter_map(|(field, op)| op.map(|op| format!("{field}={op}")))
+        .collect::<Vec<_>>();
+        if described.is_empty() {
+            "none".to_string()
+        } else {
+            described.join(",")
+        }
     }
 
     pub fn validate_and_normalize(&self) -> MetadataIntentValidationResult {
@@ -284,17 +341,19 @@ impl MetadataIntentPatch {
         }
 
         let album_sort = match &patch.album_sort {
-            AlbumSortPatchOp::Set(value) if value.trim().is_empty() => AlbumSortWriteAction::Clear,
-            AlbumSortPatchOp::Set(value) => {
+            Some(AlbumSortPatchOp::Set(value)) if value.trim().is_empty() => {
+                AlbumSortWriteAction::Clear
+            }
+            Some(AlbumSortPatchOp::Set(value)) => {
                 metadata.album_sort = Some(value.clone());
                 AlbumSortWriteAction::Set(value.clone())
             }
-            AlbumSortPatchOp::Clear => {
+            Some(AlbumSortPatchOp::Clear) => {
                 metadata.album_sort = Some(String::new());
                 AlbumSortWriteAction::Clear
             }
-            AlbumSortPatchOp::Recompute => AlbumSortWriteAction::Recompute,
-            AlbumSortPatchOp::Noop => AlbumSortWriteAction::Preserve,
+            Some(AlbumSortPatchOp::Recompute) => AlbumSortWriteAction::Recompute,
+            None => AlbumSortWriteAction::Preserve,
         };
 
         Ok(MetadataWritePlan {
@@ -492,17 +551,13 @@ fn validate_series_family_if_touched(metadata: &AudiobookMetadata, touched: bool
     Ok(())
 }
 
-fn touched_patch(patch: &PatchOp<String>) -> bool {
-    !matches!(patch, PatchOp::Noop)
-}
-
 fn apply_effective_series_family_to_write_plan(
     patch: &MetadataIntentPatch,
     effective: &AudiobookMetadata,
     metadata: &mut AudiobookMetadata,
 ) {
-    let touches_names = touched_patch(&patch.series) || touched_patch(&patch.subseries);
-    let touches_parts = touched_patch(&patch.series_part) || touched_patch(&patch.subseries_part);
+    let touches_names = patch.series.is_some() || patch.subseries.is_some();
+    let touches_parts = patch.series_part.is_some() || patch.subseries_part.is_some();
 
     if touches_names {
         metadata.series = Some(effective.series.clone().unwrap_or_default());
@@ -539,22 +594,22 @@ pub fn compute_album_sort(series: &str, series_part: Option<&str>, title: &str) 
 }
 
 fn validate_date_patch(
-    patch: &PatchOp<String>,
-    normalized: &mut PatchOp<String>,
+    patch: &Option<PatchOp<String>>,
+    normalized: &mut Option<PatchOp<String>>,
     field_errors: &mut Vec<MetadataIntentFieldError>,
 ) {
-    let PatchOp::Set(value) = patch else {
+    let Some(PatchOp::Set(value)) = patch else {
         return;
     };
 
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        *normalized = PatchOp::Clear;
+        *normalized = Some(PatchOp::Clear);
         return;
     }
 
     if let Some(normalized_date) = normalize_publication_date(trimmed) {
-        *normalized = PatchOp::Set(normalized_date);
+        *normalized = Some(PatchOp::Set(normalized_date));
         return;
     }
 
@@ -566,13 +621,13 @@ fn validate_date_patch(
 }
 
 fn validate_sequence_patch(
-    patch: &PatchOp<String>,
+    patch: &Option<PatchOp<String>>,
     field: MetadataIntentValidationField,
     code: MetadataIntentValidationCode,
     message: &str,
     field_errors: &mut Vec<MetadataIntentFieldError>,
 ) {
-    let PatchOp::Set(value) = patch else {
+    let Some(PatchOp::Set(value)) = patch else {
         return;
     };
 
@@ -614,17 +669,21 @@ fn apply_shared_metadata_patch_fields(
     apply_string(&patch.subseries_part, &mut metadata.subseries_part);
 
     match (&patch.date, semantics) {
-        (PatchOp::Set(date), _) => metadata.date = Some(date.clone()),
-        (PatchOp::Clear, PatchFieldSemantics::Processing) => metadata.date = None,
-        (PatchOp::Clear, PatchFieldSemantics::WritePlan) => metadata.date = Some(String::new()),
-        (PatchOp::Noop, _) => {}
+        (Some(PatchOp::Set(date)), _) => metadata.date = Some(date.clone()),
+        (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => metadata.date = None,
+        (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
+            metadata.date = Some(String::new())
+        }
+        (None, _) => {}
     }
 
     match (&patch.cover_art, semantics) {
-        (PatchOp::Set(bytes), _) => metadata.cover_art = Some(bytes.clone()),
-        (PatchOp::Clear, PatchFieldSemantics::Processing) => metadata.cover_art = None,
-        (PatchOp::Clear, PatchFieldSemantics::WritePlan) => metadata.cover_art = Some(Vec::new()),
-        (PatchOp::Noop, _) => {}
+        (Some(PatchOp::Set(bytes)), _) => metadata.cover_art = Some(bytes.clone()),
+        (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => metadata.cover_art = None,
+        (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => {
+            metadata.cover_art = Some(Vec::new())
+        }
+        (None, _) => {}
     }
 
     apply_string(&patch.comment, &mut metadata.comment);
@@ -636,33 +695,36 @@ fn apply_shared_metadata_patch_fields(
         (&patch.disk, &mut metadata.disk),
     ] {
         match (op, semantics) {
-            (PatchOp::Set(position), _) => *slot = Some(*position),
-            (PatchOp::Clear, PatchFieldSemantics::Processing) => *slot = None,
-            (PatchOp::Clear, PatchFieldSemantics::WritePlan) => *slot = Some((0, None)),
-            (PatchOp::Noop, _) => {}
+            (Some(PatchOp::Set(position)), _) => *slot = Some(*position),
+            (Some(PatchOp::Clear), PatchFieldSemantics::Processing) => *slot = None,
+            (Some(PatchOp::Clear), PatchFieldSemantics::WritePlan) => *slot = Some((0, None)),
+            (None, _) => {}
         }
     }
 
     Ok(())
 }
 
-fn apply_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {
+fn apply_string_patch(patch: &Option<PatchOp<String>>, output: &mut Option<String>) {
     match patch {
-        PatchOp::Set(value) => *output = Some(value.clone()),
-        PatchOp::Clear => *output = Some(String::new()),
-        PatchOp::Noop => {}
+        Some(PatchOp::Set(value)) => *output = Some(value.clone()),
+        Some(PatchOp::Clear) => *output = Some(String::new()),
+        None => {}
     }
 }
 
-fn apply_processing_string_patch(patch: &PatchOp<String>, output: &mut Option<String>) {
+fn apply_processing_string_patch(patch: &Option<PatchOp<String>>, output: &mut Option<String>) {
     match patch {
-        PatchOp::Set(value) => *output = Some(value.clone()),
-        PatchOp::Clear => *output = None,
-        PatchOp::Noop => {}
+        Some(PatchOp::Set(value)) => *output = Some(value.clone()),
+        Some(PatchOp::Clear) => *output = None,
+        None => {}
     }
 }
 
-fn apply_album_sort_patch(patch: &AlbumSortPatchOp, metadata: &mut AudiobookMetadata) {
+fn apply_album_sort_patch(patch: &Option<AlbumSortPatchOp>, metadata: &mut AudiobookMetadata) {
+    let Some(patch) = patch else {
+        return;
+    };
     match patch {
         AlbumSortPatchOp::Set(value) => {
             if value.trim().is_empty() {
@@ -677,7 +739,6 @@ fn apply_album_sort_patch(patch: &AlbumSortPatchOp, metadata: &mut AudiobookMeta
         AlbumSortPatchOp::Recompute => {
             metadata.album_sort = recompute_album_sort(metadata);
         }
-        AlbumSortPatchOp::Noop => {}
     }
 }
 
@@ -711,11 +772,11 @@ mod tests {
     #[test]
     fn metadata_intent_patch_applies_set_and_clear_ops() {
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Project Hail Mary".to_string()),
-            artist: PatchOp::Clear,
-            date: PatchOp::Clear,
-            album_sort: AlbumSortPatchOp::Clear,
-            cover_art: PatchOp::Clear,
+            title: Some(PatchOp::Set("Project Hail Mary".to_string())),
+            artist: Some(PatchOp::Clear),
+            date: Some(PatchOp::Clear),
+            album_sort: Some(AlbumSortPatchOp::Clear),
+            cover_art: Some(PatchOp::Clear),
             ..Default::default()
         };
 
@@ -732,9 +793,9 @@ mod tests {
     }
 
     #[test]
-    fn metadata_intent_patch_keeps_album_sort_noop_explicit() {
+    fn metadata_intent_patch_preserves_album_sort_when_absent() {
         let patch = MetadataIntentPatch {
-            genre: PatchOp::Set("Sci-Fi".to_string()),
+            genre: Some(PatchOp::Set("Sci-Fi".to_string())),
             ..Default::default()
         };
 
@@ -750,7 +811,7 @@ mod tests {
     #[test]
     fn metadata_intent_patch_supports_album_sort_set_clear_and_recompute() {
         let set_plan = MetadataIntentPatch {
-            album_sort: AlbumSortPatchOp::Set("Custom Sort".to_string()),
+            album_sort: Some(AlbumSortPatchOp::Set("Custom Sort".to_string())),
             ..Default::default()
         }
         .to_write_plan_with_source(AudiobookMetadata::default())
@@ -762,7 +823,7 @@ mod tests {
         );
 
         let clear_plan = MetadataIntentPatch {
-            album_sort: AlbumSortPatchOp::Clear,
+            album_sort: Some(AlbumSortPatchOp::Clear),
             ..Default::default()
         }
         .to_write_plan_with_source(AudiobookMetadata::default())
@@ -771,7 +832,7 @@ mod tests {
         assert_eq!(clear_plan.album_sort, AlbumSortWriteAction::Clear);
 
         let recompute_plan = MetadataIntentPatch {
-            album_sort: AlbumSortPatchOp::Recompute,
+            album_sort: Some(AlbumSortPatchOp::Recompute),
             ..Default::default()
         }
         .to_write_plan_with_source(AudiobookMetadata::default())
@@ -783,7 +844,7 @@ mod tests {
     #[test]
     fn metadata_intent_patch_rejects_invalid_publication_date() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set("2024-13".to_string()),
+            date: Some(PatchOp::Set("2024-13".to_string())),
             ..Default::default()
         };
 
@@ -797,7 +858,7 @@ mod tests {
     #[test]
     fn metadata_intent_patch_rejects_series_part_with_slash() {
         let patch = MetadataIntentPatch {
-            series_part: PatchOp::Set("7/8".to_string()),
+            series_part: Some(PatchOp::Set("7/8".to_string())),
             ..Default::default()
         };
 
@@ -816,12 +877,12 @@ mod tests {
     fn metadata_intent_patch_write_contract_carries_explicit_artifact_intent_only() {
         // #281 posture: artifact fields (comment/track/disk) enter write
         // intent only when the caller states them; a default patch (see
-        // artifact_noop_intents_preserve_values) leaves them untouched.
+        // absent_artifact_intents_preserve_values) leaves them untouched.
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Read Compatible".to_string()),
-            track: PatchOp::Set((3, Some(12))),
-            disk: PatchOp::Set((1, Some(2))),
-            comment: PatchOp::Set("Reader note".to_string()),
+            title: Some(PatchOp::Set("Read Compatible".to_string())),
+            track: Some(PatchOp::Set((3, Some(12)))),
+            disk: Some(PatchOp::Set((1, Some(2)))),
+            comment: Some(PatchOp::Set("Reader note".to_string())),
             ..Default::default()
         };
 
@@ -837,7 +898,7 @@ mod tests {
     }
 
     #[test]
-    fn processing_patch_apply_to_metadata_handles_set_clear_noop_and_recompute() {
+    fn processing_patch_apply_to_metadata_handles_set_clear_absent_and_recompute() {
         let base = AudiobookMetadata {
             title: Some("Old Title".to_string()),
             artist: Some("Old Artist".to_string()),
@@ -849,12 +910,12 @@ mod tests {
             ..Default::default()
         };
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("New Title".to_string()),
-            artist: PatchOp::Clear,
-            series_part: PatchOp::Set("2".to_string()),
-            album_sort: AlbumSortPatchOp::Recompute,
-            date: PatchOp::Set("2024-09-01".to_string()),
-            cover_art: PatchOp::Clear,
+            title: Some(PatchOp::Set("New Title".to_string())),
+            artist: Some(PatchOp::Clear),
+            series_part: Some(PatchOp::Set("2".to_string())),
+            album_sort: Some(AlbumSortPatchOp::Recompute),
+            date: Some(PatchOp::Set("2024-09-01".to_string())),
+            cover_art: Some(PatchOp::Clear),
             ..Default::default()
         };
 
@@ -906,7 +967,7 @@ mod tests {
     #[test]
     fn series_family_validation_rejects_touched_orphan_shapes() {
         let subseries_only = MetadataIntentPatch {
-            subseries: PatchOp::Set("Sub".to_string()),
+            subseries: Some(PatchOp::Set("Sub".to_string())),
             ..Default::default()
         };
         assert!(subseries_only
@@ -916,7 +977,7 @@ mod tests {
             .contains("Sub-series requires a Series"));
 
         let part_only = MetadataIntentPatch {
-            series_part: PatchOp::Set("1".to_string()),
+            series_part: Some(PatchOp::Set("1".to_string())),
             ..Default::default()
         };
         assert!(part_only
@@ -926,9 +987,9 @@ mod tests {
             .contains("requires a Series"));
 
         let subseries_part_without_primary_part = MetadataIntentPatch {
-            series: PatchOp::Set("Primary".to_string()),
-            subseries: PatchOp::Set("Sub".to_string()),
-            subseries_part: PatchOp::Set("2".to_string()),
+            series: Some(PatchOp::Set("Primary".to_string())),
+            subseries: Some(PatchOp::Set("Sub".to_string())),
+            subseries_part: Some(PatchOp::Set("2".to_string())),
             ..Default::default()
         };
         assert!(subseries_part_without_primary_part
@@ -945,7 +1006,7 @@ mod tests {
             ..Default::default()
         };
         let patch = MetadataIntentPatch {
-            subseries: PatchOp::Set("Sub".to_string()),
+            subseries: Some(PatchOp::Set("Sub".to_string())),
             ..Default::default()
         };
 
@@ -966,7 +1027,7 @@ mod tests {
             ..Default::default()
         };
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Retitled".to_string()),
+            title: Some(PatchOp::Set("Retitled".to_string())),
             ..Default::default()
         };
 
@@ -985,8 +1046,8 @@ mod tests {
     #[test]
     fn processing_patch_into_overlay_applies_without_source_metadata() {
         let patch = MetadataIntentPatch {
-            title: PatchOp::Set("Overlay Title".to_string()),
-            series: PatchOp::Set("Series Name".to_string()),
+            title: Some(PatchOp::Set("Overlay Title".to_string())),
+            series: Some(PatchOp::Set("Series Name".to_string())),
             ..Default::default()
         };
 
@@ -1021,8 +1082,8 @@ mod tests {
     #[test]
     fn metadata_intent_validation_reports_field_errors_as_data() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set("not a date".to_string()),
-            series_part: PatchOp::Set("1/2".to_string()),
+            date: Some(PatchOp::Set("not a date".to_string())),
+            series_part: Some(PatchOp::Set("1/2".to_string())),
             ..Default::default()
         };
 
@@ -1043,7 +1104,7 @@ mod tests {
     #[test]
     fn metadata_intent_validation_normalizes_valid_publication_date() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set("2024-07-15T12:00:00Z".to_string()),
+            date: Some(PatchOp::Set("2024-07-15T12:00:00Z".to_string())),
             ..Default::default()
         };
 
@@ -1053,16 +1114,16 @@ mod tests {
         assert!(result.field_errors.is_empty());
         assert_eq!(
             result.metadata_patch.date,
-            PatchOp::Set("2024-07".to_string())
+            Some(PatchOp::Set("2024-07".to_string()))
         );
     }
 
     #[test]
     fn metadata_intent_validation_reports_structured_field_codes() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set("2024-13".to_string()),
-            series_part: PatchOp::Set("7/8".to_string()),
-            subseries_part: PatchOp::Set("2/3".to_string()),
+            date: Some(PatchOp::Set("2024-13".to_string())),
+            series_part: Some(PatchOp::Set("7/8".to_string())),
+            subseries_part: Some(PatchOp::Set("2/3".to_string())),
             ..Default::default()
         };
 
@@ -1089,7 +1150,7 @@ mod tests {
     #[test]
     fn metadata_intent_validation_preserves_invalid_date_for_validation() {
         let patch = MetadataIntentPatch {
-            date: PatchOp::Set("not a date".to_string()),
+            date: Some(PatchOp::Set("not a date".to_string())),
             ..Default::default()
         };
 
@@ -1131,9 +1192,9 @@ mod tests {
     #[test]
     fn artifact_clear_intents_reach_write_plan_sentinels() {
         let patch = MetadataIntentPatch {
-            comment: PatchOp::Clear,
-            track: PatchOp::Clear,
-            disk: PatchOp::Clear,
+            comment: Some(PatchOp::Clear),
+            track: Some(PatchOp::Clear),
+            disk: Some(PatchOp::Clear),
             ..Default::default()
         };
 
@@ -1163,9 +1224,9 @@ mod tests {
             ..AudiobookMetadata::new()
         };
         let patch = MetadataIntentPatch {
-            comment: PatchOp::Clear,
-            track: PatchOp::Clear,
-            disk: PatchOp::Clear,
+            comment: Some(PatchOp::Clear),
+            track: Some(PatchOp::Clear),
+            disk: Some(PatchOp::Clear),
             ..Default::default()
         };
 
@@ -1177,7 +1238,7 @@ mod tests {
     }
 
     #[test]
-    fn artifact_noop_intents_preserve_values() {
+    fn absent_artifact_intents_preserve_values() {
         let base = AudiobookMetadata {
             comment: Some("keep me".to_string()),
             track: Some((3, Some(12))),
@@ -1187,7 +1248,7 @@ mod tests {
 
         let merged = MetadataIntentPatch::default()
             .apply_to_metadata(base)
-            .expect("noop patch applies");
+            .expect("empty patch applies");
 
         assert_eq!(merged.comment.as_deref(), Some("keep me"));
         assert_eq!(merged.track, Some((3, Some(12))));
@@ -1196,7 +1257,10 @@ mod tests {
         let plan = MetadataIntentPatch::default()
             .to_write_plan_with_source(AudiobookMetadata::default())
             .expect("write plan");
-        assert_eq!(plan.metadata.comment, None, "noop must not clear at write");
+        assert_eq!(
+            plan.metadata.comment, None,
+            "an absent field must not clear at write"
+        );
         assert_eq!(plan.metadata.track, None);
         assert_eq!(plan.metadata.disk, None);
     }

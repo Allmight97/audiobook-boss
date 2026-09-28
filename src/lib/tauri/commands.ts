@@ -3,6 +3,8 @@ import {
 	commands as generatedCommands,
 	type AppSettingsPatch as GeneratedAppSettingsPatch,
 	type EncoderDefaults as GeneratedEncoderDefaults,
+	type MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch,
+	type MetadataSaveRequest_Deserialize as GeneratedMetadataSaveRequest,
 	type OutputDefaults as GeneratedOutputDefaults,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 	type RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
@@ -139,7 +141,7 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 
 function compileMetadataIntentMap(
 	metadataIntentByPath?: MetadataIntentByPath | null,
-): Record<string, MetadataIntentPatch> | null {
+): Record<string, GeneratedMetadataIntentPatch> | null {
 	if (!metadataIntentByPath) {
 		return null;
 	}
@@ -152,7 +154,7 @@ function compileMetadataIntentMap(
 	);
 }
 
-function compileMetadataSaveRequests(items: MetadataSaveRequest[]): MetadataSaveRequest[] {
+function compileMetadataSaveRequests(items: MetadataSaveRequest[]): GeneratedMetadataSaveRequest[] {
 	return items.map((item) => ({
 		filePath: item.filePath,
 		metadataPatch: compileMetadataIntentPatch(item.metadataPatch),

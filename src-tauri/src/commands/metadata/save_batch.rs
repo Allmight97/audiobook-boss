@@ -329,7 +329,7 @@ mod tests {
 
     fn title_patch(title: &str) -> MetadataIntentPatch {
         MetadataIntentPatch {
-            title: PatchOp::Set(title.to_string()),
+            title: Some(PatchOp::Set(title.to_string())),
             ..Default::default()
         }
     }

@@ -9,7 +9,7 @@ import {
 	type MetadataCapability,
 } from '../../lib/tauri/capabilities/metadata';
 import type { InputOwner } from '../inputSession';
-import { createMetadataCache, isUsableMetadataCache } from './cache';
+import { createMetadataCache } from './cache';
 import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
 	COVER_ART_IMAGE_EXTENSION_HINT_PATTERN,
@@ -279,15 +279,12 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	async function loadMetadataForFile(file: AudioFile): Promise<Partial<AudiobookMetadata> | null> {
 		if (!file.isValid) return null;
 		const started = generation;
-		const existing = cache.getMetadataForFile(file.path);
-		if (isUsableMetadataCache(existing)) return existing;
+		if (cache.hasSourceMetadata(file.path)) return cache.getMetadataForFile(file.path) ?? null;
 		try {
 			const metadata = await capability().readAudioMetadata(file.path);
 			if (generation !== started) return null;
-			const latest = cache.getMetadataForFile(file.path);
-			if (isUsableMetadataCache(latest)) return latest;
-			cache.cacheMetadataForFile(file.path, metadata);
-			return metadata;
+			if (!cache.hasSourceMetadata(file.path)) cache.recordSourceMetadata(file.path, metadata);
+			return cache.getMetadataForFile(file.path) ?? null;
 		} catch (error) {
 			console.warn('Failed to load metadata:', error);
 			return null;
@@ -442,7 +439,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		if (
 			effectiveCoverForFile(targetPath, cache) !== null ||
 			cache.getMetadataIntentPatchForFile(targetPath)?.cover_art ||
-			isUsableMetadataCache(cache.getMetadataForFile(targetPath))
+			cache.hasSourceMetadata(targetPath)
 		) {
 			// A cached read already answered whether this file has art.
 			return;
@@ -468,12 +465,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		) {
 			return;
 		}
-		const existing = cache.getMetadataForFile(targetPath) ?? {};
-		cache.cacheMetadataForFile(targetPath, {
-			...metadata,
-			...existing,
-			cover_art: metadata.cover_art || existing.cover_art,
-		});
+		if (!cache.hasSourceMetadata(targetPath)) cache.recordSourceMetadata(targetPath, metadata);
 		const session = deps.input.session();
 		const selected = selectedFilesFromSession(session);
 		commit(bumpCover(latest, refreshCoverFromOwners(session.files, selected, latest.cover)));
@@ -824,10 +816,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				if (generation !== started) return;
 				for (const entry of result.results) {
 					if (entry.status === 'success') {
-						if (
-							cache.getMetadataIntentPatchForFile(entry.filePath) === submitted.get(entry.filePath)
-						)
-							cache.clearPendingMetadataForFile(entry.filePath);
+						const saved = submitted.get(entry.filePath);
+						if (saved) cache.commitSavedIntent(entry.filePath, saved);
 					} else if (entry.status === 'failed') {
 						console.error(`Failed metadata save for ${entry.filePath}; see Work Center.`);
 					}
@@ -865,13 +855,13 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const started = generation;
 			await Promise.all(
 				filePaths.map(async (filePath) => {
-					if (isUsableMetadataCache(cache.getMetadataForFile(filePath))) {
+					if (cache.hasSourceMetadata(filePath)) {
 						return;
 					}
 					try {
 						const metadata = await capability().readAudioMetadata(filePath);
 						if (generation !== started) return;
-						cache.cacheMetadataForFile(filePath, metadata);
+						cache.recordSourceMetadata(filePath, metadata);
 					} catch (error) {
 						console.warn('Failed to load metadata for batch file:', filePath, error);
 					}

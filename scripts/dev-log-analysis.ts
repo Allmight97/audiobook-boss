@@ -848,7 +848,7 @@ export function analyzeDevLog(
 		inProcessEncoderStatuses,
 		malformedInProcessEncoderRuns,
 		audioDecisions: lines
-			.filter((line) => /audio_decision |audio_source |audio_output /.test(line))
+			.filter((line) => /audio_decision |audio_source |metadata_intent |audio_output /.test(line))
 			.slice(-100),
 		mediaDiagnostics: lines
 			.filter((line) =>

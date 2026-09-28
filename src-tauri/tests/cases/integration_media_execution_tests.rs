@@ -360,7 +360,7 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
     save_metadata_intent(
         &output,
         &MetadataIntentPatch {
-            title: PatchOp::Set("Retitled".into()),
+            title: Some(PatchOp::Set("Retitled".into())),
             ..Default::default()
         },
     )
@@ -632,8 +632,8 @@ fn failed_remux_save_leaves_source_bytes_and_no_temporary_residue() {
     let before = fs::read(&source).expect("read source");
 
     let patch = MetadataIntentPatch {
-        title: PatchOp::Set("Retitled".to_string()),
-        cover_art: PatchOp::Set(minimal_jpg_bytes()),
+        title: Some(PatchOp::Set("Retitled".to_string())),
+        cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),
         ..Default::default()
     };
     save_metadata_intent(&source, &patch).expect_err("WAV cannot carry explicit cover art");
@@ -652,8 +652,8 @@ async fn analysis_populates_display_tags_from_an_existing_tagged_fixture() {
     let lane = MediaLane::with_fixtures(&[1.0]);
     let output = lane.process(None).await;
     let patch = MetadataIntentPatch {
-        title: PatchOp::Set("Analyzed Fixture Title".to_string()),
-        artist: PatchOp::Set("Analyzed Fixture Artist".to_string()),
+        title: Some(PatchOp::Set("Analyzed Fixture Title".to_string())),
+        artist: Some(PatchOp::Set("Analyzed Fixture Artist".to_string())),
         ..Default::default()
     };
     save_metadata_intent(&output, &patch).expect("tag fixture through metadata boundary");
@@ -720,7 +720,7 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
 
     // A normal save that only touches a primary field preserves artifacts.
     let title_only = MetadataIntentPatch {
-        title: PatchOp::Set("Renamed Artifact Book".to_string()),
+        title: Some(PatchOp::Set("Renamed Artifact Book".to_string())),
         ..Default::default()
     };
     save_metadata_intent(&output, &title_only).expect("title-only save");
@@ -737,10 +737,10 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
 
     // Explicit clear intent removes exactly the cleared artifact fields.
     let clear_artifacts = MetadataIntentPatch {
-        album_sort: AlbumSortPatchOp::Clear,
-        comment: PatchOp::Clear,
-        track: PatchOp::Clear,
-        disk: PatchOp::Clear,
+        album_sort: Some(AlbumSortPatchOp::Clear),
+        comment: Some(PatchOp::Clear),
+        track: Some(PatchOp::Clear),
+        disk: Some(PatchOp::Clear),
         ..Default::default()
     };
     save_metadata_intent(&output, &clear_artifacts).expect("artifact clear save");
@@ -856,20 +856,20 @@ async fn metadata_save_writes_external_ffprobe_visible_mp4_tags() {
     let output = lane.process(None).await;
 
     let patch = MetadataIntentPatch {
-        title: PatchOp::Set("External Probe Title".to_string()),
-        artist: PatchOp::Set("External Probe Author".to_string()),
-        album: PatchOp::Set("External Probe Album".to_string()),
-        composer: PatchOp::Set("External Probe Composer".to_string()),
-        genre: PatchOp::Set("Audiobook".to_string()),
-        date: PatchOp::Set("2024-05-06".to_string()),
-        description: PatchOp::Set("External reader proof".to_string()),
-        series: PatchOp::Set("Probe Series".to_string()),
-        series_part: PatchOp::Set("2".to_string()),
-        subseries: PatchOp::Set("Probe Subseries".to_string()),
-        subseries_part: PatchOp::Set("7".to_string()),
-        comment: PatchOp::Set("Probe Comment".to_string()),
-        track: PatchOp::Set((3, Some(9))),
-        disk: PatchOp::Set((1, Some(2))),
+        title: Some(PatchOp::Set("External Probe Title".to_string())),
+        artist: Some(PatchOp::Set("External Probe Author".to_string())),
+        album: Some(PatchOp::Set("External Probe Album".to_string())),
+        composer: Some(PatchOp::Set("External Probe Composer".to_string())),
+        genre: Some(PatchOp::Set("Audiobook".to_string())),
+        date: Some(PatchOp::Set("2024-05-06".to_string())),
+        description: Some(PatchOp::Set("External reader proof".to_string())),
+        series: Some(PatchOp::Set("Probe Series".to_string())),
+        series_part: Some(PatchOp::Set("2".to_string())),
+        subseries: Some(PatchOp::Set("Probe Subseries".to_string())),
+        subseries_part: Some(PatchOp::Set("7".to_string())),
+        comment: Some(PatchOp::Set("Probe Comment".to_string())),
+        track: Some(PatchOp::Set((3, Some(9)))),
+        disk: Some(PatchOp::Set((1, Some(2)))),
         ..Default::default()
     };
     save_metadata_intent(&output, &patch).expect("metadata save through mp4ameta path");
@@ -1309,7 +1309,7 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     save_metadata_intent(
         &path,
         &MetadataIntentPatch {
-            genre: PatchOp::Set("Audiobook".into()),
+            genre: Some(PatchOp::Set("Audiobook".into())),
             ..Default::default()
         },
     )
@@ -1323,7 +1323,7 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     save_metadata_intent(
         &path,
         &MetadataIntentPatch {
-            comment: PatchOp::Set("New comment".into()),
+            comment: Some(PatchOp::Set("New comment".into())),
             ..Default::default()
         },
     )
@@ -1335,7 +1335,7 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     save_metadata_intent(
         &path,
         &MetadataIntentPatch {
-            comment: PatchOp::Clear,
+            comment: Some(PatchOp::Clear),
             ..Default::default()
         },
     )
@@ -1432,8 +1432,8 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     let lane = MediaLane::for_inputs(vec![source.clone()]);
     let destination = lane.tmp.path().join("retagged.m4b");
     let metadata = MetadataIntentPatch {
-        title: PatchOp::Set("Preserved title".into()),
-        cover_art: PatchOp::Set(minimal_jpg_bytes()),
+        title: Some(PatchOp::Set("Preserved title".into())),
+        cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),
         ..Default::default()
     };
     let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
@@ -1509,8 +1509,8 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
         )
         .with_handling(audiobook_boss_lib::processing::AudioHandling::Preserve)
         .with_metadata_intent(Some(MetadataIntentPatch {
-            title: PatchOp::Set("Preserved MP3 title".into()),
-            cover_art: PatchOp::Set(minimal_jpg_bytes()),
+            title: Some(PatchOp::Set("Preserved MP3 title".into())),
+            cover_art: Some(PatchOp::Set(minimal_jpg_bytes())),
             ..Default::default()
         })),
     )
@@ -1619,7 +1619,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             (
                 path.clone(),
                 MetadataIntentPatch {
-                    title: PatchOp::Set(format!("Library book {i}")),
+                    title: Some(PatchOp::Set(format!("Library book {i}"))),
                     ..Default::default()
                 },
             )
@@ -2265,7 +2265,7 @@ async fn assert_faac_reimport(
             save_metadata_intent(
                 &faac_output,
                 &MetadataIntentPatch {
-                    title: PatchOp::Set("Edited FAAC book".into()),
+                    title: Some(PatchOp::Set("Edited FAAC book".into())),
                     ..Default::default()
                 },
             )
@@ -2421,7 +2421,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
     let metadata = std::collections::HashMap::from([(
         one.to_string_lossy().into_owned(),
         MetadataIntentPatch {
-            title: PatchOp::Set("One grouped title".into()),
+            title: Some(PatchOp::Set("One grouped title".into())),
             ..Default::default()
         },
     )]);
@@ -2710,7 +2710,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             AudioExecutionRequest::new(context, info, None, CoverArtPassthroughPolicy::Preserve)
                 .with_handling(copy_plan.handling)
                 .with_metadata_intent(Some(MetadataIntentPatch {
-                    title: PatchOp::Set("Retagged Opus".into()),
+                    title: Some(PatchOp::Set("Retagged Opus".into())),
                     ..Default::default()
                 })),
         )
@@ -2751,7 +2751,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             save_metadata_intent(
                 &destination,
                 &MetadataIntentPatch {
-                    cover_art: PatchOp::Set(replacement),
+                    cover_art: Some(PatchOp::Set(replacement)),
                     ..Default::default()
                 },
             )
@@ -2775,7 +2775,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             save_metadata_intent(
                 &destination,
                 &MetadataIntentPatch {
-                    cover_art: PatchOp::Clear,
+                    cover_art: Some(PatchOp::Clear),
                     ..Default::default()
                 },
             )
