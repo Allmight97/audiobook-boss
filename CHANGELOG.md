@@ -4,6 +4,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-09-28
+
 ### Fixed
 
 - A shared metadata edit (for example Author across several selected titles)
@@ -13,6 +15,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Processed books now get the series sort key (TSOA) the tag preview shows,
   replacing a stale one from the source; novellas numbered like 2.5 sort
   between whole books.
+- Typing in the metadata form does less work: keystrokes no longer send the
+  cover image with each output-path preview and validation, and file-list
+  updates that leave the selection unchanged no longer reload the form.
+- An Audible download no longer picks a cover or sample link over the book's
+  audio link when the license response carries both.
 
 ### Changed
 
