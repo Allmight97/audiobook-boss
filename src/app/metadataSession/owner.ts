@@ -139,6 +139,7 @@ function bumpForm(editor: MetadataEditorState, form: MetadataFormState): Metadat
 }
 
 function bumpCover(editor: MetadataEditorState, cover: Partial<CoverUiState>): MetadataEditorState {
+	if (cover === editor.cover) return editor;
 	const nextCover = { ...editor.cover, ...cover };
 	const changed =
 		nextCover.currentCoverArt !== editor.cover.currentCoverArt ||
@@ -165,6 +166,8 @@ function selectedFilesFromSession(session: {
 }
 
 function displayCover(cover: CoverUiState, bytes: number[] | null): CoverUiState {
+	// Input updates rehydrate the selection often; encoding is only for new bytes.
+	if (bytes === cover.currentCoverArt) return cover;
 	return {
 		...cover,
 		currentCoverArt: bytes,
