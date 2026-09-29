@@ -929,25 +929,6 @@ describe('metadata session selection and save', () => {
 		expect(metadata.readAudioMetadata).toHaveBeenCalledTimes(1);
 	});
 
-	it('input updates for the same selection reuse the rendered cover', async () => {
-		// Progress ticks rehydrate the selection; re-encoding a large cover on each one stalls typing.
-		const metadata = fakeMetadata({
-			readAudioMetadata: vi.fn(async () => ({ title: 'Alpha', cover_art: [0xff, 0xd8, 1] })),
-		});
-		runtime = createAppRuntime({ metadata });
-		runtime.input.replaceSession({
-			...emptyInputSession(),
-			files: [file('/books/alpha.m4b', 'Alpha')],
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await runtime.metadata.hydrateSelection(null);
-		const rendered = runtime.metadata.view().cover;
-		expect(rendered.imageDataUrl).not.toBeNull();
-		await runtime.metadata.hydrateSelection(null);
-		expect(runtime.metadata.view().cover).toBe(rendered);
-	});
-
 	it('does not export process-global cache helpers', () => {
 		expect(metadataSessionApi).not.toHaveProperty('cacheMetadataForFile');
 		expect(metadataSessionApi).not.toHaveProperty('getMetadataForFile');

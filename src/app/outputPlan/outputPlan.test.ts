@@ -569,7 +569,7 @@ describe('output path preview projection', () => {
 		expect(draft.title).toBe('Dune');
 		expect(draft.artist).toBe('Herbert');
 		expect(draft.album).toBe('Dune');
-		expect(draft.cover_art).toEqual([1, 2, 3]);
+		expect(draft.cover_art).toBeUndefined();
 	});
 });
 

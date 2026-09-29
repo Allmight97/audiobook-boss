@@ -41,10 +41,6 @@ export function previewDraftFromMetadataView(view: MetadataView): OutputPathPrev
 		draft.album = draft.title ?? '';
 	}
 
-	const cover = view.cover.currentCoverArt;
-	if (cover && cover.length > 0 && !view.cover.coverArtRemovalRequested) {
-		draft.cover_art = cover;
-	}
-
+	// Naming and draft warnings read text fields only; cover bytes would ride every keystroke's IPC.
 	return draft;
 }
