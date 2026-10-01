@@ -290,7 +290,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
     );
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
-    assert!(desk.engine.waiting_metadata_writes().is_empty());
+    assert_eq!(desk.engine.running_work().waiting_writes, 0);
 }
 
 #[tokio::test]
@@ -401,4 +401,46 @@ async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset()
     let audio = snapshot.audio.expect("audio part");
     assert_eq!(audio.defaults.choice.format, AudiobookFormat::M4b);
     assert_eq!(snapshot.output.expect("output part").directory, None);
+}
+
+#[tokio::test]
+async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_work() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 30.0)
+        .await;
+    desk.import(&book).await;
+    let export = desk.export(&book).await;
+    desk.edit_genre_and_save().await;
+    let running = desk.engine.running_work();
+    assert_eq!((running.exports, running.waiting_writes), (1, 1));
+
+    tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
+        .await
+        .expect("shutdown settles");
+
+    assert!(finished(desk.export_status(&export)));
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+    assert!(desk.engine.running_work().is_empty());
+    let refused = desk
+        .engine
+        .submit_processing_operation(SubmitProcessingOperationRequest {
+            payload: ProcessPayload {
+                input_files: vec![book.to_string_lossy().into_owned()],
+                title_sources: None,
+                chapter_plans: None,
+                input_ids: None,
+                output_dir: desk.root.path().to_string_lossy().into_owned(),
+                audio_requests: vec![audio_request()],
+                output_naming: None,
+                collision_policy: None,
+                preflight_signature: None,
+                supplemental_assets_by_input_id: None,
+            },
+            metadata: None,
+            preview_seconds: None,
+            title: "After shutdown".to_string(),
+        })
+        .await;
+    assert!(refused.is_err(), "new exports are refused after shutdown");
 }

@@ -83,6 +83,9 @@ impl RemoteAcquisitionLifecycle {
                 "Select at least one remote title to acquire.".to_string(),
             ));
         }
+        if runtime.inner.tasks.is_closed() {
+            return Err(AppError::General("ABB is closing.".to_string()));
+        }
         let job_id = uuid::Uuid::new_v4().to_string();
         let job_dir = self.staging.create_job_dir(&job_id)?;
         let job = RemoteAcquisitionJob {
@@ -99,14 +102,16 @@ impl RemoteAcquisitionLifecycle {
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .insert(job_id, job.clone());
         let spawned_job_id = job.job_id.clone();
-        let abort_handle = tokio::spawn(async move {
-            runtime
-                .inner
-                .lifecycle
-                .run_acquisition_job(runtime.clone(), plan, spawned_job_id, job_dir)
-                .await;
-        })
-        .abort_handle();
+        let tasks = runtime.inner.tasks.clone();
+        let abort_handle = tasks
+            .spawn(async move {
+                runtime
+                    .inner
+                    .lifecycle
+                    .run_acquisition_job(runtime.clone(), plan, spawned_job_id, job_dir)
+                    .await;
+            })
+            .abort_handle();
         self.store_acquisition_task(&job.job_id, abort_handle);
         Ok(job)
     }

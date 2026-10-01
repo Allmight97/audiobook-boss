@@ -261,6 +261,8 @@ pub(crate) struct SessionDeps {
     pub(crate) previews: Arc<AtomicUsize>,
     /// Where audio and output defaults chosen in the session are recorded.
     pub(crate) settings: SettingsRuntime,
+    /// The engine's background tasks; the session's run here.
+    pub(crate) tasks: tokio_util::task::TaskTracker,
 }
 
 /// One working session. Cloning shares it.
@@ -421,11 +423,11 @@ impl Session {
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
         // Without a runtime (engine construction) plans stay pending until
         // the next change.
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        if tokio::runtime::Handle::try_current().is_err() {
             return;
-        };
+        }
         let session = self.clone();
-        runtime.spawn(async move {
+        self.inner.deps.tasks.spawn(async move {
             for ticket in tickets {
                 let resolving = ticket.clone();
                 let result = tokio::task::spawn_blocking(move || resolving.resolve())
@@ -785,11 +787,11 @@ impl Session {
     /// keystroke does not write the settings file.
     fn remember_output_later(&self) {
         let edit = self.inner.output_edits.fetch_add(1, Ordering::SeqCst) + 1;
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        if tokio::runtime::Handle::try_current().is_err() {
             return;
-        };
+        }
         let session = self.clone();
-        runtime.spawn(async move {
+        self.inner.deps.tasks.spawn(async move {
             tokio::time::sleep(TEMPLATE_PAUSE).await;
             if session.inner.output_edits.load(Ordering::SeqCst) != edit {
                 return;
@@ -963,7 +965,10 @@ impl Session {
             return;
         }
         let session = self.clone();
-        tokio::spawn(async move { session.write_deferred_when_free().await });
+        self.inner
+            .deps
+            .tasks
+            .spawn(async move { session.write_deferred_when_free().await });
     }
 
     /// Writes each waiting edit once no accepted export reads its file.

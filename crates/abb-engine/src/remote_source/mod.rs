@@ -36,6 +36,8 @@ pub(crate) struct RemoteSourceConfig {
     pub(crate) power: crate::power::PowerManager,
     /// Host-supplied helper location; `None` resolves it beside the executable.
     pub(crate) aaxclean_helper: Option<PathBuf>,
+    /// The engine's background tasks; acquisitions run here.
+    pub(crate) tasks: tokio_util::task::TaskTracker,
 }
 
 #[derive(Clone)]
@@ -50,6 +52,7 @@ struct RemoteSourceRuntimeInner {
     lifecycle: RemoteAcquisitionLifecycle,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     indexer_adapter: ReqwestProwlarrAdapter,
+    tasks: tokio_util::task::TaskTracker,
 }
 
 impl RemoteSourceRuntime {
@@ -67,6 +70,7 @@ impl RemoteSourceRuntime {
                 ),
                 pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new()?,
+                tasks: config.tasks,
             }),
         })
     }
@@ -75,6 +79,12 @@ impl RemoteSourceRuntime {
     /// temporary: it is removed once its title has been exported.
     pub(crate) fn staging_root(&self) -> PathBuf {
         self.inner.lifecycle.staging.session_root()
+    }
+
+    /// Stops every acquisition; their staged files are removed at the next
+    /// start.
+    pub(crate) fn abort_acquisitions(&self) {
+        self.inner.lifecycle.abort_all_acquisition_tasks();
     }
 
     pub(crate) fn cleanup_abandoned_sessions(&self) -> Result<()> {
@@ -336,6 +346,7 @@ mod tests {
                 ),
                 pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new().expect("indexer adapter"),
+                tasks: tokio_util::task::TaskTracker::new(),
             }),
         }
     }

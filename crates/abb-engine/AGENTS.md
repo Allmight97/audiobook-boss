@@ -20,6 +20,14 @@ the same code.
 - A new host need (a directory, a platform service, an event) is added to
   `EngineConfig`, `EventSink`, or `Engine`. Engine code never reaches a host
   type.
+- Before exiting or reusing the engine's folders, a host awaits
+  `Engine::shutdown`: it refuses new exports and acquisitions, cancels running
+  ones, and waits for every background task, so saves waiting on a cancelled
+  export are written. `Engine::running_work` tells a host what quitting would
+  stop.
+- Every background task the engine starts runs on its one `TaskTracker`
+  (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.
+  Short scoped tasks joined before their caller returns are the exception.
 - `abb-dev` (`src/bin/abb_dev.rs`) is the smallest host. It runs under its own
   identity and state folder; keep it from reading the app's settings or
   credentials.

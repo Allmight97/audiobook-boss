@@ -99,6 +99,7 @@ fn rig() -> Rig {
             temporary_root: PathBuf::from("/staged"),
             opened_audio: Arc::default(),
             previews: Arc::default(),
+            tasks: tokio_util::task::TaskTracker::new(),
             settings,
         },
         network,

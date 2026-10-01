@@ -157,6 +157,9 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
         send(&engine, SessionIntent::Save).await?;
     }
 
+    // Waiting saves are written and background work settles before the
+    // state folder can be removed.
+    engine.shutdown().await;
     let session = engine.session_snapshot();
     if options.json {
         let json = serde_json::to_string_pretty(&session)

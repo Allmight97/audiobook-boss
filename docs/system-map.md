@@ -109,7 +109,7 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
 | Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation and title cancellation. |
 | Settings in effect | Engine settings runtime + JSON store | Runtime owner accepts behavior before it is recorded; a failed write keeps the setting in effect and retryable. |
-| Waiting metadata write | Engine session until the export reading the file finishes | Survives removal of its title; the host warns before quitting. |
+| Waiting metadata write | Engine session until the export reading the file finishes | Survives removal of its title; shutdown cancels the export and writes it. |
 | Artifact truth | Metadata, Audio, Output, and final disk readback | Success follows commit/finalization and any load-bearing verification. |
 | Provider secret/session | Backend Remote Source + OS credential store | Never cross into frontend state, logs, processing payloads, or metadata. |
 

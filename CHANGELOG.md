@@ -11,8 +11,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   soon as every export reading it finishes. The save shows as waiting until
   then, and the status says when it was written or failed. An Audible or indexer download being exported is left as is;
   its edits stay pending.
-- Quitting or closing the window while a save is still waiting for an export
-  asks first.
+- Quitting or closing the window while exports are running asks first.
+  Quitting then cancels the exports cleanly and saves any metadata changes
+  that were waiting for them before ABB closes.
 - Typing into a field you set to Blank replaces the Blank with what you typed.
 - When metadata Save is blocked, the message now says a preview is running; a
   running export never blocks Save.

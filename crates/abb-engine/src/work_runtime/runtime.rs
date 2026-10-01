@@ -30,6 +30,8 @@ struct WorkRuntimeInner {
     /// Source files each accepted processing title reads, by operation id and
     /// title index. An entry lives until its operation finishes.
     title_sources: Mutex<TitleSources>,
+    /// Accepted exports run here; closed when the engine shuts down.
+    tasks: tokio_util::task::TaskTracker,
     /// Advances whenever an operation's state changes.
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
@@ -37,8 +39,16 @@ struct WorkRuntimeInner {
 
 impl Default for WorkRuntime {
     fn default() -> Self {
+        Self::new(tokio_util::task::TaskTracker::new())
+    }
+}
+
+impl WorkRuntime {
+    /// A runtime whose exports run as `tasks`, so the engine can wait for them.
+    pub(crate) fn new(tasks: tokio_util::task::TaskTracker) -> Self {
         Self {
             inner: Arc::new(WorkRuntimeInner {
+                tasks,
                 state: Mutex::new(WorkRuntimeState::default()),
                 operation_cancel_flags: Mutex::new(HashMap::new()),
                 title_sources: Mutex::new(HashMap::new()),
@@ -57,6 +67,9 @@ impl WorkRuntime {
         workspace_root: PathBuf,
         request: SubmitProcessingOperationRequest,
     ) -> Result<WorkSubmissionAccepted> {
+        if self.inner.tasks.is_closed() {
+            return Err(AppError::General("ABB is closing.".to_string()));
+        }
         if request.title.trim().is_empty() {
             return Err(AppError::InvalidInput(
                 "Processing operations need a title naming their books.".into(),
@@ -125,7 +138,7 @@ impl WorkRuntime {
                     event,
                 );
             }));
-        tokio::spawn(async move {
+        self.inner.tasks.spawn(async move {
             runtime.mark_running_and_emit(&host, &operation_id_for_task);
             let result = process_payload_with_options(
                 host.clone(),
@@ -249,6 +262,20 @@ impl WorkRuntime {
 
     pub fn list_operations(&self) -> Result<OperationListSnapshot> {
         Ok(lock_state(&self.inner.state)?.list())
+    }
+
+    /// Accepted operations that have not finished.
+    pub(crate) fn unfinished_operations(&self) -> Vec<OperationId> {
+        let Ok(state) = lock_state(&self.inner.state) else {
+            return Vec::new();
+        };
+        state
+            .list()
+            .operations
+            .into_iter()
+            .filter(|operation| !super::terminal::is_terminal(operation.status))
+            .map(|operation| operation.operation_id)
+            .collect()
     }
 
     /// Cancels a whole operation, or one of its titles when `child_job_id`

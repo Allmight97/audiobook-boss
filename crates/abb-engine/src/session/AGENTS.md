@@ -10,8 +10,8 @@ attachment.
 
 - Hosts reach the session through `Engine::session_dispatch`,
   `Engine::session_begin`, `Engine::session_snapshot`,
-  `Engine::session_cover_art`, `Engine::session_metadata_intents`, and
-  `Engine::waiting_metadata_writes`, and receive `EngineEvent::Session`.
+  `Engine::session_cover_art`, and `Engine::session_metadata_intents`, and
+  receive `EngineEvent::Session`.
 - Types are the `pub use` list in `mod.rs`: the intent, outcome, reply, and
   update types, each snapshot part, and the typed statuses and notices.
 - `Session`, `SessionDeps`, and the state modules are engine-internal.
@@ -89,9 +89,9 @@ attachment.
   it is free; a busy temporary download (under the remote-source staging root)
   is never written and its edit stays pending; any other file is written at
   once and never moved. Two writes to one file never overlap.
-- **Waiting writes.** A waiting write outlives removal of its title, and
-  `Engine::waiting_metadata_writes` reports it so a host can warn before
-  quitting. When it finishes, the session reports how many were written or
+- **Waiting writes.** A waiting write outlives removal of its title.
+  `Engine::shutdown` cancels the exports holding it back, so it is written
+  before the engine stops. When it finishes, the session reports how many were written or
   failed. If its title is loaded again by then, a written edit becomes the
   title's known tags and a failed one is pending again for Save.
 - **Audio choice.** The defaults new titles start from and each title's own

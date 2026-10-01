@@ -105,32 +105,75 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
-/// Set once the user chose to quit although metadata saves were still waiting.
+/// How quitting is going: asked (and answered), engine shutting down, done.
 #[derive(Default)]
-struct QuitConfirmed(AtomicBool);
+struct Quit {
+    confirmed: AtomicBool,
+    shutting_down: AtomicBool,
+    done: AtomicBool,
+}
 
-/// Asks before quitting while metadata saves wait for exports to finish;
-/// quitting would drop them. Returns whether the quit must be held for the
-/// answer.
-fn hold_quit_for_waiting_saves(app: &tauri::AppHandle) -> bool {
-    let Some(engine) = app.try_state::<abb_engine::Engine>() else {
+/// How long quitting waits for the engine to settle before exiting anyway.
+const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Shuts the engine down, then exits. Exports are cancelled, waiting saves
+/// written, and every background task settled before the process ends.
+fn shut_down_then_exit(app: &tauri::AppHandle) {
+    let quit = app.state::<Quit>();
+    if quit.shutting_down.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Some(engine) = app.try_state::<abb_engine::Engine>() {
+            if tokio::time::timeout(SHUTDOWN_WAIT, engine.shutdown())
+                .await
+                .is_err()
+            {
+                log::warn!("Engine shutdown did not settle in time; exiting anyway");
+            }
+        }
+        app.state::<Quit>().done.store(true, Ordering::SeqCst);
+        app.exit(0);
+    });
+}
+
+fn plural(count: usize, one: &str, many: &str) -> String {
+    format!("{count} {}", if count == 1 { one } else { many })
+}
+
+/// Holds a quit until the engine has shut down, asking first when exports
+/// are running. Returns whether the quit must be held.
+fn hold_quit(app: &tauri::AppHandle) -> bool {
+    let quit = app.state::<Quit>();
+    if quit.done.load(Ordering::SeqCst) {
         return false;
+    }
+    if quit.shutting_down.load(Ordering::SeqCst) {
+        return true;
+    }
+    let running = app
+        .try_state::<abb_engine::Engine>()
+        .map(|engine| engine.running_work())
+        .unwrap_or_default();
+    if running.exports == 0 || quit.confirmed.load(Ordering::SeqCst) {
+        shut_down_then_exit(app);
+        return true;
+    }
+    let exports = plural(running.exports, "export is", "exports are");
+    let message = if running.waiting_writes == 0 {
+        format!("{exports} still running. Quitting cancels them.")
+    } else {
+        format!(
+            "{exports} still running, and metadata changes for {} wait for them. \
+             Quitting cancels the exports and saves those changes first.",
+            plural(running.waiting_writes, "file", "files")
+        )
     };
-    if app.state::<QuitConfirmed>().0.load(Ordering::SeqCst) {
-        return false;
-    }
-    let waiting = engine.waiting_metadata_writes().len();
-    if waiting == 0 {
-        return false;
-    }
-    let files = if waiting == 1 { "file" } else { "files" };
     let app = app.clone();
     app.dialog()
-        .message(format!(
-            "Metadata changes for {waiting} {files} are waiting for exports to finish. \
-             Quitting now discards those saves."
-        ))
-        .title("Metadata saves are still waiting")
+        .message(message)
+        .title("Exports are still running")
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Quit Anyway".to_string(),
             "Keep Open".to_string(),
@@ -139,8 +182,8 @@ fn hold_quit_for_waiting_saves(app: &tauri::AppHandle) -> bool {
             let app = app.clone();
             move |quit| {
                 if quit {
-                    app.state::<QuitConfirmed>().0.store(true, Ordering::SeqCst);
-                    app.exit(0);
+                    app.state::<Quit>().confirmed.store(true, Ordering::SeqCst);
+                    shut_down_then_exit(&app);
                 }
             }
         });
@@ -195,7 +238,7 @@ pub fn run() {
                 abb_engine::ffmpeg_build_identity()
             );
             app.manage(start_engine(app)?);
-            app.manage(QuitConfirmed::default());
+            app.manage(Quit::default());
             app.manage(commands::FrontendLink::default());
 
             if let Some(main_window) = app.get_webview_window("main") {
@@ -212,13 +255,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
-            tauri::RunEvent::ExitRequested { api, .. } if hold_quit_for_waiting_saves(app) => {
+            tauri::RunEvent::ExitRequested { api, .. } if hold_quit(app) => {
                 api.prevent_exit();
             }
             tauri::RunEvent::WindowEvent {
                 event: tauri::WindowEvent::CloseRequested { api, .. },
                 ..
-            } if hold_quit_for_waiting_saves(app) => {
+            } if hold_quit(app) => {
                 api.prevent_close();
             }
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]

@@ -18,9 +18,9 @@ the engine: `crates/abb-engine/AGENTS.md`.
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
-- **Quit warning.** `lib.rs` asks before quitting or closing while
-  `Engine::waiting_metadata_writes` reports saves that are waiting for an
-  export to finish.
+- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled
+  (or a short timeout passes), and asks first when `Engine::running_work`
+  reports exports still running.
 
 ## Rules
 

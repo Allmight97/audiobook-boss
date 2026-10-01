@@ -24,6 +24,7 @@ use crate::work_runtime::{
     WorkRuntime, WorkSubmissionAccepted,
 };
 use crate::ManagedJobRegistry;
+use tokio_util::task::TaskTracker;
 
 /// What a host supplies to start the engine.
 pub struct EngineConfig {
@@ -62,6 +63,23 @@ struct EngineInner {
     session: Session,
     /// Preview runs in flight.
     previews: Arc<AtomicUsize>,
+    /// Every background task the engine starts; shutdown waits for them.
+    tasks: TaskTracker,
+}
+
+/// Work still running that quitting would stop.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RunningWork {
+    /// Accepted exports that have not finished.
+    pub exports: usize,
+    /// Files with a Save waiting for an export to finish reading them.
+    pub waiting_writes: usize,
+}
+
+impl RunningWork {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 impl Engine {
@@ -69,6 +87,7 @@ impl Engine {
     /// then puts the saved settings in effect.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let power = PowerManager::default();
+        let tasks = TaskTracker::new();
         audio::cleanup_abandoned_processing_workspaces(&config.cache_dir)?;
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
             cache_dir: config.cache_dir.clone(),
@@ -76,12 +95,13 @@ impl Engine {
             app_identifier: config.app_identifier,
             power: power.clone(),
             aaxclean_helper: config.aaxclean_helper,
+            tasks: tasks.clone(),
         })?;
         remote_source.cleanup_abandoned_sessions()?;
 
         let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let host = Host::new(config.events, power);
-        let work = WorkRuntime::default();
+        let work = WorkRuntime::new(tasks.clone());
         let opened_audio = Arc::new(OpenedAudioFileQueue::default());
         let previews = Arc::new(AtomicUsize::new(0));
         let session = Session::new(SessionDeps {
@@ -92,6 +112,7 @@ impl Engine {
             opened_audio: Arc::clone(&opened_audio),
             previews: Arc::clone(&previews),
             settings: settings.clone(),
+            tasks: tasks.clone(),
         });
         session.start_from_defaults(
             startup.as_ref(),
@@ -108,8 +129,36 @@ impl Engine {
                 opened_audio,
                 session,
                 previews,
+                tasks,
             }),
         })
+    }
+
+    /// What quitting now would stop.
+    pub fn running_work(&self) -> RunningWork {
+        RunningWork {
+            exports: self.inner.work.unfinished_operations().len(),
+            waiting_writes: self.inner.session.waiting_write_paths().len(),
+        }
+    }
+
+    /// Stops the engine: refuses new exports and acquisitions, cancels the
+    /// running ones, and waits for every background task to settle, so the
+    /// engine's folders can be reused or removed. Saves that were waiting for
+    /// a cancelled export are written once it stops reading their files.
+    pub async fn shutdown(&self) {
+        self.inner.tasks.close();
+        for operation in self.inner.work.unfinished_operations() {
+            if let Err(error) = self
+                .inner
+                .work
+                .cancel_operation(&self.inner.host, operation, None)
+            {
+                log::warn!("Failed to cancel an export while shutting down: {error}");
+            }
+        }
+        self.inner.remote_source.abort_acquisitions();
+        self.inner.tasks.wait().await;
     }
 
     // ---- Settings ----
@@ -165,13 +214,6 @@ impl Engine {
     ) -> HashMap<String, MetadataIntentPatch> {
         let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
         self.inner.session.pending_intents(&paths)
-    }
-
-    /// Source files with a Save accepted and not yet written because an
-    /// export is still reading them. A host warns before quitting while this
-    /// is non-empty.
-    pub fn waiting_metadata_writes(&self) -> Vec<PathBuf> {
-        self.inner.session.waiting_write_paths()
     }
 
     // ---- Import ----
