@@ -1,145 +1,70 @@
-use std::path::{Path, PathBuf};
-
-use tauri::Manager;
-
-use crate::app_settings::{
-    self, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan, AppSettingsRecoveryResult,
+use abb_engine::app_settings::{
+    AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan, AppSettingsRecoveryResult,
 };
-use crate::commands::CommandResult;
-use crate::errors::{AppError, Result};
+use abb_engine::RuntimeSettingsCapabilities;
 
-fn app_settings_config_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
-    app.path().app_config_dir().map_err(|error| {
-        AppError::General(format!("Failed to resolve app config directory: {error}"))
-    })
-}
-
-/// Applies the runtime side of accepted settings. Every entry point calls this
-/// only after storage succeeded: startup, update, reset, and recovery.
-pub(crate) fn apply_settings_to_runtime(
-    power: &crate::power::PowerManager,
-    settings: &AppSettings,
-) {
-    power.set_enabled(settings.keep_awake_while_working);
-}
+use crate::commands::{CommandResult, EngineState};
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_app_settings(app: tauri::AppHandle) -> CommandResult<AppSettings> {
-    let config_dir = app_settings_config_dir(&app)?;
-    Ok(app_settings::get_app_settings(&config_dir)?)
+pub fn get_app_settings(engine: EngineState<'_>) -> CommandResult<AppSettings> {
+    Ok(engine.app_settings()?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn get_app_settings_recovery(
-    app: tauri::AppHandle,
+    engine: EngineState<'_>,
 ) -> CommandResult<Option<AppSettingsRecoveryPlan>> {
-    Ok(app_settings::get_app_settings_recovery(
-        &app_settings_config_dir(&app)?,
-    )?)
+    Ok(engine.app_settings_recovery()?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn recover_app_settings(
-    app: tauri::AppHandle,
+    engine: EngineState<'_>,
     expected: AppSettingsRecoveryPlan,
 ) -> CommandResult<AppSettingsRecoveryResult> {
-    let result = app_settings::recover_app_settings(&app_settings_config_dir(&app)?, expected)?;
-    apply_settings_to_runtime(&app.state(), &result.settings);
-    Ok(result)
+    Ok(engine.recover_app_settings(expected)?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn update_app_settings(
-    app: tauri::AppHandle,
+    engine: EngineState<'_>,
     patch: AppSettingsPatch,
 ) -> CommandResult<AppSettings> {
-    let config_dir = app_settings_config_dir(&app)?;
-    let settings = app_settings::update_app_settings(&config_dir, patch)?;
-    apply_settings_to_runtime(&app.state(), &settings);
-    Ok(settings)
+    Ok(engine.update_app_settings(patch)?)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn reset_app_settings(
-    app: tauri::AppHandle,
-    registry: tauri::State<'_, crate::ManagedJobRegistry>,
-) -> CommandResult<AppSettings> {
-    let config_dir = app_settings_config_dir(&app)?;
-    let settings = reset_app_settings_from_config_dir(&config_dir, &registry).await?;
-    apply_settings_to_runtime(&app.state(), &settings);
-    Ok(settings)
+pub async fn reset_app_settings(engine: EngineState<'_>) -> CommandResult<AppSettings> {
+    Ok(engine.reset_app_settings().await?)
 }
 
-async fn reset_app_settings_from_config_dir(
-    config_dir: &Path,
-    registry: &crate::ManagedJobRegistry,
-) -> Result<AppSettings> {
-    let rollback_concurrency = registry.max_concurrent();
-    registry.reset_to_auto().await.map_err(|_| {
-        AppError::InvalidInput(
-            "Settings can't be reset while exports are running. Try again when they finish."
-                .to_string(),
-        )
-    })?;
-
-    let reset = app_settings::reset_app_settings(config_dir);
-    if reset.is_err() {
-        if let Err(rollback_error) = registry.update_max_concurrent(rollback_concurrency).await {
-            log::warn!(
-                "Failed to roll back max concurrency after settings reset failed: {}",
-                rollback_error
-            );
-        }
-    }
-    reset
+/// Returns backend-owned runtime settings capabilities for UI controls.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_runtime_settings_capabilities(
+    engine: EngineState<'_>,
+) -> CommandResult<RuntimeSettingsCapabilities> {
+    Ok(engine.runtime_settings_capabilities().await?)
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
+/// Returns the current maximum concurrent jobs setting
+#[tauri::command]
+#[specta::specta]
+pub fn get_max_concurrent_jobs(engine: EngineState<'_>) -> usize {
+    engine.max_concurrent_jobs()
+}
 
-    use tempfile::TempDir;
-
-    use super::*;
-    use crate::processing::JobRegistry;
-
-    #[tokio::test]
-    async fn failed_settings_reset_rolls_back_registry_concurrency() {
-        let temp = TempDir::new().expect("temp dir");
-        std::fs::create_dir(temp.path().join("app-settings.json"))
-            .expect("create directory where settings file should be");
-        let registry = Arc::new(JobRegistry::new(2));
-
-        let error = reset_app_settings_from_config_dir(temp.path(), &registry)
-            .await
-            .expect_err("directory settings path should fail reset");
-
-        assert!(matches!(error, AppError::Io(_)));
-        assert_eq!(registry.max_concurrent(), 2);
-    }
-
-    #[tokio::test]
-    async fn settings_reset_during_an_export_explains_why_and_changes_nothing() {
-        let temp = TempDir::new().expect("temp dir");
-        let registry = Arc::new(JobRegistry::new(2));
-        let (_job_id, _permit) = registry.register_job().await.expect("running export");
-
-        let error = reset_app_settings_from_config_dir(temp.path(), &registry)
-            .await
-            .expect_err("reset waits for running exports");
-
-        assert!(
-            error
-                .to_string()
-                .contains("can't be reset while exports are running"),
-            "{error}"
-        );
-        assert_eq!(registry.max_concurrent(), 2);
-        assert!(!temp.path().join("app-settings.json").exists());
-    }
+/// Updates the maximum concurrent jobs setting (requires idle state)
+#[tauri::command]
+#[specta::specta]
+pub async fn set_max_concurrent_jobs(
+    engine: EngineState<'_>,
+    max_concurrent: Option<usize>,
+) -> CommandResult<usize> {
+    Ok(engine.set_max_concurrent_jobs(max_concurrent).await?)
 }

@@ -64,15 +64,15 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
 | Command ingress | `src-tauri/src/commands` | Thin validation/adaptation into Rust owners. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
-| Processing | `src-tauri/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
-| WorkRuntime | `src-tauri/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
-| Active-work power | `src-tauri/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
-| Audio Engine | `src-tauri/src/audio` | Import facts, inspection, encoder selection, media execution, staging, cleanup, and integrity facts. |
-| Metadata Outcome | `src-tauri/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
-| Output Artifact | `src-tauri/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
-| App Settings | `src-tauri/src/app_settings` + `src/app/appSettings` | Durable preferences plus frontend hydration, accepted-value coordination, and durability state. |
+| Processing | `crates/abb-engine/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
+| WorkRuntime | `crates/abb-engine/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
+| Active-work power | `crates/abb-engine/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
+| Audio Engine | `crates/abb-engine/src/audio` | Import facts, inspection, encoder selection, media execution, staging, cleanup, and integrity facts. |
+| Metadata Outcome | `crates/abb-engine/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
+| Output Artifact | `crates/abb-engine/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
+| App Settings | `crates/abb-engine/src/app_settings` + `src/app/appSettings` | Durable preferences plus frontend hydration, accepted-value coordination, and durability state. |
 | Encoding Configuration | `src/app/encoding` | Typed encoder/sample-rate/channel request, capability-derived controls, defaults and title edits, and total estimate kbps. |
-| Remote Source | `src-tauri/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
+| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an existing owner; not additional product owners. |
 
 Callers cross an owner's Public API Strip—the allowed import/export surface

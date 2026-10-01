@@ -3,38 +3,11 @@
 #![deny(clippy::unwrap_used)]
 #![warn(clippy::too_many_lines)]
 
-pub mod app_settings;
 pub mod commands;
-mod diagnostics;
-mod errors;
-mod file_replace;
+mod events;
 pub mod ipc_contract;
-mod metadata;
-mod opened_audio;
-pub mod output_artifact;
-mod owned_dir;
-mod power;
-pub mod processing;
-pub mod remote_source;
-pub mod work_runtime;
-// Re-export key public types needed by external integration tests without exposing full internal module structure
-pub use metadata::{
-    extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
-    read_metadata, save_metadata_intent, AlbumSortPatchOp, AudiobookMetadata,
-    CoverArtPassthroughPolicy, MetadataIntentPatch, NamingMetadata, PassthroughSource, PatchOp,
-};
 
-pub mod audio;
-pub use errors::{
-    sanitize_path_for_display, sanitize_path_str_for_display, AppError, AppErrorCategory,
-    AppErrorCode, AppErrorEnvelope,
-};
-
-use std::sync::Arc;
 use tauri::{Emitter, LogicalSize, Manager, Size, WebviewWindow};
-
-/// Type alias for managed JobRegistry state
-pub type ManagedJobRegistry = Arc<processing::JobRegistry>;
 
 const STARTUP_MAX_MONITOR_RATIO: f64 = 0.94;
 const STARTUP_TARGET_ASPECT_RATIO: f64 = 16.0 / 10.0;
@@ -109,6 +82,49 @@ fn configure_startup_window(window: &WebviewWindow) -> Result<(), tauri::Error> 
     Ok(())
 }
 
+/// Builds the engine over this app's directories and identity, forwarding its
+/// events to the webview.
+fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
+    let resolve = |kind: &str, path: tauri::Result<std::path::PathBuf>| {
+        path.map_err(|error| {
+            abb_engine::AppError::General(format!(
+                "Failed to resolve app {kind} directory: {error}"
+            ))
+        })
+    };
+    abb_engine::Engine::start(abb_engine::EngineConfig {
+        cache_dir: resolve("cache", app.path().app_cache_dir())?,
+        config_dir: resolve("config", app.path().app_config_dir())?,
+        app_identifier: app.config().identifier.clone(),
+        events: std::sync::Arc::new(events::TauriEvents(app.handle().clone())),
+        aaxclean_helper: None,
+    })
+}
+
+/// Hands OS-opened files to the engine and tells the frontend to collect them.
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+fn queue_opened_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
+    let paths = urls
+        .into_iter()
+        .filter_map(|url| url.to_file_path().ok())
+        .collect();
+    let Some(engine) = app.try_state::<abb_engine::Engine>() else {
+        log::warn!("Engine is unavailable; ignoring opened audio files");
+        return;
+    };
+    match engine.queue_opened_audio_files(paths) {
+        Ok(true) => {
+            use tauri_specta::Event;
+            let event = events::OpenedAudioFilesEvent::default();
+            if let Err(error) = app.emit(events::OpenedAudioFilesEvent::NAME, event) {
+                log::warn!("Failed to emit opened audio files event: {}", error);
+            }
+        }
+        Ok(false) => {}
+        Err(error) => log::warn!("Failed to queue opened audio files: {}", error),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logging with INFO level for production
@@ -116,57 +132,23 @@ pub fn run() {
 
     log::info!("Starting AudioBook Boss application");
 
-    // Initialize job registry with auto-detected concurrency (detected cores / 2)
-    let job_registry: ManagedJobRegistry = Arc::new(processing::JobRegistry::auto());
-    let work_runtime = work_runtime::WorkRuntime::default();
-    log::info!(
-        "Job registry initialized: max_concurrent = {}",
-        job_registry.max_concurrent()
-    );
-
     let specta_builder = ipc_contract::builder();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(job_registry)
-        .manage(work_runtime)
-        .manage(power::PowerManager::default())
-        .manage(opened_audio::OpenedAudioFileQueue::default())
         .invoke_handler(specta_builder.invoke_handler())
         .setup(move |app| {
             specta_builder.mount_events(app);
-            log::info!("build_identity app_id={} app_version={} pid={} run_id={} libavcodec={} libavformat={}",
-                app.config().identifier, env!("CARGO_PKG_VERSION"), std::process::id(),
+            log::info!(
+                "build_identity app_id={} app_version={} pid={} run_id={} {}",
+                app.config().identifier,
+                env!("CARGO_PKG_VERSION"),
+                std::process::id(),
                 std::env::var("ABB_RUN_ID").unwrap_or_else(|_| "unscoped".into()),
-                diagnostics::version_label(ffmpeg_next::codec::version()), diagnostics::version_label(ffmpeg_next::format::version()));
-            let app_cache_dir = app.path().app_cache_dir().map_err(|error| {
-                errors::AppError::General(format!("Failed to resolve app cache directory: {error}"))
-            })?;
-            audio::cleanup_abandoned_processing_workspaces(&app_cache_dir)?;
-            let remote_runtime = remote_source::RemoteSourceRuntime::new(app.handle())?;
-            remote_runtime.cleanup_abandoned_sessions()?;
-            app.manage(remote_runtime);
-
-            // Apply durable settings that have a runtime side (keep-awake).
-            match app
-                .path()
-                .app_config_dir()
-                .map_err(|error| {
-                    errors::AppError::General(format!(
-                        "Failed to resolve app config directory: {error}"
-                    ))
-                })
-                .and_then(|config_dir| app_settings::get_app_settings(&config_dir))
-            {
-                Ok(settings) => commands::app_settings::apply_settings_to_runtime(
-                    &app.state(),
-                    &settings,
-                ),
-                Err(error) => log::warn!(
-                    "Startup app settings hydration failed; using runtime defaults: {error}"
-                ),
-            }
+                abb_engine::ffmpeg_build_identity()
+            );
+            app.manage(start_engine(app)?);
 
             if let Some(main_window) = app.get_webview_window("main") {
                 if let Err(error) = configure_startup_window(&main_window) {
@@ -184,29 +166,7 @@ pub fn run() {
         .run(|app, event| {
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
             if let tauri::RunEvent::Opened { urls } = event {
-                let paths = opened_audio::collect_opened_audio_file_paths(urls);
-                if paths.is_empty() {
-                    return;
-                }
-
-                let Some(queue) = app.try_state::<opened_audio::OpenedAudioFileQueue>() else {
-                    log::warn!("Opened audio queue state is unavailable");
-                    return;
-                };
-
-                match queue.push_paths(paths) {
-                    Ok(()) => {
-                        let event = opened_audio::OpenedAudioFilesEvent::default();
-                        if let Err(error) =
-                            app.emit(opened_audio::OPENED_AUDIO_FILES_EVENT_NAME, event)
-                        {
-                            log::warn!("Failed to emit opened audio files event: {}", error);
-                        }
-                    }
-                    Err(error) => {
-                        log::warn!("Failed to queue opened audio files: {}", error);
-                    }
-                }
+                queue_opened_urls(app, urls);
             }
         });
 }

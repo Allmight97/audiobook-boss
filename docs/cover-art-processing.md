@@ -2,7 +2,7 @@
 
 Read this when changing how covers are loaded, passed through, converted, or
 written onto an output M4B. Ordinary tag work stays in
-`src-tauri/src/metadata/AGENTS.md`.
+`crates/abb-engine/src/metadata/AGENTS.md`.
 
 ## Write contract
 

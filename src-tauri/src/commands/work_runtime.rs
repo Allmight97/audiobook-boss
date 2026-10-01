@@ -1,51 +1,31 @@
-use crate::audio;
-use crate::commands::CommandResult;
-use crate::errors::AppError;
-use crate::work_runtime::{
+use abb_engine::work_runtime::{
     OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
     WorkSubmissionAccepted,
 };
-use tauri::Manager;
+
+use crate::commands::{CommandResult, EngineState};
 
 #[tauri::command]
 #[specta::specta]
 pub async fn submit_processing_operation(
-    window: tauri::Window,
-    runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
-    registry: tauri::State<'_, crate::ManagedJobRegistry>,
+    engine: EngineState<'_>,
     request: SubmitProcessingOperationRequest,
 ) -> CommandResult<WorkSubmissionAccepted> {
-    let cache_dir = window
-        .app_handle()
-        .path()
-        .app_cache_dir()
-        .map_err(|error| {
-            AppError::General(format!(
-                "Failed to resolve processing workspace root: {error}"
-            ))
-        })?;
-    let workspace_root = audio::processing_workspace_root(&cache_dir);
-
-    Ok(runtime
-        .submit_processing_operation(window, registry.inner().clone(), workspace_root, request)
-        .await?)
+    Ok(engine.submit_processing_operation(request).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn list_work_operations(
-    runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
-) -> CommandResult<OperationListSnapshot> {
-    Ok(runtime.list_operations()?)
+pub fn list_work_operations(engine: EngineState<'_>) -> CommandResult<OperationListSnapshot> {
+    Ok(engine.list_work_operations()?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_work_operation(
-    window: tauri::Window,
-    runtime: tauri::State<'_, crate::work_runtime::WorkRuntime>,
+    engine: EngineState<'_>,
     operation_id: OperationId,
     child_job_id: Option<String>,
 ) -> CommandResult<OperationSnapshot> {
-    Ok(runtime.cancel_operation(&window, operation_id, child_job_id)?)
+    Ok(engine.cancel_work_operation(operation_id, child_job_id)?)
 }

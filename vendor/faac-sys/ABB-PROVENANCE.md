@@ -73,7 +73,7 @@ ABR/VBR choices with ABR as FAAC’s initial mode.
 The adapter requires FAAC's reported delay to equal the priming `faac_timing`
 writes (1024 LC, 2080 HE) and refuses to open otherwise, so an upstream delay
 change fails loudly instead of mistiming files.
-`src-tauri/src/audio/processor/faac_timing.rs` owns the HE-specific MP4 core
+`crates/abb-engine/src/audio/processor/faac_timing.rs` owns the HE-specific MP4 core
 priming and native-decoder interval. LC uses its returned delay and a distinct
 encoding-tool tag. New HE files use `AudioBook Boss FAAC HE-AAC timing-2`,
 2080 samples of MP4 core priming, and 3042 samples of native decode trimming.

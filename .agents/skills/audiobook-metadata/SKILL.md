@@ -19,8 +19,8 @@ the writer, reader, and player behavior actually verified.
 
 Repository paths in these references are relative to the ABB root. Metadata
 intent, validation, write planning, and runtime adaptation stay under
-`src-tauri/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`. Output path
-policy stays under `src-tauri/src/output_artifact/AGENTS.md`.
+`crates/abb-engine/src/metadata/AGENTS.md` and `src/lib/tauri/AGENTS.md`. Output path
+policy stays under `crates/abb-engine/src/output_artifact/AGENTS.md`.
 
 ## Verify The Changed Handoff
 

@@ -19,14 +19,7 @@ export const commands = {
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
 	/**  Loads a cover image from disk and returns write-ready JPEG bytes. */
 	loadCoverArtFile: (filePath: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_file", { filePath })),
-	/**
-	 *  Loads cover art from a remote URL and returns write-ready JPEG bytes.
-	 *
-	 *  HTTPS-only with size and content-type validation. SSRF protection: literal
-	 *  hosts must be public addresses, resolved domains drop private/reserved
-	 *  addresses, every redirect is rechecked, and environment proxies are ignored
-	 *  so the destination is always resolved here.
-	 */
+	/**  Loads cover art from a remote HTTPS URL and returns write-ready JPEG bytes. */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
 	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
@@ -109,8 +102,8 @@ export const commands = {
 /** Events */
 export const events = {
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
-	processingProgress: makeEvent<ProgressEvent_Deserialize>("processing-progress"),
-	processingQueue: makeEvent<QueueEvent>("processing-queue"),
+	processingProgress: makeEvent<ProcessingProgressEvent_Deserialize>("processing-progress"),
+	processingQueue: makeEvent<ProcessingQueueEvent>("processing-queue"),
 	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
 	workOperationSnapshot: makeEvent<WorkOperationSnapshotEvent>("work-operation-snapshot"),
 };
@@ -622,6 +615,7 @@ export type OnlineMetadataResult = {
 	audibleOnly: boolean | null,
 };
 
+/**  Tells the frontend the OS asked ABB to open files; it then drains the queue. */
 export type OpenedAudioFilesEvent = Record<string, never>;
 
 export type OperationId = string;
@@ -805,6 +799,14 @@ export type ProcessingPreflightPlan = {
 	outputs: PlannedOutput[],
 	audioPlans: TitleAudioPlan[],
 };
+
+export type ProcessingProgressEvent = ProcessingProgressEvent_Serialize | ProcessingProgressEvent_Deserialize;
+
+export type ProcessingProgressEvent_Deserialize = ProgressEvent_Deserialize;
+
+export type ProcessingProgressEvent_Serialize = ProgressEvent_Serialize;
+
+export type ProcessingQueueEvent = QueueEvent;
 
 /**  Progress event structure for frontend communication */
 export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;

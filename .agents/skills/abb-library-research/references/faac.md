@@ -8,7 +8,7 @@ its local owner until an upstream behavior question needs evidence.
 
 Read `vendor/faac-sys/ABB-PROVENANCE.md` for the selected revision, local
 changes, build configuration, and library boundary. Inspect `build.rs`, the
-compiled public header, and `src-tauri/src/audio/processor/encoder/faac.rs`
+compiled public header, and `crates/abb-engine/src/audio/processor/encoder/faac.rs`
 for the actual ABI and adapter. Settings and capabilities own ABB's supported
 choices; the library owns profile Auto resolution. Keep revision-specific
 thresholds and current patch facts out of this skill.

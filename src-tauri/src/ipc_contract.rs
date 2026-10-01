@@ -17,7 +17,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::read_audio_cover_thumbnail,
             crate::commands::validate_metadata_intent_patch,
             crate::commands::preview_album_sort,
-            crate::commands::metadata::save_batch::save_metadata_batch,
+            crate::commands::save_metadata_batch,
             crate::commands::search_online_metadata,
             crate::commands::analyze_audio_files,
             crate::commands::preview_title_audio,
@@ -51,11 +51,11 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::log_frontend,
         ])
         .events(tauri_specta::collect_events![
-            crate::processing::ProgressEvent,
-            crate::processing::QueueEvent,
-            crate::opened_audio::OpenedAudioFilesEvent,
-            crate::work_runtime::WorkOperationSnapshotEvent,
-            crate::work_runtime::WorkOperationListSnapshotEvent
+            crate::events::ProcessingProgressEvent,
+            crate::events::ProcessingQueueEvent,
+            crate::events::OpenedAudioFilesEvent,
+            crate::events::WorkOperationSnapshotEvent,
+            crate::events::WorkOperationListSnapshotEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,

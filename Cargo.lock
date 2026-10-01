@@ -23,6 +23,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "abb-engine"
+version = "0.1.0"
+dependencies = [
+ "abb-audible-core",
+ "abb-media-core",
+ "abb-metadata-core",
+ "abb-output-artifact-core",
+ "abb-processing-core",
+ "abb-remote-source-core",
+ "apple-native-keyring-store",
+ "audible_api",
+ "base64 0.23.1",
+ "bogon",
+ "faac-sys",
+ "ffmpeg-next",
+ "ffmpeg-sys-next",
+ "image",
+ "keepawake",
+ "keyring-core",
+ "linux-keyutils-keyring-store",
+ "log",
+ "mp4ameta",
+ "rcgen",
+ "reqwest 0.12.28",
+ "reqwest 0.13.5",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "specta",
+ "specta-typescript",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-rustls",
+ "url",
+ "uuid",
+ "windows-native-keyring-store",
+]
+
+[[package]]
 name = "abb-media-core"
 version = "0.1.0"
 dependencies = [
@@ -415,33 +456,10 @@ dependencies = [
 name = "audiobook-boss"
 version = "1.13.2"
 dependencies = [
- "abb-audible-core",
- "abb-media-core",
- "abb-metadata-core",
- "abb-output-artifact-core",
- "abb-processing-core",
- "abb-remote-source-core",
- "apple-native-keyring-store",
- "audible_api",
- "base64 0.23.1",
- "bogon",
+ "abb-engine",
  "env_logger",
- "faac-sys",
- "ffmpeg-next",
- "ffmpeg-sys-next",
- "image",
- "keepawake",
- "keyring-core",
- "linux-keyutils-keyring-store",
  "log",
- "mp4ameta",
- "rcgen",
- "reqwest 0.12.28",
- "reqwest 0.13.5",
- "secrecy",
  "serde",
- "serde_json",
- "sha2 0.11.0",
  "specta",
  "specta-typescript",
  "tauri",
@@ -449,13 +467,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tauri-specta",
- "tempfile",
- "thiserror 2.0.20",
- "tokio",
- "tokio-rustls",
- "url",
- "uuid",
- "windows-native-keyring-store",
 ]
 
 [[package]]

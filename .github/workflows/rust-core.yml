@@ -1,8 +1,10 @@
 name: rust core crates
 
 # Tests and lints the pure abb-*-core crates on a clean runner. They build
-# without Tauri, GUI libraries or FFmpeg, so this stays fast. The src-tauri
-# runtime suite and generated-binding checks remain local (scripts/AGENTS.md).
+# without Tauri, GUI libraries or FFmpeg, so this stays fast. It also checks
+# that the engine and the cores keep to their dependency tiers. The engine's
+# own suite, the media lane, and generated-binding checks remain local
+# (scripts/AGENTS.md).
 
 on:
   pull_request:
@@ -12,6 +14,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
+      - scripts/check-rust-tiers.sh
   push:
     branches: [main]
     paths:
@@ -20,6 +23,7 @@ on:
       - Cargo.toml
       - Cargo.lock
       - rust-toolchain.toml
+      - scripts/check-rust-tiers.sh
   workflow_dispatch:
 
 concurrency:
@@ -39,5 +43,6 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       # rust-toolchain.toml pins the compiler; rustup installs it on first use.
+      - run: bash scripts/check-rust-tiers.sh
       - run: cargo test --locked $CORE_CRATES
       - run: cargo clippy --locked $CORE_CRATES --all-targets -- -D warnings

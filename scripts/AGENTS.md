@@ -33,7 +33,7 @@ commands over invoking internals directly.
   pull unrelated binaries into the target set. Binding export and
   `bun run aac-decoder-contract:check` have explicit binary commands.
 - Media execution: real-media workflow
-  tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
+  tests live in `crates/abb-engine/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, MP3, and Opus inputs,
   the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
   AAC is macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
@@ -43,7 +43,7 @@ commands over invoking internals directly.
   preflight, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
   (keep synthesized fixtures small). Do not
   add broad media gates or committed fixtures beyond this lane without a new
   owner decision.
@@ -66,11 +66,11 @@ commands over invoking internals directly.
   `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
 - Runtime shell or Rust integration:
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib` or
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib` or
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`.
 - Metadata planner-to-file workflow (two titles, two processing passes, encode
   and preserve, actual tag readback and source-save policy):
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib -E 'test(metadata_workflow)'`.
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(metadata_workflow)'`.
   Use alongside the frontend metadata-owner and IPC checks when a change spans
   edit retention and file output; this is headless backend proof, not UI automation.
 - Manual Tauri dev with captured logs:
@@ -80,11 +80,11 @@ commands over invoking internals directly.
   run-scoped artifacts remain under `.logs/runs/<run-id>/`.
   The summary includes bounded build identity, encoder, metadata, file-handoff,
   and cleanup diagnostics. Full records remain in the raw and encoding logs.
-  The wrapper sets `RUST_LOG=audiobook_boss_lib=info,tauri=warn,wry=warn` unless
+  The wrapper sets `RUST_LOG=audiobook_boss_lib=info,abb_engine=info,tauri=warn,wry=warn` unless
   you override it. For extra Rust debug lines in the same captured run:
-  `ABB_DEV_RUST_LOG='audiobook_boss_lib=debug,tauri=warn,wry=warn' bun run app:dev:log`.
+  `ABB_DEV_RUST_LOG='audiobook_boss_lib=debug,abb_engine=debug,tauri=warn,wry=warn' bun run app:dev:log`.
   For audio-pipeline debug only:
-  `ABB_DEV_RUST_LOG='audiobook_boss_lib::audio=debug,audiobook_boss_lib=info,tauri=warn,wry=warn' bun run app:dev:log`.
+  `ABB_DEV_RUST_LOG='abb_engine::audio=debug,abb_engine=info,audiobook_boss_lib=info,tauri=warn,wry=warn' bun run app:dev:log`.
   To keep a `RUST_LOG` already in the shell: `ABB_DEV_USE_EXISTING_RUST_LOG=1 bun run app:dev:log`.
 - Frontend owner: `bun run test -- <owner test files>`.
 - Frontend type validation: `bun run typecheck`.

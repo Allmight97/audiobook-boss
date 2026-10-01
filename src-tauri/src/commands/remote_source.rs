@@ -1,6 +1,4 @@
-use crate::commands::CommandResult;
-use crate::errors::AppError;
-use crate::remote_source::{
+use abb_engine::remote_source::{
     AcquisitionJob, AcquisitionPlan, ProviderId, RemoteAuthCompletionRequest,
     RemoteAuthStartResponse, RemoteIndexerConnection, RemoteIndexerConnectionTestResult,
     RemoteIndexerConnectionUpdate, RemoteLibraryResponse, RemoteReleaseGrabRequest,
@@ -8,145 +6,140 @@ use crate::remote_source::{
     RemoteSourceAccountState, RemoteSourceProviderCapabilities,
 };
 
+use crate::commands::{CommandResult, EngineState};
+
 #[tauri::command]
 #[specta::specta]
 pub fn list_remote_source_providers(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
 ) -> CommandResult<Vec<RemoteSourceProviderCapabilities>> {
-    Ok(runtime.list_providers())
+    Ok(engine.remote_source().list_providers())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn get_remote_source_account_state(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     provider_id: ProviderId,
 ) -> CommandResult<RemoteSourceAccountState> {
-    Ok(runtime.account_state(provider_id)?)
+    Ok(engine.remote_source().account_state(provider_id)?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn start_remote_source_auth(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     provider_id: ProviderId,
 ) -> CommandResult<RemoteAuthStartResponse> {
-    Ok(runtime.start_auth(provider_id)?)
+    Ok(engine.remote_source().start_auth(provider_id)?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn complete_remote_source_auth(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     request: RemoteAuthCompletionRequest,
 ) -> CommandResult<RemoteSourceAccountState> {
-    Ok(runtime.complete_auth(request).await?)
+    Ok(engine.remote_source().complete_auth(request).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn logout_remote_source_account(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     provider_id: ProviderId,
 ) -> CommandResult<RemoteSourceAccountState> {
-    Ok(runtime.logout(provider_id)?)
+    Ok(engine.remote_source().logout(provider_id)?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn load_remote_source_library(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     provider_id: ProviderId,
 ) -> CommandResult<RemoteLibraryResponse> {
-    Ok(runtime.load_library(provider_id).await?)
+    Ok(engine.remote_source().load_library(provider_id).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn start_remote_source_acquisition(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     plan: AcquisitionPlan,
 ) -> CommandResult<AcquisitionJob> {
-    Ok(runtime.start_acquisition(plan).await?)
+    Ok(engine.remote_source().start_acquisition(plan).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn get_remote_source_acquisition_status(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     job_id: String,
 ) -> CommandResult<AcquisitionJob> {
-    Ok(runtime.acquisition_status(&job_id)?)
+    Ok(engine.remote_source().acquisition_status(&job_id)?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_remote_source_acquisition(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     job_id: String,
 ) -> CommandResult<AcquisitionJob> {
-    Ok(runtime.cancel_acquisition(&job_id)?)
+    Ok(engine.remote_source().cancel_acquisition(&job_id)?)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn purge_remote_source_session(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
-    job_id: String,
-) -> CommandResult<()> {
-    Ok(runtime.purge_session(&job_id)?)
+pub fn purge_remote_source_session(engine: EngineState<'_>, job_id: String) -> CommandResult<()> {
+    Ok(engine.remote_source().purge_session(&job_id)?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn search_remote_source_releases(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     request: RemoteReleaseSearchRequest,
 ) -> CommandResult<RemoteReleaseSearchResponse> {
-    Ok(runtime.search_releases(request).await?)
+    Ok(engine.remote_source().search_releases(request).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn grab_remote_source_release(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     request: RemoteReleaseGrabRequest,
 ) -> CommandResult<RemoteReleaseGrabResponse> {
-    Ok(runtime.grab_release(request).await?)
+    Ok(engine.remote_source().grab_release(request).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_remote_source_indexer_connection(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
 ) -> CommandResult<RemoteIndexerConnection> {
-    let runtime = runtime.inner().clone();
-    Ok(
-        tokio::task::spawn_blocking(move || runtime.get_indexer_connection())
-            .await
-            .map_err(|error| AppError::General(error.to_string()))??,
-    )
+    Ok(engine.remote_source().get_indexer_connection().await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn update_remote_source_indexer_connection(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     update: RemoteIndexerConnectionUpdate,
 ) -> CommandResult<RemoteIndexerConnection> {
-    let runtime = runtime.inner().clone();
-    Ok(
-        tokio::task::spawn_blocking(move || runtime.update_indexer_connection(update))
-            .await
-            .map_err(|error| AppError::General(error.to_string()))??,
-    )
+    Ok(engine
+        .remote_source()
+        .update_indexer_connection(update)
+        .await?)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn test_remote_source_indexer_connection(
-    runtime: tauri::State<'_, crate::remote_source::RemoteSourceRuntime>,
+    engine: EngineState<'_>,
     update: RemoteIndexerConnectionUpdate,
 ) -> CommandResult<RemoteIndexerConnectionTestResult> {
-    Ok(runtime.test_indexer_connection(update).await?)
+    Ok(engine
+        .remote_source()
+        .test_indexer_connection(update)
+        .await?)
 }

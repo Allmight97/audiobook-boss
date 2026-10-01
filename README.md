@@ -111,8 +111,8 @@ default broad review route.
   `cargo nextest run -p abb-output-artifact-core`,
   `cargo nextest run -p abb-processing-core`,
   `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --lib`, or
-  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests`.
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`, or
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`.
 - IPC/boundary checks: `bun run bindings:check:local` and
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.

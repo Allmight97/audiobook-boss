@@ -15,7 +15,7 @@ async function constantFrom(filePath: string, pattern: RegExp): Promise<number> 
 describe('terminal-retention caps contract', () => {
 	it('keeps the frontend purge tombstone larger than backend terminal retention', async () => {
 		const backendCap = await constantFrom(
-			'src-tauri/src/work_runtime/state.rs',
+			'crates/abb-engine/src/work_runtime/state.rs',
 			/const TERMINAL_OPERATIONS_CAP: usize = (\d+);/,
 		);
 		const frontendCap = await constantFrom(
