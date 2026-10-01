@@ -54,6 +54,10 @@
   same encoder open/readback as execution, including upstream bitrate clamps.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
+- `AacDecoderAvailability::validate_runtime_contract` requires the linked
+  FFmpeg AAC decoder on every target and additionally `aac_at` on macOS.
+  The engine's `verify_aac_decoder_contract` tool checks this build contract;
+  decoder presence does not establish compatibility with every input file.
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event

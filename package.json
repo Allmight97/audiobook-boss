@@ -27,7 +27,7 @@
 		"app:install-local:existing": "bun scripts/install-local-app.ts --skip-build",
 		"clean": "rm -rf target/release dist node_modules/.vite tools/abb-aaxclean-helper/.publish",
 		"bindings:generate": "cargo run --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg,binding-export --bin export_bindings",
-		"aac-decoder-contract:check": "cargo run --manifest-path src-tauri/Cargo.toml --features bundled-ffmpeg,decoder-contract --bin verify_aac_decoder_contract",
+		"aac-decoder-contract:check": "cargo run -p abb-engine --features bundled-ffmpeg --bin verify_aac_decoder_contract",
 		"bindings:check": "scripts/check-generated-bindings.sh --mode verify",
 		"bindings:check:local": "scripts/check-generated-bindings.sh --mode local",
 		"bindings:check:runtime-boundary": "bun scripts/check-tauri-runtime-boundary.ts",

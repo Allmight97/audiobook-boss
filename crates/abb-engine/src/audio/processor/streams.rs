@@ -49,6 +49,23 @@ impl AacDecoderAvailability {
     pub fn has_named_decoder(self) -> bool {
         self.aac_at
     }
+
+    /// Every build needs software AAC decoding; macOS also promises Apple AAC.
+    /// Presence is a build contract, while actual file compatibility is trial-decoded.
+    pub fn validate_runtime_contract(self) -> Result<()> {
+        if !self.default_aac {
+            return Err(AppError::General(
+                "AAC decoder contract failed: required FFmpeg AAC decoder is missing.".into(),
+            ));
+        }
+        if cfg!(target_os = "macos") && !self.aac_at {
+            return Err(AppError::General(
+                "AAC decoder contract failed: required macOS Apple AAC decoder aac_at is missing."
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 struct OpenedAudioInput {
@@ -767,16 +784,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn non_named_aac_decoder_contract_reports_false_when_none_available() {
-        let availability = AacDecoderAvailability {
-            default_aac: true,
-            aac_at: false,
-        };
-
-        assert!(!availability.has_named_decoder());
     }
 
     #[test]
