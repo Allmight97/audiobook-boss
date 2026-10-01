@@ -1,35 +1,37 @@
-# Rust Core Crates
+# Rust Crates
+
+## Tiers
+
+| Tier | Crates | Holds | Must not depend on |
+| --- | --- | --- | --- |
+| Pure cores | `abb-*-core` | Domain facts and classifiers with no I/O. | A UI toolkit, FFmpeg, a credential store, or the engine. |
+| Engine | `abb-engine` | Every product rule and workflow: the working session, settings, audio, metadata, processing, WorkRuntime, and remote sources. | A UI toolkit (`tauri`, `tauri-*`, `wry`, `tao`). |
+| Host | `src-tauri` (package `audiobook-boss`) | One UI host: commands, events, the window, native dialogs. | — |
+
+`bun run check:rust-tiers` enforces the last column and runs in CI.
+
+A UI host on another platform replaces the host tier and keeps the engine, so
+a rule placed in the host would have to be written again for each platform.
+Put a rule in the engine, or in a core when it needs no I/O.
 
 ## Ownership
 
-- `abb-*-core` crates package pure domain logic for existing ABB owners.
-- They are package boundaries, not new Public API Strips.
-- `abb-remote-source-core` stays provider-neutral (stages, strategies, progress,
-  materialized kinds). Provider protocol interpretation, such as Audible
-  license keys and strategy choice, lives in that provider's core.
-- Keep runtime adapters, IPC, filesystem, keychain, Tauri plugins, and FFmpeg in
-  `src-tauri`.
-
-## Dependency Rule
-
-Core crates must not depend on:
-
-- `tauri`
-- `tauri-specta`
-- `ffmpeg-next`
-- `ffmpeg-sys-next`
-- `keyring-core`, `keyring`, or any platform-native keyring/credential-store crate
-- Tauri plugins
+- `abb-*-core` crates package pure domain logic for an engine owner. They are
+  package boundaries, not additional Public API Strips.
+- `abb-remote-source-core` stays provider-neutral (stages, strategies,
+  progress, materialized kinds). Provider protocol interpretation, such as
+  Audible license keys and strategy choice, lives in that provider's core.
+- Engine owners and the engine's host interface: `crates/abb-engine/AGENTS.md`.
+- Host rules: `src-tauri/AGENTS.md`.
 
 ## Direct Tests
 
-- Audible: `cargo nextest run -p abb-audible-core`
-- Metadata: `cargo nextest run -p abb-metadata-core`
-- Media contract: `cargo nextest run -p abb-media-core`
-- Output Artifact: `cargo nextest run -p abb-output-artifact-core`
-- Processing: `cargo nextest run -p abb-processing-core`
-- Remote Source: `cargo nextest run -p abb-remote-source-core`
-- All core crates: run the package commands above sequentially.
+- A core: `cargo nextest run -p abb-<owner>-core` (audible, media, metadata,
+  output-artifact, processing, remote-source). Run several sequentially.
+- Engine unit tests: `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`
+- Engine real-file tests: `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`
+- Host: `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`
 
-Move tests with the pure logic. Use `src-tauri` tests only for adapters,
-contracts, filesystem behavior, and media/runtime behavior.
+Move a test with the logic it proves. The host's tests cover only what the
+host owns: intent ordering, the command contract, window sizing, and the
+frontend log command.

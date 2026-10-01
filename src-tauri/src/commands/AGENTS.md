@@ -1,51 +1,37 @@
-# Command Boundary Directives
+# Command Boundary
 
-## Scope
-
-- Applies to Tauri command modules under `src-tauri/src/commands/`.
-- Commands are IPC ingress adapters, not owners of product rules or deep
-  processing behavior.
+Applies to Tauri command modules under `src-tauri/src/commands/`. A command
+carries one request to the engine and returns its answer.
 
 ## Preferred Path
 
-- Keep command functions thin: parse IPC inputs, validate boundary data, call
-  the owning backend module, and return `CommandResult<T>`.
-- Route product behavior through the owning Public API Strip:
-  `crate::audio`, `crate::metadata`, `crate::processing`,
-  `crate::work_runtime`, `crate::output_artifact`, or `crate::app_settings`.
+- Keep a command thin: take the IPC inputs, call one `Engine` method, and
+  return `CommandResult<T>`.
+- Session and settings changes go through `session_dispatch` and
+  `settings_dispatch` in `session.rs`, which take a turn from the intent
+  order before calling the engine. A new user action is a new intent variant
+  in the engine, not a new command.
+- Add a separate command only for a read that is not part of a snapshot (for
+  example cover bytes) or for an owner that does not take intents yet.
 - Indexer Settings reads/writes can wait on an OS credential prompt; run them
   off the UI thread so Settings remains usable while Keychain is waiting.
 - Register command and event changes in `src-tauri/src/ipc_contract.rs` and keep
   generated TypeScript bindings in sync.
-- Use `tokio::task::spawn_blocking` for synchronous file/media work reached from
-  async commands.
-- Keep provider-specific lookup code inside its command family and service
-  modules; command functions should not grow into HTTP clients or mappers.
-- Metadata lookup provider degradation is owned by
-  `metadata_lookup/service.rs`: preserve usable results plus typed diagnostics
-  when the selected contract can still be satisfied, and hard-fail otherwise.
-  Cover the response behavior with focused tests.
 
 ## Hard Invariants
 
-- Validate user-supplied paths at this boundary before domain modules receive
-  them: input audio paths through `crate::audio::validate_input_audio_path()`
-  (extension allowlist + traversal/canonicalization); execution-time path
-  planning is owned by `processing::plan`, and requested/resolved artifact paths,
-  collision, and parent-dir creation by `crate::output_artifact`. Map path
-  errors to `AppError` without leaking sensitive absolute paths to the UI.
 - Return `AppError`/`AppErrorEnvelope` through `CommandResult<T>`; do not expose
   ad hoc string error contracts to the frontend.
+- The engine validates paths, metadata intent, output artifact truth, and
+  operation lifecycle. A command does not repeat, pre-check, or substitute for
+  those decisions.
 - Do not bypass `JobRegistry` or `WorkRuntime` for long-running operation
   lifecycle, snapshots, or cancellation behavior.
-- Do not encode metadata intent, output artifact truth, processing lifecycle
-  vocabulary, or WorkRuntime operation truth directly in command functions.
 
 ## Done Criteria
 
 - Command additions or shape changes have matching Specta registration and
   binding drift checks.
-- Focused command tests or owning module tests prove the behavior moved through
-  the intended boundary.
+- The behavior a command reaches is proved by the engine owner's tests.
 - Direct review commands from `README.md` and `scripts/AGENTS.md` are the
   default verification path for command, contract, or generated-binding changes.
