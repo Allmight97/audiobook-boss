@@ -76,7 +76,8 @@ commands over invoking internals directly.
 - Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
   dependency changes.
 - Driving the engine session without a window:
-  `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--json]`.
+  `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--out folder --export] [--json]`
+  (usage text lists audio, naming, preview, collision, and title-cancel options).
   It uses its own identity and a temporary state folder, so it never touches
   the app's settings or credentials.
 - Metadata planner-to-file workflow (two titles, two processing passes, encode

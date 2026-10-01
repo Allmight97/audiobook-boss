@@ -359,6 +359,44 @@ async fn the_developer_tool_imports_edits_and_saves_a_real_file() {
 }
 
 #[tokio::test]
+async fn the_developer_tool_exports_with_the_edited_tags() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    let out = desk.root.path().join("exports");
+
+    let run = std::process::Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&book)
+        .args([
+            "--set",
+            "genre=Mystery",
+            "--template",
+            "{title}",
+            "--export",
+        ])
+        .arg("--out")
+        .arg(&out)
+        .arg("--state-dir")
+        .arg(desk.root.path().join("tool-state"))
+        .output()
+        .expect("run abb-dev");
+
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    assert!(
+        run.status.success(),
+        "abb-dev failed: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(stdout.contains("Export: Completed"), "{stdout}");
+    assert!(stdout.contains("genre: Mystery"), "{stdout}");
+    let exported = out.join("Alpha.m4b");
+    assert_eq!(genre_on_disk(&exported).as_deref(), Some("Mystery"));
+    // The source keeps its own tags; the edit is still pending for Save.
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Fantasy"));
+}
+
+#[tokio::test]
 async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset() {
     let desk = Desk::new();
     desk.send(SessionIntent::SetDefaultAudio {
