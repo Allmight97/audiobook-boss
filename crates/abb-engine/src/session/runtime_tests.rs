@@ -1263,6 +1263,9 @@ async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refu
             reason: crate::remote_source::HandoffRefusal::NothingAdded
         }
     );
+    // The session removes the refused job's download itself.
+    assert_eq!(rig.removed_jobs().await, ["job-2"]);
+    rig.removed.lock().expect("removed").clear();
 
     rig.send(SessionIntent::SetOutputDirectory {
         directory: output.path().to_string_lossy().into_owned(),

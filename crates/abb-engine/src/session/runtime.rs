@@ -335,7 +335,11 @@ enum Rest {
         resets: u64,
     },
     /// Record a choice in the settings.
-    Remember(SettingsIntent),
+    /// Record a choice in the settings, unless they were reset since `resets`.
+    Remember {
+        intent: SettingsIntent,
+        resets: u64,
+    },
     /// Preflight, review, then export or preview.
     Submit(Box<Draft>),
     /// Continue a reviewed submission under `policy`.
@@ -385,8 +389,8 @@ impl SessionRun {
                 SessionOutcome::Applied
             }
             Rest::Import { paths, resets } => session.import(paths, resets).await,
-            Rest::Remember(intent) => {
-                session.remember(intent).await;
+            Rest::Remember { intent, resets } => {
+                session.remember(intent, resets).await;
                 SessionOutcome::Applied
             }
             Rest::Submit(draft) => session.submit(*draft).await,
@@ -651,7 +655,7 @@ impl Session {
                 Rest::Done(SessionOutcome::Applied)
             }
             I::SetDefaultAudio { edit } => match self.transition(|state| state.audio.edit(edit)) {
-                Some(defaults) => Rest::Remember(SettingsIntent::Remember {
+                Some(defaults) => self.remember_later(SettingsIntent::Remember {
                     encoder_defaults: Some(defaults),
                     output_defaults: None,
                     default_acquisition_lane: None,
@@ -698,7 +702,7 @@ impl Session {
                 None => Rest::Done(SessionOutcome::Applied),
             },
             I::CancelCollisionReview => {
-                self.transition(SessionState::cancel_review);
+                self.cancel_review();
                 Rest::Done(SessionOutcome::Applied)
             }
 
@@ -845,6 +849,27 @@ impl Session {
     /// downloads, in the transition that lists them, so no Reset or removal
     /// can fall between the two.
     async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
+        let handoff = self.import_acquired_files(&job).await;
+        if matches!(handoff, AcquisitionHandoff::Removed { .. }) {
+            // Nothing from it is listed; the staged record owns removing the
+            // download, and retries if removal fails.
+            let paths = job
+                .materialized_files
+                .iter()
+                .map(|file| file.path.clone())
+                .chain(
+                    job.supplemental_assets
+                        .iter()
+                        .map(|asset| asset.path.clone()),
+                )
+                .collect();
+            self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
+            self.sweep_staged();
+        }
+        handoff
+    }
+
+    async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
         let _in_order = self.inner.imports.lock().await;
         let resets = self.inner.resets.load(Ordering::SeqCst);
         let removed = |reason| AcquisitionHandoff::Removed { reason };
@@ -869,7 +894,7 @@ impl Session {
         if self.inner.resets.load(Ordering::SeqCst) != resets {
             return removed(HandoffRefusal::NothingAdded);
         }
-        let titles = staged_titles(&job);
+        let titles = staged_titles(job);
         let listed = self.transition(|state| {
             if state.working_set.order_locked() {
                 return Err(HandoffRefusal::OrderLocked);
@@ -979,12 +1004,29 @@ impl Session {
             Ok(plan) => plan,
             Err(error) => return self.end_submission(&draft, failed(&error)),
         };
+        // A policy applies only to collisions the user reviewed; a new one
+        // that appeared meanwhile sends the submission back to review.
+        let collided: Vec<_> = plan
+            .outputs
+            .iter()
+            .filter(|output| output.collision.is_some())
+            .cloned()
+            .collect();
+        let unreviewed = draft.reviewed.as_ref().is_some_and(|reviewed| {
+            crate::session::submission::collisions(&collided)
+                .iter()
+                .any(|collision| !reviewed.contains(collision))
+        });
         match plan_verdict(&plan) {
             PlanVerdict::Blocked(message) => {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
             PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
                 self.transition(|state| state.await_review(draft, outputs));
+                SessionOutcome::Applied
+            }
+            _ if unreviewed => {
+                self.transition(|state| state.await_review(draft, collided));
                 SessionOutcome::Applied
             }
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
@@ -1042,6 +1084,15 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
+    /// Drops a submission held for review and frees its sources, waking a
+    /// Save that waits on them. Shutdown calls this too: a review nobody
+    /// answers would otherwise hold the files forever.
+    pub(crate) fn cancel_review(&self) {
+        self.transition(SessionState::cancel_review);
+        self.inner.sources_freed.notify_one();
+        self.sweep_staged();
+    }
+
     /// Ends a submission; its sources stay reserved until WorkRuntime has
     /// registered them.
     fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
@@ -1058,13 +1109,24 @@ impl Session {
             state.output.defaults()
         });
         self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
-        Rest::Remember(remember_output(defaults))
+        self.remember_later(remember_output(defaults))
+    }
+
+    /// Records a choice once the intent's immediate effect is done. The
+    /// reset count is read now, with the choice, so a settings reset that
+    /// lands first wins.
+    fn remember_later(&self, intent: SettingsIntent) -> Rest {
+        Rest::Remember {
+            intent,
+            resets: self.inner.deps.settings.resets(),
+        }
     }
 
     /// Records the output choices once template typing has paused, so a
     /// keystroke does not write the settings file.
     fn remember_output_later(&self) {
         let edit = self.inner.output_edits.fetch_add(1, Ordering::SeqCst) + 1;
+        let resets = self.inner.deps.settings.resets();
         if tokio::runtime::Handle::try_current().is_err() {
             return;
         }
@@ -1075,14 +1137,17 @@ impl Session {
                 return;
             }
             let defaults = session.lock().output.defaults();
-            session.remember(remember_output(defaults)).await;
+            session.remember(remember_output(defaults), resets).await;
         });
     }
 
     /// Records a choice in the settings and tells hosts what the settings
-    /// are now.
-    async fn remember(&self, intent: SettingsIntent) {
-        let reply = self.inner.deps.settings.dispatch(intent).await;
+    /// are now. A choice made before a reset that already applied is dropped.
+    async fn remember(&self, intent: SettingsIntent, resets: u64) {
+        let settings = &self.inner.deps.settings;
+        let Some(reply) = settings.dispatch_unless_reset(intent, resets).await else {
+            return;
+        };
         self.inner
             .deps
             .host

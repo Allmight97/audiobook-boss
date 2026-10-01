@@ -122,8 +122,10 @@ attachment.
   it with a `SubmitRefusal`. From acceptance until the export is registered
   with WorkRuntime (or the preview ends) its sources are held and the list is
   locked. Outputs that already exist hold it at `ReviewRequired` until
-  `ChooseCollisionPolicy` or `CancelCollisionReview`; the choice is bound to
-  the reviewed plan's signature. After `Engine::shutdown` a submission is
+  `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only
+  to the collisions the user saw: one that appears meanwhile sends the
+  submission back to review, and execution still rejects a plan whose
+  signature changed after approval. After `Engine::shutdown` a submission is
   refused as `Closing`.
 - **Staged downloads.** A finished acquisition's files are imported by the
   session itself (`Session::handoff`), and its titles are recorded as staged
@@ -134,7 +136,9 @@ attachment.
   grouped sources count as listed), and no unfinished export, submission,
   or Save writing holds its files. Files being removed count as busy: Save
   holds them and a submission using them is refused. A failed removal stays
-  recorded and is retried by the next sweep; startup clears the rest.
+  recorded and is retried by the next sweep; startup clears the rest. A
+  download nothing was imported from is recorded the same way, so its
+  removal is retried too.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. A result applies only to the
   queued title while it is the one title both selected and bound. Applied

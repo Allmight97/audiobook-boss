@@ -539,3 +539,106 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
             .order_locked
     );
 }
+
+#[tokio::test]
+async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let first = desk.export().await;
+    desk.wait_until("the first export finishes", |desk| {
+        finished(desk.export_status(&first))
+    })
+    .await;
+    // The same export again waits for a collision choice, holding its source.
+    desk.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            submission(&desk),
+            Some(SubmissionStatus::ReviewRequired { .. })
+        ),
+        "{:?}",
+        submission(&desk)
+    );
+    let metadata = desk.edit_genre_and_save().await;
+    assert_eq!(metadata.waiting_writes.len(), 1);
+
+    tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
+        .await
+        .expect("shutdown does not wait on an unanswered review");
+
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+}
+
+#[tokio::test]
+async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_applies() {
+    use abb_engine::output_artifact::CollisionPolicy;
+
+    let desk = Desk::new();
+    let library = desk.root.path().join("library");
+    let alpha = desk.audiobook(&library.join("alpha.m4b"), 1.0).await;
+    let beta = desk.audiobook(&library.join("beta.m4b"), 1.0).await;
+    desk.send(SessionIntent::Import {
+        paths: vec![
+            alpha.to_string_lossy().into_owned(),
+            beta.to_string_lossy().into_owned(),
+        ],
+    })
+    .await;
+    // Different titles, so the two exports do not collide with each other.
+    desk.send(SessionIntent::SelectFile {
+        index: 1,
+        modifiers: abb_engine::session::SelectionModifiers::default(),
+    })
+    .await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Beta".to_string(),
+    })
+    .await;
+    let first = desk.export().await;
+    desk.wait_until("the first export finishes", |desk| {
+        finished(desk.export_status(&first))
+    })
+    .await;
+    let outputs = |desk: &Desk| -> Vec<PathBuf> { walk(&desk.root.path().join("exports")) };
+    let exported = outputs(&desk);
+    assert_eq!(exported.len(), 2, "{exported:?}");
+
+    // Only one output exists when the user reviews.
+    let moved = desk.root.path().join("set-aside.m4b");
+    fs::rename(&exported[1], &moved).expect("set one output aside");
+    desk.send(SessionIntent::Submit).await;
+    let Some(SubmissionStatus::ReviewRequired { outputs: seen, .. }) = submission(&desk) else {
+        panic!("review: {:?}", submission(&desk));
+    };
+    assert_eq!(seen.len(), 1);
+
+    // The other appears before the user chooses.
+    fs::rename(&moved, &exported[1]).expect("put it back");
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        policy: CollisionPolicy::ReplaceExisting,
+    })
+    .await;
+    let Some(SubmissionStatus::ReviewRequired { outputs: now, .. }) = submission(&desk) else {
+        panic!("back to review: {:?}", submission(&desk));
+    };
+    assert_eq!(now.len(), 2);
+}
+
+/// Every file under `dir`, sorted.
+fn walk(dir: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(dir).expect("read folder").flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(walk(&path));
+        } else {
+            files.push(path);
+        }
+    }
+    files.sort();
+    files
+}

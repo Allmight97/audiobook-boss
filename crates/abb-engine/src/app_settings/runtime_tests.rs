@@ -439,3 +439,24 @@ async fn a_failed_reset_restores_concurrency_and_keeps_unsaved_choices_retryable
     rig.send(SettingsIntent::Retry).await;
     assert_eq!(rig.on_disk().output_defaults, output_in("/unsaved"));
 }
+
+#[tokio::test]
+async fn a_choice_made_before_a_reset_does_not_come_back_after_it() {
+    let rig = start();
+    let before = rig.settings.resets();
+
+    rig.settings.dispatch(SettingsIntent::Reset).await;
+    let late = rig
+        .settings
+        .dispatch_unless_reset(remember_output("/before-reset"), before)
+        .await;
+
+    assert!(late.is_none(), "the reset wins");
+    let settings = rig.settings.snapshot().await.settings.expect("settings");
+    assert_eq!(settings.output_defaults.output_directory, None);
+    assert!(rig
+        .settings
+        .dispatch_unless_reset(remember_output("/after-reset"), rig.settings.resets())
+        .await
+        .is_some());
+}

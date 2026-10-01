@@ -56,6 +56,22 @@ impl StagedSources {
             );
     }
 
+    /// Records a download nothing was imported from, so a sweep removes it
+    /// and retries if removal fails.
+    pub(crate) fn register_unimported(&mut self, job_id: &str, paths: Vec<PathBuf>) {
+        let job = self.jobs.entry(job_id.to_string()).or_default();
+        for (index, path) in paths.into_iter().enumerate() {
+            job.titles.insert(
+                format!("unimported:{index}"),
+                StagedTitle {
+                    path,
+                    assets: Vec::new(),
+                    finished: true,
+                },
+            );
+        }
+    }
+
     fn title(&self, input_id: &str) -> Option<&StagedTitle> {
         self.jobs.values().find_map(|job| job.titles.get(input_id))
     }

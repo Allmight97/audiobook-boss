@@ -74,7 +74,7 @@ export type AccountRef = {
  *  session.
  */
 export type AcquisitionHandoff = { kind: "imported"; count: number } |
-/**  Nothing was imported, so the staged files were removed. */
+/**  Nothing was imported, so the engine removes the staged files. */
 { kind: "removed"; reason: HandoffRefusal };
 
 export type AcquisitionJob = {

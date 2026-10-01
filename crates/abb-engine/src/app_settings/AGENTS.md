@@ -23,6 +23,9 @@ a `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply.
   order asked and an older write never reports a newer choice as saved. Every
   reply carries the whole snapshot with a revision that advances per intent;
   a host keeps the newest.
+- A default the session records arrives after its session intent, outside
+  the settings intent order, so it is dropped if a reset applied after the
+  choice was made (`dispatch_unless_reset`).
 - A remembered default stays in effect when its write fails. The unsaved part
   is kept, coalesced by field, reported as `save_error`, and written by the
   next write or `Retry`.

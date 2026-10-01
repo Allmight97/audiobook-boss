@@ -226,16 +226,8 @@ impl RemoteAcquisitionLifecycle {
             return;
         };
         let job_id = job.job_id.clone();
+        // The session removes an unimported download itself.
         let result = handoff(job).await;
-        if matches!(result, types::AcquisitionHandoff::Removed { .. }) {
-            if let Err(error) = self.staging.purge_session(&job_id) {
-                log::warn!(
-                    "remote_source handoff cleanup failed job_id={} error={}",
-                    job_id,
-                    error
-                );
-            }
-        }
         let updated = self.jobs.lock().ok().and_then(|mut jobs| {
             let job = jobs.get_mut(&job_id)?;
             match &result {

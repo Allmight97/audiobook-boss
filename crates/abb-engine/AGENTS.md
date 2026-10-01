@@ -22,8 +22,8 @@ the same code.
   type.
 - Before exiting or reusing the engine's folders, a host awaits
   `Engine::shutdown`: it refuses new exports and acquisitions, cancels running
-  ones, and waits for every background task, so saves waiting on a cancelled
-  export are written. `Engine::running_work` tells a host what quitting would
+  ones and any submission waiting at collision review, and waits for every
+  background task, so saves waiting on them are written. `Engine::running_work` tells a host what quitting would
   stop.
 - Every background task the engine starts runs on its one `TaskTracker`
   (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.

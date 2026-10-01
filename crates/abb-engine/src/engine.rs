@@ -139,6 +139,7 @@ impl Engine {
     /// a cancelled export are written once it stops reading their files.
     pub async fn shutdown(&self) {
         self.inner.tasks.close();
+        self.inner.session.cancel_review();
         for operation in self.inner.work.unfinished_operations() {
             if let Err(error) = self
                 .inner

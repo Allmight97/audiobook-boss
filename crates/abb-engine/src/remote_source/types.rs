@@ -284,7 +284,7 @@ pub enum AcquisitionHandoff {
     Imported {
         count: usize,
     },
-    /// Nothing was imported, so the staged files were removed.
+    /// Nothing was imported, so the engine removes the staged files.
     Removed {
         reason: HandoffRefusal,
     },

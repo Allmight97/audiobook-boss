@@ -99,6 +99,8 @@ pub(crate) struct Draft {
     pub(crate) preview_seconds: Option<f64>,
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
+    /// The collisions the user saw when choosing a policy.
+    pub(crate) reviewed: Option<Vec<String>>,
 }
 
 impl Draft {
@@ -142,6 +144,14 @@ pub(crate) fn build_draft(
     if titles.is_empty() {
         return Err(SubmitRefusal::NoTitles);
     }
+    // Before standalone titles are filtered: a group whose first source is
+    // invalid is still a group with an invalid source.
+    if titles
+        .iter()
+        .any(|title| title.sources.len() > 1 && title.sources.iter().any(|source| !source.is_valid))
+    {
+        return Err(SubmitRefusal::InvalidSource);
+    }
     let valid: Vec<&SubmittedTitle<'_>> = titles
         .iter()
         .filter(|title| title.anchor.is_valid)
@@ -151,12 +161,6 @@ pub(crate) fn build_draft(
     }
     if valid.iter().any(|title| title.choice_required) {
         return Err(SubmitRefusal::AudioChoiceRequired);
-    }
-    if valid
-        .iter()
-        .any(|title| title.sources.iter().any(|source| !source.is_valid))
-    {
-        return Err(SubmitRefusal::InvalidSource);
     }
     let Some(output_dir) = inputs.output_directory else {
         return Err(SubmitRefusal::NoOutputDirectory);
@@ -217,6 +221,7 @@ pub(crate) fn build_draft(
         preview_seconds: inputs.preview_seconds,
         title,
         sources,
+        reviewed: None,
     })
 }
 
@@ -250,6 +255,25 @@ pub(crate) fn title_label(file: &AudioFile) -> String {
                 .map(|name| name.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| file.path.to_string_lossy().into_owned())
+}
+
+/// The outputs that already exist in `outputs`, by where each was asked for
+/// and what it collides with. Independent of the collision policy chosen.
+pub(crate) fn collisions(outputs: &[PlannedOutput]) -> Vec<String> {
+    let mut collisions: Vec<String> = outputs
+        .iter()
+        .filter_map(|output| {
+            let collision = output.collision.as_ref()?;
+            Some(format!(
+                "{}|{:?}|{}",
+                output.requested_path,
+                collision.kind,
+                collision.conflicting_path.as_deref().unwrap_or_default()
+            ))
+        })
+        .collect();
+    collisions.sort();
+    collisions
 }
 
 /// What a preflight plan asks of the user before it can proceed.

@@ -236,7 +236,9 @@ impl RemoteSourceRuntime {
     ) -> Result<types::RemoteReleaseGrabResponse> {
         let _turn = self.indexer_turn()?;
         let key = (request.release.indexer_id, request.release.guid.clone());
-        if self.sent_releases().contains(&key) {
+        // Claimed before sending, so an overlapping grab of the same release
+        // does not send it too; released again if the send is not accepted.
+        if !self.sent_releases().insert(key.clone()) {
             return Ok(types::RemoteReleaseGrabResponse {
                 provider_id: RemoteProviderId::Indexer,
                 accepted: true,
@@ -251,11 +253,11 @@ impl RemoteSourceRuntime {
             &self.inner.indexer_adapter,
             request,
         )
-        .await?;
-        if response.accepted {
-            self.sent_releases().insert(key);
+        .await;
+        if !response.as_ref().is_ok_and(|response| response.accepted) {
+            self.sent_releases().remove(&key);
         }
-        Ok(response)
+        response
     }
 
     /// A share of the indexer turn, refused while a connection save runs.
@@ -606,7 +608,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_finished_job_records_its_handoff_and_drops_files_nothing_imported() {
+    async fn a_finished_job_records_its_handoff() {
         for (answer, kept) in [
             (AcquisitionHandoff::Imported { count: 1 }, true),
             (
@@ -646,7 +648,8 @@ mod tests {
 
             let stored = runtime.acquisition_status(job_id).expect("job status");
             assert_eq!(stored.handoff, Some(answer));
-            assert_eq!(audio.exists(), kept);
+            // Removing an unimported download is the session's (`staged.rs`).
+            assert!(audio.exists());
             assert_eq!(stored.materialized_files.is_empty(), !kept);
         }
     }
@@ -680,6 +683,8 @@ mod tests {
             .await
             .expect("answered without sending");
         assert!(again.accepted);
+        assert!(runtime.grab_release(release("release-2")).await.is_err());
+        // A send that failed releases its claim, so it can be retried.
         assert!(runtime.grab_release(release("release-2")).await.is_err());
 
         // A new search, or a saved connection, forgets what was sent.

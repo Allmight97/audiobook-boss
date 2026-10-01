@@ -116,6 +116,8 @@ struct Inner {
     jobs: ManagedJobRegistry,
     power: PowerManager,
     state: tokio::sync::Mutex<State>,
+    /// Advances, under the settings turn, with every applied reset.
+    resets: std::sync::atomic::AtomicU64,
 }
 
 #[derive(Default)]
@@ -212,6 +214,7 @@ impl SettingsRuntime {
                 jobs: Arc::clone(&jobs),
                 power,
                 state: tokio::sync::Mutex::new(state),
+                resets: std::sync::atomic::AtomicU64::new(0),
             }),
         };
         (runtime, jobs, startup)
@@ -243,6 +246,30 @@ impl SettingsRuntime {
                     .map(|settings| settings.default_acquisition_lane))
                 .unwrap_or_default(),
         }
+    }
+
+    /// How many resets have been applied.
+    pub(crate) fn resets(&self) -> u64 {
+        self.inner.resets.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Applies `intent` unless a reset was applied since `resets` was read:
+    /// a choice made before a reset must not come back after it.
+    pub(crate) async fn dispatch_unless_reset(
+        &self,
+        intent: SettingsIntent,
+        resets: u64,
+    ) -> Option<SettingsReply> {
+        let mut state = self.inner.state.lock().await;
+        if self.resets() != resets {
+            return None;
+        }
+        let outcome = self.apply(&mut state, intent).await;
+        state.revision += 1;
+        Some(SettingsReply {
+            outcome,
+            snapshot: self.snapshot_of(&state),
+        })
     }
 
     pub(crate) async fn dispatch(&self, intent: SettingsIntent) -> SettingsReply {
@@ -473,6 +500,9 @@ impl SettingsRuntime {
                     accepted: Some(settings),
                     ..State::default()
                 };
+                self.inner
+                    .resets
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 self.apply_to_runtime(state);
                 SettingsOutcome::Applied
             }

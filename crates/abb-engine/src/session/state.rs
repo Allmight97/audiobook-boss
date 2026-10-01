@@ -606,9 +606,11 @@ impl SessionState {
     /// Holds a submission for the user's collision choice.
     pub(crate) fn await_review(
         &mut self,
-        draft: Draft,
+        mut draft: Draft,
         outputs: Vec<crate::output_artifact::PlannedOutput>,
     ) {
+        draft.payload.collision_policy = None;
+        draft.reviewed = Some(super::submission::collisions(&outputs));
         self.submission = Some(SubmissionStatus::ReviewRequired {
             outputs,
             preview: draft.preview(),

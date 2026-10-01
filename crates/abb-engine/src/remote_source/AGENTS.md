@@ -70,9 +70,9 @@ Processing receives them explicitly by file-list `inputId`; it must not query
 `RemoteSourceRuntime`.
 
 A finished job hands its files to the session through the engine-set
-`Handoff` and records the outcome on the job; if nothing was imported, its
-staged files are removed then. After a handoff the session decides when the
-download goes (`crate::session`, `staged.rs`) and calls `purge_session`.
+`Handoff` and records the outcome on the job. From then on the session
+decides when the download goes, including one nothing was imported from
+(`crate::session`, `staged.rs`), and calls `purge_session`.
 Cancel does nothing to a job that already finished, so it cannot remove files
 the session holds. Materialized handoff files stay usable after provider
 logout. Job changes reach hosts as `EngineEvent::Acquisition`; download
