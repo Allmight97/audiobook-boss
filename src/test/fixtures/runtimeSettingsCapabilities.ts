@@ -1,10 +1,19 @@
-import type { EncoderAvailability, RuntimeSettingsCapabilities } from '../../types/audio';
+import type {
+	EncoderAvailability,
+	EncoderSettingsCapabilities,
+	MaxConcurrentJobsCapabilities,
+} from '../../types/audio';
 import type {
 	EncoderAvailability as GeneratedEncoderAvailability,
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
-	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 } from '../../lib/generated/tauri';
+
+/** Encoder and concurrency capabilities as the engine reports them. */
+type RuntimeSettingsCapabilities = {
+	encoder: EncoderSettingsCapabilities;
+	maxConcurrentJobs: MaxConcurrentJobsCapabilities;
+};
 
 type RuntimeSettingsCapabilitiesFixtureOverrides = {
 	encoder?: Partial<RuntimeSettingsCapabilities['encoder']>;
@@ -116,7 +125,7 @@ export function runtimeSettingsCapabilitiesFixture(
 			fixedMax: 8,
 			fixedOptions: [1, 2, 3, 4, 5, 6, 7, 8],
 		} satisfies GeneratedMaxConcurrentJobsCapabilities,
-	} satisfies GeneratedRuntimeSettingsCapabilities;
+	};
 
 	// Apply caller overrides on top of the generated-shape base.
 	// Use a local mutable copy so we can apply overrides without

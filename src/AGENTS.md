@@ -10,21 +10,19 @@
   boundary. Regenerate `src/lib/generated/tauri.ts` through the binding scripts.
 - The metadata batch save runs as a WorkRuntime operation rendered by Work
   Center; read `src/app/workOperations/AGENTS.md` when changing its display.
-- For Effect workflow or kernel changes, read `src/lib/effect/AGENTS.md`.
 - Settings acceptance and persistence belong to the engine
-  (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog and
-  startup handoff follow `src/app/appSettings/AGENTS.md`.
-- Remote acquisition belongs to `src/app/remoteSource`; its Solid dialog is
-  under `src/ui/remoteSource`. Materialized audio enters through Input's public
-  strip. Provider secrets and raw provider payloads stay backend-only.
+  (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog
+  follows `src/app/appSettings/AGENTS.md`.
+- The remote-source dialog belongs to `src/app/remoteSource` and
+  `src/ui/remoteSource`; the engine imports acquired audio into the session
+  and decides when downloads go. Provider secrets and raw provider payloads
+  stay backend-only.
 
 ## UI And State
 
-- Solid views render owner state and dispatch semantic intent. Rules the
-  engine does not own yet (encoding, output planning, processing submission)
-  stay in their `src/app` owner until they move. Capability accept/reject
-  facts come from their Rust owner, including encoder and concurrency
-  settings.
+- Solid views render owner state and dispatch semantic intent. Capability
+  accept/reject facts come from their Rust owner, including encoder and
+  concurrency settings.
 - Keep `src/ui/App.tsx` and `src/main.tsx` declarative composition surfaces.
 - `src/styles.css` loads the foundation and owns app-shell layout. Shared
   visual primitives and semantic tokens belong to `src/ui/foundation`; read

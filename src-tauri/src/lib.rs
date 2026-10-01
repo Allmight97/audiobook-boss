@@ -105,32 +105,120 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
-/// Set once the user chose to quit although metadata saves were still waiting.
+/// How quitting is going: asked (and answered), engine shutting down, done.
 #[derive(Default)]
-struct QuitConfirmed(AtomicBool);
+struct Quit {
+    confirmed: AtomicBool,
+    shutting_down: AtomicBool,
+    done: AtomicBool,
+}
 
-/// Asks before quitting while metadata saves wait for exports to finish;
-/// quitting would drop them. Returns whether the quit must be held for the
-/// answer.
-fn hold_quit_for_waiting_saves(app: &tauri::AppHandle) -> bool {
-    let Some(engine) = app.try_state::<abb_engine::Engine>() else {
+/// How long quitting waits for the engine to settle before asking whether
+/// to keep waiting.
+const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
+/// waiting. Returns whether it settled; `false` only when the user chose to
+/// quit anyway.
+async fn settle_or_ask<A>(
+    shutdown: impl std::future::Future<Output = ()>,
+    mut keep_waiting: impl FnMut() -> A,
+) -> bool
+where
+    A: std::future::Future<Output = bool>,
+{
+    tokio::pin!(shutdown);
+    loop {
+        if tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown)
+            .await
+            .is_ok()
+        {
+            return true;
+        }
+        if !keep_waiting().await {
+            return false;
+        }
+    }
+}
+
+/// Asks whether to keep waiting for a shutdown that has not settled.
+async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
+    let (answer, answered) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(
+            "ABB is still finishing: metadata changes are being written and running work \
+             is stopping. Quitting now can leave those changes unsaved.",
+        )
+        .title("Still finishing")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Keep Waiting".to_string(),
+            "Quit Now".to_string(),
+        ))
+        .show(move |wait| {
+            let _ = answer.send(wait);
+        });
+    answered.await.unwrap_or(false)
+}
+
+/// Shuts the engine down, then exits. Exports are cancelled, waiting saves
+/// written, and every background task settled before the process ends,
+/// unless the user chooses to quit before then.
+fn shut_down_then_exit(app: &tauri::AppHandle) {
+    let quit = app.state::<Quit>();
+    if quit.shutting_down.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Some(engine) = app.try_state::<abb_engine::Engine>() {
+            let engine = engine.inner().clone();
+            let settled =
+                settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await;
+            if !settled {
+                log::warn!("Quit before the engine settled, at the user's choice");
+            }
+        }
+        app.state::<Quit>().done.store(true, Ordering::SeqCst);
+        app.exit(0);
+    });
+}
+
+fn plural(count: usize, one: &str, many: &str) -> String {
+    format!("{count} {}", if count == 1 { one } else { many })
+}
+
+/// Holds a quit until the engine has shut down, asking first when exports
+/// are running. Returns whether the quit must be held.
+fn hold_quit(app: &tauri::AppHandle) -> bool {
+    let quit = app.state::<Quit>();
+    if quit.done.load(Ordering::SeqCst) {
         return false;
+    }
+    if quit.shutting_down.load(Ordering::SeqCst) {
+        return true;
+    }
+    let running = app
+        .try_state::<abb_engine::Engine>()
+        .map(|engine| engine.running_work())
+        .unwrap_or_default();
+    if running.exports == 0 || quit.confirmed.load(Ordering::SeqCst) {
+        shut_down_then_exit(app);
+        return true;
+    }
+    let exports = plural(running.exports, "export is", "exports are");
+    let message = if running.waiting_writes == 0 {
+        format!("{exports} still running. Quitting cancels them.")
+    } else {
+        format!(
+            "{exports} still running, and metadata changes for {} wait for them. \
+             Quitting cancels the exports and saves those changes first.",
+            plural(running.waiting_writes, "file", "files")
+        )
     };
-    if app.state::<QuitConfirmed>().0.load(Ordering::SeqCst) {
-        return false;
-    }
-    let waiting = engine.waiting_metadata_writes().len();
-    if waiting == 0 {
-        return false;
-    }
-    let files = if waiting == 1 { "file" } else { "files" };
     let app = app.clone();
     app.dialog()
-        .message(format!(
-            "Metadata changes for {waiting} {files} are waiting for exports to finish. \
-             Quitting now discards those saves."
-        ))
-        .title("Metadata saves are still waiting")
+        .message(message)
+        .title("Exports are still running")
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Quit Anyway".to_string(),
             "Keep Open".to_string(),
@@ -139,8 +227,8 @@ fn hold_quit_for_waiting_saves(app: &tauri::AppHandle) -> bool {
             let app = app.clone();
             move |quit| {
                 if quit {
-                    app.state::<QuitConfirmed>().0.store(true, Ordering::SeqCst);
-                    app.exit(0);
+                    app.state::<Quit>().confirmed.store(true, Ordering::SeqCst);
+                    shut_down_then_exit(&app);
                 }
             }
         });
@@ -195,7 +283,7 @@ pub fn run() {
                 abb_engine::ffmpeg_build_identity()
             );
             app.manage(start_engine(app)?);
-            app.manage(QuitConfirmed::default());
+            app.manage(Quit::default());
             app.manage(commands::FrontendLink::default());
 
             if let Some(main_window) = app.get_webview_window("main") {
@@ -212,13 +300,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
-            tauri::RunEvent::ExitRequested { api, .. } if hold_quit_for_waiting_saves(app) => {
+            tauri::RunEvent::ExitRequested { api, .. } if hold_quit(app) => {
                 api.prevent_exit();
             }
             tauri::RunEvent::WindowEvent {
                 event: tauri::WindowEvent::CloseRequested { api, .. },
                 ..
-            } if hold_quit_for_waiting_saves(app) => {
+            } if hold_quit(app) => {
                 api.prevent_close();
             }
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
@@ -270,5 +358,34 @@ mod tests {
 
         assert_eq!(width, 962.0);
         assert_eq!(height, 601.0);
+    }
+}
+
+#[cfg(test)]
+mod quit_tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{settle_or_ask, SHUTDOWN_WAIT};
+
+    #[tokio::test(start_paused = true)]
+    async fn an_unsettled_shutdown_waits_until_the_user_chooses_to_quit() {
+        let asked = AtomicUsize::new(0);
+        let settled = settle_or_ask(std::future::pending::<()>(), || {
+            let times = asked.fetch_add(1, Ordering::SeqCst) + 1;
+            // Keep waiting once, then quit.
+            async move { times < 2 }
+        })
+        .await;
+        assert!(!settled);
+        assert_eq!(asked.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_shutdown_that_settles_in_time_asks_nothing() {
+        let settled = settle_or_ask(tokio::time::sleep(SHUTDOWN_WAIT / 2), || async {
+            panic!("asked although shutdown settled")
+        })
+        .await;
+        assert!(settled);
     }
 }

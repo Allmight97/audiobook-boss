@@ -115,9 +115,11 @@ default broad review route.
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`, or
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
 - Engine without a window: `cargo run -p abb-engine --features bundled-ffmpeg
-  --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--json]`
-  imports files into an engine session, prints it, and can edit and save tags.
-  It keeps its own state and never touches the app's settings.
+  --bin abb-dev -- <file-or-folder>... [--set field=value] [--save]
+  [--out folder --export] [--json]` imports files into an engine session and
+  can edit and save tags, choose audio and naming, export or preview with
+  progress, cancel a title, and read back the exported tags. `--help` lists
+  every option. It keeps its own state and never touches the app's settings.
 - IPC/boundary checks: `bun run bindings:check:local` and
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.

@@ -32,10 +32,19 @@ describe('MetadataLookup cover preview', () => {
 
 	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
 		const engine = createFakeEngine();
-		engine.lookupResults = [
-			coverResult('audnexus', 'private'),
-			coverResult('openlibrary', 'loopback'),
-		];
+		engine.respond = (intent) => {
+			if (intent.kind !== 'lookupOpen') return undefined;
+			engine.change((state) => {
+				state.lookup = {
+					...state.lookup,
+					open: true,
+					hasSearched: true,
+					results: [coverResult('audnexus', 'private'), coverResult('openlibrary', 'loopback')],
+					status: { kind: 'found', count: 2, partial: false, after: null },
+				};
+			});
+			return { kind: 'applied' };
+		};
 		const loadCoverArtFromUrl = vi.fn(async () => [0xff, 0xd8, 0xff]);
 		runtime = createAppRuntime({
 			engine,

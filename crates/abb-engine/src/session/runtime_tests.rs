@@ -7,12 +7,14 @@ use std::collections::VecDeque;
 use std::sync::Mutex as StdMutex;
 
 use super::*;
-use crate::audio::{AudioFile, AudioIntent, AudiobookFormat, SampleRateConfig};
+use crate::app_settings::{SettingsRuntime, SettingsSnapshot};
+use crate::audio::{AudioFile, AudioIntent, AudiobookFormat};
 use crate::host::EventSink;
-use crate::metadata::PatchOp;
+use crate::metadata::{MetadataIntentPatch, PatchOp};
 use crate::metadata_lookup::{
     MetadataLookupDiagnostic, MetadataLookupDiagnosticKind, OnlineMetadataResult,
 };
+use crate::output_artifact::NamingPreset;
 use crate::power::PowerManager;
 use crate::processing::JobRegistry;
 use crate::session::lookup::LookupSnapshot;
@@ -23,12 +25,17 @@ type SearchReply = Result<MetadataLookupResponse>;
 type Search = (String, Vec<MetadataSource>);
 
 #[derive(Default)]
-struct Events(StdMutex<Vec<SessionUpdate>>);
+struct Events(
+    StdMutex<Vec<SessionUpdate>>,
+    StdMutex<Vec<SettingsSnapshot>>,
+);
 
 impl EventSink for Events {
     fn emit(&self, event: EngineEvent) {
-        if let EngineEvent::Session(update) = event {
-            self.0.lock().expect("events").push(update);
+        match event {
+            EngineEvent::Session(update) => self.0.lock().expect("events").push(update),
+            EngineEvent::Settings(snapshot) => self.1.lock().expect("events").push(*snapshot),
+            _ => {}
         }
     }
 }
@@ -42,6 +49,10 @@ struct Rig {
     /// empty result.
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
+    /// Acquisition jobs whose downloads the session removed.
+    removed: Arc<StdMutex<Vec<String>>>,
+    /// Holds the settings the session records defaults into.
+    _config: tempfile::TempDir,
 }
 
 fn rig() -> Rig {
@@ -76,6 +87,10 @@ fn rig() -> Rig {
             }
         }),
     };
+    let removed: Arc<StdMutex<Vec<String>>> = Arc::default();
+    let config = tempfile::TempDir::new().expect("settings folder");
+    let (settings, _, _) =
+        SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
     let session = Session::with_network(
         SessionDeps {
             host: Host::new(
@@ -86,16 +101,28 @@ fn rig() -> Rig {
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
             opened_audio: Arc::default(),
-            previews: Arc::default(),
+            tasks: tokio_util::task::TaskTracker::new(),
+            workspace_root: std::env::temp_dir().join("abb-session-tests"),
+            settings,
+            remove_staged: {
+                let removed = Arc::clone(&removed);
+                Arc::new(move |job_id| {
+                    removed.lock().expect("removed").push(job_id.to_string());
+                    Ok(())
+                })
+            },
         },
         network,
     );
+    session.start_from_defaults(None, Some(crate::audio::encoder_settings_capabilities()));
     Rig {
         session,
         events,
         searches,
         replies,
         cover,
+        removed,
+        _config: config,
     }
 }
 
@@ -142,15 +169,8 @@ impl Rig {
                     file
                 })
                 .collect();
-            state.working_set.append_analyzed(
-                files,
-                &TitleAudioRequest {
-                    format: AudiobookFormat::M4b,
-                    intent: AudioIntent::Auto,
-                    settings: None,
-                    sample_rate: SampleRateConfig::Auto,
-                },
-            );
+            let default_audio = state.audio.request();
+            state.working_set.append_analyzed(files, &default_audio);
             for name in names {
                 let ticket = state.tags.begin_read(&path(name)).expect("first read");
                 state.tags.complete_read(
@@ -164,6 +184,12 @@ impl Rig {
             }
             state.rebind();
         });
+    }
+
+    /// Locks the list, as a submission or preview does.
+    fn lock_order(&self, locked: bool) {
+        self.session
+            .transition(|state| state.working_set.set_order_locked(locked));
     }
 
     async fn send(&self, intent: SessionIntent) -> SessionOutcome {
@@ -206,9 +232,11 @@ impl Rig {
 
     fn pending(&self, name: &str) -> Option<MetadataIntentPatch> {
         self.session
+            .lock()
             .pending_intents(&[path(name)])
-            .into_values()
+            .into_iter()
             .next()
+            .map(|(_, patch)| patch)
     }
 
     fn selected(&self) -> Vec<usize> {
@@ -680,12 +708,6 @@ async fn importing_a_folder_with_no_audio_explains_what_is_supported() {
 
     rig.send(SessionIntent::Import {
         paths: vec![empty.path().to_string_lossy().into_owned()],
-        default_audio: TitleAudioRequest {
-            format: AudiobookFormat::M4b,
-            intent: AudioIntent::Auto,
-            settings: None,
-            sample_rate: SampleRateConfig::Auto,
-        },
     })
     .await;
 
@@ -781,26 +803,17 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     });
-    let save = rig.session.begin(SessionIntent::StageSelection);
-    assert_eq!(save.finish().await.outcome, SessionOutcome::Applied);
+    let stage = rig.session.begin(SessionIntent::SelectAll);
+    assert_eq!(stage.finish().await.outcome, SessionOutcome::Applied);
     edit.finish().await;
     select.finish().await;
 
-    assert_eq!(rig.selected(), [1]);
+    assert_eq!(rig.selected(), [0, 1]);
     assert!(rig.pending("alpha").is_none());
     assert_eq!(
         rig.pending("beta").and_then(|patch| patch.genre),
         Some(PatchOp::Set("Mystery".to_string()))
     );
-}
-
-fn default_audio() -> TitleAudioRequest {
-    TitleAudioRequest {
-        format: AudiobookFormat::M4b,
-        intent: AudioIntent::Auto,
-        settings: None,
-        sample_rate: SampleRateConfig::Auto,
-    }
 }
 
 #[tokio::test]
@@ -815,13 +828,9 @@ async fn opened_files_stay_queued_while_the_list_is_locked() {
         .opened_audio
         .push_paths(vec![opened.clone()])
         .expect("queue opened file");
-    rig.send(SessionIntent::SetOrderLocked { locked: true })
-        .await;
+    rig.lock_order(true);
 
-    rig.send(SessionIntent::ImportOpened {
-        default_audio: default_audio(),
-    })
-    .await;
+    rig.send(SessionIntent::ImportOpened).await;
 
     let titles = rig.session.snapshot().titles.expect("titles part");
     assert_eq!(titles.notice, Some(InputNotice::OrderLocked));
@@ -872,7 +881,6 @@ async fn an_import_that_fails_after_a_reset_leaves_the_new_session_alone() {
     let empty = tempfile::TempDir::new().expect("temp dir");
     let import = rig.session.begin(SessionIntent::Import {
         paths: vec![empty.path().to_string_lossy().into_owned()],
-        default_audio: default_audio(),
     });
     rig.send(SessionIntent::Reset).await;
 
@@ -897,4 +905,417 @@ async fn a_cover_cleared_while_loading_is_not_replaced_by_the_load() {
     assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
     let cover = rig.metadata().cover;
     assert!(!cover.loading && !cover.present);
+}
+
+// ---- Audio ----
+
+fn audio(rig: &Rig) -> crate::session::AudioSnapshot {
+    rig.session.snapshot().audio.expect("audio part")
+}
+
+#[tokio::test]
+async fn a_new_title_starts_from_the_default_audio_choice() {
+    let rig = rig();
+    rig.send(SessionIntent::SetDefaultAudio {
+        edit: AudioEdit::Format(AudiobookFormat::MkaOpus),
+    })
+    .await;
+    rig.load(&["alpha"]);
+
+    let title = &audio(&rig).titles["alpha"];
+    assert_eq!(title.choice.format, AudiobookFormat::MkaOpus);
+}
+
+#[tokio::test]
+async fn a_default_audio_edit_is_recorded_in_the_settings_and_announced() {
+    let rig = rig();
+    rig.send(SessionIntent::SetDefaultAudio {
+        edit: AudioEdit::Bitrate(96),
+    })
+    .await;
+
+    let settings = rig.session.inner.deps.settings.snapshot().await;
+    let saved = settings.settings.expect("settings").encoder_defaults;
+    assert_eq!(saved.settings.bitrate_kbps, 96);
+    assert_eq!(saved.intent, AudioIntent::Encode);
+    let announced = rig.events.1.lock().expect("events").last().cloned();
+    assert_eq!(
+        announced.map(|snapshot| snapshot.revision),
+        Some(settings.revision)
+    );
+
+    // An edit that changes nothing records nothing.
+    let before = rig.events.1.lock().expect("events").len();
+    rig.send(SessionIntent::SetDefaultAudio {
+        edit: AudioEdit::Bitrate(96),
+    })
+    .await;
+    assert_eq!(rig.events.1.lock().expect("events").len(), before);
+}
+
+#[tokio::test]
+async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+
+    rig.send(SessionIntent::SetTitleAudio {
+        title_ids: vec!["alpha".to_string()],
+        edit: AudioEdit::Format(AudiobookFormat::Mp3),
+    })
+    .await;
+    let titles = audio(&rig).titles;
+    assert_eq!(titles["alpha"].choice.intent, AudioIntent::Preserve);
+    assert_eq!(titles["beta"].choice.format, AudiobookFormat::M4b);
+
+    rig.lock_order(true);
+    rig.send(SessionIntent::ApplyDefaultAudio {
+        title_ids: vec!["alpha".to_string()],
+    })
+    .await;
+    assert_eq!(
+        audio(&rig).titles["alpha"].choice.format,
+        AudiobookFormat::Mp3
+    );
+
+    rig.lock_order(false);
+    rig.send(SessionIntent::ApplyDefaultAudio {
+        title_ids: vec!["alpha".to_string()],
+    })
+    .await;
+    assert_eq!(
+        audio(&rig).titles["alpha"].choice.format,
+        AudiobookFormat::M4b
+    );
+    // The defaults themselves never moved.
+    assert_eq!(audio(&rig).defaults.choice.format, AudiobookFormat::M4b);
+}
+
+// ---- Output and plans ----
+
+fn output(rig: &Rig) -> crate::session::OutputSnapshot {
+    rig.session.snapshot().output.expect("output part")
+}
+
+fn preview_path(rig: &Rig) -> String {
+    match output(rig).preview {
+        crate::session::OutputPreview::Path { path } => path,
+        other => panic!("no preview path: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn the_output_preview_follows_the_form_the_directory_and_the_format() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    assert_eq!(
+        output(&rig).preview,
+        crate::session::OutputPreview::NoDirectory
+    );
+
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: "/out".to_string(),
+    })
+    .await;
+    let first = preview_path(&rig);
+    assert!(first.starts_with("/out/Author"), "{first}");
+    assert!(first.ends_with(".m4b"), "{first}");
+
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Dune".to_string(),
+    })
+    .await;
+    rig.send(SessionIntent::SetTitleAudio {
+        title_ids: vec!["alpha".to_string()],
+        edit: AudioEdit::Format(AudiobookFormat::Mp3),
+    })
+    .await;
+    let renamed = preview_path(&rig);
+    assert!(
+        renamed.contains("Dune") && renamed.ends_with(".mp3"),
+        "{renamed}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
+    let rig = rig();
+    let saved = || async {
+        rig.session
+            .inner
+            .deps
+            .settings
+            .snapshot()
+            .await
+            .settings
+            .expect("settings")
+            .output_defaults
+    };
+
+    rig.send(SessionIntent::SetNamingPreset {
+        preset: NamingPreset::CustomTemplate,
+    })
+    .await;
+    assert_eq!(
+        saved().await.output_naming.preset,
+        NamingPreset::CustomTemplate
+    );
+
+    for template in ["{a", "{author}", "{author}/{title}x"] {
+        rig.send(SessionIntent::SetNamingTemplate {
+            template: template.to_string(),
+        })
+        .await;
+    }
+    assert_eq!(saved().await.output_naming.custom_template, None);
+    tokio::time::sleep(TEMPLATE_PAUSE * 2).await;
+    assert_eq!(
+        saved().await.output_naming.custom_template.as_deref(),
+        Some("{author}/{title}x")
+    );
+}
+
+#[tokio::test]
+async fn a_title_plan_resolves_in_the_background_and_reports_why_it_cannot() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    // The rig's titles have no audio facts, so the plan cannot resolve.
+    rig.send(SessionIntent::SetTitleAudio {
+        title_ids: vec!["alpha".to_string()],
+        edit: AudioEdit::Intent(AudioIntent::Encode),
+    })
+    .await;
+
+    let plan = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let plan = audio(&rig).titles["alpha"].plan.clone();
+            if plan != crate::session::TitlePlan::Pending {
+                return plan;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the plan resolves");
+    assert!(
+        matches!(plan, crate::session::TitlePlan::Failed { .. }),
+        "{plan:?}"
+    );
+}
+
+#[tokio::test]
+async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    let draft = rig
+        .session
+        .transition(|state| {
+            state.output.set_directory("/library".to_string());
+            state.begin_submission(None)
+        })
+        .expect("the submission is prepared");
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Genre,
+        value: "Mystery".to_string(),
+    })
+    .await;
+    rig.send(SessionIntent::Save).await;
+    assert_eq!(rig.session.waiting_write_paths(), [path("alpha")]);
+
+    // Let the writer find the file held and wait.
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+    // Nothing in WorkRuntime changes; only the submission ending frees the file.
+    rig.session
+        .end_submission(&draft, SubmissionStatus::Cancelled);
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !rig.session.waiting_write_paths().is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the waiting write is attempted once its source is free");
+}
+
+/// A one-second silent WAV, as an acquisition would stage it.
+fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
+    const SAMPLE_RATE: u32 = 44_100;
+    let data_len = SAMPLE_RATE * 2;
+    let mut bytes = Vec::with_capacity(44 + data_len as usize);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
+    bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
+    bytes.extend_from_slice(&2u16.to_le_bytes());
+    bytes.extend_from_slice(&16u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_len.to_le_bytes());
+    bytes.resize(44 + data_len as usize, 0);
+    let path = dir.join(format!("{name}.wav"));
+    std::fs::write(&path, bytes).expect("write staged WAV");
+    path
+}
+
+fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::AcquisitionJob {
+    let pdf = audio.with_extension("pdf");
+    let pdf_bytes = b"%PDF-1.4 companion";
+    std::fs::write(&pdf, pdf_bytes).expect("write companion PDF");
+    use crate::remote_source::{
+        AcquisitionJob, MaterializedSourceFile, ProviderId, RemoteAcquisitionStatus,
+        SupplementalAsset,
+    };
+    AcquisitionJob {
+        job_id: job_id.to_string(),
+        provider_id: ProviderId::Audible,
+        status: RemoteAcquisitionStatus::Validated,
+        progress: abb_remote_source_core::acquisition_progress(
+            abb_remote_source_core::AcquisitionStage::Complete,
+            Some(1.0),
+            None,
+            None,
+        ),
+        materialized_files: vec![MaterializedSourceFile {
+            input_id: "remote-1".to_string(),
+            title_id: "B0".to_string(),
+            path: audio.to_path_buf(),
+            size_bytes: 0,
+            sha256: String::new(),
+        }],
+        supplemental_assets: vec![SupplementalAsset {
+            asset_id: "pdf-1".to_string(),
+            input_id: "remote-1".to_string(),
+            title_id: "B0".to_string(),
+            path: pdf,
+            file_name: "Guide.pdf".to_string(),
+            size_bytes: pdf_bytes.len() as u64,
+            sha256: abb_media_core::sha256_hex(pdf_bytes),
+        }],
+        diagnostics: Vec::new(),
+        handoff: None,
+    }
+}
+
+impl Rig {
+    async fn removed_jobs(&self) -> Vec<String> {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                let removed = self.removed.lock().expect("removed").clone();
+                if !removed.is_empty() {
+                    return removed;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("a download is removed")
+    }
+}
+
+#[tokio::test]
+async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_when_it_leaves() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+
+    let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
+
+    assert_eq!(
+        handoff,
+        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+    );
+    let titles = rig.session.snapshot().titles.expect("titles");
+    let input_id = titles.files[0].input_id.clone();
+    assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
+    assert!(rig.removed.lock().expect("removed").is_empty());
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert!(rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .companions
+        .is_empty());
+}
+
+#[tokio::test]
+async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refused() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let output = tempfile::TempDir::new().expect("output");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+
+    // The same files again add nothing, so that job's download is refused.
+    let again = rig.session.import_acquired(acquired("job-2", &audio)).await;
+    assert_eq!(
+        again,
+        crate::remote_source::AcquisitionHandoff::Removed {
+            reason: crate::remote_source::HandoffRefusal::NothingAdded
+        }
+    );
+    // The session removes the refused job's download itself.
+    assert_eq!(rig.removed_jobs().await, ["job-2"]);
+    rig.removed.lock().expect("removed").clear();
+
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: output.path().to_string_lossy().into_owned(),
+    })
+    .await;
+    rig.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            rig.session.snapshot().output.expect("output").submission,
+            Some(SubmissionStatus::Submitted { .. })
+        ),
+        "{:?}",
+        rig.session.snapshot().output.expect("output").submission
+    );
+    // The title stays listed; its export completed, so the download goes.
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert_eq!(
+        rig.session.snapshot().titles.expect("titles").files.len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    let draft = rig
+        .session
+        .transition(|state| {
+            state.output.set_directory("/library".to_string());
+            state.begin_submission(None)
+        })
+        .expect("a submission locks the list");
+
+    let audio = staged_wav(staging.path(), "book");
+    let session = rig.session.clone();
+    let handoff =
+        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+    assert!(!handoff.is_finished(), "the download waits for the list");
+
+    rig.session
+        .end_submission(&draft, SubmissionStatus::Cancelled);
+    assert_eq!(
+        handoff.await.expect("handoff"),
+        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+    );
+    assert!(rig.removed.lock().expect("removed").is_empty());
 }

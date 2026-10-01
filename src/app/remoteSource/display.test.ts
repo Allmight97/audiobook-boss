@@ -34,7 +34,7 @@ function job(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob {
 }
 
 describe('remote source acquisition display', () => {
-	it('keeps polling while a job is neither terminal nor a finished status', () => {
+	it('treats a job as running while it is neither terminal nor a finished status', () => {
 		expect(isAcquisitionTerminal(job())).toBe(false);
 		expect(isAcquisitionTerminal(job({ status: 'failed' }))).toBe(true);
 		expect(isAcquisitionTerminal(job({ status: 'cancelled' }))).toBe(true);

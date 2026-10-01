@@ -56,11 +56,7 @@ fn push_operation_log(
 
 /// Cap on retained terminal operations (running/accepted operations are never
 /// pruned). Keeps unbounded history from growing forever while every
-/// currently-active operation stays visible. The frontend Work Center
-/// tombstone (`PURGED_OPERATION_TOMBSTONE_CAP` in
-/// `src/app/workOperations/runtime.ts`) must stay larger than this cap so an
-/// operation pruned here can never be re-delivered after its frontend
-/// dedupe entry has been evicted.
+/// currently-active operation stays visible.
 const TERMINAL_OPERATIONS_CAP: usize = 20;
 
 #[derive(Default)]

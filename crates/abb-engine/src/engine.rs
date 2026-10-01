@@ -1,37 +1,23 @@
 //! The engine's host-facing interface and lifetime.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use crate::app_settings::{SettingsIntent, SettingsReply, SettingsRuntime, SettingsSnapshot};
-use crate::audio::{
-    self, AudiobookFormat, EncoderSettingsCapabilities, SupportedAudioImportMetadata,
-    TitleAudioPlan, TitleAudioRequest,
+use crate::app_settings::{
+    SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
 };
+use crate::audio::{self, SupportedAudioImportMetadata};
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
-use crate::metadata::{AudiobookMetadata, ChapterPlan, MetadataIntentPatch, NamingMetadata};
+use crate::metadata::AudiobookMetadata;
 use crate::opened_audio::OpenedAudioFileQueue;
-use crate::output_artifact::{
-    build_output_path_preview, derive_output_artifact_path, OutputKind, OutputNamingConfig,
-};
 use crate::power::PowerManager;
-use crate::processing::{
-    run, JobRegistry, MaxConcurrentJobsCapabilities, ProcessCommandResult, ProcessPayload,
-    ProcessingPreflightPlan,
-};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
 };
-use crate::work_runtime::{
-    OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
-    WorkRuntime, WorkSubmissionAccepted,
-};
-use crate::ManagedJobRegistry;
-use serde::{Deserialize, Serialize};
+use crate::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot, WorkRuntime};
+use tokio_util::task::TaskTracker;
 
 /// What a host supplies to start the engine.
 pub struct EngineConfig {
@@ -49,13 +35,6 @@ pub struct EngineConfig {
     pub aaxclean_helper: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeSettingsCapabilities {
-    pub encoder: EncoderSettingsCapabilities,
-    pub max_concurrent_jobs: MaxConcurrentJobsCapabilities,
-}
-
 /// One running ABB engine. Cloning shares the same engine.
 ///
 /// One engine owns one storage namespace (`cache_dir`, `config_dir`,
@@ -67,16 +46,29 @@ pub struct Engine {
 }
 
 struct EngineInner {
-    workspace_root: PathBuf,
     host: Host,
     settings: SettingsRuntime,
-    jobs: ManagedJobRegistry,
     work: WorkRuntime,
     remote_source: RemoteSourceRuntime,
     opened_audio: Arc<OpenedAudioFileQueue>,
     session: Session,
-    /// Preview runs in flight.
-    previews: Arc<AtomicUsize>,
+    /// Every background task the engine starts; shutdown waits for them.
+    tasks: TaskTracker,
+}
+
+/// Work still running that quitting would stop.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RunningWork {
+    /// Accepted exports that have not finished.
+    pub exports: usize,
+    /// Files with a Save waiting for an export to finish reading them.
+    pub waiting_writes: usize,
+}
+
+impl RunningWork {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 impl Engine {
@@ -84,63 +76,119 @@ impl Engine {
     /// then puts the saved settings in effect.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let power = PowerManager::default();
+        let host = Host::new(config.events, power.clone());
+        let tasks = TaskTracker::new();
         audio::cleanup_abandoned_processing_workspaces(&config.cache_dir)?;
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
             cache_dir: config.cache_dir.clone(),
             config_dir: config.config_dir.clone(),
             app_identifier: config.app_identifier,
             power: power.clone(),
+            host: host.clone(),
             aaxclean_helper: config.aaxclean_helper,
+            tasks: tasks.clone(),
         })?;
         remote_source.cleanup_abandoned_sessions()?;
 
-        let (settings, jobs) = SettingsRuntime::start(config.config_dir, power.clone());
-        let host = Host::new(config.events, power);
-        let work = WorkRuntime::default();
+        let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
+        let work = WorkRuntime::new(tasks.clone());
         let opened_audio = Arc::new(OpenedAudioFileQueue::default());
-        let previews = Arc::new(AtomicUsize::new(0));
         let session = Session::new(SessionDeps {
             host: host.clone(),
             work: work.clone(),
             jobs: Arc::clone(&jobs),
             temporary_root: remote_source.staging_root(),
             opened_audio: Arc::clone(&opened_audio),
-            previews: Arc::clone(&previews),
+            settings: settings.clone(),
+            tasks: tasks.clone(),
+            workspace_root: audio::processing_workspace_root(&config.cache_dir),
+            remove_staged: {
+                let remote_source = remote_source.clone();
+                Arc::new(move |job_id| remote_source.purge_session(job_id))
+            },
         });
+        remote_source.set_handoff(session.handoff());
+        session.start_from_defaults(
+            startup.as_ref(),
+            Some(audio::encoder_settings_capabilities()),
+        );
         Ok(Self {
             inner: Arc::new(EngineInner {
-                workspace_root: audio::processing_workspace_root(&config.cache_dir),
                 host,
                 settings,
-                jobs,
                 work,
                 remote_source,
                 opened_audio,
                 session,
-                previews,
+                tasks,
             }),
         })
+    }
+
+    /// What quitting now would stop.
+    pub fn running_work(&self) -> RunningWork {
+        RunningWork {
+            exports: self.inner.work.unfinished_exports().len(),
+            waiting_writes: self.inner.session.waiting_write_paths().len(),
+        }
+    }
+
+    /// Stops the engine: refuses new exports and acquisitions, cancels the
+    /// running ones, and waits for every background task to settle, so the
+    /// engine's folders can be reused or removed. Saves that were waiting for
+    /// a cancelled export are written once it stops reading their files.
+    pub async fn shutdown(&self) {
+        self.inner.tasks.close();
+        self.inner.session.cancel_review();
+        self.inner.session.cancel_preview();
+        for operation in self.inner.work.unfinished_exports() {
+            if let Err(error) = self
+                .inner
+                .work
+                .cancel_operation(&self.inner.host, operation, None)
+            {
+                log::warn!("Failed to cancel an export while shutting down: {error}");
+            }
+        }
+        self.inner.remote_source.abort_acquisitions();
+        self.inner.tasks.wait().await;
     }
 
     // ---- Settings ----
 
     /// Applies one intent to the settings and returns the settings in effect.
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
-        self.inner.settings.dispatch(intent).await
+        let reset = matches!(intent, SettingsIntent::Reset);
+        // Recovering or reloading an unreadable file can bring in the
+        // defaults the session started without.
+        let reloads = matches!(
+            intent,
+            SettingsIntent::Recover { .. } | SettingsIntent::Reload
+        );
+        let before = if reloads {
+            self.inner.settings.snapshot().await.startup_defaults
+        } else {
+            None
+        };
+        let reply = self.inner.settings.dispatch(intent).await;
+        // A reset returns the session's defaults to the reset settings; loaded
+        // titles keep their own choices.
+        let applied = matches!(
+            reply.outcome,
+            SettingsOutcome::Applied | SettingsOutcome::Recovered { .. }
+        );
+        let changed = reset || (reloads && reply.snapshot.startup_defaults != before);
+        if applied && changed {
+            if let Some(defaults) = &reply.snapshot.startup_defaults {
+                self.inner.session.replace_defaults(defaults);
+            }
+        }
+        reply
     }
 
     /// The settings in effect and whether they are saved.
     pub async fn settings_snapshot(&self) -> SettingsSnapshot {
         self.inner.settings.snapshot().await
-    }
-
-    pub async fn runtime_settings_capabilities(&self) -> Result<RuntimeSettingsCapabilities> {
-        tokio::task::spawn_blocking(|| RuntimeSettingsCapabilities {
-            encoder: audio::encoder_settings_capabilities(),
-            max_concurrent_jobs: JobRegistry::max_concurrent_jobs_capabilities(),
-        })
-        .await
-        .map_err(|error| AppError::General(error.to_string()))
     }
 
     // ---- Working session ----
@@ -166,22 +214,6 @@ impl Engine {
     /// The cover image the session currently shows.
     pub fn session_cover_art(&self) -> Option<Vec<u8>> {
         self.inner.session.cover_art()
-    }
-
-    /// The pending metadata edits for `file_paths`, as processing takes them.
-    pub fn session_metadata_intents(
-        &self,
-        file_paths: &[String],
-    ) -> HashMap<String, MetadataIntentPatch> {
-        let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
-        self.inner.session.pending_intents(&paths)
-    }
-
-    /// Source files with a Save accepted and not yet written because an
-    /// export is still reading them. A host warns before quitting while this
-    /// is non-empty.
-    pub fn waiting_metadata_writes(&self) -> Vec<PathBuf> {
-        self.inner.session.waiting_write_paths()
     }
 
     // ---- Import ----
@@ -230,98 +262,6 @@ impl Engine {
 
     // ---- Output and processing ----
 
-    /// Builds an output path preview using naming rules, without collision suffixing.
-    pub fn preview_output_path(
-        &self,
-        output_dir: String,
-        metadata: Option<AudiobookMetadata>,
-        output_naming: Option<OutputNamingConfig>,
-        source_path: Option<String>,
-        output_kind: Option<OutputKind>,
-        format: AudiobookFormat,
-    ) -> Result<String> {
-        let base_output_dir = PathBuf::from(output_dir);
-        let source_path_buf = source_path.as_deref().map(PathBuf::from);
-        let naming = output_naming.unwrap_or_default();
-        let draft_naming_metadata = metadata.as_ref().map(NamingMetadata::from_metadata);
-        let requested = build_output_path_preview(
-            &base_output_dir,
-            draft_naming_metadata.as_ref(),
-            naming,
-            source_path_buf.as_deref(),
-        )?;
-        let artifact =
-            derive_output_artifact_path(&requested, output_kind.unwrap_or(OutputKind::Final))?;
-        let artifact = artifact.with_extension(format.extension());
-        Ok(artifact.to_string_lossy().to_string())
-    }
-
-    pub fn preflight_processing_plan(
-        &self,
-        payload: ProcessPayload,
-        metadata: Option<HashMap<String, MetadataIntentPatch>>,
-        preview_seconds: Option<f64>,
-    ) -> Result<ProcessingPreflightPlan> {
-        run::preflight_payload(payload, metadata, preview_seconds)
-    }
-
-    /// Resolves how one title's audio would be handled.
-    pub async fn preview_title_audio(
-        &self,
-        file_paths: Vec<String>,
-        request: TitleAudioRequest,
-        chapter_plans: Option<HashMap<String, ChapterPlan>>,
-    ) -> Result<TitleAudioPlan> {
-        let paths = file_paths
-            .iter()
-            .map(|path| audio::validate_input_audio_path(std::path::Path::new(path)))
-            .collect::<Result<Vec<_>>>()?;
-        tokio::task::spawn_blocking(move || {
-            let mut info = audio::get_file_list_info(&paths)?;
-            audio::apply_chapter_plans(&mut info, chapter_plans.as_ref())?;
-            audio::resolve_title_audio(&request, &info, false)
-        })
-        .await
-        .map_err(|error| AppError::General(format!("Audio plan failed: {error}")))?
-    }
-
-    /// Runs a direct preview. Final processing enters through
-    /// [`Engine::submit_processing_operation`] so it has operation identity,
-    /// snapshots, and operation and title cancellation.
-    pub async fn process_preview(
-        &self,
-        payload: ProcessPayload,
-        metadata: Option<HashMap<String, MetadataIntentPatch>>,
-        preview_seconds: Option<f64>,
-    ) -> Result<ProcessCommandResult> {
-        let preview_seconds = require_preview_seconds(preview_seconds)?;
-        let _previewing = PreviewInFlight::begin(&self.inner.previews);
-        run::process_payload(
-            self.inner.host.clone(),
-            self.inner.jobs.clone(),
-            self.inner.workspace_root.clone(),
-            payload,
-            metadata,
-            Some(preview_seconds),
-        )
-        .await
-    }
-
-    pub async fn submit_processing_operation(
-        &self,
-        request: SubmitProcessingOperationRequest,
-    ) -> Result<WorkSubmissionAccepted> {
-        self.inner
-            .work
-            .submit_processing_operation(
-                self.inner.host.clone(),
-                self.inner.jobs.clone(),
-                self.inner.workspace_root.clone(),
-                request,
-            )
-            .await
-    }
-
     pub fn list_work_operations(&self) -> Result<OperationListSnapshot> {
         self.inner.work.list_operations()
     }
@@ -341,46 +281,5 @@ impl Engine {
 
     pub fn remote_source(&self) -> &RemoteSourceRuntime {
         &self.inner.remote_source
-    }
-}
-
-/// Counts a preview run for as long as it lives.
-struct PreviewInFlight(Arc<AtomicUsize>);
-
-impl PreviewInFlight {
-    fn begin(previews: &Arc<AtomicUsize>) -> Self {
-        previews.fetch_add(1, Ordering::SeqCst);
-        Self(Arc::clone(previews))
-    }
-}
-
-impl Drop for PreviewInFlight {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::SeqCst);
-    }
-}
-
-fn require_preview_seconds(preview_seconds: Option<f64>) -> Result<f64> {
-    preview_seconds.ok_or_else(|| {
-        AppError::InvalidInput(
-            "Direct processing requires a preview duration; submit final processing through WorkRuntime"
-                .to_string(),
-        )
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn direct_processing_requires_preview_duration() {
-        match require_preview_seconds(None) {
-            Err(AppError::InvalidInput(message)) => assert_eq!(
-                message,
-                "Direct processing requires a preview duration; submit final processing through WorkRuntime"
-            ),
-            result => panic!("expected invalid-input error, got {result:?}"),
-        }
     }
 }

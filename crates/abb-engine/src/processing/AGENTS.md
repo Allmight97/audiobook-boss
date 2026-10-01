@@ -55,13 +55,12 @@
 
 ## Progress / Stage Evolution
 
-- Direct preview (`Engine::process_preview`) reports through
+- A session preview reports through
   `EngineEvent::ProcessingProgress` and `EngineEvent::ProcessingQueue`, which
   the Tauri host emits as `processing-progress` and `processing-queue`. They
   have no operation-id discriminator. Accepted
   background work publishes WorkRuntime snapshot events instead; do not mix the
-  two event families. Direct-preview callers must pass `preview_seconds`; ingress
-  rejects `None`. Final processing enters through WorkRuntime for operation
+  two event families. Final processing enters through WorkRuntime for operation
   identity, snapshots, and operation and title cancellation.
 - Wire-stage authority is the Rust `EventStage` enum in `progress/mod.rs` (specta-generated into
   `src/lib/generated/tauri.ts`); event payload is `ProgressEvent` (same file). Emitters:

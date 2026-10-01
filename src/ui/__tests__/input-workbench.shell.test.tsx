@@ -1,4 +1,3 @@
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
@@ -9,7 +8,6 @@ import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
-import { tauriClient } from '../../lib/tauri/client';
 
 const metadata: SupportedAudioImportMetadata = {
 	formats: [{ extension: 'm4b', label: 'M4B' }],
@@ -120,190 +118,101 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
-		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
-		runtime.encoding.select('encoder', 'faac');
-		runtime.encoding.selectTitle(files[0]!, 'intent', 'preserve');
-		await waitFor(() =>
-			expect(
-				within(screen.getByRole('option', { name: 'first.m4b' })).getByTitle(
-					'Estimated output size',
-				),
-			).toHaveTextContent('Est. ~ 1000.0 B'),
-		);
-		runtime.encoding.selectTitle(files[0]!, 'channels', 'mono');
-		runtime.encoding.selectTitle(files[1]!, 'channels', 'stereo');
-		runtime.encoding.selectTitle(files[0]!, 'encoder', 'faac');
-		runtime.encoding.selectTitle(files[1]!, 'encoder', 'faac');
-		runtime.encoding.selectTitle(files[0]!, 'faacProfile', 'aac_lc');
-		runtime.encoding.selectTitle(files[1]!, 'faacProfile', 'he_aac_v1');
-		const defaults = runtime.encoding.readDefaults();
-		const untouched = runtime.encoding.audioRequest(files[2]!);
+		// The engine holds different choices for the first two titles.
+		engine.change((state) => {
+			const first = state.audio.titles[files[0]!.path]!;
+			const second = state.audio.titles[files[1]!.path]!;
+			for (const [title, channels, profile] of [
+				[first, 'mono', 'aac_lc'],
+				[second, 'stereo', 'he_aac_v1'],
+			] as const) {
+				title.choice = {
+					...title.choice,
+					intent: 'encode',
+					encoder: 'faac',
+					channels,
+					faacProfile: profile,
+				};
+				title.facts = {
+					...title.facts,
+					effectiveEncoder: 'faac',
+					faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'],
+				};
+			}
+		});
 		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
 		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
 		const editor = screen.getByRole('dialog', { name: 'Audio settings for 2 selected titles' });
 		await user.click(within(editor).getByText(/Encoding settings/));
 		expect(within(editor).getByLabelText('Channels')).toHaveValue('');
-		const profile = within(editor).getByLabelText('Profile');
-		expect(profile).toHaveValue('');
-		await user.selectOptions(profile, 'aac_lc');
-		expect(profile).toHaveValue('aac_lc');
-		expect(runtime.encoding.audioRequest(files[0]!).settings?.faacProfile).toBe('aac_lc');
-		expect(runtime.encoding.audioRequest(files[1]!).settings?.faacProfile).toBe('aac_lc');
-		expect(runtime.encoding.readDefaults()).toEqual(defaults);
+		expect(within(editor).getByLabelText('Profile')).toHaveValue('');
+
 		await user.selectOptions(within(editor).getByLabelText('Channels'), 'mono');
-		expect(runtime.encoding.audioRequest(files[0]!).settings?.channels).toBe('mono');
-		expect(runtime.encoding.audioRequest(files[1]!).settings?.channels).toBe('mono');
-		expect(runtime.encoding.audioRequest(files[2]!)).toEqual(untouched);
-		await user.selectOptions(within(editor).getByLabelText('Audio handling'), 'preserve');
-		expect(runtime.encoding.audioRequest(files[0]!).intent).toBe('preserve');
-		expect(runtime.encoding.audioRequest(files[1]!).intent).toBe('preserve');
+		await waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'setTitleAudio',
+				titleIds: [files[0]!.path, files[1]!.path],
+				edit: { field: 'channels', value: 'mono' },
+			}),
+		);
 		await user.keyboard('{Escape}');
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
+
 		await user.click(screen.getByRole('button', { name: 'Audio plan for other.m4b' }));
 		const titleEditor = screen.getByRole('dialog', { name: 'Audio plan' });
 		await user.selectOptions(within(titleEditor).getByLabelText('Audio handling'), 'encode');
-		await user.click(within(titleEditor).getByText(/Encoding settings/));
+		await waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'setTitleAudio',
+				titleIds: [files[2]!.path],
+				edit: { field: 'intent', value: 'encode' },
+			}),
+		);
 		expect(runtime.input.view().selectedIndices).toEqual([0, 1]);
-		expect(titleEditor).toBeInTheDocument();
 		await user.keyboard('{Escape}');
 		await user.click(screen.getByRole('button', { name: 'Audio settings · 2 titles' }));
 		await runtime.input.selectFile({ index: 2, modifiers: { multi: false, range: false } });
 		expect(screen.queryByRole('dialog', { name: /Audio settings for/ })).not.toBeInTheDocument();
 	});
 
-	it('refreshes a Default estimate after settings change away and back while closed', async () => {
+	it('shows the engine plan, its failure, and the estimate in the audio plan popover', async () => {
 		const user = userEvent.setup();
 		const file = analyzedFile('/books/estimate.m4b');
-		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
-			format: 'm4b',
-			handling: 'preserve',
-			settings: null,
-			sampleRate: 44100,
-			channels: 1,
-			sourceCodec: 'AAC',
-			reason: null,
-		});
 		runtime = runtimeFor({ files: [file] });
 		renderApp(runtime);
-		try {
-			await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
-			expect(preview).not.toHaveBeenCalled();
-			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
-			const indicator = screen.getByRole('button', { name: 'Audio plan for estimate.m4b' });
-			await user.click(indicator);
-			await waitFor(() =>
-				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B'),
-			);
-			await user.keyboard('{Escape}');
-			runtime.encoding.selectTitle(file, 'intent', 'encode');
-			await waitFor(() => expect(indicator.parentElement).toHaveTextContent('AAC · M4B'));
-			runtime.encoding.selectTitle(file, 'intent', 'auto');
-			await waitFor(() =>
-				expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument(),
-			);
-			expect(preview).toHaveBeenCalledTimes(1);
-			await user.click(indicator);
-			await waitFor(() =>
-				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B'),
-			);
-			expect(preview).toHaveBeenCalledTimes(2);
-			preview.mockRejectedValueOnce(new Error('Sources cannot be joined'));
-			runtime.encoding.selectTitle(file, 'intent', 'preserve');
-			await waitFor(() =>
-				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent(
-					'Sources cannot be joined',
-				),
-			);
-			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
-			await user.keyboard('{Escape}');
-			preview.mockResolvedValueOnce({
-				format: 'm4b',
-				handling: 'preserve',
-				settings: null,
-				sampleRate: 44100,
-				channels: 6,
-				sourceCodec: 'AAC',
-				reason: null,
-			});
-			await user.click(indicator);
-			await waitFor(() =>
-				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent('6 channels'),
-			);
-			expect(screen.getByRole('dialog', { name: 'Audio plan' })).not.toHaveTextContent(
-				'Sources cannot be joined',
-			);
-		} finally {
-			preview.mockRestore();
-		}
-	});
+		await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
+		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 
-	it('invalidates successful audio plans on capability reload without changing the title request', async () => {
-		const user = userEvent.setup();
-		const file = analyzedFile('/books/capabilities.m4b');
-		const settings = titleAudioRequest().settings;
-		if (!settings) throw new Error('Fixture requires encoder settings');
-		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
-			format: 'm4b',
-			handling: 'encode',
-			settings: titleAudioRequest().settings,
-			sampleRate: 44100,
-			channels: 2,
-			sourceCodec: 'AAC',
-			reason: null,
-		});
-		runtime = runtimeFor({ files: [file] });
-		renderApp(runtime);
-		try {
-			await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
-			const capabilities = runtimeSettingsCapabilitiesFixture().encoder;
-			await runtime.encoding.reloadCapabilities(capabilities);
-			const request = runtime.encoding.audioRequest(file);
-			const indicator = screen.getByRole('button', { name: 'Audio plan for capabilities.m4b' });
-			await user.click(indicator);
-			await waitFor(() =>
-				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('Est.'),
-			);
-			await user.keyboard('{Escape}');
-			// A capability reload invalidates the plan even when its capability shape is identical.
-			preview.mockResolvedValueOnce({
-				format: 'm4b',
-				handling: 'encode',
-				settings: {
-					...settings,
-					encoderType: 'faac',
-					bitrateMode: { mode: 'vbr', value: 100 },
+		const indicator = screen.getByRole('button', { name: 'Audio plan for estimate.m4b' });
+		await user.click(indicator);
+		const popup = screen.getByRole('dialog', { name: 'Audio plan' });
+		expect(popup).toHaveTextContent('Checking source audio…');
+
+		engine.seedTitleAudio(file.path, titleAudioRequest(), {
+			plan: {
+				kind: 'resolved',
+				plan: {
+					format: 'm4b',
+					handling: 'preserve',
+					settings: null,
+					sampleRate: 44100,
+					channels: 6,
+					sourceCodec: 'AAC',
+					reason: null,
 				},
-				sampleRate: 44100,
-				channels: 2,
-				sourceCodec: 'AAC',
-				reason: null,
-			});
-			await runtime.encoding.reloadCapabilities(capabilities);
-			expect(runtime.encoding.audioRequest(file)).toEqual(request);
-			await waitFor(() =>
-				expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument(),
-			);
-			expect(preview).toHaveBeenCalledTimes(1);
-			await user.click(indicator);
-			await waitFor(() =>
-				expect(screen.getByTitle('Estimated output size')).toHaveTextContent(
-					'Size varies with audio',
-				),
-			);
-			// A successful plan must also disappear if a reload now makes its encoder unavailable.
-			preview.mockRejectedValueOnce(new Error('Encoder is unavailable'));
-			await runtime.encoding.reloadCapabilities(capabilities);
-			await waitFor(() =>
-				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent(
-					'Encoder is unavailable',
-				),
-			);
-			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
-		} finally {
-			preview.mockRestore();
-		}
+			},
+			estimate: { kind: 'bytes', bytes: 1000 },
+		});
+		await waitFor(() => expect(popup).toHaveTextContent('6 channels'));
+		expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B');
+
+		engine.seedTitleAudio(file.path, titleAudioRequest(), {
+			plan: { kind: 'failed', message: 'Sources cannot be joined' },
+			estimate: null,
+		});
+		await waitFor(() => expect(popup).toHaveTextContent('Sources cannot be joined'));
+		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
 	});
 
 	it('shows an invalid source in the grouped title status', async () => {
@@ -317,187 +226,80 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await runtime.input.selectAll();
-		await runtime.input.groupSelected();
-		const row = screen.getByRole('option', { name: 'valid.m4b' });
-		expect(row).toHaveClass('invalid');
-		expect(row).toHaveTextContent('Broken audio source');
+		engine.seedGroup(files);
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'valid.m4b' });
+			expect(row).toHaveClass('invalid');
+			expect(row).toHaveTextContent('Broken audio source');
+		});
 	});
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
 		runtime = runtimeFor({ files });
-		vi.spyOn(runtime.remoteSource, 'hasCompanions').mockImplementation(
-			(inputId) => inputId === files[1]!.inputId,
-		);
 		renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await runtime.input.selectAll();
-		await runtime.input.groupSelected();
-		const row = screen.getByRole('option', { name: 'part1.m4b' });
-		expect(within(row).getByText('PDF')).toBeVisible();
+		engine.seedGroup(files);
+		engine.change((state) => {
+			state.titles.companions = { [files[1]!.inputId!]: ['Guide.pdf'] };
+		});
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'part1.m4b' });
+			expect(within(row).getByText('PDF')).toBeVisible();
+		});
 	});
 
-	it.each([false, true])(
-		'validates only submitted title sources (grouped: %s)',
-		async (grouped) => {
-			const files = [
-				analyzedFile('/books/valid.m4b', {
-					preservation: { canPreserve: true },
-				}),
-				analyzedFile('/books/invalid.m4b', { isValid: false }),
-			];
-			const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
-				collisionPolicy: 'fail',
-				audioPlans: [],
-				planSignature: 'valid-titles',
-				outputs: [],
-			});
-			const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
-			runtime = runtimeFor({ files });
-			await runtime.input.importIntent({
-				type: 'importPaths',
-				paths: files.map((file) => file.path),
-			});
-			runtime.input.setAudioRequest(files[0]!, titleAudioRequest({ intent: 'auto' }));
-			if (grouped) {
-				await runtime.input.selectAll();
-				await runtime.input.groupSelected();
-				runtime.input.setAudioRequest(files[0]!, titleAudioRequest({ intent: 'encode' }));
-			}
-			runtime.output.applyDefaults({
-				outputDirectory: '/library',
-				outputNaming: { preset: 'absDefault', includeYear: false },
-			});
-			try {
-				await runtime.processing.start();
-				if (grouped) {
-					expect(preflight).not.toHaveBeenCalled();
-					expect(submit).not.toHaveBeenCalled();
-					expect(runtime.processing.status().stepText).toContain('invalid source');
-				} else {
-					expect(submit).toHaveBeenCalledWith(
-						expect.objectContaining({
-							payload: expect.objectContaining({ inputFiles: ['/books/valid.m4b'] }),
-						}),
-					);
-				}
-			} finally {
-				preflight.mockRestore();
-				submit.mockRestore();
-			}
-		},
-	);
-
-	it('edits one stack through its audio popover and submits it beside an independent title', async () => {
+	it('edits one stack through its audio popover', async () => {
 		const user = userEvent.setup();
 		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
 			analyzedFile(`/books/${name}`, { sampleRate: 44100, channels: 1, codecLabel: 'MP3' }),
 		);
-		const preview = vi.spyOn(tauriClient, 'previewTitleAudio').mockResolvedValue({
-			format: 'mp3',
-			handling: 'preserve',
-			settings: null,
-			sampleRate: 44100,
-			channels: 1,
-			sourceCodec: 'MP3',
-			reason: null,
-		});
-		const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
-			collisionPolicy: 'fail',
-			planSignature: 'stack-review',
-			audioPlans: [],
-			outputs: [],
-		});
-		const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
 		runtime = runtimeFor({ files });
 		renderApp(runtime);
-		try {
-			await runtime.input.importIntent({
-				type: 'importPaths',
-				paths: files.map((file) => file.path),
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
+		// The engine grouped the first two, whose audio disagrees.
+		engine.seedGroup([files[0]!, files[1]!], { choiceRequired: true });
+		engine.respond = (intent) => {
+			if (intent.kind !== 'applyDefaultAudio') return undefined;
+			engine.change((state) => {
+				state.titles.audioChoiceRequired = [];
 			});
-			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
-			runtime.encoding.select('encoder', 'faac');
-			runtime.encoding.select('intent', 'auto');
-			runtime.input.setAudioRequest(
-				files[0]!,
-				titleAudioRequest({ format: 'mp3', settings: null }),
-			);
-			await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
-			await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
-			await runtime.input.groupSelected();
-			runtime.input.reorderSources(files[0]!, 0, 1);
-			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
-			const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
-			await user.hover(indicator);
-			const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
-			expect(popup).toHaveTextContent('Choose this title’s audio');
-			expect(popup.parentElement).toBe(document.body);
-			await user.click(indicator);
-			await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
-			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
-			expect(runtime.encoding.audioRequest(files[0]!).format).toBe('m4b');
-			await waitFor(() =>
-				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('Est. ~ 2.0 KB'),
-			);
-			expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
-			expect(within(popup).queryByTestId('estimated-bitrate')).not.toBeInTheDocument();
-			await user.selectOptions(within(popup).getByLabelText('Audio handling'), 'encode');
-			await user.selectOptions(within(popup).getByLabelText('Profile'), 'aac_lc');
-			expect(runtime.encoding.audioRequest(files[0]!).settings?.faacProfile).toBe('aac_lc');
-			expect(runtime.encoding.audioRequest().settings?.faacProfile).toBe('auto');
-			await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
-			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
-			expect(within(popup).getByRole('option', { name: 'User Preference' })).toBeInTheDocument();
-			await user.selectOptions(within(popup).getByLabelText('Audio handling'), 'encode');
-			await user.keyboard('{Escape}');
-			// Browser focus/hover can arrive after the popover unmounts.
-			fireEvent.focus(indicator);
-			fireEvent.mouseEnter(indicator);
-			expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
-			expect(runtime.encoding.audioRequest(files[0]!).format).toBe('m4aOpus');
-			expect(runtime.encoding.audioRequest(files[2]!).format).toBe('m4b');
-			expect(runtime.encoding.audioRequest(files[2]!).settings?.bitrateMode).toEqual({
-				mode: 'cbr',
-			});
-			runtime.output.applyDefaults({
-				outputDirectory: '/library',
-				outputNaming: { preset: 'absDefault', includeYear: false },
-			});
-			await runtime.processing.start();
-			expect(submit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					payload: expect.objectContaining({
-						inputFiles: [files[0]!.path, files[2]!.path],
-						titleSources: {
-							[files[0]!.path]: [
-								{ path: files[1]!.path, inputId: files[1]!.inputId },
-								{ path: files[0]!.path, inputId: files[0]!.inputId },
-							],
-						},
-						audioRequests: [
-							expect.objectContaining({
-								format: 'm4aOpus',
-								intent: 'encode',
-								settings: expect.objectContaining({ encoderType: 'opus' }),
-							}),
-							expect.objectContaining({
-								format: 'm4b',
-								settings: expect.objectContaining({ bitrateMode: { mode: 'cbr' } }),
-							}),
-						],
-					}),
-				}),
-			);
-		} finally {
-			preview.mockRestore();
-			preflight.mockRestore();
-			submit.mockRestore();
-		}
+			return { kind: 'applied' };
+		};
+		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(true));
+		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+		await user.hover(indicator);
+		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
+		expect(popup).toHaveTextContent('Choose this title’s audio');
+		expect(popup.parentElement).toBe(document.body);
+		await user.click(indicator);
+		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
+		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(false));
+		expect(engine.sessionIntents).toContainEqual({
+			kind: 'applyDefaultAudio',
+			titleIds: [files[0]!.path],
+		});
+		expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
+		await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
+		await waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'setTitleAudio',
+				titleIds: [files[0]!.path],
+				edit: { field: 'format', value: 'm4aOpus' },
+			}),
+		);
+		await user.keyboard('{Escape}');
+		// Browser focus/hover can arrive after the popover unmounts.
+		fireEvent.focus(indicator);
+		fireEvent.mouseEnter(indicator);
+		expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {
@@ -582,7 +384,9 @@ describe('Solid input workbench', () => {
 	it('blocks import while order is locked and surfaces the lock banner', async () => {
 		runtime = runtimeFor();
 		renderApp(runtime);
-		runtime.input.setOrderLocked(true);
+		engine.change((state) => {
+			state.titles.orderLocked = true;
+		});
 		await waitFor(() => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 		});

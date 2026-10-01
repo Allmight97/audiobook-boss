@@ -76,7 +76,8 @@ commands over invoking internals directly.
 - Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
   dependency changes.
 - Driving the engine session without a window:
-  `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--json]`.
+  `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--out folder --export] [--json]`
+  (usage text lists audio, naming, preview, collision, and title-cancel options).
   It uses its own identity and a temporary state folder, so it never touches
   the app's settings or credentials.
 - Metadata planner-to-file workflow (two titles, two processing passes, encode
@@ -160,10 +161,8 @@ commands over invoking internals directly.
   do not grow it toward AST completeness; replace it with a parser only when
   TypeScript 7's programmatic API exists and an owner needs one. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
-  The no-import tripwires match `from 'typescript'` and the full `effect`
-  package family, so ordinary multiline named imports count; do not require
-  the binding list to sit on one line. Workflow APIs enter through
-  `src/lib/effect/appEffect.ts`. The tripwire also rejects leftover
+  The no-import tripwire matches `from 'typescript'`, so ordinary multiline
+  named imports count. The tripwire also rejects leftover
   `.svelte` / `.svelte.ts` sources under `src/` and leftover Tailwind or
   foundation-internal imports. The tripwire stays in `scripts/` so it does not
   pull Node types into the frontend `tsconfig`.
@@ -176,7 +175,7 @@ commands over invoking internals directly.
 
 - `Cargo.lock` and `bun.lock` are resolution truth; CI and verification
   installs run frozen or locked. Manifest ranges stay compatible; exact pins are
-  for prerelease families (Solid, Effect and their companions; Specta),
+  for prerelease families (Solid and its companions; Specta),
   cross-version type boundaries, synchronized families, and vendored or
   provenance-sensitive dependencies.
 - Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`) and

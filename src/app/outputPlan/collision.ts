@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { CollisionPolicy, PlannedOutput, ProcessingPreflightPlan } from '../../types/audio';
+import type { CollisionPolicy, PlannedOutput } from '../../types/audio';
 
 export type CollisionView = {
 	readonly isOpen: boolean;
@@ -8,7 +8,7 @@ export type CollisionView = {
 	readonly body: string;
 };
 
-export function emptyCollisionView(): CollisionView {
+function emptyCollisionView(): CollisionView {
 	return {
 		isOpen: false,
 		outputs: [],
@@ -27,7 +27,8 @@ function collisionBody(outputs: ReadonlyArray<PlannedOutput>): string {
 
 export type CollisionReview = {
 	readonly view: Accessor<CollisionView>;
-	open(plan: ProcessingPreflightPlan): Promise<CollisionPolicy | null>;
+	/** Shows the outputs that already exist; resolves with the user's choice, `null` on cancel. */
+	open(outputs: readonly PlannedOutput[]): Promise<CollisionPolicy | null>;
 	choose(policy: CollisionPolicy): void;
 	cancel(): void;
 	reset(): void;
@@ -55,11 +56,10 @@ export function createCollisionReview(): CollisionReview {
 			rev();
 			return collision;
 		},
-		open(plan) {
+		open(outputs) {
 			if (pendingResolve) {
 				pendingResolve(null);
 			}
-			const outputs = plan.outputs.filter((output) => output.collision != null);
 			publish({
 				isOpen: true,
 				outputs,

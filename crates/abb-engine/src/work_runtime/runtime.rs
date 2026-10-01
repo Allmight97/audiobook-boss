@@ -24,12 +24,17 @@ pub struct WorkRuntime {
 /// Source paths by operation id, then title index.
 type TitleSources = HashMap<String, Vec<Vec<PathBuf>>>;
 
+/// Told an export's terminal snapshot.
+pub(crate) type OnFinished = Box<dyn FnOnce(OperationSnapshot) + Send>;
+
 struct WorkRuntimeInner {
     state: Mutex<WorkRuntimeState>,
     operation_cancel_flags: Mutex<HashMap<String, CancelFlags>>,
     /// Source files each accepted processing title reads, by operation id and
     /// title index. An entry lives until its operation finishes.
     title_sources: Mutex<TitleSources>,
+    /// Accepted exports run here; closed when the engine shuts down.
+    tasks: tokio_util::task::TaskTracker,
     /// Advances whenever an operation's state changes.
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
@@ -37,8 +42,16 @@ struct WorkRuntimeInner {
 
 impl Default for WorkRuntime {
     fn default() -> Self {
+        Self::new(tokio_util::task::TaskTracker::new())
+    }
+}
+
+impl WorkRuntime {
+    /// A runtime whose exports run as `tasks`, so the engine can wait for them.
+    pub(crate) fn new(tasks: tokio_util::task::TaskTracker) -> Self {
         Self {
             inner: Arc::new(WorkRuntimeInner {
+                tasks,
                 state: Mutex::new(WorkRuntimeState::default()),
                 operation_cancel_flags: Mutex::new(HashMap::new()),
                 title_sources: Mutex::new(HashMap::new()),
@@ -50,13 +63,19 @@ impl Default for WorkRuntime {
 }
 
 impl WorkRuntime {
+    /// Accepts an export and runs it. `on_finished` receives the operation's
+    /// terminal snapshot once it ends.
     pub(crate) async fn submit_processing_operation(
         &self,
         host: Host,
         registry: crate::ManagedJobRegistry,
         workspace_root: PathBuf,
         request: SubmitProcessingOperationRequest,
+        on_finished: Option<OnFinished>,
     ) -> Result<WorkSubmissionAccepted> {
+        if self.inner.tasks.is_closed() {
+            return Err(AppError::General("ABB is closing.".to_string()));
+        }
         if request.title.trim().is_empty() {
             return Err(AppError::InvalidInput(
                 "Processing operations need a title naming their books.".into(),
@@ -125,7 +144,7 @@ impl WorkRuntime {
                     event,
                 );
             }));
-        tokio::spawn(async move {
+        self.inner.tasks.spawn(async move {
             runtime.mark_running_and_emit(&host, &operation_id_for_task);
             let result = process_payload_with_options(
                 host.clone(),
@@ -142,8 +161,12 @@ impl WorkRuntime {
             )
             .await;
             runtime.release_title_sources(&operation_id_for_task);
-            runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
+            let finished =
+                runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
             runtime.remove_cancel_flag(&operation_id_for_task);
+            if let (Some(on_finished), Some(snapshot)) = (on_finished, finished) {
+                on_finished(snapshot);
+            }
         });
 
         Ok(WorkSubmissionAccepted {
@@ -251,6 +274,24 @@ impl WorkRuntime {
         Ok(lock_state(&self.inner.state)?.list())
     }
 
+    /// Accepted exports that have not finished. Metadata Saves are left out:
+    /// shutdown lets them finish rather than cancelling them.
+    pub(crate) fn unfinished_exports(&self) -> Vec<OperationId> {
+        let Ok(state) = lock_state(&self.inner.state) else {
+            return Vec::new();
+        };
+        state
+            .list()
+            .operations
+            .into_iter()
+            .filter(|operation| {
+                operation.kind == crate::processing::OperationKind::ProcessingBatch
+                    && !super::terminal::is_terminal(operation.status)
+            })
+            .map(|operation| operation.operation_id)
+            .collect()
+    }
+
     /// Cancels a whole operation, or one of its titles when `child_job_id`
     /// names a child. Repeating a cancel returns the current snapshot.
     pub(crate) fn cancel_operation(
@@ -327,7 +368,7 @@ impl WorkRuntime {
         host: &Host,
         operation_id: &OperationId,
         result: Result<crate::processing::ProcessCommandResult>,
-    ) {
+    ) -> Option<OperationSnapshot> {
         let snapshot_result = lock_state(&self.inner.state).and_then(|mut state| match &result {
             Ok(result) => state.complete_from_process_result(operation_id, result, now_ms()),
             Err(error) => terminalize_aborted_run(&mut state, operation_id, error),
@@ -338,8 +379,12 @@ impl WorkRuntime {
                 log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
                 self.emit_snapshot(host, &snapshot);
                 self.emit_list(host);
+                Some(snapshot)
             }
-            Err(error) => log::warn!("Failed to terminalize work operation: {}", error),
+            Err(error) => {
+                log::warn!("Failed to terminalize work operation: {}", error);
+                None
+            }
         }
     }
 
@@ -372,6 +417,18 @@ impl WorkRuntime {
             }
         }
         in_use
+    }
+
+    /// Every source of every export that has not finished, including titles
+    /// already encoded: a title still copies its companion files after its
+    /// audio completes.
+    pub(crate) fn sources_held(&self) -> HashSet<PathBuf> {
+        self.title_sources()
+            .values()
+            .flatten()
+            .flatten()
+            .cloned()
+            .collect()
     }
 
     /// A receiver that wakes whenever any operation's state changes.

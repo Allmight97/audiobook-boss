@@ -9,20 +9,23 @@ not keep parallel business state.
 ## Two Kinds Of Owner
 
 - **Engine adapters**: `inputSession`, `metadataSession`, `metadataLookup`,
-  `appSettings`. The engine owns their truth and rules
+  `appSettings`, `encoding`, `outputPlan`, and submission in `processing`.
+  The engine owns their truth and rules
   (`crates/abb-engine/src/session/AGENTS.md`,
   `crates/abb-engine/src/app_settings/AGENTS.md`). The adapter turns engine
   snapshots into view state, words typed statuses and notices, and sends
   intents through `engineLink`. A new rule for titles, selection, metadata
-  edits, lookup, Save, or settings goes in the engine, not here.
-- **Frontend owners**: `encoding`, `outputPlan`, `processing`,
-  `workOperations`, `remoteSource`. They still hold their own workflow until
-  it moves into the engine. New product rules go in the engine even here.
+  edits, lookup, Save, audio choices, output naming, submission, or settings
+  goes in the engine, not here.
+- **Frontend owners**: `workOperations`, `remoteSource`, and the preview
+  progress panel in `processing`. They hold their own workflow; new product
+  rules go in the engine even here.
 
 ## Engine Link
 
 - `engineLink` is the one connection to the engine. It keeps the newest copy
-  of each snapshot part (titles, selection, metadata, lookup, settings) by
+  of each snapshot part (titles, selection, metadata, lookup, audio, output,
+  settings) by
   revision, and sends intents. Adapters read the link; nothing else holds a
   copy of engine state.
 - `send` resolves with the intent's outcome after its work finishes; `post`
@@ -31,8 +34,8 @@ not keep parallel business state.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results, so Solid rows are not rebuilt and a click does not land on a
   replaced element.
-- Typed text (form fields, lookup queries) shows immediately and drops when
-  the engine's reply for that keystroke arrives. Form typing shows only on the
+- Adapters show typed text (form fields, lookup queries, the naming template)
+  immediately and drop it when the engine's reply for that keystroke arrives. Form typing shows only on the
   form it was typed into (the metadata part's `binding`). This local echo is
   display only; it never decides what is saved.
 
@@ -43,9 +46,8 @@ not keep parallel business state.
   production modules use those owner roots.
 - Prefer a small `view()` / accessor surface plus semantic intents. Do not
   expose raw setters, refresh/poke functions, or one accessor per field.
-- Cross-owner coordination uses another owner's Public API Strip or an Effect
-  workflow owned by the full outcome. Inject owner dependencies when the App
-  Runtime composes them.
+- Cross-owner coordination uses another owner's Public API Strip. Inject owner
+  dependencies when the App Runtime composes them.
 - Cross-owner integration tests exercise public owner intents. Owner-internal
   tests may import private modules to prove behavior at its cheapest stable
   boundary. Do not widen the public strip solely for a test.
@@ -60,31 +62,10 @@ not keep parallel business state.
 - Derived views are computed from owner truth, not mirrored into another
   writable store. Capability and validation facts stay with their Rust owner.
 
-## Temporary Until Processing Moves Into The Engine
-
-These bridge engine-owned session state to the frontend owners that still
-build processing requests. Remove them with that move. The engine intents
-they use are listed in `crates/abb-engine/src/session/AGENTS.md`.
-
-- Input sends Encoding's default audio request with each import; Encoding
-  records a title's audio choice through Input's `setAudioRequest`, which
-  shows the choice before the engine confirms it.
-- Processing locks the list during a preview through Input's
-  `setOrderLocked`, and reads pending edits for its payload through Metadata
-  Session, which asks the engine (`metadataIntents`).
-- Input exports `chapterPlansForProcessing`, which refuses an unconfirmed CUE
-  and CUE chapters on a merged title before submit.
-- Metadata field definitions keep `key`/`mapToAlbum`, and `tags.ts` copies
-  title onto album and author onto album artist, for the output-path and tag
-  previews.
-
 ## Workflow And Failure Shape
 
-- Choose AppEffect when its typed failure, dependency composition, or scoped
-  work reduces coordination; direct capability workflows may use plain async.
-  Read `src/lib/effect/AGENTS.md` before changing that shape.
-- Keep Effect programs and live layers private to the workflow owner. Public
-  owner entrypoints return Promise or synchronous domain outcomes.
+- Owner workflows are plain async. Public owner entrypoints return Promise or
+  synchronous domain outcomes.
 - Runtime calls route through `tauriClient`. Normalize user-facing errors and
   cancellation through `src/lib/tauri/appError.ts`; preserve typed provider
   diagnostics and backend terminal verdicts.
@@ -95,12 +76,14 @@ they use are listed in `crates/abb-engine/src/session/AGENTS.md`.
 
 - The owner has one source of truth, one public interface, and one disposal
   path. Cross-owner reads use public strips; views render and dispatch only.
-- Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. The
-  fake mimics enough engine behavior (selection, import, grouping, staging,
-  lookup, Save) for views to render; those copies prove nothing about the
-  engine. Engine rules are proved in Rust. Prefer seeding a snapshot through
-  the fake's `change` over adding behavior to it, and never add a new product
-  rule there.
+- Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. It
+  records every intent, applies plain list mechanics (import append,
+  selection, removal, output echo), renders the form from seeded tags and
+  typed values, and answers settings intents with a small write model. It
+  copies no engine decision: grouping, ordering, Save, lookup, cover loads,
+  and audio edits are recorded only. A test that needs the
+  engine's answer seeds it with `change`, `respond`, `answerSubmission`, or a
+  `seed*` method; never add a product rule there.
 - Add App Runtime two-instance proof when isolation changes.
 - Update a nested owner `AGENTS.md` only for non-obvious local invariants or
   public-surface changes; keep mutable execution state out of instructions.

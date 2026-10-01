@@ -25,6 +25,7 @@ use abb_engine::audio::{
 };
 use abb_engine::processing::job_registry::{CancellationChecker, JobRegistry};
 use abb_engine::processing::{OutputConfig, ProcessingContext, ProcessingSession};
+use abb_engine::session::{AudioEdit, CueChoice, SessionIntent, TitlePlan};
 use abb_engine::{
     extract_passthrough_metadata, finalize_artifact_metadata, read_audio_cover_thumbnail,
     read_metadata, save_metadata_intent, AlbumSortPatchOp, AppError, AudiobookMetadata,
@@ -114,7 +115,11 @@ fn preflight_processing_plan(
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<abb_engine::processing::ProcessingPreflightPlan, abb_engine::AppErrorEnvelope> {
-    Ok(test_engine().preflight_processing_plan(payload, metadata, preview_seconds)?)
+    Ok(abb_engine::processing::preflight_payload(
+        payload,
+        metadata,
+        preview_seconds,
+    )?)
 }
 
 /// An encoder-sized zero pad must not become playable source audio.
@@ -525,7 +530,7 @@ impl MediaLane {
         ProcessingContext::new_headless_with_workspace_root(
             Arc::new(session),
             self.encoder_settings.clone(),
-            self.sample_rate.clone(),
+            self.sample_rate,
             OutputConfig::new(self.output_path()),
             self.workspace_root(),
         )
@@ -1862,32 +1867,47 @@ async fn cue_chapters_survive_mp3_encoding_and_finalization() {
     let mp3 = tmp.path().join("book.mp3");
     write_sine_mp3(&mp3, 1.5, 440.0);
     fs::write(tmp.path().join("book.cue"), "FILE \"stale.mp3\" MP3\nTRACK 01 AUDIO\nTITLE \"Opening\"\nINDEX 01 00:00:00\nTRACK 02 AUDIO\nTITLE \"Near end\"\nINDEX 01 00:01:36\n").expect("write CUE");
-    // The popover must use the accepted chapter choice, just like preflight.
-    let info = get_file_list_info(std::slice::from_ref(&mp3)).unwrap();
-    let request = abb_engine::audio::TitleAudioRequest {
-        format: abb_engine::audio::AudiobookFormat::Mp3,
-        intent: abb_engine::audio::AudioIntent::Auto,
-        settings: None,
-        sample_rate: SampleRateConfig::Auto,
-    };
-    let paths = vec![info.files[0].path.to_str().unwrap().to_owned()];
+    // The session's plan for the title uses the chapter choice, as preflight does.
     let engine = test_engine();
-    let preview =
-        |paths, request, chapter_plans| engine.preview_title_audio(paths, request, chapter_plans);
-    assert!(preview(paths.clone(), request.clone(), None).await.is_err());
-    let mut ignored = info.files[0].chapter_plan.clone().unwrap();
-    ignored.from_cue = false;
-    ignored.chapters.clear();
-    let plan = preview(
-        paths.clone(),
-        request,
-        Some(std::collections::HashMap::from([(
-            paths[0].clone(),
-            ignored,
-        )])),
-    )
-    .await
-    .expect("ignored CUE permits single-file MP3 pass-through");
+    let plan_after = |intent| {
+        let engine = engine.clone();
+        async move {
+            engine.session_dispatch(intent).await;
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                loop {
+                    let audio = engine.session_snapshot().audio.expect("audio part");
+                    let plan = audio.titles.values().next().map(|title| title.plan.clone());
+                    if let Some(plan) = plan.filter(|plan| *plan != TitlePlan::Pending) {
+                        return plan;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("the title plan resolves")
+        }
+    };
+    plan_after(SessionIntent::Import {
+        paths: vec![mp3.to_string_lossy().into_owned()],
+    })
+    .await;
+    let title_id = engine.session_snapshot().titles.expect("titles").files[0]
+        .input_id
+        .clone();
+    let refused = plan_after(SessionIntent::SetTitleAudio {
+        title_ids: vec![title_id.clone()],
+        edit: AudioEdit::Format(abb_engine::audio::AudiobookFormat::Mp3),
+    })
+    .await;
+    assert!(matches!(refused, TitlePlan::Failed { .. }), "{refused:?}");
+    let ignored = plan_after(SessionIntent::ChooseCue {
+        input_id: title_id,
+        choice: CueChoice::Ignore,
+    })
+    .await;
+    let TitlePlan::Resolved { plan } = ignored else {
+        panic!("ignored CUE permits single-file MP3 pass-through: {ignored:?}");
+    };
     assert_eq!(
         plan.handling,
         abb_engine::processing::AudioHandling::Preserve

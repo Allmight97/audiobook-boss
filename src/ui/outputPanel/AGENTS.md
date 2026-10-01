@@ -3,8 +3,9 @@
 ## Scope
 
 - Solid Output workbench view under `src/ui/outputPanel/`.
-- Output directory, naming, path preview, estimate, and collision review truth
-  live in `src/app/outputPlan`. This owner renders that view.
+- The engine owns the output directory, naming, path preview, and estimates;
+  `src/app/outputPlan` words them and holds collision review. This owner
+  renders that view.
 
 ## Public API Strip
 

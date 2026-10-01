@@ -1,15 +1,17 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
 import type { SettingsOwner } from '../appSettings';
-import type { EncodingOwner } from '../encoding';
+import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
-import type { MetadataOwner } from '../metadataSession';
 import type { OutputPlanOwner } from '../outputPlan';
-import type { RemoteSourceOwner } from '../remoteSource';
 import { renderConcurrencyStatus } from './render';
 import { StatusPanelRuntime } from './runtime';
-import { makeProcessingWorkflowLive } from './workflow.deps';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
 
+/**
+ * The engine builds, reviews, and runs exports and previews. This owner
+ * starts them, routes collision review through the Output dialog, and shows
+ * preview progress and outcomes in the status panel.
+ */
 export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
 	start(options?: { previewSeconds?: number }): Promise<void>;
@@ -20,12 +22,10 @@ export type ProcessingOwner = {
 };
 
 export type ProcessingOwnerDeps = {
+	readonly link: EngineLink;
 	readonly input: InputOwner;
-	readonly metadata: MetadataOwner;
 	readonly settings: SettingsOwner;
-	readonly encoding: Pick<EncodingOwner, 'audioRequest'>;
-	readonly output: Pick<OutputPlanOwner, 'readRequestConfig' | 'openCollisionReview'>;
-	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
+	readonly output: Pick<OutputPlanOwner, 'openCollisionReview'>;
 };
 
 export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwner {
@@ -37,23 +37,19 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	}
 	const statusView = createStatusViewStore();
 	statusView.bindPublisher(publish);
+	const validTitles = () => deps.input.view().files.filter((file) => file.isValid);
 	const statusRuntime = new StatusPanelRuntime({
 		view: statusView,
-		validTitles: () => deps.input.view().files.filter((file) => file.isValid),
-		unlockWorkbench: () => {
-			deps.settings.setControlsEnabled(true);
-			deps.input.setOrderLocked(false);
-		},
+		validTitles,
+		unlockWorkbench: () => deps.settings.setControlsEnabled(true),
 		concurrency: () => untrack(deps.settings.concurrency),
-		workflowLayer: makeProcessingWorkflowLive({
-			input: deps.input,
-			metadata: deps.metadata,
-			settings: deps.settings,
-			encoding: deps.encoding,
-			output: deps.output,
-			remoteSource: deps.remoteSource,
+		submit: {
+			link: deps.link,
+			reviewCollisions: (outputs) => deps.output.openCollisionReview(outputs),
+			titlePaths: () => validTitles().map((file) => file.path),
+			setControlsEnabled: (enabled) => deps.settings.setControlsEnabled(enabled),
 			showError: (message) => statusView.showError(message),
-		}),
+		},
 	});
 	createEffect(
 		() => deps.settings.concurrency(),

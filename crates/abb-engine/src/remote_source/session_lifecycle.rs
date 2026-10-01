@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use abb_remote_source_core::{
     acquisition_progress, AcquisitionProgress as CoreAcquisitionProgress, AcquisitionStage,
@@ -8,26 +9,59 @@ use abb_remote_source_core::{
 use tokio::task::AbortHandle;
 
 use crate::errors::{AppError, Result};
+use crate::host::{EngineEvent, Host};
 use crate::remote_source::materializer::AaxcleanMaterializer;
 use crate::remote_source::staging::RemoteSourceStaging;
 use crate::remote_source::{types, AcquisitionJob as RemoteAcquisitionJob};
 
 use super::{RemoteProviderId, RemoteSourceRuntime};
 
+/// How often a download's progress reaches hosts; a stage change always does.
+const PROGRESS_EVENT_INTERVAL: Duration = Duration::from_millis(100);
+
 pub(super) struct RemoteAcquisitionLifecycle {
     pub(super) staging: RemoteSourceStaging,
     materializer: AaxcleanMaterializer,
     pub(super) jobs: Mutex<HashMap<String, RemoteAcquisitionJob>>,
     acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
+    host: Host,
+    /// When each job's progress last reached hosts.
+    progress_sent: Mutex<HashMap<String, Instant>>,
 }
 
 impl RemoteAcquisitionLifecycle {
-    pub(super) fn new(staging: RemoteSourceStaging, materializer: AaxcleanMaterializer) -> Self {
+    pub(super) fn new(
+        staging: RemoteSourceStaging,
+        materializer: AaxcleanMaterializer,
+        host: Host,
+    ) -> Self {
         Self {
             staging,
             materializer,
             jobs: Mutex::new(HashMap::new()),
             acquisition_tasks: Mutex::new(HashMap::new()),
+            host,
+            progress_sent: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Tells hosts what `job` looks like now.
+    fn publish(&self, job: &RemoteAcquisitionJob) {
+        if let Ok(mut sent) = self.progress_sent.lock() {
+            sent.insert(job.job_id.clone(), Instant::now());
+        }
+        self.host
+            .emit(EngineEvent::Acquisition(Box::new(job.clone())));
+    }
+
+    fn publish_current(&self, job_id: &str) {
+        let job = self
+            .jobs
+            .lock()
+            .ok()
+            .and_then(|jobs| jobs.get(job_id).cloned());
+        if let Some(job) = job {
+            self.publish(&job);
         }
     }
 
@@ -83,6 +117,9 @@ impl RemoteAcquisitionLifecycle {
                 "Select at least one remote title to acquire.".to_string(),
             ));
         }
+        if runtime.inner.tasks.is_closed() {
+            return Err(AppError::General("ABB is closing.".to_string()));
+        }
         let job_id = uuid::Uuid::new_v4().to_string();
         let job_dir = self.staging.create_job_dir(&job_id)?;
         let job = RemoteAcquisitionJob {
@@ -93,20 +130,24 @@ impl RemoteAcquisitionLifecycle {
             materialized_files: Vec::new(),
             supplemental_assets: Vec::new(),
             diagnostics: Vec::new(),
+            handoff: None,
         };
         self.jobs
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .insert(job_id, job.clone());
+        self.publish(&job);
         let spawned_job_id = job.job_id.clone();
-        let abort_handle = tokio::spawn(async move {
-            runtime
-                .inner
-                .lifecycle
-                .run_acquisition_job(runtime.clone(), plan, spawned_job_id, job_dir)
-                .await;
-        })
-        .abort_handle();
+        let tasks = runtime.inner.tasks.clone();
+        let abort_handle = tasks
+            .spawn(async move {
+                runtime
+                    .inner
+                    .lifecycle
+                    .run_acquisition_job(runtime.clone(), plan, spawned_job_id, job_dir)
+                    .await;
+            })
+            .abort_handle();
         self.store_acquisition_task(&job.job_id, abort_handle);
         Ok(job)
     }
@@ -151,7 +192,10 @@ impl RemoteAcquisitionLifecycle {
                 );
                 let _ = job;
             }
-            Ok(job) => self.replace_job_if_active(job),
+            Ok(job) => {
+                self.replace_job_if_active(job.clone());
+                self.hand_off(&runtime, job).await;
+            }
             Err(AppError::Cancellation(_)) => {
                 self.cleanup_cancelled_job_session(&job_id);
                 self.mark_job_cancelled(&job_id, plan.provider_id);
@@ -172,15 +216,62 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    pub(super) fn update_job_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
-        if let Ok(mut jobs) = self.jobs.lock() {
-            if let Some(job) = jobs.get_mut(job_id) {
-                if job.status == types::RemoteAcquisitionStatus::Cancelled {
-                    return;
+    /// Gives a finished job's files to the session and records how that went.
+    /// The session decides when the staged files go, imported or not.
+    pub(super) async fn hand_off(&self, runtime: &RemoteSourceRuntime, job: RemoteAcquisitionJob) {
+        let ready = job.status == types::RemoteAcquisitionStatus::Validated
+            && !job.materialized_files.is_empty()
+            && !self.job_is_cancelled(&job.job_id);
+        let Some(handoff) = runtime.inner.handoff.get().filter(|_| ready) else {
+            return;
+        };
+        let job_id = job.job_id.clone();
+        // The session removes an unimported download itself.
+        let result = handoff(job).await;
+        let updated = self.jobs.lock().ok().and_then(|mut jobs| {
+            let job = jobs.get_mut(&job_id)?;
+            match &result {
+                types::AcquisitionHandoff::Imported { .. } => {
+                    job.status = types::RemoteAcquisitionStatus::ImportedToFileList;
                 }
-                job.progress = progress;
+                types::AcquisitionHandoff::Removed { .. } => {
+                    job.materialized_files.clear();
+                    job.supplemental_assets.clear();
+                }
             }
+            job.handoff = Some(result);
+            Some(job.clone())
+        });
+        if let Some(job) = updated {
+            self.publish(&job);
         }
+    }
+
+    pub(super) fn update_job_progress(&self, job_id: &str, progress: CoreAcquisitionProgress) {
+        let changed = {
+            let Ok(mut jobs) = self.jobs.lock() else {
+                return;
+            };
+            let Some(job) = jobs.get_mut(job_id) else {
+                return;
+            };
+            if job.status == types::RemoteAcquisitionStatus::Cancelled {
+                return;
+            }
+            let new_stage = job.progress.stage != progress.stage;
+            job.progress = progress;
+            (new_stage || self.progress_due(job_id)).then(|| job.clone())
+        };
+        if let Some(job) = changed {
+            self.publish(&job);
+        }
+    }
+
+    fn progress_due(&self, job_id: &str) -> bool {
+        self.progress_sent.lock().map_or(true, |sent| {
+            sent.get(job_id)
+                .is_none_or(|at| at.elapsed() >= PROGRESS_EVENT_INTERVAL)
+        })
     }
 
     pub(super) fn replace_job_if_active(&self, job: RemoteAcquisitionJob) {
@@ -190,8 +281,9 @@ impl RemoteAcquisitionLifecycle {
             }) {
                 return;
             }
-            jobs.insert(job.job_id.clone(), job);
+            jobs.insert(job.job_id.clone(), job.clone());
         }
+        self.publish(&job);
     }
 
     pub(super) fn mark_job_failed(
@@ -215,6 +307,7 @@ impl RemoteAcquisitionLifecycle {
                 message,
             });
         }
+        self.publish_current(job_id);
     }
 
     pub(super) fn mark_job_cancelled(&self, job_id: &str, provider_id: RemoteProviderId) {
@@ -224,6 +317,7 @@ impl RemoteAcquisitionLifecycle {
                 .or_insert_with(|| placeholder_job(job_id, provider_id));
             mark_cancelled(job);
         }
+        self.publish_current(job_id);
     }
 
     fn job_is_cancelled(&self, job_id: &str) -> bool {
@@ -330,22 +424,28 @@ impl RemoteAcquisitionLifecycle {
         let job = jobs.get_mut(job_id).ok_or_else(|| {
             AppError::InvalidInput("Remote acquisition job was not found.".to_string())
         })?;
+        // A finished job's files may already be in the session; there is
+        // nothing left to cancel.
+        if !matches!(
+            job.status,
+            types::RemoteAcquisitionStatus::Planned | types::RemoteAcquisitionStatus::Acquiring
+        ) {
+            return Ok(job.clone());
+        }
         mark_cancelled(job);
         let cancelled_job = job.clone();
         drop(jobs);
         self.abort_acquisition_task(job_id);
         self.cleanup_cancelled_job_session(job_id);
+        self.publish(&cancelled_job);
         Ok(cancelled_job)
     }
 
     fn purge_session(&self, job_id: &str) -> Result<()> {
         self.abort_acquisition_task(job_id);
-        self.staging.purge_session(job_id)?;
-        self.jobs
-            .lock()
-            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
-            .remove(job_id);
-        Ok(())
+        // The job's record stays: its handoff outcome may still be on its
+        // way to hosts, and logout clears records.
+        self.staging.purge_session(job_id)
     }
 }
 
@@ -358,7 +458,8 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.cancel_acquisition(job_id)
     }
 
-    pub fn purge_session(&self, job_id: &str) -> Result<()> {
+    /// Removes a job's staged files. The session decides when.
+    pub(crate) fn purge_session(&self, job_id: &str) -> Result<()> {
         self.inner.lifecycle.purge_session(job_id)
     }
 }
@@ -374,6 +475,7 @@ fn placeholder_job(job_id: &str, provider_id: RemoteProviderId) -> RemoteAcquisi
         materialized_files: Vec::new(),
         supplemental_assets: Vec::new(),
         diagnostics: Vec::new(),
+        handoff: None,
     }
 }
 

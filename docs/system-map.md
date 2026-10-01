@@ -8,9 +8,8 @@ the owning code and tests.
 ABB is a local, single-user desktop application. A Rust engine
 (`crates/abb-engine`) owns the product's rules and the working session; the
 Tauri app is one host for it. One owner holds each product truth, views
-dispatch semantic intent, and typed interfaces cross seams. The remaining
-frontend-owned workflow is moving into the engine so a native UI can replace
-the Tauri host.
+dispatch semantic intent, and typed interfaces cross seams. A native UI
+would replace only the host tier.
 
 ## Product Spine
 
@@ -33,7 +32,7 @@ Import -> Inspect -> Decide -> Preflight -> Process -> Verify
 ## Control Loop
 
 Working session and settings (titles, selection, metadata edits, lookup,
-Save, preferences):
+Save, audio choices, output naming and estimates, submission, preferences):
 
 ```text
 User intent
@@ -42,32 +41,29 @@ User intent
   -> engineLink                          numbered intent
   -> tauriClient -> host command         run in the order sent (intent order)
   -> Engine session / settings runtime   rule, transition, file/network work
-  -> reply + session-update events       snapshot parts with revisions
+  -> reply + session/settings events     snapshot parts with revisions
   -> engineLink keeps newest parts -> Solid view renders
 ```
 
-Encoding, output planning, and processing submission (still frontend-owned):
+A submission continues inside the engine:
 
 ```text
-User intent
-  -> Solid view
-  -> src/app owner + private workflow    request building + explicit failure
-  -> tauriClient -> thin host command
-  -> Engine owner                        policy + lifecycle authority
-  -> explicit plan                       resolved work before side effects
-  -> direct preview | WorkRuntime        foreground probe | accepted operation
+Submit / Preview intent
+  -> Engine session                      build the export from the session, hold its sources
+  -> preflight plan                      paths, collisions, signature; ReviewRequired waits for a choice
+  -> preview run | WorkRuntime           foreground probe | accepted operation
   -> Audio / Metadata / Output owners    owned side effects
   -> snapshots + artifact readback
   -> Solid view renders terminal truth
 ```
 
 Remote Source materializes provider-owned titles into ABB-owned staged local
-files, then hands them to the normal Input owner. It is not a hidden processing
-path.
+files, then the engine imports them into the working session like any other
+files. It is not a hidden processing path.
 
-Preview and accepted work are deliberately different lanes. Direct preview
-uses `process_audiobook_files` and foreground progress events; it has no backend
-cancel command. Final processing and metadata batch save use WorkRuntime,
+Preview and accepted work are deliberately different lanes. A preview runs
+in the session with foreground progress events; it has no backend cancel
+command. Final processing and metadata batch save use WorkRuntime,
 operation and title cancellation, and backend-authored operation snapshots. The
 nearest Processing and WorkRuntime guidance owns the exact event rules.
 
@@ -77,12 +73,12 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | --- | --- | --- |
 | App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, and disposal. |
 | Engine link | `src/app/engineLink` | The frontend's one connection to the engine: newest snapshot parts and numbered intents. |
-| Frontend owners | `src/app/<owner>` | Adapters over engine state (input, metadata, lookup, settings), or workflow still owned in TS (encoding, output plan, processing, work operations, remote source). Each `index.ts` is its live export truth. |
+| Frontend owners | `src/app/<owner>` | Adapters over engine state (input, metadata, lookup, settings, encoding, output plan), or workflow still owned in TS (preview status, work operations, remote source). Each `index.ts` is its live export truth. |
 | Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
-| Tauri host | `src-tauri` | Commands, intent ordering, event forwarding, window, quit warning. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
-| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, and Save targets. |
+| Tauri host | `src-tauri` | Commands, intent ordering, event forwarding, window, quit handling (engine shutdown). Command registration lives in `src-tauri/src/ipc_contract.rs`. |
+| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, Save targets, audio choices and title plans, output naming, path preview, size estimates, submission and collision review, and imported downloads. |
 | Processing | `crates/abb-engine/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
 | WorkRuntime | `crates/abb-engine/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
 | Active-work power | `crates/abb-engine/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
@@ -90,8 +86,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Metadata Outcome | `crates/abb-engine/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `crates/abb-engine/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `crates/abb-engine/src/app_settings` + `src/app/appSettings` | Settings in effect, validation, storage, and durability in the engine; dialog state and wording in TS. |
-| Encoding Configuration | `src/app/encoding` | Typed encoder/sample-rate/channel request, capability-derived controls, defaults and title edits, and total estimate kbps. |
-| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
+| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, and staged materialization in the engine (the session imports the files and decides when downloads go); dialog state and wording in TS. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an engine owner; not additional product owners. Tier rules: `crates/AGENTS.md`. |
 
 Callers cross an owner's Public API Strip—the allowed import/export surface
@@ -106,11 +101,11 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | Presentation resource | View instance, or an owner-private resource when workflows share it | Dispose listeners, cancellation, caches, and late completions with that instance. |
 | Working session | Engine `Session`, one per engine | Hosts read snapshot parts and send intents. The frontend keeps only the newest parts and display-only echo of typed text. |
 | Frontend workflow truth | One App Runtime owner | Read through its view/accessor and change through semantic intent. Never mirror it in another writable store. |
-| Workflow transient state | Private workflow owner | Use plain async or Effect per the owned coordination need; publish outcomes through the owner. |
+| Workflow transient state | Private workflow owner | Plain async; publish outcomes through the owner. |
 | Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
 | Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation and title cancellation. |
 | Settings in effect | Engine settings runtime + JSON store | Runtime owner accepts behavior before it is recorded; a failed write keeps the setting in effect and retryable. |
-| Waiting metadata write | Engine session until the export reading the file finishes | Survives removal of its title; the host warns before quitting. |
+| Waiting metadata write | Engine session until the export reading the file finishes | Survives removal of its title; shutdown cancels the export and writes it. |
 | Artifact truth | Metadata, Audio, Output, and final disk readback | Success follows commit/finalization and any load-bearing verification. |
 | Provider secret/session | Backend Remote Source + OS credential store | Never cross into frontend state, logs, processing payloads, or metadata. |
 
@@ -135,7 +130,7 @@ mismatch instead of blending the sources.
 
 - Every processing job has exactly one terminal outcome: `success`, `skipped`, `cancelled`, or `failed`.
 - UI renders backend terminal truth; it does not invent final status.
-- Metadata `set`, `clear`, and absent (keep source) intent remain distinct across the runtime boundary.
+- Metadata `set`, `clear`, and absent (keep source) intent stay distinct from the session's field edits through Save and processing.
 - Input, output, and artifact paths remain validated at their owning ingress, plan, or commit seam.
 - Accepted WorkRuntime submissions keep stable identity and immutable accepted inputs.
 - External-provider partial failure remains typed and explicit at the owning engine module.

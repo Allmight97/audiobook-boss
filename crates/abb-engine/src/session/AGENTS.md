@@ -1,16 +1,17 @@
 # Working Session
 
 The session is the titles being prepared, the metadata edits made to them,
-and the lookup that helps fill those edits in. It behaves the same whether a
+the lookup that helps fill those edits in, each title's audio choice, where
+and how exports are named, and submitting them as an export or a preview. It
+behaves the same whether a
 window, a test, or `abb-dev` drives it, and it outlives any one host
 attachment.
 
 ## Public API Strip
 
 - Hosts reach the session through `Engine::session_dispatch`,
-  `Engine::session_begin`, `Engine::session_snapshot`,
-  `Engine::session_cover_art`, `Engine::session_metadata_intents`, and
-  `Engine::waiting_metadata_writes`, and receive `EngineEvent::Session`.
+  `Engine::session_begin`, `Engine::session_snapshot`, and
+  `Engine::session_cover_art`, and receive `EngineEvent::Session`.
 - Types are the `pub use` list in `mod.rs`: the intent, outcome, reply, and
   update types, each snapshot part, and the typed statuses and notices.
 - `Session`, `SessionDeps`, and the state modules are engine-internal.
@@ -23,7 +24,7 @@ attachment.
   and when the engine changes something on its own. A host that attached
   while an intent was running learns its result from the event.
 - A `SessionUpdate` carries only the parts that changed (titles, selection,
-  metadata, lookup). Each part carries the revision of its own last change; a
+  metadata, lookup, audio, output). Each part carries the revision of its own last change; a
   host keeps the newest copy of each part. This is what makes a keystroke cost
   about 1 KB instead of the whole title list, and what lets a reply and an
   event arrive in either order.
@@ -38,15 +39,17 @@ attachment.
   `image_revision`; a host fetches the bytes with `Engine::session_cover_art`
   when that changes.
 - Reasons and statuses are typed (`InputNotice`, `MetadataStatus`,
-  `LookupStatus`, `CoverNotice`). The host words them.
+  `LookupStatus`, `CoverNotice`, `SubmissionStatus`). The host words them.
 
 ## Where A Rule Goes
 
 - `state.rs` and the modules it uses (`working_set`, `tag_cache`,
-  `metadata_form`, `lookup`) hold every rule and do no I/O. Each method is one
-  atomic transition. Work that needs a file or the network leaves as data (a
-  `ReadTicket`, a `SavePlan`) and returns as a completion the state accepts or
-  drops.
+  `metadata_form`, `lookup`, `audio_choice`, `audio`, `plans`, `output`,
+  `submission`, `staged`) hold every rule and do no I/O; the one exception is
+  `PlanTicket::resolve`, which reads sources and runs on a blocking thread.
+  Each method is one atomic transition. Work that needs a file or the network
+  leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns
+  as a completion the state accepts or drops.
 - `runtime.rs` performs that work. It never holds the state lock across an
   await, and it calls `settle` after every transition so snapshots are
   re-derived.
@@ -81,17 +84,61 @@ attachment.
 - **Cover.** A cover change applies only when exactly one valid title is
   selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source
-  title, not only the selection, and is refused while a preview runs. A file
-  is busy while an accepted export reads it (queued exports included) or while
-  a waiting write is writing it. A busy local source waits and is written when
+  title, not only the selection. A file is busy while an accepted export reads
+  it (queued exports included), while a submission or preview being prepared
+  or run holds it, or while a waiting write is writing it. A busy local source waits and is written when
   it is free; a busy temporary download (under the remote-source staging root)
   is never written and its edit stays pending; any other file is written at
   once and never moved. Two writes to one file never overlap.
-- **Waiting writes.** A waiting write outlives removal of its title, and
-  `Engine::waiting_metadata_writes` reports it so a host can warn before
-  quitting. When it finishes, the session reports how many were written or
+- **Waiting writes.** A waiting write outlives removal of its title.
+  `Engine::shutdown` cancels the exports, review, or preview holding it back,
+  so it is written before the engine stops. When it finishes, the session reports how many were written or
   failed. If its title is loaded again by then, a written edit becomes the
   title's known tags and a failed one is pending again for Save.
+- **Audio choice.** The defaults new titles start from and each title's own
+  choice are edited with typed `AudioEdit`s checked against the encoder
+  capabilities (`audio_choice.rs`); a refused edit changes nothing. MP3 copies
+  its source; editing how audio is encoded selects Encode. A defaults edit is
+  recorded in the settings; a title edit is not, and is refused while the
+  list is locked. A settings reset returns the defaults and output choices to
+  the reset settings; loaded titles keep their choices.
+- **Title plans and estimates.** Each title's plan is resolved in the
+  background whenever its request or sources change; a stale result is
+  dropped (`plans.rs`). A CUE awaiting confirmation, or CUE chapters on a
+  merged title, fails the plan with a reason. The size estimate is the
+  sources' bytes when kept, or duration times target bitrate plus 3 percent
+  when encoded; Auto waits for its plan, and a missing fact means none.
+- **Output.** The output part carries the directory, naming, the naming
+  processing receives (an empty custom template names `{author}/{title}`),
+  and the path the first selected (or first valid) title would get with the
+  values on screen. Output choices are recorded in the settings; template
+  typing is recorded once it pauses.
+- **Submission.** `Submit` and `Preview` accept the edits on screen, then
+  build the export from the session: valid titles in list order with their
+  ordered sources, audio requests, chapter plans, naming, and pending edits
+  (`submission.rs`). An invalid standalone title is left out; a grouped title
+  with an invalid source, an unresolved audio choice, a CUE awaiting review,
+  no output folder, a Save writing, or another submission in progress refuses
+  it with a `SubmitRefusal`. From acceptance until the export is registered
+  with WorkRuntime (or the preview ends) its sources are held and the list is
+  locked. Outputs that already exist hold it at `ReviewRequired` until
+  `ChooseCollisionPolicy` or `CancelCollisionReview`. The choice applies only
+  to the collisions the user saw: one that appears meanwhile sends the
+  submission back to review, and execution still rejects a plan whose
+  signature changed after approval. After `Engine::shutdown` a submission is
+  refused as `Closing`.
+- **Staged downloads.** A finished acquisition's files are imported by the
+  session itself (`Session::handoff`), and its titles are recorded as staged
+  in the same transition that lists them (`staged.rs`); the job carries the
+  outcome. Exports take each title's companion PDFs from that record. A
+  download is removed a whole acquisition at a time once every title from it
+  completed an export without a companion warning or left the list (hidden
+  grouped sources count as listed), and no unfinished export, submission,
+  or Save writing holds its files. Files being removed count as busy: Save
+  holds them and a submission using them is refused. A failed removal stays
+  recorded and is retried by the next sweep; startup clears the rest. A
+  download nothing was imported from is recorded the same way, so its
+  removal is retried too.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. A result applies only to the
   queued title while it is the one title both selected and bound. Applied
@@ -104,24 +151,17 @@ attachment.
   selection changes, reads, saves, and exports starting and finishing,
   including failed writes. `working_set_tests.rs` has the same for titles and
   selection.
+- `audio_choice_tests.rs` and `plans_tests.rs`: audio edit rules, plan
+  resolution and staleness, and size estimates.
 - `runtime_tests.rs`: ordering between intents and their I/O, lookup with a
   scripted network, and what a host is told along the way.
+- `submission_tests.rs`: what a submission sends and when it refuses.
+- `staged_tests.rs`: when a staged download may be removed.
 - `tests/cases/integration_session_tests.rs`: real files through `Engine`,
-  including Save while a real export reads the source, and `abb-dev`.
+  including submit, collision review, preview, Save while a real export reads
+  the source, shutdown, and `abb-dev`.
 - A new sequence law is cheaper as another assertion in the property test
   than as a new example test.
-
-## Temporary Until Processing Moves Into The Engine
-
-These intents exist because encoding, output planning, and processing
-submission are still frontend-owned. Remove them with that move; do not build
-on them. The frontend side of each bridge is listed in `src/app/AGENTS.md`.
-
-- `Import` and `ImportOpened` take the title's default audio request from the
-  host, and `SetAudioRequest` records a title's audio choice.
-- `SetOrderLocked` lets the host lock the list during a preview.
-- `StageSelection` and `Engine::session_metadata_intents` hand pending edits
-  to the host's processing payload.
 
 ## Boundary Changes
 

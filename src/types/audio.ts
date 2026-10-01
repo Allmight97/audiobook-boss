@@ -24,11 +24,7 @@ import type {
 	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessResultEntry as GeneratedProcessResultEntry,
 	ProcessResultStatus as GeneratedProcessResultStatus,
-	ProcessPayload as GeneratedProcessPayload,
-	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
-	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 	SampleRateConfig as GeneratedSampleRateConfig,
-	SupplementalProcessingAsset as GeneratedSupplementalProcessingAsset,
 	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
@@ -48,12 +44,6 @@ export type OutputCollisionKind = GeneratedOutputCollisionKind;
 export type OutputCollisionInfo = NullToOptionalDeep<GeneratedOutputCollisionInfo>;
 export type PlannedOutputAction = GeneratedPlannedOutputAction;
 export type PlannedOutput = NullToOptionalDeep<GeneratedPlannedOutput>;
-export type ProcessingPreflightPlan = Omit<
-	NullToOptionalDeep<GeneratedProcessingPreflightPlan>,
-	'outputs'
-> & {
-	outputs: PlannedOutput[];
-};
 
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
@@ -67,31 +57,10 @@ export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
 	NullToOptionalDeep<GeneratedMaxConcurrentJobsCapabilities>;
-export type RuntimeSettingsCapabilities = NullToOptionalDeep<GeneratedRuntimeSettingsCapabilities>;
 export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
 // Output naming options for folder/filename generation
 export type OutputNamingConfig = NullToOptionalDeep<GeneratedOutputNamingConfig>;
-
-export interface EncodingRequestConfig {
-	encoderSettings: EncoderSettings;
-	sampleRate: SampleRateConfig;
-}
-
-export interface OutputRequestConfig {
-	outputDirectory: string;
-	outputNaming: OutputNamingConfig;
-}
-
-// Combined UI process configuration composed at the processing workflow boundary.
-export type ProcessingRequestConfig = OutputRequestConfig & {
-	audioRequests: import('../lib/generated/tauri').TitleAudioRequest[];
-};
-
-// Preview command typing helpers (Tauri boundary)
-export interface PreviewRequest {
-	previewSeconds?: number;
-}
 
 export type ProcessResultStatus = GeneratedProcessResultStatus;
 export type ProcessResultSummary = NullToOptionalDeep<GeneratedOperationResultSummary>;
@@ -110,14 +79,6 @@ export type ProcessCommandResult = Omit<
 };
 
 export type BitrateKbps = EncoderSettings['bitrateKbps'];
-
-// Job Type for batch processing (Issue #81)
-
-// Complete processing payload
-export type ProcessPayload = Omit<NullToOptionalDeep<GeneratedProcessPayload>, 'audioRequests'> & {
-	audioRequests: import('../lib/generated/tauri').TitleAudioRequest[];
-};
-export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
 // Match Rust's fresh and Default M4B encoding defaults.
 export const defaultEncoderSettings = (): EncoderSettings => ({

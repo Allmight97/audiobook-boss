@@ -37,7 +37,7 @@
   write intent for preserving source audio. Grouped preservation additionally carries effective
   title metadata and cover policy. Inspection owns source preservation capability; the title planner owns the recommendation.
 - Capability types: `EncoderConfigurationCapability`, `EncoderSettingsCapabilities`,
-  `BitrateModeKind`.
+  `BitrateModeKind`, `FaacProfileCapability`.
 - `EncoderSettingsCapabilities.encoder_configurations` is the single
   per-encoder capability array for allowed modes, defaults, and explicit sample
   rates and target bitrate bounds. The global `explicit_sample_rates` list remains the rate list for the
@@ -186,7 +186,7 @@ regardless of bitrate. Strict source/packet validation still applies to every co
 incompatible copy boundaries. Default M4B encoding uses the built-in AAC
 defaults (NMR 65 kbps target, source channels and automatic rate),
 independent of saved user preferences. Explicit Encode always applies the settings.
-Popover previews and processing preflight share this resolver. Only encoding
+Session title plans (`session/plans.rs`) and processing preflight share this resolver. Only encoding
 plans resolve encoder availability, channels and input rate. Execution receives
 that resolved plan; it does not reinterpret frontend preferences.
 

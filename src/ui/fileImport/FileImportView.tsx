@@ -21,12 +21,6 @@ export function FileImportView(): JSX.Element {
 	const applyCoverArtDrop = runtime.metadata.applyCoverArtDrop;
 	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
-	createEffect(
-		() => view().sourceFiles,
-		(files) => {
-			void runtime.remoteSource.reconcileWithInput(files);
-		},
-	);
 	let fileManagementContainer: HTMLElement | null = null;
 	let deferredOpenedDrain = false;
 

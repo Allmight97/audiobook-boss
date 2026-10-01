@@ -1,4 +1,4 @@
-export { createInputOwner, chapterPlansForProcessing } from './owner';
+export { createInputOwner } from './owner';
 export type { InputOwner, InputOwnerDeps } from './owner';
 export {
 	displayedArtistForFile,

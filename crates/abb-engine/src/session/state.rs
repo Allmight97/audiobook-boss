@@ -10,8 +10,16 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use super::audio::{AudioDefaults, AudioSnapshot, TitleAudio};
+use super::audio_choice::AudioEdit;
 use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
+use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
+use super::plans::{estimate_size, PlanInput, PlanTicket, Plans};
+use super::staged::StagedSources;
+use super::submission::{
+    build_draft, title_label, Draft, DraftInputs, SubmissionStatus, SubmitRefusal, SubmittedTitle,
+};
 use super::tag_cache::{ReadTicket, TagCache};
 use super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
 use crate::audio::AudioFile;
@@ -29,8 +37,6 @@ pub enum MetadataStatus {
     DraftInvalid {
         message: String,
     },
-    /// A preview run is using the files.
-    SaveBlockedByPreview,
     SaveAlreadyInProgress,
     PreparingSave,
     SaveInvalid,
@@ -92,13 +98,33 @@ pub struct MetadataSnapshot {
     pub binding: u64,
     pub form: MetadataFormSnapshot,
     pub cover: CoverSnapshot,
-    /// The album sort processing would write for the values on screen.
-    pub album_sort: Option<String>,
+    /// The tags Save or processing would write for the values on screen.
+    pub tags: TagPreview,
     pub save_in_progress: bool,
     pub status: Option<MetadataStatus>,
     pub has_pending_edits: bool,
     /// Files with a Save waiting for the exports reading them to finish.
     pub waiting_writes: Vec<PathBuf>,
+}
+
+/// The tags the values on screen become. Title is also the album; author is
+/// also the album artist.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TagPreview {
+    pub title: String,
+    pub album: String,
+    pub artist: String,
+    pub album_artist: String,
+    pub composer: String,
+    pub series: String,
+    pub series_part: String,
+    pub subseries: String,
+    pub subseries_part: String,
+    /// The album sort (TSOA) processing would write.
+    pub album_sort: String,
+    pub year: String,
+    pub genre: String,
 }
 
 /// Everything that changed since a revision. A part is present only when it
@@ -112,6 +138,8 @@ pub struct SessionUpdate {
     pub selection: Option<SelectionSnapshot>,
     pub metadata: Option<MetadataSnapshot>,
     pub lookup: Option<LookupSnapshot>,
+    pub audio: Option<AudioSnapshot>,
+    pub output: Option<OutputSnapshot>,
 }
 
 /// Why the metadata draft gate refused a change of selection.
@@ -190,6 +218,8 @@ struct Parts {
     selection: SelectionSnapshot,
     metadata: MetadataSnapshot,
     lookup: LookupSnapshot,
+    audio: AudioSnapshot,
+    output: OutputSnapshot,
 }
 
 pub(crate) struct SessionState {
@@ -200,11 +230,35 @@ pub(crate) struct SessionState {
     pub(crate) working_set: WorkingSet,
     pub(crate) tags: TagCache,
     pub(crate) lookup: LookupState,
+    pub(crate) audio: AudioDefaults,
+    pub(crate) output: OutputPlan,
+    plans: Plans,
+    /// The title and audio-request changes plans were last refreshed for.
+    plans_seen: (u64, u64),
+    /// How the latest submission or preview is going.
+    submission: Option<SubmissionStatus>,
+    /// A submission waiting for the user's collision choice.
+    pending_review: Option<Draft>,
+    /// A submission or preview is between `begin_submission` and
+    /// `finish_submission`. Kept apart from `submission`, which a refusal of
+    /// a later request overwrites.
+    submitting: bool,
+    /// Sources a submission being prepared will read; Save treats them as busy.
+    reserved: Vec<PathBuf>,
+    /// Downloads the session imported, and when they may be removed.
+    pub(crate) staged: StagedSources,
+    /// Files of downloads being removed: nothing may write or submit them.
+    removing: Vec<PathBuf>,
+    /// A title left the list, so a download may now be removable.
+    staged_released: bool,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
     cover: Cover,
     save_in_progress: bool,
+    /// Files a Save is writing right now. Kept through a Reset, which
+    /// forgets the Save's form but cannot stop its write.
+    writing: Vec<PathBuf>,
     status: Option<MetadataStatus>,
     deferred: Vec<DeferredWrite>,
     parts: Parts,
@@ -233,13 +287,20 @@ impl Default for SessionState {
                     notice: None,
                     notice_serial: 0,
                 },
-                album_sort: None,
+                tags: TagPreview::default(),
                 save_in_progress: false,
                 status: None,
                 has_pending_edits: false,
                 waiting_writes: Vec::new(),
             },
             lookup: lookup.snapshot(0),
+            audio: AudioSnapshot {
+                revision: 0,
+                capabilities: None,
+                defaults: AudioDefaults::default().defaults_view(),
+                titles: Default::default(),
+            },
+            output: OutputPlan::default().snapshot(0, OutputPreview::NoDirectory, None),
         };
         Self {
             epoch: 0,
@@ -247,11 +308,23 @@ impl Default for SessionState {
             working_set,
             tags: TagCache::default(),
             lookup,
+            audio: AudioDefaults::default(),
+            output: OutputPlan::default(),
+            plans: Plans::default(),
+            plans_seen: (u64::MAX, u64::MAX),
+            submission: None,
+            pending_review: None,
+            submitting: false,
+            reserved: Vec::new(),
+            staged: StagedSources::default(),
+            removing: Vec::new(),
+            staged_released: false,
             form,
             bound: Vec::new(),
             selection_key: Vec::new(),
             cover: Cover::default(),
             save_in_progress: false,
+            writing: Vec::new(),
             status: None,
             deferred: Vec::new(),
             parts,
@@ -273,9 +346,19 @@ impl SessionState {
         let next = self.parts.revision + 1;
         let mut changed = false;
 
-        if self.working_set.titles_changes() != self.parts.titles_changes {
+        let listed = self.working_set.source_ids();
+        if self.staged.finish_unlisted(&listed) {
+            self.staged_released = true;
+        }
+        let companions = self.staged.companions();
+        if self.working_set.titles_changes() != self.parts.titles_changes
+            || companions != self.parts.titles.companions
+        {
             self.parts.titles_changes = self.working_set.titles_changes();
-            self.parts.titles = self.working_set.titles(next);
+            self.parts.titles = TitlesSnapshot {
+                companions,
+                ..self.working_set.titles(next)
+            };
             changed = true;
         }
         let selection = self.working_set.selection(self.parts.selection.revision);
@@ -302,9 +385,322 @@ impl SessionState {
             };
             changed = true;
         }
+        let audio = self.audio_snapshot(self.parts.audio.revision);
+        if audio != self.parts.audio {
+            self.parts.audio = AudioSnapshot {
+                revision: next,
+                ..audio
+            };
+            changed = true;
+        }
+        let output = self.output_snapshot(self.parts.output.revision);
+        if output != self.parts.output {
+            self.parts.output = OutputSnapshot {
+                revision: next,
+                ..output
+            };
+            changed = true;
+        }
         if changed {
             self.parts.revision = next;
         }
+    }
+
+    fn audio_snapshot(&self, revision: u64) -> AudioSnapshot {
+        let titles = self
+            .working_set
+            .files()
+            .iter()
+            .filter_map(|file| {
+                let id = &file.input_id;
+                let request = self.working_set.audio_request(id)?;
+                let view = self.audio.title_view(request);
+                let plan = self.plans.plan(id);
+                let estimate = estimate_size(
+                    request,
+                    &plan,
+                    self.working_set.sources_for(file),
+                    view.facts.estimate_kbps,
+                );
+                Some((
+                    id.clone(),
+                    TitleAudio {
+                        choice: view.choice,
+                        facts: view.facts,
+                        request: view.request,
+                        plan,
+                        estimate,
+                    },
+                ))
+            })
+            .collect();
+        AudioSnapshot {
+            revision,
+            capabilities: self.audio.capabilities().cloned(),
+            defaults: self.audio.defaults_view(),
+            titles,
+        }
+    }
+
+    /// The title the output preview names: the first selected one, or the
+    /// first valid one.
+    fn preview_title(&self) -> Option<&AudioFile> {
+        let files = self.working_set.files();
+        self.working_set
+            .selected_indices()
+            .iter()
+            .min()
+            .and_then(|index| files.get(*index))
+            .or_else(|| files.iter().find(|file| file.is_valid))
+    }
+
+    fn output_snapshot(&self, revision: u64) -> OutputSnapshot {
+        let value = |field| {
+            let value = self.form.trimmed(field);
+            (!value.is_empty()).then(|| value.to_string())
+        };
+        let metadata = AudiobookMetadata {
+            title: value(MetadataField::Title),
+            artist: value(MetadataField::Author),
+            composer: value(MetadataField::Narrator),
+            date: value(MetadataField::Date),
+            series: value(MetadataField::Series),
+            series_part: value(MetadataField::SeriesPart),
+            subseries: value(MetadataField::Subseries),
+            subseries_part: value(MetadataField::SubseriesPart),
+            ..Default::default()
+        };
+        let title = self.preview_title().map(|file| {
+            let format = self
+                .working_set
+                .audio_request(&file.input_id)
+                .map_or_else(|| self.audio.request().format, |request| request.format);
+            (&metadata, file.path.as_path(), format)
+        });
+        let preview = self.output.preview(title);
+        self.output
+            .snapshot(revision, preview, self.submission.clone())
+    }
+
+    // ---- Submission ----
+
+    /// Starts a submission or preview: accepts the edits on screen, builds
+    /// what will be sent, reserves its sources, and locks the list.
+    pub(crate) fn begin_submission(&mut self, preview_seconds: Option<f64>) -> Option<Draft> {
+        match self.prepare_submission(preview_seconds) {
+            Ok(draft) => {
+                self.submitting = true;
+                self.reserved.extend(draft.sources.iter().cloned());
+                self.working_set.set_order_locked(true);
+                self.submission = Some(SubmissionStatus::Preparing {
+                    preview: draft.preview(),
+                });
+                Some(draft)
+            }
+            Err(reason) => {
+                self.submission = Some(SubmissionStatus::Refused { reason });
+                None
+            }
+        }
+    }
+
+    fn prepare_submission(&mut self, preview_seconds: Option<f64>) -> Result<Draft, SubmitRefusal> {
+        if self.submitting {
+            return Err(SubmitRefusal::Busy);
+        }
+        let writing = !self.writing.is_empty()
+            || self
+                .deferred
+                .iter()
+                .any(|write| write.phase == DeferredPhase::Writing);
+        if self.save_in_progress || writing {
+            return Err(SubmitRefusal::SaveInProgress);
+        }
+        if !self.working_set.files().is_empty() {
+            match self.stage_bound_form() {
+                StageOutcome::Staged => {}
+                StageOutcome::NoTarget => return Err(SubmitRefusal::NoTarget),
+                StageOutcome::Invalid(message) => {
+                    return Err(SubmitRefusal::DraftInvalid { message })
+                }
+            }
+        }
+        let required = self.working_set.audio_choice_required();
+        let titles: Vec<SubmittedTitle<'_>> = self
+            .working_set
+            .files()
+            .iter()
+            .map(|file| SubmittedTitle {
+                anchor: file,
+                sources: self.working_set.sources_for(file),
+                request: self.working_set.audio_request(&file.input_id).map_or_else(
+                    || self.audio.request(),
+                    |request| self.audio.title_view(request).request,
+                ),
+                choice_required: required.contains(&file.input_id),
+            })
+            .collect();
+        let supplemental_assets = self.staged.assets_for(
+            titles
+                .iter()
+                .filter(|title| title.anchor.is_valid)
+                .flat_map(|title| title.sources)
+                .map(|source| source.input_id.as_str()),
+        );
+        let draft = build_draft(
+            &titles,
+            DraftInputs {
+                output_directory: self.output.naming_directory(),
+                naming: self.output.naming(),
+                supplemental_assets,
+                preview_seconds,
+            },
+            |paths| {
+                let paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+                self.pending_intents(&paths)
+                    .into_iter()
+                    .map(|(path, patch)| (path.to_string_lossy().into_owned(), patch))
+                    .collect()
+            },
+            title_label,
+        )?;
+        if draft
+            .sources
+            .iter()
+            .any(|source| self.removing.contains(source))
+        {
+            return Err(SubmitRefusal::SourceRemoved);
+        }
+        Ok(draft)
+    }
+
+    // ---- Staged downloads ----
+
+    /// Whether a title left the list since this was last asked.
+    pub(crate) fn take_staged_released(&mut self) -> bool {
+        std::mem::take(&mut self.staged_released)
+    }
+
+    /// Picks the downloads to remove now and holds their files so nothing
+    /// writes or submits them meanwhile. `in_use` is every source of an
+    /// unfinished export. Nothing is removed while a Save writes.
+    pub(crate) fn begin_staged_removal(&mut self, in_use: &HashSet<PathBuf>) -> Vec<String> {
+        let writing = self.save_in_progress
+            || !self.writing.is_empty()
+            || self
+                .deferred
+                .iter()
+                .any(|write| write.phase == DeferredPhase::Writing);
+        if writing {
+            return Vec::new();
+        }
+        let busy = self.busy(in_use);
+        let jobs = self.staged.removable(&busy);
+        for job_id in &jobs {
+            self.removing.extend(self.staged.paths(job_id));
+        }
+        jobs
+    }
+
+    /// Ends a removal; a failed one stays registered for the next attempt.
+    pub(crate) fn finish_staged_removal(&mut self, job_id: &str, removed: bool) {
+        let paths = self.staged.paths(job_id);
+        self.removing.retain(|path| !paths.contains(path));
+        if removed {
+            self.staged.removed(job_id);
+        }
+    }
+
+    /// Holds a submission for the user's collision choice.
+    pub(crate) fn await_review(
+        &mut self,
+        mut draft: Draft,
+        outputs: Vec<crate::output_artifact::PlannedOutput>,
+    ) {
+        draft.payload.collision_policy = None;
+        draft.reviewed = Some(super::submission::collisions(&outputs));
+        self.submission = Some(SubmissionStatus::ReviewRequired {
+            outputs,
+            preview: draft.preview(),
+        });
+        self.pending_review = Some(draft);
+    }
+
+    pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
+        self.submission = Some(SubmissionStatus::Refused { reason });
+    }
+
+    /// Drops a submission held for review.
+    pub(crate) fn cancel_review(&mut self) {
+        if let Some(draft) = self.pending_review.take() {
+            self.finish_submission(&draft, SubmissionStatus::Cancelled);
+        }
+    }
+
+    /// The submission waiting for a collision choice, if any.
+    pub(crate) fn take_review(&mut self) -> Option<Draft> {
+        let draft = self.pending_review.take()?;
+        self.submission = Some(SubmissionStatus::Preparing {
+            preview: draft.preview(),
+        });
+        Some(draft)
+    }
+
+    pub(crate) fn start_preview(&mut self) {
+        self.submission = Some(SubmissionStatus::Previewing);
+    }
+
+    /// Ends a submission: frees its sources and the list, and records how it
+    /// ended.
+    pub(crate) fn finish_submission(&mut self, draft: &Draft, status: SubmissionStatus) {
+        for source in &draft.sources {
+            if let Some(index) = self.reserved.iter().position(|reserved| reserved == source) {
+                self.reserved.swap_remove(index);
+            }
+        }
+        if self.reserved.is_empty() {
+            self.working_set.set_order_locked(false);
+        }
+        self.submitting = false;
+        self.submission = Some(status);
+    }
+
+    // ---- Title plans ----
+
+    /// The plans to resolve because a title's request or sources changed.
+    pub(crate) fn take_plan_tickets(&mut self) -> Vec<PlanTicket> {
+        let seen = (
+            self.working_set.titles_changes(),
+            self.working_set.audio_changes(),
+        );
+        if seen == self.plans_seen {
+            return Vec::new();
+        }
+        self.plans_seen = seen;
+        let required = self.working_set.audio_choice_required();
+        let inputs: Vec<PlanInput<'_>> = self
+            .working_set
+            .files()
+            .iter()
+            .filter_map(|file| {
+                let request = self.working_set.audio_request(&file.input_id)?;
+                Some(PlanInput {
+                    title_id: &file.input_id,
+                    request,
+                    sources: self.working_set.sources_for(file).to_vec(),
+                    choice_required: required.contains(&file.input_id),
+                })
+            })
+            .collect();
+        self.plans.refresh(inputs)
+    }
+
+    pub(crate) fn finish_plan(
+        &mut self,
+        ticket: &PlanTicket,
+        result: Result<crate::audio::TitleAudioPlan, String>,
+    ) {
+        self.plans.finish(ticket, result);
     }
 
     /// The parts that changed after `revision`; everything for `None`.
@@ -316,6 +712,8 @@ impl SessionState {
             selection: newer(self.parts.selection.revision).then(|| self.parts.selection.clone()),
             metadata: newer(self.parts.metadata.revision).then(|| self.parts.metadata.clone()),
             lookup: newer(self.parts.lookup.revision).then(|| self.parts.lookup.clone()),
+            audio: newer(self.parts.audio.revision).then(|| self.parts.audio.clone()),
+            output: newer(self.parts.output.revision).then(|| self.parts.output.clone()),
         }
     }
 
@@ -333,11 +731,29 @@ impl SessionState {
                 notice: self.cover.notice.clone(),
                 notice_serial: self.cover.notice_serial,
             },
-            album_sort: self.album_sort_preview(),
+            tags: self.tag_preview(),
             save_in_progress: self.save_in_progress,
             status: self.status.clone(),
             has_pending_edits: self.tags.has_pending(),
             waiting_writes: self.waiting_write_paths(),
+        }
+    }
+
+    fn tag_preview(&self) -> TagPreview {
+        let value = |field| self.form.trimmed(field).to_string();
+        TagPreview {
+            title: value(MetadataField::Title),
+            album: value(MetadataField::Title),
+            artist: value(MetadataField::Author),
+            album_artist: value(MetadataField::Author),
+            composer: value(MetadataField::Narrator),
+            series: value(MetadataField::Series),
+            series_part: value(MetadataField::SeriesPart),
+            subseries: value(MetadataField::Subseries),
+            subseries_part: value(MetadataField::SubseriesPart),
+            album_sort: self.album_sort_preview().unwrap_or_default(),
+            year: value(MetadataField::Date),
+            genre: value(MetadataField::Genre),
         }
     }
 
@@ -530,10 +946,38 @@ impl SessionState {
         self.status = None;
     }
 
+    // ---- Audio ----
+
+    /// Edits each named title's audio choice; refused edits and a locked list
+    /// change nothing.
+    pub(crate) fn edit_title_audio(&mut self, title_ids: &[String], edit: AudioEdit) {
+        for id in title_ids {
+            let Some(request) = self.working_set.audio_request(id) else {
+                continue;
+            };
+            if let Some(next) = self.audio.edit_title(request, edit) {
+                self.working_set.set_audio_request(id, next);
+            }
+        }
+    }
+
+    pub(crate) fn apply_default_audio(&mut self, title_ids: &[String]) {
+        let request = self.audio.request();
+        for id in title_ids {
+            self.working_set.set_audio_request(id, request.clone());
+        }
+    }
+
     /// Returns the session to empty. Writes already waiting on an export stay
     /// accepted.
     pub(crate) fn reset(&mut self) {
+        // A submission held for review goes with the titles; a running one
+        // keeps its sources until it ends.
+        self.cancel_review();
         self.working_set.reset();
+        if self.submitting {
+            self.working_set.set_order_locked(true);
+        }
         self.lookup = LookupState {
             request: self.lookup.request + 1,
             ..LookupState::default()
@@ -747,8 +1191,16 @@ impl SessionState {
 
     // ---- Save ----
 
-    pub(crate) fn set_status(&mut self, status: MetadataStatus) {
-        self.status = Some(status);
+    /// Files exports read, plus those a submission being prepared will read
+    /// and downloads being removed.
+    fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
+        in_use
+            .iter()
+            .chain(&self.reserved)
+            .chain(&self.removing)
+            .chain(&self.writing)
+            .cloned()
+            .collect()
     }
 
     /// Decides where each pending edit goes. `in_use` is every source an
@@ -762,6 +1214,7 @@ impl SessionState {
         in_use: &HashSet<PathBuf>,
         is_temporary: impl Fn(&Path) -> bool,
     ) -> Option<SavePlan> {
+        let in_use = &self.busy(in_use);
         if self.working_set.files().is_empty() {
             return None;
         }
@@ -820,6 +1273,8 @@ impl SessionState {
             }
         }
         self.save_in_progress = !plan.immediate.is_empty();
+        self.writing
+            .extend(plan.immediate.iter().map(|item| item.path.clone()));
         self.status = Some(MetadataStatus::PreparingSave);
         Some(plan)
     }
@@ -835,8 +1290,21 @@ impl SessionState {
         });
     }
 
-    /// Records what a Save wrote. `saved` are the items the file now carries.
-    pub(crate) fn finish_save(&mut self, epoch: u64, saved: &[SaveItem], status: MetadataStatus) {
+    /// Records what a Save wrote. `saved` are the items the file now carries;
+    /// `written` every file it was writing, which are free again even if a
+    /// Reset forgot the Save.
+    pub(crate) fn finish_save(
+        &mut self,
+        epoch: u64,
+        written: &[PathBuf],
+        saved: &[SaveItem],
+        status: MetadataStatus,
+    ) {
+        for path in written {
+            if let Some(index) = self.writing.iter().position(|writing| writing == path) {
+                self.writing.swap_remove(index);
+            }
+        }
         if epoch != self.epoch {
             return;
         }
@@ -862,6 +1330,7 @@ impl SessionState {
     /// Takes the waiting writes whose files no export is reading any more.
     /// Each stays taken until `finish_deferred` reports its result.
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
+        let in_use = &self.busy(in_use);
         let writing: HashSet<PathBuf> = self
             .deferred
             .iter()

@@ -8,14 +8,10 @@ import type {
 	OperationTerminalSummary as GeneratedOperationTerminalSummary,
 	ProgressSnapshot as GeneratedProgressSnapshot,
 	ResourceLane as GeneratedResourceLane,
-	SubmitProcessingOperationRequest_Deserialize as GeneratedSubmitProcessingOperationRequest,
 	WorkOperationStatus as GeneratedWorkOperationStatus,
 	WorkProgressStage as GeneratedWorkProgressStage,
-	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,
 } from '../lib/generated/tauri';
-import type { ProcessPayload } from './audio';
 import type { NullToOptionalDeep } from './ipc';
-import type { MetadataIntentPatch } from './metadataIntent';
 
 export type OperationId = GeneratedOperationId;
 export type OperationKind = GeneratedOperationKind;
@@ -35,22 +31,4 @@ export type OperationListSnapshot = Omit<
 	'operations'
 > & {
 	operations: OperationSnapshot[];
-};
-export type WorkSubmissionAccepted = Omit<
-	NullToOptionalDeep<GeneratedWorkSubmissionAccepted>,
-	'snapshot'
-> & {
-	snapshot: OperationSnapshot;
-};
-
-export type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
-
-export type SubmitProcessingOperationRequest = Omit<
-	NullToOptionalDeep<GeneratedSubmitProcessingOperationRequest>,
-	'payload' | 'metadata'
-> & {
-	payload: ProcessPayload;
-	metadataIntent?: MetadataIntentByPath | null;
-	title?: string | null;
-	previewSeconds?: number | null;
 };

@@ -36,7 +36,7 @@ pub enum AudioIntent {
     Preserve,
     Encode,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleAudioRequest {
     pub format: AudiobookFormat,

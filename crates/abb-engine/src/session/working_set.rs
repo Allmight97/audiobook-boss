@@ -82,7 +82,8 @@ pub struct TitlesSnapshot {
     pub order_locked: bool,
     pub notice: Option<InputNotice>,
     pub order_differs_from_import: bool,
-    pub audio_requests_by_identity: BTreeMap<String, TitleAudioRequest>,
+    /// Companion PDF names of downloaded titles, by input id.
+    pub companions: BTreeMap<String, Vec<String>>,
 }
 
 /// Which titles are selected, as positions in [`TitlesSnapshot::files`].
@@ -109,6 +110,8 @@ pub(crate) struct WorkingSet {
     audio_requests: BTreeMap<String, TitleAudioRequest>,
     /// Counts changes to anything [`TitlesSnapshot`] carries.
     titles_changes: u64,
+    /// Counts changes to audio requests.
+    audio_changes: u64,
 }
 
 fn identity(file: &AudioFile) -> &str {
@@ -126,7 +129,7 @@ impl WorkingSet {
             order_locked: self.order_locked,
             notice: self.notice.clone(),
             order_differs_from_import: self.order_differs_from_import(),
-            audio_requests_by_identity: self.audio_requests.clone(),
+            companions: BTreeMap::new(),
         }
     }
 
@@ -145,6 +148,19 @@ impl WorkingSet {
 
     fn touch(&mut self) {
         self.titles_changes += 1;
+    }
+
+    /// Advances whenever a title's audio request changes.
+    pub(crate) fn audio_changes(&self) -> u64 {
+        self.audio_changes
+    }
+
+    pub(crate) fn selected_indices(&self) -> &[usize] {
+        &self.selected_indices
+    }
+
+    pub(crate) fn audio_choice_required(&self) -> &[String] {
+        &self.audio_choice_required
     }
 
     pub(crate) fn files(&self) -> &[AudioFile] {
@@ -176,6 +192,16 @@ impl WorkingSet {
             .iter()
             .flat_map(|file| self.sources_for(file))
             .map(|source| source.path.clone())
+            .collect()
+    }
+
+    /// Every source identity in the set, including sources hidden inside
+    /// groups.
+    pub(crate) fn source_ids(&self) -> HashSet<&str> {
+        self.files
+            .iter()
+            .flat_map(|file| self.sources_for(file))
+            .map(identity)
             .collect()
     }
 
@@ -646,8 +672,18 @@ impl WorkingSet {
             return;
         }
         self.audio_requests.insert(title_id.to_string(), request);
+        self.audio_changes += 1;
+        // Requests travel in the audio part; the titles part changes only
+        // when a pending choice is settled.
+        let required = self.audio_choice_required.len();
         self.audio_choice_required.retain(|id| id != title_id);
-        self.touch();
+        if self.audio_choice_required.len() != required {
+            self.touch();
+        }
+    }
+
+    pub(crate) fn audio_request(&self, title_id: &str) -> Option<&TitleAudioRequest> {
+        self.audio_requests.get(title_id)
     }
 }
 

@@ -5,13 +5,7 @@ import type {
 	OperationListSnapshot,
 	OperationSnapshot,
 } from '../../types/workRuntime';
-import type { RemoteSourceOwner } from '../remoteSource';
-import {
-	isTerminalOperationStatus,
-	replaceOperations,
-	upsertOperation,
-	type WorkCenterModel,
-} from './model';
+import { replaceOperations, upsertOperation, type WorkCenterModel } from './model';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { createSubscriptionGroup, type SubscriptionGroup } from '../../lib/tauri/subscriptionGroup';
 
@@ -27,8 +21,6 @@ interface WorkCenterState extends WorkCenterModel {
 	cancelPendingByOperationId: Record<string, boolean>;
 	errorMessage: string | null;
 }
-
-export const PURGED_OPERATION_TOMBSTONE_CAP = 64;
 
 /** A later successful cancel clears an earlier cancel failure. */
 const CANCEL_ERROR_PREFIX = 'Failed to cancel';
@@ -61,10 +53,6 @@ export type WorkOperationsSession = {
 	revealOutput(child: { outputPath?: string | null }): Promise<void>;
 };
 
-export type WorkOperationsSessionDeps = {
-	readonly remoteSource: Pick<RemoteSourceOwner, 'settleTerminalWork'>;
-};
-
 function isTauriRuntimeAvailable(): boolean {
 	return (
 		typeof window === 'undefined' ||
@@ -75,14 +63,11 @@ function isTauriRuntimeAvailable(): boolean {
 
 export function createWorkOperationsSession(
 	publish: (view: WorkOperationsView) => void,
-	deps: WorkOperationsSessionDeps,
 ): WorkOperationsSession {
 	const state = emptyWorkCenterState();
 	let initializationPromise: Promise<void> | null = null;
 	let subscriptions: SubscriptionGroup | null = null;
 	let generation = 0;
-	const purgedOperationIds = new Set<string>();
-	const purgedOperationOrder: string[] = [];
 
 	function snapshot(): WorkOperationsView {
 		return {
@@ -95,41 +80,6 @@ export function createWorkOperationsSession(
 
 	function commit(): void {
 		publish(snapshot());
-	}
-
-	function markOperationPurged(operationId: string): void {
-		purgedOperationIds.add(operationId);
-		purgedOperationOrder.push(operationId);
-		if (purgedOperationOrder.length > PURGED_OPERATION_TOMBSTONE_CAP) {
-			const oldest = purgedOperationOrder.shift();
-			if (oldest !== undefined) purgedOperationIds.delete(oldest);
-		}
-	}
-
-	async function purgeRemoteSessionsForTerminalOperation(
-		operation: OperationSnapshot,
-	): Promise<void> {
-		if (!isTerminalOperationStatus(operation.status)) return;
-		if (purgedOperationIds.has(operation.operationId)) return;
-		markOperationPurged(operation.operationId);
-
-		const operationInputIds =
-			operation.sourceInputIds.length > 0
-				? operation.sourceInputIds
-				: operation.children
-						.map((child) => child.inputId)
-						.filter((inputId): inputId is string => Boolean(inputId));
-		// Purge only sources whose title was fully published. Skipped titles and
-		// titles missing a companion PDF keep their downloads for a retry.
-		const completedInputIds = operation.children
-			.filter((child) => child.status === 'completed' && !child.supplementalWarning)
-			.flatMap((child) => child.sourceInputIds);
-		if (operationInputIds.length === 0 && completedInputIds.length === 0) return;
-
-		await deps.remoteSource.settleTerminalWork({
-			inputIds: operationInputIds,
-			completedInputIds,
-		});
 	}
 
 	async function sendCancel(operationId: OperationId, childJobId?: string): Promise<void> {
@@ -154,7 +104,6 @@ export function createWorkOperationsSession(
 		if (model === state) return;
 		Object.assign(state, model);
 		commit();
-		void purgeRemoteSessionsForTerminalOperation(next);
 	}
 
 	function applyOperationListSnapshot(list: OperationListSnapshot): void {
@@ -162,9 +111,6 @@ export function createWorkOperationsSession(
 		if (model === state) return;
 		Object.assign(state, model);
 		commit();
-		for (const operation of state.operations) {
-			void purgeRemoteSessionsForTerminalOperation(operation);
-		}
 	}
 
 	return {
@@ -222,8 +168,6 @@ export function createWorkOperationsSession(
 			state.membershipRevision = 0;
 			state.cancelPendingByOperationId = {};
 			state.errorMessage = null;
-			purgedOperationIds.clear();
-			purgedOperationOrder.length = 0;
 			commit();
 		},
 		applyOperationSnapshot,

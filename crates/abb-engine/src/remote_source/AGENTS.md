@@ -2,7 +2,8 @@
 
 `remote_source` owns remote-source provider state, account/session lifecycle,
 acquisition jobs, release search/grab (Indexer lane), staging roots, acquired
-session files, Supplemental Assets, and cleanup.
+session files, Supplemental Assets, and staging cleanup (the session decides
+when an imported download goes).
 
 ## Public API Strip
 
@@ -56,6 +57,9 @@ or infer provider-private Audible internals.
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.
   A failed save must never pair one server with another server's key.
+- A connection save and a search or grab refuse each other while either
+  runs. A release accepted since the last search, or the last save, is not
+  sent again; the grab answers "Already sent".
 - Connection Test accepts a draft without persisting it. An omitted draft key
   resolves only from that draft URL's vault slot; a new URL requires its own key.
 
@@ -66,9 +70,14 @@ Supplemental Assets may cross only as provider-neutral, validated asset facts.
 Processing receives them explicitly by file-list `inputId`; it must not query
 `RemoteSourceRuntime`.
 
-Materialized handoff files must remain usable after provider logout. Do not
-purge a session containing materialized files unless the FileList/session-asset
-owner has removed the corresponding imported inputs.
+A finished job hands its files to the session through the engine-set
+`Handoff` and records the outcome on the job. From then on the session
+decides when the download goes, including one nothing was imported from
+(`crate::session`, `staged.rs`), and calls `purge_session`.
+Cancel does nothing to a job that already finished, so it cannot remove files
+the session holds. Materialized handoff files stay usable after provider
+logout. Job changes reach hosts as `EngineEvent::Acquisition`; download
+progress is sent at most every 100 ms, a stage change at once.
 
 Audible Supplemental PDF acquisition uses provider-private authenticated
 `GET /companion-file/{title_id}`. Do not use `HEAD`; Audible API `pdf_url`

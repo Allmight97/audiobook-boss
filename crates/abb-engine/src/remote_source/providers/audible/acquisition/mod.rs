@@ -93,6 +93,7 @@ pub(super) async fn acquire(
         materialized_files: Vec::new(),
         supplemental_assets: Vec::new(),
         diagnostics: Vec::new(),
+        handoff: None,
     };
 
     let total_items = u32::try_from(plan.selections.len()).unwrap_or(u32::MAX);
@@ -391,6 +392,7 @@ mod tests {
             materialized_files: Vec::new(),
             supplemental_assets: Vec::new(),
             diagnostics: Vec::new(),
+            handoff: None,
         };
         let specific = RemoteSourceDiagnostic {
             kind: RemoteAcquisitionFailureKind::ProtectedUnsupported,

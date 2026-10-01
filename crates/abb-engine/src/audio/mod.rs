@@ -117,7 +117,7 @@ impl AudioFile {
 }
 
 /// Sample rate configuration options
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SampleRateConfig {
     /// Automatically detect from input files
@@ -153,8 +153,9 @@ pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
 }
 pub use settings_capabilities::{
     detect_encoder_availability, encoder_settings_capabilities, EncoderAvailability,
-    EncoderConfigurationCapability, EncoderSettingsCapabilities,
+    EncoderConfigurationCapability, EncoderSettingsCapabilities, FaacProfileCapability,
 };
+pub(crate) use settings_encoder::DEFAULT_FAAC_QUALITY;
 pub use settings_encoder::{
     resolve_encoder_name, validate_encoder_settings, BitrateMode, BitrateModeKind, ChannelConfig,
     EncoderSettings, EncoderType, FaacProfile,

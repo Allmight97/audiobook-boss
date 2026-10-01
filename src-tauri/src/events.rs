@@ -1,7 +1,9 @@
 //! The engine's events as Tauri events. Names and payload shapes here are the
 //! frontend contract; `ipc_contract.rs` registers them for binding generation.
 
+use abb_engine::app_settings::SettingsSnapshot;
 use abb_engine::processing::{ProgressEvent, QueueEvent};
+use abb_engine::remote_source::AcquisitionJob;
 use abb_engine::session::SessionUpdate;
 use abb_engine::work_runtime::OperationSnapshot;
 use abb_engine::{EngineEvent, EventSink};
@@ -58,6 +60,24 @@ impl tauri_specta::Event for SessionUpdateEvent {
     const NAME: &'static str = "session-update";
 }
 
+/// The settings after a change made outside a settings intent.
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(transparent)]
+pub struct SettingsUpdateEvent(pub SettingsSnapshot);
+
+impl tauri_specta::Event for SettingsUpdateEvent {
+    const NAME: &'static str = "settings-update";
+}
+
+/// A remote-source acquisition's latest state.
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(transparent)]
+pub struct AcquisitionUpdateEvent(pub AcquisitionJob);
+
+impl tauri_specta::Event for AcquisitionUpdateEvent {
+    const NAME: &'static str = "acquisition-update";
+}
+
 /// Tells the frontend the OS asked ABB to open files; it then drains the queue.
 #[derive(Clone, Default, Serialize, specta::Type)]
 pub struct OpenedAudioFilesEvent {}
@@ -90,6 +110,8 @@ impl EventSink for TauriEvents {
                 operations: list.operations,
             }),
             EngineEvent::Session(update) => self.send(SessionUpdateEvent(update)),
+            EngineEvent::Settings(snapshot) => self.send(SettingsUpdateEvent(*snapshot)),
+            EngineEvent::Acquisition(job) => self.send(AcquisitionUpdateEvent(*job)),
         }
     }
 }

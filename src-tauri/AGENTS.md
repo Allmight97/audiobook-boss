@@ -2,7 +2,7 @@
 
 `src-tauri` is one UI host for the engine. It carries requests from the
 webview to `abb_engine::Engine`, forwards `EngineEvent`s as Tauri events, and
-owns the window, native dialogs, and the quit warning. Product rules live in
+owns the window, native dialogs, and quit handling (engine shutdown). Product rules live in
 the engine: `crates/abb-engine/AGENTS.md`.
 
 ## What The Host Owns
@@ -14,13 +14,16 @@ the engine: `crates/abb-engine/AGENTS.md`.
   frontend numbers each session and settings intent and `intent_order.rs`
   runs each one after all earlier ones. `attach_frontend` starts a new
   numbering; intents from a replaced frontend are refused. An intent stops
-  waiting for a missing earlier one after `MISSING_INTENT_WAIT`. Session and
+  waiting for a missing earlier one after `MISSING_INTENT_WAIT`; if the
+  missing one arrives after that, it is refused (`Refused::Late`) rather than
+  applied out of order. Session and
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
-- **Quit warning.** `lib.rs` asks before quitting or closing while
-  `Engine::waiting_metadata_writes` reports saves that are waiting for an
-  export to finish.
+- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled,
+  and asks first when `Engine::running_work` reports exports still running.
+  A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
+  waiting; the process exits early only when the user chooses Quit Now.
 
 ## Rules
 

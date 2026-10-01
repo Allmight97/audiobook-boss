@@ -1,18 +1,6 @@
-use abb_engine::work_runtime::{
-    OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
-    WorkSubmissionAccepted,
-};
+use abb_engine::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot};
 
 use crate::commands::{CommandResult, EngineState};
-
-#[tauri::command]
-#[specta::specta]
-pub async fn submit_processing_operation(
-    engine: EngineState<'_>,
-    request: SubmitProcessingOperationRequest,
-) -> CommandResult<WorkSubmissionAccepted> {
-    Ok(engine.submit_processing_operation(request).await?)
-}
 
 #[tauri::command]
 #[specta::specta]

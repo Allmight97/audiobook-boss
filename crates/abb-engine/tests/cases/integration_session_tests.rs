@@ -10,16 +10,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use abb_engine::audio::{AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
-use abb_engine::processing::ProcessPayload;
+use abb_engine::audio::{AudioIntent, AudiobookFormat, EncoderType};
 use abb_engine::session::{
-    MetadataField, MetadataSnapshot, MetadataStatus, SessionIntent, SessionOutcome,
+    AudioEdit, MetadataField, MetadataSnapshot, MetadataStatus, SessionIntent, SessionOutcome,
+    SubmissionStatus, SubmitRefusal,
 };
-use abb_engine::work_runtime::{SubmitProcessingOperationRequest, WorkOperationStatus};
-use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig, PatchOp};
+use abb_engine::work_runtime::WorkOperationStatus;
+use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
 use tempfile::TempDir;
 
-use super::integration_media_execution_tests::{native_encoder_settings, MediaLane};
+use super::integration_media_execution_tests::MediaLane;
 
 /// One engine over its own throwaway roots, with one tagged audiobook.
 struct Desk {
@@ -66,7 +66,6 @@ impl Desk {
         let outcome = self
             .send(SessionIntent::Import {
                 paths: vec![path.to_string_lossy().into_owned()],
-                default_audio: audio_request(),
             })
             .await;
         assert_eq!(outcome, SessionOutcome::Applied);
@@ -102,32 +101,39 @@ impl Desk {
             .value
     }
 
-    /// Accepts an export of `source` and returns once the engine has it.
-    async fn export(&self, source: &Path) -> abb_engine::work_runtime::OperationId {
+    /// Submits the session as a native AAC export and returns once the
+    /// engine has accepted it.
+    async fn export(&self) -> abb_engine::work_runtime::OperationId {
         let output = self.root.path().join("exports");
         fs::create_dir_all(&output).expect("create export folder");
-        let accepted = self
+        self.send(SessionIntent::SetOutputDirectory {
+            directory: output.to_string_lossy().into_owned(),
+        })
+        .await;
+        let title_ids = self
             .engine
-            .submit_processing_operation(SubmitProcessingOperationRequest {
-                payload: ProcessPayload {
-                    input_files: vec![source.to_string_lossy().into_owned()],
-                    title_sources: None,
-                    chapter_plans: None,
-                    input_ids: None,
-                    output_dir: output.to_string_lossy().into_owned(),
-                    audio_requests: vec![audio_request()],
-                    output_naming: None,
-                    collision_policy: None,
-                    preflight_signature: None,
-                    supplemental_assets_by_input_id: None,
-                },
-                metadata: None,
-                preview_seconds: None,
-                title: "Alpha".to_string(),
+            .session_snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .into_iter()
+            .map(|file| file.input_id)
+            .collect::<Vec<_>>();
+        for edit in [
+            AudioEdit::Intent(AudioIntent::Encode),
+            AudioEdit::Encoder(EncoderType::NativeAac),
+        ] {
+            self.send(SessionIntent::SetTitleAudio {
+                title_ids: title_ids.clone(),
+                edit,
             })
-            .await
-            .expect("export accepted");
-        accepted.operation_id
+            .await;
+        }
+        self.send(SessionIntent::Submit).await;
+        match submission(self) {
+            Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
+            other => panic!("export not accepted: {other:?}"),
+        }
     }
 
     fn export_status(
@@ -152,15 +158,6 @@ impl Desk {
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         panic!("timed out waiting until {what}");
-    }
-}
-
-fn audio_request() -> TitleAudioRequest {
-    TitleAudioRequest {
-        format: AudiobookFormat::M4b,
-        intent: AudioIntent::Encode,
-        settings: Some(native_encoder_settings()),
-        sample_rate: SampleRateConfig::Auto,
     }
 }
 
@@ -193,9 +190,8 @@ async fn importing_one_audiobook_selects_it_and_shows_its_tags() {
     let titles = snapshot.titles.expect("titles part");
     assert_eq!(titles.files.len(), 1);
     assert!(titles.files[0].is_valid);
-    assert!(titles
-        .audio_requests_by_identity
-        .contains_key(&titles.files[0].input_id));
+    let audio = snapshot.audio.expect("audio part");
+    assert!(audio.titles.contains_key(&titles.files[0].input_id));
     assert_eq!(
         snapshot.selection.expect("selection part").selected_indices,
         [0]
@@ -260,7 +256,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
         .audiobook(&desk.root.path().join("library/alpha.m4b"), 12.0)
         .await;
     desk.import(&book).await;
-    let export = desk.export(&book).await;
+    let export = desk.export().await;
 
     let metadata = desk.edit_genre_and_save().await;
 
@@ -292,7 +288,7 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
     );
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
-    assert!(desk.engine.waiting_metadata_writes().is_empty());
+    assert_eq!(desk.engine.running_work().waiting_writes, 0);
 }
 
 #[tokio::test]
@@ -306,7 +302,7 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     let book = desk.audiobook(&staged, 12.0).await;
     desk.import(&book).await;
     let before = fs::read(&book).expect("read download");
-    let export = desk.export(&book).await;
+    let export = desk.export().await;
 
     let metadata = desk.edit_genre_and_save().await;
 
@@ -330,17 +326,8 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
 
     assert_eq!(fs::read(&book).expect("read download"), before);
     // The edit is kept for the title's output.
-    let loaded = desk.engine.session_snapshot().titles.expect("titles part");
-    let pending = desk
-        .engine
-        .session_metadata_intents(&[loaded.files[0].path.to_string_lossy().into_owned()]);
-    assert_eq!(
-        pending
-            .values()
-            .next()
-            .and_then(|patch| patch.genre.clone()),
-        Some(PatchOp::Set("Mystery".to_string()))
-    );
+    assert!(desk.metadata().has_pending_edits);
+    assert_eq!(desk.shown(MetadataField::Genre), "Mystery");
 }
 
 #[tokio::test]
@@ -369,4 +356,333 @@ async fn the_developer_tool_imports_edits_and_saves_a_real_file() {
     assert_eq!(session["metadata"]["status"]["kind"], "saveComplete");
     assert_eq!(session["metadata"]["status"]["succeeded"], 1);
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+}
+
+#[tokio::test]
+async fn the_developer_tool_exports_with_the_edited_tags() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    let out = desk.root.path().join("exports");
+
+    let run = std::process::Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&book)
+        .args([
+            "--set",
+            "genre=Mystery",
+            "--template",
+            "{title}",
+            "--export",
+        ])
+        .arg("--out")
+        .arg(&out)
+        .arg("--state-dir")
+        .arg(desk.root.path().join("tool-state"))
+        .output()
+        .expect("run abb-dev");
+
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    assert!(
+        run.status.success(),
+        "abb-dev failed: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(stdout.contains("Export: Completed"), "{stdout}");
+    assert!(stdout.contains("genre: Mystery"), "{stdout}");
+    let exported = out.join("Alpha.m4b");
+    assert_eq!(genre_on_disk(&exported).as_deref(), Some("Mystery"));
+    // The source keeps its own tags; the edit is still pending for Save.
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Fantasy"));
+}
+
+#[tokio::test]
+async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset() {
+    let desk = Desk::new();
+    desk.send(SessionIntent::SetDefaultAudio {
+        edit: AudioEdit::Format(AudiobookFormat::MkaOpus),
+    })
+    .await;
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: "/library".to_string(),
+    })
+    .await;
+
+    let saved = desk
+        .engine
+        .settings_snapshot()
+        .await
+        .settings
+        .expect("settings");
+    assert_eq!(saved.encoder_defaults.format, AudiobookFormat::MkaOpus);
+    assert_eq!(
+        saved.output_defaults.output_directory.as_deref(),
+        Some("/library")
+    );
+
+    desk.engine
+        .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset)
+        .await;
+
+    let snapshot = desk.engine.session_snapshot();
+    let audio = snapshot.audio.expect("audio part");
+    assert_eq!(audio.defaults.choice.format, AudiobookFormat::M4b);
+    assert_eq!(snapshot.output.expect("output part").directory, None);
+}
+
+#[tokio::test]
+async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_work() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 30.0)
+        .await;
+    desk.import(&book).await;
+    let export = desk.export().await;
+    desk.edit_genre_and_save().await;
+    let running = desk.engine.running_work();
+    assert_eq!((running.exports, running.waiting_writes), (1, 1));
+
+    tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
+        .await
+        .expect("shutdown settles");
+
+    assert!(finished(desk.export_status(&export)));
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+    assert!(desk.engine.running_work().is_empty());
+    desk.send(SessionIntent::Submit).await;
+    assert_eq!(
+        submission(&desk),
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::Closing
+        }),
+        "new exports are refused after shutdown"
+    );
+}
+
+fn submission(desk: &Desk) -> Option<abb_engine::session::SubmissionStatus> {
+    desk.engine
+        .session_snapshot()
+        .output
+        .expect("output part")
+        .submission
+}
+
+#[tokio::test]
+async fn submit_exports_the_session_reviews_a_collision_and_previews() {
+    use abb_engine::output_artifact::CollisionPolicy;
+
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 2.0)
+        .await;
+    desk.import(&book).await;
+    let library = desk.root.path().join("out");
+    fs::create_dir_all(&library).expect("create output folder");
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: library.to_string_lossy().into_owned(),
+    })
+    .await;
+
+    desk.send(SessionIntent::Submit).await;
+    let Some(SubmissionStatus::Submitted {
+        operation_id,
+        title,
+    }) = submission(&desk)
+    else {
+        panic!("submitted: {:?}", submission(&desk));
+    };
+    assert_eq!(title, "Alpha");
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&operation_id))
+    })
+    .await;
+    assert_eq!(
+        desk.export_status(&operation_id),
+        WorkOperationStatus::Completed
+    );
+
+    // The same export again collides with the first output.
+    desk.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            submission(&desk),
+            Some(SubmissionStatus::ReviewRequired { .. })
+        ),
+        "{:?}",
+        submission(&desk)
+    );
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        policy: CollisionPolicy::RenameNew,
+    })
+    .await;
+    assert!(
+        matches!(submission(&desk), Some(SubmissionStatus::Submitted { .. })),
+        "{:?}",
+        submission(&desk)
+    );
+
+    desk.send(SessionIntent::Preview { seconds: 1.0 }).await;
+    assert!(
+        matches!(
+            submission(&desk),
+            Some(SubmissionStatus::PreviewFinished { .. })
+        ),
+        "{:?}",
+        submission(&desk)
+    );
+    assert!(
+        !desk
+            .engine
+            .session_snapshot()
+            .titles
+            .expect("titles")
+            .order_locked
+    );
+}
+
+#[tokio::test]
+async fn shutdown_answers_a_pending_collision_review_so_a_waiting_save_lands() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let first = desk.export().await;
+    desk.wait_until("the first export finishes", |desk| {
+        finished(desk.export_status(&first))
+    })
+    .await;
+    // The same export again waits for a collision choice, holding its source.
+    desk.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            submission(&desk),
+            Some(SubmissionStatus::ReviewRequired { .. })
+        ),
+        "{:?}",
+        submission(&desk)
+    );
+    let metadata = desk.edit_genre_and_save().await;
+    assert_eq!(metadata.waiting_writes.len(), 1);
+
+    tokio::time::timeout(Duration::from_secs(30), desk.engine.shutdown())
+        .await
+        .expect("shutdown does not wait on an unanswered review");
+
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+}
+
+#[tokio::test]
+async fn a_collision_that_appears_during_review_is_reviewed_before_any_policy_applies() {
+    use abb_engine::output_artifact::CollisionPolicy;
+
+    let desk = Desk::new();
+    let library = desk.root.path().join("library");
+    let alpha = desk.audiobook(&library.join("alpha.m4b"), 1.0).await;
+    let beta = desk.audiobook(&library.join("beta.m4b"), 1.0).await;
+    desk.send(SessionIntent::Import {
+        paths: vec![
+            alpha.to_string_lossy().into_owned(),
+            beta.to_string_lossy().into_owned(),
+        ],
+    })
+    .await;
+    // Different titles, so the two exports do not collide with each other.
+    desk.send(SessionIntent::SelectFile {
+        index: 1,
+        modifiers: abb_engine::session::SelectionModifiers::default(),
+    })
+    .await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Beta".to_string(),
+    })
+    .await;
+    let first = desk.export().await;
+    desk.wait_until("the first export finishes", |desk| {
+        finished(desk.export_status(&first))
+    })
+    .await;
+    let outputs = |desk: &Desk| -> Vec<PathBuf> { walk(&desk.root.path().join("exports")) };
+    let exported = outputs(&desk);
+    assert_eq!(exported.len(), 2, "{exported:?}");
+
+    // Only one output exists when the user reviews.
+    let moved = desk.root.path().join("set-aside.m4b");
+    fs::rename(&exported[1], &moved).expect("set one output aside");
+    desk.send(SessionIntent::Submit).await;
+    let Some(SubmissionStatus::ReviewRequired { outputs: seen, .. }) = submission(&desk) else {
+        panic!("review: {:?}", submission(&desk));
+    };
+    assert_eq!(seen.len(), 1);
+
+    // The other appears before the user chooses.
+    fs::rename(&moved, &exported[1]).expect("put it back");
+    desk.send(SessionIntent::ChooseCollisionPolicy {
+        policy: CollisionPolicy::ReplaceExisting,
+    })
+    .await;
+    let Some(SubmissionStatus::ReviewRequired { outputs: now, .. }) = submission(&desk) else {
+        panic!("back to review: {:?}", submission(&desk));
+    };
+    assert_eq!(now.len(), 2);
+}
+
+/// Every file under `dir`, sorted.
+fn walk(dir: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(dir).expect("read folder").flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(walk(&path));
+        } else {
+            files.push(path);
+        }
+    }
+    files.sort();
+    files
+}
+
+#[tokio::test]
+async fn recovering_unreadable_settings_brings_their_output_folder_into_the_session() {
+    let root = TempDir::new().expect("engine root");
+    let config = root.path().join("config");
+    fs::create_dir_all(&config).expect("config folder");
+    fs::write(
+        config.join("app-settings.json"),
+        serde_json::json!({
+            "maxConcurrentJobs": { "mode": "auto" },
+            "encoderDefaults": {
+                "settings": { "encoderType": "retired_encoder" },
+                "sampleRate": "auto"
+            },
+            "outputDefaults": {
+                "outputDirectory": "/recovered",
+                "outputNaming": { "preset": "absDefault", "includeYear": false }
+            }
+        })
+        .to_string(),
+    )
+    .expect("write unreadable settings");
+    let engine = Engine::start(EngineConfig {
+        cache_dir: root.path().join("cache"),
+        config_dir: config,
+        app_identifier: "com.audiobook-boss.test".to_string(),
+        events: Arc::new(abb_engine::DiscardEvents),
+        aaxclean_helper: None,
+    })
+    .expect("start headless engine");
+    let output = |engine: &Engine| engine.session_snapshot().output.expect("output part");
+    assert_eq!(output(&engine).directory, None);
+
+    let plan = engine
+        .settings_snapshot()
+        .await
+        .recovery
+        .expect("recovery is offered");
+    engine
+        .settings_dispatch(abb_engine::app_settings::SettingsIntent::Recover { expected: plan })
+        .await;
+
+    assert_eq!(output(&engine).directory.as_deref(), Some("/recovered"));
 }

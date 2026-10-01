@@ -11,11 +11,24 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   soon as every export reading it finishes. The save shows as waiting until
   then, and the status says when it was written or failed. An Audible or indexer download being exported is left as is;
   its edits stay pending.
-- Quitting or closing the window while a save is still waiting for an export
-  asks first.
+- Quitting or closing the window while exports are running asks first.
+  Quitting then cancels the exports and any running preview cleanly and saves
+  any metadata changes that were waiting for them before ABB closes. If that
+  takes longer than a few seconds, ABB asks whether to keep waiting instead
+  of closing with changes unsaved.
+- An Audible download that finishes while an export is being prepared, or
+  while you choose what to do with existing files, is added to the list when
+  that ends instead of being discarded.
+- If more existing files appear while you choose what to do with them, ABB
+  asks again before overwriting anything you have not seen.
+- Exporting a downloaded title again after its first export removed the
+  download now says the download is gone and needs acquiring again.
+- An indexer release already sent to your downloader is not sent twice, even
+  when Grab is pressed twice quickly.
 - Typing into a field you set to Blank replaces the Blank with what you typed.
-- When metadata Save is blocked, the message now says a preview is running; a
-  running export never blocks Save.
+- Saving metadata while a preview is running, or while an export is waiting
+  for you to resolve existing files, waits for it the same way and then
+  writes, instead of refusing the save.
 
 ### Removed
 

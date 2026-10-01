@@ -80,14 +80,13 @@ fn later_imports_append_only_unseen_files_and_report_duplicates() {
         ["b.m4b"],
         "append keeps the selection"
     );
-    let snapshot = set.titles(0);
     assert_eq!(
-        snapshot.audio_requests_by_identity["c.m4b"].intent,
+        set.audio_request("c.m4b").expect("request").intent,
         AudioIntent::Encode,
         "a new title takes the defaults current at its import"
     );
     assert_eq!(
-        snapshot.audio_requests_by_identity["a.m4b"].intent,
+        set.audio_request("a.m4b").expect("request").intent,
         AudioIntent::Auto,
         "loaded titles keep their own request"
     );
@@ -176,7 +175,7 @@ fn a_locked_order_blocks_every_mutation_and_explains_a_refused_import() {
     let snapshot = set.titles(0);
     assert_eq!(snapshot.notice, Some(InputNotice::OrderLocked));
     assert_eq!(
-        snapshot.audio_requests_by_identity["a"].intent,
+        set.audio_request("a").expect("request").intent,
         AudioIntent::Auto
     );
 }
@@ -188,18 +187,18 @@ fn audio_choices_follow_title_identity_through_reorder_and_end_with_removal() {
     set.reorder_files(1, 0);
     set.toggle_sort();
     assert_eq!(
-        set.titles(0).audio_requests_by_identity["b"].intent,
+        set.audio_request("b").expect("request").intent,
         AudioIntent::Preserve
     );
 
     let index = set.index_of("b").expect("b is loaded");
     let removed = set.remove_file(index);
     assert_eq!(removed.len(), 1);
-    assert!(!set.titles(0).audio_requests_by_identity.contains_key("b"));
+    assert!(set.audio_request("b").is_none());
 
     set.set_audio_request("b", request(AudioIntent::Encode));
     assert!(
-        !set.titles(0).audio_requests_by_identity.contains_key("b"),
+        set.audio_request("b").is_none(),
         "a removed title cannot receive a choice"
     );
 }
@@ -433,7 +432,7 @@ proptest! {
 
             for file in &snapshot.files {
                 // Every title has an audio request, and a group contains its anchor.
-                prop_assert!(snapshot.audio_requests_by_identity.contains_key(&file.input_id));
+                prop_assert!(set.audio_request(&file.input_id).is_some());
                 if let Some(sources) = snapshot.title_sources_by_identity.get(&file.input_id) {
                     prop_assert!(sources.len() >= 2);
                     prop_assert!(sources.iter().any(|source| source.input_id == file.input_id));

@@ -1,4 +1,3 @@
-import type { TitleAudioRequest } from '../../types/audio';
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
 	open as tauriOpen,
@@ -20,20 +19,13 @@ import {
 	type ProcessingProgressEvent,
 	type ProcessingQueueEvent,
 	type SessionUpdateEvent,
+	type SettingsUpdateEvent,
+	type AcquisitionUpdateEvent,
 	type WorkOperationListSnapshotEvent,
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
-import type {
-	ProcessPayload,
-	ProcessCommandResult,
-	ProcessingPreflightPlan,
-	OutputKind,
-	RuntimeSettingsCapabilities,
-} from '../../types/audio';
 import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { AudiobookMetadata } from '../../types/metadata';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { SessionIntent } from '../../types/session';
 import type {
 	AcquisitionJob,
@@ -56,19 +48,18 @@ import type {
 	OperationId,
 	OperationListSnapshot,
 	OperationSnapshot,
-	SubmitProcessingOperationRequest,
-	WorkSubmissionAccepted,
 } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
+	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
 	normalizeProgressEvent,
 	normalizeQueueEvent,
 	normalizeSessionUpdate,
+	normalizeSettingsSnapshot,
 } from './normalizers';
 
-type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
@@ -79,6 +70,8 @@ type WorkOperationListSnapshotHandler = (event: {
 	payload: WorkOperationListSnapshotEvent;
 }) => void;
 type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
+type SettingsUpdateHandler = (event: { payload: SettingsUpdateEvent }) => void;
+type AcquisitionUpdateHandler = (event: { payload: AcquisitionUpdateEvent }) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
@@ -117,6 +110,18 @@ async function listenWorkOperationListSnapshot(
 	});
 }
 
+async function listenSettingsUpdate(handler: SettingsUpdateHandler): Promise<UnlistenFn> {
+	return generatedEvents.settingsUpdate.listen((event) => {
+		handler({ payload: normalizeSettingsSnapshot(event.payload) });
+	});
+}
+
+async function listenAcquisitionUpdate(handler: AcquisitionUpdateHandler): Promise<UnlistenFn> {
+	return generatedEvents.acquisitionUpdate.listen((event) => {
+		handler({ payload: normalizeNullish(event.payload) as AcquisitionUpdateEvent });
+	});
+}
+
 async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
 	return generatedEvents.sessionUpdate.listen((event) => {
 		handler({ payload: normalizeSessionUpdate(event.payload) });
@@ -141,6 +146,14 @@ function listen(
 	event: typeof EVENTS.SESSION_UPDATE,
 	handler: SessionUpdateHandler,
 ): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.SETTINGS_UPDATE,
+	handler: SettingsUpdateHandler,
+): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.ACQUISITION_UPDATE,
+	handler: AcquisitionUpdateHandler,
+): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
 	handler: (event: { payload: ApplicationEvents[E] }) => void,
@@ -154,6 +167,8 @@ function listen(
 		| WorkOperationSnapshotHandler
 		| WorkOperationListSnapshotHandler
 		| SessionUpdateHandler
+		| SettingsUpdateHandler
+		| AcquisitionUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
 	if (event === EVENTS.PROGRESS) {
@@ -178,6 +193,14 @@ function listen(
 
 	if (event === EVENTS.SESSION_UPDATE) {
 		return listenSessionUpdate(handler as SessionUpdateHandler);
+	}
+
+	if (event === EVENTS.SETTINGS_UPDATE) {
+		return listenSettingsUpdate(handler as SettingsUpdateHandler);
+	}
+
+	if (event === EVENTS.ACQUISITION_UPDATE) {
+		return listenAcquisitionUpdate(handler as AcquisitionUpdateHandler);
 	}
 
 	return tauriListen(
@@ -228,8 +251,6 @@ export const tauriClient = {
 		commandSpecs.settings_dispatch({ client, sequence, intent }),
 	sessionCoverArt: (): Promise<CommandResult<'session_cover_art'>> =>
 		commandSpecs.session_cover_art(),
-	sessionMetadataIntents: (filePaths: string[]): Promise<MetadataIntentByPath> =>
-		commandSpecs.session_metadata_intents({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
@@ -238,11 +259,6 @@ export const tauriClient = {
 		filePath: string,
 	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
 		commandSpecs.read_audio_cover_thumbnail({ filePath }),
-	previewTitleAudio: (
-		filePaths: string[],
-		request: TitleAudioRequest,
-		chapterPlans?: ProcessPayload['chapterPlans'],
-	) => commandSpecs.preview_title_audio({ filePaths, request, chapterPlans }),
 	getSupportedAudioImportMetadata: (): Promise<
 		CommandResult<'get_supported_audio_import_metadata'>
 	> => commandSpecs.get_supported_audio_import_metadata(),
@@ -265,8 +281,6 @@ export const tauriClient = {
 		commandSpecs.get_remote_source_acquisition_status({ jobId }),
 	cancelRemoteSourceAcquisition: (jobId: string): Promise<AcquisitionJob> =>
 		commandSpecs.cancel_remote_source_acquisition({ jobId }),
-	purgeRemoteSourceSession: (jobId: string): Promise<void> =>
-		commandSpecs.purge_remote_source_session({ jobId }).then(() => undefined),
 	searchRemoteSourceReleases: (
 		request: RemoteReleaseSearchRequest,
 	): Promise<RemoteReleaseSearchResponse> =>
@@ -284,29 +298,6 @@ export const tauriClient = {
 		update: RemoteIndexerConnectionUpdate,
 	): Promise<RemoteIndexerConnectionTestResult> =>
 		commandSpecs.test_remote_source_indexer_connection({ update }),
-	getRuntimeSettingsCapabilities: (): Promise<RuntimeSettingsCapabilities> =>
-		commandSpecs.get_runtime_settings_capabilities(),
-	previewOutputPath: (args: {
-		outputDir: string;
-		metadata?: Partial<AudiobookMetadata> | null;
-		outputNaming?: ProcessPayload['outputNaming'] | null;
-		sourcePath?: string | null;
-		outputKind?: OutputKind | null;
-		format: import('../../types/audio').AudiobookFormat;
-	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
-	preflightProcessingPlan: (args: {
-		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds?: number | null;
-	}): Promise<ProcessingPreflightPlan> => commandSpecs.preflight_processing_plan(args),
-	processAudiobookFiles: (args: {
-		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds: number;
-	}): Promise<ProcessCommandResult> => commandSpecs.process_audiobook_files(args),
-	submitProcessingOperation: (
-		args: SubmitProcessingOperationRequest,
-	): Promise<WorkSubmissionAccepted> => commandSpecs.submit_processing_operation(args),
 	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (
@@ -337,6 +328,8 @@ export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'work-operation-snapshot',
 	'work-operation-list-snapshot',
 	'session-update',
+	'settings-update',
+	'acquisition-update',
 ] as const);
 
 export type { TauriCommand };

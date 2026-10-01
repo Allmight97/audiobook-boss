@@ -1,6 +1,5 @@
 import { toUserMessage } from '../../lib/tauri/appError';
 import { releaseKey } from './selection';
-import type { AudioFile } from '../../types/audio';
 import type { AcquisitionLane } from '../../types/appSettings';
 import type {
 	AcquisitionJob,
@@ -15,14 +14,14 @@ import type {
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
-import type { RemoteInputHandoffResult, RemoteSourcePatch, RemoteSourceState } from './types';
+import type { RemoteSourcePatch, RemoteSourceState } from './types';
 import {
-	acquisitionPollDelayMs,
+	handoffMessage,
+	isAcquisitionSettled,
 	isAcquisitionTerminal,
 	isTitleAcquirable,
 	statusFromAcquisitionJob,
 	uniqueDiagnosticMessage,
-	withClearedHandoffJob,
 	type AcquisitionJobWithProgress,
 } from './display';
 import { laneSelectionResetPatch, providerIdFromLane } from './types';
@@ -50,9 +49,8 @@ export interface RemoteSourceWorkflowServices {
 	) => Promise<AcquisitionJob>;
 	getAcquisitionStatus: (jobId: string) => Promise<AcquisitionJob>;
 	cancelAcquisition: (jobId: string) => Promise<AcquisitionJob>;
-	purgeSession: (jobId: string) => Promise<void>;
-	importMaterializedPaths: (paths: readonly string[]) => Promise<RemoteInputHandoffResult>;
-	sleep: (ms: number) => Promise<void>;
+	/** Every acquisition change the engine publishes. */
+	listenAcquisitions: (handler: (job: AcquisitionJob) => void) => Promise<() => void>;
 }
 
 export type RemoteSourceWorkflowAction =
@@ -74,36 +72,38 @@ export type RemoteSourceWorkflow = {
 	clearIndexerResults(): void;
 };
 
-export const ORDER_LOCKED_IMPORT_MESSAGE =
-	'Order locked while processing. Wait for completion to add files.';
-
-export const STAGED_FILES_REMOVED_SUFFIX =
-	'Staged remote files were removed; retry acquisition after processing completes.';
-
 type WorkflowScope = { readonly isCurrent: () => boolean; readonly providerId: ProviderId };
 
 export function createRemoteSourceWorkflow(deps: {
 	readonly services: RemoteSourceWorkflowServices;
 	readonly state: RemoteSourceStateStore;
-	readonly registerSupplementalAssets: (job: AcquisitionJob, files: readonly AudioFile[]) => void;
 }): RemoteSourceWorkflow {
 	let workflowGeneration = 0;
 	let acquisitionGeneration = 0;
 	let entryGeneration = 0;
 	let indexerConnectionGeneration = 0;
+	/** Acquisitions waiting for their next event; woken when their scope may have ended. */
+	const waiting = new Set<() => void>();
+
+	function wakeWaiting(): void {
+		for (const wake of [...waiting]) wake();
+	}
 
 	function invalidate(): void {
 		workflowGeneration += 1;
 		acquisitionGeneration += 1;
+		wakeWaiting();
 	}
 
 	function beginAcquisition(): number {
 		acquisitionGeneration += 1;
+		wakeWaiting();
 		return acquisitionGeneration;
 	}
 
 	function invalidateAcquisition(): void {
 		acquisitionGeneration += 1;
+		wakeWaiting();
 	}
 
 	function patchWhenCurrent(scope: WorkflowScope, patch: RemoteSourcePatch): boolean {
@@ -159,77 +159,44 @@ export function createRemoteSourceWorkflow(deps: {
 		}
 	}
 
-	async function pollAcquisitionToTerminal(
-		initialJob: AcquisitionJobWithProgress,
+	/**
+	 * Follows a job's engine events until it settles. The engine imports its
+	 * files into the session; the settled job says how that went.
+	 */
+	async function followAcquisition(
+		started: AcquisitionJobWithProgress,
 		scope: WorkflowScope,
 	): Promise<AcquisitionJobWithProgress | null> {
-		let currentJob = initialJob;
-		while (scope.isCurrent() && !isAcquisitionTerminal(currentJob)) {
-			await deps.services.sleep(acquisitionPollDelayMs);
-			if (!scope.isCurrent()) return null;
-			currentJob = await deps.services.getAcquisitionStatus(currentJob.jobId);
-			if (
-				!patchWhenCurrent(scope, {
-					activeJob: currentJob,
-					lastJob: currentJob,
-					statusMessage: statusFromAcquisitionJob(currentJob),
-				})
-			) {
-				return null;
-			}
-		}
-		return scope.isCurrent() ? currentJob : null;
-	}
-
-	async function finishAcquisitionJob(
-		job: AcquisitionJobWithProgress,
-		scope: WorkflowScope,
-	): Promise<void> {
-		if (!scope.isCurrent()) return;
-		const materializedPaths = job.materializedFiles.map((file) => file.path);
-		if (materializedPaths.length === 0) {
-			patchWhenCurrent(scope, {
-				statusMessage:
-					uniqueDiagnosticMessage(job.diagnostics) ||
-					'Audible acquisition did not materialize an importable file.',
-			});
-			return;
-		}
-
-		const importResult = await deps.services.importMaterializedPaths(materializedPaths);
-		if (!scope.isCurrent()) return;
-		if (importResult.status !== 'imported') {
-			await deps.services.purgeSession(job.jobId);
-			if (!scope.isCurrent()) return;
-			const cleanedJob = withClearedHandoffJob(job);
-			patchWhenCurrent(scope, {
-				activeJob: cleanedJob,
-				lastJob: cleanedJob,
-				statusMessage: `${importResult.message} ${STAGED_FILES_REMOVED_SUFFIX}`,
-			});
-			return;
-		}
-
-		const importedAny = materializedPaths.some((path) =>
-			importResult.files.some((file) => file.path === path),
-		);
-		if (!importedAny) {
-			await deps.services.purgeSession(job.jobId);
-			if (!scope.isCurrent()) return;
-			const cleanedJob = withClearedHandoffJob(job);
-			patchWhenCurrent(scope, {
-				activeJob: cleanedJob,
-				lastJob: cleanedJob,
-				statusMessage: `${importResult.files.length > 0 ? 'Acquired titles were not added to the input session.' : 'Input session had no files after import.'} ${STAGED_FILES_REMOVED_SUFFIX}`,
-			});
-			return;
-		}
-
-		if (!scope.isCurrent()) return;
-		deps.registerSupplementalAssets(job, importResult.files);
-		patchWhenCurrent(scope, {
-			statusMessage: `${materializedPaths.length} acquired title${materializedPaths.length === 1 ? '' : 's'} imported.`,
+		let latest = started;
+		let heard = false;
+		let wake: (() => void) | null = null;
+		const unlisten = await deps.services.listenAcquisitions((job) => {
+			if (job.jobId !== started.jobId) return;
+			latest = job;
+			heard = true;
+			wake?.();
 		});
+		try {
+			// Catch up on anything published before the listener attached.
+			const current = await deps.services.getAcquisitionStatus(started.jobId);
+			if (!heard) latest = current;
+			while (scope.isCurrent()) {
+				patchWhenCurrent(scope, {
+					activeJob: latest,
+					lastJob: latest,
+					statusMessage: statusFromAcquisitionJob(latest),
+				});
+				if (isAcquisitionSettled(latest)) return latest;
+				await new Promise<void>((resolve) => {
+					wake = resolve;
+					waiting.add(resolve);
+				});
+				if (wake) waiting.delete(wake);
+			}
+			return null;
+		} finally {
+			unlisten();
+		}
 	}
 
 	function setGrabState(
@@ -527,10 +494,9 @@ export function createRemoteSourceWorkflow(deps: {
 					) {
 						return;
 					}
-					const terminalJob = await pollAcquisitionToTerminal(startedJob, acquisitionScope);
-					if (terminalJob) {
-						await finishAcquisitionJob(terminalJob, acquisitionScope);
-					}
+					const settled = await followAcquisition(startedJob, acquisitionScope);
+					const message = settled ? handoffMessage(settled) : null;
+					if (message) patchWhenCurrent(acquisitionScope, { statusMessage: message });
 				} catch (cause) {
 					setAcquisitionErrorWhenCurrent(
 						acquisitionScope,

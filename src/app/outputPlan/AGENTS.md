@@ -2,8 +2,10 @@
 
 ## Scope
 
-- Owns output directory, naming, path preview, export-size estimate, and
-  collision review under `src/app/outputPlan/`.
+- The engine owns the output directory, naming, the path preview, and each
+  title's size estimate (`crates/abb-engine/src/session/AGENTS.md`). This
+  owner shows them, opens the folder picker, sends output intents, and holds
+  the collision dialog that a submission asks through.
 - Solid views live in `src/ui/outputPanel` and `src/ui/collisionDialog`. They
   render this owner; they do not keep a second plan store.
 
@@ -11,62 +13,26 @@
 
 - Import Output Plan runtime symbols from `src/app/outputPlan`.
   `createOutputOwner` is the Solid plan factory.
-- Workbench callers that only need the composed UI strip import
-  `src/ui/outputPanel` instead.
-- `index.ts` is the export surface. Do not import `owner.ts`,
-  `workflow.ts`, `collision.ts`, `estimate.ts`, or `previewDraft.ts` from outside this owner.
+- `index.ts` is the export surface. Do not import `owner.ts` or
+  `collision.ts` from outside this owner.
 
-## Hard Invariants
+## What Stays Here
 
-- Per-title explicit encoding estimates use that title's total source duration
-  and Encoding's `estimateTitleKbps`. Quality VBR displays a labeled rough
-  reference estimate when Encoding supplies one, otherwise “Size varies with audio”. Auto has
-  no estimate until a backend title preview resolves its copy/encode choice.
-  Explicit Preserve estimates
-  sum source sizes; they do not use encoder targets. The file-list row renders
-  `estimateTitleSizeText` beside that title's audio summary.
-  `estimate.ts` owns the byte formula; bitrate is total across channels.
-- Path preview passes the selected title format to Rust. Audio owns its extension;
-  changing quality or encoder availability alone does not re-run naming preview.
-- Path preview is a Solid async memo on public Input, Metadata, output
-  directory, naming preset, year, and the **committed** template. Live template
-  typing updates the input immediately and commits after 150 ms. Do not preview
-  on every keystroke. Preview retriggers when Metadata series or subseries part
-  changes, not only title, album, or artist. Native path authority,
-  metadata-intent validation, and request-id stale suppression stay in the
-  preview workflow. The engine validates metadata edits; do not add a
-  Metadata setter here.
-- Collision review is a separate preflight/review workflow
-  (`runOutputPlanReviewWorkflow`) whose view and pending choice live on the
-  Output owner. Views use `useAppRuntime().output`. Do not fold review into
-  path-preview freshness.
-- App Settings hydration passes resolved `outputDefaults` to the runtime's
-  Output owner without persisting. User changes hand accepted defaults to the
-  injected Settings `rememberOutputDefaults` intent.
-- Processing submit and collision review use the injected Output owner
-  (`readRequestConfig`, `openCollisionReview`). `readRequestConfig()` uses the
-  live naming box (`namingTemplate`), not the 150 ms committed
-  `previewTemplate`. Preview stays on the committed copy.
+- Wording: the preview text for each engine preview kind, the naming hint,
+  and the size estimate text.
+- The naming template shows what was typed until the engine confirms it.
+- `openCollisionReview(outputs)` shows the outputs the engine reported as
+  existing and resolves with the user's policy, or `null` on cancel. Views use
+  `useAppRuntime().output`.
 
 ## Testing
 
-- `estimate.test.ts` pins the byte formula; `outputPlan.test.ts` covers title
-  estimates and missing source facts. Resolved preview settings own Default
-  encoding estimates; saved preferences must not substitute for the accepted plan.
-- `outputPlan.test.ts` pins hydration, per-title estimate (including VBR
-  uncertainty vs target-based estimates), live submit naming vs 150 ms
-  preview debounce, series-part preview retrigger, preview draft/source-path
-  projection, and collision resolve/cancel. Titles and durations come from
-  the fake engine (`loadTitles`).
-- `workflow.test.ts` pins stale preview suppression and review approve /
-  cancel / hard-block.
-- `runtime-api-contract.test.ts` pins this owner's public export strip.
-- Two-runtime request and collision isolation lives in
-  `src/app/runtime/runtime.test.ts`.
+- `outputPlan.test.ts` covers wording, the intents sent, the typed template,
+  estimates, and the collision dialog.
+- Naming, preview, and estimate rules are proved in the engine's session
+  tests.
 
 ## Boundary Changes
 
 - Adding, removing, or renaming a public export.
-- Reading private Input, Metadata, file-list, or encoder state to build
-  preview, estimate, or submit config.
-- Moving the estimate formula or its title-row presentation.
+- Adding a naming, preview, or estimate rule here instead of in the engine.

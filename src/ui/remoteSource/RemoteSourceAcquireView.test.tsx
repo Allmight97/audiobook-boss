@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { tauriClient } from '../../lib/tauri/client';
+import { EVENTS } from '../../types/events';
 import type {
 	AcquisitionJob,
 	RemoteSourceProviderCapabilities,
@@ -11,14 +12,6 @@ import type {
 	RemoteRelease,
 } from '../../types/remoteSource';
 import { RemoteSourceAcquireView } from './RemoteSourceAcquireView';
-
-function createDeferred<T>() {
-	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((resolvePromise) => {
-		resolve = resolvePromise;
-	});
-	return { promise, resolve };
-}
 
 function acquisitionJob(percentage: number, terminal = false): AcquisitionJob {
 	return {
@@ -131,12 +124,21 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 
-	it('renders polled Audible progress only in the Audible lane', async () => {
-		const terminalStatus = createDeferred<AcquisitionJob>();
+	it('renders Audible progress events only in the Audible lane', async () => {
+		let emit: ((job: AcquisitionJob) => void) | undefined;
+		const listen = tauriClient.listen;
+		vi.spyOn(tauriClient, 'listen').mockImplementation(((
+			event: string,
+			handler: (event: { payload: AcquisitionJob }) => void,
+		) => {
+			if (event !== EVENTS.ACQUISITION_UPDATE) {
+				return (listen as (...args: unknown[]) => Promise<() => void>)(event, handler);
+			}
+			emit = (job) => handler({ payload: job });
+			return Promise.resolve(() => undefined);
+		}) as typeof listen);
 		vi.spyOn(tauriClient, 'startRemoteSourceAcquisition').mockResolvedValue(acquisitionJob(10));
-		vi.spyOn(tauriClient, 'getRemoteSourceAcquisitionStatus')
-			.mockResolvedValueOnce(acquisitionJob(40))
-			.mockImplementationOnce(() => terminalStatus.promise);
+		vi.spyOn(tauriClient, 'getRemoteSourceAcquisitionStatus').mockResolvedValue(acquisitionJob(40));
 
 		runtime = createAppRuntime();
 		render(() => (
@@ -157,7 +159,7 @@ describe('RemoteSourceAcquireView close wiring', () => {
 		);
 		expect(screen.getByRole('button', { name: 'Cancel Acquisition' })).toBeEnabled();
 
-		terminalStatus.resolve(acquisitionJob(100, true));
+		emit?.(acquisitionJob(100, true));
 		await vi.waitFor(() => expect(runtime!.remoteSource.view().isBusy).toBe(false));
 		expect(screen.getByRole('progressbar', { name: 'Acquisition progress' })).toHaveAttribute(
 			'aria-valuenow',

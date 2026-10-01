@@ -1,4 +1,3 @@
-import type { AudiobookMetadata } from '../../types/metadata';
 import type {
 	FieldAction,
 	MetadataField,
@@ -27,9 +26,6 @@ type MetadataFieldDefinition = {
 	readonly actionId: MetadataActionId;
 	/** The engine's name for this field. */
 	readonly field: MetadataField;
-	/** The tag the output-path preview reads this field as, until that preview moves into the engine. */
-	readonly key: keyof AudiobookMetadata;
-	readonly mapToAlbum?: boolean;
 	readonly placeholder: string;
 	readonly label: string;
 	readonly span: 1 | 2 | 3 | 4;
@@ -42,8 +38,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-title',
 		actionId: 'meta-title-action',
 		field: 'title',
-		key: 'title',
-		mapToAlbum: true,
 		placeholder: 'Book title',
 		label: 'Book Title',
 		span: 3,
@@ -53,7 +47,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-year',
 		actionId: 'meta-year-action',
 		field: 'date',
-		key: 'date',
 		placeholder: 'YYYY or YYYY-MM',
 		label: 'Publication Date',
 		span: 1,
@@ -63,7 +56,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-author',
 		actionId: 'meta-author-action',
 		field: 'author',
-		key: 'artist',
 		placeholder: 'Author',
 		label: 'Author',
 		span: 2,
@@ -73,7 +65,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-narrator',
 		actionId: 'meta-narrator-action',
 		field: 'narrator',
-		key: 'composer',
 		placeholder: 'Narrator',
 		label: 'Narrator',
 		span: 2,
@@ -83,7 +74,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-series',
 		actionId: 'meta-series-action',
 		field: 'series',
-		key: 'series',
 		placeholder: 'Series name',
 		label: 'Series',
 		span: 2,
@@ -93,7 +83,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-series-part',
 		actionId: 'meta-series-part-action',
 		field: 'seriesPart',
-		key: 'series_part',
 		placeholder: '#',
 		label: 'Book #',
 		span: 1,
@@ -103,7 +92,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-subseries',
 		actionId: 'meta-subseries-action',
 		field: 'subseries',
-		key: 'subseries',
 		placeholder: 'Sub-series name',
 		label: 'Sub-series',
 		span: 2,
@@ -113,7 +101,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-subseries-part',
 		actionId: 'meta-subseries-part-action',
 		field: 'subseriesPart',
-		key: 'subseries_part',
 		placeholder: '#',
 		label: 'Sub-series #',
 		span: 1,
@@ -123,7 +110,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-genre',
 		actionId: 'meta-genre-action',
 		field: 'genre',
-		key: 'genre',
 		placeholder: 'Genre',
 		label: 'Genre',
 		span: 1,
@@ -133,7 +119,6 @@ export const METADATA_FIELD_DEFINITIONS = [
 		inputId: 'meta-description',
 		actionId: 'meta-description-action',
 		field: 'description',
-		key: 'description',
 		placeholder: 'Description',
 		label: 'Description',
 		span: 4,

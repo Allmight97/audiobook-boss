@@ -1,7 +1,7 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import type { AudioFile, ProcessCommandResult } from '../../types/audio';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
-import { startProcessing as startProcessingAction, type ProcessingWorkflowLayer } from './workflow';
+import { runSubmission, type SubmitDeps } from './submit';
 import {
 	renderConcurrencyStatus,
 	renderJobList,
@@ -39,7 +39,7 @@ export type StatusPanelRuntimeDeps = {
 	readonly validTitles?: () => ReadonlyArray<AudioFile>;
 	readonly unlockWorkbench?: () => void;
 	readonly concurrency?: () => ConcurrencyRead | undefined;
-	readonly workflowLayer?: ProcessingWorkflowLayer;
+	readonly submit?: SubmitDeps;
 };
 
 export class StatusPanelRuntime {
@@ -47,7 +47,7 @@ export class StatusPanelRuntime {
 	private readonly readValidTitles: () => ReadonlyArray<AudioFile>;
 	private readonly unlockWorkbench: () => void;
 	private readonly readConcurrency: () => ConcurrencyRead | undefined;
-	private readonly workflowLayer?: ProcessingWorkflowLayer;
+	private readonly submit?: SubmitDeps;
 	private readonly progressSubscription = createProgressSubscription({
 		onProgress: (event) => this.updateProgress(event),
 		onQueue: (event) => this.handleQueueSnapshot(event),
@@ -63,7 +63,7 @@ export class StatusPanelRuntime {
 		this.readValidTitles = deps.validTitles ?? (() => []);
 		this.unlockWorkbench = deps.unlockWorkbench ?? (() => undefined);
 		this.readConcurrency = deps.concurrency ?? (() => undefined);
-		this.workflowLayer = deps.workflowLayer;
+		this.submit = deps.submit;
 		this.coverArt = createCoverArtTracker({
 			validTitles: () => this.readValidTitles(),
 			displayCoverArt: (dataUrl) => this.view.setCoverArtDataUrl(dataUrl),
@@ -79,7 +79,10 @@ export class StatusPanelRuntime {
 		this.clearSingleCompletionTimeout();
 		this.clearBatchCompletionTimeout();
 
-		return startProcessingAction(
+		if (!this.submit) {
+			return Promise.reject(new Error('Processing requires its engine link.'));
+		}
+		return runSubmission(
 			{
 				updateStatus: (status) => this.updateStatus(status),
 				setProcessingState: (isProcessing) => {
@@ -96,8 +99,8 @@ export class StatusPanelRuntime {
 				handleCancellation: () => this.handleProcessingCancellation(),
 				resetToIdle: () => this.resetToIdle(),
 			},
+			this.submit,
 			options,
-			this.workflowLayer,
 		);
 	}
 

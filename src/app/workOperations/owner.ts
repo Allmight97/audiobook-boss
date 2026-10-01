@@ -1,6 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { OperationId } from '../../types/workRuntime';
-import type { RemoteSourceOwner } from '../remoteSource';
 import {
 	createWorkOperationsSession,
 	emptyWorkOperationsView,
@@ -16,18 +15,14 @@ export type WorkOperationsOwner = {
 	reset(): void;
 };
 
-export type WorkOperationsOwnerDeps = {
-	readonly remoteSource: Pick<RemoteSourceOwner, 'settleTerminalWork'>;
-};
-
-export function createWorkOperationsOwner(deps: WorkOperationsOwnerDeps): WorkOperationsOwner {
+export function createWorkOperationsOwner(): WorkOperationsOwner {
 	let snapshot = emptyWorkOperationsView();
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	function publish(next: WorkOperationsView): void {
 		snapshot = next;
 		bump((n) => n + 1);
 	}
-	const session = createWorkOperationsSession(publish, deps);
+	const session = createWorkOperationsSession(publish);
 
 	return {
 		view: () => {

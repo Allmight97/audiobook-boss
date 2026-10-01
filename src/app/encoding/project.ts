@@ -1,19 +1,17 @@
-import type { EncoderDefaults } from '../../types/appSettings';
+import type {
+	AudioChoice,
+	AudioChoiceFacts,
+	AudioEdit,
+	FaacRateControl,
+} from '../../types/session';
 import type {
 	AudiobookFormat,
 	AudioIntent,
-	BitrateMode,
-	EncoderAvailability,
-	EncoderChannelConfig,
-	EncoderConfigurationCapability,
 	EncoderSettingsCapabilities,
 	EncoderType,
 	FaacProfile,
-	EncodingRequestConfig,
-	SampleRateConfig,
 } from '../../types/audio';
-import { defaultEncoderSettings } from '../../types/audio';
-import { estimateKbpsFromSettings } from './estimate';
+import type { AutoResolutionHints } from './hints';
 
 export type EncodingField =
 	| 'format'
@@ -66,28 +64,14 @@ export type EncodingView = {
 	readonly channelsHint: string;
 };
 
-export type EncodingBag = {
-	format: AudiobookFormat;
-	intent: AudioIntent;
-	opusBitrate: number;
-	flavor: EncoderType;
-	hydratedBitrateMode: BitrateMode;
-	faacProfile: FaacProfile;
-	faacMode: 'abr' | 'vbr';
-	faacQuality: number;
-	nativeSpeed: number;
-	bitrate: number;
-	sampleRate: string;
-	channels: EncoderChannelConfig;
-	capabilities: EncoderSettingsCapabilities | null;
-	availability: EncoderAvailability | null;
-	sampleRateHint: string;
-	channelsHint: string;
-	hasMultichannelInput: boolean;
+/** What the panel shows for one engine choice. */
+export type EncodingSource = {
+	readonly choice: AudioChoice;
+	readonly facts: AudioChoiceFacts;
+	readonly capabilities: EncoderSettingsCapabilities | null;
+	readonly hints: AutoResolutionHints;
 };
 
-const DEFAULT_SAMPLE_RATE_HINT = 'Auto -> source audio';
-const DEFAULT_CHANNELS_HINT = 'Auto -> source audio';
 const ENCODER_PROFILES: Record<EncoderType, string> = {
 	auto: 'AAC-LC',
 	faac: 'AAC',
@@ -102,38 +86,16 @@ const FAAC_PROFILES: Record<FaacProfile, string> = {
 	he_aac_v1: 'HE-AAC v1',
 };
 
-export function createDefaultBag(): EncodingBag {
-	return {
-		format: 'm4b',
-		intent: 'auto',
-		opusBitrate: 64,
-		flavor: 'native_aac',
-		hydratedBitrateMode: defaultEncoderSettings().bitrateMode,
-		faacProfile: 'auto',
-		faacMode: 'abr',
-		faacQuality: 100,
-		nativeSpeed: 0,
-		bitrate: 65,
-		sampleRate: 'auto',
-		channels: 'auto',
-		capabilities: null,
-		availability: null,
-		sampleRateHint: DEFAULT_SAMPLE_RATE_HINT,
-		channelsHint: DEFAULT_CHANNELS_HINT,
-		hasMultichannelInput: false,
-	};
-}
+const opus = (format: AudiobookFormat) => format === 'm4aOpus' || format === 'mkaOpus';
 
 function rangeOptions(min: number, max: number): number[] {
 	const values: number[] = [];
-	for (let value = min; value <= max; value += 1) {
-		values.push(value);
-	}
+	for (let value = min; value <= max; value += 1) values.push(value);
 	return values;
 }
 
-function encoderFlavorLabel(flavor: EncoderType): string {
-	switch (flavor) {
+function encoderLabel(value: EncoderType): string {
+	switch (value) {
 		case 'aac_at':
 			return 'Apple AAC';
 		case 'native_aac':
@@ -141,78 +103,14 @@ function encoderFlavorLabel(flavor: EncoderType): string {
 		case 'faac':
 			return 'FAAC';
 		case 'opus':
-			return 'Opus';
+			return 'Opus (libopus)';
 		default:
 			return 'App default';
 	}
 }
 
-const opus = (bag: EncodingBag) => bag.format === 'm4aOpus' || bag.format === 'mkaOpus';
-function effectiveEncoder(bag: EncodingBag): EncoderType {
-	if (opus(bag)) return 'opus';
-	if (bag.flavor !== 'auto') return bag.flavor;
-	return bag.availability?.autoEncoder ?? 'auto';
-}
-
-function disabledEncoderOptions(availability: EncoderAvailability | null) {
-	return {
-		aac_at: availability ? !availability.aacAtAvailable : false,
-		native_aac: availability ? !availability.nativeAacAvailable : false,
-	};
-}
-
-function sampleRateFromBag(bag: EncodingBag): SampleRateConfig {
-	if (bag.sampleRate === 'auto') return 'auto';
-	const parsed = Number.parseInt(bag.sampleRate, 10);
-	if (!Number.isFinite(parsed)) return 'auto';
-	if (!bag.capabilities) return { explicit: parsed };
-	return bag.capabilities.explicitSampleRates.includes(parsed) ? { explicit: parsed } : 'auto';
-}
-
-function bitrateModeFromBag(bag: EncodingBag): BitrateMode {
-	if (opus(bag)) return { mode: 'vbr_target' };
-	if (bag.flavor === 'faac')
-		return bag.faacMode === 'vbr' ? { mode: 'vbr', value: bag.faacQuality } : { mode: 'abr' };
-	return encoderConfiguration(bag)?.defaultMode ?? bag.hydratedBitrateMode;
-}
-
-export function bagRequest(bag: EncodingBag): EncodingRequestConfig {
-	return {
-		encoderSettings: {
-			encoderType: opus(bag) ? 'opus' : bag.flavor,
-			channels: bag.channels,
-			bitrateKbps: opus(bag) ? bag.opusBitrate : bag.bitrate,
-			bitrateMode: bitrateModeFromBag(bag),
-			nativeAacSpeed: bag.nativeSpeed,
-			faacProfile: bag.faacProfile,
-		},
-		sampleRate: sampleRateFromBag(bag),
-	};
-}
-
-export function bagDefaults(bag: EncodingBag): EncoderDefaults {
-	const request = bagRequest(bag);
-	return {
-		settings: request.encoderSettings,
-		sampleRate: request.sampleRate,
-		format: bag.format,
-		intent: bag.intent,
-	};
-}
-
-export function bagEstimateKbps(bag: EncodingBag): number | null {
-	return estimateKbpsFromSettings(bagRequest(bag).encoderSettings);
-}
-
-function encoderLabel(value: string): string {
-	if (value === 'aac_at' || value === 'native_aac' || value === 'faac') {
-		return encoderFlavorLabel(value);
-	}
-	return value === 'opus' ? 'Opus (libopus)' : value;
-}
-
-function qualityLabel(bag: EncodingBag, value: number): string {
-	const standard = bag.capabilities?.faacQualityDefault ?? 100;
+function qualityLabel(capabilities: EncoderSettingsCapabilities | null, value: number): string {
+	const standard = capabilities?.faacQualityDefault ?? 100;
 	const label = value === standard ? 'Standard' : value < standard ? 'Smaller' : 'Higher';
 	return `${label} (${value})`;
 }
@@ -234,38 +132,22 @@ function channelLabel(value: string): string {
 	}
 }
 
-function encoderConfiguration(bag: EncodingBag): EncoderConfigurationCapability | undefined {
-	return bag.capabilities?.encoderConfigurations.find(
-		(entry) => entry.encoderType === effectiveEncoder(bag),
-	);
-}
-
-function sampleRateDetail(bag: EncodingBag): string {
-	if (
-		bag.capabilities &&
-		bag.sampleRate !== 'auto' &&
-		!allowedSampleRates(bag).includes(Number(bag.sampleRate))
-	)
+function sampleRateText(source: EncodingSource): string {
+	const { choice, facts, capabilities } = source;
+	if (choice.sampleRate === 'auto')
+		return opus(choice.format)
+			? 'Auto → next supported Opus input rate'
+			: source.hints.sampleRateHint;
+	if (capabilities && !facts.sampleRateSupported)
 		return 'Choose a supported sample rate for this encoder.';
-	if (bag.sampleRate === 'auto')
-		return opus(bag) ? 'Auto → next supported Opus input rate' : bag.sampleRateHint;
-	return `Using ${sampleRateLabel(bag.sampleRate)}.`;
+	return `Using ${sampleRateLabel(String(choice.sampleRate.explicit))}.`;
 }
 
-function allowedSampleRates(bag: EncodingBag): readonly number[] {
-	const configuration = encoderConfiguration(bag);
-	if (!opus(bag) && bag.flavor === 'faac')
-		return (
-			configuration?.faacProfiles.find((entry) => entry.profile === bag.faacProfile)
-				?.explicitSampleRates ?? []
-		);
-	return configuration?.explicitSampleRates ?? [];
-}
-
-function channelsDetail(bag: EncodingBag): string {
-	if (bag.channels === 'auto') return bag.channelsHint;
-	const downmix = bag.hasMultichannelInput ? ' Surround downmix omits bass effects (LFE).' : '';
-	return `Using ${channelLabel(bag.channels)}.${downmix}`;
+function channelsText(source: EncodingSource): string {
+	const { choice, hints } = source;
+	if (choice.channels === 'auto') return hints.channelsHint;
+	const downmix = hints.hasMultichannelInput ? ' Surround downmix omits bass effects (LFE).' : '';
+	return `Using ${channelLabel(choice.channels)}.${downmix}`;
 }
 
 function autoResolutionLabel(hint: string): string {
@@ -275,71 +157,76 @@ function autoResolutionLabel(hint: string): string {
 		: `Auto · ${detail.charAt(0).toUpperCase()}${detail.slice(1)}`;
 }
 
-export function projectView(bag: EncodingBag): EncodingView {
-	const effective = effectiveEncoder(bag);
-	const showQuality = bitrateModeFromBag(bag).mode === 'vbr';
-	const native = effectiveEncoder(bag) === 'native_aac';
-	const faac = !opus(bag) && bag.flavor === 'faac';
-	const disabled = disabledEncoderOptions(bag.availability);
+function encoderUnavailable(
+	capabilities: EncoderSettingsCapabilities | null,
+	encoder: EncoderType,
+): boolean {
+	const availability = capabilities?.availability;
+	if (!availability) return false;
+	if (encoder === 'aac_at') return !availability.aacAtAvailable;
+	if (encoder === 'native_aac') return !availability.nativeAacAvailable;
+	return false;
+}
+
+export function projectView(source: EncodingSource): EncodingView {
+	const { choice, facts, capabilities } = source;
+	const isOpus = opus(choice.format);
+	const sampleRate = choice.sampleRate === 'auto' ? 'auto' : String(choice.sampleRate.explicit);
 	const flavorOptions: EncodingOption[] =
-		bag.capabilities === null
+		capabilities === null
 			? [{ value: 'auto', label: 'Loading…', disabled: true }]
-			: bag.capabilities.encoderTypes
-					.filter((flavor) =>
-						opus(bag) ? flavor === 'opus' : flavor !== 'opus' && flavor !== 'auto',
-					)
+			: capabilities.encoderTypes
+					.filter((flavor) => (isOpus ? flavor === 'opus' : flavor !== 'opus' && flavor !== 'auto'))
 					.map((flavor) => ({
 						value: flavor,
 						label: encoderLabel(flavor),
-						disabled: flavor !== 'auto' && Boolean(disabled[flavor as keyof typeof disabled]),
+						disabled: encoderUnavailable(capabilities, flavor),
 					}));
-	const qualityOptions = (bag.capabilities?.faacQualityPresets ?? []).map((value) => ({
-		value: String(value),
-		label: qualityLabel(bag, value),
-	}));
-	const sampleRateOptions = bag.capabilities
+	const sampleRateOptions = capabilities
 		? [
-				...(bag.capabilities.sampleRateAuto ? ['auto'] : []),
-				...bag.capabilities.explicitSampleRates.map(String),
+				...(capabilities.sampleRateAuto ? ['auto'] : []),
+				...capabilities.explicitSampleRates.map(String),
 			].map((value) => ({
 				value,
 				label:
 					value === 'auto'
-						? autoResolutionLabel(sampleRateDetail({ ...bag, sampleRate: 'auto' }))
+						? autoResolutionLabel(
+								sampleRateText({ ...source, choice: { ...choice, sampleRate: 'auto' } }),
+							)
 						: sampleRateLabel(value),
-				disabled: value !== 'auto' && !allowedSampleRates(bag).includes(Number(value)),
+				disabled: value !== 'auto' && !facts.allowedSampleRates.includes(Number(value)),
 			}))
 		: [];
-	const channelOptions = (bag.capabilities?.channelOptions ?? []).map((value) => ({
+	const channelOptions = (capabilities?.channelOptions ?? []).map((value) => ({
 		value,
-		label: value === 'auto' ? autoResolutionLabel(bag.channelsHint) : channelLabel(value),
+		label: value === 'auto' ? autoResolutionLabel(source.hints.channelsHint) : channelLabel(value),
 	}));
+	const showQuality = facts.bitrateMode.mode === 'vbr';
 
 	return {
-		format: bag.format,
-		intent: bag.intent,
-		flavor: opus(bag) ? 'opus' : bag.flavor,
-		effectiveFlavor: effective,
+		format: choice.format,
+		intent: choice.intent,
+		flavor: isOpus ? 'opus' : choice.encoder,
+		effectiveFlavor: facts.effectiveEncoder,
 		flavorOptions,
-		flavorDisabled: opus(bag) || bag.capabilities === null,
-		profileDisplay: ENCODER_PROFILES[effective],
+		flavorDisabled: isOpus || capabilities === null,
+		profileDisplay: ENCODER_PROFILES[facts.effectiveEncoder],
 		qualityBitrateLabel: showQuality ? 'Quality' : 'Bitrate (kbps)',
-		native,
-		faac,
-		faacProfile: bag.faacProfile,
-		faacProfileOptions: (encoderConfiguration(bag)?.faacProfiles ?? []).map(({ profile }) => ({
+		native: facts.effectiveEncoder === 'native_aac',
+		faac: !isOpus && choice.encoder === 'faac',
+		faacProfile: choice.faacProfile,
+		faacProfileOptions: facts.faacProfiles.map((profile) => ({
 			value: profile,
 			label: FAAC_PROFILES[profile],
 		})),
-		rateControl: bag.faacMode,
-		rateControlOptions: (encoderConfiguration(bag)?.allowedModes ?? []).map((mode) => ({
+		rateControl: choice.faacRateControl,
+		rateControlOptions: facts.allowedModes.map((mode) => ({
 			value: mode,
 			label: mode === 'abr' ? 'Average bitrate (ABR)' : 'Quality (VBR)',
 		})),
-
-		bitrateKbpsMax: encoderConfiguration(bag)?.bitrateKbpsMax ?? 0,
-		nativeSpeed: bag.nativeSpeed,
-		nativeSpeedOptions: rangeOptions(0, bag.capabilities?.nativeSpeedMax ?? 0).map((value) => ({
+		bitrateKbpsMax: facts.bitrateKbpsMax,
+		nativeSpeed: choice.nativeSpeed,
+		nativeSpeedOptions: rangeOptions(0, capabilities?.nativeSpeedMax ?? 0).map((value) => ({
 			value: String(value),
 			label:
 				value === 0
@@ -349,181 +236,61 @@ export function projectView(bag: EncodingBag): EncodingView {
 						: String(value),
 		})),
 		showQuality,
-		quality: bag.faacQuality,
-		qualityOptions,
-		bitrate: opus(bag) ? bag.opusBitrate : bag.bitrate,
-		bitrateKbpsMin: encoderConfiguration(bag)?.bitrateKbpsMin ?? 1,
-		sampleRate: bag.sampleRate,
+		quality: choice.faacQuality,
+		qualityOptions: (capabilities?.faacQualityPresets ?? []).map((value) => ({
+			value: String(value),
+			label: qualityLabel(capabilities, value),
+		})),
+		bitrate: isOpus ? choice.opusBitrateKbps : choice.aacBitrateKbps,
+		bitrateKbpsMin: facts.bitrateKbpsMin,
+		sampleRate,
 		sampleRateOptions,
 		sampleRateDisabled: sampleRateOptions.length === 0,
-		sampleRateHint: sampleRateDetail(bag),
-		channels: bag.channels,
+		sampleRateHint: sampleRateText(source),
+		channels: choice.channels,
 		channelOptions,
 		channelsDisabled: channelOptions.length === 0,
-		channelsHint: channelsDetail(bag),
+		channelsHint: channelsText(source),
 	};
 }
 
-export function applyCapabilities(
-	bag: EncodingBag,
-	capabilities: EncoderSettingsCapabilities | null,
-): void {
-	bag.capabilities = capabilities;
-	bag.availability = capabilities?.availability ?? null;
-	if (!capabilities) return;
-	for (const [format, field] of [
-		['m4b', 'bitrate'],
-		['m4aOpus', 'opusBitrate'],
-	] as const) {
-		const configuration = encoderConfiguration({ ...bag, format });
-		if (configuration)
-			bag[field] = Math.min(
-				configuration.bitrateKbpsMax,
-				Math.max(configuration.bitrateKbpsMin, bag[field]),
-			);
-	}
-	if (!capabilities.faacQualityPresets.includes(bag.faacQuality))
-		bag.faacQuality = capabilities.faacQualityDefault;
-	bag.nativeSpeed = Math.min(capabilities.nativeSpeedMax, Math.max(0, bag.nativeSpeed));
-	const sampleRates = [
-		...(capabilities.sampleRateAuto ? ['auto'] : []),
-		...capabilities.explicitSampleRates.map(String),
-	];
-	if (!sampleRates.includes(bag.sampleRate)) {
-		bag.sampleRate = capabilities.sampleRateAuto ? 'auto' : (sampleRates[0] ?? 'auto');
-	}
-	if (!capabilities.channelOptions.includes(bag.channels)) {
-		bag.channels = capabilities.channelOptions[0] ?? bag.channels;
-	}
-}
-
-export function applyDefaultsToBag(bag: EncodingBag, defaults: EncoderDefaults): void {
-	const settings = defaults.settings;
-	bag.flavor = settings.encoderType === 'opus' ? bag.flavor : settings.encoderType;
-	bag.format = defaults.format ?? 'm4b';
-	bag.intent = defaults.intent ?? 'auto';
-	if (settings.encoderType === 'opus') bag.opusBitrate = settings.bitrateKbps;
-	bag.hydratedBitrateMode = settings.bitrateMode;
-	bag.faacProfile = settings.faacProfile ?? 'auto';
-	if (settings.encoderType === 'faac') {
-		bag.faacMode = settings.bitrateMode.mode === 'vbr' ? 'vbr' : 'abr';
-		if (settings.bitrateMode.mode === 'vbr') bag.faacQuality = settings.bitrateMode.value;
-	}
-	bag.nativeSpeed = settings.nativeAacSpeed ?? 0;
-	bag.bitrate = settings.bitrateKbps;
-	bag.channels = settings.channels;
-	bag.sampleRate = defaults.sampleRate === 'auto' ? 'auto' : String(defaults.sampleRate.explicit);
-	applyCapabilities(bag, bag.capabilities);
-}
-
-export function selectField(bag: EncodingBag, field: EncodingField, value: string): boolean {
+/** The engine edit a control's value names, or `null` for a value it cannot name. */
+export function editFor(field: EncodingField, value: string): AudioEdit | null {
+	const number = Number(value);
+	const whole = value.trim() !== '' && Number.isInteger(number) && number >= 0;
 	switch (field) {
 		case 'format':
-			if (!['m4b', 'mp3', 'm4aOpus', 'mkaOpus'].includes(value)) return false;
-			bag.format = value as AudiobookFormat;
-			if (value === 'mp3') bag.intent = 'preserve';
-			return true;
+			return ['m4b', 'mp3', 'm4aOpus', 'mkaOpus'].includes(value)
+				? { field: 'format', value: value as AudiobookFormat }
+				: null;
 		case 'intent':
-			if (value !== 'auto' && value !== 'encode' && value !== 'preserve') return false;
-			if (bag.format === 'mp3' && value === 'encode') return false;
-			bag.intent = value;
-			return true;
-		case 'encoder': {
-			if (
-				bag.availability &&
-				disabledEncoderOptions(bag.availability)[value as 'aac_at' | 'native_aac']
-			)
-				return false;
-			if (value !== 'auto' && value !== 'aac_at' && value !== 'native_aac' && value !== 'faac') {
-				return false;
-			}
-			if (bag.flavor === value) return false;
-			bag.flavor = value;
-			return true;
-		}
-		case 'nativeSpeed': {
-			const speed = Number(value);
-			if (
-				!bag.capabilities ||
-				!Number.isInteger(speed) ||
-				speed < 0 ||
-				speed > bag.capabilities.nativeSpeedMax ||
-				speed === bag.nativeSpeed
-			)
-				return false;
-			bag.nativeSpeed = speed;
-			return true;
-		}
-		case 'faacProfile': {
-			if (value !== 'auto' && value !== 'aac_lc' && value !== 'he_aac_v1') return false;
-			if (bag.faacProfile === value) return false;
-			bag.faacProfile = value;
-			return true;
-		}
-		case 'rateControl': {
-			if (bag.flavor !== 'faac' || (value !== 'abr' && value !== 'vbr') || bag.faacMode === value)
-				return false;
-			bag.faacMode = value;
-			return true;
-		}
-		case 'quality': {
-			const quality = Number(value);
-			if (
-				bag.flavor !== 'faac' ||
-				!bag.capabilities?.faacQualityPresets.includes(quality) ||
-				bag.faacQuality === quality
-			)
-				return false;
-			bag.faacQuality = quality;
-			return true;
-		}
-		case 'bitrate': {
-			const parsed = Number(value);
-			const configuration = encoderConfiguration(bag);
-			if (
-				!Number.isInteger(parsed) ||
-				!value.trim() ||
-				!configuration ||
-				parsed < configuration.bitrateKbpsMin ||
-				parsed > configuration.bitrateKbpsMax
-			)
-				return false;
-			const field = opus(bag) ? 'opusBitrate' : 'bitrate';
-			if (bag[field] === parsed) return false;
-			bag[field] = parsed;
-			return true;
-		}
-		case 'sampleRate': {
-			const options = bag.capabilities
-				? [
-						...(bag.capabilities.sampleRateAuto ? ['auto'] : []),
-						...bag.capabilities.explicitSampleRates.map(String),
-					]
-				: ['auto'];
-			if (value !== 'auto' && !allowedSampleRates(bag).includes(Number(value))) return false;
-			const next = options.includes(value) ? value : 'auto';
-			if (bag.sampleRate === next) return false;
-			bag.sampleRate = next;
-			return true;
-		}
-		case 'channels': {
-			if (
-				value !== 'auto' &&
-				value !== 'mono' &&
-				value !== 'stereo' &&
-				!(bag.capabilities?.channelOptions.includes(value as EncodingBag['channels']) ?? false)
-			) {
-				return false;
-			}
-			if (
-				bag.capabilities &&
-				!bag.capabilities.channelOptions.includes(value as EncodingBag['channels'])
-			) {
-				return false;
-			}
-			if (bag.channels === value) return false;
-			bag.channels = value as EncodingBag['channels'];
-			return true;
-		}
+			return ['auto', 'encode', 'preserve'].includes(value)
+				? { field: 'intent', value: value as AudioIntent }
+				: null;
+		case 'encoder':
+			return ['auto', 'aac_at', 'native_aac', 'faac'].includes(value)
+				? { field: 'encoder', value: value as EncoderType }
+				: null;
+		case 'faacProfile':
+			return ['auto', 'aac_lc', 'he_aac_v1'].includes(value)
+				? { field: 'faacProfile', value: value as FaacProfile }
+				: null;
+		case 'rateControl':
+			return value === 'abr' || value === 'vbr'
+				? { field: 'rateControl', value: value as FaacRateControl }
+				: null;
+		case 'quality':
+			return whole ? { field: 'quality', value: number } : null;
+		case 'nativeSpeed':
+			return whole ? { field: 'nativeSpeed', value: number } : null;
+		case 'bitrate':
+			return whole ? { field: 'bitrate', value: number } : null;
+		case 'sampleRate':
+			if (value === 'auto') return { field: 'sampleRate', value: 'auto' };
+			return whole ? { field: 'sampleRate', value: { explicit: number } } : null;
+		case 'channels':
+			return ['auto', 'mono', 'stereo'].includes(value)
+				? { field: 'channels', value: value as 'auto' | 'mono' | 'stereo' }
+				: null;
 	}
 }

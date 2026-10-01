@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../lib/tauri/client';
-import type { AudioFile } from '../../types/audio';
 import type {
 	AcquisitionJob,
 	RemoteLibraryResponse,
@@ -8,14 +7,9 @@ import type {
 	RemoteSourceProviderCapabilities,
 	RemoteTitle,
 } from '../../types/remoteSource';
-import type { InputOwner } from '../inputSession';
 import { createRemoteSourceOwner, type RemoteSourceOwner } from './owner';
 import { releaseKey } from './selection';
-import {
-	ORDER_LOCKED_IMPORT_MESSAGE,
-	STAGED_FILES_REMOVED_SUFFIX,
-	type RemoteSourceWorkflowServices,
-} from './workflow';
+import type { RemoteSourceWorkflowServices } from './workflow';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -27,32 +21,6 @@ function createDeferred<T>() {
 		resolve = resolvePromise;
 	});
 	return { promise, resolve };
-}
-
-type FileListInfo = {
-	files: AudioFile[];
-	totalDuration: number;
-	totalSize: number;
-	validCount: number;
-	invalidCount: number;
-};
-
-function fileList(): FileListInfo {
-	return {
-		files: [
-			{
-				inputId: 'current-input-1',
-				path: '/session/book.m4b',
-				size: 1,
-				duration: 1,
-				isValid: true,
-			},
-		],
-		totalDuration: 1,
-		totalSize: 1,
-		validCount: 1,
-		invalidCount: 0,
-	};
 }
 
 function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
@@ -161,6 +129,21 @@ function terminalJob(): AcquisitionJob {
 			},
 		],
 		diagnostics: [],
+		handoff: { kind: 'imported', count: 1 },
+	};
+}
+
+/** The engine's acquisition events, delivered to whoever listens. */
+function acquisitionEvents() {
+	const handlers = new Set<(job: AcquisitionJob) => void>();
+	return {
+		listen: vi.fn(async (handler: (job: AcquisitionJob) => void) => {
+			handlers.add(handler);
+			return () => handlers.delete(handler);
+		}),
+		emit(job: AcquisitionJob) {
+			for (const handler of handlers) handler(job);
+		},
 	};
 }
 
@@ -239,12 +222,7 @@ function makeServices(
 				message: 'Cancelled.',
 			},
 		})),
-		purgeSession: vi.fn(async () => undefined),
-		importMaterializedPaths: vi.fn(async () => ({
-			status: 'imported' as const,
-			files: fileList().files,
-		})),
-		sleep: vi.fn(async () => undefined),
+		listenAcquisitions: acquisitionEvents().listen,
 		...overrides,
 	};
 }
@@ -253,15 +231,11 @@ function makeOwner(
 	services: RemoteSourceWorkflowServices,
 	loadCoverArtFromUrl?: (url: string) => Promise<number[]>,
 ): RemoteSourceOwner {
-	return createRemoteSourceOwner({
-		services,
-		input: {} as InputOwner,
-		loadCoverArtFromUrl,
-	});
+	return createRemoteSourceOwner({ services, loadCoverArtFromUrl });
 }
 
 describe('remote source acquisition workflow', () => {
-	it('rekeys supplemental PDFs through the Input file list after a successful handoff', async () => {
+	it('reports how the engine handed a finished acquisition to the session', async () => {
 		const services = makeServices();
 		const owner = makeOwner(services);
 		await owner.open();
@@ -274,100 +248,60 @@ describe('remote source acquisition workflow', () => {
 		expect(services.startAcquisition).toHaveBeenCalledWith('audible', [
 			{ titleId: 'B000000001', includeSupplementalPdf: true },
 		]);
-		expect(services.importMaterializedPaths).toHaveBeenCalledWith(['/session/book.m4b']);
-		expect(services.purgeSession).not.toHaveBeenCalled();
-		expect(owner.processingAssets(['current-input-1'])).toEqual({
-			'current-input-1': [
-				{
-					assetId: 'pdf-1',
-					inputId: 'current-input-1',
-					titleId: 'B000000001',
-					path: '/session/book.pdf',
-					fileName: primaryPdfFileName,
-					sizeBytes: 32,
-					sha256: 'pdf-sha',
-				},
-			],
-		});
 		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
 	});
 
-	it('publishes polled getAcquisitionStatus download progress before the job terminals', async () => {
-		const published: Array<{
-			readonly stage: string;
-			readonly percentage: number;
-			readonly message: string;
-			readonly bytesDownloaded?: number;
-			readonly bytesTotal?: number;
-		}> = [];
-		let polls = 0;
-		let owner!: RemoteSourceOwner;
+	it('shows download progress from engine events until the job settles', async () => {
+		const events = acquisitionEvents();
 		const services = makeServices({
-			getAcquisitionStatus: vi.fn(async () => {
-				polls += 1;
-				if (polls === 1) {
-					return downloadingJob();
-				}
-				const progress = owner.view().activeJob?.progress;
-				if (progress) {
-					published.push({
-						stage: progress.stage,
-						percentage: progress.percentage,
-						message: progress.message,
-						bytesDownloaded: progress.bytesDownloaded,
-						bytesTotal: progress.bytesTotal,
-					});
-				}
-				return terminalJob();
-			}),
+			getAcquisitionStatus: vi.fn(async () => runningJob()),
+			listenAcquisitions: events.listen,
 		});
-		owner = makeOwner(services);
+		const owner = makeOwner(services);
 		await owner.open();
 		owner.toggleTitle('B000000001');
-		await owner.runAction({ type: 'acquireSelected' });
+		const acquiring = owner.runAction({ type: 'acquireSelected' });
+		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
 
-		expect(published).toContainEqual({
-			stage: 'download',
-			percentage: 40,
-			message: 'Downloading audiobook.',
-			bytesDownloaded: 78_105_334,
-			bytesTotal: 156_210_669,
-		});
-		expect(services.getAcquisitionStatus).toHaveBeenCalled();
+		events.emit(downloadingJob());
+		await vi.waitFor(() =>
+			expect(owner.view().activeJob?.progress).toMatchObject({
+				stage: 'download',
+				bytesDownloaded: 78_105_334,
+			}),
+		);
+		events.emit({ ...runningJob(), jobId: 'another-job', status: 'failed' });
+		expect(owner.view().activeJob?.jobId).toBe('remote-job-1');
+
+		events.emit(terminalJob());
+		await acquiring;
+		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
 	});
 
-	it('purges staged remote files when Input import is blocked by an order lock', async () => {
+	it('words a handoff the engine refused', async () => {
 		const services = makeServices({
-			importMaterializedPaths: vi.fn(async () => ({
-				status: 'blocked' as const,
-				message: ORDER_LOCKED_IMPORT_MESSAGE,
+			getAcquisitionStatus: vi.fn(async () => ({
+				...terminalJob(),
+				materializedFiles: [],
+				supplementalAssets: [],
+				handoff: { kind: 'removed' as const, reason: { kind: 'nothingAdded' as const } },
 			})),
 		});
 		const owner = makeOwner(services);
 		await owner.open();
 		owner.toggleTitle('B000000001');
 
-		await owner.runAction({
-			type: 'acquireSelected',
-		});
+		await owner.runAction({ type: 'acquireSelected' });
 
-		expect(services.purgeSession).toHaveBeenCalledWith('remote-job-1');
-		expect(owner.processingAssets(['current-input-1'])).toBeUndefined();
-		expect(owner.view().activeJob?.materializedFiles).toEqual([]);
-		expect(owner.view().activeJob?.supplementalAssets).toEqual([]);
-		expect(owner.view().statusMessage).toContain(STAGED_FILES_REMOVED_SUFFIX);
+		expect(owner.view().statusMessage).toContain('were not added to the input session');
+		expect(owner.view().statusMessage).toContain('Staged remote files were removed');
 	});
 
 	it('does not call native cancel when the dialog closes during an in-flight acquisition', async () => {
-		let polls = 0;
 		let owner!: RemoteSourceOwner;
 		const services = makeServices({
 			getAcquisitionStatus: vi.fn(async () => {
-				polls += 1;
-				if (polls === 1) {
-					owner.close();
-					return runningJob();
-				}
+				owner.close();
 				return terminalJob();
 			}),
 		});
@@ -381,7 +315,6 @@ describe('remote source acquisition workflow', () => {
 
 		expect(services.cancelAcquisition).not.toHaveBeenCalled();
 		expect(owner.view().isOpen).toBe(false);
-		expect(services.importMaterializedPaths).toHaveBeenCalled();
 	});
 
 	it('cancels only through the explicit cancel action', async () => {
@@ -403,10 +336,11 @@ describe('remote source acquisition workflow', () => {
 		await acquiring;
 	});
 
-	it('does not let a late acquisition poll overwrite native cancellation', async () => {
-		const latePoll = createDeferred<AcquisitionJob>();
+	it('does not let a late acquisition event overwrite native cancellation', async () => {
+		const events = acquisitionEvents();
 		const services = makeServices({
-			getAcquisitionStatus: vi.fn(() => latePoll.promise),
+			getAcquisitionStatus: vi.fn(async () => runningJob()),
+			listenAcquisitions: events.listen,
 		});
 		const owner = makeOwner(services);
 		await owner.open();
@@ -423,15 +357,14 @@ describe('remote source acquisition workflow', () => {
 		expect(owner.view().activeJob?.status).toBe('cancelled');
 		expect(owner.view().isBusy).toBe(false);
 
-		latePoll.resolve(downloadingJob());
+		events.emit(downloadingJob());
 		await acquisition;
 
 		expect(owner.view().activeJob?.status).toBe('cancelled');
 		expect(owner.view().activeJob?.progress?.percentage).toBe(10);
-		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
 	});
 
-	it('keeps acquisition state and supplemental assets isolated across owners', async () => {
+	it('keeps acquisition state isolated across owners', async () => {
 		const first = makeOwner(makeServices());
 		const second = makeOwner(makeServices());
 		await first.open();
@@ -441,40 +374,11 @@ describe('remote source acquisition workflow', () => {
 
 		await first.runAction({ type: 'acquireSelected' });
 		await second.runAction({ type: 'acquireSelected' });
-		expect(first.hasCompanions('current-input-1')).toBe(true);
-		expect(second.hasCompanions('current-input-1')).toBe(true);
 
 		first.reset();
-		expect(first.hasCompanions('current-input-1')).toBe(false);
-		expect(second.hasCompanions('current-input-1')).toBe(true);
+		expect(first.view().lastJob).toBeNull();
+		expect(second.view().lastJob?.jobId).toBe('remote-job-1');
 		expect(second.view().isOpen).toBe(true);
-	});
-
-	it('keeps retain, reconcile, and purge sequencing isolated across owners', async () => {
-		const firstServices = makeServices();
-		const secondServices = makeServices();
-		const first = makeOwner(firstServices);
-		const second = makeOwner(secondServices);
-		await first.open();
-		first.toggleTitle('B000000001');
-		await second.open();
-		second.toggleTitle('B000000001');
-		await first.runAction({ type: 'acquireSelected' });
-		await second.runAction({ type: 'acquireSelected' });
-		await first.reconcileWithInput(fileList().files);
-		await second.reconcileWithInput(fileList().files);
-
-		await first.withSubmissionRetention(['current-input-1'], async () => 'accepted');
-		await first.reconcileWithInput([]);
-		await second.reconcileWithInput([]);
-
-		expect(firstServices.purgeSession).not.toHaveBeenCalled();
-		expect(secondServices.purgeSession).toHaveBeenCalledWith('remote-job-1');
-		await first.settleTerminalWork({
-			inputIds: ['current-input-1'],
-			completedInputIds: [],
-		});
-		expect(firstServices.purgeSession).toHaveBeenCalledWith('remote-job-1');
 	});
 
 	it('keeps cover preview cancellation and cache state isolated across owners', async () => {
@@ -528,7 +432,7 @@ describe('remote source acquisition workflow', () => {
 		});
 	});
 
-	it('grabs the selected indexer identity without starting acquisition or importing files', async () => {
+	it('grabs the selected indexer identity without starting acquisition', async () => {
 		const services = makeServices();
 		const owner = makeOwner(services);
 		const first = indexerRelease({ indexerId: 1 });
@@ -545,39 +449,34 @@ describe('remote source acquisition workflow', () => {
 		await owner.runAction({ type: 'grabSelectedReleases' });
 		expect(services.grabRelease).toHaveBeenCalledExactlyOnceWith({ release: chosen });
 		expect(services.startAcquisition).not.toHaveBeenCalled();
-		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
 		expect(owner.view().statusMessage).toBe('Release sent to downloader.');
 		expect(owner.view().isBusy).toBe(false);
 	});
 
-	it.each(['rejected', 'error'] as const)(
-		'publishes a %s grab without importing',
-		async (outcome) => {
-			const services = makeServices({
-				grabRelease: vi.fn<RemoteSourceWorkflowServices['grabRelease']>(async () => {
-					if (outcome === 'error') throw new Error('Indexer unavailable');
-					return {
-						providerId: 'indexer',
-						accepted: false,
-						message: 'Rejected',
-						diagnostics: [{ kind: 'releaseGrabFailed', message: 'No download client' }],
-					};
-				}),
-			});
-			const owner = makeOwner(services);
-			const release = indexerRelease();
-			await owner.open({ lane: 'indexer' });
-			owner.editSearch({ indexerTitleQuery: 'Example' });
-			await owner.runAction({ type: 'searchReleases' });
-			owner.selectRelease(release);
-			await owner.runAction({ type: 'grabSelectedReleases' });
-			expect(owner.view().statusMessage).toContain(
-				outcome === 'error' ? 'Could not confirm the handoff.' : 'No download client',
-			);
-			expect(owner.view().isBusy).toBe(false);
-			expect(services.importMaterializedPaths).not.toHaveBeenCalled();
-		},
-	);
+	it.each(['rejected', 'error'] as const)('publishes a %s grab', async (outcome) => {
+		const services = makeServices({
+			grabRelease: vi.fn<RemoteSourceWorkflowServices['grabRelease']>(async () => {
+				if (outcome === 'error') throw new Error('Indexer unavailable');
+				return {
+					providerId: 'indexer',
+					accepted: false,
+					message: 'Rejected',
+					diagnostics: [{ kind: 'releaseGrabFailed', message: 'No download client' }],
+				};
+			}),
+		});
+		const owner = makeOwner(services);
+		const release = indexerRelease();
+		await owner.open({ lane: 'indexer' });
+		owner.editSearch({ indexerTitleQuery: 'Example' });
+		await owner.runAction({ type: 'searchReleases' });
+		owner.selectRelease(release);
+		await owner.runAction({ type: 'grabSelectedReleases' });
+		expect(owner.view().statusMessage).toContain(
+			outcome === 'error' ? 'Could not confirm the handoff.' : 'No download client',
+		);
+		expect(owner.view().isBusy).toBe(false);
+	});
 
 	it('submits a captured bulk selection sequentially, retains partial outcomes across reopen, and retries only failures', async () => {
 		const pending =
@@ -633,7 +532,6 @@ describe('remote source acquisition workflow', () => {
 		await owner.runAction({ type: 'searchReleases' });
 		expect(owner.view().releaseGrabs).toEqual({});
 		expect(owner.view().selectedReleaseKeys.size).toBe(0);
-		expect(services.importMaterializedPaths).not.toHaveBeenCalled();
 	});
 
 	it('keeps an Indexer batch busy when a background Audible acquisition settles', async () => {
@@ -733,7 +631,7 @@ describe('remote source acquisition workflow', () => {
 		expect(services.logout).not.toHaveBeenCalled();
 		poll.resolve(terminalJob());
 		await acquiring;
-		expect(services.importMaterializedPaths).toHaveBeenCalled();
+		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
 	});
 
 	it('retains a background Audible failure while an Indexer search is pending', async () => {
@@ -897,7 +795,6 @@ describe('remote source acquisition workflow', () => {
 		expect(services.cancelAcquisition).not.toHaveBeenCalled();
 		poll.resolve(terminalJob());
 		await acquiring;
-		expect(services.importMaterializedPaths).toHaveBeenCalledWith(['/session/book.m4b']);
 		expect(owner.view().providerId).toBe('indexer');
 	});
 

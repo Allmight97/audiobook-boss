@@ -90,12 +90,6 @@ pub fn cancel_remote_source_acquisition(
 
 #[tauri::command]
 #[specta::specta]
-pub fn purge_remote_source_session(engine: EngineState<'_>, job_id: String) -> CommandResult<()> {
-    Ok(engine.remote_source().purge_session(&job_id)?)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn search_remote_source_releases(
     engine: EngineState<'_>,
     request: RemoteReleaseSearchRequest,

@@ -9,7 +9,6 @@
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-dialog": "^2.7.3",
         "@tauri-apps/plugin-opener": "^2.5.5",
-        "effect": "4.0.0-rc.118",
         "solid-js": "2.0.0-rc.10",
       },
       "devDependencies": {
@@ -326,8 +325,6 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "dom-accessibility-api": ["dom-accessibility-api@0.6.3", "", {}, "sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w=="],
-
-    "effect": ["effect@4.0.0-rc.118", "", {}, "sha512-hxhpCd+swzrtu9lnyPpEFre2ODQzJ9qxgyL1oHIEY8NKnW4PxTbM1XzplMZXiAsLD62HO+KJc41Nqxr9T791ZQ=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.431", "", {}, "sha512-AAVihz2YwJeOdAynX8MUtqpvjY0gaiARp/7+r4kwqgzqXMrfG1qDN7vwT80uxAoOQRPcZH8t73EI+CA/1OJN8A=="],
 

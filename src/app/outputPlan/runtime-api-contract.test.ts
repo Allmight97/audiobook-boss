@@ -5,7 +5,6 @@ import * as outputPlan from '.';
 const EXPECTED_APP_OUTPUT_PLAN_EXPORTS = [
 	'CUSTOM_TEMPLATE_PLACEHOLDER',
 	'createOutputOwner',
-	'runOutputPlanReviewWorkflow',
 ] as const;
 
 describe('app Output Plan Public API Strip', () => {

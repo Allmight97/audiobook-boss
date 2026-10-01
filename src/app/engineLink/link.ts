@@ -2,10 +2,11 @@ import { createSignal, type Accessor } from 'solid-js';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
 	SessionIntent,
+	SessionAudio,
 	SessionLookup,
+	SessionOutput,
 	SessionMetadata,
 	SessionOutcome,
 	SessionSelection,
@@ -22,6 +23,8 @@ export type EngineLink = {
 	readonly selection: Accessor<SessionSelection>;
 	readonly metadata: Accessor<SessionMetadata>;
 	readonly lookup: Accessor<SessionLookup>;
+	readonly audio: Accessor<SessionAudio>;
+	readonly output: Accessor<SessionOutput>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
@@ -29,7 +32,6 @@ export type EngineLink = {
 	post(intent: SessionIntent): void;
 	sendSettings(intent: SettingsIntent): Promise<SettingsOutcome>;
 	coverArt(): Promise<number[] | null>;
-	metadataIntents(filePaths: readonly string[]): Promise<Record<string, MetadataIntentPatch>>;
 	/** Resolves once the engine's current state has been received. */
 	ready(): Promise<void>;
 	dispose(): void;
@@ -47,7 +49,7 @@ function emptyTitles(): SessionTitles {
 		orderLocked: false,
 		notice: null,
 		orderDiffersFromImport: false,
-		audioRequestsByIdentity: {},
+		companions: {},
 	};
 }
 
@@ -72,7 +74,20 @@ function emptyMetadata(): SessionMetadata {
 			notice: null,
 			noticeSerial: 0,
 		},
-		albumSort: null,
+		tags: {
+			title: '',
+			album: '',
+			artist: '',
+			albumArtist: '',
+			composer: '',
+			series: '',
+			seriesPart: '',
+			subseries: '',
+			subseriesPart: '',
+			albumSort: '',
+			year: '',
+			genre: '',
+		},
 		saveInProgress: false,
 		status: null,
 		hasPendingEdits: false,
@@ -94,6 +109,64 @@ function emptyLookup(): SessionLookup {
 		results: [],
 		isQueueMode: false,
 		hasSearched: false,
+	};
+}
+
+function emptyOutput(): SessionOutput {
+	return {
+		revision: UNATTACHED,
+		directory: null,
+		preset: 'absDefault',
+		includeYear: false,
+		template: '',
+		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+		preview: { kind: 'noDirectory' },
+		submission: null,
+	};
+}
+
+/** What shows before the engine's audio part arrives: the fresh defaults, no capabilities. */
+function emptyAudio(): SessionAudio {
+	const settings = {
+		encoderType: 'native_aac',
+		bitrateKbps: 65,
+		bitrateMode: { mode: 'cbr' },
+		channels: 'auto',
+		nativeAacSpeed: 0,
+		faacProfile: 'auto',
+	} as const;
+	return {
+		revision: UNATTACHED,
+		capabilities: null,
+		defaults: {
+			choice: {
+				format: 'm4b',
+				intent: 'auto',
+				encoder: 'native_aac',
+				aacBitrateKbps: 65,
+				opusBitrateKbps: 64,
+				savedMode: { mode: 'cbr' },
+				faacProfile: 'auto',
+				faacRateControl: 'abr',
+				faacQuality: 100,
+				nativeSpeed: 0,
+				channels: 'auto',
+				sampleRate: 'auto',
+			},
+			facts: {
+				effectiveEncoder: 'native_aac',
+				bitrateMode: { mode: 'cbr' },
+				bitrateKbpsMin: 1,
+				bitrateKbpsMax: 0,
+				allowedModes: [],
+				faacProfiles: [],
+				allowedSampleRates: [],
+				sampleRateSupported: true,
+				estimateKbps: 65,
+			},
+			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
+		},
+		titles: {},
 	};
 }
 
@@ -157,12 +230,16 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	};
 	let metadata = emptyMetadata();
 	let lookup = emptyLookup();
+	let audio = emptyAudio();
+	let output = emptyOutput();
 	let settings = emptySettings();
 	const part = () => createSignal(0, { ownedWrite: true });
 	const [titlesRev, bumpTitles] = part();
 	const [selectionRev, bumpSelection] = part();
 	const [metadataRev, bumpMetadata] = part();
 	const [lookupRev, bumpLookup] = part();
+	const [audioRev, bumpAudio] = part();
+	const [outputRev, bumpOutput] = part();
 	const [settingsRev, bumpSettings] = part();
 	let disposed = false;
 	let sessionSequence = 0;
@@ -184,6 +261,14 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			metadata = update.metadata;
 			bumpMetadata((n) => n + 1);
 		}
+		if (update.output && update.output.revision > output.revision) {
+			output = update.output;
+			bumpOutput((n) => n + 1);
+		}
+		if (update.audio && update.audio.revision > audio.revision) {
+			audio = update.audio;
+			bumpAudio((n) => n + 1);
+		}
 		if (update.lookup && update.lookup.revision > lookup.revision) {
 			lookup = shareUnchangedResults(lookup, update.lookup);
 			bumpLookup((n) => n + 1);
@@ -200,9 +285,14 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 
 	// Updates are heard before the attach reply, so nothing published in
 	// between is missed; part revisions make applying one twice harmless.
-	const attached = capability
-		.listenSessionUpdates(applySession)
-		.then((stop) => {
+	const attached = Promise.all([
+		capability.listenSessionUpdates(applySession),
+		capability.listenSettingsUpdates(applySettings),
+	])
+		.then((stops) => {
+			const stop = () => {
+				for (const each of stops) each();
+			};
 			if (disposed) stop();
 			else unlisten = stop;
 			return capability.attach();
@@ -240,6 +330,14 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			metadataRev();
 			return metadata;
 		},
+		audio: () => {
+			audioRev();
+			return audio;
+		},
+		output: () => {
+			outputRev();
+			return output;
+		},
 		lookup: () => {
 			lookupRev();
 			return lookup;
@@ -263,7 +361,6 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 				});
 		},
 		coverArt: () => capability.sessionCoverArt(),
-		metadataIntents: (filePaths) => capability.sessionMetadataIntents([...filePaths]),
 		ready: () => attached.then(() => undefined),
 		dispose() {
 			disposed = true;

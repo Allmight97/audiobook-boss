@@ -8,9 +8,7 @@ export function FileInspectorView(): JSX.Element {
 	const runtime = useAppRuntime();
 	const view = runtime.input.view;
 	const inspector = () => {
-		return toInspectorViewFromInput(view(), (inputIds) =>
-			runtime.remoteSource.companionSummary(inputIds),
-		);
+		return toInspectorViewFromInput(view(), runtime.input.companionSummary);
 	};
 
 	return (

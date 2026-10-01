@@ -1,7 +1,6 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import type { SettingsIntent, SettingsReply, SettingsSnapshot } from '../../../types/appSettings';
 import { EVENTS } from '../../../types/events';
-import type { MetadataIntentPatch } from '../../../types/metadataIntent';
 import type { SessionIntent, SessionReply, SessionUpdate } from '../../../types/session';
 import { tauriClient } from '../client';
 
@@ -15,8 +14,9 @@ export interface EngineCapability {
 		intent: SettingsIntent,
 	): Promise<SettingsReply>;
 	sessionCoverArt(): Promise<number[] | null>;
-	sessionMetadataIntents(filePaths: string[]): Promise<Record<string, MetadataIntentPatch>>;
 	listenSessionUpdates(handler: (update: SessionUpdate) => void): Promise<UnlistenFn>;
+	/** Settings changed by something other than a settings intent. */
+	listenSettingsUpdates(handler: (snapshot: SettingsSnapshot) => void): Promise<UnlistenFn>;
 }
 
 export const liveEngineCapability: EngineCapability = {
@@ -26,9 +26,12 @@ export const liveEngineCapability: EngineCapability = {
 	settingsDispatch: (client, sequence, intent) =>
 		tauriClient.settingsDispatch(client, sequence, intent),
 	sessionCoverArt: () => tauriClient.sessionCoverArt(),
-	sessionMetadataIntents: (filePaths) => tauriClient.sessionMetadataIntents(filePaths),
 	listenSessionUpdates: (handler) =>
 		tauriClient.listen(EVENTS.SESSION_UPDATE, (event) => {
+			handler(event.payload);
+		}),
+	listenSettingsUpdates: (handler) =>
+		tauriClient.listen(EVENTS.SETTINGS_UPDATE, (event) => {
 			handler(event.payload);
 		}),
 };

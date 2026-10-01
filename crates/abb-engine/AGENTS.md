@@ -20,6 +20,16 @@ the same code.
 - A new host need (a directory, a platform service, an event) is added to
   `EngineConfig`, `EventSink`, or `Engine`. Engine code never reaches a host
   type.
+- Before exiting or reusing the engine's folders, a host awaits
+  `Engine::shutdown`: it refuses new exports and acquisitions, cancels running
+  ones, a running preview, and any submission waiting at collision review,
+  and waits for every background task and for the Saves, submissions, and
+  settings writes already under way, so saves waiting on them are written.
+  Metadata Saves are not cancelled. `Engine::running_work` tells a host what
+  quitting would stop.
+- Every background task the engine starts runs on its one `TaskTracker`
+  (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.
+  Short scoped tasks joined before their caller returns are the exception.
 - `abb-dev` (`src/bin/abb_dev.rs`) is the smallest host. It runs under its own
   identity and state folder; keep it from reading the app's settings or
   credentials.
@@ -32,8 +42,8 @@ the same code.
   summaries belong to `crate::processing`. Accepted operation identity,
   snapshots, retention, and operation cancellation belong to
   `crate::work_runtime`.
-- The titles being prepared, their metadata drafts, lookup, and Save belong to
-  `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
+- The titles being prepared, their metadata drafts, lookup, Save, and
+  submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
   operation per batch) and loads user-picked covers through `cover_source.rs`,
   which owns the URL and file limits.
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
@@ -42,17 +52,18 @@ the same code.
   (`metadata_lookup/service.rs`).
 - The settings in effect, their validation, storage, and durability belong to
   `crate::app_settings`; it consults runtime owners for accept/reject rules.
-- Remote provider registry, secrets, acquisition, staged files, Supplemental
-  Assets, and purge belong to `crate::remote_source`. Provider-private
-  details stay out of other owners, logs, and host payloads.
+- Remote provider registry, secrets, acquisition, and staged files belong to
+  `crate::remote_source`; when an imported download is removed is the
+  session's. Provider-private details stay out of other owners, logs, and
+  host payloads.
 - Metadata reads/writes cross `crate::metadata`. The metadata owner selects
   container handling from actual media classification; callers request an
   outcome rather than choosing MP4/FFmpeg strategy modules.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
-- Final processing enters WorkRuntime through `submit_processing_operation`.
-  `process_preview` is direct preview and requires `preview_seconds`. Read
-  the Processing owner guidance when changing either lifecycle.
+- Exports and previews start from the session (`Submit`, `Preview`). An
+  export enters WorkRuntime through `submit_processing_operation`; a preview
+  runs `process_payload` directly with `preview_seconds`.
 
 ## Diagnostics
 

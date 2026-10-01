@@ -4,17 +4,10 @@ import type {
 	AppSettings,
 	AppSettingsRecoveryPlan,
 	ConcurrencyPreference,
-	EncoderDefaults,
-	OutputDefaults,
-	PinnedDefaults,
 	SettingsIntent,
 	SettingsOutcome,
 	StartupBehavior,
 } from '../../types/appSettings';
-import {
-	liveSettingsCapability,
-	type SettingsCapability,
-} from '../../lib/tauri/capabilities/settings';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { EngineLink } from '../engineLink';
 
@@ -57,14 +50,9 @@ export type AppSettingsDialogState = {
  */
 export type SettingsOwner = {
 	readonly durability: Accessor<SettingsDurability>;
-	/** The defaults this launch starts from. Rejects while settings are unreadable. */
-	loadStartupDefaults(): Promise<PinnedDefaults>;
-	rememberEncoderDefaults(defaults: EncoderDefaults): void;
-	rememberOutputDefaults(defaults: OutputDefaults): void;
 	retryPersistence(): Promise<void>;
 	readonly concurrency: Accessor<ConcurrencyView>;
 	readonly defaultAcquisitionLane: Accessor<AcquisitionLane>;
-	readonly capability: Accessor<SettingsCapability>;
 	readonly dialog: Accessor<AppSettingsDialogState>;
 	setConcurrencySelection(value: string): Promise<void>;
 	setDefaultAcquisitionLane(lane: AcquisitionLane): Promise<void>;
@@ -77,13 +65,11 @@ export type SettingsOwner = {
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
 	recoverEncoderDefaults(): Promise<void>;
-	bindAfterReset(apply: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined): void;
 	reset(): void;
 };
 
 export type SettingsOwnerDeps = {
 	readonly link: EngineLink;
-	readonly capability?: SettingsCapability;
 };
 
 /** The dialog's own progress: which control is saving and how it ended. */
@@ -118,8 +104,6 @@ function preferenceFromSelection(value: string): ConcurrencyPreference {
 
 export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	const { link } = deps;
-	const capabilityValue = deps.capability ?? liveSettingsCapability;
-	const capability: Accessor<SettingsCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	let dialog = idleDialog();
 	let concurrencyError = '';
@@ -127,7 +111,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 	let writesInFlight = 0;
 	// Advances on reset; a reply from before it changes nothing here.
 	let generation = 0;
-	let afterSettingsReset: ((defaults: PinnedDefaults) => void | Promise<void>) | undefined;
 
 	function changed(): void {
 		bump((n) => n + 1);
@@ -187,19 +170,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 				? { state: 'error', message: toUserMessage(error) }
 				: { state: 'saved', message: '' };
 		},
-		async loadStartupDefaults() {
-			await link.ready();
-			const settings = link.settings();
-			if (!settings.startupDefaults)
-				throw settings.loadError ?? new Error('App settings are unavailable.');
-			return settings.startupDefaults;
-		},
-		rememberEncoderDefaults: (encoderDefaults) => {
-			void remember({ kind: 'remember', encoderDefaults });
-		},
-		rememberOutputDefaults: (outputDefaults) => {
-			void remember({ kind: 'remember', outputDefaults });
-		},
 		async retryPersistence() {
 			writesInFlight += 1;
 			changed();
@@ -230,7 +200,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			};
 		},
 		defaultAcquisitionLane: () => link.settings().defaultAcquisitionLane,
-		capability,
 		dialog: () => {
 			rev();
 			const snapshot = link.settings();
@@ -290,8 +259,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			if (!(await runDialogAction('save', { kind: 'reset' })) || started !== generation) return;
 			concurrencyError = '';
 			changed();
-			const defaults = link.settings().startupDefaults;
-			if (defaults) await afterSettingsReset?.(defaults);
 		},
 		async recoverEncoderDefaults() {
 			const expected = link.settings().recovery;
@@ -310,12 +277,8 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 					'kind' in outcome && outcome.kind === 'recovered' ? outcome.backupFileName : '',
 			});
 		},
-		bindAfterReset(apply) {
-			afterSettingsReset = apply;
-		},
 		reset() {
 			generation += 1;
-			afterSettingsReset = undefined;
 			dialog = idleDialog();
 			concurrencyError = '';
 			controlsEnabled = true;
