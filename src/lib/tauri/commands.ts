@@ -1,7 +1,6 @@
 import {
 	commands as generatedCommands,
 	type EncoderDefaults as GeneratedEncoderDefaults,
-	type MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch,
 	type OutputDefaults as GeneratedOutputDefaults,
 	type SettingsIntent as GeneratedSettingsIntent,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
@@ -10,14 +9,9 @@ import {
 	type RemoteReleaseGrabRequest as GeneratedRemoteReleaseGrabRequest,
 	type RemoteReleaseSearchRequest as GeneratedRemoteReleaseSearchRequest,
 } from '../generated/tauri';
-import type {
-	OutputNamingConfig,
-	ProcessPayload,
-	ProcessingPreflightPlan,
-} from '../../types/audio';
+import type { OutputNamingConfig } from '../../types/audio';
 import type { AppSettings, SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import type { SessionIntent } from '../../types/session';
 import type {
 	AcquisitionPlan,
@@ -27,23 +21,18 @@ import type {
 	RemoteReleaseGrabRequest,
 	RemoteReleaseSearchRequest,
 } from '../../types/remoteSource';
-import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
+import type { OperationId } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
 	denormalizeNullish,
-	denormalizeProcessPayload,
 	normalizeFrontendAttachment,
 	normalizeMetadata,
 	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
-	normalizeProcessResult,
 	normalizeSessionReply,
 	normalizeSettingsReply,
-	normalizeWorkSubmissionAccepted,
 } from './normalizers';
-
-type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 
 type UnwrapGeneratedResult<T> = T extends { status: 'error' }
 	? never
@@ -112,21 +101,6 @@ function toGeneratedSettingsIntent(intent: SettingsIntent): GeneratedSettingsInt
 	};
 }
 
-function compileMetadataIntentMap(
-	metadataIntentByPath?: MetadataIntentByPath | null,
-): Record<string, GeneratedMetadataIntentPatch> | null {
-	if (!metadataIntentByPath) {
-		return null;
-	}
-
-	return Object.fromEntries(
-		Object.entries(metadataIntentByPath).map(([path, value]) => [
-			path,
-			compileMetadataIntentPatch(value),
-		]),
-	);
-}
-
 export const commandSpecs = {
 	attach_frontend: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.attachFrontend(), normalizeFrontendAttachment),
@@ -146,11 +120,6 @@ export const commandSpecs = {
 		),
 	session_cover_art: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.sessionCoverArt()),
-	session_metadata_intents: (args: { filePaths: string[] }) =>
-		runGeneratedCommand(
-			generatedCommands.sessionMetadataIntents(args.filePaths),
-			(intents) => intents as Record<string, MetadataIntentPatch>,
-		),
 	read_audio_metadata: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
 	load_cover_art_from_url: (args: { url: string }) =>
@@ -231,42 +200,6 @@ export const commandSpecs = {
 				denormalizeNullish(args.update) as GeneratedRemoteIndexerConnectionUpdate,
 			),
 			normalizeNullish,
-		),
-	preflight_processing_plan: (args: {
-		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds?: number | null;
-	}) =>
-		runGeneratedCommand(
-			generatedCommands.preflightProcessingPlan(
-				denormalizeProcessPayload(args.payload),
-				compileMetadataIntentMap(args.metadataIntent),
-				args.previewSeconds ?? null,
-			),
-			(plan) => normalizeNullish(plan) as ProcessingPreflightPlan,
-		),
-	process_audiobook_files: (args: {
-		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds: number;
-	}) =>
-		runGeneratedCommand(
-			generatedCommands.processAudiobookFiles(
-				denormalizeProcessPayload(args.payload),
-				compileMetadataIntentMap(args.metadataIntent),
-				args.previewSeconds,
-			),
-			normalizeProcessResult,
-		),
-	submit_processing_operation: (args: SubmitProcessingOperationRequest) =>
-		runGeneratedCommand(
-			generatedCommands.submitProcessingOperation({
-				payload: denormalizeProcessPayload(args.payload),
-				metadata: compileMetadataIntentMap(args.metadataIntent),
-				previewSeconds: args.previewSeconds ?? null,
-				title: args.title ?? null,
-			}),
-			normalizeWorkSubmissionAccepted,
 		),
 	list_work_operations: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.listWorkOperations(), normalizeOperationListSnapshot),

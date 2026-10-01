@@ -4,7 +4,6 @@ import * as input from '.';
 it('pins the Input public export strip', () => {
 	expect(Object.keys(input).sort()).toEqual(
 		[
-			'chapterPlansForProcessing',
 			'createInputOwner',
 			'displayedArtistForFile',
 			'displayedTitleForFile',

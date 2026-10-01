@@ -1,10 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type {
-	AudioFile,
-	CollisionPolicy,
-	OutputRequestConfig,
-	ProcessingPreflightPlan,
-} from '../../types/audio';
+import type { AudioFile, CollisionPolicy, PlannedOutput } from '../../types/audio';
 import { formatFileSize } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { OutputPreview } from '../../types/session';
@@ -21,8 +16,7 @@ import {
 /**
  * The engine owns where exports go, how they are named, the path preview,
  * and each title's size estimate. This owner shows them, opens the folder
- * picker, and holds the collision review until submission moves into the
- * engine.
+ * picker, and holds the collision dialog a submission asks through.
  */
 export type OutputPlanOwner = {
 	readonly view: Accessor<OutputView>;
@@ -32,10 +26,10 @@ export type OutputPlanOwner = {
 	selectNamingPreset(value: string): void;
 	setAbsIncludeYear(value: boolean): void;
 	editNamingTemplate(value: string): void;
-	openCollisionReview(plan: ProcessingPreflightPlan): Promise<CollisionPolicy | null>;
+	/** Asks the user what to do with outputs that already exist; `null` cancels. */
+	openCollisionReview(outputs: readonly PlannedOutput[]): Promise<CollisionPolicy | null>;
 	chooseCollisionPolicy(policy: CollisionPolicy): void;
 	cancelCollisionReview(): void;
-	readRequestConfig(): OutputRequestConfig;
 	reset(): void;
 };
 
@@ -120,26 +114,14 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 					bump((n) => n + 1);
 				});
 		},
-		openCollisionReview(plan) {
-			return collisionReview.open(plan);
+		openCollisionReview(outputs) {
+			return collisionReview.open(outputs);
 		},
 		chooseCollisionPolicy(policy) {
 			collisionReview.choose(policy);
 		},
 		cancelCollisionReview() {
 			collisionReview.cancel();
-		},
-		readRequestConfig() {
-			const output = link.output();
-			if (!output.directory) throw new Error('Output directory not selected');
-			return {
-				outputDirectory: output.directory,
-				outputNaming: {
-					preset: output.naming.preset,
-					includeYear: output.naming.includeYear,
-					customTemplate: output.naming.customTemplate ?? undefined,
-				},
-			};
 		},
 		reset() {
 			collisionReview.reset();

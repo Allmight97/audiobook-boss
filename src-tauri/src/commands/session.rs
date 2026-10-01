@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use abb_engine::app_settings::{SettingsIntent, SettingsReply, SettingsSnapshot};
 use abb_engine::session::{SessionIntent, SessionReply, SessionUpdate};
-use abb_engine::{AppError, AppErrorEnvelope, MetadataIntentPatch};
+use abb_engine::{AppError, AppErrorEnvelope};
 use serde::Serialize;
 
 use crate::commands::{CommandResult, EngineState};
@@ -100,14 +99,4 @@ pub async fn settings_dispatch(
 #[specta::specta]
 pub fn session_cover_art(engine: EngineState<'_>) -> Option<Vec<u8>> {
     engine.session_cover_art()
-}
-
-/// The pending metadata edits for `file_paths`, as processing takes them.
-#[tauri::command]
-#[specta::specta]
-pub fn session_metadata_intents(
-    engine: EngineState<'_>,
-    file_paths: Vec<String>,
-) -> HashMap<String, MetadataIntentPatch> {
-    engine.session_metadata_intents(&file_paths)
 }

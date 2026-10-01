@@ -13,6 +13,7 @@ mod output;
 mod plans;
 mod runtime;
 mod state;
+mod submission;
 mod tag_cache;
 mod working_set;
 
@@ -32,6 +33,7 @@ pub use runtime::{SessionIntent, SessionOutcome, SessionReply, SessionRun};
 pub use state::{
     CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, SessionUpdate, TagPreview,
 };
+pub use submission::{SubmissionStatus, SubmitRefusal};
 pub use working_set::{
     CueChoice, InputNotice, MoveDirection, SelectionModifiers, SelectionSnapshot, SortDirection,
     TitlesSnapshot,

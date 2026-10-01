@@ -38,8 +38,9 @@ pub use progress::{
     converting_percentage_from_seconds, EventStage, ProgressEmitter, ProgressEvent, QueueEvent,
     QueueItem,
 };
+pub use run::preflight_payload;
 pub use session::ProcessingSession;
 pub use types::{
     AudioHandling, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
-    ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset,
+    ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,
 };

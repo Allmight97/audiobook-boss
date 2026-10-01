@@ -33,7 +33,7 @@ Import -> Inspect -> Decide -> Preflight -> Process -> Verify
 ## Control Loop
 
 Working session and settings (titles, selection, metadata edits, lookup,
-Save, audio choices, output naming and estimates, preferences):
+Save, audio choices, output naming and estimates, submission, preferences):
 
 ```text
 User intent
@@ -46,16 +46,13 @@ User intent
   -> engineLink keeps newest parts -> Solid view renders
 ```
 
-Collision review and processing submission (still frontend-owned):
+A submission continues inside the engine:
 
 ```text
-User intent
-  -> Solid view
-  -> src/app owner + private workflow    request building + explicit failure
-  -> tauriClient -> thin host command
-  -> Engine owner                        policy + lifecycle authority
-  -> explicit plan                       resolved work before side effects
-  -> direct preview | WorkRuntime        foreground probe | accepted operation
+Submit / Preview intent
+  -> Engine session                      build the export from the session, hold its sources
+  -> preflight plan                      paths, collisions, signature; ReviewRequired waits for a choice
+  -> preview run | WorkRuntime           foreground probe | accepted operation
   -> Audio / Metadata / Output owners    owned side effects
   -> snapshots + artifact readback
   -> Solid view renders terminal truth
@@ -65,9 +62,9 @@ Remote Source materializes provider-owned titles into ABB-owned staged local
 files, then hands them to the normal Input owner. It is not a hidden processing
 path.
 
-Preview and accepted work are deliberately different lanes. Direct preview
-uses `process_audiobook_files` and foreground progress events; it has no backend
-cancel command. Final processing and metadata batch save use WorkRuntime,
+Preview and accepted work are deliberately different lanes. A preview runs
+in the session with foreground progress events; it has no backend cancel
+command. Final processing and metadata batch save use WorkRuntime,
 operation and title cancellation, and backend-authored operation snapshots. The
 nearest Processing and WorkRuntime guidance owns the exact event rules.
 
@@ -77,7 +74,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | --- | --- | --- |
 | App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, and disposal. |
 | Engine link | `src/app/engineLink` | The frontend's one connection to the engine: newest snapshot parts and numbered intents. |
-| Frontend owners | `src/app/<owner>` | Adapters over engine state (input, metadata, lookup, settings, encoding, output plan), or workflow still owned in TS (collision review, processing, work operations, remote source). Each `index.ts` is its live export truth. |
+| Frontend owners | `src/app/<owner>` | Adapters over engine state (input, metadata, lookup, settings, encoding, output plan), or workflow still owned in TS (preview status, work operations, remote source). Each `index.ts` is its live export truth. |
 | Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
@@ -105,7 +102,7 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | Presentation resource | View instance, or an owner-private resource when workflows share it | Dispose listeners, cancellation, caches, and late completions with that instance. |
 | Working session | Engine `Session`, one per engine | Hosts read snapshot parts and send intents. The frontend keeps only the newest parts and display-only echo of typed text. |
 | Frontend workflow truth | One App Runtime owner | Read through its view/accessor and change through semantic intent. Never mirror it in another writable store. |
-| Workflow transient state | Private workflow owner | Use plain async or Effect per the owned coordination need; publish outcomes through the owner. |
+| Workflow transient state | Private workflow owner | Plain async; publish outcomes through the owner. |
 | Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
 | Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation and title cancellation. |
 | Settings in effect | Engine settings runtime + JSON store | Runtime owner accepts behavior before it is recorded; a failed write keeps the setting in effect and retryable. |

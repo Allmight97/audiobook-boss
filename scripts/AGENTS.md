@@ -160,10 +160,8 @@ commands over invoking internals directly.
   do not grow it toward AST completeness; replace it with a parser only when
   TypeScript 7's programmatic API exists and an owner needs one. Proof:
   `bun run test -- scripts/frontend-toolchain-layout.test.ts`.
-  The no-import tripwires match `from 'typescript'` and the full `effect`
-  package family, so ordinary multiline named imports count; do not require
-  the binding list to sit on one line. Workflow APIs enter through
-  `src/lib/effect/appEffect.ts`. The tripwire also rejects leftover
+  The no-import tripwire matches `from 'typescript'`, so ordinary multiline
+  named imports count. The tripwire also rejects leftover
   `.svelte` / `.svelte.ts` sources under `src/` and leftover Tailwind or
   foundation-internal imports. The tripwire stays in `scripts/` so it does not
   pull Node types into the frontend `tsconfig`.

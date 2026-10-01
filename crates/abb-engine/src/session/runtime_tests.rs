@@ -10,7 +10,7 @@ use super::*;
 use crate::app_settings::{SettingsRuntime, SettingsSnapshot};
 use crate::audio::{AudioFile, AudioIntent, AudiobookFormat};
 use crate::host::EventSink;
-use crate::metadata::PatchOp;
+use crate::metadata::{MetadataIntentPatch, PatchOp};
 use crate::metadata_lookup::{
     MetadataLookupDiagnostic, MetadataLookupDiagnosticKind, OnlineMetadataResult,
 };
@@ -98,8 +98,8 @@ fn rig() -> Rig {
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
             opened_audio: Arc::default(),
-            previews: Arc::default(),
             tasks: tokio_util::task::TaskTracker::new(),
+            workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
         },
         network,
@@ -175,6 +175,12 @@ impl Rig {
         });
     }
 
+    /// Locks the list, as a submission or preview does.
+    fn lock_order(&self, locked: bool) {
+        self.session
+            .transition(|state| state.working_set.set_order_locked(locked));
+    }
+
     async fn send(&self, intent: SessionIntent) -> SessionOutcome {
         self.session.dispatch(intent).await.outcome
     }
@@ -215,9 +221,11 @@ impl Rig {
 
     fn pending(&self, name: &str) -> Option<MetadataIntentPatch> {
         self.session
+            .lock()
             .pending_intents(&[path(name)])
-            .into_values()
+            .into_iter()
             .next()
+            .map(|(_, patch)| patch)
     }
 
     fn selected(&self) -> Vec<usize> {
@@ -784,12 +792,12 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
         field: MetadataField::Genre,
         value: "Mystery".to_string(),
     });
-    let save = rig.session.begin(SessionIntent::StageSelection);
-    assert_eq!(save.finish().await.outcome, SessionOutcome::Applied);
+    let stage = rig.session.begin(SessionIntent::SelectAll);
+    assert_eq!(stage.finish().await.outcome, SessionOutcome::Applied);
     edit.finish().await;
     select.finish().await;
 
-    assert_eq!(rig.selected(), [1]);
+    assert_eq!(rig.selected(), [0, 1]);
     assert!(rig.pending("alpha").is_none());
     assert_eq!(
         rig.pending("beta").and_then(|patch| patch.genre),
@@ -809,8 +817,7 @@ async fn opened_files_stay_queued_while_the_list_is_locked() {
         .opened_audio
         .push_paths(vec![opened.clone()])
         .expect("queue opened file");
-    rig.send(SessionIntent::SetOrderLocked { locked: true })
-        .await;
+    rig.lock_order(true);
 
     rig.send(SessionIntent::ImportOpened).await;
 
@@ -949,8 +956,7 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
     assert_eq!(titles["alpha"].choice.intent, AudioIntent::Preserve);
     assert_eq!(titles["beta"].choice.format, AudiobookFormat::M4b);
 
-    rig.send(SessionIntent::SetOrderLocked { locked: true })
-        .await;
+    rig.lock_order(true);
     rig.send(SessionIntent::ApplyDefaultAudio {
         title_ids: vec!["alpha".to_string()],
     })
@@ -960,8 +966,7 @@ async fn title_audio_edits_change_only_the_named_titles_and_not_while_locked() {
         AudiobookFormat::Mp3
     );
 
-    rig.send(SessionIntent::SetOrderLocked { locked: false })
-        .await;
+    rig.lock_order(false);
     rig.send(SessionIntent::ApplyDefaultAudio {
         title_ids: vec!["alpha".to_string()],
     })
@@ -1086,4 +1091,41 @@ async fn a_title_plan_resolves_in_the_background_and_reports_why_it_cannot() {
         matches!(plan, crate::session::TitlePlan::Failed { .. }),
         "{plan:?}"
     );
+}
+
+#[tokio::test]
+async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    let draft = rig
+        .session
+        .transition(|state| {
+            state.output.set_directory("/library".to_string());
+            state.begin_submission(None, None)
+        })
+        .expect("the submission is prepared");
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Genre,
+        value: "Mystery".to_string(),
+    })
+    .await;
+    rig.send(SessionIntent::Save).await;
+    assert_eq!(rig.session.waiting_write_paths(), [path("alpha")]);
+
+    // Let the writer find the file held and wait.
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+    // Nothing in WorkRuntime changes; only the submission ending frees the file.
+    rig.session
+        .end_submission(&draft, SubmissionStatus::Cancelled);
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !rig.session.waiting_write_paths().is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the waiting write is attempted once its source is free");
 }

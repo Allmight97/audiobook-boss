@@ -16,6 +16,9 @@ use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::plans::{estimate_size, PlanInput, PlanTicket, Plans};
+use super::submission::{
+    build_draft, title_label, Draft, DraftInputs, SubmissionStatus, SubmitRefusal, SubmittedTitle,
+};
 use super::tag_cache::{ReadTicket, TagCache};
 use super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
 use crate::audio::AudioFile;
@@ -33,8 +36,6 @@ pub enum MetadataStatus {
     DraftInvalid {
         message: String,
     },
-    /// A preview run is using the files.
-    SaveBlockedByPreview,
     SaveAlreadyInProgress,
     PreparingSave,
     SaveInvalid,
@@ -233,6 +234,12 @@ pub(crate) struct SessionState {
     plans: Plans,
     /// The title and audio-request changes plans were last refreshed for.
     plans_seen: (u64, u64),
+    /// How the latest submission or preview is going.
+    submission: Option<SubmissionStatus>,
+    /// A submission waiting for the user's collision choice.
+    pending_review: Option<Draft>,
+    /// Sources a submission being prepared will read; Save treats them as busy.
+    reserved: Vec<PathBuf>,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
@@ -279,7 +286,7 @@ impl Default for SessionState {
                 defaults: AudioDefaults::default().defaults_view(),
                 titles: Default::default(),
             },
-            output: OutputPlan::default().snapshot(0, OutputPreview::NoDirectory),
+            output: OutputPlan::default().snapshot(0, OutputPreview::NoDirectory, None),
         };
         Self {
             epoch: 0,
@@ -291,6 +298,9 @@ impl Default for SessionState {
             output: OutputPlan::default(),
             plans: Plans::default(),
             plans_seen: (u64::MAX, u64::MAX),
+            submission: None,
+            pending_review: None,
+            reserved: Vec::new(),
             form,
             bound: Vec::new(),
             selection_key: Vec::new(),
@@ -439,7 +449,150 @@ impl SessionState {
             (&metadata, file.path.as_path(), format)
         });
         let preview = self.output.preview(title);
-        self.output.snapshot(revision, preview)
+        self.output
+            .snapshot(revision, preview, self.submission.clone())
+    }
+
+    // ---- Submission ----
+
+    /// Starts a submission or preview: accepts the edits on screen, builds
+    /// what will be sent, reserves its sources, and locks the list.
+    pub(crate) fn begin_submission(
+        &mut self,
+        preview_seconds: Option<f64>,
+        supplemental_assets: Option<
+            std::collections::HashMap<String, Vec<crate::processing::SupplementalProcessingAsset>>,
+        >,
+    ) -> Option<Draft> {
+        match self.prepare_submission(preview_seconds, supplemental_assets) {
+            Ok(draft) => {
+                self.reserved.extend(draft.sources.iter().cloned());
+                self.working_set.set_order_locked(true);
+                self.submission = Some(SubmissionStatus::Preparing {
+                    preview: draft.preview(),
+                });
+                Some(draft)
+            }
+            Err(reason) => {
+                self.submission = Some(SubmissionStatus::Refused { reason });
+                None
+            }
+        }
+    }
+
+    fn prepare_submission(
+        &mut self,
+        preview_seconds: Option<f64>,
+        supplemental_assets: Option<
+            std::collections::HashMap<String, Vec<crate::processing::SupplementalProcessingAsset>>,
+        >,
+    ) -> Result<Draft, SubmitRefusal> {
+        if self
+            .submission
+            .as_ref()
+            .is_some_and(SubmissionStatus::is_active)
+        {
+            return Err(SubmitRefusal::Busy);
+        }
+        let writing = self
+            .deferred
+            .iter()
+            .any(|write| write.phase == DeferredPhase::Writing);
+        if self.save_in_progress || writing {
+            return Err(SubmitRefusal::SaveInProgress);
+        }
+        if !self.working_set.files().is_empty() {
+            match self.stage_bound_form() {
+                StageOutcome::Staged => {}
+                StageOutcome::NoTarget => return Err(SubmitRefusal::NoTarget),
+                StageOutcome::Invalid(message) => {
+                    return Err(SubmitRefusal::DraftInvalid { message })
+                }
+            }
+        }
+        let required = self.working_set.audio_choice_required();
+        let titles: Vec<SubmittedTitle<'_>> = self
+            .working_set
+            .files()
+            .iter()
+            .map(|file| SubmittedTitle {
+                anchor: file,
+                sources: self.working_set.sources_for(file),
+                request: self.working_set.audio_request(&file.input_id).map_or_else(
+                    || self.audio.request(),
+                    |request| self.audio.title_view(request).request,
+                ),
+                choice_required: required.contains(&file.input_id),
+            })
+            .collect();
+        build_draft(
+            &titles,
+            DraftInputs {
+                output_directory: self.output.naming_directory(),
+                naming: self.output.naming(),
+                supplemental_assets,
+                preview_seconds,
+            },
+            |paths| {
+                let paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+                self.pending_intents(&paths)
+                    .into_iter()
+                    .map(|(path, patch)| (path.to_string_lossy().into_owned(), patch))
+                    .collect()
+            },
+            title_label,
+        )
+    }
+
+    /// Holds a submission for the user's collision choice.
+    pub(crate) fn await_review(
+        &mut self,
+        draft: Draft,
+        outputs: Vec<crate::output_artifact::PlannedOutput>,
+    ) {
+        self.submission = Some(SubmissionStatus::ReviewRequired {
+            outputs,
+            preview: draft.preview(),
+        });
+        self.pending_review = Some(draft);
+    }
+
+    pub(crate) fn refuse_submission(&mut self, reason: SubmitRefusal) {
+        self.submission = Some(SubmissionStatus::Refused { reason });
+    }
+
+    /// Drops a submission held for review.
+    pub(crate) fn cancel_review(&mut self) {
+        if let Some(draft) = self.pending_review.take() {
+            self.finish_submission(&draft, SubmissionStatus::Cancelled);
+        }
+    }
+
+    /// The submission waiting for a collision choice, if any.
+    pub(crate) fn take_review(&mut self) -> Option<Draft> {
+        let draft = self.pending_review.take()?;
+        self.submission = Some(SubmissionStatus::Preparing {
+            preview: draft.preview(),
+        });
+        Some(draft)
+    }
+
+    pub(crate) fn start_preview(&mut self) {
+        self.submission = Some(SubmissionStatus::Previewing);
+    }
+
+    /// Ends a submission: frees its sources and the list, and records how it
+    /// ended.
+    pub(crate) fn finish_submission(&mut self, draft: &Draft, status: SubmissionStatus) {
+        for source in &draft.sources {
+            if let Some(index) = self.reserved.iter().position(|reserved| reserved == source) {
+                self.reserved.swap_remove(index);
+            }
+        }
+        if self.reserved.is_empty() {
+            self.working_set.set_order_locked(false);
+        }
+        self.submission = Some(status);
     }
 
     // ---- Title plans ----
@@ -962,21 +1115,23 @@ impl SessionState {
 
     // ---- Save ----
 
-    pub(crate) fn set_status(&mut self, status: MetadataStatus) {
-        self.status = Some(status);
-    }
-
     /// Decides where each pending edit goes. `in_use` is every source an
     /// accepted export has yet to finish reading; `is_temporary` says whether
     /// a source is a download the engine will remove.
     ///
     /// Returns `None`, with the reason in the status, when there is nothing to
     /// write.
+    /// Files exports read, plus those a submission being prepared will read.
+    fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
+        in_use.iter().chain(&self.reserved).cloned().collect()
+    }
+
     pub(crate) fn begin_save(
         &mut self,
         in_use: &HashSet<PathBuf>,
         is_temporary: impl Fn(&Path) -> bool,
     ) -> Option<SavePlan> {
+        let in_use = &self.busy(in_use);
         if self.working_set.files().is_empty() {
             return None;
         }
@@ -1077,6 +1232,7 @@ impl SessionState {
     /// Takes the waiting writes whose files no export is reading any more.
     /// Each stays taken until `finish_deferred` reports its result.
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
+        let in_use = &self.busy(in_use);
         let writing: HashSet<PathBuf> = self
             .deferred
             .iter()

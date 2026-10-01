@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProcessingPreflightPlan } from '../../types/audio';
+import type { PlannedOutput } from '../../types/audio';
 import type { SessionOutcome } from '../../types/session';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
@@ -8,41 +8,26 @@ import type { CollisionView } from './collision';
 
 // Naming, the path preview, and size estimates are the engine's. These tests
 // cover what this owner adds: wording, the intents it sends, the template
-// shown while typing, and the collision dialog it still holds.
+// shown while typing, and the collision dialog.
 
-function collisionPlan(): ProcessingPreflightPlan {
-	return {
-		previewSeconds: undefined,
-		collisionPolicy: 'fail',
-		audioPlans: [],
-		planSignature: 'sig-review',
-		outputs: [
-			{
-				inputIndex: 0,
-				inputPath: '/books/a.m4b',
-				kind: 'final',
-				requestedPath: '/tmp/out/a.m4b',
-				resolvedPath: '/tmp/out/a.m4b',
-				renameCandidate: undefined,
-				collision: undefined,
-				action: 'write',
+/** The outputs the engine says already exist. */
+function collidedOutputs(): PlannedOutput[] {
+	return [
+		{
+			inputIndex: 1,
+			inputPath: '/books/b.m4b',
+			kind: 'final',
+			requestedPath: '/tmp/out/b.m4b',
+			resolvedPath: '/tmp/out/b.m4b',
+			renameCandidate: '/tmp/out/b-1.m4b',
+			collision: {
+				kind: 'existing_file',
+				conflictingPath: '/tmp/out/b.m4b',
+				detail: 'An existing file already occupies the destination path.',
 			},
-			{
-				inputIndex: 1,
-				inputPath: '/books/b.m4b',
-				kind: 'final',
-				requestedPath: '/tmp/out/b.m4b',
-				resolvedPath: '/tmp/out/b.m4b',
-				renameCandidate: '/tmp/out/b-1.m4b',
-				collision: {
-					kind: 'existing_file',
-					conflictingPath: '/tmp/out/b.m4b',
-					detail: 'An existing file already occupies the destination path.',
-				},
-				action: 'review_required',
-			},
-		],
-	};
+			action: 'review_required',
+		},
+	];
 }
 
 describe('output plan owner', () => {
@@ -126,28 +111,6 @@ describe('output plan owner', () => {
 		expect(app.output.estimateTitleSizeText(title)).toBe('Size varies with audio');
 		expect(app.output.estimateTitleSizeText({ ...title, isValid: false })).toBeNull();
 	});
-
-	it('hands processing the engine naming and refuses without a directory', async () => {
-		const app = await open();
-		expect(() => app.output.readRequestConfig()).toThrow('Output directory not selected');
-
-		engine.change((state) => {
-			state.output.directory = '/out';
-			state.output.naming = {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: '{author}/{title}',
-			};
-		});
-		expect(app.output.readRequestConfig()).toEqual({
-			outputDirectory: '/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: '{author}/{title}',
-			},
-		});
-	});
 });
 
 describe('collision review', () => {
@@ -164,7 +127,7 @@ describe('collision review', () => {
 
 	it('cancel resolves null and closes the dialog', async () => {
 		runtime = createAppRuntime();
-		const result = runtime.output.openCollisionReview(collisionPlan());
+		const result = runtime.output.openCollisionReview(collidedOutputs());
 		runtime.output.cancelCollisionReview();
 		await expect(result).resolves.toBeNull();
 		expect(collision().isOpen).toBe(false);
@@ -173,18 +136,17 @@ describe('collision review', () => {
 
 	it('opening a second dialog resolves the first as cancelled', async () => {
 		runtime = createAppRuntime();
-		const first = runtime.output.openCollisionReview(collisionPlan());
-		const second = runtime.output.openCollisionReview(collisionPlan());
+		const first = runtime.output.openCollisionReview(collidedOutputs());
+		const second = runtime.output.openCollisionReview(collidedOutputs());
 		await expect(first).resolves.toBeNull();
 		runtime.output.chooseCollisionPolicy('rename_new');
 		await expect(second).resolves.toBe('rename_new');
 		expect(collision().isOpen).toBe(false);
 	});
 
-	it('exposes only collided outputs', () => {
+	it('words how many outputs already exist', () => {
 		runtime = createAppRuntime();
-		void runtime.output.openCollisionReview(collisionPlan());
-		expect(collision().outputs).toHaveLength(1);
+		void runtime.output.openCollisionReview(collidedOutputs());
 		expect(collision().outputs[0]?.inputPath).toBe('/books/b.m4b');
 		expect(collision().body).toBe(
 			'1 file with the same name already exists in the target output folder. How do you want to resolve the conflict?',

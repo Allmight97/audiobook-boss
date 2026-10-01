@@ -23,14 +23,8 @@ import {
 	type WorkOperationListSnapshotEvent,
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
-import type {
-	ProcessPayload,
-	ProcessCommandResult,
-	ProcessingPreflightPlan,
-} from '../../types/audio';
 import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { SessionIntent } from '../../types/session';
 import type {
 	AcquisitionJob,
@@ -53,8 +47,6 @@ import type {
 	OperationId,
 	OperationListSnapshot,
 	OperationSnapshot,
-	SubmitProcessingOperationRequest,
-	WorkSubmissionAccepted,
 } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
@@ -66,7 +58,6 @@ import {
 	normalizeSettingsSnapshot,
 } from './normalizers';
 
-type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
 type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
@@ -242,8 +233,6 @@ export const tauriClient = {
 		commandSpecs.settings_dispatch({ client, sequence, intent }),
 	sessionCoverArt: (): Promise<CommandResult<'session_cover_art'>> =>
 		commandSpecs.session_cover_art(),
-	sessionMetadataIntents: (filePaths: string[]): Promise<MetadataIntentByPath> =>
-		commandSpecs.session_metadata_intents({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
@@ -293,19 +282,6 @@ export const tauriClient = {
 		update: RemoteIndexerConnectionUpdate,
 	): Promise<RemoteIndexerConnectionTestResult> =>
 		commandSpecs.test_remote_source_indexer_connection({ update }),
-	preflightProcessingPlan: (args: {
-		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds?: number | null;
-	}): Promise<ProcessingPreflightPlan> => commandSpecs.preflight_processing_plan(args),
-	processAudiobookFiles: (args: {
-		payload: ProcessPayload;
-		metadataIntent?: MetadataIntentByPath | null;
-		previewSeconds: number;
-	}): Promise<ProcessCommandResult> => commandSpecs.process_audiobook_files(args),
-	submitProcessingOperation: (
-		args: SubmitProcessingOperationRequest,
-	): Promise<WorkSubmissionAccepted> => commandSpecs.submit_processing_operation(args),
 	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (

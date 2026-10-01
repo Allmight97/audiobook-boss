@@ -1,7 +1,6 @@
-import type { MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch } from '../lib/generated/tauri';
 import type { AudiobookMetadata } from './metadata';
 
-export const METADATA_INTENT_FIELDS = [
+const METADATA_INTENT_FIELDS = [
 	'title',
 	'artist',
 	'album',
@@ -54,29 +53,3 @@ export type MetadataFieldIntent<K extends MetadataIntentField = MetadataIntentFi
 export type MetadataIntentPatch = Partial<{
 	[K in MetadataIntentField]: MetadataFieldIntent<K>;
 }>;
-
-function toGeneratedPatchOp(
-	intent: MetadataFieldIntent,
-): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'recompute' } {
-	if (intent.op === 'clear') {
-		return { op: 'clear' };
-	}
-	if (intent.op === 'recompute') {
-		return { op: 'recompute' };
-	}
-	return { op: 'set', value: intent.value };
-}
-
-export function compileMetadataIntentPatch(
-	patch: MetadataIntentPatch,
-): GeneratedMetadataIntentPatch {
-	const compiled: Record<string, unknown> = {};
-	for (const key of METADATA_INTENT_FIELDS) {
-		const intent = patch[key];
-		if (!intent) {
-			continue;
-		}
-		compiled[key] = toGeneratedPatchOp(intent);
-	}
-	return compiled as GeneratedMetadataIntentPatch;
-}

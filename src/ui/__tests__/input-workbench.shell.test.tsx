@@ -8,7 +8,6 @@ import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
 import { App } from '../App';
-import { tauriClient } from '../../lib/tauri/client';
 
 const metadata: SupportedAudioImportMetadata = {
 	formats: [{ extension: 'm4b', label: 'M4B' }],
@@ -251,137 +250,49 @@ describe('Solid input workbench', () => {
 		expect(within(row).getByText('PDF')).toBeVisible();
 	});
 
-	it.each([false, true])(
-		'validates only submitted title sources (grouped: %s)',
-		async (grouped) => {
-			const files = [
-				analyzedFile('/books/valid.m4b', {
-					preservation: { canPreserve: true },
-				}),
-				analyzedFile('/books/invalid.m4b', { isValid: false }),
-			];
-			const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
-				collisionPolicy: 'fail',
-				audioPlans: [],
-				planSignature: 'valid-titles',
-				outputs: [],
-			});
-			const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
-			runtime = runtimeFor({ files });
-			await runtime.input.importIntent({
-				type: 'importPaths',
-				paths: files.map((file) => file.path),
-			});
-			engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ intent: 'auto' }));
-			if (grouped) {
-				await runtime.input.selectAll();
-				await runtime.input.groupSelected();
-				engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ intent: 'encode' }));
-			}
-			engine.change((state) => {
-				state.output.directory = '/library';
-			});
-			try {
-				await runtime.processing.start();
-				if (grouped) {
-					expect(preflight).not.toHaveBeenCalled();
-					expect(submit).not.toHaveBeenCalled();
-					expect(runtime.processing.status().stepText).toContain('invalid source');
-				} else {
-					expect(submit).toHaveBeenCalledWith(
-						expect.objectContaining({
-							payload: expect.objectContaining({ inputFiles: ['/books/valid.m4b'] }),
-						}),
-					);
-				}
-			} finally {
-				preflight.mockRestore();
-				submit.mockRestore();
-			}
-		},
-	);
-
-	it('edits one stack through its audio popover and submits it beside an independent title', async () => {
+	it('edits one stack through its audio popover', async () => {
 		const user = userEvent.setup();
 		const files = ['part1.mp3', 'part2.mp3', 'other.m4b'].map((name) =>
 			analyzedFile(`/books/${name}`, { sampleRate: 44100, channels: 1, codecLabel: 'MP3' }),
 		);
-		const preflight = vi.spyOn(tauriClient, 'preflightProcessingPlan').mockResolvedValue({
-			collisionPolicy: 'fail',
-			planSignature: 'stack-review',
-			audioPlans: [],
-			outputs: [],
-		});
-		const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
 		runtime = runtimeFor({ files });
 		renderApp(runtime);
-		try {
-			await runtime.input.importIntent({
-				type: 'importPaths',
-				paths: files.map((file) => file.path),
-			});
-			engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
-			await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
-			await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
-			await runtime.input.groupSelected();
-			runtime.input.reorderSources(files[0]!, 0, 1);
-			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
-			const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
-			await user.hover(indicator);
-			const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
-			expect(popup).toHaveTextContent('Choose this title’s audio');
-			expect(popup.parentElement).toBe(document.body);
-			await user.click(indicator);
-			await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
-			await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(false));
+		await runtime.input.importIntent({
+			type: 'importPaths',
+			paths: files.map((file) => file.path),
+		});
+		engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
+		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
+		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
+		await runtime.input.groupSelected();
+		runtime.input.reorderSources(files[0]!, 0, 1);
+		expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
+		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
+		await user.hover(indicator);
+		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });
+		expect(popup).toHaveTextContent('Choose this title’s audio');
+		expect(popup.parentElement).toBe(document.body);
+		await user.click(indicator);
+		await user.click(within(popup).getByRole('button', { name: 'Apply App Settings' }));
+		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(false));
+		expect(engine.sessionIntents).toContainEqual({
+			kind: 'applyDefaultAudio',
+			titleIds: [files[0]!.path],
+		});
+		expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
+		await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
+		await waitFor(() =>
 			expect(engine.sessionIntents).toContainEqual({
-				kind: 'applyDefaultAudio',
+				kind: 'setTitleAudio',
 				titleIds: [files[0]!.path],
-			});
-			expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
-			await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
-			await waitFor(() =>
-				expect(engine.sessionIntents).toContainEqual({
-					kind: 'setTitleAudio',
-					titleIds: [files[0]!.path],
-					edit: { field: 'format', value: 'm4aOpus' },
-				}),
-			);
-			await user.keyboard('{Escape}');
-			// Browser focus/hover can arrive after the popover unmounts.
-			fireEvent.focus(indicator);
-			fireEvent.mouseEnter(indicator);
-			expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
-
-			// The engine applied the edit; processing submits what it holds.
-			const opus = titleAudioRequest({
-				format: 'm4aOpus',
-				intent: 'encode',
-				settings: { ...titleAudioRequest().settings!, encoderType: 'opus' },
-			});
-			engine.seedTitleAudio(files[0]!.path, opus);
-			engine.change((state) => {
-				state.output.directory = '/library';
-			});
-			await runtime.processing.start();
-			expect(submit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					payload: expect.objectContaining({
-						inputFiles: [files[0]!.path, files[2]!.path],
-						titleSources: {
-							[files[0]!.path]: [
-								{ path: files[1]!.path, inputId: files[1]!.inputId },
-								{ path: files[0]!.path, inputId: files[0]!.inputId },
-							],
-						},
-						audioRequests: [opus, expect.objectContaining({ format: 'm4b' })],
-					}),
-				}),
-			);
-		} finally {
-			preflight.mockRestore();
-			submit.mockRestore();
-		}
+				edit: { field: 'format', value: 'm4aOpus' },
+			}),
+		);
+		await user.keyboard('{Escape}');
+		// Browser focus/hover can arrive after the popover unmounts.
+		fireEvent.focus(indicator);
+		fireEvent.mouseEnter(indicator);
+		expect(screen.queryByRole('dialog', { name: 'Audio plan' })).not.toBeInTheDocument();
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {
@@ -466,7 +377,9 @@ describe('Solid input workbench', () => {
 	it('blocks import while order is locked and surfaces the lock banner', async () => {
 		runtime = runtimeFor();
 		renderApp(runtime);
-		runtime.input.setOrderLocked(true);
+		engine.change((state) => {
+			state.titles.orderLocked = true;
+		});
 		await waitFor(() => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 		});

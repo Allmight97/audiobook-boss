@@ -40,8 +40,8 @@ the same code.
   summaries belong to `crate::processing`. Accepted operation identity,
   snapshots, retention, and operation cancellation belong to
   `crate::work_runtime`.
-- The titles being prepared, their metadata drafts, lookup, and Save belong to
-  `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
+- The titles being prepared, their metadata drafts, lookup, Save, and
+  submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
   operation per batch) and loads user-picked covers through `cover_source.rs`,
   which owns the URL and file limits.
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
@@ -58,9 +58,9 @@ the same code.
   outcome rather than choosing MP4/FFmpeg strategy modules.
 - Final artifact paths, collision review, replacement, and commit truth cross
   `crate::output_artifact`.
-- Final processing enters WorkRuntime through `submit_processing_operation`.
-  `process_preview` is direct preview and requires `preview_seconds`. Read
-  the Processing owner guidance when changing either lifecycle.
+- Exports and previews start from the session (`Submit`, `Preview`). An
+  export enters WorkRuntime through `submit_processing_operation`; a preview
+  runs `process_payload` directly with `preview_seconds`.
 
 ## Diagnostics
 

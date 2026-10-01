@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
+use super::submission::SubmissionStatus;
 use crate::app_settings::OutputDefaults;
 use crate::audio::AudiobookFormat;
 use crate::metadata::{AudiobookMetadata, NamingMetadata};
@@ -32,7 +33,7 @@ pub enum OutputPreview {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSnapshot {
     pub revision: u64,
@@ -45,6 +46,8 @@ pub struct OutputSnapshot {
     /// `{author}/{title}`.
     pub naming: OutputNamingConfig,
     pub preview: OutputPreview,
+    /// How the latest submission or preview is going.
+    pub submission: Option<SubmissionStatus>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -70,6 +73,11 @@ impl OutputPlan {
                 .clone()
                 .unwrap_or_default(),
         }
+    }
+
+    /// The directory exports go to, if one is chosen.
+    pub(crate) fn naming_directory(&self) -> Option<String> {
+        self.directory.clone()
     }
 
     pub(crate) fn set_directory(&mut self, directory: String) {
@@ -152,7 +160,12 @@ impl OutputPlan {
         }
     }
 
-    pub(crate) fn snapshot(&self, revision: u64, preview: OutputPreview) -> OutputSnapshot {
+    pub(crate) fn snapshot(
+        &self,
+        revision: u64,
+        preview: OutputPreview,
+        submission: Option<SubmissionStatus>,
+    ) -> OutputSnapshot {
         OutputSnapshot {
             revision,
             directory: self.directory.clone(),
@@ -161,6 +174,7 @@ impl OutputPlan {
             template: self.template.clone(),
             naming: self.naming(),
             preview,
+            submission,
         }
     }
 }

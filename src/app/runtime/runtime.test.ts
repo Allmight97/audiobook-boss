@@ -1,11 +1,7 @@
-import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
-import { tauriClient } from '../../lib/tauri/client';
-import { runOutputPlanReviewWorkflow } from '../outputPlan';
 import { createAppRuntime } from './index';
 import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
 
@@ -54,31 +50,6 @@ function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowSe
 	};
 }
 
-function collisionPlan(): ProcessingPreflightPlan {
-	return {
-		previewSeconds: undefined,
-		collisionPolicy: 'fail',
-		audioPlans: [],
-		planSignature: 'sig-isolation',
-		outputs: [
-			{
-				inputIndex: 0,
-				inputPath: '/books/a.m4b',
-				kind: 'final',
-				requestedPath: '/tmp/out/a.m4b',
-				resolvedPath: '/tmp/out/a.m4b',
-				renameCandidate: undefined,
-				collision: {
-					kind: 'existing_file',
-					conflictingPath: '/tmp/out/a.m4b',
-					detail: 'An existing file already occupies the destination path.',
-				},
-				action: 'review_required',
-			},
-		],
-	};
-}
-
 describe('app runtime', () => {
 	let dispose: (() => void) | undefined;
 
@@ -95,7 +66,7 @@ describe('app runtime', () => {
 			second.dispose();
 		};
 
-		void first.output.openCollisionReview(collisionPlan());
+		void first.output.openCollisionReview([]);
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
 		first.processing.pushTransientStatus('first runtime only');
@@ -133,40 +104,6 @@ describe('app runtime', () => {
 		expect(third.encoding.view().flavor).toBe('native_aac');
 		expect(third.processing.status().statusText).toBe('Idle');
 		expect(third.remoteSource.view().isOpen).toBe(false);
-	});
-
-	it('keeps collision review isolated across live runtimes', async () => {
-		const first = createAppRuntime();
-		const second = createAppRuntime();
-		dispose = () => {
-			first.dispose();
-			second.dispose();
-		};
-
-		const preflight = vi
-			.spyOn(tauriClient, 'preflightProcessingPlan')
-			.mockResolvedValue(collisionPlan());
-		const pending = runOutputPlanReviewWorkflow(
-			{
-				payload: {
-					inputFiles: ['/books/a.m4b'],
-					outputDir: '/tmp/out',
-					audioRequests: [titleAudioRequest()],
-					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: undefined },
-				},
-				metadataIntentByPath: null,
-			},
-			first.output,
-		);
-		await vi.waitFor(() => expect(first.output.collision().isOpen).toBe(true));
-		expect(second.output.collision().isOpen).toBe(false);
-
-		first.output.cancelCollisionReview();
-		await expect(pending).resolves.toEqual({ status: 'cancelled' });
-
-		first.dispose();
-		expect(second.output.collision().isOpen).toBe(false);
-		preflight.mockRestore();
 	});
 
 	it('keeps lookup cover preview cancellation and cache isolated across runtimes', async () => {

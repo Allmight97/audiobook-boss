@@ -10,13 +10,14 @@ import type {
 	AudioSnapshot as GeneratedAudioSnapshot,
 	LookupSnapshot as GeneratedLookupSnapshot,
 	OutputSnapshot as GeneratedOutputSnapshot,
+	SubmissionStatus as GeneratedSubmissionStatus,
 	MetadataSnapshot as GeneratedMetadataSnapshot,
 	SelectionSnapshot as GeneratedSelectionSnapshot,
 	SessionIntent as GeneratedSessionIntent,
 	SessionOutcome as GeneratedSessionOutcome,
 	TitlesSnapshot as GeneratedTitlesSnapshot,
 } from '../lib/generated/tauri';
-import type { AudioFile } from './audio';
+import type { AudioFile, PlannedOutput, ProcessCommandResult } from './audio';
 import type { OnlineMetadataResult } from './metadata';
 
 export type {
@@ -41,6 +42,7 @@ export type {
 	FaacRateControl,
 	OutputPreview,
 	SizeEstimate,
+	SubmitRefusal,
 	TagPreview,
 	TitleAudio,
 	TitlePlan,
@@ -57,7 +59,14 @@ export type SessionSelection = GeneratedSelectionSnapshot;
 export type SessionMetadata = GeneratedMetadataSnapshot;
 /** The audio part keeps the generated shape: an MP3 request's null settings are meaningful. */
 export type SessionAudio = GeneratedAudioSnapshot;
-export type SessionOutput = GeneratedOutputSnapshot;
+/** Planned outputs and a finished preview's result take the frontend's optional-field forms. */
+export type SubmissionStatus =
+	| Exclude<GeneratedSubmissionStatus, { kind: 'previewFinished' | 'reviewRequired' }>
+	| { kind: 'reviewRequired'; outputs: PlannedOutput[]; preview: boolean }
+	| { kind: 'previewFinished'; result: ProcessCommandResult };
+export type SessionOutput = Omit<GeneratedOutputSnapshot, 'submission'> & {
+	submission: SubmissionStatus | null;
+};
 export type SessionLookup = Omit<GeneratedLookupSnapshot, 'results'> & {
 	results: OnlineMetadataResult[];
 };

@@ -50,24 +50,6 @@ function importsTypescriptPackage(source: string): boolean {
 	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]typescript['"]/.test(source);
 }
 
-function importsEffectPackage(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect(?:\/[^'"]*)?['"]/.test(
-		source,
-	);
-}
-
-function importsEffectReactivity(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]effect\/(?:unstable\/)?reactivity(?:\/[^'"]*)?['"]/.test(
-		source,
-	);
-}
-
-function importsAtomSolid(source: string): boolean {
-	return /\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"]@effect\/atom-solid(?:\/[^'"]*)?['"]/.test(
-		source,
-	);
-}
-
 function packageImportHits(
 	matches: (source: string) => boolean,
 	skip: ReadonlySet<string> = new Set(),
@@ -137,19 +119,6 @@ describe('frontend toolchain layout', () => {
 		expect(svelteSources).toEqual([]);
 	});
 
-	it('lets only appEffect.ts import the effect package family', () => {
-		const allowed = path.normalize(path.join(repoRoot, 'src/lib/effect/appEffect.ts'));
-		expect(packageImportHits(importsEffectPackage, new Set([allowed]))).toEqual([]);
-	});
-
-	it('does not import effect/reactivity from ABB src/ or scripts/', () => {
-		expect(packageImportHits(importsEffectReactivity)).toEqual([]);
-	});
-
-	it('does not import @effect/atom-solid from ABB src/ or scripts/', () => {
-		expect(packageImportHits(importsAtomSolid)).toEqual([]);
-	});
-
 	it('does not import Tailwind packages from ABB src/ or scripts/', () => {
 		const hits = packageImportHits((source) =>
 			/\b(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"](?:tailwindcss|@tailwindcss\/vite)(?:\/[^'"]*)?['"]/.test(
@@ -181,16 +150,5 @@ describe('frontend toolchain layout', () => {
 			}
 		}
 		expect(hits).toEqual([]);
-	});
-
-	it('treats Effect package root and subpath specifiers as the same family', () => {
-		expect(importsEffectPackage("import { Effect } from 'effect'")).toBe(true);
-		expect(importsEffectPackage("import { Effect } from 'effect/Effect'")).toBe(true);
-		expect(importsEffectPackage("import { something } from './effect'")).toBe(false);
-	});
-
-	it('records effect specifiers from multiline named imports', () => {
-		expect(importsEffectPackage("import {\n\tEffect,\n} from 'effect';\n")).toBe(true);
-		expect(importsEffectPackage("import { Effect } from './effect';\n")).toBe(false);
 	});
 });

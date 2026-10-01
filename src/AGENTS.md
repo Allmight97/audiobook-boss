@@ -10,7 +10,6 @@
   boundary. Regenerate `src/lib/generated/tauri.ts` through the binding scripts.
 - The metadata batch save runs as a WorkRuntime operation rendered by Work
   Center; read `src/app/workOperations/AGENTS.md` when changing its display.
-- For Effect workflow or kernel changes, read `src/lib/effect/AGENTS.md`.
 - Settings acceptance and persistence belong to the engine
   (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog and
   startup handoff follow `src/app/appSettings/AGENTS.md`.

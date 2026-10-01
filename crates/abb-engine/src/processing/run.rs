@@ -102,7 +102,8 @@ async fn dispatch_payload(
     .await
 }
 
-pub(crate) fn preflight_payload(
+/// The plan an export of `payload` would follow, read from its sources.
+pub fn preflight_payload(
     payload: ProcessPayload,
     metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
     preview_seconds: Option<f64>,

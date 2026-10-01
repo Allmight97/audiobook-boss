@@ -14,7 +14,7 @@ import type {
 	SettingsOutcome,
 	SettingsSnapshot,
 } from '../../types/appSettings';
-import type { AudioFile, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile, ProcessCommandResult, TitleAudioRequest } from '../../types/audio';
 import { runtimeSettingsCapabilitiesFixture } from './runtimeSettingsCapabilities';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataFieldIntent, MetadataIntentPatch } from '../../types/metadataIntent';
@@ -34,6 +34,7 @@ import type {
 	SessionSelection,
 	SessionTitles,
 	SessionUpdate,
+	SubmissionStatus,
 } from '../../types/session';
 
 const FIELD_TAGS: ReadonlyArray<readonly [MetadataField, keyof AudiobookMetadata]> = [
@@ -108,6 +109,11 @@ export type FakeEngine = EngineCapability & {
 	coverBytes: number[];
 	/** Answers an intent in place of the fake's default behavior. */
 	respond?: (intent: SessionIntent) => SessionOutcome | Promise<SessionOutcome> | undefined;
+	/**
+	 * How the engine answers a submit, preview, or collision choice. Defaults
+	 * to an accepted export, a finished preview, and a cancelled review.
+	 */
+	answerSubmission: (intent: SessionIntent) => SubmissionStatus;
 	/** Called with the files a Save wrote. */
 	afterSave?: (filePaths: string[]) => void;
 	/** Rejects the next settings writes, as a full disk would. */
@@ -159,11 +165,12 @@ export function fakeOutput(): SessionOutput {
 		template: '',
 		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 		preview: { kind: 'noDirectory' },
+		submission: null,
 	};
 }
 
 /** The engine's fresh audio defaults over the fixture capabilities; tests seed other choices. */
-export function fakeAudio(): SessionAudio {
+function fakeAudio(): SessionAudio {
 	const settings = {
 		encoderType: 'native_aac',
 		bitrateKbps: 65,
@@ -209,6 +216,26 @@ export function fakeAudio(): SessionAudio {
 		},
 		titles: {},
 	};
+}
+
+/** A preview of every title that finished without trouble. */
+export function finishedPreview(): ProcessCommandResult {
+	return {
+		summary: { total: 1, succeeded: 1, skipped: 0, cancelled: 0, failed: 0 },
+		terminalClass: 'success',
+		results: [{ inputIndex: 0, status: 'success', message: 'Preview finished', jobId: 'fake-job' }],
+	};
+}
+
+function defaultSubmissionAnswer(intent: SessionIntent): SubmissionStatus {
+	switch (intent.kind) {
+		case 'preview':
+			return { kind: 'previewFinished', result: finishedPreview() };
+		case 'cancelCollisionReview':
+			return { kind: 'cancelled' };
+		default:
+			return { kind: 'submitted', operationId: 'fake-operation', title: 'Fake title' };
+	}
 }
 
 function rejection(reason: Rejection): SettingsOutcome {
@@ -603,9 +630,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			case 'restoreImportOrder':
 				titles.sortDirection = 'none';
 				break;
-			case 'setOrderLocked':
-				titles.orderLocked = intent.locked;
-				break;
 			case 'groupSelected': {
 				const selected = selectedFiles();
 				const [anchor] = selected;
@@ -720,8 +744,12 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			case 'clearCover':
 				setCover(null);
 				break;
-			case 'stageSelection':
+			case 'submit':
+			case 'preview':
+			case 'chooseCollisionPolicy':
+			case 'cancelCollisionReview':
 				stage();
+				state.output = { ...state.output, submission: engine.answerSubmission(intent) };
 				break;
 			case 'save': {
 				stage();
@@ -923,6 +951,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		lookupResults: [],
 		searchFails: false,
 		coverBytes: [1, 2, 3],
+		answerSubmission: defaultSubmissionAnswer,
 		async attach() {
 			nextSessionSequence = 0;
 			nextSettingsSequence = 0;
@@ -949,14 +978,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		async sessionCoverArt() {
 			const [file] = selectedFiles();
 			return file ? (effectiveTags(file).cover_art ?? null) : null;
-		},
-		async sessionMetadataIntents(filePaths: string[]) {
-			return Object.fromEntries(
-				filePaths.flatMap((path) => {
-					const patch = pending.get(path);
-					return patch ? [[path, structuredClone(patch)]] : [];
-				}),
-			);
 		},
 		async listenSessionUpdates(handler: (update: SessionUpdate) => void) {
 			listeners.add(handler);

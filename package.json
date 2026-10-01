@@ -42,7 +42,6 @@
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-dialog": "^2.7.3",
 		"@tauri-apps/plugin-opener": "^2.5.5",
-		"effect": "4.0.0-rc.118",
 		"solid-js": "2.0.0-rc.10"
 	},
 	"devDependencies": {

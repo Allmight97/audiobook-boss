@@ -134,20 +134,6 @@ describe('metadata owner', () => {
 		expect(title(app).value).toBe('Alpha');
 	});
 
-	it('reports how staging for processing ended', async () => {
-		const app = await open();
-
-		expect(await app.metadata.stageCurrentSelection()).toEqual({ status: 'staged' });
-		engine.respond = () => ({ kind: 'draftRejected', message: 'Bad date' });
-		expect(await app.metadata.stageCurrentSelection()).toEqual({
-			status: 'invalid',
-			message: 'Bad date',
-		});
-		engine.respond = () => ({ kind: 'noTarget' });
-		expect(await app.metadata.stageCurrentSelection()).toEqual({ status: 'noTarget' });
-		expect(await app.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
-	});
-
 	it('fetches the cover once per image the engine reports and shows it', async () => {
 		const app = await open();
 		const fetches = vi.spyOn(engine, 'sessionCoverArt');

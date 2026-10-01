@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, ProcessPayload } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import type { SessionIntent } from '../../types/session';
@@ -41,7 +41,6 @@ export type InputOwner = {
 	reorderFiles(command: { readonly fromIndex: number; readonly toIndex: number }): void;
 	toggleSort(): void;
 	restoreImportOrder(): void;
-	setOrderLocked(orderLocked: boolean): void;
 	chooseCue(inputId: string, choice: 'confirmHundredths' | 'ignore'): void;
 	reset(): void;
 };
@@ -191,9 +190,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		restoreImportOrder() {
 			link.post({ kind: 'restoreImportOrder' });
 		},
-		setOrderLocked(locked) {
-			link.post({ kind: 'setOrderLocked', locked });
-		},
 		reset() {
 			localError = '';
 			isDragOver = false;
@@ -202,32 +198,4 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			// The engine's session outlives this view; a new frontend attaches to it.
 		},
 	};
-}
-
-// Takes one output title's ordered sources; a title with several sources cannot carry CUE chapters.
-export function chapterPlansForProcessing(
-	sources: readonly AudioFile[],
-): ProcessPayload['chapterPlans'] {
-	const plans: NonNullable<ProcessPayload['chapterPlans']> = {};
-	for (const file of sources.filter((file) => file.isValid)) {
-		if (file.cueSource?.status === 'needsConfirmation' || file.cueSource?.status === 'invalid') {
-			throw new Error(
-				`Review ${file.cueSource.fileName}: confirm its timestamp interpretation or ignore the CUE before converting.`,
-			);
-		}
-		if (sources.length > 1 && file.chapterPlan?.fromCue) {
-			throw new Error(
-				'Merging CUE-bearing inputs is not supported. Convert separate jobs or ignore CUE chapters.',
-			);
-		}
-		if (file.chapterPlan)
-			plans[file.path] = {
-				...file.chapterPlan,
-				chapters: file.chapterPlan.chapters.map((chapter) => ({
-					...chapter,
-					title: chapter.title,
-				})),
-			};
-	}
-	return Object.keys(plans).length ? plans : undefined;
 }

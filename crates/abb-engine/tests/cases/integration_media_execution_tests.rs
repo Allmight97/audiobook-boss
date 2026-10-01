@@ -115,7 +115,11 @@ fn preflight_processing_plan(
     metadata: Option<std::collections::HashMap<String, MetadataIntentPatch>>,
     preview_seconds: Option<f64>,
 ) -> Result<abb_engine::processing::ProcessingPreflightPlan, abb_engine::AppErrorEnvelope> {
-    Ok(test_engine().preflight_processing_plan(payload, metadata, preview_seconds)?)
+    Ok(abb_engine::processing::preflight_payload(
+        payload,
+        metadata,
+        preview_seconds,
+    )?)
 }
 
 /// An encoder-sized zero pad must not become playable source audio.

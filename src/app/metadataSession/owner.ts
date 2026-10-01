@@ -1,5 +1,4 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { MetadataField, MetadataStatus, SessionMetadata } from '../../types/session';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import { toUserMessage } from '../../lib/tauri/appError';
@@ -34,13 +33,6 @@ export type MetadataView = {
 	readonly statusMessage: string;
 };
 
-/** Outcome of staging the form's edits so processing can take them. */
-export type MetadataStageOutcome =
-	| { readonly status: 'staged' }
-	| { readonly status: 'invalid'; readonly message: string }
-	| { readonly status: 'stale' }
-	| { readonly status: 'noTarget' };
-
 /**
  * The engine owns the metadata form, its drafts, and Save. This owner shows
  * the engine's snapshot and turns what the user does into intents.
@@ -60,11 +52,7 @@ export type MetadataOwner = {
 	loadCoverArtFromPicker(): Promise<void>;
 	loadCoverArtFromUrl(rawInput: string): Promise<void>;
 	applyCoverArtDrop(paths: ReadonlyArray<string>): Promise<boolean>;
-	stageCurrentSelection(): Promise<MetadataStageOutcome>;
 	save(): Promise<void>;
-	intentsForProcess(
-		filePaths: readonly string[],
-	): Promise<Record<string, MetadataIntentPatch> | null>;
 	reset(): void;
 };
 
@@ -84,8 +72,6 @@ function statusText(status: MetadataStatus | null): string {
 			return '';
 		case 'draftInvalid':
 			return status.message;
-		case 'saveBlockedByPreview':
-			return 'Cannot save metadata while a preview is running.';
 		case 'saveAlreadyInProgress':
 			return 'Save already in progress...';
 		case 'preparingSave':
@@ -330,26 +316,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			const image = paths.find((path) => COVER_ART_IMAGE_EXTENSION_HINT_PATTERN.test(path));
 			return image ? loadCoverFromFile(image) : false;
 		},
-		async stageCurrentSelection() {
-			const outcome = await link.send({ kind: 'stageSelection' });
-			switch (outcome.kind) {
-				case 'applied':
-					return { status: 'staged' };
-				case 'draftRejected':
-					return { status: 'invalid', message: outcome.message ?? 'Metadata validation failed.' };
-				case 'noTarget':
-					return { status: 'noTarget' };
-				default:
-					return { status: 'stale' };
-			}
-		},
 		async save() {
 			await link.send({ kind: 'save' });
-		},
-		// The engine reads each source's own tags during processing; only pending edits cross here.
-		async intentsForProcess(filePaths) {
-			const intents = await link.metadataIntents(filePaths);
-			return Object.keys(intents).length > 0 ? intents : null;
 		},
 		reset() {
 			generation += 1;

@@ -1,4 +1,3 @@
-import { titleAudioRequest } from '../test/fixtures/titleAudio';
 /**
  * Tests for the Tauri tauri client boundary.
  *
@@ -7,7 +6,6 @@ import { titleAudioRequest } from '../test/fixtures/titleAudio';
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { EncoderSettings } from '../types/audio';
 import type { ProcessingProgressEvent } from '../types/events';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
 import mainWindowCapability from '../../src-tauri/capabilities/default.json';
@@ -236,146 +234,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(metadata.cover_art).toBeUndefined();
 	});
 
-	it('denormalizes process payload and compiles metadata patch map, then normalizes result nullish fields', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			summary: {
-				total: 1,
-				succeeded: 1,
-				cancelled: 0,
-				failed: 0,
-			},
-			results: [
-				{
-					inputIndex: 0,
-					status: 'success',
-					message: 'ok',
-					jobId: 'job-1',
-					error: null,
-					outputPath: null,
-					previewActualSeconds: null,
-				},
-			],
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.processAudiobookFiles({
-			payload: {
-				inputFiles: ['/books/a.m4b'],
-				audioRequests: [titleAudioRequest({ settings: null })],
-				chapterPlans: {
-					'/books/a.m4b': {
-						fromCue: true,
-						sourceFingerprint: '123:456',
-						chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
-					},
-				},
-				outputDir: '/tmp/out',
-				outputNaming: undefined,
-			},
-			metadataIntent: {
-				'/books/a.m4b': {
-					title: { op: 'clear' },
-					cover_art: { op: 'clear' },
-				},
-			},
-			previewSeconds: 30,
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				payload: Record<string, unknown>;
-				metadata: Record<string, Record<string, unknown>>;
-				previewSeconds: number | null;
-			},
-		];
-		expect(commandName).toBe('process_audiobook_files');
-		expect(args.payload.chapterPlans).toEqual({
-			'/books/a.m4b': {
-				fromCue: true,
-				sourceFingerprint: '123:456',
-				chapters: [{ title: 'Opening', startMs: 0, endMs: 1000 }],
-			},
-		});
-		expect(args.payload.audioRequests).toEqual([titleAudioRequest({ settings: null })]);
-		expect(args.payload.outputNaming).toBeNull();
-		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
-		expect(args.metadata['/books/a.m4b']?.cover_art).toEqual({ op: 'clear' });
-		expect(args.previewSeconds).toBe(30);
-		expect(result.summary).toEqual({ total: 1, succeeded: 1, cancelled: 0, failed: 0 });
-		expect(result.results).toHaveLength(1);
-		expect(result.results[0]?.inputIndex).toBe(0);
-		expect(result.results[0]?.status).toBe('success');
-		expect(result.results[0]?.outputPath).toBeUndefined();
-		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
-	});
-
-	it('preserves encoder settings and compiles metadata intent for processing', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			summary: {
-				total: 1,
-				succeeded: 0,
-				failed: 1,
-			},
-			results: [
-				{
-					inputIndex: null,
-					status: 'failed',
-					message: 'ok',
-					jobId: null,
-					error: 'bad output path',
-					outputPath: null,
-					previewActualSeconds: null,
-				},
-			],
-		});
-
-		const boundarySettings = {
-			encoderType: 'native_aac',
-			bitrateKbps: 96,
-			bitrateMode: { mode: 'cbr' },
-			channels: 'stereo',
-			nativeAacSpeed: 4,
-			faacProfile: 'auto',
-		} satisfies EncoderSettings;
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.processAudiobookFiles({
-			payload: {
-				inputFiles: ['/books/a.m4b'],
-				outputDir: '/tmp/out',
-				audioRequests: [titleAudioRequest({ settings: boundarySettings })],
-				outputNaming: undefined,
-			},
-			metadataIntent: {
-				'/books/a.m4b': {
-					title: { op: 'clear' },
-					artist: { op: 'set', value: 'Author X' },
-				},
-			},
-			previewSeconds: 30,
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				metadata: Record<string, Record<string, unknown>>;
-				payload: { audioRequests: { settings: EncoderSettings }[] };
-			},
-		];
-		expect(commandName).toBe('process_audiobook_files');
-		expect(args.payload.audioRequests[0]?.settings).toEqual(boundarySettings);
-		expect(args.metadata['/books/a.m4b']?.title).toEqual({ op: 'clear' });
-		expect(args.metadata['/books/a.m4b']?.artist).toEqual({ op: 'set', value: 'Author X' });
-		expect(args.metadata['/books/a.m4b']?.series).toBeUndefined();
-	});
-
 	it('routes remote source acquisition through provider-neutral command payloads', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -418,70 +276,64 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.jobId).toBe('remote-job-1');
 	});
 
-	it('preserves failed process result status, error, and input index from backend results', async () => {
+	it('normalizes a finished preview carried in the session output', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			summary: {
-				total: 2,
-				succeeded: 1,
-				cancelled: 0,
-				failed: 1,
-			},
-			results: [
-				{
-					inputIndex: 0,
-					status: 'success',
-					message: 'ok',
-					jobId: 'job-1',
-					error: null,
-					outputPath: null,
-					previewActualSeconds: null,
-				},
-				{
-					inputIndex: 1,
-					status: 'failed',
-					message: 'failed',
-					jobId: null,
-					error: {
-						code: 'decoder_unavailable',
-						category: 'toolchain',
-						message: 'decoder unavailable',
-						detail: 'ffmpeg missing',
+		vi.mocked(invoke).mockResolvedValueOnce({
+			outcome: { kind: 'applied' },
+			update: {
+				revision: 5,
+				output: {
+					revision: 5,
+					directory: '/tmp/out',
+					preset: 'absDefault',
+					includeYear: false,
+					template: '',
+					naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+					preview: { kind: 'noTitle' },
+					submission: {
+						kind: 'previewFinished',
+						result: {
+							summary: { total: 2, succeeded: 1, skipped: 0, cancelled: 0, failed: 1 },
+							terminalClass: 'mixed',
+							results: [
+								{ inputIndex: 0, status: 'success', message: 'ok', jobId: 'job-1', error: null },
+								{
+									inputIndex: 1,
+									status: 'failed',
+									message: 'failed',
+									jobId: null,
+									error: {
+										code: 'ffmpeg_error',
+										category: 'toolchain',
+										message: 'decoder unavailable',
+										detail: 'ffmpeg missing',
+									},
+								},
+							],
+						},
 					},
-					outputPath: null,
-					previewActualSeconds: null,
 				},
-			],
+			},
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.processAudiobookFiles({
-			payload: {
-				inputFiles: ['/books/a.m4b', '/books/b.m4b'],
-				outputDir: '/tmp/out',
-				audioRequests: [titleAudioRequest(), titleAudioRequest()],
-				outputNaming: undefined,
-			},
-			metadataIntent: null,
-			previewSeconds: 30,
+		const reply = await tauriClient.sessionDispatch(7, 0, {
+			kind: 'preview',
+			seconds: 30,
+			supplementalAssets: null,
 		});
 
-		expect(result.summary).toEqual({ total: 2, succeeded: 1, cancelled: 0, failed: 1 });
-		expect(result.results[1]).toEqual({
-			inputIndex: 1,
-			status: 'failed',
-			message: 'failed',
-			error: {
-				code: 'decoder_unavailable',
-				category: 'toolchain',
-				message: 'decoder unavailable',
-				detail: 'ffmpeg missing',
-			},
-			jobId: undefined,
-			outputPath: undefined,
-			previewActualSeconds: undefined,
+		const submission = reply.update.output?.submission;
+		expect(submission?.kind).toBe('previewFinished');
+		if (submission?.kind !== 'previewFinished') return;
+		expect(submission.result.results[0]).toEqual({
+			inputIndex: 0,
+			status: 'success',
+			message: 'ok',
+			jobId: 'job-1',
 		});
+		expect(submission.result.results[1]?.error?.message).toBe('decoder unavailable');
+		expect(submission.result.results[1]?.jobId).toBeUndefined();
 	});
 
 	it('unwraps generated Result error responses into normalized app errors', async () => {

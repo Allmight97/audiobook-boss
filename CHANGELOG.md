@@ -15,8 +15,9 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   Quitting then cancels the exports cleanly and saves any metadata changes
   that were waiting for them before ABB closes.
 - Typing into a field you set to Blank replaces the Blank with what you typed.
-- When metadata Save is blocked, the message now says a preview is running; a
-  running export never blocks Save.
+- Saving metadata while a preview is running, or while an export is waiting
+  for you to resolve existing files, waits for it the same way and then
+  writes, instead of refusing the save.
 
 ### Removed
 

@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -28,20 +28,23 @@ use super::lookup::{
 use super::metadata_form::{FieldAction, MetadataField};
 use super::output::OutputPlan;
 use super::plans::PlanTicket;
-use super::state::{
-    GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate, StageOutcome,
-};
+use super::state::{GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate};
+use super::submission::{plan_verdict, Draft, PlanVerdict, SubmissionStatus, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{CueChoice, InputNotice, MoveDirection, SelectionModifiers, WorkingSet};
 use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRuntime};
 use crate::audio::{self, EncoderSettingsCapabilities};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
-use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
+use crate::metadata::AudiobookMetadata;
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
 use crate::opened_audio::OpenedAudioFileQueue;
+use crate::output_artifact::CollisionPolicy;
 use crate::output_artifact::NamingPreset;
+use crate::processing::run::{preflight_payload, process_payload};
+use crate::processing::SupplementalProcessingAsset;
+use crate::work_runtime::SubmitProcessingOperationRequest;
 use crate::work_runtime::WorkRuntime;
 use crate::ManagedJobRegistry;
 
@@ -91,9 +94,6 @@ pub enum SessionIntent {
     },
     ToggleSort,
     RestoreImportOrder,
-    SetOrderLocked {
-        locked: bool,
-    },
     GroupSelected,
     #[serde(rename_all = "camelCase")]
     Ungroup {
@@ -112,6 +112,25 @@ pub enum SessionIntent {
     },
     /// Returns the session to empty.
     Reset,
+
+    // ---- Export ----
+    /// Exports every valid title. `supplemental_assets` are acquired titles'
+    /// companion files by input id, until remote sources move into the engine.
+    #[serde(rename_all = "camelCase")]
+    Submit {
+        supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
+    },
+    /// Renders the first `seconds` of each valid title, in the foreground.
+    #[serde(rename_all = "camelCase")]
+    Preview {
+        seconds: f64,
+        supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
+    },
+    /// Continues a submission held for review with the user's choice.
+    ChooseCollisionPolicy {
+        policy: CollisionPolicy,
+    },
+    CancelCollisionReview,
 
     // ---- Output ----
     /// Where exports are written; recorded in the settings.
@@ -165,8 +184,6 @@ pub enum SessionIntent {
         url: String,
     },
     ClearCover,
-    /// Stages the edits on screen so processing can take them.
-    StageSelection,
     /// Writes every pending edit that can be written now.
     Save,
 
@@ -205,8 +222,6 @@ pub enum SessionOutcome {
     DraftRejected {
         message: Option<String>,
     },
-    /// There are edits and no valid title to carry them.
-    NoTarget,
     CoverLoadFailed,
     /// A newer request or a reset replaced this one before it finished.
     Superseded,
@@ -257,12 +272,18 @@ pub(crate) struct SessionDeps {
     /// Source files under this root are temporary downloads.
     pub(crate) temporary_root: PathBuf,
     pub(crate) opened_audio: Arc<OpenedAudioFileQueue>,
-    /// Preview runs in flight. Save waits for them because they read sources.
-    pub(crate) previews: Arc<AtomicUsize>,
     /// Where audio and output defaults chosen in the session are recorded.
     pub(crate) settings: SettingsRuntime,
     /// The engine's background tasks; the session's run here.
     pub(crate) tasks: tokio_util::task::TaskTracker,
+    /// Where processing keeps its working files.
+    pub(crate) workspace_root: PathBuf,
+}
+
+fn failed(error: &AppError) -> SubmissionStatus {
+    SubmissionStatus::Failed {
+        error: AppErrorEnvelope::from(error),
+    }
 }
 
 /// One working session. Cloning shares it.
@@ -282,6 +303,8 @@ struct SessionInner {
     /// The revision the last event carried.
     published: AtomicU64,
     deferred_writer_running: AtomicBool,
+    /// Wakes the deferred writer when a submission frees its sources.
+    sources_freed: tokio::sync::Notify,
     /// Advances with every output change; a delayed record checks it.
     output_edits: AtomicU64,
 }
@@ -313,6 +336,13 @@ enum Rest {
     },
     /// Record a choice in the settings.
     Remember(SettingsIntent),
+    /// Preflight, review, then export or preview.
+    Submit(Box<Draft>),
+    /// Continue a reviewed submission under `policy`.
+    Reviewed {
+        draft: Box<Draft>,
+        policy: CollisionPolicy,
+    },
     Save {
         epoch: u64,
         plan: SavePlan,
@@ -359,6 +389,11 @@ impl SessionRun {
                 session.remember(intent).await;
                 SessionOutcome::Applied
             }
+            Rest::Submit(draft) => session.submit(*draft).await,
+            Rest::Reviewed { mut draft, policy } => {
+                draft.payload.collision_policy = Some(policy);
+                session.submit(*draft).await
+            }
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
@@ -390,6 +425,7 @@ impl Session {
                 resets: AtomicU64::new(0),
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
+                sources_freed: tokio::sync::Notify::new(),
                 output_edits: AtomicU64::new(0),
             }),
         }
@@ -508,17 +544,6 @@ impl Session {
         self.lock().displayed_cover()
     }
 
-    pub(crate) fn pending_intents(
-        &self,
-        paths: &[PathBuf],
-    ) -> HashMap<String, MetadataIntentPatch> {
-        self.lock()
-            .pending_intents(paths)
-            .into_iter()
-            .map(|(path, patch)| (path.to_string_lossy().into_owned(), patch))
-            .collect()
-    }
-
     /// Source files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
         self.lock().waiting_write_paths()
@@ -563,7 +588,6 @@ impl Session {
             I::ReorderFiles { from, to } => self.edit_titles(|set| set.reorder_files(from, to)),
             I::ToggleSort => self.edit_titles(WorkingSet::toggle_sort),
             I::RestoreImportOrder => self.edit_titles(WorkingSet::restore_import_order),
-            I::SetOrderLocked { locked } => self.edit_titles(|set| set.set_order_locked(locked)),
             I::ReorderSources { title_id, from, to } => {
                 self.edit_titles(|set| set.reorder_sources(&title_id, from, to))
             }
@@ -618,21 +642,26 @@ impl Session {
                 self.transition(SessionState::clear_cover);
                 Rest::Done(SessionOutcome::Applied)
             }
-            I::StageSelection => {
-                Rest::Done(self.transition(|state| match state.stage_bound_form() {
-                    StageOutcome::Staged => SessionOutcome::Applied,
-                    StageOutcome::NoTarget => SessionOutcome::NoTarget,
-                    StageOutcome::Invalid(message) => {
-                        state.set_status(MetadataStatus::DraftInvalid {
-                            message: message.clone(),
-                        });
-                        SessionOutcome::DraftRejected {
-                            message: Some(message),
-                        }
-                    }
-                }))
-            }
             I::Save => self.begin_save(),
+            I::Submit {
+                supplemental_assets,
+            } => self.begin_submission(None, supplemental_assets),
+            I::Preview {
+                seconds,
+                supplemental_assets,
+            } => self.begin_submission(Some(seconds), supplemental_assets),
+            I::ChooseCollisionPolicy { policy } => match self.transition(SessionState::take_review)
+            {
+                Some(draft) => Rest::Reviewed {
+                    draft: Box::new(draft),
+                    policy,
+                },
+                None => Rest::Done(SessionOutcome::Applied),
+            },
+            I::CancelCollisionReview => {
+                self.transition(SessionState::cancel_review);
+                Rest::Done(SessionOutcome::Applied)
+            }
 
             I::LookupOpen => self.begin_lookup_open(),
             I::LookupClose => {
@@ -773,6 +802,111 @@ impl Session {
         SessionOutcome::Applied
     }
 
+    // ---- Export ----
+
+    fn begin_submission(
+        &self,
+        preview_seconds: Option<f64>,
+        supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
+    ) -> Rest {
+        let closing = self.inner.deps.tasks.is_closed();
+        let draft = self.transition(|state| {
+            if closing {
+                state.refuse_submission(SubmitRefusal::Closing);
+                return None;
+            }
+            state.begin_submission(preview_seconds, supplemental_assets)
+        });
+        match draft {
+            Some(draft) => Rest::Submit(Box::new(draft)),
+            None => Rest::Done(SessionOutcome::Applied),
+        }
+    }
+
+    /// Preflights a draft, holds it for review when outputs collide, then
+    /// exports or previews it.
+    async fn submit(&self, draft: Draft) -> SessionOutcome {
+        self.publish();
+        let checking = draft.clone();
+        let plan = blocking(move || {
+            preflight_payload(
+                checking.payload,
+                checking.metadata,
+                checking.preview_seconds,
+            )
+        })
+        .await;
+        let plan = match plan {
+            Ok(plan) => plan,
+            Err(error) => return self.end_submission(&draft, failed(&error)),
+        };
+        match plan_verdict(&plan) {
+            PlanVerdict::Blocked(message) => {
+                self.end_submission(&draft, SubmissionStatus::Blocked { message })
+            }
+            PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
+                self.transition(|state| state.await_review(draft, outputs));
+                SessionOutcome::Applied
+            }
+            PlanVerdict::Review(_) | PlanVerdict::Proceed => {
+                self.accept(draft.approved(plan.collision_policy, plan.plan_signature))
+                    .await
+            }
+        }
+    }
+
+    async fn accept(&self, draft: Draft) -> SessionOutcome {
+        let deps = &self.inner.deps;
+        if let Some(seconds) = draft.preview_seconds {
+            self.transition(SessionState::start_preview);
+            self.publish();
+            let result = process_payload(
+                deps.host.clone(),
+                deps.jobs.clone(),
+                deps.workspace_root.clone(),
+                draft.payload.clone(),
+                draft.metadata.clone(),
+                Some(seconds),
+            )
+            .await;
+            let status = match result {
+                Ok(result) => SubmissionStatus::PreviewFinished { result },
+                Err(error) => failed(&error),
+            };
+            return self.end_submission(&draft, status);
+        }
+        let submitted = deps
+            .work
+            .submit_processing_operation(
+                deps.host.clone(),
+                deps.jobs.clone(),
+                deps.workspace_root.clone(),
+                SubmitProcessingOperationRequest {
+                    payload: draft.payload.clone(),
+                    metadata: draft.metadata.clone(),
+                    preview_seconds: None,
+                    title: draft.title.clone(),
+                },
+            )
+            .await;
+        let status = match submitted {
+            Ok(accepted) => SubmissionStatus::Submitted {
+                operation_id: accepted.operation_id,
+                title: draft.title.clone(),
+            },
+            Err(error) => failed(&error),
+        };
+        self.end_submission(&draft, status)
+    }
+
+    /// Ends a submission; its sources stay reserved until WorkRuntime has
+    /// registered them.
+    fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
+        self.transition(|state| state.finish_submission(draft, status));
+        self.inner.sources_freed.notify_one();
+        SessionOutcome::Applied
+    }
+
     /// Changes the output choices and records them.
     fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
         let defaults = self.transition(|state| {
@@ -858,8 +992,6 @@ impl Session {
     // ---- Save ----
 
     fn begin_save(&self) -> Rest {
-        let previewing = self.inner.deps.previews.load(Ordering::SeqCst) > 0;
-        let in_use = self.inner.deps.work.sources_in_use();
         // Source paths are canonical, so match either spelling of the root.
         let staged = &self.inner.deps.temporary_root;
         let staged_canonical = std::fs::canonicalize(staged).ok();
@@ -873,10 +1005,9 @@ impl Session {
             if state.working_set.files().is_empty() {
                 return None;
             }
-            if previewing {
-                state.set_status(MetadataStatus::SaveBlockedByPreview);
-                return None;
-            }
+            // Read under the session lock, so a submission cannot register its
+            // sources between this read and the save plan.
+            let in_use = self.inner.deps.work.sources_in_use();
             let plan = state.begin_save(&in_use, is_temporary)?;
             Some((state.epoch, plan))
         });
@@ -971,14 +1102,15 @@ impl Session {
             .spawn(async move { session.write_deferred_when_free().await });
     }
 
-    /// Writes each waiting edit once no accepted export reads its file.
+    /// Writes each waiting edit once no accepted export, preview, or
+    /// submission being prepared reads its file.
     async fn write_deferred_when_free(&self) {
         let mut changes = self.inner.deps.work.subscribe_changes();
         loop {
             changes.borrow_and_update();
-            let in_use = self.inner.deps.work.sources_in_use();
             let ready = {
                 let mut state = self.lock();
+                let in_use = self.inner.deps.work.sources_in_use();
                 if !state.has_waiting_writes() {
                     // Cleared under the state lock, where a Save adds waiting
                     // writes, so a new one always finds a writer or starts one.
@@ -990,8 +1122,13 @@ impl Session {
                 state.take_ready_deferred(&in_use)
             };
             if ready.is_empty() {
-                if changes.changed().await.is_err() {
-                    return;
+                tokio::select! {
+                    changed = changes.changed() => {
+                        if changed.is_err() {
+                            return;
+                        }
+                    }
+                    () = self.inner.sources_freed.notified() => {}
                 }
                 continue;
             }

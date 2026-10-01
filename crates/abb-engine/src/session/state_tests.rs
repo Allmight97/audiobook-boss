@@ -9,6 +9,7 @@ use proptest::prelude::*;
 use super::*;
 use crate::audio::{AudioFile, AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
 use crate::session::metadata_form::{FieldAction, FieldSnapshot};
+use crate::session::submission::SubmissionStatus;
 use crate::session::working_set::SelectionModifiers;
 
 const ONE: SelectionModifiers = SelectionModifiers {
@@ -982,6 +983,28 @@ fn a_waiting_write_for_a_removed_title_reaches_it_when_it_returns() {
             })
         );
     }
+}
+
+#[test]
+fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    let draft = desk
+        .state
+        .begin_submission(None, None)
+        .expect("the submission starts");
+    assert!(desk.state.working_set.order_locked());
+
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let plan = desk.save_during(&HashSet::new(), &[], &[]).expect("save");
+    assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
+
+    // Once the submission ends (here refused), the waiting write is free.
+    desk.state
+        .finish_submission(&draft, SubmissionStatus::Cancelled);
+    assert!(!desk.state.working_set.order_locked());
+    desk.exports_now_reading(&HashSet::new());
+    assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
 }
 
 // ---- Snapshots ----

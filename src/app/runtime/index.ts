@@ -31,10 +31,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				input,
 			});
 			const processing = createProcessingOwner({
+				link,
 				input,
-				metadata,
 				settings,
-				encoding,
 				output,
 				remoteSource,
 			});

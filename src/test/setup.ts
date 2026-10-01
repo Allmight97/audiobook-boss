@@ -11,20 +11,14 @@ import '@testing-library/jest-dom/vitest';
 import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
-import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
 import type {
 	OperationListSnapshot,
 	OperationSnapshot,
-	ProcessCommandResult,
 	RemoteIndexerConnection,
 	SupportedAudioImportMetadata,
-	WorkSubmissionAccepted,
 } from '../lib/generated/tauri';
 
 type TestEventHandler = (event: { event: string; id: number; payload: unknown }) => void;
-type ProcessPayloadForTest = {
-	inputFiles?: string[];
-};
 const eventListeners = new Map<string, Set<TestEventHandler>>();
 let mockJobCounter = 0;
 let mockMembershipRevision = 0;
@@ -200,8 +194,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 				);
 			case 'session_cover_art':
 				return fakeEngine().sessionCoverArt();
-			case 'session_metadata_intents':
-				return fakeEngine().sessionMetadataIntents(engineArgs.filePaths);
 			case 'get_supported_audio_import_metadata':
 				return Promise.resolve({
 					formats: [
@@ -216,85 +208,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 					formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
 					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
 				} satisfies SupportedAudioImportMetadata);
-			case 'get_runtime_settings_capabilities':
-				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
 			case 'read_audio_cover_thumbnail':
 				return Promise.resolve(null);
-			case 'process_audiobook_files': {
-				mockJobCounter += 1;
-				const jobId = `mock-job-${mockJobCounter}`;
-				emitTestEvent('processing-queue', {
-					operation_kind: 'processingBatch',
-					items: [{ input_index: 0, file_path: '/mock/path/chapter1.mp3' }],
-					max_concurrent: 2,
-				});
-				emitTestEvent('processing-progress', {
-					operation_kind: 'processingBatch',
-					stage: 'converting',
-					percentage: 40,
-					message: 'Converting audio',
-					current_file: '/mock/path/chapter1.mp3',
-					eta_seconds: 30,
-					job_id: jobId,
-					input_index: 0,
-				});
-				emitTestEvent('processing-progress', {
-					operation_kind: 'processingBatch',
-					stage: 'completed',
-					percentage: 100,
-					message: 'Processing completed successfully!',
-					current_file: '/mock/path/chapter1.mp3',
-					eta_seconds: 0,
-					job_id: jobId,
-					input_index: 0,
-				});
-				return Promise.resolve({
-					summary: {
-						total: 1,
-						succeeded: 1,
-						skipped: 0,
-						cancelled: 0,
-						failed: 0,
-					},
-					terminalClass: 'success',
-					results: [
-						{
-							inputIndex: 0,
-							status: 'success' as const,
-							message: 'Processing started (mock)',
-							jobId,
-							error: null,
-							supplementalWarning: null,
-							outputPath: null,
-							previewActualSeconds: null,
-						},
-					],
-				} satisfies ProcessCommandResult);
-			}
-			case 'submit_processing_operation': {
-				const args = _args as
-					| {
-							request?: {
-								payload?: ProcessPayloadForTest;
-								title?: string;
-							};
-					  }
-					| undefined;
-				const operationId = `mock-operation-${++mockJobCounter}`;
-				const inputFiles = args?.request?.payload?.inputFiles ?? [];
-				const snapshot = mockOperationSnapshot(
-					operationId,
-					'processingBatch',
-					inputFiles,
-					args?.request?.title,
-				);
-				publishMockOperation(snapshot);
-				emitTestEvent('work-operation-list-snapshot', mockOperationList());
-				return Promise.resolve({
-					operationId,
-					snapshot,
-				} satisfies WorkSubmissionAccepted);
-			}
 			case 'list_work_operations':
 				return Promise.resolve(mockOperationList());
 			case 'cancel_work_operation': {

@@ -2,7 +2,6 @@ import { createSignal, type Accessor } from 'solid-js';
 import { liveEngineCapability, type EngineCapability } from '../../lib/tauri/capabilities/engine';
 import type { SettingsIntent, SettingsOutcome, SettingsSnapshot } from '../../types/appSettings';
 import type { AudioFile } from '../../types/audio';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
 	SessionIntent,
 	SessionAudio,
@@ -33,7 +32,6 @@ export type EngineLink = {
 	post(intent: SessionIntent): void;
 	sendSettings(intent: SettingsIntent): Promise<SettingsOutcome>;
 	coverArt(): Promise<number[] | null>;
-	metadataIntents(filePaths: readonly string[]): Promise<Record<string, MetadataIntentPatch>>;
 	/** Resolves once the engine's current state has been received. */
 	ready(): Promise<void>;
 	dispose(): void;
@@ -122,6 +120,7 @@ function emptyOutput(): SessionOutput {
 		template: '',
 		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 		preview: { kind: 'noDirectory' },
+		submission: null,
 	};
 }
 
@@ -361,7 +360,6 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 				});
 		},
 		coverArt: () => capability.sessionCoverArt(),
-		metadataIntents: (filePaths) => capability.sessionMetadataIntents([...filePaths]),
 		ready: () => attached.then(() => undefined),
 		dispose() {
 			disposed = true;

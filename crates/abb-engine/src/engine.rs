@@ -1,8 +1,6 @@
 //! The engine's host-facing interface and lifetime.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use crate::app_settings::{
@@ -11,19 +9,14 @@ use crate::app_settings::{
 use crate::audio::{self, SupportedAudioImportMetadata};
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
-use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
+use crate::metadata::AudiobookMetadata;
 use crate::opened_audio::OpenedAudioFileQueue;
 use crate::power::PowerManager;
-use crate::processing::{run, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
 };
-use crate::work_runtime::{
-    OperationId, OperationListSnapshot, OperationSnapshot, SubmitProcessingOperationRequest,
-    WorkRuntime, WorkSubmissionAccepted,
-};
-use crate::ManagedJobRegistry;
+use crate::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot, WorkRuntime};
 use tokio_util::task::TaskTracker;
 
 /// What a host supplies to start the engine.
@@ -53,16 +46,12 @@ pub struct Engine {
 }
 
 struct EngineInner {
-    workspace_root: PathBuf,
     host: Host,
     settings: SettingsRuntime,
-    jobs: ManagedJobRegistry,
     work: WorkRuntime,
     remote_source: RemoteSourceRuntime,
     opened_audio: Arc<OpenedAudioFileQueue>,
     session: Session,
-    /// Preview runs in flight.
-    previews: Arc<AtomicUsize>,
     /// Every background task the engine starts; shutdown waits for them.
     tasks: TaskTracker,
 }
@@ -103,16 +92,15 @@ impl Engine {
         let host = Host::new(config.events, power);
         let work = WorkRuntime::new(tasks.clone());
         let opened_audio = Arc::new(OpenedAudioFileQueue::default());
-        let previews = Arc::new(AtomicUsize::new(0));
         let session = Session::new(SessionDeps {
             host: host.clone(),
             work: work.clone(),
             jobs: Arc::clone(&jobs),
             temporary_root: remote_source.staging_root(),
             opened_audio: Arc::clone(&opened_audio),
-            previews: Arc::clone(&previews),
             settings: settings.clone(),
             tasks: tasks.clone(),
+            workspace_root: audio::processing_workspace_root(&config.cache_dir),
         });
         session.start_from_defaults(
             startup.as_ref(),
@@ -120,15 +108,12 @@ impl Engine {
         );
         Ok(Self {
             inner: Arc::new(EngineInner {
-                workspace_root: audio::processing_workspace_root(&config.cache_dir),
                 host,
                 settings,
-                jobs,
                 work,
                 remote_source,
                 opened_audio,
                 session,
-                previews,
                 tasks,
             }),
         })
@@ -207,15 +192,6 @@ impl Engine {
         self.inner.session.cover_art()
     }
 
-    /// The pending metadata edits for `file_paths`, as processing takes them.
-    pub fn session_metadata_intents(
-        &self,
-        file_paths: &[String],
-    ) -> HashMap<String, MetadataIntentPatch> {
-        let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
-        self.inner.session.pending_intents(&paths)
-    }
-
     // ---- Import ----
 
     pub fn supported_audio_import_metadata(&self) -> SupportedAudioImportMetadata {
@@ -262,52 +238,6 @@ impl Engine {
 
     // ---- Output and processing ----
 
-    pub fn preflight_processing_plan(
-        &self,
-        payload: ProcessPayload,
-        metadata: Option<HashMap<String, MetadataIntentPatch>>,
-        preview_seconds: Option<f64>,
-    ) -> Result<ProcessingPreflightPlan> {
-        run::preflight_payload(payload, metadata, preview_seconds)
-    }
-
-    /// Runs a direct preview. Final processing enters through
-    /// [`Engine::submit_processing_operation`] so it has operation identity,
-    /// snapshots, and operation and title cancellation.
-    pub async fn process_preview(
-        &self,
-        payload: ProcessPayload,
-        metadata: Option<HashMap<String, MetadataIntentPatch>>,
-        preview_seconds: Option<f64>,
-    ) -> Result<ProcessCommandResult> {
-        let preview_seconds = require_preview_seconds(preview_seconds)?;
-        let _previewing = PreviewInFlight::begin(&self.inner.previews);
-        run::process_payload(
-            self.inner.host.clone(),
-            self.inner.jobs.clone(),
-            self.inner.workspace_root.clone(),
-            payload,
-            metadata,
-            Some(preview_seconds),
-        )
-        .await
-    }
-
-    pub async fn submit_processing_operation(
-        &self,
-        request: SubmitProcessingOperationRequest,
-    ) -> Result<WorkSubmissionAccepted> {
-        self.inner
-            .work
-            .submit_processing_operation(
-                self.inner.host.clone(),
-                self.inner.jobs.clone(),
-                self.inner.workspace_root.clone(),
-                request,
-            )
-            .await
-    }
-
     pub fn list_work_operations(&self) -> Result<OperationListSnapshot> {
         self.inner.work.list_operations()
     }
@@ -327,46 +257,5 @@ impl Engine {
 
     pub fn remote_source(&self) -> &RemoteSourceRuntime {
         &self.inner.remote_source
-    }
-}
-
-/// Counts a preview run for as long as it lives.
-struct PreviewInFlight(Arc<AtomicUsize>);
-
-impl PreviewInFlight {
-    fn begin(previews: &Arc<AtomicUsize>) -> Self {
-        previews.fetch_add(1, Ordering::SeqCst);
-        Self(Arc::clone(previews))
-    }
-}
-
-impl Drop for PreviewInFlight {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::SeqCst);
-    }
-}
-
-fn require_preview_seconds(preview_seconds: Option<f64>) -> Result<f64> {
-    preview_seconds.ok_or_else(|| {
-        AppError::InvalidInput(
-            "Direct processing requires a preview duration; submit final processing through WorkRuntime"
-                .to_string(),
-        )
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn direct_processing_requires_preview_duration() {
-        match require_preview_seconds(None) {
-            Err(AppError::InvalidInput(message)) => assert_eq!(
-                message,
-                "Direct processing requires a preview duration; submit final processing through WorkRuntime"
-            ),
-            result => panic!("expected invalid-input error, got {result:?}"),
-        }
     }
 }
