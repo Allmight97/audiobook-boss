@@ -2,8 +2,9 @@
 
 ## Routing
 
-- Application interfaces, session state, and workflow lifetime follow
-  `src/app/AGENTS.md`; read it when changing frontend session truth.
+- Product rules and working-session truth live in the Rust engine; the
+  frontend renders its snapshots and sends intents. Application interfaces,
+  the engine link, and workflow lifetime follow `src/app/AGENTS.md`.
 - Runtime command/event/plugin adaptation follows `src/lib/tauri/AGENTS.md`.
   UI/runtime callers use `tauriClient`; generated invokers stay inside that
   boundary. Regenerate `src/lib/generated/tauri.ts` through the binding scripts.
@@ -18,9 +19,11 @@
 
 ## UI And State
 
-- Keep business logic in TypeScript owners; Solid views render owner state and
-  dispatch semantic intent. Capability accept/reject facts come from their
-  Rust owner, including encoder and concurrency settings.
+- Solid views render owner state and dispatch semantic intent. Rules the
+  engine does not own yet (encoding, output planning, processing submission)
+  stay in their `src/app` owner until they move. Capability accept/reject
+  facts come from their Rust owner, including encoder and concurrency
+  settings.
 - Keep `src/ui/App.tsx` and `src/main.tsx` declarative composition surfaces.
 - `src/styles.css` loads the foundation and owns app-shell layout. Shared
   visual primitives and semantic tokens belong to `src/ui/foundation`; read

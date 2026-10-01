@@ -58,8 +58,8 @@
 - `outputPlan.test.ts` pins hydration, per-title estimate (including VBR
   uncertainty vs target-based estimates), live submit naming vs 150 ms
   preview debounce, series-part preview retrigger, preview draft/source-path
-  projection, and collision resolve/cancel. Duration comes from
-  `runtime.input.replaceSession`.
+  projection, and collision resolve/cancel. Titles and durations come from
+  the fake engine (`loadTitles`).
 - `workflow.test.ts` pins stale preview suppression and review approve /
   cancel / hard-block.
 - `runtime-api-contract.test.ts` pins this owner's public export strip.

@@ -18,7 +18,7 @@
 
 - `TagPreviewView` reads Metadata Session `view().tags`.
 - Tag-field projection lives in `src/app/metadataSession/tags.ts`; the TSOA
-  value comes from Rust (`preview_album_sort`) through Metadata Session. Do not
+  value comes from the engine's metadata snapshot (`albumSort`). Do not
   compute TSOA here. With several titles selected the TSOA row omits each
   title's source value, so it can show blank where outputs keep their own. Do
   not add a local tag store, refresh function, or listener

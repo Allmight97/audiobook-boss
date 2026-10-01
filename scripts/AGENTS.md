@@ -20,7 +20,7 @@ commands over invoking internals directly.
 - Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
   `abb-*-core` crates' tests and `clippy -D warnings` on PRs and `main` pushes
   that touch core crates, workspace manifests/lockfile, the Rust toolchain, or
-  that workflow. The `src-tauri` runtime suite, media lane, and
+  that workflow. The engine and host suites, media lane, tier check, and
   generated-binding proof stay local/release-owned through the commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
@@ -58,16 +58,26 @@ commands over invoking internals directly.
 - Rust lint: for a touched core owner, package-select with
   `cargo clippy -p abb-<owner>-core --all-targets` — this avoids pulling
   `src-tauri`'s gdk/gtk GUI libs, which core crates build without and which are
-  absent in common agent sandboxes. Use the full `cargo clippy --workspace
+  absent in common agent sandboxes. `abb-engine` has no GUI dependency either:
+  `cargo clippy -p abb-engine --all-targets --features bundled-ffmpeg`. Use the full `cargo clippy --workspace
   --all-targets` only when the change actually spans owners or includes
   `src-tauri` (GUI libs must be present). GitHub runs Clippy only for the core
   crates (Rust core workflow); `src-tauri` Clippy is a local owner check. Workspace lint posture is centralized in root
   `Cargo.toml` `[workspace.lints]` (members opt in with
   `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
-- Runtime shell or Rust integration:
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib` or
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`.
+- Engine: `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`
+  (unit) or `--test all_tests` (real files). Session only:
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(session::)'`
+  plus `--test all_tests -E 'test(integration_session)'`.
+- Host (intent ordering, command contract):
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`.
+- Crate dependency tiers: `bun run check:rust-tiers` (also in the Rust core
+  workflow) when a manifest or crate dependency changes.
+- Driving the engine session without a window:
+  `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--json]`.
+  It uses its own identity and a temporary state folder, so it never touches
+  the app's settings or credentials.
 - Metadata planner-to-file workflow (two titles, two processing passes, encode
   and preserve, actual tag readback and source-save policy):
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(metadata_workflow)'`.

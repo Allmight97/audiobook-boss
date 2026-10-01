@@ -1,61 +1,73 @@
-# App Settings Directives
+# App Settings
+
+App Settings owns the settings in effect for this run and whether they have
+reached disk. Hosts change them only through `Engine::settings_dispatch` with
+a `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply.
 
 ## Public API Strip
 
-- Import durable settings behavior from `crate::app_settings`, not private child
-  modules.
-- Types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`, `EncoderDefaults`,
-  `OutputDefaults`, `ConcurrencyPreference`,
+- Intent and snapshot: `SettingsIntent`, `SettingsOutcome`, `SettingsReply`,
+  `SettingsSnapshot`, `ConcurrencySnapshot`.
+- Setting types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`,
+  `EncoderDefaults`, `OutputDefaults`, `ConcurrencyPreference`,
   `StartupBehavior`, `PinnedDefaults`, `AppSettingsRecoveryPlan`,
-  `AppSettingsRecoveryResult`, `EncoderDefaultsScope`, `IncompatibleEncoderDefaults`.
-- Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`,
-  `get_app_settings_recovery`, `recover_app_settings`.
+  `AppSettingsRecoveryResult`, `EncoderDefaultsScope`,
+  `IncompatibleEncoderDefaults`.
+- `SettingsRuntime` is engine-internal. Load, save, reset, and recovery
+  functions are private to this module so every write goes through the
+  runtime.
 
-## Private Cluster
+## Settings Runtime
 
-- Files: `types.rs`, `storage.rs`, `contract_tests.rs`.
-- The cluster owns durable preference schema, defaults, patch merge,
-  validation, and private JSON storage under Tauri's app config directory.
-- Encoder defaults include output format and audio intent; older stored settings
-  default those fields to M4B and Auto. Format/encoder validation lives here,
-  while source-aware copy/encode decisions stay Audio-owned.
+- One lock is held for a whole intent, so changes apply and write in the
+  order asked and an older write never reports a newer choice as saved.
+- A remembered default stays in effect when its write fails. The unsaved part
+  is kept, coalesced by field, reported as `save_error`, and written by the
+  next write or `Retry`.
+- Keep-awake and startup behavior apply only once written. Pinning first
+  writes anything unsaved, and is refused if that write fails.
+- Concurrency is accepted by the job scheduler before it is recorded; a fixed
+  choice is recorded as the count the scheduler settled on. At engine start
+  the scheduler takes the startup defaults' concurrency (pinned, if the user
+  chose to start from pinned defaults).
+- Reset is refused while exports run. A failed reset restores the previous
+  concurrency.
+- Settings that fail to load leave runtime defaults in effect and report
+  `load_error` with any recovery plan. Accepted changes made meanwhile are
+  written after a successful `Recover`.
+- `keep_awake_while_working` defaults on, including for settings written
+  before the preference existed. Applying it updates `PowerManager`; opting
+  out releases an active hold.
+
+## Storage
+
+- `types.rs` owns schema, defaults, patch merge, and validation; `storage.rs`
+  owns the JSON file in the host's config folder.
+- Encoder defaults include output format and audio intent; older stored
+  settings default those fields to M4B and Auto. Format/encoder validation
+  lives here, while source-aware copy/encode decisions stay Audio-owned.
 - Fresh encoder defaults come from Audio's `EncoderSettings::default()`; saved
   explicit choices survive hydration and encoder discovery.
 - Durable preferences validate against the owning runtime APIs; App Settings
-  must not duplicate encoder or JobRegistry accept/reject rules.
-- `keep_awake_while_working` defaults on, including for settings written before
-  the preference existed. Startup and successful update/reset/recovery apply
-  the stored keep-awake choice and FFmpeg path through the one command-layer
-  helper `apply_settings_to_runtime`; opting out releases an active hold.
-- Updating preferences does not reconfigure JobRegistry. Concurrency is accepted
-  through its runtime command before the frontend Settings owner records the
-  preference; retrying storage remains possible while jobs are active. Reset
-  coordinates runtime defaults with storage and restores prior concurrency if
-  storage reset fails.
+  does not duplicate encoder or JobRegistry accept/reject rules.
 - Storage upgrades saved `faac_he_aac` defaults to `faac` with explicit HE
-  intent in last-used and pinned scopes. Fresh defaults use profile Auto;
-  current IPC accepts only the canonical encoder identity.
+  intent in last-used and pinned scopes.
 - Unsupported persisted encoders require explicit targeted recovery. Inspection
   is read-only; recovery rechecks the reviewed encoder scopes, writes a complete
   backup before replacement, and resets only their encoder-default groups.
   Unrelated invalid settings block that recovery. Preserve all other JSON
-  values during recovery; ordinary runtime requests remain strictly typed.
+  values during recovery; ordinary requests remain strictly typed.
+- Store request-shaped settings only; display state stays out. Persisted paths
+  are preference data; runtime owners validate them before reads or writes.
 
-## Edit Rules
+## Proof
 
-- Change storage or merge internals when App Settings contract tests and runtime
-  binding checks stay green.
-- Store backend/request-shaped settings only; keep UI-only display state out of
-  durable settings.
-- Treat persisted user paths as preference data only. Runtime owners still
-  validate paths before reads or writes.
-- Settings writes serialize through one process-wide update lock
-  (`SETTINGS_UPDATE_LOCK`); keep a single write path.
+- `contract_tests.rs`: schema, merge, storage, and recovery.
+- `runtime_tests.rs`: what each intent leaves in effect and on disk, including
+  failed writes, retry, reset, recovery, and startup concurrency.
 
 ## Boundary Changes
 
-- Adding, removing, or renaming any Public API Strip symbol.
-- Moving runtime behavior ownership, output artifact truth, encoder
-  validation, or Status Panel state into App Settings.
-- Introducing a frontend persistence plugin dependency or bypassing
-  `tauriClient` for settings commands.
+- Adding, removing, or renaming a Public API Strip symbol or intent.
+- Moving runtime behavior ownership, output artifact truth, or encoder
+  validation into App Settings.

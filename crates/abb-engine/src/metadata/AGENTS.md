@@ -7,7 +7,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Intent symbols: `MetadataIntentPatch`, `PatchOp`, `AlbumSortPatchOp`,
   `MetadataIntentValidationResult`, `validate_metadata_intent_patch`,
   `processing_album_sort` (the TSOA rule shared by processing and the
-  `preview_album_sort` command).
+  session's tag preview).
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,

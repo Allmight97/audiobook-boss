@@ -9,10 +9,14 @@
   - inline metadata-save lifecycle hooks — `begin_metadata_save_operation`,
     `record_metadata_save_progress`, and `finish_metadata_save_operation`
     (takes the run's outcome: `InlineRunTerminal` results or the aborting
-    error) — orchestrated by `crates/abb-engine/src/metadata_save.rs`.
-    The command owns the metadata executor and each child's reason;
-    WorkRuntime owns the lifecycle, snapshots, cancellation, and terminal
-    classification, shared with processing runs.
+    error) — orchestrated by `crates/abb-engine/src/metadata_save.rs`, which
+    the session's Save calls. `metadata_save` owns the metadata executor and
+    each child's reason; WorkRuntime owns the lifecycle, snapshots,
+    cancellation, and terminal classification, shared with processing runs.
+  - `sources_in_use` (every canonical source path of every queued or running
+    title) and `subscribe_changes` (wakes on any operation change). The
+    session's Save uses them to hold a write until no accepted export reads
+    the file.
 - `OperationId`
 - operation snapshot, child snapshot, progress, summary, lane, and submit request types
 - `WORK_OPERATION_SNAPSHOT_EVENT_NAME`
@@ -60,7 +64,6 @@
   Do not reintroduce a parallel terminal-classification rule from snapshot
   counts; map the canonical `RunTerminalClass` to `WorkOperationStatus` instead.
   `WorkProgressStage` remains a work_runtime-owned display vocabulary.
-- Keep Tauri command handlers in `src-tauri/src/commands/work_runtime.rs`.
 - Keep provider secrets, raw provider payloads, protected intermediates, and
   remote staging mechanics inside `remote_source`.
 

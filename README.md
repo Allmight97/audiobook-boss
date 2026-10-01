@@ -111,8 +111,13 @@ default broad review route.
   `cargo nextest run -p abb-output-artifact-core`,
   `cargo nextest run -p abb-processing-core`,
   `cargo nextest run -p abb-remote-source-core`,
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`, or
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`.
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`,
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`, or
+  `cargo nextest run -p audiobook-boss --features bundled-ffmpeg` (Tauri host).
+- Engine without a window: `cargo run -p abb-engine --features bundled-ffmpeg
+  --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--json]`
+  imports files into an engine session, prints it, and can edit and save tags.
+  It keeps its own state and never touches the app's settings.
 - IPC/boundary checks: `bun run bindings:check:local` and
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
@@ -120,9 +125,9 @@ default broad review route.
   It is not part of the normal review path.
 - CI: GitHub runs Pages for `site/**`, a path-narrowed frontend clean-install
   alarm (frozen install, typecheck) after relevant `main` pushes, and the Rust
-  core crates' tests and Clippy on PRs and `main` pushes that touch those crates
-  or their workspace/toolchain configuration. The
-  `src-tauri` runtime suite, media lane, and generated-binding checks stay
+  core crates' tests, Clippy, and the crate tier check on PRs and `main` pushes
+  that touch those crates or their workspace/toolchain configuration. The
+  engine and host suites, media lane, and generated-binding checks stay
   local or release-owned; a passing PR check list does not mean those ran.
 - Tooling policy: Bun is the package manager/script runner/test runner.
   Keep Vite scripts on the standard Vite CLI unless a validated tooling

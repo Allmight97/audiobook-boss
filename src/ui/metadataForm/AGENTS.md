@@ -3,7 +3,8 @@
 ## Scope
 
 - Applies to the Solid metadata text-field view under `src/ui/metadataForm/`.
-  Form truth, dirty state, and save live in `src/app/metadataSession`.
+  The engine owns form values, dirty state, validation, and Save; the view
+  reads them through `src/app/metadataSession`.
 
 ## Public API Strip
 
@@ -21,5 +22,6 @@
 
 ## Done Criteria
 
-- Field edit, multi-select action, and save behavior are proved through
-  Metadata Session owner tests plus focused DOM tests of this view.
+- Field rules are proved in the engine's session tests; what the form shows
+  and sends is proved by Metadata Session owner tests and DOM tests of this
+  view.

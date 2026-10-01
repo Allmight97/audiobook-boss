@@ -39,7 +39,8 @@ List membership, source order, and persisted audio choices remain Input truth.
 - `FileListView` reads Input `view` and dispatches Input Session intents.
   Row click/removal, keyboard Select all, Escape clear-highlight, and toolbar
   Clear go through awaitable `selectFile`, `removeFile`, `selectAll`,
-  `clearSelection`, and `clearAllFiles` intents so the metadata draft gate runs.
+  `clearSelection`, and `clearAllFiles` intents so the engine's draft gate
+  runs.
 - Cover thumbnails are a presentation resource, not list truth. Each
   `FileListView` owns a private thumbnail resource with its loader, reactive
   reads, bounded cache, and queue; dispose it with the view. Scheduling an
@@ -60,6 +61,7 @@ List membership, source order, and persisted audio choices remain Input truth.
 ## Done Criteria
 
 - Thumbnail and pointer-reorder changes have focused Vitest coverage.
-- List mutation behavior is proved in `src/app/inputSession`.
+- List rules are proved in the engine's session tests; what the list shows
+  and sends is proved in `src/app/inputSession`.
 - Lifetime migration proves two mounted File List views cannot cancel, clear,
   or publish thumbnail state into one another.

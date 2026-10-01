@@ -4,6 +4,17 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Saving metadata while an export is reading the same file no longer risks
+  changing the file mid-export. A file you imported from disk is updated as
+  soon as every export reading it finishes, and the save shows as waiting
+  until then. An Audible or indexer download being exported is left as is;
+  its edits stay pending.
+- Quitting or closing the window while a save is still waiting for an export
+  asks first.
+- Typing into a field you set to Blank replaces the Blank with what you typed.
+
 ### Removed
 
 - The external FDK AAC encoder and everything that supported it: the FDK
