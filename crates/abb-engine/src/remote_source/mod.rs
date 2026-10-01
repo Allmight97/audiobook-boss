@@ -65,6 +65,10 @@ struct RemoteSourceRuntimeInner {
     indexer_adapter: ReqwestProwlarrAdapter,
     tasks: tokio_util::task::TaskTracker,
     handoff: OnceLock<Handoff>,
+    /// A connection save holds this exclusively; searches and grabs share it.
+    indexer_turn: tokio::sync::RwLock<()>,
+    /// Releases sent since the last search, by `(indexer_id, guid)`.
+    sent_releases: Mutex<std::collections::HashSet<(i64, String)>>,
 }
 
 impl RemoteSourceRuntime {
@@ -85,6 +89,8 @@ impl RemoteSourceRuntime {
                 indexer_adapter: ReqwestProwlarrAdapter::new()?,
                 tasks: config.tasks,
                 handoff: OnceLock::new(),
+                indexer_turn: tokio::sync::RwLock::new(()),
+                sent_releases: Mutex::default(),
             }),
         })
     }
@@ -206,10 +212,13 @@ impl RemoteSourceRuntime {
         }
     }
 
+    /// Searches the indexer. A new search forgets which releases were sent.
     pub async fn search_releases(
         &self,
         request: types::RemoteReleaseSearchRequest,
     ) -> Result<types::RemoteReleaseSearchResponse> {
+        let _turn = self.indexer_turn()?;
+        self.forget_sent_releases();
         IndexerProvider::search_releases(
             &self.inner.config_dir,
             self.inner.vault.as_ref(),
@@ -219,18 +228,55 @@ impl RemoteSourceRuntime {
         .await
     }
 
+    /// Sends a release to the downloader, once per search: a release already
+    /// sent since the last search is not sent again.
     pub async fn grab_release(
         &self,
         request: types::RemoteReleaseGrabRequest,
     ) -> Result<types::RemoteReleaseGrabResponse> {
+        let _turn = self.indexer_turn()?;
+        let key = (request.release.indexer_id, request.release.guid.clone());
+        if self.sent_releases().contains(&key) {
+            return Ok(types::RemoteReleaseGrabResponse {
+                provider_id: RemoteProviderId::Indexer,
+                accepted: true,
+                message: "Already sent to downloader.".to_string(),
+                diagnostics: Vec::new(),
+            });
+        }
         let _active_work = self.inner.power.begin();
-        IndexerProvider::grab_release(
+        let response = IndexerProvider::grab_release(
             &self.inner.config_dir,
             self.inner.vault.as_ref(),
             &self.inner.indexer_adapter,
             request,
         )
-        .await
+        .await?;
+        if response.accepted {
+            self.sent_releases().insert(key);
+        }
+        Ok(response)
+    }
+
+    /// A share of the indexer turn, refused while a connection save runs.
+    fn indexer_turn(&self) -> Result<tokio::sync::RwLockReadGuard<'_, ()>> {
+        self.inner.indexer_turn.try_read().map_err(|_| {
+            AppError::InvalidInput(
+                "Wait for the Indexer connection save to finish before searching or grabbing."
+                    .to_string(),
+            )
+        })
+    }
+
+    fn sent_releases(&self) -> std::sync::MutexGuard<'_, std::collections::HashSet<(i64, String)>> {
+        self.inner
+            .sent_releases
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn forget_sent_releases(&self) {
+        self.sent_releases().clear();
     }
 
     // Reading or writing the connection can wait on an OS credential prompt,
@@ -244,10 +290,19 @@ impl RemoteSourceRuntime {
         .map_err(|error| AppError::General(error.to_string()))?
     }
 
+    /// Saves the connection. Refused while a search or grab runs; releases
+    /// found with the previous connection must be searched again.
     pub async fn update_indexer_connection(
         &self,
         update: types::RemoteIndexerConnectionUpdate,
     ) -> Result<types::RemoteIndexerConnection> {
+        let _turn = self.inner.indexer_turn.try_write().map_err(|_| {
+            AppError::InvalidInput(
+                "Wait for the current search or grab to finish before saving the Indexer connection."
+                    .to_string(),
+            )
+        })?;
+        self.forget_sent_releases();
         let runtime = self.clone();
         tokio::task::spawn_blocking(move || {
             IndexerProvider::update_connection(
@@ -372,6 +427,8 @@ mod tests {
                 indexer_adapter: ReqwestProwlarrAdapter::new().expect("indexer adapter"),
                 tasks: tokio_util::task::TaskTracker::new(),
                 handoff: OnceLock::new(),
+                indexer_turn: tokio::sync::RwLock::new(()),
+                sent_releases: Mutex::default(),
             }),
         }
     }
@@ -592,6 +649,75 @@ mod tests {
             assert_eq!(audio.exists(), kept);
             assert_eq!(stored.materialized_files.is_empty(), !kept);
         }
+    }
+
+    fn release(guid: &str) -> types::RemoteReleaseGrabRequest {
+        types::RemoteReleaseGrabRequest {
+            release: types::RemoteRelease {
+                provider_id: RemoteProviderId::Indexer,
+                guid: guid.to_string(),
+                indexer_id: 7,
+                title: "Example".to_string(),
+                indexer: "Example Indexer".to_string(),
+                detail_url: None,
+                size_bytes: 1,
+                protocol: types::RemoteReleaseProtocol::Torrent,
+                seeders: None,
+                categories: Vec::new(),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn a_release_sent_in_this_search_is_not_sent_again() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        runtime.sent_releases().insert((7, "release-1".to_string()));
+
+        // No connection is saved, so a real send would fail.
+        let again = runtime
+            .grab_release(release("release-1"))
+            .await
+            .expect("answered without sending");
+        assert!(again.accepted);
+        assert!(runtime.grab_release(release("release-2")).await.is_err());
+
+        // A new search, or a saved connection, forgets what was sent.
+        let _ = runtime
+            .search_releases(types::RemoteReleaseSearchRequest {
+                author: None,
+                title: Some("Example".to_string()),
+                query: None,
+            })
+            .await;
+        assert!(runtime.grab_release(release("release-1")).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_connection_save_and_a_search_or_grab_refuse_each_other() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let saving = runtime.inner.indexer_turn.write().await;
+
+        let refused = runtime.grab_release(release("release-1")).await;
+        assert!(
+            matches!(refused, Err(AppError::InvalidInput(message)) if message.contains("connection save"))
+        );
+        drop(saving);
+
+        let searching = runtime.inner.indexer_turn.read().await;
+        let save = runtime
+            .update_indexer_connection(
+                serde_json::from_value(serde_json::json!({
+                    "baseUrl": "https://indexer.example",
+                }))
+                .expect("update"),
+            )
+            .await;
+        assert!(
+            matches!(save, Err(AppError::InvalidInput(message)) if message.contains("search or grab"))
+        );
+        drop(searching);
     }
 
     #[test]

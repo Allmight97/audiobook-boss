@@ -59,7 +59,9 @@
   account loads allow an explicit cross-lane reopen; their late results expire. Reset invalidates late
   responses and stops sending remaining items.
 - Connection Save and Grab batches are mutually exclusive, including when
-  settings drafts change during a pending save. A save expires previous Indexer
+  settings drafts change during a pending save. The engine refuses either
+  while the other runs and never resends a release within one search; the
+  checks here keep the dialog from offering what the engine would refuse. A save expires previous Indexer
   results and searches; submissions must come from a fresh search.
 - Grab queues externally and never calls the Input handoff. Sent means the
   configured provider confirmed submission; it is not download-completion truth.

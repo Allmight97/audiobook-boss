@@ -56,6 +56,9 @@ or infer provider-private Audible internals.
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.
   A failed save must never pair one server with another server's key.
+- A connection save and a search or grab refuse each other while either
+  runs. A release accepted since the last search, or the last save, is not
+  sent again; the grab answers "Already sent".
 - Connection Test accepts a draft without persisting it. An omitted draft key
   resolves only from that draft URL's vault slot; a new URL requires its own key.
 
