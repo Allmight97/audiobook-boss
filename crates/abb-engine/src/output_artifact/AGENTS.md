@@ -14,8 +14,9 @@
 
 ## Edit Rules
 - Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.
-- Change private implementation files when targeted `audiobook-boss` Nextest
-  and Public API Strip checks stay green.
+- Change private implementation files when targeted
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  API Strip checks stay green.
 - Add behavior coverage inside this cluster when requested path, resolved path, collision, review, or commit behavior changes.
 - Successful publication fixes final artifact truth. Staged-source cleanup
   happens afterward through the cleanup guard; failures surface a success

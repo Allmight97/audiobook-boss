@@ -20,7 +20,9 @@ a `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply.
 ## Settings Runtime
 
 - One lock is held for a whole intent, so changes apply and write in the
-  order asked and an older write never reports a newer choice as saved.
+  order asked and an older write never reports a newer choice as saved. Every
+  reply carries the whole snapshot with a revision that advances per intent;
+  a host keeps the newest.
 - A remembered default stays in effect when its write fails. The unsaved part
   is kept, coalesced by field, reported as `save_error`, and written by the
   next write or `Retry`.

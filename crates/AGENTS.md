@@ -32,6 +32,5 @@ Put a rule in the engine, or in a core when it needs no I/O.
 - Engine real-file tests: `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests`
 - Host: `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`
 
-Move a test with the logic it proves. The host's tests cover only what the
-host owns: intent ordering, the command contract, window sizing, and the
-frontend log command.
+Move a test with the logic it proves; what the host's own tests cover is in
+`src-tauri/AGENTS.md`.

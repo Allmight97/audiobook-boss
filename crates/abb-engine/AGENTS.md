@@ -10,8 +10,11 @@ the same code.
   folder, an identity that scopes stored credentials, and an `EventSink`.
   `Engine::start` clears working files a previous run abandoned, so two
   engines must not share those folders.
-- A host calls `Engine` methods and receives `EngineEvent`s. `engine.rs` is the
-  whole host-facing surface; read it for the current methods.
+- A host calls `Engine` methods and receives `EngineEvent`s; `engine.rs` lists
+  the methods. Remote sources are the exception: a host reaches them through
+  `Engine::remote_source()`, whose strip is in `remote_source/AGENTS.md`.
+- The engine runs on the host's tokio runtime: `Engine::start` and every
+  async method must be called inside one. A host with no runtime builds one.
 - The working session and the settings each take typed intents and return
   snapshots: `session/AGENTS.md` and `app_settings/AGENTS.md`.
 - A new host need (a directory, a platform service, an event) is added to
@@ -30,7 +33,13 @@ the same code.
   snapshots, retention, and operation cancellation belong to
   `crate::work_runtime`.
 - The titles being prepared, their metadata drafts, lookup, and Save belong to
-  `crate::session`.
+  `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
+  operation per batch) and loads user-picked covers through `cover_source.rs`,
+  which owns the URL and file limits.
+- Online metadata search belongs to `crate::metadata_lookup`. A provider that
+  fails while others answer leaves the usable results plus typed diagnostics;
+  the search fails only when no selected source can answer
+  (`metadata_lookup/service.rs`).
 - The settings in effect, their validation, storage, and durability belong to
   `crate::app_settings`; it consults runtime owners for accept/reject rules.
 - Remote provider registry, secrets, acquisition, staged files, Supplemental

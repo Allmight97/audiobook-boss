@@ -8,9 +8,9 @@ the owning code and tests.
 ABB is a local, single-user desktop application. A Rust engine
 (`crates/abb-engine`) owns the product's rules and the working session; the
 Tauri app is one host for it. One owner holds each product truth, views
-dispatch semantic intent, and typed interfaces cross seams. Moving the rest of
-the frontend-owned workflow into the engine, so a native UI can replace the
-Tauri host, is the ABB Core roadmap (#526).
+dispatch semantic intent, and typed interfaces cross seams. The remaining
+frontend-owned workflow is moving into the engine so a native UI can replace
+the Tauri host.
 
 ## Product Spine
 
@@ -40,14 +40,13 @@ User intent
   -> Solid view
   -> src/app adapter owner               wording + local echo of typed text
   -> engineLink                          numbered intent
-  -> tauriClient -> host command         ordered by the host's intent turnstile
+  -> tauriClient -> host command         run in the order sent (intent order)
   -> Engine session / settings runtime   rule, transition, file/network work
   -> reply + session-update events       snapshot parts with revisions
   -> engineLink keeps newest parts -> Solid view renders
 ```
 
-Encoding, output planning, and processing submission (still frontend-owned
-until PR 2 of #526):
+Encoding, output planning, and processing submission (still frontend-owned):
 
 ```text
 User intent
@@ -142,5 +141,5 @@ mismatch instead of blending the sources.
 - External-provider partial failure remains typed and explicit at the owning engine module.
 - Generated bindings are regenerated, never hand-edited.
 - Session truth has one owner (the engine for the working session); module globals and view stores do not become a second copy.
-- Save never writes a file an accepted export is reading; a temporary download in an export is never written.
+- Save never writes a file while an accepted export reads it: a local source waits, a temporary download is not written (`crates/abb-engine/src/session/AGENTS.md`).
 - Final success follows output commit/finalization and truthful cleanup semantics.

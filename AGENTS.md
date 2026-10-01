@@ -45,9 +45,10 @@ neither earns no preference over the simpler design.
   contract change includes updating its owner, callers, and focused proof;
   pause the affected action when a consequential choice or data-loss risk
   remains unresolved.
-- Product rules and working-session truth live in `abb-engine`. Hosts and the
-  frontend send intents and render snapshots; a rule added there would be
-  rewritten for every future host. Tiers: `crates/AGENTS.md`.
+- Working-session and settings truth live in `abb-engine`, and new product
+  rules go there. Hosts and the frontend send intents and render snapshots; a
+  rule added there would be rewritten for every future host. Tiers:
+  `crates/AGENTS.md`.
 - Runtime IPC stays centralized in `src/lib/tauri/*`.
 - Metadata intent adaptation stays at the Tauri runtime boundary.
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.

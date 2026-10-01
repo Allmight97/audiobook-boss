@@ -27,7 +27,7 @@ type MetadataFieldDefinition = {
 	readonly actionId: MetadataActionId;
 	/** The engine's name for this field. */
 	readonly field: MetadataField;
-	/** The tag the output-path preview reads this field as (removed with PR 2). */
+	/** The tag the output-path preview reads this field as, until that preview moves into the engine. */
 	readonly key: keyof AudiobookMetadata;
 	readonly mapToAlbum?: boolean;
 	readonly placeholder: string;

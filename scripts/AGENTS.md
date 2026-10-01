@@ -18,10 +18,11 @@ commands over invoking internals directly.
   It catches undeclared dependencies that a warm checkout can conceal; it is
   not a PR gate or broad test route.
 - Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
-  `abb-*-core` crates' tests and `clippy -D warnings` on PRs and `main` pushes
-  that touch core crates, workspace manifests/lockfile, the Rust toolchain, or
-  that workflow. The engine and host suites, media lane, tier check, and
-  generated-binding proof stay local/release-owned through the commands below.
+  `abb-*-core` crates' tests, their `clippy -D warnings`, and the crate tier
+  check on PRs and `main` pushes that touch `crates/**`, workspace
+  manifests/lockfile, the Rust toolchain, the tier script, or that workflow.
+  The engine and host suites, media lane, and generated-binding proof stay
+  local/release-owned through the commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing
@@ -34,7 +35,7 @@ commands over invoking internals directly.
   `bun run aac-decoder-contract:check` have explicit binary commands.
 - Media execution: real-media workflow
   tests live in `crates/abb-engine/tests/cases/integration_media_execution_tests.rs`
-  and run inside the normal runtime suite. Covers WAV, M4B, MP3, and Opus inputs,
+  and run inside the engine's real-file suite. Covers WAV, M4B, MP3, and Opus inputs,
   the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
   AAC is macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
   channel preservation (per-channel RMS),
@@ -70,10 +71,10 @@ commands over invoking internals directly.
   (unit) or `--test all_tests` (real files). Session only:
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(session::)'`
   plus `--test all_tests -E 'test(integration_session)'`.
-- Host (intent ordering, command contract):
+- Host (intent ordering, window sizing, binding file format):
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`.
-- Crate dependency tiers: `bun run check:rust-tiers` (also in the Rust core
-  workflow) when a manifest or crate dependency changes.
+- Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
+  dependency changes.
 - Driving the engine session without a window:
   `cargo run -p abb-engine --features bundled-ffmpeg --bin abb-dev -- <file-or-folder>... [--set field=value] [--save] [--json]`.
   It uses its own identity and a temporary state folder, so it never touches
@@ -81,8 +82,8 @@ commands over invoking internals directly.
 - Metadata planner-to-file workflow (two titles, two processing passes, encode
   and preserve, actual tag readback and source-save policy):
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(metadata_workflow)'`.
-  Use alongside the frontend metadata-owner and IPC checks when a change spans
-  edit retention and file output; this is headless backend proof, not UI automation.
+  Use alongside the session's tests when a change spans edit retention and file
+  output; this is headless backend proof, not UI automation.
 - Manual Tauri dev with captured logs:
   `bun run app:dev:log`; inspect `.logs/tauri-dev-summary.md` for the semantic
   session verdict, then `.logs/tauri-dev.log` for raw evidence before asking for
@@ -197,7 +198,7 @@ commands over invoking internals directly.
   `libmp3lame` and `libopus`, makes FFmpeg discoverable after the setup shell exits, creates
   the gitignored AAXClean sidecar stub for the host triple, and runs
   `bun install --frozen-lockfile`.
-- The runtime suite links FFmpeg at the revision selected by
+- The engine suite links FFmpeg at the revision selected by
   `vendor/ffmpeg-sys-next-*/ffmpeg-revision`. Rust and Linux setup consume that
   source identity and apply the vendor-owned chapter patch. Bundled cache reuse
   also requires matching effective compiler, target, feature and CPU inputs.

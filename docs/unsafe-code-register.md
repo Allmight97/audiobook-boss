@@ -60,7 +60,7 @@ behavior can break if that invariant is wrong?
 
 These are tracked at summary level so the register stays useful:
 
-- `crates/abb-engine/tests/**` and inline `#[cfg(test)]` modules under `src-tauri/src/**`:
+- `crates/abb-engine/tests/**` and inline `#[cfg(test)]` modules under `crates/abb-engine/src/**`:
   unsafe frame allocation and raw sample slice helpers are used to build FFmpeg
   test frames and assert sample contents.
 - `vendor/ffmpeg-sys-next-9.0.0/**`: unsafe C wrapper functions belong to the
@@ -75,7 +75,7 @@ These are tracked at summary level so the register stays useful:
 Use this from the repo root when refreshing the register:
 
 ```bash
-rg -n "\bunsafe\b" src-tauri/src crates/abb-engine/tests vendor/ffmpeg-sys-next-9.0.0/src vendor/faac-sys/src src/AGENTS.md --glob '!target'
+rg -n "\bunsafe\b" crates/abb-engine/src crates/abb-engine/tests src-tauri/src vendor/ffmpeg-sys-next-9.0.0/src vendor/faac-sys/src src/AGENTS.md --glob '!target'
 ```
 
 Then classify hits as:

@@ -19,7 +19,9 @@ terminal outcomes:
 - write temporary artifact → rename/copy/replace final path;
 - spawn process → read pipes → cancel/kill/wait;
 - register cleanup → transfer or drain ownership;
-- validate path → persist or write it.
+- validate path → persist or write it;
+- metadata Save → a waiting write → the export that reads the same source
+  finishing (`crates/abb-engine/src/session/AGENTS.md`).
 
 For each candidate, establish which resource is still alive, what touches it
 next, and whether platform behavior changes the outcome. A credible finding

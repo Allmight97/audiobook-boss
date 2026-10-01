@@ -16,8 +16,8 @@ not keep parallel business state.
   intents through `engineLink`. A new rule for titles, selection, metadata
   edits, lookup, Save, or settings goes in the engine, not here.
 - **Frontend owners**: `encoding`, `outputPlan`, `processing`,
-  `workOperations`, `remoteSource`. They still hold their own workflow and
-  move into the engine with PR 2 of the ABB Core roadmap (#526).
+  `workOperations`, `remoteSource`. They still hold their own workflow until
+  it moves into the engine. New product rules go in the engine even here.
 
 ## Engine Link
 
@@ -31,9 +31,10 @@ not keep parallel business state.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results, so Solid rows are not rebuilt and a click does not land on a
   replaced element.
-- Typed text (form fields, lookup queries) and a just-chosen audio request show
-  immediately and drop when the engine confirms or replaces them. This local
-  echo is display only; it never decides what is saved.
+- Typed text (form fields, lookup queries) shows immediately and drops when
+  the engine's reply for that keystroke arrives. Form typing shows only on the
+  form it was typed into (the metadata part's `binding`). This local echo is
+  display only; it never decides what is saved.
 
 ## Owner Interface
 
@@ -59,18 +60,23 @@ not keep parallel business state.
 - Derived views are computed from owner truth, not mirrored into another
   writable store. Capability and validation facts stay with their Rust owner.
 
-## Temporary Adapters Until PR 2
+## Temporary Until Processing Moves Into The Engine
 
 These bridge engine-owned session state to the frontend owners that still
-build processing requests. Remove them when that work moves into the engine.
+build processing requests. Remove them with that move. The engine intents
+they use are listed in `crates/abb-engine/src/session/AGENTS.md`.
 
 - Input sends Encoding's default audio request with each import; Encoding
-  records a title's audio choice through Input's `setAudioRequest`.
+  records a title's audio choice through Input's `setAudioRequest`, which
+  shows the choice before the engine confirms it.
 - Processing locks the list during a preview through Input's
   `setOrderLocked`, and reads pending edits for its payload through Metadata
   Session, which asks the engine (`metadataIntents`).
-- Metadata field definitions keep `key`/`mapToAlbum` for the output-path
-  preview.
+- Input exports `chapterPlansForProcessing`, which refuses an unconfirmed CUE
+  and CUE chapters on a merged title before submit.
+- Metadata field definitions keep `key`/`mapToAlbum`, and `tags.ts` copies
+  title onto album and author onto album artist, for the output-path and tag
+  previews.
 
 ## Workflow And Failure Shape
 
@@ -89,9 +95,12 @@ build processing requests. Remove them when that work moves into the engine.
 
 - The owner has one source of truth, one public interface, and one disposal
   path. Cross-owner reads use public strips; views render and dispatch only.
-- Adapter tests run against `src/test/fixtures/fakeEngine.ts` and prove what
-  the view shows and which intents it sends. The fake holds no engine rule; a
-  test of a rule belongs with the engine.
+- Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. The
+  fake mimics enough engine behavior (selection, import, grouping, staging,
+  lookup, Save) for views to render; those copies prove nothing about the
+  engine. Engine rules are proved in Rust. Prefer seeding a snapshot through
+  the fake's `change` over adding behavior to it, and never add a new product
+  rule there.
 - Add App Runtime two-instance proof when isolation changes.
 - Update a nested owner `AGENTS.md` only for non-obvious local invariants or
   public-surface changes; keep mutable execution state out of instructions.

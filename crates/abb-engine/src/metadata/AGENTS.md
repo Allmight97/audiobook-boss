@@ -81,8 +81,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Edit Rules
 - Change pure intent internals when `cargo nextest run -p abb-metadata-core` stays green.
-- Change runtime/container adapters when targeted `audiobook-boss` Nextest and
-  Public API Strip checks stay green.
+- Change runtime/container adapters when targeted
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  API Strip checks stay green.
 - When metadata policy crosses planning and writing, prove the changed handoff
   through the production processing planner and read tags from actual output
   files on each affected route. Direct engine tests with supplied metadata

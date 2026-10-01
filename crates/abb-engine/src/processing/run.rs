@@ -604,7 +604,7 @@ mod tests {
             .enumerate()
         {
             if pass == 1 {
-                // The frontend owner proves retention of these earlier edits;
+                // The session's tests prove retention of these earlier edits;
                 // this half proves that both accumulated requests reach disk.
                 for (source, title) in seeds.iter().zip(titles) {
                     edits

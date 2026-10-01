@@ -2,14 +2,26 @@
 
 The session is the titles being prepared, the metadata edits made to them,
 and the lookup that helps fill those edits in. It behaves the same whether a
-window, a test, or `abb-dev` drives it.
+window, a test, or `abb-dev` drives it, and it outlives any one host
+attachment.
+
+## Public API Strip
+
+- Hosts reach the session through `Engine::session_dispatch`,
+  `Engine::session_begin`, `Engine::session_snapshot`,
+  `Engine::session_cover_art`, `Engine::session_metadata_intents`, and
+  `Engine::waiting_metadata_writes`, and receive `EngineEvent::Session`.
+- Types are the `pub use` list in `mod.rs`: the intent, outcome, reply, and
+  update types, each snapshot part, and the typed statuses and notices.
+- `Session`, `SessionDeps`, and the state modules are engine-internal.
 
 ## Interface
 
 - A host sends a `SessionIntent` and gets a `SessionReply`: an outcome and a
-  `SessionUpdate`. Changes the engine makes on its own, and changes made
-  before an intent's file or network work finishes, arrive as
-  `EngineEvent::Session`.
+  `SessionUpdate`. Every change also reaches hosts as `EngineEvent::Session`:
+  before an intent waits on a file or the network, when that work finishes,
+  and when the engine changes something on its own. A host that attached
+  while an intent was running learns its result from the event.
 - A `SessionUpdate` carries only the parts that changed (titles, selection,
   metadata, lookup). Each part carries the revision of its own last change; a
   host keeps the newest copy of each part. This is what makes a keystroke cost
@@ -19,6 +31,9 @@ window, a test, or `abb-dev` drives it.
   returning, so intents begun in order take effect in order. `finish` does the
   file or network work and may overlap later intents. A host whose transport
   can reorder requests must call `begin` in the order the user acted.
+- The metadata part carries `binding`, which advances whenever the form binds
+  to a different selection. A host showing typing the engine has not yet
+  confirmed shows it only on the form it was typed into.
 - The cover image is not in a snapshot. The metadata part carries
   `image_revision`; a host fetches the bytes with `Engine::session_cover_art`
   when that changes.
@@ -51,24 +66,32 @@ window, a test, or `abb-dev` drives it.
   typed after Blank replaces the Blank.
 - **Known tags.** What the form shows is the file's known tags with pending
   intent applied (`tag_cache.rs`), so it never shows a value that Save or
-  processing would not send. A source read begun before a save, a removal, or
-  a reset cannot land afterward. Saved values without a source read are
-  partial knowledge: an unknown source value cannot justify dropping a Blank.
+  processing would not send, and never contradicts the file. A source read
+  begun before a save, a removal, or a reset cannot land afterward. Saved
+  values without a source read are partial knowledge: an unknown source value
+  cannot justify dropping a Blank.
 - **Titles.** A title is one or more ordered sources and keeps its identity
   (`input_id`) through reorder, sort, grouping, and separation. Grouping
   anchors on the first selected title; conflicting audio requests require an
   explicit choice. Drafts for hidden sources survive grouping, and a grouped
   title's draft is kept for its output and never written into a source.
+- **Import.** One import runs at a time. A Reset drops an import still
+  running, including its failure notice. Files the OS opened stay queued while
+  the list is locked.
 - **Cover.** A cover change applies only when exactly one valid title is
-  selected.
+  selected. A later cover choice or Clear supersedes a load still running.
 - **Save targets.** Save covers every pending edit on a valid single-source
-  title, not only the selection. A file no accepted export is reading is
-  written at once and never moved. A local source an export is reading is
-  written when every accepted export reading it, queued ones included, has
-  finished. A temporary download an export is reading is never written; its
-  edit stays pending. A failed write keeps the edit pending. Waiting writes
-  outlive removal of their title, and `Engine::waiting_metadata_writes` reports
-  them so a host can warn before quitting.
+  title, not only the selection, and is refused while a preview runs. A file
+  is busy while an accepted export reads it (queued exports included) or while
+  a waiting write is writing it. A busy local source waits and is written when
+  it is free; a busy temporary download (under the remote-source staging root)
+  is never written and its edit stays pending; any other file is written at
+  once and never moved. Two writes to one file never overlap.
+- **Waiting writes.** A waiting write outlives removal of its title, and
+  `Engine::waiting_metadata_writes` reports it so a host can warn before
+  quitting. When it finishes, the session reports how many were written or
+  failed. If its title is loaded again by then, a written edit becomes the
+  title's known tags and a failed one is pending again for Save.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. A result applies only to the
   queued title while it is the one title both selected and bound. Applied
@@ -78,8 +101,9 @@ window, a test, or `abb-dev` drives it.
 
 - `state_tests.rs`: rules through a `Desk` that answers reads and saves from
   an in-memory disk, plus a property test over generated sequences of edits,
-  selection changes, reads, saves, and exports starting and finishing.
-  `working_set_tests.rs` has the same for titles and selection.
+  selection changes, reads, saves, and exports starting and finishing,
+  including failed writes. `working_set_tests.rs` has the same for titles and
+  selection.
 - `runtime_tests.rs`: ordering between intents and their I/O, lookup with a
   scripted network, and what a host is told along the way.
 - `tests/cases/integration_session_tests.rs`: real files through `Engine`,
@@ -87,13 +111,20 @@ window, a test, or `abb-dev` drives it.
 - A new sequence law is cheaper as another assertion in the property test
   than as a new example test.
 
-## Temporary Until The Processing Move
+## Temporary Until Processing Moves Into The Engine
 
-These exist because encoding, output planning, and processing submission are
-still frontend-owned. Remove them with that move; do not build on them.
+These intents exist because encoding, output planning, and processing
+submission are still frontend-owned. Remove them with that move; do not build
+on them. The frontend side of each bridge is listed in `src/app/AGENTS.md`.
 
 - `Import` and `ImportOpened` take the title's default audio request from the
-  host.
+  host, and `SetAudioRequest` records a title's audio choice.
 - `SetOrderLocked` lets the host lock the list during a preview.
 - `StageSelection` and `Engine::session_metadata_intents` hand pending edits
   to the host's processing payload.
+
+## Boundary Changes
+
+- Adding, removing, or renaming a `pub use` in `mod.rs`, an intent, or a
+  snapshot field. Regenerate bindings and update the frontend adapters in the
+  same change.

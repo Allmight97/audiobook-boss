@@ -13,8 +13,8 @@
   `crate::processing`, not `audio`, `commands`, or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
   `ProgressEvent`, `QueueEvent`, `QueueItem`, `JobId`, `CancellationChecker`.
-  Functions/helpers: `emit_progress_event`, `emit_queue_event`,
-  `ProgressEmitter`, `operation_kind_log_label` (stable dev-log label parsed
+  Helpers: `ProgressEmitter` (sends progress as `EngineEvent`s through the
+  host's `EventSink`), `operation_kind_log_label` (stable dev-log label parsed
   by `scripts/dev-log-analysis.ts`).
 - Pure lifecycle/terminal summary classification that has no runtime/media
   dependency is packaged in `abb-processing-core`.
@@ -55,8 +55,10 @@
 
 ## Progress / Stage Evolution
 
-- `processing-progress` and `processing-queue` are emitted by
-  `process_audiobook_files`. They have no operation-id discriminator. Accepted
+- Direct preview (`Engine::process_preview`) reports through
+  `EngineEvent::ProcessingProgress` and `EngineEvent::ProcessingQueue`, which
+  the Tauri host emits as `processing-progress` and `processing-queue`. They
+  have no operation-id discriminator. Accepted
   background work publishes WorkRuntime snapshot events instead; do not mix the
   two event families. Direct-preview callers must pass `preview_seconds`; ingress
   rejects `None`. Final processing enters through WorkRuntime for operation
@@ -74,12 +76,13 @@
 ## Edit Rules
 - Change pure processing classification/summarization when
   `cargo nextest run -p abb-processing-core` stays green.
-- Change planner or runner internals when targeted `audiobook-boss` Nextest and
-  Public API Strip checks stay green.
+- Change planner or runner internals when targeted
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg` runs and Public
+  API Strip checks stay green.
 - `run.rs`'s `metadata_workflow` tests connect production preflight/planning to
   real encode and preserve writers, then inspect output atoms. They complement
-  frontend edit-retention and IPC-contract proof; they do not exercise the
-  Tauri window, scheduler, or UI. Keep this proof crate-local rather than
+  the session's edit-retention tests and the IPC-contract proof; they do not
+  exercise the Tauri window, scheduler, or UI. Keep this proof crate-local rather than
   exposing planner internals for tests; commands live in `scripts/AGENTS.md`.
 - Keep preflight side-effect-free; execution may create and track output dirs only after review enforcement.
 - `ProcessingRunOptions.title_cancels` carries one cancel flag per output title

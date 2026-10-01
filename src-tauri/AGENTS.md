@@ -27,8 +27,10 @@ the engine: `crates/abb-engine/AGENTS.md`.
 - A decision about audiobooks, settings, or work lifecycle goes in the engine.
   When the host needs something the engine does not offer, add it to the
   engine's host interface.
-- Host tests cover what the host owns (intent ordering, the command contract,
-  window sizing, the frontend log command). A test of product behavior belongs
-  with the engine owner that decides it.
+- Host tests cover what the host owns: intent ordering, window sizing, the
+  frontend log command, and the generated binding file's format. Command and
+  event shapes are proved by the binding checks and the frontend contract
+  tests. A test of product behavior belongs with the engine owner that
+  decides it.
 
 Checks for a changed command, event, or binding: `scripts/AGENTS.md`.

@@ -19,8 +19,6 @@
     the file.
 - `OperationId`
 - operation snapshot, child snapshot, progress, summary, lane, and submit request types
-- `WORK_OPERATION_SNAPSHOT_EVENT_NAME`
-- `WORK_OPERATION_LIST_SNAPSHOT_EVENT_NAME`
 
 ## Ownership
 
@@ -45,9 +43,9 @@
 - Stamp per-operation `revision` under the state lock before mutable access.
   List `membershipRevision` advances on insert/prune; `createdRevision` records
   each operation's insertion. Submission `sequence` remains display order.
-- Accepted background work emits `work-operation-snapshot` and
-  `work-operation-list-snapshot`, never the direct-preview
-  `processing-progress` or `processing-queue` window events.
+- Accepted background work reports through `EngineEvent::WorkOperationSnapshot`
+  and `EngineEvent::WorkOperationList`, never the direct-preview processing
+  events. Event names belong to the host (`src-tauri/src/events.rs`).
 - Terminal-operation retention: `WorkRuntimeState` keeps at most
   `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
   TERMINALIZATION order (never submission sequence — a just-finished

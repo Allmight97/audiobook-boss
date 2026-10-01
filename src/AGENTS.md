@@ -2,8 +2,8 @@
 
 ## Routing
 
-- Product rules and working-session truth live in the Rust engine; the
-  frontend renders its snapshots and sends intents. Application interfaces,
+- The Rust engine owns the working session and settings, and new product
+  rules go there; the frontend renders snapshots and sends intents. Application interfaces,
   the engine link, and workflow lifetime follow `src/app/AGENTS.md`.
 - Runtime command/event/plugin adaptation follows `src/lib/tauri/AGENTS.md`.
   UI/runtime callers use `tauriClient`; generated invokers stay inside that
@@ -11,8 +11,9 @@
 - The metadata batch save runs as a WorkRuntime operation rendered by Work
   Center; read `src/app/workOperations/AGENTS.md` when changing its display.
 - For Effect workflow or kernel changes, read `src/lib/effect/AGENTS.md`.
-- Durable preference hydration, acceptance, and persistence follow
-  `src/app/appSettings/AGENTS.md`.
+- Settings acceptance and persistence belong to the engine
+  (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog and
+  startup handoff follow `src/app/appSettings/AGENTS.md`.
 - Remote acquisition belongs to `src/app/remoteSource`; its Solid dialog is
   under `src/ui/remoteSource`. Materialized audio enters through Input's public
   strip. Provider secrets and raw provider payloads stay backend-only.

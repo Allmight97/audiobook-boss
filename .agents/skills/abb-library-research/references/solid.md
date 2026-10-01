@@ -12,6 +12,6 @@ Read for Solid rendering, reactivity, disposal, or component-testing questions.
 - Optional Context7 hints: `/solidjs/solid` or `/websites/docs_solidjs_com`.
 
 Root `AGENTS.md` owns the checkout's Solid-major constraint.
-`src/app/AGENTS.md` owns session state and disposal; `src/AGENTS.md` owns
-frontend scope. Reconcile upstream examples with those owners and the installed
+`src/app/AGENTS.md` owns frontend owner state and disposal (the engine owns
+the working session); `src/AGENTS.md` owns frontend scope. Reconcile upstream examples with those owners and the installed
 public APIs before changing a view or owner interface.
