@@ -1,5 +1,5 @@
 use super::*;
-use std::{mem::size_of, ptr};
+use std::{ffi::CStr, mem::size_of, ptr};
 
 struct Handle(*mut faac_encoder);
 
@@ -206,4 +206,9 @@ fn library_info_reports_the_bundled_configuration() {
     assert_eq!(info.max_channels, 2);
     assert_eq!(info.sbr_decimation, 1);
     assert!(!info.version.is_null());
+    assert_eq!(
+        unsafe { CStr::from_ptr(info.version) }.to_str().unwrap(),
+        env!("CARGO_PKG_VERSION"),
+        "runtime library diagnostics must identify the selected release"
+    );
 }

@@ -31,7 +31,7 @@ Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidec
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
 selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
 Native AAC uses the bundled NMR coder with a numeric target and speed control.
-Apple AAC uses a numeric target. Bundled FAAC offers Auto, AAC-LC, and HE-AAC v1
+Apple AAC uses a numeric target. Bundled FAAC 2.2 offers Auto, AAC-LC, and HE-AAC v1
 profiles with ABR or VBR. FAAC defaults to profile Auto and ABR; the shared
 target defaults to 65 kbps, and sample rate/channels retain their Auto behavior.
 FAAC chooses Auto’s profile from the requested output settings when encoding

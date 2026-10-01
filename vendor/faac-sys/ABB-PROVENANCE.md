@@ -1,10 +1,11 @@
 # ABB bundled FAAC dependency
 
-The bundled source is selected from [knik0/faac](https://github.com/knik0/faac)
-at upstream revision `d841c4e7063ec3a83e16cd57ae12e51e7317d0a5` (2026-09-27,
-`update .gitignore to include additional file patterns (#233)`).
-This was upstream HEAD when checked on 2026-09-27; builds use this immutable
-revision's source slice.
+The bundled source is selected from
+[FreewareAdvancedAudio/faac](https://github.com/FreewareAdvancedAudio/faac.git),
+formal release [`faac-2.2`](https://github.com/FreewareAdvancedAudio/faac/releases/tag/faac-2.2)
+at upstream revision `6acbe23ac9318d8f731ef38e0a56365f70af4797`
+(2026-09-29, `release FAAC 2.2`). Builds use this immutable release's source slice,
+verified on 2026-10-01; they do not track upstream HEAD.
 
 `upstream/` contains the portable scalar files listed by upstream
 `libfaac/meson.build`, their headers (including `atomic.h`), the public
@@ -12,9 +13,20 @@ revision's source slice.
 and unrelated documentation are omitted. The Rust build compiles the same
 source list with `cc`, force-includes its generated configuration
 (`MAX_CHANNELS=2`, `FAAC_SBR_DECIMATION=1`,
-`PACKAGE_VERSION=2.1.0-dev.d841c4e`), and runs bindgen against the same public
-header used by the C build. Compiled C and generated Rust bindings therefore
-share one header/configuration contract.
+`PACKAGE_VERSION` from the `faac-sys` package version, currently `2.2.0`), and
+runs bindgen against the same public header used by the C build. Compiled C
+and generated Rust bindings therefore share one header/configuration contract.
+
+## Release comparison
+
+The previous ABB pin, `d841c4e7063ec3a83e16cd57ae12e51e7317d0a5`,
+already contained every library change in 2.2. Between that revision and the
+release tag, upstream changed only the project version in `meson.build` and
+the release heading in `ChangeLog`. All 45 files in ABB's source slice are
+byte-identical to the tag, including the public ABI 2 header and license.
+Adoption therefore updates the package/runtime version and provenance without
+changing codec code, the scalar source list, build options, or ABB's adapter
+and timing contract. Later upstream commits are outside this release pin.
 
 ## Local changes and upstream initialization
 
@@ -41,7 +53,7 @@ then removed the SBR decoder delay (962 samples) from the reported HE priming,
 matching the Apple and fdk-aac convention: `encoder_delay` is now 2080 for HE and
 1024 for LC. Encoded audio is unchanged by #227; only the reported priming moved.
 
-The selected update also includes #219–#226: valid SBR stop-frequency signaling,
+The release also includes #219–#226: valid SBR stop-frequency signaling,
 short-block and transient tuning, encoder-owned PNS policy, removal of quiet-channel
 muting, and quantizer/Huffman improvements. The public header replaces `pns_level`
 with `use_pns` and reports the resolved MPEG version. ABB uses initialized library

@@ -2,9 +2,11 @@ use std::{env, fs, path::PathBuf};
 
 fn main() {
     let out = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo output directory"));
+    // Keep the linked library's diagnostic identity with the selected package release.
+    let version = env::var("CARGO_PKG_VERSION").expect("FAAC package version");
     fs::write(
         out.join("config.h"),
-        "#define PACKAGE_VERSION \"2.1.0-dev.d841c4e\"\n#define MAX_CHANNELS 2\n#define FAAC_SBR_DECIMATION 1\n",
+        format!("#define PACKAGE_VERSION \"{version}\"\n#define MAX_CHANNELS 2\n#define FAAC_SBR_DECIMATION 1\n"),
     ).expect("write FAAC build configuration");
 
     // Portable scalar source list from upstream libfaac/meson.build.
