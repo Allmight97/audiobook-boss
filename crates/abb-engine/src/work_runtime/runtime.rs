@@ -14,19 +14,22 @@ use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEve
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 #[derive(Clone)]
 pub struct WorkRuntime {
     inner: Arc<WorkRuntimeInner>,
 }
 
+/// Source paths by operation id, then title index.
+type TitleSources = HashMap<String, Vec<Vec<PathBuf>>>;
+
 struct WorkRuntimeInner {
     state: Mutex<WorkRuntimeState>,
     operation_cancel_flags: Mutex<HashMap<String, CancelFlags>>,
     /// Source files each accepted processing title reads, by operation id and
     /// title index. An entry lives until its operation finishes.
-    title_sources: Mutex<HashMap<String, Vec<Vec<PathBuf>>>>,
+    title_sources: Mutex<TitleSources>,
     /// Advances whenever an operation's state changes.
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
@@ -97,9 +100,8 @@ impl WorkRuntime {
 
         // Recorded before the operation becomes visible, so a file is never
         // reported free between acceptance and the first read.
-        if let Ok(mut sources) = self.inner.title_sources.lock() {
-            sources.insert(operation_id.0.clone(), title_sources);
-        }
+        self.title_sources()
+            .insert(operation_id.0.clone(), title_sources);
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
@@ -344,12 +346,14 @@ impl WorkRuntime {
     /// Source files accepted exports have yet to finish reading: every source
     /// of every title that is queued or running.
     pub(crate) fn sources_in_use(&self) -> HashSet<PathBuf> {
-        let Ok(sources) = self.inner.title_sources.lock() else {
-            return HashSet::new();
-        };
-        let Ok(state) = lock_state(&self.inner.state) else {
-            return HashSet::new();
-        };
+        let sources = self.title_sources();
+        // Reporting nothing in use would let Save write a file an export is
+        // reading, so a poisoned lock still answers from the data it holds.
+        let state = self
+            .inner
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let mut in_use = HashSet::new();
         for (operation_id, titles) in sources.iter() {
             let Some(operation) = state.operation(operation_id) else {
@@ -376,9 +380,16 @@ impl WorkRuntime {
     }
 
     fn release_title_sources(&self, operation_id: &OperationId) {
-        if let Ok(mut sources) = self.inner.title_sources.lock() {
-            sources.remove(operation_id.as_str());
-        }
+        self.title_sources().remove(operation_id.as_str());
+    }
+
+    /// The map is replaced or edited in one step, so it stays usable after a
+    /// panic elsewhere; skipping it would hide sources from Save.
+    fn title_sources(&self) -> MutexGuard<'_, TitleSources> {
+        self.inner
+            .title_sources
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn remove_cancel_flag(&self, operation_id: &OperationId) {
