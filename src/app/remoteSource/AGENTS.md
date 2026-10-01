@@ -27,10 +27,10 @@
 
 ## Hard Invariants
 
-- Closing the dialog does not cancel an in-flight acquisition. Polling and
+- Closing the dialog does not cancel an in-flight acquisition. Following it and
   selected hidden titles survive ordinary close. Lane switches reset Indexer
   results and Audible selection UI only; they do not cancel in-flight Audible
-  acquisition. App disposal and native cancel/purge remain the cleanup authorities.
+  acquisition. Only explicit cancel stops one; the engine removes downloads.
 - Status text belongs to its originating provider and the view projects the
   selected provider's message. Background Audible progress, terminal outcomes,
   and errors cannot replace Indexer status or clear its pending-operation busy state.

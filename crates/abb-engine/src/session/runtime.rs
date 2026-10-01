@@ -462,7 +462,7 @@ impl Session {
 
     /// Removes the downloads no title or export needs any more.
     fn sweep_staged(&self) {
-        if tokio::runtime::Handle::try_current().is_err() {
+        if tokio::runtime::Handle::try_current().is_err() || self.lock().staged.is_empty() {
             return;
         }
         let session = self.clone();
