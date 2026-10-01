@@ -79,6 +79,7 @@ ffmpeg-next = "9.0.0"
 # Local TLS stub for the Audible download harness (no real Audible account).
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["aws_lc_rs"] }
+proptest = "1.11.0"
 
 [lints]
 workspace = true

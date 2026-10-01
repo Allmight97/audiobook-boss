@@ -1,97 +1,23 @@
 import { cleanup, render, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo } from '../../types/audio';
+import type { OnlineMetadataResult } from '../../types/metadata';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
-import type { InputCapability } from '../../lib/tauri/capabilities/input';
-import type { MetadataCapability } from '../../lib/tauri/capabilities/metadata';
+import { createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { MetadataLookupView } from '../metadataLookup/MetadataLookupView';
 
-function analyzedFile(path: string): FileListInfo['files'][number] {
+function coverResult(source: 'audnexus' | 'openlibrary', name: string): OnlineMetadataResult {
 	return {
-		path,
-		isValid: true,
-		duration: 1,
-		size: 1000,
-		format: 'm4b',
-		tagTitle: 'Private Cover',
-		inputId: path,
-	};
-}
-
-function fakeInput(): InputCapability {
-	return {
-		openFiles: vi.fn(async () => ['/books/alpha.m4b']),
-		openDirectory: vi.fn(async () => null),
-		discoverAudioImportPaths: vi.fn(async (paths) => [...paths]),
-		analyzeAudioFiles: vi.fn(async (paths: ReadonlyArray<string>) => ({
-			files: paths.map((path) => analyzedFile(path)),
-			totalDuration: paths.length,
-			totalSize: paths.length * 1000,
-			validCount: paths.length,
-			invalidCount: 0,
-		})),
-		getSupportedAudioImportMetadata: vi.fn(async () => ({
-			formats: [{ extension: 'm4b', label: 'M4B' }],
-			extensions: ['m4b'],
-			formatsText: 'M4B',
-			supportText: 'Supports M4B audio files',
-		})),
-		takeOpenedAudioFiles: vi.fn(async () => []),
-		readAudioCoverThumbnail: vi.fn(async () => null),
-		listenDragDrop: vi.fn(async () => () => undefined),
-		listenDragEnter: vi.fn(async () => () => undefined),
-		listenDragLeave: vi.fn(async () => () => undefined),
-		listenOpenedAudioFiles: vi.fn(async () => () => undefined),
-	};
-}
-
-function fakeMetadata(overrides: Partial<MetadataCapability> = {}): MetadataCapability {
-	return {
-		readAudioMetadata: vi.fn(async () => ({})),
-		previewAlbumSort: vi.fn(async () => null),
-		validateMetadataIntentPatch: vi.fn(async (patch) => ({
-			isValid: true,
-			metadataPatch: patch,
-			fieldErrors: [],
-		})),
-		saveMetadataBatch: vi.fn(async () => ({
-			results: [],
-			summary: { succeeded: 0, failed: 0, cancelled: 0, skipped: 0, total: 0 },
-		})),
-		openFile: vi.fn(async () => null),
-		loadCoverArtFile: vi.fn(async () => []),
-		loadCoverArtFromUrl: vi.fn(async () => [0xff, 0xd8, 0xff]),
-		searchOnlineMetadata: vi.fn(async () => ({
-			results: [
-				{
-					source: 'audnexus' as const,
-					sourceId: 'audnexus:private',
-					title: 'Private Cover',
-					authors: ['Author One'],
-					narrators: ['Narrator One'],
-					description: 'Description',
-					publishedDate: '2020-07',
-					durationSeconds: 3600,
-					audibleOnly: false,
-					coverUrl: 'https://covers.example.com/private-cover.jpg',
-				},
-				{
-					source: 'openlibrary' as const,
-					sourceId: 'openlibrary:loopback',
-					title: 'Loopback Cover',
-					authors: ['Author Two'],
-					narrators: ['Narrator Two'],
-					description: 'Description',
-					publishedDate: '2021-08',
-					durationSeconds: 7200,
-					audibleOnly: false,
-					coverUrl: 'https://covers.example.com/loopback-cover.jpg',
-				},
-			],
-			diagnostics: [],
-		})),
-		...overrides,
+		source,
+		sourceId: `${source}:${name}`,
+		title: `${name} Cover`,
+		authors: ['Author'],
+		narrators: ['Narrator'],
+		description: 'Description',
+		publishedDate: '2020-07',
+		durationSeconds: 3600,
+		audibleOnly: false,
+		coverUrl: `https://covers.example.com/${name}-cover.jpg`,
 	};
 }
 
@@ -105,8 +31,16 @@ describe('MetadataLookup cover preview', () => {
 	});
 
 	it('eagerly loads cover previews through the backend without exposing provider URLs', async () => {
-		const metadata = fakeMetadata();
-		runtime = createAppRuntime({ input: fakeInput(), metadata });
+		const engine = createFakeEngine();
+		engine.lookupResults = [
+			coverResult('audnexus', 'private'),
+			coverResult('openlibrary', 'loopback'),
+		];
+		const loadCoverArtFromUrl = vi.fn(async () => [0xff, 0xd8, 0xff]);
+		runtime = createAppRuntime({
+			engine,
+			metadata: { openFile: vi.fn(async () => null), loadCoverArtFromUrl },
+		});
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<button id="metadata-lookup-btn" type="button">
@@ -120,11 +54,10 @@ describe('MetadataLookup cover preview', () => {
 		await runtime.lookup.run({ type: 'open' });
 
 		await waitFor(() => {
-			expect(metadata.searchOnlineMetadata).toHaveBeenCalled();
-			expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith(
+			expect(loadCoverArtFromUrl).toHaveBeenCalledWith(
 				'https://covers.example.com/private-cover.jpg',
 			);
-			expect(metadata.loadCoverArtFromUrl).toHaveBeenCalledWith(
+			expect(loadCoverArtFromUrl).toHaveBeenCalledWith(
 				'https://covers.example.com/loopback-cover.jpg',
 			);
 		});

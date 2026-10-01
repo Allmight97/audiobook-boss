@@ -3,7 +3,8 @@ import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FileListInfo, SupportedAudioImportMetadata } from '../../types/audio';
+import type { AudioFile, SupportedAudioImportMetadata } from '../../types/audio';
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider } from '../../app/runtime/RuntimeProvider';
 import { createAppRuntime, type AppRuntime } from '../../app/runtime';
 import type { InputCapability, NativeDropPayload } from '../../lib/tauri/capabilities/input';
@@ -21,10 +22,7 @@ const listeners: {
 	drop?: (payload: NativeDropPayload) => void;
 } = {};
 
-function analyzedFile(
-	path: string,
-	overrides: Record<string, unknown> = {},
-): FileListInfo['files'][number] {
+function analyzedFile(path: string, overrides: Partial<AudioFile> = {}): AudioFile {
 	return {
 		path,
 		isValid: true,
@@ -36,28 +34,11 @@ function analyzedFile(
 	};
 }
 
-function analyzedList(files: FileListInfo['files']): FileListInfo {
-	return {
-		files,
-		totalDuration: files.length,
-		totalSize: files.length * 1000,
-		validCount: files.filter((file) => file.isValid).length,
-		invalidCount: files.filter((file) => !file.isValid).length,
-	};
-}
-
 function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 	return {
 		openFiles: vi.fn(async () => []),
 		openDirectory: vi.fn(async () => null),
-		discoverAudioImportPaths: vi.fn(async (paths: ReadonlyArray<string>) =>
-			paths.filter((path) => !path.endsWith('.txt') && !path.endsWith('.png')),
-		),
-		analyzeAudioFiles: vi.fn(async (paths: ReadonlyArray<string>) =>
-			analyzedList(paths.map((path) => analyzedFile(path))),
-		),
 		getSupportedAudioImportMetadata: vi.fn(async () => metadata),
-		takeOpenedAudioFiles: vi.fn(async () => []),
 		readAudioCoverThumbnail: vi.fn(async () => null),
 		listenDragDrop: vi.fn(async (handler) => {
 			listeners.drop = handler;
@@ -70,6 +51,20 @@ function fakeInput(overrides: Partial<InputCapability> = {}): InputCapability {
 		listenOpenedAudioFiles: vi.fn(async () => () => undefined),
 		...overrides,
 	};
+}
+
+let engine: FakeEngine;
+
+/** A runtime whose engine analyzes any import as `files`, or one file per path. */
+function runtimeFor(
+	options: { files?: AudioFile[]; input?: Partial<InputCapability> } = {},
+): AppRuntime {
+	engine = createFakeEngine();
+	const analyze = options.files
+		? () => options.files ?? []
+		: (paths: readonly string[]) => paths.map((path) => analyzedFile(path));
+	engine.analyze = vi.fn(analyze);
+	return createAppRuntime({ input: fakeInput(options.input), engine });
 }
 
 function renderApp(runtime: AppRuntime) {
@@ -93,20 +88,17 @@ describe('Solid input workbench', () => {
 
 	it('imports audio and enables grouping only for multiple selected titles', async () => {
 		const user = userEvent.setup();
-		const input = fakeInput({
-			openFiles: vi.fn(async () => ['/tmp/file1.mp3']),
-			analyzeAudioFiles: vi.fn(async () =>
-				analyzedList([
-					analyzedFile('/tmp/file1.mp3', {
-						bitrate: 125_589,
-						sampleRate: 22_050,
-						channels: 2,
-						codecLabel: 'MP3',
-					}),
-				]),
-			),
+		runtime = runtimeFor({
+			input: { openFiles: vi.fn(async () => ['/tmp/file1.mp3']) },
+			files: [
+				analyzedFile('/tmp/file1.mp3', {
+					bitrate: 125_589,
+					sampleRate: 22_050,
+					channels: 2,
+					codecLabel: 'MP3',
+				}),
+			],
 		});
-		runtime = createAppRuntime({ input });
 		renderApp(runtime);
 
 		await user.click(screen.getByRole('button', { name: 'Add audio files' }));
@@ -122,9 +114,7 @@ describe('Solid input workbench', () => {
 		const files = ['first.m4b', 'second.m4b', 'other.m4b'].map((name) =>
 			analyzedFile(`/books/${name}`),
 		);
-		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
-		});
+		runtime = runtimeFor({ files });
 		renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -195,9 +185,7 @@ describe('Solid input workbench', () => {
 			sourceCodec: 'AAC',
 			reason: null,
 		});
-		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList([file])) }),
-		});
+		runtime = runtimeFor({ files: [file] });
 		renderApp(runtime);
 		try {
 			await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
@@ -265,9 +253,7 @@ describe('Solid input workbench', () => {
 			sourceCodec: 'AAC',
 			reason: null,
 		});
-		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList([file])) }),
-		});
+		runtime = runtimeFor({ files: [file] });
 		renderApp(runtime);
 		try {
 			await runtime.input.importIntent({ type: 'importPaths', paths: [file.path] });
@@ -325,9 +311,7 @@ describe('Solid input workbench', () => {
 			analyzedFile('/books/valid.m4b'),
 			analyzedFile('/books/broken.m4b', { isValid: false, error: 'Broken audio source' }),
 		];
-		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
-		});
+		runtime = runtimeFor({ files });
 		renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -342,9 +326,7 @@ describe('Solid input workbench', () => {
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
-		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
-		});
+		runtime = runtimeFor({ files });
 		vi.spyOn(runtime.remoteSource, 'hasCompanions').mockImplementation(
 			(inputId) => inputId === files[1]!.inputId,
 		);
@@ -375,9 +357,7 @@ describe('Solid input workbench', () => {
 				outputs: [],
 			});
 			const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
-			runtime = createAppRuntime({
-				input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
-			});
+			runtime = runtimeFor({ files });
 			await runtime.input.importIntent({
 				type: 'importPaths',
 				paths: files.map((file) => file.path),
@@ -433,9 +413,7 @@ describe('Solid input workbench', () => {
 			outputs: [],
 		});
 		const submit = vi.spyOn(tauriClient, 'submitProcessingOperation');
-		runtime = createAppRuntime({
-			input: fakeInput({ analyzeAudioFiles: vi.fn(async () => analyzedList(files)) }),
-		});
+		runtime = runtimeFor({ files });
 		renderApp(runtime);
 		try {
 			await runtime.input.importIntent({
@@ -523,12 +501,9 @@ describe('Solid input workbench', () => {
 	});
 
 	it('handles keyboard actions only from the focused listbox', async () => {
-		const input = fakeInput({
-			analyzeAudioFiles: vi.fn(async () =>
-				analyzedList([analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')]),
-			),
+		runtime = runtimeFor({
+			files: [analyzedFile('/books/alpha.m4b'), analyzedFile('/books/bravo.m4b')],
 		});
-		runtime = createAppRuntime({ input });
 		renderApp(runtime);
 		void runtime.input.importIntent({
 			type: 'importPaths',
@@ -553,8 +528,7 @@ describe('Solid input workbench', () => {
 	});
 
 	it('routes cover-art drops away from import and imports file-area drops', async () => {
-		const input = fakeInput();
-		runtime = createAppRuntime({ input });
+		runtime = runtimeFor();
 		const cover = document.createElement('div');
 		cover.id = 'cover-art-area';
 		document.body.appendChild(cover);
@@ -592,18 +566,21 @@ describe('Solid input workbench', () => {
 
 		listeners.drop?.({ position: { x: 50, y: 50 }, paths: ['/tmp/image.png'] });
 		await waitFor(() => {
-			expect(input.analyzeAudioFiles).not.toHaveBeenCalled();
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'loadCoverFromFile',
+				path: '/tmp/image.png',
+			});
 		});
+		expect(engine.analyze).not.toHaveBeenCalled();
 
 		listeners.drop?.({ position: { x: 200, y: 200 }, paths: ['/tmp/file1.wav'] });
 		await waitFor(() => {
-			expect(input.analyzeAudioFiles).toHaveBeenCalledWith(['/tmp/file1.wav']);
+			expect(engine.analyze).toHaveBeenCalledWith(['/tmp/file1.wav']);
 		});
 	});
 
 	it('blocks import while order is locked and surfaces the lock banner', async () => {
-		const input = fakeInput();
-		runtime = createAppRuntime({ input });
+		runtime = runtimeFor();
 		renderApp(runtime);
 		runtime.input.setOrderLocked(true);
 		await waitFor(() => {
@@ -614,6 +591,6 @@ describe('Solid input workbench', () => {
 			expect(screen.getByTestId('file-order-lock')).toBeVisible();
 			expect(screen.getByText(/Wait for completion to add files/)).toBeInTheDocument();
 		});
-		expect(input.analyzeAudioFiles).not.toHaveBeenCalled();
+		expect(engine.analyze).not.toHaveBeenCalled();
 	});
 });

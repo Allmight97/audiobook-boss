@@ -1,5 +1,8 @@
-import type { MetadataFormState } from './fields';
-import { formValue } from './form';
+import type { MetadataFieldId, MetadataFormState } from './fields';
+
+function formValue(form: MetadataFormState, inputId: MetadataFieldId): string {
+	return form.fields[inputId].value.trim();
+}
 
 export type TagField =
 	| 'title'

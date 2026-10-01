@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::power::{ActiveWork, PowerManager};
 use crate::processing::{ProgressEvent, QueueEvent};
+use crate::session::SessionUpdate;
 use crate::work_runtime::{OperationListSnapshot, OperationSnapshot};
 
 /// A fact the engine publishes without being asked. Hosts forward each to
@@ -23,6 +24,9 @@ pub enum EngineEvent {
     WorkOperationSnapshot(OperationSnapshot),
     /// The set of accepted operations changed.
     WorkOperationList(OperationListSnapshot),
+    /// The working session changed without the host asking, or before a
+    /// requested change finished.
+    Session(SessionUpdate),
 }
 
 /// Receives engine events. Called from engine worker threads, so an

@@ -15,7 +15,6 @@ it('pins the Input public export strip', () => {
 			'nativeDropTargetAtPoint',
 			'resolveFileListNavigationTarget',
 			'toInputView',
-			'toInspectorView',
 			'toInspectorViewFromInput',
 		].sort(),
 	);

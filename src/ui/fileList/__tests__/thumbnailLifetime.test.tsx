@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../../app/runtime';
 
 import { liveInputCapability } from '../../../lib/tauri/capabilities/input';
+import { audioFile, createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import { FileListView } from '../FileListView';
 
 function deferred() {
@@ -15,26 +16,12 @@ function deferred() {
 
 async function mountedList(request: ReturnType<typeof deferred>, paths = ['/shared.m4b']) {
 	const load = vi.fn(() => request.promise);
+	const engine = createFakeEngine();
+	engine.analyze = () =>
+		paths.map((path) => audioFile(path, { duration: 1, size: 1, format: 'm4b' }));
 	const runtime = createAppRuntime({
-		input: {
-			...liveInputCapability,
-			discoverAudioImportPaths: async (paths) => [...paths],
-			analyzeAudioFiles: async () => ({
-				files: paths.map((path) => ({
-					path,
-					inputId: path,
-					isValid: true,
-					duration: 1,
-					size: 1,
-					format: 'm4b',
-				})),
-				totalDuration: paths.length,
-				totalSize: paths.length,
-				validCount: paths.length,
-				invalidCount: 0,
-			}),
-			readAudioCoverThumbnail: load,
-		},
+		engine,
+		input: { ...liveInputCapability, readAudioCoverThumbnail: load },
 	});
 	await runtime.input.importIntent({ type: 'importPaths', paths });
 	const view = render(() => (

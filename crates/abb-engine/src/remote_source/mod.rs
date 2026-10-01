@@ -71,6 +71,12 @@ impl RemoteSourceRuntime {
         })
     }
 
+    /// Where staged downloads live. A source file under this root is
+    /// temporary: it is removed once its title has been exported.
+    pub(crate) fn staging_root(&self) -> PathBuf {
+        self.inner.lifecycle.staging.session_root()
+    }
+
     pub(crate) fn cleanup_abandoned_sessions(&self) -> Result<()> {
         self.inner.lifecycle.cleanup_abandoned_sessions()
     }

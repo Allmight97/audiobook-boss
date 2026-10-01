@@ -1,6 +1,7 @@
 import { createRoot, runWithOwner } from 'solid-js';
 import { createSettingsOwner } from '../appSettings';
 import { createEncodingOwner } from '../encoding';
+import { createEngineLink } from '../engineLink';
 import { createInputOwner } from '../inputSession';
 import { createMetadataLookupOwner } from '../metadataLookup';
 import { createMetadataOwner } from '../metadataSession';
@@ -18,21 +19,15 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 	const runtime = runWithOwner(null, () =>
 		createRoot((dispose) => {
 			disposeRoot = dispose;
-			const selectionGate: { check?: (signal?: AbortSignal) => Promise<boolean> } = {};
+			const link = createEngineLink(capabilities.engine);
 			const input = createInputOwner({
+				link,
 				capability: capabilities.input,
 				audioDefaults: () => encoding.audioRequest(),
 				beforeImport: () => initialize(),
-				beforeSelectionChange: (signal) => selectionGate.check?.(signal) ?? true,
 			});
-			const settings = createSettingsOwner({ capability: capabilities.settings });
-			const processingHolder: { current?: ReturnType<typeof createProcessingOwner> } = {};
-			const metadata = createMetadataOwner({
-				input,
-				capability: capabilities.metadata,
-				isForegroundProcessing: () => processingHolder.current?.isProcessing() ?? false,
-			});
-			selectionGate.check = (signal) => metadata.canChangeSelection(signal);
+			const settings = createSettingsOwner({ link, capability: capabilities.settings });
+			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
 			const encoding = createEncodingOwner({
 				input,
 				loadCapabilities: async () =>
@@ -44,9 +39,8 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				metadataView: metadata.view,
 				encoding,
 				persistDefaults: settings.rememberOutputDefaults,
-				onMetadataValidation: (validation) => metadata.applyDraftValidation(validation),
 			});
-			const lookup = createMetadataLookupOwner({ input, metadata });
+			const lookup = createMetadataLookupOwner({ link, metadata });
 			const remoteSource = createRemoteSourceOwner({
 				...capabilities.remoteSource,
 				input,
@@ -59,7 +53,6 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				output,
 				remoteSource,
 			});
-			processingHolder.current = processing;
 			const workOperations = createWorkOperationsOwner({ remoteSource });
 			let startup: Promise<void> | undefined;
 			function initialize(): Promise<void> {
@@ -84,6 +77,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				encoding.applyDefaults(defaults.encoderDefaults);
 			});
 			return {
+				link,
 				initialize,
 				input,
 				metadata,
@@ -97,8 +91,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			};
 		}),
 	);
+	const { link, ...owners } = runtime;
 	return {
-		...runtime,
+		...owners,
 		dispose(): void {
 			if (disposed) {
 				return;
@@ -113,6 +108,7 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			runtime.lookup.reset();
 			runtime.metadata.reset();
 			runtime.input.reset();
+			link.dispose();
 			disposeRoot();
 		},
 	};

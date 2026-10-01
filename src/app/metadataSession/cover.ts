@@ -1,3 +1,6 @@
+import { toUserMessage } from '../../lib/tauri/appError';
+import type { CoverNotice } from '../../types/session';
+
 export type CoverArtMessage =
 	| { readonly kind: 'hidden' }
 	| { readonly kind: 'error'; readonly text: string }
@@ -12,21 +15,27 @@ export type CoverUiState = {
 	readonly urlInputValue: string;
 	readonly hasCustomCoverArt: boolean;
 	readonly coverArtRemovalRequested: boolean;
-	readonly currentCoverArt: number[] | null;
 };
 
-export function createEmptyCoverUiState(): CoverUiState {
-	return {
-		imageDataUrl: null,
-		isLoading: false,
-		message: { kind: 'hidden' },
-		isHovered: false,
-		isDragOver: false,
-		urlInputValue: '',
-		hasCustomCoverArt: false,
-		coverArtRemovalRequested: false,
-		currentCoverArt: null,
-	};
+export const HIDDEN_COVER_MESSAGE: CoverArtMessage = { kind: 'hidden' };
+
+/** How long a cover message stays up before it hides itself. */
+export const COVER_MESSAGE_MS = 4000;
+
+export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage {
+	switch (notice?.kind) {
+		case undefined:
+			return HIDDEN_COVER_MESSAGE;
+		case 'urlRequired':
+			return { kind: 'error', text: 'Paste an image URL first.' };
+		case 'loadedFromUrl':
+			return { kind: 'success', text: 'Cover art loaded from URL.' };
+		case 'loadFailed':
+			return {
+				kind: 'error',
+				text: toUserMessage(notice.error, { fallback: 'Unable to load cover art.' }),
+			};
+	}
 }
 
 export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;

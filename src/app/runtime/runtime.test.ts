@@ -1,14 +1,12 @@
 import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { FileListInfo, ProcessingPreflightPlan } from '../../types/audio';
+import type { ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import { liveSettingsCapability } from '../../lib/tauri/capabilities/settings';
-import type { AppSettings } from '../../types/appSettings';
+import { audioFile, createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
 import { tauriClient } from '../../lib/tauri/client';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
 import { createAppRuntime } from './index';
-import { emptyInputSession } from '../inputSession/types';
 import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
 
 function createDeferred<T>() {
@@ -53,26 +51,6 @@ function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowSe
 		purgeSession: vi.fn(),
 		importMaterializedPaths: vi.fn(),
 		sleep: vi.fn(async () => undefined),
-	};
-}
-
-function metadataFileList(path: string, title: string): FileListInfo {
-	return {
-		files: [
-			{
-				path,
-				inputId: path,
-				isValid: true,
-				duration: 60,
-				size: 1024,
-				format: 'm4b',
-				tagTitle: title,
-			},
-		],
-		totalDuration: 60,
-		totalSize: 1024,
-		validCount: 1,
-		invalidCount: 0,
 	};
 }
 
@@ -268,32 +246,29 @@ describe('app runtime', () => {
 		expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 
-	it('disposes Solid session state so later runtimes do not share it', () => {
-		const first = createAppRuntime();
-		first.input.replaceSession({
-			...emptyInputSession(),
-			errorMessage: 'stale',
-		});
-		expect(first.input.view().errorMessage).toBe('stale');
-		first.dispose();
+	it('dispose empties the engine session and drops view-local state', async () => {
+		const engine = createFakeEngine();
+		const first = createAppRuntime({ engine });
+		engine.loadTitles([audioFile('/books/alpha.m4b')]);
+		await first.initialize();
+		first.input.setDragOver(true);
+		expect(first.input.view().isDragOver).toBe(true);
+		expect(first.input.view().fileCount).toBe(1);
 
-		const second = createAppRuntime();
+		first.dispose();
+		await vi.waitFor(() => expect(engine.sessionIntents).toContainEqual({ kind: 'reset' }));
+
+		const second = createAppRuntime({ engine });
 		dispose = () => second.dispose();
-		expect(second.input.view().errorMessage).toBe('');
+		await second.initialize();
+		expect(second.input.view().isDragOver).toBe(false);
+		expect(second.input.view().fileCount).toBe(0);
 	});
 
-	it('publishes nothing when startup settings finish loading after disposal', async () => {
-		const load = createDeferred<AppSettings>();
-		const runtime = createAppRuntime({
-			settings: { ...liveSettingsCapability, getAppSettings: () => load.promise },
-		});
-		const startup = runtime.initialize();
-		runtime.dispose();
-		const encodingAfterDispose = runtime.encoding.readDefaults();
-		const outputAfterDispose = runtime.output.readDefaults();
-
-		load.resolve({
-			maxConcurrentJobs: { mode: 'auto' },
+	it('publishes nothing when the engine answers after disposal', async () => {
+		const attached = createDeferred<void>();
+		const engine = createFakeEngine({
+			...defaultAppSettings(),
 			encoderDefaults: {
 				format: 'mp3',
 				intent: 'encode',
@@ -302,14 +277,25 @@ describe('app runtime', () => {
 					bitrateKbps: 128,
 					bitrateMode: { mode: 'cbr' },
 					channels: 'stereo',
+					nativeAacSpeed: 0,
+					faacProfile: 'auto',
 				},
 				sampleRate: { explicit: 48000 },
 			},
 			outputDefaults: { outputNaming: { preset: 'absDefault', includeYear: true } },
-			startupBehavior: 'rememberLastState',
-			keepAwakeWhileWorking: true,
-			defaultAcquisitionLane: 'audible',
 		});
+		const attach = engine.attach.bind(engine);
+		engine.attach = async () => {
+			await attached.promise;
+			return attach();
+		};
+		const runtime = createAppRuntime({ engine });
+		const startup = runtime.initialize();
+		runtime.dispose();
+		const encodingAfterDispose = runtime.encoding.readDefaults();
+		const outputAfterDispose = runtime.output.readDefaults();
+
+		attached.resolve();
 		await startup;
 
 		expect(runtime.encoding.readDefaults()).toEqual(encodingAfterDispose);
@@ -369,68 +355,5 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 		expect(other.remoteSource.view().isOpen).toBe(true);
 		expect(other.remoteSource.view().titleFilter).toBe('other runtime');
-	});
-
-	it('keeps metadata cache and process intents isolated across live runtimes', async () => {
-		const firstRead = vi.fn(async () => ({
-			title: 'First Alpha',
-			artist: 'Author',
-			cover_art: [1],
-		}));
-		const secondRead = vi.fn(async () => ({
-			title: 'Second Alpha',
-			artist: 'Author',
-			cover_art: [2],
-		}));
-		const first = createAppRuntime({
-			metadata: {
-				...liveMetadataCapability,
-				readAudioMetadata: firstRead,
-			},
-		});
-		const second = createAppRuntime({
-			metadata: {
-				...liveMetadataCapability,
-				readAudioMetadata: secondRead,
-			},
-		});
-		dispose = () => {
-			first.dispose();
-			second.dispose();
-		};
-
-		const files = metadataFileList('/books/alpha.m4b', 'Alpha');
-		first.input.replaceSession({
-			...emptyInputSession(),
-			files: files.files,
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await first.metadata.hydrateSelection(null);
-		first.metadata.setFieldValue({ inputId: 'meta-title', value: 'Staged On A' });
-		expect(await first.metadata.stageCurrentSelection()).toEqual({ status: 'staged' });
-		expect(first.metadata.readCached('/books/alpha.m4b')?.title).toBe('Staged On A');
-		expect(await first.metadata.intentsForProcess(['/books/alpha.m4b'])).toEqual({
-			'/books/alpha.m4b': {
-				title: { op: 'set', value: 'Staged On A' },
-				album: { op: 'set', value: 'Staged On A' },
-			},
-		});
-
-		second.input.replaceSession({
-			...emptyInputSession(),
-			files: files.files,
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
-		await second.metadata.hydrateSelection(null);
-		expect(secondRead).toHaveBeenCalledWith('/books/alpha.m4b');
-		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
-		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
-
-		first.dispose();
-		expect(second.metadata.readCached('/books/alpha.m4b')?.title).toBe('Second Alpha');
-		expect(await second.metadata.intentsForProcess(['/books/alpha.m4b'])).toBeNull();
-		expect(second.metadata.view().form.fields['meta-title'].value).toBe('Second Alpha');
 	});
 });

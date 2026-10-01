@@ -1,66 +1,16 @@
 import { flush } from 'solid-js';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings, AppSettingsRecoveryPlan } from '../../types/appSettings';
-import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import type { AppSettingsRecoveryPlan } from '../../types/appSettings';
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { tauriClient } from '../../lib/tauri/client';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
-function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
-	return {
-		defaultAcquisitionLane: 'audible',
-		maxConcurrentJobs: { mode: 'auto' },
-		encoderDefaults: {
-			format: 'm4b',
-			intent: 'auto',
-			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'vbr', value: 3 },
-				channels: 'auto',
-			},
-			sampleRate: 'auto',
-		},
-		outputDefaults: {
-			outputNaming: {
-				preset: 'absDefault',
-				includeYear: false,
-			},
-		},
-		startupBehavior: 'rememberLastState',
-		keepAwakeWhileWorking: true,
-		...overrides,
-	};
-}
-
-function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapability {
-	return {
-		getAppSettings: vi.fn(async () => settingsFixture()),
-		getAppSettingsRecovery: vi.fn(async () => null),
-		recoverAppSettings: vi.fn(async () => ({
-			backupFileName: 'backup.json',
-			settings: settingsFixture(),
-		})),
-		updateAppSettings: vi.fn(async (patch) =>
-			settingsFixture({
-				defaultAcquisitionLane:
-					patch.defaultAcquisitionLane ?? settingsFixture().defaultAcquisitionLane,
-			}),
-		),
-		resetAppSettings: vi.fn(async () => settingsFixture()),
-		getMaxConcurrentJobs: vi.fn(async () => 4),
-		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
-		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),
-		...overrides,
-	};
-}
-
 describe('AppSettingsDialogView', () => {
 	let runtime: AppRuntime | undefined;
-	let settings: SettingsCapability;
+	let engine: FakeEngine;
 
 	afterEach(() => {
 		cleanup();
@@ -68,11 +18,13 @@ describe('AppSettingsDialogView', () => {
 		runtime = undefined;
 	});
 
+	/** Opens the dialog over an engine prepared by `prepare`. */
 	async function renderOpenDialog(
-		overrides: Partial<SettingsCapability> = {},
+		prepare: (engine: FakeEngine) => void = () => {},
 	): Promise<AppRuntime> {
-		settings = fakeSettings(overrides);
-		runtime = createAppRuntime({ settings });
+		engine = createFakeEngine();
+		prepare(engine);
+		runtime = createAppRuntime({ engine });
 		await runtime.settings.openDialog();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -82,74 +34,50 @@ describe('AppSettingsDialogView', () => {
 		return runtime;
 	}
 
+	function sent(kind: string): number {
+		return engine.settingsIntents.filter((intent) => intent.kind === kind).length;
+	}
+
 	it('offers targeted recovery after inspection and reports its backup only after success', async () => {
-		let recovered = false;
 		const plan: AppSettingsRecoveryPlan = {
 			incompatibleEncoders: [{ scope: 'pinned', encoderType: 'future_encoder' }],
 		};
-		const recover = vi.fn(async () => {
-			recovered = true;
-			return {
-				backupFileName: 'app-settings.before-recovery-test.json',
-				settings: settingsFixture(),
-			};
-		});
-		await renderOpenDialog({
-			getAppSettings: vi.fn(async () => {
-				if (!recovered) throw new Error('Open App Settings to check recovery options.');
-				return settingsFixture();
-			}),
-			getAppSettingsRecovery: vi.fn(async () => plan),
-			recoverAppSettings: recover,
-		});
+		await renderOpenDialog((engine) => engine.breakSettings(plan));
 		expect(screen.getByRole('listitem')).toHaveTextContent('Pinned defaults: future_encoder');
 		expect(
 			screen.getByText(/Output folders and other preferences will be preserved/),
 		).toBeInTheDocument();
-		expect(recover).not.toHaveBeenCalled();
+		expect(sent('recover')).toBe(0);
 		await fireEvent.click(screen.getByRole('button', { name: 'Back up and recover defaults' }));
-		await vi.waitFor(() => expect(recover).toHaveBeenCalledWith(plan));
+		await vi.waitFor(() =>
+			expect(engine.settingsIntents).toContainEqual({ kind: 'recover', expected: plan }),
+		);
 		await vi.waitFor(() =>
 			expect(screen.getByText(/Saved defaults recovered/)).toBeInTheDocument(),
 		);
 		expect(
 			screen.queryByRole('button', { name: 'Back up and recover defaults' }),
 		).not.toBeInTheDocument();
-		expect(screen.getByText('app-settings.before-recovery-test.json')).toBeInTheDocument();
+		expect(screen.getByText('app-settings.before-recovery.json')).toBeInTheDocument();
 	});
 
 	it('keeps the confirmed full reset reachable when targeted recovery is unavailable', async () => {
-		let reset = false;
-		await renderOpenDialog({
-			getAppSettings: vi.fn(async () => {
-				if (!reset) throw new Error('Malformed settings file');
-				return settingsFixture();
-			}),
-			resetAppSettings: vi.fn(async () => {
-				reset = true;
-				return settingsFixture();
-			}),
-		});
+		await renderOpenDialog((engine) => engine.breakSettings());
 		expect(
 			screen.queryByRole('button', { name: 'Back up and recover defaults' }),
 		).not.toBeInTheDocument();
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
-		expect(settings.resetAppSettings).not.toHaveBeenCalled();
+		expect(sent('reset')).toBe(0);
 		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
-		await vi.waitFor(() => expect(settings.resetAppSettings).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(sent('reset')).toBe(1));
 	});
 
 	it('keeps recovery retryable when the backup cannot be saved', async () => {
-		await renderOpenDialog({
-			getAppSettings: vi.fn(async () => {
-				throw new Error('Unsupported saved encoder');
-			}),
-			getAppSettingsRecovery: vi.fn(async () => ({
-				incompatibleEncoders: [{ scope: 'pinned' as const, encoderType: 'future_encoder' }],
-			})),
-			recoverAppSettings: vi.fn(async () => {
-				throw new Error('Cannot write settings backup');
-			}),
+		await renderOpenDialog((engine) => {
+			engine.breakSettings({
+				incompatibleEncoders: [{ scope: 'pinned', encoderType: 'future_encoder' }],
+			});
+			engine.recoverError = { message: 'Cannot write settings backup' };
 		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Back up and recover defaults' }));
 		await vi.waitFor(() =>
@@ -163,18 +91,16 @@ describe('AppSettingsDialogView', () => {
 		await renderOpenDialog();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
-		expect(settings.resetAppSettings).not.toHaveBeenCalled();
+		expect(sent('reset')).toBe(0);
 		expect(screen.getByTestId('app-settings-reset-confirm-prompt')).toBeInTheDocument();
 
 		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
-		expect(settings.resetAppSettings).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(sent('reset')).toBe(1));
 	});
 
 	it('shows an automatic save failure and retries without discarding the accepted choice', async () => {
-		await renderOpenDialog({
-			updateAppSettings: vi.fn(async () => {
-				throw new Error('Disk full');
-			}),
+		await renderOpenDialog((engine) => {
+			engine.settingsWriteError = { message: 'Disk full' };
 		});
 		runtime!.encoding.applyDefaults({ ...runtime!.encoding.readDefaults(), intent: 'encode' });
 		flush();
@@ -188,12 +114,13 @@ describe('AppSettingsDialogView', () => {
 			'Your current choices still apply for this session. Disk full',
 		);
 		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
-		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
+		engine.settingsWriteError = undefined;
 		await fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
 		await vi.waitFor(() =>
 			expect(screen.queryByText("Settings haven't been saved")).not.toBeInTheDocument(),
 		);
 		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
+		expect(engine.settings().settings?.encoderDefaults.settings.encoderType).toBe('faac');
 	});
 
 	it('returns to idle when the confirm step is cancelled', async () => {
@@ -202,7 +129,7 @@ describe('AppSettingsDialogView', () => {
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
 		await fireEvent.click(screen.getByTestId('app-settings-reset-cancel'));
 
-		expect(settings.resetAppSettings).not.toHaveBeenCalled();
+		expect(sent('reset')).toBe(0);
 		expect(screen.queryByTestId('app-settings-reset-confirm-prompt')).not.toBeInTheDocument();
 		expect(screen.getByTestId('app-settings-reset')).toBeInTheDocument();
 	});
@@ -217,8 +144,7 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('closes on Escape after opening post-mount, even with focus outside the dialog', async () => {
-		settings = fakeSettings();
-		runtime = createAppRuntime({ settings });
+		runtime = createAppRuntime({ engine: createFakeEngine() });
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<AppSettingsDialogView />
@@ -232,28 +158,20 @@ describe('AppSettingsDialogView', () => {
 		expect(runtime.settings.dialog().isOpen).toBe(false);
 	});
 
-	it('persists default acquisition lane when the Indexer radio is selected', async () => {
+	it('records the default acquisition lane when the Indexer radio is selected', async () => {
 		await renderOpenDialog();
 
 		await fireEvent.click(screen.getByTestId('app-settings-default-lane-indexer'));
 
-		expect(settings.updateAppSettings).toHaveBeenCalledWith({
+		await vi.waitFor(() => expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer'));
+		expect(engine.settingsIntents).toContainEqual({
+			kind: 'remember',
 			defaultAcquisitionLane: 'indexer',
 		});
-		expect(runtime!.settings.defaultAcquisitionLane()).toBe('indexer');
 	});
 
-	it('persists the awake preference, reloads its backend value, and preserves the old choice on error', async () => {
-		let persisted = true;
-		const update = vi.fn(async (patch: Parameters<SettingsCapability['updateAppSettings']>[0]) => {
-			if (patch.keepAwakeWhileWorking === true) throw new Error('Settings file is read-only');
-			persisted = patch.keepAwakeWhileWorking ?? persisted;
-			return settingsFixture({ keepAwakeWhileWorking: persisted });
-		});
-		await renderOpenDialog({
-			getAppSettings: vi.fn(async () => settingsFixture({ keepAwakeWhileWorking: persisted })),
-			updateAppSettings: update,
-		});
+	it('shows the awake preference the engine holds and keeps the old choice when a change is refused', async () => {
+		await renderOpenDialog();
 
 		let awake = screen.getByTestId('app-settings-keep-awake-checkbox');
 		expect(awake).toBeChecked();
@@ -262,13 +180,14 @@ describe('AppSettingsDialogView', () => {
 			expect(awake).not.toBeChecked();
 			expect(awake).toBeEnabled();
 		});
-		expect(update).toHaveBeenCalledWith({ keepAwakeWhileWorking: false });
+		expect(engine.settingsIntents).toContainEqual({ kind: 'setKeepAwake', enabled: false });
 
 		runtime!.settings.closeDialog();
 		await runtime!.settings.openDialog();
 		awake = screen.getByTestId('app-settings-keep-awake-checkbox');
 		expect(awake).not.toBeChecked();
 
+		engine.settingsWriteError = { message: 'Settings file is read-only' };
 		await fireEvent.click(awake);
 		await vi.waitFor(() =>
 			expect(screen.getByTestId('app-settings-power-error')).toHaveTextContent(

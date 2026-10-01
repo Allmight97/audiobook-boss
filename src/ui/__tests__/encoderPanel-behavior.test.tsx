@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 
 import { EncoderView } from '../encoderPanel/EncoderView';
-import { emptyInputSession } from '../../app/inputSession/types';
 import {
 	encoderAvailabilityFixture,
 	runtimeSettingsCapabilitiesFixture,
@@ -17,7 +17,6 @@ vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
 		openFile: vi.fn(),
-		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
@@ -35,6 +34,7 @@ const waitForEncoderOptions = async (): Promise<void> => {
 
 describe('encoder panel behavior controls', () => {
 	let runtime: AppRuntime | undefined;
+	let engine: FakeEngine;
 
 	afterEach(() => {
 		runtime?.dispose();
@@ -43,7 +43,8 @@ describe('encoder panel behavior controls', () => {
 
 	function renderEncoder() {
 		runtime?.dispose();
-		runtime = createAppRuntime();
+		engine = createFakeEngine();
+		runtime = createAppRuntime({ engine });
 		runtime.encoding.select('intent', 'encode');
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
@@ -153,19 +154,10 @@ describe('encoder panel behavior controls', () => {
 		renderEncoder();
 		await waitForEncoderOptions();
 
-		runtime!.input.replaceSession({
-			...emptyInputSession(),
-			files: [
-				{
-					path: '/books/source.m4b',
-					isValid: true,
-					sampleRate: 44100,
-					channels: 2,
-				},
-			],
-			selectedIndices: [0],
-			selectedAnchor: 0,
-		});
+		engine.loadTitles(
+			[{ path: '/books/source.m4b', isValid: true, sampleRate: 44100, channels: 2 }],
+			[0],
+		);
 
 		await vi.waitFor(() => {
 			expect(

@@ -1,4 +1,4 @@
-import type { AudioFile, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 
 export type InputSortDirection = 'none' | 'ascending' | 'descending';
 
@@ -7,24 +7,8 @@ export type SelectionModifiers = {
 	readonly range: boolean;
 };
 
-export type InputSessionState = {
-	// Each visible entry anchors a title's metadata. Ordered sources live separately.
-	readonly files: ReadonlyArray<AudioFile>;
-	readonly titleSourcesByIdentity: Readonly<Record<string, ReadonlyArray<AudioFile>>>;
-	readonly audioChoiceRequired: ReadonlyArray<string>;
-	readonly selectedIndices: ReadonlyArray<number>;
-	readonly selectedAnchor: number;
-	readonly sortDirection: InputSortDirection;
-	readonly orderLocked: boolean;
-	readonly errorMessage: string;
-	readonly isDragOver: boolean;
-	readonly supportText: string;
-	readonly importOrdinalByPath: Readonly<Record<string, number>>;
-	readonly nextImportOrdinal: number;
-	readonly audioRequestsByIdentity: Readonly<Record<string, TitleAudioRequest>>;
-};
-
 export type InputView = {
+	// Each visible entry anchors a title's metadata. Ordered sources live separately.
 	readonly files: ReadonlyArray<AudioFile>;
 	readonly sourceFiles: ReadonlyArray<AudioFile>;
 	readonly selectedSourceFiles: ReadonlyArray<AudioFile>;
@@ -51,41 +35,8 @@ export type ImportIntent =
 	| { readonly type: 'importPaths'; readonly paths: ReadonlyArray<string> }
 	| { readonly type: 'drainOpened' };
 
-const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
-
-export function emptyInputSession(): InputSessionState {
-	return {
-		files: [],
-		titleSourcesByIdentity: {},
-		audioChoiceRequired: [],
-		selectedIndices: [],
-		selectedAnchor: -1,
-		sortDirection: 'none',
-		orderLocked: false,
-		errorMessage: '',
-		isDragOver: false,
-		supportText: DEFAULT_SUPPORT_TEXT,
-		importOrdinalByPath: {},
-		nextImportOrdinal: 0,
-		audioRequestsByIdentity: {},
-	};
-}
+export const DEFAULT_SUPPORT_TEXT = 'Supports audio files';
 
 export function fileIdentityKey(file: AudioFile): string {
 	return file.inputId ?? file.path;
-}
-
-export function orderDiffersFromImport(
-	files: ReadonlyArray<AudioFile>,
-	importOrdinalByPath: Readonly<Record<string, number>>,
-): boolean {
-	if (files.length <= 1) return false;
-	let previous = -1;
-	for (const file of files) {
-		const ordinal = importOrdinalByPath[file.path];
-		if (ordinal === undefined) return false;
-		if (ordinal < previous) return true;
-		previous = ordinal;
-	}
-	return false;
 }

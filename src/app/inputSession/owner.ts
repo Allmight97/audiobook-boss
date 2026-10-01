@@ -1,32 +1,26 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { AudioFile, ProcessPayload, TitleAudioRequest } from '../../types/audio';
+import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
+import type { SessionIntent } from '../../types/session';
+import type { EngineLink } from '../engineLink';
 import { toInputView } from './display';
-import { runImportIntent } from './importWorkflow';
 import {
-	clearAllFilesFromSession,
-	moveFileInSession,
-	removeFileFromSession,
-	reorderFilesInSession,
-	restoreImportOrderInSession,
-	setOrderLockedInSession,
-	sortFilesInSession,
-} from './order';
-import { clearSelectionInSession, selectAllInSession, selectFileInSession } from './selection';
-import {
-	emptyInputSession,
+	DEFAULT_SUPPORT_TEXT,
 	fileIdentityKey,
 	type ImportIntent,
-	type InputSessionState,
 	type InputView,
 	type SelectionModifiers,
 } from './types';
 
+/**
+ * The engine owns the titles, their order, and the selection. This owner
+ * shows them and turns what the user does into intents.
+ */
 export type InputOwner = {
 	audioRequest(file: AudioFile): TitleAudioRequest | undefined;
-	setAudioRequest(file: AudioFile, request: TitleAudioRequest | undefined): void;
+	setAudioRequest(file: AudioFile, request: TitleAudioRequest): void;
 	readonly view: Accessor<InputView>;
-	readonly session: Accessor<InputSessionState>;
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor(file: AudioFile): ReadonlyArray<AudioFile>;
 	groupSelected(): Promise<void>;
@@ -35,10 +29,10 @@ export type InputOwner = {
 	audioChoiceRequired(file: AudioFile): boolean;
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
+	/** Resolves true when the selection changed and its tags have loaded. */
 	selectFile(command: {
 		readonly index: number;
 		readonly modifiers: SelectionModifiers;
-		readonly signal?: AbortSignal;
 	}): Promise<boolean>;
 	selectAll(): Promise<void>;
 	clearSelection(): Promise<void>;
@@ -51,297 +45,227 @@ export type InputOwner = {
 	restoreImportOrder(): void;
 	setOrderLocked(orderLocked: boolean): void;
 	chooseCue(inputId: string, choice: 'confirmHundredths' | 'ignore'): void;
-	replaceSession(session: InputSessionState): void;
 	reset(): void;
 };
 
 export type InputOwnerDeps = {
+	readonly link: EngineLink;
 	readonly capability?: InputCapability;
-	readonly audioDefaults?: () => TitleAudioRequest;
+	/** The audio request a title takes as it enters the list. */
+	readonly audioDefaults: () => TitleAudioRequest;
 	readonly beforeImport?: () => Promise<void>;
-	readonly beforeSelectionChange?: (signal?: AbortSignal) => boolean | Promise<boolean>;
 };
 
-export function createInputOwner(deps: InputOwnerDeps = {}): InputOwner {
-	let session = emptyInputSession();
-	const [rev, bump] = createSignal(0, { ownedWrite: true });
+export function createInputOwner(deps: InputOwnerDeps): InputOwner {
+	const { link } = deps;
 	const capabilityValue = deps.capability ?? liveInputCapability;
-	const view: Accessor<InputView> = () => {
-		rev();
-		return toInputView(session);
-	};
-	const sessionView: Accessor<InputSessionState> = () => {
-		rev();
-		return session;
-	};
 	const capability: Accessor<InputCapability> = () => capabilityValue;
-	let selectionTransition: AbortController | undefined;
-	let importQueue: Promise<void> = Promise.resolve();
-	let importEpoch = 0;
+	const [rev, bump] = createSignal(0, { ownedWrite: true });
+	// View-local state: none of it is session truth.
+	let localError = '';
+	let isDragOver = false;
+	let supportText = DEFAULT_SUPPORT_TEXT;
+	// A title's audio request as just chosen, shown until the engine confirms
+	// it. PR 2 removes this with the encoding owner's synchronous read.
+	const chosenAudio = new Map<string, { readonly request: TitleAudioRequest }>();
+	// Readers compare requests by identity to decide whether to re-plan, so a
+	// request keeps one object while its content stays the same.
+	const lastAudio = new Map<string, { content: string; request: TitleAudioRequest }>();
 
-	function commit(next: InputSessionState): void {
-		const missing = next.files.filter(
-			(file) => !next.audioRequestsByIdentity[fileIdentityKey(file)],
-		);
-		if (missing.length && deps.audioDefaults) {
-			const requests = { ...next.audioRequestsByIdentity };
-			for (const file of missing)
-				requests[fileIdentityKey(file)] = structuredClone(deps.audioDefaults());
-			next = { ...next, audioRequestsByIdentity: requests };
+	function sameObjectWhileUnchanged(
+		id: string,
+		request: TitleAudioRequest | undefined,
+	): TitleAudioRequest | undefined {
+		if (!request) {
+			lastAudio.delete(id);
+			return undefined;
 		}
-		session = next;
+		const content = JSON.stringify(request);
+		const last = lastAudio.get(id);
+		if (last?.content === content) return last.request;
+		lastAudio.set(id, { content, request });
+		return request;
+	}
+
+	function changed(): void {
 		bump((n) => n + 1);
 	}
 
-	async function allowSelectionTransition(signal?: AbortSignal): Promise<boolean> {
-		if (signal?.aborted) return false;
-		selectionTransition?.abort();
-		const transition = new AbortController();
-		selectionTransition = transition;
-		const abort = () => transition.abort();
-		signal?.addEventListener('abort', abort, { once: true });
+	const view: Accessor<InputView> = () => {
+		rev();
+		return toInputView(link.titles(), link.selection(), {
+			errorMessage: localError,
+			isDragOver,
+			supportText,
+		});
+	};
+
+	function sourcesFor(file: AudioFile): ReadonlyArray<AudioFile> {
+		return link.titles().titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
+	}
+
+	function isLoaded(file: AudioFile): boolean {
+		const id = fileIdentityKey(file);
+		return link.titles().files.some((current) => fileIdentityKey(current) === id);
+	}
+
+	async function applied(intent: SessionIntent): Promise<boolean> {
+		return (await link.send(intent)).kind === 'applied';
+	}
+
+	async function importPaths(paths: ReadonlyArray<string>): Promise<void> {
+		await link.send({ kind: 'import', paths: [...paths], defaultAudio: deps.audioDefaults() });
+	}
+
+	async function pick<A>(
+		open: () => Promise<A | null>,
+		fallback: string,
+	): Promise<A | null | undefined> {
 		try {
-			const allowed = await deps.beforeSelectionChange?.(transition.signal);
-			return allowed !== false && !transition.signal.aborted;
-		} finally {
-			signal?.removeEventListener('abort', abort);
+			return await open();
+		} catch (cause) {
+			localError = toUserMessage(cause, { fallback, suppressUnknown: true });
+			changed();
+			return undefined;
 		}
 	}
 
-	function currentIndex(file: AudioFile): number {
-		return session.files.findIndex((current) => fileIdentityKey(current) === fileIdentityKey(file));
-	}
-
-	function sourcesFor(file: AudioFile): ReadonlyArray<AudioFile> {
-		rev();
-		return session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
+	async function runImport(intent: ImportIntent): Promise<void> {
+		switch (intent.type) {
+			case 'pickFiles': {
+				const selected = await pick(async () => {
+					const supported = await capabilityValue.getSupportedAudioImportMetadata();
+					return capabilityValue.openFiles({
+						filters: [{ name: 'Audio Files', extensions: [...supported.extensions] }],
+					});
+				}, 'Failed to open file dialog. Please try again.');
+				if (selected?.length) await importPaths(selected);
+				return;
+			}
+			case 'pickFolder': {
+				const selected = await pick(
+					() => capabilityValue.openDirectory(),
+					'Failed to open folder dialog. Please try again.',
+				);
+				if (selected) await importPaths([selected]);
+				return;
+			}
+			case 'drainOpened':
+				await link.send({ kind: 'importOpened', defaultAudio: deps.audioDefaults() });
+				return;
+			case 'importPaths':
+				await importPaths(intent.paths);
+		}
 	}
 
 	return {
 		audioRequest(file) {
 			rev();
-			return session.audioRequestsByIdentity[fileIdentityKey(file)];
+			const id = fileIdentityKey(file);
+			return sameObjectWhileUnchanged(
+				id,
+				chosenAudio.get(id)?.request ?? link.titles().audioRequestsByIdentity[id],
+			);
 		},
 		setAudioRequest(file, request) {
-			if (session.orderLocked || currentIndex(file) < 0) return;
-			const requests = { ...session.audioRequestsByIdentity };
-			if (request) requests[fileIdentityKey(file)] = structuredClone(request);
-			else delete requests[fileIdentityKey(file)];
-			commit({
-				...session,
-				audioRequestsByIdentity: requests,
-				audioChoiceRequired: session.audioChoiceRequired.filter(
-					(id) => id !== fileIdentityKey(file),
-				),
-			});
+			if (link.titles().orderLocked || !isLoaded(file)) return;
+			const id = fileIdentityKey(file);
+			const chosen = { request: structuredClone(request) };
+			chosenAudio.set(id, chosen);
+			changed();
+			link
+				.send({ kind: 'setAudioRequest', titleId: id, request: chosen.request })
+				.catch((error: unknown) => console.error('Failed to set the audio request:', error))
+				.finally(() => {
+					if (chosenAudio.get(id) !== chosen) return;
+					chosenAudio.delete(id);
+					changed();
+				});
 		},
 		sourcesFor,
 		audioChoiceRequired(file) {
 			rev();
-			return session.audioChoiceRequired.includes(fileIdentityKey(file));
+			const id = fileIdentityKey(file);
+			return !chosenAudio.has(id) && link.titles().audioChoiceRequired.includes(id);
 		},
 		async groupSelected() {
-			if (session.orderLocked || session.selectedIndices.length < 2) return;
-			const selected = [...session.selectedIndices]
-				.sort((a, b) => a - b)
-				.map((index) => session.files[index])
-				.filter((file): file is AudioFile => Boolean(file));
-			if (!(await allowSelectionTransition()) || session.orderLocked) return;
-			if (selected.some((file) => currentIndex(file) < 0)) return;
-			const anchor = selected[0] ? session.files[currentIndex(selected[0])] : undefined;
-			if (!anchor) return;
-			const key = fileIdentityKey(anchor);
-			const selectedKeys = new Set(selected.map(fileIdentityKey));
-			const sources = selected.flatMap((file) => {
-				const current = session.files[currentIndex(file)];
-				return current ? sourcesFor(current) : [];
-			});
-			const choices = new Set(
-				selected.map((file) =>
-					JSON.stringify(session.audioRequestsByIdentity[fileIdentityKey(file)] ?? null),
-				),
-			);
-			const files = session.files.filter(
-				(file) => fileIdentityKey(file) === key || !selectedKeys.has(fileIdentityKey(file)),
-			);
-			const index = files.findIndex((file) => fileIdentityKey(file) === key);
-			commit({
-				...session,
-				files,
-				titleSourcesByIdentity: { ...session.titleSourcesByIdentity, [key]: sources },
-				audioChoiceRequired: [
-					...session.audioChoiceRequired.filter((id) => !selectedKeys.has(id)),
-					...(choices.size > 1 ||
-					selected.some((file) => session.audioChoiceRequired.includes(fileIdentityKey(file)))
-						? [key]
-						: []),
-				],
-				selectedIndices: [index],
-				selectedAnchor: index,
-				sortDirection: 'none',
-			});
+			await link.send({ kind: 'groupSelected' });
 		},
 		async ungroup(file) {
-			if (session.orderLocked || !(await allowSelectionTransition())) return;
-			const index = currentIndex(file);
-			const sources = sourcesFor(file);
-			if (index < 0 || sources.length < 2 || session.orderLocked) return;
-			const groups = { ...session.titleSourcesByIdentity };
-			for (const source of sources) delete groups[fileIdentityKey(source)];
-			const files = [...session.files];
-			files.splice(index, 1, ...sources);
-			commit({
-				...session,
-				files,
-				titleSourcesByIdentity: groups,
-				audioChoiceRequired: session.audioChoiceRequired.filter(
-					(id) => id !== fileIdentityKey(file),
-				),
-				selectedIndices: sources.map((_, offset) => index + offset),
-				selectedAnchor: index,
-			});
+			await link.send({ kind: 'ungroup', titleId: fileIdentityKey(file) });
 		},
 		reorderSources(file, from, to) {
-			if (session.orderLocked || currentIndex(file) < 0) return;
-			const sources = [...sourcesFor(file)];
-			if (from < 0 || to < 0 || from >= sources.length || to >= sources.length || from === to)
-				return;
-			const [moved] = sources.splice(from, 1);
-			if (!moved) return;
-			sources.splice(to, 0, moved);
-			commit({
-				...session,
-				titleSourcesByIdentity: {
-					...session.titleSourcesByIdentity,
-					[fileIdentityKey(file)]: sources,
-				},
-			});
+			link.post({ kind: 'reorderSources', titleId: fileIdentityKey(file), from, to });
 		},
 		view,
-		session: sessionView,
 		capability,
 		chooseCue(inputId, choice) {
-			if (session.orderLocked) return;
-			const current = session;
-			const updateFile = (file: AudioFile): AudioFile => {
-				if (file.inputId !== inputId || !file.cueSource) return file;
-				if (choice === 'confirmHundredths' && file.cueSource.status === 'needsConfirmation') {
-					return { ...file, cueSource: { ...file.cueSource, status: 'ready' as const } };
-				}
-				if (choice === 'ignore' && file.cueSource.status !== 'embeddedPreferred') {
-					return {
-						...file,
-						cueSource: { ...file.cueSource, status: 'ignored' as const },
-						chapterPlan: file.chapterPlan
-							? { ...file.chapterPlan, fromCue: false, chapters: file.chapters ?? [] }
-							: undefined,
-					};
-				}
-				return file;
-			};
-			const files = current.files.map(updateFile);
-			const titleSourcesByIdentity = Object.fromEntries(
-				Object.entries(current.titleSourcesByIdentity).map(([id, sources]) => [
-					id,
-					sources.map(updateFile),
-				]),
-			);
-			commit({ ...current, titleSourcesByIdentity, files });
+			link.post({ kind: 'chooseCue', inputId, choice });
 		},
 		async importIntent(intent) {
-			const epoch = importEpoch;
-			const run = importQueue.then(async () => {
-				if (epoch !== importEpoch) {
-					return;
-				}
-				try {
-					await deps.beforeImport?.();
-				} catch {
-					if (epoch === importEpoch)
-						commit({
-							...session,
-							errorMessage:
-								'Could not load audio defaults. Review Settings, then try importing again.',
-						});
-					return;
-				}
-				if (epoch !== importEpoch) return;
-				const applyImport = await runImportIntent(capabilityValue, session, intent);
-				if (epoch !== importEpoch) {
-					return;
-				}
-				commit(applyImport(session));
-			});
-			importQueue = run.then(
-				() => undefined,
-				() => undefined,
-			);
-			await run;
+			if (localError) {
+				localError = '';
+				changed();
+			}
+			try {
+				await deps.beforeImport?.();
+			} catch {
+				localError = 'Could not load audio defaults. Review Settings, then try importing again.';
+				changed();
+				return;
+			}
+			await runImport(intent);
 		},
 		async hydrateSupportText() {
 			try {
-				const metadata = await capabilityValue.getSupportedAudioImportMetadata();
-				commit({
-					...session,
-					supportText: metadata.supportText || session.supportText,
-				});
+				const supported = await capabilityValue.getSupportedAudioImportMetadata();
+				supportText = supported.supportText || supportText;
+				changed();
 			} catch {}
 		},
-		async selectFile(command) {
-			const file = session.files[command.index];
-			if (!file || !(await allowSelectionTransition(command.signal))) return false;
-			const index = currentIndex(file);
-			if (index < 0) return false;
-			commit(selectFileInSession(session, index, command.modifiers));
-			return true;
+		selectFile(command) {
+			return applied({ kind: 'selectFile', index: command.index, modifiers: command.modifiers });
 		},
 		async selectAll() {
-			if (!(await allowSelectionTransition())) return;
-			commit(selectAllInSession(session));
+			await link.send({ kind: 'selectAll' });
 		},
 		async clearSelection() {
-			if (!(await allowSelectionTransition())) return;
-			commit(clearSelectionInSession(session));
+			await link.send({ kind: 'clearSelection' });
 		},
-		setDragOver(isDragOver) {
-			if (session.isDragOver === isDragOver) {
-				return;
-			}
-			commit({ ...session, isDragOver });
+		setDragOver(next) {
+			if (isDragOver === next) return;
+			isDragOver = next;
+			changed();
 		},
 		async removeFile(index) {
-			const file = session.files[index];
-			if (!file || session.orderLocked || !(await allowSelectionTransition())) return;
-			commit(removeFileFromSession(session, currentIndex(file)).session);
+			await link.send({ kind: 'removeFile', index });
 		},
 		async clearAllFiles() {
-			if (!(await allowSelectionTransition())) return;
-			commit(clearAllFilesFromSession(session));
+			await link.send({ kind: 'clearAll' });
 		},
 		moveFile(command) {
-			commit(moveFileInSession(session, command.index, command.direction));
+			link.post({ kind: 'moveFile', index: command.index, direction: command.direction });
 		},
 		reorderFiles(command) {
-			commit(reorderFilesInSession(session, command.fromIndex, command.toIndex));
+			link.post({ kind: 'reorderFiles', from: command.fromIndex, to: command.toIndex });
 		},
 		toggleSort() {
-			commit(sortFilesInSession(session));
+			link.post({ kind: 'toggleSort' });
 		},
 		restoreImportOrder() {
-			commit(restoreImportOrderInSession(session));
+			link.post({ kind: 'restoreImportOrder' });
 		},
-		setOrderLocked(orderLocked) {
-			commit(setOrderLockedInSession(session, orderLocked));
-		},
-		replaceSession(next) {
-			selectionTransition?.abort();
-			commit(next);
+		setOrderLocked(locked) {
+			link.post({ kind: 'setOrderLocked', locked });
 		},
 		reset() {
-			selectionTransition?.abort();
-			selectionTransition = undefined;
-			importEpoch += 1;
-			commit(emptyInputSession());
+			chosenAudio.clear();
+			lastAudio.clear();
+			localError = '';
+			isDragOver = false;
+			supportText = DEFAULT_SUPPORT_TEXT;
+			changed();
+			link.post({ kind: 'reset' });
 		},
 	};
 }

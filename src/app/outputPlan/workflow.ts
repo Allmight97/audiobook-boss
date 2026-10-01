@@ -16,7 +16,6 @@ import type {
 	ProcessingPreflightPlan,
 } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
-import { validateMetadataDraft, type MetadataDraftValidation } from '../metadataSession';
 import type { OutputPlanOwner } from './owner';
 import type { OutputPathPreviewMetadataDraft } from './types';
 import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
@@ -185,14 +184,6 @@ export function outputPlanReviewBody(
 			kit.failure(toUserMessage(error.cause, { fallback: error.message }), error.cause),
 		),
 	);
-}
-
-export async function updateMetadataIntentWarnings(
-	metadata: OutputPathPreviewMetadataDraft,
-	onMetadataValidation?: (validation: MetadataDraftValidation) => void,
-): Promise<void> {
-	const validation = await validateMetadataDraft(metadata, tauriClient.validateMetadataIntentPatch);
-	onMetadataValidation?.(validation);
 }
 
 export function showOutputError(message: string): void {

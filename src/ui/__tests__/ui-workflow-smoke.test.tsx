@@ -10,9 +10,9 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 
-import type { FileListInfo, ProcessingPreflightPlan } from '../../types/audio';
+import type { AudioFile, ProcessingPreflightPlan } from '../../types/audio';
 import type { AppSettings } from '../../types/appSettings';
-import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import { createFakeEngine } from '../../test/fixtures/fakeEngine';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import type { WorkSubmissionAccepted } from '../../types/workRuntime';
 import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
@@ -21,26 +21,12 @@ import { App } from '../App';
 const native = vi.hoisted(() => ({
 	openFiles: vi.fn(),
 	openDirectory: vi.fn(),
-	discoverAudioImportPaths: vi.fn(),
-	analyzeAudioFiles: vi.fn(),
 	getSupportedAudioImportMetadata: vi.fn(),
-	takeOpenedAudioFiles: vi.fn(),
 	readAudioCoverThumbnail: vi.fn(),
 	listen: vi.fn(),
 	readAudioMetadata: vi.fn(),
-	validateMetadataIntentPatch: vi.fn(),
-	saveMetadataBatch: vi.fn(),
 	openFile: vi.fn(),
-	loadCoverArtFile: vi.fn(),
 	loadCoverArtFromUrl: vi.fn(),
-	searchOnlineMetadata: vi.fn(),
-	getAppSettings: vi.fn(),
-	getAppSettingsRecovery: vi.fn().mockResolvedValue(null),
-	recoverAppSettings: vi.fn(),
-	updateAppSettings: vi.fn(),
-	resetAppSettings: vi.fn(),
-	getMaxConcurrentJobs: vi.fn(),
-	setMaxConcurrentJobs: vi.fn(),
 	getRuntimeSettingsCapabilities: vi.fn(),
 	previewOutputPath: vi.fn(),
 	previewTitleAudio: vi.fn(),
@@ -59,29 +45,21 @@ const INPUT_PATH = '/library/Dune.m4b';
 const OUTPUT_DIRECTORY = '/exports/audiobooks';
 const COVER_BYTES = [9, 8, 7, 6];
 
-function fileList(): FileListInfo {
+function importedFile(): AudioFile {
 	return {
-		files: [
-			{
-				inputId: 'input-dune',
-				path: INPUT_PATH,
-				size: 1024,
-				duration: 3600,
-				format: 'm4b',
-				bitrate: 64_000,
-				sampleRate: 44100,
-				channels: 1,
-				codecLabel: 'AAC',
-				selectedDecoder: 'FFmpeg',
-				tagTitle: 'Dune (old tags)',
-				tagArtist: 'Old Author',
-				isValid: true,
-			},
-		],
-		totalDuration: 3600,
-		totalSize: 1024,
-		validCount: 1,
-		invalidCount: 0,
+		inputId: 'input-dune',
+		path: INPUT_PATH,
+		size: 1024,
+		duration: 3600,
+		format: 'm4b',
+		bitrate: 64_000,
+		sampleRate: 44100,
+		channels: 1,
+		codecLabel: 'AAC',
+		selectedDecoder: 'FFmpeg',
+		tagTitle: 'Dune (old tags)',
+		tagArtist: 'Old Author',
+		isValid: true,
 	};
 }
 
@@ -182,15 +160,12 @@ describe('UI Workflow Smoke Test', () => {
 		const settings = appSettings();
 		native.openFiles.mockResolvedValue([INPUT_PATH]);
 		native.openDirectory.mockResolvedValue(OUTPUT_DIRECTORY);
-		native.discoverAudioImportPaths.mockImplementation(async (paths) => [...paths]);
-		native.analyzeAudioFiles.mockResolvedValue(fileList());
 		native.getSupportedAudioImportMetadata.mockResolvedValue({
 			formats: [{ extension: 'm4b', label: 'M4B' }],
 			extensions: ['m4b'],
 			formatsText: 'M4B',
 			supportText: 'Supports M4B audio files',
 		});
-		native.takeOpenedAudioFiles.mockResolvedValue([]);
 		native.readAudioCoverThumbnail.mockResolvedValue(null);
 		native.listen.mockResolvedValue(() => undefined);
 		native.readAudioMetadata.mockResolvedValue({
@@ -198,23 +173,7 @@ describe('UI Workflow Smoke Test', () => {
 			artist: 'Old Author',
 			cover_art: [1, 1, 1],
 		});
-		native.validateMetadataIntentPatch.mockImplementation(
-			async (metadataPatch: MetadataIntentPatch) => ({
-				isValid: true,
-				metadataPatch,
-				fieldErrors: [],
-			}),
-		);
 		native.loadCoverArtFromUrl.mockResolvedValue(COVER_BYTES);
-		native.searchOnlineMetadata.mockResolvedValue({
-			results: [lookupResult()],
-			diagnostics: [],
-		});
-		native.getAppSettings.mockResolvedValue(settings);
-		native.updateAppSettings.mockResolvedValue(settings);
-		native.resetAppSettings.mockResolvedValue(settings);
-		native.getMaxConcurrentJobs.mockResolvedValue(4);
-		native.setMaxConcurrentJobs.mockResolvedValue(4);
 		native.getRuntimeSettingsCapabilities.mockResolvedValue(runtimeSettingsCapabilitiesFixture());
 		native.previewOutputPath.mockResolvedValue(
 			`${OUTPUT_DIRECTORY}/Frank Herbert/Dune (1965)/Dune.m4b`,
@@ -232,7 +191,17 @@ describe('UI Workflow Smoke Test', () => {
 		native.submitProcessingOperation.mockResolvedValue(acceptedSubmission());
 		native.listWorkOperations.mockResolvedValue({ membershipRevision: 0, operations: [] });
 
-		const runtime = createAppRuntime();
+		// The engine holds the session: the file's tags, the lookup, and its edits.
+		const engine = createFakeEngine(settings);
+		engine.analyze = () => [importedFile()];
+		engine.tags.set(INPUT_PATH, {
+			title: 'Dune (old tags)',
+			artist: 'Old Author',
+			cover_art: [1, 1, 1],
+		});
+		engine.lookupResults = [lookupResult()];
+		engine.coverBytes = COVER_BYTES;
+		const runtime = createAppRuntime({ engine });
 		const user = userEvent.setup();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime}>

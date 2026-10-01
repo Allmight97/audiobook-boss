@@ -96,6 +96,10 @@ impl WorkRuntimeState {
         }
     }
 
+    pub(crate) fn operation(&self, operation_id: &str) -> Option<&OperationSnapshot> {
+        self.operations.get(operation_id)
+    }
+
     #[cfg(test)]
     pub(crate) fn get(&self, operation_id: &OperationId) -> Result<OperationSnapshot> {
         self.operations

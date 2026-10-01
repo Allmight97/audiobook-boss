@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 
 import { EncoderView } from '../encoderPanel/EncoderView';
 import {
@@ -16,7 +17,6 @@ vi.mock('../../lib/tauri/client', () => ({
 	tauriClient: {
 		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
 		openFile: vi.fn(),
-		updateAppSettings: vi.fn().mockResolvedValue(undefined),
 	},
 }));
 
@@ -27,6 +27,7 @@ const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 
 describe('encoder panel encoder resolution', () => {
 	let runtime: AppRuntime | undefined;
+	let engine: FakeEngine;
 
 	afterEach(() => {
 		runtime?.dispose();
@@ -35,7 +36,8 @@ describe('encoder panel encoder resolution', () => {
 
 	function renderEncoder() {
 		runtime?.dispose();
-		runtime = createAppRuntime();
+		engine = createFakeEngine();
+		runtime = createAppRuntime({ engine });
 		runtime.encoding.select('intent', 'encode');
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>

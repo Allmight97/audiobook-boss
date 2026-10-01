@@ -4,12 +4,9 @@ import {
 	formatAudioBitrate,
 	type AudioFile,
 } from '../../types/audio';
-import {
-	fileIdentityKey,
-	orderDiffersFromImport,
-	type InputSessionState,
-	type InputView,
-} from './types';
+import { toUserMessage } from '../../lib/tauri/appError';
+import type { InputNotice, SessionSelection, SessionTitles } from '../../types/session';
+import { fileIdentityKey, type InputView } from './types';
 
 export function displayedTitleForFile(file: AudioFile): string {
 	if (file.tagTitle?.trim()) {
@@ -35,34 +32,64 @@ export function formatFileDetails(file: AudioFile): string {
 	return `Error: ${file.error || 'Invalid file'}`;
 }
 
-export function toInputView(session: InputSessionState): InputView {
-	const files = session.files;
-	const sourceFiles = files.flatMap(
-		(file) => session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file],
-	);
-	const locked = session.orderLocked;
-	const differs = orderDiffersFromImport(files, session.importOrdinalByPath);
+/** Words the engine's reason an import added nothing. */
+export function inputNoticeText(notice: InputNotice | null): string {
+	switch (notice?.kind) {
+		case undefined:
+			return '';
+		case 'orderLocked':
+			return 'Order locked while processing. Wait for completion to add files.';
+		case 'noSupportedFiles':
+			return `No supported audio files found. Please use ${notice.formatsText} files.`;
+		case 'duplicatesOnly':
+			return 'No new files added. All analyzed files were already in the list.';
+		case 'discoveryFailed':
+			return toUserMessage(notice.error, {
+				fallback: 'Failed to discover audio files. Please try again.',
+			});
+		case 'analysisFailed':
+			return toUserMessage(notice.error, {
+				fallback: 'Failed to analyze files. Please try again.',
+			});
+	}
+}
+
+/** What the views show: the engine's titles and selection plus view-local state. */
+export function toInputView(
+	titles: SessionTitles,
+	selection: SessionSelection,
+	local: {
+		readonly errorMessage: string;
+		readonly isDragOver: boolean;
+		readonly supportText: string;
+	},
+): InputView {
+	const files = titles.files;
+	const sourcesOf = (file: AudioFile) =>
+		titles.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
+	const sourceFiles = files.flatMap(sourcesOf);
+	const locked = titles.orderLocked;
 	return {
 		files,
 		sourceFiles,
-		selectedSourceFiles: session.selectedIndices.flatMap((index) => {
+		selectedSourceFiles: selection.selectedIndices.flatMap((index) => {
 			const file = files[index];
-			return file ? (session.titleSourcesByIdentity[fileIdentityKey(file)] ?? [file]) : [];
+			return file ? sourcesOf(file) : [];
 		}),
-		selectedIndices: session.selectedIndices,
-		selectedAnchor: session.selectedAnchor,
+		selectedIndices: selection.selectedIndices,
+		selectedAnchor: selection.selectedAnchor ?? -1,
 		fileCount: files.length,
 		hasFiles: files.length > 0,
 		orderLocked: locked,
-		errorMessage: session.errorMessage,
-		isDragOver: session.isDragOver,
-		supportText: session.supportText,
-		sortDirection: session.sortDirection,
-		sortLabel: session.sortDirection === 'descending' ? 'Sort: Z-A' : 'Sort: A-Z',
-		orderDiffersFromImport: differs,
+		errorMessage: local.errorMessage || inputNoticeText(titles.notice),
+		isDragOver: local.isDragOver,
+		supportText: local.supportText,
+		sortDirection: titles.sortDirection,
+		sortLabel: titles.sortDirection === 'descending' ? 'Sort: Z-A' : 'Sort: A-Z',
+		orderDiffersFromImport: titles.orderDiffersFromImport,
 		showSortButton: files.length > 1,
 		showClearButton: files.length > 0,
-		showRestoreImportOrder: differs && !locked,
+		showRestoreImportOrder: titles.orderDiffersFromImport && !locked,
 		totalDurationSeconds: sourceFiles.reduce((sum, file) => sum + (file.duration ?? 0), 0),
 	};
 }

@@ -10,13 +10,9 @@
 import '@testing-library/jest-dom/vitest';
 import { pathBasename } from '../lib/path/basename';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
 import { runtimeSettingsCapabilitiesFixture } from './fixtures/runtimeSettingsCapabilities';
 import type {
-	AppSettings,
-	FileListInfo,
-	MetadataIntentValidationResult,
-	MetadataLookupResponse,
-	MetadataSaveBatchResult,
 	OperationListSnapshot,
 	OperationSnapshot,
 	ProcessCommandResult,
@@ -130,10 +126,82 @@ function mockOperationSnapshot(
 	};
 }
 
+/**
+ * Publishes what the engine publishes when a metadata save runs: an accepted
+ * operation, then running, then completed, one child per file.
+ */
+export function publishMockMetadataSave(filePaths: string[]): void {
+	mockJobCounter += 1;
+	const operationId = `mock-metadata-operation-${mockJobCounter}`;
+	const baseSnapshot = mockOperationSnapshot(operationId, 'metadataSave', filePaths);
+	publishMockOperation(baseSnapshot);
+	emitTestEvent('work-operation-list-snapshot', mockOperationList());
+	publishMockOperation({
+		...baseSnapshot,
+		revision: baseSnapshot.revision + 1,
+		status: 'running',
+		startedAtMs: Date.now(),
+	});
+	publishMockOperation({
+		...baseSnapshot,
+		revision: baseSnapshot.revision + 2,
+		status: 'completed' as const,
+		startedAtMs: Date.now(),
+		finishedAtMs: Date.now(),
+		cancellable: false,
+		progress: {
+			...baseSnapshot.progress,
+			stage: 'complete' as const,
+			percentage: 100,
+			message: `Completed ${filePaths.length} item(s).`,
+		},
+		children: baseSnapshot.children.map((child) => ({
+			...child,
+			status: 'completed' as const,
+			progress: { ...child.progress, stage: 'complete' as const, percentage: 100 },
+			message: 'Metadata saved',
+		})),
+		terminalSummary: {
+			total: filePaths.length,
+			succeeded: filePaths.length,
+			skipped: 0,
+			cancelled: 0,
+			failed: 0,
+			message: `Completed ${filePaths.length} item(s).`,
+		},
+	});
+	emitTestEvent('work-operation-list-snapshot', mockOperationList());
+}
+
 // Mock Tauri's invoke API
 vi.mock('@tauri-apps/api/core', () => ({
 	invoke: vi.fn().mockImplementation((cmd: string, _args?: unknown) => {
+		const engineArgs = _args as {
+			client: number;
+			sequence: number;
+			intent: never;
+			filePaths: string[];
+		};
 		switch (cmd) {
+			// The session and settings are answered by this test's fake engine.
+			case 'attach_frontend':
+				return fakeEngine().attach();
+			case 'session_dispatch':
+				return fakeEngine().sessionDispatch(
+					engineArgs.client,
+					engineArgs.sequence,
+					engineArgs.intent,
+				);
+			case 'settings_dispatch':
+				return fakeEngine().settingsDispatch(
+					engineArgs.client,
+					engineArgs.sequence,
+					engineArgs.intent,
+				);
+			case 'session_cover_art':
+				return fakeEngine().sessionCoverArt();
+			case 'session_metadata_intents':
+				return fakeEngine().sessionMetadataIntents(engineArgs.filePaths);
 			case 'get_supported_audio_import_metadata':
 				return Promise.resolve({
 					formats: [
@@ -148,108 +216,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 					formatsText: 'MP3, M4A/M4B, AAC, WAV, and FLAC',
 					supportText: 'Supports MP3, M4A/M4B, AAC, WAV, and FLAC audio files',
 				} satisfies SupportedAudioImportMetadata);
-			case 'discover_audio_import_paths': {
-				const args = _args as { inputPaths?: string[] } | undefined;
-				return Promise.resolve((args?.inputPaths ?? []) satisfies string[]);
-			}
-			case 'take_opened_audio_files':
-				return Promise.resolve([] as string[]);
-			case 'get_max_concurrent_jobs':
-				return Promise.resolve(4);
 			case 'get_runtime_settings_capabilities':
 				return Promise.resolve(runtimeSettingsCapabilitiesFixture());
-			case 'get_app_settings':
-				return Promise.resolve({
-					keepAwakeWhileWorking: true,
-					maxConcurrentJobs: { mode: 'auto' },
-					encoderDefaults: {
-						format: 'm4b',
-						intent: 'auto',
-						sampleRate: 'auto',
-						settings: {
-							encoderType: 'auto',
-							bitrateKbps: 64,
-							bitrateMode: { mode: 'cbr' },
-							channels: 'auto',
-							nativeAacSpeed: 0,
-							faacProfile: 'auto',
-						},
-					},
-					outputDefaults: {
-						outputDirectory: null,
-						outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
-					},
-					startupBehavior: 'rememberLastState',
-					pinnedDefaults: null,
-					defaultAcquisitionLane: 'audible',
-				} satisfies AppSettings);
-			case 'update_app_settings':
-				return Promise.resolve(_args);
 			case 'read_audio_cover_thumbnail':
 				return Promise.resolve(null);
-			case 'analyze_audio_files':
-				return Promise.resolve({
-					files: [
-						{
-							inputId: 'mock-input-1',
-							path: '/mock/path/chapter1.mp3',
-							size: 15 * 1024 * 1024,
-							duration: 300,
-							isValid: true,
-							bitrate: 64,
-							sampleRate: 44100,
-							channels: 1,
-							format: 'mp3',
-							codecLabel: 'MP3',
-							selectedDecoder: 'ffmpeg',
-							tagTitle: null,
-							tagArtist: null,
-							error: null,
-						},
-						{
-							inputId: 'mock-input-2',
-							path: '/mock/path/chapter2.mp3',
-							size: 20 * 1024 * 1024,
-							duration: 400,
-							isValid: true,
-							bitrate: 64,
-							sampleRate: 44100,
-							channels: 1,
-							format: 'mp3',
-							codecLabel: 'MP3',
-							selectedDecoder: 'ffmpeg',
-							tagTitle: null,
-							tagArtist: null,
-							error: null,
-						},
-					],
-					totalDuration: 700,
-					totalSize: 35 * 1024 * 1024,
-					validCount: 2,
-					invalidCount: 0,
-				} satisfies FileListInfo);
-			case 'search_online_metadata':
-				return Promise.resolve({
-					results: [
-						{
-							source: 'audnexus',
-							sourceId: 'OL12345W',
-							title: 'Mock Lookup Title',
-							authors: ['Mock Author'],
-							narrators: ['Mock Narrator'],
-							series: 'Mock Series',
-							seriesPart: '1',
-							subseries: 'Mock Sub-series',
-							subseriesPart: '1',
-							description: 'Mock description from lookup source.',
-							publishedDate: '2021',
-							durationSeconds: 36000,
-							coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
-							audibleOnly: false,
-						},
-					],
-					diagnostics: [],
-				} satisfies MetadataLookupResponse);
 			case 'process_audiobook_files': {
 				mockJobCounter += 1;
 				const jobId = `mock-job-${mockJobCounter}`;
@@ -355,93 +325,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 				publishMockOperation(snapshot);
 				return Promise.resolve(snapshot);
 			}
-			case 'save_metadata_batch': {
-				mockJobCounter += 1;
-				const operationId = `mock-metadata-operation-${mockJobCounter}`;
-				const args = _args as
-					| {
-							items?: Array<{
-								filePath: string;
-								metadataPatch: Record<string, unknown>;
-							}>;
-					  }
-					| undefined;
-				const items = args?.items ?? [];
-				const filePaths = items.map((item) => item.filePath);
-				// Metadata save is a WorkRuntime MetadataSave operation: the Work
-				// Center renders its snapshots while the command returns the
-				// per-file result. Mirror that — emit running + terminal snapshots,
-				// then resolve the synchronous result.
-				const baseSnapshot = mockOperationSnapshot(operationId, 'metadataSave', filePaths);
-				publishMockOperation(baseSnapshot);
-				emitTestEvent('work-operation-list-snapshot', mockOperationList());
-				publishMockOperation({
-					...baseSnapshot,
-					revision: baseSnapshot.revision + 1,
-					status: 'running',
-					startedAtMs: Date.now(),
-				});
-				const terminalSnapshot: OperationSnapshot = {
-					...baseSnapshot,
-					revision: baseSnapshot.revision + 2,
-					status: 'completed' as const,
-					startedAtMs: Date.now(),
-					finishedAtMs: Date.now(),
-					cancellable: false,
-					progress: {
-						...baseSnapshot.progress,
-						stage: 'complete' as const,
-						percentage: 100,
-						message: `Completed ${items.length} item(s).`,
-					},
-					children: baseSnapshot.children.map((child) => ({
-						...child,
-						status: 'completed' as const,
-						progress: { ...child.progress, stage: 'complete' as const, percentage: 100 },
-						message: 'Metadata saved',
-					})),
-					terminalSummary: {
-						total: items.length,
-						succeeded: items.length,
-						skipped: 0,
-						cancelled: 0,
-						failed: 0,
-						message: `Completed ${items.length} item(s).`,
-					},
-				};
-				publishMockOperation(terminalSnapshot);
-				emitTestEvent('work-operation-list-snapshot', mockOperationList());
-				return Promise.resolve({
-					summary: {
-						total: items.length,
-						succeeded: items.length,
-						skipped: 0,
-						cancelled: 0,
-						failed: 0,
-					},
-					results: items.map((item, index) => ({
-						inputIndex: index,
-						filePath: item.filePath,
-						status: 'success' as const,
-						message: 'Metadata saved',
-						error: null,
-					})),
-				} satisfies MetadataSaveBatchResult);
-			}
-			case 'preview_album_sort':
-				return Promise.resolve(null);
-			case 'validate_metadata_intent_patch': {
-				const args = _args as
-					| {
-							metadataPatch?: Record<string, unknown>;
-					  }
-					| undefined;
-				return Promise.resolve({
-					isValid: true,
-					metadataPatch: args?.metadataPatch ?? {},
-					fieldErrors: [],
-				} satisfies MetadataIntentValidationResult);
-			}
 			case 'get_remote_source_indexer_connection':
 				return Promise.resolve({
 					baseUrl: null,
@@ -496,11 +379,65 @@ Object.defineProperty(window, '__TAURI_INTERNALS__', {
 // Keep DEV true in tests for consistent frontend test behavior
 vi.stubEnv('DEV', true);
 
+/** A fresh fake engine whose own changes reach the frontend as events. */
+function startFakeEngine(): void {
+	resetFakeEngine();
+	const engine = fakeEngine();
+	engine.analyze = () => [
+		audioFile('/mock/path/chapter1.mp3', {
+			inputId: 'mock-input-1',
+			size: 15 * 1024 * 1024,
+			duration: 300,
+			bitrate: 64,
+			sampleRate: 44100,
+			channels: 1,
+			format: 'mp3',
+			codecLabel: 'MP3',
+			selectedDecoder: 'ffmpeg',
+		}),
+		audioFile('/mock/path/chapter2.mp3', {
+			inputId: 'mock-input-2',
+			size: 20 * 1024 * 1024,
+			duration: 400,
+			bitrate: 64,
+			sampleRate: 44100,
+			channels: 1,
+			format: 'mp3',
+			codecLabel: 'MP3',
+			selectedDecoder: 'ffmpeg',
+		}),
+	];
+	engine.lookupResults = [
+		{
+			source: 'audnexus',
+			sourceId: 'OL12345W',
+			title: 'Mock Lookup Title',
+			authors: ['Mock Author'],
+			narrators: ['Mock Narrator'],
+			series: 'Mock Series',
+			seriesPart: '1',
+			subseries: 'Mock Sub-series',
+			subseriesPart: '1',
+			description: 'Mock description from lookup source.',
+			publishedDate: '2021',
+			durationSeconds: 36000,
+			coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
+			audibleOnly: false,
+		},
+	];
+	void engine.listenSessionUpdates((update) => emitTestEvent('session-update', update));
+	// A Save in the engine runs as an operation the Work Center shows.
+	engine.afterSave = publishMockMetadataSave;
+}
+
+startFakeEngine();
+
 beforeEach(() => {
 	eventListeners.clear();
 	mockJobCounter = 0;
 	mockMembershipRevision = 0;
 	mockOperations.clear();
+	startFakeEngine();
 });
 
 afterEach(() => {

@@ -49,6 +49,33 @@ pub struct AppSettingsPatch {
     pub default_acquisition_lane: Option<AcquisitionLane>,
 }
 
+impl AppSettingsPatch {
+    pub(super) fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
+    /// Folds `newer` over this patch: a later value for a field replaces the
+    /// earlier one; fields `newer` omits keep theirs.
+    pub(super) fn absorb(&mut self, newer: Self) {
+        macro_rules! absorb {
+            ($($field:ident),+) => {$(
+                if newer.$field.is_some() {
+                    self.$field = newer.$field;
+                }
+            )+};
+        }
+        absorb!(
+            keep_awake_while_working,
+            max_concurrent_jobs,
+            encoder_defaults,
+            output_defaults,
+            startup_behavior,
+            pinned_defaults,
+            default_acquisition_lane
+        );
+    }
+}
+
 /// What launch hydration restores into the panels. The panels always keep
 /// auto-persisting the top-level (last-used) values; this only chooses the
 /// hydration source.
@@ -210,7 +237,7 @@ impl ConcurrencyPreference {
         }
     }
 
-    fn validate(self) -> Result<()> {
+    pub(super) fn validate(self) -> Result<()> {
         let capabilities = crate::processing::JobRegistry::max_concurrent_jobs_capabilities();
         match self {
             Self::Auto => Ok(()),

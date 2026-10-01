@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../lib/tauri/client';
-import type { FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import type {
 	AcquisitionJob,
 	RemoteLibraryResponse,
@@ -28,6 +28,14 @@ function createDeferred<T>() {
 	});
 	return { promise, resolve };
 }
+
+type FileListInfo = {
+	files: AudioFile[];
+	totalDuration: number;
+	totalSize: number;
+	validCount: number;
+	invalidCount: number;
+};
 
 function fileList(): FileListInfo {
 	return {

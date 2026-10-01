@@ -1,11 +1,10 @@
 import type { TitleAudioRequest } from '../../types/audio';
 import {
 	commands as generatedCommands,
-	type AppSettingsPatch as GeneratedAppSettingsPatch,
 	type EncoderDefaults as GeneratedEncoderDefaults,
 	type MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch,
-	type MetadataSaveRequest_Deserialize as GeneratedMetadataSaveRequest,
 	type OutputDefaults as GeneratedOutputDefaults,
+	type SettingsIntent as GeneratedSettingsIntent,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 	type RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
 	type RemoteIndexerConnectionUpdate as GeneratedRemoteIndexerConnectionUpdate,
@@ -19,14 +18,11 @@ import type {
 	ProcessingPreflightPlan,
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
-import type {
-	AppSettings,
-	AppSettingsPatch,
-	AppSettingsRecoveryPlan,
-} from '../../types/appSettings';
+import type { AppSettings, SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
+import type { AudiobookMetadata } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
+import type { SessionIntent } from '../../types/session';
 import type {
 	AcquisitionPlan,
 	ProviderId,
@@ -42,14 +38,15 @@ import {
 	denormalizeMetadata,
 	denormalizeNullish,
 	denormalizeProcessPayload,
-	normalizeFileList,
-	normalizeLookupResponse,
+	normalizeFrontendAttachment,
 	normalizeMetadata,
 	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
 	normalizeProcessResult,
 	normalizeRuntimeSettingsCapabilities,
+	normalizeSessionReply,
+	normalizeSettingsReply,
 	normalizeWorkSubmissionAccepted,
 } from './normalizers';
 
@@ -116,23 +113,15 @@ function toGeneratedOutputDefaults(
 	};
 }
 
-function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSettingsPatch {
+function toGeneratedSettingsIntent(intent: SettingsIntent): GeneratedSettingsIntent {
+	if (intent.kind !== 'remember') return intent;
 	return {
-		maxConcurrentJobs: patch.maxConcurrentJobs ?? null,
-		encoderDefaults: patch.encoderDefaults
-			? toGeneratedEncoderDefaults(patch.encoderDefaults)
+		kind: 'remember',
+		encoderDefaults: intent.encoderDefaults
+			? toGeneratedEncoderDefaults(intent.encoderDefaults)
 			: null,
-		outputDefaults: patch.outputDefaults ? toGeneratedOutputDefaults(patch.outputDefaults) : null,
-		startupBehavior: patch.startupBehavior ?? null,
-		pinnedDefaults: patch.pinnedDefaults
-			? {
-					maxConcurrentJobs: patch.pinnedDefaults.maxConcurrentJobs,
-					encoderDefaults: toGeneratedEncoderDefaults(patch.pinnedDefaults.encoderDefaults),
-					outputDefaults: toGeneratedOutputDefaults(patch.pinnedDefaults.outputDefaults),
-				}
-			: null,
-		defaultAcquisitionLane: patch.defaultAcquisitionLane ?? null,
-		keepAwakeWhileWorking: patch.keepAwakeWhileWorking ?? null,
+		outputDefaults: intent.outputDefaults ? toGeneratedOutputDefaults(intent.outputDefaults) : null,
+		defaultAcquisitionLane: intent.defaultAcquisitionLane ?? null,
 	};
 }
 
@@ -151,62 +140,36 @@ function compileMetadataIntentMap(
 	);
 }
 
-function compileMetadataSaveRequests(items: MetadataSaveRequest[]): GeneratedMetadataSaveRequest[] {
-	return items.map((item) => ({
-		filePath: item.filePath,
-		metadataPatch: compileMetadataIntentPatch(item.metadataPatch),
-	}));
-}
-
 export const commandSpecs = {
-	get_app_settings_recovery: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.getAppSettingsRecovery()),
-	recover_app_settings: (args: { expected: AppSettingsRecoveryPlan }) =>
-		runGeneratedCommand(generatedCommands.recoverAppSettings(args.expected), (result) =>
-			normalizeNullish(result),
-		),
-	get_app_settings: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.getAppSettings(), (settings) =>
-			normalizeNullish(settings),
-		),
-	update_app_settings: (args: { patch: AppSettingsPatch }) =>
+	attach_frontend: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.attachFrontend(), normalizeFrontendAttachment),
+	session_dispatch: (args: { client: number; sequence: number; intent: SessionIntent }) =>
 		runGeneratedCommand(
-			generatedCommands.updateAppSettings(toGeneratedAppSettingsPatch(args.patch)),
-			(settings) => normalizeNullish(settings),
+			generatedCommands.sessionDispatch(args.client, args.sequence, args.intent),
+			normalizeSessionReply,
 		),
-	reset_app_settings: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.resetAppSettings(), (settings) =>
-			normalizeNullish(settings),
+	settings_dispatch: (args: { client: number; sequence: number; intent: SettingsIntent }) =>
+		runGeneratedCommand(
+			generatedCommands.settingsDispatch(
+				args.client,
+				args.sequence,
+				toGeneratedSettingsIntent(args.intent),
+			),
+			normalizeSettingsReply,
+		),
+	session_cover_art: (_args?: undefined) =>
+		runGeneratedCommand(generatedCommands.sessionCoverArt()),
+	session_metadata_intents: (args: { filePaths: string[] }) =>
+		runGeneratedCommand(
+			generatedCommands.sessionMetadataIntents(args.filePaths),
+			(intents) => intents as Record<string, MetadataIntentPatch>,
 		),
 	read_audio_metadata: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioMetadata(args.filePath), normalizeMetadata),
-	load_cover_art_file: (args: { filePath: string }) =>
-		runGeneratedCommand(generatedCommands.loadCoverArtFile(args.filePath)),
 	load_cover_art_from_url: (args: { url: string }) =>
 		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
 	read_audio_cover_thumbnail: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
-	validate_metadata_intent_patch: (args: { metadataIntent: MetadataIntentPatch }) =>
-		runGeneratedCommand(
-			generatedCommands.validateMetadataIntentPatch(
-				compileMetadataIntentPatch(args.metadataIntent),
-			),
-		),
-	preview_album_sort: (args: { metadata: Partial<AudiobookMetadata> }) =>
-		runGeneratedCommand(generatedCommands.previewAlbumSort(denormalizeMetadata(args.metadata))),
-	save_metadata_batch: (args: { items: MetadataSaveRequest[] }) =>
-		runGeneratedCommand(
-			generatedCommands.saveMetadataBatch(compileMetadataSaveRequests(args.items)),
-		),
-	search_online_metadata: (args: {
-		query: string;
-		sources: MetadataSource[] | null;
-		limit?: number | null;
-	}) =>
-		runGeneratedCommand(
-			generatedCommands.searchOnlineMetadata(args.query, args.sources, args.limit ?? null),
-			normalizeLookupResponse,
-		),
 	preview_title_audio: (args: {
 		filePaths: string[];
 		request: TitleAudioRequest;
@@ -219,14 +182,8 @@ export const commandSpecs = {
 				denormalizeChapterPlans(args.chapterPlans),
 			),
 		),
-	analyze_audio_files: (args: { filePaths: string[] }) =>
-		runGeneratedCommand(generatedCommands.analyzeAudioFiles(args.filePaths), normalizeFileList),
 	get_supported_audio_import_metadata: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
-	discover_audio_import_paths: (args: { inputPaths: string[] }) =>
-		runGeneratedCommand(generatedCommands.discoverAudioImportPaths(args.inputPaths)),
-	take_opened_audio_files: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.takeOpenedAudioFiles()),
 	list_remote_source_providers: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.listRemoteSourceProviders(), normalizeNullish),
 	get_remote_source_account_state: (args: { providerId: ProviderId }) =>
@@ -336,10 +293,6 @@ export const commandSpecs = {
 			),
 			(plan) => normalizeNullish(plan) as ProcessingPreflightPlan,
 		),
-	get_max_concurrent_jobs: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.getMaxConcurrentJobs()),
-	set_max_concurrent_jobs: (args: { max_concurrent?: number | null }) =>
-		runGeneratedCommand(generatedCommands.setMaxConcurrentJobs(args.max_concurrent ?? null)),
 	process_audiobook_files: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentByPath | null;

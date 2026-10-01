@@ -11,7 +11,7 @@ use crate::processing::run::{
     preflight_payload, process_payload_with_options, ProcessingRunOptions,
 };
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -24,6 +24,11 @@ pub struct WorkRuntime {
 struct WorkRuntimeInner {
     state: Mutex<WorkRuntimeState>,
     operation_cancel_flags: Mutex<HashMap<String, CancelFlags>>,
+    /// Source files each accepted processing title reads, by operation id and
+    /// title index. An entry lives until its operation finishes.
+    title_sources: Mutex<HashMap<String, Vec<Vec<PathBuf>>>>,
+    /// Advances whenever an operation's state changes.
+    changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
 }
 
@@ -33,6 +38,8 @@ impl Default for WorkRuntime {
             inner: Arc::new(WorkRuntimeInner {
                 state: Mutex::new(WorkRuntimeState::default()),
                 operation_cancel_flags: Mutex::new(HashMap::new()),
+                title_sources: Mutex::new(HashMap::new()),
+                changes: tokio::sync::watch::channel(0).0,
                 sequence: AtomicU64::new(1),
             }),
         }
@@ -86,7 +93,13 @@ impl WorkRuntime {
         }
         let cancel_flags = CancelFlags::per_title(request.payload.input_files.len());
         let title_cancels = cancel_flags.titles();
+        let title_sources = title_source_paths(&request.payload);
 
+        // Recorded before the operation becomes visible, so a file is never
+        // reported free between acceptance and the first read.
+        if let Ok(mut sources) = self.inner.title_sources.lock() {
+            sources.insert(operation_id.0.clone(), title_sources);
+        }
         let snapshot = lock_state(&self.inner.state)?.insert_operation(snapshot);
         {
             let mut flags = lock_cancel_flags(&self.inner.operation_cancel_flags)?;
@@ -126,6 +139,7 @@ impl WorkRuntime {
                 },
             )
             .await;
+            runtime.release_title_sources(&operation_id_for_task);
             runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
             runtime.remove_cancel_flag(&operation_id_for_task);
         });
@@ -327,6 +341,46 @@ impl WorkRuntime {
         }
     }
 
+    /// Source files accepted exports have yet to finish reading: every source
+    /// of every title that is queued or running.
+    pub(crate) fn sources_in_use(&self) -> HashSet<PathBuf> {
+        let Ok(sources) = self.inner.title_sources.lock() else {
+            return HashSet::new();
+        };
+        let Ok(state) = lock_state(&self.inner.state) else {
+            return HashSet::new();
+        };
+        let mut in_use = HashSet::new();
+        for (operation_id, titles) in sources.iter() {
+            let Some(operation) = state.operation(operation_id) else {
+                continue;
+            };
+            for child in &operation.children {
+                let reading = matches!(
+                    child.status,
+                    super::ChildJobStatus::Queued | super::ChildJobStatus::Running
+                );
+                if let Some(paths) = child.input_index.and_then(|index| titles.get(index)) {
+                    if reading {
+                        in_use.extend(paths.iter().cloned());
+                    }
+                }
+            }
+        }
+        in_use
+    }
+
+    /// A receiver that wakes whenever any operation's state changes.
+    pub(crate) fn subscribe_changes(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.inner.changes.subscribe()
+    }
+
+    fn release_title_sources(&self, operation_id: &OperationId) {
+        if let Ok(mut sources) = self.inner.title_sources.lock() {
+            sources.remove(operation_id.as_str());
+        }
+    }
+
     fn remove_cancel_flag(&self, operation_id: &OperationId) {
         if let Ok(mut flags) = lock_cancel_flags(&self.inner.operation_cancel_flags) {
             flags.remove(operation_id.as_str());
@@ -334,6 +388,7 @@ impl WorkRuntime {
     }
 
     fn emit_snapshot(&self, host: &Host, snapshot: &OperationSnapshot) {
+        self.inner.changes.send_modify(|change| *change += 1);
         host.emit(EngineEvent::WorkOperationSnapshot(snapshot.clone()));
     }
 
@@ -343,6 +398,23 @@ impl WorkRuntime {
             Err(error) => log::warn!("Failed to build work operation list snapshot: {}", error),
         }
     }
+}
+
+/// The source files each title reads, in the spelling import gives a file,
+/// so a session can compare its sources against them.
+fn title_source_paths(payload: &crate::processing::ProcessPayload) -> Vec<Vec<PathBuf>> {
+    (0..payload.input_files.len())
+        .map(|index| {
+            payload
+                .sources_for(index)
+                .into_iter()
+                .map(|source| {
+                    let path = PathBuf::from(source.path);
+                    std::fs::canonicalize(&path).unwrap_or(path)
+                })
+                .collect()
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy)]

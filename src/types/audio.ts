@@ -13,7 +13,6 @@ import type {
 	EncoderType as GeneratedEncoderType,
 	FaacProfile as GeneratedFaacProfile,
 	BitrateModeKind as GeneratedBitrateModeKind,
-	FileListInfo as GeneratedFileListInfo,
 	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
 	OutputCollisionInfo as GeneratedOutputCollisionInfo,
 	OutputCollisionKind as GeneratedOutputCollisionKind,
@@ -43,9 +42,6 @@ export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId' | 'chapters'> & {
 	chapters?: AudioChapter[];
 };
 
-export type FileListInfo = Omit<NullToOptionalDeep<GeneratedFileListInfo>, 'files'> & {
-	files: AudioFile[];
-};
 export type CollisionPolicy = GeneratedCollisionPolicy;
 export type OutputKind = GeneratedOutputKind;
 export type OutputCollisionKind = GeneratedOutputCollisionKind;

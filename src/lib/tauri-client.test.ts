@@ -7,7 +7,7 @@ import { titleAudioRequest } from '../test/fixtures/titleAudio';
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultEncoderSettings, type EncoderSettings } from '../types/audio';
+import type { EncoderSettings } from '../types/audio';
 import type { ProcessingProgressEvent } from '../types/events';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
 import mainWindowCapability from '../../src-tauri/capabilities/default.json';
@@ -19,33 +19,85 @@ describe('tauriClient', () => {
 		vi.clearAllMocks();
 	});
 
-	it('passes the reviewed recovery plan and normalizes recovered settings', async () => {
+	it('sends absent remembered defaults as null and returns the settings in effect', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const { tauriClient } = await import('./tauri/client');
-		const plan = {
-			incompatibleEncoders: [{ scope: 'pinned' as const, encoderType: 'future_encoder' }],
-		};
-		vi.mocked(invoke).mockResolvedValueOnce(plan);
-		expect(await tauriClient.getAppSettingsRecovery()).toEqual(plan);
-		expect(invoke).toHaveBeenLastCalledWith('get_app_settings_recovery');
 		vi.mocked(invoke).mockResolvedValueOnce({
-			backupFileName: 'app-settings.before-recovery-test.json',
-			settings: {
-				maxConcurrentJobs: { mode: 'auto' },
-				encoderDefaults: { settings: defaultEncoderSettings, sampleRate: 'auto' },
-				outputDefaults: {
-					outputDirectory: null,
-					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+			outcome: { kind: 'applied' },
+			snapshot: {
+				revision: 3,
+				settings: null,
+				loadError: null,
+				recovery: null,
+				saveError: null,
+				concurrency: {
+					preference: { mode: 'auto' },
+					effective: 4,
+					capabilities: runtimeSettingsCapabilitiesFixture().maxConcurrentJobs,
 				},
-				startupBehavior: 'rememberLastState',
-				pinnedDefaults: null,
-				defaultAcquisitionLane: 'audible',
+				startupDefaults: null,
+				defaultAcquisitionLane: 'indexer',
 			},
 		});
-		const recovered = await tauriClient.recoverAppSettings(plan);
-		expect(invoke).toHaveBeenLastCalledWith('recover_app_settings', { expected: plan });
-		expect(recovered.backupFileName).toBe('app-settings.before-recovery-test.json');
-		expect(recovered.settings.pinnedDefaults).toBeUndefined();
+
+		const reply = await tauriClient.settingsDispatch(7, 2, {
+			kind: 'remember',
+			defaultAcquisitionLane: 'indexer',
+		});
+
+		expect(invoke).toHaveBeenLastCalledWith('settings_dispatch', {
+			client: 7,
+			sequence: 2,
+			intent: {
+				kind: 'remember',
+				encoderDefaults: null,
+				outputDefaults: null,
+				defaultAcquisitionLane: 'indexer',
+			},
+		});
+		expect(reply.outcome).toEqual({ kind: 'applied' });
+		expect(reply.snapshot.settings).toBeUndefined();
+		expect(reply.snapshot.defaultAcquisitionLane).toBe('indexer');
+	});
+
+	it('keeps explicit nulls in audio requests and drops them from audio files', async () => {
+		const { invoke } = await import('@tauri-apps/api/core');
+		const { tauriClient } = await import('./tauri/client');
+		const passThrough = { format: 'mp3', intent: 'preserve', settings: null, sampleRate: 'auto' };
+		vi.mocked(invoke).mockResolvedValueOnce({
+			outcome: { kind: 'applied' },
+			update: {
+				revision: 4,
+				titles: {
+					revision: 4,
+					files: [{ inputId: 'a', path: '/books/a.mp3', isValid: true, error: null, size: null }],
+					titleSourcesByIdentity: {},
+					audioChoiceRequired: [],
+					sortDirection: 'none',
+					orderLocked: false,
+					notice: null,
+					orderDiffersFromImport: false,
+					audioRequestsByIdentity: { a: passThrough },
+				},
+				selection: null,
+				metadata: null,
+				lookup: null,
+			},
+		});
+
+		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'selectAll' });
+
+		expect(invoke).toHaveBeenLastCalledWith('session_dispatch', {
+			client: 7,
+			sequence: 0,
+			intent: { kind: 'selectAll' },
+		});
+		const titles = reply.update.titles;
+		expect(titles?.files[0]).toEqual({ inputId: 'a', path: '/books/a.mp3', isValid: true });
+		// A null `settings` is the request for MP3 pass-through.
+		expect(titles?.audioRequestsByIdentity.a).toEqual(passThrough);
+		expect(reply.update).not.toHaveProperty('selection', null);
+		expect(reply.update.selection).toBeUndefined();
 	});
 
 	describe('dialog helpers', () => {
@@ -147,89 +199,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(mockInvoke).toHaveBeenCalledExactlyOnceWith('test_remote_source_indexer_connection', {
 			update: { baseUrl: 'http://indexer.test', categoryIds: [3030, 3000] },
 		});
-	});
-
-	it('compiles metadata intent patch for validation', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			isValid: false,
-			metadataPatch: {
-				date: { op: 'set', value: 'not a date' },
-			},
-			fieldErrors: [
-				{
-					field: 'date',
-					code: 'publication_date_syntax',
-					message: 'Publication date must be YYYY or YYYY-MM with month 01-12.',
-				},
-			],
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.validateMetadataIntentPatch({
-			date: { op: 'set', value: 'not a date' },
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [string, { metadataPatch: Record<string, unknown> }];
-		expect(commandName).toBe('validate_metadata_intent_patch');
-		expect(args.metadataPatch.date).toEqual({ op: 'set', value: 'not a date' });
-		expect(result.fieldErrors[0]?.field).toBe('date');
-	});
-
-	it('compiles every metadata intent patch in a batch save', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			summary: {
-				total: 2,
-				succeeded: 1,
-				skipped: 0,
-				cancelled: 0,
-				failed: 1,
-			},
-			results: [
-				{
-					inputIndex: 0,
-					filePath: '/books/a.m4b',
-					status: 'success',
-				},
-				{
-					inputIndex: 1,
-					filePath: '/books/b.m4b',
-					status: 'failed',
-				},
-			],
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		await tauriClient.saveMetadataBatch([
-			{
-				filePath: '/books/a.m4b',
-				metadataPatch: { title: { op: 'set', value: 'A' } },
-			},
-			{
-				filePath: '/books/b.m4b',
-				metadataPatch: { title: { op: 'clear' }, cover_art: { op: 'clear' } },
-			},
-		]);
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				items: Array<{
-					filePath: string;
-					metadataPatch: Record<string, unknown>;
-				}>;
-			},
-		];
-		expect(commandName).toBe('save_metadata_batch');
-		expect(args.items).toHaveLength(2);
-		expect(args.items[0]?.metadataPatch.title).toEqual({ op: 'set', value: 'A' });
-		expect(args.items[1]?.metadataPatch.title).toEqual({ op: 'clear' });
-		expect(args.items[1]?.metadataPatch.cover_art).toEqual({ op: 'clear' });
 	});
 
 	it('normalizes nullable metadata fields from backend responses', async () => {

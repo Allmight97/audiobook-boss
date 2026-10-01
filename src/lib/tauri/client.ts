@@ -19,29 +19,22 @@ import {
 	type OpenedAudioFilesEvent,
 	type ProcessingProgressEvent,
 	type ProcessingQueueEvent,
+	type SessionUpdateEvent,
 	type WorkOperationListSnapshotEvent,
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
 import type {
 	ProcessPayload,
-	FileListInfo,
 	ProcessCommandResult,
 	ProcessingPreflightPlan,
 	OutputKind,
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
-import type {
-	AppSettings,
-	AppSettingsPatch,
-	AppSettingsRecoveryPlan,
-	AppSettingsRecoveryResult,
-} from '../../types/appSettings';
+import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { AudiobookMetadata, MetadataSaveRequest, MetadataSource } from '../../types/metadata';
-import type {
-	MetadataIntentPatch,
-	MetadataIntentValidationResult,
-} from '../../types/metadataIntent';
+import type { AudiobookMetadata } from '../../types/metadata';
+import type { MetadataIntentPatch } from '../../types/metadataIntent';
+import type { SessionIntent } from '../../types/session';
 import type {
 	AcquisitionJob,
 	AcquisitionPlan,
@@ -72,6 +65,7 @@ import {
 	normalizeOperationSnapshot,
 	normalizeProgressEvent,
 	normalizeQueueEvent,
+	normalizeSessionUpdate,
 } from './normalizers';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -84,6 +78,7 @@ type WorkOperationSnapshotHandler = (event: { payload: WorkOperationSnapshotEven
 type WorkOperationListSnapshotHandler = (event: {
 	payload: WorkOperationListSnapshotEvent;
 }) => void;
+type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
@@ -122,6 +117,12 @@ async function listenWorkOperationListSnapshot(
 	});
 }
 
+async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
+	return generatedEvents.sessionUpdate.listen((event) => {
+		handler({ payload: normalizeSessionUpdate(event.payload) });
+	});
+}
+
 function listen(event: typeof EVENTS.PROGRESS, handler: ProgressEventHandler): Promise<UnlistenFn>;
 function listen(event: typeof EVENTS.QUEUE, handler: QueueEventHandler): Promise<UnlistenFn>;
 function listen(
@@ -136,6 +137,10 @@ function listen(
 	event: typeof EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
 	handler: WorkOperationListSnapshotHandler,
 ): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.SESSION_UPDATE,
+	handler: SessionUpdateHandler,
+): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
 	handler: (event: { payload: ApplicationEvents[E] }) => void,
@@ -148,6 +153,7 @@ function listen(
 		| OpenedAudioFilesHandler
 		| WorkOperationSnapshotHandler
 		| WorkOperationListSnapshotHandler
+		| SessionUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
 	if (event === EVENTS.PROGRESS) {
@@ -168,6 +174,10 @@ function listen(
 
 	if (event === EVENTS.WORK_OPERATION_LIST_SNAPSHOT) {
 		return listenWorkOperationListSnapshot(handler as WorkOperationListSnapshotHandler);
+	}
+
+	if (event === EVENTS.SESSION_UPDATE) {
+		return listenSessionUpdate(handler as SessionUpdateHandler);
 	}
 
 	return tauriListen(
@@ -197,54 +207,45 @@ function openDirectory(options?: DialogOptions): Promise<string | null> {
 }
 
 export const tauriClient = {
-	getAppSettingsRecovery: (): Promise<AppSettingsRecoveryPlan | null> =>
-		commandSpecs.get_app_settings_recovery(),
-	recoverAppSettings: (expected: AppSettingsRecoveryPlan): Promise<AppSettingsRecoveryResult> =>
-		commandSpecs.recover_app_settings({ expected }),
-	getAppSettings: (): Promise<AppSettings> => commandSpecs.get_app_settings(),
-	updateAppSettings: (patch: AppSettingsPatch): Promise<AppSettings> =>
-		commandSpecs.update_app_settings({ patch }),
-	resetAppSettings: (): Promise<AppSettings> => commandSpecs.reset_app_settings(),
+	/** Attaches this frontend and returns the whole session and settings. */
+	attachFrontend: (): Promise<CommandResult<'attach_frontend'>> => commandSpecs.attach_frontend(),
+	/**
+	 * Applies one session intent. `sequence` counts this frontend's session
+	 * intents from zero; the host applies them in that order.
+	 */
+	sessionDispatch: (
+		client: number,
+		sequence: number,
+		intent: SessionIntent,
+	): Promise<CommandResult<'session_dispatch'>> =>
+		commandSpecs.session_dispatch({ client, sequence, intent }),
+	/** Applies one settings intent; numbered separately from session intents. */
+	settingsDispatch: (
+		client: number,
+		sequence: number,
+		intent: SettingsIntent,
+	): Promise<CommandResult<'settings_dispatch'>> =>
+		commandSpecs.settings_dispatch({ client, sequence, intent }),
+	sessionCoverArt: (): Promise<CommandResult<'session_cover_art'>> =>
+		commandSpecs.session_cover_art(),
+	sessionMetadataIntents: (filePaths: string[]): Promise<MetadataIntentByPath> =>
+		commandSpecs.session_metadata_intents({ filePaths }),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),
-	loadCoverArtFile: (filePath: string): Promise<CommandResult<'load_cover_art_file'>> =>
-		commandSpecs.load_cover_art_file({ filePath }),
 	loadCoverArtFromUrl: (url: string): Promise<CommandResult<'load_cover_art_from_url'>> =>
 		commandSpecs.load_cover_art_from_url({ url }),
 	readAudioCoverThumbnail: (
 		filePath: string,
 	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
 		commandSpecs.read_audio_cover_thumbnail({ filePath }),
-	validateMetadataIntentPatch: (
-		metadataIntent: MetadataIntentPatch,
-	): Promise<MetadataIntentValidationResult> =>
-		commandSpecs.validate_metadata_intent_patch({ metadataIntent }),
-	previewAlbumSort: (metadata: Partial<AudiobookMetadata>): Promise<string | null> =>
-		commandSpecs.preview_album_sort({ metadata }),
-	saveMetadataBatch: (
-		items: MetadataSaveRequest[],
-	): Promise<CommandResult<'save_metadata_batch'>> => commandSpecs.save_metadata_batch({ items }),
-	searchOnlineMetadata: (args: {
-		query: string;
-		sources: MetadataSource[] | null;
-		limit?: number | null;
-	}): Promise<CommandResult<'search_online_metadata'>> => commandSpecs.search_online_metadata(args),
 	previewTitleAudio: (
 		filePaths: string[],
 		request: TitleAudioRequest,
 		chapterPlans?: ProcessPayload['chapterPlans'],
 	) => commandSpecs.preview_title_audio({ filePaths, request, chapterPlans }),
-	analyzeAudioFiles: (filePaths: string[]): Promise<FileListInfo> =>
-		commandSpecs.analyze_audio_files({ filePaths }),
 	getSupportedAudioImportMetadata: (): Promise<
 		CommandResult<'get_supported_audio_import_metadata'>
 	> => commandSpecs.get_supported_audio_import_metadata(),
-	discoverAudioImportPaths: (
-		inputPaths: string[],
-	): Promise<CommandResult<'discover_audio_import_paths'>> =>
-		commandSpecs.discover_audio_import_paths({ inputPaths }),
-	takeOpenedAudioFiles: (): Promise<CommandResult<'take_opened_audio_files'>> =>
-		commandSpecs.take_opened_audio_files(),
 	listRemoteSourceProviders: (): Promise<RemoteSourceProviderCapabilities[]> =>
 		commandSpecs.list_remote_source_providers(),
 	getRemoteSourceAccountState: (providerId: ProviderId): Promise<RemoteSourceAccountState> =>
@@ -298,12 +299,6 @@ export const tauriClient = {
 		metadataIntent?: MetadataIntentByPath | null;
 		previewSeconds?: number | null;
 	}): Promise<ProcessingPreflightPlan> => commandSpecs.preflight_processing_plan(args),
-	getMaxConcurrentJobs: (): Promise<CommandResult<'get_max_concurrent_jobs'>> =>
-		commandSpecs.get_max_concurrent_jobs(),
-	setMaxConcurrentJobs: (
-		maxConcurrent?: number | null,
-	): Promise<CommandResult<'set_max_concurrent_jobs'>> =>
-		commandSpecs.set_max_concurrent_jobs({ max_concurrent: maxConcurrent ?? null }),
 	processAudiobookFiles: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentByPath | null;
@@ -341,6 +336,7 @@ export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'opened-audio-files',
 	'work-operation-snapshot',
 	'work-operation-list-snapshot',
+	'session-update',
 ] as const);
 
 export type { TauriCommand };

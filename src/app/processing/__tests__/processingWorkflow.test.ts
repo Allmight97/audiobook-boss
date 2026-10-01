@@ -2,6 +2,7 @@ import { titleAudioRequest } from '../../../test/fixtures/titleAudio';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StatusPanelRuntime } from '../runtime';
 import { createAppRuntime } from '../../runtime';
+import { createFakeEngine } from '../../../test/fixtures/fakeEngine';
 import { tauriClient } from '../../../lib/tauri/client';
 import { createStatusViewStore } from '../view';
 import {
@@ -560,10 +561,12 @@ it('submits MP3 pass-through with no encoder settings', async () => {
 	const readMetadata = vi
 		.spyOn(tauriClient, 'readAudioMetadata')
 		.mockResolvedValue({ title: 'Original' });
-	const runtime = createAppRuntime();
+	const engine = createFakeEngine();
+	const runtime = createAppRuntime({ engine });
 
 	try {
-		runtime.input.replaceSession({ ...runtime.input.session(), files: books });
+		engine.loadTitles(books);
+		await runtime.initialize();
 		runtime.input.setAudioRequest(books[0]!, titleAudioRequest({ format: 'mp3', settings: null }));
 		runtime.output.applyDefaults({
 			outputDirectory: '/tmp/out',

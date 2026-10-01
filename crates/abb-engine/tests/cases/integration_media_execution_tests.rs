@@ -422,7 +422,7 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
 }
 
 /// Writes a mono 16-bit PCM WAV of `seconds` of sine at `freq_hz`.
-fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
+pub(crate) fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
     let total_samples = (seconds * f64::from(SAMPLE_RATE)) as u32;
     let data_len = total_samples * 2;
     let mut bytes = Vec::with_capacity(44 + data_len as usize);
@@ -447,7 +447,7 @@ fn write_sine_wav(path: &Path, seconds: f64, freq_hz: f64) {
     fs::write(path, bytes).expect("write WAV fixture");
 }
 
-fn native_encoder_settings() -> EncoderSettings {
+pub(crate) fn native_encoder_settings() -> EncoderSettings {
     EncoderSettings {
         encoder_type: EncoderType::NativeAac,
         bitrate_kbps: 64,
@@ -460,7 +460,7 @@ fn native_encoder_settings() -> EncoderSettings {
 
 /// Isolated on-disk lane: fixture inputs, output destination, and a private
 /// processing workspace root, all inside one TempDir.
-struct MediaLane {
+pub(crate) struct MediaLane {
     tmp: TempDir,
     inputs: Vec<PathBuf>,
     encoder_settings: EncoderSettings,
@@ -468,7 +468,7 @@ struct MediaLane {
 }
 
 impl MediaLane {
-    fn with_fixtures(durations_secs: &[f64]) -> Self {
+    pub(crate) fn with_fixtures(durations_secs: &[f64]) -> Self {
         let tmp = TempDir::new().expect("create media lane tempdir");
         let inputs = durations_secs
             .iter()
@@ -550,7 +550,7 @@ impl MediaLane {
     }
 
     /// Runs the engine on this lane's inputs and returns the committed path.
-    async fn process(&self, metadata: Option<AudiobookMetadata>) -> PathBuf {
+    pub(crate) async fn process(&self, metadata: Option<AudiobookMetadata>) -> PathBuf {
         execute_audio_engine(self.execution_request(ProcessingSession::new(), metadata))
             .await
             .expect("native processing succeeds");

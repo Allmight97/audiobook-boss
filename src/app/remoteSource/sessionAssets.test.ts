@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
-import type { FileListInfo } from '../../types/audio';
+import type { AudioFile } from '../../types/audio';
 import { createRemoteSourceSessionAssets, type RemoteSourceSessionAssets } from './sessionAssets';
 
 const purgeRemoteSourceSessionMock = vi.fn();
 const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
 const secondaryPdfFileName = 'Secure Love - Supplemental PDF.pdf';
+
+type FileListInfo = {
+	files: AudioFile[];
+	totalDuration: number;
+	totalSize: number;
+	validCount: number;
+	invalidCount: number;
+};
 
 function fileList(): FileListInfo {
 	return {

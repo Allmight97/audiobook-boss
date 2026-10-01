@@ -1,14 +1,3 @@
-import type {
-	AudiobookMetadata,
-	MetadataLookupResponse,
-	MetadataSaveBatchResult,
-	MetadataSaveRequest,
-	MetadataSource,
-} from '../../../types/metadata';
-import type {
-	MetadataIntentPatch,
-	MetadataIntentValidationResult,
-} from '../../../types/metadataIntent';
 import { tauriClient } from '../client';
 
 export interface MetadataOpenFileOptions {
@@ -19,27 +8,13 @@ export interface MetadataOpenFileOptions {
 	}>;
 }
 
+/** Host services the metadata views use directly: the image picker, and cover previews. */
 export interface MetadataCapability {
-	readAudioMetadata(filePath: string): Promise<Partial<AudiobookMetadata>>;
-	validateMetadataIntentPatch(patch: MetadataIntentPatch): Promise<MetadataIntentValidationResult>;
-	/** The album sort (TSOA) processing would write for `metadata`. */
-	previewAlbumSort(metadata: Partial<AudiobookMetadata>): Promise<string | null>;
-	saveMetadataBatch(items: ReadonlyArray<MetadataSaveRequest>): Promise<MetadataSaveBatchResult>;
 	openFile(options?: MetadataOpenFileOptions): Promise<string | null>;
-	loadCoverArtFile(filePath: string): Promise<number[]>;
 	loadCoverArtFromUrl(url: string): Promise<number[]>;
-	searchOnlineMetadata(args: {
-		query: string;
-		sources: MetadataSource[] | null;
-		limit?: number | null;
-	}): Promise<MetadataLookupResponse>;
 }
 
 export const liveMetadataCapability: MetadataCapability = {
-	readAudioMetadata: (filePath) => tauriClient.readAudioMetadata(filePath),
-	validateMetadataIntentPatch: (patch) => tauriClient.validateMetadataIntentPatch(patch),
-	previewAlbumSort: (metadata) => tauriClient.previewAlbumSort(metadata),
-	saveMetadataBatch: (items) => tauriClient.saveMetadataBatch([...items]),
 	openFile: (options) =>
 		tauriClient.openFile(
 			options
@@ -52,7 +27,5 @@ export const liveMetadataCapability: MetadataCapability = {
 					}
 				: undefined,
 		),
-	loadCoverArtFile: (filePath) => tauriClient.loadCoverArtFile(filePath),
 	loadCoverArtFromUrl: (url) => tauriClient.loadCoverArtFromUrl(url),
-	searchOnlineMetadata: (args) => tauriClient.searchOnlineMetadata(args),
 };

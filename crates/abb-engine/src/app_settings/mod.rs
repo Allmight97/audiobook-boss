@@ -1,3 +1,4 @@
+mod runtime;
 mod storage;
 mod types;
 
@@ -6,6 +7,10 @@ use std::sync::{Mutex, MutexGuard};
 
 use crate::errors::{AppError, Result};
 
+pub(crate) use runtime::SettingsRuntime;
+pub use runtime::{
+    ConcurrencySnapshot, SettingsIntent, SettingsOutcome, SettingsReply, SettingsSnapshot,
+};
 pub use types::{
     AcquisitionLane, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan,
     AppSettingsRecoveryResult, ConcurrencyPreference, EncoderDefaults, EncoderDefaultsScope,

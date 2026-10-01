@@ -1,7 +1,6 @@
 import { formatAudioBitrate, formatFileSize, type AudioFile } from '../../types/audio';
 import { pathBasename } from '../../lib/path/basename';
-import { toInputView } from './display';
-import type { InputSessionState, InputView } from './types';
+import type { InputView } from './types';
 
 export type InspectorContextVariant = 'empty' | 'single' | 'multi';
 
@@ -34,16 +33,6 @@ const EMPTY_INSPECTOR_VIEW: InspectorView = {
 	companionsTitle: '',
 	combinedSizeText: '--- MB',
 };
-
-export function toInspectorView(
-	session: InputSessionState,
-	companionSummaryForInputIds: (inputIds: ReadonlyArray<string | undefined>) => {
-		readonly text: string;
-		readonly title: string;
-	},
-): InspectorView {
-	return toInspectorViewFromInput(toInputView(session), companionSummaryForInputIds);
-}
 
 export function toInspectorViewFromInput(
 	view: InputView,

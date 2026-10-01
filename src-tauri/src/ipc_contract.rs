@@ -6,24 +6,16 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
-            crate::commands::get_app_settings,
-            crate::commands::update_app_settings,
-            crate::commands::reset_app_settings,
-            crate::commands::get_app_settings_recovery,
-            crate::commands::recover_app_settings,
+            crate::commands::attach_frontend,
+            crate::commands::session_dispatch,
+            crate::commands::settings_dispatch,
+            crate::commands::session_cover_art,
+            crate::commands::session_metadata_intents,
             crate::commands::read_audio_metadata,
-            crate::commands::load_cover_art_file,
             crate::commands::load_cover_art_from_url,
             crate::commands::read_audio_cover_thumbnail,
-            crate::commands::validate_metadata_intent_patch,
-            crate::commands::preview_album_sort,
-            crate::commands::save_metadata_batch,
-            crate::commands::search_online_metadata,
-            crate::commands::analyze_audio_files,
             crate::commands::preview_title_audio,
             crate::commands::get_supported_audio_import_metadata,
-            crate::commands::discover_audio_import_paths,
-            crate::commands::take_opened_audio_files,
             crate::commands::list_remote_source_providers,
             crate::commands::get_remote_source_account_state,
             crate::commands::start_remote_source_auth,
@@ -42,8 +34,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::get_runtime_settings_capabilities,
             crate::commands::preview_output_path,
             crate::commands::preflight_processing_plan,
-            crate::commands::get_max_concurrent_jobs,
-            crate::commands::set_max_concurrent_jobs,
             crate::commands::process_audiobook_files,
             crate::commands::submit_processing_operation,
             crate::commands::list_work_operations,
@@ -55,7 +45,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::events::ProcessingQueueEvent,
             crate::events::OpenedAudioFilesEvent,
             crate::events::WorkOperationSnapshotEvent,
-            crate::events::WorkOperationListSnapshotEvent
+            crate::events::WorkOperationListSnapshotEvent,
+            crate::events::SessionUpdateEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,

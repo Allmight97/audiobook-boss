@@ -2,6 +2,7 @@
 //! frontend contract; `ipc_contract.rs` registers them for binding generation.
 
 use abb_engine::processing::{ProgressEvent, QueueEvent};
+use abb_engine::session::SessionUpdate;
 use abb_engine::work_runtime::OperationSnapshot;
 use abb_engine::{EngineEvent, EventSink};
 use serde::Serialize;
@@ -47,6 +48,16 @@ impl tauri_specta::Event for WorkOperationListSnapshotEvent {
     const NAME: &'static str = "work-operation-list-snapshot";
 }
 
+/// What changed in the working session without the frontend asking, or
+/// before a change it asked for finished.
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(transparent)]
+pub struct SessionUpdateEvent(pub SessionUpdate);
+
+impl tauri_specta::Event for SessionUpdateEvent {
+    const NAME: &'static str = "session-update";
+}
+
 /// Tells the frontend the OS asked ABB to open files; it then drains the queue.
 #[derive(Clone, Default, Serialize, specta::Type)]
 pub struct OpenedAudioFilesEvent {}
@@ -78,6 +89,7 @@ impl EventSink for TauriEvents {
                 membership_revision: list.membership_revision,
                 operations: list.operations,
             }),
+            EngineEvent::Session(update) => self.send(SessionUpdateEvent(update)),
         }
     }
 }

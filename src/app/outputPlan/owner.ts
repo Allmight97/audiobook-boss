@@ -18,7 +18,7 @@ import type {
 import { tauriClient } from '../../lib/tauri/client';
 import type { EncodingOwner } from '../encoding';
 import type { InputOwner } from '../inputSession';
-import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
+import type { MetadataView } from '../metadataSession';
 import { createCollisionReview, type CollisionView } from './collision';
 import { estimateEncodedSizeBytes } from './estimate';
 import { formatFileSize } from '../../types/audio';
@@ -35,7 +35,6 @@ import {
 import {
 	computeOutputPathPreview,
 	showOutputError,
-	updateMetadataIntentWarnings as applyMetadataIntentWarnings,
 	type OutputPathPreviewResult,
 } from './workflow';
 
@@ -76,7 +75,6 @@ export type OutputOwnerDeps = {
 	readonly input: InputOwner;
 	readonly metadataView: Accessor<MetadataView>;
 	readonly encoding: Pick<EncodingOwner, 'audioRequest' | 'estimateTitleKbps'>;
-	readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 };
 
 export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
@@ -253,24 +251,6 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 			if (!preview.ok) {
 				showOutputError(`Rust preview failed: ${String(preview.cause)}`);
 			}
-		},
-	);
-
-	createEffect(
-		() => previewContext().metadataDraft,
-		(draft) => {
-			// A newer draft or disposal retires this validation before it can publish.
-			let current = true;
-			void applyMetadataIntentWarnings(draft, (validation) => {
-				if (current) deps.onMetadataValidation?.(validation);
-			}).catch((error) => {
-				if (!current) return;
-				console.error('Metadata preview validation failed:', error);
-				showOutputError('Failed to validate metadata preview.');
-			});
-			return () => {
-				current = false;
-			};
 		},
 	);
 

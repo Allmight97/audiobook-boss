@@ -1,9 +1,4 @@
-import type {
-	MetadataIntentFieldError as GeneratedMetadataIntentFieldError,
-	MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch,
-	MetadataIntentValidationField as GeneratedMetadataIntentValidationField,
-	MetadataIntentValidationResult_Serialize as GeneratedMetadataIntentValidationResult,
-} from '../lib/generated/tauri';
+import type { MetadataIntentPatch_Deserialize as GeneratedMetadataIntentPatch } from '../lib/generated/tauri';
 import type { AudiobookMetadata } from './metadata';
 
 export const METADATA_INTENT_FIELDS = [
@@ -60,60 +55,6 @@ export type MetadataIntentPatch = Partial<{
 	[K in MetadataIntentField]: MetadataFieldIntent<K>;
 }>;
 
-export type MetadataIntentValidationField = GeneratedMetadataIntentValidationField;
-export type MetadataIntentFieldError = GeneratedMetadataIntentFieldError;
-/** Rust's canonical form of the submitted patch: the same fields, normalized. */
-export type MetadataIntentValidationResult = Omit<
-	GeneratedMetadataIntentValidationResult,
-	'metadataPatch'
-> & { metadataPatch: MetadataIntentPatch };
-
-type MetadataIntentPatchRecord = Partial<Record<MetadataIntentField, MetadataFieldIntent>>;
-
-function setMetadataIntent(
-	patch: MetadataIntentPatch,
-	key: MetadataIntentField,
-	intent: MetadataFieldIntent,
-): void {
-	(patch as MetadataIntentPatchRecord)[key] = intent;
-}
-
-function isMetadataIntentField(key: string): key is MetadataIntentField {
-	return (METADATA_INTENT_FIELDS as readonly string[]).includes(key);
-}
-
-function normalizeStringInput(value: string): string {
-	return value.trim();
-}
-
-function isNumberArray(value: unknown): value is number[] {
-	return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
-}
-
-export function hasActionableMetadataIntentPatch(
-	patch: MetadataIntentPatch | null | undefined,
-): patch is MetadataIntentPatch {
-	if (!patch) {
-		return false;
-	}
-	return METADATA_INTENT_FIELDS.some((key) => patch[key] !== undefined);
-}
-
-/** A later request for a field replaces the earlier one; fields `next` omits keep `base`'s. */
-export function mergeMetadataIntentPatches(
-	base: MetadataIntentPatch,
-	next: MetadataIntentPatch,
-): MetadataIntentPatch {
-	const merged: MetadataIntentPatch = { ...base };
-	for (const key of METADATA_INTENT_FIELDS) {
-		const intent = next[key];
-		if (intent !== undefined) {
-			setMetadataIntent(merged, key, intent);
-		}
-	}
-	return merged;
-}
-
 function toGeneratedPatchOp(
 	intent: MetadataFieldIntent,
 ): { op: 'set'; value: unknown } | { op: 'clear' } | { op: 'recompute' } {
@@ -138,75 +79,4 @@ export function compileMetadataIntentPatch(
 		compiled[key] = toGeneratedPatchOp(intent);
 	}
 	return compiled as GeneratedMetadataIntentPatch;
-}
-
-export function applyMetadataIntentPatch(
-	base: Partial<AudiobookMetadata>,
-	patch: MetadataIntentPatch,
-): Partial<AudiobookMetadata> {
-	const next: Partial<AudiobookMetadata> = { ...base };
-	for (const key of METADATA_INTENT_FIELDS) {
-		const intent = patch[key];
-		if (!intent) {
-			continue;
-		}
-		if (intent.op === 'clear') {
-			delete next[key];
-			continue;
-		}
-		if (intent.op === 'recompute') {
-			continue;
-		}
-		(next as Record<MetadataIntentField, unknown>)[key] = intent.value;
-	}
-	return next;
-}
-
-export function buildMetadataIntentPatchFromMetadata(
-	metadata: Partial<AudiobookMetadata>,
-): MetadataIntentPatch {
-	const patch: MetadataIntentPatch = {};
-	for (const [rawKey, value] of Object.entries(metadata)) {
-		if (!isMetadataIntentField(rawKey)) {
-			continue;
-		}
-		const key = rawKey;
-		if (value == null) {
-			setMetadataIntent(patch, key, { op: 'clear' });
-			continue;
-		}
-		if (key === 'date') {
-			if (typeof value !== 'string') {
-				continue;
-			}
-			const trimmed = value.trim();
-			if (trimmed.length === 0) {
-				setMetadataIntent(patch, key, { op: 'clear' });
-				continue;
-			}
-			setMetadataIntent(patch, key, { op: 'set', value: trimmed });
-			continue;
-		}
-		if (key === 'cover_art') {
-			if (!isNumberArray(value)) {
-				continue;
-			}
-			setMetadataIntent(
-				patch,
-				key,
-				value.length === 0 ? { op: 'clear' } : { op: 'set', value: [...value] },
-			);
-			continue;
-		}
-		if (typeof value !== 'string') {
-			continue;
-		}
-		const normalized = normalizeStringInput(value);
-		setMetadataIntent(
-			patch,
-			key,
-			normalized.length === 0 ? { op: 'clear' } : { op: 'set', value: normalized },
-		);
-	}
-	return patch;
 }

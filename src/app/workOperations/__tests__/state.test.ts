@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tauriClient } from '../../../lib/tauri/client';
+import { publishMockMetadataSave } from '../../../test/setup';
 import type { OperationListSnapshot, OperationSnapshot } from '../../../types/workRuntime';
 import { createWorkOperationsSession, type WorkOperationsSession } from '../runtime';
 
@@ -118,9 +119,7 @@ describe('Work Center state', () => {
 		(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 		await session.initialize();
 		for (const filePath of ['/books/alpha.m4b', '/books/beta.m4b']) {
-			await tauriClient.saveMetadataBatch([
-				{ filePath, metadataPatch: { title: { op: 'set', value: 'Edited' } } },
-			]);
+			publishMockMetadataSave([filePath]);
 		}
 		const operations = session.view().operations;
 		expect(operations).toHaveLength(2);

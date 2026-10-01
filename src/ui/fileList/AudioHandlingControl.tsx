@@ -23,7 +23,8 @@ export function AudioHandlingControl(props: {
 	let pinned = false,
 		dismissed = false,
 		generation = 0,
-		cachedKey = '';
+		cachedKey = '',
+		lastPlanState = '';
 	const request = () => runtime.encoding.audioRequest(props.file);
 	const sources = () => runtime.input.sourcesFor(props.file);
 	async function queryPlan() {
@@ -73,9 +74,11 @@ export function AudioHandlingControl(props: {
 		clearTimeout(closeTimer);
 	});
 	createEffect(
-		() => ({
-			open: open(),
-			key: JSON.stringify({
+		// Compared as a string below, so the plan is re-read only when something
+		// it depends on changes, not whenever the session publishes an update.
+		() =>
+			(open() ? '1' : '0') +
+			JSON.stringify({
 				sources: sources().map((f) => ({
 					path: f.path,
 					chapterPlan: f.chapterPlan,
@@ -85,8 +88,11 @@ export function AudioHandlingControl(props: {
 				capabilityRevision: runtime.encoding.capabilityRevision(),
 				needsChoice: needsChoice(),
 			}),
-		}),
-		({ open: isOpen, key }) => {
+		(state) => {
+			if (state === lastPlanState) return;
+			lastPlanState = state;
+			const isOpen = state.startsWith('1');
+			const key = state.slice(1);
 			if (key !== cachedKey) {
 				generation++;
 				cachedKey = '';

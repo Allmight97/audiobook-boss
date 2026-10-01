@@ -25,6 +25,7 @@ mod owned_dir;
 mod power;
 pub mod processing;
 pub mod remote_source;
+pub mod session;
 pub mod work_runtime;
 
 pub use diagnostics::ffmpeg_build_identity;

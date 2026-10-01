@@ -6,6 +6,7 @@ pub mod audio;
 pub mod frontend_log;
 pub mod metadata;
 pub mod remote_source;
+pub mod session;
 pub mod work_runtime;
 
 pub type CommandResult<T> = std::result::Result<T, abb_engine::AppErrorEnvelope>;
@@ -16,4 +17,5 @@ pub use audio::*;
 pub use frontend_log::*;
 pub use metadata::*;
 pub use remote_source::*;
+pub use session::*;
 pub use work_runtime::*;

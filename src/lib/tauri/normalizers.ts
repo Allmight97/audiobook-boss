@@ -15,9 +15,11 @@
 
 import type {
 	AudiobookMetadata as GeneratedAudiobookMetadata,
-	FileListInfo as GeneratedFileListInfo,
-	MetadataLookupResponse as GeneratedMetadataLookupResponse,
-	OnlineMetadataResult as GeneratedOnlineMetadataResult,
+	FrontendAttachment as GeneratedFrontendAttachment,
+	SessionReply as GeneratedSessionReply,
+	SessionUpdate as GeneratedSessionUpdate,
+	SettingsReply as GeneratedSettingsReply,
+	SettingsSnapshot as GeneratedSettingsSnapshot,
 	ProcessCommandResult as GeneratedProcessCommandResult,
 	ProcessPayload as GeneratedProcessPayload,
 	ProgressEvent as GeneratedProgressEvent,
@@ -28,16 +30,13 @@ import type {
 	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,
 } from '../generated/tauri';
 import type {
-	FileListInfo,
 	ProcessCommandResult,
 	ProcessPayload,
 	RuntimeSettingsCapabilities,
 } from '../../types/audio';
-import type {
-	AudiobookMetadata,
-	MetadataLookupResponse,
-	OnlineMetadataResult,
-} from '../../types/metadata';
+import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
+import type { AudiobookMetadata } from '../../types/metadata';
+import type { SessionReply, SessionUpdate } from '../../types/session';
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import type { NullToOptionalDeep } from '../../types/ipc';
 import type {
@@ -175,26 +174,55 @@ export function denormalizeMetadata(
 	) as GeneratedAudiobookMetadata;
 }
 
-export function normalizeFileList(info: GeneratedFileListInfo): FileListInfo {
-	return normalizeNullish(info);
-}
-
 export function normalizeRuntimeSettingsCapabilities(
 	capabilities: GeneratedRuntimeSettingsCapabilities,
 ): RuntimeSettingsCapabilities {
 	return normalizeNullish(capabilities);
 }
 
-function normalizeLookupResult(result: GeneratedOnlineMetadataResult): OnlineMetadataResult {
-	return normalizeNullish(result);
+/**
+ * Audio files and lookup results take the optional-field forms the frontend
+ * uses elsewhere. Audio requests keep their explicit nulls: a null `settings`
+ * is the request for MP3 pass-through.
+ */
+export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
+	const { titles, selection, metadata, lookup } = update;
+	return {
+		revision: update.revision,
+		titles: titles
+			? {
+					...titles,
+					files: normalizeNullish(titles.files),
+					titleSourcesByIdentity: normalizeNullish(titles.titleSourcesByIdentity),
+				}
+			: undefined,
+		selection: selection ?? undefined,
+		metadata: metadata ?? undefined,
+		lookup: lookup ? { ...lookup, results: normalizeNullish(lookup.results) } : undefined,
+	};
 }
 
-export function normalizeLookupResponse(
-	response: GeneratedMetadataLookupResponse,
-): MetadataLookupResponse {
+export function normalizeSessionReply(reply: GeneratedSessionReply): SessionReply {
+	return { outcome: reply.outcome, update: normalizeSessionUpdate(reply.update) };
+}
+
+export function normalizeSettingsSnapshot(snapshot: GeneratedSettingsSnapshot): SettingsSnapshot {
+	return normalizeNullish(snapshot) as SettingsSnapshot;
+}
+
+export function normalizeSettingsReply(reply: GeneratedSettingsReply): SettingsReply {
+	return { outcome: reply.outcome, snapshot: normalizeSettingsSnapshot(reply.snapshot) };
+}
+
+export function normalizeFrontendAttachment(attachment: GeneratedFrontendAttachment): {
+	client: number;
+	session: SessionUpdate;
+	settings: SettingsSnapshot;
+} {
 	return {
-		results: response.results.map(normalizeLookupResult),
-		diagnostics: response.diagnostics.map(normalizeNullish),
+		client: attachment.client,
+		session: normalizeSessionUpdate(attachment.session),
+		settings: normalizeSettingsSnapshot(attachment.settings),
 	};
 }
 

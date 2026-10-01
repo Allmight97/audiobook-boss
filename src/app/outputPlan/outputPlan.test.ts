@@ -3,29 +3,68 @@ import { createRoot, createSignal, flush, runWithOwner, type Accessor } from 'so
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessingPreflightPlan } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
+import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import type { AudioFile } from '../../types/audio';
+import type { MetadataField } from '../../types/session';
 import { createAppRuntime } from '../runtime';
-import { emptyInputSession } from '../inputSession/types';
 import type { InputView } from '../inputSession';
 import { createOutputOwner, type OutputPlanOwner } from '.';
 import type { CollisionView } from './collision';
 import { previewDraftFromMetadataView, sourcePathFromInput } from './previewDraft';
-import { createEmptyCoverUiState } from '../metadataSession/cover';
-import { createEmptyFormState, replaceField } from '../metadataSession/fields';
+import { HIDDEN_COVER_MESSAGE } from '../metadataSession/cover';
+import { toFormState } from '../metadataSession/fields';
 import { projectTagPreviewValues } from '../metadataSession/tags';
-import type { MetadataDraftValidation, MetadataView } from '../metadataSession';
+import type { MetadataView } from '../metadataSession';
 
-function sessionWithDuration(totalDuration: number) {
+function fileWithDuration(duration: number): AudioFile {
+	return audioFile('/books/a.m4b', { duration, size: 1024, chapters: undefined });
+}
+
+/** A runtime whose engine already holds `files`. */
+async function runtimeWith(
+	files: AudioFile[],
+): Promise<{ runtime: ReturnType<typeof createAppRuntime>; engine: FakeEngine }> {
+	const engine = createFakeEngine();
+	const runtime = createAppRuntime({ engine });
+	engine.loadTitles(files);
+	await runtime.initialize();
+	return { runtime, engine };
+}
+
+/** The metadata view with the given field values on screen. */
+function metadataViewShowing(values: Partial<Record<MetadataField, string>> = {}): MetadataView {
+	const form = toFormState(
+		{
+			mode: 'single',
+			selectionCount: 0,
+			fields: Object.entries(values).map(([field, value]) => ({
+				field: field as MetadataField,
+				value,
+				action: 'keep',
+				dirty: false,
+				mixed: false,
+			})),
+			seriesPartWarning: null,
+			subseriesPartWarning: null,
+			validationMessage: null,
+		},
+		new Map(),
+	);
 	return {
-		...emptyInputSession(),
-		files: [
-			{
-				path: '/books/a.m4b',
-				isValid: true,
-				duration: totalDuration,
-				size: 1024,
-				format: 'm4b',
-			},
-		],
+		form,
+		cover: {
+			imageDataUrl: null,
+			isLoading: false,
+			message: HIDDEN_COVER_MESSAGE,
+			isHovered: false,
+			isDragOver: false,
+			urlInputValue: '',
+			hasCustomCoverArt: false,
+			coverArtRemovalRequested: false,
+		},
+		tags: projectTagPreviewValues(form, ''),
+		saveInProgress: false,
+		statusMessage: '',
 	};
 }
 
@@ -52,17 +91,6 @@ function emptyInputView(overrides: Partial<InputView> = {}): InputView {
 		showRestoreImportOrder: false,
 		totalDurationSeconds: 0,
 		...overrides,
-	};
-}
-
-function emptyMetadataView(): MetadataView {
-	return {
-		form: createEmptyFormState(),
-		cover: createEmptyCoverUiState(),
-		tags: projectTagPreviewValues(createEmptyFormState(), ''),
-		saveInProgress: false,
-		focusedFieldId: null,
-		statusMessage: '',
 	};
 }
 
@@ -110,7 +138,6 @@ function mountOutput(
 	runtime: ReturnType<typeof createAppRuntime>,
 	overrides: {
 		readonly metadataView?: Accessor<MetadataView>;
-		readonly onMetadataValidation?: (validation: MetadataDraftValidation) => void;
 	} = {},
 ): MountedOutput {
 	return runWithOwner(null, () =>
@@ -118,9 +145,8 @@ function mountOutput(
 			const owner = createOutputOwner({
 				persistDefaults: () => undefined,
 				input: runtime.input,
-				metadataView: overrides.metadataView ?? emptyMetadataView,
+				metadataView: overrides.metadataView ?? (() => metadataViewShowing()),
 				encoding: runtime.encoding,
-				onMetadataValidation: overrides.onMetadataValidation,
 			});
 			return {
 				owner,
@@ -158,8 +184,7 @@ describe('output plan public view', () => {
 	});
 
 	it('uses total target bitrate for mono and stereo output estimates', async () => {
-		runtime = createAppRuntime();
-		runtime.input.replaceSession(sessionWithDuration(100));
+		({ runtime } = await runtimeWith([fileWithDuration(100)]));
 		mounted = mountOutput(runtime);
 		await vi.waitFor(() => {
 			expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1);
@@ -180,14 +205,21 @@ describe('output plan public view', () => {
 	});
 
 	it('estimates a stack from all source sizes or durations for its selected handling', async () => {
-		runtime = createAppRuntime();
-		const session = sessionWithDuration(100);
-		const first = session.files[0]!;
-		const second = { ...first, path: '/books/b.m4b', size: 2048, duration: 50 };
-		runtime.input.replaceSession({
-			...session,
-			titleSourcesByIdentity: { [first.path]: [first, second] },
-		});
+		const first = fileWithDuration(100);
+		const second = {
+			...first,
+			path: '/books/b.m4b',
+			inputId: '/books/b.m4b',
+			size: 2048,
+			duration: 50,
+		};
+		const loaded = await runtimeWith([first]);
+		runtime = loaded.runtime;
+		const groupSources = (sources: AudioFile[]) =>
+			loaded.engine.change((state) => {
+				state.titles.titleSourcesByIdentity = { [first.path]: sources };
+			});
+		groupSources([first, second]);
 		mounted = mountOutput(runtime);
 		runtime.encoding.selectTitle(first, 'intent', 'preserve');
 		flush();
@@ -198,12 +230,7 @@ describe('output plan public view', () => {
 		runtime.encoding.selectTitle(first, 'encoder', 'native_aac');
 		runtime.encoding.selectTitle(first, 'bitrate', '64');
 		expect(mounted.owner.estimateTitleSizeText(first)).toBe('Est. ~ 1.2 MB');
-		runtime.input.replaceSession({
-			...session,
-			titleSourcesByIdentity: {
-				[first.path]: [first, { ...second, size: undefined, duration: undefined }],
-			},
-		});
+		groupSources([first, { ...second, size: undefined, duration: undefined }]);
 		runtime.encoding.selectTitle(first, 'intent', 'preserve');
 		expect(mounted.owner.estimateTitleSizeText(first)).toBeNull();
 		runtime.encoding.selectTitle(first, 'intent', 'encode');
@@ -214,16 +241,17 @@ describe('output plan public view', () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')
 			.mockResolvedValue('/books/out/a.mp3');
-		runtime = createAppRuntime();
-		const session = sessionWithDuration(100);
 		const source = {
-			...session.files[0]!,
+			...fileWithDuration(100),
 			path: '/books/a.mp3',
+			inputId: '/books/a.mp3',
 			size: 1_048_576,
 			preservation: { canPreserve: true },
 		};
-		session.files = [source, { ...source, path: '/books/b.m4b', duration: 100 }];
-		runtime.input.replaceSession(session);
+		const session = {
+			files: [source, { ...source, path: '/books/b.m4b', inputId: '/books/b.m4b', duration: 100 }],
+		};
+		({ runtime } = await runtimeWith(session.files));
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
@@ -287,11 +315,6 @@ describe('output plan public view', () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')
 			.mockResolvedValue('/books/out/preview.m4b');
-		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
-			isValid: true,
-			metadataPatch: {},
-			fieldErrors: [],
-		});
 		runtime = createAppRuntime();
 		mounted = mountOutput(runtime);
 		mounted.owner.applyDefaults({
@@ -323,30 +346,16 @@ describe('output plan public view', () => {
 			{ timeout: 500 },
 		);
 		previewOutputPath.mockRestore();
-		validatePatch.mockRestore();
 	});
 
 	it('re-reads output path preview when series part changes', async () => {
 		const previewOutputPath = vi
 			.spyOn(tauriClient, 'previewOutputPath')
 			.mockResolvedValue('/books/out/preview.m4b');
-		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
-			isValid: true,
-			metadataPatch: {},
-			fieldErrors: [],
-		});
-		runtime = createAppRuntime();
-		runtime.input.replaceSession(sessionWithDuration(100));
-		let form = createEmptyFormState();
-		form = replaceField(form, 'meta-series-part', { value: '1' });
-		const [metadataView, setMetadataView] = createSignal<MetadataView>({
-			form,
-			cover: createEmptyCoverUiState(),
-			tags: projectTagPreviewValues(createEmptyFormState(), ''),
-			saveInProgress: false,
-			focusedFieldId: null,
-			statusMessage: '',
-		});
+		({ runtime } = await runtimeWith([fileWithDuration(100)]));
+		const [metadataView, setMetadataView] = createSignal<MetadataView>(
+			metadataViewShowing({ seriesPart: '1' }),
+		);
 		mounted = mountOutput(runtime, { metadataView });
 		mounted.owner.applyDefaults({
 			outputDirectory: '/books/out',
@@ -356,15 +365,13 @@ describe('output plan public view', () => {
 		const firstCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
 		expect(firstCall?.[0]?.metadata?.series_part).toBe('1');
 		const callsBefore = previewOutputPath.mock.calls.length;
-		form = replaceField(metadataView().form, 'meta-series-part', { value: '2' });
-		setMetadataView((current) => ({ ...current, form }));
+		setMetadataView(metadataViewShowing({ seriesPart: '2' }));
 		await vi.waitFor(() =>
 			expect(previewOutputPath.mock.calls.length).toBeGreaterThan(callsBefore),
 		);
 		const lastCall = previewOutputPath.mock.calls[previewOutputPath.mock.calls.length - 1];
 		expect(lastCall?.[0]?.metadata?.series_part).toBe('2');
 		previewOutputPath.mockRestore();
-		validatePatch.mockRestore();
 	});
 
 	it('keeps the latest in-flight path preview and ignores a stale slower answer', async () => {
@@ -378,12 +385,7 @@ describe('output plan public view', () => {
 					}),
 			)
 			.mockResolvedValue('/books/out/second.m4b');
-		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockResolvedValue({
-			isValid: true,
-			metadataPatch: {},
-			fieldErrors: [],
-		});
-		runtime = createAppRuntime();
+		({ runtime } = await runtimeWith([]));
 		mounted = mountOutput(runtime);
 		const owner = mounted.owner;
 		owner.applyDefaults({
@@ -397,82 +399,6 @@ describe('output plan public view', () => {
 		await Promise.resolve();
 		expect(owner.view().previewText).toBe('/books/out/second.m4b');
 		previewOutputPath.mockRestore();
-		validatePatch.mockRestore();
-	});
-
-	it('forwards only the newest metadata preview validation', async () => {
-		vi.spyOn(tauriClient, 'previewOutputPath').mockResolvedValue('/books/out/preview.m4b');
-		const pending: Array<(isValid: boolean) => void> = [];
-		const validatePatch = vi.spyOn(tauriClient, 'validateMetadataIntentPatch').mockImplementation(
-			(patch) =>
-				new Promise((resolve) =>
-					pending.push((isValid) =>
-						resolve({
-							isValid,
-							metadataPatch: patch,
-							fieldErrors: isValid
-								? []
-								: [
-										{
-											field: 'series_part',
-											code: 'series_part_contains_slash',
-											message: 'Bad part',
-										},
-									],
-						}),
-					),
-				),
-		);
-		const forwarded: boolean[] = [];
-		runtime = createAppRuntime();
-		const [metadataView, setMetadataView] = createSignal<MetadataView>({
-			...emptyMetadataView(),
-			form: replaceField(createEmptyFormState(), 'meta-series-part', { value: '7/8' }),
-		});
-		mounted = mountOutput(runtime, {
-			metadataView,
-			onMetadataValidation: (validation) => forwarded.push(validation.ok),
-		});
-		await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0));
-		const staleCount = pending.length;
-		setMetadataView((current) => ({
-			...current,
-			form: replaceField(current.form, 'meta-series-part', { value: '2' }),
-		}));
-		await vi.waitFor(() => expect(pending.length).toBeGreaterThan(staleCount));
-		pending[pending.length - 1]!(true);
-		for (const resolveStale of pending.slice(0, -1)) resolveStale(false);
-		await vi.waitFor(() => expect(forwarded).toContain(true));
-		await Promise.resolve();
-		expect(forwarded).toEqual([true]);
-		validatePatch.mockRestore();
-	});
-
-	it('still previews the path when metadata validation fails', async () => {
-		const previewOutputPath = vi
-			.spyOn(tauriClient, 'previewOutputPath')
-			.mockResolvedValue('/books/out/preview.m4b');
-		const validatePatch = vi
-			.spyOn(tauriClient, 'validateMetadataIntentPatch')
-			.mockRejectedValue(new Error('validation transport failed'));
-		const errors: string[] = [];
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
-			errors.push(String(args[0]));
-		});
-		runtime = createAppRuntime();
-		mounted = mountOutput(runtime);
-		const owner = mounted.owner;
-		owner.applyDefaults({
-			outputDirectory: '/books/out',
-			outputNaming: { preset: 'absDefault', includeYear: false },
-		});
-		await vi.waitFor(() => expect(owner.view().previewText).toBe('/books/out/preview.m4b'));
-		expect(errors.some((message) => message.includes('Metadata preview validation failed'))).toBe(
-			true,
-		);
-		previewOutputPath.mockRestore();
-		validatePatch.mockRestore();
-		errorSpy.mockRestore();
 	});
 });
 
@@ -495,22 +421,9 @@ describe('output path preview projection', () => {
 	});
 
 	it('projects public metadata view fields into the native preview draft', () => {
-		let form = createEmptyFormState();
-		form = replaceField(form, 'meta-title', { value: 'Dune' });
-		form = replaceField(form, 'meta-author', { value: 'Herbert' });
-		const view: MetadataView = {
-			form,
-			cover: { ...createEmptyCoverUiState(), currentCoverArt: [1, 2, 3] },
-			tags: {
-				...projectTagPreviewValues(createEmptyFormState(), ''),
-				title: 'Dune',
-				artist: 'Herbert',
-			},
-			saveInProgress: false,
-			focusedFieldId: null,
-			statusMessage: '',
-		};
-		const draft = previewDraftFromMetadataView(view);
+		const draft = previewDraftFromMetadataView(
+			metadataViewShowing({ title: 'Dune', author: 'Herbert' }),
+		);
 		expect(draft.title).toBe('Dune');
 		expect(draft.artist).toBe('Herbert');
 		expect(draft.album).toBe('Dune');

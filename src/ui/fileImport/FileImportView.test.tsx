@@ -1,64 +1,17 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings } from '../../types/appSettings';
-import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { FileImportView } from './FileImportView';
 
-function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
-	return {
-		maxConcurrentJobs: { mode: 'auto' },
-		defaultAcquisitionLane: 'audible',
-		encoderDefaults: {
-			format: 'm4b',
-			intent: 'auto',
-			settings: {
-				encoderType: 'auto',
-				bitrateKbps: 64,
-				bitrateMode: { mode: 'vbr', value: 3 },
-				channels: 'auto',
-			},
-			sampleRate: 'auto',
-		},
-		outputDefaults: {
-			outputNaming: {
-				preset: 'absDefault',
-				includeYear: false,
-			},
-		},
-		startupBehavior: 'rememberLastState',
-		keepAwakeWhileWorking: true,
-		...overrides,
-	};
-}
-
-function fakeSettings(initial: Partial<AppSettings> = {}): SettingsCapability {
-	let current = settingsFixture(initial);
-	return {
-		getAppSettingsRecovery: vi.fn(async () => null),
-		recoverAppSettings: vi.fn(async () => ({
-			backupFileName: 'backup.json',
-			settings: settingsFixture(),
-		})),
-		getAppSettings: vi.fn(async () => current),
-		updateAppSettings: vi.fn(async (patch) => {
-			current = settingsFixture({
-				...current,
-				defaultAcquisitionLane:
-					patch.defaultAcquisitionLane ?? current.defaultAcquisitionLane ?? 'audible',
-			});
-			return current;
-		}),
-		resetAppSettings: vi.fn(async () => {
-			current = settingsFixture();
-			return current;
-		}),
-		getMaxConcurrentJobs: vi.fn(async () => 4),
-		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
-		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),
-	};
+/** A runtime whose saved default lane is Indexer. */
+async function runtimeDefaultingToIndexer(): Promise<AppRuntime> {
+	const runtime = createAppRuntime({
+		engine: createFakeEngine({ ...defaultAppSettings(), defaultAcquisitionLane: 'indexer' }),
+	});
+	await runtime.initialize();
+	return runtime;
 }
 
 describe('FileImportView import split button', () => {
@@ -72,10 +25,7 @@ describe('FileImportView import split button', () => {
 	});
 
 	it('opens the default acquisition lane from settings on main click', async () => {
-		runtime = createAppRuntime({
-			settings: fakeSettings({ defaultAcquisitionLane: 'indexer' }),
-		});
-		await runtime.settings.hydrateAcquisitionPreferences();
+		runtime = await runtimeDefaultingToIndexer();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<FileImportView />
@@ -89,10 +39,7 @@ describe('FileImportView import split button', () => {
 	});
 
 	it('opens Audible from the caret when default lane is Indexer', async () => {
-		runtime = createAppRuntime({
-			settings: fakeSettings({ defaultAcquisitionLane: 'indexer' }),
-		});
-		await runtime.settings.hydrateAcquisitionPreferences();
+		runtime = await runtimeDefaultingToIndexer();
 		render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<FileImportView />

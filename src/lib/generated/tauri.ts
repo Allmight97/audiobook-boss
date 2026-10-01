@@ -5,42 +5,35 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	getAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings")),
-	updateAppSettings: (patch: AppSettingsPatch) => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("update_app_settings", { patch })),
-	resetAppSettings: () => typedError<AppSettings, AppErrorEnvelope>(__TAURI_INVOKE("reset_app_settings")),
-	getAppSettingsRecovery: () => typedError<{
-	incompatibleEncoders: IncompatibleEncoderDefaults[],
-} | null, AppErrorEnvelope>(__TAURI_INVOKE("get_app_settings_recovery")),
-	recoverAppSettings: (expected: AppSettingsRecoveryPlan) => typedError<AppSettingsRecoveryResult, AppErrorEnvelope>(__TAURI_INVOKE("recover_app_settings", { expected })),
+	/**  Attaches a starting frontend and returns the whole session and settings. */
+	attachFrontend: () => typedError<FrontendAttachment, AppErrorEnvelope>(__TAURI_INVOKE("attach_frontend")),
+	/**
+	 *  Applies one intent to the working session and returns what changed.
+	 *  `sequence` counts this frontend's session intents from zero; each takes
+	 *  effect after every earlier one, in whatever order they arrive.
+	 */
+	sessionDispatch: (client: number, sequence: number, intent: SessionIntent) => typedError<SessionReply, AppErrorEnvelope>(__TAURI_INVOKE("session_dispatch", { client, sequence, intent })),
+	/**
+	 *  Applies one intent to the settings and returns the settings in effect.
+	 *  Settings intents run one at a time in `sequence` order.
+	 */
+	settingsDispatch: (client: number, sequence: number, intent: SettingsIntent) => typedError<SettingsReply, AppErrorEnvelope>(__TAURI_INVOKE("settings_dispatch", { client, sequence, intent })),
+	/**  The cover image the session currently shows. */
+	sessionCoverArt: () => __TAURI_INVOKE<number[] | null>("session_cover_art"),
+	/**  The pending metadata edits for `file_paths`, as processing takes them. */
+	sessionMetadataIntents: (filePaths: string[]) => __TAURI_INVOKE<{ [key in string]: MetadataIntentPatch_Serialize }>("session_metadata_intents", { filePaths }),
 	/**
 	 *  Reads metadata from an audio file
 	 *  Returns metadata as JSON-serializable struct
 	 */
 	readAudioMetadata: (filePath: string) => typedError<AudiobookMetadata, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_metadata", { filePath })),
-	/**  Loads a cover image from disk and returns write-ready JPEG bytes. */
-	loadCoverArtFile: (filePath: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_file", { filePath })),
 	/**  Loads cover art from a remote HTTPS URL and returns write-ready JPEG bytes. */
 	loadCoverArtFromUrl: (url: string) => typedError<number[], AppErrorEnvelope>(__TAURI_INVOKE("load_cover_art_from_url", { url })),
 	/**  Reads an audio file's embedded cover as a bounded JPEG thumbnail. */
 	readAudioCoverThumbnail: (filePath: string) => typedError<number[] | null, AppErrorEnvelope>(__TAURI_INVOKE("read_audio_cover_thumbnail", { filePath })),
-	/**  Validates and normalizes metadata intent without writing files. */
-	validateMetadataIntentPatch: (metadataPatch: MetadataIntentPatch_Deserialize) => typedError<MetadataIntentValidationResult_Serialize, AppErrorEnvelope>(__TAURI_INVOKE("validate_metadata_intent_patch", { metadataPatch })),
-	/**  Returns the album sort (TSOA) processing would write for `metadata`. */
-	previewAlbumSort: (metadata: AudiobookMetadata) => typedError<string | null, AppErrorEnvelope>(__TAURI_INVOKE("preview_album_sort", { metadata })),
-	saveMetadataBatch: (items: MetadataSaveRequest_Deserialize[]) => typedError<MetadataSaveBatchResult, AppErrorEnvelope>(__TAURI_INVOKE("save_metadata_batch", { items })),
-	searchOnlineMetadata: (query: string, sources: MetadataSource[] | null, limit: number | null) => typedError<MetadataLookupResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_online_metadata", { query, sources, limit })),
-	/**
-	 *  Validates and analyzes a list of audio files
-	 *  Returns comprehensive file information including duration and size
-	 */
-	analyzeAudioFiles: (filePaths: string[]) => typedError<FileListInfo, AppErrorEnvelope>(__TAURI_INVOKE("analyze_audio_files", { filePaths })),
 	previewTitleAudio: (filePaths: string[], request: TitleAudioRequest, chapterPlans: { [key in string]: ChapterPlan } | null) => typedError<TitleAudioPlan, AppErrorEnvelope>(__TAURI_INVOKE("preview_title_audio", { filePaths, request, chapterPlans })),
 	/**  Returns backend-owned supported local audio import metadata for picker UI. */
 	getSupportedAudioImportMetadata: () => typedError<SupportedAudioImportMetadata, AppErrorEnvelope>(__TAURI_INVOKE("get_supported_audio_import_metadata")),
-	/**  Recursively discovers supported local audio files from files and directories. */
-	discoverAudioImportPaths: (inputPaths: string[]) => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("discover_audio_import_paths", { inputPaths })),
-	/**  Drains local audio paths opened by the OS before the frontend was ready. */
-	takeOpenedAudioFiles: () => typedError<string[], AppErrorEnvelope>(__TAURI_INVOKE("take_opened_audio_files")),
 	listRemoteSourceProviders: () => typedError<RemoteSourceProviderCapabilities[], AppErrorEnvelope>(__TAURI_INVOKE("list_remote_source_providers")),
 	getRemoteSourceAccountState: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_account_state", { providerId })),
 	startRemoteSourceAuth: (providerId: ProviderId) => typedError<RemoteAuthStartResponse, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_auth", { providerId })),
@@ -82,10 +75,6 @@ export const commands = {
 	customTemplate: string | null,
 } | null, sourcePath: string | null, outputKind: "final" | "preview" | null, format: AudiobookFormat) => typedError<string, AppErrorEnvelope>(__TAURI_INVOKE("preview_output_path", { outputDir, metadata, outputNaming, sourcePath, outputKind, format })),
 	preflightProcessingPlan: (payload: ProcessPayload, metadata: { [key in string]: MetadataIntentPatch_Deserialize } | null, previewSeconds: number | null) => typedError<ProcessingPreflightPlan, AppErrorEnvelope>(__TAURI_INVOKE("preflight_processing_plan", { payload, metadata, previewSeconds })),
-	/**  Returns the current maximum concurrent jobs setting */
-	getMaxConcurrentJobs: () => __TAURI_INVOKE<number>("get_max_concurrent_jobs"),
-	/**  Updates the maximum concurrent jobs setting (requires idle state) */
-	setMaxConcurrentJobs: (maxConcurrent: number | null) => typedError<number, AppErrorEnvelope>(__TAURI_INVOKE("set_max_concurrent_jobs", { maxConcurrent })),
 	/**
 	 *  Processes a direct preview with configurable encoder settings.
 	 *
@@ -104,6 +93,7 @@ export const events = {
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	processingProgress: makeEvent<ProcessingProgressEvent_Deserialize>("processing-progress"),
 	processingQueue: makeEvent<ProcessingQueueEvent>("processing-queue"),
+	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
 	workOperationSnapshot: makeEvent<WorkOperationSnapshotEvent>("work-operation-snapshot"),
 };
@@ -174,27 +164,8 @@ export type AppSettings = {
 	defaultAcquisitionLane?: AcquisitionLane,
 };
 
-export type AppSettingsPatch = {
-	keepAwakeWhileWorking: boolean | null,
-	maxConcurrentJobs: ConcurrencyPreference | null,
-	encoderDefaults: EncoderDefaults | null,
-	outputDefaults: OutputDefaults | null,
-	startupBehavior: StartupBehavior | null,
-	/**
-	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
-	 *  back to `RememberLastState`, never unpinning.
-	 */
-	pinnedDefaults: PinnedDefaults | null,
-	defaultAcquisitionLane: AcquisitionLane | null,
-};
-
 export type AppSettingsRecoveryPlan = {
 	incompatibleEncoders: IncompatibleEncoderDefaults[],
-};
-
-export type AppSettingsRecoveryResult = {
-	backupFileName: string,
-	settings: AppSettings,
 };
 
 /**  Represents an audio file with metadata */
@@ -323,6 +294,37 @@ export type CollisionPolicy = "fail" | "replace_existing" | "rename_new" | "skip
 
 export type ConcurrencyPreference = { mode: "auto" } | { mode: "fixed"; value: number };
 
+export type ConcurrencySnapshot = {
+	preference: ConcurrencyPreference,
+	/**  How many titles export at once right now. */
+	effective: number,
+	capabilities: MaxConcurrentJobsCapabilities,
+};
+
+export type CoverNotice = { kind: "urlRequired" } | { kind: "loadedFromUrl" } | { kind: "loadFailed"; error: AppErrorEnvelope };
+
+export type CoverSnapshot = {
+	/**
+	 *  Advances whenever the displayed image changes; fetch the bytes with
+	 *  the session's cover query.
+	 */
+	imageRevision: number,
+	present: boolean,
+	/**  The user replaced the cover and has not saved or staged it yet. */
+	custom: boolean,
+	removalRequested: boolean,
+	loading: boolean,
+	notice: CoverNotice | null,
+	/**  Advances with every notice, so a repeated notice is still new. */
+	noticeSerial: number,
+};
+
+export type CueChoice =
+/**  Accept a CUE whose timestamps need the hundredths interpretation. */
+"confirmHundredths" |
+/**  Drop the CUE and fall back to the file's embedded chapters. */
+"ignore";
+
 export type CueSource = {
 	fileName: string,
 	status: CueStatus,
@@ -330,6 +332,17 @@ export type CueSource = {
 };
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
+
+export type DeferredWriteSnapshot = {
+	path: string,
+	state: DeferredWriteState,
+};
+
+export type DeferredWriteState =
+/**  An accepted export is still reading the file. */
+"waiting" | "applied" |
+/**  The write failed; the edit is still pending and Save retries it. */
+"failed";
 
 /**  Which linked encoders this build offers, and what Auto resolves to. */
 export type EncoderAvailability = {
@@ -427,18 +440,29 @@ export type FaacProfileCapability = {
 	explicitSampleRates: number[],
 };
 
-/**  Summary information for a file list */
-export type FileListInfo = {
-	/**  List of validated audio files */
-	files: AudioFile[],
-	/**  Total duration in seconds */
-	totalDuration: number,
-	/**  Total size in bytes */
-	totalSize: number,
-	/**  Number of valid files */
-	validCount: number,
-	/**  Number of invalid files */
-	invalidCount: number,
+/**
+ *  Keep restores the hydrated value; Blank clears the field on every selected
+ *  title.
+ */
+export type FieldAction = "keep" | "blank";
+
+export type FieldSnapshot = {
+	field: MetadataField,
+	value: string,
+	action: FieldAction,
+	dirty: boolean,
+	/**  The selected titles disagree on this field. */
+	mixed: boolean,
+};
+
+export type FormMode = "single" | "multi";
+
+/**  What a starting frontend needs: who it is to this host, and the state to show. */
+export type FrontendAttachment = {
+	/**  Sent with every intent so intents from an earlier frontend are refused. */
+	client: number,
+	session: SessionUpdate,
+	settings: SettingsSnapshot,
 };
 
 export type FrontendLogEntry = {
@@ -453,6 +477,61 @@ export type IncompatibleEncoderDefaults = {
 	scope: EncoderDefaultsScope,
 	encoderType: string,
 };
+
+/**  Why the last import added nothing. Hosts word these for the user. */
+export type InputNotice =
+/**  The order is locked while processing; nothing can be added. */
+{ kind: "orderLocked" } | { kind: "noSupportedFiles"; formatsText: string } |
+/**  Every analyzed file was already in the list. */
+{ kind: "duplicatesOnly" } | { kind: "discoveryFailed"; error: AppErrorEnvelope } | { kind: "analysisFailed"; error: AppErrorEnvelope };
+
+export type LookupApplyMode =
+/**  Apply to the current title and stay on it. */
+"current" |
+/**  Apply, then move to the next queued title and search for it. */
+"queue";
+
+export type LookupQueuePosition = {
+	index: number,
+	total: number,
+	path: string,
+};
+
+export type LookupSnapshot = {
+	revision: number,
+	open: boolean,
+	/**
+	 *  Search criteria stay separate so each can be seen and fixed; they are
+	 *  joined only when a search runs.
+	 */
+	titleQuery: string,
+	authorQuery: string,
+	source: LookupSource,
+	applyMode: LookupApplyMode,
+	replaceCover: boolean,
+	status: LookupStatus | null,
+	queuePosition: LookupQueuePosition | null,
+	results: OnlineMetadataResult[],
+	isQueueMode: boolean,
+	hasSearched: boolean,
+};
+
+export type LookupSource =
+/**  Audnexus and Open Library together. */
+"auto" | "audnexus" | "openlibrary";
+
+/**  The lookup's last outcome. Hosts word these. */
+export type LookupStatus =
+/**  Lookup was opened with no valid title selected. */
+{ kind: "noValidTitle" } | { kind: "queryRequired" } | { kind: "searching" } | { kind: "found"; count: number;
+/**  Some lookup data was unavailable; the results shown are partial. */
+partial: boolean; after: QueueStep | null } | { kind: "searchFailed"; after: QueueStep | null } |
+/**  Apply was requested with no title queued. */
+{ kind: "noTitleQueued" } |
+/**  The title's pending edits were not accepted, so the result was not applied. */
+{ kind: "applyRejected" } | { kind: "applied"; coverFailed: boolean } | { kind: "queueComplete"; coverFailed: boolean } |
+/**  The next queued title could not be selected. */
+{ kind: "nextTitleRejected" } | { kind: "failed" };
 
 export type MaterializedSourceFile = {
 	inputId: string,
@@ -470,10 +549,20 @@ export type MaxConcurrentJobsCapabilities = {
 	fixedOptions: number[],
 };
 
-export type MetadataIntentFieldError = {
-	field: MetadataIntentValidationField,
-	code: MetadataIntentValidationCode,
-	message: string,
+/**
+ *  An editable field. Author is stored as artist, narrator as composer, and
+ *  editing the title sets the album to the same value.
+ */
+export type MetadataField = "title" | "date" | "author" | "narrator" | "series" | "seriesPart" | "subseries" | "subseriesPart" | "genre" | "description";
+
+export type MetadataFormSnapshot = {
+	mode: FormMode,
+	selectionCount: number,
+	fields: FieldSnapshot[],
+	seriesPartWarning: SeriesPartWarning | null,
+	subseriesPartWarning: SubseriesPartWarning | null,
+	/**  The first problem in the values on screen, including inherited ones. */
+	validationMessage: string | null,
 };
 
 /**
@@ -534,67 +623,34 @@ export type MetadataIntentPatch_Serialize = {
 	disk?: PatchOp<[number, number | null]>,
 };
 
-export type MetadataIntentValidationCode = "publication_date_syntax" | "series_part_contains_slash" | "subseries_part_contains_slash";
-
-export type MetadataIntentValidationField = "date" | "series_part" | "subseries_part";
-
-export type MetadataIntentValidationResult = MetadataIntentValidationResult_Serialize | MetadataIntentValidationResult_Deserialize;
-
-export type MetadataIntentValidationResult_Deserialize = {
-	isValid: boolean,
-	metadataPatch: MetadataIntentPatch_Deserialize,
-	fieldErrors: MetadataIntentFieldError[],
+export type MetadataSnapshot = {
+	revision: number,
+	form: MetadataFormSnapshot,
+	cover: CoverSnapshot,
+	/**  The album sort processing would write for the values on screen. */
+	albumSort: string | null,
+	saveInProgress: boolean,
+	status: MetadataStatus | null,
+	hasPendingEdits: boolean,
+	deferredWrites: DeferredWriteSnapshot[],
 };
-
-export type MetadataIntentValidationResult_Serialize = {
-	isValid: boolean,
-	metadataPatch: MetadataIntentPatch_Serialize,
-	fieldErrors: MetadataIntentFieldError[],
-};
-
-export type MetadataLookupDiagnostic = {
-	kind: MetadataLookupDiagnosticKind,
-	source: MetadataSource | null,
-	message: string,
-};
-
-export type MetadataLookupDiagnosticKind = "asinDirectLookupUnavailableTextSearchUsed" | "sourceFailedPartialResults" | "audnexusDetailUnavailableAudibleOnlyResult";
-
-export type MetadataLookupResponse = {
-	results: OnlineMetadataResult[],
-	diagnostics: MetadataLookupDiagnostic[],
-};
-
-export type MetadataSaveBatchResult = {
-	summary: OperationResultSummary,
-	results: MetadataSaveResultEntry[],
-};
-
-export type MetadataSaveRequest = MetadataSaveRequest_Serialize | MetadataSaveRequest_Deserialize;
-
-export type MetadataSaveRequest_Deserialize = {
-	filePath: string,
-	metadataPatch: MetadataIntentPatch_Deserialize,
-};
-
-export type MetadataSaveRequest_Serialize = {
-	filePath: string,
-	metadataPatch: MetadataIntentPatch_Serialize,
-};
-
-/**
- *  Per-file outcome the frontend uses to clear or retain drafts. The reason
- *  for each outcome is the operation child's terminal message in Work Center.
- */
-export type MetadataSaveResultEntry = {
-	inputIndex: number,
-	filePath: string,
-	status: MetadataSaveResultStatus,
-};
-
-export type MetadataSaveResultStatus = "success" | "cancelled" | "failed";
 
 export type MetadataSource = "audnexus" | "openlibrary";
+
+/**  Why the last metadata action ended the way it did. Hosts word these. */
+export type MetadataStatus =
+/**  The edits on screen were not accepted, so the selection did not change. */
+{ kind: "draftInvalid"; message: string } |
+/**  A preview run is using the files. */
+{ kind: "saveBlockedByPreview" } | { kind: "saveAlreadyInProgress" } | { kind: "preparingSave" } | { kind: "saveInvalid" } | { kind: "noPendingChanges" } |
+/**  Only grouped titles have edits; those are written with their output. */
+{ kind: "groupedEditsKept" } | { kind: "saveComplete"; succeeded: number; failed: number; cancelled: number;
+/**  Local sources an export is still reading; written when it finishes. */
+waiting: number;
+/**  Temporary downloads an export is reading; never written. */
+held: number } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope };
+
+export type MoveDirection = "up" | "down";
 
 export type NamingPreset = "absDefault" | "customTemplate";
 
@@ -877,6 +933,9 @@ export type QueueItem = {
 	file_path: string,
 };
 
+/**  What happened to the previous queued title before this search ran. */
+export type QueueStep = "applied" | "appliedWithoutCover" | "skipped";
+
 export type RemoteAccountStatus = "connected" | "needsAuth" | "error";
 
 export type RemoteAcquisitionFailureKind = "authRequired" | "providerPrivateProtocolFailed" | "protectedUnsupported" | "downloadFailed" | "materializationFailed" |
@@ -1025,6 +1084,126 @@ export type SampleRateConfig =
 /**  Explicit sample rate in Hz */
 { explicit: number };
 
+export type SelectionModifiers = {
+	multi: boolean,
+	range: boolean,
+};
+
+/**  Which titles are selected, as positions in [`TitlesSnapshot::files`]. */
+export type SelectionSnapshot = {
+	revision: number,
+	selectedIndices: number[],
+	selectedAnchor: number | null,
+};
+
+/**  Non-blocking advice about the book number. Hosts word these. */
+export type SeriesPartWarning = { kind: "invalid"; message: string } | { kind: "matchesSubseriesPart" } | { kind: "missingBookNumber" };
+
+/**  Something the user asked the session to do. */
+export type SessionIntent =
+/**
+ *  Discovers and analyzes audio under `paths` and adds new titles, each
+ *  taking `default_audio` as its audio request.
+ */
+{ kind: "import"; paths: string[]; defaultAudio: TitleAudioRequest } |
+/**  Imports the files the operating system asked ABB to open. */
+{ kind: "importOpened"; defaultAudio: TitleAudioRequest } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; index: number } | { kind: "clearAll" } | { kind: "moveFile"; index: number; direction: MoveDirection } | { kind: "reorderFiles"; from: number; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "setOrderLocked"; locked: boolean } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } | { kind: "setAudioRequest"; titleId: string; request: TitleAudioRequest } |
+/**  Returns the session to empty. */
+{ kind: "reset" } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
+/**  Stages the edits on screen so processing can take them. */
+{ kind: "stageSelection" } |
+/**  Writes every pending edit that can be written now. */
+{ kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
+
+/**  Whether an intent took effect. Details a user needs are in the snapshot. */
+export type SessionOutcome = { kind: "applied" } |
+/**
+ *  The edits on screen were not accepted, so nothing changed. `message`
+ *  is absent when a save in progress is what blocked the change.
+ */
+{ kind: "draftRejected"; message: string | null } |
+/**  There are edits and no valid title to carry them. */
+{ kind: "noTarget" } | { kind: "coverLoadFailed" } |
+/**  A newer request or a reset replaced this one before it finished. */
+{ kind: "superseded" };
+
+export type SessionReply = {
+	outcome: SessionOutcome,
+	/**  What changed since the intent was received. */
+	update: SessionUpdate,
+};
+
+/**
+ *  Everything that changed since a revision. A part is present only when it
+ *  changed; each part carries the revision of its own last change, so a host
+ *  keeps whichever copy of a part is newest.
+ */
+export type SessionUpdate = {
+	revision: number,
+	titles: TitlesSnapshot | null,
+	selection: SelectionSnapshot | null,
+	metadata: MetadataSnapshot | null,
+	lookup: LookupSnapshot | null,
+};
+
+/**
+ *  What changed in the working session without the frontend asking, or
+ *  before a change it asked for finished.
+ */
+export type SessionUpdateEvent = SessionUpdate;
+
+/**  Something the user asked of the settings. */
+export type SettingsIntent =
+/**
+ *  Records defaults a panel has accepted. They stay in effect even when
+ *  the write fails; the snapshot then reports the failure for retry.
+ */
+{ kind: "remember"; encoderDefaults: EncoderDefaults | null; outputDefaults: OutputDefaults | null; defaultAcquisitionLane: AcquisitionLane | null } |
+/**  Changes how many titles export at once. Refused while jobs run. */
+{ kind: "setConcurrency"; preference: ConcurrencyPreference } | { kind: "setKeepAwake"; enabled: boolean } | { kind: "setStartupBehavior"; behavior: StartupBehavior } |
+/**  Captures the current defaults as the ones a later launch starts from. */
+{ kind: "pinCurrentDefaults" } |
+/**  Writes accepted changes that an earlier write failed to save. */
+{ kind: "retry" } |
+/**  Returns every setting to its default. Refused while exports run. */
+{ kind: "reset" } |
+/**  Applies a reviewed recovery of settings this version cannot read. */
+{ kind: "recover"; expected: AppSettingsRecoveryPlan } |
+/**  Reads the saved settings again after a failed load. */
+{ kind: "reload" };
+
+export type SettingsOutcome = { kind: "applied" } |
+/**  Nothing changed. */
+{ kind: "rejected"; error: AppErrorEnvelope } |
+/**  The saved settings were recovered; the original file is in `backup_file_name`. */
+{ kind: "recovered"; backupFileName: string };
+
+export type SettingsReply = {
+	outcome: SettingsOutcome,
+	snapshot: SettingsSnapshot,
+};
+
+export type SettingsSnapshot = {
+	revision: number,
+	/**  The settings in effect. Absent while the saved file cannot be read. */
+	settings: AppSettings | null,
+	/**  Why the saved file could not be read. */
+	loadError: AppErrorEnvelope | null,
+	/**  A recovery the user may apply to make the saved file readable. */
+	recovery: AppSettingsRecoveryPlan | null,
+	/**  Why accepted changes are not on disk yet. Absent when all are saved. */
+	saveError: AppErrorEnvelope | null,
+	concurrency: ConcurrencySnapshot,
+	/**
+	 *  The defaults a host shows at launch: the pinned ones when the user
+	 *  chose that and has pinned some, otherwise the last used.
+	 */
+	startupDefaults: PinnedDefaults | null,
+	defaultAcquisitionLane: AcquisitionLane,
+};
+
+export type SortDirection = "none" | "ascending" | "descending";
+
 /**
  *  What launch hydration restores into the panels. The panels always keep
  *  auto-persisting the top-level (last-used) values; this only chooses the
@@ -1056,6 +1235,8 @@ export type SubmitProcessingOperationRequest_Serialize = {
 	/**  Names the submitted books so concurrent operations stay distinguishable. */
 	title: string,
 };
+
+export type SubseriesPartWarning = { kind: "invalid"; message: string } | { kind: "missingNumber" };
 
 export type SupplementalAsset = {
 	assetId: string,
@@ -1110,6 +1291,24 @@ export type TitleAudioRequest = {
 export type TitleSource = {
 	path: string,
 	inputId: string | null,
+};
+
+/**
+ *  The output titles as a host sees them. Selection travels separately
+ *  because it changes far more often than the titles do.
+ */
+export type TitlesSnapshot = {
+	revision: number,
+	files: AudioFile[],
+	/**  Ordered sources for grouped titles, keyed by the title's identity. */
+	titleSourcesByIdentity: { [key in string]: AudioFile[] },
+	/**  Grouped titles whose sources disagreed on audio handling. */
+	audioChoiceRequired: string[],
+	sortDirection: SortDirection,
+	orderLocked: boolean,
+	notice: InputNotice | null,
+	orderDiffersFromImport: boolean,
+	audioRequestsByIdentity: { [key in string]: TitleAudioRequest },
 };
 
 export type WorkOperationListSnapshotEvent = {

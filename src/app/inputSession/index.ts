@@ -14,5 +14,5 @@ export {
 	resolveFileListNavigationTarget,
 } from './keyboardNavigation';
 export { nativeDropTargetAtPoint } from './nativeIngress';
-export { toInspectorView, toInspectorViewFromInput } from './inspector';
+export { toInspectorViewFromInput } from './inspector';
 export type { InspectorView } from './inspector';

@@ -5,9 +5,13 @@
 
 pub mod commands;
 mod events;
+mod intent_order;
 pub mod ipc_contract;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{Emitter, LogicalSize, Manager, Size, WebviewWindow};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
 const STARTUP_MAX_MONITOR_RATIO: f64 = 0.94;
 const STARTUP_TARGET_ASPECT_RATIO: f64 = 16.0 / 10.0;
@@ -101,6 +105,48 @@ fn start_engine(app: &tauri::App) -> abb_engine::Result<abb_engine::Engine> {
     })
 }
 
+/// Set once the user chose to quit although metadata saves were still waiting.
+#[derive(Default)]
+struct QuitConfirmed(AtomicBool);
+
+/// Asks before quitting while metadata saves wait for exports to finish;
+/// quitting would drop them. Returns whether the quit must be held for the
+/// answer.
+fn hold_quit_for_waiting_saves(app: &tauri::AppHandle) -> bool {
+    let Some(engine) = app.try_state::<abb_engine::Engine>() else {
+        return false;
+    };
+    if app.state::<QuitConfirmed>().0.load(Ordering::SeqCst) {
+        return false;
+    }
+    let waiting = engine.waiting_metadata_writes().len();
+    if waiting == 0 {
+        return false;
+    }
+    let files = if waiting == 1 { "file" } else { "files" };
+    let app = app.clone();
+    app.dialog()
+        .message(format!(
+            "Metadata changes for {waiting} {files} are waiting for exports to finish. \
+             Quitting now discards those saves."
+        ))
+        .title("Metadata saves are still waiting")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Quit Anyway".to_string(),
+            "Keep Open".to_string(),
+        ))
+        .show({
+            let app = app.clone();
+            move |quit| {
+                if quit {
+                    app.state::<QuitConfirmed>().0.store(true, Ordering::SeqCst);
+                    app.exit(0);
+                }
+            }
+        });
+    true
+}
+
 /// Hands OS-opened files to the engine and tells the frontend to collect them.
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
 fn queue_opened_urls(app: &tauri::AppHandle, urls: Vec<tauri::Url>) {
@@ -149,6 +195,8 @@ pub fn run() {
                 abb_engine::ffmpeg_build_identity()
             );
             app.manage(start_engine(app)?);
+            app.manage(QuitConfirmed::default());
+            app.manage(commands::FrontendLink::default());
 
             if let Some(main_window) = app.get_webview_window("main") {
                 if let Err(error) = configure_startup_window(&main_window) {
@@ -163,11 +211,19 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-            if let tauri::RunEvent::Opened { urls } = event {
-                queue_opened_urls(app, urls);
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { api, .. } if hold_quit_for_waiting_saves(app) => {
+                api.prevent_exit();
             }
+            tauri::RunEvent::WindowEvent {
+                event: tauri::WindowEvent::CloseRequested { api, .. },
+                ..
+            } if hold_quit_for_waiting_saves(app) => {
+                api.prevent_close();
+            }
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            tauri::RunEvent::Opened { urls } => queue_opened_urls(app, urls),
+            _ => {}
         });
 }
 
