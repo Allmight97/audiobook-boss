@@ -6,7 +6,7 @@ use abb_engine::{AppError, AppErrorEnvelope};
 use serde::Serialize;
 
 use crate::commands::{CommandResult, EngineState};
-use crate::intent_order::IntentOrder;
+use crate::intent_order::{IntentOrder, Refused};
 
 /// Orders the attached frontend's intents. Session and settings intents are
 /// numbered separately because they change separate state.
@@ -29,10 +29,16 @@ pub struct FrontendAttachment {
     pub settings: SettingsSnapshot,
 }
 
-fn replaced() -> AppErrorEnvelope {
-    AppErrorEnvelope::from(&AppError::InvalidInput(
-        "This window was replaced by a newer one; its request was not applied.".to_string(),
-    ))
+fn refused(reason: Refused) -> AppErrorEnvelope {
+    let message = match reason {
+        Refused::Replaced => {
+            "This window was replaced by a newer one; its request was not applied."
+        }
+        Refused::Late => {
+            "This request arrived after later ones had already run, so it was not applied."
+        }
+    };
+    AppErrorEnvelope::from(&AppError::InvalidInput(message.to_string()))
 }
 
 /// Attaches a starting frontend and returns the whole session and settings.
@@ -65,11 +71,7 @@ pub async fn session_dispatch(
     intent: SessionIntent,
 ) -> CommandResult<SessionReply> {
     let run = {
-        let _turn = link
-            .session
-            .turn(client, sequence)
-            .await
-            .ok_or_else(replaced)?;
+        let _turn = link.session.turn(client, sequence).await.map_err(refused)?;
         engine.session_begin(intent)
     };
     Ok(run.finish().await)
@@ -90,7 +92,7 @@ pub async fn settings_dispatch(
         .settings
         .turn(client, sequence)
         .await
-        .ok_or_else(replaced)?;
+        .map_err(refused)?;
     Ok(engine.settings_dispatch(intent).await)
 }
 

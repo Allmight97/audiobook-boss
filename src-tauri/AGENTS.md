@@ -14,7 +14,9 @@ the engine: `crates/abb-engine/AGENTS.md`.
   frontend numbers each session and settings intent and `intent_order.rs`
   runs each one after all earlier ones. `attach_frontend` starts a new
   numbering; intents from a replaced frontend are refused. An intent stops
-  waiting for a missing earlier one after `MISSING_INTENT_WAIT`. Session and
+  waiting for a missing earlier one after `MISSING_INTENT_WAIT`; if the
+  missing one arrives after that, it is refused (`Refused::Late`) rather than
+  applied out of order. Session and
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.

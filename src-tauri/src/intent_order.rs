@@ -33,6 +33,16 @@ impl Default for IntentOrder {
     }
 }
 
+/// Why an intent did not get a turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refused {
+    /// It came from a frontend that is no longer attached.
+    Replaced,
+    /// Later intents already ran without it, so running it now would apply
+    /// it out of order.
+    Late,
+}
+
 /// One intent's turn. The next intent may go once this is dropped.
 pub struct Turn<'a> {
     order: &'a IntentOrder,
@@ -59,9 +69,8 @@ impl IntentOrder {
         self.position.send_replace(Position { client, next: 0 });
     }
 
-    /// Waits until it is `sequence`'s turn. Returns `None` for an intent from
-    /// a frontend that is no longer attached.
-    pub async fn turn(&self, client: u64, sequence: u64) -> Option<Turn<'_>> {
+    /// Waits until it is `sequence`'s turn.
+    pub async fn turn(&self, client: u64, sequence: u64) -> Result<Turn<'_>, Refused> {
         let mut positions = self.position.subscribe();
         let arrived = tokio::time::timeout(
             MISSING_INTENT_WAIT,
@@ -69,7 +78,8 @@ impl IntentOrder {
         )
         .await;
         let position = match arrived {
-            Ok(position) => *position.ok()?,
+            Ok(Ok(position)) => *position,
+            Ok(Err(_)) => return Err(Refused::Replaced),
             Err(_) => {
                 log::warn!("Intent {sequence} ran without an earlier intent that never arrived");
                 self.position.send_if_modified(|position| {
@@ -82,7 +92,13 @@ impl IntentOrder {
                 *self.position.borrow()
             }
         };
-        (position.client == client).then_some(Turn {
+        if position.client != client {
+            return Err(Refused::Replaced);
+        }
+        if position.next > sequence {
+            return Err(Refused::Late);
+        }
+        Ok(Turn {
             order: self,
             client,
             sequence,
@@ -106,7 +122,7 @@ mod tests {
             let order = Arc::clone(&order);
             let ran = Arc::clone(&ran);
             tokio::spawn(async move {
-                let turn = order.turn(1, sequence).await.expect("attached frontend");
+                let turn = order.turn(1, sequence).await.expect("its turn");
                 ran.lock().expect("ran").push(sequence);
                 drop(turn);
             })
@@ -123,13 +139,16 @@ mod tests {
         let order = IntentOrder::default();
         order.attach(1);
 
-        // Intent 0 is never delivered.
+        // Intent 0 is not delivered in time.
         drop(order.turn(1, 1).await.expect("runs after the wait"));
 
         // Later intents are not delayed again.
         let started = tokio::time::Instant::now();
         drop(order.turn(1, 2).await.expect("next intent"));
         assert_eq!(started.elapsed(), std::time::Duration::ZERO);
+
+        // Intent 0 finally arrives; running it now would undo 1 and 2.
+        assert_eq!(order.turn(1, 0).await.err(), Some(super::Refused::Late));
     }
 
     #[tokio::test]
@@ -138,13 +157,16 @@ mod tests {
         order.attach(1);
         let late = tokio::spawn({
             let order = Arc::clone(&order);
-            async move { order.turn(1, 3).await.is_some() }
+            async move { order.turn(1, 3).await.err() }
         });
         tokio::task::yield_now().await;
 
         order.attach(2);
 
-        assert!(!late.await.expect("late intent settles"));
-        assert!(order.turn(2, 0).await.is_some());
+        assert_eq!(
+            late.await.expect("late intent settles"),
+            Some(super::Refused::Replaced)
+        );
+        assert!(order.turn(2, 0).await.is_ok());
     }
 }

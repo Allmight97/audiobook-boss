@@ -262,39 +262,48 @@ impl SettingsRuntime {
                 encoder_defaults,
                 output_defaults,
                 default_acquisition_lane,
-            } => self.accept(
-                state,
-                AppSettingsPatch {
-                    encoder_defaults,
-                    output_defaults,
-                    default_acquisition_lane,
-                    ..Default::default()
-                },
-            ),
+            } => {
+                self.accept(
+                    state,
+                    AppSettingsPatch {
+                        encoder_defaults,
+                        output_defaults,
+                        default_acquisition_lane,
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
             SettingsIntent::SetConcurrency { preference } => {
                 self.set_concurrency(state, preference).await
             }
-            SettingsIntent::SetKeepAwake { enabled } => self.write_now(
-                state,
-                AppSettingsPatch {
-                    keep_awake_while_working: Some(enabled),
-                    ..Default::default()
-                },
-            ),
-            SettingsIntent::SetStartupBehavior { behavior } => self.write_now(
-                state,
-                AppSettingsPatch {
-                    startup_behavior: Some(behavior),
-                    ..Default::default()
-                },
-            ),
-            SettingsIntent::PinCurrentDefaults => self.pin_current_defaults(state),
+            SettingsIntent::SetKeepAwake { enabled } => {
+                self.write_now(
+                    state,
+                    AppSettingsPatch {
+                        keep_awake_while_working: Some(enabled),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
+            SettingsIntent::SetStartupBehavior { behavior } => {
+                self.write_now(
+                    state,
+                    AppSettingsPatch {
+                        startup_behavior: Some(behavior),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
+            SettingsIntent::PinCurrentDefaults => self.pin_current_defaults(state).await,
             SettingsIntent::Retry => {
-                self.write_unsaved(state);
+                self.write_unsaved(state).await;
                 SettingsOutcome::Applied
             }
             SettingsIntent::Reset => self.reset(state).await,
-            SettingsIntent::Recover { expected } => self.recover(state, expected),
+            SettingsIntent::Recover { expected } => self.recover(state, expected).await,
             SettingsIntent::Reload => {
                 if state.accepted.is_none() {
                     state.load(&self.inner.config_dir);
@@ -307,7 +316,7 @@ impl SettingsRuntime {
 
     /// Puts `patch` in effect, then tries to save it. A failed write leaves
     /// it in effect and unsaved.
-    fn accept(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
+    async fn accept(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
         if let Some(accepted) = &state.accepted {
             match accepted.clone().merge(patch.clone()) {
                 Ok(next) => state.accepted = Some(next),
@@ -315,16 +324,32 @@ impl SettingsRuntime {
             }
         }
         state.unsaved.absorb(patch);
-        self.write_unsaved(state);
+        self.write_unsaved(state).await;
         SettingsOutcome::Applied
     }
 
-    fn write_unsaved(&self, state: &mut State) {
+    /// Runs settings file I/O on a blocking thread; the caller still holds
+    /// the settings turn, so writes stay in order.
+    async fn on_disk<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(&std::path::Path) -> crate::errors::Result<T> + Send + 'static,
+    ) -> crate::errors::Result<T> {
+        let config_dir = self.inner.config_dir.clone();
+        tokio::task::spawn_blocking(move || work(&config_dir))
+            .await
+            .map_err(|error| AppError::General(format!("Settings write failed: {error}")))?
+    }
+
+    async fn write_unsaved(&self, state: &mut State) {
         if state.unsaved.is_empty() {
             state.save_error = None;
             return;
         }
-        match update_app_settings(&self.inner.config_dir, state.unsaved.clone()) {
+        let unsaved = state.unsaved.clone();
+        match self
+            .on_disk(move |dir| update_app_settings(dir, unsaved))
+            .await
+        {
             Ok(settings) => {
                 state.accepted = Some(settings);
                 state.unsaved = AppSettingsPatch::default();
@@ -339,10 +364,13 @@ impl SettingsRuntime {
 
     /// Applies `patch` only if it reaches disk, together with anything still
     /// unsaved.
-    fn write_now(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
+    async fn write_now(&self, state: &mut State, patch: AppSettingsPatch) -> SettingsOutcome {
         let mut write = state.unsaved.clone();
         write.absorb(patch);
-        match update_app_settings(&self.inner.config_dir, write) {
+        match self
+            .on_disk(move |dir| update_app_settings(dir, write))
+            .await
+        {
             Ok(settings) => {
                 state.accepted = Some(settings);
                 state.unsaved = AppSettingsPatch::default();
@@ -389,11 +417,12 @@ impl SettingsRuntime {
                 ..Default::default()
             },
         )
+        .await
     }
 
     /// Pinning captures what is on disk, so unsaved changes must save first.
-    fn pin_current_defaults(&self, state: &mut State) -> SettingsOutcome {
-        self.write_unsaved(state);
+    async fn pin_current_defaults(&self, state: &mut State) -> SettingsOutcome {
+        self.write_unsaved(state).await;
         if let Some(error) = &state.save_error {
             return rejected(&AppError::InvalidInput(format!(
                 "Save current settings before pinning defaults. {}",
@@ -421,6 +450,7 @@ impl SettingsRuntime {
                 ..Default::default()
             },
         )
+        .await
     }
 
     /// Resets saved settings and returns concurrency to automatic. A failed
@@ -435,7 +465,7 @@ impl SettingsRuntime {
                     .to_string(),
             ));
         }
-        match reset_app_settings(&self.inner.config_dir) {
+        match self.on_disk(reset_app_settings).await {
             Ok(settings) => {
                 *state = State {
                     revision: state.revision,
@@ -459,8 +489,15 @@ impl SettingsRuntime {
 
     /// Applies the reviewed recovery, then saves what the session had
     /// accepted while the file was unreadable.
-    fn recover(&self, state: &mut State, expected: AppSettingsRecoveryPlan) -> SettingsOutcome {
-        let result = match recover_app_settings(&self.inner.config_dir, expected) {
+    async fn recover(
+        &self,
+        state: &mut State,
+        expected: AppSettingsRecoveryPlan,
+    ) -> SettingsOutcome {
+        let result = match self
+            .on_disk(move |dir| recover_app_settings(dir, expected))
+            .await
+        {
             Ok(result) => result,
             Err(error) => return rejected(&error),
         };
@@ -468,7 +505,7 @@ impl SettingsRuntime {
         state.load_error = None;
         state.recovery = None;
         self.apply_to_runtime(state);
-        self.write_unsaved(state);
+        self.write_unsaved(state).await;
         SettingsOutcome::Recovered {
             backup_file_name: result.backup_file_name,
         }
