@@ -66,7 +66,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	let isDragOver = false;
 	let supportText = DEFAULT_SUPPORT_TEXT;
 	// A title's audio request as just chosen, shown until the engine confirms
-	// it. PR 2 removes this with the encoding owner's synchronous read.
+	// it. It goes when encoding moves into the engine.
 	const chosenAudio = new Map<string, { readonly request: TitleAudioRequest }>();
 	// Readers compare requests by identity to decide whether to re-plan, so a
 	// request keeps one object while its content stays the same.
@@ -265,7 +265,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			isDragOver = false;
 			supportText = DEFAULT_SUPPORT_TEXT;
 			changed();
-			link.post({ kind: 'reset' });
+			// The engine's session outlives this view; a new frontend attaches to it.
 		},
 	};
 }

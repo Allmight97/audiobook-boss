@@ -269,7 +269,7 @@ enum Rest {
     },
     CoverLoad {
         source: CoverSource,
-        started: (u64, u64),
+        started: (u64, u64, u64),
     },
     LookupSearch {
         request: u64,
@@ -297,6 +297,7 @@ impl SessionRun {
     /// it began.
     pub async fn finish(self) -> SessionReply {
         let session = self.session;
+        let waited = !matches!(self.rest, Rest::Done(_));
         let outcome = match self.rest {
             Rest::Done(outcome) => outcome,
             Rest::Reads(bound) => {
@@ -310,13 +311,15 @@ impl SessionRun {
             } => session.import(paths, default_audio, resets).await,
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
-            Rest::LookupSearch { request } => {
-                session.publish();
-                session.lookup_search(request, None).await
-            }
+            Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
             Rest::LookupAdvance { request, step } => session.lookup_advance(request, step).await,
         };
+        // Other hosts, and a frontend that attached while this ran, learn
+        // the result here; the caller also gets it in the reply.
+        if waited {
+            session.publish();
+        }
         let update = session.lock().update_since(Some(self.since));
         SessionReply { outcome, update }
     }
@@ -425,6 +428,10 @@ impl Session {
                 paths,
                 default_audio,
             } => self.begin_import(paths, default_audio),
+            // Opened files stay queued while the list is locked, for a retry.
+            I::ImportOpened { .. } if self.lock().working_set.order_locked() => {
+                Rest::Done(self.import_failed(InputNotice::OrderLocked))
+            }
             I::ImportOpened { default_audio } => match self.inner.deps.opened_audio.take_paths() {
                 Ok(paths) if paths.is_empty() => Rest::Done(SessionOutcome::Applied),
                 Ok(paths) => self.begin_import(paths, default_audio),
@@ -595,32 +602,41 @@ impl Session {
         resets: u64,
     ) -> SessionOutcome {
         let _in_order = self.inner.imports.lock().await;
+        // A Reset since this import began drops it, success or failure.
+        let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
+        let failed = |notice| {
+            if superseded() {
+                SessionOutcome::Superseded
+            } else {
+                self.import_failed(notice)
+            }
+        };
 
         let inputs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
         let discovered = blocking(move || audio::discover_audio_import_paths(&inputs)).await;
         let discovered = match discovered {
             Ok(discovered) => discovered,
             Err(error) => {
-                return self.import_failed(InputNotice::DiscoveryFailed {
+                return failed(InputNotice::DiscoveryFailed {
                     error: AppErrorEnvelope::from(&error),
                 })
             }
         };
         if discovered.is_empty() {
-            return self.import_failed(InputNotice::NoSupportedFiles {
+            return failed(InputNotice::NoSupportedFiles {
                 formats_text: audio::supported_audio_import_metadata().formats_text,
             });
         }
         let analyzed = match blocking(move || audio::get_file_list_info(&discovered)).await {
             Ok(analyzed) => analyzed,
             Err(error) => {
-                return self.import_failed(InputNotice::AnalysisFailed {
+                return failed(InputNotice::AnalysisFailed {
                     error: AppErrorEnvelope::from(&error),
                 })
             }
         };
 
-        if self.inner.resets.load(Ordering::SeqCst) != resets {
+        if superseded() {
             return SessionOutcome::Superseded;
         }
         let bound = self.transition(|state| {
@@ -647,15 +663,13 @@ impl Session {
             }
         }
         let started = self.transition(|state| {
-            if from_url {
-                state.cover_load_started();
-            }
-            (state.epoch, state.binding)
+            let request = state.begin_cover_request(from_url);
+            (state.epoch, state.binding, request)
         });
         Rest::CoverLoad { source, started }
     }
 
-    async fn load_cover(&self, source: CoverSource, started: (u64, u64)) -> SessionOutcome {
+    async fn load_cover(&self, source: CoverSource, started: (u64, u64, u64)) -> SessionOutcome {
         let from_url = matches!(source, CoverSource::Url(_));
         if from_url {
             self.publish();
@@ -667,8 +681,9 @@ impl Session {
             }
         };
         self.transition(|state| {
-            // The image was chosen for a selection that is no longer bound.
-            if (state.epoch, state.binding) != started {
+            // The image was chosen for a selection that is no longer bound,
+            // or a later choice or Clear replaced it.
+            if (state.epoch, state.binding, state.cover_request()) != started {
                 return SessionOutcome::Superseded;
             }
             let loaded = result.is_ok();
@@ -819,14 +834,17 @@ impl Session {
                 continue;
             }
             let written = self.write(&ready).await;
-            self.transition(|state| {
-                for (index, item) in ready.iter().enumerate() {
-                    let written = written
+            let results: Vec<(SaveItem, bool)> = ready
+                .into_iter()
+                .enumerate()
+                .map(|(index, item)| {
+                    let ok = written
                         .as_ref()
                         .is_ok_and(|written| written.items.get(index) == Some(&true));
-                    state.finish_deferred(item, written);
-                }
-            });
+                    (item, ok)
+                })
+                .collect();
+            self.transition(|state| state.finish_deferred(&results));
             self.publish();
         }
     }

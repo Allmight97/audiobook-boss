@@ -333,17 +333,6 @@ export type CueSource = {
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
 
-export type DeferredWriteSnapshot = {
-	path: string,
-	state: DeferredWriteState,
-};
-
-export type DeferredWriteState =
-/**  An accepted export is still reading the file. */
-"waiting" | "applied" |
-/**  The write failed; the edit is still pending and Save retries it. */
-"failed";
-
 /**  Which linked encoders this build offers, and what Auto resolves to. */
 export type EncoderAvailability = {
 	aacAtAvailable: boolean,
@@ -625,6 +614,11 @@ export type MetadataIntentPatch_Serialize = {
 
 export type MetadataSnapshot = {
 	revision: number,
+	/**
+	 *  Advances whenever the form binds to a different selection, so a host
+	 *  can tell which form its unconfirmed typing belongs to.
+	 */
+	binding: number,
 	form: MetadataFormSnapshot,
 	cover: CoverSnapshot,
 	/**  The album sort processing would write for the values on screen. */
@@ -632,7 +626,8 @@ export type MetadataSnapshot = {
 	saveInProgress: boolean,
 	status: MetadataStatus | null,
 	hasPendingEdits: boolean,
-	deferredWrites: DeferredWriteSnapshot[],
+	/**  Files with a Save waiting for the exports reading them to finish. */
+	waitingWrites: string[],
 };
 
 export type MetadataSource = "audnexus" | "openlibrary";
@@ -648,7 +643,12 @@ export type MetadataStatus =
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
 /**  Temporary downloads an export is reading; never written. */
-held: number } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope };
+held: number } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
+/**
+ *  Saves that waited for an export have run. A failed write keeps its
+ *  edit pending on a title still in the list, so Save retries it.
+ */
+{ kind: "deferredWritesFinished"; written: number; failed: number };
 
 export type MoveDirection = "up" | "down";
 

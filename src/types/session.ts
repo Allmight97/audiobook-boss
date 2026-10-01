@@ -20,7 +20,6 @@ import type { OnlineMetadataResult } from './metadata';
 export type {
 	CoverNotice,
 	CoverSnapshot,
-	DeferredWriteSnapshot,
 	FieldAction,
 	FieldSnapshot,
 	InputNotice,

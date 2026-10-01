@@ -54,6 +54,7 @@ function emptyTitles(): SessionTitles {
 function emptyMetadata(): SessionMetadata {
 	return {
 		revision: UNATTACHED,
+		binding: 0,
 		form: {
 			mode: 'single',
 			selectionCount: 0,
@@ -75,7 +76,7 @@ function emptyMetadata(): SessionMetadata {
 		saveInProgress: false,
 		status: null,
 		hasPendingEdits: false,
-		deferredWrites: [],
+		waitingWrites: [],
 	};
 }
 

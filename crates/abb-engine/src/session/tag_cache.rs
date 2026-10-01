@@ -145,14 +145,14 @@ impl TagCache {
     /// staged after `revision` was submitted keeps the whole pending patch for
     /// the next save. A read begun before the save can no longer land.
     pub(crate) fn commit_saved(&mut self, path: &Path, saved: &MetadataIntentPatch, revision: u64) {
-        let Some(pending) = self.pending.get(path) else {
-            return;
-        };
-        let unchanged_since_submit = pending.revision == revision;
         self.reads_in_flight.remove(path);
         let known = self.known.entry(path.to_path_buf()).or_default();
         *known = saved.overlay(known);
-        if unchanged_since_submit {
+        if self
+            .pending
+            .get(path)
+            .is_some_and(|pending| pending.revision == revision)
+        {
             self.pending.remove(path);
         }
     }

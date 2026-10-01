@@ -246,7 +246,7 @@ describe('app runtime', () => {
 		expect(second.lookup.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
 	});
 
-	it('dispose empties the engine session and drops view-local state', async () => {
+	it('a new runtime finds the session a disposed one left, without its view-local state', async () => {
 		const engine = createFakeEngine();
 		const first = createAppRuntime({ engine });
 		engine.loadTitles([audioFile('/books/alpha.m4b')]);
@@ -256,13 +256,13 @@ describe('app runtime', () => {
 		expect(first.input.view().fileCount).toBe(1);
 
 		first.dispose();
-		await vi.waitFor(() => expect(engine.sessionIntents).toContainEqual({ kind: 'reset' }));
 
 		const second = createAppRuntime({ engine });
 		dispose = () => second.dispose();
 		await second.initialize();
+		expect(engine.sessionIntents).not.toContainEqual({ kind: 'reset' });
 		expect(second.input.view().isDragOver).toBe(false);
-		expect(second.input.view().fileCount).toBe(0);
+		expect(second.input.view().fileCount).toBe(1);
 	});
 
 	it('publishes nothing when the engine answers after disposal', async () => {

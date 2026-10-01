@@ -13,8 +13,7 @@ use std::time::Duration;
 use abb_engine::audio::{AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
 use abb_engine::processing::ProcessPayload;
 use abb_engine::session::{
-    DeferredWriteState, MetadataField, MetadataSnapshot, MetadataStatus, SessionIntent,
-    SessionOutcome,
+    MetadataField, MetadataSnapshot, MetadataStatus, SessionIntent, SessionOutcome,
 };
 use abb_engine::work_runtime::{SubmitProcessingOperationRequest, WorkOperationStatus};
 use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig, PatchOp};
@@ -275,13 +274,14 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
             held: 0
         })
     );
-    assert_eq!(metadata.deferred_writes.len(), 1);
+    assert_eq!(metadata.waiting_writes.len(), 1);
 
     desk.wait_until("the waiting write is applied", |desk| {
-        desk.metadata()
-            .deferred_writes
-            .iter()
-            .all(|write| write.state == DeferredWriteState::Applied)
+        desk.metadata().status
+            == Some(MetadataStatus::DeferredWritesFinished {
+                written: 1,
+                failed: 0,
+            })
     })
     .await;
 
@@ -320,7 +320,7 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
             held: 1
         })
     );
-    assert!(metadata.deferred_writes.is_empty());
+    assert!(metadata.waiting_writes.is_empty());
 
     desk.wait_until("the export finishes", |desk| {
         finished(desk.export_status(&export))

@@ -51,6 +51,12 @@ pub enum MetadataStatus {
     SaveFailed {
         error: AppErrorEnvelope,
     },
+    /// Saves that waited for an export have run. A failed write keeps its
+    /// edit pending on a title still in the list, so Save retries it.
+    DeferredWritesFinished {
+        written: usize,
+        failed: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -77,27 +83,13 @@ pub struct CoverSnapshot {
     pub notice_serial: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DeferredWriteState {
-    /// An accepted export is still reading the file.
-    Waiting,
-    Applied,
-    /// The write failed; the edit is still pending and Save retries it.
-    Failed,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DeferredWriteSnapshot {
-    pub path: PathBuf,
-    pub state: DeferredWriteState,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MetadataSnapshot {
     pub revision: u64,
+    /// Advances whenever the form binds to a different selection, so a host
+    /// can tell which form its unconfirmed typing belongs to.
+    pub binding: u64,
     pub form: MetadataFormSnapshot,
     pub cover: CoverSnapshot,
     /// The album sort processing would write for the values on screen.
@@ -105,7 +97,8 @@ pub struct MetadataSnapshot {
     pub save_in_progress: bool,
     pub status: Option<MetadataStatus>,
     pub has_pending_edits: bool,
-    pub deferred_writes: Vec<DeferredWriteSnapshot>,
+    /// Files with a Save waiting for the exports reading them to finish.
+    pub waiting_writes: Vec<PathBuf>,
 }
 
 /// Everything that changed since a revision. A part is present only when it
@@ -168,8 +161,6 @@ enum DeferredPhase {
     Waiting,
     /// Taken by the deferred writer; the file is being written now.
     Writing,
-    Applied,
-    Failed,
 }
 
 #[derive(Debug)]
@@ -187,6 +178,9 @@ struct Cover {
     notice_serial: u64,
     displayed: Option<Vec<u8>>,
     image_revision: u64,
+    /// Advances with every cover choice or Clear; a load started before the
+    /// latest one is dropped when it finishes.
+    request: u64,
 }
 
 struct Parts {
@@ -228,6 +222,7 @@ impl Default for SessionState {
             selection: working_set.selection(0),
             metadata: MetadataSnapshot {
                 revision: 0,
+                binding: 0,
                 form: form.snapshot(),
                 cover: CoverSnapshot {
                     image_revision: 0,
@@ -242,7 +237,7 @@ impl Default for SessionState {
                 save_in_progress: false,
                 status: None,
                 has_pending_edits: false,
-                deferred_writes: Vec::new(),
+                waiting_writes: Vec::new(),
             },
             lookup: lookup.snapshot(0),
         };
@@ -327,6 +322,7 @@ impl SessionState {
     fn metadata_snapshot(&self, revision: u64) -> MetadataSnapshot {
         MetadataSnapshot {
             revision,
+            binding: self.binding,
             form: self.form.snapshot(),
             cover: CoverSnapshot {
                 image_revision: self.cover.image_revision,
@@ -341,20 +337,7 @@ impl SessionState {
             save_in_progress: self.save_in_progress,
             status: self.status.clone(),
             has_pending_edits: self.tags.has_pending(),
-            deferred_writes: self
-                .deferred
-                .iter()
-                .map(|write| DeferredWriteSnapshot {
-                    path: write.item.path.clone(),
-                    state: match write.phase {
-                        DeferredPhase::Waiting | DeferredPhase::Writing => {
-                            DeferredWriteState::Waiting
-                        }
-                        DeferredPhase::Applied => DeferredWriteState::Applied,
-                        DeferredPhase::Failed => DeferredWriteState::Failed,
-                    },
-                })
-                .collect(),
+            waiting_writes: self.waiting_write_paths(),
         }
     }
 
@@ -473,7 +456,12 @@ impl SessionState {
                 .collect();
             tickets.extend(paths.iter().filter_map(|path| self.tags.begin_read(path)));
         }
-        tickets.extend(self.cover_read());
+        // The cover comes from the same read when the selection asked for it.
+        if let Some(cover) = self.cover_read() {
+            if !tickets.iter().any(|ticket| ticket.path == cover.path) {
+                tickets.push(cover);
+            }
+        }
         tickets
     }
 
@@ -678,9 +666,19 @@ impl SessionState {
         self.cover.notice_serial += 1;
     }
 
-    pub(crate) fn cover_load_started(&mut self) {
-        self.cover.loading = true;
-        self.cover.notice = None;
+    /// Starts a cover load and returns its request; a later choice or Clear
+    /// supersedes it.
+    pub(crate) fn begin_cover_request(&mut self, from_url: bool) -> u64 {
+        self.cover.request += 1;
+        if from_url {
+            self.cover.loading = true;
+            self.cover.notice = None;
+        }
+        self.cover.request
+    }
+
+    pub(crate) fn cover_request(&self) -> u64 {
+        self.cover.request
     }
 
     pub(crate) fn cover_url_required(&mut self) {
@@ -718,6 +716,8 @@ impl SessionState {
         self.cover.removal_requested = true;
         self.cover.custom = false;
         self.cover.notice = None;
+        self.cover.loading = false;
+        self.cover.request += 1;
     }
 
     /// Ends a cover load that was shown as loading.
@@ -824,8 +824,11 @@ impl SessionState {
         Some(plan)
     }
 
+    /// Queues `item`, replacing an older waiting edit for the file. A write
+    /// already running stays recorded, so the file stays busy until it ends.
     fn defer(&mut self, item: SaveItem) {
-        self.deferred.retain(|write| write.item.path != item.path);
+        self.deferred
+            .retain(|write| write.item.path != item.path || write.phase == DeferredPhase::Writing);
         self.deferred.push(DeferredWrite {
             item,
             phase: DeferredPhase::Waiting,
@@ -859,10 +862,18 @@ impl SessionState {
     /// Takes the waiting writes whose files no export is reading any more.
     /// Each stays taken until `finish_deferred` reports its result.
     pub(crate) fn take_ready_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
+        let writing: HashSet<PathBuf> = self
+            .deferred
+            .iter()
+            .filter(|write| write.phase == DeferredPhase::Writing)
+            .map(|write| write.item.path.clone())
+            .collect();
         self.deferred
             .iter_mut()
             .filter(|write| {
-                write.phase == DeferredPhase::Waiting && !in_use.contains(&write.item.path)
+                write.phase == DeferredPhase::Waiting
+                    && !in_use.contains(&write.item.path)
+                    && !writing.contains(&write.item.path)
             })
             .map(|write| {
                 write.phase = DeferredPhase::Writing;
@@ -879,30 +890,51 @@ impl SessionState {
 
     /// Files with a Save accepted and not yet written.
     pub(crate) fn waiting_write_paths(&self) -> Vec<PathBuf> {
-        self.deferred
+        let mut paths: Vec<PathBuf> = self
+            .deferred
             .iter()
-            .filter(|write| matches!(write.phase, DeferredPhase::Waiting | DeferredPhase::Writing))
             .map(|write| write.item.path.clone())
-            .collect()
+            .collect();
+        paths.sort();
+        paths.dedup();
+        paths
     }
 
-    /// Records a deferred write's result. A failed write keeps the edit
-    /// pending, so the next Save retries it.
-    pub(crate) fn finish_deferred(&mut self, item: &SaveItem, written: bool) {
-        if written {
-            self.tags
-                .commit_saved(&item.path, &item.patch, item.revision);
+    /// Records what the deferred writer wrote. The title may have left the
+    /// list and come back meanwhile: a written edit still becomes the known
+    /// tags of a loaded file, and a failed one is pending again there so Save
+    /// retries it.
+    pub(crate) fn finish_deferred(&mut self, results: &[(SaveItem, bool)]) {
+        let loaded = self.working_set.source_paths();
+        let mut written_count = 0;
+        for (item, written) in results {
+            self.deferred.retain(|write| {
+                write.phase != DeferredPhase::Writing
+                    || write.item.path != item.path
+                    || write.item.revision != item.revision
+            });
+            if !loaded.contains(&item.path) {
+                // Not loaded: nothing on screen describes this file.
+            } else if *written {
+                self.tags
+                    .commit_saved(&item.path, &item.patch, item.revision);
+            } else if self.tags.pending(&item.path).is_none() {
+                self.tags.stage(&item.path, &item.patch);
+            }
+            written_count += usize::from(*written);
         }
-        if let Some(write) = self
-            .deferred
-            .iter_mut()
-            .find(|write| write.item.path == item.path && write.item.revision == item.revision)
-        {
-            write.phase = if written {
-                DeferredPhase::Applied
-            } else {
-                DeferredPhase::Failed
-            };
+        let shown = results
+            .iter()
+            .any(|(item, _)| self.bound.iter().any(|title| title.path == item.path));
+        if shown {
+            let fresh = self.form_from_known_tags();
+            self.form.rehydrate(fresh);
+        }
+        if !results.is_empty() {
+            self.status = Some(MetadataStatus::DeferredWritesFinished {
+                written: written_count,
+                failed: results.len() - written_count,
+            });
         }
     }
 

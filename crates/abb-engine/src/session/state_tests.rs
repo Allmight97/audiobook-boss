@@ -247,11 +247,34 @@ impl Desk {
 
     /// The exports reading `in_use` are all that remain; write what is free.
     fn exports_now_reading(&mut self, in_use: &HashSet<PathBuf>) {
+        let ready = self.begin_deferred(in_use);
+        self.end_deferred(ready, &[]);
+    }
+
+    /// Takes the waiting writes that are free, as the deferred writer does.
+    fn begin_deferred(&mut self, in_use: &HashSet<PathBuf>) -> Vec<SaveItem> {
         let ready = self.state.take_ready_deferred(in_use);
-        self.record_writes(&ready);
-        for item in &ready {
-            self.state.finish_deferred(item, true);
-        }
+        self.state.settle();
+        ready
+    }
+
+    /// Finishes taken writes; `fail` names files whose write fails.
+    fn end_deferred(&mut self, taken: Vec<SaveItem>, fail: &[&str]) {
+        let failing: Vec<PathBuf> = fail.iter().map(|name| path(name)).collect();
+        let results: Vec<(SaveItem, bool)> = taken
+            .into_iter()
+            .map(|item| {
+                let written = !failing.contains(&item.path);
+                (item, written)
+            })
+            .collect();
+        let saved: Vec<SaveItem> = results
+            .iter()
+            .filter(|(_, written)| *written)
+            .map(|(item, _)| item.clone())
+            .collect();
+        self.record_writes(&saved);
+        self.state.finish_deferred(&results);
         self.state.settle();
     }
 
@@ -762,7 +785,7 @@ fn a_cover_changed_while_a_save_ran_is_still_unsaved_afterward() {
 #[test]
 fn a_cover_load_failure_is_reported_and_changes_nothing() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
-    desk.state.cover_load_started();
+    desk.state.begin_cover_request(true);
     let applied = desk.state.cover_load_finished(
         true,
         Err(AppError::InvalidInput(
@@ -844,14 +867,7 @@ fn save_on_a_local_source_in_flight_waits_for_every_export_reading_it() {
 
     assert_eq!((plan.immediate.len(), plan.waiting, plan.held), (0, 1, 0));
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
-    assert_eq!(
-        desk.metadata().deferred_writes,
-        [DeferredWriteSnapshot {
-            path: path("alpha"),
-            state: DeferredWriteState::Waiting
-        }]
-    );
-    assert_eq!(desk.state.waiting_write_paths(), [path("alpha")]);
+    assert_eq!(desk.metadata().waiting_writes, [path("alpha")]);
 
     // A second, queued export still reads the file.
     desk.exports_now_reading(&reading);
@@ -859,12 +875,16 @@ fn save_on_a_local_source_in_flight_waits_for_every_export_reading_it() {
 
     desk.exports_now_reading(&HashSet::new());
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
+    let metadata = desk.metadata();
     assert_eq!(
-        desk.metadata().deferred_writes[0].state,
-        DeferredWriteState::Applied
+        metadata.status,
+        Some(MetadataStatus::DeferredWritesFinished {
+            written: 1,
+            failed: 0
+        })
     );
-    assert!(!desk.metadata().has_pending_edits);
-    assert!(desk.state.waiting_write_paths().is_empty());
+    assert!(!metadata.has_pending_edits);
+    assert!(metadata.waiting_writes.is_empty());
 }
 
 #[test]
@@ -882,7 +902,7 @@ fn save_on_a_temporary_source_in_flight_writes_no_file_and_keeps_the_edit() {
     assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Fantasy"));
     assert!(desk.written.is_empty());
     assert_eq!(desk.pending("alpha"), Some(genre_patch()));
-    assert!(desk.metadata().deferred_writes.is_empty());
+    assert!(desk.metadata().waiting_writes.is_empty());
 }
 
 #[test]
@@ -894,13 +914,74 @@ fn a_later_save_replaces_the_edit_a_waiting_write_will_apply() {
     desk.type_into(MetadataField::Author, "Edited Author");
     desk.save_during(&reading, &[], &[]);
 
+    assert_eq!(desk.metadata().waiting_writes, [path("alpha")]);
     desk.exports_now_reading(&HashSet::new());
 
-    assert_eq!(desk.metadata().deferred_writes.len(), 1);
     let on_disk = &desk.disk[&path("alpha")];
     assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
     assert_eq!(on_disk.artist.as_deref(), Some("Edited Author"));
     assert!(!desk.metadata().has_pending_edits);
+}
+
+#[test]
+fn a_save_while_a_waiting_write_runs_never_writes_the_file_alongside_it() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    let reading = HashSet::from([path("alpha")]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&reading, &[], &[]);
+    let running = desk.begin_deferred(&HashSet::new());
+    assert_eq!(running.len(), 1);
+
+    // Two more Saves while that write runs: both wait for it.
+    for author in ["First", "Second"] {
+        desk.type_into(MetadataField::Author, author);
+        let plan = desk.save_during(&HashSet::new(), &[], &[]).expect("save");
+        assert_eq!((plan.immediate.len(), plan.waiting), (0, 1));
+        assert!(desk.begin_deferred(&HashSet::new()).is_empty());
+    }
+
+    desk.end_deferred(running, &[]);
+    let next = desk.begin_deferred(&HashSet::new());
+    desk.end_deferred(next, &[]);
+    let on_disk = &desk.disk[&path("alpha")];
+    assert_eq!(on_disk.genre.as_deref(), Some("Mystery"));
+    assert_eq!(on_disk.artist.as_deref(), Some("Second"));
+    assert!(desk.metadata().waiting_writes.is_empty());
+}
+
+#[test]
+fn a_waiting_write_for_a_removed_title_reaches_it_when_it_returns() {
+    for fails in [false, true] {
+        let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+        let reading = HashSet::from([path("alpha")]);
+        desk.type_into(MetadataField::Genre, "Mystery");
+        desk.save_during(&reading, &[], &[]);
+        desk.change(|set| {
+            set.remove_file(0);
+        })
+        .expect("remove");
+        assert_eq!(desk.state.waiting_write_paths(), [path("alpha")]);
+
+        // Imported again and read while the export still holds the file.
+        desk.import(&[("alpha", None)]);
+        desk.select(&[0]).expect("select");
+        assert_eq!(desk.field(MetadataField::Genre).value, "Fantasy");
+
+        let fail: &[&str] = if fails { &["alpha"] } else { &[] };
+        let taken = desk.begin_deferred(&HashSet::new());
+        desk.end_deferred(taken, fail);
+
+        // The form follows the file: written, or still pending for Save.
+        assert_eq!(desk.field(MetadataField::Genre).value, "Mystery");
+        assert_eq!(desk.pending("alpha").is_some(), fails);
+        assert_eq!(
+            desk.metadata().status,
+            Some(MetadataStatus::DeferredWritesFinished {
+                written: usize::from(!fails),
+                failed: usize::from(fails),
+            })
+        );
+    }
 }
 
 // ---- Snapshots ----
@@ -964,8 +1045,12 @@ enum Step {
         reading: u8,
         failing: u8,
     },
-    /// Only the exports reading these files remain.
-    ExportsReading(u8),
+    /// Only the exports reading `reading` remain; waiting writes to files in
+    /// `failing` fail.
+    ExportsReading {
+        reading: u8,
+        failing: u8,
+    },
     /// A read begun now lands later, after whatever happens in between.
     BeginRead(usize),
     LandReads,
@@ -984,7 +1069,7 @@ fn step() -> impl Strategy<Value = Step> {
         (1..4u8).prop_map(Step::Cover),
         Just(Step::ClearCover),
         (0..8u8, 0..8u8).prop_map(|(reading, failing)| Step::Save { reading, failing }),
-        (0..8u8).prop_map(Step::ExportsReading),
+        (0..8u8, 0..8u8).prop_map(|(reading, failing)| Step::ExportsReading { reading, failing }),
         (0..3usize).prop_map(Step::BeginRead),
         Just(Step::LandReads),
     ]
@@ -1180,11 +1265,18 @@ impl Run {
                 }
                 self.invalidate_reads_of(&wrote);
             }
-            Step::ExportsReading(reading) => {
+            Step::ExportsReading { reading, failing } => {
                 let reading: HashSet<PathBuf> = masked(reading).into_iter().collect();
+                let failing: Vec<&str> = NAMES
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| failing & (1 << index) != 0)
+                    .map(|(_, name)| *name)
+                    .collect();
                 let disk_before = desk.disk.clone();
                 let written_before = desk.written.len();
-                desk.exports_now_reading(&reading);
+                let taken = desk.begin_deferred(&reading);
+                desk.end_deferred(taken, &failing);
                 let wrote: Vec<PathBuf> = desk.written[written_before..]
                     .iter()
                     .map(|(path, _)| path.clone())
@@ -1253,13 +1345,13 @@ proptest! {
             let pending_before = pending_by_file(&run.desk);
             let losing = matches!(
                 step,
-                Step::Save { .. } | Step::ExportsReading(_) | Step::Remove(_)
+                Step::Save { .. } | Step::ExportsReading { .. } | Step::Remove(_)
             );
             let disk_before = run.desk.disk.clone();
             // Import puts a new file on the test's disk.
             let writes = matches!(
                 step,
-                Step::Save { .. } | Step::ExportsReading(_) | Step::Import(_)
+                Step::Save { .. } | Step::ExportsReading { .. } | Step::Import(_)
             );
             run.apply(step)?;
             let desk = &mut run.desk;
@@ -1280,11 +1372,31 @@ proptest! {
                 prop_assert_eq!(&desk.disk, &disk_before);
             }
 
-            // Only loaded source files have tags or edits.
+            // Only loaded source files have tags or edits, and what the
+            // session knows of a loaded file never contradicts the file with
+            // its pending edits applied.
             let live = desk.state.working_set.source_paths();
             for name in NAMES {
-                if !live.contains(&path(name)) {
-                    prop_assert!(desk.state.known_tags(&path(name)).is_none());
+                let file = path(name);
+                let Some(known) = desk.state.known_tags(&file) else {
+                    continue;
+                };
+                prop_assert!(live.contains(&file), "{:?} has tags but is not loaded", file);
+                let disk = desk.disk.get(&file).cloned().unwrap_or_default();
+                let expected = desk
+                    .state
+                    .tags
+                    .pending(&file)
+                    .map_or(disk.clone(), |pending| pending.patch.overlay(&disk));
+                for (shown, actual) in [
+                    (&known.title, &expected.title),
+                    (&known.artist, &expected.artist),
+                    (&known.genre, &expected.genre),
+                    (&known.date, &expected.date),
+                ] {
+                    if shown.is_some() {
+                        prop_assert_eq!(shown, actual, "known tags of {:?}", file);
+                    }
                 }
             }
 

@@ -110,6 +110,28 @@ describe('metadata owner', () => {
 			error: { code: 'io_error', category: 'io', message: 'The disk is read-only.', detail: null },
 		});
 		expect(app.metadata.view().statusMessage).toBe('The disk is read-only.');
+
+		// Saves that waited for an export report how they ended.
+		engine.status({ kind: 'deferredWritesFinished', written: 1, failed: 2 });
+		expect(app.metadata.view().statusMessage).toBe(
+			'1 file saved after the export reading it finished.' +
+				' 2 files could not be saved after the export finished. Save again to retry titles still in the list.',
+		);
+	});
+
+	it('keeps typing for one title off the form of the next', async () => {
+		const app = await open();
+		engine.respond = (intent) =>
+			intent.kind === 'setField' ? new Promise<SessionOutcome>(() => undefined) : undefined;
+
+		app.metadata.setFieldValue({ inputId: 'meta-title', value: 'Typed for alpha' });
+		expect(title(app).value).toBe('Typed for alpha');
+
+		// The engine binds the form to another title before the keystroke's reply.
+		engine.change((state) => {
+			state.metadata.binding += 1;
+		});
+		expect(title(app).value).toBe('Alpha');
 	});
 
 	it('reports how staging for processing ended', async () => {

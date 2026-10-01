@@ -85,7 +85,7 @@ function statusText(status: MetadataStatus | null): string {
 		case 'draftInvalid':
 			return status.message;
 		case 'saveBlockedByPreview':
-			return 'Cannot save metadata while a job is running.';
+			return 'Cannot save metadata while a preview is running.';
 		case 'saveAlreadyInProgress':
 			return 'Save already in progress...';
 		case 'preparingSave':
@@ -113,6 +113,18 @@ function statusText(status: MetadataStatus | null): string {
 			return 'Metadata save cancelled.';
 		case 'saveFailed':
 			return toUserMessage(status.error, { fallback: 'Metadata save failed.' });
+		case 'deferredWritesFinished':
+			return (
+				waitingText(
+					status.written,
+					(files) => `${files} saved after the export reading it finished.`,
+				) +
+				waitingText(
+					status.failed,
+					(files) =>
+						`${files} could not be saved after the export finished. Save again to retry titles still in the list.`,
+				)
+			).trim();
 	}
 }
 
@@ -122,7 +134,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 	const capability: Accessor<MetadataCapability> = () => capabilityValue;
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	// Text entered and not yet confirmed by the engine, shown so typing never lags.
-	const typed = new Map<MetadataField, { readonly value: string }>();
+	// Unconfirmed typing, tied to the form it was typed into.
+	const typed = new Map<MetadataField, { readonly value: string; readonly binding: number }>();
 	// View-local cover state: none of it is session truth.
 	let isHovered = false;
 	let isDragOver = false;
@@ -208,7 +221,11 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		const metadata = link.metadata();
 		const form = toFormState(
 			metadata.form,
-			new Map([...typed].map(([field, entry]) => [field, entry.value])),
+			new Map(
+				[...typed]
+					.filter(([, entry]) => entry.binding === metadata.binding)
+					.map(([field, entry]) => [field, entry.value]),
+			),
 		);
 		return {
 			form,
@@ -246,7 +263,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 		setFieldValue(command) {
 			const field = fieldForInputId(command.inputId);
 			if (!field) return;
-			const entry = { value: command.value };
+			const entry = { value: command.value, binding: link.metadata().binding };
 			typed.set(field, entry);
 			changed();
 			link

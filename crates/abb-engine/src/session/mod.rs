@@ -21,10 +21,7 @@ pub use metadata_form::{
 };
 pub(crate) use runtime::{Session, SessionDeps};
 pub use runtime::{SessionIntent, SessionOutcome, SessionReply, SessionRun};
-pub use state::{
-    CoverNotice, CoverSnapshot, DeferredWriteSnapshot, DeferredWriteState, MetadataSnapshot,
-    MetadataStatus, SessionUpdate,
-};
+pub use state::{CoverNotice, CoverSnapshot, MetadataSnapshot, MetadataStatus, SessionUpdate};
 pub use working_set::{
     CueChoice, InputNotice, MoveDirection, SelectionModifiers, SelectionSnapshot, SortDirection,
     TitlesSnapshot,

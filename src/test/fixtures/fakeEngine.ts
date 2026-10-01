@@ -161,6 +161,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		selection: { revision: 0, selectedIndices: [], selectedAnchor: null } as SessionSelection,
 		metadata: {
 			revision: 0,
+			binding: 0,
 			form: {
 				mode: 'single',
 				selectionCount: 0,
@@ -182,7 +183,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			saveInProgress: false,
 			status: null,
 			hasPendingEdits: false,
-			deferredWrites: [],
+			waitingWrites: [],
 		} as SessionMetadata,
 		lookup: {
 			revision: 0,

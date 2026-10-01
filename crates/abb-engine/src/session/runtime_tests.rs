@@ -793,3 +793,108 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
         Some(PatchOp::Set("Mystery".to_string()))
     );
 }
+
+fn default_audio() -> TitleAudioRequest {
+    TitleAudioRequest {
+        format: AudiobookFormat::M4b,
+        intent: AudioIntent::Auto,
+        settings: None,
+        sample_rate: SampleRateConfig::Auto,
+    }
+}
+
+#[tokio::test]
+async fn opened_files_stay_queued_while_the_list_is_locked() {
+    let rig = rig();
+    let folder = tempfile::TempDir::new().expect("temp dir");
+    let opened = folder.path().join("opened.m4b");
+    std::fs::write(&opened, b"not audio").expect("write file");
+    rig.session
+        .inner
+        .deps
+        .opened_audio
+        .push_paths(vec![opened.clone()])
+        .expect("queue opened file");
+    rig.send(SessionIntent::SetOrderLocked { locked: true })
+        .await;
+
+    rig.send(SessionIntent::ImportOpened {
+        default_audio: default_audio(),
+    })
+    .await;
+
+    let titles = rig.session.snapshot().titles.expect("titles part");
+    assert_eq!(titles.notice, Some(InputNotice::OrderLocked));
+    let queued = rig
+        .session
+        .inner
+        .deps
+        .opened_audio
+        .take_paths()
+        .expect("queue");
+    assert_eq!(queued, [opened.to_string_lossy().into_owned()]);
+}
+
+#[tokio::test]
+async fn a_host_that_attached_mid_intent_learns_its_result_from_an_event() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    rig.send(SessionIntent::LookupOpen).await;
+    let answer = rig.hold_next_search();
+    let search = rig.session.begin(SessionIntent::LookupSearch);
+    let finished = tokio::spawn(search.finish());
+    tokio::task::yield_now().await;
+
+    // A new frontend attaches while the search runs, then the search answers.
+    let attached = rig.session.snapshot();
+    answer
+        .send(Ok(found(&["Dune"])))
+        .unwrap_or_else(|_| panic!("search is waiting"));
+    finished.await.expect("search finished");
+
+    let latest = rig
+        .events
+        .0
+        .lock()
+        .expect("events")
+        .iter()
+        .filter_map(|update| update.lookup.clone())
+        .max_by_key(|lookup| lookup.revision)
+        .expect("a lookup event");
+    assert!(latest.revision > attached.lookup.expect("lookup").revision);
+    assert_eq!(latest.results.len(), 1);
+}
+
+#[tokio::test]
+async fn an_import_that_fails_after_a_reset_leaves_the_new_session_alone() {
+    let rig = rig();
+    let empty = tempfile::TempDir::new().expect("temp dir");
+    let import = rig.session.begin(SessionIntent::Import {
+        paths: vec![empty.path().to_string_lossy().into_owned()],
+        default_audio: default_audio(),
+    });
+    rig.send(SessionIntent::Reset).await;
+
+    assert_eq!(import.finish().await.outcome, SessionOutcome::Superseded);
+    let titles = rig.session.snapshot().titles.expect("titles part");
+    assert_eq!(titles.notice, None);
+}
+
+#[tokio::test]
+async fn a_cover_cleared_while_loading_is_not_replaced_by_the_load() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+
+    let load = rig.session.begin(SessionIntent::LoadCoverFromUrl {
+        url: "https://example.com/cover.jpg".to_string(),
+    });
+    rig.send(SessionIntent::ClearCover).await;
+
+    assert_eq!(load.finish().await.outcome, SessionOutcome::Superseded);
+    // The title had no cover, so nothing is staged and nothing shows.
+    assert_eq!(rig.pending("alpha").and_then(|patch| patch.cover_art), None);
+    let cover = rig.metadata().cover;
+    assert!(!cover.loading && !cover.present);
+}
