@@ -127,8 +127,32 @@ describe('UI Workflow Smoke Test', () => {
 			artist: 'Old Author',
 			cover_art: [1, 1, 1],
 		});
-		engine.lookupResults = [lookupResult()];
-		engine.coverBytes = COVER_BYTES;
+		// The engine's lookup: one result, and the edits it applies.
+		engine.respond = (intent) => {
+			if (intent.kind === 'lookupOpen') {
+				engine.change((state) => {
+					state.lookup = {
+						...state.lookup,
+						open: true,
+						hasSearched: true,
+						results: [lookupResult()],
+						queuePosition: { index: 0, total: 1, path: INPUT_PATH },
+						status: { kind: 'found', count: 1, partial: false, after: null },
+					};
+				});
+				return { kind: 'applied' };
+			}
+			if (intent.kind === 'lookupApply') {
+				engine.seedField('title', 'Dune');
+				engine.seedField('author', 'Frank Herbert');
+				engine.seedCover(COVER_BYTES);
+				engine.change((state) => {
+					state.lookup = { ...state.lookup, status: { kind: 'applied', coverFailed: false } };
+				});
+				return { kind: 'applied' };
+			}
+			return undefined;
+		};
 		const runtime = createAppRuntime({ engine });
 		const user = userEvent.setup();
 		render(() => (
@@ -225,13 +249,11 @@ describe('UI Workflow Smoke Test', () => {
 			});
 			expect(engine.sessionIntents).toContainEqual({ kind: 'setIncludeYear', includeYear: true });
 			expect(engine.sessionIntents[engine.sessionIntents.length - 1]).toEqual({ kind: 'submit' });
-			// What the engine will write into the export.
-			expect(engine.pendingEdits(INPUT_PATH)).toMatchObject({
-				title: { op: 'set', value: 'Dune' },
-				artist: { op: 'set', value: 'Frank Herbert' },
-				series_part: { op: 'set', value: '1' },
-				cover_art: { op: 'set', value: COVER_BYTES },
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'lookupSetReplaceCover',
+				replace: true,
 			});
+			expect(engine.sessionIntents).toContainEqual({ kind: 'lookupApply', index: 0 });
 		} finally {
 			runtime.dispose();
 		}

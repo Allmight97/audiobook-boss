@@ -322,27 +322,7 @@ function startFakeEngine(): void {
 			selectedDecoder: 'ffmpeg',
 		}),
 	];
-	engine.lookupResults = [
-		{
-			source: 'audnexus',
-			sourceId: 'OL12345W',
-			title: 'Mock Lookup Title',
-			authors: ['Mock Author'],
-			narrators: ['Mock Narrator'],
-			series: 'Mock Series',
-			seriesPart: '1',
-			subseries: 'Mock Sub-series',
-			subseriesPart: '1',
-			description: 'Mock description from lookup source.',
-			publishedDate: '2021',
-			durationSeconds: 36000,
-			coverUrl: 'https://covers.openlibrary.org/b/id/123456-L.jpg',
-			audibleOnly: false,
-		},
-	];
 	void engine.listenSessionUpdates((update) => emitTestEvent('session-update', update));
-	// A Save in the engine runs as an operation the Work Center shows.
-	engine.afterSave = publishMockMetadataSave;
 }
 
 startFakeEngine();

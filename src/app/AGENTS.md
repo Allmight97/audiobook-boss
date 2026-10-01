@@ -76,12 +76,13 @@ not keep parallel business state.
 
 - The owner has one source of truth, one public interface, and one disposal
   path. Cross-owner reads use public strips; views render and dispatch only.
-- Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. The
-  fake mimics enough engine behavior (selection, import, grouping, staging,
-  lookup, Save) for views to render and answers submissions with
-  `answerSubmission`; those copies prove nothing about the engine. Engine rules are proved in Rust. Prefer seeding a snapshot through
-  the fake's `change` over adding behavior to it, and never add a new product
-  rule there.
+- Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. It
+  records every intent, imports and selects titles, renders the form from
+  seeded tags and typed values, and answers settings intents with a small
+  write model. It copies no engine rule: grouping, ordering, Save, lookup,
+  cover loads, and audio edits are recorded only. A test that needs the
+  engine's answer seeds it with `change`, `respond`, `answerSubmission`, or a
+  `seed*` method; never add a product rule there.
 - Add App Runtime two-instance proof when isolation changes.
 - Update a nested owner `AGENTS.md` only for non-obvious local invariants or
   public-surface changes; keep mutable execution state out of instructions.

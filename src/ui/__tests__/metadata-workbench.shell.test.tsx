@@ -49,6 +49,11 @@ function renderApp(runtime: AppRuntime) {
 	));
 }
 
+/** The last `count` intents the engine received. */
+function lastIntents(engine: FakeEngine, count: number) {
+	return engine.sessionIntents.slice(-count);
+}
+
 describe('metadata workbench shell', () => {
 	let runtime: AppRuntime | undefined;
 
@@ -100,16 +105,24 @@ describe('metadata workbench shell', () => {
 		title.focus();
 		await userEvent.clear(title);
 		await userEvent.type(title, 'Edited');
+		engine.respond = (intent) => {
+			if (intent.kind !== 'save') return undefined;
+			engine.status({
+				kind: 'saveComplete',
+				succeeded: 1,
+				failed: 0,
+				cancelled: 0,
+				waiting: 0,
+				held: 0,
+			});
+			return { kind: 'applied' };
+		};
 		await userEvent.click(screen.getByTestId('metadata-save-btn'));
-		await waitFor(() => {
-			expect(engine.saves).toEqual([
-				{
-					'/books/alpha.m4b': {
-						title: { op: 'set', value: 'Edited' },
-						album: { op: 'set', value: 'Edited' },
-					},
-				},
-			]);
+		await waitFor(() => expect(lastIntents(engine, 2)[1]).toEqual({ kind: 'save' }));
+		expect(lastIntents(engine, 2)[0]).toEqual({
+			kind: 'setField',
+			field: 'title',
+			value: 'Edited',
 		});
 		expect(title.value).toBe('Edited');
 		expect(screen.getByTestId('metadata-status-message')).toHaveTextContent(
@@ -128,11 +141,11 @@ describe('metadata workbench shell', () => {
 		const title = document.getElementById('meta-title') as HTMLInputElement;
 		await userEvent.type(title, ' Two');
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }));
-		await waitFor(() => {
-			expect(engine.saves[0]?.['/books/alpha.m4b']?.title).toEqual({
-				op: 'set',
-				value: 'Alpha Two',
-			});
-		});
+		await waitFor(() =>
+			expect(lastIntents(engine, 2)).toEqual([
+				{ kind: 'setField', field: 'title', value: 'Alpha Two' },
+				{ kind: 'save' },
+			]),
+		);
 	});
 });

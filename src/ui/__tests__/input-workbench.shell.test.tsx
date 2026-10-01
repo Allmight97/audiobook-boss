@@ -226,11 +226,12 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await runtime.input.selectAll();
-		await runtime.input.groupSelected();
-		const row = screen.getByRole('option', { name: 'valid.m4b' });
-		expect(row).toHaveClass('invalid');
-		expect(row).toHaveTextContent('Broken audio source');
+		engine.seedGroup(files);
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'valid.m4b' });
+			expect(row).toHaveClass('invalid');
+			expect(row).toHaveTextContent('Broken audio source');
+		});
 	});
 
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
@@ -241,8 +242,7 @@ describe('Solid input workbench', () => {
 			type: 'importPaths',
 			paths: files.map((file) => file.path),
 		});
-		await runtime.input.selectAll();
-		await runtime.input.groupSelected();
+		engine.seedGroup(files);
 		engine.change((state) => {
 			state.titles.companions = { [files[1]!.inputId!]: ['Guide.pdf'] };
 		});
@@ -264,11 +264,16 @@ describe('Solid input workbench', () => {
 			paths: files.map((file) => file.path),
 		});
 		engine.seedTitleAudio(files[0]!.path, titleAudioRequest({ format: 'mp3', settings: null }));
-		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
-		await runtime.input.selectFile({ index: 1, modifiers: { multi: true, range: false } });
-		await runtime.input.groupSelected();
-		runtime.input.reorderSources(files[0]!, 0, 1);
-		expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(true);
+		// The engine grouped the first two, whose audio disagrees.
+		engine.seedGroup([files[0]!, files[1]!], { choiceRequired: true });
+		engine.respond = (intent) => {
+			if (intent.kind !== 'applyDefaultAudio') return undefined;
+			engine.change((state) => {
+				state.titles.audioChoiceRequired = [];
+			});
+			return { kind: 'applied' };
+		};
+		await waitFor(() => expect(runtime!.input.audioChoiceRequired(files[0]!)).toBe(true));
 		const indicator = screen.getByRole('button', { name: 'Audio plan for part1.mp3' });
 		await user.hover(indicator);
 		const popup = await screen.findByRole('dialog', { name: 'Audio plan' });

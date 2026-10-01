@@ -137,6 +137,11 @@ describe('metadata owner', () => {
 	it('fetches the cover once per image the engine reports and shows it', async () => {
 		const app = await open();
 		const fetches = vi.spyOn(engine, 'sessionCoverArt');
+		engine.respond = (intent) => {
+			if (intent.kind !== 'loadCoverFromFile') return undefined;
+			engine.seedCover([1, 2, 3]);
+			return { kind: 'applied' };
+		};
 
 		await app.metadata.applyCoverArtDrop(['/art/readme.txt', '/art/cover.PNG']);
 
@@ -158,6 +163,11 @@ describe('metadata owner', () => {
 	it('hides a cover message after a moment', async () => {
 		const app = await open();
 		vi.useFakeTimers();
+		engine.respond = (intent) => {
+			if (intent.kind !== 'loadCoverFromUrl') return undefined;
+			engine.seedCover([1, 2, 3], { kind: 'loadedFromUrl' });
+			return { kind: 'applied' };
+		};
 
 		await app.metadata.loadCoverArtFromUrl(' https://example.com/cover.jpg ');
 

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupportedAudioImportMetadata } from '../../types/audio';
 import type { OnlineMetadataResult } from '../../types/metadata';
+import type { SessionIntent, SessionLookup } from '../../types/session';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import type { InputCapability } from '../../lib/tauri/capabilities/input';
@@ -64,6 +65,24 @@ function applyButton(): HTMLButtonElement {
 	return button;
 }
 
+/** The engine's lookup with the queue on title `index` of the two. */
+function queued(index: number, patch: Partial<SessionLookup> = {}): Partial<SessionLookup> {
+	return {
+		open: true,
+		isQueueMode: true,
+		applyMode: 'queue',
+		queuePosition: {
+			index,
+			total: 2,
+			path: index === 0 ? '/books/alpha.m4b' : '/books/beta.m4b',
+		},
+		results: [lookupResult()],
+		hasSearched: true,
+		status: { kind: 'found', count: 1, partial: false, after: null },
+		...patch,
+	};
+}
+
 describe('metadata lookup dialog', () => {
 	let runtime: AppRuntime | undefined;
 	let engine: FakeEngine;
@@ -74,13 +93,28 @@ describe('metadata lookup dialog', () => {
 		runtime = undefined;
 	});
 
-	/** Renders the app with two titles imported and selected, and the lookup open. */
-	async function openLookupOverTwoTitles(prepare: (engine: FakeEngine) => void = () => {}) {
+	/**
+	 * Renders the app with two titles imported and selected, and the lookup
+	 * open. `answers` gives the engine's lookup after each intent kind.
+	 */
+	async function openLookupOverTwoTitles(
+		answers: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {},
+	) {
 		engine = createFakeEngine();
 		engine.analyze = (paths) =>
 			paths.map((path) => audioFile(path, { tagTitle: path.includes('beta') ? 'Beta' : 'Alpha' }));
-		engine.lookupResults = [lookupResult()];
-		prepare(engine);
+		const lookupAfter: Partial<Record<SessionIntent['kind'], Partial<SessionLookup>>> = {
+			lookupOpen: queued(0),
+			...answers,
+		};
+		engine.respond = (intent) => {
+			const lookup = lookupAfter[intent.kind];
+			if (!lookup) return undefined;
+			engine.change((state) => {
+				state.lookup = { ...state.lookup, ...lookup };
+			});
+			return { kind: 'applied' };
+		};
 		const app = createAppRuntime({ input: fakeInput(), engine });
 		runtime = app;
 		render(() => (
@@ -102,7 +136,11 @@ describe('metadata lookup dialog', () => {
 	}
 
 	it('sends the cover choice and the chosen result, then shows the next queued title', async () => {
-		await openLookupOverTwoTitles();
+		await openLookupOverTwoTitles({
+			lookupApply: queued(1, {
+				status: { kind: 'found', count: 1, partial: false, after: 'applied' },
+			}),
+		});
 		expect(getContextText()).toContain('1 of 2 • alpha.m4b');
 
 		await userEvent.click(document.getElementById('metadata-lookup-cover-toggle') as HTMLElement);
@@ -117,19 +155,25 @@ describe('metadata lookup dialog', () => {
 	});
 
 	it('sends a skip and shows the next queued title', async () => {
-		await openLookupOverTwoTitles();
+		await openLookupOverTwoTitles({
+			lookupSkip: queued(1, {
+				status: { kind: 'found', count: 1, partial: false, after: 'skipped' },
+			}),
+		});
 
 		await userEvent.click(document.getElementById('metadata-lookup-skip-btn') as HTMLElement);
 
 		await waitFor(() => expect(getStatusText()).toContain('Skipped.'));
 		expect(getContextText()).toContain('beta.m4b');
 		expect(engine.sessionIntents).toContainEqual({ kind: 'lookupSkip' });
-		expect(engine.pendingEdits('/books/alpha.m4b')).toBeUndefined();
 	});
 
 	it('offers manual entry when a search finds nothing, and focuses the title field', async () => {
-		await openLookupOverTwoTitles((engine) => {
-			engine.lookupResults = [];
+		await openLookupOverTwoTitles({
+			lookupOpen: queued(0, {
+				results: [],
+				status: { kind: 'found', count: 0, partial: false, after: null },
+			}),
 		});
 		await waitFor(() => {
 			expect(document.body.textContent ?? '').toContain(
@@ -150,8 +194,12 @@ describe('metadata lookup dialog', () => {
 	});
 
 	it('shows a failed search as a failure, not as no matches', async () => {
-		await openLookupOverTwoTitles((engine) => {
-			engine.searchFails = true;
+		await openLookupOverTwoTitles({
+			lookupOpen: queued(0, {
+				results: [],
+				hasSearched: false,
+				status: { kind: 'searchFailed', after: null },
+			}),
 		});
 
 		await waitFor(() => {
