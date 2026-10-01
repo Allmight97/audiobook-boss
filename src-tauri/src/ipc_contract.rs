@@ -14,7 +14,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::read_audio_metadata,
             crate::commands::load_cover_art_from_url,
             crate::commands::read_audio_cover_thumbnail,
-            crate::commands::preview_title_audio,
             crate::commands::get_supported_audio_import_metadata,
             crate::commands::list_remote_source_providers,
             crate::commands::get_remote_source_account_state,
@@ -31,8 +30,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::get_remote_source_indexer_connection,
             crate::commands::update_remote_source_indexer_connection,
             crate::commands::test_remote_source_indexer_connection,
-            crate::commands::get_runtime_settings_capabilities,
-            crate::commands::preview_output_path,
             crate::commands::preflight_processing_plan,
             crate::commands::process_audiobook_files,
             crate::commands::submit_processing_operation,
@@ -46,7 +43,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::events::OpenedAudioFilesEvent,
             crate::events::WorkOperationSnapshotEvent,
             crate::events::WorkOperationListSnapshotEvent,
-            crate::events::SessionUpdateEvent
+            crate::events::SessionUpdateEvent,
+            crate::events::SettingsUpdateEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,

@@ -1,35 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@solidjs/testing-library';
 import { type AppRuntime, createAppRuntime, AppRuntimeProvider } from '../../app/runtime';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
-
+import type { AudioChoiceView, SessionAudio } from '../../types/session';
 import { EncoderView } from '../encoderPanel/EncoderView';
-import {
-	encoderAvailabilityFixture,
-	runtimeSettingsCapabilitiesFixture,
-} from '../../test/fixtures/runtimeSettingsCapabilities';
 
-const context = vi.hoisted(() => ({
-	getRuntimeSettingsCapabilitiesMock: vi.fn(),
-}));
-
-vi.mock('../../lib/tauri/client', () => ({
-	tauriClient: {
-		getRuntimeSettingsCapabilities: context.getRuntimeSettingsCapabilitiesMock,
-		openFile: vi.fn(),
-	},
-}));
+// The engine decides what each edit does; these tests seed the engine's
+// choice and check what the panel shows and which edit it sends.
 
 const changeSelectValue = (select: HTMLSelectElement, value: string): void => {
 	select.value = value;
 	select.dispatchEvent(new Event('change', { bubbles: true }));
-};
-
-const waitForEncoderOptions = async (): Promise<void> => {
-	await vi.waitFor(() => {
-		const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-		expect(select?.options.length).toBeGreaterThan(1);
-	});
 };
 
 describe('encoder panel behavior controls', () => {
@@ -41,11 +22,14 @@ describe('encoder panel behavior controls', () => {
 		runtime = undefined;
 	});
 
-	function renderEncoder() {
-		runtime?.dispose();
+	async function renderEncoder(seed: (defaults: AudioChoiceView, audio: SessionAudio) => void) {
 		engine = createFakeEngine();
+		engine.change((state) => {
+			state.audio.defaults.choice.intent = 'encode';
+			seed(state.audio.defaults, state.audio);
+		});
 		runtime = createAppRuntime({ engine });
-		runtime.encoding.select('intent', 'encode');
+		await runtime.initialize();
 		return render(() => (
 			<AppRuntimeProvider runtime={runtime!}>
 				<EncoderView />
@@ -53,237 +37,106 @@ describe('encoder panel behavior controls', () => {
 		));
 	}
 
-	beforeEach(() => {
-		context.getRuntimeSettingsCapabilitiesMock.mockReset();
-	});
+	function sent() {
+		return engine.sessionIntents.filter((intent) => intent.kind === 'setDefaultAudio');
+	}
 
-	it('retains User Preference while Default and Keep original audio hide inactive controls', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture(),
-		);
-		renderEncoder();
-		await waitForEncoderOptions();
-		changeSelectValue(screen.getByLabelText('Encoder') as HTMLSelectElement, 'faac');
-		const intent = screen.getByLabelText('Audio handling') as HTMLSelectElement;
-		expect(intent.selectedOptions[0]?.textContent).toBe('User Preference');
-		for (const choice of ['auto', 'preserve']) {
-			changeSelectValue(intent, choice);
+	it('hides encoder controls for Default and Keep original audio', async () => {
+		await renderEncoder(() => undefined);
+		await vi.waitFor(() => expect(screen.getByLabelText('Encoder')).toBeTruthy());
+
+		for (const intent of ['auto', 'preserve'] as const) {
+			engine.change((state) => {
+				state.audio.defaults.choice.intent = intent;
+			});
 			await vi.waitFor(() => expect(screen.queryByLabelText('Encoder')).toBeNull());
-			expect(runtime!.encoding.readDefaults().settings.encoderType).toBe('faac');
 		}
-		changeSelectValue(intent, 'encode');
-		await vi.waitFor(() => expect(screen.getByLabelText('Encoder')).toHaveValue('faac'));
-		expect(screen.queryByRole('option', { name: /App default/ })).toBeNull();
-	});
-
-	it('edits native target bitrate and shows its speed beside encoder settings', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture(),
-		);
-		renderEncoder();
-		await waitForEncoderOptions();
-		changeSelectValue(document.getElementById('adv-encoder') as HTMLSelectElement, 'native_aac');
-		await vi.waitFor(() => expect(document.getElementById('native-speed')).not.toBeNull());
-		expect(document.querySelector('details.encoder-advanced')).toBeNull();
-		changeSelectValue(document.getElementById('native-speed') as HTMLSelectElement, '4');
-		const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
-		bitrate.value = '193';
-		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
-		await vi.waitFor(() => {
-			const settings = runtime!.encoding.audioRequest().settings!;
-			expect(settings.bitrateMode).toEqual({ mode: 'cbr' });
-			expect(settings.bitrateKbps).toBe(193);
-			expect(settings.nativeAacSpeed).toBe(4);
-			expect(runtime!.encoding.readDefaults().settings).toEqual(settings);
-		});
-		bitrate.value = '0';
-		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
-		expect(runtime!.encoding.audioRequest().settings!.bitrateKbps).toBe(193);
-		expect(bitrate.value).toBe('193');
-	});
-
-	it('renders encoder option ranges from runtime capabilities', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-					encoderConfigurations:
-						runtimeSettingsCapabilitiesFixture().encoder.encoderConfigurations.map(
-							(configuration) => ({ ...configuration, bitrateKbpsMin: 24, bitrateKbpsMax: 256 }),
-						),
-					explicitSampleRates: [44100],
-					channelOptions: ['auto', 'mono'],
-				},
+		changeSelectValue(screen.getByLabelText('Audio handling') as HTMLSelectElement, 'encode');
+		await vi.waitFor(() =>
+			expect(sent().slice(-1)[0]).toEqual({
+				kind: 'setDefaultAudio',
+				edit: { field: 'intent', value: 'encode' },
 			}),
 		);
+	});
 
-		renderEncoder();
-		await waitForEncoderOptions();
+	it('sends native speed and bitrate edits and shows the engine value after a refused one', async () => {
+		await renderEncoder((defaults) => {
+			defaults.choice.aacBitrateKbps = 193;
+		});
+		await vi.waitFor(() => expect(document.getElementById('native-speed')).not.toBeNull());
+
+		changeSelectValue(document.getElementById('native-speed') as HTMLSelectElement, '4');
+		const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
+		bitrate.value = '0';
+		bitrate.dispatchEvent(new Event('change', { bubbles: true }));
+
+		await vi.waitFor(() =>
+			expect(sent()).toEqual([
+				{ kind: 'setDefaultAudio', edit: { field: 'nativeSpeed', value: 4 } },
+				{ kind: 'setDefaultAudio', edit: { field: 'bitrate', value: 0 } },
+			]),
+		);
+		// The engine refused 0, so the panel still shows its value.
+		engine.change(() => undefined);
+		await vi.waitFor(() => expect(bitrate.value).toBe('193'));
+	});
+
+	it('renders option ranges from the engine facts and capabilities', async () => {
+		await renderEncoder((defaults, audio) => {
+			defaults.facts.bitrateKbpsMin = 24;
+			defaults.facts.bitrateKbpsMax = 256;
+			if (audio.capabilities) {
+				audio.capabilities.explicitSampleRates = [44100];
+				audio.capabilities.channelOptions = ['auto', 'mono'];
+			}
+		});
 
 		await vi.waitFor(() => {
 			const bitrate = document.getElementById('output-bitrate') as HTMLInputElement;
-			const sampleRateValues = Array.from(
-				(document.getElementById('output-samplerate') as HTMLSelectElement).options,
-			).map((option) => option.value);
-			const channelValues = Array.from(
-				(document.getElementById('output-channels') as HTMLSelectElement).options,
-			).map((option) => option.value);
-
+			const values = (id: string) =>
+				Array.from((document.getElementById(id) as HTMLSelectElement).options).map(
+					(option) => option.value,
+				);
 			expect(bitrate.min).toBe('24');
 			expect(bitrate.max).toBe('256');
-			expect(sampleRateValues).toEqual(['auto', '44100']);
-			expect(channelValues).toEqual(['auto', 'mono']);
+			expect(values('output-samplerate')).toEqual(['auto', '44100']);
+			expect(values('output-channels')).toEqual(['auto', 'mono']);
 		});
 	});
 
 	it('keeps default source hints independent of the selected title', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-
+		await renderEncoder(() => undefined);
 		engine.loadTitles(
 			[{ path: '/books/source.m4b', isValid: true, sampleRate: 44100, channels: 2 }],
 			[0],
 		);
 
 		await vi.waitFor(() => {
-			expect(
-				(document.getElementById('output-samplerate') as HTMLSelectElement).selectedOptions[0]
-					?.textContent,
-			).toBe('Auto · Source audio');
-			expect(
-				(document.getElementById('output-channels') as HTMLSelectElement).selectedOptions[0]
-					?.textContent,
-			).toBe('Auto · Source audio');
-		});
-
-		changeSelectValue(document.getElementById('output-samplerate') as HTMLSelectElement, '44100');
-		changeSelectValue(document.getElementById('output-channels') as HTMLSelectElement, 'mono');
-
-		await vi.waitFor(() => {
-			expect(
-				(document.getElementById('output-samplerate') as HTMLSelectElement).selectedOptions[0]
-					?.textContent,
-			).toBe('44100 Hz');
-			expect(
-				(document.getElementById('output-channels') as HTMLSelectElement).selectedOptions[0]
-					?.textContent,
-			).toBe('Mono');
+			const shown = (id: string) =>
+				(document.getElementById(id) as HTMLSelectElement).selectedOptions[0]?.textContent;
+			expect(shown('output-samplerate')).toBe('Auto · Source audio');
+			expect(shown('output-channels')).toBe('Auto · Source audio');
 		});
 	});
 
-	it('updates encoding request config when bitrate and channel choices change', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-
-		await vi.waitFor(() => {
-			expect(document.getElementById('output-quality')?.hidden).toBe(true);
-			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
+	it('shows FAAC quality presets and a kept rate the encoder rejects', async () => {
+		await renderEncoder((defaults) => {
+			defaults.choice.encoder = 'faac';
+			defaults.choice.faacRateControl = 'vbr';
+			defaults.choice.sampleRate = { explicit: 22050 };
+			defaults.facts = {
+				...defaults.facts,
+				effectiveEncoder: 'faac',
+				bitrateMode: { mode: 'vbr', value: 100 },
+				allowedModes: ['abr', 'vbr'],
+				faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'],
+				allowedSampleRates: [44100],
+				sampleRateSupported: false,
+				estimateKbps: null,
+			};
 		});
 
-		const encoderSelect = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(encoderSelect, 'native_aac');
-
-		await vi.waitFor(() => {
-			expect(document.getElementById('output-quality')?.hidden).toBe(true);
-			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
-		});
-
-		changeSelectValue(encoderSelect, 'aac_at');
-
-		await vi.waitFor(() => {
-			expect(document.getElementById('output-quality')?.hidden).toBe(true);
-			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
-		});
-
-		runtime!.encoding.applyDefaults({
-			format: 'm4b',
-			intent: 'encode',
-			settings: {
-				...runtime!.encoding.readDefaults().settings,
-				encoderType: 'faac',
-				faacProfile: 'he_aac_v1',
-				bitrateMode: { mode: 'abr' },
-			},
-			sampleRate: { explicit: 22050 },
-		});
-
-		await vi.waitFor(() => {
-			expect(runtime!.encoding.audioRequest().settings!.bitrateMode).toEqual({ mode: 'abr' });
-			expect(document.getElementById('output-quality')?.hidden).toBe(true);
-			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Bitrate (kbps)');
-			expect(document.getElementById('estimated-bitrate')).toBeNull();
-			const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
-			expect(bitrateInput.type).toBe('number');
-			expect(bitrateInput.value).toBe('65');
-			const sampleRate = document.getElementById('output-samplerate') as HTMLSelectElement;
-			expect(sampleRate.value).toBe('22050');
-			expect(
-				Array.from(sampleRate.options).find((option) => option.value === '22050')?.disabled,
-			).toBe(true);
-		});
-
-		const bitrateInput = document.getElementById('output-bitrate') as HTMLInputElement;
-		expect(bitrateInput).toHaveAccessibleName('Bitrate (kbps)');
-		bitrateInput.value = '48';
-		bitrateInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-		await vi.waitFor(() => {
-			expect(runtime!.encoding.audioRequest().settings!.bitrateKbps).toBe(48);
-		});
-
-		const channelsSelect = document.getElementById('output-channels') as HTMLSelectElement;
-		changeSelectValue(channelsSelect, 'stereo');
-
-		await vi.waitFor(() => {
-			expect(runtime!.encoding.audioRequest().settings!.channels).toBe('stereo');
-		});
-	});
-
-	it('wires FAAC profile and rate controls to the request and restores the ABR target', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture(),
-		);
-		renderEncoder();
-		await waitForEncoderOptions();
-		changeSelectValue(document.getElementById('adv-encoder') as HTMLSelectElement, 'faac');
-		await vi.waitFor(() => expect(document.getElementById('faac-profile')).not.toBeNull());
-		const profile = document.getElementById('faac-profile') as HTMLSelectElement;
-		const rate = document.getElementById('faac-rate-control') as HTMLSelectElement;
-		expect(profile).toHaveAccessibleName('Profile');
-		expect(profile.value).toBe('auto');
-		expect(profile.selectedOptions[0]?.textContent).toBe('Auto · FAAC chooses LC or HE');
-		expect(rate).toHaveAccessibleName('Rate control');
-		expect(rate.value).toBe('abr');
-		changeSelectValue(rate, 'vbr');
 		await vi.waitFor(() => expect(document.getElementById('output-quality')?.hidden).toBe(false));
 		const quality = document.getElementById('output-quality') as HTMLSelectElement;
 		expect(Array.from(quality.options).map((option) => option.textContent)).toEqual([
@@ -291,92 +144,37 @@ describe('encoder panel behavior controls', () => {
 			'Standard (100)',
 			'Higher (200)',
 		]);
+		const profile = document.getElementById('faac-profile') as HTMLSelectElement;
+		expect(profile.selectedOptions[0]?.textContent).toBe('Auto · FAAC chooses LC or HE');
+		const sampleRate = document.getElementById('output-samplerate') as HTMLSelectElement;
+		expect(sampleRate.value).toBe('22050');
+		expect(
+			Array.from(sampleRate.options).find((option) => option.value === '22050')?.disabled,
+		).toBe(true);
+
 		changeSelectValue(quality, '50');
-		changeSelectValue(profile, 'aac_lc');
-		await vi.waitFor(() => {
-			expect(runtime!.encoding.audioRequest().settings).toMatchObject({
-				faacProfile: 'aac_lc',
-				bitrateMode: { mode: 'vbr', value: 50 },
-			});
-			expect(document.getElementById('estimated-bitrate')).toBeNull();
-		});
-		changeSelectValue(rate, 'abr');
-		await vi.waitFor(() => {
-			expect(document.getElementById('output-bitrate')?.hidden).toBe(false);
-			expect((document.getElementById('output-bitrate') as HTMLInputElement).value).toBe('65');
-			expect(runtime!.encoding.audioRequest().settings!.faacProfile).toBe('aac_lc');
-		});
+		changeSelectValue(document.getElementById('faac-rate-control') as HTMLSelectElement, 'abr');
+		await vi.waitFor(() =>
+			expect(sent()).toEqual([
+				{ kind: 'setDefaultAudio', edit: { field: 'quality', value: 50 } },
+				{ kind: 'setDefaultAudio', edit: { field: 'rateControl', value: 'abr' } },
+			]),
+		);
 	});
 
-	it('retains chosen Apple AAC when it becomes unavailable', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-		runtime!.encoding.select('encoder', 'aac_at');
-
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: false,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-		await runtime!.encoding.reloadCapabilities();
+	it('keeps showing a chosen encoder that is no longer available', async () => {
+		await renderEncoder((defaults, audio) => {
+			defaults.choice.encoder = 'aac_at';
+			defaults.facts.effectiveEncoder = 'aac_at';
+			if (audio.capabilities) audio.capabilities.availability.aacAtAvailable = false;
+		});
 
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('aac_at');
-			expect(select?.options.length).toBe(3);
-			expect(runtime!.encoding.audioRequest().settings!.encoderType).toBe('aac_at');
-		});
-	});
-
-	it('retains chosen Native AAC when it becomes unavailable', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-		runtime!.encoding.select('encoder', 'native_aac');
-
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						aacAtAvailable: true,
-						nativeAacAvailable: false,
-					}),
-				},
-			}),
-		);
-		await runtime!.encoding.reloadCapabilities();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(3);
-			expect(runtime!.encoding.audioRequest().settings!.encoderType).toBe('native_aac');
+			expect(
+				Array.from(select?.options ?? []).find((option) => option.value === 'aac_at')?.disabled,
+			).toBe(true);
 		});
 	});
 });

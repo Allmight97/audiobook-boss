@@ -66,7 +66,6 @@ impl Desk {
         let outcome = self
             .send(SessionIntent::Import {
                 paths: vec![path.to_string_lossy().into_owned()],
-                default_audio: audio_request(),
             })
             .await;
         assert_eq!(outcome, SessionOutcome::Applied);
@@ -193,9 +192,8 @@ async fn importing_one_audiobook_selects_it_and_shows_its_tags() {
     let titles = snapshot.titles.expect("titles part");
     assert_eq!(titles.files.len(), 1);
     assert!(titles.files[0].is_valid);
-    assert!(titles
-        .audio_requests_by_identity
-        .contains_key(&titles.files[0].input_id));
+    let audio = snapshot.audio.expect("audio part");
+    assert!(audio.titles.contains_key(&titles.files[0].input_id));
     assert_eq!(
         snapshot.selection.expect("selection part").selected_indices,
         [0]
@@ -369,4 +367,38 @@ async fn the_developer_tool_imports_edits_and_saves_a_real_file() {
     assert_eq!(session["metadata"]["status"]["kind"], "saveComplete");
     assert_eq!(session["metadata"]["status"]["succeeded"], 1);
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+}
+
+#[tokio::test]
+async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset() {
+    let desk = Desk::new();
+    desk.send(SessionIntent::SetDefaultAudio {
+        edit: abb_engine::session::AudioEdit::Format(AudiobookFormat::MkaOpus),
+    })
+    .await;
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: "/library".to_string(),
+    })
+    .await;
+
+    let saved = desk
+        .engine
+        .settings_snapshot()
+        .await
+        .settings
+        .expect("settings");
+    assert_eq!(saved.encoder_defaults.format, AudiobookFormat::MkaOpus);
+    assert_eq!(
+        saved.output_defaults.output_directory.as_deref(),
+        Some("/library")
+    );
+
+    desk.engine
+        .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset)
+        .await;
+
+    let snapshot = desk.engine.session_snapshot();
+    let audio = snapshot.audio.expect("audio part");
+    assert_eq!(audio.defaults.choice.format, AudiobookFormat::M4b);
+    assert_eq!(snapshot.output.expect("output part").directory, None);
 }

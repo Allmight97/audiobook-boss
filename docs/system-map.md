@@ -33,7 +33,7 @@ Import -> Inspect -> Decide -> Preflight -> Process -> Verify
 ## Control Loop
 
 Working session and settings (titles, selection, metadata edits, lookup,
-Save, preferences):
+Save, audio choices, output naming and estimates, preferences):
 
 ```text
 User intent
@@ -42,11 +42,11 @@ User intent
   -> engineLink                          numbered intent
   -> tauriClient -> host command         run in the order sent (intent order)
   -> Engine session / settings runtime   rule, transition, file/network work
-  -> reply + session-update events       snapshot parts with revisions
+  -> reply + session/settings events     snapshot parts with revisions
   -> engineLink keeps newest parts -> Solid view renders
 ```
 
-Encoding, output planning, and processing submission (still frontend-owned):
+Collision review and processing submission (still frontend-owned):
 
 ```text
 User intent
@@ -77,12 +77,12 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | --- | --- | --- |
 | App Runtime | `src/app/runtime` | Composition, Solid context, owner lifetime, and disposal. |
 | Engine link | `src/app/engineLink` | The frontend's one connection to the engine: newest snapshot parts and numbered intents. |
-| Frontend owners | `src/app/<owner>` | Adapters over engine state (input, metadata, lookup, settings), or workflow still owned in TS (encoding, output plan, processing, work operations, remote source). Each `index.ts` is its live export truth. |
+| Frontend owners | `src/app/<owner>` | Adapters over engine state (input, metadata, lookup, settings, encoding, output plan), or workflow still owned in TS (collision review, processing, work operations, remote source). Each `index.ts` is its live export truth. |
 | Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
 | Tauri host | `src-tauri` | Commands, intent ordering, event forwarding, window, quit warning. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
-| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, and Save targets. |
+| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, Save targets, audio choices and title plans, output naming, path preview, and size estimates. |
 | Processing | `crates/abb-engine/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
 | WorkRuntime | `crates/abb-engine/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
 | Active-work power | `crates/abb-engine/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
@@ -90,7 +90,6 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Metadata Outcome | `crates/abb-engine/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `crates/abb-engine/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `crates/abb-engine/src/app_settings` + `src/app/appSettings` | Settings in effect, validation, storage, and durability in the engine; dialog state and wording in TS. |
-| Encoding Configuration | `src/app/encoding` | Typed encoder/sample-rate/channel request, capability-derived controls, defaults and title edits, and total estimate kbps. |
 | Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an engine owner; not additional product owners. Tier rules: `crates/AGENTS.md`. |
 

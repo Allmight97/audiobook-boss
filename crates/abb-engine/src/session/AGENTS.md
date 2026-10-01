@@ -1,7 +1,8 @@
 # Working Session
 
 The session is the titles being prepared, the metadata edits made to them,
-and the lookup that helps fill those edits in. It behaves the same whether a
+the lookup that helps fill those edits in, each title's audio choice, and
+where and how exports are named. It behaves the same whether a
 window, a test, or `abb-dev` drives it, and it outlives any one host
 attachment.
 
@@ -23,7 +24,7 @@ attachment.
   and when the engine changes something on its own. A host that attached
   while an intent was running learns its result from the event.
 - A `SessionUpdate` carries only the parts that changed (titles, selection,
-  metadata, lookup). Each part carries the revision of its own last change; a
+  metadata, lookup, audio, output). Each part carries the revision of its own last change; a
   host keeps the newest copy of each part. This is what makes a keystroke cost
   about 1 KB instead of the whole title list, and what lets a reply and an
   event arrive in either order.
@@ -43,7 +44,8 @@ attachment.
 ## Where A Rule Goes
 
 - `state.rs` and the modules it uses (`working_set`, `tag_cache`,
-  `metadata_form`, `lookup`) hold every rule and do no I/O. Each method is one
+  `metadata_form`, `lookup`, `audio_choice`, `audio`, `plans`, `output`) hold
+  every rule and do no I/O. Each method is one
   atomic transition. Work that needs a file or the network leaves as data (a
   `ReadTicket`, a `SavePlan`) and returns as a completion the state accepts or
   drops.
@@ -92,6 +94,24 @@ attachment.
   quitting. When it finishes, the session reports how many were written or
   failed. If its title is loaded again by then, a written edit becomes the
   title's known tags and a failed one is pending again for Save.
+- **Audio choice.** The defaults new titles start from and each title's own
+  choice are edited with typed `AudioEdit`s checked against the encoder
+  capabilities (`audio_choice.rs`); a refused edit changes nothing. MP3 copies
+  its source; editing how audio is encoded selects Encode. A defaults edit is
+  recorded in the settings; a title edit is not, and is refused while the
+  list is locked. A settings reset returns the defaults and output choices to
+  the reset settings; loaded titles keep their choices.
+- **Title plans and estimates.** Each title's plan is resolved in the
+  background whenever its request or sources change; a stale result is
+  dropped (`plans.rs`). A CUE awaiting confirmation, or CUE chapters on a
+  merged title, fails the plan with a reason. The size estimate is the
+  sources' bytes when kept, or duration times target bitrate plus 3 percent
+  when encoded; Auto waits for its plan, and a missing fact means none.
+- **Output.** The output part carries the directory, naming, the naming
+  processing receives (an empty custom template names `{author}/{title}`),
+  and the path the first selected (or first valid) title would get with the
+  values on screen. Output choices are recorded in the settings; template
+  typing is recorded once it pauses.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. A result applies only to the
   queued title while it is the one title both selected and bound. Applied
@@ -104,6 +124,8 @@ attachment.
   selection changes, reads, saves, and exports starting and finishing,
   including failed writes. `working_set_tests.rs` has the same for titles and
   selection.
+- `audio_choice_tests.rs` and `plans_tests.rs`: audio edit rules, plan
+  resolution and staleness, and size estimates.
 - `runtime_tests.rs`: ordering between intents and their I/O, lookup with a
   scripted network, and what a host is told along the way.
 - `tests/cases/integration_session_tests.rs`: real files through `Engine`,
@@ -113,12 +135,10 @@ attachment.
 
 ## Temporary Until Processing Moves Into The Engine
 
-These intents exist because encoding, output planning, and processing
-submission are still frontend-owned. Remove them with that move; do not build
-on them. The frontend side of each bridge is listed in `src/app/AGENTS.md`.
+These intents exist because collision review and processing submission are
+still frontend-owned. Remove them with that move; do not build on them. The
+frontend side of each bridge is listed in `src/app/AGENTS.md`.
 
-- `Import` and `ImportOpened` take the title's default audio request from the
-  host, and `SetAudioRequest` records a title's audio choice.
 - `SetOrderLocked` lets the host lock the list during a preview.
 - `StageSelection` and `Engine::session_metadata_intents` hand pending edits
   to the host's processing payload.

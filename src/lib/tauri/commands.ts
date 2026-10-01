@@ -1,4 +1,3 @@
-import type { TitleAudioRequest } from '../../types/audio';
 import {
 	commands as generatedCommands,
 	type EncoderDefaults as GeneratedEncoderDefaults,
@@ -13,14 +12,11 @@ import {
 } from '../generated/tauri';
 import type {
 	OutputNamingConfig,
-	OutputKind,
 	ProcessPayload,
 	ProcessingPreflightPlan,
-	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type { AppSettings, SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { AudiobookMetadata } from '../../types/metadata';
 import { compileMetadataIntentPatch, type MetadataIntentPatch } from '../../types/metadataIntent';
 import type { SessionIntent } from '../../types/session';
 import type {
@@ -34,8 +30,6 @@ import type {
 import type { OperationId, SubmitProcessingOperationRequest } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
-	denormalizeChapterPlans,
-	denormalizeMetadata,
 	denormalizeNullish,
 	denormalizeProcessPayload,
 	normalizeFrontendAttachment,
@@ -44,7 +38,6 @@ import {
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
 	normalizeProcessResult,
-	normalizeRuntimeSettingsCapabilities,
 	normalizeSessionReply,
 	normalizeSettingsReply,
 	normalizeWorkSubmissionAccepted,
@@ -85,12 +78,6 @@ function toGeneratedRequiredOutputNamingConfig(
 		includeYear: denormalized.includeYear,
 		customTemplate: denormalized.customTemplate ?? null,
 	};
-}
-
-function toGeneratedOutputNamingConfig(
-	outputNaming?: ProcessPayload['outputNaming'] | null,
-): GeneratedOutputNamingConfig | null {
-	return outputNaming ? toGeneratedRequiredOutputNamingConfig(outputNaming) : null;
 }
 
 function toGeneratedEncoderDefaults(
@@ -170,18 +157,6 @@ export const commandSpecs = {
 		runGeneratedCommand(generatedCommands.loadCoverArtFromUrl(args.url)),
 	read_audio_cover_thumbnail: (args: { filePath: string }) =>
 		runGeneratedCommand(generatedCommands.readAudioCoverThumbnail(args.filePath)),
-	preview_title_audio: (args: {
-		filePaths: string[];
-		request: TitleAudioRequest;
-		chapterPlans?: ProcessPayload['chapterPlans'];
-	}) =>
-		runGeneratedCommand(
-			generatedCommands.previewTitleAudio(
-				args.filePaths,
-				args.request,
-				denormalizeChapterPlans(args.chapterPlans),
-			),
-		),
 	get_supported_audio_import_metadata: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.getSupportedAudioImportMetadata()),
 	list_remote_source_providers: (_args?: undefined) =>
@@ -256,29 +231,6 @@ export const commandSpecs = {
 				denormalizeNullish(args.update) as GeneratedRemoteIndexerConnectionUpdate,
 			),
 			normalizeNullish,
-		),
-	get_runtime_settings_capabilities: (_args?: undefined): Promise<RuntimeSettingsCapabilities> =>
-		runGeneratedCommand(
-			generatedCommands.getRuntimeSettingsCapabilities(),
-			normalizeRuntimeSettingsCapabilities,
-		),
-	preview_output_path: (args: {
-		outputDir: string;
-		metadata?: Partial<AudiobookMetadata> | null;
-		outputNaming?: ProcessPayload['outputNaming'] | null;
-		sourcePath?: string | null;
-		outputKind?: OutputKind | null;
-		format: import('../../types/audio').AudiobookFormat;
-	}) =>
-		runGeneratedCommand(
-			generatedCommands.previewOutputPath(
-				args.outputDir,
-				args.metadata ? denormalizeMetadata(args.metadata) : null,
-				toGeneratedOutputNamingConfig(args.outputNaming),
-				args.sourcePath ?? null,
-				args.outputKind ?? null,
-				args.format,
-			),
 		),
 	preflight_processing_plan: (args: {
 		payload: ProcessPayload;

@@ -65,7 +65,7 @@ pub(crate) fn merge_audio_files_with_context(
     let plan = MediaProcessingPlan::new(
         temp_output.clone(),
         context.required_encoder_settings()?.clone(),
-        context.sample_rate.clone(),
+        context.sample_rate,
         file_paths,
         total_duration,
     );

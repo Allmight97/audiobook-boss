@@ -20,27 +20,44 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
+use super::audio::AudioDefaults;
+use super::audio_choice::AudioEdit;
 use super::lookup::{
     self, LookupApplyMode, LookupSource, LookupStatus, QueueStep, QueuedTitle, RESULT_LIMIT,
 };
 use super::metadata_form::{FieldAction, MetadataField};
+use super::output::OutputPlan;
+use super::plans::PlanTicket;
 use super::state::{
     GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, SessionUpdate, StageOutcome,
 };
 use super::tag_cache::ReadTicket;
 use super::working_set::{CueChoice, InputNotice, MoveDirection, SelectionModifiers, WorkingSet};
-use crate::audio::{self, TitleAudioRequest};
+use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRuntime};
+use crate::audio::{self, EncoderSettingsCapabilities};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
 use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 use crate::metadata_lookup::{MetadataLookupResponse, MetadataSource, OnlineMetadataResult};
 use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSaveResultStatus};
 use crate::opened_audio::OpenedAudioFileQueue;
+use crate::output_artifact::NamingPreset;
 use crate::work_runtime::WorkRuntime;
 use crate::ManagedJobRegistry;
 
 /// How many source files are read for tags at once.
 const READ_CONCURRENCY: usize = 8;
+
+/// How long template typing pauses before the template is recorded.
+const TEMPLATE_PAUSE: std::time::Duration = std::time::Duration::from_millis(400);
+
+fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsIntent {
+    SettingsIntent::Remember {
+        encoder_defaults: None,
+        output_defaults: Some(defaults),
+        default_acquisition_lane: None,
+    }
+}
 
 /// Something the user asked the session to do.
 #[derive(Debug, Clone, Deserialize, specta::Type)]
@@ -48,17 +65,12 @@ const READ_CONCURRENCY: usize = 8;
 pub enum SessionIntent {
     // ---- Titles ----
     /// Discovers and analyzes audio under `paths` and adds new titles, each
-    /// taking `default_audio` as its audio request.
-    #[serde(rename_all = "camelCase")]
+    /// starting from the default audio choice.
     Import {
         paths: Vec<String>,
-        default_audio: TitleAudioRequest,
     },
     /// Imports the files the operating system asked ABB to open.
-    #[serde(rename_all = "camelCase")]
-    ImportOpened {
-        default_audio: TitleAudioRequest,
-    },
+    ImportOpened,
     SelectFile {
         index: usize,
         modifiers: SelectionModifiers,
@@ -98,13 +110,44 @@ pub enum SessionIntent {
         input_id: String,
         choice: CueChoice,
     },
-    #[serde(rename_all = "camelCase")]
-    SetAudioRequest {
-        title_id: String,
-        request: TitleAudioRequest,
-    },
     /// Returns the session to empty.
     Reset,
+
+    // ---- Output ----
+    /// Where exports are written; recorded in the settings.
+    SetOutputDirectory {
+        directory: String,
+    },
+    SetNamingPreset {
+        preset: NamingPreset,
+    },
+    #[serde(rename_all = "camelCase")]
+    SetIncludeYear {
+        include_year: bool,
+    },
+    /// The custom naming template as typed; recorded once typing pauses.
+    SetNamingTemplate {
+        template: String,
+    },
+
+    // ---- Audio ----
+    /// Edits the default audio choice new titles start from, and records it
+    /// in the settings.
+    SetDefaultAudio {
+        edit: AudioEdit,
+    },
+    /// Edits the audio choice of each named title. Refused while the list is
+    /// locked.
+    #[serde(rename_all = "camelCase")]
+    SetTitleAudio {
+        title_ids: Vec<String>,
+        edit: AudioEdit,
+    },
+    /// Gives each named title the default audio choice.
+    #[serde(rename_all = "camelCase")]
+    ApplyDefaultAudio {
+        title_ids: Vec<String>,
+    },
 
     // ---- Metadata ----
     SetField {
@@ -216,6 +259,8 @@ pub(crate) struct SessionDeps {
     pub(crate) opened_audio: Arc<OpenedAudioFileQueue>,
     /// Preview runs in flight. Save waits for them because they read sources.
     pub(crate) previews: Arc<AtomicUsize>,
+    /// Where audio and output defaults chosen in the session are recorded.
+    pub(crate) settings: SettingsRuntime,
 }
 
 /// One working session. Cloning shares it.
@@ -235,6 +280,8 @@ struct SessionInner {
     /// The revision the last event carried.
     published: AtomicU64,
     deferred_writer_running: AtomicBool,
+    /// Advances with every output change; a delayed record checks it.
+    output_edits: AtomicU64,
 }
 
 /// A selection change the state accepted and the reads it asked for.
@@ -260,9 +307,10 @@ enum Rest {
     Reads(Bound),
     Import {
         paths: Vec<String>,
-        default_audio: TitleAudioRequest,
         resets: u64,
     },
+    /// Record a choice in the settings.
+    Remember(SettingsIntent),
     Save {
         epoch: u64,
         plan: SavePlan,
@@ -304,11 +352,11 @@ impl SessionRun {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
-            Rest::Import {
-                paths,
-                default_audio,
-                resets,
-            } => session.import(paths, default_audio, resets).await,
+            Rest::Import { paths, resets } => session.import(paths, resets).await,
+            Rest::Remember(intent) => {
+                session.remember(intent).await;
+                SessionOutcome::Applied
+            }
             Rest::Save { epoch, plan } => session.save(epoch, plan).await,
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
@@ -340,6 +388,7 @@ impl Session {
                 resets: AtomicU64::new(0),
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
+                output_edits: AtomicU64::new(0),
             }),
         }
     }
@@ -353,12 +402,39 @@ impl Session {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Runs one atomic transition and re-derives the snapshots.
+    /// Runs one atomic transition and re-derives the snapshots. Title plans
+    /// the transition made stale are resolved in the background.
     fn transition<T>(&self, change: impl FnOnce(&mut SessionState) -> T) -> T {
-        let mut state = self.lock();
-        let value = change(&mut state);
-        state.settle();
+        let (value, tickets) = {
+            let mut state = self.lock();
+            let value = change(&mut state);
+            let tickets = state.take_plan_tickets();
+            state.settle();
+            (value, tickets)
+        };
+        if !tickets.is_empty() {
+            self.resolve_plans(tickets);
+        }
         value
+    }
+
+    fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
+        // Without a runtime (engine construction) plans stay pending until
+        // the next change.
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let session = self.clone();
+        runtime.spawn(async move {
+            for ticket in tickets {
+                let resolving = ticket.clone();
+                let result = tokio::task::spawn_blocking(move || resolving.resolve())
+                    .await
+                    .unwrap_or_else(|error| Err(error.to_string()));
+                session.transition(|state| state.finish_plan(&ticket, result));
+            }
+            session.publish();
+        });
     }
 
     /// Tells the host what changed since the last event. Used before a wait
@@ -396,6 +472,32 @@ impl Session {
         }
     }
 
+    /// Sets the defaults new titles start from and the output choices, at
+    /// engine start.
+    pub(crate) fn start_from_defaults(
+        &self,
+        defaults: Option<&PinnedDefaults>,
+        caps: Option<EncoderSettingsCapabilities>,
+    ) {
+        self.transition(|state| {
+            state.audio =
+                AudioDefaults::new(defaults.map(|defaults| &defaults.encoder_defaults), caps);
+            if let Some(defaults) = defaults {
+                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
+            }
+        });
+    }
+
+    /// Replaces the defaults and output choices after the settings changed
+    /// them. Loaded titles keep their own audio choices.
+    pub(crate) fn replace_defaults(&self, defaults: &PinnedDefaults) {
+        self.transition(|state| {
+            state.audio.replace(&defaults.encoder_defaults);
+            state.output = OutputPlan::from_defaults(&defaults.output_defaults);
+        });
+        self.publish();
+    }
+
     pub(crate) fn snapshot(&self) -> SessionUpdate {
         self.lock().update_since(None)
     }
@@ -424,17 +526,14 @@ impl Session {
     fn begin_rest(&self, intent: SessionIntent) -> Rest {
         use SessionIntent as I;
         match intent {
-            I::Import {
-                paths,
-                default_audio,
-            } => self.begin_import(paths, default_audio),
+            I::Import { paths } => self.begin_import(paths),
             // Opened files stay queued while the list is locked, for a retry.
-            I::ImportOpened { .. } if self.lock().working_set.order_locked() => {
+            I::ImportOpened if self.lock().working_set.order_locked() => {
                 Rest::Done(self.import_failed(InputNotice::OrderLocked))
             }
-            I::ImportOpened { default_audio } => match self.inner.deps.opened_audio.take_paths() {
+            I::ImportOpened => match self.inner.deps.opened_audio.take_paths() {
                 Ok(paths) if paths.is_empty() => Rest::Done(SessionOutcome::Applied),
-                Ok(paths) => self.begin_import(paths, default_audio),
+                Ok(paths) => self.begin_import(paths),
                 Err(error) => Rest::Done(self.import_failed(InputNotice::DiscoveryFailed {
                     error: AppErrorEnvelope::from(&error),
                 })),
@@ -469,8 +568,33 @@ impl Session {
             I::ChooseCue { input_id, choice } => {
                 self.edit_titles(|set| set.choose_cue(&input_id, choice))
             }
-            I::SetAudioRequest { title_id, request } => {
-                self.edit_titles(|set| set.set_audio_request(&title_id, request))
+            I::SetOutputDirectory { directory } => {
+                self.edit_output(|output| output.set_directory(directory))
+            }
+            I::SetNamingPreset { preset } => self.edit_output(|output| output.set_preset(preset)),
+            I::SetIncludeYear { include_year } => {
+                self.edit_output(|output| output.set_include_year(include_year))
+            }
+            I::SetNamingTemplate { template } => {
+                self.transition(|state| state.output.set_template(template));
+                self.remember_output_later();
+                Rest::Done(SessionOutcome::Applied)
+            }
+            I::SetDefaultAudio { edit } => match self.transition(|state| state.audio.edit(edit)) {
+                Some(defaults) => Rest::Remember(SettingsIntent::Remember {
+                    encoder_defaults: Some(defaults),
+                    output_defaults: None,
+                    default_acquisition_lane: None,
+                }),
+                None => Rest::Done(SessionOutcome::Applied),
+            },
+            I::SetTitleAudio { title_ids, edit } => {
+                self.transition(|state| state.edit_title_audio(&title_ids, edit));
+                Rest::Done(SessionOutcome::Applied)
+            }
+            I::ApplyDefaultAudio { title_ids } => {
+                self.transition(|state| state.apply_default_audio(&title_ids));
+                Rest::Done(SessionOutcome::Applied)
             }
             I::Reset => {
                 self.inner.resets.fetch_add(1, Ordering::SeqCst);
@@ -584,23 +708,17 @@ impl Session {
         SessionOutcome::Applied
     }
 
-    fn begin_import(&self, paths: Vec<String>, default_audio: TitleAudioRequest) -> Rest {
+    fn begin_import(&self, paths: Vec<String>) -> Rest {
         if self.lock().working_set.order_locked() {
             return Rest::Done(self.import_failed(InputNotice::OrderLocked));
         }
         Rest::Import {
             paths,
-            default_audio,
             resets: self.inner.resets.load(Ordering::SeqCst),
         }
     }
 
-    async fn import(
-        &self,
-        paths: Vec<String>,
-        default_audio: TitleAudioRequest,
-        resets: u64,
-    ) -> SessionOutcome {
+    async fn import(&self, paths: Vec<String>, resets: u64) -> SessionOutcome {
         let _in_order = self.inner.imports.lock().await;
         // A Reset since this import began drops it, success or failure.
         let superseded = || self.inner.resets.load(Ordering::SeqCst) != resets;
@@ -640,6 +758,7 @@ impl Session {
             return SessionOutcome::Superseded;
         }
         let bound = self.transition(|state| {
+            let default_audio = state.audio.request();
             state
                 .working_set
                 .append_analyzed(analyzed.files, &default_audio);
@@ -650,6 +769,44 @@ impl Session {
         });
         self.complete_reads(bound).await;
         SessionOutcome::Applied
+    }
+
+    /// Changes the output choices and records them.
+    fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
+        let defaults = self.transition(|state| {
+            change(&mut state.output);
+            state.output.defaults()
+        });
+        self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
+        Rest::Remember(remember_output(defaults))
+    }
+
+    /// Records the output choices once template typing has paused, so a
+    /// keystroke does not write the settings file.
+    fn remember_output_later(&self) {
+        let edit = self.inner.output_edits.fetch_add(1, Ordering::SeqCst) + 1;
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let session = self.clone();
+        runtime.spawn(async move {
+            tokio::time::sleep(TEMPLATE_PAUSE).await;
+            if session.inner.output_edits.load(Ordering::SeqCst) != edit {
+                return;
+            }
+            let defaults = session.lock().output.defaults();
+            session.remember(remember_output(defaults)).await;
+        });
+    }
+
+    /// Records a choice in the settings and tells hosts what the settings
+    /// are now.
+    async fn remember(&self, intent: SettingsIntent) {
+        let reply = self.inner.deps.settings.dispatch(intent).await;
+        self.inner
+            .deps
+            .host
+            .emit(EngineEvent::Settings(Box::new(reply.snapshot)));
     }
 
     // ---- Cover ----

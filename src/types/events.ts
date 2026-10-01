@@ -8,6 +8,7 @@ import type {
 	WorkOperationSnapshotEvent as GeneratedWorkOperationSnapshotEvent,
 } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
+import type { SettingsSnapshot } from './appSettings';
 import type { SessionUpdate } from './session';
 
 /**
@@ -25,6 +26,7 @@ export const EVENTS = {
 	WORK_OPERATION_SNAPSHOT: 'work-operation-snapshot',
 	WORK_OPERATION_LIST_SNAPSHOT: 'work-operation-list-snapshot',
 	SESSION_UPDATE: 'session-update',
+	SETTINGS_UPDATE: 'settings-update',
 } as const;
 
 export type EventStage = GeneratedEventStage;
@@ -61,6 +63,7 @@ export type WorkOperationSnapshotEvent = NullToOptionalDeep<GeneratedWorkOperati
 export type WorkOperationListSnapshotEvent =
 	NullToOptionalDeep<GeneratedWorkOperationListSnapshotEvent>;
 export type SessionUpdateEvent = SessionUpdate;
+export type SettingsUpdateEvent = SettingsSnapshot;
 
 export interface TauriFileDropEvents {
 	'tauri://drag-drop': { paths: string[]; position: { x: number; y: number } };
@@ -76,6 +79,7 @@ export interface ApplicationEvents extends TauriFileDropEvents {
 	[EVENTS.WORK_OPERATION_SNAPSHOT]: WorkOperationSnapshotEvent;
 	[EVENTS.WORK_OPERATION_LIST_SNAPSHOT]: WorkOperationListSnapshotEvent;
 	[EVENTS.SESSION_UPDATE]: SessionUpdateEvent;
+	[EVENTS.SETTINGS_UPDATE]: SettingsUpdateEvent;
 }
 
 export type EventName = keyof ApplicationEvents;

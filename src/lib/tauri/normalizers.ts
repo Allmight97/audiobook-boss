@@ -24,16 +24,11 @@ import type {
 	ProcessPayload as GeneratedProcessPayload,
 	ProgressEvent as GeneratedProgressEvent,
 	QueueEvent as GeneratedQueueEvent,
-	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 	OperationListSnapshot as GeneratedOperationListSnapshot,
 	OperationSnapshot as GeneratedOperationSnapshot,
 	WorkSubmissionAccepted as GeneratedWorkSubmissionAccepted,
 } from '../generated/tauri';
-import type {
-	ProcessCommandResult,
-	ProcessPayload,
-	RuntimeSettingsCapabilities,
-} from '../../types/audio';
+import type { ProcessCommandResult, ProcessPayload } from '../../types/audio';
 import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { SessionReply, SessionUpdate } from '../../types/session';
@@ -174,19 +169,13 @@ export function denormalizeMetadata(
 	) as GeneratedAudiobookMetadata;
 }
 
-export function normalizeRuntimeSettingsCapabilities(
-	capabilities: GeneratedRuntimeSettingsCapabilities,
-): RuntimeSettingsCapabilities {
-	return normalizeNullish(capabilities);
-}
-
 /**
  * Audio files and lookup results take the optional-field forms the frontend
  * uses elsewhere. Audio requests keep their explicit nulls: a null `settings`
  * is the request for MP3 pass-through.
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
-	const { titles, selection, metadata, lookup } = update;
+	const { titles, selection, metadata, lookup, audio, output } = update;
 	return {
 		revision: update.revision,
 		titles: titles
@@ -199,6 +188,8 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 		selection: selection ?? undefined,
 		metadata: metadata ?? undefined,
 		lookup: lookup ? { ...lookup, results: normalizeNullish(lookup.results) } : undefined,
+		audio: audio ?? undefined,
+		output: output ?? undefined,
 	};
 }
 

@@ -7,7 +7,9 @@
  */
 
 import type {
+	AudioSnapshot as GeneratedAudioSnapshot,
 	LookupSnapshot as GeneratedLookupSnapshot,
+	OutputSnapshot as GeneratedOutputSnapshot,
 	MetadataSnapshot as GeneratedMetadataSnapshot,
 	SelectionSnapshot as GeneratedSelectionSnapshot,
 	SessionIntent as GeneratedSessionIntent,
@@ -18,6 +20,10 @@ import type { AudioFile } from './audio';
 import type { OnlineMetadataResult } from './metadata';
 
 export type {
+	AudioChoice,
+	AudioChoiceFacts,
+	AudioChoiceView,
+	AudioEdit,
 	CoverNotice,
 	CoverSnapshot,
 	FieldAction,
@@ -32,6 +38,12 @@ export type {
 	QueueStep,
 	SeriesPartWarning,
 	SubseriesPartWarning,
+	FaacRateControl,
+	OutputPreview,
+	SizeEstimate,
+	TagPreview,
+	TitleAudio,
+	TitlePlan,
 } from '../lib/generated/tauri';
 
 export type SessionIntent = GeneratedSessionIntent;
@@ -43,6 +55,9 @@ export type SessionTitles = Omit<GeneratedTitlesSnapshot, 'files' | 'titleSource
 };
 export type SessionSelection = GeneratedSelectionSnapshot;
 export type SessionMetadata = GeneratedMetadataSnapshot;
+/** The audio part keeps the generated shape: an MP3 request's null settings are meaningful. */
+export type SessionAudio = GeneratedAudioSnapshot;
+export type SessionOutput = GeneratedOutputSnapshot;
 export type SessionLookup = Omit<GeneratedLookupSnapshot, 'results'> & {
 	results: OnlineMetadataResult[];
 };
@@ -54,6 +69,8 @@ export type SessionUpdate = {
 	selection?: SessionSelection;
 	metadata?: SessionMetadata;
 	lookup?: SessionLookup;
+	audio?: SessionAudio;
+	output?: SessionOutput;
 };
 
 export type SessionReply = {

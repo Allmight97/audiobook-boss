@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	createFakeEngine,
-	defaultAppSettings,
-	type FakeEngine,
-} from '../../test/fixtures/fakeEngine';
-import type { PinnedDefaults } from '../../types/appSettings';
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
 // Which settings are in effect, and whether they are saved, is the engine's
@@ -61,7 +56,10 @@ describe('settings owner', () => {
 		});
 		await app.initialize();
 
-		app.encoding.select('intent', 'preserve');
+		// The engine records a default the session chose, and the write fails.
+		engine.recordSettings({
+			encoderDefaults: { ...engine.settings().settings!.encoderDefaults, intent: 'preserve' },
+		});
 
 		await vi.waitFor(() =>
 			expect(app.settings.durability()).toEqual({ state: 'error', message: 'Disk full' }),
@@ -72,33 +70,9 @@ describe('settings owner', () => {
 		expect(engine.settings().settings?.encoderDefaults.intent).toBe('preserve');
 	});
 
-	it('gives startup the pinned defaults the engine resolved', async () => {
-		const pinned: PinnedDefaults = {
-			maxConcurrentJobs: { mode: 'fixed', value: 2 },
-			encoderDefaults: { ...defaultAppSettings().encoderDefaults, format: 'mp3' },
-			outputDefaults: {
-				outputDirectory: '/pinned',
-				outputNaming: { preset: 'absDefault', includeYear: true },
-			},
-		};
-		engine = createFakeEngine({
-			...defaultAppSettings(),
-			startupBehavior: 'pinnedDefaults',
-			pinnedDefaults: pinned,
-		});
-		runtime = createAppRuntime({ engine });
-
-		expect(await runtime.settings.loadStartupDefaults()).toEqual(pinned);
-		await runtime.initialize();
-		expect(runtime.output.readDefaults().outputDirectory).toBe('/pinned');
-	});
-
-	it('refuses startup defaults while the saved settings are unreadable', async () => {
+	it('shows unreadable saved settings as the dialog error', async () => {
 		const app = open((engine) => engine.breakSettings());
 
-		await expect(app.settings.loadStartupDefaults()).rejects.toMatchObject({
-			message: 'App settings file could not be read by this version.',
-		});
 		await app.settings.openDialog();
 		expect(app.settings.dialog()).toMatchObject({
 			isOpen: true,
@@ -109,12 +83,10 @@ describe('settings owner', () => {
 		});
 	});
 
-	it('tracks each dialog control on its own and re-applies defaults after a reset', async () => {
+	it('tracks each dialog control on its own through a reset', async () => {
 		const app = open();
 		await app.initialize();
 		await app.settings.openDialog();
-		const reapplied = vi.fn();
-		app.settings.bindAfterReset(reapplied);
 
 		engine.settingsWriteError = { message: 'Read-only' };
 		await app.settings.setStartupBehavior('pinnedDefaults');
@@ -133,8 +105,5 @@ describe('settings owner', () => {
 		await app.settings.resetAllAppSettings();
 		expect(app.settings.dialog().saveState).toBe('saved');
 		expect(app.settings.dialog().settings?.pinnedDefaults).toBeUndefined();
-		expect(reapplied).toHaveBeenCalledWith(
-			expect.objectContaining({ maxConcurrentJobs: { mode: 'auto' } }),
-		);
 	});
 });

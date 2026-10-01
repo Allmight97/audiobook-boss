@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
-import type { AudioFile, ProcessPayload, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile, ProcessPayload } from '../../types/audio';
 import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import type { SessionIntent } from '../../types/session';
@@ -18,8 +18,6 @@ import {
  * shows them and turns what the user does into intents.
  */
 export type InputOwner = {
-	audioRequest(file: AudioFile): TitleAudioRequest | undefined;
-	setAudioRequest(file: AudioFile, request: TitleAudioRequest): void;
 	readonly view: Accessor<InputView>;
 	readonly capability: Accessor<InputCapability>;
 	sourcesFor(file: AudioFile): ReadonlyArray<AudioFile>;
@@ -51,9 +49,6 @@ export type InputOwner = {
 export type InputOwnerDeps = {
 	readonly link: EngineLink;
 	readonly capability?: InputCapability;
-	/** The audio request a title takes as it enters the list. */
-	readonly audioDefaults: () => TitleAudioRequest;
-	readonly beforeImport?: () => Promise<void>;
 };
 
 export function createInputOwner(deps: InputOwnerDeps): InputOwner {
@@ -65,28 +60,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	let localError = '';
 	let isDragOver = false;
 	let supportText = DEFAULT_SUPPORT_TEXT;
-	// A title's audio request as just chosen, shown until the engine confirms
-	// it. It goes when encoding moves into the engine.
-	const chosenAudio = new Map<string, { readonly request: TitleAudioRequest }>();
-	// Readers compare requests by identity to decide whether to re-plan, so a
-	// request keeps one object while its content stays the same.
-	const lastAudio = new Map<string, { content: string; request: TitleAudioRequest }>();
-
-	function sameObjectWhileUnchanged(
-		id: string,
-		request: TitleAudioRequest | undefined,
-	): TitleAudioRequest | undefined {
-		if (!request) {
-			lastAudio.delete(id);
-			return undefined;
-		}
-		const content = JSON.stringify(request);
-		const last = lastAudio.get(id);
-		if (last?.content === content) return last.request;
-		lastAudio.set(id, { content, request });
-		return request;
-	}
-
 	function changed(): void {
 		bump((n) => n + 1);
 	}
@@ -104,17 +77,12 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		return link.titles().titleSourcesByIdentity[fileIdentityKey(file)] ?? [file];
 	}
 
-	function isLoaded(file: AudioFile): boolean {
-		const id = fileIdentityKey(file);
-		return link.titles().files.some((current) => fileIdentityKey(current) === id);
-	}
-
 	async function applied(intent: SessionIntent): Promise<boolean> {
 		return (await link.send(intent)).kind === 'applied';
 	}
 
 	async function importPaths(paths: ReadonlyArray<string>): Promise<void> {
-		await link.send({ kind: 'import', paths: [...paths], defaultAudio: deps.audioDefaults() });
+		await link.send({ kind: 'import', paths: [...paths] });
 	}
 
 	async function pick<A>(
@@ -151,7 +119,7 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 				return;
 			}
 			case 'drainOpened':
-				await link.send({ kind: 'importOpened', defaultAudio: deps.audioDefaults() });
+				await link.send({ kind: 'importOpened' });
 				return;
 			case 'importPaths':
 				await importPaths(intent.paths);
@@ -159,34 +127,9 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 	}
 
 	return {
-		audioRequest(file) {
-			rev();
-			const id = fileIdentityKey(file);
-			return sameObjectWhileUnchanged(
-				id,
-				chosenAudio.get(id)?.request ?? link.titles().audioRequestsByIdentity[id],
-			);
-		},
-		setAudioRequest(file, request) {
-			if (link.titles().orderLocked || !isLoaded(file)) return;
-			const id = fileIdentityKey(file);
-			const chosen = { request: structuredClone(request) };
-			chosenAudio.set(id, chosen);
-			changed();
-			link
-				.send({ kind: 'setAudioRequest', titleId: id, request: chosen.request })
-				.catch((error: unknown) => console.error('Failed to set the audio request:', error))
-				.finally(() => {
-					if (chosenAudio.get(id) !== chosen) return;
-					chosenAudio.delete(id);
-					changed();
-				});
-		},
 		sourcesFor,
 		audioChoiceRequired(file) {
-			rev();
-			const id = fileIdentityKey(file);
-			return !chosenAudio.has(id) && link.titles().audioChoiceRequired.includes(id);
+			return link.titles().audioChoiceRequired.includes(fileIdentityKey(file));
 		},
 		async groupSelected() {
 			await link.send({ kind: 'groupSelected' });
@@ -206,13 +149,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			if (localError) {
 				localError = '';
 				changed();
-			}
-			try {
-				await deps.beforeImport?.();
-			} catch {
-				localError = 'Could not load audio defaults. Review Settings, then try importing again.';
-				changed();
-				return;
 			}
 			await runImport(intent);
 		},
@@ -259,8 +195,6 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			link.post({ kind: 'setOrderLocked', locked });
 		},
 		reset() {
-			chosenAudio.clear();
-			lastAudio.clear();
 			localError = '';
 			isDragOver = false;
 			supportText = DEFAULT_SUPPORT_TEXT;

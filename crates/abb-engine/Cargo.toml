@@ -85,6 +85,8 @@ ffmpeg-next = "9.0.0"
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["aws_lc_rs"] }
 proptest = "1.11.0"
+# Paused time for tests of delayed work.
+tokio = { version = "1.52.1", features = ["full", "test-util"] }
 
 [lints]
 workspace = true

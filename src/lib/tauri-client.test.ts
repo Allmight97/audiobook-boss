@@ -77,11 +77,16 @@ describe('tauriClient', () => {
 					orderLocked: false,
 					notice: null,
 					orderDiffersFromImport: false,
-					audioRequestsByIdentity: { a: passThrough },
 				},
 				selection: null,
 				metadata: null,
 				lookup: null,
+				audio: {
+					revision: 4,
+					capabilities: null,
+					defaults: { choice: {}, facts: {}, request: passThrough },
+					titles: {},
+				},
 			},
 		});
 
@@ -95,7 +100,7 @@ describe('tauriClient', () => {
 		const titles = reply.update.titles;
 		expect(titles?.files[0]).toEqual({ inputId: 'a', path: '/books/a.mp3', isValid: true });
 		// A null `settings` is the request for MP3 pass-through.
-		expect(titles?.audioRequestsByIdentity.a).toEqual(passThrough);
+		expect(reply.update.audio?.defaults.request).toEqual(passThrough);
 		expect(reply.update).not.toHaveProperty('selection', null);
 		expect(reply.update.selection).toBeUndefined();
 	});
@@ -306,25 +311,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results[0]?.status).toBe('success');
 		expect(result.results[0]?.outputPath).toBeUndefined();
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
-	});
-
-	it('loads runtime settings capabilities', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce(runtimeSettingsCapabilitiesFixture());
-
-		const { tauriClient } = await import('./tauri/client');
-		const capabilities = await tauriClient.getRuntimeSettingsCapabilities();
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args = {}] = lastCall as [string, Record<string, unknown>?];
-		expect(commandName).toBe('get_runtime_settings_capabilities');
-		expect(args).toEqual({});
-		expect(
-			capabilities.encoder.encoderConfigurations.find((config) => config.encoderType === 'opus')
-				?.bitrateKbpsMax,
-		).toBe(510);
-		expect(capabilities.maxConcurrentJobs.fixedOptions).toContain(8);
 	});
 
 	it('preserves encoder settings and compiles metadata intent for processing', async () => {
@@ -553,64 +539,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(received?.eta_seconds).toBeUndefined();
 		expect(received?.job_id).toBeUndefined();
 		expect(received?.input_index).toBeUndefined();
-	});
-
-	it('denormalizes preview output naming nullish fields for preview_output_path command', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke
-			.mockResolvedValueOnce('/tmp/out/Frank Herbert/Dune.mp3')
-			.mockResolvedValueOnce('/tmp/out/Frank Herbert/Dune.m4b');
-
-		const { tauriClient } = await import('./tauri/client');
-		const preview = await tauriClient.previewOutputPath({
-			outputDir: '/tmp/out',
-			metadata: { title: 'Dune', artist: 'Frank Herbert' },
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: undefined,
-			},
-			sourcePath: '/books/ch01.mp3',
-			format: 'mp3',
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{
-				outputDir: string;
-				metadata: Record<string, unknown>;
-				outputNaming: Record<string, unknown>;
-				sourcePath: string | null;
-				format: string;
-			},
-		];
-
-		expect(commandName).toBe('preview_output_path');
-		expect(args.outputDir).toBe('/tmp/out');
-		expect(args.metadata.title).toBe('Dune');
-		expect(args.outputNaming.preset).toBe('customTemplate');
-		expect(args.outputNaming.includeYear).toBe(false);
-		expect(args.outputNaming.customTemplate).toBeNull();
-		expect(args.sourcePath).toBe('/books/ch01.mp3');
-		expect(args.format).toBe('mp3');
-		expect(preview).toBe('/tmp/out/Frank Herbert/Dune.mp3');
-
-		await tauriClient.previewOutputPath({
-			format: 'm4b',
-			outputDir: '/tmp/out',
-			metadata: { title: 'Dune', artist: 'Frank Herbert' },
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: undefined,
-			},
-			sourcePath: '/books/ch01.mp3',
-		});
-		const omittedHandlingCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [, omittedHandlingArgs] = omittedHandlingCall as [string, { format: string }];
-		expect(omittedHandlingArgs.format).toBe('m4b');
 	});
 });
 

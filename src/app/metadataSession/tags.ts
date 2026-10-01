@@ -1,8 +1,4 @@
-import type { MetadataFieldId, MetadataFormState } from './fields';
-
-function formValue(form: MetadataFormState, inputId: MetadataFieldId): string {
-	return form.fields[inputId].value.trim();
-}
+import type { TagPreview } from '../../types/session';
 
 export type TagField =
 	| 'title'
@@ -20,27 +16,20 @@ export type TagField =
 
 export type TagPreviewValues = Record<TagField, string>;
 
-/** `albumSort` is the TSOA value Rust reports processing would write. */
-export function projectTagPreviewValues(
-	form: MetadataFormState,
-	albumSort: string,
-): TagPreviewValues {
-	const title = formValue(form, 'meta-title');
-	const author = formValue(form, 'meta-author');
-	const series = formValue(form, 'meta-series');
-	const part = formValue(form, 'meta-series-part');
+/** The engine's tag preview under the tag panel's row names. */
+export function tagPreviewValues(tags: TagPreview): TagPreviewValues {
 	return {
-		title,
-		album: title,
-		artist: author,
-		albumArtist: author,
-		composer: formValue(form, 'meta-narrator'),
-		series,
-		part,
-		subseries: formValue(form, 'meta-subseries'),
-		subpart: formValue(form, 'meta-subseries-part'),
-		tsoa: albumSort,
-		year: formValue(form, 'meta-year'),
-		genre: formValue(form, 'meta-genre'),
+		title: tags.title,
+		album: tags.album,
+		artist: tags.artist,
+		albumArtist: tags.albumArtist,
+		composer: tags.composer,
+		series: tags.series,
+		part: tags.seriesPart,
+		subseries: tags.subseries,
+		subpart: tags.subseriesPart,
+		tsoa: tags.albumSort,
+		year: tags.year,
+		genre: tags.genre,
 	};
 }

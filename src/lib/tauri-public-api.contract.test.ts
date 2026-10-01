@@ -14,7 +14,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'get_remote_source_account_state',
 	'get_remote_source_acquisition_status',
 	'get_remote_source_indexer_connection',
-	'get_runtime_settings_capabilities',
 	'get_supported_audio_import_metadata',
 	'grab_remote_source_release',
 	'list_remote_source_providers',
@@ -24,8 +23,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'load_remote_source_library',
 	'logout_remote_source_account',
 	'preflight_processing_plan',
-	'preview_output_path',
-	'preview_title_audio',
 	'process_audiobook_files',
 	'purge_remote_source_session',
 	'read_audio_cover_thumbnail',
@@ -45,6 +42,7 @@ const EXPECTED_APP_EVENT_NAMES = [
 	'work-operation-snapshot',
 	'work-operation-list-snapshot',
 	'session-update',
+	'settings-update',
 ] as const;
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
@@ -59,7 +57,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'getRemoteSourceAccountState',
 	'getRemoteSourceAcquisitionStatus',
 	'getRemoteSourceIndexerConnection',
-	'getRuntimeSettingsCapabilities',
 	'getSupportedAudioImportMetadata',
 	'listen',
 	'listRemoteSourceProviders',
@@ -77,8 +74,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'revealPath',
 	'openUrl',
 	'preflightProcessingPlan',
-	'previewOutputPath',
-	'previewTitleAudio',
 	'processAudiobookFiles',
 	'purgeRemoteSourceSession',
 	'readAudioMetadata',

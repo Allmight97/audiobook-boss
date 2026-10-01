@@ -1,4 +1,3 @@
-import type { TitleAudioRequest } from '../../types/audio';
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
 	open as tauriOpen,
@@ -20,6 +19,7 @@ import {
 	type ProcessingProgressEvent,
 	type ProcessingQueueEvent,
 	type SessionUpdateEvent,
+	type SettingsUpdateEvent,
 	type WorkOperationListSnapshotEvent,
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
@@ -27,12 +27,9 @@ import type {
 	ProcessPayload,
 	ProcessCommandResult,
 	ProcessingPreflightPlan,
-	OutputKind,
-	RuntimeSettingsCapabilities,
 } from '../../types/audio';
 import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
-import type { AudiobookMetadata } from '../../types/metadata';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { SessionIntent } from '../../types/session';
 import type {
@@ -66,6 +63,7 @@ import {
 	normalizeProgressEvent,
 	normalizeQueueEvent,
 	normalizeSessionUpdate,
+	normalizeSettingsSnapshot,
 } from './normalizers';
 
 type MetadataIntentByPath = Record<string, MetadataIntentPatch>;
@@ -79,6 +77,7 @@ type WorkOperationListSnapshotHandler = (event: {
 	payload: WorkOperationListSnapshotEvent;
 }) => void;
 type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
+type SettingsUpdateHandler = (event: { payload: SettingsUpdateEvent }) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
@@ -117,6 +116,12 @@ async function listenWorkOperationListSnapshot(
 	});
 }
 
+async function listenSettingsUpdate(handler: SettingsUpdateHandler): Promise<UnlistenFn> {
+	return generatedEvents.settingsUpdate.listen((event) => {
+		handler({ payload: normalizeSettingsSnapshot(event.payload) });
+	});
+}
+
 async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
 	return generatedEvents.sessionUpdate.listen((event) => {
 		handler({ payload: normalizeSessionUpdate(event.payload) });
@@ -141,6 +146,10 @@ function listen(
 	event: typeof EVENTS.SESSION_UPDATE,
 	handler: SessionUpdateHandler,
 ): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.SETTINGS_UPDATE,
+	handler: SettingsUpdateHandler,
+): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
 	handler: (event: { payload: ApplicationEvents[E] }) => void,
@@ -154,6 +163,7 @@ function listen(
 		| WorkOperationSnapshotHandler
 		| WorkOperationListSnapshotHandler
 		| SessionUpdateHandler
+		| SettingsUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
 	if (event === EVENTS.PROGRESS) {
@@ -178,6 +188,10 @@ function listen(
 
 	if (event === EVENTS.SESSION_UPDATE) {
 		return listenSessionUpdate(handler as SessionUpdateHandler);
+	}
+
+	if (event === EVENTS.SETTINGS_UPDATE) {
+		return listenSettingsUpdate(handler as SettingsUpdateHandler);
 	}
 
 	return tauriListen(
@@ -238,11 +252,6 @@ export const tauriClient = {
 		filePath: string,
 	): Promise<CommandResult<'read_audio_cover_thumbnail'>> =>
 		commandSpecs.read_audio_cover_thumbnail({ filePath }),
-	previewTitleAudio: (
-		filePaths: string[],
-		request: TitleAudioRequest,
-		chapterPlans?: ProcessPayload['chapterPlans'],
-	) => commandSpecs.preview_title_audio({ filePaths, request, chapterPlans }),
 	getSupportedAudioImportMetadata: (): Promise<
 		CommandResult<'get_supported_audio_import_metadata'>
 	> => commandSpecs.get_supported_audio_import_metadata(),
@@ -284,16 +293,6 @@ export const tauriClient = {
 		update: RemoteIndexerConnectionUpdate,
 	): Promise<RemoteIndexerConnectionTestResult> =>
 		commandSpecs.test_remote_source_indexer_connection({ update }),
-	getRuntimeSettingsCapabilities: (): Promise<RuntimeSettingsCapabilities> =>
-		commandSpecs.get_runtime_settings_capabilities(),
-	previewOutputPath: (args: {
-		outputDir: string;
-		metadata?: Partial<AudiobookMetadata> | null;
-		outputNaming?: ProcessPayload['outputNaming'] | null;
-		sourcePath?: string | null;
-		outputKind?: OutputKind | null;
-		format: import('../../types/audio').AudiobookFormat;
-	}): Promise<CommandResult<'preview_output_path'>> => commandSpecs.preview_output_path(args),
 	preflightProcessingPlan: (args: {
 		payload: ProcessPayload;
 		metadataIntent?: MetadataIntentByPath | null;
@@ -337,6 +336,7 @@ export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'work-operation-snapshot',
 	'work-operation-list-snapshot',
 	'session-update',
+	'settings-update',
 ] as const);
 
 export type { TauriCommand };

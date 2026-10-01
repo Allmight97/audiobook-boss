@@ -20,26 +20,11 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 		createRoot((dispose) => {
 			disposeRoot = dispose;
 			const link = createEngineLink(capabilities.engine);
-			const input = createInputOwner({
-				link,
-				capability: capabilities.input,
-				audioDefaults: () => encoding.audioRequest(),
-				beforeImport: () => initialize(),
-			});
-			const settings = createSettingsOwner({ link, capability: capabilities.settings });
+			const input = createInputOwner({ link, capability: capabilities.input });
+			const settings = createSettingsOwner({ link });
 			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
-			const encoding = createEncodingOwner({
-				input,
-				loadCapabilities: async () =>
-					(await settings.capability().getRuntimeSettingsCapabilities()).encoder ?? null,
-				persistDefaults: settings.rememberEncoderDefaults,
-			});
-			const output = createOutputOwner({
-				input,
-				metadataView: metadata.view,
-				encoding,
-				persistDefaults: settings.rememberOutputDefaults,
-			});
+			const encoding = createEncodingOwner({ link, input });
+			const output = createOutputOwner({ link });
 			const lookup = createMetadataLookupOwner({ link, metadata });
 			const remoteSource = createRemoteSourceOwner({
 				...capabilities.remoteSource,
@@ -54,28 +39,10 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 				remoteSource,
 			});
 			const workOperations = createWorkOperationsOwner({ remoteSource });
-			let startup: Promise<void> | undefined;
+			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {
-				if (startup) return startup;
-				const initialOutput = JSON.stringify(output.readDefaults());
-				startup = settings
-					.loadStartupDefaults()
-					.then((defaults) => {
-						if (disposed) return;
-						encoding.hydrateDefaults(defaults.encoderDefaults);
-						if (JSON.stringify(output.readDefaults()) === initialOutput)
-							output.applyDefaults(defaults.outputDefaults);
-					})
-					.catch((error: unknown) => {
-						startup = undefined;
-						throw error;
-					});
-				return startup;
+				return link.ready();
 			}
-			settings.bindAfterReset((defaults) => {
-				output.applyDefaults(defaults.outputDefaults);
-				encoding.applyDefaults(defaults.encoderDefaults);
-			});
 			return {
 				link,
 				initialize,

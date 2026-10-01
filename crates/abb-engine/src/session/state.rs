@@ -10,8 +10,12 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use super::audio::{AudioDefaults, AudioSnapshot, TitleAudio};
+use super::audio_choice::AudioEdit;
 use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
+use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
+use super::plans::{estimate_size, PlanInput, PlanTicket, Plans};
 use super::tag_cache::{ReadTicket, TagCache};
 use super::working_set::{SelectionSnapshot, TitlesSnapshot, WorkingSet};
 use crate::audio::AudioFile;
@@ -92,13 +96,33 @@ pub struct MetadataSnapshot {
     pub binding: u64,
     pub form: MetadataFormSnapshot,
     pub cover: CoverSnapshot,
-    /// The album sort processing would write for the values on screen.
-    pub album_sort: Option<String>,
+    /// The tags Save or processing would write for the values on screen.
+    pub tags: TagPreview,
     pub save_in_progress: bool,
     pub status: Option<MetadataStatus>,
     pub has_pending_edits: bool,
     /// Files with a Save waiting for the exports reading them to finish.
     pub waiting_writes: Vec<PathBuf>,
+}
+
+/// The tags the values on screen become. Title is also the album; author is
+/// also the album artist.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TagPreview {
+    pub title: String,
+    pub album: String,
+    pub artist: String,
+    pub album_artist: String,
+    pub composer: String,
+    pub series: String,
+    pub series_part: String,
+    pub subseries: String,
+    pub subseries_part: String,
+    /// The album sort (TSOA) processing would write.
+    pub album_sort: String,
+    pub year: String,
+    pub genre: String,
 }
 
 /// Everything that changed since a revision. A part is present only when it
@@ -112,6 +136,8 @@ pub struct SessionUpdate {
     pub selection: Option<SelectionSnapshot>,
     pub metadata: Option<MetadataSnapshot>,
     pub lookup: Option<LookupSnapshot>,
+    pub audio: Option<AudioSnapshot>,
+    pub output: Option<OutputSnapshot>,
 }
 
 /// Why the metadata draft gate refused a change of selection.
@@ -190,6 +216,8 @@ struct Parts {
     selection: SelectionSnapshot,
     metadata: MetadataSnapshot,
     lookup: LookupSnapshot,
+    audio: AudioSnapshot,
+    output: OutputSnapshot,
 }
 
 pub(crate) struct SessionState {
@@ -200,6 +228,11 @@ pub(crate) struct SessionState {
     pub(crate) working_set: WorkingSet,
     pub(crate) tags: TagCache,
     pub(crate) lookup: LookupState,
+    pub(crate) audio: AudioDefaults,
+    pub(crate) output: OutputPlan,
+    plans: Plans,
+    /// The title and audio-request changes plans were last refreshed for.
+    plans_seen: (u64, u64),
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
@@ -233,13 +266,20 @@ impl Default for SessionState {
                     notice: None,
                     notice_serial: 0,
                 },
-                album_sort: None,
+                tags: TagPreview::default(),
                 save_in_progress: false,
                 status: None,
                 has_pending_edits: false,
                 waiting_writes: Vec::new(),
             },
             lookup: lookup.snapshot(0),
+            audio: AudioSnapshot {
+                revision: 0,
+                capabilities: None,
+                defaults: AudioDefaults::default().defaults_view(),
+                titles: Default::default(),
+            },
+            output: OutputPlan::default().snapshot(0, OutputPreview::NoDirectory),
         };
         Self {
             epoch: 0,
@@ -247,6 +287,10 @@ impl Default for SessionState {
             working_set,
             tags: TagCache::default(),
             lookup,
+            audio: AudioDefaults::default(),
+            output: OutputPlan::default(),
+            plans: Plans::default(),
+            plans_seen: (u64::MAX, u64::MAX),
             form,
             bound: Vec::new(),
             selection_key: Vec::new(),
@@ -302,9 +346,138 @@ impl SessionState {
             };
             changed = true;
         }
+        let audio = self.audio_snapshot(self.parts.audio.revision);
+        if audio != self.parts.audio {
+            self.parts.audio = AudioSnapshot {
+                revision: next,
+                ..audio
+            };
+            changed = true;
+        }
+        let output = self.output_snapshot(self.parts.output.revision);
+        if output != self.parts.output {
+            self.parts.output = OutputSnapshot {
+                revision: next,
+                ..output
+            };
+            changed = true;
+        }
         if changed {
             self.parts.revision = next;
         }
+    }
+
+    fn audio_snapshot(&self, revision: u64) -> AudioSnapshot {
+        let titles = self
+            .working_set
+            .files()
+            .iter()
+            .filter_map(|file| {
+                let id = &file.input_id;
+                let request = self.working_set.audio_request(id)?;
+                let view = self.audio.title_view(request);
+                let plan = self.plans.plan(id);
+                let estimate = estimate_size(
+                    request,
+                    &plan,
+                    self.working_set.sources_for(file),
+                    view.facts.estimate_kbps,
+                );
+                Some((
+                    id.clone(),
+                    TitleAudio {
+                        choice: view.choice,
+                        facts: view.facts,
+                        request: view.request,
+                        plan,
+                        estimate,
+                    },
+                ))
+            })
+            .collect();
+        AudioSnapshot {
+            revision,
+            capabilities: self.audio.capabilities().cloned(),
+            defaults: self.audio.defaults_view(),
+            titles,
+        }
+    }
+
+    /// The title the output preview names: the first selected one, or the
+    /// first valid one.
+    fn preview_title(&self) -> Option<&AudioFile> {
+        let files = self.working_set.files();
+        self.working_set
+            .selected_indices()
+            .iter()
+            .min()
+            .and_then(|index| files.get(*index))
+            .or_else(|| files.iter().find(|file| file.is_valid))
+    }
+
+    fn output_snapshot(&self, revision: u64) -> OutputSnapshot {
+        let value = |field| {
+            let value = self.form.trimmed(field);
+            (!value.is_empty()).then(|| value.to_string())
+        };
+        let metadata = AudiobookMetadata {
+            title: value(MetadataField::Title),
+            artist: value(MetadataField::Author),
+            composer: value(MetadataField::Narrator),
+            date: value(MetadataField::Date),
+            series: value(MetadataField::Series),
+            series_part: value(MetadataField::SeriesPart),
+            subseries: value(MetadataField::Subseries),
+            subseries_part: value(MetadataField::SubseriesPart),
+            ..Default::default()
+        };
+        let title = self.preview_title().map(|file| {
+            let format = self
+                .working_set
+                .audio_request(&file.input_id)
+                .map_or_else(|| self.audio.request().format, |request| request.format);
+            (&metadata, file.path.as_path(), format)
+        });
+        let preview = self.output.preview(title);
+        self.output.snapshot(revision, preview)
+    }
+
+    // ---- Title plans ----
+
+    /// The plans to resolve because a title's request or sources changed.
+    pub(crate) fn take_plan_tickets(&mut self) -> Vec<PlanTicket> {
+        let seen = (
+            self.working_set.titles_changes(),
+            self.working_set.audio_changes(),
+        );
+        if seen == self.plans_seen {
+            return Vec::new();
+        }
+        self.plans_seen = seen;
+        let required = self.working_set.audio_choice_required();
+        let inputs: Vec<PlanInput<'_>> = self
+            .working_set
+            .files()
+            .iter()
+            .filter_map(|file| {
+                let request = self.working_set.audio_request(&file.input_id)?;
+                Some(PlanInput {
+                    title_id: &file.input_id,
+                    request,
+                    sources: self.working_set.sources_for(file).to_vec(),
+                    choice_required: required.contains(&file.input_id),
+                })
+            })
+            .collect();
+        self.plans.refresh(inputs)
+    }
+
+    pub(crate) fn finish_plan(
+        &mut self,
+        ticket: &PlanTicket,
+        result: Result<crate::audio::TitleAudioPlan, String>,
+    ) {
+        self.plans.finish(ticket, result);
     }
 
     /// The parts that changed after `revision`; everything for `None`.
@@ -316,6 +489,8 @@ impl SessionState {
             selection: newer(self.parts.selection.revision).then(|| self.parts.selection.clone()),
             metadata: newer(self.parts.metadata.revision).then(|| self.parts.metadata.clone()),
             lookup: newer(self.parts.lookup.revision).then(|| self.parts.lookup.clone()),
+            audio: newer(self.parts.audio.revision).then(|| self.parts.audio.clone()),
+            output: newer(self.parts.output.revision).then(|| self.parts.output.clone()),
         }
     }
 
@@ -333,11 +508,29 @@ impl SessionState {
                 notice: self.cover.notice.clone(),
                 notice_serial: self.cover.notice_serial,
             },
-            album_sort: self.album_sort_preview(),
+            tags: self.tag_preview(),
             save_in_progress: self.save_in_progress,
             status: self.status.clone(),
             has_pending_edits: self.tags.has_pending(),
             waiting_writes: self.waiting_write_paths(),
+        }
+    }
+
+    fn tag_preview(&self) -> TagPreview {
+        let value = |field| self.form.trimmed(field).to_string();
+        TagPreview {
+            title: value(MetadataField::Title),
+            album: value(MetadataField::Title),
+            artist: value(MetadataField::Author),
+            album_artist: value(MetadataField::Author),
+            composer: value(MetadataField::Narrator),
+            series: value(MetadataField::Series),
+            series_part: value(MetadataField::SeriesPart),
+            subseries: value(MetadataField::Subseries),
+            subseries_part: value(MetadataField::SubseriesPart),
+            album_sort: self.album_sort_preview().unwrap_or_default(),
+            year: value(MetadataField::Date),
+            genre: value(MetadataField::Genre),
         }
     }
 
@@ -528,6 +721,28 @@ impl SessionState {
         };
         self.save_in_progress = false;
         self.status = None;
+    }
+
+    // ---- Audio ----
+
+    /// Edits each named title's audio choice; refused edits and a locked list
+    /// change nothing.
+    pub(crate) fn edit_title_audio(&mut self, title_ids: &[String], edit: AudioEdit) {
+        for id in title_ids {
+            let Some(request) = self.working_set.audio_request(id) else {
+                continue;
+            };
+            if let Some(next) = self.audio.edit_title(request, edit) {
+                self.working_set.set_audio_request(id, next);
+            }
+        }
+    }
+
+    pub(crate) fn apply_default_audio(&mut self, title_ids: &[String]) {
+        let request = self.audio.request();
+        for id in title_ids {
+            self.working_set.set_audio_request(id, request.clone());
+        }
     }
 
     /// Returns the session to empty. Writes already waiting on an export stay

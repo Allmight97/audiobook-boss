@@ -24,12 +24,12 @@ import {
 	type MetadataFieldAction,
 	type MetadataFormState,
 } from './fields';
-import { projectTagPreviewValues } from './tags';
+import { tagPreviewValues, type TagPreviewValues } from './tags';
 
 export type MetadataView = {
 	readonly form: MetadataFormState;
 	readonly cover: CoverUiState;
-	readonly tags: ReturnType<typeof projectTagPreviewValues>;
+	readonly tags: TagPreviewValues;
 	readonly saveInProgress: boolean;
 	readonly statusMessage: string;
 };
@@ -239,7 +239,7 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				hasCustomCoverArt: metadata.cover.custom,
 				coverArtRemovalRequested: metadata.cover.removalRequested,
 			},
-			tags: projectTagPreviewValues(form, metadata.albumSort ?? ''),
+			tags: tagPreviewValues(metadata.tags),
 			saveInProgress: metadata.saveInProgress,
 			statusMessage: statusText(metadata.status) || (metadata.form.validationMessage ?? ''),
 		};

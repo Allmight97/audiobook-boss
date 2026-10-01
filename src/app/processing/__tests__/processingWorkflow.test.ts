@@ -567,10 +567,12 @@ it('submits MP3 pass-through with no encoder settings', async () => {
 	try {
 		engine.loadTitles(books);
 		await runtime.initialize();
-		runtime.input.setAudioRequest(books[0]!, titleAudioRequest({ format: 'mp3', settings: null }));
-		runtime.output.applyDefaults({
-			outputDirectory: '/tmp/out',
-			outputNaming: { preset: 'absDefault', includeYear: false },
+		engine.seedTitleAudio(
+			books[0]!.inputId ?? books[0]!.path,
+			titleAudioRequest({ format: 'mp3', settings: null }),
+		);
+		engine.change((state) => {
+			state.output.directory = '/tmp/out';
 		});
 		await runtime.processing.start();
 		expect(submit).toHaveBeenCalledWith(

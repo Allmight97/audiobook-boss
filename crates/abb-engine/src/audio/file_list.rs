@@ -246,32 +246,36 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
     for path in file_paths {
         files.push(validate_single_file(path.as_ref())?);
     }
+    Ok(FileListInfo::from_files(files))
+}
 
-    let mut total_duration = 0.0;
-    let mut total_size = 0.0;
-    let mut valid_count = 0;
-    let mut invalid_count = 0;
-
-    for file in &files {
-        if file.is_valid {
-            total_duration += file
-                .duration
-                .filter(|value| value.is_finite())
-                .unwrap_or(0.0);
-            total_size += file.size.filter(|value| value.is_finite()).unwrap_or(0.0);
-            valid_count += 1;
-        } else {
-            invalid_count += 1;
+impl FileListInfo {
+    /// Totals for files that were already inspected.
+    pub fn from_files(files: Vec<AudioFile>) -> Self {
+        let mut total_duration = 0.0;
+        let mut total_size = 0.0;
+        let mut valid_count = 0;
+        let mut invalid_count = 0;
+        for file in &files {
+            if file.is_valid {
+                total_duration += file
+                    .duration
+                    .filter(|value| value.is_finite())
+                    .unwrap_or(0.0);
+                total_size += file.size.filter(|value| value.is_finite()).unwrap_or(0.0);
+                valid_count += 1;
+            } else {
+                invalid_count += 1;
+            }
+        }
+        Self {
+            files,
+            total_duration,
+            total_size,
+            valid_count,
+            invalid_count,
         }
     }
-
-    Ok(FileListInfo {
-        files,
-        total_duration,
-        total_size,
-        valid_count,
-        invalid_count,
-    })
 }
 
 /// Bind accepted chapter facts to freshly inspected audio, never to a reread CUE.

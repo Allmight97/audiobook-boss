@@ -102,11 +102,32 @@ describe('AppSettingsDialogView', () => {
 		await renderOpenDialog((engine) => {
 			engine.settingsWriteError = { message: 'Disk full' };
 		});
-		runtime!.encoding.applyDefaults({ ...runtime!.encoding.readDefaults(), intent: 'encode' });
+		engine.change((state) => {
+			state.audio.defaults.choice.intent = 'encode';
+		});
 		flush();
 		await fireEvent.change(screen.getByTestId('encoder-select'), {
 			target: { value: 'faac' },
 		});
+		await vi.waitFor(() =>
+			expect(engine.sessionIntents).toContainEqual({
+				kind: 'setDefaultAudio',
+				edit: { field: 'encoder', value: 'faac' },
+			}),
+		);
+		// The engine applies the choice and records it; the write fails.
+		engine.change((state) => {
+			state.audio.defaults.choice.encoder = 'faac';
+			state.audio.defaults.facts.effectiveEncoder = 'faac';
+		});
+		const faac = {
+			...engine.settings().settings!.encoderDefaults,
+			settings: {
+				...engine.settings().settings!.encoderDefaults.settings,
+				encoderType: 'faac' as const,
+			},
+		};
+		engine.recordSettings({ encoderDefaults: faac });
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
 		);

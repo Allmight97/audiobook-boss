@@ -10,8 +10,6 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use abb_engine::app_settings::EncoderDefaults;
-use abb_engine::audio::TitleAudioRequest;
 use abb_engine::session::{MetadataField, SessionIntent, SessionOutcome, SessionUpdate};
 use abb_engine::{DiscardEvents, Engine, EngineConfig};
 
@@ -144,17 +142,10 @@ async fn run(options: Options, state_dir: PathBuf) -> Result<(), String> {
     })
     .map_err(|error| format!("engine failed to start: {error}"))?;
 
-    let defaults = EncoderDefaults::default();
     send(
         &engine,
         SessionIntent::Import {
             paths: options.paths,
-            default_audio: TitleAudioRequest {
-                format: defaults.format,
-                intent: defaults.intent,
-                settings: Some(defaults.settings),
-                sample_rate: defaults.sample_rate,
-            },
         },
     )
     .await?;

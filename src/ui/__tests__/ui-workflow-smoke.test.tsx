@@ -15,7 +15,6 @@ import type { AppSettings } from '../../types/appSettings';
 import { createFakeEngine } from '../../test/fixtures/fakeEngine';
 import type { OnlineMetadataResult } from '../../types/metadata';
 import type { WorkSubmissionAccepted } from '../../types/workRuntime';
-import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { App } from '../App';
 
 const native = vi.hoisted(() => ({
@@ -27,9 +26,6 @@ const native = vi.hoisted(() => ({
 	readAudioMetadata: vi.fn(),
 	openFile: vi.fn(),
 	loadCoverArtFromUrl: vi.fn(),
-	getRuntimeSettingsCapabilities: vi.fn(),
-	previewOutputPath: vi.fn(),
-	previewTitleAudio: vi.fn(),
 	preflightProcessingPlan: vi.fn(),
 	processAudiobookFiles: vi.fn(),
 	submitProcessingOperation: vi.fn(),
@@ -174,19 +170,6 @@ describe('UI Workflow Smoke Test', () => {
 			cover_art: [1, 1, 1],
 		});
 		native.loadCoverArtFromUrl.mockResolvedValue(COVER_BYTES);
-		native.getRuntimeSettingsCapabilities.mockResolvedValue(runtimeSettingsCapabilitiesFixture());
-		native.previewOutputPath.mockResolvedValue(
-			`${OUTPUT_DIRECTORY}/Frank Herbert/Dune (1965)/Dune.m4b`,
-		);
-		native.previewTitleAudio.mockResolvedValue({
-			format: 'm4b',
-			handling: 'encode',
-			settings: settings.encoderDefaults.settings,
-			sampleRate: 44100,
-			channels: 1,
-			sourceCodec: 'AAC-LC',
-			reason: null,
-		});
 		native.preflightProcessingPlan.mockResolvedValue(approvedPlan());
 		native.submitProcessingOperation.mockResolvedValue(acceptedSubmission());
 		native.listWorkOperations.mockResolvedValue({ membershipRevision: 0, operations: [] });
@@ -237,7 +220,14 @@ describe('UI Workflow Smoke Test', () => {
 			await user.click(screen.getByRole('button', { name: /Audio plan for/ }));
 			const audioEditor = screen.getByRole('dialog', { name: 'Audio plan' });
 			await user.selectOptions(within(audioEditor).getByLabelText('Audio handling'), 'encode');
-			await user.click(within(audioEditor).getByText(/Encoding settings/));
+			// The engine applies each edit; the panel then shows the encoding settings.
+			engine.seedTitleAudio('input-dune', {
+				format: 'm4b',
+				intent: 'encode',
+				settings: settings.encoderDefaults.settings,
+				sampleRate: 'auto',
+			});
+			await user.click(await within(audioEditor).findByText(/Encoding settings/));
 			await user.selectOptions(within(audioEditor).getByLabelText('Encoder'), 'native_aac');
 			const targetBitrate = within(audioEditor).getByLabelText(
 				'Bitrate (kbps)',
@@ -253,6 +243,26 @@ describe('UI Workflow Smoke Test', () => {
 				within(audioEditor).getByLabelText('Channels') as HTMLSelectElement,
 				'mono',
 			);
+			await waitFor(() =>
+				expect(engine.sessionIntents).toContainEqual({
+					kind: 'setTitleAudio',
+					titleIds: ['input-dune'],
+					edit: { field: 'channels', value: 'mono' },
+				}),
+			);
+			engine.seedTitleAudio('input-dune', {
+				format: 'm4b',
+				intent: 'encode',
+				settings: {
+					encoderType: 'native_aac',
+					bitrateKbps: 96,
+					bitrateMode: { mode: 'cbr' },
+					channels: 'mono',
+					nativeAacSpeed: 0,
+					faacProfile: 'auto',
+				},
+				sampleRate: { explicit: 44100 },
+			});
 			await user.click(document.getElementById('output-dir-browse') as HTMLElement);
 			await user.click(document.getElementById('output-abs-include-year') as HTMLElement);
 			await waitFor(() => {

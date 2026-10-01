@@ -173,7 +173,11 @@ impl State {
 impl SettingsRuntime {
     /// Loads the saved settings and builds the job scheduler they ask for.
     /// Settings that cannot be read leave the runtime defaults in effect.
-    pub(crate) fn start(config_dir: PathBuf, power: PowerManager) -> (Self, ManagedJobRegistry) {
+    /// Also returns the defaults this launch starts from, when settings loaded.
+    pub(crate) fn start(
+        config_dir: PathBuf,
+        power: PowerManager,
+    ) -> (Self, ManagedJobRegistry, Option<PinnedDefaults>) {
         let mut state = State::default();
         state.load(&config_dir);
         if let Some(error) = &state.load_error {
@@ -196,7 +200,9 @@ impl SettingsRuntime {
             "Job registry initialized: max_concurrent = {}",
             jobs.max_concurrent()
         );
-        state.concurrency = startup.map(|defaults| defaults.max_concurrent_jobs);
+        state.concurrency = startup
+            .as_ref()
+            .map(|defaults| defaults.max_concurrent_jobs);
         if let Some(settings) = &state.accepted {
             power.set_enabled(settings.keep_awake_while_working);
         }
@@ -208,7 +214,7 @@ impl SettingsRuntime {
                 state: tokio::sync::Mutex::new(state),
             }),
         };
-        (runtime, jobs)
+        (runtime, jobs, startup)
     }
 
     pub(crate) async fn snapshot(&self) -> SettingsSnapshot {

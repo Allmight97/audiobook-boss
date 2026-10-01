@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcquisitionJob } from '../../types/remoteSource';
 import type { ProcessingPreflightPlan } from '../../types/audio';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
-import { audioFile, createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
+import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { tauriClient } from '../../lib/tauri/client';
 import { runOutputPlanReviewWorkflow } from '../outputPlan';
 import { createAppRuntime } from './index';
@@ -98,7 +98,6 @@ describe('app runtime', () => {
 		void first.output.openCollisionReview(collisionPlan());
 		void first.settings.openDialog();
 		first.lookup.setTitleQuery('stale lookup');
-		first.encoding.select('encoder', 'faac');
 		first.processing.pushTransientStatus('first runtime only');
 		void first.remoteSource.open();
 		first.remoteSource.editSearch({ titleFilter: 'first runtime only' });
@@ -109,8 +108,6 @@ describe('app runtime', () => {
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(first.lookup.view().titleQuery).toBe('stale lookup');
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(first.encoding.view().flavor).toBe('faac');
-		expect(second.encoding.view().flavor).toBe('native_aac');
 		expect(first.processing.status().statusText).toBe('first runtime only');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(first.remoteSource.view().isOpen).toBe(true);
@@ -122,7 +119,6 @@ describe('app runtime', () => {
 		expect(second.output.collision().isOpen).toBe(false);
 		expect(second.settings.dialog().isOpen).toBe(false);
 		expect(second.lookup.view().titleQuery).toBe('');
-		expect(second.encoding.view().flavor).toBe('native_aac');
 		expect(second.processing.status().statusText).toBe('Idle');
 		expect(second.remoteSource.view().isOpen).toBe(false);
 
@@ -139,47 +135,13 @@ describe('app runtime', () => {
 		expect(third.remoteSource.view().isOpen).toBe(false);
 	});
 
-	it('keeps output request config and collision review isolated across live runtimes', async () => {
+	it('keeps collision review isolated across live runtimes', async () => {
 		const first = createAppRuntime();
 		const second = createAppRuntime();
 		dispose = () => {
 			first.dispose();
 			second.dispose();
 		};
-
-		first.output.applyDefaults({
-			outputDirectory: '/first/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: '{first}',
-			},
-		});
-		second.output.applyDefaults({
-			outputDirectory: '/second/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: true,
-				customTemplate: '{second}',
-			},
-		});
-
-		expect(first.output.readRequestConfig()).toEqual({
-			outputDirectory: '/first/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: false,
-				customTemplate: '{first}',
-			},
-		});
-		expect(second.output.readRequestConfig()).toEqual({
-			outputDirectory: '/second/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: true,
-				customTemplate: '{second}',
-			},
-		});
 
 		const preflight = vi
 			.spyOn(tauriClient, 'preflightProcessingPlan')
@@ -203,14 +165,7 @@ describe('app runtime', () => {
 		await expect(pending).resolves.toEqual({ status: 'cancelled' });
 
 		first.dispose();
-		expect(second.output.readRequestConfig()).toEqual({
-			outputDirectory: '/second/out',
-			outputNaming: {
-				preset: 'customTemplate',
-				includeYear: true,
-				customTemplate: '{second}',
-			},
-		});
+		expect(second.output.collision().isOpen).toBe(false);
 		preflight.mockRestore();
 	});
 
@@ -267,22 +222,9 @@ describe('app runtime', () => {
 
 	it('publishes nothing when the engine answers after disposal', async () => {
 		const attached = createDeferred<void>();
-		const engine = createFakeEngine({
-			...defaultAppSettings(),
-			encoderDefaults: {
-				format: 'mp3',
-				intent: 'encode',
-				settings: {
-					encoderType: 'native_aac',
-					bitrateKbps: 128,
-					bitrateMode: { mode: 'cbr' },
-					channels: 'stereo',
-					nativeAacSpeed: 0,
-					faacProfile: 'auto',
-				},
-				sampleRate: { explicit: 48000 },
-			},
-			outputDefaults: { outputNaming: { preset: 'absDefault', includeYear: true } },
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.output.directory = '/late';
 		});
 		const attach = engine.attach.bind(engine);
 		engine.attach = async () => {
@@ -292,14 +234,12 @@ describe('app runtime', () => {
 		const runtime = createAppRuntime({ engine });
 		const startup = runtime.initialize();
 		runtime.dispose();
-		const encodingAfterDispose = runtime.encoding.readDefaults();
-		const outputAfterDispose = runtime.output.readDefaults();
+		const outputAfterDispose = runtime.output.view();
 
 		attached.resolve();
 		await startup;
 
-		expect(runtime.encoding.readDefaults()).toEqual(encodingAfterDispose);
-		expect(runtime.output.readDefaults()).toEqual(outputAfterDispose);
+		expect(runtime.output.view()).toEqual(outputAfterDispose);
 	});
 
 	it('resets Remote Source owner state on dispose so a remount does not keep the dialog open', () => {

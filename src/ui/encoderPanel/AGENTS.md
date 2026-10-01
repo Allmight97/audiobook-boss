@@ -4,8 +4,8 @@
 
 - `EncoderView.tsx` is the Solid encoder view and owns markup, interaction
   wiring, and owner-local CSS.
-- Encoder request truth, capabilities, hints, and estimates live in
-  `src/app/encoding`. This directory is a view adapter.
+- The engine owns audio choices and their rules; `src/app/encoding` shows
+  them in panel terms. This directory is a view adapter.
 
 ## Public API Strip
 
@@ -35,5 +35,5 @@
 
 ## Done Criteria
 
-- View tests go through App Runtime. They do not import a module-global encoder
-  store.
+- View tests go through App Runtime with the fake engine: seed the engine's
+  choice and facts, assert what the panel shows and which edit it sends.

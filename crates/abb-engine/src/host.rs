@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use crate::app_settings::SettingsSnapshot;
 use crate::power::{ActiveWork, PowerManager};
 use crate::processing::{ProgressEvent, QueueEvent};
 use crate::session::SessionUpdate;
@@ -27,6 +28,9 @@ pub enum EngineEvent {
     /// The working session changed without the host asking, or before a
     /// requested change finished.
     Session(SessionUpdate),
+    /// The settings changed because of something other than a settings
+    /// intent, such as a default chosen in the session.
+    Settings(Box<SettingsSnapshot>),
 }
 
 /// Receives engine events. Called from engine worker threads, so an

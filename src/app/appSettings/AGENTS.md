@@ -8,22 +8,15 @@
   `SettingsIntent`s through `engineLink`.
 - Import `createSettingsOwner` and owner types from `src/app/appSettings`;
   `owner.ts` is private.
-- Views and sibling owners dispatch semantic Settings intents. Runtime
-  composition injects `rememberEncoderDefaults` and `rememberOutputDefaults`;
-  views do not call settings IPC.
+- Views dispatch semantic Settings intents; they do not call settings IPC.
+  Audio and output defaults are not set here: the session records them when
+  they change, and announces the settings with a `settings-update` event.
 
 ## What Stays Here
 
 - Wording and display: durability state from `save_error`, the concurrency
   view (Auto shows the capability's `autoEffective`, independently of the
   current fixed count), and dialog visibility and controls.
-- Startup: `loadStartupDefaults` returns the snapshot's startup defaults and
-  rejects while settings are unreadable. App Runtime hands them to Encoding and
-  Output Plan before import, so OS-opened and remote imports receive stored
-  audio defaults. Hydrating a panel never writes settings.
-- After a reset, `bindAfterReset` hands the new defaults to the panels.
-- Audio edits in Settings record top-level defaults for future imports; title
-  edits do not persist.
 - UI-only disclosure, detected text, previews, and visibility stay outside
   durable settings.
 

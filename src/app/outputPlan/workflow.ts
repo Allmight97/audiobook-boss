@@ -7,61 +7,9 @@ import {
 } from '../../lib/effect/appEffect';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type {
-	AudiobookFormat,
-	CollisionPolicy,
-	OutputKind,
-	OutputNamingConfig,
-	ProcessPayload,
-	ProcessingPreflightPlan,
-} from '../../types/audio';
+import type { CollisionPolicy, ProcessPayload, ProcessingPreflightPlan } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import type { OutputPlanOwner } from './owner';
-import type { OutputPathPreviewMetadataDraft } from './types';
-import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
-
-export type OutputPathPreviewContext = {
-	readonly outputDirectory: string;
-	readonly sourcePath?: string;
-	readonly format: AudiobookFormat;
-	readonly outputNaming: OutputNamingConfig;
-	readonly metadataDraft: OutputPathPreviewMetadataDraft;
-};
-
-export type OutputPathPreviewResult =
-	| { readonly ok: true; readonly text: string; readonly title: string }
-	| { readonly ok: false; readonly text: string; readonly title: string; readonly cause: unknown };
-
-export const PREVIEW_UNAVAILABLE_TEXT =
-	'Output preview unavailable. Fix metadata/template and retry.';
-
-export async function computeOutputPathPreview(
-	outputKind: OutputKind,
-	context: OutputPathPreviewContext,
-	previewOutputPath: typeof tauriClient.previewOutputPath,
-): Promise<OutputPathPreviewResult> {
-	if (!context.outputDirectory) {
-		return { ok: true, text: EMPTY_PREVIEW_TEXT, title: EMPTY_PREVIEW_TITLE };
-	}
-	try {
-		const previewPath = await previewOutputPath({
-			outputDir: context.outputDirectory,
-			metadata: context.metadataDraft,
-			outputNaming: context.outputNaming,
-			sourcePath: context.sourcePath,
-			format: context.format,
-			outputKind,
-		});
-		return { ok: true, text: previewPath, title: previewPath };
-	} catch (cause) {
-		return {
-			ok: false,
-			text: PREVIEW_UNAVAILABLE_TEXT,
-			title: PREVIEW_UNAVAILABLE_TEXT,
-			cause,
-		};
-	}
-}
 
 export interface OutputPlanWorkflowServices {
 	preflightProcessingPlan: typeof tauriClient.preflightProcessingPlan;
@@ -184,10 +132,6 @@ export function outputPlanReviewBody(
 			kit.failure(toUserMessage(error.cause, { fallback: error.message }), error.cause),
 		),
 	);
-}
-
-export function showOutputError(message: string): void {
-	console.error('Output Plan Error:', message);
 }
 
 type OutputPlanReviewServices =

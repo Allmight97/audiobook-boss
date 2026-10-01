@@ -17,6 +17,8 @@ export interface EngineCapability {
 	sessionCoverArt(): Promise<number[] | null>;
 	sessionMetadataIntents(filePaths: string[]): Promise<Record<string, MetadataIntentPatch>>;
 	listenSessionUpdates(handler: (update: SessionUpdate) => void): Promise<UnlistenFn>;
+	/** Settings changed by something other than a settings intent. */
+	listenSettingsUpdates(handler: (snapshot: SettingsSnapshot) => void): Promise<UnlistenFn>;
 }
 
 export const liveEngineCapability: EngineCapability = {
@@ -29,6 +31,10 @@ export const liveEngineCapability: EngineCapability = {
 	sessionMetadataIntents: (filePaths) => tauriClient.sessionMetadataIntents(filePaths),
 	listenSessionUpdates: (handler) =>
 		tauriClient.listen(EVENTS.SESSION_UPDATE, (event) => {
+			handler(event.payload);
+		}),
+	listenSettingsUpdates: (handler) =>
+		tauriClient.listen(EVENTS.SETTINGS_UPDATE, (event) => {
 			handler(event.payload);
 		}),
 };

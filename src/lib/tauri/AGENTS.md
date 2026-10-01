@@ -12,7 +12,8 @@
   `tauriClient`. Tests replace them; production wires the live ones.
 - Session and settings changes cross as one numbered dispatch per owner
   (`sessionDispatch`, `settingsDispatch`) after `attachFrontend`. The
-  `session-update` event carries engine changes between replies.
+  `session-update` and `settings-update` events carry engine changes between
+  replies.
 
 ## Frontend Utility Surface
 - `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that

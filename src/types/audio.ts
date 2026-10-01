@@ -26,7 +26,6 @@ import type {
 	ProcessResultStatus as GeneratedProcessResultStatus,
 	ProcessPayload as GeneratedProcessPayload,
 	ProcessingPreflightPlan as GeneratedProcessingPreflightPlan,
-	RuntimeSettingsCapabilities as GeneratedRuntimeSettingsCapabilities,
 	SampleRateConfig as GeneratedSampleRateConfig,
 	SupplementalProcessingAsset as GeneratedSupplementalProcessingAsset,
 	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
@@ -67,7 +66,6 @@ export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
 	NullToOptionalDeep<GeneratedMaxConcurrentJobsCapabilities>;
-export type RuntimeSettingsCapabilities = NullToOptionalDeep<GeneratedRuntimeSettingsCapabilities>;
 export type SupportedAudioImportMetadata = GeneratedSupportedAudioImportMetadata;
 
 // Output naming options for folder/filename generation

@@ -1,10 +1,9 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal, type JSX } from '@solidjs/web';
-import { chapterPlansForProcessing, displayedTitleForFile } from '../../app/inputSession';
+import { displayedTitleForFile } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import { EncoderView } from '../encoderPanel';
 import { tauriClient } from '../../lib/tauri/client';
-import { toUserMessage } from '../../lib/tauri/appError';
 import type { AudioFile, TitleAudioPlan } from '../../types/audio';
 
 export function AudioHandlingControl(props: {
@@ -14,28 +13,25 @@ export function AudioHandlingControl(props: {
 }): JSX.Element {
 	const runtime = useAppRuntime();
 	const [open, setOpen] = createSignal(false);
-	const [plan, setPlan] = createSignal<TitleAudioPlan | undefined>(undefined);
-	const [error, setError] = createSignal('');
 	const [position, setPosition] = createSignal({ left: 0, top: 0 });
 	let trigger: HTMLButtonElement | undefined;
 	let panel: HTMLDivElement | undefined;
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 	let pinned = false,
-		dismissed = false,
-		generation = 0,
-		cachedKey = '',
-		lastPlanState = '';
+		dismissed = false;
 	const request = () => runtime.encoding.audioRequest(props.file);
 	const sources = () => runtime.input.sourcesFor(props.file);
-	async function queryPlan() {
-		const files = sources();
-		return tauriClient.previewTitleAudio(
-			files.map((file) => file.path),
-			request(),
-			chapterPlansForProcessing(files),
-		);
-	}
-	const needsChoice = () => runtime.input.audioChoiceRequired(props.file);
+	const resolved = () => runtime.encoding.plan(props.file);
+	const plan = (): TitleAudioPlan | undefined => {
+		const current = resolved();
+		return current.kind === 'resolved' ? current.plan : undefined;
+	};
+	const error = () => {
+		const current = resolved();
+		return current.kind === 'failed' ? current.message : '';
+	};
+	const needsChoice = () =>
+		runtime.input.audioChoiceRequired(props.file) || resolved().kind === 'choiceRequired';
 	const kept = () => plan()?.handling === 'preserve';
 	const guidanceId = () => `audio-plan-${props.index}`;
 	const format = () =>
@@ -70,50 +66,8 @@ export function AudioHandlingControl(props: {
 		},
 	);
 	onCleanup(() => {
-		generation++;
 		clearTimeout(closeTimer);
 	});
-	createEffect(
-		// Compared as a string below, so the plan is re-read only when something
-		// it depends on changes, not whenever the session publishes an update.
-		() =>
-			(open() ? '1' : '0') +
-			JSON.stringify({
-				sources: sources().map((f) => ({
-					path: f.path,
-					chapterPlan: f.chapterPlan,
-					cueSource: f.cueSource,
-				})),
-				request: request(),
-				capabilityRevision: runtime.encoding.capabilityRevision(),
-				needsChoice: needsChoice(),
-			}),
-		(state) => {
-			if (state === lastPlanState) return;
-			lastPlanState = state;
-			const isOpen = state.startsWith('1');
-			const key = state.slice(1);
-			if (key !== cachedKey) {
-				generation++;
-				cachedKey = '';
-				setPlan(undefined);
-				setError('');
-			}
-			if (!isOpen || needsChoice() || key === cachedKey) return;
-			cachedKey = key;
-			const ticket = ++generation;
-			void queryPlan()
-				.then((value) => {
-					if (ticket === generation) setPlan(value);
-				})
-				.catch((err) => {
-					if (ticket === generation) {
-						cachedKey = '';
-						setError(toUserMessage(err));
-					}
-				});
-		},
-	);
 	createEffect(
 		() => [open(), plan(), error()] as const,
 		([isOpen]) => {
@@ -216,11 +170,7 @@ export function AudioHandlingControl(props: {
 						: `${request().intent === 'preserve' ? 'Keep original audio' : request().intent === 'auto' ? 'Default' : opus() ? 'Opus' : 'AAC'} · ${format()}`}
 			</span>
 			<Show
-				when={
-					needsChoice() || error()
-						? null
-						: runtime.output.estimateTitleSizeText(props.file, plan() ?? undefined)
-				}
+				when={needsChoice() || error() ? null : runtime.output.estimateTitleSizeText(props.file)}
 			>
 				{(size) => (
 					<span class="title-output-size" title="Estimated output size">

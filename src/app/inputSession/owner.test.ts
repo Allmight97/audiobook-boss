@@ -1,4 +1,3 @@
-import { titleAudioRequest } from '../../test/fixtures/titleAudio';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { liveInputCapability } from '../../lib/tauri/capabilities/input';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
@@ -25,17 +24,12 @@ describe('input owner', () => {
 		return runtime;
 	}
 
-	it('imports with the audio defaults in effect and shows the engine titles', async () => {
+	it('imports the chosen paths and shows the engine titles', async () => {
 		const app = await open();
-		app.encoding.select('intent', 'preserve');
 
 		await app.input.importIntent({ type: 'importPaths', paths: ['/books/a.m4b'] });
 
-		expect(engine.sessionIntents).toContainEqual({
-			kind: 'import',
-			paths: ['/books/a.m4b'],
-			defaultAudio: expect.objectContaining({ intent: 'preserve' }),
-		});
+		expect(engine.sessionIntents).toContainEqual({ kind: 'import', paths: ['/books/a.m4b'] });
 		const view = app.input.view();
 		expect(view.files.map((file) => file.path)).toEqual(['/books/a.m4b']);
 		expect(view.selectedIndices).toEqual([0]);
@@ -91,26 +85,6 @@ describe('input owner', () => {
 		expect(await select()).toBe(true);
 		engine.respond = (): SessionOutcome => ({ kind: 'draftRejected', message: 'Bad date' });
 		expect(await select()).toBe(false);
-	});
-
-	it('shows a chosen audio request at once and keeps it once the engine confirms', async () => {
-		const app = await open();
-		const file = audioFile('/books/a.m4b');
-		engine.loadTitles([file]);
-		const chosen = titleAudioRequest({ format: 'mp3', settings: null });
-
-		app.input.setAudioRequest(file, chosen);
-
-		expect(app.input.audioRequest(file)).toEqual(chosen);
-		await vi.waitFor(() =>
-			expect(engine.titles().audioRequestsByIdentity[file.path]).toEqual(chosen),
-		);
-		expect(app.input.audioRequest(file)).toEqual(chosen);
-		expect(engine.sessionIntents).toContainEqual({
-			kind: 'setAudioRequest',
-			titleId: file.path,
-			request: chosen,
-		});
 	});
 
 	it('keeps drag-over state in the view and out of the engine', async () => {

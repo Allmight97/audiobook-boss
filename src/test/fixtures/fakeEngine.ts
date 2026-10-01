@@ -15,6 +15,7 @@ import type {
 	SettingsSnapshot,
 } from '../../types/appSettings';
 import type { AudioFile, TitleAudioRequest } from '../../types/audio';
+import { runtimeSettingsCapabilitiesFixture } from './runtimeSettingsCapabilities';
 import type { AudiobookMetadata, OnlineMetadataResult } from '../../types/metadata';
 import type { MetadataFieldIntent, MetadataIntentPatch } from '../../types/metadataIntent';
 import type {
@@ -22,7 +23,12 @@ import type {
 	MetadataField,
 	MetadataStatus,
 	SessionIntent,
+	SessionAudio,
 	SessionLookup,
+	SessionOutput,
+	SizeEstimate,
+	TitleAudio,
+	TitlePlan,
 	SessionMetadata,
 	SessionOutcome,
 	SessionSelection,
@@ -112,6 +118,14 @@ export type FakeEngine = EngineCapability & {
 	recoverError?: Rejection;
 	/** Makes the saved settings unreadable until recovered. */
 	breakSettings(recovery?: SettingsSnapshot['recovery']): void;
+	/** Records settings the way the engine does after a session edit, and announces them. */
+	recordSettings(patch: Partial<AppSettings>): void;
+	/** Sets a title's audio as the engine would after an edit and its plan. */
+	seedTitleAudio(
+		titleId: string,
+		request: TitleAudioRequest,
+		resolved?: { readonly plan?: TitlePlan; readonly estimate?: SizeEstimate | null },
+	): void;
 	/** Loads titles as an import would. */
 	loadTitles(files: AudioFile[], selected?: number[]): void;
 	pendingEdits(path: string): MetadataIntentPatch | undefined;
@@ -120,6 +134,8 @@ export type FakeEngine = EngineCapability & {
 	selection(): SessionSelection;
 	metadata(): SessionMetadata;
 	lookup(): SessionLookup;
+	audio(): SessionAudio;
+	output(): SessionOutput;
 	settings(): SettingsSnapshot;
 	/** Changes session state the way the engine does on its own, and tells listeners. */
 	change(
@@ -128,9 +144,72 @@ export type FakeEngine = EngineCapability & {
 			selection: SessionSelection;
 			metadata: SessionMetadata;
 			lookup: SessionLookup;
+			audio: SessionAudio;
+			output: SessionOutput;
 		}) => void,
 	): void;
 };
+
+export function fakeOutput(): SessionOutput {
+	return {
+		revision: 0,
+		directory: null,
+		preset: 'absDefault',
+		includeYear: false,
+		template: '',
+		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
+		preview: { kind: 'noDirectory' },
+	};
+}
+
+/** The engine's fresh audio defaults over the fixture capabilities; tests seed other choices. */
+export function fakeAudio(): SessionAudio {
+	const settings = {
+		encoderType: 'native_aac',
+		bitrateKbps: 65,
+		bitrateMode: { mode: 'cbr' },
+		channels: 'auto',
+		nativeAacSpeed: 0,
+		faacProfile: 'auto',
+	} as const;
+	const capabilities = runtimeSettingsCapabilitiesFixture().encoder as SessionAudio['capabilities'];
+	const native = capabilities?.encoderConfigurations.find(
+		(config) => config.encoderType === 'native_aac',
+	);
+	return {
+		revision: 0,
+		capabilities,
+		defaults: {
+			choice: {
+				format: 'm4b',
+				intent: 'auto',
+				encoder: 'native_aac',
+				aacBitrateKbps: 65,
+				opusBitrateKbps: 64,
+				savedMode: { mode: 'cbr' },
+				faacProfile: 'auto',
+				faacRateControl: 'abr',
+				faacQuality: 100,
+				nativeSpeed: 0,
+				channels: 'auto',
+				sampleRate: 'auto',
+			},
+			facts: {
+				effectiveEncoder: 'native_aac',
+				bitrateMode: { mode: 'cbr' },
+				bitrateKbpsMin: native?.bitrateKbpsMin ?? 1,
+				bitrateKbpsMax: native?.bitrateKbpsMax ?? 0,
+				allowedModes: native?.allowedModes ?? [],
+				faacProfiles: [],
+				allowedSampleRates: native?.explicitSampleRates ?? [],
+				sampleRateSupported: true,
+				estimateKbps: 65,
+			},
+			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
+		},
+		titles: {},
+	};
+}
 
 function rejection(reason: Rejection): SettingsOutcome {
 	return {
@@ -142,6 +221,7 @@ function rejection(reason: Rejection): SettingsOutcome {
 export function createFakeEngine(initialSettings: AppSettings = defaultAppSettings()): FakeEngine {
 	let revision = 0;
 	const listeners = new Set<(update: SessionUpdate) => void>();
+	const settingsListeners = new Set<(snapshot: SettingsSnapshot) => void>();
 	const pending = new Map<string, MetadataIntentPatch>();
 	const typed = new Map<MetadataField, { value: string; blank: boolean }>();
 	let boundKey = '';
@@ -156,7 +236,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			orderLocked: false,
 			notice: null,
 			orderDiffersFromImport: false,
-			audioRequestsByIdentity: {},
 		} as SessionTitles,
 		selection: { revision: 0, selectedIndices: [], selectedAnchor: null } as SessionSelection,
 		metadata: {
@@ -179,7 +258,20 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				notice: null,
 				noticeSerial: 0,
 			},
-			albumSort: null,
+			tags: {
+				title: '',
+				album: '',
+				artist: '',
+				albumArtist: '',
+				composer: '',
+				series: '',
+				seriesPart: '',
+				subseries: '',
+				subseriesPart: '',
+				albumSort: '',
+				year: '',
+				genre: '',
+			},
 			saveInProgress: false,
 			status: null,
 			hasPendingEdits: false,
@@ -199,7 +291,17 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			isQueueMode: false,
 			hasSearched: false,
 		} as SessionLookup,
+		audio: fakeAudio(),
+		output: fakeOutput(),
 	};
+
+	function titleFromDefaults(): TitleAudio {
+		return {
+			...structuredClone(state.audio.defaults),
+			plan: { kind: 'pending' },
+			estimate: null,
+		};
+	}
 
 	let settingsRevision = 0;
 	let settingsValue: AppSettings | undefined = structuredClone(initialSettings);
@@ -275,6 +377,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		state.selection = { ...state.selection, revision };
 		state.metadata = { ...state.metadata, revision };
 		state.lookup = { ...state.lookup, revision };
+		state.audio = { ...state.audio, revision };
+		state.output = { ...state.output, revision };
 		return structuredClone({ revision, ...state });
 	}
 
@@ -309,7 +413,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		};
 	}
 
-	function appendFiles(files: AudioFile[], defaultAudio: TitleAudioRequest | undefined): void {
+	function appendFiles(files: AudioFile[]): void {
 		const known = new Set(state.titles.files.map((file) => file.path));
 		const added = files.filter((file) => !known.has(file.path));
 		const first = state.titles.files.length === 0;
@@ -322,8 +426,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		for (const file of added) {
 			if (file.tagTitle && !engine.tags.has(file.path))
 				engine.tags.set(file.path, { title: file.tagTitle, artist: file.tagArtist });
-			if (defaultAudio && file.inputId)
-				state.titles.audioRequestsByIdentity[file.inputId] = structuredClone(defaultAudio);
+			if (file.inputId) state.audio.titles[file.inputId] = titleFromDefaults();
 		}
 		if (first && added.length === 1 && added[0].isValid) select([0]);
 	}
@@ -423,11 +526,11 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		switch (intent.kind) {
 			case 'import':
 				if (locked) titles.notice = { kind: 'orderLocked' };
-				else appendFiles(engine.analyze(intent.paths), intent.defaultAudio);
+				else appendFiles(engine.analyze(intent.paths));
 				break;
 			case 'importOpened': {
 				const paths = engine.openedPaths.splice(0);
-				if (paths.length) appendFiles(engine.analyze(paths), intent.defaultAudio);
+				if (paths.length) appendFiles(engine.analyze(paths));
 				break;
 			}
 			case 'selectFile': {
@@ -464,7 +567,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				if (locked) break;
 				titles.files = [];
 				titles.titleSourcesByIdentity = {};
-				titles.audioRequestsByIdentity = {};
+				state.audio.titles = {};
 				state.selection.selectedIndices = [];
 				pending.clear();
 				break;
@@ -508,7 +611,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				const [anchor] = selected;
 				if (locked || selected.length < 2 || !anchor.inputId) break;
 				const requests = selected.map((file) =>
-					JSON.stringify(titles.audioRequestsByIdentity[file.inputId ?? ''] ?? null),
+					JSON.stringify(state.audio.titles[file.inputId ?? '']?.request ?? null),
 				);
 				titles.titleSourcesByIdentity[anchor.inputId] = selected.flatMap(
 					(file) => titles.titleSourcesByIdentity[file.inputId ?? ''] ?? [file],
@@ -554,17 +657,41 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 						: file,
 				);
 				break;
-			case 'setAudioRequest':
+			// Audio edit and naming rules are the engine's; a test seeds the result it needs.
+			case 'setDefaultAudio':
+			case 'setTitleAudio':
+				break;
+			case 'setOutputDirectory':
+				state.output = { ...state.output, directory: intent.directory };
+				break;
+			case 'setNamingPreset':
+				state.output = {
+					...state.output,
+					preset: intent.preset,
+					naming: { ...state.output.naming, preset: intent.preset },
+				};
+				break;
+			case 'setIncludeYear':
+				state.output = {
+					...state.output,
+					includeYear: intent.includeYear,
+					naming: { ...state.output.naming, includeYear: intent.includeYear },
+				};
+				break;
+			case 'setNamingTemplate':
+				state.output = { ...state.output, template: intent.template };
+				break;
+			case 'applyDefaultAudio':
 				if (locked) break;
-				titles.audioRequestsByIdentity[intent.titleId] = intent.request;
-				titles.audioChoiceRequired = titles.audioChoiceRequired.filter(
-					(id) => id !== intent.titleId,
-				);
+				for (const id of intent.titleIds) {
+					state.audio.titles[id] = titleFromDefaults();
+					titles.audioChoiceRequired = titles.audioChoiceRequired.filter((other) => other !== id);
+				}
 				break;
 			case 'reset':
 				titles.files = [];
 				titles.titleSourcesByIdentity = {};
-				titles.audioRequestsByIdentity = {};
+				state.audio.titles = {};
 				titles.audioChoiceRequired = [];
 				titles.orderLocked = false;
 				titles.notice = null;
@@ -835,6 +962,16 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			listeners.add(handler);
 			return () => listeners.delete(handler);
 		},
+		async listenSettingsUpdates(handler: (snapshot: SettingsSnapshot) => void) {
+			settingsListeners.add(handler);
+			return () => settingsListeners.delete(handler);
+		},
+		recordSettings(patch: Partial<AppSettings>) {
+			write(patch, false);
+			settingsRevision += 1;
+			const snapshot = settingsSnapshot();
+			for (const listener of settingsListeners) listener(snapshot);
+		},
 		breakSettings(plan: SettingsSnapshot['recovery']) {
 			settingsValue = undefined;
 			recovery = plan;
@@ -846,7 +983,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			settingsRevision += 1;
 		},
 		loadTitles(files: AudioFile[], selected: number[] = []) {
-			appendFiles(files, undefined);
+			appendFiles(files);
 			if (selected.length) select(selected);
 			publish();
 		},
@@ -862,6 +999,21 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			return state.metadata;
 		},
 		lookup: () => state.lookup,
+		audio: () => state.audio,
+		output: () => state.output,
+		seedTitleAudio(titleId, request, resolved = {}) {
+			const view = structuredClone(state.audio.titles[titleId] ?? titleFromDefaults());
+			view.request = structuredClone(request);
+			view.choice = { ...view.choice, format: request.format, intent: request.intent };
+			if (resolved.plan) view.plan = resolved.plan;
+			if (resolved.estimate !== undefined) view.estimate = resolved.estimate;
+			state.audio.titles = { ...state.audio.titles, [titleId]: view };
+			// A title given its own request no longer needs a choice.
+			state.titles.audioChoiceRequired = state.titles.audioChoiceRequired.filter(
+				(id) => id !== titleId,
+			);
+			publish();
+		},
 		settings: settingsSnapshot,
 		change(mutate: Parameters<FakeEngine['change']>[0]) {
 			mutate(state);

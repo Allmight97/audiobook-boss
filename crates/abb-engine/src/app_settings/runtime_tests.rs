@@ -17,7 +17,7 @@ fn config_dir(root: &TempDir) -> PathBuf {
 
 fn start_in(root: TempDir) -> Rig {
     std::fs::create_dir_all(config_dir(&root)).expect("config dir");
-    let (settings, jobs) = SettingsRuntime::start(config_dir(&root), PowerManager::default());
+    let (settings, jobs, _) = SettingsRuntime::start(config_dir(&root), PowerManager::default());
     Rig {
         root,
         settings,

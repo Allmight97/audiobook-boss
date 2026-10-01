@@ -1,32 +1,24 @@
-import { createSignal, type Accessor } from 'solid-js';
-import type { EncoderDefaults } from '../../types/appSettings';
-import type {
-	AudioFile,
-	TitleAudioRequest,
-	EncoderSettingsCapabilities,
-	TitleAudioPlan,
-} from '../../types/audio';
+import type { Accessor } from 'solid-js';
+import type { AudioFile, TitleAudioPlan, TitleAudioRequest } from '../../types/audio';
+import type { AudioChoiceView, TitlePlan } from '../../types/session';
+import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
 import { estimateKbpsFromSettings } from './estimate';
-import { resolveAutoResolutionHints } from './hints';
-import {
-	applyCapabilities,
-	applyDefaultsToBag,
-	bagDefaults,
-	bagEstimateKbps,
-	bagRequest,
-	createDefaultBag,
-	projectView,
-	selectField,
-	type EncodingBag,
-	type EncodingField,
-	type EncodingView,
-} from './project';
+import { resolveAutoResolutionHints, type AutoResolutionHints } from './hints';
+import { editFor, projectView, type EncodingField, type EncodingView } from './project';
 
 export type { EncodingField, EncodingView } from './project';
 
+/**
+ * The engine owns the audio choices: the defaults new titles start from and
+ * each title's own choice, with the rules for editing them. This owner shows
+ * them in the encoder panel's terms and sends edits.
+ */
 export type EncodingOwner = {
+	/** The request processing receives for `file`, or the defaults' request. */
 	audioRequest(file?: AudioFile): TitleAudioRequest;
+	/** What the engine resolved `file`'s audio to. */
+	plan(file: AudioFile): TitlePlan;
 	titleView(file: AudioFile): EncodingView;
 	selectionView(
 		files: readonly AudioFile[],
@@ -35,20 +27,17 @@ export type EncodingOwner = {
 	applyDefaultsToTitles(files: readonly AudioFile[]): void;
 	estimateTitleKbps(file: AudioFile, plan?: TitleAudioPlan): number | null;
 	selectTitle(file: AudioFile, field: EncodingField, value: string): void;
+	/** The defaults, as the Settings panel edits them. */
 	readonly view: Accessor<EncodingView>;
+	/** Changes when encoder capabilities arrive. */
 	readonly capabilityRevision: Accessor<number>;
 	select(field: EncodingField, value: string): void;
-	applyDefaults(defaults: EncoderDefaults): void;
-	hydrateDefaults(defaults: EncoderDefaults): void;
-	readDefaults(): EncoderDefaults;
-	reloadCapabilities(capabilities?: EncoderSettingsCapabilities | null): Promise<void>;
 	reset(): void;
 };
 
 export type EncodingOwnerDeps = {
-	readonly input: Pick<InputOwner, 'view' | 'audioRequest' | 'setAudioRequest' | 'sourcesFor'>;
-	readonly loadCapabilities: () => Promise<EncoderSettingsCapabilities | null>;
-	readonly persistDefaults?: (defaults: EncoderDefaults) => void;
+	readonly link: EngineLink;
+	readonly input: Pick<InputOwner, 'sourcesFor'>;
 };
 
 const fieldKeys = {
@@ -64,142 +53,79 @@ const fieldKeys = {
 	channels: 'channels',
 } as const satisfies Record<EncodingField, keyof EncodingView>;
 
+// Defaults describe future imports, so their hints name no source.
+const DEFAULT_HINTS = resolveAutoResolutionHints([]);
+
+function titleId(file: AudioFile): string {
+	return file.inputId ?? file.path;
+}
+
 export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
-	let bag: EncodingBag = createDefaultBag();
-	let generation = 0;
-	let defaultsEdited = false;
-	const [rev, bump] = createSignal(0, { ownedWrite: true });
-	const [capabilityRevision, invalidateCapabilities] = createSignal(0, { ownedWrite: true });
+	const { link } = deps;
 
-	function publish(): void {
-		bump((n) => n + 1);
+	function titleChoice(file: AudioFile): AudioChoiceView {
+		const audio = link.audio();
+		return audio.titles[titleId(file)] ?? audio.defaults;
 	}
 
-	function persist(): void {
-		deps.persistDefaults?.(bagDefaults(bag));
+	function display(view: AudioChoiceView, hints: AutoResolutionHints): EncodingView {
+		return projectView({
+			choice: view.choice,
+			facts: view.facts,
+			capabilities: link.audio().capabilities,
+			hints,
+		});
 	}
 
-	async function loadCapabilities(supplied?: EncoderSettingsCapabilities | null): Promise<void> {
-		const ticket = ++generation;
-		try {
-			const capabilities = supplied === undefined ? await deps.loadCapabilities() : supplied;
-			if (ticket !== generation) return;
-			applyCapabilities(bag, capabilities);
-			invalidateCapabilities((n) => n + 1);
-			publish();
-		} catch (error) {
-			if (ticket !== generation) return;
-			invalidateCapabilities((n) => n + 1);
-			console.warn('Failed to load encoder capabilities:', error);
-			publish();
-		}
+	function titleView(file: AudioFile): EncodingView {
+		return display(titleChoice(file), resolveAutoResolutionHints(deps.input.sourcesFor(file)));
 	}
 
-	void loadCapabilities();
-
-	function requestFromBag(current: EncodingBag): TitleAudioRequest {
-		const request = bagRequest(current);
-		return {
-			format: current.format,
-			intent: current.intent,
-			settings: current.format === 'mp3' ? null : request.encoderSettings,
-			sampleRate: request.sampleRate,
-		};
-	}
-	function titleBag(file: AudioFile): EncodingBag {
-		rev();
-		const override = deps.input.audioRequest(file);
-		const current = { ...bag };
-		if (override?.settings)
-			applyDefaultsToBag(current, { ...override, settings: override.settings });
-		current.format = override?.format ?? current.format;
-		current.intent = override?.intent ?? current.intent;
-		if (override)
-			current.sampleRate =
-				override.sampleRate === 'auto' ? 'auto' : String(override.sampleRate.explicit);
-		const hints = resolveAutoResolutionHints(deps.input.sourcesFor(file));
-		current.sampleRateHint = hints.sampleRateHint;
-		current.channelsHint = hints.channelsHint;
-		current.hasMultichannelInput = hints.hasMultichannelInput;
-		return current;
-	}
 	function selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void {
-		if (deps.input.view().orderLocked) return;
-		for (const file of files) {
-			const current = titleBag(file);
-			const previous = String(projectView(current)[fieldKeys[field]]);
-			if (!selectField(current, field, value) && previous !== value) continue;
-			if (field !== 'format' && field !== 'intent') current.intent = 'encode';
-			deps.input.setAudioRequest(file, requestFromBag(current));
-		}
+		const edit = editFor(field, value);
+		if (!edit || files.length === 0) return;
+		link.post({ kind: 'setTitleAudio', titleIds: files.map(titleId), edit });
 	}
 
 	return {
-		capabilityRevision,
 		audioRequest(file) {
-			rev();
-			return file ? (deps.input.audioRequest(file) ?? requestFromBag(bag)) : requestFromBag(bag);
+			return file ? titleChoice(file).request : link.audio().defaults.request;
+		},
+		plan(file) {
+			return link.audio().titles[titleId(file)]?.plan ?? { kind: 'pending' };
 		},
 		estimateTitleKbps(file, plan) {
 			if (plan?.settings) return estimateKbpsFromSettings(plan.settings);
-			return bagEstimateKbps(titleBag(file));
+			return titleChoice(file).facts.estimateKbps;
 		},
-		titleView(file) {
-			return projectView(titleBag(file));
-		},
+		titleView,
 		selectTitle(file, field, value) {
 			selectTitles([file], field, value);
 		},
 		selectTitles,
 		selectionView(files) {
-			const views = files.map((file) => projectView(titleBag(file)));
-			const combined = files[0] ? titleBag(files[0]) : { ...bag };
-			Object.assign(
-				combined,
-				resolveAutoResolutionHints(files.flatMap((file) => [...deps.input.sourcesFor(file)])),
+			const views = files.map(titleView);
+			const hints = resolveAutoResolutionHints(
+				files.flatMap((file) => [...deps.input.sourcesFor(file)]),
 			);
-			const first = projectView(combined);
+			const first = files[0]
+				? display(titleChoice(files[0]), hints)
+				: display(link.audio().defaults, hints);
 			const mixedFields = (Object.keys(fieldKeys) as EncodingField[]).filter((field) =>
 				views.some((view) => view[fieldKeys[field]] !== first[fieldKeys[field]]),
 			);
 			return { ...first, mixedFields };
 		},
 		applyDefaultsToTitles(files) {
-			for (const file of files) deps.input.setAudioRequest(file, requestFromBag(bag));
+			if (files.length === 0) return;
+			link.post({ kind: 'applyDefaultAudio', titleIds: files.map(titleId) });
 		},
-		view: () => {
-			rev();
-			return projectView(bag);
-		},
+		view: () => display(link.audio().defaults, DEFAULT_HINTS),
+		capabilityRevision: () => (link.audio().capabilities ? 1 : 0),
 		select(field, value) {
-			if (!selectField(bag, field, value)) return;
-			defaultsEdited = true;
-			if (field !== 'format' && field !== 'intent') bag.intent = 'encode';
-			publish();
-			persist();
+			const edit = editFor(field, value);
+			if (edit) link.post({ kind: 'setDefaultAudio', edit });
 		},
-		hydrateDefaults(defaults) {
-			if (defaultsEdited) return;
-			applyDefaultsToBag(bag, defaults);
-			publish();
-		},
-		applyDefaults(defaults) {
-			defaultsEdited = true;
-			applyDefaultsToBag(bag, defaults);
-			publish();
-		},
-		readDefaults() {
-			return bagDefaults(bag);
-		},
-		reloadCapabilities(capabilities) {
-			return loadCapabilities(capabilities);
-		},
-		reset() {
-			generation += 1;
-			defaultsEdited = true;
-			bag = createDefaultBag();
-			invalidateCapabilities((n) => n + 1);
-			publish();
-		},
+		reset() {},
 	};
 }

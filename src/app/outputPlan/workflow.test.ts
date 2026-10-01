@@ -4,13 +4,10 @@ import { Effect, runAppEffect } from '../../lib/effect/appEffect';
 import type { ProcessPayload, ProcessingPreflightPlan } from '../../types/audio';
 import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import {
-	computeOutputPathPreview,
 	makeOutputPlanWorkflowServicesLayer,
 	outputPlanReviewBody,
-	PREVIEW_UNAVAILABLE_TEXT,
 	type OutputPlanWorkflowServices,
 } from './workflow';
-import { EMPTY_PREVIEW_TEXT, EMPTY_PREVIEW_TITLE } from './types';
 
 function payload(overrides: Partial<ProcessPayload> = {}): ProcessPayload {
 	return {
@@ -57,73 +54,7 @@ function makeHarness(overrides: Partial<OutputPlanWorkflowServices> = {}) {
 	};
 }
 
-const previewContext = {
-	outputDirectory: '/tmp/out',
-	format: 'm4b' as const,
-	sourcePath: '/books/a.m4b',
-	outputNaming: { preset: 'absDefault' as const, includeYear: false, customTemplate: undefined },
-	metadataDraft: {
-		title: 'A',
-		album: 'A',
-		artist: 'Author',
-		composer: '',
-		genre: '',
-		description: '',
-		series: '',
-		subseries: '',
-	},
-};
-
 describe('OutputPlanWorkflow', () => {
-	it('updates output preview from the output artifact boundary', async () => {
-		const previewOutputPath = vi.fn(async () => '/tmp/out/a.m4b');
-
-		const result = await computeOutputPathPreview('final', previewContext, previewOutputPath);
-
-		expect(previewOutputPath).toHaveBeenCalledWith(
-			expect.objectContaining({
-				outputDir: '/tmp/out',
-				format: 'm4b' as const,
-				sourcePath: '/books/a.m4b',
-				outputKind: 'final',
-			}),
-		);
-		expect(result).toEqual({ ok: true, text: '/tmp/out/a.m4b', title: '/tmp/out/a.m4b' });
-	});
-
-	it('reports missing output directory without crossing the boundary', async () => {
-		const previewOutputPath = vi.fn(async () => '/tmp/out/a.m4b');
-
-		const result = await computeOutputPathPreview(
-			'final',
-			{ ...previewContext, outputDirectory: '' },
-			previewOutputPath,
-		);
-
-		expect(previewOutputPath).not.toHaveBeenCalled();
-		expect(result).toEqual({
-			ok: true,
-			text: EMPTY_PREVIEW_TEXT,
-			title: EMPTY_PREVIEW_TITLE,
-		});
-	});
-
-	it('surfaces preview failures without throwing to UI callers', async () => {
-		const cause = new Error('template invalid');
-		const previewOutputPath = vi.fn(async () => {
-			throw cause;
-		});
-
-		const result = await computeOutputPathPreview('final', previewContext, previewOutputPath);
-
-		expect(result).toEqual({
-			ok: false,
-			text: PREVIEW_UNAVAILABLE_TEXT,
-			title: PREVIEW_UNAVAILABLE_TEXT,
-			cause,
-		});
-	});
-
 	it('preserves the actionable backend reason when preflight rejects', async () => {
 		const message = 'FAAC HE-AAC does not support 22050 Hz. Choose a supported output sample rate.';
 		const { layer, services } = makeHarness({

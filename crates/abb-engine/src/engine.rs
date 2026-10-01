@@ -5,23 +5,16 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use crate::app_settings::{SettingsIntent, SettingsReply, SettingsRuntime, SettingsSnapshot};
-use crate::audio::{
-    self, AudiobookFormat, EncoderSettingsCapabilities, SupportedAudioImportMetadata,
-    TitleAudioPlan, TitleAudioRequest,
+use crate::app_settings::{
+    SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
 };
+use crate::audio::{self, SupportedAudioImportMetadata};
 use crate::errors::{AppError, Result};
 use crate::host::{EventSink, Host};
-use crate::metadata::{AudiobookMetadata, ChapterPlan, MetadataIntentPatch, NamingMetadata};
+use crate::metadata::{AudiobookMetadata, MetadataIntentPatch};
 use crate::opened_audio::OpenedAudioFileQueue;
-use crate::output_artifact::{
-    build_output_path_preview, derive_output_artifact_path, OutputKind, OutputNamingConfig,
-};
 use crate::power::PowerManager;
-use crate::processing::{
-    run, JobRegistry, MaxConcurrentJobsCapabilities, ProcessCommandResult, ProcessPayload,
-    ProcessingPreflightPlan,
-};
+use crate::processing::{run, ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
 use crate::remote_source::{RemoteSourceConfig, RemoteSourceRuntime};
 use crate::session::{
     Session, SessionDeps, SessionIntent, SessionReply, SessionRun, SessionUpdate,
@@ -31,7 +24,6 @@ use crate::work_runtime::{
     WorkRuntime, WorkSubmissionAccepted,
 };
 use crate::ManagedJobRegistry;
-use serde::{Deserialize, Serialize};
 
 /// What a host supplies to start the engine.
 pub struct EngineConfig {
@@ -47,13 +39,6 @@ pub struct EngineConfig {
     /// Location of the Audible helper binary. `None` resolves it beside the
     /// running executable.
     pub aaxclean_helper: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeSettingsCapabilities {
-    pub encoder: EncoderSettingsCapabilities,
-    pub max_concurrent_jobs: MaxConcurrentJobsCapabilities,
 }
 
 /// One running ABB engine. Cloning shares the same engine.
@@ -94,7 +79,7 @@ impl Engine {
         })?;
         remote_source.cleanup_abandoned_sessions()?;
 
-        let (settings, jobs) = SettingsRuntime::start(config.config_dir, power.clone());
+        let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
         let host = Host::new(config.events, power);
         let work = WorkRuntime::default();
         let opened_audio = Arc::new(OpenedAudioFileQueue::default());
@@ -106,7 +91,12 @@ impl Engine {
             temporary_root: remote_source.staging_root(),
             opened_audio: Arc::clone(&opened_audio),
             previews: Arc::clone(&previews),
+            settings: settings.clone(),
         });
+        session.start_from_defaults(
+            startup.as_ref(),
+            Some(audio::encoder_settings_capabilities()),
+        );
         Ok(Self {
             inner: Arc::new(EngineInner {
                 workspace_root: audio::processing_workspace_root(&config.cache_dir),
@@ -126,21 +116,21 @@ impl Engine {
 
     /// Applies one intent to the settings and returns the settings in effect.
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
-        self.inner.settings.dispatch(intent).await
+        let reset = matches!(intent, SettingsIntent::Reset);
+        let reply = self.inner.settings.dispatch(intent).await;
+        // A reset returns the session's defaults to the reset settings; loaded
+        // titles keep their own choices.
+        if reset && reply.outcome == SettingsOutcome::Applied {
+            if let Some(defaults) = &reply.snapshot.startup_defaults {
+                self.inner.session.replace_defaults(defaults);
+            }
+        }
+        reply
     }
 
     /// The settings in effect and whether they are saved.
     pub async fn settings_snapshot(&self) -> SettingsSnapshot {
         self.inner.settings.snapshot().await
-    }
-
-    pub async fn runtime_settings_capabilities(&self) -> Result<RuntimeSettingsCapabilities> {
-        tokio::task::spawn_blocking(|| RuntimeSettingsCapabilities {
-            encoder: audio::encoder_settings_capabilities(),
-            max_concurrent_jobs: JobRegistry::max_concurrent_jobs_capabilities(),
-        })
-        .await
-        .map_err(|error| AppError::General(error.to_string()))
     }
 
     // ---- Working session ----
@@ -230,32 +220,6 @@ impl Engine {
 
     // ---- Output and processing ----
 
-    /// Builds an output path preview using naming rules, without collision suffixing.
-    pub fn preview_output_path(
-        &self,
-        output_dir: String,
-        metadata: Option<AudiobookMetadata>,
-        output_naming: Option<OutputNamingConfig>,
-        source_path: Option<String>,
-        output_kind: Option<OutputKind>,
-        format: AudiobookFormat,
-    ) -> Result<String> {
-        let base_output_dir = PathBuf::from(output_dir);
-        let source_path_buf = source_path.as_deref().map(PathBuf::from);
-        let naming = output_naming.unwrap_or_default();
-        let draft_naming_metadata = metadata.as_ref().map(NamingMetadata::from_metadata);
-        let requested = build_output_path_preview(
-            &base_output_dir,
-            draft_naming_metadata.as_ref(),
-            naming,
-            source_path_buf.as_deref(),
-        )?;
-        let artifact =
-            derive_output_artifact_path(&requested, output_kind.unwrap_or(OutputKind::Final))?;
-        let artifact = artifact.with_extension(format.extension());
-        Ok(artifact.to_string_lossy().to_string())
-    }
-
     pub fn preflight_processing_plan(
         &self,
         payload: ProcessPayload,
@@ -263,26 +227,6 @@ impl Engine {
         preview_seconds: Option<f64>,
     ) -> Result<ProcessingPreflightPlan> {
         run::preflight_payload(payload, metadata, preview_seconds)
-    }
-
-    /// Resolves how one title's audio would be handled.
-    pub async fn preview_title_audio(
-        &self,
-        file_paths: Vec<String>,
-        request: TitleAudioRequest,
-        chapter_plans: Option<HashMap<String, ChapterPlan>>,
-    ) -> Result<TitleAudioPlan> {
-        let paths = file_paths
-            .iter()
-            .map(|path| audio::validate_input_audio_path(std::path::Path::new(path)))
-            .collect::<Result<Vec<_>>>()?;
-        tokio::task::spawn_blocking(move || {
-            let mut info = audio::get_file_list_info(&paths)?;
-            audio::apply_chapter_plans(&mut info, chapter_plans.as_ref())?;
-            audio::resolve_title_audio(&request, &info, false)
-        })
-        .await
-        .map_err(|error| AppError::General(format!("Audio plan failed: {error}")))?
     }
 
     /// Runs a direct preview. Final processing enters through

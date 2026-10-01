@@ -9,20 +9,22 @@ not keep parallel business state.
 ## Two Kinds Of Owner
 
 - **Engine adapters**: `inputSession`, `metadataSession`, `metadataLookup`,
-  `appSettings`. The engine owns their truth and rules
+  `appSettings`, `encoding`, `outputPlan`. The engine owns their truth and rules
   (`crates/abb-engine/src/session/AGENTS.md`,
   `crates/abb-engine/src/app_settings/AGENTS.md`). The adapter turns engine
   snapshots into view state, words typed statuses and notices, and sends
   intents through `engineLink`. A new rule for titles, selection, metadata
-  edits, lookup, Save, or settings goes in the engine, not here.
-- **Frontend owners**: `encoding`, `outputPlan`, `processing`,
-  `workOperations`, `remoteSource`. They still hold their own workflow until
+  edits, lookup, Save, audio choices, output naming, or settings goes in the
+  engine, not here.
+- **Frontend owners**: `processing`, `workOperations`, `remoteSource`, and the
+  collision review in `outputPlan`. They still hold their own workflow until
   it moves into the engine. New product rules go in the engine even here.
 
 ## Engine Link
 
 - `engineLink` is the one connection to the engine. It keeps the newest copy
-  of each snapshot part (titles, selection, metadata, lookup, settings) by
+  of each snapshot part (titles, selection, metadata, lookup, audio, output,
+  settings) by
   revision, and sends intents. Adapters read the link; nothing else holds a
   copy of engine state.
 - `send` resolves with the intent's outcome after its work finishes; `post`
@@ -31,7 +33,7 @@ not keep parallel business state.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results, so Solid rows are not rebuilt and a click does not land on a
   replaced element.
-- Typed text (form fields, lookup queries) shows immediately and drops when
+- Typed text (form fields, lookup queries, the naming template) shows immediately and drops when
   the engine's reply for that keystroke arrives. Form typing shows only on the
   form it was typed into (the metadata part's `binding`). This local echo is
   display only; it never decides what is saved.
@@ -66,17 +68,13 @@ These bridge engine-owned session state to the frontend owners that still
 build processing requests. Remove them with that move. The engine intents
 they use are listed in `crates/abb-engine/src/session/AGENTS.md`.
 
-- Input sends Encoding's default audio request with each import; Encoding
-  records a title's audio choice through Input's `setAudioRequest`, which
-  shows the choice before the engine confirms it.
+- Processing builds its payload from each title's `request` in the audio part
+  and the output part's `naming`.
 - Processing locks the list during a preview through Input's
   `setOrderLocked`, and reads pending edits for its payload through Metadata
   Session, which asks the engine (`metadataIntents`).
 - Input exports `chapterPlansForProcessing`, which refuses an unconfirmed CUE
   and CUE chapters on a merged title before submit.
-- Metadata field definitions keep `key`/`mapToAlbum`, and `tags.ts` copies
-  title onto album and author onto album artist, for the output-path and tag
-  previews.
 
 ## Workflow And Failure Shape
 
