@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+# Developer tool: drives the working session from a terminal (see `src/bin/abb_dev.rs`).
+[[bin]]
+name = "abb-dev"
+path = "src/bin/abb_dev.rs"
+
 [lib]
 # ABB treats backend contract coverage as unit/integration tests plus IPC and
 # boundary checks; rustdoc examples are not a supported test surface today.

@@ -342,3 +342,31 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
         Some(PatchOp::Set("Mystery".to_string()))
     );
 }
+
+#[tokio::test]
+async fn the_developer_tool_imports_edits_and_saves_a_real_file() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+
+    let run = std::process::Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&book)
+        .args(["--set", "genre=Mystery", "--save", "--json"])
+        .arg("--state-dir")
+        .arg(desk.root.path().join("tool-state"))
+        .output()
+        .expect("run abb-dev");
+
+    assert!(
+        run.status.success(),
+        "abb-dev failed: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let session: serde_json::Value =
+        serde_json::from_slice(&run.stdout).expect("abb-dev prints the session as JSON");
+    assert_eq!(session["titles"]["files"].as_array().map(Vec::len), Some(1));
+    assert_eq!(session["metadata"]["status"]["kind"], "saveComplete");
+    assert_eq!(session["metadata"]["status"]["succeeded"], 1);
+    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
+}
