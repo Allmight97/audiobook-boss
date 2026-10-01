@@ -21,13 +21,6 @@ pub(crate) fn apply_settings_to_runtime(
     settings: &AppSettings,
 ) {
     power.set_enabled(settings.keep_awake_while_working);
-    crate::audio::set_user_external_ffmpeg_path(
-        settings
-            .toolchain
-            .external_ffmpeg_path
-            .clone()
-            .map(Into::into),
-    );
 }
 
 #[tauri::command]

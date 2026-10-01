@@ -4,6 +4,14 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- The external FDK AAC encoder and everything that supported it: the FDK
+  option and its profile and Afterburner controls in the encoder panel, and the
+  Settings section for the custom FFmpeg path, Recheck FDK, and Homebrew setup.
+  Encoding uses the bundled encoders: Native AAC, Apple AAC, FAAC, and Opus.
+  Auto always resolves to Native AAC. v1.13.2 is the last version with FDK.
+
 ## [1.13.2] - 2026-09-28
 
 ### Fixed

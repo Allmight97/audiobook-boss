@@ -44,7 +44,6 @@ function fileList(): FileListInfo {
 		totalSize: 1,
 		validCount: 1,
 		invalidCount: 0,
-		selectedDecoders: [null],
 	};
 }
 

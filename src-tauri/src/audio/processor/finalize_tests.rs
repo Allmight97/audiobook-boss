@@ -14,10 +14,8 @@ fn encoder_settings() -> EncoderSettings {
         bitrate_kbps: 64,
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Auto,
-        afterburner: false,
         native_aac_speed: 0,
         faac_profile: crate::audio::FaacProfile::Auto,
-        fdk_profile: crate::audio::FdkProfile::Auto,
     }
 }
 

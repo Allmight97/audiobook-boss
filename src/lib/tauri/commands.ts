@@ -123,9 +123,6 @@ function toGeneratedAppSettingsPatch(patch: AppSettingsPatch): GeneratedAppSetti
 			? toGeneratedEncoderDefaults(patch.encoderDefaults)
 			: null,
 		outputDefaults: patch.outputDefaults ? toGeneratedOutputDefaults(patch.outputDefaults) : null,
-		toolchain: patch.toolchain
-			? { externalFfmpegPath: patch.toolchain.externalFfmpegPath ?? null }
-			: null,
 		startupBehavior: patch.startupBehavior ?? null,
 		pinnedDefaults: patch.pinnedDefaults
 			? {
@@ -177,8 +174,6 @@ export const commandSpecs = {
 			generatedCommands.updateAppSettings(toGeneratedAppSettingsPatch(args.patch)),
 			(settings) => normalizeNullish(settings),
 		),
-	open_fdk_setup: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.openFdkSetup(), () => undefined),
 	reset_app_settings: (_args?: undefined) =>
 		runGeneratedCommand(generatedCommands.resetAppSettings(), (settings) =>
 			normalizeNullish(settings),

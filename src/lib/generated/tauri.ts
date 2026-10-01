@@ -65,8 +65,6 @@ export const commands = {
 	testRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection", { update })),
 	/**  Returns backend-owned runtime settings capabilities for UI controls. */
 	getRuntimeSettingsCapabilities: () => typedError<RuntimeSettingsCapabilities, AppErrorEnvelope>(__TAURI_INVOKE("get_runtime_settings_capabilities")),
-	/**  Delegate an explicitly requested installation/update to Homebrew in Terminal. */
-	openFdkSetup: () => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("open_fdk_setup")),
 	/**  Builds an output path preview using backend naming rules without collision suffixing. */
 	previewOutputPath: (outputDir: string, metadata: {
 	title: string | null,
@@ -164,7 +162,7 @@ export type AlbumSortPatchOp = { op: "set"; value: string } | { op: "clear" } | 
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
-export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "process_termination_failed" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled" | "toolchain_required";
+export type AppErrorCode = "file_validation_failed" | "invalid_input" | "io_error" | "ffmpeg_error" | "temp_directory_creation_failed" | "resource_cleanup_failed" | "internal_error" | "image_processing_error" | "processing_cancelled";
 
 export type AppErrorEnvelope = {
 	code: AppErrorCode,
@@ -178,7 +176,6 @@ export type AppSettings = {
 	maxConcurrentJobs: ConcurrencyPreference,
 	encoderDefaults: EncoderDefaults,
 	outputDefaults: OutputDefaults,
-	toolchain?: ToolchainPreferences,
 	startupBehavior?: StartupBehavior,
 	pinnedDefaults?: PinnedDefaults | null,
 	defaultAcquisitionLane?: AcquisitionLane,
@@ -189,7 +186,6 @@ export type AppSettingsPatch = {
 	maxConcurrentJobs: ConcurrencyPreference | null,
 	encoderDefaults: EncoderDefaults | null,
 	outputDefaults: OutputDefaults | null,
-	toolchain: ToolchainPreferences | null,
 	startupBehavior: StartupBehavior | null,
 	/**
 	 *  Set-only: pinning overwrites; reverting is switching `startup_behavior`
@@ -342,28 +338,12 @@ export type CueSource = {
 
 export type CueStatus = "ready" | "needsConfirmation" | "invalid" | "ignored" | "embeddedPreferred";
 
-/**  Machine-readable decoder identity paired with the friendly display label. */
-export type DecoderSelection = {
-	/**  Stable decoder identifier used for routing and comparisons. */
-	decoderId: string,
-	/**  Friendly decoder label used for display only. */
-	decoderLabel: string,
-};
-
+/**  Which linked encoders this build offers, and what Auto resolves to. */
 export type EncoderAvailability = {
-	fdkAvailable: boolean,
-	fdkSetupSupported: boolean,
-	fdkSource: EncoderCapabilitySource,
 	aacAtAvailable: boolean,
 	nativeAacAvailable: boolean,
 	autoEncoder: EncoderType,
-	detectedToolchainPath: string | null,
-	statusMessage: string,
 };
-
-export type EncoderCapabilitySource = "none" | "detected" |
-/**  Validated from the user-configured FFmpeg path in App Settings. */
-"user_configured";
 
 /**
  *  Encoder-specific settings facts that cannot be represented by the global
@@ -378,7 +358,6 @@ export type EncoderConfigurationCapability = {
 	defaultMode: BitrateMode,
 	explicitSampleRates: number[],
 	faacProfiles: FaacProfileCapability[],
-	fdkProfiles: FdkProfileCapability[],
 };
 
 export type EncoderDefaults = {
@@ -393,7 +372,7 @@ export type EncoderDefaultsScope = "lastUsed" | "pinned";
 /**
  *  Advanced encoder settings payload
  *
- *  AAC encoders (native `aac`, `aac_at`, `libfdk_aac`) do not frame-thread, so
+ *  AAC encoders (native `aac`, `aac_at`) do not frame-thread, so
  *  there is deliberately no thread setting here; encoding always uses the
  *  encoder's single-threaded path.
  */
@@ -406,12 +385,9 @@ export type EncoderSettings = {
 	bitrateKbps: number,
 	bitrateMode: BitrateMode,
 	channels: ChannelConfig,
-	/**  Applies to FDK encoder only */
-	afterburner: boolean,
 	/**  Native NMR search speed, upstream default 0. */
 	nativeAacSpeed?: number,
 	faacProfile?: FaacProfile,
-	fdkProfile?: FdkProfile,
 };
 
 export type EncoderSettingsCapabilities = {
@@ -421,9 +397,6 @@ export type EncoderSettingsCapabilities = {
 	nativeSpeedMax: number,
 	faacQualityPresets: number[],
 	faacQualityDefault: number,
-	vbrLevelMin: number,
-	vbrLevelMax: number,
-	vbrLevelDefault: number,
 	sampleRateAuto: boolean,
 	explicitSampleRates: number[],
 	channelOptions: ChannelConfig[],
@@ -431,10 +404,8 @@ export type EncoderSettingsCapabilities = {
 
 /**  Supported encoder types for audiobooks */
 export type EncoderType =
-/**  Auto-detect best available (Native NMR > FDK) */
+/**  Resolves to the Native NMR encoder. */
 "auto" |
-/**  External FDK AAC (libfdk_aac) */
-"fdk_he_aac" |
 /**  Apple AAC (AudioToolbox), macOS-only */
 "aac_at" |
 /**  Native FFmpeg AAC encoder (aac) */
@@ -463,23 +434,10 @@ export type FaacProfileCapability = {
 	explicitSampleRates: number[],
 };
 
-/**  ABB resolves Auto from VBR quality and the output channel count. */
-export type FdkProfile = "auto" | "aac_lc" | "he_aac_v1" | "he_aac_v2";
-
-/**  Profile support and ABB's Auto mapping, shared with the settings view. */
-export type FdkProfileCapability = {
-	profile: FdkProfile,
-	explicitSampleRates: number[],
-	autoMonoVbrLevels: number[],
-	autoStereoVbrLevels: number[],
-};
-
 /**  Summary information for a file list */
 export type FileListInfo = {
 	/**  List of validated audio files */
 	files: AudioFile[],
-	/**  Stable decoder identities aligned by index with `files`. */
-	selectedDecoders: (DecoderSelection | null)[],
 	/**  Total duration in seconds */
 	totalDuration: number,
 	/**  Total size in bytes */
@@ -1150,15 +1108,6 @@ export type TitleAudioRequest = {
 export type TitleSource = {
 	path: string,
 	inputId: string | null,
-};
-
-/**
- *  Durable toolchain preferences. Preference data only: the audio toolchain
- *  owner probes and validates the path before any runtime use.
- */
-export type ToolchainPreferences = {
-	/**  User-selected external FFmpeg binary expected to expose `libfdk_aac`. */
-	externalFfmpegPath: string | null,
 };
 
 export type WorkOperationListSnapshotEvent = {

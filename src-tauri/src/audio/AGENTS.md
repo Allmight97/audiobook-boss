@@ -16,25 +16,20 @@
 
 - Import from `crate::audio`, not private child modules such as
   `crate::audio::processor`, `crate::audio::settings_encoder`,
-  `crate::audio::toolchain`, `crate::audio::path_validation`, or
-  `crate::audio::cleanup`.
+  `crate::audio::path_validation`, or `crate::audio::cleanup`.
 - Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
-  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `FdkProfile`, `BitrateMode`,
-  `ChannelConfig`, `EncoderAvailability`, `EncoderCapabilitySource`,
+  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
+  `ChannelConfig`, `EncoderAvailability`,
   `AudiobookFormat`, `AudioIntent`, `TitleAudioRequest`, `TitleAudioPlan`.
 - Functions: `resolve_title_audio`, `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
   `validate_input_image_path`, `validate_preservation_source`, `validate_preserved_title`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
-  `validate_requested_encoder_available`,
-  `encoder_settings_capabilities`,
-  `resolve_encoder_type`, `resolve_encoder_name`,
+  `encoder_settings_capabilities`, `resolve_encoder_name`,
   `detect_encoder_availability`, `detect_aac_decoder_availability`,
   `preferred_aac_decoder_order_labels`, `execute_audio_engine`,
-  `validate_audio_engine_inputs`, `set_user_external_ffmpeg_path` (settings
-  hydration/update ingress for the durable user FFmpeg path; validation stays
-  toolchain-owned).
+  `validate_audio_engine_inputs`.
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.
@@ -46,22 +41,20 @@
 - `EncoderSettingsCapabilities.encoder_configurations` is the single
   per-encoder capability array for allowed modes, defaults, and explicit sample
   rates and target bitrate bounds. The global `explicit_sample_rates` list remains the rate list for the
-  existing encoders. FAAC profile-specific rates are carried by `faac_profiles`;
-  FDK's `fdk_profiles` carries profile rates and the Auto VBR mapping for mono
-  and stereo. Quality presets are backend-owned capability values. The adapter owns
+  existing encoders. FAAC profile-specific rates are carried by `faac_profiles`.
+  Quality presets are backend-owned capability values. The FAAC encoder owns
   upstream profile resolution and opened configuration readback.
 - Target bitrate bounds and native speed bounds come from
   `EncoderSettingsCapabilities`. Native and bundled FAAC target bitrates also
   check their resolved AAC ceilings during preflight and encoder setup. Input
   validation receives the sample-rate choice and inspected sources grouped by
-  output title. Resolve the adapter once per validation call; each title's
+  output title. Resolve the encoder once per validation call; each title's
   ceiling uses its combined channels and first input rate.
   Opened NMR and FAAC settings must match the request; FAAC preflight uses the
-  same adapter open/readback as execution, including upstream bitrate clamps.
+  same encoder open/readback as execution, including upstream bitrate clamps.
 - `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
   per-file trial decoding owns initial compatibility.
-- Crate-internal helpers: `AudioPlanner` (caches adapter resolution within one preflight), `CleanupGuard`, `open_fdk_setup` (opens the bundled
-  Homebrew handoff in Terminal; its return confirms launch, not installation).
+- Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event
   vocabulary, and `crate::work_runtime` for accepted-operation identity.
@@ -71,21 +64,11 @@
 - Files: `buffer.rs`, `buffer_tests.rs`, `cleanup/`, `extensions.rs`,
   `constants.rs`, `file_list.rs`, `imports.rs`, `imports_tests.rs`, `metrics.rs`,
   `path_validation.rs`, `processor/`, `settings.rs`, `settings_capabilities.rs`,
-  `settings_encoder.rs`, `output_plan.rs`, and `toolchain/` (`mod.rs` = platform-neutral
-  resolution/validation; `platform.rs` = the per-OS probe seam — candidate
-  enumeration, binary-arch acceptance, and platform paths live ONLY there,
-  cfg-dispatched per the `src-tauri/src/remote_source/vault.rs` pattern with pure rules
-  unit-testable on any host). `fdk-setup.command` is the fixed macOS Homebrew
-  handoff bundled as a resource; it accepts no user-supplied shell code.
-- The cluster owns local audio import metadata/discovery, decoder/toolchain
+  `settings_encoder.rs`, and `output_plan.rs`.
+- The cluster owns local audio import metadata/discovery, decoder and encoder
   selection, media inspection, decode/resample/encode/mux internals, staging,
   cleanup, and media execution facts. Processing owns lifecycle orchestration
   and terminal normalization; `output_artifact` owns final artifact commit truth.
-
-- Auto detection is read-only. Validate the configured path first; canonicalize
-  only for deduplication so stable package-manager aliases survive upgrades.
-  Probe timeouts terminate and reap the process group. Homebrew setup runs only
-  after explicit user intent and leaves conflicting formula replacement to the user.
 
 ## Test Placement
 
@@ -114,8 +97,8 @@
   green for the touched boundary.
 - Narrow accidental visibility when callers can use the Public API Strip without
   losing contract truth.
-- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, Opus, and external FDK adapter
-  differences inside the private cluster unless a caller needs a stable
+- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and Opus differences inside
+  the private cluster unless a caller needs a stable
   capability fact.
 
 ## Boundary Changes
@@ -129,28 +112,22 @@
 ## Preferred Path
 
 - Treat audio processing as a boundary chain: discover supported local paths ->
-  validate paths -> inspect inputs -> choose decoder/toolchain ->
+  validate paths -> inspect inputs -> choose decoder and encoder ->
   decode/resample -> accumulate exact encoder frames -> encode/mux -> finalize
   artifact -> verify output truth.
 - Keep sample format, channel layout, sample rate, frame size, and encoder selection explicit at the boundary where they are chosen.
 - Resolve Auto channels once at the Audio execution boundary: all valid inputs
   mono -> Mono; any stereo input -> Stereo. Multichannel or unknown input
-  counts require an explicit Mono/Stereo choice during preflight. Adapters
-  receive resolved channels; external concat normalizes each input first.
+  counts require an explicit Mono/Stereo choice during preflight. Encoders
+  receive resolved channels.
 - Downmix coefficients are normalized to prevent coherent channels from
   overflowing before encoding. The standard downmix retains center/surround
   channels and omits LFE; Mono/Stereo are explicit downmix choices.
 - Prefer real media probes and small targeted regression tests over codec speculation when audio quality, channel shape, duration, or output validity changes.
-- Keep Native AAC, Apple AAC/AAC-AT, bundled FAAC, and external FDK behavior
-  distinct. FAAC offers profile Auto/LC/HE and ABR/VBR, resolving its profile
-  once at open from output settings. Encoder Auto prefers Native NMR, then FDK; Apple and FAAC remain explicit choices.
-- FDK Auto resolves once with output channels: VBR 1 uses HE v2 for stereo,
-  HE v1 for mono; VBR 2 uses HE v1; VBR 3–5 uses LC. Manual profiles retain
-  the requested VBR quality. `EncoderSettings::resolve_fdk_output` owns profile
-  and rate validation for planning, preflight, and direct execution. HE v2
-  requires stereo; HE starts at 16 kHz, LC at 8 kHz. Explicit incompatible
-  rates/channels fail; only Auto rate adapts. Stored settings without an FDK
-  profile adopt Auto.
+- Keep Native AAC, Apple AAC/AAC-AT, and bundled FAAC behavior distinct. FAAC
+  offers profile Auto/LC/HE and ABR/VBR, resolving its profile once at open
+  from output settings. Encoder Auto resolves to Native NMR; Apple and FAAC
+  remain explicit choices.
 - Native AAC uses NMR with upstream psychoacoustic defaults and explicit target
   bitrate and search speed. Auto adapts an unsupported bitrate mode to the resolved encoder default; explicit encoder requests reject incompatible modes.
 
@@ -194,7 +171,7 @@ When one appears, name the affected boundary, state the current assumption used 
 Analysis attaches sibling CUE diagnostics and a source-fingerprinted candidate
 chapter plan to each MP3. `apply_chapter_plans` validates accepted payload plans
 against the audio identity and duration before dispatch. CUE confirmation or
-Ignore is explicit; multi-source CUE merging is rejected. Encoder adapters
+Ignore is explicit; multi-source CUE merging is rejected. Encoders
 consume accepted chapters, while passthrough source probing remains for cover
 art and external artifact readers. Preview continues to omit chapters.
 

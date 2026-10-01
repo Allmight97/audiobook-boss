@@ -40,8 +40,6 @@
   explicit null settings for MP3 pass-through. `previewTitleAudio` and preflight
   use the same Rust planner; IPC adapters never choose a fallback encoder.
 
-- `openFdkSetup` delegates the fixed bundled setup script through Audio; the
-  promise means Terminal was opened, not that FDK was installed.
 - `getAppSettingsRecovery` inspects unsupported persisted encoders without
   mutation. `recoverAppSettings` sends the reviewed plan and returns the backup
   filename plus recovered settings; backend App Settings owns recovery policy.

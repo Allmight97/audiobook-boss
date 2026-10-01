@@ -14,30 +14,12 @@ type RuntimeSettingsCapabilitiesFixtureOverrides = {
 export function encoderAvailabilityFixture(
 	overrides: Partial<EncoderAvailability> = {},
 ): EncoderAvailability {
-	const fdkAvailable = overrides.fdkAvailable ?? true;
-	const aacAtAvailable = overrides.aacAtAvailable ?? true;
-	const nativeAacAvailable = overrides.nativeAacAvailable ?? true;
 	const base = {
-		fdkSetupSupported: true,
-		fdkAvailable,
-		aacAtAvailable,
-		nativeAacAvailable,
-		fdkSource: fdkAvailable ? ('detected' as const) : ('none' as const),
-		autoEncoder: nativeAacAvailable
-			? ('native_aac' as const)
-			: fdkAvailable
-				? ('fdk_he_aac' as const)
-				: ('native_aac' as const),
-		detectedToolchainPath: fdkAvailable ? '/opt/homebrew/bin/ffmpeg' : null,
-		statusMessage: fdkAvailable
-			? 'FDK AAC detected and ready.'
-			: 'No external FFmpeg toolchain with libfdk_aac was detected.',
+		aacAtAvailable: overrides.aacAtAvailable ?? true,
+		nativeAacAvailable: overrides.nativeAacAvailable ?? true,
+		autoEncoder: 'native_aac' as const,
 	} satisfies GeneratedEncoderAvailability;
-	return {
-		...base,
-		detectedToolchainPath: base.detectedToolchainPath ?? undefined,
-		...overrides,
-	};
+	return { ...base, ...overrides };
 }
 
 export function runtimeSettingsCapabilitiesFixture(
@@ -49,74 +31,33 @@ export function runtimeSettingsCapabilitiesFixture(
 	const base = {
 		encoder: {
 			availability: {
-				fdkSetupSupported: true,
-				fdkAvailable: true,
 				aacAtAvailable: true,
 				nativeAacAvailable: true,
-				fdkSource: 'detected' as const,
 				autoEncoder: 'native_aac' as const,
-				detectedToolchainPath: '/opt/homebrew/bin/ffmpeg',
-				statusMessage: 'FDK AAC detected and ready.',
 			} satisfies GeneratedEncoderAvailability,
-			encoderTypes: ['auto', 'fdk_he_aac', 'aac_at', 'native_aac', 'faac', 'opus'],
+			encoderTypes: ['auto', 'aac_at', 'native_aac', 'faac', 'opus'],
 			encoderConfigurations: [
 				{
 					encoderType: 'opus' as const,
 					allowedModes: ['vbr' as const],
 					defaultMode: { mode: 'vbr_target' as const },
 					explicitSampleRates: [8000, 12000, 16000, 24000, 48000],
-					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 6,
 					bitrateKbpsMax: 510,
 				},
 				{
-					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
 					encoderType: 'auto' as const,
-					allowedModes: ['vbr' as const, 'cvbr' as const, 'cbr' as const],
+					allowedModes: ['cbr' as const],
 					defaultMode: { mode: 'cbr' as const },
 					explicitSampleRates: [
 						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
 					],
 				},
 				{
-					fdkProfiles: [
-						{
-							profile: 'aac_lc' as const,
-							explicitSampleRates: [
-								8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
-							],
-							autoMonoVbrLevels: [3, 4, 5],
-							autoStereoVbrLevels: [3, 4, 5],
-						},
-						{
-							profile: 'he_aac_v1' as const,
-							explicitSampleRates: [16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000],
-							autoMonoVbrLevels: [1, 2],
-							autoStereoVbrLevels: [2],
-						},
-						{
-							profile: 'he_aac_v2' as const,
-							explicitSampleRates: [16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000],
-							autoMonoVbrLevels: [],
-							autoStereoVbrLevels: [1],
-						},
-					],
-					faacProfiles: [],
-					bitrateKbpsMin: 1,
-					bitrateKbpsMax: 1152,
-					encoderType: 'fdk_he_aac' as const,
-					allowedModes: ['vbr' as const],
-					defaultMode: { mode: 'vbr' as const, value: 3 },
-					explicitSampleRates: [
-						7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,
-					],
-				},
-				{
-					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
@@ -128,7 +69,6 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
-					fdkProfiles: [],
 					faacProfiles: [],
 					bitrateKbpsMin: 1,
 					bitrateKbpsMax: 1152,
@@ -140,7 +80,6 @@ export function runtimeSettingsCapabilitiesFixture(
 					],
 				},
 				{
-					fdkProfiles: [],
 					faacProfiles: ['auto', 'aac_lc', 'he_aac_v1'].map((profile) => ({
 						profile: profile as 'auto' | 'aac_lc' | 'he_aac_v1',
 						explicitSampleRates:
@@ -164,9 +103,6 @@ export function runtimeSettingsCapabilitiesFixture(
 			nativeSpeedMax: 4,
 			faacQualityPresets: [50, 100, 200],
 			faacQualityDefault: 100,
-			vbrLevelMin: 1,
-			vbrLevelMax: 5,
-			vbrLevelDefault: 3,
 			sampleRateAuto: true,
 			explicitSampleRates: [
 				7350, 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000,

@@ -101,27 +101,11 @@ describe('encoder panel behavior controls', () => {
 		expect(bitrate.value).toBe('193');
 	});
 
-	it('edits FDK profiles through the shared encoder view', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture(),
-		);
-		renderEncoder();
-		await waitForEncoderOptions();
-		changeSelectValue(screen.getByLabelText('Encoder') as HTMLSelectElement, 'fdk_he_aac');
-		await vi.waitFor(() => expect(screen.getByLabelText('Profile')).toHaveValue('auto'));
-		expect(screen.getByRole('option', { name: 'Auto · AAC-LC' })).toBeInTheDocument();
-		changeSelectValue(screen.getByLabelText('Profile') as HTMLSelectElement, 'he_aac_v1');
-		await vi.waitFor(() =>
-			expect(runtime!.encoding.readDefaults().settings.fdkProfile).toBe('he_aac_v1'),
-		);
-	});
-
 	it('renders encoder option ranges from runtime capabilities', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -159,7 +143,6 @@ describe('encoder panel behavior controls', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -215,7 +198,6 @@ describe('encoder panel behavior controls', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -233,12 +215,6 @@ describe('encoder panel behavior controls', () => {
 		});
 
 		const encoderSelect = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(encoderSelect, 'fdk_he_aac');
-		await vi.waitFor(() => {
-			expect(document.getElementById('output-quality')?.hidden).toBe(false);
-			expect(document.getElementById('output-bitrate')?.hidden).toBe(true);
-			expect(document.getElementById('quality-bitrate-label')?.textContent).toBe('Quality');
-		});
 		changeSelectValue(encoderSelect, 'native_aac');
 
 		await vi.waitFor(() => {
@@ -340,46 +316,11 @@ describe('encoder panel behavior controls', () => {
 		});
 	});
 
-	it('shows the selected FDK encoder without repeating toolchain details', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: {
-						...encoderAvailabilityFixture({
-							fdkAvailable: true,
-							aacAtAvailable: true,
-							nativeAacAvailable: true,
-						}),
-						fdkSource: 'detected',
-						detectedToolchainPath: '/opt/homebrew/Cellar/ffmpeg/8.1.1/bin/ffmpeg',
-						statusMessage: 'FDK AAC detected and ready.',
-					},
-				},
-			}),
-		);
-
-		renderEncoder();
-		await waitForEncoderOptions();
-		changeSelectValue(document.getElementById('adv-encoder') as HTMLSelectElement, 'fdk_he_aac');
-
-		await vi.waitFor(() => {
-			expect((document.getElementById('adv-encoder') as HTMLSelectElement).value).toBe(
-				'fdk_he_aac',
-			);
-			expect(document.body.textContent).not.toContain('Toolchain');
-			expect(runtime!.encoding.audioRequest()).toMatchObject({
-				settings: expect.any(Object),
-				sampleRate: expect.anything(),
-			});
-		});
-	});
-
 	it('retains chosen Apple AAC when it becomes unavailable', async () => {
 		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -395,7 +336,6 @@ describe('encoder panel behavior controls', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: false,
 						aacAtAvailable: false,
 						nativeAacAvailable: true,
 					}),
@@ -407,7 +347,7 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('aac_at');
-			expect(select?.options.length).toBe(4);
+			expect(select?.options.length).toBe(3);
 			expect(runtime!.encoding.audioRequest().settings!.encoderType).toBe('aac_at');
 		});
 	});
@@ -417,7 +357,6 @@ describe('encoder panel behavior controls', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -433,7 +372,6 @@ describe('encoder panel behavior controls', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: false,
 						aacAtAvailable: true,
 						nativeAacAvailable: false,
 					}),
@@ -445,7 +383,7 @@ describe('encoder panel behavior controls', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(4);
+			expect(select?.options.length).toBe(3);
 			expect(runtime!.encoding.audioRequest().settings!.encoderType).toBe('native_aac');
 		});
 	});

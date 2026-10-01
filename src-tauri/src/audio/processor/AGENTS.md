@@ -34,31 +34,24 @@
   falling back to an encoder. Preflight scans timing; execution repeats the
   check against fingerprint-validated private source copies. Metadata/chapter
   finalization and output publication use their existing owners.
-- Resolve the encoder once at adapter dispatch and carry that choice into the
-  in-process setup. Explicit Native/Apple selections validate their linked
-  encoder without probing external FDK; bundled FAAC is available without an
-  external toolchain. Auto resolves Native NMR → FDK and does not select Apple or FAAC. Do not repeat
-  external-toolchain detection while opening the encoder.
+- Resolve the encoder once at dispatch (`resolution.rs`) and carry that choice
+  into encoder setup. Explicit Native, Apple, and Opus selections validate their
+  linked encoder; bundled FAAC is always available. Auto resolves to Native NMR
+  and does not select Apple or FAAC.
 - Emit stage-aligned progress/failure states so UI status reflects real backend state.
 - Use app-cache local processing workspaces, cleanup guards, and deterministic teardown for temp artifacts.
 - Preserve finalize behavior that completes filesystem operations before success is reported.
-- Keep external FDK internals split by private mechanism under
-  `external_fdk/`; callers should only use the adapter entrypoint.
-  Its HE-AAC v1 mono output explicitly declares PS absent in the AAC configuration before
-  metadata finalization. LC bypasses this HE-specific correction. This applies only to that freshly encoded mono stream;
-  stream-copy the compressed packets and keep the corrected output under the
-  same workspace cleanup owner.
 
 ## Hard Invariants
 
 - Finalization reports success only after the output artifact boundary returns final artifact truth.
 - Processor code must not directly perform final artifact `rename`, `copy`, or
   `hard_link`; final artifact commit truth lives in `output_artifact`.
-- External FDK and in-process engine paths must use the shared final artifact commit
-  handoff. Adapter-specific code may stage media locally, but final artifact
-  commit and success wording remain centralized. MP4-family tag truth must route
-  through the mp4ameta metadata writer, not a bare remux — the mov muxer
-  silently drops non-native tag keys.
+- Every route uses the shared final artifact commit handoff. Route-specific
+  code may stage media locally, but final artifact commit and success wording
+  remain centralized. MP4-family tag truth must route through the mp4ameta
+  metadata writer, not a bare remux — the mov muxer silently drops non-native
+  tag keys.
 - Preview artifacts intentionally omit chapter passthrough/preview chapters
   unless a future product decision wires real chapter emission and proves it
   against actual artifact metadata.
@@ -72,10 +65,10 @@
 ## Encoder diagnostics
 
 - Shared encoder run records use the private `run_diagnostics` helper for file
-  writes, requested settings, and monotonic/wall-clock timing. Both routes share
+  writes, requested settings, and monotonic/wall-clock timing. Records take
   one write lock and prefer `ABB_ENCODING_LOG`; `ABB_LOG_FILE` is the legacy
-  fallback, truncated once per process. Adapter records add only facts owned by
-  that adapter; unavailable opened settings remain explicitly `unknown`.
+  fallback, truncated once per process. Unavailable opened settings remain
+  explicitly `unknown`.
 - Finalization emits `audio_output` from a read-only probe of the completed staged
   file, before publication. These are observed file properties, not encoder
   configuration; unavailable diagnostics never change processing success.
@@ -97,9 +90,9 @@
   upstream priming. LC uses a distinct tag and its returned encoder delay.
   Apply the HE interval only to the recognized HE provenance.
 - HE re-import reads all FAAC access units, including decoder postroll, and trims
-  at source sample rate before preview, resampling, or concatenation. In-process
-  packet skip metadata and external FDK filters consume the same interval.
-  Encoder selection does not change the source's playable audio.
+  at source sample rate before preview, resampling, or concatenation, through
+  packet skip metadata. Encoder selection does not change the source's
+  playable audio.
 
 ## Done Criteria
 

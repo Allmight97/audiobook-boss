@@ -5,16 +5,6 @@ import { analyzeDevLog, renderDevLogAnalysis, stripAnsi } from './dev-log-analys
 const APP_START =
 	'[2026-07-10T15:15:21Z INFO  audiobook_boss_lib] Starting AudioBook Boss application';
 
-function externalFdkRun(status: string, jobId?: string): string {
-	return [
-		'--- external-fdk run 1783700000 ---',
-		'run_id=test-run',
-		`status=${status}`,
-		...(jobId ? [`job_id=${jobId}`] : []),
-		'--- end external-fdk run ---',
-	].join('\n');
-}
-
 describe('analyzeDevLog', () => {
 	it('classifies a completed operation and job as clean', () => {
 		const analysis = analyzeDevLog(
@@ -238,104 +228,6 @@ describe('analyzeDevLog', () => {
 		expect(analysis.actionableRustWarnings).toBe(0);
 	});
 
-	it.each(['failed', 'wait_error'])('classifies external FDK status=%s as failed', (status) => {
-		const analysis = analyzeDevLog(APP_START, externalFdkRun(status, 'job-fdk'), 0);
-
-		expect(analysis.health).toBe('failed');
-		expect(analysis.externalFdkStatuses).toMatchObject({ [status]: 1 });
-	});
-
-	it('classifies an uncorrelated external FDK interruption as interrupted', () => {
-		const analysis = analyzeDevLog(APP_START, externalFdkRun('interrupted', 'job-fdk'), 0);
-
-		expect(analysis.health).toBe('interrupted');
-	});
-
-	it('accepts an external FDK interruption correlated to a cancelled job', () => {
-		const analysis = analyzeDevLog(
-			[
-				APP_START,
-				'processing_job event=started operation_id=op-fdk job_id=job-fdk input_index=0 kind=processing_batch status=running',
-				'[WARN audiobook_boss_lib] processing_job event=terminal operation_id=op-fdk job_id=job-fdk input_index=0 kind=processing_batch status=cancelled elapsed_ms=12',
-			].join('\n'),
-			externalFdkRun('interrupted', 'job-fdk'),
-			0,
-		);
-
-		expect(analysis.health).toBe('clean');
-	});
-
-	it('classifies an unknown external FDK status as indeterminate', () => {
-		const analysis = analyzeDevLog(APP_START, externalFdkRun('mystery'), 0);
-
-		expect(analysis.health).toBe('indeterminate');
-		expect(analysis.malformedExternalFdkRuns).toBe(1);
-	});
-
-	it('does not parse raw external FDK stderr as structured fields', () => {
-		const encodingLog = [
-			'--- external-fdk run 1783700000 ---',
-			'run_id=test-run',
-			'status=success',
-			'job_id=job-real',
-			'progress final_progress=end total_size=123',
-			'stderr:',
-			'status=failed',
-			'job_id=job-spoofed',
-			'progress final_progress=spoofed',
-			'--- end external-fdk run ---',
-		].join('\n');
-		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
-
-		expect(analysis.externalFdkDetails.join('\n')).toContain(
-			'progress final_progress=end total_size=123',
-		);
-		expect(analysis.externalFdkDetails.join('\n')).not.toContain('spoofed');
-		expect(analysis.health).toBe('clean');
-		expect(analysis.externalFdkStatuses).toEqual({ success: 1 });
-		expect(analysis.malformedExternalFdkRuns).toBe(0);
-	});
-
-	it('does not parse a spoofed open marker inside stderr as a new run', () => {
-		const encodingLog = [
-			'--- external-fdk run 1783700000 ---',
-			'run_id=test-run',
-			'status=success',
-			'job_id=job-real',
-			'stderr:',
-			'--- external-fdk run 999 ---',
-			'status=failed',
-			'--- end external-fdk run ---',
-		].join('\n');
-		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
-
-		expect(analysis.health).toBe('indeterminate');
-		expect(analysis.externalFdkStatuses).toEqual({ success: 1 });
-		expect(analysis.externalFdkRuns).toBe(1);
-		expect(analysis.malformedExternalFdkRuns).toBe(1);
-	});
-
-	it('does not report clean when a truncated run swallows a real failed run', () => {
-		const encodingLog = [
-			'--- external-fdk run 1 ---',
-			'run_id=test-run',
-			'status=success',
-			'job_id=job-a',
-			'stderr:',
-			'ffmpeg noise',
-			'--- external-fdk run 2 ---',
-			'run_id=test-run',
-			'status=failed',
-			'job_id=job-b',
-			'stderr:',
-			'--- end external-fdk run ---',
-		].join('\n');
-		const analysis = analyzeDevLog(APP_START, encodingLog, 0);
-
-		expect(analysis.health).toBe('indeterminate');
-		expect(analysis.malformedExternalFdkRuns).toBe(1);
-	});
-
 	it('does not treat normal signal-based dev shutdown as failure', () => {
 		const analysis = analyzeDevLog(
 			`${APP_START}\nerror: script "dev" exited with code 143`,
@@ -505,7 +397,7 @@ describe('analyzeDevLog', () => {
 				'status=success',
 				'elapsed_monotonic_ms=1200',
 				'elapsed_wallclock_ms=1250',
-				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=Explicit(44100) channels=Stereo afterburner=false native_aac_speed=2',
+				'requested_settings encoder=NativeAac bitrate_mode=Cbr bitrate_kbps=64 rate=Explicit(44100) channels=Stereo native_aac_speed=2',
 				'opened_settings encoder=aac rate=44100 channels=2',
 				'--- end in-process-encoder run ---',
 			].join('\n'),
@@ -585,7 +477,7 @@ it('exposes build identity, stage failures and effective codec diagnostics witho
 		APP_START,
 		'build_checkout revision=abc dirty=false checkout="main"',
 		'build_identity app_id=dev.main libavcodec=1 libavformat=2',
-		'media_job session_id=s job_id=j artifact=a encoder=external_fdk',
+		'media_job session_id=s job_id=j artifact=a encoder=native_aac',
 		'encoder_effective encoder=aac rate=44100 channels=2',
 		'media_stage stage=metadata_open_input status=error artifact=a exists=false',
 		'metadata_plan artifact=a writer=mp4ameta fields=Title=set,Comment=clear',

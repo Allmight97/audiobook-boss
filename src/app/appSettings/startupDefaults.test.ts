@@ -9,15 +9,11 @@ function notCalled(): never {
 
 function capabilityFor(settings: AppSettings): SettingsCapability {
 	return {
-		openFdkSetup: async () => {
-			throw new Error('unexpected setup');
-		},
 		getAppSettings: () => Promise.resolve(settings),
 		getAppSettingsRecovery: notCalled,
 		recoverAppSettings: notCalled,
 		updateAppSettings: notCalled,
 		resetAppSettings: notCalled,
-		openFile: notCalled,
 		getMaxConcurrentJobs: notCalled,
 		setMaxConcurrentJobs: notCalled,
 		getRuntimeSettingsCapabilities: notCalled,
@@ -34,7 +30,6 @@ const lastUsed: AppSettings = {
 			bitrateKbps: 64,
 			bitrateMode: { mode: 'cbr' },
 			channels: 'mono',
-			afterburner: false,
 		},
 		sampleRate: { explicit: 44100 },
 	},
@@ -42,7 +37,6 @@ const lastUsed: AppSettings = {
 		outputDirectory: '/books/last-used',
 		outputNaming: { preset: 'absDefault', includeYear: false },
 	},
-	toolchain: {},
 	startupBehavior: 'rememberLastState',
 	defaultAcquisitionLane: 'audible',
 	keepAwakeWhileWorking: true,
@@ -54,11 +48,10 @@ const pinned: PinnedDefaults = {
 		format: 'm4b',
 		intent: 'auto',
 		settings: {
-			encoderType: 'fdk_he_aac',
+			encoderType: 'aac_at',
 			bitrateKbps: 128,
-			bitrateMode: { mode: 'cbr' },
+			bitrateMode: { mode: 'cvbr' },
 			channels: 'stereo',
-			afterburner: true,
 		},
 		sampleRate: { explicit: 48000 },
 	},
@@ -82,7 +75,7 @@ describe('resolveStartupDefaults', () => {
 		);
 
 		expect(resolved.outputDefaults.outputDirectory).toBe('/books/pinned');
-		expect(resolved.encoderDefaults.settings.encoderType).toBe('fdk_he_aac');
+		expect(resolved.encoderDefaults.settings.encoderType).toBe('aac_at');
 		expect(resolved.maxConcurrentJobs).toEqual({ mode: 'auto' });
 	});
 

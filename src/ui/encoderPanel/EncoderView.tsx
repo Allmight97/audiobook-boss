@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal, createMemo, createUniqueId } from 'solid-js';
+import { For, Show, createMemo, createUniqueId } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { useAppRuntime } from '../../app/runtime';
@@ -18,7 +18,6 @@ export function EncoderView(
 					mixedFields: [] as readonly EncodingField[],
 				},
 	);
-	const [afterburnerInfoOpen, setAfterburnerInfoOpen] = createSignal(false);
 	const mixed = (field: EncodingField) => view().mixedFields.includes(field);
 	const value = (field: EncodingField, current: string | number) => (mixed(field) ? '' : current);
 	const editingTitles = () => !!props.title || !!props.titles;
@@ -31,18 +30,6 @@ export function EncoderView(
 			: props.title
 				? runtime.encoding.selectTitle(props.title, field, selected)
 				: runtime.encoding.select(field, selected);
-
-	createEffect(afterburnerInfoOpen, (visible) => {
-		if (!visible) return;
-		const dismiss = (event: KeyboardEvent) => {
-			if (event.key !== 'Escape') return;
-			event.preventDefault();
-			event.stopPropagation();
-			setAfterburnerInfoOpen(false);
-		};
-		window.addEventListener('keydown', dismiss, true);
-		return () => window.removeEventListener('keydown', dismiss, true);
-	});
 
 	function bind(field: EncodingField) {
 		return (event: Event) => {
@@ -125,55 +112,7 @@ export function EncoderView(
 						</summary>
 						<div class="encoder-workbench-grid">
 							<div class="encoder-field-row">
-								<div class="encoder-label-with-info">
-									<label for={id('adv-encoder')}>Encoder</label>
-									<Show when={!mixed('encoder') && view().effectiveFlavor === 'fdk_he_aac'}>
-										<fieldset
-											class="encoder-info"
-											onMouseEnter={() => setAfterburnerInfoOpen(true)}
-											onMouseLeave={() => setAfterburnerInfoOpen(false)}
-										>
-											<button
-												type="button"
-												class="encoder-info-toggle"
-												aria-label="FDK Afterburner"
-												aria-pressed={
-													mixed('afterburner') ? 'mixed' : view().afterburner ? 'true' : 'false'
-												}
-												aria-describedby={
-													afterburnerInfoOpen() ? id('afterburner-help') : undefined
-												}
-												disabled={
-													!editingTitles() && runtime.settings.dialog().saveState === 'saving'
-												}
-												onFocus={() => setAfterburnerInfoOpen(true)}
-												onBlur={() => setAfterburnerInfoOpen(false)}
-												onClick={() =>
-													choose('afterburner', String(mixed('afterburner') || !view().afterburner))
-												}
-											>
-												{mixed('afterburner') ? '−' : view().afterburner ? '✓' : 'i'}
-											</button>
-											<Show when={afterburnerInfoOpen()}>
-												<span
-													id={id('afterburner-help')}
-													class="encoder-info-tooltip"
-													role="tooltip"
-												>
-													<strong>
-														Afterburner{' '}
-														{mixed('afterburner') ? 'mixed' : view().afterburner ? 'on' : 'off'}
-													</strong>
-													<span>Higher quality, slower encoding.</span>
-													<span>
-														Click to{' '}
-														{mixed('afterburner') || !view().afterburner ? 'enable' : 'disable'}.
-													</span>
-												</span>
-											</Show>
-										</fieldset>
-									</Show>
-								</div>
+								<label for={id('adv-encoder')}>Encoder</label>
 								<div class="encoder-field-stack">
 									<select
 										id={id('adv-encoder')}
@@ -231,34 +170,14 @@ export function EncoderView(
 									when={view().faac}
 									fallback={
 										<div class="encoder-field-row">
-											<Show when={view().fdk} fallback={<span class="label">Profile</span>}>
-												<label for={id('fdk-profile')}>Profile</label>
-											</Show>
-											<Show when={view().fdk}>
-												<select
-													id={id('fdk-profile')}
-													value={value('fdkProfile', view().fdkProfile)}
-													onChange={bind('fdkProfile')}
-												>
-													<Show when={mixed('fdkProfile')}>
-														<option value="" disabled>
-															Mixed
-														</option>
-													</Show>
-													<For each={view().fdkProfileOptions}>
-														{(option) => <option value={option.value}>{option.label}</option>}
-													</For>
-												</select>
-											</Show>
-											<Show when={!view().fdk}>
-												<div
-													class="profile-display profile-display-workbench"
-													data-testid="profile-display"
-												>
-													<span id={id('encoder-profile-display')}>{view().profileDisplay}</span>
-													<span class="readonly-badge">read-only</span>
-												</div>
-											</Show>
+											<span class="label">Profile</span>
+											<div
+												class="profile-display profile-display-workbench"
+												data-testid="profile-display"
+											>
+												<span id={id('encoder-profile-display')}>{view().profileDisplay}</span>
+												<span class="readonly-badge">read-only</span>
+											</div>
 										</div>
 									}
 								>

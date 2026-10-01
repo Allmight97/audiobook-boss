@@ -23,10 +23,8 @@ fn exposed_encoder_capabilities_match_validators() {
                 bitrate_kbps: bitrate,
                 bitrate_mode: configuration.default_mode,
                 channels: ChannelConfig::Auto,
-                afterburner: false,
                 native_aac_speed: capabilities.native_speed_max,
                 faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
-                fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
             };
             validate_encoder_settings(&settings)
                 .expect("exposed target and speed bounds should pass request validation");
@@ -78,10 +76,8 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
             bitrate_kbps: 64,
             bitrate_mode: entry.default_mode,
             channels: ChannelConfig::Auto,
-            afterburner: true,
             native_aac_speed: 0,
             faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
-            fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
         };
 
         validate_encoder_settings(&settings)

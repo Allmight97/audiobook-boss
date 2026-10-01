@@ -26,13 +26,11 @@ bun install
 bun run app:dev:log
 ```
 
-Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback) or an optional external-FDK encoder.
+Requires: macOS (Apple Silicon), Bun 1.4.0, Rust, and a .NET 8 SDK for the sidecar. App, test, and release builds use **bundled FFmpeg** — Homebrew `ffmpeg` is not required to run the app. Install it only for the real-media test lane (fixture/readback).
 
 **AAC runtime contract**: output encoder and input decoder are separate. Auto
-selects Native NMR, then FDK; Apple AAC and bundled FAAC are explicit choices.
+selects Native NMR; Apple AAC and bundled FAAC are explicit choices.
 Native AAC uses the bundled NMR coder with a numeric target and speed control.
-FDK offers Auto or manual AAC-LC/HE-AAC v1/HE-AAC v2 profiles; Auto follows
-VBR quality. Supported stereo settings show rough, content-dependent size estimates.
 Apple AAC uses a numeric target. Bundled FAAC offers Auto, AAC-LC, and HE-AAC v1
 profiles with ABR or VBR. FAAC defaults to profile Auto and ABR; the shared
 target defaults to 65 kbps, and sample rate/channels retain their Auto behavior.
@@ -40,15 +38,11 @@ FAAC chooses Auto’s profile from the requested output settings when encoding
 opens. VBR offers Smaller (50), Standard (100), and Higher (200); size varies
 with the audio, so use ABR for a bitrate target. Explicit HE supports 32, 44.1,
 and 48 kHz; Auto and LC also support the other available output rates. Saved
-HE/ABR preferences retain that intent. FDK AAC keeps its quality control
-through an external FFmpeg/`libfdk_aac` adapter. Normal processing uses the
-in-process Audio engine; the external adapter may force `aac_at` or
-`libfdk_aac` when the default decoder cannot handle the source. Bundled source
-revisions and wrapper changes are recorded under `vendor/`. ABB-produced FAAC
-HE files retain Apple-compatible gapless timing; ABB accounts for native decoder
-priming when reading them back, including through the external FDK route. Mono
-FDK output explicitly declares that parametric stereo is absent so Apple and
-FFmpeg both read it as mono.
+HE/ABR preferences retain that intent. All processing runs in the in-process
+Audio engine; on macOS it uses `aac_at` to decode AAC sources the default
+decoder cannot handle. Bundled source revisions and wrapper changes are
+recorded under `vendor/`. ABB-produced FAAC HE files retain Apple-compatible
+gapless timing; ABB accounts for native decoder priming when reading them back.
 FAAC's LGPL license and source provenance ship with the app; its corresponding
 source and build configuration live in `vendor/faac-sys/`. Each public release
 provides the corresponding ABB source, including the selected FAAC source and

@@ -7,7 +7,6 @@
 use crate::errors::{AppError, Result};
 use ff::{packet::Mut, Rescale};
 use ffmpeg_next as ff;
-use std::path::Path;
 
 pub(super) const ENCODING_TOOL: &str = "AudioBook Boss FAAC HE-AAC timing-2";
 pub(super) const CORE_PRIMING: i64 = 2080;
@@ -100,16 +99,6 @@ impl FaacDecodeWindow {
         }
         Ok(())
     }
-}
-
-pub(super) fn inspect(path: &Path) -> Result<Option<FaacDecodeWindow>> {
-    let input = ff::format::input(path).map_err(|error| {
-        AppError::General(format!(
-            "Cannot inspect input timing for '{}': {error}",
-            crate::errors::sanitize_path_for_display(path)
-        ))
-    })?;
-    FaacDecodeWindow::from_input(&input)
 }
 
 #[cfg(test)]

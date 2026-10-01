@@ -148,8 +148,7 @@ pub fn run() {
             remote_runtime.cleanup_abandoned_sessions()?;
             app.manage(remote_runtime);
 
-            // Hydrate the durable user FFmpeg path into the audio toolchain
-            // ingress so capability detection sees it from first use.
+            // Apply durable settings that have a runtime side (keep-awake).
             match app
                 .path()
                 .app_config_dir()
@@ -165,7 +164,7 @@ pub fn run() {
                     &settings,
                 ),
                 Err(error) => log::warn!(
-                    "Startup app settings hydration failed; using detected toolchain only: {error}"
+                    "Startup app settings hydration failed; using runtime defaults: {error}"
                 ),
             }
 

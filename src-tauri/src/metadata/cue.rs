@@ -207,7 +207,6 @@ mod tests {
         });
         let mut inputs = crate::audio::FileListInfo {
             files: files.to_vec(),
-            selected_decoders: vec![None, None],
             total_duration: 4.0,
             total_size: 6.0,
             valid_count: 2,

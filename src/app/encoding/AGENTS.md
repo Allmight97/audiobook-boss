@@ -17,16 +17,13 @@
 
 ## Hard Invariants
 
-- FDK profile/quality, FAAC profile/rate/quality, numeric target kbps, and NMR speed
-  stay independent across session encoder switches. Target bitrate includes
-  all channels. FAAC ABR uses that target; FAAC VBR uses its capability presets. FAAC VBR and unsupported FDK combinations return `null` from `estimateTitleKbps`.
-  FDK estimates use guide stereo reference averages only for resolved matching
-  profile/quality pairs at 44.1/48 kHz; they are rough, not targets or ceilings.
+- FAAC profile/rate/quality, numeric target kbps, and NMR speed stay
+  independent across session encoder switches. Target bitrate includes all
+  channels. FAAC ABR uses that target; FAAC VBR uses its capability presets
+  and returns `null` from `estimateTitleKbps`.
 - Derive rate mode from the effective encoder's capability except FAAC, whose
   ABR/VBR choice is explicit. `encoderConfigurations` owns mode and rate
-  support; its `faacProfiles` and `fdkProfiles` entries own profile-specific rates.
-  FDK Auto labels derive from backend mono/stereo VBR mappings; never copy the
-  mapping into frontend policy. Send profile
+  support; its `faacProfiles` entries own profile-specific rates. Send profile
   Auto to FAAC through the request; the frontend does not reproduce upstream
   profile thresholds. Sample-rate/channel Auto still follows the input hints.
   While discovery is pending, preserve the validated hydrated mode so saved
@@ -44,17 +41,13 @@
   survive capability loss; unavailable choices cannot be newly selected. Only Settings `select` edits persist
   defaults through the injected Settings `rememberEncoderDefaults` intent.
 - Capability and availability facts come from backend Runtime Settings
-  Capabilities. `reloadCapabilities` accepts a fetched result from Settings
-  and invalidates older loads; opening, rechecking, saving, and resetting
-  share one scan across both owners after the configured path changes. Labels and
-  auto-hints are frontend-owned. `capabilityRevision` invalidates derived audio
+  Capabilities. `reloadCapabilities` loads them again, or accepts a supplied
+  result, and invalidates older loads. Labels and auto-hints are frontend-owned. `capabilityRevision` invalidates derived audio
   previews after each current reload settles (including failure) and on reset,
   even when capability values or title requests are unchanged.
-- Selecting unavailable FDK invokes the injected setup intent and preserves the
-  current encoder request. The FDK option remains actionable; capability loss
-  during hydration/reload retains the explicit request for backend validation.
-- Afterburner is encoding truth. The shared encoder view shows it only for FDK;
-  a title edit changes that title's request without changing saved defaults.
+- Capability loss during hydration or reload retains the explicit encoder
+  request for backend validation.
+- A title edit changes that title's request without changing saved defaults.
 - Two live App Runtimes isolate bags, capability loads, persist closures, and
   hints. Disposing A cannot publish into B.
 - Estimated-size bytes stay in Output; this owner supplies total kbps or an

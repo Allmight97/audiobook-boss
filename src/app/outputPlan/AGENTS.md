@@ -55,7 +55,7 @@
 - `estimate.test.ts` pins the byte formula; `outputPlan.test.ts` covers title
   estimates and missing source facts. Resolved preview settings own Default
   encoding estimates; saved preferences must not substitute for the accepted plan.
-- `outputPlan.test.ts` pins hydration, per-title estimate (including FDK VBR
+- `outputPlan.test.ts` pins hydration, per-title estimate (including VBR
   uncertainty vs target-based estimates), live submit naming vs 150 ms
   preview debounce, series-part preview retrigger, preview draft/source-path
   projection, and collision resolve/cancel. Duration comes from

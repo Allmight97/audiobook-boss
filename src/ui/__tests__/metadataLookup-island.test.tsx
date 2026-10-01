@@ -26,7 +26,6 @@ function fakeInput(): InputCapability {
 		discoverAudioImportPaths: vi.fn(async (paths) => [...paths]),
 		analyzeAudioFiles: vi.fn(async (paths: ReadonlyArray<string>) => ({
 			files: paths.map((path) => analyzedFile(path)),
-			selectedDecoders: paths.map(() => null),
 			totalDuration: paths.length,
 			totalSize: paths.length * 1000,
 			validCount: paths.length,

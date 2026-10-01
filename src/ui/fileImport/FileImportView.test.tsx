@@ -19,7 +19,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 				bitrateKbps: 64,
 				bitrateMode: { mode: 'vbr', value: 3 },
 				channels: 'auto',
-				afterburner: true,
 			},
 			sampleRate: 'auto',
 		},
@@ -29,7 +28,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 				includeYear: false,
 			},
 		},
-		toolchain: {},
 		startupBehavior: 'rememberLastState',
 		keepAwakeWhileWorking: true,
 		...overrides,
@@ -39,7 +37,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 function fakeSettings(initial: Partial<AppSettings> = {}): SettingsCapability {
 	let current = settingsFixture(initial);
 	return {
-		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettingsRecovery: vi.fn(async () => null),
 		recoverAppSettings: vi.fn(async () => ({
 			backupFileName: 'backup.json',
@@ -58,7 +55,6 @@ function fakeSettings(initial: Partial<AppSettings> = {}): SettingsCapability {
 			current = settingsFixture();
 			return current;
 		}),
-		openFile: vi.fn(async () => null),
 		getMaxConcurrentJobs: vi.fn(async () => 4),
 		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
 		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),

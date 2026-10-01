@@ -39,7 +39,6 @@ function analyzedFile(
 function analyzedList(files: FileListInfo['files']): FileListInfo {
 	return {
 		files,
-		selectedDecoders: files.map(() => null),
 		totalDuration: files.length,
 		totalSize: files.length * 1000,
 		validCount: files.filter((file) => file.isValid).length,
@@ -133,7 +132,7 @@ describe('Solid input workbench', () => {
 		});
 		await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
 		expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
-		runtime.encoding.select('encoder', 'fdk_he_aac');
+		runtime.encoding.select('encoder', 'faac');
 		runtime.encoding.selectTitle(files[0]!, 'intent', 'preserve');
 		await waitFor(() =>
 			expect(
@@ -144,10 +143,10 @@ describe('Solid input workbench', () => {
 		);
 		runtime.encoding.selectTitle(files[0]!, 'channels', 'mono');
 		runtime.encoding.selectTitle(files[1]!, 'channels', 'stereo');
-		runtime.encoding.selectTitle(files[0]!, 'encoder', 'fdk_he_aac');
-		runtime.encoding.selectTitle(files[1]!, 'encoder', 'fdk_he_aac');
-		runtime.encoding.selectTitle(files[0]!, 'afterburner', 'false');
-		runtime.encoding.selectTitle(files[1]!, 'afterburner', 'true');
+		runtime.encoding.selectTitle(files[0]!, 'encoder', 'faac');
+		runtime.encoding.selectTitle(files[1]!, 'encoder', 'faac');
+		runtime.encoding.selectTitle(files[0]!, 'faacProfile', 'aac_lc');
+		runtime.encoding.selectTitle(files[1]!, 'faacProfile', 'he_aac_v1');
 		const defaults = runtime.encoding.readDefaults();
 		const untouched = runtime.encoding.audioRequest(files[2]!);
 		await runtime.input.selectFile({ index: 0, modifiers: { multi: false, range: false } });
@@ -156,12 +155,12 @@ describe('Solid input workbench', () => {
 		const editor = screen.getByRole('dialog', { name: 'Audio settings for 2 selected titles' });
 		await user.click(within(editor).getByText(/Encoding settings/));
 		expect(within(editor).getByLabelText('Channels')).toHaveValue('');
-		const afterburner = within(editor).getByRole('button', { name: 'FDK Afterburner' });
-		expect(afterburner).toHaveAttribute('aria-pressed', 'mixed');
-		await user.click(afterburner);
-		expect(afterburner).toHaveAttribute('aria-pressed', 'true');
-		expect(runtime.encoding.audioRequest(files[0]!).settings?.afterburner).toBe(true);
-		expect(runtime.encoding.audioRequest(files[1]!).settings?.afterburner).toBe(true);
+		const profile = within(editor).getByLabelText('Profile');
+		expect(profile).toHaveValue('');
+		await user.selectOptions(profile, 'aac_lc');
+		expect(profile).toHaveValue('aac_lc');
+		expect(runtime.encoding.audioRequest(files[0]!).settings?.faacProfile).toBe('aac_lc');
+		expect(runtime.encoding.audioRequest(files[1]!).settings?.faacProfile).toBe('aac_lc');
 		expect(runtime.encoding.readDefaults()).toEqual(defaults);
 		await user.selectOptions(within(editor).getByLabelText('Channels'), 'mono');
 		expect(runtime.encoding.audioRequest(files[0]!).settings?.channels).toBe('mono');
@@ -281,14 +280,14 @@ describe('Solid input workbench', () => {
 				expect(screen.getByTitle('Estimated output size')).toHaveTextContent('Est.'),
 			);
 			await user.keyboard('{Escape}');
-			// Rechecking can change the toolchain even when its capability shape is identical.
+			// A capability reload invalidates the plan even when its capability shape is identical.
 			preview.mockResolvedValueOnce({
 				format: 'm4b',
 				handling: 'encode',
 				settings: {
 					...settings,
-					encoderType: 'fdk_he_aac',
-					bitrateMode: { mode: 'vbr', value: 3 },
+					encoderType: 'faac',
+					bitrateMode: { mode: 'vbr', value: 100 },
 				},
 				sampleRate: 44100,
 				channels: 2,
@@ -307,12 +306,12 @@ describe('Solid input workbench', () => {
 					'Size varies with audio',
 				),
 			);
-			// A successful plan must also disappear if a recheck now makes its encoder unavailable.
-			preview.mockRejectedValueOnce(new Error('FDK is unavailable'));
+			// A successful plan must also disappear if a reload now makes its encoder unavailable.
+			preview.mockRejectedValueOnce(new Error('Encoder is unavailable'));
 			await runtime.encoding.reloadCapabilities(capabilities);
 			await waitFor(() =>
 				expect(screen.getByRole('dialog', { name: 'Audio plan' })).toHaveTextContent(
-					'FDK is unavailable',
+					'Encoder is unavailable',
 				),
 			);
 			expect(screen.queryByTitle('Estimated output size')).not.toBeInTheDocument();
@@ -444,8 +443,7 @@ describe('Solid input workbench', () => {
 				paths: files.map((file) => file.path),
 			});
 			await waitFor(() => expect(runtime!.encoding.view().flavorOptions.length).toBeGreaterThan(1));
-			runtime.encoding.select('encoder', 'fdk_he_aac');
-			runtime.encoding.select('quality', '4');
+			runtime.encoding.select('encoder', 'faac');
 			runtime.encoding.select('intent', 'auto');
 			runtime.input.setAudioRequest(
 				files[0]!,
@@ -471,12 +469,9 @@ describe('Solid input workbench', () => {
 			expect(within(popup).queryByRole('option', { name: /App default/ })).not.toBeInTheDocument();
 			expect(within(popup).queryByTestId('estimated-bitrate')).not.toBeInTheDocument();
 			await user.selectOptions(within(popup).getByLabelText('Audio handling'), 'encode');
-			const defaultAfterburner = runtime.encoding.audioRequest().settings?.afterburner;
-			await user.click(within(popup).getByRole('button', { name: 'FDK Afterburner' }));
-			expect(runtime.encoding.audioRequest(files[0]!).settings?.afterburner).toBe(
-				!defaultAfterburner,
-			);
-			expect(runtime.encoding.audioRequest().settings?.afterburner).toBe(defaultAfterburner);
+			await user.selectOptions(within(popup).getByLabelText('Profile'), 'aac_lc');
+			expect(runtime.encoding.audioRequest(files[0]!).settings?.faacProfile).toBe('aac_lc');
+			expect(runtime.encoding.audioRequest().settings?.faacProfile).toBe('auto');
 			await user.selectOptions(within(popup).getByLabelText('Output'), 'm4aOpus');
 			expect(runtime.input.audioChoiceRequired(files[0]!)).toBe(false);
 			expect(within(popup).getByRole('option', { name: 'User Preference' })).toBeInTheDocument();

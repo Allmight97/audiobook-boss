@@ -10,7 +10,6 @@ pub use types::{
     AcquisitionLane, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan,
     AppSettingsRecoveryResult, ConcurrencyPreference, EncoderDefaults, EncoderDefaultsScope,
     IncompatibleEncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
-    ToolchainPreferences,
 };
 
 static SETTINGS_UPDATE_LOCK: Mutex<()> = Mutex::new(());

@@ -88,7 +88,7 @@
   siblings continue.
 - Keep runner responsibilities to encoder request validation, job registration,
   scheduler dispatch, audio execution requests through `crate::audio`, and
-  handoff to terminal outcome helpers. Toolchain selection stays audio-owned.
+  handoff to terminal outcome helpers. Encoder selection stays audio-owned.
 - Metadata-save operation truth belongs to `crate::work_runtime`; metadata save
   may reuse this strip's `OperationKind`, `ProgressEvent`, and
   `OperationResultSummary` vocabulary while metadata write policy stays inside

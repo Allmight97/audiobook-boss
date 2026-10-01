@@ -75,7 +75,7 @@ mod classification_tests {
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
-                AppErrorCode::ToolchainRequired,
+                AppErrorCode::FfmpegError,
                 AppErrorCategory::Toolchain,
                 "decoder unavailable".to_string(),
                 Some("ffmpeg missing".to_string()),
@@ -113,7 +113,8 @@ mod classification_tests {
     #[test]
     fn processing_error_classification_keeps_cancellation_and_failure_distinct() {
         let cancelled = classify_processing_error(AppError::cancelled());
-        let failed = classify_processing_error(AppError::toolchain_required("decoder unavailable"));
+        let failed =
+            classify_processing_error(AppError::General("decoder unavailable".to_string()));
 
         match cancelled {
             ProcessingJobTerminalOutcome::Cancelled(error) => {
@@ -124,9 +125,9 @@ mod classification_tests {
 
         match failed {
             ProcessingJobTerminalOutcome::Failed(envelope) => {
-                assert_eq!(envelope.code, AppErrorCode::ToolchainRequired);
-                assert_eq!(envelope.category, AppErrorCategory::Toolchain);
-                assert_eq!(envelope.message, "decoder unavailable");
+                assert_eq!(envelope.code, AppErrorCode::InternalError);
+                assert_eq!(envelope.category, AppErrorCategory::Internal);
+                assert_eq!(envelope.message, "Operation failed: decoder unavailable");
             }
             other => panic!("expected failure outcome, got {other:?}"),
         }
@@ -163,7 +164,7 @@ mod classification_tests {
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
-                AppErrorCode::ToolchainRequired,
+                AppErrorCode::FfmpegError,
                 AppErrorCategory::Toolchain,
                 "decoder unavailable".to_string(),
                 Some("ffmpeg missing".to_string()),
@@ -175,8 +176,8 @@ mod classification_tests {
         };
 
         assert!(cancellation_error_for_failed_entry(&entry).is_none());
-        assert!(!is_cancellation_error(&AppError::toolchain_required(
-            "decoder unavailable"
+        assert!(!is_cancellation_error(&AppError::General(
+            "decoder unavailable".to_string()
         )));
     }
 
@@ -188,7 +189,7 @@ mod classification_tests {
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
-                AppErrorCode::ToolchainRequired,
+                AppErrorCode::FfmpegError,
                 AppErrorCategory::Toolchain,
                 "decoder unavailable".to_string(),
                 Some("ffmpeg missing".to_string()),
@@ -411,7 +412,7 @@ mod batch_tests {
             status: ProcessResultStatus::Failed,
             message: "decoder unavailable".to_string(),
             error: Some(AppErrorEnvelope::new(
-                AppErrorCode::ToolchainRequired,
+                AppErrorCode::FfmpegError,
                 AppErrorCategory::Toolchain,
                 "decoder unavailable".to_string(),
                 Some("ffmpeg missing".to_string()),

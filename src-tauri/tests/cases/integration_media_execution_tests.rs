@@ -9,9 +9,7 @@
 //! These tests prove workflow behavior structural tests cannot:
 //! - import → configure → process → decodable M4B with truthful duration
 //! - real input formats: WAV, M4B (AAC decode→encode), MP3, and Opus
-//! - encoder routes: Native AAC, Apple AAC (AudioToolbox), bundled FAAC, and Opus. External FDK
-//!   is deliberately absent from the normal suite — it needs a user-supplied
-//!   libfdk_aac FFmpeg, which is environment-dependent by definition.
+//! - encoder routes: Native AAC, Apple AAC (AudioToolbox), bundled FAAC, and Opus
 //! - metadata save → re-read tags from the real output artifact
 //! - cover art: explicit save round-trips byte-identical; source-cover
 //!   passthrough survives reprocessing
@@ -428,10 +426,8 @@ fn native_encoder_settings() -> EncoderSettings {
         bitrate_kbps: 64,
         bitrate_mode: BitrateMode::Cbr,
         channels: ChannelConfig::Mono,
-        afterburner: false,
         native_aac_speed: 0,
         faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
-        fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
     }
 }
 
@@ -756,9 +752,9 @@ async fn artifact_fields_survive_normal_saves_and_clear_only_by_explicit_intent(
     );
 }
 
-/// The external FDK adapter finalizes a freshly encoded M4B by re-applying
-/// effective metadata and chapter/cover passthrough onto the artifact. This
-/// pins the container-aware finalize owner: series-family tags and album_sort
+/// `finalize_artifact_metadata` re-applies effective metadata and
+/// chapter/cover passthrough onto a produced M4B. This pins the
+/// container-aware finalize owner: series-family tags and album_sort
 /// must land as real MP4 atoms (the FFmpeg mov muxer silently drops dict keys
 /// outside its known-atom table), and the chapters written by the remux must
 /// survive the MP4 tag rewrite. Proven against ABB readback AND ffprobe.
@@ -1690,8 +1686,6 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
 /// present on every macOS machine, so it earns a deterministic lane test.
 /// macOS-only: `aac_at` does not exist elsewhere, so the lane skips it on
 /// Linux/Windows agents rather than failing.
-/// External FDK stays out of the normal suite: it needs a user-supplied
-/// libfdk_aac FFmpeg, which is environment-dependent by definition.
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
@@ -1700,10 +1694,8 @@ async fn apple_aac_encoder_route_produces_valid_m4b_with_metadata() {
         bitrate_kbps: 64,
         bitrate_mode: BitrateMode::Cvbr,
         channels: ChannelConfig::Mono,
-        afterburner: false,
         native_aac_speed: 0,
         faac_profile: audiobook_boss_lib::audio::FaacProfile::Auto,
-        fdk_profile: audiobook_boss_lib::audio::FdkProfile::Auto,
     });
     let mut metadata = AudiobookMetadata::new();
     metadata.title = Some("Apple AAC Route".to_string());
@@ -2171,73 +2163,6 @@ async fn faac_lc_and_auto_vbr_reimport_preserve_audio_interval() {
     }
 }
 
-#[tokio::test]
-#[ignore = "requires external FFmpeg with libfdk_aac; run explicitly on an FDK host"]
-async fn external_fdk_profiles_preserve_requested_channel_shape() {
-    use audiobook_boss_lib::audio::FdkProfile;
-    for (profile, level, channels, expected) in [
-        (FdkProfile::Auto, 1, ChannelConfig::Stereo, "HE-AACv2"),
-        (FdkProfile::Auto, 1, ChannelConfig::Mono, "HE-AAC"),
-        (FdkProfile::Auto, 2, ChannelConfig::Stereo, "HE-AAC"),
-        (FdkProfile::Auto, 3, ChannelConfig::Mono, "LC"),
-        (FdkProfile::Auto, 5, ChannelConfig::Stereo, "LC"),
-        (FdkProfile::HeAacV1, 3, ChannelConfig::Mono, "HE-AAC"),
-    ] {
-        let lane = MediaLane::with_fixtures(&[0.5]).with_encoder(EncoderSettings {
-            encoder_type: EncoderType::FdkHeAac,
-            bitrate_mode: BitrateMode::Vbr(level),
-            channels,
-            fdk_profile: profile,
-            ..native_encoder_settings()
-        });
-        let output = lane.process(None).await;
-        let inspected = get_file_list_info(&[&output]).unwrap();
-        assert_eq!(
-            inspected.files[0].channels,
-            Some(if channels == ChannelConfig::Mono {
-                1
-            } else {
-                2
-            })
-        );
-        let probe =
-            Command::new(std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string()))
-                .args([
-                    "-v",
-                    "error",
-                    "-show_entries",
-                    "stream=profile",
-                    "-of",
-                    "default=nw=1:nk=1",
-                ])
-                .arg(&output)
-                .output()
-                .unwrap();
-        assert!(probe.status.success());
-        assert_eq!(String::from_utf8_lossy(&probe.stdout).trim(), expected);
-        assert!(!decode_pcm_f32(&output).is_empty());
-    }
-}
-
-#[tokio::test]
-#[ignore = "requires external FFmpeg with libfdk_aac; run explicitly on an FDK host"]
-async fn faac_reimport_through_external_fdk_preserves_audio_interval() {
-    for channels in [ChannelConfig::Mono, ChannelConfig::Stereo] {
-        assert_faac_reimport(
-            faac_encoder_settings(),
-            "AudioBook Boss FAAC HE-AAC timing-2",
-            EncoderSettings {
-                encoder_type: EncoderType::FdkHeAac,
-                bitrate_mode: BitrateMode::Vbr(3),
-                channels,
-                ..native_encoder_settings()
-            },
-            &[(32000, 16000), (44100, 22050), (48000, 24000)],
-        )
-        .await;
-    }
-}
-
 async fn assert_faac_reimport(
     input_settings: EncoderSettings,
     expected_tool: &str,
@@ -2286,33 +2211,6 @@ async fn assert_faac_reimport(
             Some(expected_channels),
             "declared output channels"
         );
-        #[cfg(target_os = "macos")]
-        if output_settings.encoder_type == EncoderType::FdkHeAac {
-            let apple_path = reimport.tmp.path().join("apple.wav");
-            let converted = Command::new("afconvert")
-                .args(["-f", "WAVE", "-d", "LEF32"])
-                .arg(&second_output)
-                .arg(&apple_path)
-                .output()
-                .unwrap();
-            assert!(
-                converted.status.success(),
-                "{}",
-                String::from_utf8_lossy(&converted.stderr)
-            );
-            let apple = get_file_list_info(std::slice::from_ref(&apple_path)).unwrap();
-            assert_eq!(
-                apple.files[0].channels,
-                Some(expected_channels),
-                "Apple output channels"
-            );
-            assert!(
-                decode_pcm_f32(&apple_path)
-                    .len()
-                    .abs_diff(source.len() * expected_channels as usize)
-                    <= expected_channels as usize
-            );
-        }
         let decoded = decode_pcm_f32(&second_output);
         // A forced-stereo output carries the mono reference in each channel.
         let decoded = if output_settings.channels == ChannelConfig::Stereo {

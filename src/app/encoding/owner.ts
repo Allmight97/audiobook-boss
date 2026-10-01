@@ -48,7 +48,6 @@ export type EncodingOwner = {
 export type EncodingOwnerDeps = {
 	readonly input: Pick<InputOwner, 'view' | 'audioRequest' | 'setAudioRequest' | 'sourcesFor'>;
 	readonly loadCapabilities: () => Promise<EncoderSettingsCapabilities | null>;
-	readonly onFdkSetupRequested?: () => void;
 	readonly persistDefaults?: (defaults: EncoderDefaults) => void;
 };
 
@@ -58,10 +57,8 @@ const fieldKeys = {
 	encoder: 'flavor',
 	quality: 'quality',
 	faacProfile: 'faacProfile',
-	fdkProfile: 'fdkProfile',
 	rateControl: 'rateControl',
 	nativeSpeed: 'nativeSpeed',
-	afterburner: 'afterburner',
 	bitrate: 'bitrate',
 	sampleRate: 'sampleRate',
 	channels: 'channels',
@@ -128,15 +125,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 	}
 	function selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void {
 		if (deps.input.view().orderLocked) return;
-		if (
-			field === 'encoder' &&
-			value === 'fdk_he_aac' &&
-			bag.availability &&
-			!bag.availability.fdkAvailable
-		) {
-			deps.onFdkSetupRequested?.();
-			return;
-		}
 		for (const file of files) {
 			const current = titleBag(file);
 			const previous = String(projectView(current)[fieldKeys[field]]);
@@ -153,7 +141,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			return file ? (deps.input.audioRequest(file) ?? requestFromBag(bag)) : requestFromBag(bag);
 		},
 		estimateTitleKbps(file, plan) {
-			if (plan?.settings) return estimateKbpsFromSettings(plan.settings, plan.sampleRate);
+			if (plan?.settings) return estimateKbpsFromSettings(plan.settings);
 			return bagEstimateKbps(titleBag(file));
 		},
 		titleView(file) {
@@ -184,15 +172,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			return projectView(bag);
 		},
 		select(field, value) {
-			if (
-				field === 'encoder' &&
-				value === 'fdk_he_aac' &&
-				bag.availability &&
-				!bag.availability.fdkAvailable
-			) {
-				deps.onFdkSetupRequested?.();
-				return;
-			}
 			if (!selectField(bag, field, value)) return;
 			defaultsEdited = true;
 			if (field !== 'format' && field !== 'intent') bag.intent = 'encode';

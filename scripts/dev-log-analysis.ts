@@ -63,10 +63,6 @@ export interface DevLogAnalysis {
 	orphanJobIds: string[];
 	childExitCodes: number[];
 	encoderLines: number;
-	externalFdkRuns: number;
-	externalFdkDetails: string[];
-	externalFdkStatuses: Record<string, number>;
-	malformedExternalFdkRuns: number;
 	inProcessEncoderRuns: number;
 	inProcessEncoderDetails: string[];
 	inProcessEncoderStatuses: Record<string, number>;
@@ -87,7 +83,7 @@ interface MutableJob extends JobOutcome {
 	sawTerminal: boolean;
 }
 
-interface ExternalFdkRun {
+interface InProcessEncoderRun {
 	details: string[];
 	status?: string;
 	jobId?: string;
@@ -110,7 +106,6 @@ const JOB_EVENT_STATUSES: Record<string, ReadonlySet<string>> = {
 	started: new Set(['running']),
 	terminal: new Set(['success', 'cancelled', 'failed']),
 };
-const EXTERNAL_FDK_STATUSES = new Set(['success', 'failed', 'wait_error', 'interrupted']);
 const IN_PROCESS_ENCODER_STATUSES = new Set(['success', 'failed', 'cancelled']);
 const OUTPUT_PLAN_PHASES = new Set(['preflight', 'process']);
 const OUTPUT_PLAN_POLICIES = new Set(['Fail', 'ReplaceExisting', 'RenameNew', 'SkipExisting']);
@@ -409,78 +404,6 @@ function sortedValues<T extends { id: string }>(values: Map<string, T>): T[] {
 	return [...values.values()].sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function parseExternalFdkRuns(input: string): {
-	runs: ExternalFdkRun[];
-	malformedRuns: number;
-} {
-	type MutableExternalFdkRun = ExternalFdkRun & { malformed: boolean; inStderr: boolean };
-	const runs: ExternalFdkRun[] = [];
-	let malformedRuns = 0;
-	let current: MutableExternalFdkRun | undefined;
-
-	const finishCurrent = (closed: boolean): void => {
-		if (!current) {
-			malformedRuns += 1;
-			return;
-		}
-		const { malformed, inStderr: _inStderr, ...run } = current;
-		runs.push(run);
-		if (!closed || malformed || !run.status || !EXTERNAL_FDK_STATUSES.has(run.status)) {
-			malformedRuns += 1;
-		}
-		current = undefined;
-	};
-
-	for (const line of input.split('\n')) {
-		if (current?.inStderr) {
-			if (line === '--- end external-fdk run ---') {
-				finishCurrent(true);
-			} else if (line.startsWith('--- external-fdk run ')) {
-				// Ambiguous: adversarial stderr content, or a truncated record
-				// followed by a real one. Neither reading may fabricate a
-				// verdict, so the run is malformed (-> indeterminate).
-				current.malformed = true;
-			}
-			continue;
-		}
-		if (line.startsWith('--- external-fdk run ')) {
-			if (current) finishCurrent(false);
-			current = { malformed: false, inStderr: false, details: [] };
-			continue;
-		}
-		if (line === '--- end external-fdk run ---') {
-			finishCurrent(true);
-			continue;
-		}
-		if (!current) continue;
-		if (line === 'stderr:') {
-			current.inStderr = true;
-			continue;
-		}
-		if (
-			/^(encoder_settings |requested_settings |opened_settings |input\[|elapsed_ms=|elapsed_monotonic_ms=|elapsed_wallclock_ms=|target_duration_seconds=|progress |toolchain_ffmpeg=|status_detail=)/.test(
-				line,
-			)
-		) {
-			current.details.push(line);
-		}
-		if (line.startsWith('status=')) {
-			if (current.status !== undefined) current.malformed = true;
-			current.status = line.slice('status='.length);
-		} else if (line.startsWith('job_id=')) {
-			if (current.jobId !== undefined) current.malformed = true;
-			current.jobId = line.slice('job_id='.length);
-		}
-	}
-	if (current) finishCurrent(false);
-
-	return { runs, malformedRuns };
-}
-
-interface InProcessEncoderRun extends ExternalFdkRun {
-	details: string[];
-}
-
 function parseInProcessEncoderRuns(input: string): {
 	runs: InProcessEncoderRun[];
 	malformedRuns: number;
@@ -536,11 +459,7 @@ function parseInProcessEncoderRuns(input: string): {
 function isExpectedCancellationWarning(line: string, hasCancelledJob: boolean): boolean {
 	if (/processing_job .*\bstatus=cancelled\b/.test(line)) return true;
 	if (/\bJob [0-9a-fA-F-]+ cancelled:/.test(line)) return true;
-	return (
-		hasCancelledJob &&
-		(/Processing was cancelled/i.test(line) ||
-			/External ffmpeg stderr before early exit:/i.test(line))
-	);
+	return hasCancelledJob && /Processing was cancelled/i.test(line);
 }
 
 const FAILURE_EXPLANATIONS: Record<string, string> = {
@@ -548,13 +467,11 @@ const FAILURE_EXPLANATIONS: Record<string, string> = {
 	invalid_input: 'The processing request contained invalid input.',
 	io_error: 'A filesystem I/O operation failed.',
 	ffmpeg_error: 'The native FFmpeg pipeline reported an error.',
-	process_termination_failed: 'The external processing process failed.',
 	temp_directory_creation_failed: 'The processing workspace could not be created.',
 	resource_cleanup_failed: 'Temporary resource cleanup failed.',
 	internal_error: 'The processing pipeline failed internally.',
 	image_processing_error: 'Cover-art processing failed.',
 	processing_cancelled: 'Processing was cancelled.',
-	toolchain_required: 'The selected encoder toolchain is unavailable or not configured.',
 };
 
 function failureExplanation(code: string | undefined): string | undefined {
@@ -648,16 +565,6 @@ export function analyzeDevLog(
 		(operation) => operation.sawTerminal && (operation.status === 'failed' || operation.failed > 0),
 	);
 	const failedJobs = jobOutcomes.filter((job) => job.sawTerminal && job.status === 'failed');
-	const { runs: externalFdkRunRecords, malformedRuns: malformedExternalFdkRuns } =
-		parseExternalFdkRuns(cleanEncodingLog);
-	const externalFdkStatuses: Record<string, number> = {};
-	for (const run of externalFdkRunRecords) {
-		if (!run.status) continue;
-		externalFdkStatuses[run.status] = (externalFdkStatuses[run.status] ?? 0) + 1;
-	}
-	const failedExternalFdkRuns = externalFdkRunRecords.filter(
-		(run) => run.status === 'failed' || run.status === 'wait_error',
-	);
 	const { runs: inProcessEncoderRunRecords, malformedRuns: malformedInProcessEncoderRuns } =
 		parseInProcessEncoderRuns(cleanEncodingLog);
 	const inProcessEncoderStatuses: Record<string, number> = {};
@@ -670,9 +577,6 @@ export function analyzeDevLog(
 	);
 	const cancelledJobIds = new Set(
 		jobOutcomes.filter((job) => job.sawTerminal && job.status === 'cancelled').map((job) => job.id),
-	);
-	const unexpectedExternalFdkInterruptions = externalFdkRunRecords.filter(
-		(run) => run.status === 'interrupted' && (!run.jobId || !cancelledJobIds.has(run.jobId)),
 	);
 	const unexpectedInProcessCancellations = inProcessEncoderRunRecords.filter(
 		(run) => run.status === 'cancelled' && (!run.jobId || !cancelledJobIds.has(run.jobId)),
@@ -689,7 +593,6 @@ export function analyzeDevLog(
 		compilerFailures > 0 ||
 		failedOperations.length > 0 ||
 		failedJobs.length > 0 ||
-		failedExternalFdkRuns.length > 0 ||
 		failedInProcessEncoderRuns.length > 0
 	) {
 		health = 'failed';
@@ -709,10 +612,6 @@ export function analyzeDevLog(
 				`Processing job ${job.id} failed${typed}.${explanation ? ` ${explanation}` : ''}`,
 			);
 		}
-		for (const run of failedExternalFdkRuns) {
-			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
-			reasons.push(`External FDK encoder reported ${run.status}${job}.`);
-		}
 		for (const run of failedInProcessEncoderRuns) {
 			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
 			reasons.push(`In-process encoder reported failed${job}.`);
@@ -721,7 +620,6 @@ export function analyzeDevLog(
 		malformedLifecycleLines > 0 ||
 		orphanOperationIds.length > 0 ||
 		orphanJobIds.length > 0 ||
-		malformedExternalFdkRuns > 0 ||
 		malformedInProcessEncoderRuns > 0 ||
 		appStarts === 0
 	) {
@@ -735,11 +633,6 @@ export function analyzeDevLog(
 		for (const id of orphanJobIds) {
 			reasons.push(`Processing job ${id} has a terminal record without a start record.`);
 		}
-		if (malformedExternalFdkRuns > 0) {
-			reasons.push(
-				`${malformedExternalFdkRuns} external FDK run record(s) violated the encoding-log contract.`,
-			);
-		}
 		if (malformedInProcessEncoderRuns > 0) {
 			reasons.push(
 				`${malformedInProcessEncoderRuns} in-process encoder run record(s) violated the encoding-log contract.`,
@@ -749,7 +642,6 @@ export function analyzeDevLog(
 	} else if (
 		unmatchedOperationIds.length > 0 ||
 		unmatchedJobIds.length > 0 ||
-		unexpectedExternalFdkInterruptions.length > 0 ||
 		unexpectedInProcessCancellations.length > 0
 	) {
 		health = 'interrupted';
@@ -758,10 +650,6 @@ export function analyzeDevLog(
 		}
 		for (const id of unmatchedJobIds) {
 			reasons.push(`Processing job ${id} started without a terminal record.`);
-		}
-		for (const run of unexpectedExternalFdkInterruptions) {
-			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
-			reasons.push(`External FDK encoder was interrupted${job}.`);
 		}
 		for (const run of unexpectedInProcessCancellations) {
 			const job = run.jobId ? ` for processing job ${run.jobId}` : '';
@@ -791,7 +679,6 @@ export function analyzeDevLog(
 
 	const encodingLines =
 		cleanEncodingLog.trim().length === 0 ? 0 : cleanEncodingLog.trimEnd().split('\n').length;
-	const externalFdkRuns = externalFdkRunRecords.length;
 	const inProcessEncoderRuns = inProcessEncoderRunRecords.length;
 	const highSignalLines = lines
 		.map((line, index) => ({ line, number: index + 1 }))
@@ -825,17 +712,6 @@ export function analyzeDevLog(
 		malformedOutputPlanLines,
 		childExitCodes,
 		encoderLines: encodingLines,
-		externalFdkDetails: externalFdkRunRecords
-			.slice(-5)
-			.map((run) =>
-				[
-					`job_id=${run.jobId ?? 'unscoped'} status=${run.status ?? 'incomplete'}`,
-					...run.details,
-				].join('\n'),
-			),
-		externalFdkRuns,
-		externalFdkStatuses,
-		malformedExternalFdkRuns,
 		inProcessEncoderRuns,
 		inProcessEncoderDetails: inProcessEncoderRunRecords
 			.slice(-5)
@@ -858,9 +734,7 @@ export function analyzeDevLog(
 			)
 			.slice(-100),
 		buildIdentities: [
-			...new Set(
-				lines.filter((line) => /build_identity |build_checkout |toolchain_identity /.test(line)),
-			),
+			...new Set(lines.filter((line) => /build_identity |build_checkout /.test(line))),
 		].slice(-20),
 		highSignalLines,
 	};
@@ -949,12 +823,9 @@ function renderOutputPlan(events: OutputPlanEvent[], malformedLines: number): st
 export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 	const childExits =
 		analysis.childExitCodes.length > 0 ? analysis.childExitCodes.join(', ') : 'none';
-	const encoderStatuses = [
-		...Object.entries(analysis.externalFdkStatuses).map(([status, count]) => `${status}=${count}`),
-		...Object.entries(analysis.inProcessEncoderStatuses).map(
-			([status, count]) => `in_process_${status}=${count}`,
-		),
-	].join(' ');
+	const encoderStatuses = Object.entries(analysis.inProcessEncoderStatuses)
+		.map(([status, count]) => `in_process_${status}=${count}`)
+		.join(' ');
 	return [
 		'## Session Verdict',
 		'',
@@ -1018,8 +889,7 @@ export function renderDevLogAnalysis(analysis: DevLogAnalysis): string {
 		'Encoder records describe encoding and muxing. Final artifact outcomes are reported above.',
 		'',
 		'```text',
-		`lines=${analysis.encoderLines} external_fdk_runs=${analysis.externalFdkRuns} malformed_external_fdk_runs=${analysis.malformedExternalFdkRuns} in_process_encoder_runs=${analysis.inProcessEncoderRuns} malformed_in_process_encoder_runs=${analysis.malformedInProcessEncoderRuns}${encoderStatuses ? ` ${encoderStatuses}` : ''}`,
-		...analysis.externalFdkDetails,
+		`lines=${analysis.encoderLines} in_process_encoder_runs=${analysis.inProcessEncoderRuns} malformed_in_process_encoder_runs=${analysis.malformedInProcessEncoderRuns}${encoderStatuses ? ` ${encoderStatuses}` : ''}`,
 		...analysis.inProcessEncoderDetails,
 		'```',
 		'',

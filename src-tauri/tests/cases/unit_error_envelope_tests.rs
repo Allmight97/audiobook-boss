@@ -23,21 +23,6 @@ fn cancelled_error_maps_to_dedicated_envelope_and_invoke_error_payload() {
 }
 
 #[test]
-fn toolchain_required_error_uses_dedicated_category() {
-    let envelope: AppErrorEnvelope =
-        AppError::toolchain_required("FDK AAC requires a validated external FFmpeg toolchain.")
-            .into();
-
-    assert_eq!(envelope.code, AppErrorCode::ToolchainRequired);
-    assert_eq!(envelope.category, AppErrorCategory::Toolchain);
-    assert_eq!(
-        envelope.message,
-        "FDK AAC requires a validated external FFmpeg toolchain."
-    );
-    assert_eq!(envelope.detail, None);
-}
-
-#[test]
 fn wrapped_io_error_keeps_diagnostic_detail() {
     let envelope: AppErrorEnvelope = AppError::Io(std::io::Error::other("disk full")).into();
 

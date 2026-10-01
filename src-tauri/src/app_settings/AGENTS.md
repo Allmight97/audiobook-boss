@@ -5,7 +5,7 @@
 - Import durable settings behavior from `crate::app_settings`, not private child
   modules.
 - Types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`, `EncoderDefaults`,
-  `OutputDefaults`, `ConcurrencyPreference`, `ToolchainPreferences`,
+  `OutputDefaults`, `ConcurrencyPreference`,
   `StartupBehavior`, `PinnedDefaults`, `AppSettingsRecoveryPlan`,
   `AppSettingsRecoveryResult`, `EncoderDefaultsScope`, `IncompatibleEncoderDefaults`.
 - Functions: `get_app_settings`, `update_app_settings`, `reset_app_settings`,
@@ -55,7 +55,7 @@
 ## Boundary Changes
 
 - Adding, removing, or renaming any Public API Strip symbol.
-- Moving runtime behavior ownership, output artifact truth, audio toolchain
+- Moving runtime behavior ownership, output artifact truth, encoder
   validation, or Status Panel state into App Settings.
 - Introducing a frontend persistence plugin dependency or bypassing
   `tauriClient` for settings commands.

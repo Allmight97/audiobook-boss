@@ -90,8 +90,6 @@ function formatEncoderType(encoderType: string): string {
 	switch (encoderType) {
 		case 'auto':
 			return 'Auto';
-		case 'fdk_he_aac':
-			return 'FDK HE-AAC';
 		case 'aac_at':
 			return 'Apple AAC';
 		case 'native_aac':
@@ -112,17 +110,6 @@ function formatEncoderDefaults(settings: Pick<AppSettings, 'encoderDefaults'>): 
 
 function formatOutputDefaults(settings: Pick<AppSettings, 'outputDefaults'>): string {
 	return settings.outputDefaults.outputDirectory ?? 'Not set';
-}
-
-function formatFdkSource(source: string): string {
-	switch (source) {
-		case 'user_configured':
-			return 'user-configured path';
-		case 'detected':
-			return 'auto-detected';
-		default:
-			return 'unavailable';
-	}
 }
 
 function IndexerConnectionHelp(props: {
@@ -181,11 +168,12 @@ export function AppSettingsDialogView(): JSX.Element {
 	const settings = runtime.settings;
 	const remoteSource = runtime.remoteSource;
 	const state = settings.dialog;
-	let fdkSection: HTMLElement | undefined;
+	let audioDefaultsSection: HTMLElement | undefined;
 	createEffect(
 		() => state().isOpen && !state().loading,
 		(ready) => {
-			if (ready && fdkSection?.parentElement) fdkSection.parentElement.scrollTop = 0;
+			if (ready && audioDefaultsSection?.parentElement)
+				audioDefaultsSection.parentElement.scrollTop = 0;
 		},
 	);
 	const isOpen = createMemo(() => state().isOpen);
@@ -306,117 +294,16 @@ export function AppSettingsDialogView(): JSX.Element {
 					</p>
 				</Show>
 				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
-					<section class="app-settings-section" ref={fdkSection} aria-label="Audio defaults">
+					<section
+						class="app-settings-section"
+						ref={audioDefaultsSection}
+						aria-label="Audio defaults"
+					>
 						<h4 class="app-settings-section-title">Audio defaults</h4>
 						<p class="muted-text">
 							Used for newly imported titles. Existing titles keep their settings.
 						</p>
 						<EncoderView />
-					</section>
-					<section class="app-settings-section">
-						<h4 class="app-settings-section-title">External FFmpeg (FDK AAC)</h4>
-						<p class="muted-text">
-							FDK AAC is optional. ABB includes its standard audio tools; FDK requires a separate
-							FFmpeg executable built with libfdk_aac.
-						</p>
-						<div class="app-settings-fdk-actions">
-							<Button
-								disabled={state().checkingFdk || state().saveState === 'saving'}
-								onClick={() => void settings.recheckFdk()}
-							>
-								{state().checkingFdk ? 'Checking FDK…' : 'Recheck FDK'}
-							</Button>
-						</div>
-						<Show when={state().fdkCheckError}>
-							<p class="app-settings-status app-settings-status-error" role="alert">
-								{state().fdkCheckError}
-							</p>
-						</Show>
-						<Show when={state().encoderAvailability?.fdkSetupSupported}>
-							<details class="app-settings-fdk-setup">
-								<summary>Check Homebrew FDK setup…</summary>
-								<p class="muted-text">
-									Opens Terminal to check whether the community homebrew-ffmpeg formula still offers
-									FDK AAC. If it does, Homebrew can install or update it. Building can take several
-									minutes.
-								</p>
-								<p class="muted-text">
-									A fresh Mac may first need Apple Command Line Tools and Homebrew; setup will guide
-									you. An existing conflicting FFmpeg requires your review before it can be
-									replaced. For a custom installation, use its original package manager to update
-									it.
-								</p>
-								<Button
-									disabled={state().setupState === 'opening'}
-									onClick={() => void settings.openFdkSetup()}
-								>
-									Continue in Terminal
-								</Button>
-								<Show when={state().setupMessage}>
-									<p
-										class={`app-settings-status${state().setupState === 'error' ? ' app-settings-status-error' : ''}`}
-										role="status"
-									>
-										{state().setupMessage}
-									</p>
-								</Show>
-							</details>
-						</Show>
-						<label for="app-settings-ffmpeg-path" class="app-settings-path-label">
-							Custom FFmpeg path (optional)
-						</label>
-						<div class="app-settings-path-row">
-							<input
-								id="app-settings-ffmpeg-path"
-								class="app-settings-path-input"
-								data-testid="app-settings-ffmpeg-path"
-								type="text"
-								placeholder="/opt/homebrew/bin/ffmpeg"
-								value={state().ffmpegPathDraft}
-								onInput={(event) => settings.setFfmpegPathDraft(event.currentTarget.value)}
-							/>
-							<Button
-								data-testid="app-settings-ffmpeg-browse"
-								onClick={() => void settings.browseForFfmpegBinary()}
-							>
-								Browse…
-							</Button>
-							<Button
-								data-testid="app-settings-ffmpeg-clear"
-								onClick={() => settings.clearFfmpegPathDraft()}
-							>
-								Clear
-							</Button>
-							<Button
-								tone="primary"
-								data-testid="app-settings-ffmpeg-save"
-								disabled={state().saveState === 'saving' || state().checkingFdk}
-								onClick={() => void settings.saveToolchainPreference()}
-							>
-								{state().saveState === 'saving' ? 'Saving…' : 'Save'}
-							</Button>
-						</div>
-						<Show when={state().saveState === 'error' && !state().recovery}>
-							<p
-								class="app-settings-status app-settings-status-error"
-								data-testid="app-settings-error"
-							>
-								{state().saveError}
-							</p>
-						</Show>
-						<Show when={state().encoderAvailability}>
-							{(availability) => (
-								<p class="app-settings-status" data-testid="app-settings-toolchain-status">
-									{availability().statusMessage}
-									<Show when={availability().fdkAvailable}>
-										{` (${formatFdkSource(availability().fdkSource)})`}
-										<code class="app-settings-detected-path">
-											{availability().detectedToolchainPath}
-										</code>
-									</Show>
-								</p>
-							)}
-						</Show>
 					</section>
 					<Show when={state().settings}>
 						{(_) => (
@@ -706,6 +593,14 @@ export function AppSettingsDialogView(): JSX.Element {
 								</Button>
 							</Show>
 						</div>
+						<Show when={state().saveState === 'error' && !state().recovery}>
+							<p
+								class="app-settings-status app-settings-status-error"
+								data-testid="app-settings-error"
+							>
+								{state().saveError}
+							</p>
+						</Show>
 					</section>
 				</Show>
 			</Dialog.Body>

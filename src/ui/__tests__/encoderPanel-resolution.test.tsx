@@ -53,7 +53,6 @@ describe('encoder panel encoder resolution', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: false,
 						aacAtAvailable: false,
 						nativeAacAvailable: true,
 					}),
@@ -66,30 +65,8 @@ describe('encoder panel encoder resolution', () => {
 		await vi.waitFor(() => {
 			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
 			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(4);
+			expect(select?.options.length).toBe(3);
 			expect(document.getElementById('native-speed')).not.toBeNull();
-		});
-	});
-
-	it('shows NMR as the default even when FDK is available', async () => {
-		context.getRuntimeSettingsCapabilitiesMock.mockResolvedValue(
-			runtimeSettingsCapabilitiesFixture({
-				encoder: {
-					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
-						aacAtAvailable: true,
-						nativeAacAvailable: true,
-					}),
-				},
-			}),
-		);
-
-		renderEncoder();
-
-		await vi.waitFor(() => {
-			const select = document.getElementById('adv-encoder') as HTMLSelectElement | null;
-			expect(select?.value).toBe('native_aac');
-			expect(select?.options.length).toBe(4);
 		});
 	});
 
@@ -98,7 +75,6 @@ describe('encoder panel encoder resolution', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -114,11 +90,11 @@ describe('encoder panel encoder resolution', () => {
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(select, 'fdk_he_aac');
+		changeSelectValue(select, 'faac');
 
 		await vi.waitFor(() => {
-			expect(select.value).toBe('fdk_he_aac');
-			expect(runtime?.encoding.audioRequest().settings?.encoderType).toBe('fdk_he_aac');
+			expect(select.value).toBe('faac');
+			expect(runtime?.encoding.audioRequest().settings?.encoderType).toBe('faac');
 		});
 	});
 
@@ -127,7 +103,6 @@ describe('encoder panel encoder resolution', () => {
 			runtimeSettingsCapabilitiesFixture({
 				encoder: {
 					availability: encoderAvailabilityFixture({
-						fdkAvailable: true,
 						aacAtAvailable: true,
 						nativeAacAvailable: true,
 					}),
@@ -143,7 +118,7 @@ describe('encoder panel encoder resolution', () => {
 		});
 
 		const select = document.getElementById('adv-encoder') as HTMLSelectElement;
-		changeSelectValue(select, 'fdk_he_aac');
+		changeSelectValue(select, 'faac');
 		changeSelectValue(select, 'native_aac');
 
 		await vi.waitFor(() => {

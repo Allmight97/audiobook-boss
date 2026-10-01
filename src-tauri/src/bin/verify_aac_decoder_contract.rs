@@ -13,10 +13,9 @@ fn main() {
     let contract_ok = true;
 
     println!(
-        "default_aac={} aac_at={} libfdk_aac={} preferred_order={} contract={}",
+        "default_aac={} aac_at={} preferred_order={} contract={}",
         availability.default_aac,
         availability.aac_at,
-        availability.libfdk_aac,
         preferred_order,
         if contract_ok {
             "ok"
@@ -26,9 +25,7 @@ fn main() {
     );
 
     if !contract_ok {
-        eprintln!(
-            "macOS AAC decoder contract failed: expected at least one available named AAC decoder (aac_at or libfdk_aac)"
-        );
+        eprintln!("macOS AAC decoder contract failed: expected the named AAC decoder aac_at");
         std::process::exit(1);
     }
 }

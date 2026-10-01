@@ -6,15 +6,14 @@ use std::thread;
 use tempfile::TempDir;
 
 #[test]
-fn fresh_settings_disable_afterburner_and_preserve_an_explicit_choice() {
+fn fresh_settings_are_defaults_and_preserve_an_explicit_encoder_choice() {
     let temp = TempDir::new().expect("temp dir");
 
     let settings = get_app_settings(temp.path()).expect("load defaults");
 
     assert_eq!(settings, AppSettings::default());
-    assert!(!settings.encoder_defaults.settings.afterburner);
     let mut encoder_defaults = settings.encoder_defaults;
-    encoder_defaults.settings.afterburner = true;
+    encoder_defaults.settings.native_aac_speed = 2;
     update_app_settings(
         temp.path(),
         AppSettingsPatch {
@@ -22,13 +21,14 @@ fn fresh_settings_disable_afterburner_and_preserve_an_explicit_choice() {
             ..Default::default()
         },
     )
-    .expect("save explicit Afterburner choice");
-    assert!(
+    .expect("save explicit encoder choice");
+    assert_eq!(
         get_app_settings(temp.path())
             .expect("reload settings")
             .encoder_defaults
             .settings
-            .afterburner
+            .native_aac_speed,
+        2
     );
 }
 
@@ -72,7 +72,6 @@ fn awake_preference_defaults_on_and_persists_explicit_opt_out() {
 fn settings_with_future_encoder(scope: EncoderDefaultsScope) -> serde_json::Value {
     let mut value = serde_json::to_value(AppSettings::default()).expect("settings JSON");
     value["outputDefaults"]["outputDirectory"] = serde_json::json!("/books/output");
-    value["toolchain"]["externalFfmpegPath"] = serde_json::json!("/tools/ffmpeg");
     value["pinnedDefaults"] = serde_json::json!({
         "encoderDefaults": value["encoderDefaults"],
         "maxConcurrentJobs": { "mode": "fixed", "value": 2 },
@@ -96,7 +95,7 @@ fn saved_faac_defaults_load_without_recovery_and_survive_other_preference_update
     // Persisted by the experimental build, before native speed was a preference.
     let encoder = serde_json::json!({
         "settings": { "encoderType": "faac_he_aac", "bitrateKbps": 64,
-            "bitrateMode": {"mode": "abr"}, "channels": "auto", "afterburner": false },
+            "bitrateMode": {"mode": "abr"}, "channels": "auto" },
         "sampleRate": { "explicit": 22050 }
     });
     value["encoderDefaults"] = encoder.clone();
@@ -486,49 +485,9 @@ fn save_failure_removes_temp_file() {
 }
 
 #[test]
-fn toolchain_preference_persists_and_blank_path_normalizes_to_unset() {
+fn settings_file_without_newer_fields_loads_with_defaults() {
     let temp = TempDir::new().expect("temp dir");
-
-    let updated = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            toolchain: Some(ToolchainPreferences {
-                external_ffmpeg_path: Some("  /opt/user/ffmpeg  ".to_string()),
-            }),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("update settings");
-    let reloaded = get_app_settings(temp.path()).expect("reload settings");
-
-    assert_eq!(
-        updated.toolchain.external_ffmpeg_path.as_deref(),
-        Some("/opt/user/ffmpeg"),
-        "path preference is trimmed and persisted"
-    );
-    assert_eq!(reloaded.toolchain, updated.toolchain);
-
-    let cleared = update_app_settings(
-        temp.path(),
-        AppSettingsPatch {
-            toolchain: Some(ToolchainPreferences {
-                external_ffmpeg_path: Some("   ".to_string()),
-            }),
-            ..AppSettingsPatch::default()
-        },
-    )
-    .expect("clear settings");
-
-    assert_eq!(
-        cleared.toolchain.external_ffmpeg_path, None,
-        "blank path normalizes to unset"
-    );
-}
-
-#[test]
-fn settings_file_without_toolchain_field_loads_with_default() {
-    let temp = TempDir::new().expect("temp dir");
-    // A pre-toolchain settings file must keep loading (serde default).
+    // A settings file written before later fields existed must keep loading.
     let legacy = serde_json::json!({
         "maxConcurrentJobs": {"mode": "auto"},
         "encoderDefaults": serde_json::to_value(EncoderDefaults::default()).expect("encoder json"),
@@ -542,7 +501,6 @@ fn settings_file_without_toolchain_field_loads_with_default() {
 
     let settings = get_app_settings(temp.path()).expect("load legacy settings");
 
-    assert_eq!(settings.toolchain, ToolchainPreferences::default());
     // Pre-pinned-defaults files load with today's behavior and no pin.
     assert_eq!(
         settings.startup_behavior,

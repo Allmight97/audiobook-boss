@@ -42,18 +42,14 @@ flowchart TD
   intent -->|No| plan[plan_metadata_outcome]
   loadOpt --> plan
   inspect --> plan
-  plan --> engine[Audio engine: in-process FFmpeg/FAAC or external FDK]
+  plan --> engine[Audio engine: in-process FFmpeg/FAAC]
   engine --> merge[merge_passthrough_cover_art]
   merge --> prep[prepare_output_cover_art once]
   prep -->|JPEG already at or under 800px| keep[Keep bytes]
   prep -->|PNG or oversized JPEG| jpeg[optimize_cover_art]
-  keep --> sinks{Encoder path}
-  jpeg --> sinks
-  sinks -->|Native, Apple, or FAAC| mux[Mux JPEG attached_pic during encode]
-  sinks -->|FDK| encode[Encode audio only, no cover]
-  encode --> remux[finalize_artifact_metadata remux JPEG]
+  keep --> mux[Mux JPEG attached_pic during encode]
+  jpeg --> mux
   mux --> mp4[finish_artifact_tags: mp4ameta covr/tags, chapter check]
-  remux --> mp4
   mp4 --> commit[output_artifact commit]
 ```
 

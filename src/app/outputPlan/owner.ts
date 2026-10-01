@@ -134,8 +134,7 @@ export function createOutputOwner(deps: OutputOwnerDeps): OutputPlanOwner {
 		if (sources.some((source) => source.duration === undefined)) return null;
 		if (kbps === null) return 'Size varies with audio';
 		const duration = sources.reduce((total, source) => total + (source.duration ?? 0), 0);
-		const rough = resolvedPlan?.settings?.bitrateMode.mode === 'vbr';
-		return `${rough ? 'Rough est.' : 'Est.'} ~ ${formatFileSize(estimateEncodedSizeBytes(duration, kbps))}${rough ? ' · varies with audio' : ''}`;
+		return `Est. ~ ${formatFileSize(estimateEncodedSizeBytes(duration, kbps))}`;
 	}
 
 	const view: Accessor<OutputView> = () => {

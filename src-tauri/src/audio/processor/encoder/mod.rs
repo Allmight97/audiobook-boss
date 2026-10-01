@@ -1,9 +1,7 @@
 //! Encoder setup and packet writing utilities.
 //!
 //! This module configures the in-process encoders: Apple AAC (aac_at), Native
-//! NMR AAC and Opus through ffmpeg-next, and bundled FAAC. FDK routes through the external
-//! FFmpeg adapter (`processor/external_fdk/`), never this module; encoder
-//! creation refuses it with a typed error.
+//! NMR AAC and Opus through ffmpeg-next, and bundled FAAC.
 //!
 //! ## Module Structure
 //! - `context`: Encoder creation, output stream setup and frame sizing

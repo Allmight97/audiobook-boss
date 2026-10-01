@@ -5,10 +5,9 @@
 //!   - execute.rs   : merge / ffmpeg execution
 //!   - finalize.rs  : metadata writing, output move, cleanup
 //!   - staging.rs   : app-cache local processing workspace directories
-//!   - adapter.rs   : native vs external processor adapter resolution
+//!   - resolution.rs: encoder and output-channel resolution
 //!
-//! The default path uses the in-process ffmpeg-next engine.
-//! FDK HE-AAC routes through an external FFmpeg/libfdk_aac adapter when selected.
+//! Every route runs on the in-process ffmpeg-next engine.
 
 // Imports for orchestrator function
 use crate::audio::cleanup::CleanupGuard;
@@ -26,12 +25,10 @@ use crate::processing::ProcessingContext;
 use std::time::Duration;
 
 // Submodules
-pub(in crate::audio) mod adapter;
 mod encoder;
 mod engine;
 mod engine_orchestrator;
 mod execute;
-mod external_fdk;
 mod faac_timing;
 mod finalize;
 mod frame_pipeline;
@@ -50,6 +47,7 @@ pub(crate) fn validate_preserved_title(files: &[AudioFile]) -> Result<()> {
     Ok(())
 }
 mod preview_state;
+pub(in crate::audio) mod resolution;
 mod run_diagnostics;
 mod staging;
 mod streams;
@@ -105,48 +103,29 @@ pub fn validate_audio_engine_inputs(
     titles: &[FileListInfo],
     sample_rate: &crate::audio::SampleRateConfig,
 ) -> Result<()> {
-    let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
-    validate_resolved_audio_inputs(&adapter, encoder_settings, titles, sample_rate)
+    let encoder_type = resolution::resolve_linked_encoder(encoder_settings)?;
+    validate_resolved_audio_inputs(encoder_type, encoder_settings, titles, sample_rate)
 }
 
 pub(in crate::audio) fn validate_resolved_audio_inputs(
-    adapter: &adapter::ResolvedProcessorAdapter,
+    encoder_type: crate::audio::EncoderType,
     encoder_settings: &EncoderSettings,
     titles: &[FileListInfo],
     sample_rate: &crate::audio::SampleRateConfig,
 ) -> Result<()> {
     crate::audio::settings_encoder::validate_encoder_settings(encoder_settings)?;
-    if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext { encoder_type } = &adapter {
-        crate::audio::settings::validate_encoder_sample_rate(
-            *encoder_type,
-            encoder_settings.faac_profile,
-            sample_rate,
-        )?;
-    }
+    crate::audio::settings::validate_encoder_sample_rate(
+        encoder_type,
+        encoder_settings.faac_profile,
+        sample_rate,
+    )?;
     for title in titles {
-        let channels = adapter::resolve_output_channels(encoder_settings.channels, &title.files)?;
+        resolution::resolve_output_channels(encoder_settings.channels, &title.files)?;
         if matches!(
-            adapter,
-            adapter::ResolvedProcessorAdapter::ExternalFdk { .. }
+            encoder_type,
+            crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::Faac
         ) {
-            let mut resolved = encoder_settings.clone();
-            resolved.channels = channels;
-            resolved.resolve_fdk_output(
-                sample_rate,
-                title
-                    .files
-                    .iter()
-                    .find(|file| file.is_valid)
-                    .and_then(|file| file.sample_rate),
-            )?;
-        }
-        adapter.validate_inputs(title)?;
-        if let adapter::ResolvedProcessorAdapter::NativeFfmpegNext {
-            encoder_type:
-                encoder_type @ (crate::audio::EncoderType::NativeAac | crate::audio::EncoderType::Faac),
-        } = &adapter
-        {
-            validate_output_target(encoder_settings, *encoder_type, sample_rate, &title.files)?;
+            validate_output_target(encoder_settings, encoder_type, sample_rate, &title.files)?;
         }
     }
     Ok(())
@@ -158,7 +137,7 @@ fn validate_output_target(
     sample_rate: &crate::audio::SampleRateConfig,
     files: &[AudioFile],
 ) -> Result<()> {
-    let channels = adapter::resolve_output_channels(settings.channels, files)?
+    let channels = resolution::resolve_output_channels(settings.channels, files)?
         .forced_channels()
         .expect("output channels are resolved");
     let rate = sample_rate
@@ -248,7 +227,7 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
     let mut settings = request.context.required_encoder_settings()?.clone();
     let requested_channels = settings.channels;
     let resolved_channels =
-        adapter::resolve_output_channels(requested_channels, &request.file_info.files)?;
+        resolution::resolve_output_channels(requested_channels, &request.file_info.files)?;
     settings.channels = resolved_channels;
     request.context.encoder_settings = Some(settings);
     log::info!(
@@ -275,40 +254,33 @@ pub async fn execute_audio_engine(mut request: AudioExecutionRequest) -> Result<
             ));
         }
     }
-    let FileListInfo {
-        files,
-        selected_decoders,
-        ..
-    } = request.file_info;
-    let encoder_settings = request.context.required_encoder_settings()?;
-    let adapter = adapter::resolve_processor_adapter(encoder_settings)?;
-    let adapter_label = match &adapter {
-        adapter::ResolvedProcessorAdapter::NativeFfmpegNext { .. } => "native_ffmpeg_next",
-        adapter::ResolvedProcessorAdapter::ExternalFdk { .. } => "external_fdk",
-    };
-    let operation_id = request
-        .context
-        .operation_id
-        .as_deref()
-        .unwrap_or("foreground");
-    let job_id = request.context.job_id.as_deref().unwrap_or("none");
-    let input_index = request
-        .context
-        .input_index
-        .map_or_else(|| "none".to_string(), |index| index.to_string());
+    let FileListInfo { files, .. } = request.file_info;
+    let mut context = request.context;
+    let mut settings = context.required_encoder_settings()?.clone();
+    let encoder_type = resolution::resolve_linked_encoder(&settings)?;
     log::info!(
-        "audio engine adapter: operation_id={operation_id} job_id={job_id} input_index={input_index} kind={adapter_label} requested_encoder={:?}",
-        encoder_settings.encoder_type,
+        "audio engine encoder: operation_id={} job_id={} input_index={} requested_encoder={:?} resolved_encoder={encoder_type:?}",
+        context.operation_id.as_deref().unwrap_or("foreground"),
+        context.job_id.as_deref().unwrap_or("none"),
+        context
+            .input_index
+            .map_or_else(|| "none".to_string(), |index| index.to_string()),
+        settings.encoder_type,
     );
-    adapter
-        .execute(
-            request.context,
-            files,
-            selected_decoders,
-            request.metadata,
-            request.cover_art_passthrough,
-        )
-        .await
+    settings.resolve_encoder(encoder_type);
+    context.encoder_settings = Some(settings);
+    let metadata = request.metadata;
+    let cover_art_passthrough = request.cover_art_passthrough;
+    // The pipeline (prepare -> encode -> finalize) is synchronous, CPU-bound
+    // work. Run it on a blocking thread so it never occupies an async runtime
+    // worker; progress emission and the atomic cancel flag work off the runtime.
+    tokio::task::spawn_blocking(move || {
+        process_audiobook_with_context(context, files, metadata, cover_art_passthrough)
+    })
+    .await
+    .map_err(|join_error| {
+        crate::errors::AppError::General(format!("audio processing task failed: {join_error}"))
+    })?
 }
 
 /// Internal workflow state passed between processing stages.
@@ -333,9 +305,6 @@ impl ProcessingWorkflow {
     }
 }
 
-/// Native (in-process ffmpeg-next) processing entrypoint; the external FDK
-/// adapter bypasses this and owns its own staging/finalize handoff.
-///
 /// Coordinates the three-stage processing pipeline:
 /// 1. Validate & Prepare
 /// 2. Execute Processing

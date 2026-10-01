@@ -131,10 +131,8 @@ mod tests {
             bitrate_kbps: 64,
             bitrate_mode: BitrateMode::Vbr(3),
             channels: ChannelConfig::Auto,
-            afterburner: true,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
-            fdk_profile: crate::audio::FdkProfile::Auto,
         }
     }
 

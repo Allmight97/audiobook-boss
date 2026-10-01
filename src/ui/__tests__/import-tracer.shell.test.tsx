@@ -28,7 +28,6 @@ function analyzedFile(path: string): FileListInfo {
 				inputId: 'input-1',
 			},
 		],
-		selectedDecoders: [null],
 		totalDuration: 300,
 		totalSize: 15 * 1024 * 1024,
 		validCount: 1,

@@ -30,7 +30,6 @@ function analyzedFile(path: string, title: string): FileListInfo['files'][number
 function analyzedList(files: FileListInfo['files']): FileListInfo {
 	return {
 		files,
-		selectedDecoders: files.map(() => null),
 		totalDuration: files.length,
 		totalSize: files.length * 1000,
 		validCount: files.length,

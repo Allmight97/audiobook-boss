@@ -288,7 +288,6 @@ fn build_title_processing_jobs(
         .collect();
 
     let mut jobs = Vec::new();
-    let mut audio_planner = crate::audio::AudioPlanner::default();
     for (index, input) in payload.input_files.iter().enumerate() {
         let path = crate::audio::validate_input_audio_path(Path::new(input))?;
         let source_paths = payload
@@ -309,7 +308,7 @@ fn build_title_processing_jobs(
             Some(&path),
         )?;
         let info = title_file_info(file_info, &source_paths)?;
-        let audio_plan = audio_planner.resolve(
+        let audio_plan = crate::audio::resolve_title_audio(
             &payload.audio_requests[index],
             &info,
             inputs.preview_seconds.is_some(),
@@ -339,7 +338,6 @@ fn build_title_processing_jobs(
 pub(super) fn title_file_info(all: &FileListInfo, paths: &[PathBuf]) -> Result<FileListInfo> {
     let mut info = FileListInfo {
         files: Vec::with_capacity(paths.len()),
-        selected_decoders: Vec::with_capacity(paths.len()),
         total_duration: 0.0,
         total_size: 0.0,
         valid_count: 0,
@@ -352,8 +350,6 @@ pub(super) fn title_file_info(all: &FileListInfo, paths: &[PathBuf]) -> Result<F
             .position(|file| &file.path == path)
             .ok_or_else(|| AppError::InvalidInput("A title source was not inspected.".into()))?;
         info.files.push(all.files[index].clone());
-        info.selected_decoders
-            .push(all.selected_decoders.get(index).cloned().flatten());
     }
     info.valid_count = info.files.iter().filter(|file| file.is_valid).count();
     info.invalid_count = info.files.len() - info.valid_count;

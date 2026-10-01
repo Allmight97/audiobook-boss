@@ -22,7 +22,6 @@ function fileList(): FileListInfo {
 		totalSize: 1,
 		validCount: 1,
 		invalidCount: 0,
-		selectedDecoders: [null],
 	};
 }
 
@@ -43,7 +42,6 @@ function multiTitleFileList(): FileListInfo {
 		totalDuration: 2,
 		totalSize: 2,
 		validCount: 2,
-		selectedDecoders: [null, null],
 	};
 }
 

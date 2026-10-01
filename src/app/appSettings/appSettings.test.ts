@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import {
-	encoderAvailabilityFixture,
-	runtimeSettingsCapabilitiesFixture,
-} from '../../test/fixtures/runtimeSettingsCapabilities';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { createAppRuntime, type AppRuntime } from '../runtime';
 
 function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
@@ -18,7 +15,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 				bitrateKbps: 64,
 				bitrateMode: { mode: 'vbr', value: 3 },
 				channels: 'auto',
-				afterburner: false,
 			},
 			sampleRate: 'auto',
 		},
@@ -28,7 +24,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 				includeYear: false,
 			},
 		},
-		toolchain: {},
 		startupBehavior: 'rememberLastState',
 		defaultAcquisitionLane: 'audible',
 		keepAwakeWhileWorking: true,
@@ -38,7 +33,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 
 function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapability {
 	return {
-		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => settingsFixture()),
 		getAppSettingsRecovery: vi.fn(async () => null),
 		recoverAppSettings: vi.fn(async () => ({
@@ -53,7 +47,6 @@ function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapa
 			}),
 		),
 		resetAppSettings: vi.fn(async () => settingsFixture()),
-		openFile: vi.fn(async () => null),
 		getMaxConcurrentJobs: vi.fn(async () => 4),
 		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
 		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),
@@ -127,19 +120,19 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		runtime.output.setAbsIncludeYear(true);
 		await runtime.settings.retryPersistence();
 		expect(runtime.settings.durability().state).toBe('error');
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
+		expect(runtime.encoding.readDefaults().settings.faacProfile).toBe('aac_lc');
 		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(true);
-		runtime.encoding.select('afterburner', 'false');
+		runtime.encoding.select('faacProfile', 'auto');
 		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
 		await runtime.settings.retryPersistence();
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: false }),
+					settings: expect.objectContaining({ faacProfile: 'auto' }),
 				}),
 				outputDefaults: expect.objectContaining({
 					outputNaming: expect.objectContaining({ includeYear: true }),
@@ -160,9 +153,9 @@ describe('app settings concurrency', () => {
 			),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalledTimes(1));
-		runtime.encoding.select('afterburner', 'false');
+		runtime.encoding.select('faacProfile', 'auto');
 		finish(settingsFixture());
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalledTimes(2));
 		expect(runtime.settings.durability().state).toBe('saving');
@@ -172,7 +165,6 @@ describe('app settings concurrency', () => {
 
 	it('opens and refreshes the acquisition preference through a detached UI handler', async () => {
 		const settings = fakeSettings({
-			openFdkSetup: vi.fn(async () => undefined),
 			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
 		});
 		runtime = createAppRuntime({ settings });
@@ -215,15 +207,15 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		await vi.waitFor(() => expect(runtime!.settings.durability().state).toBe('error'));
 		await runtime.settings.openDialog();
 		await runtime.settings.recoverEncoderDefaults();
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
+		expect(runtime.encoding.readDefaults().settings.faacProfile).toBe('aac_lc');
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: true }),
+					settings: expect.objectContaining({ faacProfile: 'aac_lc' }),
 				}),
 			}),
 		);
@@ -238,7 +230,7 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		await runtime.settings.saveCurrentSettingsAsPinnedDefaults();
 		expect(runtime.settings.dialog().startupSaveState).toBe('error');
 		expect(settings.updateAppSettings).not.toHaveBeenCalledWith(
@@ -257,7 +249,7 @@ describe('app settings concurrency', () => {
 			),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalledTimes(1));
 		runtime.output.setAbsIncludeYear(true);
 		const reset = runtime.settings.resetAllAppSettings();
@@ -265,7 +257,7 @@ describe('app settings concurrency', () => {
 		finish(settingsFixture());
 		await reset;
 		expect(settings.updateAppSettings).toHaveBeenCalledTimes(1);
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(false);
+		expect(runtime.encoding.readDefaults().settings.faacProfile).toBe('auto');
 		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(false);
 		expect(runtime.settings.durability().state).toBe('saved');
 		await runtime.settings.retryPersistence();
@@ -288,12 +280,12 @@ describe('app settings concurrency', () => {
 		runtime = createAppRuntime({ settings });
 		const reset = runtime.settings.resetAllAppSettings();
 		await vi.waitFor(() => expect(settings.resetAppSettings).toHaveBeenCalled());
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		runtime.output.setAbsIncludeYear(true);
 		const changeLane = runtime.settings.setDefaultAcquisitionLane('indexer');
 		finishReset(settingsFixture());
 		await Promise.all([reset, changeLane]);
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
+		expect(runtime.encoding.readDefaults().settings.faacProfile).toBe('aac_lc');
 		expect(runtime.output.readDefaults().outputNaming.includeYear).toBe(true);
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('indexer');
 		expect(runtime.settings.durability()).toMatchObject({ state: 'error', message: 'Disk full' });
@@ -302,7 +294,7 @@ describe('app settings concurrency', () => {
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: true }),
+					settings: expect.objectContaining({ faacProfile: 'aac_lc' }),
 				}),
 				outputDefaults: expect.objectContaining({
 					outputNaming: expect.objectContaining({ includeYear: true }),
@@ -399,7 +391,7 @@ describe('app settings concurrency', () => {
 			),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		await vi.waitFor(() => expect(settings.updateAppSettings).toHaveBeenCalled());
 		runtime.dispose();
 		fail(new Error('Disk full'));
@@ -418,16 +410,16 @@ describe('app settings concurrency', () => {
 			}),
 		});
 		runtime = createAppRuntime({ settings });
-		runtime.encoding.select('afterburner', 'true');
+		runtime.encoding.select('faacProfile', 'aac_lc');
 		await runtime.settings.resetAllAppSettings();
 		expect(runtime.settings.durability().state).toBe('error');
-		expect(runtime.encoding.readDefaults().settings.afterburner).toBe(true);
+		expect(runtime.encoding.readDefaults().settings.faacProfile).toBe('aac_lc');
 		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
 		await runtime.settings.retryPersistence();
 		expect(settings.updateAppSettings).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				encoderDefaults: expect.objectContaining({
-					settings: expect.objectContaining({ afterburner: true }),
+					settings: expect.objectContaining({ faacProfile: 'aac_lc' }),
 				}),
 			}),
 		);
@@ -436,7 +428,6 @@ describe('app settings concurrency', () => {
 	it('does not publish a pending dialog read after disposal', async () => {
 		let finish!: (value: AppSettings) => void;
 		const settings = fakeSettings({
-			openFdkSetup: vi.fn(async () => undefined),
 			getAppSettings: vi.fn(
 				() =>
 					new Promise<AppSettings>((resolve) => {
@@ -460,7 +451,6 @@ describe('app settings concurrency', () => {
 
 	it('hydrates and persists defaultAcquisitionLane', async () => {
 		const settings = fakeSettings({
-			openFdkSetup: vi.fn(async () => undefined),
 			getAppSettings: vi.fn(async () => settingsFixture({ defaultAcquisitionLane: 'indexer' })),
 		});
 		runtime = createAppRuntime({ settings });
@@ -475,79 +465,5 @@ describe('app settings concurrency', () => {
 		await runtime.settings.resetAllAppSettings();
 		expect(runtime.settings.dialog().settings?.defaultAcquisitionLane).toBe('audible');
 		expect(runtime.settings.defaultAcquisitionLane()).toBe('audible');
-	});
-
-	it('refreshes Auto after accepting a custom FFmpeg path', async () => {
-		let fdkAvailable = false;
-		const settings = fakeSettings({
-			getRuntimeSettingsCapabilities: vi.fn(async () =>
-				runtimeSettingsCapabilitiesFixture({
-					encoder: { availability: encoderAvailabilityFixture({ fdkAvailable }) },
-				}),
-			),
-			updateAppSettings: vi.fn(async (patch) => {
-				fdkAvailable = Boolean(patch.toolchain?.externalFfmpegPath);
-				return settingsFixture({ toolchain: patch.toolchain ?? {} });
-			}),
-		});
-		runtime = createAppRuntime({ settings });
-		await runtime.settings.openDialog();
-		expect(
-			runtime.encoding.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
-		).toBe('FDK AAC (Set up…)');
-		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
-		runtime.settings.setFfmpegPathDraft('/custom/bin/ffmpeg');
-		await runtime.settings.saveToolchainPreference();
-		expect(
-			runtime.encoding.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
-		).toBe('FDK AAC');
-		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
-		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
-		await runtime.settings.recheckFdk();
-		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
-	});
-
-	it('refreshes encoder availability when resetting removes the configured FFmpeg', async () => {
-		let fdkAvailable = true;
-		let refreshRequested = false;
-		let finishRefresh!: () => void;
-		const refresh = new Promise<void>((resolve) => {
-			finishRefresh = resolve;
-		});
-		const settings = fakeSettings({
-			getRuntimeSettingsCapabilities: vi.fn(async () => {
-				if (!fdkAvailable) {
-					refreshRequested = true;
-					await refresh;
-				}
-				return runtimeSettingsCapabilitiesFixture({
-					encoder: { availability: encoderAvailabilityFixture({ fdkAvailable }) },
-				});
-			}),
-			resetAppSettings: vi.fn(async () => {
-				fdkAvailable = false;
-				return settingsFixture();
-			}),
-		});
-		runtime = createAppRuntime({ settings });
-		const encoding = runtime.encoding;
-		await vi.waitFor(() => {
-			expect(
-				encoding.view().flavorOptions.find(({ value }) => value === 'fdk_he_aac'),
-			).toMatchObject({ disabled: false });
-		});
-		encoding.select('encoder', 'fdk_he_aac');
-		vi.mocked(settings.getRuntimeSettingsCapabilities).mockClear();
-		const reset = runtime.settings.resetAllAppSettings();
-		await vi.waitFor(() => expect(refreshRequested).toBe(true));
-		expect(runtime.settings.dialog().saveState).toBe('saving');
-		finishRefresh();
-		await reset;
-		expect(settings.getRuntimeSettingsCapabilities).toHaveBeenCalledTimes(1);
-		expect(encoding.view().flavorOptions.find(({ value }) => value === 'fdk_he_aac')).toMatchObject(
-			{ disabled: false, label: 'FDK AAC (Set up…)' },
-		);
-		encoding.select('encoder', 'fdk_he_aac');
-		expect(encoding.audioRequest().settings!.encoderType).toBe('auto');
 	});
 });

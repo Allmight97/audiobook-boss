@@ -3,7 +3,7 @@ import type { MetadataIntentPatch } from '../../types/metadataIntent';
 import { createMetadataCache } from './cache';
 
 const path = '/books/a.m4b';
-const author = { artist: { op: 'set', value: 'FDK Decision' } } as const;
+const author = { artist: { op: 'set', value: 'Edited Author' } } as const;
 const title = { title: { op: 'set', value: 'NMR 64k' } } as const;
 
 describe('metadata cache save commit', () => {
@@ -28,7 +28,7 @@ describe('metadata cache save commit', () => {
 		cache.commitSavedIntent(path, saved!);
 
 		expect(cache.getMetadataIntentPatchForFile(path)).toBeUndefined();
-		expect(cache.getMetadataForFile(path)).toEqual({ title: 'Old', artist: 'FDK Decision' });
+		expect(cache.getMetadataForFile(path)).toEqual({ title: 'Old', artist: 'Edited Author' });
 	});
 
 	it('keeps every pending edit when another was staged while the save ran', async () => {
@@ -41,7 +41,7 @@ describe('metadata cache save commit', () => {
 		cache.commitSavedIntent(path, saved!);
 
 		expect(cache.getMetadataIntentPatchForFile(path)).toEqual({ ...author, ...title });
-		expect(cache.getMetadataForFile(path)).toEqual({ title: 'NMR 64k', artist: 'FDK Decision' });
+		expect(cache.getMetadataForFile(path)).toEqual({ title: 'NMR 64k', artist: 'Edited Author' });
 	});
 
 	it('keeps saved values when the file could not be read, and a later clear still stages', () => {
@@ -53,7 +53,7 @@ describe('metadata cache save commit', () => {
 		cache.commitSavedIntent(path, saved!);
 
 		expect(cache.getMetadataForFile(path)).toEqual({
-			artist: 'FDK Decision',
+			artist: 'Edited Author',
 			cover_art: [9, 9, 9],
 		});
 		expect(cache.hasSourceMetadata(path)).toBe(false);
@@ -69,14 +69,14 @@ describe('metadata cache save commit', () => {
 
 		await cache.readSourceMetadata(path, async () => ({
 			title: 'Old',
-			artist: 'FDK Decision',
+			artist: 'Edited Author',
 			genre: 'Fantasy',
 		}));
 
 		expect(cache.hasSourceMetadata(path)).toBe(true);
 		expect(cache.getMetadataForFile(path)).toEqual({
 			title: 'NMR 64k',
-			artist: 'FDK Decision',
+			artist: 'Edited Author',
 			genre: 'Fantasy',
 		});
 	});

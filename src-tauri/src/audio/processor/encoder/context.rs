@@ -21,12 +21,11 @@ pub(crate) fn create_audio_encoder(
 ) -> Result<ff::codec::encoder::audio::Encoder> {
     let resolved_encoder = encoder_settings.encoder_type;
 
-    // FDK HE-AAC is owned by the external FFmpeg adapter; the in-process
-    // engine must refuse it rather than silently opening a different encoder.
-    if matches!(resolved_encoder, EncoderType::FdkHeAac | EncoderType::Faac) {
+    // FAAC runs through its own bindings; refuse it here rather than silently
+    // opening a different encoder.
+    if resolved_encoder == EncoderType::Faac {
         return Err(AppError::InvalidInput(
-            "This encoder uses its own adapter and cannot be opened as an FFmpeg encoder."
-                .to_string(),
+            "FAAC uses its own encoder path and cannot be opened as an FFmpeg encoder.".to_string(),
         ));
     }
 
@@ -72,21 +71,20 @@ pub(crate) fn create_audio_encoder(
         }
         EncoderType::AacAt => build_apple_options(&mut opened, encoder_settings),
         EncoderType::NativeAac => build_native_options(&mut opened, encoder_settings),
-        EncoderType::Faac | EncoderType::FdkHeAac | EncoderType::Auto => {
+        EncoderType::Faac | EncoderType::Auto => {
             unreachable!("create_audio_encoder requires a resolved in-process encoder type")
         }
     };
 
     let raw_bit_rate = unsafe { (*opened.as_mut_ptr()).bit_rate };
     encoder_log(&format!(
-        "encoder_config resolved={:?} bitrate_mode={:?} bit_rate_field={} fmt={:?} channels={} rate={} afterburner={} opts={:?}",
+        "encoder_config resolved={:?} bitrate_mode={:?} bit_rate_field={} fmt={:?} channels={} rate={} opts={:?}",
         resolved_encoder,
         encoder_settings.bitrate_mode,
         raw_bit_rate,
         opened.format(),
         opened.channel_layout().channels(),
         opened.rate(),
-        encoder_settings.afterburner,
         opts.iter().collect::<Vec<_>>()
     ));
 

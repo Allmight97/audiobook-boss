@@ -8,7 +8,6 @@ import type {
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
 	StartupBehavior as GeneratedStartupBehavior,
-	ToolchainPreferences as GeneratedToolchainPreferences,
 } from '../lib/generated/tauri';
 import type { EncoderSettings, OutputNamingConfig } from './audio';
 import type { NullToOptionalDeep } from './ipc';
@@ -20,7 +19,6 @@ export type AppSettingsRecoveryResult = Omit<GeneratedAppSettingsRecoveryResult,
 	settings: AppSettings;
 };
 export type StartupBehavior = GeneratedStartupBehavior;
-export type ToolchainPreferences = NullToOptionalDeep<GeneratedToolchainPreferences>;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;
 };
@@ -45,7 +43,6 @@ export type AppSettingsPatch = Partial<{
 	outputDefaults:
 		| (Omit<OutputDefaults, 'outputNaming'> & { outputNaming: OutputNamingConfig })
 		| null;
-	toolchain: ToolchainPreferences | null;
 	startupBehavior: StartupBehavior | null;
 	defaultAcquisitionLane: AcquisitionLane | null;
 	keepAwakeWhileWorking: boolean | null;

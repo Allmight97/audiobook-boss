@@ -20,13 +20,11 @@ pub enum AppErrorCode {
     InvalidInput,
     IoError,
     FfmpegError,
-    ProcessTerminationFailed,
     TempDirectoryCreationFailed,
     ResourceCleanupFailed,
     InternalError,
     ImageProcessingError,
     ProcessingCancelled,
-    ToolchainRequired,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -53,9 +51,6 @@ pub enum AppError {
     #[error("FFmpeg error: {0}")]
     Ffmpeg(#[from] ffmpeg_next::Error),
 
-    #[error("Process termination failed: {0}")]
-    ProcessTermination(String),
-
     #[error("Temporary directory creation failed: {0}")]
     TempDirectoryCreation(String),
 
@@ -70,9 +65,6 @@ pub enum AppError {
 
     #[error("{0}")]
     Cancellation(String),
-
-    #[error("{0}")]
-    ToolchainRequired(String),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
@@ -80,10 +72,6 @@ pub type Result<T> = std::result::Result<T, AppError>;
 impl AppError {
     pub fn cancelled() -> Self {
         Self::Cancellation("Processing was cancelled".to_string())
-    }
-
-    pub fn toolchain_required(message: impl Into<String>) -> Self {
-        Self::ToolchainRequired(message.into())
     }
 }
 
@@ -96,13 +84,11 @@ impl AppErrorCode {
             Self::InvalidInput => "invalid_input",
             Self::IoError => "io_error",
             Self::FfmpegError => "ffmpeg_error",
-            Self::ProcessTerminationFailed => "process_termination_failed",
             Self::TempDirectoryCreationFailed => "temp_directory_creation_failed",
             Self::ResourceCleanupFailed => "resource_cleanup_failed",
             Self::InternalError => "internal_error",
             Self::ImageProcessingError => "image_processing_error",
             Self::ProcessingCancelled => "processing_cancelled",
-            Self::ToolchainRequired => "toolchain_required",
         }
     }
 }
@@ -156,12 +142,6 @@ impl From<&AppError> for AppErrorEnvelope {
                 format!("FFmpeg error: {}", error),
                 Some(error.to_string()),
             ),
-            AppError::ProcessTermination(message) => Self::new(
-                AppErrorCode::ProcessTerminationFailed,
-                AppErrorCategory::Processing,
-                format!("Process termination failed: {message}"),
-                None,
-            ),
             AppError::TempDirectoryCreation(message) => Self::new(
                 AppErrorCode::TempDirectoryCreationFailed,
                 AppErrorCategory::Resource,
@@ -189,12 +169,6 @@ impl From<&AppError> for AppErrorEnvelope {
             AppError::Cancellation(message) => Self::new(
                 AppErrorCode::ProcessingCancelled,
                 AppErrorCategory::Cancellation,
-                message.clone(),
-                None,
-            ),
-            AppError::ToolchainRequired(message) => Self::new(
-                AppErrorCode::ToolchainRequired,
-                AppErrorCategory::Toolchain,
                 message.clone(),
                 None,
             ),

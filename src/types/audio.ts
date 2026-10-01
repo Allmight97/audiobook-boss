@@ -6,15 +6,12 @@ import type {
 	ChannelConfig as GeneratedChannelConfig,
 	AudioFile as GeneratedAudioFile,
 	CollisionPolicy as GeneratedCollisionPolicy,
-	DecoderSelection as GeneratedDecoderSelection,
 	EncoderAvailability as GeneratedEncoderAvailability,
 	EncoderConfigurationCapability as GeneratedEncoderConfigurationCapability,
-	EncoderCapabilitySource as GeneratedEncoderCapabilitySource,
 	EncoderSettingsCapabilities as GeneratedEncoderSettingsCapabilities,
 	EncoderSettings as GeneratedEncoderSettings,
 	EncoderType as GeneratedEncoderType,
 	FaacProfile as GeneratedFaacProfile,
-	FdkProfile as GeneratedFdkProfile,
 	BitrateModeKind as GeneratedBitrateModeKind,
 	FileListInfo as GeneratedFileListInfo,
 	MaxConcurrentJobsCapabilities as GeneratedMaxConcurrentJobsCapabilities,
@@ -45,7 +42,6 @@ export type AudioFile = Omit<GeneratedAudioFileUi, 'inputId' | 'chapters'> & {
 	inputId?: string;
 	chapters?: AudioChapter[];
 };
-export type DecoderSelection = NullToOptionalDeep<GeneratedDecoderSelection>;
 
 export type FileListInfo = Omit<NullToOptionalDeep<GeneratedFileListInfo>, 'files'> & {
 	files: AudioFile[];
@@ -66,13 +62,11 @@ export type ProcessingPreflightPlan = Omit<
 export type SampleRateConfig = GeneratedSampleRateConfig;
 export type EncoderAvailability = NullToOptionalDeep<GeneratedEncoderAvailability>;
 export type EncoderConfigurationCapability = GeneratedEncoderConfigurationCapability;
-export type EncoderCapabilitySource = GeneratedEncoderCapabilitySource;
 export type BitrateMode = GeneratedBitrateMode;
 export type BitrateModeKind = GeneratedBitrateModeKind;
 export type EncoderChannelConfig = GeneratedChannelConfig;
 export type EncoderType = GeneratedEncoderType;
 export type FaacProfile = GeneratedFaacProfile;
-export type FdkProfile = GeneratedFdkProfile;
 export type EncoderSettings = GeneratedEncoderSettings;
 export type EncoderSettingsCapabilities = NullToOptionalDeep<GeneratedEncoderSettingsCapabilities>;
 export type MaxConcurrentJobsCapabilities =
@@ -135,10 +129,8 @@ export const defaultEncoderSettings = (): EncoderSettings => ({
 	bitrateKbps: 65,
 	bitrateMode: { mode: 'cbr' },
 	channels: 'auto',
-	afterburner: false,
 	nativeAacSpeed: 0,
 	faacProfile: 'auto',
-	fdkProfile: 'auto',
 });
 
 // Utility functions

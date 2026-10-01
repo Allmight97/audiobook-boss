@@ -28,7 +28,6 @@ async function mountedList(request: ReturnType<typeof deferred>, paths = ['/shar
 					size: 1,
 					format: 'm4b',
 				})),
-				selectedDecoders: paths.map(() => null),
 				totalDuration: paths.length,
 				totalSize: paths.length,
 				validCount: paths.length,

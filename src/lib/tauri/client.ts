@@ -204,7 +204,6 @@ export const tauriClient = {
 	getAppSettings: (): Promise<AppSettings> => commandSpecs.get_app_settings(),
 	updateAppSettings: (patch: AppSettingsPatch): Promise<AppSettings> =>
 		commandSpecs.update_app_settings({ patch }),
-	openFdkSetup: (): Promise<void> => commandSpecs.open_fdk_setup(),
 	resetAppSettings: (): Promise<AppSettings> => commandSpecs.reset_app_settings(),
 	readAudioMetadata: (filePath: string): Promise<CommandResult<'read_audio_metadata'>> =>
 		commandSpecs.read_audio_metadata({ filePath }),

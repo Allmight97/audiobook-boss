@@ -330,9 +330,9 @@ describe('metadata edit intent', () => {
 		app.metadata.setCustomCoverArt([8, 9]);
 		await app.input.selectFile({ index: 0, modifiers: { multi: true, range: false } });
 		await app.metadata.hydrateSelection(null);
-		app.metadata.setFieldValue({ inputId: 'meta-author', value: 'FDK Decision' });
+		app.metadata.setFieldValue({ inputId: 'meta-author', value: 'Edited Author' });
 		await app.metadata.stageCurrentSelection();
-		const author = { op: 'set', value: 'FDK Decision' };
+		const author = { op: 'set', value: 'Edited Author' };
 		const cover = { op: 'set', value: [8, 9] };
 		expect(await app.metadata.intentsForProcess([alpha.path, other.path])).toEqual({
 			[alpha.path]: { artist: author, cover_art: cover },
@@ -345,7 +345,7 @@ describe('metadata edit intent', () => {
 			[alpha.path]: { artist: author, cover_art: cover, title, album: title },
 			[other.path]: { artist: author, cover_art: cover, title, album: title },
 		});
-		expect(app.metadata.readCached(other.path)?.artist).toBe('FDK Decision');
+		expect(app.metadata.readCached(other.path)?.artist).toBe('Edited Author');
 	});
 
 	it('a saved cover replacement stays shown after a text edit on an untagged file', async () => {

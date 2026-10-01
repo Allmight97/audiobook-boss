@@ -41,16 +41,15 @@ function encoderCaps(
 	};
 }
 
-function vbrDefaults(value: number, afterburner = true): EncoderDefaults {
+function autoDefaults(): EncoderDefaults {
 	return {
 		format: 'm4b',
 		intent: 'auto',
 		settings: {
 			encoderType: 'auto',
 			bitrateKbps: 64,
-			bitrateMode: { mode: 'vbr', value },
+			bitrateMode: { mode: 'cbr' },
 			channels: 'auto',
-			afterburner,
 		},
 		sampleRate: 'auto',
 	};
@@ -110,25 +109,6 @@ describe('encoding owner', () => {
 		flush();
 	}
 
-	it('uses FDK Auto capabilities while preserving a manual profile across encoder switches', async () => {
-		mounted = mountEncoding();
-		await vi.waitFor(() => expect(mounted!.owner.view().flavorOptions.length).toBeGreaterThan(1));
-		mounted.owner.select('encoder', 'fdk_he_aac');
-		expect(mounted.owner.view().fdkProfileOptions[0]?.label).toBe('Auto · AAC-LC');
-		mounted.owner.select('quality', '1');
-		mounted.owner.select('channels', 'stereo');
-		expect(mounted.owner.view().fdkProfileOptions[0]?.label).toBe('Auto · HE-AAC v2');
-		mounted.owner.select('sampleRate', '44100');
-		mounted.owner.select('fdkProfile', 'he_aac_v1');
-		mounted.owner.select('quality', '3');
-		mounted.owner.select('encoder', 'native_aac');
-		mounted.owner.select('encoder', 'fdk_he_aac');
-		expect(mounted.owner.audioRequest().settings?.fdkProfile).toBe('he_aac_v1');
-		expect(mounted.owner.view().sampleRateOptions.find((o) => o.value === '8000')?.disabled).toBe(
-			true,
-		);
-	});
-
 	it('keeps MP3 choices copy-only in saved preferences', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);
@@ -151,7 +131,7 @@ describe('encoding owner', () => {
 			format: 'm4b',
 			intent: 'auto',
 			settings: {
-				...vbrDefaults(3).settings,
+				...autoDefaults().settings,
 				encoderType: 'faac',
 				faacProfile: 'he_aac_v1',
 				bitrateMode: { mode: 'abr' },
@@ -189,7 +169,7 @@ describe('encoding owner', () => {
 		expect(mounted.owner.audioRequest().sampleRate).toEqual({ explicit: 48000 });
 	});
 
-	it('keeps FAAC profile and rate choices independent of source Auto and FDK quality', async () => {
+	it('keeps FAAC profile and rate choices across encoder switches', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);
 		mounted.owner.select('encoder', 'faac');
@@ -197,7 +177,6 @@ describe('encoding owner', () => {
 			sampleRate: 'auto',
 			settings: {
 				faacProfile: 'auto',
-				fdkProfile: 'auto',
 				channels: 'auto',
 				bitrateKbps: 65,
 				bitrateMode: { mode: 'abr' },
@@ -206,9 +185,8 @@ describe('encoding owner', () => {
 		mounted.owner.select('rateControl', 'vbr');
 		mounted.owner.select('quality', '200');
 		mounted.owner.select('faacProfile', 'aac_lc');
-		mounted.owner.select('encoder', 'fdk_he_aac');
-		expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode: 'vbr', value: 3 });
-		mounted.owner.select('quality', '4');
+		mounted.owner.select('encoder', 'native_aac');
+		expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode: 'cbr' });
 		mounted.owner.select('encoder', 'faac');
 		expect(mounted.owner.audioRequest().settings).toMatchObject({
 			faacProfile: 'aac_lc',
@@ -242,20 +220,21 @@ describe('encoding owner', () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);
 
-		const defaults = vbrDefaults(4);
-		defaults.settings.encoderType = 'fdk_he_aac';
+		const defaults = autoDefaults();
+		defaults.settings.encoderType = 'faac';
+		defaults.settings.bitrateMode = { mode: 'vbr', value: 200 };
 		mounted.owner.applyDefaults(defaults);
 		flush();
-		expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode: 'vbr', value: 4 });
+		expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode: 'vbr', value: 200 });
 		expect(mounted.persist).not.toHaveBeenCalled();
 
-		mounted.owner.select('quality', '2');
+		mounted.owner.select('quality', '50');
 		flush();
 		expect(mounted.owner.audioRequest().settings!.bitrateKbps).toBe(64);
 		expect(mounted.persist).toHaveBeenCalledTimes(1);
 		expect(mounted.persist.mock.calls[0]?.[0].settings.bitrateMode).toEqual({
 			mode: 'vbr',
-			value: 2,
+			value: 50,
 		});
 	});
 
@@ -270,14 +249,13 @@ describe('encoding owner', () => {
 				finish = resolve;
 			});
 			mounted = mountEncoding({ load: () => pending });
-			mounted.owner.applyDefaults(vbrDefaults(3));
+			mounted.owner.applyDefaults(autoDefaults());
 			expect(mounted.owner.audioRequest().settings?.encoderType).toBe('auto');
 			expect(mounted.owner.readDefaults().settings.encoderType).toBe('auto');
 			finish(
 				encoderCaps({
 					availability: {
 						...encoderCaps().availability,
-						fdkAvailable: false,
 						aacAtAvailable: encoderType === 'aac_at',
 						autoEncoder: encoderType,
 					},
@@ -314,8 +292,8 @@ describe('encoding owner', () => {
 			});
 			mounted = mountEncoding({ load: () => pending });
 			mounted.owner.applyDefaults({
-				...vbrDefaults(3),
-				settings: { ...vbrDefaults(3).settings, encoderType, bitrateMode: { mode } },
+				...autoDefaults(),
+				settings: { ...autoDefaults().settings, encoderType, bitrateMode: { mode } },
 			});
 			expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode });
 			expect(mounted.owner.view().showQuality).toBe(false);
@@ -339,10 +317,9 @@ describe('encoding owner', () => {
 		expect(mounted.owner.audioRequest().settings!.bitrateKbps).toBe(96);
 	});
 
-	it('derives each encoder mode while retaining quality, target and native speed', async () => {
+	it('derives each encoder mode while retaining target and native speed', async () => {
 		mounted = mountEncoding();
 		await ready(mounted.owner);
-		mounted.owner.select('quality', '4');
 		mounted.owner.select('encoder', 'native_aac');
 		mounted.owner.select('nativeSpeed', '4');
 		mounted.owner.select('bitrate', '193');
@@ -353,8 +330,6 @@ describe('encoding owner', () => {
 			bitrateKbps: 193,
 			nativeAacSpeed: 4,
 		});
-		mounted.owner.select('encoder', 'fdk_he_aac');
-		expect(mounted.owner.audioRequest().settings!.bitrateMode).toEqual({ mode: 'vbr', value: 4 });
 		mounted.owner.select('encoder', 'native_aac');
 		expect(mounted.owner.readDefaults().settings).toMatchObject({
 			bitrateMode: { mode: 'cbr' },
@@ -371,8 +346,6 @@ describe('encoding owner', () => {
 				bitrateKbpsMax: 256,
 			})),
 			nativeSpeedMax: 2,
-			vbrLevelMin: 2,
-			vbrLevelMax: 4,
 			explicitSampleRates: [22050],
 			channelOptions: ['mono'],
 		});
@@ -380,8 +353,8 @@ describe('encoding owner', () => {
 		mounted.owner.select('bitrate', '1000');
 		expect(mounted.owner.readDefaults().settings.bitrateKbps).toBe(65);
 		await ready(mounted.owner);
-		const defaults = vbrDefaults(5);
-		defaults.settings.encoderType = 'fdk_he_aac';
+		const defaults = autoDefaults();
+		defaults.settings.encoderType = 'native_aac';
 		defaults.settings.bitrateKbps = 1000;
 		defaults.settings.nativeAacSpeed = 4;
 		defaults.settings.channels = 'stereo';
@@ -390,7 +363,7 @@ describe('encoding owner', () => {
 		expect(mounted.owner.audioRequest()).toMatchObject({
 			settings: {
 				bitrateKbps: 256,
-				bitrateMode: { mode: 'vbr', value: 4 },
+				bitrateMode: { mode: 'cbr' },
 				nativeAacSpeed: 2,
 				channels: 'mono',
 			},
@@ -416,7 +389,6 @@ describe('encoding owner', () => {
 			capabilities: encoderCaps({
 				availability: {
 					...runtimeSettingsCapabilitiesFixture().encoder.availability,
-					fdkAvailable: false,
 					aacAtAvailable: false,
 					nativeAacAvailable: true,
 					autoEncoder: 'native_aac',
@@ -427,9 +399,9 @@ describe('encoding owner', () => {
 
 		mounted.persist.mockClear();
 		mounted.owner.applyDefaults({
-			...vbrDefaults(3),
+			...autoDefaults(),
 			settings: {
-				...vbrDefaults(3).settings,
+				...autoDefaults().settings,
 				encoderType: 'aac_at',
 				bitrateMode: { mode: 'cvbr' },
 			},
@@ -449,33 +421,17 @@ describe('encoding owner', () => {
 		const load = vi.fn(() => pending);
 		mounted = mountEncoding({ load });
 		const missing = encoderCaps({
-			availability: { ...encoderCaps().availability, fdkAvailable: false },
+			availability: { ...encoderCaps().availability, aacAtAvailable: false },
 		});
 		await mounted.owner.reloadCapabilities(missing);
-		expect(
-			mounted.owner.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
-		).toBe('FDK AAC (Set up…)');
+		const appleDisabled = () =>
+			mounted!.owner.view().flavorOptions.find((option) => option.value === 'aac_at')?.disabled;
+		expect(appleDisabled()).toBe(true);
 		finish(encoderCaps());
 		await pending;
 		flush();
-		expect(
-			mounted.owner.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
-		).toBe('FDK AAC (Set up…)');
+		expect(appleDisabled()).toBe(true);
 		expect(load).toHaveBeenCalledTimes(1);
-		expect(mounted.persist).not.toHaveBeenCalled();
-	});
-
-	it('keeps afterburner across a capability reload', async () => {
-		mounted = mountEncoding();
-		await ready(mounted.owner);
-		mounted.owner.select('afterburner', 'true');
-		flush();
-		expect(mounted.owner.audioRequest().settings!.afterburner).toBe(true);
-		mounted.persist.mockClear();
-
-		await mounted.owner.reloadCapabilities();
-		flush();
-		expect(mounted.owner.audioRequest().settings!.afterburner).toBe(true);
 		expect(mounted.persist).not.toHaveBeenCalled();
 	});
 

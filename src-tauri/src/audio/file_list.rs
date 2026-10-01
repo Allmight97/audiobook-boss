@@ -12,8 +12,6 @@ use std::path::Path;
 pub struct FileListInfo {
     /// List of validated audio files
     pub files: Vec<AudioFile>,
-    /// Stable decoder identities aligned by index with `files`.
-    pub selected_decoders: Vec<Option<DecoderSelection>>,
     /// Total duration in seconds
     #[specta(type = specta_typescript::Number)]
     pub total_duration: f64,
@@ -26,13 +24,8 @@ pub struct FileListInfo {
     pub invalid_count: usize,
 }
 
-struct ValidatedAudioFile {
-    audio_file: AudioFile,
-    selected_decoder: Option<DecoderSelection>,
-}
-
 /// Validates a single audio file
-fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
+fn validate_single_file(path: &Path) -> Result<AudioFile> {
     let mut audio_file = AudioFile::new(path.to_path_buf());
 
     // Use shared validation first
@@ -44,10 +37,7 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
         }
         Err(e) => {
             audio_file.error = Some(e.to_string());
-            return Ok(ValidatedAudioFile {
-                audio_file,
-                selected_decoder: None,
-            });
+            return Ok(audio_file);
         }
     };
 
@@ -59,10 +49,7 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
         }
         Err(e) => {
             audio_file.error = Some(format!("Cannot read file metadata: {e}"));
-            return Ok(ValidatedAudioFile {
-                audio_file,
-                selected_decoder: None,
-            });
+            return Ok(audio_file);
         }
     };
 
@@ -92,20 +79,14 @@ fn validate_single_file(path: &Path) -> Result<ValidatedAudioFile> {
                 .map(|selection| selection.decoder_label.clone());
             audio_file.is_valid = true;
 
-            return Ok(ValidatedAudioFile {
-                audio_file,
-                selected_decoder: properties.selected_decoder,
-            });
+            return Ok(audio_file);
         }
         Err(e) => {
             audio_file.error = Some(e.to_string());
         }
     }
 
-    Ok(ValidatedAudioFile {
-        audio_file,
-        selected_decoder: None,
-    })
+    Ok(audio_file)
 }
 
 /// Validates audio format using ffmpeg-next and returns comprehensive metadata
@@ -255,7 +236,6 @@ fn validate_audio_format(path: &Path, file_size: u64) -> Result<AudioProperties>
 /// Gets comprehensive information about a file list
 pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListInfo> {
     let mut files = Vec::new();
-    let mut selected_decoders = Vec::new();
 
     if file_paths.is_empty() {
         return Err(AppError::InvalidInput(
@@ -264,9 +244,7 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
     }
 
     for path in file_paths {
-        let validated = validate_single_file(path.as_ref())?;
-        selected_decoders.push(validated.selected_decoder);
-        files.push(validated.audio_file);
+        files.push(validate_single_file(path.as_ref())?);
     }
 
     let mut total_duration = 0.0;
@@ -289,7 +267,6 @@ pub fn get_file_list_info<P: AsRef<Path>>(file_paths: &[P]) -> Result<FileListIn
 
     Ok(FileListInfo {
         files,
-        selected_decoders,
         total_duration,
         total_size,
         valid_count,

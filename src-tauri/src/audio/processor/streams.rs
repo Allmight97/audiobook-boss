@@ -26,7 +26,6 @@ impl DecoderCandidate {
         match self {
             Self::Default => "FFmpeg default decoder",
             Self::Named("aac_at") => "Apple AAC",
-            Self::Named("libfdk_aac") => "FDK AAC",
             Self::Named(name) => name,
         }
     }
@@ -44,12 +43,11 @@ impl DecoderCandidate {
 pub struct AacDecoderAvailability {
     pub default_aac: bool,
     pub aac_at: bool,
-    pub libfdk_aac: bool,
 }
 
 impl AacDecoderAvailability {
     pub fn has_named_decoder(self) -> bool {
-        self.aac_at || self.libfdk_aac
+        self.aac_at
     }
 }
 
@@ -101,7 +99,6 @@ pub fn detect_aac_decoder_availability() -> AacDecoderAvailability {
     AacDecoderAvailability {
         default_aac: ff::codec::decoder::find(ff::codec::Id::AAC).is_some(),
         aac_at: cfg!(target_os = "macos") && ff::codec::decoder::find_by_name("aac_at").is_some(),
-        libfdk_aac: ff::codec::decoder::find_by_name("libfdk_aac").is_some(),
     }
 }
 
@@ -121,10 +118,6 @@ fn build_named_aac_decoder_candidates(
 
     if cfg!(target_os = "macos") && availability.aac_at {
         candidates.push(DecoderCandidate::Named("aac_at"));
-    }
-
-    if availability.libfdk_aac {
-        candidates.push(DecoderCandidate::Named("libfdk_aac"));
     }
 
     candidates
@@ -781,7 +774,6 @@ mod tests {
         let availability = AacDecoderAvailability {
             default_aac: true,
             aac_at: false,
-            libfdk_aac: false,
         };
 
         assert!(!availability.has_named_decoder());
@@ -792,16 +784,15 @@ mod tests {
         let availability = AacDecoderAvailability {
             default_aac: true,
             aac_at: true,
-            libfdk_aac: true,
         };
 
         let labels = preferred_aac_decoder_order_labels(availability);
 
         #[cfg(target_os = "macos")]
-        assert_eq!(labels, vec!["default", "aac_at", "libfdk_aac"]);
+        assert_eq!(labels, vec!["default", "aac_at"]);
 
         #[cfg(not(target_os = "macos"))]
-        assert_eq!(labels, vec!["default", "libfdk_aac"]);
+        assert_eq!(labels, vec!["default"]);
     }
 
     #[test]
@@ -809,28 +800,11 @@ mod tests {
         let availability = AacDecoderAvailability {
             default_aac: true,
             aac_at: false,
-            libfdk_aac: true,
         };
 
         let candidates = build_aac_decoder_candidates(availability);
 
-        #[cfg(target_os = "macos")]
-        assert_eq!(
-            candidates,
-            vec![
-                DecoderCandidate::Default,
-                DecoderCandidate::Named("libfdk_aac")
-            ]
-        );
-
-        #[cfg(not(target_os = "macos"))]
-        assert_eq!(
-            candidates,
-            vec![
-                DecoderCandidate::Default,
-                DecoderCandidate::Named("libfdk_aac")
-            ]
-        );
+        assert_eq!(candidates, vec![DecoderCandidate::Default]);
     }
 
     #[test]
@@ -849,7 +823,6 @@ mod tests {
         let availability = AacDecoderAvailability {
             default_aac: true,
             aac_at: true,
-            libfdk_aac: true,
         };
 
         let candidates = build_aac_decoder_candidates_for_object_type(availability, Some(42));
@@ -857,21 +830,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         assert_eq!(
             candidates,
-            vec![
-                DecoderCandidate::Named("aac_at"),
-                DecoderCandidate::Named("libfdk_aac"),
-                DecoderCandidate::Default
-            ]
+            vec![DecoderCandidate::Named("aac_at"), DecoderCandidate::Default]
         );
 
         #[cfg(not(target_os = "macos"))]
-        assert_eq!(
-            candidates,
-            vec![
-                DecoderCandidate::Named("libfdk_aac"),
-                DecoderCandidate::Default
-            ]
-        );
+        assert_eq!(candidates, vec![DecoderCandidate::Default]);
     }
 
     #[test]
@@ -879,12 +842,12 @@ mod tests {
         let msg = format_decoder_selection_failure(
             Path::new("/tmp/example.m4b"),
             Some("USAC / xHE-AAC"),
-            &["default", "aac_at", "libfdk_aac"],
+            &["default", "aac_at"],
             "Decoder 'default' rejected packet 1",
         );
 
         assert!(msg.contains("No available decoder could read this USAC / xHE-AAC file"));
-        assert!(msg.contains("Attempted decoders: default, aac_at, libfdk_aac"));
+        assert!(msg.contains("Attempted decoders: default, aac_at"));
         assert!(msg.contains("First failure: Decoder 'default' rejected packet 1"));
     }
 
@@ -921,9 +884,5 @@ mod tests {
         let apple = DecoderCandidate::Named("aac_at").selection();
         assert_eq!(apple.decoder_id, "aac_at");
         assert_eq!(apple.decoder_label, "Apple AAC");
-
-        let fdk = DecoderCandidate::Named("libfdk_aac").selection();
-        assert_eq!(fdk.decoder_id, "libfdk_aac");
-        assert_eq!(fdk.decoder_label, "FDK AAC");
     }
 }

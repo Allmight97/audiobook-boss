@@ -28,8 +28,6 @@ pub struct AppSettings {
     pub encoder_defaults: EncoderDefaults,
     pub output_defaults: OutputDefaults,
     #[serde(default)]
-    pub toolchain: ToolchainPreferences,
-    #[serde(default)]
     pub startup_behavior: StartupBehavior,
     #[serde(default)]
     pub pinned_defaults: Option<PinnedDefaults>,
@@ -44,7 +42,6 @@ pub struct AppSettingsPatch {
     pub max_concurrent_jobs: Option<ConcurrencyPreference>,
     pub encoder_defaults: Option<EncoderDefaults>,
     pub output_defaults: Option<OutputDefaults>,
-    pub toolchain: Option<ToolchainPreferences>,
     pub startup_behavior: Option<StartupBehavior>,
     /// Set-only: pinning overwrites; reverting is switching `startup_behavior`
     /// back to `RememberLastState`, never unpinning.
@@ -75,17 +72,6 @@ pub struct PinnedDefaults {
     pub max_concurrent_jobs: ConcurrencyPreference,
     pub encoder_defaults: EncoderDefaults,
     pub output_defaults: OutputDefaults,
-}
-
-/// Durable toolchain preferences. Preference data only: the audio toolchain
-/// owner probes and validates the path before any runtime use.
-#[derive(
-    Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq, specta::Type,
-)]
-#[serde(rename_all = "camelCase")]
-pub struct ToolchainPreferences {
-    /// User-selected external FFmpeg binary expected to expose `libfdk_aac`.
-    pub external_ffmpeg_path: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, specta::Type)]
@@ -149,7 +135,6 @@ impl Default for AppSettings {
             max_concurrent_jobs: ConcurrencyPreference::Auto,
             encoder_defaults: EncoderDefaults::default(),
             output_defaults: OutputDefaults::default(),
-            toolchain: ToolchainPreferences::default(),
             startup_behavior: StartupBehavior::default(),
             pinned_defaults: None,
             default_acquisition_lane: AcquisitionLane::default(),
@@ -179,9 +164,6 @@ impl AppSettings {
         if let Some(output_defaults) = patch.output_defaults {
             self.output_defaults = output_defaults;
         }
-        if let Some(toolchain) = patch.toolchain {
-            self.toolchain = toolchain;
-        }
         if let Some(startup_behavior) = patch.startup_behavior {
             self.startup_behavior = startup_behavior;
         }
@@ -202,7 +184,6 @@ impl AppSettings {
         self.max_concurrent_jobs.validate()?;
         self.encoder_defaults.validate()?;
         self.output_defaults.normalize();
-        self.toolchain.normalize();
         if let Some(pinned) = self.pinned_defaults.as_mut() {
             // Same validators as the live values: a stale or hand-edited
             // pinned snapshot must never brick launch hydration.
@@ -262,16 +243,6 @@ impl OutputDefaults {
     fn normalize(&mut self) {
         self.output_directory = self
             .output_directory
-            .take()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-    }
-}
-
-impl ToolchainPreferences {
-    fn normalize(&mut self) {
-        self.external_ffmpeg_path = self
-            .external_ffmpeg_path
             .take()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());

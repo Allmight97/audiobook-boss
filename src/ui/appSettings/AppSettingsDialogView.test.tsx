@@ -3,10 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, AppSettingsRecoveryPlan } from '../../types/appSettings';
 import type { SettingsCapability } from '../../lib/tauri/capabilities/settings';
-import {
-	encoderAvailabilityFixture,
-	runtimeSettingsCapabilitiesFixture,
-} from '../../test/fixtures/runtimeSettingsCapabilities';
+import { runtimeSettingsCapabilitiesFixture } from '../../test/fixtures/runtimeSettingsCapabilities';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
 import { tauriClient } from '../../lib/tauri/client';
@@ -24,7 +21,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 				bitrateKbps: 64,
 				bitrateMode: { mode: 'vbr', value: 3 },
 				channels: 'auto',
-				afterburner: true,
 			},
 			sampleRate: 'auto',
 		},
@@ -34,7 +30,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 				includeYear: false,
 			},
 		},
-		toolchain: {},
 		startupBehavior: 'rememberLastState',
 		keepAwakeWhileWorking: true,
 		...overrides,
@@ -43,7 +38,6 @@ function settingsFixture(overrides: Partial<AppSettings> = {}): AppSettings {
 
 function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapability {
 	return {
-		openFdkSetup: vi.fn(async () => undefined),
 		getAppSettings: vi.fn(async () => settingsFixture()),
 		getAppSettingsRecovery: vi.fn(async () => null),
 		recoverAppSettings: vi.fn(async () => ({
@@ -57,7 +51,6 @@ function fakeSettings(overrides: Partial<SettingsCapability> = {}): SettingsCapa
 			}),
 		),
 		resetAppSettings: vi.fn(async () => settingsFixture()),
-		openFile: vi.fn(async () => null),
 		getMaxConcurrentJobs: vi.fn(async () => 4),
 		setMaxConcurrentJobs: vi.fn(async (value) => value ?? 4),
 		getRuntimeSettingsCapabilities: vi.fn(async () => runtimeSettingsCapabilitiesFixture()),
@@ -166,57 +159,6 @@ describe('AppSettingsDialogView', () => {
 		expect(screen.queryByText(/Saved defaults recovered/)).not.toBeInTheDocument();
 	});
 
-	it('routes missing FDK to setup and rechecks an installation without saving a path', async () => {
-		let fdkAvailable = false;
-		const app = await renderOpenDialog({
-			getRuntimeSettingsCapabilities: vi.fn(async () =>
-				runtimeSettingsCapabilitiesFixture({
-					encoder: { availability: encoderAvailabilityFixture({ fdkAvailable }) },
-				}),
-			),
-		});
-		app.encoding.applyDefaults({ ...app.encoding.readDefaults(), intent: 'encode' });
-		flush();
-		const encoder = screen.getByTestId('encoder-select');
-		expect(encoder).toHaveValue('native_aac');
-		expect((encoder as HTMLSelectElement).options).toHaveLength(4);
-		expect(screen.queryByRole('button', { name: 'FDK Afterburner' })).toBeNull();
-		await fireEvent.change(encoder, { target: { value: 'fdk_he_aac' } });
-		await vi.waitFor(() => expect(app.settings.dialog().checkingFdk).toBe(false));
-		expect(app.settings.dialog().isOpen).toBe(true);
-		expect(encoder).toHaveValue('native_aac');
-		expect(settings.openFdkSetup).not.toHaveBeenCalled();
-		await fireEvent.click(await screen.findByText('Check Homebrew FDK setup…'));
-		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
-		await vi.waitFor(() => expect(settings.openFdkSetup).toHaveBeenCalledTimes(1));
-		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(false);
-		fdkAvailable = true;
-		await fireEvent.click(screen.getByRole('button', { name: 'Recheck FDK' }));
-		await vi.waitFor(() =>
-			expect(
-				app.encoding.view().flavorOptions.find((option) => option.value === 'fdk_he_aac')?.label,
-			).toBe('FDK AAC'),
-		);
-		expect(app.settings.dialog().encoderAvailability?.fdkAvailable).toBe(true);
-		await fireEvent.change(encoder, { target: { value: 'fdk_he_aac' } });
-		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toBeInTheDocument();
-		expect(settings.updateAppSettings).toHaveBeenCalledTimes(1);
-	});
-
-	it('shows setup-launch and recheck failures without claiming FDK is ready', async () => {
-		const app = await renderOpenDialog({
-			openFdkSetup: vi.fn().mockRejectedValue(new Error('Terminal unavailable')),
-		});
-		await fireEvent.click(await screen.findByText('Check Homebrew FDK setup…'));
-		await fireEvent.click(screen.getByRole('button', { name: 'Continue in Terminal' }));
-		await vi.waitFor(() => expect(screen.getByText('Terminal unavailable')).toBeInTheDocument());
-		vi.mocked(settings.getRuntimeSettingsCapabilities).mockRejectedValue(new Error('Probe failed'));
-		await fireEvent.click(screen.getByRole('button', { name: 'Recheck FDK' }));
-		await vi.waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Probe failed'));
-		expect(app.settings.dialog().encoderAvailability).toBeNull();
-		expect(app.settings.dialog().checkingFdk).toBe(false);
-	});
-
 	it('requires a second activation before resetting all settings', async () => {
 		await renderOpenDialog();
 
@@ -237,28 +179,21 @@ describe('AppSettingsDialogView', () => {
 		runtime!.encoding.applyDefaults({ ...runtime!.encoding.readDefaults(), intent: 'encode' });
 		flush();
 		await fireEvent.change(screen.getByTestId('encoder-select'), {
-			target: { value: 'fdk_he_aac' },
+			target: { value: 'faac' },
 		});
-		await fireEvent.click(screen.getByRole('button', { name: 'FDK Afterburner' }));
 		await vi.waitFor(() =>
 			expect(screen.getByRole('button', { name: 'Retry save' })).toBeInTheDocument(),
 		);
 		expect(screen.getByRole('status')).toHaveTextContent(
 			'Your current choices still apply for this session. Disk full',
 		);
-		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toHaveAttribute(
-			'aria-pressed',
-			'true',
-		);
+		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
 		vi.mocked(settings.updateAppSettings).mockResolvedValue(settingsFixture());
 		await fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
 		await vi.waitFor(() =>
 			expect(screen.queryByText("Settings haven't been saved")).not.toBeInTheDocument(),
 		);
-		expect(screen.getByRole('button', { name: 'FDK Afterburner' })).toHaveAttribute(
-			'aria-pressed',
-			'true',
-		);
+		expect(screen.getByTestId('encoder-select')).toHaveValue('faac');
 	});
 
 	it('returns to idle when the confirm step is cancelled', async () => {
@@ -418,9 +353,7 @@ describe('AppSettingsDialogView', () => {
 		await fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
 		await fireEvent.input(screen.getByLabelText('API key'), { target: { value: 'draft-secret' } });
 		getConnection.mockClear();
-		await fireEvent.input(screen.getByTestId('app-settings-ffmpeg-path'), {
-			target: { value: '/tmp/ffmpeg' },
-		});
+		await fireEvent.click(screen.getByTestId('app-settings-keep-awake-checkbox'));
 		expect(getConnection).not.toHaveBeenCalled();
 		expect(screen.getByLabelText('URL')).toHaveValue('http://draft:9696');
 		expect(screen.getByLabelText('API key')).toHaveValue('draft-secret');

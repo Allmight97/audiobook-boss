@@ -35,10 +35,8 @@ commands over invoking internals directly.
 - Media execution: real-media workflow
   tests live in `src-tauri/tests/cases/integration_media_execution_tests.rs`
   and run inside the normal runtime suite. Covers WAV, M4B, MP3, and Opus inputs,
-  the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (external
-  FDK is excluded: it needs a user-supplied libfdk_aac FFmpeg, so
-  real-execution proof for it is manual or env-gated only; Apple AAC is
-  macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
+  the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
+  AAC is macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
   channel preservation (per-channel RMS),
   cover art, chapters, metadata round-trips, MP3 stack pass-through, Opus M4A/MKA
   timing and packet-preserved remuxing, mixed-mode
@@ -48,10 +46,7 @@ commands over invoking internals directly.
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
   (keep synthesized fixtures small). Do not
   add broad media gates or committed fixtures beyond this lane without a new
-  owner decision. On a host with external FDK, explicitly run the ignored FAAC
-  re-import proof with `cargo nextest run -p audiobook-boss --features
-  bundled-ffmpeg --test all_tests --run-ignored only -E
-  'test(faac_reimport_through_external_fdk_preserves_audio_interval)'`.
+  owner decision.
 
 ## Command Menu
 
@@ -210,5 +205,4 @@ commands over invoking internals directly.
   (gitignored; any `exit 0` script satisfies the resource check).
 - Linux proves the Native AAC/media lane, metadata round-trips, and frontend
   checks; it cannot prove Apple AAC/AudioToolbox behavior. Use a real macOS
-  runner or this repo's local macOS checkout for Apple AAC proof. External FDK
-  remains manual/env-gated by design.
+  runner or this repo's local macOS checkout for Apple AAC proof.

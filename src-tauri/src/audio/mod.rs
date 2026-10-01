@@ -1,7 +1,7 @@
 //! Audio media module for audiobook creation
 //!
 //! This module handles file list management, audio settings, media probing,
-//! encoder/toolchain selection, and the media processor engine.
+//! encoder selection, and the media processor engine.
 
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,6 @@ mod processor;
 mod settings;
 mod settings_capabilities;
 mod settings_encoder;
-mod toolchain;
 
 /// Represents an audio file with metadata
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -153,16 +152,12 @@ pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     Ok(())
 }
 pub use settings_capabilities::{
-    encoder_settings_capabilities, EncoderConfigurationCapability, EncoderSettingsCapabilities,
+    detect_encoder_availability, encoder_settings_capabilities, EncoderAvailability,
+    EncoderConfigurationCapability, EncoderSettingsCapabilities,
 };
 pub use settings_encoder::{
-    resolve_encoder_name, resolve_encoder_type, validate_encoder_settings,
-    validate_requested_encoder_available, BitrateMode, BitrateModeKind, ChannelConfig,
-    EncoderSettings, EncoderType, FaacProfile, FdkProfile,
-};
-pub use toolchain::{
-    detect_encoder_availability, set_user_external_ffmpeg_path, EncoderAvailability,
-    EncoderCapabilitySource,
+    resolve_encoder_name, validate_encoder_settings, BitrateMode, BitrateModeKind, ChannelConfig,
+    EncoderSettings, EncoderType, FaacProfile,
 };
 
 // Crate-internal cleanup strip used by owned backend boundaries.
@@ -181,10 +176,7 @@ pub(crate) fn cleanup_abandoned_processing_workspaces(
 #[cfg(test)]
 mod contract_tests;
 
-pub(crate) use toolchain::open_fdk_setup;
-
 mod output_plan;
-pub(crate) use output_plan::AudioPlanner;
 pub use output_plan::{
     resolve_title_audio, AudioIntent, AudiobookFormat, TitleAudioPlan, TitleAudioRequest,
 };

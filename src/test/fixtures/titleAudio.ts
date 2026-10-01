@@ -10,7 +10,6 @@ export function titleAudioRequest(overrides: Partial<TitleAudioRequest> = {}): T
 			bitrateKbps: 64,
 			bitrateMode: { mode: 'cbr' },
 			channels: 'auto',
-			afterburner: false,
 			nativeAacSpeed: 0,
 			faacProfile: 'auto',
 		},

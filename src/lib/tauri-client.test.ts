@@ -37,7 +37,6 @@ describe('tauriClient', () => {
 					outputDirectory: null,
 					outputNaming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 				},
-				toolchain: { externalFfmpegPath: null },
 				startupBehavior: 'rememberLastState',
 				pinnedDefaults: null,
 				defaultAcquisitionLane: 'audible',
@@ -47,7 +46,6 @@ describe('tauriClient', () => {
 		expect(invoke).toHaveBeenLastCalledWith('recover_app_settings', { expected: plan });
 		expect(recovered.backupFileName).toBe('app-settings.before-recovery-test.json');
 		expect(recovered.settings.pinnedDefaults).toBeUndefined();
-		expect(recovered.settings.toolchain?.externalFfmpegPath).toBeUndefined();
 	});
 
 	describe('dialog helpers', () => {
@@ -341,7 +339,7 @@ describe('tauriClient nullish adapters', () => {
 		expect(result.results[0]?.previewActualSeconds).toBeUndefined();
 	});
 
-	it('loads runtime settings capabilities without external toolchain input', async () => {
+	it('loads runtime settings capabilities', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
 		mockInvoke.mockResolvedValueOnce(runtimeSettingsCapabilitiesFixture());
@@ -387,7 +385,6 @@ describe('tauriClient nullish adapters', () => {
 			bitrateKbps: 96,
 			bitrateMode: { mode: 'cbr' },
 			channels: 'stereo',
-			afterburner: false,
 			nativeAacSpeed: 4,
 			faacProfile: 'auto',
 		} satisfies EncoderSettings;
