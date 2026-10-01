@@ -19,11 +19,11 @@ pub use types::{
 
 static SETTINGS_UPDATE_LOCK: Mutex<()> = Mutex::new(());
 
-pub fn get_app_settings(config_dir: &Path) -> Result<AppSettings> {
+fn get_app_settings(config_dir: &Path) -> Result<AppSettings> {
     storage::load(config_dir)
 }
 
-pub fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result<AppSettings> {
+fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result<AppSettings> {
     let _guard = settings_update_lock()?;
     let current = storage::load(config_dir)?;
     let settings = current.merge(patch)?;
@@ -31,17 +31,17 @@ pub fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result
     Ok(settings)
 }
 
-pub fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {
+fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {
     let _guard = settings_update_lock()?;
     storage::reset(config_dir)?;
     Ok(AppSettings::default())
 }
 
-pub fn get_app_settings_recovery(config_dir: &Path) -> Result<Option<AppSettingsRecoveryPlan>> {
+fn get_app_settings_recovery(config_dir: &Path) -> Result<Option<AppSettingsRecoveryPlan>> {
     storage::recovery_plan(config_dir)
 }
 
-pub fn recover_app_settings(
+fn recover_app_settings(
     config_dir: &Path,
     expected: AppSettingsRecoveryPlan,
 ) -> Result<AppSettingsRecoveryResult> {
