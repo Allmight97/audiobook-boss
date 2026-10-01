@@ -9,11 +9,6 @@ publish = false
 name = "abb-dev"
 path = "src/bin/abb_dev.rs"
 
-[[bin]]
-name = "verify_aac_decoder_contract"
-path = "src/bin/verify_aac_decoder_contract.rs"
-required-features = ["bundled-ffmpeg"]
-
 [lib]
 # ABB treats backend contract coverage as unit/integration tests plus IPC and
 # boundary checks; rustdoc examples are not a supported test surface today.

@@ -40,32 +40,9 @@ impl DecoderCandidate {
 
 /// Decoder presence for the current build; file compatibility requires trial decoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AacDecoderAvailability {
-    pub default_aac: bool,
-    pub aac_at: bool,
-}
-
-impl AacDecoderAvailability {
-    pub fn has_named_decoder(self) -> bool {
-        self.aac_at
-    }
-
-    /// Every build needs software AAC decoding; macOS also promises Apple AAC.
-    /// Presence is a build contract, while actual file compatibility is trial-decoded.
-    pub fn validate_runtime_contract(self) -> Result<()> {
-        if !self.default_aac {
-            return Err(AppError::General(
-                "AAC decoder contract failed: required FFmpeg AAC decoder is missing.".into(),
-            ));
-        }
-        if cfg!(target_os = "macos") && !self.aac_at {
-            return Err(AppError::General(
-                "AAC decoder contract failed: required macOS Apple AAC decoder aac_at is missing."
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+struct AacDecoderAvailability {
+    default_aac: bool,
+    aac_at: bool,
 }
 
 struct OpenedAudioInput {
@@ -109,23 +86,13 @@ fn best_audio_stream<'a>(
     })
 }
 
-/// Returns the runtime AAC decoder availability for the current FFmpeg build.
-pub fn detect_aac_decoder_availability() -> AacDecoderAvailability {
+fn detect_aac_decoder_availability() -> AacDecoderAvailability {
     let _ = ff::init();
 
     AacDecoderAvailability {
         default_aac: ff::codec::decoder::find(ff::codec::Id::AAC).is_some(),
         aac_at: cfg!(target_os = "macos") && ff::codec::decoder::find_by_name("aac_at").is_some(),
     }
-}
-
-pub fn preferred_aac_decoder_order_labels(
-    availability: AacDecoderAvailability,
-) -> Vec<&'static str> {
-    build_aac_decoder_candidates(availability)
-        .into_iter()
-        .map(DecoderCandidate::stable_id)
-        .collect()
 }
 
 fn build_named_aac_decoder_candidates(
@@ -156,7 +123,7 @@ fn build_aac_decoder_candidates_for_object_type(
     availability: AacDecoderAvailability,
     audio_object_type: Option<u32>,
 ) -> Vec<DecoderCandidate> {
-    if audio_object_type == Some(42) && availability.has_named_decoder() {
+    if audio_object_type == Some(42) && availability.aac_at {
         let mut candidates = build_named_aac_decoder_candidates(availability);
         if availability.default_aac {
             candidates.push(DecoderCandidate::Default);
@@ -735,8 +702,8 @@ mod tests {
     use super::{
         aac_audio_object_type_label, build_aac_decoder_candidates,
         build_aac_decoder_candidates_for_object_type, build_decoder_candidates_from_parameters,
-        format_decoder_selection_failure, friendly_codec_label_from_id,
-        parse_aac_audio_object_type, preferred_aac_decoder_order_labels, AacDecoderAvailability,
+        detect_aac_decoder_availability, format_decoder_selection_failure,
+        friendly_codec_label_from_id, parse_aac_audio_object_type, AacDecoderAvailability,
         DecoderCandidate,
     };
     use ffmpeg_next as ff;
@@ -787,19 +754,35 @@ mod tests {
     }
 
     #[test]
-    fn preferred_aac_decoder_order_respects_named_decoder_priority() {
+    fn linked_ffmpeg_provides_required_aac_decoders() {
+        // AAC import needs FFmpeg's decoder everywhere; macOS also promises Apple AAC.
+        let availability = detect_aac_decoder_availability();
+
+        assert!(availability.default_aac, "FFmpeg AAC decoder is not linked");
+        assert_eq!(
+            availability.aac_at,
+            cfg!(target_os = "macos"),
+            "Apple AAC decoder linkage must match the macOS target"
+        );
+    }
+
+    #[test]
+    fn aac_candidates_try_default_before_named_decoders() {
         let availability = AacDecoderAvailability {
             default_aac: true,
             aac_at: true,
         };
 
-        let labels = preferred_aac_decoder_order_labels(availability);
+        let candidates = build_aac_decoder_candidates(availability);
 
         #[cfg(target_os = "macos")]
-        assert_eq!(labels, vec!["default", "aac_at"]);
+        assert_eq!(
+            candidates,
+            vec![DecoderCandidate::Default, DecoderCandidate::Named("aac_at")]
+        );
 
         #[cfg(not(target_os = "macos"))]
-        assert_eq!(labels, vec!["default"]);
+        assert_eq!(candidates, vec![DecoderCandidate::Default]);
     }
 
     #[test]

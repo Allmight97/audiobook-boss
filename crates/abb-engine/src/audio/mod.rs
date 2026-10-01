@@ -134,9 +134,6 @@ pub use imports::{
 };
 pub use path_validation::{validate_input_audio_path, validate_input_image_path};
 pub(crate) use processor::validate_preserved_title;
-pub use processor::{
-    detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
-};
 pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
 pub use settings::{
     validate_output_path, validate_preserved_output_path, validate_sample_rate_config,

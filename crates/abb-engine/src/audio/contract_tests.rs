@@ -2,28 +2,8 @@ use std::path::Path;
 
 use crate::audio::{
     supported_audio_import_metadata, validate_encoder_settings, validate_input_audio_path,
-    AacDecoderAvailability, AudioFile, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
+    AudioFile, BitrateMode, ChannelConfig, EncoderSettings, EncoderType,
 };
-
-#[test]
-fn runtime_aac_decoder_contract_rejects_missing_required_decoders() {
-    for (default_aac, aac_at, valid) in [
-        (false, false, false),
-        (false, true, false),
-        (true, false, !cfg!(target_os = "macos")),
-        (true, true, true),
-    ] {
-        let availability = AacDecoderAvailability {
-            default_aac,
-            aac_at,
-        };
-        assert_eq!(
-            availability.validate_runtime_contract().is_ok(),
-            valid,
-            "default_aac={default_aac} aac_at={aac_at}"
-        );
-    }
-}
 
 #[test]
 fn audio_contract_supported_import_metadata_exposes_m4b_family() {
