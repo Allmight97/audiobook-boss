@@ -216,8 +216,8 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
-    /// Gives a finished job's files to the session. If none was imported,
-    /// the staged files are removed.
+    /// Gives a finished job's files to the session and records how that went.
+    /// The session decides when the staged files go, imported or not.
     pub(super) async fn hand_off(&self, runtime: &RemoteSourceRuntime, job: RemoteAcquisitionJob) {
         let ready = job.status == types::RemoteAcquisitionStatus::Validated
             && !job.materialized_files.is_empty()
@@ -443,12 +443,9 @@ impl RemoteAcquisitionLifecycle {
 
     fn purge_session(&self, job_id: &str) -> Result<()> {
         self.abort_acquisition_task(job_id);
-        self.staging.purge_session(job_id)?;
-        self.jobs
-            .lock()
-            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
-            .remove(job_id);
-        Ok(())
+        // The job's record stays: its handoff outcome may still be on its
+        // way to hosts, and logout clears records.
+        self.staging.purge_session(job_id)
     }
 }
 

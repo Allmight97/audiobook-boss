@@ -175,7 +175,7 @@ commands over invoking internals directly.
 
 - `Cargo.lock` and `bun.lock` are resolution truth; CI and verification
   installs run frozen or locked. Manifest ranges stay compatible; exact pins are
-  for prerelease families (Solid, Effect and their companions; Specta),
+  for prerelease families (Solid and its companions; Specta),
   cross-version type boundaries, synchronized families, and vendored or
   provenance-sensitive dependencies.
 - Fresh Bun resolutions wait 10 days (`bunfig.toml` `minimumReleaseAge`) and

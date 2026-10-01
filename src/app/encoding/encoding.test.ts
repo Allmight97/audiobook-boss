@@ -103,33 +103,4 @@ describe('encoding owner', () => {
 		// The defaults describe future imports, so they name no source.
 		expect(app.encoding.view().sampleRateHint).toBe('Auto -> source audio');
 	});
-
-	it('estimates a title from its resolved plan, or from the engine when none is resolved', async () => {
-		const app = await open();
-		const [alpha] = titles(app);
-
-		expect(app.encoding.estimateTitleKbps(alpha)).toBe(65);
-		engine.change((state) => {
-			state.audio.titles[alpha.inputId ?? ''].facts.estimateKbps = null;
-		});
-		expect(app.encoding.estimateTitleKbps(alpha)).toBeNull();
-		expect(
-			app.encoding.estimateTitleKbps(alpha, {
-				format: 'm4b',
-				handling: 'encode',
-				settings: {
-					encoderType: 'native_aac',
-					bitrateKbps: 128,
-					bitrateMode: { mode: 'cbr' },
-					channels: 'auto',
-					nativeAacSpeed: 0,
-					faacProfile: 'auto',
-				},
-				sampleRate: 44100,
-				channels: 2,
-				sourceCodec: 'aac',
-				reason: null,
-			}),
-		).toBe(128);
-	});
 });

@@ -1,5 +1,6 @@
 //! The working session: the titles being prepared, the metadata edits made
-//! to them, and the lookup that helps fill those edits in.
+//! to them, the lookup that helps fill those edits in, each title's audio
+//! choice, output naming, submission, and the downloads it imported.
 //!
 //! A host sends [`SessionIntent`]s and renders [`SessionUpdate`]s. Rules live
 //! in the state modules; `runtime` performs the file and network work they

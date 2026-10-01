@@ -18,7 +18,9 @@ use abb_engine::output_artifact::{CollisionPolicy, NamingPreset};
 use abb_engine::session::{
     AudioEdit, MetadataField, SessionIntent, SessionOutcome, SessionUpdate, SubmissionStatus,
 };
-use abb_engine::work_runtime::{OperationId, OperationSnapshot, WorkOperationStatus};
+use abb_engine::work_runtime::{
+    ChildJobStatus, OperationId, OperationSnapshot, WorkOperationStatus,
+};
 use abb_engine::{Engine, EngineConfig, EngineEvent, EventSink};
 
 const USAGE: &str = "\
@@ -385,6 +387,20 @@ fn print_export(operation: &OperationSnapshot) {
     }
 }
 
+/// Succeeds only when every title was published, or when the only titles
+/// not published are the one `--cancel-title` cancelled.
+fn export_verdict(operation: &OperationSnapshot, cancelled_one: bool) -> Result<(), String> {
+    let published = |child: &abb_engine::work_runtime::ChildJobSnapshot| {
+        child.status == ChildJobStatus::Completed
+            || (cancelled_one && child.status == ChildJobStatus::Cancelled)
+    };
+    if operation.children.iter().all(published) {
+        Ok(())
+    } else {
+        Err(format!("the export ended {:?}", operation.status))
+    }
+}
+
 /// Exports or previews, and prints how it went.
 async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
     match submit(engine, options).await? {
@@ -395,17 +411,17 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
             eprintln!("Exporting {title}");
             let operation = follow(engine, &operation_id, options.cancel_title).await?;
             print_export(&operation);
-            Ok(())
+            export_verdict(&operation, options.cancel_title.is_some())
         }
         SubmissionStatus::PreviewFinished { result } => {
-            for entry in result.results {
-                let output = entry
-                    .output_path
-                    .map(|path| path.to_string())
-                    .unwrap_or_default();
+            for entry in &result.results {
+                let output = entry.output_path.clone().unwrap_or_default();
                 println!("Preview {}: {:?} {output}", entry.input_index, entry.status);
             }
-            Ok(())
+            match result.terminal_class {
+                abb_engine::processing::RunTerminalClass::Success => Ok(()),
+                other => Err(format!("the preview ended {other:?}")),
+            }
         }
         other => Err(format!("not exported: {other:?}")),
     }

@@ -24,8 +24,7 @@ export function isAcquisitionSettled(job: AcquisitionJobWithProgress): boolean {
 	return isAcquisitionTerminal(job) && job.materializedFiles.length === 0;
 }
 
-const STAGED_FILES_REMOVED_SUFFIX =
-	'Staged remote files were removed; retry acquisition after processing completes.';
+const STAGED_FILES_REMOVED_SUFFIX = 'Staged remote files were removed.';
 
 /** Words how a settled job's files reached the session; `null` when it never got that far. */
 export function handoffMessage(job: AcquisitionJobWithProgress): string | null {
@@ -42,8 +41,6 @@ export function handoffMessage(job: AcquisitionJobWithProgress): string | null {
 	}
 	const reason = handoff.reason;
 	switch (reason.kind) {
-		case 'orderLocked':
-			return `Order locked while processing. Wait for completion to add files. ${STAGED_FILES_REMOVED_SUFFIX}`;
 		case 'importFailed':
 			return `${toUserMessage(reason.error)} ${STAGED_FILES_REMOVED_SUFFIX}`;
 		case 'nothingAdded':

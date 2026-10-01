@@ -2,7 +2,7 @@
 
 `src-tauri` is one UI host for the engine. It carries requests from the
 webview to `abb_engine::Engine`, forwards `EngineEvent`s as Tauri events, and
-owns the window, native dialogs, and the quit warning. Product rules live in
+owns the window, native dialogs, and quit handling (engine shutdown). Product rules live in
 the engine: `crates/abb-engine/AGENTS.md`.
 
 ## What The Host Owns
@@ -20,9 +20,10 @@ the engine: `crates/abb-engine/AGENTS.md`.
   settings intents are numbered separately (`FrontendLink`).
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
-- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled
-  (or a short timeout passes), and asks first when `Engine::running_work`
-  reports exports still running.
+- **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled,
+  and asks first when `Engine::running_work` reports exports still running.
+  A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
+  waiting; the process exits early only when the user chooses Quit Now.
 
 ## Rules
 

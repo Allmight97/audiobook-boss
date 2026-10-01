@@ -274,8 +274,9 @@ impl WorkRuntime {
         Ok(lock_state(&self.inner.state)?.list())
     }
 
-    /// Accepted operations that have not finished.
-    pub(crate) fn unfinished_operations(&self) -> Vec<OperationId> {
+    /// Accepted exports that have not finished. Metadata Saves are left out:
+    /// shutdown lets them finish rather than cancelling them.
+    pub(crate) fn unfinished_exports(&self) -> Vec<OperationId> {
         let Ok(state) = lock_state(&self.inner.state) else {
             return Vec::new();
         };
@@ -283,7 +284,10 @@ impl WorkRuntime {
             .list()
             .operations
             .into_iter()
-            .filter(|operation| !super::terminal::is_terminal(operation.status))
+            .filter(|operation| {
+                operation.kind == crate::processing::OperationKind::ProcessingBatch
+                    && !super::terminal::is_terminal(operation.status)
+            })
             .map(|operation| operation.operation_id)
             .collect()
     }

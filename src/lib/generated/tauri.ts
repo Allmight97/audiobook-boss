@@ -510,9 +510,7 @@ export type FrontendLogEntry = {
 
 export type FrontendLogLevel = "error" | "warn";
 
-export type HandoffRefusal =
-/**  The list was locked by an export being prepared. */
-{ kind: "orderLocked" } | { kind: "importFailed"; error: AppErrorEnvelope } |
+export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 /**  The files were already listed, or a reset dropped the import. */
 { kind: "nothingAdded" };
 

@@ -1287,3 +1287,35 @@ async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refu
         1
     );
 }
+
+#[tokio::test]
+async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_unlocks() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    rig.load(&["alpha"]);
+    rig.select(&[0]).await;
+    let draft = rig
+        .session
+        .transition(|state| {
+            state.output.set_directory("/library".to_string());
+            state.begin_submission(None)
+        })
+        .expect("a submission locks the list");
+
+    let audio = staged_wav(staging.path(), "book");
+    let session = rig.session.clone();
+    let handoff =
+        tokio::spawn(async move { session.import_acquired(acquired("job-1", &audio)).await });
+    for _ in 0..20 {
+        tokio::task::yield_now().await;
+    }
+    assert!(!handoff.is_finished(), "the download waits for the list");
+
+    rig.session
+        .end_submission(&draft, SubmissionStatus::Cancelled);
+    assert_eq!(
+        handoff.await.expect("handoff"),
+        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+    );
+    assert!(rig.removed.lock().expect("removed").is_empty());
+}

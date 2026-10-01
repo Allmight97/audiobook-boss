@@ -21,7 +21,7 @@
 - Import goes through Input's import intents so the engine validates paths
   and analyzes files.
 - Import must not add files while processing order is locked.
-- Do not import a leftover file-list store for Remote handoff.
+- The engine imports acquired files; this view does not.
 
 ## Done Criteria
 

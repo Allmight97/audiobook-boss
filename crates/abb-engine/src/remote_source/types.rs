@@ -293,8 +293,6 @@ pub enum AcquisitionHandoff {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum HandoffRefusal {
-    /// The list was locked by an export being prepared.
-    OrderLocked,
     ImportFailed {
         error: crate::errors::AppErrorEnvelope,
     },

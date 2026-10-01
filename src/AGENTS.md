@@ -11,8 +11,8 @@
 - The metadata batch save runs as a WorkRuntime operation rendered by Work
   Center; read `src/app/workOperations/AGENTS.md` when changing its display.
 - Settings acceptance and persistence belong to the engine
-  (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog and
-  startup handoff follow `src/app/appSettings/AGENTS.md`.
+  (`crates/abb-engine/src/app_settings/AGENTS.md`); the Settings dialog
+  follows `src/app/appSettings/AGENTS.md`.
 - The remote-source dialog belongs to `src/app/remoteSource` and
   `src/ui/remoteSource`; the engine imports acquired audio into the session
   and decides when downloads go. Provider secrets and raw provider payloads

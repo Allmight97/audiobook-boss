@@ -18,8 +18,8 @@ not keep parallel business state.
   edits, lookup, Save, audio choices, output naming, submission, or settings
   goes in the engine, not here.
 - **Frontend owners**: `workOperations`, `remoteSource`, and the preview
-  progress panel in `processing`. They still hold their own workflow until it
-  moves into the engine. New product rules go in the engine even here.
+  progress panel in `processing`. They hold their own workflow; new product
+  rules go in the engine even here.
 
 ## Engine Link
 
@@ -34,8 +34,8 @@ not keep parallel business state.
 - A part that arrives unchanged keeps object identity for its files and lookup
   results, so Solid rows are not rebuilt and a click does not land on a
   replaced element.
-- Typed text (form fields, lookup queries, the naming template) shows immediately and drops when
-  the engine's reply for that keystroke arrives. Form typing shows only on the
+- Adapters show typed text (form fields, lookup queries, the naming template)
+  immediately and drop it when the engine's reply for that keystroke arrives. Form typing shows only on the
   form it was typed into (the metadata part's `binding`). This local echo is
   display only; it never decides what is saved.
 
@@ -77,10 +77,11 @@ not keep parallel business state.
 - The owner has one source of truth, one public interface, and one disposal
   path. Cross-owner reads use public strips; views render and dispatch only.
 - Adapter and UI tests run against `src/test/fixtures/fakeEngine.ts`. It
-  records every intent, imports and selects titles, renders the form from
-  seeded tags and typed values, and answers settings intents with a small
-  write model. It copies no engine rule: grouping, ordering, Save, lookup,
-  cover loads, and audio edits are recorded only. A test that needs the
+  records every intent, applies plain list mechanics (import append,
+  selection, removal, output echo), renders the form from seeded tags and
+  typed values, and answers settings intents with a small write model. It
+  copies no engine decision: grouping, ordering, Save, lookup, cover loads,
+  and audio edits are recorded only. A test that needs the
   engine's answer seeds it with `change`, `respond`, `answerSubmission`, or a
   `seed*` method; never add a product rule there.
 - Add App Runtime two-instance proof when isolation changes.

@@ -12,8 +12,8 @@
 ## Public API Strip
 
 - Import `createEncodingOwner` and owner types from `src/app/encoding`.
-- `index.ts` is the export surface. `owner.ts`, `project.ts`, `hints.ts`, and
-  `estimate.ts` are private.
+- `index.ts` is the export surface. `owner.ts`, `project.ts`, and `hints.ts`
+  are private.
 
 ## What Stays Here
 
@@ -29,8 +29,8 @@
 
 ## Testing
 
-- `encoding.test.ts` covers the intents each control sends, the panel's terms
-  for an engine choice, and the estimate a title shows.
+- `encoding.test.ts` covers the intents each control sends and the panel's
+  terms for an engine choice.
 - Audio choice rules are proved in `session/audio_choice_tests.rs`.
 - Panel interactions live in `src/ui/__tests__/encoderPanel-*.test.tsx`.
 

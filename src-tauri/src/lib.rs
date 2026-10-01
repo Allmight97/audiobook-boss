@@ -113,11 +113,56 @@ struct Quit {
     done: AtomicBool,
 }
 
-/// How long quitting waits for the engine to settle before exiting anyway.
+/// How long quitting waits for the engine to settle before asking whether
+/// to keep waiting.
 const SHUTDOWN_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
+/// Awaits `shutdown`, asking after each `SHUTDOWN_WAIT` whether to keep
+/// waiting. Returns whether it settled; `false` only when the user chose to
+/// quit anyway.
+async fn settle_or_ask<A>(
+    shutdown: impl std::future::Future<Output = ()>,
+    mut keep_waiting: impl FnMut() -> A,
+) -> bool
+where
+    A: std::future::Future<Output = bool>,
+{
+    tokio::pin!(shutdown);
+    loop {
+        if tokio::time::timeout(SHUTDOWN_WAIT, &mut shutdown)
+            .await
+            .is_ok()
+        {
+            return true;
+        }
+        if !keep_waiting().await {
+            return false;
+        }
+    }
+}
+
+/// Asks whether to keep waiting for a shutdown that has not settled.
+async fn ask_to_keep_waiting(app: tauri::AppHandle) -> bool {
+    let (answer, answered) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(
+            "ABB is still finishing: metadata changes are being written and running work \
+             is stopping. Quitting now can leave those changes unsaved.",
+        )
+        .title("Still finishing")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Keep Waiting".to_string(),
+            "Quit Now".to_string(),
+        ))
+        .show(move |wait| {
+            let _ = answer.send(wait);
+        });
+    answered.await.unwrap_or(false)
+}
+
 /// Shuts the engine down, then exits. Exports are cancelled, waiting saves
-/// written, and every background task settled before the process ends.
+/// written, and every background task settled before the process ends,
+/// unless the user chooses to quit before then.
 fn shut_down_then_exit(app: &tauri::AppHandle) {
     let quit = app.state::<Quit>();
     if quit.shutting_down.swap(true, Ordering::SeqCst) {
@@ -126,11 +171,11 @@ fn shut_down_then_exit(app: &tauri::AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Some(engine) = app.try_state::<abb_engine::Engine>() {
-            if tokio::time::timeout(SHUTDOWN_WAIT, engine.shutdown())
-                .await
-                .is_err()
-            {
-                log::warn!("Engine shutdown did not settle in time; exiting anyway");
+            let engine = engine.inner().clone();
+            let settled =
+                settle_or_ask(engine.shutdown(), || ask_to_keep_waiting(app.clone())).await;
+            if !settled {
+                log::warn!("Quit before the engine settled, at the user's choice");
             }
         }
         app.state::<Quit>().done.store(true, Ordering::SeqCst);
@@ -313,5 +358,34 @@ mod tests {
 
         assert_eq!(width, 962.0);
         assert_eq!(height, 601.0);
+    }
+}
+
+#[cfg(test)]
+mod quit_tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{settle_or_ask, SHUTDOWN_WAIT};
+
+    #[tokio::test(start_paused = true)]
+    async fn an_unsettled_shutdown_waits_until_the_user_chooses_to_quit() {
+        let asked = AtomicUsize::new(0);
+        let settled = settle_or_ask(std::future::pending::<()>(), || {
+            let times = asked.fetch_add(1, Ordering::SeqCst) + 1;
+            // Keep waiting once, then quit.
+            async move { times < 2 }
+        })
+        .await;
+        assert!(!settled);
+        assert_eq!(asked.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_shutdown_that_settles_in_time_asks_nothing() {
+        let settled = settle_or_ask(tokio::time::sleep(SHUTDOWN_WAIT / 2), || async {
+            panic!("asked although shutdown settled")
+        })
+        .await;
+        assert!(settled);
     }
 }

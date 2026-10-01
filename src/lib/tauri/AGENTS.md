@@ -5,7 +5,7 @@
   `src/lib/tauri-public-api.contract.test.ts` independently pins it. Inspect
   those sources for the exact exports and methods before changing the strip.
 - Runtime UI modules call `tauriClient`; generated command/event invokers stay private to `src/lib/tauri`.
-- Encoder settings validation travels through processing preflight or a
+- Encoder settings validation travels through a session audio edit or a
   settings intent; there is no standalone encoder-validation command.
 - `capabilities/*` are the narrow interfaces owners take as dependencies
   (`EngineCapability` for `engineLink`), with a live implementation over
@@ -40,14 +40,10 @@
 - Change private adapters when generated-binding, Public API Strip, and targeted
   runtime Vitest checks stay green.
 - Keep command and type names semantic; avoid `_v1`/`_v2` version suffixes and `_cmd` command suffixes. Breaking changes get a new product-meaningful name.
-- Keep metadata intent fields explicit as `set | clear`, with an absent field
-  keeping the source value; adapt patch intent from the wire here, not in
-  scattered UI callsites. The engine composes and validates metadata intent;
-  TS holds no metadata rule tables.
 - Keep nullish and payload normalization centralized in the private cluster.
-  Processing sends one complete `TitleAudioRequest` per output title, with
-  explicit null settings for MP3 pass-through. `previewTitleAudio` and preflight
-  use the same Rust planner; IPC adapters never choose a fallback encoder.
+  `normalizers.ts` keeps the explicit nulls the engine sends where they carry
+  meaning (an audio request's MP3 pass-through settings); IPC adapters never
+  choose a fallback encoder.
 
 ## Boundary Changes
 - Adding, removing, or renaming a public export, `tauriClient` method, command name, event name, or generated overlap type.

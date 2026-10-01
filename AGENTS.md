@@ -50,7 +50,7 @@ neither earns no preference over the simpler design.
   rule added there would be rewritten for every future host. Tiers:
   `crates/AGENTS.md`.
 - Runtime IPC stays centralized in `src/lib/tauri/*`.
-- Metadata intent adaptation stays at the Tauri runtime boundary.
+- The engine builds metadata intent from the session's field edits; hosts and the frontend never build or adapt it.
 - Canonical metadata validation/normalization routes through the Rust Metadata Outcome boundary.
 - Greenfield default: do not preserve internal legacy payloads or aliases without repo evidence or explicit owner request.
 - Compatibility carveout: preserve interoperability with real-world external audiobook files and tag variants.

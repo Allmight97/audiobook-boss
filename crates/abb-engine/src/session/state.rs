@@ -239,6 +239,10 @@ pub(crate) struct SessionState {
     submission: Option<SubmissionStatus>,
     /// A submission waiting for the user's collision choice.
     pending_review: Option<Draft>,
+    /// A submission or preview is between `begin_submission` and
+    /// `finish_submission`. Kept apart from `submission`, which a refusal of
+    /// a later request overwrites.
+    submitting: bool,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
     /// Downloads the session imported, and when they may be removed.
@@ -252,6 +256,9 @@ pub(crate) struct SessionState {
     selection_key: Vec<PathBuf>,
     cover: Cover,
     save_in_progress: bool,
+    /// Files a Save is writing right now. Kept through a Reset, which
+    /// forgets the Save's form but cannot stop its write.
+    writing: Vec<PathBuf>,
     status: Option<MetadataStatus>,
     deferred: Vec<DeferredWrite>,
     parts: Parts,
@@ -307,6 +314,7 @@ impl Default for SessionState {
             plans_seen: (u64::MAX, u64::MAX),
             submission: None,
             pending_review: None,
+            submitting: false,
             reserved: Vec::new(),
             staged: StagedSources::default(),
             removing: Vec::new(),
@@ -316,6 +324,7 @@ impl Default for SessionState {
             selection_key: Vec::new(),
             cover: Cover::default(),
             save_in_progress: false,
+            writing: Vec::new(),
             status: None,
             deferred: Vec::new(),
             parts,
@@ -480,6 +489,7 @@ impl SessionState {
     pub(crate) fn begin_submission(&mut self, preview_seconds: Option<f64>) -> Option<Draft> {
         match self.prepare_submission(preview_seconds) {
             Ok(draft) => {
+                self.submitting = true;
                 self.reserved.extend(draft.sources.iter().cloned());
                 self.working_set.set_order_locked(true);
                 self.submission = Some(SubmissionStatus::Preparing {
@@ -495,17 +505,14 @@ impl SessionState {
     }
 
     fn prepare_submission(&mut self, preview_seconds: Option<f64>) -> Result<Draft, SubmitRefusal> {
-        if self
-            .submission
-            .as_ref()
-            .is_some_and(SubmissionStatus::is_active)
-        {
+        if self.submitting {
             return Err(SubmitRefusal::Busy);
         }
-        let writing = self
-            .deferred
-            .iter()
-            .any(|write| write.phase == DeferredPhase::Writing);
+        let writing = !self.writing.is_empty()
+            || self
+                .deferred
+                .iter()
+                .any(|write| write.phase == DeferredPhase::Writing);
         if self.save_in_progress || writing {
             return Err(SubmitRefusal::SaveInProgress);
         }
@@ -579,6 +586,7 @@ impl SessionState {
     /// unfinished export. Nothing is removed while a Save writes.
     pub(crate) fn begin_staged_removal(&mut self, in_use: &HashSet<PathBuf>) -> Vec<String> {
         let writing = self.save_in_progress
+            || !self.writing.is_empty()
             || self
                 .deferred
                 .iter()
@@ -653,6 +661,7 @@ impl SessionState {
         if self.reserved.is_empty() {
             self.working_set.set_order_locked(false);
         }
+        self.submitting = false;
         self.submission = Some(status);
     }
 
@@ -962,7 +971,13 @@ impl SessionState {
     /// Returns the session to empty. Writes already waiting on an export stay
     /// accepted.
     pub(crate) fn reset(&mut self) {
+        // A submission held for review goes with the titles; a running one
+        // keeps its sources until it ends.
+        self.cancel_review();
         self.working_set.reset();
+        if self.submitting {
+            self.working_set.set_order_locked(true);
+        }
         self.lookup = LookupState {
             request: self.lookup.request + 1,
             ..LookupState::default()
@@ -1183,6 +1198,7 @@ impl SessionState {
             .iter()
             .chain(&self.reserved)
             .chain(&self.removing)
+            .chain(&self.writing)
             .cloned()
             .collect()
     }
@@ -1257,6 +1273,8 @@ impl SessionState {
             }
         }
         self.save_in_progress = !plan.immediate.is_empty();
+        self.writing
+            .extend(plan.immediate.iter().map(|item| item.path.clone()));
         self.status = Some(MetadataStatus::PreparingSave);
         Some(plan)
     }
@@ -1272,8 +1290,21 @@ impl SessionState {
         });
     }
 
-    /// Records what a Save wrote. `saved` are the items the file now carries.
-    pub(crate) fn finish_save(&mut self, epoch: u64, saved: &[SaveItem], status: MetadataStatus) {
+    /// Records what a Save wrote. `saved` are the items the file now carries;
+    /// `written` every file it was writing, which are free again even if a
+    /// Reset forgot the Save.
+    pub(crate) fn finish_save(
+        &mut self,
+        epoch: u64,
+        written: &[PathBuf],
+        saved: &[SaveItem],
+        status: MetadataStatus,
+    ) {
+        for path in written {
+            if let Some(index) = self.writing.iter().position(|writing| writing == path) {
+                self.writing.swap_remove(index);
+            }
+        }
         if epoch != self.epoch {
             return;
         }

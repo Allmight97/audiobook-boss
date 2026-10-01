@@ -5,12 +5,10 @@ import * as remoteSourceUi from '../../../ui/remoteSource';
 const EXPECTED_REMOTE_SOURCE_UI_EXPORTS = ['RemoteSourceAcquireView'] as const;
 
 const FORBIDDEN_REMOTE_SOURCE_IMPORTS = [
-	'remoteSource/sessionAssets',
 	'remoteSource/workflow',
 	'remoteSource/state',
 	'remoteSource/RemoteSourceAcquireView',
 	'ui/remoteSource',
-	'app/remoteSource/sessionAssets',
 	'app/remoteSource/workflow',
 	'app/remoteSource/state',
 ] as const;

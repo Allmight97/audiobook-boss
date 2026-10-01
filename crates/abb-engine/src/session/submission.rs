@@ -81,16 +81,6 @@ pub enum SubmissionStatus {
     Cancelled,
 }
 
-impl SubmissionStatus {
-    /// Whether a submission or preview is still in progress.
-    pub(crate) fn is_active(&self) -> bool {
-        matches!(
-            self,
-            Self::Preparing { .. } | Self::ReviewRequired { .. } | Self::Previewing
-        )
-    }
-}
-
 /// A submission being prepared: what will be sent, and the sources it holds.
 #[derive(Clone)]
 pub(crate) struct Draft {

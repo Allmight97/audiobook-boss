@@ -8,9 +8,8 @@
  * adapter layer thin and well-typed: input drift is caught at compile time,
  * and the runtime transform is centralized in `normalizeNullish`.
  *
- * Inverse direction: `denormalize*` helpers rebuild payloads with explicit
- * `null` values for the wire (see `denormalizeMetadata` and
- * `denormalizeNullish`).
+ * Inverse direction: `denormalizeNullish` rebuilds a payload with explicit
+ * `null` values for the wire.
  */
 
 import type {
@@ -37,25 +36,6 @@ import type { OperationListSnapshot, OperationSnapshot } from '../../types/workR
 import { normalizeAppError } from './appError';
 
 type PlainRecord = Record<string, unknown>;
-
-const METADATA_FIELDS = [
-	'title',
-	'artist',
-	'album',
-	'composer',
-	'genre',
-	'date',
-	'track',
-	'disk',
-	'comment',
-	'description',
-	'series',
-	'series_part',
-	'subseries',
-	'subseries_part',
-	'album_sort',
-	'cover_art',
-] as const satisfies readonly (keyof GeneratedAudiobookMetadata)[];
 
 const isPlainRecord = (value: unknown): value is PlainRecord =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -130,29 +110,8 @@ export function denormalizeNullish<T>(value: T): T {
 	return value;
 }
 
-function toNullableShape<T extends PlainRecord, K extends keyof T>(
-	input: Partial<Record<K, unknown>>,
-	keys: readonly K[],
-): Pick<T, K> {
-	const output = {} as Pick<T, K>;
-	for (const key of keys) {
-		const value = input[key];
-		(output as PlainRecord)[key as string] = value === undefined ? null : denormalizeNullish(value);
-	}
-	return output;
-}
-
 export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): AudiobookMetadata {
 	return normalizeNullish(metadata);
-}
-
-export function denormalizeMetadata(
-	metadata: Partial<AudiobookMetadata>,
-): GeneratedAudiobookMetadata {
-	return toNullableShape<GeneratedAudiobookMetadata, (typeof METADATA_FIELDS)[number]>(
-		metadata as Partial<Record<(typeof METADATA_FIELDS)[number], unknown>>,
-		METADATA_FIELDS,
-	) as GeneratedAudiobookMetadata;
 }
 
 /**

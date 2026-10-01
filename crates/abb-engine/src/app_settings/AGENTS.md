@@ -2,7 +2,8 @@
 
 App Settings owns the settings in effect for this run and whether they have
 reached disk. Hosts change them only through `Engine::settings_dispatch` with
-a `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply.
+a `SettingsIntent`, and read them from the `SettingsSnapshot` in the reply. A
+default the session records reaches hosts as `EngineEvent::Settings`.
 
 ## Public API Strip
 

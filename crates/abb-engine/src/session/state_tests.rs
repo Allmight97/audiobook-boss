@@ -43,6 +43,10 @@ fn audio_request() -> TitleAudioRequest {
     }
 }
 
+fn paths_of(items: &[SaveItem]) -> Vec<PathBuf> {
+    items.iter().map(|item| item.path.clone()).collect()
+}
+
 fn set(value: &str) -> Option<PatchOp<String>> {
     Some(PatchOp::Set(value.to_string()))
 }
@@ -235,7 +239,8 @@ impl Desk {
             held: plan.held,
         };
         let epoch = self.state.epoch;
-        self.state.finish_save(epoch, &saved, status);
+        self.state
+            .finish_save(epoch, &paths_of(&plan.immediate), &saved, status);
         self.state.settle();
         Some(plan)
     }
@@ -714,8 +719,12 @@ fn selection_cannot_change_while_a_save_is_in_progress() {
     assert_eq!(desk.select(&[1]), Err(GateBlock::SaveInProgress));
 
     let epoch = desk.state.epoch;
-    desk.state
-        .finish_save(epoch, &plan.immediate, MetadataStatus::SaveCancelled);
+    desk.state.finish_save(
+        epoch,
+        &paths_of(&plan.immediate),
+        &plan.immediate,
+        MetadataStatus::SaveCancelled,
+    );
     assert!(desk.select(&[1]).is_ok());
 }
 
@@ -766,6 +775,7 @@ fn a_cover_changed_while_a_save_ran_is_still_unsaved_afterward() {
     let epoch = desk.state.epoch;
     desk.state.finish_save(
         epoch,
+        &paths_of(&plan.immediate),
         &plan.immediate,
         MetadataStatus::SaveComplete {
             succeeded: 1,
@@ -1566,6 +1576,7 @@ fn no_download_is_removed_while_a_save_writes() {
     let epoch = desk.state.epoch;
     desk.state.finish_save(
         epoch,
+        &paths_of(&plan.immediate),
         &plan.immediate,
         MetadataStatus::SaveComplete {
             succeeded: 1,
@@ -1576,4 +1587,67 @@ fn no_download_is_removed_while_a_save_writes() {
         },
     );
     assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
+}
+
+#[test]
+fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state
+        .staged
+        .register("job-1", "alpha", path("alpha"), Vec::new());
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let plan = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save");
+    let epoch = desk.state.epoch;
+
+    // Reset forgets the Save's form; its write keeps running.
+    desk.state.reset();
+    desk.state.settle();
+    assert!(
+        desk.state.begin_staged_removal(&HashSet::new()).is_empty(),
+        "the download is not removed under the write"
+    );
+    desk.import(&[("alpha", Some(alpha_tags()))]);
+    desk.select(&[0]).expect("select");
+    desk.state.output.set_directory("/library".to_string());
+    assert!(desk.state.begin_submission(None).is_none());
+    assert_eq!(
+        desk.state.output_snapshot(0).submission,
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::SaveInProgress
+        })
+    );
+
+    desk.state.finish_save(
+        epoch,
+        &paths_of(&plan.immediate),
+        &plan.immediate,
+        MetadataStatus::SaveCancelled,
+    );
+    assert!(desk.state.begin_submission(None).is_some());
+}
+
+#[test]
+fn a_refused_second_submission_does_not_let_a_third_through() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state.output.set_directory("/library".to_string());
+    let first = desk.state.begin_submission(None).expect("first submission");
+    desk.state.await_review(first, Vec::new());
+
+    for _ in 0..2 {
+        assert!(desk.state.begin_submission(None).is_none());
+        assert_eq!(
+            desk.state.output_snapshot(0).submission,
+            Some(SubmissionStatus::Refused {
+                reason: SubmitRefusal::Busy
+            })
+        );
+    }
+
+    // Cancelling the held review frees its sources and the list.
+    desk.state.cancel_review();
+    assert!(!desk.state.working_set.order_locked());
+    assert!(desk.state.begin_submission(None).is_some());
 }

@@ -13,7 +13,7 @@
 ## Public API Strip
 
 - `index.ts` is the export surface. Callers consume the composed
-  `RemoteSourceOwner`; private state, workflow, assets, and previews stay here.
+  `RemoteSourceOwner`; private state, workflow, and cover previews stay here.
 - `open({ lane? })` and `selectLane` share workflow-owned entry: refresh account
   state and load the connected Audible library, without a mounted view. When
   an acquisition job exists, entry retains its status and library; Refresh rescans.

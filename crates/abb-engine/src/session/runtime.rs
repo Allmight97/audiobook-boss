@@ -41,7 +41,9 @@ use crate::metadata_save::{save_metadata_batch, MetadataSaveRequest, MetadataSav
 use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::CollisionPolicy;
 use crate::output_artifact::NamingPreset;
-use crate::processing::run::{preflight_payload, process_payload};
+use crate::processing::run::{
+    preflight_payload, process_payload_with_options, ProcessingRunOptions,
+};
 use crate::processing::SupplementalProcessingAsset;
 use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
 use crate::work_runtime::WorkRuntime;
@@ -278,6 +280,12 @@ pub(crate) struct SessionDeps {
 
 pub(crate) type RemoveStaged = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
 
+fn closing() -> SubmissionStatus {
+    SubmissionStatus::Refused {
+        reason: SubmitRefusal::Closing,
+    }
+}
+
 fn failed(error: &AppError) -> SubmissionStatus {
     SubmissionStatus::Failed {
         error: AppErrorEnvelope::from(error),
@@ -303,8 +311,12 @@ struct SessionInner {
     deferred_writer_running: AtomicBool,
     /// Wakes the deferred writer when a submission frees its sources.
     sources_freed: tokio::sync::Notify,
+    /// Wakes acquisition handoffs waiting for the list to unlock.
+    list_unlocked: tokio::sync::Notify,
     /// One staged-download sweep runs at a time.
     sweeping: tokio::sync::Mutex<()>,
+    /// Cancels the running preview's titles.
+    preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
     /// Advances with every output change; a delayed record checks it.
     output_edits: AtomicU64,
 }
@@ -334,7 +346,6 @@ enum Rest {
         paths: Vec<String>,
         resets: u64,
     },
-    /// Record a choice in the settings.
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember {
         intent: SettingsIntent,
@@ -382,6 +393,9 @@ impl SessionRun {
     pub async fn finish(self) -> SessionReply {
         let session = self.session;
         let waited = !matches!(self.rest, Rest::Done(_));
+        // Work shutdown must wait for: what reads or writes the user's files
+        // or settings. Reads and lookups are dropped with the host.
+        let tasks = session.inner.deps.tasks.clone();
         let outcome = match self.rest {
             Rest::Done(outcome) => outcome,
             Rest::Reads(bound) => {
@@ -390,15 +404,15 @@ impl SessionRun {
             }
             Rest::Import { paths, resets } => session.import(paths, resets).await,
             Rest::Remember { intent, resets } => {
-                session.remember(intent, resets).await;
+                tasks.track_future(session.remember(intent, resets)).await;
                 SessionOutcome::Applied
             }
-            Rest::Submit(draft) => session.submit(*draft).await,
+            Rest::Submit(draft) => tasks.track_future(session.submit(*draft)).await,
             Rest::Reviewed { mut draft, policy } => {
                 draft.payload.collision_policy = Some(policy);
-                session.submit(*draft).await
+                tasks.track_future(session.submit(*draft)).await
             }
-            Rest::Save { epoch, plan } => session.save(epoch, plan).await,
+            Rest::Save { epoch, plan } => tasks.track_future(session.save(epoch, plan)).await,
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
@@ -430,7 +444,9 @@ impl Session {
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
+                list_unlocked: tokio::sync::Notify::new(),
                 sweeping: tokio::sync::Mutex::new(()),
+                preview_cancels: Mutex::default(),
                 output_edits: AtomicU64::new(0),
             }),
         }
@@ -673,6 +689,8 @@ impl Session {
             I::Reset => {
                 self.inner.resets.fetch_add(1, Ordering::SeqCst);
                 self.transition(SessionState::reset);
+                // A review the reset dropped frees its sources.
+                self.sources_released();
                 Rest::Done(SessionOutcome::Applied)
             }
 
@@ -891,55 +909,27 @@ impl Session {
                 })
             }
         };
-        if self.inner.resets.load(Ordering::SeqCst) != resets {
-            return removed(HandoffRefusal::NothingAdded);
-        }
         let titles = staged_titles(job);
-        let listed = self.transition(|state| {
-            if state.working_set.order_locked() {
-                return Err(HandoffRefusal::OrderLocked);
+        // A list locked by an export being prepared or reviewed unlocks when
+        // it ends; the download waits for that rather than being dropped.
+        let listed = loop {
+            let unlocked = self.inner.list_unlocked.notified();
+            tokio::pin!(unlocked);
+            unlocked.as_mut().enable();
+            if self.inner.resets.load(Ordering::SeqCst) != resets {
+                return removed(HandoffRefusal::NothingAdded);
             }
-            let before = state.working_set.source_paths();
-            let default_audio = state.audio.request();
-            state.working_set.append_analyzed(analyzed, &default_audio);
-            let mut count = 0;
-            for file in state.working_set.files().to_vec() {
-                if before.contains(&file.path) {
-                    continue;
+            let attempt = self.transition(|state| {
+                if state.working_set.order_locked() {
+                    return None;
                 }
-                let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
-                    continue;
-                };
-                let assets = job
-                    .supplemental_assets
-                    .iter()
-                    .filter(|asset| &asset.title_id == title_id)
-                    .map(|asset| SupplementalProcessingAsset {
-                        asset_id: asset.asset_id.clone(),
-                        input_id: file.input_id.clone(),
-                        title_id: asset.title_id.clone(),
-                        path: asset.path.clone(),
-                        file_name: asset.file_name.clone(),
-                        size_bytes: asset.size_bytes,
-                        sha256: asset.sha256.clone(),
-                    })
-                    .collect();
-                state
-                    .staged
-                    .register(&job.job_id, &file.input_id, file.path.clone(), assets);
-                count += 1;
+                Some(list_acquired(state, job, analyzed.clone(), &titles))
+            });
+            match attempt {
+                Some(listed) => break listed,
+                None => unlocked.await,
             }
-            if count == 0 {
-                return Err(HandoffRefusal::NothingAdded);
-            }
-            Ok((
-                Bound {
-                    reads: state.rebind(),
-                    binding: state.binding,
-                },
-                count,
-            ))
-        });
+        };
         match listed {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
@@ -1022,13 +1012,9 @@ impl Session {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
             PlanVerdict::Review(outputs) if draft.payload.collision_policy.is_none() => {
-                self.transition(|state| state.await_review(draft, outputs));
-                SessionOutcome::Applied
+                self.hold_for_review(draft, outputs)
             }
-            _ if unreviewed => {
-                self.transition(|state| state.await_review(draft, collided));
-                SessionOutcome::Applied
-            }
+            _ if unreviewed => self.hold_for_review(draft, collided),
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
                 self.accept(draft.approved(plan.collision_policy, plan.plan_signature))
                     .await
@@ -1036,20 +1022,56 @@ impl Session {
         }
     }
 
+    /// Holds a draft for the user's collision choice, unless the engine is
+    /// closing: checked under the session lock, so shutdown's cancel of
+    /// reviews either finds this one or this sees shutdown.
+    fn hold_for_review(
+        &self,
+        draft: Draft,
+        outputs: Vec<crate::output_artifact::PlannedOutput>,
+    ) -> SessionOutcome {
+        let closing_now = self.transition(|state| {
+            if self.inner.deps.tasks.is_closed() {
+                state.finish_submission(&draft, closing());
+                return true;
+            }
+            state.await_review(draft, outputs);
+            false
+        });
+        if closing_now {
+            self.sources_released();
+        }
+        SessionOutcome::Applied
+    }
+
     async fn accept(&self, draft: Draft) -> SessionOutcome {
         let deps = &self.inner.deps;
         if let Some(seconds) = draft.preview_seconds {
+            let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
+                .map(|_| Arc::default())
+                .collect();
+            *self.preview_cancels() = cancels.clone();
+            // Checked after the flags are visible, so shutdown either sees
+            // this preview to cancel or the preview sees shutdown.
+            if deps.tasks.is_closed() {
+                return self.end_submission(&draft, closing());
+            }
             self.transition(SessionState::start_preview);
             self.publish();
-            let result = process_payload(
+            let result = process_payload_with_options(
                 deps.host.clone(),
                 deps.jobs.clone(),
                 deps.workspace_root.clone(),
                 draft.payload.clone(),
                 draft.metadata.clone(),
                 Some(seconds),
+                ProcessingRunOptions {
+                    title_cancels: cancels,
+                    ..ProcessingRunOptions::default()
+                },
             )
             .await;
+            self.preview_cancels().clear();
             let status = match result {
                 Ok(result) => SubmissionStatus::PreviewFinished { result },
                 Err(error) => failed(&error),
@@ -1084,12 +1106,34 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
+    fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
+        self.inner
+            .preview_cancels
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Stops a running preview; shutdown does not wait out a scratch render.
+    pub(crate) fn cancel_preview(&self) {
+        for cancel in self.preview_cancels().iter() {
+            cancel.store(true, Ordering::SeqCst);
+        }
+    }
+
     /// Drops a submission held for review and frees its sources, waking a
     /// Save that waits on them. Shutdown calls this too: a review nobody
     /// answers would otherwise hold the files forever.
     pub(crate) fn cancel_review(&self) {
         self.transition(SessionState::cancel_review);
+        self.sources_released();
+    }
+
+    /// A submission ended and freed its sources and the list: wakes a Save
+    /// and an acquisition handoff waiting on them, and removes downloads
+    /// nothing holds now.
+    fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
+        self.inner.list_unlocked.notify_waiters();
         self.sweep_staged();
     }
 
@@ -1097,8 +1141,7 @@ impl Session {
     /// registered them.
     fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
         self.transition(|state| state.finish_submission(draft, status));
-        self.inner.sources_freed.notify_one();
-        self.sweep_staged();
+        self.sources_released();
         SessionOutcome::Applied
     }
 
@@ -1239,6 +1282,11 @@ impl Session {
             waiting: plan.waiting,
             held: plan.held,
         };
+        let written_paths: Vec<PathBuf> = plan
+            .immediate
+            .iter()
+            .map(|item| item.path.clone())
+            .collect();
         if !plan.immediate.is_empty() {
             self.publish();
             match self.write(&plan.immediate).await {
@@ -1266,7 +1314,7 @@ impl Session {
                 }
             }
         }
-        self.transition(|state| state.finish_save(epoch, &saved, status));
+        self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
         // A sweep waits while a Save writes.
         self.sweep_staged();
         SessionOutcome::Applied
@@ -1606,6 +1654,56 @@ struct Written {
     succeeded: usize,
     failed: usize,
     cancelled: usize,
+}
+
+/// Lists an acquisition's analyzed files and records each imported title as
+/// staged, in the same transition.
+fn list_acquired(
+    state: &mut SessionState,
+    job: &AcquisitionJob,
+    analyzed: Vec<crate::audio::AudioFile>,
+    titles: &[(String, PathBuf)],
+) -> std::result::Result<(Bound, usize), HandoffRefusal> {
+    let before = state.working_set.source_paths();
+    let default_audio = state.audio.request();
+    state.working_set.append_analyzed(analyzed, &default_audio);
+    let mut count = 0;
+    for file in state.working_set.files().to_vec() {
+        if before.contains(&file.path) {
+            continue;
+        }
+        let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
+            continue;
+        };
+        let assets = job
+            .supplemental_assets
+            .iter()
+            .filter(|asset| &asset.title_id == title_id)
+            .map(|asset| SupplementalProcessingAsset {
+                asset_id: asset.asset_id.clone(),
+                input_id: file.input_id.clone(),
+                title_id: asset.title_id.clone(),
+                path: asset.path.clone(),
+                file_name: asset.file_name.clone(),
+                size_bytes: asset.size_bytes,
+                sha256: asset.sha256.clone(),
+            })
+            .collect();
+        state
+            .staged
+            .register(&job.job_id, &file.input_id, file.path.clone(), assets);
+        count += 1;
+    }
+    if count == 0 {
+        return Err(HandoffRefusal::NothingAdded);
+    }
+    Ok((
+        Bound {
+            reads: state.rebind(),
+            binding: state.binding,
+        },
+        count,
+    ))
 }
 
 /// Each materialized title's id and canonical path.

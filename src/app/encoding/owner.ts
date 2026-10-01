@@ -1,9 +1,8 @@
 import type { Accessor } from 'solid-js';
-import type { AudioFile, TitleAudioPlan, TitleAudioRequest } from '../../types/audio';
+import type { AudioFile, TitleAudioRequest } from '../../types/audio';
 import type { AudioChoiceView, TitlePlan } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
-import { estimateKbpsFromSettings } from './estimate';
 import { resolveAutoResolutionHints, type AutoResolutionHints } from './hints';
 import { editFor, projectView, type EncodingField, type EncodingView } from './project';
 
@@ -25,12 +24,9 @@ export type EncodingOwner = {
 	): EncodingView & { mixedFields: readonly EncodingField[] };
 	selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void;
 	applyDefaultsToTitles(files: readonly AudioFile[]): void;
-	estimateTitleKbps(file: AudioFile, plan?: TitleAudioPlan): number | null;
 	selectTitle(file: AudioFile, field: EncodingField, value: string): void;
 	/** The defaults, as the Settings panel edits them. */
 	readonly view: Accessor<EncodingView>;
-	/** Changes when encoder capabilities arrive. */
-	readonly capabilityRevision: Accessor<number>;
 	select(field: EncodingField, value: string): void;
 	reset(): void;
 };
@@ -94,10 +90,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		plan(file) {
 			return link.audio().titles[titleId(file)]?.plan ?? { kind: 'pending' };
 		},
-		estimateTitleKbps(file, plan) {
-			if (plan?.settings) return estimateKbpsFromSettings(plan.settings);
-			return titleChoice(file).facts.estimateKbps;
-		},
 		titleView,
 		selectTitle(file, field, value) {
 			selectTitles([file], field, value);
@@ -121,7 +113,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			link.post({ kind: 'applyDefaultAudio', titleIds: files.map(titleId) });
 		},
 		view: () => display(link.audio().defaults, DEFAULT_HINTS),
-		capabilityRevision: () => (link.audio().capabilities ? 1 : 0),
 		select(field, value) {
 			const edit = editFor(field, value);
 			if (edit) link.post({ kind: 'setDefaultAudio', edit });

@@ -8,9 +8,8 @@ the owning code and tests.
 ABB is a local, single-user desktop application. A Rust engine
 (`crates/abb-engine`) owns the product's rules and the working session; the
 Tauri app is one host for it. One owner holds each product truth, views
-dispatch semantic intent, and typed interfaces cross seams. The remaining
-frontend-owned workflow is moving into the engine so a native UI can replace
-the Tauri host.
+dispatch semantic intent, and typed interfaces cross seams. A native UI
+would replace only the host tier.
 
 ## Product Spine
 
@@ -78,8 +77,8 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Solid views | `src/ui/<owner>` | Markup, interaction wiring, screen-local state, and owner-local CSS; no parallel business store. |
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
-| Tauri host | `src-tauri` | Commands, intent ordering, event forwarding, window, quit warning. Command registration lives in `src-tauri/src/ipc_contract.rs`. |
-| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, Save targets, audio choices and title plans, output naming, path preview, and size estimates. |
+| Tauri host | `src-tauri` | Commands, intent ordering, event forwarding, window, quit handling (engine shutdown). Command registration lives in `src-tauri/src/ipc_contract.rs`. |
+| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, Save targets, audio choices and title plans, output naming, path preview, size estimates, submission and collision review, and imported downloads. |
 | Processing | `crates/abb-engine/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
 | WorkRuntime | `crates/abb-engine/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
 | Active-work power | `crates/abb-engine/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
@@ -131,7 +130,7 @@ mismatch instead of blending the sources.
 
 - Every processing job has exactly one terminal outcome: `success`, `skipped`, `cancelled`, or `failed`.
 - UI renders backend terminal truth; it does not invent final status.
-- Metadata `set`, `clear`, and absent (keep source) intent remain distinct across the runtime boundary.
+- Metadata `set`, `clear`, and absent (keep source) intent stay distinct from the session's field edits through Save and processing.
 - Input, output, and artifact paths remain validated at their owning ingress, plan, or commit seam.
 - Accepted WorkRuntime submissions keep stable identity and immutable accepted inputs.
 - External-provider partial failure remains typed and explicit at the owning engine module.

@@ -3,7 +3,7 @@
 ## Scope
 
 - Solid Status Panel view under `src/ui/statusPanel/`.
-- Preview submit and status runtime live in `src/app/processing`. This owner
+- Submit (export or preview) and the status runtime live in `src/app/processing`. This owner
   renders that view.
 
 ## Public API Strip

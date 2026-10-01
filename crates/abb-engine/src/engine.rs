@@ -128,7 +128,7 @@ impl Engine {
     /// What quitting now would stop.
     pub fn running_work(&self) -> RunningWork {
         RunningWork {
-            exports: self.inner.work.unfinished_operations().len(),
+            exports: self.inner.work.unfinished_exports().len(),
             waiting_writes: self.inner.session.waiting_write_paths().len(),
         }
     }
@@ -140,7 +140,8 @@ impl Engine {
     pub async fn shutdown(&self) {
         self.inner.tasks.close();
         self.inner.session.cancel_review();
-        for operation in self.inner.work.unfinished_operations() {
+        self.inner.session.cancel_preview();
+        for operation in self.inner.work.unfinished_exports() {
             if let Err(error) = self
                 .inner
                 .work
@@ -158,10 +159,26 @@ impl Engine {
     /// Applies one intent to the settings and returns the settings in effect.
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
         let reset = matches!(intent, SettingsIntent::Reset);
+        // Recovering or reloading an unreadable file can bring in the
+        // defaults the session started without.
+        let reloads = matches!(
+            intent,
+            SettingsIntent::Recover { .. } | SettingsIntent::Reload
+        );
+        let before = if reloads {
+            self.inner.settings.snapshot().await.startup_defaults
+        } else {
+            None
+        };
         let reply = self.inner.settings.dispatch(intent).await;
         // A reset returns the session's defaults to the reset settings; loaded
         // titles keep their own choices.
-        if reset && reply.outcome == SettingsOutcome::Applied {
+        let applied = matches!(
+            reply.outcome,
+            SettingsOutcome::Applied | SettingsOutcome::Recovered { .. }
+        );
+        let changed = reset || (reloads && reply.snapshot.startup_defaults != before);
+        if applied && changed {
             if let Some(defaults) = &reply.snapshot.startup_defaults {
                 self.inner.session.replace_defaults(defaults);
             }

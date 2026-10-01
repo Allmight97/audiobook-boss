@@ -2,7 +2,8 @@
 
 `remote_source` owns remote-source provider state, account/session lifecycle,
 acquisition jobs, release search/grab (Indexer lane), staging roots, acquired
-session files, Supplemental Assets, and cleanup.
+session files, Supplemental Assets, and staging cleanup (the session decides
+when an imported download goes).
 
 ## Public API Strip
 

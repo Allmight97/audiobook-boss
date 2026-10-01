@@ -13,26 +13,6 @@ mod run_validation;
 pub(crate) use run_options::ProcessingRunOptions;
 use run_validation::inspect_and_validate_external_processing_contract;
 
-pub(crate) async fn process_payload(
-    host: Host,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-) -> Result<ProcessCommandResult> {
-    process_payload_with_options(
-        host,
-        registry,
-        workspace_root,
-        payload,
-        metadata,
-        preview_seconds,
-        ProcessingRunOptions::default(),
-    )
-    .await
-}
-
 pub(crate) async fn process_payload_with_options(
     host: Host,
     registry: crate::ManagedJobRegistry,

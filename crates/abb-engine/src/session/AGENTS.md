@@ -45,11 +45,11 @@ attachment.
 
 - `state.rs` and the modules it uses (`working_set`, `tag_cache`,
   `metadata_form`, `lookup`, `audio_choice`, `audio`, `plans`, `output`,
-  `submission`) hold
-  every rule and do no I/O. Each method is one
-  atomic transition. Work that needs a file or the network leaves as data (a
-  `ReadTicket`, a `SavePlan`) and returns as a completion the state accepts or
-  drops.
+  `submission`, `staged`) hold every rule and do no I/O; the one exception is
+  `PlanTicket::resolve`, which reads sources and runs on a blocking thread.
+  Each method is one atomic transition. Work that needs a file or the network
+  leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns
+  as a completion the state accepts or drops.
 - `runtime.rs` performs that work. It never holds the state lock across an
   await, and it calls `settle` after every transition so snapshots are
   re-derived.
@@ -91,8 +91,8 @@ attachment.
   is never written and its edit stays pending; any other file is written at
   once and never moved. Two writes to one file never overlap.
 - **Waiting writes.** A waiting write outlives removal of its title.
-  `Engine::shutdown` cancels the exports holding it back, so it is written
-  before the engine stops. When it finishes, the session reports how many were written or
+  `Engine::shutdown` cancels the exports, review, or preview holding it back,
+  so it is written before the engine stops. When it finishes, the session reports how many were written or
   failed. If its title is loaded again by then, a written edit becomes the
   title's known tags and a failed one is pending again for Save.
 - **Audio choice.** The defaults new titles start from and each title's own

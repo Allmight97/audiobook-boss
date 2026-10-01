@@ -284,7 +284,7 @@ describe('remote source acquisition workflow', () => {
 				...terminalJob(),
 				materializedFiles: [],
 				supplementalAssets: [],
-				handoff: { kind: 'removed' as const, reason: { kind: 'orderLocked' as const } },
+				handoff: { kind: 'removed' as const, reason: { kind: 'nothingAdded' as const } },
 			})),
 		});
 		const owner = makeOwner(services);
@@ -293,7 +293,7 @@ describe('remote source acquisition workflow', () => {
 
 		await owner.runAction({ type: 'acquireSelected' });
 
-		expect(owner.view().statusMessage).toContain('Order locked while processing.');
+		expect(owner.view().statusMessage).toContain('were not added to the input session');
 		expect(owner.view().statusMessage).toContain('Staged remote files were removed');
 	});
 
