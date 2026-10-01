@@ -129,10 +129,7 @@ impl Desk {
             })
             .await;
         }
-        self.send(SessionIntent::Submit {
-            supplemental_assets: None,
-        })
-        .await;
+        self.send(SessionIntent::Submit).await;
         match submission(self) {
             Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
             other => panic!("export not accepted: {other:?}"),
@@ -414,10 +411,7 @@ async fn shutdown_cancels_running_exports_writes_waiting_saves_and_refuses_new_w
     assert!(finished(desk.export_status(&export)));
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(desk.engine.running_work().is_empty());
-    desk.send(SessionIntent::Submit {
-        supplemental_assets: None,
-    })
-    .await;
+    desk.send(SessionIntent::Submit).await;
     assert_eq!(
         submission(&desk),
         Some(SubmissionStatus::Refused {
@@ -451,10 +445,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     })
     .await;
 
-    desk.send(SessionIntent::Submit {
-        supplemental_assets: None,
-    })
-    .await;
+    desk.send(SessionIntent::Submit).await;
     let Some(SubmissionStatus::Submitted {
         operation_id,
         title,
@@ -473,10 +464,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     );
 
     // The same export again collides with the first output.
-    desk.send(SessionIntent::Submit {
-        supplemental_assets: None,
-    })
-    .await;
+    desk.send(SessionIntent::Submit).await;
     assert!(
         matches!(
             submission(&desk),
@@ -495,11 +483,7 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
         submission(&desk)
     );
 
-    desk.send(SessionIntent::Preview {
-        seconds: 1.0,
-        supplemental_assets: None,
-    })
-    .await;
+    desk.send(SessionIntent::Preview { seconds: 1.0 }).await;
     assert!(
         matches!(
             submission(&desk),

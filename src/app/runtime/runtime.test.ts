@@ -44,9 +44,7 @@ function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowSe
 		startAcquisition: vi.fn(async () => runningJob()),
 		getAcquisitionStatus: vi.fn(() => status),
 		cancelAcquisition: vi.fn(),
-		purgeSession: vi.fn(),
-		importMaterializedPaths: vi.fn(),
-		sleep: vi.fn(async () => undefined),
+		listenAcquisitions: vi.fn(async () => () => undefined),
 	};
 }
 

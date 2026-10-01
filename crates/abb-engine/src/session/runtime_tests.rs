@@ -49,6 +49,8 @@ struct Rig {
     /// empty result.
     replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>>,
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
+    /// Acquisition jobs whose downloads the session removed.
+    removed: Arc<StdMutex<Vec<String>>>,
     /// Holds the settings the session records defaults into.
     _config: tempfile::TempDir,
 }
@@ -85,6 +87,7 @@ fn rig() -> Rig {
             }
         }),
     };
+    let removed: Arc<StdMutex<Vec<String>>> = Arc::default();
     let config = tempfile::TempDir::new().expect("settings folder");
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
@@ -101,6 +104,13 @@ fn rig() -> Rig {
             tasks: tokio_util::task::TaskTracker::new(),
             workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
+            remove_staged: {
+                let removed = Arc::clone(&removed);
+                Arc::new(move |job_id| {
+                    removed.lock().expect("removed").push(job_id.to_string());
+                    Ok(())
+                })
+            },
         },
         network,
     );
@@ -111,6 +121,7 @@ fn rig() -> Rig {
         searches,
         replies,
         cover,
+        removed,
         _config: config,
     }
 }
@@ -1102,7 +1113,7 @@ async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
         .session
         .transition(|state| {
             state.output.set_directory("/library".to_string());
-            state.begin_submission(None, None)
+            state.begin_submission(None)
         })
         .expect("the submission is prepared");
     rig.send(SessionIntent::SetField {
@@ -1128,4 +1139,148 @@ async fn ending_a_submission_wakes_a_save_waiting_on_its_sources() {
     })
     .await
     .expect("the waiting write is attempted once its source is free");
+}
+
+/// A one-second silent WAV, as an acquisition would stage it.
+fn staged_wav(dir: &std::path::Path, name: &str) -> PathBuf {
+    const SAMPLE_RATE: u32 = 44_100;
+    let data_len = SAMPLE_RATE * 2;
+    let mut bytes = Vec::with_capacity(44 + data_len as usize);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
+    bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
+    bytes.extend_from_slice(&2u16.to_le_bytes());
+    bytes.extend_from_slice(&16u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_len.to_le_bytes());
+    bytes.resize(44 + data_len as usize, 0);
+    let path = dir.join(format!("{name}.wav"));
+    std::fs::write(&path, bytes).expect("write staged WAV");
+    path
+}
+
+fn acquired(job_id: &str, audio: &std::path::Path) -> crate::remote_source::AcquisitionJob {
+    let pdf = audio.with_extension("pdf");
+    let pdf_bytes = b"%PDF-1.4 companion";
+    std::fs::write(&pdf, pdf_bytes).expect("write companion PDF");
+    use crate::remote_source::{
+        AcquisitionJob, MaterializedSourceFile, ProviderId, RemoteAcquisitionStatus,
+        SupplementalAsset,
+    };
+    AcquisitionJob {
+        job_id: job_id.to_string(),
+        provider_id: ProviderId::Audible,
+        status: RemoteAcquisitionStatus::Validated,
+        progress: abb_remote_source_core::acquisition_progress(
+            abb_remote_source_core::AcquisitionStage::Complete,
+            Some(1.0),
+            None,
+            None,
+        ),
+        materialized_files: vec![MaterializedSourceFile {
+            input_id: "remote-1".to_string(),
+            title_id: "B0".to_string(),
+            path: audio.to_path_buf(),
+            size_bytes: 0,
+            sha256: String::new(),
+        }],
+        supplemental_assets: vec![SupplementalAsset {
+            asset_id: "pdf-1".to_string(),
+            input_id: "remote-1".to_string(),
+            title_id: "B0".to_string(),
+            path: pdf,
+            file_name: "Guide.pdf".to_string(),
+            size_bytes: pdf_bytes.len() as u64,
+            sha256: abb_media_core::sha256_hex(pdf_bytes),
+        }],
+        diagnostics: Vec::new(),
+        handoff: None,
+    }
+}
+
+impl Rig {
+    async fn removed_jobs(&self) -> Vec<String> {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                let removed = self.removed.lock().expect("removed").clone();
+                if !removed.is_empty() {
+                    return removed;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("a download is removed")
+    }
+}
+
+#[tokio::test]
+async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_when_it_leaves() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+
+    let handoff = rig.session.import_acquired(acquired("job-1", &audio)).await;
+
+    assert_eq!(
+        handoff,
+        crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
+    );
+    let titles = rig.session.snapshot().titles.expect("titles");
+    let input_id = titles.files[0].input_id.clone();
+    assert_eq!(titles.companions[&input_id], ["Guide.pdf"]);
+    assert!(rig.removed.lock().expect("removed").is_empty());
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert!(rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .companions
+        .is_empty());
+}
+
+#[tokio::test]
+async fn a_download_goes_once_its_title_is_exported_and_nothing_imported_is_refused() {
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let output = tempfile::TempDir::new().expect("output");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+
+    // The same files again add nothing, so that job's download is refused.
+    let again = rig.session.import_acquired(acquired("job-2", &audio)).await;
+    assert_eq!(
+        again,
+        crate::remote_source::AcquisitionHandoff::Removed {
+            reason: crate::remote_source::HandoffRefusal::NothingAdded
+        }
+    );
+
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: output.path().to_string_lossy().into_owned(),
+    })
+    .await;
+    rig.send(SessionIntent::Submit).await;
+    assert!(
+        matches!(
+            rig.session.snapshot().output.expect("output").submission,
+            Some(SubmissionStatus::Submitted { .. })
+        ),
+        "{:?}",
+        rig.session.snapshot().output.expect("output").submission
+    );
+    // The title stays listed; its export completed, so the download goes.
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    assert_eq!(
+        rig.session.snapshot().titles.expect("titles").files.len(),
+        1
+    );
 }

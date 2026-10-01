@@ -21,7 +21,6 @@ const EXPECTED_COMMAND_NAMES = [
 	'load_cover_art_from_url',
 	'load_remote_source_library',
 	'logout_remote_source_account',
-	'purge_remote_source_session',
 	'read_audio_cover_thumbnail',
 	'read_audio_metadata',
 	'search_remote_source_releases',
@@ -39,6 +38,7 @@ const EXPECTED_APP_EVENT_NAMES = [
 	'work-operation-list-snapshot',
 	'session-update',
 	'settings-update',
+	'acquisition-update',
 ] as const;
 
 const EXPECTED_TAURI_CLIENT_METHODS = [
@@ -68,7 +68,6 @@ const EXPECTED_TAURI_CLIENT_METHODS = [
 	'openPath',
 	'revealPath',
 	'openUrl',
-	'purgeRemoteSourceSession',
 	'readAudioMetadata',
 	'readAudioCoverThumbnail',
 	'searchRemoteSourceReleases',

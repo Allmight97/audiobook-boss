@@ -82,6 +82,8 @@ pub struct TitlesSnapshot {
     pub order_locked: bool,
     pub notice: Option<InputNotice>,
     pub order_differs_from_import: bool,
+    /// Companion PDF names of downloaded titles, by input id.
+    pub companions: BTreeMap<String, Vec<String>>,
 }
 
 /// Which titles are selected, as positions in [`TitlesSnapshot::files`].
@@ -127,6 +129,7 @@ impl WorkingSet {
             order_locked: self.order_locked,
             notice: self.notice.clone(),
             order_differs_from_import: self.order_differs_from_import(),
+            companions: BTreeMap::new(),
         }
     }
 
@@ -189,6 +192,16 @@ impl WorkingSet {
             .iter()
             .flat_map(|file| self.sources_for(file))
             .map(|source| source.path.clone())
+            .collect()
+    }
+
+    /// Every source identity in the set, including sources hidden inside
+    /// groups.
+    pub(crate) fn source_ids(&self) -> HashSet<&str> {
+        self.files
+            .iter()
+            .flat_map(|file| self.sources_for(file))
+            .map(identity)
             .collect()
     }
 

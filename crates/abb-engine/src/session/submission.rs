@@ -41,6 +41,8 @@ pub enum SubmitRefusal {
     SaveInProgress,
     /// Another submission or a preview is still running.
     Busy,
+    /// A downloaded source is being removed after its export finished.
+    SourceRemoved,
     Closing,
 }
 

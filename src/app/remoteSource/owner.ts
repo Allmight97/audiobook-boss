@@ -1,6 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js';
 import type { AcquisitionLane } from '../../types/appSettings';
-import type { AudioFile, SupplementalProcessingAsset } from '../../types/audio';
 import { tauriClient } from '../../lib/tauri/client';
 import type { RemoteRelease } from '../../types/remoteSource';
 import {
@@ -8,7 +7,6 @@ import {
 	toggledRemoteTitleSelection,
 	toggledSupplementalPdfPreference,
 } from './selection';
-import type { InputOwner } from '../inputSession';
 import {
 	createCoverArtPreviewScheduler,
 	type CoverArtPreviewState,
@@ -21,7 +19,6 @@ import {
 	makeProductionIndexerConnectionServices,
 	makeProductionRemoteSourceServices,
 } from './services';
-import { createRemoteSourceSessionAssets, type CompanionAssetSummary } from './sessionAssets';
 import { createRemoteSourceStateStore } from './state';
 import type { RemoteSourceView } from './types';
 import {
@@ -29,8 +26,6 @@ import {
 	type RemoteSourceWorkflowAction,
 	type RemoteSourceWorkflowServices,
 } from './workflow';
-
-type InputId = string | undefined;
 
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
@@ -66,16 +61,6 @@ export type RemoteSourceOwner = {
 	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;
-	companionSummary(inputIds: readonly InputId[]): CompanionAssetSummary;
-	hasCompanions(inputId: InputId): boolean;
-	processingAssets(
-		inputIds: readonly InputId[],
-	): Record<string, SupplementalProcessingAsset[]> | undefined;
-	withSubmissionRetention<T>(inputIds: readonly InputId[], submit: () => Promise<T>): Promise<T>;
-	settleTerminalWork(input: {
-		readonly inputIds: readonly string[];
-		readonly completedInputIds: readonly string[];
-	}): Promise<void>;
 	loadIndexerConnectionSettings(): Promise<void>;
 	patchIndexerConnectionSettings(
 		patch: Partial<
@@ -84,12 +69,10 @@ export type RemoteSourceOwner = {
 	): void;
 	saveIndexerConnectionSettings(): Promise<void>;
 	testIndexerConnection(): Promise<void>;
-	reconcileWithInput(files: ReadonlyArray<AudioFile>): Promise<void>;
 	reset(): void;
 };
 
 export type RemoteSourceOwnerDeps = {
-	readonly input: InputOwner;
 	readonly services?: RemoteSourceWorkflowServices;
 	readonly loadCoverArtFromUrl?: (url: string) => Promise<number[]>;
 };
@@ -97,7 +80,6 @@ export type RemoteSourceOwnerDeps = {
 export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSourceOwner {
 	let snapshot: RemoteSourceView;
 	const [viewRev, bumpView] = createSignal(0, { ownedWrite: true });
-	const [assetRev, bumpAssets] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
 	const state = createRemoteSourceStateStore(() => {
 		snapshot = state.snapshot();
@@ -108,26 +90,13 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		services: makeProductionIndexerConnectionServices,
 	});
 
-	const services =
-		deps.services ??
-		makeProductionRemoteSourceServices({
-			inputView: () => deps.input.view(),
-			importPaths: (paths) => deps.input.importIntent({ type: 'importPaths', paths }),
-		});
-	const assets = createRemoteSourceSessionAssets({
-		purgeSession: services.purgeSession,
-		onChange: () => bumpAssets((revision) => revision + 1),
-	});
+	const services = deps.services ?? makeProductionRemoteSourceServices();
 	const previews = createCoverArtPreviewScheduler({
 		load: deps.loadCoverArtFromUrl ?? tauriClient.loadCoverArtFromUrl,
 		onChange: () => bumpPreviews((revision) => revision + 1),
 		failureLogMessage: 'Failed to load remote source cover preview:',
 	});
-	const workflow = createRemoteSourceWorkflow({
-		services,
-		state,
-		registerSupplementalAssets: assets.register,
-	});
+	const workflow = createRemoteSourceWorkflow({ services, state });
 
 	return {
 		view: () => {
@@ -213,23 +182,6 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		cancelCoverPreviews() {
 			previews.cancel();
 		},
-		companionSummary(inputIds) {
-			assetRev();
-			return assets.companionSummary(inputIds);
-		},
-		hasCompanions(inputId) {
-			assetRev();
-			return assets.hasCompanions(inputId);
-		},
-		processingAssets(inputIds) {
-			return assets.processingAssets(inputIds);
-		},
-		withSubmissionRetention(inputIds, submit) {
-			return assets.withSubmissionRetention(inputIds, submit);
-		},
-		settleTerminalWork(input) {
-			return assets.settleTerminalWork(input);
-		},
 		loadIndexerConnectionSettings() {
 			return indexerConnection.load();
 		},
@@ -258,13 +210,9 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 		testIndexerConnection() {
 			return indexerConnection.testConnection();
 		},
-		reconcileWithInput(files) {
-			return assets.reconcileInput(files);
-		},
 		reset() {
 			workflow.invalidate();
 			previews.clear();
-			assets.reset();
 			indexerConnection.reset();
 			state.reset();
 		},

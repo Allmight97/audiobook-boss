@@ -62,13 +62,6 @@ not keep parallel business state.
 - Derived views are computed from owner truth, not mirrored into another
   writable store. Capability and validation facts stay with their Rust owner.
 
-## Temporary Until Remote Sources Move Into The Engine
-
-- Processing passes staged downloads' supplemental assets with `submit` and
-  `preview`, and holds their retention around an export through Remote
-  Source's `withSubmissionRetention`. Both go when the engine owns staged
-  sources.
-
 ## Workflow And Failure Shape
 
 - Owner workflows are plain async. Public owner entrypoints return Promise or

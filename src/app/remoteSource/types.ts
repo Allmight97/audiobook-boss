@@ -1,5 +1,4 @@
 import type { AcquisitionLane } from '../../types/appSettings';
-import type { AudioFile } from '../../types/audio';
 import type {
 	ProviderId,
 	RemoteRelease,
@@ -8,11 +7,6 @@ import type {
 	RemoteTitle,
 } from '../../types/remoteSource';
 import type { AcquisitionJobWithProgress } from './display';
-
-export type RemoteInputHandoffResult =
-	| { readonly status: 'imported'; readonly files: readonly AudioFile[] }
-	| { readonly status: 'blocked'; readonly message: string }
-	| { readonly status: 'failed'; readonly message: string };
 
 export type ReleaseGrabState = {
 	status: 'queued' | 'sending' | 'sent' | 'error';

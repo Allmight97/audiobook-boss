@@ -16,6 +16,7 @@ use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
 use super::plans::{estimate_size, PlanInput, PlanTicket, Plans};
+use super::staged::StagedSources;
 use super::submission::{
     build_draft, title_label, Draft, DraftInputs, SubmissionStatus, SubmitRefusal, SubmittedTitle,
 };
@@ -240,6 +241,12 @@ pub(crate) struct SessionState {
     pending_review: Option<Draft>,
     /// Sources a submission being prepared will read; Save treats them as busy.
     reserved: Vec<PathBuf>,
+    /// Downloads the session imported, and when they may be removed.
+    pub(crate) staged: StagedSources,
+    /// Files of downloads being removed: nothing may write or submit them.
+    removing: Vec<PathBuf>,
+    /// A title left the list, so a download may now be removable.
+    staged_released: bool,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
@@ -301,6 +308,9 @@ impl Default for SessionState {
             submission: None,
             pending_review: None,
             reserved: Vec::new(),
+            staged: StagedSources::default(),
+            removing: Vec::new(),
+            staged_released: false,
             form,
             bound: Vec::new(),
             selection_key: Vec::new(),
@@ -327,9 +337,19 @@ impl SessionState {
         let next = self.parts.revision + 1;
         let mut changed = false;
 
-        if self.working_set.titles_changes() != self.parts.titles_changes {
+        let listed = self.working_set.source_ids();
+        if self.staged.finish_unlisted(&listed) {
+            self.staged_released = true;
+        }
+        let companions = self.staged.companions();
+        if self.working_set.titles_changes() != self.parts.titles_changes
+            || companions != self.parts.titles.companions
+        {
             self.parts.titles_changes = self.working_set.titles_changes();
-            self.parts.titles = self.working_set.titles(next);
+            self.parts.titles = TitlesSnapshot {
+                companions,
+                ..self.working_set.titles(next)
+            };
             changed = true;
         }
         let selection = self.working_set.selection(self.parts.selection.revision);
@@ -457,14 +477,8 @@ impl SessionState {
 
     /// Starts a submission or preview: accepts the edits on screen, builds
     /// what will be sent, reserves its sources, and locks the list.
-    pub(crate) fn begin_submission(
-        &mut self,
-        preview_seconds: Option<f64>,
-        supplemental_assets: Option<
-            std::collections::HashMap<String, Vec<crate::processing::SupplementalProcessingAsset>>,
-        >,
-    ) -> Option<Draft> {
-        match self.prepare_submission(preview_seconds, supplemental_assets) {
+    pub(crate) fn begin_submission(&mut self, preview_seconds: Option<f64>) -> Option<Draft> {
+        match self.prepare_submission(preview_seconds) {
             Ok(draft) => {
                 self.reserved.extend(draft.sources.iter().cloned());
                 self.working_set.set_order_locked(true);
@@ -480,13 +494,7 @@ impl SessionState {
         }
     }
 
-    fn prepare_submission(
-        &mut self,
-        preview_seconds: Option<f64>,
-        supplemental_assets: Option<
-            std::collections::HashMap<String, Vec<crate::processing::SupplementalProcessingAsset>>,
-        >,
-    ) -> Result<Draft, SubmitRefusal> {
+    fn prepare_submission(&mut self, preview_seconds: Option<f64>) -> Result<Draft, SubmitRefusal> {
         if self
             .submission
             .as_ref()
@@ -525,7 +533,14 @@ impl SessionState {
                 choice_required: required.contains(&file.input_id),
             })
             .collect();
-        build_draft(
+        let supplemental_assets = self.staged.assets_for(
+            titles
+                .iter()
+                .filter(|title| title.anchor.is_valid)
+                .flat_map(|title| title.sources)
+                .map(|source| source.input_id.as_str()),
+        );
+        let draft = build_draft(
             &titles,
             DraftInputs {
                 output_directory: self.output.naming_directory(),
@@ -541,7 +556,51 @@ impl SessionState {
                     .collect()
             },
             title_label,
-        )
+        )?;
+        if draft
+            .sources
+            .iter()
+            .any(|source| self.removing.contains(source))
+        {
+            return Err(SubmitRefusal::SourceRemoved);
+        }
+        Ok(draft)
+    }
+
+    // ---- Staged downloads ----
+
+    /// Whether a title left the list since this was last asked.
+    pub(crate) fn take_staged_released(&mut self) -> bool {
+        std::mem::take(&mut self.staged_released)
+    }
+
+    /// Picks the downloads to remove now and holds their files so nothing
+    /// writes or submits them meanwhile. `in_use` is every source of an
+    /// unfinished export. Nothing is removed while a Save writes.
+    pub(crate) fn begin_staged_removal(&mut self, in_use: &HashSet<PathBuf>) -> Vec<String> {
+        let writing = self.save_in_progress
+            || self
+                .deferred
+                .iter()
+                .any(|write| write.phase == DeferredPhase::Writing);
+        if writing {
+            return Vec::new();
+        }
+        let busy = self.busy(in_use);
+        let jobs = self.staged.removable(&busy);
+        for job_id in &jobs {
+            self.removing.extend(self.staged.paths(job_id));
+        }
+        jobs
+    }
+
+    /// Ends a removal; a failed one stays registered for the next attempt.
+    pub(crate) fn finish_staged_removal(&mut self, job_id: &str, removed: bool) {
+        let paths = self.staged.paths(job_id);
+        self.removing.retain(|path| !paths.contains(path));
+        if removed {
+            self.staged.removed(job_id);
+        }
     }
 
     /// Holds a submission for the user's collision choice.
@@ -1115,17 +1174,23 @@ impl SessionState {
 
     // ---- Save ----
 
+    /// Files exports read, plus those a submission being prepared will read
+    /// and downloads being removed.
+    fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
+        in_use
+            .iter()
+            .chain(&self.reserved)
+            .chain(&self.removing)
+            .cloned()
+            .collect()
+    }
+
     /// Decides where each pending edit goes. `in_use` is every source an
     /// accepted export has yet to finish reading; `is_temporary` says whether
     /// a source is a download the engine will remove.
     ///
     /// Returns `None`, with the reason in the status, when there is nothing to
     /// write.
-    /// Files exports read, plus those a submission being prepared will read.
-    fn busy(&self, in_use: &HashSet<PathBuf>) -> HashSet<PathBuf> {
-        in_use.iter().chain(&self.reserved).cloned().collect()
-    }
-
     pub(crate) fn begin_save(
         &mut self,
         in_use: &HashSet<PathBuf>,

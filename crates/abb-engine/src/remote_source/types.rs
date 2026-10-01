@@ -271,4 +271,33 @@ pub struct AcquisitionJob {
     pub materialized_files: Vec<MaterializedSourceFile>,
     pub supplemental_assets: Vec<SupplementalAsset>,
     pub diagnostics: Vec<RemoteSourceDiagnostic>,
+    /// Set once the engine has tried to import the job's files.
+    #[serde(default)]
+    pub handoff: Option<AcquisitionHandoff>,
+}
+
+/// What happened when the engine imported an acquisition's files into the
+/// session.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AcquisitionHandoff {
+    Imported {
+        count: usize,
+    },
+    /// Nothing was imported, so the staged files were removed.
+    Removed {
+        reason: HandoffRefusal,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum HandoffRefusal {
+    /// The list was locked by an export being prepared.
+    OrderLocked,
+    ImportFailed {
+        error: crate::errors::AppErrorEnvelope,
+    },
+    /// The files were already listed, or a reset dropped the import.
+    NothingAdded,
 }

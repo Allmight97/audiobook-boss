@@ -76,6 +76,7 @@ impl Engine {
     /// then puts the saved settings in effect.
     pub fn start(config: EngineConfig) -> Result<Self> {
         let power = PowerManager::default();
+        let host = Host::new(config.events, power.clone());
         let tasks = TaskTracker::new();
         audio::cleanup_abandoned_processing_workspaces(&config.cache_dir)?;
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
@@ -83,13 +84,13 @@ impl Engine {
             config_dir: config.config_dir.clone(),
             app_identifier: config.app_identifier,
             power: power.clone(),
+            host: host.clone(),
             aaxclean_helper: config.aaxclean_helper,
             tasks: tasks.clone(),
         })?;
         remote_source.cleanup_abandoned_sessions()?;
 
         let (settings, jobs, startup) = SettingsRuntime::start(config.config_dir, power.clone());
-        let host = Host::new(config.events, power);
         let work = WorkRuntime::new(tasks.clone());
         let opened_audio = Arc::new(OpenedAudioFileQueue::default());
         let session = Session::new(SessionDeps {
@@ -101,7 +102,12 @@ impl Engine {
             settings: settings.clone(),
             tasks: tasks.clone(),
             workspace_root: audio::processing_workspace_root(&config.cache_dir),
+            remove_staged: {
+                let remote_source = remote_source.clone();
+                Arc::new(move |job_id| remote_source.purge_session(job_id))
+            },
         });
+        remote_source.set_handoff(session.handoff());
         session.start_from_defaults(
             startup.as_ref(),
             Some(audio::encoder_settings_capabilities()),

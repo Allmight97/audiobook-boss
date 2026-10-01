@@ -49,6 +49,7 @@ function emptyTitles(): SessionTitles {
 		orderLocked: false,
 		notice: null,
 		orderDiffersFromImport: false,
+		companions: {},
 	};
 }
 

@@ -4,6 +4,7 @@ import { toUserMessage } from '../../lib/tauri/appError';
 import { liveInputCapability, type InputCapability } from '../../lib/tauri/capabilities/input';
 import type { SessionIntent } from '../../types/session';
 import type { EngineLink } from '../engineLink';
+import { companionSummary, type CompanionSummary } from './companions';
 import { toInputView } from './display';
 import {
 	DEFAULT_SUPPORT_TEXT,
@@ -25,6 +26,9 @@ export type InputOwner = {
 	ungroup(file: AudioFile): Promise<void>;
 	reorderSources(file: AudioFile, from: number, to: number): void;
 	audioChoiceRequired(file: AudioFile): boolean;
+	/** Whether a downloaded title has companion PDFs. */
+	hasCompanions(inputId: string | undefined): boolean;
+	companionSummary(inputIds: ReadonlyArray<string | undefined>): CompanionSummary;
 	importIntent(intent: ImportIntent): Promise<void>;
 	hydrateSupportText(): Promise<void>;
 	/** Resolves true when the selection changed and its tags have loaded. */
@@ -129,6 +133,12 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		sourcesFor,
 		audioChoiceRequired(file) {
 			return link.titles().audioChoiceRequired.includes(fileIdentityKey(file));
+		},
+		hasCompanions(inputId) {
+			return Boolean(inputId && link.titles().companions[inputId]?.length);
+		},
+		companionSummary(inputIds) {
+			return companionSummary(link.titles().companions, inputIds);
 		},
 		async groupSelected() {
 			await link.send({ kind: 'groupSelected' });

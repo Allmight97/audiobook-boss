@@ -24,6 +24,9 @@ pub struct WorkRuntime {
 /// Source paths by operation id, then title index.
 type TitleSources = HashMap<String, Vec<Vec<PathBuf>>>;
 
+/// Told an export's terminal snapshot.
+pub(crate) type OnFinished = Box<dyn FnOnce(OperationSnapshot) + Send>;
+
 struct WorkRuntimeInner {
     state: Mutex<WorkRuntimeState>,
     operation_cancel_flags: Mutex<HashMap<String, CancelFlags>>,
@@ -60,12 +63,15 @@ impl WorkRuntime {
 }
 
 impl WorkRuntime {
+    /// Accepts an export and runs it. `on_finished` receives the operation's
+    /// terminal snapshot once it ends.
     pub(crate) async fn submit_processing_operation(
         &self,
         host: Host,
         registry: crate::ManagedJobRegistry,
         workspace_root: PathBuf,
         request: SubmitProcessingOperationRequest,
+        on_finished: Option<OnFinished>,
     ) -> Result<WorkSubmissionAccepted> {
         if self.inner.tasks.is_closed() {
             return Err(AppError::General("ABB is closing.".to_string()));
@@ -155,8 +161,12 @@ impl WorkRuntime {
             )
             .await;
             runtime.release_title_sources(&operation_id_for_task);
-            runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
+            let finished =
+                runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
             runtime.remove_cancel_flag(&operation_id_for_task);
+            if let (Some(on_finished), Some(snapshot)) = (on_finished, finished) {
+                on_finished(snapshot);
+            }
         });
 
         Ok(WorkSubmissionAccepted {
@@ -354,7 +364,7 @@ impl WorkRuntime {
         host: &Host,
         operation_id: &OperationId,
         result: Result<crate::processing::ProcessCommandResult>,
-    ) {
+    ) -> Option<OperationSnapshot> {
         let snapshot_result = lock_state(&self.inner.state).and_then(|mut state| match &result {
             Ok(result) => state.complete_from_process_result(operation_id, result, now_ms()),
             Err(error) => terminalize_aborted_run(&mut state, operation_id, error),
@@ -365,8 +375,12 @@ impl WorkRuntime {
                 log_work_operation(WorkOperationLogEvent::Terminal, &snapshot);
                 self.emit_snapshot(host, &snapshot);
                 self.emit_list(host);
+                Some(snapshot)
             }
-            Err(error) => log::warn!("Failed to terminalize work operation: {}", error),
+            Err(error) => {
+                log::warn!("Failed to terminalize work operation: {}", error);
+                None
+            }
         }
     }
 
@@ -399,6 +413,18 @@ impl WorkRuntime {
             }
         }
         in_use
+    }
+
+    /// Every source of every export that has not finished, including titles
+    /// already encoded: a title still copies its companion files after its
+    /// audio completes.
+    pub(crate) fn sources_held(&self) -> HashSet<PathBuf> {
+        self.title_sources()
+            .values()
+            .flatten()
+            .flatten()
+            .cloned()
+            .collect()
     }
 
     /// A receiver that wakes whenever any operation's state changes.

@@ -11,7 +11,6 @@
 //! [`SessionRun::finish`] then does the file or network work, which may
 //! overlap with later intents.
 
-use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -44,8 +43,9 @@ use crate::output_artifact::CollisionPolicy;
 use crate::output_artifact::NamingPreset;
 use crate::processing::run::{preflight_payload, process_payload};
 use crate::processing::SupplementalProcessingAsset;
-use crate::work_runtime::SubmitProcessingOperationRequest;
+use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
 use crate::work_runtime::WorkRuntime;
+use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
 use crate::ManagedJobRegistry;
 
 /// How many source files are read for tags at once.
@@ -114,17 +114,11 @@ pub enum SessionIntent {
     Reset,
 
     // ---- Export ----
-    /// Exports every valid title. `supplemental_assets` are acquired titles'
-    /// companion files by input id, until remote sources move into the engine.
-    #[serde(rename_all = "camelCase")]
-    Submit {
-        supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
-    },
+    /// Exports every valid title.
+    Submit,
     /// Renders the first `seconds` of each valid title, in the foreground.
-    #[serde(rename_all = "camelCase")]
     Preview {
         seconds: f64,
-        supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
     },
     /// Continues a submission held for review with the user's choice.
     ChooseCollisionPolicy {
@@ -278,7 +272,11 @@ pub(crate) struct SessionDeps {
     pub(crate) tasks: tokio_util::task::TaskTracker,
     /// Where processing keeps its working files.
     pub(crate) workspace_root: PathBuf,
+    /// Removes an acquisition's staged download.
+    pub(crate) remove_staged: RemoveStaged,
 }
+
+pub(crate) type RemoveStaged = Arc<dyn Fn(&str) -> Result<()> + Send + Sync>;
 
 fn failed(error: &AppError) -> SubmissionStatus {
     SubmissionStatus::Failed {
@@ -305,6 +303,8 @@ struct SessionInner {
     deferred_writer_running: AtomicBool,
     /// Wakes the deferred writer when a submission frees its sources.
     sources_freed: tokio::sync::Notify,
+    /// One staged-download sweep runs at a time.
+    sweeping: tokio::sync::Mutex<()>,
     /// Advances with every output change; a delayed record checks it.
     output_edits: AtomicU64,
 }
@@ -426,6 +426,7 @@ impl Session {
                 published: AtomicU64::new(0),
                 deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
+                sweeping: tokio::sync::Mutex::new(()),
                 output_edits: AtomicU64::new(0),
             }),
         }
@@ -443,17 +444,60 @@ impl Session {
     /// Runs one atomic transition and re-derives the snapshots. Title plans
     /// the transition made stale are resolved in the background.
     fn transition<T>(&self, change: impl FnOnce(&mut SessionState) -> T) -> T {
-        let (value, tickets) = {
+        let (value, tickets, released) = {
             let mut state = self.lock();
             let value = change(&mut state);
             let tickets = state.take_plan_tickets();
             state.settle();
-            (value, tickets)
+            (value, tickets, state.take_staged_released())
         };
         if !tickets.is_empty() {
             self.resolve_plans(tickets);
         }
+        if released {
+            self.sweep_staged();
+        }
         value
+    }
+
+    /// Removes the downloads no title or export needs any more.
+    fn sweep_staged(&self) {
+        if tokio::runtime::Handle::try_current().is_err() {
+            return;
+        }
+        let session = self.clone();
+        self.inner.deps.tasks.spawn(async move {
+            let _one_at_a_time = session.inner.sweeping.lock().await;
+            // Read under the session lock, so no submission can reserve a
+            // file between this check and its removal.
+            let jobs = session.transition(|state| {
+                if state.staged.is_empty() {
+                    return Vec::new();
+                }
+                let held = session.inner.deps.work.sources_held();
+                state.begin_staged_removal(&held)
+            });
+            if jobs.is_empty() {
+                return;
+            }
+            for job_id in jobs {
+                let remove = Arc::clone(&session.inner.deps.remove_staged);
+                let id = job_id.clone();
+                let removed = blocking(move || remove(&id)).await;
+                if let Err(error) = &removed {
+                    log::warn!("Failed to remove staged download job_id={job_id}: {error}");
+                }
+                session.transition(|state| state.finish_staged_removal(&job_id, removed.is_ok()));
+            }
+            session.publish();
+        });
+    }
+
+    /// Records which titles an export finished, then removes what is no
+    /// longer needed.
+    fn export_finished(&self, snapshot: &OperationSnapshot) {
+        self.transition(|state| state.staged.finish_export(&snapshot.children));
+        self.sweep_staged();
     }
 
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
@@ -643,13 +687,8 @@ impl Session {
                 Rest::Done(SessionOutcome::Applied)
             }
             I::Save => self.begin_save(),
-            I::Submit {
-                supplemental_assets,
-            } => self.begin_submission(None, supplemental_assets),
-            I::Preview {
-                seconds,
-                supplemental_assets,
-            } => self.begin_submission(Some(seconds), supplemental_assets),
+            I::Submit => self.begin_submission(None),
+            I::Preview { seconds } => self.begin_submission(Some(seconds)),
             I::ChooseCollisionPolicy { policy } => match self.transition(SessionState::take_review)
             {
                 Some(draft) => Rest::Reviewed {
@@ -802,20 +841,120 @@ impl Session {
         SessionOutcome::Applied
     }
 
+    /// Imports a finished acquisition's files and records them as staged
+    /// downloads, in the transition that lists them, so no Reset or removal
+    /// can fall between the two.
+    async fn import_acquired(&self, job: AcquisitionJob) -> AcquisitionHandoff {
+        let _in_order = self.inner.imports.lock().await;
+        let resets = self.inner.resets.load(Ordering::SeqCst);
+        let removed = |reason| AcquisitionHandoff::Removed { reason };
+        let paths: Vec<PathBuf> = job
+            .materialized_files
+            .iter()
+            .map(|file| file.path.clone())
+            .collect();
+        let analyzed = blocking(move || {
+            let discovered = audio::discover_audio_import_paths(&paths)?;
+            audio::get_file_list_info(&discovered)
+        })
+        .await;
+        let analyzed = match analyzed {
+            Ok(analyzed) => analyzed.files,
+            Err(error) => {
+                return removed(HandoffRefusal::ImportFailed {
+                    error: AppErrorEnvelope::from(&error),
+                })
+            }
+        };
+        if self.inner.resets.load(Ordering::SeqCst) != resets {
+            return removed(HandoffRefusal::NothingAdded);
+        }
+        let titles = staged_titles(&job);
+        let listed = self.transition(|state| {
+            if state.working_set.order_locked() {
+                return Err(HandoffRefusal::OrderLocked);
+            }
+            let before = state.working_set.source_paths();
+            let default_audio = state.audio.request();
+            state.working_set.append_analyzed(analyzed, &default_audio);
+            let mut count = 0;
+            for file in state.working_set.files().to_vec() {
+                if before.contains(&file.path) {
+                    continue;
+                }
+                let Some((title_id, _)) = titles.iter().find(|(_, path)| *path == file.path) else {
+                    continue;
+                };
+                let assets = job
+                    .supplemental_assets
+                    .iter()
+                    .filter(|asset| &asset.title_id == title_id)
+                    .map(|asset| SupplementalProcessingAsset {
+                        asset_id: asset.asset_id.clone(),
+                        input_id: file.input_id.clone(),
+                        title_id: asset.title_id.clone(),
+                        path: asset.path.clone(),
+                        file_name: asset.file_name.clone(),
+                        size_bytes: asset.size_bytes,
+                        sha256: asset.sha256.clone(),
+                    })
+                    .collect();
+                state
+                    .staged
+                    .register(&job.job_id, &file.input_id, file.path.clone(), assets);
+                count += 1;
+            }
+            if count == 0 {
+                return Err(HandoffRefusal::NothingAdded);
+            }
+            Ok((
+                Bound {
+                    reads: state.rebind(),
+                    binding: state.binding,
+                },
+                count,
+            ))
+        });
+        match listed {
+            Ok((bound, count)) => {
+                self.complete_reads(bound).await;
+                self.publish();
+                AcquisitionHandoff::Imported { count }
+            }
+            Err(reason) => {
+                self.publish();
+                removed(reason)
+            }
+        }
+    }
+
+    /// Hands finished acquisitions to this session. Holds the session weakly,
+    /// since the remote-source runtime outlives no engine.
+    pub(crate) fn handoff(&self) -> Handoff {
+        let session = Arc::downgrade(&self.inner);
+        Arc::new(move |job| {
+            let session = session.upgrade().map(|inner| Session { inner });
+            Box::pin(async move {
+                match session {
+                    Some(session) => session.import_acquired(job).await,
+                    None => AcquisitionHandoff::Removed {
+                        reason: HandoffRefusal::NothingAdded,
+                    },
+                }
+            })
+        })
+    }
+
     // ---- Export ----
 
-    fn begin_submission(
-        &self,
-        preview_seconds: Option<f64>,
-        supplemental_assets: Option<HashMap<String, Vec<SupplementalProcessingAsset>>>,
-    ) -> Rest {
+    fn begin_submission(&self, preview_seconds: Option<f64>) -> Rest {
         let closing = self.inner.deps.tasks.is_closed();
         let draft = self.transition(|state| {
             if closing {
                 state.refuse_submission(SubmitRefusal::Closing);
                 return None;
             }
-            state.begin_submission(preview_seconds, supplemental_assets)
+            state.begin_submission(preview_seconds)
         });
         match draft {
             Some(draft) => Rest::Submit(Box::new(draft)),
@@ -887,6 +1026,10 @@ impl Session {
                     preview_seconds: None,
                     title: draft.title.clone(),
                 },
+                Some(Box::new({
+                    let session = self.clone();
+                    move |snapshot| session.export_finished(&snapshot)
+                })),
             )
             .await;
         let status = match submitted {
@@ -904,6 +1047,7 @@ impl Session {
     fn end_submission(&self, draft: &Draft, status: SubmissionStatus) -> SessionOutcome {
         self.transition(|state| state.finish_submission(draft, status));
         self.inner.sources_freed.notify_one();
+        self.sweep_staged();
         SessionOutcome::Applied
     }
 
@@ -1058,6 +1202,8 @@ impl Session {
             }
         }
         self.transition(|state| state.finish_save(epoch, &saved, status));
+        // A sweep waits while a Save writes.
+        self.sweep_staged();
         SessionOutcome::Applied
     }
 
@@ -1144,6 +1290,7 @@ impl Session {
                 })
                 .collect();
             self.transition(|state| state.finish_deferred(&results));
+            self.sweep_staged();
             self.publish();
         }
     }
@@ -1394,6 +1541,17 @@ struct Written {
     succeeded: usize,
     failed: usize,
     cancelled: usize,
+}
+
+/// Each materialized title's id and canonical path.
+fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
+    job.materialized_files
+        .iter()
+        .map(|file| {
+            let path = std::fs::canonicalize(&file.path).unwrap_or_else(|_| file.path.clone());
+            (file.title_id.clone(), path)
+        })
+        .collect()
 }
 
 async fn blocking<T: Send + 'static>(

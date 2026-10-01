@@ -3,7 +3,6 @@ import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
 import type { OutputPlanOwner } from '../outputPlan';
-import type { RemoteSourceOwner } from '../remoteSource';
 import { renderConcurrencyStatus } from './render';
 import { StatusPanelRuntime } from './runtime';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
@@ -27,7 +26,6 @@ export type ProcessingOwnerDeps = {
 	readonly input: InputOwner;
 	readonly settings: SettingsOwner;
 	readonly output: Pick<OutputPlanOwner, 'openCollisionReview'>;
-	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
 };
 
 export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwner {
@@ -48,11 +46,6 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		submit: {
 			link: deps.link,
 			reviewCollisions: (outputs) => deps.output.openCollisionReview(outputs),
-			remoteSource: deps.remoteSource,
-			sourceInputIds: () =>
-				validTitles().flatMap((file) =>
-					deps.input.sourcesFor(file).map((source) => source.inputId),
-				),
 			titlePaths: () => validTitles().map((file) => file.path),
 			setControlsEnabled: (enabled) => deps.settings.setControlsEnabled(enabled),
 			showError: (message) => statusView.showError(message),

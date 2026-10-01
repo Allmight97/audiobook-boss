@@ -59,8 +59,8 @@ Submit / Preview intent
 ```
 
 Remote Source materializes provider-owned titles into ABB-owned staged local
-files, then hands them to the normal Input owner. It is not a hidden processing
-path.
+files, then the engine imports them into the working session like any other
+files. It is not a hidden processing path.
 
 Preview and accepted work are deliberately different lanes. A preview runs
 in the session with foreground progress events; it has no backend cancel
@@ -87,7 +87,7 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | Metadata Outcome | `crates/abb-engine/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
 | Output Artifact | `crates/abb-engine/src/output_artifact` | Requested/resolved paths, collision review, replacement, final commit, and success truth. |
 | App Settings | `crates/abb-engine/src/app_settings` + `src/app/appSettings` | Settings in effect, validation, storage, and durability in the engine; dialog state and wording in TS. |
-| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, staged materialization, supplemental assets, and purge. |
+| Remote Source | `crates/abb-engine/src/remote_source` + `src/app/remoteSource` | Provider capabilities/auth, acquisition, and staged materialization in the engine (the session imports the files and decides when downloads go); dialog state and wording in TS. |
 | Core crates | `crates/abb-*-core` | Pure domain facts and classifiers packaged for an engine owner; not additional product owners. Tier rules: `crates/AGENTS.md`. |
 
 Callers cross an owner's Public API Strip—the allowed import/export surface

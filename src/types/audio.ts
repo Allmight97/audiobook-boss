@@ -25,7 +25,6 @@ import type {
 	ProcessResultEntry as GeneratedProcessResultEntry,
 	ProcessResultStatus as GeneratedProcessResultStatus,
 	SampleRateConfig as GeneratedSampleRateConfig,
-	SupplementalProcessingAsset as GeneratedSupplementalProcessingAsset,
 	SupportedAudioImportMetadata as GeneratedSupportedAudioImportMetadata,
 } from '../lib/generated/tauri';
 import type { AppErrorEnvelope } from '../lib/tauri/appError';
@@ -80,8 +79,6 @@ export type ProcessCommandResult = Omit<
 };
 
 export type BitrateKbps = EncoderSettings['bitrateKbps'];
-
-export type SupplementalProcessingAsset = NullToOptionalDeep<GeneratedSupplementalProcessingAsset>;
 
 // Match Rust's fresh and Default M4B encoding defaults.
 export const defaultEncoderSettings = (): EncoderSettings => ({

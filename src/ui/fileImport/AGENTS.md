@@ -14,8 +14,7 @@
 - Cover-art native drops dispatch Metadata `applyCoverArtDrop`.
 - Compose `RemoteSourceAcquireView` next to the Import split button. Main click
   opens `settings.defaultAcquisitionLane`; caret picks Audible or Indexer via
-  `remoteSource.open({ lane })`. Remote session purge tracks Input file identity
-  through Remote Source.
+  `remoteSource.open({ lane })`.
 
 ## Hard Invariants
 

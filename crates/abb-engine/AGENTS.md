@@ -50,9 +50,10 @@ the same code.
   (`metadata_lookup/service.rs`).
 - The settings in effect, their validation, storage, and durability belong to
   `crate::app_settings`; it consults runtime owners for accept/reject rules.
-- Remote provider registry, secrets, acquisition, staged files, Supplemental
-  Assets, and purge belong to `crate::remote_source`. Provider-private
-  details stay out of other owners, logs, and host payloads.
+- Remote provider registry, secrets, acquisition, and staged files belong to
+  `crate::remote_source`; when an imported download is removed is the
+  session's. Provider-private details stay out of other owners, logs, and
+  host payloads.
 - Metadata reads/writes cross `crate::metadata`. The metadata owner selects
   container handling from actual media classification; callers request an
   outcome rather than choosing MP4/FFmpeg strategy modules.

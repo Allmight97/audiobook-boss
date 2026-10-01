@@ -169,8 +169,6 @@ export const commandSpecs = {
 			generatedCommands.cancelRemoteSourceAcquisition(args.jobId),
 			normalizeNullish,
 		),
-	purge_remote_source_session: (args: { jobId: string }) =>
-		runGeneratedCommand(generatedCommands.purgeRemoteSourceSession(args.jobId)),
 	search_remote_source_releases: (args: { request: RemoteReleaseSearchRequest }) =>
 		runGeneratedCommand(
 			generatedCommands.searchRemoteSourceReleases(

@@ -43,10 +43,8 @@ List membership, source order, and audio choices are engine truth.
   `FileListView` owns a private thumbnail resource with its loader, reactive
   reads, bounded cache, and queue; dispose it with the view. Scheduling an
   empty list clears only that resource.
-- PDF companion chips use the runtime Remote Source owner's reactive
-  `hasCompanions` read; supplemental changes can arrive after Input publishes.
-- Remote session purge tracks Input file identity through Remote Source. Do
-  not dual-purge from this view.
+- PDF companion chips use Input's `hasCompanions`, which reads the engine's
+  titles part.
 
 ## Hard Invariants
 

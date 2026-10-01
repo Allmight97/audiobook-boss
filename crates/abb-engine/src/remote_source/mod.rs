@@ -1,6 +1,8 @@
 use std::fs;
+use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::pin::Pin;
+use std::sync::{Arc, Mutex, OnceLock};
 
 mod cancellation;
 mod materializer;
@@ -34,11 +36,20 @@ pub(crate) struct RemoteSourceConfig {
     /// Scopes stored credentials; a different identifier is a different vault.
     pub(crate) app_identifier: String,
     pub(crate) power: crate::power::PowerManager,
+    /// Where acquisition progress is published.
+    pub(crate) host: crate::host::Host,
     /// Host-supplied helper location; `None` resolves it beside the executable.
     pub(crate) aaxclean_helper: Option<PathBuf>,
     /// The engine's background tasks; acquisitions run here.
     pub(crate) tasks: tokio_util::task::TaskTracker,
 }
+
+/// Imports a finished acquisition's files into the session.
+pub(crate) type Handoff = Arc<
+    dyn Fn(RemoteAcquisitionJob) -> Pin<Box<dyn Future<Output = AcquisitionHandoff> + Send>>
+        + Send
+        + Sync,
+>;
 
 #[derive(Clone)]
 pub struct RemoteSourceRuntime {
@@ -53,6 +64,7 @@ struct RemoteSourceRuntimeInner {
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     indexer_adapter: ReqwestProwlarrAdapter,
     tasks: tokio_util::task::TaskTracker,
+    handoff: OnceLock<Handoff>,
 }
 
 impl RemoteSourceRuntime {
@@ -67,12 +79,20 @@ impl RemoteSourceRuntime {
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(config.cache_dir),
                     AaxcleanMaterializer::new_for_helper(config.aaxclean_helper),
+                    config.host,
                 ),
                 pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new()?,
                 tasks: config.tasks,
+                handoff: OnceLock::new(),
             }),
         })
+    }
+
+    /// Sets where finished acquisitions hand their files. Set once, by the
+    /// engine, after the session exists.
+    pub(crate) fn set_handoff(&self, handoff: Handoff) {
+        let _ = self.inner.handoff.set(handoff);
     }
 
     /// Where staged downloads live. A source file under this root is
@@ -343,10 +363,15 @@ mod tests {
                 lifecycle: RemoteAcquisitionLifecycle::new(
                     RemoteSourceStaging::new(root.path().to_path_buf()),
                     AaxcleanMaterializer::for_tests(),
+                    crate::host::Host::new(
+                        std::sync::Arc::new(crate::DiscardEvents),
+                        crate::power::PowerManager::default(),
+                    ),
                 ),
                 pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new().expect("indexer adapter"),
                 tasks: tokio_util::task::TaskTracker::new(),
+                handoff: OnceLock::new(),
             }),
         }
     }
@@ -363,6 +388,7 @@ mod tests {
             materialized_files: Vec::new(),
             supplemental_assets: Vec::new(),
             diagnostics: Vec::new(),
+            handoff: None,
         }
     }
 
@@ -482,7 +508,7 @@ mod tests {
     }
 
     #[test]
-    fn cancel_acquisition_clears_existing_import_handoff_references() {
+    fn cancelling_a_finished_acquisition_keeps_its_files_for_the_session() {
         let root = TempDir::new().expect("temp root");
         let runtime = test_runtime(&root);
         let job_id = "remote-job-handoff";
@@ -511,16 +537,61 @@ mod tests {
             .expect("jobs lock")
             .insert(job_id.to_string(), job);
 
-        let cancelled = runtime
+        let answered = runtime
             .cancel_acquisition(job_id)
             .expect("cancel acquisition");
 
-        assert_eq!(cancelled.status, types::RemoteAcquisitionStatus::Cancelled);
-        assert!(cancelled.materialized_files.is_empty());
-        assert!(cancelled.supplemental_assets.is_empty());
+        // The engine may already be importing these files.
+        assert_eq!(answered.status, types::RemoteAcquisitionStatus::Validated);
         let stored = runtime.acquisition_status(job_id).expect("job status");
-        assert!(stored.materialized_files.is_empty());
-        assert!(stored.supplemental_assets.is_empty());
+        assert_eq!(stored.materialized_files.len(), 1);
+        assert_eq!(stored.supplemental_assets.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_finished_job_records_its_handoff_and_drops_files_nothing_imported() {
+        for (answer, kept) in [
+            (AcquisitionHandoff::Imported { count: 1 }, true),
+            (
+                AcquisitionHandoff::Removed {
+                    reason: HandoffRefusal::NothingAdded,
+                },
+                false,
+            ),
+        ] {
+            let root = TempDir::new().expect("temp root");
+            let runtime = test_runtime(&root);
+            let job_id = "remote-job-handoff";
+            let job_dir = runtime
+                .inner
+                .lifecycle
+                .staging
+                .create_job_dir(job_id)
+                .expect("job dir");
+            let audio = job_dir.join("book.m4b");
+            std::fs::write(&audio, b"payload").expect("write staged file");
+            let mut job = acquisition_job(job_id, types::RemoteAcquisitionStatus::Validated);
+            job.materialized_files.push(types::MaterializedSourceFile {
+                input_id: "input-1".to_string(),
+                title_id: "B000000001".to_string(),
+                path: audio.clone(),
+                size_bytes: 7,
+                sha256: String::new(),
+            });
+            let answered = answer.clone();
+            runtime.set_handoff(Arc::new(move |_| {
+                let answered = answered.clone();
+                Box::pin(async move { answered })
+            }));
+            runtime.inner.lifecycle.replace_job_if_active(job.clone());
+
+            runtime.inner.lifecycle.hand_off(&runtime, job).await;
+
+            let stored = runtime.acquisition_status(job_id).expect("job status");
+            assert_eq!(stored.handoff, Some(answer));
+            assert_eq!(audio.exists(), kept);
+            assert_eq!(stored.materialized_files.is_empty(), !kept);
+        }
     }
 
     #[test]

@@ -3,7 +3,6 @@ import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import type { CollisionPolicy, PlannedOutput, ProcessCommandResult } from '../../types/audio';
 import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
 import type { EngineLink } from '../engineLink';
-import type { RemoteSourceOwner } from '../remoteSource';
 import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
 
@@ -23,9 +22,6 @@ export type SubmitDeps = {
 	readonly link: Pick<EngineLink, 'send' | 'output'>;
 	/** Asks the user what to do with outputs that already exist; `null` cancels. */
 	readonly reviewCollisions: (outputs: readonly PlannedOutput[]) => Promise<CollisionPolicy | null>;
-	readonly remoteSource: Pick<RemoteSourceOwner, 'processingAssets' | 'withSubmissionRetention'>;
-	/** Every source of every valid title, for staged-download retention. */
-	readonly sourceInputIds: () => (string | undefined)[];
 	/** The paths of the valid titles, to name failures in a preview summary. */
 	readonly titlePaths: () => string[];
 	readonly setControlsEnabled: (enabled: boolean) => void;
@@ -54,6 +50,8 @@ function refusalText(reason: SubmitRefusal): string {
 			return 'Wait for the metadata save to finish before processing.';
 		case 'busy':
 			return 'Processing is already starting.';
+		case 'sourceRemoved':
+			return 'A downloaded source was removed after its export. Acquire it again to export it.';
 		case 'closing':
 			return 'ABB is closing.';
 	}
@@ -105,13 +103,6 @@ async function settle(
 	return status;
 }
 
-/** Thrown inside retention so staged downloads are released when nothing was submitted. */
-class NotSubmitted extends Error {
-	constructor(readonly status: SubmissionStatus | null) {
-		super('not submitted');
-	}
-}
-
 /**
  * Sends the session to the engine as an export, or as a preview when
  * `previewSeconds` is given, and shows how it went in the status panel.
@@ -122,8 +113,6 @@ export async function runSubmission(
 	options?: { previewSeconds?: number },
 ): Promise<void> {
 	context.setBatchCompletionMessage(null);
-	const ids = deps.sourceInputIds();
-	const supplementalAssets = deps.remoteSource.processingAssets(ids) ?? null;
 	const previewSeconds = options?.previewSeconds;
 	deps.setControlsEnabled(false);
 	try {
@@ -138,22 +127,11 @@ export async function runSubmission(
 			await context.updateArtThumbnail();
 			await context.startProgressListener();
 			status = await settle(deps, () =>
-				deps.link.send({ kind: 'preview', seconds: previewSeconds, supplementalAssets }),
+				deps.link.send({ kind: 'preview', seconds: previewSeconds }),
 			);
 		} else {
 			await context.updateArtThumbnail();
-			status = await deps.remoteSource
-				.withSubmissionRetention(ids, async () => {
-					const settled = await settle(deps, () =>
-						deps.link.send({ kind: 'submit', supplementalAssets }),
-					);
-					if (settled?.kind !== 'submitted') throw new NotSubmitted(settled);
-					return settled;
-				})
-				.catch((error: unknown) => {
-					if (error instanceof NotSubmitted) return error.status;
-					throw error;
-				});
+			status = await settle(deps, () => deps.link.send({ kind: 'submit' }));
 		}
 		await show(context, deps, status);
 	} catch (cause) {

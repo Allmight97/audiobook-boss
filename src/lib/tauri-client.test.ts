@@ -75,6 +75,7 @@ describe('tauriClient', () => {
 					orderLocked: false,
 					notice: null,
 					orderDiffersFromImport: false,
+					companions: {},
 				},
 				selection: null,
 				metadata: null,
@@ -317,11 +318,7 @@ describe('tauriClient nullish adapters', () => {
 		});
 
 		const { tauriClient } = await import('./tauri/client');
-		const reply = await tauriClient.sessionDispatch(7, 0, {
-			kind: 'preview',
-			seconds: 30,
-			supplementalAssets: null,
-		});
+		const reply = await tauriClient.sessionDispatch(7, 0, { kind: 'preview', seconds: 30 });
 
 		const submission = reply.update.output?.submission;
 		expect(submission?.kind).toBe('previewFinished');

@@ -20,6 +20,7 @@ import {
 	type ProcessingQueueEvent,
 	type SessionUpdateEvent,
 	type SettingsUpdateEvent,
+	type AcquisitionUpdateEvent,
 	type WorkOperationListSnapshotEvent,
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
@@ -50,6 +51,7 @@ import type {
 } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
+	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
 	normalizeProgressEvent,
@@ -69,6 +71,7 @@ type WorkOperationListSnapshotHandler = (event: {
 }) => void;
 type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
 type SettingsUpdateHandler = (event: { payload: SettingsUpdateEvent }) => void;
+type AcquisitionUpdateHandler = (event: { payload: AcquisitionUpdateEvent }) => void;
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
 
 async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
@@ -113,6 +116,12 @@ async function listenSettingsUpdate(handler: SettingsUpdateHandler): Promise<Unl
 	});
 }
 
+async function listenAcquisitionUpdate(handler: AcquisitionUpdateHandler): Promise<UnlistenFn> {
+	return generatedEvents.acquisitionUpdate.listen((event) => {
+		handler({ payload: normalizeNullish(event.payload) as AcquisitionUpdateEvent });
+	});
+}
+
 async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
 	return generatedEvents.sessionUpdate.listen((event) => {
 		handler({ payload: normalizeSessionUpdate(event.payload) });
@@ -141,6 +150,10 @@ function listen(
 	event: typeof EVENTS.SETTINGS_UPDATE,
 	handler: SettingsUpdateHandler,
 ): Promise<UnlistenFn>;
+function listen(
+	event: typeof EVENTS.ACQUISITION_UPDATE,
+	handler: AcquisitionUpdateHandler,
+): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
 	handler: (event: { payload: ApplicationEvents[E] }) => void,
@@ -155,6 +168,7 @@ function listen(
 		| WorkOperationListSnapshotHandler
 		| SessionUpdateHandler
 		| SettingsUpdateHandler
+		| AcquisitionUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
 	if (event === EVENTS.PROGRESS) {
@@ -183,6 +197,10 @@ function listen(
 
 	if (event === EVENTS.SETTINGS_UPDATE) {
 		return listenSettingsUpdate(handler as SettingsUpdateHandler);
+	}
+
+	if (event === EVENTS.ACQUISITION_UPDATE) {
+		return listenAcquisitionUpdate(handler as AcquisitionUpdateHandler);
 	}
 
 	return tauriListen(
@@ -263,8 +281,6 @@ export const tauriClient = {
 		commandSpecs.get_remote_source_acquisition_status({ jobId }),
 	cancelRemoteSourceAcquisition: (jobId: string): Promise<AcquisitionJob> =>
 		commandSpecs.cancel_remote_source_acquisition({ jobId }),
-	purgeRemoteSourceSession: (jobId: string): Promise<void> =>
-		commandSpecs.purge_remote_source_session({ jobId }).then(() => undefined),
 	searchRemoteSourceReleases: (
 		request: RemoteReleaseSearchRequest,
 	): Promise<RemoteReleaseSearchResponse> =>
@@ -313,6 +329,7 @@ export const TAURI_APP_EVENT_NAMES = Object.freeze([
 	'work-operation-list-snapshot',
 	'session-update',
 	'settings-update',
+	'acquisition-update',
 ] as const);
 
 export type { TauriCommand };

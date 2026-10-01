@@ -23,7 +23,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::start_remote_source_acquisition,
             crate::commands::get_remote_source_acquisition_status,
             crate::commands::cancel_remote_source_acquisition,
-            crate::commands::purge_remote_source_session,
             crate::commands::search_remote_source_releases,
             crate::commands::grab_remote_source_release,
             crate::commands::get_remote_source_indexer_connection,
@@ -40,7 +39,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::events::WorkOperationSnapshotEvent,
             crate::events::WorkOperationListSnapshotEvent,
             crate::events::SessionUpdateEvent,
-            crate::events::SettingsUpdateEvent
+            crate::events::SettingsUpdateEvent,
+            crate::events::AcquisitionUpdateEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,

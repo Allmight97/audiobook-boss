@@ -28,7 +28,6 @@ const native = vi.hoisted(() => ({
 	listWorkOperations: vi.fn(),
 	cancelWorkOperation: vi.fn(),
 	openPath: vi.fn(),
-	purgeRemoteSourceSession: vi.fn(),
 }));
 
 vi.mock('../../lib/tauri/client', () => ({ tauriClient: native }));
@@ -225,10 +224,7 @@ describe('UI Workflow Smoke Test', () => {
 				directory: OUTPUT_DIRECTORY,
 			});
 			expect(engine.sessionIntents).toContainEqual({ kind: 'setIncludeYear', includeYear: true });
-			expect(engine.sessionIntents[engine.sessionIntents.length - 1]).toEqual({
-				kind: 'submit',
-				supplementalAssets: null,
-			});
+			expect(engine.sessionIntents[engine.sessionIntents.length - 1]).toEqual({ kind: 'submit' });
 			// What the engine will write into the export.
 			expect(engine.pendingEdits(INPUT_PATH)).toMatchObject({
 				title: { op: 'set', value: 'Dune' },

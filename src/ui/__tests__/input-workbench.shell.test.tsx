@@ -236,9 +236,6 @@ describe('Solid input workbench', () => {
 	it('keeps a grouped title’s PDF chip when only a later source has a companion', async () => {
 		const files = [analyzedFile('/books/part1.m4b'), analyzedFile('/books/part2.m4b')];
 		runtime = runtimeFor({ files });
-		vi.spyOn(runtime.remoteSource, 'hasCompanions').mockImplementation(
-			(inputId) => inputId === files[1]!.inputId,
-		);
 		renderApp(runtime);
 		await runtime.input.importIntent({
 			type: 'importPaths',
@@ -246,8 +243,13 @@ describe('Solid input workbench', () => {
 		});
 		await runtime.input.selectAll();
 		await runtime.input.groupSelected();
-		const row = screen.getByRole('option', { name: 'part1.m4b' });
-		expect(within(row).getByText('PDF')).toBeVisible();
+		engine.change((state) => {
+			state.titles.companions = { [files[1]!.inputId!]: ['Guide.pdf'] };
+		});
+		await waitFor(() => {
+			const row = screen.getByRole('option', { name: 'part1.m4b' });
+			expect(within(row).getByText('PDF')).toBeVisible();
+		});
 	});
 
 	it('edits one stack through its audio popover', async () => {

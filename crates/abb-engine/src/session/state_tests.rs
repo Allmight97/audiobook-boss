@@ -9,8 +9,10 @@ use proptest::prelude::*;
 use super::*;
 use crate::audio::{AudioFile, AudioIntent, AudiobookFormat, SampleRateConfig, TitleAudioRequest};
 use crate::session::metadata_form::{FieldAction, FieldSnapshot};
+use crate::session::staged::tests::exported;
 use crate::session::submission::SubmissionStatus;
 use crate::session::working_set::SelectionModifiers;
+use crate::work_runtime::ChildJobStatus;
 
 const ONE: SelectionModifiers = SelectionModifiers {
     multi: false,
@@ -991,7 +993,7 @@ fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
     desk.state.output.set_directory("/library".to_string());
     let draft = desk
         .state
-        .begin_submission(None, None)
+        .begin_submission(None)
         .expect("the submission starts");
     assert!(desk.state.working_set.order_locked());
 
@@ -1480,4 +1482,98 @@ proptest! {
             );
         }
     }
+}
+
+// ---- Staged downloads ----
+
+#[test]
+fn a_download_waits_for_the_export_and_the_submission_reading_it() {
+    let mut desk = Desk::open(&[("alpha", None), ("beta", None)], &[0]);
+    let staged = &mut desk.state.staged;
+    staged.register("job-1", "alpha", path("alpha"), Vec::new());
+    staged.register("job-2", "beta", path("beta"), Vec::new());
+
+    // Beta leaves the list while an export still reads it.
+    desk.state.working_set.remove_file(1);
+    desk.state.settle();
+    assert!(desk.state.take_staged_released());
+    assert!(desk
+        .state
+        .begin_staged_removal(&HashSet::from([path("beta")]))
+        .is_empty());
+    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-2"]);
+
+    // Alpha's export completed but it is submitted again.
+    desk.state
+        .staged
+        .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
+    desk.state.output.set_directory("/library".to_string());
+    let draft = desk.state.begin_submission(None).expect("submission");
+    assert!(desk.state.begin_staged_removal(&HashSet::new()).is_empty());
+    desk.state
+        .finish_submission(&draft, SubmissionStatus::Cancelled);
+    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
+}
+
+#[test]
+fn a_download_being_removed_is_neither_written_nor_submitted() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state
+        .staged
+        .register("job-1", "alpha", path("alpha"), Vec::new());
+    // Its export completed; the title stays listed.
+    desk.state
+        .staged
+        .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
+    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
+
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let plan = desk
+        .save_during(&HashSet::new(), &[path("alpha")], &[])
+        .expect("save");
+    assert_eq!(
+        (plan.immediate.len(), plan.held),
+        (0, 1),
+        "the file is held"
+    );
+    desk.state.output.set_directory("/library".to_string());
+    assert!(desk.state.begin_submission(None).is_none());
+    assert_eq!(
+        desk.state.output_snapshot(0).submission,
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::SourceRemoved
+        })
+    );
+
+    desk.state.finish_staged_removal("job-1", true);
+    assert!(desk.state.staged.is_empty());
+}
+
+#[test]
+fn no_download_is_removed_while_a_save_writes() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.state
+        .staged
+        .register("job-1", "beta", path("beta"), Vec::new());
+    desk.state.settle();
+    desk.type_into(MetadataField::Genre, "Mystery");
+    let plan = desk
+        .state
+        .begin_save(&HashSet::new(), |_| false)
+        .expect("save");
+    assert!(desk.state.begin_staged_removal(&HashSet::new()).is_empty());
+
+    let epoch = desk.state.epoch;
+    desk.state.finish_save(
+        epoch,
+        &plan.immediate,
+        MetadataStatus::SaveComplete {
+            succeeded: 1,
+            failed: 0,
+            cancelled: 0,
+            waiting: 0,
+            held: 0,
+        },
+    );
+    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
 }

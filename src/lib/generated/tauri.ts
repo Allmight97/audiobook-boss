@@ -40,7 +40,6 @@ export const commands = {
 	startRemoteSourceAcquisition: (plan: AcquisitionPlan) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_acquisition", { plan })),
 	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
 	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
-	purgeRemoteSourceSession: (jobId: string) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("purge_remote_source_session", { jobId })),
 	searchRemoteSourceReleases: (request: RemoteReleaseSearchRequest) => typedError<RemoteReleaseSearchResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_remote_source_releases", { request })),
 	grabRemoteSourceRelease: (request: RemoteReleaseGrabRequest) => typedError<RemoteReleaseGrabResponse, AppErrorEnvelope>(__TAURI_INVOKE("grab_remote_source_release", { request })),
 	getRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_indexer_connection")),
@@ -53,6 +52,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	acquisitionUpdate: makeEvent<AcquisitionUpdateEvent>("acquisition-update"),
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
 	processingProgress: makeEvent<ProcessingProgressEvent_Deserialize>("processing-progress"),
 	processingQueue: makeEvent<ProcessingQueueEvent>("processing-queue"),
@@ -69,6 +69,14 @@ export type AccountRef = {
 	displayName: string,
 };
 
+/**
+ *  What happened when the engine imported an acquisition's files into the
+ *  session.
+ */
+export type AcquisitionHandoff = { kind: "imported"; count: number } |
+/**  Nothing was imported, so the staged files were removed. */
+{ kind: "removed"; reason: HandoffRefusal };
+
 export type AcquisitionJob = {
 	jobId: string,
 	providerId: ProviderId,
@@ -77,6 +85,8 @@ export type AcquisitionJob = {
 	materializedFiles: MaterializedSourceFile[],
 	supplementalAssets: SupplementalAsset[],
 	diagnostics: RemoteSourceDiagnostic[],
+	/**  Set once the engine has tried to import the job's files. */
+	handoff?: AcquisitionHandoff | null,
 };
 
 export type AcquisitionLane = "audible" | "indexer";
@@ -104,6 +114,9 @@ export type AcquisitionSelection = {
 };
 
 export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
+
+/**  A remote-source acquisition's latest state. */
+export type AcquisitionUpdateEvent = AcquisitionJob;
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
@@ -496,6 +509,12 @@ export type FrontendLogEntry = {
 };
 
 export type FrontendLogLevel = "error" | "warn";
+
+export type HandoffRefusal =
+/**  The list was locked by an export being prepared. */
+{ kind: "orderLocked" } | { kind: "importFailed"; error: AppErrorEnvelope } |
+/**  The files were already listed, or a reset dropped the import. */
+{ kind: "nothingAdded" };
 
 export type IncompatibleEncoderDefaults = {
 	scope: EncoderDefaultsScope,
@@ -1063,13 +1082,10 @@ export type SessionIntent =
 { kind: "importOpened" } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; index: number } | { kind: "clearAll" } | { kind: "moveFile"; index: number; direction: MoveDirection } | { kind: "reorderFiles"; from: number; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } |
 /**  Returns the session to empty. */
 { kind: "reset" } |
-/**
- *  Exports every valid title. `supplemental_assets` are acquired titles'
- *  companion files by input id, until remote sources move into the engine.
- */
-{ kind: "submit"; supplementalAssets: { [key in string]: SupplementalProcessingAsset[] } | null } |
+/**  Exports every valid title. */
+{ kind: "submit" } |
 /**  Renders the first `seconds` of each valid title, in the foreground. */
-{ kind: "preview"; seconds: number | null; supplementalAssets: { [key in string]: SupplementalProcessingAsset[] } | null } |
+{ kind: "preview"; seconds: number | null } |
 /**  Continues a submission held for review with the user's choice. */
 { kind: "chooseCollisionPolicy"; policy: CollisionPolicy } | { kind: "cancelCollisionReview" } |
 /**  Where exports are written; recorded in the settings. */
@@ -1226,21 +1242,13 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 /**  A metadata Save is writing. */
 { kind: "saveInProgress" } |
 /**  Another submission or a preview is still running. */
-{ kind: "busy" } | { kind: "closing" };
+{ kind: "busy" } |
+/**  A downloaded source is being removed after its export finished. */
+{ kind: "sourceRemoved" } | { kind: "closing" };
 
 export type SubseriesPartWarning = { kind: "invalid"; message: string } | { kind: "missingNumber" };
 
 export type SupplementalAsset = {
-	assetId: string,
-	inputId: string,
-	titleId: string,
-	path: string,
-	fileName: string,
-	sizeBytes: number,
-	sha256: string,
-};
-
-export type SupplementalProcessingAsset = {
 	assetId: string,
 	inputId: string,
 	titleId: string,
@@ -1334,6 +1342,8 @@ export type TitlesSnapshot = {
 	orderLocked: boolean,
 	notice: InputNotice | null,
 	orderDiffersFromImport: boolean,
+	/**  Companion PDF names of downloaded titles, by input id. */
+	companions: { [key in string]: string[] },
 };
 
 export type WorkOperationListSnapshotEvent = {

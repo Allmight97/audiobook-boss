@@ -15,7 +15,7 @@ export type RuntimeCapabilities = {
 	readonly engine?: EngineCapability;
 	readonly input?: InputCapability;
 	readonly metadata?: MetadataCapability;
-	readonly remoteSource?: Omit<RemoteSourceOwnerDeps, 'input'>;
+	readonly remoteSource?: RemoteSourceOwnerDeps;
 };
 
 export type AppRuntime = {

@@ -66,9 +66,14 @@ Supplemental Assets may cross only as provider-neutral, validated asset facts.
 Processing receives them explicitly by file-list `inputId`; it must not query
 `RemoteSourceRuntime`.
 
-Materialized handoff files must remain usable after provider logout. Do not
-purge a session containing materialized files unless the FileList/session-asset
-owner has removed the corresponding imported inputs.
+A finished job hands its files to the session through the engine-set
+`Handoff` and records the outcome on the job; if nothing was imported, its
+staged files are removed then. After a handoff the session decides when the
+download goes (`crate::session`, `staged.rs`) and calls `purge_session`.
+Cancel does nothing to a job that already finished, so it cannot remove files
+the session holds. Materialized handoff files stay usable after provider
+logout. Job changes reach hosts as `EngineEvent::Acquisition`; download
+progress is sent at most every 100 ms, a stage change at once.
 
 Audible Supplemental PDF acquisition uses provider-private authenticated
 `GET /companion-file/{title_id}`. Do not use `HEAD`; Audible API `pdf_url`

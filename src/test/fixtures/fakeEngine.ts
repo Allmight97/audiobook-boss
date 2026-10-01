@@ -263,6 +263,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			orderLocked: false,
 			notice: null,
 			orderDiffersFromImport: false,
+			companions: {},
 		} as SessionTitles,
 		selection: { revision: 0, selectedIndices: [], selectedAnchor: null } as SessionSelection,
 		metadata: {

@@ -24,7 +24,6 @@ function statusPanel() {
 function submitDeps(answers: SubmissionStatus[], reviewChoice: CollisionPolicy | null = null) {
 	let output: SessionOutput = fakeOutput();
 	const sent: SessionIntent[] = [];
-	const retained: (string | undefined)[][] = [];
 	const deps = {
 		link: {
 			output: () => output,
@@ -35,19 +34,11 @@ function submitDeps(answers: SubmissionStatus[], reviewChoice: CollisionPolicy |
 			}),
 		},
 		reviewCollisions: vi.fn(async (_outputs: readonly PlannedOutput[]) => reviewChoice),
-		remoteSource: {
-			processingAssets: () => undefined,
-			withSubmissionRetention<T>(ids: readonly (string | undefined)[], submit: () => Promise<T>) {
-				retained.push([...ids]);
-				return submit();
-			},
-		},
-		sourceInputIds: () => ['alpha'],
 		titlePaths: () => ['/books/alpha.m4b'],
 		setControlsEnabled: vi.fn(),
 		showError: vi.fn(),
 	} satisfies SubmitDeps;
-	return { deps, sent, retained };
+	return { deps, sent };
 }
 
 const collision: SubmissionStatus = { kind: 'reviewRequired', outputs: [], preview: false };
@@ -57,7 +48,7 @@ describe('runSubmission', () => {
 
 	it('asks about collisions, sends the choice, and reports the accepted export', async () => {
 		const panel = statusPanel();
-		const { deps, sent, retained } = submitDeps(
+		const { deps, sent } = submitDeps(
 			[collision, { kind: 'submitted', operationId: 'op-1', title: 'Alpha' }],
 			'rename_new',
 		);
@@ -65,10 +56,9 @@ describe('runSubmission', () => {
 		await runSubmission(panel, deps);
 
 		expect(sent).toEqual([
-			{ kind: 'submit', supplementalAssets: null },
+			{ kind: 'submit' },
 			{ kind: 'chooseCollisionPolicy', policy: 'rename_new' },
 		]);
-		expect(retained).toEqual([['alpha']]);
 		expect(panel.updateStatus).toHaveBeenLastCalledWith(
 			expect.objectContaining({ stage: 'completed', message: 'Submitted to Work Center.' }),
 		);

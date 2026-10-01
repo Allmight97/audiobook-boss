@@ -1,3 +1,4 @@
+import { toUserMessage } from '../../lib/tauri/appError';
 import type { AcquisitionJob, AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
 
 export type AcquisitionJobWithProgress = AcquisitionJob & {
@@ -5,8 +6,6 @@ export type AcquisitionJobWithProgress = AcquisitionJob & {
 };
 
 export type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
-
-export const acquisitionPollDelayMs = 100;
 
 export function isAcquisitionTerminal(job: AcquisitionJobWithProgress): boolean {
 	return (
@@ -16,6 +15,40 @@ export function isAcquisitionTerminal(job: AcquisitionJobWithProgress): boolean 
 		job.status === 'validated' ||
 		job.status === 'importedToFileList'
 	);
+}
+
+/** A job is settled once it failed, was cancelled, or its files were handed to the session. */
+export function isAcquisitionSettled(job: AcquisitionJobWithProgress): boolean {
+	if (job.handoff) return true;
+	if (job.status === 'failed' || job.status === 'cancelled') return true;
+	return isAcquisitionTerminal(job) && job.materializedFiles.length === 0;
+}
+
+const STAGED_FILES_REMOVED_SUFFIX =
+	'Staged remote files were removed; retry acquisition after processing completes.';
+
+/** Words how a settled job's files reached the session; `null` when it never got that far. */
+export function handoffMessage(job: AcquisitionJobWithProgress): string | null {
+	const handoff = job.handoff;
+	if (!handoff) {
+		if (job.status === 'failed' || job.status === 'cancelled') return null;
+		return (
+			uniqueDiagnosticMessage(job.diagnostics) ||
+			'Audible acquisition did not materialize an importable file.'
+		);
+	}
+	if (handoff.kind === 'imported') {
+		return `${handoff.count} acquired title${handoff.count === 1 ? '' : 's'} imported.`;
+	}
+	const reason = handoff.reason;
+	switch (reason.kind) {
+		case 'orderLocked':
+			return `Order locked while processing. Wait for completion to add files. ${STAGED_FILES_REMOVED_SUFFIX}`;
+		case 'importFailed':
+			return `${toUserMessage(reason.error)} ${STAGED_FILES_REMOVED_SUFFIX}`;
+		case 'nothingAdded':
+			return `Acquired titles were not added to the input session. ${STAGED_FILES_REMOVED_SUFFIX}`;
+	}
 }
 
 export function uniqueDiagnosticMessage(diagnostics: RemoteSourceDiagnostic[]): string {
@@ -39,14 +72,6 @@ export function statusFromAcquisitionJob(job: AcquisitionJobWithProgress): strin
 
 export function progressPercent(job: AcquisitionJobWithProgress): number {
 	return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));
-}
-
-export function withClearedHandoffJob(job: AcquisitionJobWithProgress): AcquisitionJobWithProgress {
-	return {
-		...job,
-		materializedFiles: [],
-		supplementalAssets: [],
-	};
 }
 
 export function formatReleaseSizeBytes(sizeBytes: number): string {

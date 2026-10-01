@@ -125,6 +125,16 @@ attachment.
   `ChooseCollisionPolicy` or `CancelCollisionReview`; the choice is bound to
   the reviewed plan's signature. After `Engine::shutdown` a submission is
   refused as `Closing`.
+- **Staged downloads.** A finished acquisition's files are imported by the
+  session itself (`Session::handoff`), and its titles are recorded as staged
+  in the same transition that lists them (`staged.rs`); the job carries the
+  outcome. Exports take each title's companion PDFs from that record. A
+  download is removed a whole acquisition at a time once every title from it
+  completed an export without a companion warning or left the list (hidden
+  grouped sources count as listed), and no unfinished export, submission,
+  or Save writing holds its files. Files being removed count as busy: Save
+  holds them and a submission using them is refused. A failed removal stays
+  recorded and is retried by the next sweep; startup clears the rest.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. A result applies only to the
   queued title while it is the one title both selected and bound. Applied
@@ -142,17 +152,12 @@ attachment.
 - `runtime_tests.rs`: ordering between intents and their I/O, lookup with a
   scripted network, and what a host is told along the way.
 - `submission_tests.rs`: what a submission sends and when it refuses.
+- `staged_tests.rs`: when a staged download may be removed.
 - `tests/cases/integration_session_tests.rs`: real files through `Engine`,
   including submit, collision review, preview, Save while a real export reads
   the source, shutdown, and `abb-dev`.
 - A new sequence law is cheaper as another assertion in the property test
   than as a new example test.
-
-## Temporary Until Remote Sources Move Into The Engine
-
-- `Submit` and `Preview` carry `supplemental_assets` from the host's Remote
-  Source owner. Remove the field when the engine owns staged sources; do not
-  build on it.
 
 ## Boundary Changes
 

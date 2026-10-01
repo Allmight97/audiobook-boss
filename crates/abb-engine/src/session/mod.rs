@@ -12,6 +12,7 @@ mod metadata_form;
 mod output;
 mod plans;
 mod runtime;
+mod staged;
 mod state;
 mod submission;
 mod tag_cache;
