@@ -12,7 +12,10 @@ mod session_lifecycle;
 mod staging;
 mod types;
 mod ui;
-pub use ui::{IndexerDraftSnapshot, RemoteDraftStatus, RemoteUiIntent, RemoteUiSnapshot};
+pub use ui::{
+    IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
+    RemoteDraftStatus, RemoteUiIntent, RemoteUiSnapshot,
+};
 pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
 

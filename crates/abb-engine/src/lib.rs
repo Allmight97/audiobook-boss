@@ -5,6 +5,16 @@
 //! methods. The engine publishes [`EngineEvent`]s through the host's
 //! [`EventSink`].
 
+//! Hosts can read typed remote outcomes without reaching private workflow code.
+//!
+//! ```
+//! use abb_engine::remote_source::{RemoteUiSnapshot, ReleaseGrabStatus};
+//! fn sent_releases(snapshot: &RemoteUiSnapshot) -> usize {
+//!     snapshot.indexer.release_grabs.values()
+//!         .filter(|row| row.status == ReleaseGrabStatus::Sent).count()
+//! }
+//! ```
+
 //! Hosts cannot write tags or start processing outside the session's safety rules.
 //!
 //! ```compile_fail

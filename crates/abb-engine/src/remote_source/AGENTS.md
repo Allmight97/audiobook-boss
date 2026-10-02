@@ -11,7 +11,8 @@ Allowed external entrypoints:
 
 - Provider-neutral command types re-exported from `mod.rs`.
 - Host account/auth/library display reads through `Engine::remote_source()`.
-- `RemoteUiIntent` and `RemoteUiSnapshot` through the session boundary. Connection
+- `RemoteUiIntent` and `RemoteUiSnapshot`, including their named connection,
+  Indexer-work, and per-release status vocabulary, through the session boundary. Connection
   mutation, selection, Search/Grab, and acquisition start/cancel stay engine-internal.
 
 Processing, audio, metadata, output artifact, and frontend code must not import
