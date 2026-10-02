@@ -6,6 +6,8 @@
   result, and superseding stale work (`crates/abb-engine/src/session/AGENTS.md`).
   This owner shows the lookup snapshot, words its typed status (`state.ts`),
   sends lookup intents, and schedules the result thumbnails the dialog shows.
+- Unconfirmed query text is bound to its queued path and metadata binding;
+  advancing or rebinding the lookup drops the previous title’s echo immediately.
 - The Solid dialog lives in `src/ui/metadataLookup`. It renders this owner; it
   does not keep a second lookup store or cover cache.
 
@@ -28,7 +30,8 @@
 
 ## Testing
 
-- `state.test.ts` pins status wording and query echo.
+- `state.test.ts` pins status wording; `owner.test.ts` pins delayed query
+  echoes across queue advancement.
 - `src/lib/media/__tests__/coverArtPreviewScheduler.test.ts` pins scheduler
   behavior, clear/Apply lifetime, and two-instance isolation.
 - Two-runtime preview isolation lives in `src/app/runtime/runtime.test.ts`.

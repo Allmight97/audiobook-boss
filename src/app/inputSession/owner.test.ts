@@ -87,6 +87,19 @@ describe('input owner', () => {
 		expect(await select()).toBe(false);
 	});
 
+	it('addresses removal by the title the user clicked', async () => {
+		const app = await open();
+		const clicked = audioFile('/books/a.m4b');
+		engine.loadTitles([clicked, audioFile('/books/b.m4b')]);
+		await app.input.removeFile(clicked);
+		await app.input.removeFile(clicked);
+		expect(engine.sessionIntents.filter((intent) => intent.kind === 'removeFile')).toEqual([
+			{ kind: 'removeFile', inputId: clicked.inputId },
+			{ kind: 'removeFile', inputId: clicked.inputId },
+		]);
+		expect(app.input.view().files.map((file) => file.path)).toEqual(['/books/b.m4b']);
+	});
+
 	it('keeps drag-over state in the view and out of the engine', async () => {
 		const app = await open();
 		const sent = engine.sessionIntents.length;

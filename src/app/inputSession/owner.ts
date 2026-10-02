@@ -39,7 +39,7 @@ export type InputOwner = {
 	selectAll(): Promise<void>;
 	clearSelection(): Promise<void>;
 	setDragOver(isDragOver: boolean): void;
-	removeFile(index: number): Promise<void>;
+	removeFile(file: AudioFile): Promise<void>;
 	clearAllFiles(): Promise<void>;
 	moveFile(command: { readonly index: number; readonly direction: 'up' | 'down' }): void;
 	reorderFiles(command: { readonly fromIndex: number; readonly toIndex: number }): void;
@@ -182,8 +182,8 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 			isDragOver = next;
 			changed();
 		},
-		async removeFile(index) {
-			await link.send({ kind: 'removeFile', index });
+		async removeFile(file) {
+			await link.send({ kind: 'removeFile', inputId: fileIdentityKey(file) });
 		},
 		async clearAllFiles() {
 			await link.send({ kind: 'clearAll' });

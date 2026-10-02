@@ -66,7 +66,8 @@ export function createMetadataLookupOwner(deps: {
 	const [rev, bump] = createSignal(0, { ownedWrite: true });
 	const [previewRev, bumpPreviews] = createSignal(0, { ownedWrite: true });
 	// Query text entered and not yet confirmed by the engine.
-	const typed: { titleQuery?: { value: string }; authorQuery?: { value: string } } = {};
+	type QueryEcho = { value: string; path: string | undefined; binding: number };
+	const typed: { titleQuery?: QueryEcho; authorQuery?: QueryEcho } = {};
 	const previews = createCoverArtPreviewScheduler({
 		load: (url) => deps.metadata.capability().loadCoverArtFromUrl(url),
 		onChange: () => bumpPreviews((revision) => revision + 1),
@@ -78,7 +79,11 @@ export function createMetadataLookupOwner(deps: {
 	}
 
 	function setQuery(key: 'titleQuery' | 'authorQuery', value: string): void {
-		const entry = { value };
+		const entry = {
+			value,
+			path: link.lookup().queuePosition?.path,
+			binding: link.metadata().binding,
+		};
 		typed[key] = entry;
 		changed();
 		link
@@ -98,9 +103,14 @@ export function createMetadataLookupOwner(deps: {
 	return {
 		view: () => {
 			rev();
-			return toLookupState(link.lookup(), {
-				titleQuery: typed.titleQuery?.value,
-				authorQuery: typed.authorQuery?.value,
+			const lookup = link.lookup();
+			const echo = (entry: QueryEcho | undefined) =>
+				entry?.path === lookup.queuePosition?.path && entry?.binding === link.metadata().binding
+					? entry?.value
+					: undefined;
+			return toLookupState(lookup, {
+				titleQuery: echo(typed.titleQuery),
+				authorQuery: echo(typed.authorQuery),
 			});
 		},
 		coverPreview(coverUrl) {

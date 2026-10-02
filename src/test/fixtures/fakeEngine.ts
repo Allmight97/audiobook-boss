@@ -472,13 +472,16 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			case 'clearSelection':
 				select([]);
 				break;
-			case 'removeFile':
+			case 'removeFile': {
 				if (locked) break;
-				titles.files = titles.files.filter((_, index) => index !== intent.index);
+				const removedIndex = titles.files.findIndex((file) => file.inputId === intent.inputId);
+				if (removedIndex < 0) break;
+				titles.files = titles.files.filter((_, index) => index !== removedIndex);
 				state.selection.selectedIndices = state.selection.selectedIndices
-					.filter((index) => index !== intent.index)
-					.map((index) => (index > intent.index ? index - 1 : index));
+					.filter((index) => index !== removedIndex)
+					.map((index) => (index > removedIndex ? index - 1 : index));
 				break;
+			}
 			case 'clearAll':
 				if (locked) break;
 				titles.files = [];

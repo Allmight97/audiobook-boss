@@ -38,7 +38,7 @@ List membership, source order, and audio choices are engine truth.
   Row click/removal, keyboard Select all, Escape clear-highlight, and toolbar
   Clear go through awaitable `selectFile`, `removeFile`, `selectAll`,
   `clearSelection`, and `clearAllFiles` intents so the engine's draft gate
-  runs.
+  runs. Removal passes the row’s title identity, never its shifting position.
 - Cover thumbnails are a presentation resource, not list truth. Each
   `FileListView` owns a private thumbnail resource with its loader, reactive
   reads, bounded cache, and queue; dispose it with the view. Scheduling an

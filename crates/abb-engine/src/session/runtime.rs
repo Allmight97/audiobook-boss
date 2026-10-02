@@ -8,8 +8,8 @@
 //!
 //! An intent runs in two steps. [`Session::begin`] applies its immediate
 //! effect before returning, so intents begun in order take effect in order.
-//! [`SessionRun::finish`] then does the file or network work, which may
-//! overlap with later intents.
+//! The engine starts the remaining file or network work, which may overlap
+//! with later intents; [`SessionRun::finish`] only waits for its reply.
 
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -33,7 +33,7 @@ use super::submission::{plan_verdict, Draft, PlanVerdict, SubmissionStatus, Subm
 use super::tag_cache::ReadTicket;
 use super::working_set::{CueChoice, InputNotice, MoveDirection, SelectionModifiers, WorkingSet};
 use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRun, SettingsRuntime};
-use crate::audio::{self, EncoderSettingsCapabilities};
+use crate::audio::{self, AudioFile, EncoderSettingsCapabilities};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
 use crate::metadata::AudiobookMetadata;
@@ -82,8 +82,9 @@ pub enum SessionIntent {
     },
     SelectAll,
     ClearSelection,
+    #[serde(rename_all = "camelCase")]
     RemoveFile {
-        index: usize,
+        input_id: String,
     },
     ClearAll,
     MoveFile {
@@ -331,7 +332,7 @@ struct SessionInner {
     deferred_writer_running: AtomicBool,
     /// Wakes the deferred writer when a submission frees its sources.
     sources_freed: tokio::sync::Notify,
-    /// Wakes acquisition handoffs waiting for the list to unlock.
+    /// Wakes imports and acquisition handoffs waiting for the list to unlock.
     list_unlocked: tokio::sync::Notify,
     /// A staged-download sweep is scheduled or running; one at a time.
     sweeping: AtomicBool,
@@ -361,6 +362,9 @@ pub struct SessionRun {
 enum Rest {
     Done(SessionOutcome),
     Reads(Bound),
+    ImportOpened {
+        resets: u64,
+    },
     Import {
         paths: Vec<String>,
         resets: u64,
@@ -440,6 +444,7 @@ impl Session {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
+            Rest::ImportOpened { resets } => session.import_opened(resets).await,
             Rest::Import { paths, resets } => session.import(paths, resets).await,
             Rest::Remember(run) => {
                 let (reply, _) = run.finish().await;
@@ -754,24 +759,18 @@ impl Session {
         use SessionIntent as I;
         match intent {
             I::Import { paths } => self.begin_import(paths),
-            // Opened files stay queued while the list is locked, for a retry.
-            I::ImportOpened if self.lock().working_set.order_locked() => {
-                Rest::Done(self.import_failed(InputNotice::OrderLocked))
-            }
-            I::ImportOpened => match self.inner.deps.opened_audio.take_paths() {
-                Ok(paths) if paths.is_empty() => Rest::Done(SessionOutcome::Applied),
-                Ok(paths) => self.begin_import(paths),
-                Err(error) => Rest::Done(self.import_failed(InputNotice::DiscoveryFailed {
-                    error: AppErrorEnvelope::from(&error),
-                })),
+            I::ImportOpened => Rest::ImportOpened {
+                resets: self.inner.resets.load(Ordering::SeqCst),
             },
             I::SelectFile { index, modifiers } => {
                 self.change_selection(|set| set.select_file(index, modifiers))
             }
             I::SelectAll => self.change_selection(WorkingSet::select_all),
             I::ClearSelection => self.change_selection(WorkingSet::clear_selection),
-            I::RemoveFile { index } => self.change_selection(|set| {
-                set.remove_file(index);
+            I::RemoveFile { input_id } => self.change_selection(|set| {
+                if let Some(index) = set.index_of(&input_id) {
+                    set.remove_file(index);
+                }
             }),
             I::ClearAll => self.change_selection(|set| {
                 set.clear_all();
@@ -976,6 +975,36 @@ impl Session {
         }
     }
 
+    /// The engine owns the retry, even if the caller saw an unlocked list or
+    /// detached before a submission finished. Drain under the same state lock
+    /// as submission admission so paths cannot be lost on a stale lock check.
+    async fn import_opened(&self, resets: u64) -> SessionOutcome {
+        let paths = loop {
+            let unlocked = self.inner.list_unlocked.notified();
+            tokio::pin!(unlocked);
+            unlocked.as_mut().enable();
+            if self.inner.resets.load(Ordering::SeqCst) != resets {
+                return SessionOutcome::Superseded;
+            }
+            let paths = {
+                let state = self.lock();
+                (!state.working_set.order_locked())
+                    .then(|| self.inner.deps.opened_audio.take_paths())
+            };
+            if let Some(paths) = paths {
+                break paths;
+            }
+            unlocked.await;
+        };
+        match paths {
+            Ok(paths) if paths.is_empty() => SessionOutcome::Applied,
+            Ok(paths) => self.import(paths, resets).await,
+            Err(error) => self.import_failed(InputNotice::DiscoveryFailed {
+                error: AppErrorEnvelope::from(&error),
+            }),
+        }
+    }
+
     async fn import(&self, paths: Vec<String>, resets: u64) -> SessionOutcome {
         let _in_order = self.inner.imports.lock().await;
         // A Reset since this import began drops it, success or failure.
@@ -1015,18 +1044,40 @@ impl Session {
         if superseded() {
             return SessionOutcome::Superseded;
         }
-        let bound = self.transition(|state| {
-            let default_audio = state.audio.request();
-            state
-                .working_set
-                .append_analyzed(analyzed.files, &default_audio);
-            Bound {
-                reads: state.rebind(),
-                binding: state.binding,
-            }
-        });
+        let Some(bound) = self.list_imported(analyzed.files, resets).await else {
+            return SessionOutcome::Superseded;
+        };
         self.complete_reads(bound).await;
         SessionOutcome::Applied
+    }
+
+    /// Analysis can overlap a submission: wait before changing its locked list.
+    async fn list_imported(&self, mut files: Vec<AudioFile>, resets: u64) -> Option<Bound> {
+        loop {
+            let unlocked = self.inner.list_unlocked.notified();
+            tokio::pin!(unlocked);
+            unlocked.as_mut().enable();
+            let attempt = self.transition(|state| {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    return Some(None);
+                }
+                if state.working_set.order_locked() {
+                    return None;
+                }
+                let default_audio = state.audio.request();
+                state
+                    .working_set
+                    .append_analyzed(std::mem::take(&mut files), &default_audio);
+                Some(Some(Bound {
+                    reads: state.rebind(),
+                    binding: state.binding,
+                }))
+            });
+            if let Some(bound) = attempt {
+                return bound;
+            }
+            unlocked.await;
+        }
     }
 
     /// Imports a finished acquisition's files and records them as staged

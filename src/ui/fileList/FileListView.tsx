@@ -428,7 +428,7 @@ export function FileListView(props: {
 											disabled={view().orderLocked}
 											onClick={(event) => {
 												event.stopPropagation();
-												void removeFile(index());
+												void removeFile(file);
 											}}
 										>
 											×

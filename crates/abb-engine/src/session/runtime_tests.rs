@@ -843,11 +843,10 @@ async fn intents_take_effect_in_the_order_they_begin_whatever_finishes_first() {
 }
 
 #[tokio::test]
-async fn opened_files_stay_queued_while_the_list_is_locked() {
+async fn opened_files_wait_for_unlock_without_a_second_host_request() {
     let rig = rig();
     let folder = tempfile::TempDir::new().expect("temp dir");
-    let opened = folder.path().join("opened.m4b");
-    std::fs::write(&opened, b"not audio").expect("write file");
+    let opened = staged_wav(folder.path(), "opened");
     rig.session
         .inner
         .deps
@@ -855,19 +854,84 @@ async fn opened_files_stay_queued_while_the_list_is_locked() {
         .push_paths(vec![opened.clone()])
         .expect("queue opened file");
     rig.lock_order(true);
-
-    rig.send(SessionIntent::ImportOpened).await;
-
-    let titles = rig.session.snapshot().titles.expect("titles part");
-    assert_eq!(titles.notice, Some(InputNotice::OrderLocked));
-    let queued = rig
+    // The caller's lock snapshot may be stale, and its reply may be dropped.
+    drop(rig.session.begin(SessionIntent::ImportOpened));
+    tokio::task::yield_now().await;
+    assert!(rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .files
+        .is_empty());
+    rig.lock_order(false);
+    rig.session.sources_released();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if !rig
+                .session
+                .snapshot()
+                .titles
+                .expect("titles")
+                .files
+                .is_empty()
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("engine drains opened files after unlock");
+    let titles = rig.session.snapshot().titles.expect("titles");
+    assert_eq!(titles.files.len(), 1);
+    assert_eq!(
+        titles.files[0].path,
+        opened.canonicalize().expect("canonical opened path")
+    );
+    assert!(rig
         .session
         .inner
         .deps
         .opened_audio
         .take_paths()
-        .expect("queue");
-    assert_eq!(queued, [opened.to_string_lossy().into_owned()]);
+        .expect("queue")
+        .is_empty());
+}
+
+#[tokio::test]
+async fn repeated_removal_targets_one_title_and_preserves_its_neighbours_edits() {
+    let rig = rig();
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[1]).await;
+    rig.send(SessionIntent::SetField {
+        field: MetadataField::Genre,
+        value: "Mystery".into(),
+    })
+    .await;
+    let first = rig.session.begin(SessionIntent::RemoveFile {
+        input_id: "alpha".into(),
+    });
+    let repeated = rig.session.begin(SessionIntent::RemoveFile {
+        input_id: "alpha".into(),
+    });
+    first.finish().await;
+    repeated.finish().await;
+    assert_eq!(
+        rig.session
+            .snapshot()
+            .titles
+            .expect("titles")
+            .files
+            .iter()
+            .map(|file| file.input_id.as_str())
+            .collect::<Vec<_>>(),
+        ["beta"]
+    );
+    assert_eq!(
+        rig.pending("beta").and_then(|patch| patch.genre),
+        Some(PatchOp::Set("Mystery".into()))
+    );
 }
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-import { createEffect, onSettled, Show } from 'solid-js';
+import { onSettled, Show } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
 import { nativeDropTargetAtPoint } from '../../app/inputSession/nativeIngress';
@@ -22,20 +22,13 @@ export function FileImportView(): JSX.Element {
 	const hydrateSupportText = runtime.input.hydrateSupportText;
 	const setDragOver = runtime.input.setDragOver;
 	let fileManagementContainer: HTMLElement | null = null;
-	let deferredOpenedDrain = false;
 
 	function openAcquire(lane: AcquisitionLane): void {
 		remoteSource.open({ lane });
 	}
 
-	async function drainOpenedAudioFiles(): Promise<void> {
-		if (view().orderLocked) {
-			deferredOpenedDrain = true;
-			importIntent({ type: 'drainOpened' });
-			return;
-		}
-		deferredOpenedDrain = false;
-		importIntent({ type: 'drainOpened' });
+	function drainOpenedAudioFiles(): void {
+		void importIntent({ type: 'drainOpened' });
 	}
 
 	onSettled(() => {
@@ -78,15 +71,6 @@ export function FileImportView(): JSX.Element {
 		void drainOpenedAudioFiles();
 		return () => subscriptions.dispose();
 	});
-
-	createEffect(
-		() => view().orderLocked,
-		(orderLocked) => {
-			if (!orderLocked && deferredOpenedDrain) {
-				void drainOpenedAudioFiles();
-			}
-		},
-	);
 
 	return (
 		<>
