@@ -167,6 +167,9 @@ describe('encoder panel behavior controls', () => {
 			defaults.choice.encoder = 'aac_at';
 			defaults.facts.effectiveEncoder = 'aac_at';
 			if (audio.capabilities) audio.capabilities.availability.aacAtAvailable = false;
+			defaults.facts.encoderOptions = defaults.facts.encoderOptions.map((option) =>
+				option.encoder === 'aac_at' ? { ...option, available: false } : option,
+			);
 		});
 
 		await vi.waitFor(() => {

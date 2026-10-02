@@ -98,35 +98,6 @@ pub struct ProgressEvent {
     pub input_index: Option<usize>,
 }
 
-/// Batch queue snapshot for frontend communication
-#[derive(Clone, Serialize, specta::Type)]
-pub struct QueueEvent {
-    pub operation_kind: OperationKind,
-    pub items: Vec<QueueItem>,
-    pub max_concurrent: usize,
-}
-
-/// Single queued item in a batch run
-#[derive(Clone, Serialize, specta::Type)]
-pub struct QueueItem {
-    pub input_index: usize,
-    pub file_path: String,
-}
-
-impl QueueEvent {
-    pub fn new(
-        operation_kind: OperationKind,
-        items: Vec<QueueItem>,
-        max_concurrent: usize,
-    ) -> Self {
-        Self {
-            operation_kind,
-            items,
-            max_concurrent,
-        }
-    }
-}
-
 // ============================================================================
 // Pure Math Utilities
 // ============================================================================

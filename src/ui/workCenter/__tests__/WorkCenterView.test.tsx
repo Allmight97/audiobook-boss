@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@solidjs/testing-library';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../../app/runtime';
+import type { RestartOffer } from '../../../types/session';
 import type { OperationSnapshot } from '../../../types/workRuntime';
 import { WorkCenterView } from '..';
 
@@ -62,8 +63,9 @@ function completedOperation(): OperationSnapshot {
 	};
 }
 
-function showOperation(operation: OperationSnapshot) {
+function showOperation(operation: OperationSnapshot, offers: RestartOffer[] = []) {
 	runtime = createAppRuntime();
+	vi.spyOn(runtime.processing, 'restartOffers').mockReturnValue(offers);
 	vi.spyOn(runtime.workOperations, 'view').mockReturnValue({
 		initialized: true,
 		operations: [operation],
@@ -169,4 +171,30 @@ it('reveals only completed titles in the host file manager', () => {
 	expect(buttons).toHaveLength(1);
 	buttons[0]!.click();
 	expect(reveal).toHaveBeenCalledWith(operation.children[0]);
+});
+
+it('keeps retryable Restart and Keep actions on only the matching export row', () => {
+	const operation = completedOperation();
+	operation.children[0]!.inputId = 'first-title';
+	operation.children[1]!.inputId = 'other-title';
+	const offer = {
+		titleId: 'first-title',
+		operationId: 'batch',
+		revision: 3,
+		from: '/Old.m4b',
+		to: '/New.m4b',
+	};
+	showOperation(operation, [offer]);
+	const restart = vi.spyOn(runtime!.processing, 'restart').mockResolvedValue();
+	const keep = vi.spyOn(runtime!.processing, 'keepLocation').mockResolvedValue();
+	screen.getByRole('button', { name: 'Restart' }).click();
+	screen.getByRole('button', { name: 'Restart' }).click();
+	expect(restart).toHaveBeenCalledTimes(2);
+	expect(restart).toHaveBeenLastCalledWith(offer);
+	screen.getByRole('button', { name: 'Keep Location' }).click();
+	expect(keep).toHaveBeenCalledWith(offer);
+	cleanup();
+	runtime?.dispose();
+	showOperation({ ...operation, operationId: 'older-batch' }, [offer]);
+	expect(screen.queryByRole('button', { name: 'Restart' })).not.toBeInTheDocument();
 });

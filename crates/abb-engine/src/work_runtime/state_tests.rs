@@ -938,3 +938,29 @@ fn metadata_save_items_cannot_be_cancelled_one_at_a_time() {
         .request_child_cancel(&operation_id, "metadata-0", 120)
         .is_err());
 }
+
+#[test]
+fn cancellation_and_failure_terminalize_queued_child_progress_for_reattachment() {
+    for cancelled in [true, false] {
+        let (mut state, id) = accepted_state();
+        let terminal = if cancelled {
+            state.cancel(&id, "Stopped".into(), 200)
+        } else {
+            state.fail(&id, "Failed".into(), 200)
+        }
+        .expect("terminalize queued operation");
+        for child in terminal.children {
+            assert_eq!(
+                child.progress.stage,
+                if cancelled {
+                    WorkProgressStage::Cancelled
+                } else {
+                    WorkProgressStage::Failed
+                }
+            );
+            assert_eq!(child.progress.percentage, 100.0);
+            assert_eq!(child.finished_at_ms, Some(200));
+            assert!(!child.cancellable);
+        }
+    }
+}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CollisionPolicy, PlannedOutput, ProcessCommandResult } from '../../../types/audio';
+import type { CollisionPolicy, PlannedOutput } from '../../../types/audio';
 import type { SessionIntent, SessionOutput, SubmissionStatus } from '../../../types/session';
-import { fakeOutput, finishedPreview } from '../../../test/fixtures/fakeEngine';
+import { fakeOutput } from '../../../test/fixtures/fakeEngine';
 import { runSubmission, type SubmitDeps } from '../submit';
 
 const openPath = vi.hoisted(() => vi.fn(async () => undefined));
@@ -34,7 +34,6 @@ function submitDeps(answers: SubmissionStatus[], reviewChoice: CollisionPolicy |
 			}),
 		},
 		reviewCollisions: vi.fn(async (_outputs: readonly PlannedOutput[]) => reviewChoice),
-		titlePaths: () => ['/books/alpha.m4b'],
 		setControlsEnabled: vi.fn(),
 		showError: vi.fn(),
 	} satisfies SubmitDeps;
@@ -54,7 +53,13 @@ describe('runSubmission', () => {
 				outputs: { updated: 1, elsewhere: 1, restartOffered: 0, failed: 0 },
 			},
 		]);
-		const restart = { titleId: 'alpha', revision: 3, from: '/a/Old.m4b', to: '/a/New.m4b' };
+		const restart = {
+			titleId: 'alpha',
+			operationId: 'op-1',
+			revision: 3,
+			from: '/a/Old.m4b',
+			to: '/a/New.m4b',
+		};
 
 		await runSubmission(panel, deps, { restart });
 
@@ -134,28 +139,5 @@ describe('runSubmission', () => {
 
 		expect(panel.handleCancellation).toHaveBeenCalledTimes(1);
 		expect(deps.showError).not.toHaveBeenCalled();
-	});
-
-	it('opens a finished preview only when exactly one title produced one', async () => {
-		const entry = (path: string, status: 'success' | 'failed' = 'success') => ({
-			inputIndex: 0,
-			status,
-			message: status,
-			outputPath: path,
-		});
-		const results: ProcessCommandResult['results'][] = [
-			[entry('/tmp/one.preview.m4b')],
-			[entry('/tmp/a.preview.m4b'), entry('/tmp/b.preview.m4b')],
-			[entry('/tmp/failed.preview.m4b', 'failed')],
-		];
-		for (const entries of results) {
-			const { deps } = submitDeps([
-				{ kind: 'previewFinished', result: { ...finishedPreview(), results: entries } },
-			]);
-			await runSubmission(statusPanel(), deps, { previewSeconds: 30 });
-		}
-
-		expect(openPath).toHaveBeenCalledTimes(1);
-		expect(openPath).toHaveBeenCalledWith('/tmp/one.preview.m4b');
 	});
 });

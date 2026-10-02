@@ -20,27 +20,16 @@ pub fn builder() -> Builder<tauri::Wry> {
             crate::commands::complete_remote_source_auth,
             crate::commands::logout_remote_source_account,
             crate::commands::load_remote_source_library,
-            crate::commands::start_remote_source_acquisition,
-            crate::commands::get_remote_source_acquisition_status,
-            crate::commands::cancel_remote_source_acquisition,
-            crate::commands::search_remote_source_releases,
-            crate::commands::grab_remote_source_release,
-            crate::commands::get_remote_source_indexer_connection,
-            crate::commands::update_remote_source_indexer_connection,
-            crate::commands::test_remote_source_indexer_connection,
             crate::commands::list_work_operations,
             crate::commands::cancel_work_operation,
             crate::commands::log_frontend,
         ])
         .events(tauri_specta::collect_events![
-            crate::events::ProcessingProgressEvent,
-            crate::events::ProcessingQueueEvent,
             crate::events::OpenedAudioFilesEvent,
             crate::events::WorkOperationSnapshotEvent,
             crate::events::WorkOperationListSnapshotEvent,
             crate::events::SessionUpdateEvent,
             crate::events::SettingsUpdateEvent,
-            crate::events::AcquisitionUpdateEvent
         ])
         .error_handling(ErrorHandlingMode::Result)
         // ABB's JSON IPC contract uses numbers for bounded byte sizes, timestamps,

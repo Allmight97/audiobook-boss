@@ -143,6 +143,7 @@ impl Engine {
         let work = WorkRuntime::new(tasks.clone());
         let opened_audio = Arc::new(OpenedAudioFileQueue::default());
         let session = Session::new(SessionDeps {
+            remote: remote_source.clone(),
             host: host.clone(),
             work: work.clone(),
             jobs: Arc::clone(&jobs),

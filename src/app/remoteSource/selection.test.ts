@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { RemoteRelease, RemoteTitle } from '../../types/remoteSource';
 import {
 	selectedRemoteTitleSummaryText,
-	toggledRemoteTitleSelection,
-	toggledSupplementalPdfPreference,
 	visibleRemoteReleases,
 	visibleRemoteTitles,
 } from './selection';
@@ -82,44 +80,6 @@ describe('remote source selection policy', () => {
 				hideUnavailableTitles: true,
 			}).map((title) => title.titleId),
 		).toEqual(['B000000003']);
-	});
-
-	it('toggles only acquirable titles in a copied selection set', () => {
-		const selected = new Set(['B000000001']);
-		const selectedTitle = remoteTitle({ titleId: 'B000000001' });
-		const unavailableTitle = remoteTitle({
-			titleId: 'B000000002',
-			availability: {
-				status: 'providerUnavailable',
-				acquirable: false,
-				label: 'Unavailable from Audible',
-				detail: undefined,
-			},
-			unsupportedReasons: ['protectedUnsupported'],
-		});
-
-		const afterDeselect = toggledRemoteTitleSelection(selected, selectedTitle);
-		const afterUnavailable = toggledRemoteTitleSelection(afterDeselect, unavailableTitle);
-		const afterSelect = toggledRemoteTitleSelection(
-			afterUnavailable,
-			remoteTitle({ titleId: 'B000000003' }),
-		);
-
-		expect([...selected]).toEqual(['B000000001']);
-		expect([...afterDeselect]).toEqual([]);
-		expect([...afterUnavailable]).toEqual([]);
-		expect([...afterSelect]).toEqual(['B000000003']);
-	});
-
-	it('toggles Supplemental PDF preference in a copied record', () => {
-		const preference = { B000000001: true };
-
-		const next = toggledSupplementalPdfPreference(preference, 'B000000001');
-		const enabledByDefault = toggledSupplementalPdfPreference(next, 'B000000002');
-
-		expect(preference).toEqual({ B000000001: true });
-		expect(next).toEqual({ B000000001: false });
-		expect(enabledByDefault).toEqual({ B000000001: false, B000000002: true });
 	});
 
 	it('summarizes selected titles hidden by current filters', () => {

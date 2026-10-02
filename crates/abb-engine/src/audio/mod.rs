@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 mod buffer;
 mod cleanup;
 mod constants;
+pub(crate) use constants::ALLOWED_IMAGE_EXTENSIONS;
 mod extensions;
 mod file_list;
 mod imports;

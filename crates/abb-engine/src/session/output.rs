@@ -50,6 +50,7 @@ pub struct OutputSnapshot {
     pub submission: Option<SubmissionStatus>,
     /// Exported titles a Save would move, each awaiting Restart or Keep.
     pub restart_offers: Vec<super::exports::RestartOffer>,
+    pub preview_run: Option<super::preview::PreviewSnapshot>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -178,6 +179,7 @@ impl OutputPlan {
             preview,
             submission,
             restart_offers: Vec::new(),
+            preview_run: None,
         }
     }
 }

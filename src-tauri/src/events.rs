@@ -2,8 +2,6 @@
 //! frontend contract; `ipc_contract.rs` registers them for binding generation.
 
 use abb_engine::app_settings::SettingsSnapshot;
-use abb_engine::processing::{ProgressEvent, QueueEvent};
-use abb_engine::remote_source::AcquisitionJob;
 use abb_engine::session::SessionUpdate;
 use abb_engine::work_runtime::OperationSnapshot;
 use abb_engine::{EngineEvent, EventSink};
@@ -12,22 +10,6 @@ use tauri::Emitter;
 
 // Rust does not allow implementing `tauri_specta::Event` here for a type the
 // engine defines, so each engine payload gets a host-owned event type.
-
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(transparent)]
-pub struct ProcessingProgressEvent(pub ProgressEvent);
-
-impl tauri_specta::Event for ProcessingProgressEvent {
-    const NAME: &'static str = "processing-progress";
-}
-
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(transparent)]
-pub struct ProcessingQueueEvent(pub QueueEvent);
-
-impl tauri_specta::Event for ProcessingQueueEvent {
-    const NAME: &'static str = "processing-queue";
-}
 
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -69,15 +51,6 @@ impl tauri_specta::Event for SettingsUpdateEvent {
     const NAME: &'static str = "settings-update";
 }
 
-/// A remote-source acquisition's latest state.
-#[derive(Clone, Serialize, specta::Type)]
-#[serde(transparent)]
-pub struct AcquisitionUpdateEvent(pub AcquisitionJob);
-
-impl tauri_specta::Event for AcquisitionUpdateEvent {
-    const NAME: &'static str = "acquisition-update";
-}
-
 /// Tells the frontend the OS asked ABB to open files; it then drains the queue.
 #[derive(Clone, Default, Serialize, specta::Type)]
 pub struct OpenedAudioFilesEvent {}
@@ -100,8 +73,6 @@ impl TauriEvents {
 impl EventSink for TauriEvents {
     fn emit(&self, event: EngineEvent) {
         match event {
-            EngineEvent::ProcessingProgress(event) => self.send(ProcessingProgressEvent(event)),
-            EngineEvent::ProcessingQueue(event) => self.send(ProcessingQueueEvent(event)),
             EngineEvent::WorkOperationSnapshot(snapshot) => {
                 self.send(WorkOperationSnapshotEvent { snapshot });
             }
@@ -111,7 +82,6 @@ impl EventSink for TauriEvents {
             }),
             EngineEvent::Session(update) => self.send(SessionUpdateEvent(update)),
             EngineEvent::Settings(snapshot) => self.send(SettingsUpdateEvent(*snapshot)),
-            EngineEvent::Acquisition(job) => self.send(AcquisitionUpdateEvent(*job)),
         }
     }
 }

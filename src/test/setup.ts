@@ -14,7 +14,6 @@ import { audioFile, fakeEngine, resetFakeEngine } from './fixtures/fakeEngine';
 import type {
 	OperationListSnapshot,
 	OperationSnapshot,
-	RemoteIndexerConnection,
 	SupportedAudioImportMetadata,
 } from '../lib/generated/tauri';
 
@@ -241,12 +240,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 				publishMockOperation(snapshot);
 				return Promise.resolve(snapshot);
 			}
-			case 'get_remote_source_indexer_connection':
-				return Promise.resolve({
-					baseUrl: null,
-					categoryIds: [3030],
-					apiKeyConfigured: false,
-				} satisfies RemoteIndexerConnection);
 
 			default:
 				throw new Error(`[Test Mock] Unhandled Tauri invoke: ${cmd}`);

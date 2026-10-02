@@ -21,10 +21,12 @@
 
 - `StatusPanelView` reads Processing `status` and submits through
   `processing.start`.
+- Cancel follows the engine preview snapshot, including preparation and queued
+  work. A native job ID is not required before offering whole-preview cancel.
 - Do not add a local status store.
 
 ## Boundary Changes
 
 - Adding, removing, or renaming a Public API Strip export.
-- Reintroducing Status Panel as a WorkRuntime consumer or a poke API for
+- Reintroducing client-authored preview lifecycle or a poke API for
   concurrency text.

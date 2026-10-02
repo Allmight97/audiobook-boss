@@ -13,7 +13,8 @@
 - Session and settings changes cross as one numbered dispatch per owner
   (`sessionDispatch`, `settingsDispatch`) after `attachFrontend`. The
   `session-update` and `settings-update` events carry engine changes between
-  replies.
+  replies. Remote choices/acquisition and preview progress travel in the session
+  snapshot; there are no separate processing/acquisition event adapters.
 
 ## Frontend Utility Surface
 - `appError.ts` and `subscriptionGroup.ts` are deliberate frontend utilities that

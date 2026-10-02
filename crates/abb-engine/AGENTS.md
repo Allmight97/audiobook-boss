@@ -46,7 +46,7 @@ the same code.
 
 - Media execution crosses `crate::audio`; processor adapter selection and
   engine internals stay private to Audio.
-- Shared lifecycle vocabulary, queue/progress events, active jobs, and terminal
+- Shared lifecycle vocabulary, internal progress values, active jobs, and terminal
   summaries belong to `crate::processing`. Accepted operation identity,
   snapshots, retention, and operation cancellation belong to
   `crate::work_runtime`.
@@ -71,7 +71,8 @@ the same code.
   `crate::output_artifact`.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
-  runs `process_inspected_with_options` directly with `preview_seconds`.
+  runs `process_inspected_with_options` with a stable identity, actual cancel
+  flags, and the shared private snapshot reducer.
 
 ## Diagnostics
 

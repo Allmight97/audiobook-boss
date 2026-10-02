@@ -68,6 +68,9 @@ fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsInt
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SessionIntent {
+    Remote {
+        intent: crate::remote_source::RemoteUiIntent,
+    },
     // ---- Titles ----
     /// Discovers and analyzes audio under `paths` and adds new titles, each
     /// starting from the default audio choice.
@@ -145,6 +148,21 @@ pub enum SessionIntent {
         revision: u64,
     },
 
+    /// Cancels the identified preview, including preparation and queued titles.
+    #[serde(rename_all = "camelCase")]
+    CancelPreview {
+        run_id: String,
+        child_job_id: Option<String>,
+    },
+    #[serde(rename_all = "camelCase")]
+    TakePreviewOutput {
+        run_id: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    ReadPreviewCover {
+        run_id: String,
+    },
+
     // ---- Output ----
     /// Where exports are written; recorded in the settings.
     SetOutputDirectory {
@@ -193,6 +211,9 @@ pub enum SessionIntent {
     LoadCoverFromFile {
         path: String,
     },
+    LoadCoverFromDrop {
+        paths: Vec<String>,
+    },
     LoadCoverFromUrl {
         url: String,
     },
@@ -226,10 +247,11 @@ pub enum SessionIntent {
 }
 
 /// Whether an intent took effect. Details a user needs are in the snapshot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SessionOutcome {
     Applied,
+    RemoteSaved,
     /// The engine could not accept or complete the request.
     Rejected {
         error: AppErrorEnvelope,
@@ -240,6 +262,12 @@ pub enum SessionOutcome {
         message: Option<String>,
     },
     CoverLoadFailed,
+    PreviewOutput {
+        path: Option<String>,
+    },
+    PreviewCover {
+        bytes: Option<Vec<u8>>,
+    },
     /// A newer request or a reset replaced this one before it finished.
     Superseded,
 }
@@ -284,6 +312,7 @@ impl Network {
 
 pub(crate) struct SessionDeps {
     pub(crate) host: Host,
+    pub(crate) remote: crate::remote_source::RemoteSourceRuntime,
     pub(crate) work: WorkRuntime,
     pub(crate) jobs: ManagedJobRegistry,
     /// Source files under this root are temporary downloads.
@@ -355,11 +384,13 @@ pub struct SessionRun {
     session: Session,
     /// The session revision before the intent began.
     since: u64,
+    remote_since: u64,
     reply: tokio::sync::oneshot::Receiver<SessionOutcome>,
 }
 
 /// What an intent still has to do after its immediate effect.
 enum Rest {
+    Remote(crate::remote_source::RemoteUiRun),
     Done(SessionOutcome),
     Reads(Bound),
     ImportOpened {
@@ -371,6 +402,10 @@ enum Rest {
     },
     /// Record a choice in the settings, unless they were reset since `resets`.
     Remember(SettingsRun),
+    PreviewCover {
+        run_id: String,
+        artwork: super::preview::PreviewArtwork,
+    },
     /// Preflight, review, then export or preview.
     Submit(Box<Draft>),
     /// Continue a reviewed submission under `policy`.
@@ -430,7 +465,10 @@ impl SessionRun {
                     "Session work failed: {error}"
                 ))),
             });
-        let update = session.lock().update_since(Some(self.since));
+        let mut update = session.lock().update_since(Some(self.since));
+        if session.inner.deps.remote.ui_revision() > self.remote_since {
+            update.remote = Some(session.inner.deps.remote.ui_snapshot());
+        }
         SessionReply { outcome, update }
     }
 }
@@ -439,6 +477,13 @@ impl Session {
     async fn complete(&self, rest: Rest) -> SessionOutcome {
         let session = self;
         let outcome = match rest {
+            Rest::Remote(run) => match run.finish().await {
+                Ok(crate::remote_source::RemoteUiResult::Applied) => SessionOutcome::Applied,
+                Ok(crate::remote_source::RemoteUiResult::Saved) => SessionOutcome::RemoteSaved,
+                Err(error) => SessionOutcome::Rejected {
+                    error: (&error).into(),
+                },
+            },
             Rest::Done(outcome) => outcome,
             Rest::Reads(bound) => {
                 session.complete_reads(bound).await;
@@ -458,6 +503,25 @@ impl Session {
                         SessionOutcome::Rejected { error }
                     }
                     _ => SessionOutcome::Applied,
+                }
+            }
+            Rest::PreviewCover { run_id, artwork } => {
+                let bytes = match artwork {
+                    super::preview::PreviewArtwork::None => Ok(None),
+                    super::preview::PreviewArtwork::Bytes(bytes) => Ok(Some(bytes)),
+                    super::preview::PreviewArtwork::Source(path) => {
+                        blocking(move || crate::metadata::read_audio_cover_thumbnail(&path)).await
+                    }
+                };
+                if !session.lock().preview.matches(&run_id) {
+                    SessionOutcome::Superseded
+                } else {
+                    match bytes {
+                        Ok(bytes) => SessionOutcome::PreviewCover { bytes },
+                        Err(error) => SessionOutcome::Rejected {
+                            error: (&error).into(),
+                        },
+                    }
                 }
             }
             Rest::Submit(draft) => session.submit(*draft).await,
@@ -642,6 +706,7 @@ impl Session {
     /// Applies the intent's immediate effect. Intents begun in order take
     /// effect in order, whatever work each still has to finish.
     pub(crate) fn begin(&self, intent: SessionIntent) -> SessionRun {
+        let remote_since = self.inner.deps.remote.ui_revision();
         let since = self.lock().revision();
         let submission = matches!(
             &intent,
@@ -681,6 +746,7 @@ impl Session {
             });
         self.publish();
         SessionRun {
+            remote_since,
             session: self.clone(),
             since,
             reply,
@@ -742,7 +808,9 @@ impl Session {
     }
 
     pub(crate) fn snapshot(&self) -> SessionUpdate {
-        self.lock().update_since(None)
+        let mut snapshot = self.lock().update_since(None);
+        snapshot.remote = Some(self.inner.deps.remote.ui_snapshot());
+        snapshot
     }
 
     pub(crate) fn cover_art(&self) -> Option<Vec<u8>> {
@@ -758,6 +826,7 @@ impl Session {
     fn begin_rest(&self, intent: SessionIntent) -> Rest {
         use SessionIntent as I;
         match intent {
+            I::Remote { intent } => Rest::Remote(self.inner.deps.remote.ui_begin(intent)),
             I::Import { paths } => self.begin_import(paths),
             I::ImportOpened => Rest::ImportOpened {
                 resets: self.inner.resets.load(Ordering::SeqCst),
@@ -857,6 +926,12 @@ impl Session {
                 Rest::Done(SessionOutcome::Applied)
             }
             I::LoadCoverFromFile { path } => self.begin_cover_load(CoverSource::File(path)),
+            I::LoadCoverFromDrop { paths } => {
+                match crate::cover_source::dropped_cover_path(paths) {
+                    Some(path) => self.begin_cover_load(CoverSource::File(path)),
+                    None => Rest::Done(SessionOutcome::Applied),
+                }
+            }
             I::LoadCoverFromUrl { url } => self.begin_cover_load(CoverSource::Url(url)),
             I::ClearCover => {
                 self.transition(SessionState::clear_cover);
@@ -865,6 +940,26 @@ impl Session {
             I::Save => self.begin_save(),
             I::Submit => self.begin_submission(None),
             I::Preview { seconds } => self.begin_submission(Some(seconds)),
+            I::CancelPreview {
+                run_id,
+                child_job_id,
+            } => Rest::Done(self.cancel_preview_run(&run_id, child_job_id.as_deref())),
+            I::TakePreviewOutput { run_id } => Rest::Done(SessionOutcome::PreviewOutput {
+                path: self.transition(|state| state.preview.take_output(&run_id)),
+            }),
+            I::ReadPreviewCover { run_id } => {
+                let artwork = {
+                    let state = self.lock();
+                    state
+                        .preview
+                        .matches(&run_id)
+                        .then(|| state.preview.artwork.clone())
+                };
+                match artwork {
+                    Some(artwork) => Rest::PreviewCover { run_id, artwork },
+                    None => Rest::Done(SessionOutcome::Superseded),
+                }
+            }
             I::ChooseCollisionPolicy { policy } => match self.transition(SessionState::take_review)
             {
                 Some(draft) => Rest::Reviewed {
@@ -1223,6 +1318,13 @@ impl Session {
             Ok(plan) => plan,
             Err(error) => return self.end_submission(&draft, failed(&error)),
         };
+        if draft
+            .preview_id
+            .as_ref()
+            .is_some_and(|id| self.lock().preview.cancelled(id))
+        {
+            return self.end_submission(&draft, SubmissionStatus::Cancelled);
+        }
         let public = plan.plan.to_public();
         // A policy applies only to collisions the user reviewed; a new one
         // that appeared meanwhile sends the submission back to review.
@@ -1284,35 +1386,7 @@ impl Session {
     ) -> SessionOutcome {
         let deps = &self.inner.deps;
         if draft.preview_seconds.is_some() {
-            let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
-                .map(|_| Arc::default())
-                .collect();
-            *self.preview_cancels() = cancels.clone();
-            // Checked after the flags are visible, so shutdown either sees
-            // this preview to cancel or the preview sees shutdown.
-            if deps.tasks.is_closed() {
-                return self.end_submission(&draft, closing());
-            }
-            self.transition(SessionState::start_preview);
-            self.publish();
-            let result = process_inspected_with_options(
-                deps.host.clone(),
-                deps.jobs.clone(),
-                deps.workspace_root.clone(),
-                draft.payload.clone(),
-                inspected,
-                ProcessingRunOptions {
-                    title_cancels: cancels,
-                    ..ProcessingRunOptions::default()
-                },
-            )
-            .await;
-            self.preview_cancels().clear();
-            let status = match result {
-                Ok(result) => SubmissionStatus::PreviewFinished { result },
-                Err(error) => failed(&error),
-            };
-            return self.end_submission(&draft, status);
+            return self.run_preview(draft, inspected).await;
         }
         let submitted = deps
             .work
@@ -1357,6 +1431,69 @@ impl Session {
         self.end_submission(&draft, status)
     }
 
+    async fn run_preview(
+        &self,
+        draft: Draft,
+        inspected: crate::processing::plan::InspectedProcessingPlan,
+    ) -> SessionOutcome {
+        let deps = &self.inner.deps;
+        let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
+            .map(|_| Arc::default())
+            .collect();
+        let id = draft
+            .preview_id
+            .clone()
+            .expect("preview draft has an identity");
+        *self.preview_cancels() = cancels.clone();
+        if let Some(preview) = self.lock().preview.snapshot() {
+            for child in &preview.operation.children {
+                if child.cancel_requested {
+                    if let Some(flag) = child.input_index.and_then(|index| cancels.get(index)) {
+                        flag.store(true, Ordering::SeqCst);
+                    }
+                }
+            }
+        }
+        let artwork = super::preview::PreviewArtwork::from_plan(&inspected);
+        // Checked after the flags are visible, so shutdown either sees
+        // this preview to cancel or the preview sees shutdown.
+        if deps.tasks.is_closed() {
+            return self.end_submission(&draft, closing());
+        }
+        self.transition(|state| {
+            state.preview.artwork = artwork;
+            state.start_preview(&id);
+        });
+        self.publish();
+        let result = process_inspected_with_options(
+            deps.host.clone(),
+            deps.jobs.clone(),
+            deps.workspace_root.clone(),
+            draft.payload.clone(),
+            inspected,
+            ProcessingRunOptions {
+                operation_id: Some(id.to_string()),
+                title_cancels: cancels,
+                progress_listener: Some(Arc::new({
+                    let session = self.clone();
+                    let id = id.clone();
+                    move |event| {
+                        session.transition(|state| state.preview.progress(&id, event));
+                        session.publish();
+                    }
+                })),
+                ..ProcessingRunOptions::default()
+            },
+        )
+        .await;
+        self.preview_cancels().clear();
+        let status = match result {
+            Ok(result) => SubmissionStatus::PreviewFinished { result },
+            Err(error) => failed(&error),
+        };
+        self.end_submission(&draft, status)
+    }
+
     fn preview_cancels(&self) -> std::sync::MutexGuard<'_, Vec<Arc<AtomicBool>>> {
         self.inner
             .preview_cancels
@@ -1364,10 +1501,40 @@ impl Session {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Stops a running preview; shutdown does not wait out a scratch render.
+    /// Sets actual work flags and keeps cancellation visible until cleanup ends.
+    fn cancel_preview_run(&self, run_id: &str, child: Option<&str>) -> SessionOutcome {
+        let flags = self.preview_cancels();
+        let indexes = self.transition(|state| {
+            let indexes = state.preview.cancel(run_id, child)?;
+            if child.is_none() && state.preview.matches(run_id) {
+                state.cancel_preview_review();
+            }
+            Ok::<_, AppError>(indexes)
+        });
+        match indexes {
+            Ok(indexes) => {
+                for index in indexes {
+                    if let Some(flag) = flags.get(index) {
+                        flag.store(true, Ordering::SeqCst);
+                    }
+                }
+                self.sources_released();
+                SessionOutcome::Applied
+            }
+            Err(error) => SessionOutcome::Rejected {
+                error: (&error).into(),
+            },
+        }
+    }
+
     pub(crate) fn cancel_preview(&self) {
-        for cancel in self.preview_cancels().iter() {
-            cancel.store(true, Ordering::SeqCst);
+        let id = self
+            .lock()
+            .preview
+            .snapshot()
+            .map(|preview| preview.operation.operation_id);
+        if let Some(id) = id {
+            self.cancel_preview_run(id.as_str(), None);
         }
     }
 

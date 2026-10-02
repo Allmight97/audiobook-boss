@@ -647,6 +647,26 @@ async fn submit_exports_the_session_reviews_a_collision_and_previews() {
     );
 
     desk.send(SessionIntent::Preview { seconds: 1.0 }).await;
+    let preview = desk
+        .engine
+        .session_snapshot()
+        .output
+        .expect("output")
+        .preview_run
+        .expect("preview snapshot");
+    assert_eq!(preview.operation.status, WorkOperationStatus::Completed);
+    assert!(preview.open_ready);
+    let id = preview.operation.operation_id.to_string();
+    assert!(matches!(
+        desk.send(SessionIntent::TakePreviewOutput { run_id: id.clone() })
+            .await,
+        SessionOutcome::PreviewOutput { path: Some(_) }
+    ));
+    assert_eq!(
+        desk.send(SessionIntent::TakePreviewOutput { run_id: id })
+            .await,
+        SessionOutcome::PreviewOutput { path: None }
+    );
     assert!(
         matches!(
             submission(&desk),

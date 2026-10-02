@@ -1,15 +1,10 @@
 import type {
-	EventStage as GeneratedEventStage,
-	OperationKind as GeneratedOperationKind,
 	OpenedAudioFilesEvent as GeneratedOpenedAudioFilesEvent,
-	ProgressEvent as GeneratedProgressEvent,
-	QueueEvent as GeneratedQueueEvent,
 	WorkOperationListSnapshotEvent as GeneratedWorkOperationListSnapshotEvent,
 	WorkOperationSnapshotEvent as GeneratedWorkOperationSnapshotEvent,
 } from '../lib/generated/tauri';
 import type { NullToOptionalDeep } from './ipc';
 import type { SettingsSnapshot } from './appSettings';
-import type { AcquisitionJob } from './remoteSource';
 import type { SessionUpdate } from './session';
 
 /**
@@ -21,52 +16,19 @@ import type { SessionUpdate } from './session';
  */
 
 export const EVENTS = {
-	PROGRESS: 'processing-progress',
-	QUEUE: 'processing-queue',
 	OPENED_AUDIO_FILES: 'opened-audio-files',
 	WORK_OPERATION_SNAPSHOT: 'work-operation-snapshot',
 	WORK_OPERATION_LIST_SNAPSHOT: 'work-operation-list-snapshot',
 	SESSION_UPDATE: 'session-update',
 	SETTINGS_UPDATE: 'settings-update',
-	ACQUISITION_UPDATE: 'acquisition-update',
 } as const;
 
-export type EventStage = GeneratedEventStage;
-export type OperationKind = GeneratedOperationKind;
-
-/**
- * Exhaustive value-level access to the generated progress stages.
- *
- * This object must stay aligned with the Rust `EventStage` enum; if a stage is
- * added or removed in Rust, this declaration fails to type-check until the
- * frontend acknowledges the new variant.
- */
-export const STAGES: { readonly [K in EventStage]: K } = {
-	analyzing: 'analyzing',
-	converting: 'converting',
-	writing: 'writing',
-	completed: 'completed',
-	skipped: 'skipped',
-	failed: 'failed',
-	cancelled: 'cancelled',
-} as const;
-
-export const OPERATION_KINDS: { readonly [K in OperationKind]: K } = {
-	processingBatch: 'processingBatch',
-	remoteAcquisition: 'remoteAcquisition',
-	metadataSave: 'metadataSave',
-} as const;
-
-export type ProcessingProgressEvent = NullToOptionalDeep<GeneratedProgressEvent>;
-export type ProcessingQueueItem = NullToOptionalDeep<GeneratedQueueEvent>['items'][number];
-export type ProcessingQueueEvent = NullToOptionalDeep<GeneratedQueueEvent>;
 export type OpenedAudioFilesEvent = NullToOptionalDeep<GeneratedOpenedAudioFilesEvent>;
 export type WorkOperationSnapshotEvent = NullToOptionalDeep<GeneratedWorkOperationSnapshotEvent>;
 export type WorkOperationListSnapshotEvent =
 	NullToOptionalDeep<GeneratedWorkOperationListSnapshotEvent>;
 export type SessionUpdateEvent = SessionUpdate;
 export type SettingsUpdateEvent = SettingsSnapshot;
-export type AcquisitionUpdateEvent = AcquisitionJob;
 
 export interface TauriFileDropEvents {
 	'tauri://drag-drop': { paths: string[]; position: { x: number; y: number } };
@@ -76,14 +38,11 @@ export interface TauriFileDropEvents {
 }
 
 export interface ApplicationEvents extends TauriFileDropEvents {
-	[EVENTS.PROGRESS]: ProcessingProgressEvent;
-	[EVENTS.QUEUE]: ProcessingQueueEvent;
 	[EVENTS.OPENED_AUDIO_FILES]: OpenedAudioFilesEvent;
 	[EVENTS.WORK_OPERATION_SNAPSHOT]: WorkOperationSnapshotEvent;
 	[EVENTS.WORK_OPERATION_LIST_SNAPSHOT]: WorkOperationListSnapshotEvent;
 	[EVENTS.SESSION_UPDATE]: SessionUpdateEvent;
 	[EVENTS.SETTINGS_UPDATE]: SettingsUpdateEvent;
-	[EVENTS.ACQUISITION_UPDATE]: AcquisitionUpdateEvent;
 }
 
 export type EventName = keyof ApplicationEvents;

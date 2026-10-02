@@ -23,11 +23,11 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const input = createInputOwner({ link, capability: capabilities.input });
 			const settings = createSettingsOwner({ link });
 			const metadata = createMetadataOwner({ link, capability: capabilities.metadata });
-			const encoding = createEncodingOwner({ link, input });
+			const encoding = createEncodingOwner({ link });
 			const output = createOutputOwner({ link });
 			const lookup = createMetadataLookupOwner({ link, metadata });
-			const remoteSource = createRemoteSourceOwner({ ...capabilities.remoteSource });
-			const processing = createProcessingOwner({ link, input, settings, output });
+			const remoteSource = createRemoteSourceOwner({ link, ...capabilities.remoteSource });
+			const processing = createProcessingOwner({ link, settings, output });
 			const workOperations = createWorkOperationsOwner();
 			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {

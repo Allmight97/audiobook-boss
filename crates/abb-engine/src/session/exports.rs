@@ -24,6 +24,7 @@ use crate::work_runtime::OperationId;
 #[serde(rename_all = "camelCase")]
 pub struct RestartOffer {
     pub title_id: String,
+    pub operation_id: OperationId,
     /// Names this offer; a later Save replaces it with another.
     #[specta(type = specta_typescript::Number)]
     pub revision: u64,
@@ -171,6 +172,13 @@ impl Exports {
         directory: Option<String>,
         naming: OutputNamingConfig,
     ) -> bool {
+        let Some(link) = self.links.get(&edit.title_id) else {
+            return false;
+        };
+        if !Arc::ptr_eq(&link.title, &edit.title) {
+            return false;
+        }
+        let operation_id = link.operation_id.clone();
         // A reply from an older Save that arrived late changes nothing.
         let older = self
             .tickets
@@ -191,6 +199,7 @@ impl Exports {
             Ticket {
                 offer: RestartOffer {
                     title_id: edit.title_id.clone(),
+                    operation_id,
                     revision: edit.revision,
                     from: from.to_string_lossy().into_owned(),
                     to: to.to_string_lossy().into_owned(),

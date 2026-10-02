@@ -18,6 +18,8 @@ import type {
 	TitlesSnapshot as GeneratedTitlesSnapshot,
 } from '../lib/generated/tauri';
 import type { AudioFile, PlannedOutput, ProcessCommandResult } from './audio';
+import type { AcquisitionJob, RemoteRelease } from './remoteSource';
+import type { RemoteUiSnapshot as GeneratedRemoteUiSnapshot } from '../lib/generated/tauri';
 import type { OnlineMetadataResult } from './metadata';
 
 export type {
@@ -46,12 +48,19 @@ export type {
 	SizeEstimate,
 	SubmitRefusal,
 	TagPreview,
+	RemoteUiIntent,
+	IndexerDraftSnapshot,
+	RemoteDraftStatus,
 	TitleAudio,
 	TitlePlan,
 } from '../lib/generated/tauri';
 
 export type SessionIntent = GeneratedSessionIntent;
 export type SessionOutcome = GeneratedSessionOutcome;
+export type RemoteUiSnapshot = Omit<GeneratedRemoteUiSnapshot, 'acquisition' | 'indexer'> & {
+	acquisition: AcquisitionJob | null;
+	indexer: Omit<GeneratedRemoteUiSnapshot['indexer'], 'releases'> & { releases: RemoteRelease[] };
+};
 
 export type SessionTitles = Omit<GeneratedTitlesSnapshot, 'files' | 'titleSourcesByIdentity'> & {
 	files: AudioFile[];
@@ -82,6 +91,7 @@ export type SessionUpdate = {
 	lookup?: SessionLookup;
 	audio?: SessionAudio;
 	output?: SessionOutput;
+	remote?: RemoteUiSnapshot;
 };
 
 export type SessionReply = {

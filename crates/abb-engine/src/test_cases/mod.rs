@@ -1,5 +1,5 @@
 #[path = "integration_media_execution_tests.rs"]
-mod integration_media_execution_tests;
+pub(crate) mod integration_media_execution_tests;
 #[path = "integration_reqwest_resolver_tests.rs"]
 mod integration_reqwest_resolver_tests;
 #[path = "integration_session_tests.rs"]

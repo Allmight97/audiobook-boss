@@ -1,26 +1,14 @@
-import type { EventStage } from '../../types/events';
+/** Status-panel wording of engine progress; run truth remains in engine snapshots. */
+export type DisplayStage =
+	| 'analyzing'
+	| 'converting'
+	| 'writing'
+	| 'completed'
+	| 'skipped'
+	| 'failed'
+	| 'cancelled';
+export type ActiveEventStage = Extract<DisplayStage, 'analyzing' | 'converting' | 'writing'>;
 
-/**
- * Stage values emitted from Rust that represent ongoing work. The companion
- * `isActiveEventStage` guard below is typed against this alias, so a new active
- * Rust stage must be acknowledged here before the frontend compiles again.
- */
-export type ActiveEventStage = Exclude<
-	EventStage,
-	'completed' | 'skipped' | 'failed' | 'cancelled'
->;
-
-/**
- * UI-layer processing status modeled as a discriminated union so that fields
- * only meaningful during active work (`currentFile`, `etaSeconds`) are
- * unrepresentable on terminal and idle variants.
- *
- * `idle` is a UI-only stage — there is no corresponding wire value. Active
- * variants track `ActiveEventStage`, which itself derives from the Rust-authored
- * `EventStage` (see `src/types/events.ts`), so the flow `EventStage -> wire ->
- * UI` stays consistent at the type level. Idle is pinned to `percentage: 0`,
- * making the old "idle with stale progress" state unrepresentable.
- */
 export type ProcessingStatus =
 	| { stage: 'idle'; percentage: 0; message: string }
 	| {
@@ -36,36 +24,6 @@ export type ProcessingStatus =
 	| { stage: 'cancelled'; percentage: number; message: string };
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'skipped' | 'failed' | 'cancelled';
-
-/**
- * Per-job progress tracking for queued and running work.
- *
- * `stage` mirrors backend-emitted `EventStage` values only. The UI-only `idle`
- * variant from `ProcessingStatus` must never appear on an individual job row.
- */
-export interface JobProgress {
-	jobId?: string;
-	inputIndex?: number;
-	label: string;
-	status: JobStatus;
-	stage?: EventStage;
-	percentage: number;
-	message: string;
-	lastUpdate: number;
-}
-
-/** Aggregate progress across all jobs */
-export interface AggregateProgress {
-	activeJobs: number;
-	queuedJobs: number;
-	completedJobs: number;
-	overallPercentage: number;
-}
-
-export interface AggregateProgressAndStage {
-	aggregate: AggregateProgress;
-	stage: ProcessingStatus['stage'];
-}
 
 export function createInitialStatus(): ProcessingStatus {
 	return {

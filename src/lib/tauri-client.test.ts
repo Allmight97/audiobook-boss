@@ -6,7 +6,6 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProcessingProgressEvent } from '../types/events';
 import { runtimeSettingsCapabilitiesFixture } from '../test/fixtures/runtimeSettingsCapabilities';
 import mainWindowCapability from '../../src-tauri/capabilities/default.json';
 
@@ -189,22 +188,6 @@ describe('tauriClient nullish adapters', () => {
 		vi.clearAllMocks();
 	});
 
-	it('sends draft Indexer Test values through IPC without persisting them', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({ ok: true, message: 'Connected to Indexer.' });
-		const { tauriClient } = await import('./tauri/client');
-		await expect(
-			tauriClient.testRemoteSourceIndexerConnection({
-				baseUrl: 'http://indexer.test',
-				categoryIds: [3030, 3000],
-			}),
-		).resolves.toEqual({ ok: true, message: 'Connected to Indexer.' });
-		expect(mockInvoke).toHaveBeenCalledExactlyOnceWith('test_remote_source_indexer_connection', {
-			update: { baseUrl: 'http://indexer.test', categoryIds: [3030, 3000] },
-		});
-	});
-
 	it('normalizes nullable metadata fields from backend responses', async () => {
 		const { invoke } = await import('@tauri-apps/api/core');
 		const mockInvoke = vi.mocked(invoke);
@@ -233,48 +216,6 @@ describe('tauriClient nullish adapters', () => {
 		expect(metadata.artist).toBeUndefined();
 		expect(metadata.series).toBeUndefined();
 		expect(metadata.cover_art).toBeUndefined();
-	});
-
-	it('routes remote source acquisition through provider-neutral command payloads', async () => {
-		const { invoke } = await import('@tauri-apps/api/core');
-		const mockInvoke = vi.mocked(invoke);
-		mockInvoke.mockResolvedValueOnce({
-			jobId: 'remote-job-1',
-			providerId: 'audible',
-			status: 'acquiring',
-			progress: {
-				stage: 'download',
-				percentage: 35,
-				message: 'Downloading audiobook.',
-				bytesDownloaded: 50,
-				bytesTotal: 100,
-				currentTitleId: 'B000000001',
-				currentItemIndex: 1,
-				totalItems: 1,
-				terminal: false,
-			},
-			materializedFiles: [],
-			supplementalAssets: [],
-			diagnostics: [],
-		});
-
-		const { tauriClient } = await import('./tauri/client');
-		const result = await tauriClient.startRemoteSourceAcquisition({
-			providerId: 'audible',
-			selections: [{ titleId: 'B000000001', includeSupplementalPdf: true }],
-		});
-
-		const lastCall = mockInvoke.mock.calls[mockInvoke.mock.calls.length - 1];
-		const [commandName, args] = lastCall as [
-			string,
-			{ plan: { providerId: string; selections: Array<Record<string, unknown>> } },
-		];
-		expect(commandName).toBe('start_remote_source_acquisition');
-		expect(args.plan).toEqual({
-			providerId: 'audible',
-			selections: [{ titleId: 'B000000001', includeSupplementalPdf: true }],
-		});
-		expect(result.jobId).toBe('remote-job-1');
 	});
 
 	it('normalizes a finished preview carried in the session output', async () => {
@@ -353,45 +294,6 @@ describe('tauriClient nullish adapters', () => {
 		});
 	});
 
-	it('normalizes nullish progress-event payload fields from generated listeners', async () => {
-		const { listen } = await import('@tauri-apps/api/event');
-		const mockListen = vi.mocked(listen);
-		mockListen.mockImplementationOnce((async (_event, handler) => {
-			(handler as (event: { event: string; id: number; payload: unknown }) => void)({
-				event: 'processing-progress',
-				id: 1,
-				payload: {
-					operation_kind: 'processingBatch',
-					stage: 'converting',
-					percentage: 42,
-					message: 'Working',
-					current_file: null,
-					eta_seconds: null,
-					job_id: null,
-					input_index: null,
-				},
-			});
-			return () => {
-				/* unlisten */
-			};
-		}) as typeof listen);
-
-		const { tauriClient } = await import('./tauri/client');
-		let received: ProcessingProgressEvent | undefined;
-
-		await tauriClient.listen('processing-progress', (event) => {
-			received = event.payload;
-		});
-
-		expect(received).toBeDefined();
-		expect(received?.current_file).toBeUndefined();
-		expect(received?.eta_seconds).toBeUndefined();
-		expect(received?.job_id).toBeUndefined();
-		expect(received?.input_index).toBeUndefined();
-	});
-});
-
-describe('unwrapGeneratedResult', () => {
 	it('returns .data on canonical specta success shape', async () => {
 		const { unwrapGeneratedResult } = await import('./tauri/appError');
 		const result = unwrapGeneratedResult<{ hello: string }>({

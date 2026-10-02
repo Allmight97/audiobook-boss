@@ -22,7 +22,10 @@
   operation whose child snapshot is `cancellable` and not yet cancelling.
   A completed title with an `outputPath` offers a reveal button labelled for
   the host file manager (Finder, File Explorer, or a generic folder).
-- Do not add a local operation store or subscribe to `processing-progress`.
+- A title with a matching engine restart offer shows Restart and Keep Location
+  through Processing. Match both operation and input identity so a later export
+  never lends its actions to older retained rows; refused restart stays retryable.
+- Do not add a local operation store or client-authored progress.
 
 ## Boundary Changes
 

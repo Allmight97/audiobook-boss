@@ -146,6 +146,22 @@ pub struct SessionUpdate {
     pub lookup: Option<LookupSnapshot>,
     pub audio: Option<AudioSnapshot>,
     pub output: Option<OutputSnapshot>,
+    pub remote: Option<crate::remote_source::RemoteUiSnapshot>,
+}
+
+impl SessionUpdate {
+    pub(crate) fn remote(snapshot: crate::remote_source::RemoteUiSnapshot) -> Self {
+        Self {
+            revision: 0,
+            titles: None,
+            selection: None,
+            metadata: None,
+            lookup: None,
+            audio: None,
+            output: None,
+            remote: Some(snapshot),
+        }
+    }
 }
 
 /// Why the metadata draft gate refused a change of selection.
@@ -244,6 +260,7 @@ pub(crate) struct SessionState {
     pub(crate) lookup: LookupState,
     pub(crate) audio: AudioDefaults,
     pub(crate) output: OutputPlan,
+    pub(crate) preview: super::preview::Preview,
     plans: Plans,
     /// The title and audio-request changes plans were last refreshed for.
     plans_seen: (u64, u64),
@@ -322,6 +339,7 @@ impl Default for SessionState {
             lookup,
             audio: AudioDefaults::default(),
             output: OutputPlan::default(),
+            preview: super::preview::Preview::default(),
             plans: Plans::default(),
             plans_seen: (u64::MAX, u64::MAX),
             submission: None,
@@ -431,7 +449,12 @@ impl SessionState {
             .filter_map(|file| {
                 let id = &file.input_id;
                 let request = self.working_set.audio_request(id)?;
-                let view = self.audio.title_view(request);
+                let mut view = self.audio.title_view(request);
+                view.facts.downmix_warning = view.choice.channels
+                    != crate::audio::ChannelConfig::Auto
+                    && self.working_set.sources_for(file).iter().any(|source| {
+                        source.is_valid && source.channels.is_some_and(|channels| channels > 2)
+                    });
                 let plan = self.plans.plan(id);
                 let estimate = estimate_size(
                     request,
@@ -497,6 +520,7 @@ impl SessionState {
         let preview = self.output.preview(title);
         OutputSnapshot {
             restart_offers: self.exports.offers(),
+            preview_run: self.preview.snapshot(),
             ..self
                 .output
                 .snapshot(revision, preview, self.submission.clone())
@@ -519,6 +543,7 @@ impl SessionState {
     ) -> Option<Draft> {
         match self.prepare_submission(preview_seconds, only) {
             Ok(draft) => {
+                self.preview.begin(&draft);
                 self.submitting = true;
                 self.reserved.extend(draft.sources.iter().cloned());
                 self.working_set.set_order_locked(true);
@@ -780,6 +805,12 @@ impl SessionState {
         }
     }
 
+    pub(crate) fn cancel_preview_review(&mut self) {
+        if self.pending_review.as_ref().is_some_and(Draft::preview) {
+            self.cancel_review();
+        }
+    }
+
     /// The submission waiting for a collision choice, if any.
     pub(crate) fn take_review(&mut self) -> Option<Draft> {
         let draft = self.pending_review.take()?;
@@ -789,13 +820,15 @@ impl SessionState {
         Some(draft)
     }
 
-    pub(crate) fn start_preview(&mut self) {
+    pub(crate) fn start_preview(&mut self, id: &OperationId) {
+        self.preview.start(id);
         self.submission = Some(SubmissionStatus::Previewing);
     }
 
     /// Ends a submission: frees its sources and the list, and records how it
     /// ended.
     pub(crate) fn finish_submission(&mut self, draft: &Draft, status: SubmissionStatus) {
+        self.preview.finish(draft, &status);
         for source in &draft.sources {
             if let Some(index) = self.reserved.iter().position(|reserved| reserved == source) {
                 self.reserved.swap_remove(index);
@@ -850,6 +883,7 @@ impl SessionState {
     pub(crate) fn update_since(&self, revision: Option<u64>) -> SessionUpdate {
         let newer = |part: u64| revision.is_none_or(|revision| part > revision);
         SessionUpdate {
+            remote: None,
             revision: self.parts.revision,
             titles: newer(self.parts.titles.revision).then(|| self.parts.titles.clone()),
             selection: newer(self.parts.selection.revision).then(|| self.parts.selection.clone()),

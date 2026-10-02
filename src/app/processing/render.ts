@@ -1,7 +1,9 @@
 import { formatEtaRemaining, formatStatusDisplayText } from './formatting';
-import type { AggregateProgress, JobProgress, ProcessingStatus } from './state';
+import type { ProcessingStatus } from './state';
 import type { StatusViewStore } from './view';
-import type { JobListItem } from './viewTypes';
+import type { SessionOutput } from '../../types/session';
+import type { WorkProgressStage } from '../../types/workRuntime';
+import { buildStatus } from './state';
 
 export type ConcurrencyRead = {
 	readonly selection: string;
@@ -27,7 +29,6 @@ export function renderStatus(
 export function renderConcurrencyStatus(
 	view: StatusViewStore,
 	concurrency: ConcurrencyRead | undefined,
-	aggregate?: AggregateProgress,
 ): void {
 	const effective = concurrency?.effective ?? null;
 	const suffix = concurrency?.selection === 'auto' ? ' (Auto)' : '';
@@ -37,116 +38,69 @@ export function renderConcurrencyStatus(
 		return;
 	}
 
-	if (
-		aggregate &&
-		(aggregate.activeJobs > 0 || aggregate.completedJobs > 0 || aggregate.queuedJobs > 0)
-	) {
-		const queuedSuffix = aggregate.queuedJobs > 0 ? ` • Queued ${aggregate.queuedJobs}` : '';
-		const completedSuffix =
-			aggregate.completedJobs > 0 ? ` • Completed ${aggregate.completedJobs}` : '';
-		view.setConcurrencyText(
-			`Running ${aggregate.activeJobs} / Max ${effective}${suffix}${queuedSuffix}${completedSuffix}`,
-		);
-		return;
-	}
-
 	view.setConcurrencyText(`Max jobs: ${effective}${suffix}`);
 }
 
-function formatJobStatusText(
-	job: JobProgress,
-	position: number | null,
-	total: number | null,
-): string {
-	if (typeof job.inputIndex !== 'number') {
-		return job.message;
-	}
-	if (job.status === 'queued') {
-		if (position && total) {
-			return `Queued • #${position} of ${total}`;
-		}
-		return 'Queued';
-	}
-	if (job.status === 'processing') {
-		const stage = job.stage ?? 'analyzing';
-		return formatStatusDisplayText(stage);
-	}
-	if (job.status === 'completed') {
-		return 'Completed';
-	}
-	if (job.status === 'skipped') {
-		return 'Skipped';
-	}
-	if (job.status === 'failed') {
-		return 'Failed';
-	}
-	if (job.status === 'cancelled') {
-		return 'Cancelled';
-	}
-	return 'Processing';
-}
-
-function buildRenderOrder(jobProgress: Map<string, JobProgress>, queueOrder: string[]): string[] {
-	if (queueOrder.length === 0) {
-		return Array.from(jobProgress.entries())
-			.sort((a, b) => b[1].lastUpdate - a[1].lastUpdate)
-			.map(([key]) => key);
-	}
-
-	const seen = new Set(queueOrder);
-	const extras = Array.from(jobProgress.entries())
-		.filter(([key]) => !seen.has(key))
-		.sort((a, b) => b[1].lastUpdate - a[1].lastUpdate)
-		.map(([key]) => key);
-
-	return [...queueOrder, ...extras];
-}
-
-export function renderJobList(
+export function renderPreview(
 	view: StatusViewStore,
-	jobProgress: Map<string, JobProgress>,
-	queueOrder: string[],
-	onCancel: (id: string) => void,
+	preview: SessionOutput['previewRun'],
+	cancel: (child: string) => void,
 ): void {
-	const orderedKeys = buildRenderOrder(jobProgress, queueOrder);
-	const total = queueOrder.length > 0 ? queueOrder.length : null;
-	const queuePositions =
-		queueOrder.length > 0
-			? queueOrder.reduce<Map<string, number>>((positions, key, index) => {
-					positions.set(key, index + 1);
-					return positions;
-				}, new Map<string, number>())
-			: null;
+	if (!preview) return;
+	const { operation } = preview;
+	const active =
+		operation.status === 'accepted' ||
+		operation.status === 'running' ||
+		operation.status === 'cancelling';
+	const stage = stageForProgress(operation.progress.stage);
+	const message = operation.terminalSummary?.message ?? operation.progress.message;
+	renderStatus(
+		view,
+		buildStatus(stage, operation.progress.percentage, message, {
+			etaSeconds: operation.progress.etaSeconds,
+		}),
+		active,
+	);
+	if (operation.status === 'mixed') view.setStatusText('Mixed result');
+	if (operation.status === 'cancelling') view.setStatusText('Cancelling');
+	view.setCancelAllPending(operation.cancelRequested && active);
+	view.setJobItems(
+		operation.children.map((child, index) => ({
+			key: `${operation.operationId}:${child.childJobId}`,
+			label: child.label,
+			status: child.status === 'running' ? 'processing' : child.status,
+			statusText:
+				child.cancelRequested && active
+					? 'Cancelling'
+					: child.status === 'queued'
+						? `Queued • #${index + 1} of ${operation.children.length}`
+						: (child.message ?? child.progress.message),
+			stage: stageForProgress(child.progress.stage),
+			percentage: child.progress.percentage,
+			canCancel: child.cancellable && active,
+			cancelId: child.childJobId,
+			onCancel: cancel,
+		})),
+	);
+}
 
-	const jobs: JobListItem[] = orderedKeys.reduce<JobListItem[]>((acc, key) => {
-		const job = jobProgress.get(key);
-		if (!job) return acc;
-		const position = queuePositions?.get(key) ?? null;
-		const statusText = formatJobStatusText(job, position, total);
-		const canCancel = job.status === 'processing' && !!job.jobId;
-		const percentage =
-			job.status === 'processing' || job.status === 'completed' || job.status === 'skipped'
-				? job.percentage
-				: undefined;
-
-		const item: JobListItem = {
-			key,
-			label: job.label,
-			status: job.status,
-			statusText,
-			stage: job.stage,
-			canCancel,
-			cancelId: job.jobId,
-			onCancel: canCancel ? onCancel : undefined,
-		};
-
-		if (typeof percentage === 'number') {
-			item.percentage = percentage;
-		}
-
-		acc.push(item);
-		return acc;
-	}, []);
-
-	view.setJobItems(jobs);
+function stageForProgress(
+	stage: WorkProgressStage,
+): Exclude<ProcessingStatus['stage'], 'idle' | 'skipped'> {
+	switch (stage) {
+		case 'complete':
+			return 'completed';
+		case 'failed':
+			return 'failed';
+		case 'cancelled':
+			return 'cancelled';
+		case 'converting':
+			return 'converting';
+		case 'writing':
+		case 'committing':
+		case 'cleaning':
+			return 'writing';
+		default:
+			return 'analyzing';
+	}
 }

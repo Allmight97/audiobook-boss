@@ -17,11 +17,8 @@ import {
 	type ApplicationEvents,
 	type EventName,
 	type OpenedAudioFilesEvent,
-	type ProcessingProgressEvent,
-	type ProcessingQueueEvent,
 	type SessionUpdateEvent,
 	type SettingsUpdateEvent,
-	type AcquisitionUpdateEvent,
 	type WorkOperationListSnapshotEvent,
 	type WorkOperationSnapshotEvent,
 } from '../../types/events';
@@ -29,19 +26,10 @@ import type { SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
 import type {
-	AcquisitionJob,
-	AcquisitionPlan,
 	ProviderId,
 	RemoteAuthCompletionRequest,
 	RemoteAuthStartResponse,
-	RemoteIndexerConnection,
-	RemoteIndexerConnectionTestResult,
-	RemoteIndexerConnectionUpdate,
 	RemoteLibraryResponse,
-	RemoteReleaseGrabRequest,
-	RemoteReleaseGrabResponse,
-	RemoteReleaseSearchRequest,
-	RemoteReleaseSearchResponse,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
@@ -52,19 +40,14 @@ import type {
 } from '../../types/workRuntime';
 import { commandSpecs, type CommandResult, type TauriCommand } from './commands';
 import {
-	normalizeNullish,
 	normalizeOperationListSnapshot,
 	normalizeOperationSnapshot,
-	normalizeProgressEvent,
-	normalizeQueueEvent,
 	normalizeSessionUpdate,
 	normalizeSettingsSnapshot,
 } from './normalizers';
 
 type AppEventName = (typeof TAURI_APP_EVENT_NAMES)[number];
 type RuntimeEventName = Exclude<EventName, AppEventName>;
-type ProgressEventHandler = (event: { payload: ProcessingProgressEvent }) => void;
-type QueueEventHandler = (event: { payload: ProcessingQueueEvent }) => void;
 type OpenedAudioFilesHandler = (event: { payload: OpenedAudioFilesEvent }) => void;
 type WorkOperationSnapshotHandler = (event: { payload: WorkOperationSnapshotEvent }) => void;
 type WorkOperationListSnapshotHandler = (event: {
@@ -72,20 +55,8 @@ type WorkOperationListSnapshotHandler = (event: {
 }) => void;
 type SessionUpdateHandler = (event: { payload: SessionUpdateEvent }) => void;
 type SettingsUpdateHandler = (event: { payload: SettingsUpdateEvent }) => void;
-type AcquisitionUpdateHandler = (event: { payload: AcquisitionUpdateEvent }) => void;
+
 type DialogOptions = Omit<OpenDialogOptions, 'multiple' | 'directory'>;
-
-async function listenProcessingProgress(handler: ProgressEventHandler): Promise<UnlistenFn> {
-	return generatedEvents.processingProgress.listen((event) => {
-		handler({ payload: normalizeProgressEvent(event.payload) });
-	});
-}
-
-async function listenProcessingQueue(handler: QueueEventHandler): Promise<UnlistenFn> {
-	return generatedEvents.processingQueue.listen((event) => {
-		handler({ payload: normalizeQueueEvent(event.payload) });
-	});
-}
 
 async function listenOpenedAudioFiles(handler: OpenedAudioFilesHandler): Promise<UnlistenFn> {
 	return generatedEvents.openedAudioFiles.listen((event) => {
@@ -117,20 +88,12 @@ async function listenSettingsUpdate(handler: SettingsUpdateHandler): Promise<Unl
 	});
 }
 
-async function listenAcquisitionUpdate(handler: AcquisitionUpdateHandler): Promise<UnlistenFn> {
-	return generatedEvents.acquisitionUpdate.listen((event) => {
-		handler({ payload: normalizeNullish(event.payload) as AcquisitionUpdateEvent });
-	});
-}
-
 async function listenSessionUpdate(handler: SessionUpdateHandler): Promise<UnlistenFn> {
 	return generatedEvents.sessionUpdate.listen((event) => {
 		handler({ payload: normalizeSessionUpdate(event.payload) });
 	});
 }
 
-function listen(event: typeof EVENTS.PROGRESS, handler: ProgressEventHandler): Promise<UnlistenFn>;
-function listen(event: typeof EVENTS.QUEUE, handler: QueueEventHandler): Promise<UnlistenFn>;
 function listen(
 	event: typeof EVENTS.OPENED_AUDIO_FILES,
 	handler: OpenedAudioFilesHandler,
@@ -151,10 +114,6 @@ function listen(
 	event: typeof EVENTS.SETTINGS_UPDATE,
 	handler: SettingsUpdateHandler,
 ): Promise<UnlistenFn>;
-function listen(
-	event: typeof EVENTS.ACQUISITION_UPDATE,
-	handler: AcquisitionUpdateHandler,
-): Promise<UnlistenFn>;
 function listen<E extends RuntimeEventName>(
 	event: E,
 	handler: (event: { payload: ApplicationEvents[E] }) => void,
@@ -162,24 +121,13 @@ function listen<E extends RuntimeEventName>(
 function listen(
 	event: EventName,
 	handler:
-		| ProgressEventHandler
-		| QueueEventHandler
 		| OpenedAudioFilesHandler
 		| WorkOperationSnapshotHandler
 		| WorkOperationListSnapshotHandler
 		| SessionUpdateHandler
 		| SettingsUpdateHandler
-		| AcquisitionUpdateHandler
 		| ((event: { payload: ApplicationEvents[RuntimeEventName] }) => void),
 ): Promise<UnlistenFn> {
-	if (event === EVENTS.PROGRESS) {
-		return listenProcessingProgress(handler as ProgressEventHandler);
-	}
-
-	if (event === EVENTS.QUEUE) {
-		return listenProcessingQueue(handler as QueueEventHandler);
-	}
-
 	if (event === EVENTS.OPENED_AUDIO_FILES) {
 		return listenOpenedAudioFiles(handler as OpenedAudioFilesHandler);
 	}
@@ -198,10 +146,6 @@ function listen(
 
 	if (event === EVENTS.SETTINGS_UPDATE) {
 		return listenSettingsUpdate(handler as SettingsUpdateHandler);
-	}
-
-	if (event === EVENTS.ACQUISITION_UPDATE) {
-		return listenAcquisitionUpdate(handler as AcquisitionUpdateHandler);
 	}
 
 	return tauriListen(
@@ -281,29 +225,6 @@ export const tauriClient = {
 		commandSpecs.logout_remote_source_account({ providerId }),
 	loadRemoteSourceLibrary: (providerId: ProviderId): Promise<RemoteLibraryResponse> =>
 		commandSpecs.load_remote_source_library({ providerId }),
-	startRemoteSourceAcquisition: (plan: AcquisitionPlan): Promise<AcquisitionJob> =>
-		commandSpecs.start_remote_source_acquisition({ plan }),
-	getRemoteSourceAcquisitionStatus: (jobId: string): Promise<AcquisitionJob> =>
-		commandSpecs.get_remote_source_acquisition_status({ jobId }),
-	cancelRemoteSourceAcquisition: (jobId: string): Promise<AcquisitionJob> =>
-		commandSpecs.cancel_remote_source_acquisition({ jobId }),
-	searchRemoteSourceReleases: (
-		request: RemoteReleaseSearchRequest,
-	): Promise<RemoteReleaseSearchResponse> =>
-		commandSpecs.search_remote_source_releases({ request }),
-	grabRemoteSourceRelease: (
-		request: RemoteReleaseGrabRequest,
-	): Promise<RemoteReleaseGrabResponse> => commandSpecs.grab_remote_source_release({ request }),
-	getRemoteSourceIndexerConnection: (): Promise<RemoteIndexerConnection> =>
-		commandSpecs.get_remote_source_indexer_connection(),
-	updateRemoteSourceIndexerConnection: (
-		update: RemoteIndexerConnectionUpdate,
-	): Promise<RemoteIndexerConnection> =>
-		commandSpecs.update_remote_source_indexer_connection({ update }),
-	testRemoteSourceIndexerConnection: (
-		update: RemoteIndexerConnectionUpdate,
-	): Promise<RemoteIndexerConnectionTestResult> =>
-		commandSpecs.test_remote_source_indexer_connection({ update }),
 	listWorkOperations: (): Promise<OperationListSnapshot> => commandSpecs.list_work_operations(),
 	/** Cancels the whole operation, or only the title named by `childJobId`. */
 	cancelWorkOperation: (
@@ -328,14 +249,11 @@ export const TAURI_COMMAND_NAMES = Object.freeze(
 ) as readonly TauriCommand[];
 
 export const TAURI_APP_EVENT_NAMES = Object.freeze([
-	'processing-progress',
-	'processing-queue',
 	'opened-audio-files',
 	'work-operation-snapshot',
 	'work-operation-list-snapshot',
 	'session-update',
 	'settings-update',
-	'acquisition-update',
 ] as const);
 
 export type { TauriCommand };

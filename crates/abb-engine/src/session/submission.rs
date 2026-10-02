@@ -95,6 +95,7 @@ pub(crate) struct Draft {
     pub(crate) payload: ProcessPayload,
     pub(crate) metadata: Option<HashMap<String, MetadataIntentPatch>>,
     pub(crate) preview_seconds: Option<f64>,
+    pub(crate) preview_id: Option<OperationId>,
     pub(crate) title: String,
     pub(crate) sources: Vec<PathBuf>,
     /// The collisions the user saw when choosing a policy.
@@ -216,6 +217,7 @@ pub(crate) fn build_draft(
             supplemental_assets_by_input_id: inputs.supplemental_assets,
         },
         metadata: (!metadata.is_empty()).then_some(metadata),
+        preview_id: inputs.preview_seconds.map(|_| OperationId::new()),
         preview_seconds: inputs.preview_seconds,
         title,
         sources,

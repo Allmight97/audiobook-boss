@@ -70,31 +70,6 @@ function compareReleasesBySeedersDesc(left: RemoteRelease, right: RemoteRelease)
 	return left.guid.localeCompare(right.guid);
 }
 
-export function toggledRemoteTitleSelection(
-	selectedTitleIds: ReadonlySet<string>,
-	title: RemoteTitle,
-): Set<string> {
-	if (!isTitleAcquirable(title)) return new Set(selectedTitleIds);
-
-	const next = new Set(selectedTitleIds);
-	if (next.has(title.titleId)) {
-		next.delete(title.titleId);
-	} else {
-		next.add(title.titleId);
-	}
-	return next;
-}
-
-export function toggledSupplementalPdfPreference(
-	includePdfByTitleId: Readonly<Record<string, boolean>>,
-	titleId: string,
-): Record<string, boolean> {
-	return {
-		...includePdfByTitleId,
-		[titleId]: !includePdfByTitleId[titleId],
-	};
-}
-
 export function selectedRemoteTitleSummaryText(
 	selectedTitleIds: ReadonlySet<string>,
 	visibleTitles: RemoteTitle[],

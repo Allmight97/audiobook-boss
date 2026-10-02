@@ -369,8 +369,8 @@ describe('Solid input workbench', () => {
 		listeners.drop?.({ position: { x: 50, y: 50 }, paths: ['/tmp/image.png'] });
 		await waitFor(() => {
 			expect(engine.sessionIntents).toContainEqual({
-				kind: 'loadCoverFromFile',
-				path: '/tmp/image.png',
+				kind: 'loadCoverFromDrop',
+				paths: ['/tmp/image.png'],
 			});
 		});
 		expect(engine.analyze).not.toHaveBeenCalled();

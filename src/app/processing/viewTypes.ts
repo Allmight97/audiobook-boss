@@ -1,4 +1,4 @@
-import type { EventStage } from '../../types/events';
+import type { DisplayStage } from './state';
 import type { JobStatus } from './state';
 
 export type JobListItem = {
@@ -6,7 +6,7 @@ export type JobListItem = {
 	label: string;
 	status: JobStatus;
 	statusText: string;
-	stage?: EventStage;
+	stage?: DisplayStage;
 	percentage?: number;
 	canCancel: boolean;
 	cancelId?: string;

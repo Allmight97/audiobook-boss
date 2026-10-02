@@ -5,22 +5,12 @@ import {
 	type SettingsIntent as GeneratedSettingsIntent,
 	type OutputNamingConfig as GeneratedOutputNamingConfig,
 	type RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
-	type RemoteIndexerConnectionUpdate as GeneratedRemoteIndexerConnectionUpdate,
-	type RemoteReleaseGrabRequest as GeneratedRemoteReleaseGrabRequest,
-	type RemoteReleaseSearchRequest as GeneratedRemoteReleaseSearchRequest,
 } from '../generated/tauri';
 import type { OutputNamingConfig } from '../../types/audio';
 import type { AppSettings, SettingsIntent } from '../../types/appSettings';
 import type { FrontendLogEntry } from '../../types/frontendLog';
 import type { SessionIntent } from '../../types/session';
-import type {
-	AcquisitionPlan,
-	ProviderId,
-	RemoteAuthCompletionRequest,
-	RemoteIndexerConnectionUpdate,
-	RemoteReleaseGrabRequest,
-	RemoteReleaseSearchRequest,
-} from '../../types/remoteSource';
+import type { ProviderId, RemoteAuthCompletionRequest } from '../../types/remoteSource';
 import type { OperationId } from '../../types/workRuntime';
 import { normalizeAppError, unwrapGeneratedResult } from './appError';
 import {
@@ -152,51 +142,6 @@ export const commandSpecs = {
 	load_remote_source_library: (args: { providerId: ProviderId }) =>
 		runGeneratedCommand(
 			generatedCommands.loadRemoteSourceLibrary(args.providerId),
-			normalizeNullish,
-		),
-	start_remote_source_acquisition: (args: { plan: AcquisitionPlan }) =>
-		runGeneratedCommand(
-			generatedCommands.startRemoteSourceAcquisition(args.plan),
-			normalizeNullish,
-		),
-	get_remote_source_acquisition_status: (args: { jobId: string }) =>
-		runGeneratedCommand(
-			generatedCommands.getRemoteSourceAcquisitionStatus(args.jobId),
-			normalizeNullish,
-		),
-	cancel_remote_source_acquisition: (args: { jobId: string }) =>
-		runGeneratedCommand(
-			generatedCommands.cancelRemoteSourceAcquisition(args.jobId),
-			normalizeNullish,
-		),
-	search_remote_source_releases: (args: { request: RemoteReleaseSearchRequest }) =>
-		runGeneratedCommand(
-			generatedCommands.searchRemoteSourceReleases(
-				denormalizeNullish(args.request) as GeneratedRemoteReleaseSearchRequest,
-			),
-			normalizeNullish,
-		),
-	grab_remote_source_release: (args: { request: RemoteReleaseGrabRequest }) =>
-		runGeneratedCommand(
-			generatedCommands.grabRemoteSourceRelease(
-				denormalizeNullish(args.request) as GeneratedRemoteReleaseGrabRequest,
-			),
-			normalizeNullish,
-		),
-	get_remote_source_indexer_connection: (_args?: undefined) =>
-		runGeneratedCommand(generatedCommands.getRemoteSourceIndexerConnection(), normalizeNullish),
-	update_remote_source_indexer_connection: (args: { update: RemoteIndexerConnectionUpdate }) =>
-		runGeneratedCommand(
-			generatedCommands.updateRemoteSourceIndexerConnection(
-				denormalizeNullish(args.update) as GeneratedRemoteIndexerConnectionUpdate,
-			),
-			normalizeNullish,
-		),
-	test_remote_source_indexer_connection: (args: { update: RemoteIndexerConnectionUpdate }) =>
-		runGeneratedCommand(
-			generatedCommands.testRemoteSourceIndexerConnection(
-				denormalizeNullish(args.update) as GeneratedRemoteIndexerConnectionUpdate,
-			),
 			normalizeNullish,
 		),
 	list_work_operations: (_args?: undefined) =>

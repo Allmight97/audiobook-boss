@@ -8,7 +8,6 @@ import type {
 	MaterializedSourceFile,
 	MaxConcurrentJobsCapabilities,
 	OperationSnapshot,
-	ProgressEvent,
 	ProgressSnapshot,
 	SelectionSnapshot,
 	SessionUpdate,
@@ -26,12 +25,6 @@ describe('tauriClient generated event bindings', () => {
 		const tauriListen = vi.mocked(listen);
 		const { tauriClient } = await import('./tauri/client');
 
-		await tauriClient.listen(EVENTS.PROGRESS, () => {
-			/* no-op */
-		});
-		await tauriClient.listen(EVENTS.QUEUE, () => {
-			/* no-op */
-		});
 		await tauriClient.listen(EVENTS.OPENED_AUDIO_FILES, () => {
 			/* no-op */
 		});
@@ -42,20 +35,18 @@ describe('tauriClient generated event bindings', () => {
 			/* no-op */
 		});
 
-		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.PROGRESS, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(2, EVENTS.QUEUE, expect.any(Function));
-		expect(tauriListen).toHaveBeenNthCalledWith(3, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
+		expect(tauriListen).toHaveBeenNthCalledWith(1, EVENTS.OPENED_AUDIO_FILES, expect.any(Function));
 		expect(tauriListen).toHaveBeenNthCalledWith(
-			4,
+			2,
 			EVENTS.WORK_OPERATION_SNAPSHOT,
 			expect.any(Function),
 		);
 		expect(tauriListen).toHaveBeenNthCalledWith(
-			5,
+			3,
 			EVENTS.WORK_OPERATION_LIST_SNAPSHOT,
 			expect.any(Function),
 		);
-		expect(tauriListen).toHaveBeenCalledTimes(5);
+		expect(tauriListen).toHaveBeenCalledTimes(3);
 	});
 
 	it('keeps bounded wide Rust values in the numeric IPC contract', () => {
@@ -67,7 +58,6 @@ describe('tauriClient generated event bindings', () => {
 		expectTypeOf<ChildJobSnapshot['finishedAtMs']>().toEqualTypeOf<number | null>();
 		expectTypeOf<SessionUpdate['revision']>().toEqualTypeOf<number>();
 		expectTypeOf<SelectionSnapshot['selectedIndices']>().toEqualTypeOf<number[]>();
-		expectTypeOf<ProgressEvent['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ProgressSnapshot['percentage']>().toEqualTypeOf<number>();
 		expectTypeOf<ProgressSnapshot['bytesDownloaded']>().toEqualTypeOf<number | null>();
 		expectTypeOf<MaxConcurrentJobsCapabilities['fixedMax']>().toEqualTypeOf<number>();

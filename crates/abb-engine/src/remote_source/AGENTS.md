@@ -10,7 +10,9 @@ when an imported download goes).
 Allowed external entrypoints:
 
 - Provider-neutral command types re-exported from `mod.rs`.
-- `RemoteSourceRuntime` methods called by `src-tauri/src/commands/remote_source.rs`.
+- Host account/auth/library display reads through `Engine::remote_source()`.
+- `RemoteUiIntent` and `RemoteUiSnapshot` through the session boundary. Connection
+  mutation, selection, Search/Grab, and acquisition start/cancel stay engine-internal.
 
 Processing, audio, metadata, output artifact, and frontend code must not import
 or infer provider-private Audible internals.
@@ -76,12 +78,34 @@ decides when the download goes, including one nothing was imported from
 (`crate::session`, `staged.rs`), and calls `purge_session`.
 Cancel does nothing to a job that already finished, so it cannot remove files
 the session holds. Materialized handoff files stay usable after provider
-logout. Job changes reach hosts as `EngineEvent::Acquisition`; download
-progress is sent at most every 100 ms, a stage change at once.
+logout. Disconnect refuses unfinished acquisition/handoff. Job changes update
+`SessionUpdate.remote`; download progress is published at most every 100 ms,
+a stage change at once. Snapshot `terminal` and `settled` facts belong here.
 
 Audible Supplemental PDF acquisition uses provider-private authenticated
 `GET /companion-file/{title_id}`. Do not use `HEAD`; Audible API `pdf_url`
 fields are presence hints, not direct-download facts.
+
+## Working Remote State
+
+- `ui.rs` owns accepted title/PDF/release choices, normalized connection drafts,
+  readback generations, and batch outcomes. Its intent match is routing; effect
+  execution stays in `RemoteUiRun`. Accepted runs execute on `EngineTasks` through
+  the session, regardless of whether a host awaits the reply.
+- Available PDFs start included; refresh preserves explicit exclusion while
+  pruning titles that cannot be acquired. A Grab batch captures its releases,
+  sends sequentially, and keeps per-release failures for explicit retry. Its
+  connection lease spans gaps between requests; Save and lane replacement are
+  refused until it finishes. Already-sent rows are skipped on retry.
+- Connection readback cannot erase newer typing or a newer Save. Old Test/Search
+  results cannot replace newer requests or changed lanes. API keys remain private;
+  snapshots report only configured/entered facts. Initialize the HTTP client on
+  first use so a session that never uses Indexer pays no network setup cost.
+- Acquisition admission and disconnect share the remote UI guard. A late library
+  reply or terminal publication cannot restore disconnected choices or jobs.
+  One unsettled acquisition includes its pending Input handoff, not only download.
+- Pure choice/readback tests and local HTTP sequential-batch proof live in
+  `ui_tests.rs`; provider protocol tests remain with their provider owner.
 
 ## Failure Truth
 

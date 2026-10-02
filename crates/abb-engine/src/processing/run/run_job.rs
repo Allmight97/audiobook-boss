@@ -74,7 +74,6 @@ pub(crate) async fn run_processing_job(
     let _active_work = request.host.begin_active_work();
 
     let (context, preview_seconds_resolved) = build_processing_context(ProcessingContextRequest {
-        host: request.host,
         cancellation_checker,
         job_id,
         encoder_settings: request.encoder_settings.clone(),
@@ -320,7 +319,6 @@ pub(crate) async fn register_job_and_validate_output(
 }
 
 struct ProcessingContextRequest {
-    host: Host,
     cancellation_checker: crate::processing::job_registry::CancellationChecker,
     job_id: crate::processing::job_registry::JobId,
     encoder_settings: Option<EncoderSettings>,
@@ -339,7 +337,6 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     let session =
         ProcessingSession::with_cancellation(request.job_id.0, request.cancellation_checker);
     let mut context = ProcessingContext::new_with_workspace_root(
-        request.host,
         std::sync::Arc::new(session),
         request.encoder_settings,
         request.sample_rate,

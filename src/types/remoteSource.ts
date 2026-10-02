@@ -1,19 +1,12 @@
 import type {
-	AcquisitionJob as GeneratedAcquisitionJob,
-	AcquisitionPlan as GeneratedAcquisitionPlan,
+	AcquisitionSnapshot as GeneratedAcquisitionJob,
 	AcquisitionProgress as GeneratedAcquisitionProgress,
 	ProviderId as GeneratedProviderId,
 	RemoteAuthCompletionRequest as GeneratedRemoteAuthCompletionRequest,
 	RemoteAuthStartResponse as GeneratedRemoteAuthStartResponse,
-	RemoteIndexerConnection as GeneratedRemoteIndexerConnection,
 	RemoteIndexerConnectionTestResult as GeneratedRemoteIndexerConnectionTestResult,
-	RemoteIndexerConnectionUpdate as GeneratedRemoteIndexerConnectionUpdate,
 	RemoteLibraryResponse as GeneratedRemoteLibraryResponse,
 	RemoteRelease as GeneratedRemoteRelease,
-	RemoteReleaseGrabRequest as GeneratedRemoteReleaseGrabRequest,
-	RemoteReleaseGrabResponse as GeneratedRemoteReleaseGrabResponse,
-	RemoteReleaseSearchRequest as GeneratedRemoteReleaseSearchRequest,
-	RemoteReleaseSearchResponse as GeneratedRemoteReleaseSearchResponse,
 	RemoteSourceAccountState as GeneratedRemoteSourceAccountState,
 	RemoteSourceProviderCapabilities as GeneratedRemoteSourceProviderCapabilities,
 	RemoteTitle as GeneratedRemoteTitle,
@@ -31,17 +24,9 @@ export type RemoteAuthCompletionRequest = NullToOptionalDeep<GeneratedRemoteAuth
 export type RemoteLibraryResponse = NullToOptionalDeep<GeneratedRemoteLibraryResponse>;
 export type RemoteTitle = NullToOptionalDeep<GeneratedRemoteTitle>;
 export type RemoteTitleAvailabilityStatus = GeneratedRemoteTitleAvailabilityStatus;
-export type AcquisitionPlan = NullToOptionalDeep<GeneratedAcquisitionPlan>;
 export type AcquisitionJob = NullToOptionalDeep<GeneratedAcquisitionJob>;
 export type AcquisitionProgress = NullToOptionalDeep<GeneratedAcquisitionProgress>;
 export type SupplementalAsset = NullToOptionalDeep<GeneratedSupplementalAsset>;
 export type RemoteRelease = NullToOptionalDeep<GeneratedRemoteRelease>;
-export type RemoteReleaseSearchRequest = NullToOptionalDeep<GeneratedRemoteReleaseSearchRequest>;
-export type RemoteReleaseSearchResponse = NullToOptionalDeep<GeneratedRemoteReleaseSearchResponse>;
-export type RemoteReleaseGrabRequest = NullToOptionalDeep<GeneratedRemoteReleaseGrabRequest>;
-export type RemoteReleaseGrabResponse = NullToOptionalDeep<GeneratedRemoteReleaseGrabResponse>;
-export type RemoteIndexerConnection = NullToOptionalDeep<GeneratedRemoteIndexerConnection>;
 export type RemoteIndexerConnectionTestResult =
 	NullToOptionalDeep<GeneratedRemoteIndexerConnectionTestResult>;
-export type RemoteIndexerConnectionUpdate =
-	NullToOptionalDeep<GeneratedRemoteIndexerConnectionUpdate>;

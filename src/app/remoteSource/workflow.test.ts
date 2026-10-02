@@ -1,814 +1,153 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { tauriClient } from '../../lib/tauri/client';
-import type {
-	AcquisitionJob,
-	RemoteLibraryResponse,
-	RemoteRelease,
-	RemoteSourceProviderCapabilities,
-	RemoteTitle,
-} from '../../types/remoteSource';
-import { createRemoteSourceOwner, type RemoteSourceOwner } from './owner';
-import { releaseKey } from './selection';
+import { afterEach, expect, it, vi } from 'vitest';
+import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
+import { createAppRuntime, type AppRuntime } from '../runtime';
+import type { AcquisitionJob } from '../../types/remoteSource';
 import type { RemoteSourceWorkflowServices } from './workflow';
 
-afterEach(() => vi.restoreAllMocks());
-
-const primaryPdfFileName = 'Being You - A New Science of Consciousness - Supplemental PDF.pdf';
-
-function createDeferred<T>() {
-	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((resolvePromise) => {
-		resolve = resolvePromise;
+const runtimes: AppRuntime[] = [];
+afterEach(() => {
+	for (const runtime of runtimes.splice(0)) runtime.dispose();
+});
+const job: AcquisitionJob = {
+	jobId: 'download-1',
+	providerId: 'audible',
+	status: 'acquiring',
+	terminal: false,
+	settled: false,
+	progress: {
+		stage: 'download',
+		percentage: 40,
+		message: 'Downloading audiobook.',
+		terminal: false,
+	},
+	materializedFiles: [],
+	supplementalAssets: [],
+	diagnostics: [],
+};
+function services(): RemoteSourceWorkflowServices {
+	return {
+		listProviders: vi.fn(async () => []),
+		getAccountState: vi.fn(async (providerId) => ({ providerId, status: 'connected' as const })),
+		startAuth: vi.fn(),
+		openAuthorizationUrl: vi.fn(),
+		completeAuth: vi.fn(),
+		logout: vi.fn(),
+		loadLibrary: vi.fn(async () => ({
+			providerId: 'audible' as const,
+			titles: [],
+			diagnostics: [],
+		})),
+	};
+}
+async function open(engine: FakeEngine = createFakeEngine(), capability = services()) {
+	const runtime = createAppRuntime({ engine, remoteSource: { services: capability } });
+	runtimes.push(runtime);
+	await runtime.initialize();
+	await runtime.remoteSource.open();
+	return { runtime, engine, services: capability, owner: runtime.remoteSource };
+}
+it('renders acquisition progress from the attached session and Close leaves it running', async () => {
+	const engine = createFakeEngine();
+	engine.change((state) => {
+		state.remote.acquisition = job;
 	});
-	return { promise, resolve };
-}
-
-function remoteTitle(overrides: Partial<RemoteTitle> = {}): RemoteTitle {
-	return {
-		providerId: 'audible',
-		titleId: 'B000000001',
-		title: 'Example Book',
-		authors: ['Example Author'],
-		narrators: ['Example Narrator'],
-		durationSeconds: 3600,
-		coverUrl: undefined,
-		supplementalPdfAvailable: true,
-		acquired: false,
-		availability: {
-			status: 'available',
-			acquirable: true,
-			label: 'Available',
-			detail: undefined,
-		},
-		unsupportedReasons: [],
-		...overrides,
-	};
-}
-
-function library(): RemoteLibraryResponse {
-	return {
-		providerId: 'audible',
-		titles: [remoteTitle()],
-		diagnostics: [],
-	};
-}
-
-function runningJob(overrides: Partial<AcquisitionJob> = {}): AcquisitionJob {
-	return {
-		jobId: 'remote-job-1',
-		providerId: 'audible',
-		status: 'acquiring',
-		progress: {
-			stage: 'download',
-			percentage: 10,
-			message: 'Downloading audiobook.',
-			bytesDownloaded: undefined,
-			bytesTotal: undefined,
-			currentTitleId: 'B000000001',
-			currentItemIndex: 1,
-			totalItems: 1,
-			terminal: false,
-		},
-		materializedFiles: [],
-		supplementalAssets: [],
-		diagnostics: [],
-		...overrides,
-	};
-}
-
-function downloadingJob(): AcquisitionJob {
-	return runningJob({
-		progress: {
-			stage: 'download',
-			percentage: 40,
-			message: 'Downloading audiobook.',
-			bytesDownloaded: 78_105_334,
-			bytesTotal: 156_210_669,
-			currentTitleId: 'B000000001',
-			currentItemIndex: 1,
-			totalItems: 1,
-			terminal: false,
-		},
+	const { owner, runtime } = await open(engine);
+	expect(owner.view().activeJob?.progress.percentage).toBe(40);
+	expect(owner.view().isBusy).toBe(true);
+	owner.close();
+	expect(engine.sessionIntents).not.toContainEqual({
+		kind: 'remote',
+		intent: { kind: 'cancelAcquisition', jobId: job.jobId },
 	});
-}
-
-function terminalJob(): AcquisitionJob {
-	return {
-		jobId: 'remote-job-1',
-		providerId: 'audible',
-		status: 'validated',
-		progress: {
-			stage: 'importHandoff',
-			percentage: 100,
-			message: 'Importing acquired audiobook.',
-			bytesDownloaded: undefined,
-			bytesTotal: undefined,
-			currentTitleId: 'B000000001',
-			currentItemIndex: 1,
-			totalItems: 1,
+	runtime.dispose();
+	const replacement = await open(engine);
+	expect(replacement.owner.view().activeJob?.jobId).toBe(job.jobId);
+	await replacement.owner.runAction({ type: 'cancelActiveAcquisition' });
+	expect(engine.sessionIntents).toContainEqual({
+		kind: 'remote',
+		intent: { kind: 'cancelAcquisition', jobId: job.jobId },
+	});
+});
+it('words the engine handoff and keeps Indexer status independent of an Audible result', async () => {
+	const { owner, engine } = await open();
+	engine.change((state) => {
+		state.remote.acquisition = {
+			...job,
+			settled: true,
 			terminal: true,
-		},
-		materializedFiles: [
-			{
-				inputId: 'provider-input-1',
-				titleId: 'B000000001',
-				path: '/session/book.m4b',
-				sizeBytes: 1024,
-				sha256: 'audio-sha',
-			},
-		],
-		supplementalAssets: [
-			{
-				assetId: 'pdf-1',
-				inputId: 'provider-input-1',
-				titleId: 'B000000001',
-				path: '/session/book.pdf',
-				fileName: primaryPdfFileName,
-				sizeBytes: 32,
-				sha256: 'pdf-sha',
-			},
-		],
-		diagnostics: [],
-		handoff: { kind: 'imported', count: 1 },
-	};
-}
-
-/** The engine's acquisition events, delivered to whoever listens. */
-function acquisitionEvents() {
-	const handlers = new Set<(job: AcquisitionJob) => void>();
-	return {
-		listen: vi.fn(async (handler: (job: AcquisitionJob) => void) => {
-			handlers.add(handler);
-			return () => handlers.delete(handler);
+			status: 'importedToFileList',
+			handoff: { kind: 'imported', count: 2 },
+		};
+	});
+	expect(owner.view().statusMessage).toBe('2 acquired titles imported.');
+	await owner.selectLane('indexer');
+	engine.change((state) => {
+		state.remote.indexer.message = 'Sending one release';
+		state.remote.indexer.grabbing = true;
+	});
+	expect(owner.view().statusMessage).toBe('Sending one release');
+	expect(owner.view().isBusy).toBe(true);
+});
+it('passes title, PDF, search, and batch choices as intents while showing engine facts', async () => {
+	const { owner, engine } = await open();
+	owner.toggleTitle('book-1');
+	owner.toggleSupplementalPdf('book-1');
+	await vi.waitFor(() =>
+		expect(engine.sessionIntents).toContainEqual({
+			kind: 'remote',
+			intent: { kind: 'togglePdf', titleId: 'book-1' },
 		}),
-		emit(job: AcquisitionJob) {
-			for (const handler of handlers) handler(job);
-		},
-	};
-}
-
-function providerCapabilities(): RemoteSourceProviderCapabilities[] {
-	return [
-		{
-			providerId: 'audible',
-			label: 'Audible',
-		},
-		{
-			providerId: 'indexer',
-			label: 'Indexer',
-		},
-	];
-}
-
-function indexerRelease(overrides: Partial<RemoteRelease> = {}): RemoteRelease {
-	return {
-		providerId: 'indexer',
-		guid: 'release-guid-1',
-		indexerId: 7,
-		title: 'Example Release',
-		indexer: 'Example Indexer',
-		sizeBytes: 1_024_000_000,
-		protocol: 'torrent',
-		seeders: 12,
-		categories: [{ id: 3030, name: 'Audio/Audiobook' }],
-		...overrides,
-	};
-}
-
-function makeServices(
-	overrides: Partial<RemoteSourceWorkflowServices> = {},
-): RemoteSourceWorkflowServices {
-	return {
-		listProviders: vi.fn(async () => providerCapabilities()),
-		getAccountState: vi.fn(async (providerId) => ({
-			providerId,
-			status: 'connected' as const,
-		})),
-		startAuth: vi.fn(async (providerId) => ({
-			providerId,
-			authorizationUrl: 'https://example.test/auth',
-			handoffPathHint: '/tmp/handoff',
-			message: 'Open Audible to continue.',
-		})),
-		openAuthorizationUrl: vi.fn(async () => undefined),
-		completeAuth: vi.fn(async (providerId) => ({
-			providerId,
-			status: 'connected' as const,
-		})),
-		logout: vi.fn(async (providerId) => ({
-			providerId,
-			status: 'needsAuth' as const,
-		})),
-		loadLibrary: vi.fn(async () => library()),
-		searchReleases: vi.fn(async () => ({
-			providerId: 'indexer' as const,
-			releases: [indexerRelease()],
-			diagnostics: [],
-		})),
-		grabRelease: vi.fn(async () => ({
-			providerId: 'indexer' as const,
-			accepted: true,
-			message: 'Release sent to downloader.',
-			diagnostics: [],
-		})),
-		startAcquisition: vi.fn(async (_providerId, _selections) => runningJob()),
-		getAcquisitionStatus: vi.fn(async () => terminalJob()),
-		cancelAcquisition: vi.fn(async () => ({
-			...runningJob(),
-			status: 'cancelled' as const,
-			progress: {
-				...runningJob().progress!,
-				terminal: true,
-				message: 'Cancelled.',
-			},
-		})),
-		listenAcquisitions: acquisitionEvents().listen,
-		...overrides,
-	};
-}
-
-function makeOwner(
-	services: RemoteSourceWorkflowServices,
-	loadCoverArtFromUrl?: (url: string) => Promise<number[]>,
-): RemoteSourceOwner {
-	return createRemoteSourceOwner({ services, loadCoverArtFromUrl });
-}
-
-describe('remote source acquisition workflow', () => {
-	it('reports how the engine handed a finished acquisition to the session', async () => {
-		const services = makeServices();
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-
-		await owner.runAction({
-			type: 'acquireSelected',
-		});
-
-		expect(services.startAcquisition).toHaveBeenCalledWith('audible', [
-			{ titleId: 'B000000001', includeSupplementalPdf: true },
-		]);
-		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
-	});
-
-	it('shows download progress from engine events until the job settles', async () => {
-		const events = acquisitionEvents();
-		const services = makeServices({
-			getAcquisitionStatus: vi.fn(async () => runningJob()),
-			listenAcquisitions: events.listen,
-		});
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		const acquiring = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-
-		events.emit(downloadingJob());
-		await vi.waitFor(() =>
-			expect(owner.view().activeJob?.progress).toMatchObject({
-				stage: 'download',
-				bytesDownloaded: 78_105_334,
-			}),
-		);
-		events.emit({ ...runningJob(), jobId: 'another-job', status: 'failed' });
-		expect(owner.view().activeJob?.jobId).toBe('remote-job-1');
-
-		events.emit(terminalJob());
-		await acquiring;
-		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
-	});
-
-	it('words a handoff the engine refused', async () => {
-		const services = makeServices({
-			getAcquisitionStatus: vi.fn(async () => ({
-				...terminalJob(),
-				materializedFiles: [],
-				supplementalAssets: [],
-				handoff: { kind: 'removed' as const, reason: { kind: 'nothingAdded' as const } },
-			})),
-		});
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-
-		await owner.runAction({ type: 'acquireSelected' });
-
-		expect(owner.view().statusMessage).toContain('were not added to the input session');
-		expect(owner.view().statusMessage).toContain('Staged remote files were removed');
-	});
-
-	it('does not call native cancel when the dialog closes during an in-flight acquisition', async () => {
-		let owner!: RemoteSourceOwner;
-		const services = makeServices({
-			getAcquisitionStatus: vi.fn(async () => {
-				owner.close();
-				return terminalJob();
-			}),
-		});
-		owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-
-		await owner.runAction({
-			type: 'acquireSelected',
-		});
-
-		expect(services.cancelAcquisition).not.toHaveBeenCalled();
-		expect(owner.view().isOpen).toBe(false);
-	});
-
-	it('cancels only through the explicit cancel action', async () => {
-		const poll = createDeferred<AcquisitionJob>();
-		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		const acquiring = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-
-		await owner.runAction({
-			type: 'cancelActiveAcquisition',
-		});
-
-		expect(services.cancelAcquisition).toHaveBeenCalledWith('remote-job-1');
-		expect(owner.view().statusMessage).toBe('Cancelled.');
-		poll.resolve(runningJob());
-		await acquiring;
-	});
-
-	it('does not let a late acquisition event overwrite native cancellation', async () => {
-		const events = acquisitionEvents();
-		const services = makeServices({
-			getAcquisitionStatus: vi.fn(async () => runningJob()),
-			listenAcquisitions: events.listen,
-		});
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-
-		const acquisition = owner.runAction({
-			type: 'acquireSelected',
-		});
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
-
-		await owner.runAction({
-			type: 'cancelActiveAcquisition',
-		});
-		expect(owner.view().activeJob?.status).toBe('cancelled');
-		expect(owner.view().isBusy).toBe(false);
-
-		events.emit(downloadingJob());
-		await acquisition;
-
-		expect(owner.view().activeJob?.status).toBe('cancelled');
-		expect(owner.view().activeJob?.progress?.percentage).toBe(10);
-	});
-
-	it('keeps acquisition state isolated across owners', async () => {
-		const first = makeOwner(makeServices());
-		const second = makeOwner(makeServices());
-		await first.open();
-		first.toggleTitle('B000000001');
-		await second.open();
-		second.toggleTitle('B000000001');
-
-		await first.runAction({ type: 'acquireSelected' });
-		await second.runAction({ type: 'acquireSelected' });
-
-		first.reset();
-		expect(first.view().lastJob).toBeNull();
-		expect(second.view().lastJob?.jobId).toBe('remote-job-1');
-		expect(second.view().isOpen).toBe(true);
-	});
-
-	it('keeps cover preview cancellation and cache state isolated across owners', async () => {
-		const firstLoad = createDeferred<number[]>();
-		const first = makeOwner(makeServices(), () => firstLoad.promise);
-		const second = makeOwner(makeServices(), async () => [0xff, 0xd8, 0xff]);
-
-		first.scheduleCoverPreviews(['https://covers.example/first.jpg']);
-		second.scheduleCoverPreviews(['https://covers.example/second.jpg']);
-		await vi.waitFor(() =>
-			expect(second.coverPreview('https://covers.example/second.jpg').status).toBe('ready'),
-		);
-
-		first.reset();
-		firstLoad.resolve([0xff, 0xd8, 0xff]);
-		await Promise.resolve();
-		expect(first.coverPreview('https://covers.example/first.jpg').status).toBe('idle');
-		expect(second.coverPreview('https://covers.example/second.jpg').status).toBe('ready');
-	});
-
-	it('searches indexer releases from author, title, or both without requiring both', async () => {
-		const services = makeServices();
-		const owner = makeOwner(services);
-		await owner.open({ lane: 'indexer' });
-		owner.editSearch({ indexerAuthorQuery: 'David Crouse' });
-
-		await owner.runAction({ type: 'searchReleases' });
-		expect(services.searchReleases).toHaveBeenCalledWith({
-			author: 'David Crouse',
-			title: undefined,
-			query: undefined,
-		});
-
-		owner.editSearch({ indexerAuthorQuery: '', indexerTitleQuery: 'Way of Kings' });
-		await owner.runAction({ type: 'searchReleases' });
-		expect(services.searchReleases).toHaveBeenCalledWith({
-			author: undefined,
-			title: 'Way of Kings',
-			query: undefined,
-		});
-
-		owner.editSearch({
-			indexerAuthorQuery: 'Brandon Sanderson',
-			indexerTitleQuery: 'The Way of Kings',
-		});
-		await owner.runAction({ type: 'searchReleases' });
-		expect(services.searchReleases).toHaveBeenCalledWith({
-			author: 'Brandon Sanderson',
-			title: 'The Way of Kings',
-			query: undefined,
-		});
-	});
-
-	it('grabs the selected indexer identity without starting acquisition', async () => {
-		const services = makeServices();
-		const owner = makeOwner(services);
-		const first = indexerRelease({ indexerId: 1 });
-		const chosen = indexerRelease({ indexerId: 2 });
-		vi.mocked(services.searchReleases).mockResolvedValue({
-			providerId: 'indexer',
-			releases: [first, chosen],
-			diagnostics: [],
-		});
-		await owner.open({ lane: 'indexer' });
-		owner.editSearch({ indexerTitleQuery: 'Example' });
-		await owner.runAction({ type: 'searchReleases' });
-		owner.selectRelease(chosen);
-		await owner.runAction({ type: 'grabSelectedReleases' });
-		expect(services.grabRelease).toHaveBeenCalledExactlyOnceWith({ release: chosen });
-		expect(services.startAcquisition).not.toHaveBeenCalled();
-		expect(owner.view().statusMessage).toBe('Release sent to downloader.');
-		expect(owner.view().isBusy).toBe(false);
-	});
-
-	it.each(['rejected', 'error'] as const)('publishes a %s grab', async (outcome) => {
-		const services = makeServices({
-			grabRelease: vi.fn<RemoteSourceWorkflowServices['grabRelease']>(async () => {
-				if (outcome === 'error') throw new Error('Indexer unavailable');
-				return {
-					providerId: 'indexer',
-					accepted: false,
-					message: 'Rejected',
-					diagnostics: [{ kind: 'releaseGrabFailed', message: 'No download client' }],
-				};
-			}),
-		});
-		const owner = makeOwner(services);
-		const release = indexerRelease();
-		await owner.open({ lane: 'indexer' });
-		owner.editSearch({ indexerTitleQuery: 'Example' });
-		await owner.runAction({ type: 'searchReleases' });
-		owner.selectRelease(release);
-		await owner.runAction({ type: 'grabSelectedReleases' });
-		expect(owner.view().statusMessage).toContain(
-			outcome === 'error' ? 'Could not confirm the handoff.' : 'No download client',
-		);
-		expect(owner.view().isBusy).toBe(false);
-	});
-
-	it('submits a captured bulk selection sequentially, retains partial outcomes across reopen, and retries only failures', async () => {
-		const pending =
-			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
-		const releases = [1, 2, 3].map((indexerId) => indexerRelease({ indexerId }));
-		const services = makeServices();
-		vi.mocked(services.searchReleases).mockResolvedValue({
-			providerId: 'indexer',
-			releases,
-			diagnostics: [],
-		});
-		vi.mocked(services.grabRelease)
-			.mockImplementationOnce(() => pending.promise)
-			.mockRejectedValueOnce(new Error('Connection lost'));
-		const owner = makeOwner(services);
-		await owner.open({ lane: 'indexer' });
-		owner.editSearch({ indexerTitleQuery: 'Example' });
-		await owner.runAction({ type: 'searchReleases' });
-		for (const release of releases) owner.selectRelease(release, { multi: true });
-		const batch = owner.runAction({ type: 'grabSelectedReleases' });
-		expect(services.grabRelease).toHaveBeenCalledTimes(1);
-		expect(owner.view().releaseGrabs[releaseKey(releases[0])].status).toBe('sending');
-		expect(owner.view().releaseGrabs[releaseKey(releases[1])].status).toBe('queued');
-		owner.selectRelease(releases[0]);
-		owner.editSearch({ releaseFilter: 'hidden', releaseSort: 'size' });
-		owner.close();
-		await owner.open({ lane: 'indexer' });
-		await owner.runAction({ type: 'grabRelease', release: releases[0] });
-		await owner.runAction({ type: 'searchReleases' });
-		await owner.selectLane('audible');
-		expect(owner.view().providerId).toBe('indexer');
-		expect(owner.view().isBusy).toBe(true);
-		expect(services.searchReleases).toHaveBeenCalledTimes(1);
-		expect(services.grabRelease).toHaveBeenCalledTimes(1);
-		pending.resolve({ providerId: 'indexer', accepted: true, message: 'Sent', diagnostics: [] });
-		await batch;
-		expect(
-			vi.mocked(services.grabRelease).mock.calls.map(([request]) => request.release.indexerId),
-		).toEqual([1, 2, 3]);
-		expect(
-			releases.map((release) => owner.view().releaseGrabs[releaseKey(release)].status),
-		).toEqual(['sent', 'error', 'sent']);
-		expect(owner.view().statusMessage).toContain('2 sent to downloader; 1 could not be confirmed');
-		owner.close();
-		await owner.open({ lane: 'indexer' });
-		expect(owner.view().releaseGrabs[releaseKey(releases[0])].status).toBe('sent');
-		owner.selectRelease(releases[1], { multi: true });
-		owner.selectRelease(releases[2], { multi: true });
-		await owner.runAction({ type: 'grabSelectedReleases' });
-		expect(services.grabRelease).toHaveBeenCalledTimes(4);
-		expect(services.grabRelease).toHaveBeenLastCalledWith({ release: releases[1] });
-		expect(owner.view().releaseGrabs[releaseKey(releases[1])].status).toBe('sent');
-		await owner.runAction({ type: 'searchReleases' });
-		expect(owner.view().releaseGrabs).toEqual({});
-		expect(owner.view().selectedReleaseKeys.size).toBe(0);
-	});
-
-	it('keeps an Indexer batch busy when a background Audible acquisition settles', async () => {
-		const acquisitionStatus = createDeferred<AcquisitionJob>();
-		const grabbed =
-			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
-		const services = makeServices({
-			getAcquisitionStatus: vi.fn(() => acquisitionStatus.promise),
-			grabRelease: vi.fn(() => grabbed.promise),
-		});
-		const owner = makeOwner(services);
-		await owner.open({ lane: 'audible' });
-		owner.toggleTitle('B000000001');
-		const acquisition = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-		await owner.selectLane('indexer');
-		owner.editSearch({ indexerTitleQuery: 'Example' });
-		await owner.runAction({ type: 'searchReleases' });
-		const batch = owner.runAction({ type: 'grabRelease', release: indexerRelease() });
-		acquisitionStatus.resolve(terminalJob());
-		await acquisition;
-		expect(owner.view().isBusy).toBe(true);
-		expect(owner.view().statusMessage).toBe('Sending to downloader via Indexer…');
-		owner.close();
-		await owner.open({ lane: 'audible' });
-		expect(owner.view().providerId).toBe('indexer');
-		grabbed.resolve({ providerId: 'indexer', accepted: true, message: 'Sent', diagnostics: [] });
-		await batch;
-		expect(owner.view().isBusy).toBe(false);
-		expect(owner.view().releaseGrabs[releaseKey(indexerRelease())].status).toBe('sent');
-		await owner.selectLane('audible');
-		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
-	});
-
-	it('stops unsent batch items after reset and isolates late completion from another owner', async () => {
-		const pending =
-			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
-		const releases = [1, 2].map((indexerId) => indexerRelease({ indexerId }));
-		const firstServices = makeServices({ grabRelease: vi.fn(() => pending.promise) });
-		vi.mocked(firstServices.searchReleases).mockResolvedValue({
-			providerId: 'indexer',
-			releases,
-			diagnostics: [],
-		});
-		const first = makeOwner(firstServices);
-		const second = makeOwner(makeServices());
-		for (const owner of [first, second]) {
-			await owner.open({ lane: 'indexer' });
-			owner.editSearch({ indexerTitleQuery: 'Example' });
-			await owner.runAction({ type: 'searchReleases' });
-		}
-		for (const release of releases) first.selectRelease(release, { multi: true });
-		const batch = first.runAction({ type: 'grabSelectedReleases' });
-		first.reset();
-		await second.runAction({ type: 'grabRelease', release: indexerRelease() });
-		pending.resolve({ providerId: 'indexer', accepted: true, message: 'Sent', diagnostics: [] });
-		await batch;
-		expect(firstServices.grabRelease).toHaveBeenCalledTimes(1);
-		expect(first.view().releaseGrabs).toEqual({});
-		expect(first.view().isBusy).toBe(false);
-		expect(second.view().releaseGrabs[releaseKey(indexerRelease())].status).toBe('sent');
-	});
-
-	it('keeps Audible busy through source reentry until the running acquisition settles', async () => {
-		const poll = createDeferred<AcquisitionJob>();
-		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		const acquiring = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-		await owner.selectLane('indexer');
-		expect(owner.view().isBusy).toBe(false);
-		await owner.selectLane('audible');
-		expect(owner.view().isBusy).toBe(true);
-		owner.toggleTitle('B000000001');
-		await owner.runAction({ type: 'acquireSelected' });
-		expect(services.startAcquisition).toHaveBeenCalledTimes(1);
-		poll.resolve(terminalJob());
-		await acquiring;
-		expect(owner.view().isBusy).toBe(false);
-		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
-	});
-
-	it('refuses logout while an Audible acquisition runs so staged titles are not purged', async () => {
-		const poll = createDeferred<AcquisitionJob>();
-		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		const acquiring = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-
-		expect(owner.view().isBusy).toBe(true);
-		await owner.runAction({ type: 'logout' });
-
-		expect(services.logout).not.toHaveBeenCalled();
-		poll.resolve(terminalJob());
-		await acquiring;
-		expect(owner.view().statusMessage).toBe('1 acquired title imported.');
-	});
-
-	it('retains a background Audible failure while an Indexer search is pending', async () => {
-		const poll = createDeferred<AcquisitionJob>();
-		const search =
-			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['searchReleases']>>>();
-		const services = makeServices({
-			getAcquisitionStatus: vi.fn(async () => {
-				await poll.promise;
-				throw new Error('network failed');
-			}),
-			searchReleases: vi.fn(() => search.promise),
-		});
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		const acquiring = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-		await owner.selectLane('indexer');
-		owner.editSearch({ indexerTitleQuery: 'Example' });
-		const searching = owner.runAction({ type: 'searchReleases' });
-		poll.resolve(terminalJob());
-		await acquiring;
-		expect(owner.view().statusMessage).toBe('Searching Indexer releases.');
-		expect(owner.view().isBusy).toBe(true);
-		search.resolve({ providerId: 'indexer', releases: [indexerRelease()], diagnostics: [] });
-		await searching;
-		expect(owner.view().statusMessage).toBe('1 release found.');
-		await owner.selectLane('audible');
-		expect(owner.view().statusMessage).toBe('Failed to acquire selected Audible titles.');
-	});
-
-	it.each(['search', 'hydrate'] as const)(
-		'honors an Audible reopen during pending Indexer %s',
-		async (operation) => {
-			const pendingSearch =
-				createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['searchReleases']>>>();
-			const pendingAccount =
-				createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['getAccountState']>>>();
-			const services = makeServices({ searchReleases: vi.fn(() => pendingSearch.promise) });
-			if (operation === 'hydrate')
-				vi.mocked(services.getAccountState).mockReturnValueOnce(pendingAccount.promise);
-			const owner = makeOwner(services);
-			let pending = owner.open({ lane: 'indexer' });
-			if (operation === 'search') {
-				await pending;
-				owner.editSearch({ indexerTitleQuery: 'Example' });
-				pending = owner.runAction({ type: 'searchReleases' });
-			} else await vi.waitFor(() => expect(services.getAccountState).toHaveBeenCalled());
-			owner.close();
-			await owner.open({ lane: 'audible' });
-			expect(owner.view().providerId).toBe('audible');
-			expect(owner.view().titles).toEqual(library().titles);
-			pendingSearch.resolve({
-				providerId: 'indexer',
-				releases: [indexerRelease()],
-				diagnostics: [],
-			});
-			pendingAccount.resolve({ providerId: 'indexer', status: 'connected' });
-			await pending;
-			expect(owner.view().accountState?.providerId).toBe('audible');
-			expect(owner.view().releases).toEqual([]);
-			expect(owner.view().statusMessage).toContain('Audible titles loaded.');
-		},
 	);
-
-	it('serializes connection saves with Grab and discards results from the previous connection', async () => {
-		const pendingGrab =
-			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['grabRelease']>>>();
-		const pendingSave =
-			createDeferred<Awaited<ReturnType<typeof tauriClient.updateRemoteSourceIndexerConnection>>>();
-		const save = vi
-			.spyOn(tauriClient, 'updateRemoteSourceIndexerConnection')
-			.mockReturnValue(pendingSave.promise);
-		const releases = [1, 2].map((indexerId) => indexerRelease({ indexerId }));
-		const services = makeServices({
-			grabRelease: vi.fn(() => pendingGrab.promise),
-			searchReleases: vi.fn(async () => ({
-				providerId: 'indexer' as const,
-				releases,
-				diagnostics: [],
-			})),
-		});
-		const owner = makeOwner(services);
-		await owner.open({ lane: 'indexer' });
-		owner.editSearch({ indexerTitleQuery: 'Example' });
-		await owner.runAction({ type: 'searchReleases' });
-		for (const release of releases) owner.selectRelease(release, { multi: true });
-		const batch = owner.runAction({ type: 'grabSelectedReleases' });
-		owner.close();
-		await owner.saveIndexerConnectionSettings();
-		expect(save).not.toHaveBeenCalled();
-		expect(owner.indexerConnection().saveError).toContain('Grab');
-		expect(owner.view().releases).toEqual(releases);
-		expect(owner.view().selectedReleaseKeys.size).toBe(2);
-		pendingGrab.resolve({
-			providerId: 'indexer',
-			accepted: true,
-			message: 'Sent',
-			diagnostics: [],
-		});
-		await batch;
-		expect(services.grabRelease).toHaveBeenCalledTimes(2);
-		const staleSearch =
-			createDeferred<Awaited<ReturnType<RemoteSourceWorkflowServices['searchReleases']>>>();
-		vi.mocked(services.searchReleases).mockReturnValueOnce(staleSearch.promise);
-		const searching = owner.runAction({ type: 'searchReleases' });
-		const saving = owner.saveIndexerConnectionSettings();
-		owner.patchIndexerConnectionSettings({ apiKeyDraft: 'newer draft' });
-		await owner.runAction({ type: 'searchReleases' });
-		await owner.runAction({ type: 'grabRelease', release: releases[0] });
-		expect(services.searchReleases).toHaveBeenCalledTimes(2);
-		expect(services.grabRelease).toHaveBeenCalledTimes(2);
-		pendingSave.resolve({
-			baseUrl: 'http://new.test',
-			apiKeyConfigured: true,
-			categoryIds: [3030],
-		});
-		await saving;
-		staleSearch.resolve({ providerId: 'indexer', releases, diagnostics: [] });
-		await searching;
-		expect(owner.view().releases).toEqual([]);
-		expect(owner.view().selectedReleaseKeys.size).toBe(0);
+	await owner.selectLane('indexer');
+	owner.editSearch({ indexerAuthorQuery: 'Writer', indexerTitleQuery: 'Book' });
+	await owner.runAction({ type: 'searchReleases' });
+	await owner.runAction({ type: 'grabSelectedReleases' });
+	expect(engine.sessionIntents).toContainEqual({
+		kind: 'remote',
+		intent: { kind: 'searchReleases', author: 'Writer', title: 'Book' },
 	});
-
-	it('loads the connected Audible library when entered from the Source selector', async () => {
-		const services = makeServices();
-		const owner = makeOwner(services);
-		await owner.open({ lane: 'indexer' });
-		await owner.selectLane('audible');
-		expect(services.loadLibrary).toHaveBeenCalledWith('audible');
-		expect(owner.view().titles).toEqual(library().titles);
+	expect(engine.sessionIntents).toContainEqual({
+		kind: 'remote',
+		intent: { kind: 'grabSelected' },
 	});
-
-	it('hydrates unconfigured Indexer without scanning the Audible library', async () => {
-		const services = makeServices({
-			getAccountState: vi.fn<RemoteSourceWorkflowServices['getAccountState']>(async () => ({
-				providerId: 'indexer',
-				status: 'needsAuth',
-			})),
-		});
-		const owner = makeOwner(services);
-		await owner.open({ lane: 'indexer' });
-		expect(owner.view().accountState?.status).toBe('needsAuth');
-		expect(services.loadLibrary).not.toHaveBeenCalled();
-		expect(owner.view().isBusy).toBe(false);
+	engine.change((state) => {
+		state.remote.selectedTitleIds = ['book-1'];
+		state.remote.includePdfByTitleId = { 'book-1': false };
 	});
+	expect([...owner.view().selectedTitleIds]).toEqual(['book-1']);
+	expect(owner.view().includePdfByTitleId['book-1']).toBe(false);
+});
+it('hydrates the selected provider and scans only connected Audible libraries', async () => {
+	const { owner, services: capability } = await open();
+	expect(capability.loadLibrary).toHaveBeenCalledExactlyOnceWith('audible');
+	await owner.selectLane('indexer');
+	expect(capability.getAccountState).toHaveBeenLastCalledWith('indexer');
+	expect(capability.loadLibrary).toHaveBeenCalledTimes(1);
+});
 
-	it('resets lane selection while an accepted Audible job continues to Input', async () => {
-		const poll = createDeferred<AcquisitionJob>();
-		const services = makeServices({ getAcquisitionStatus: vi.fn(() => poll.promise) });
-		const owner = makeOwner(services);
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		owner.editSearch({ releaseFilter: 'old' });
-		const acquiring = owner.runAction({ type: 'acquireSelected' });
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalled());
-		await owner.selectLane('indexer');
-		expect(owner.view().selectedTitleIds.size).toBe(0);
-		expect(owner.view().releases).toEqual([]);
-		expect(owner.view().releaseFilter).toBe('');
-		expect(owner.view().activeJob?.jobId).toBe('remote-job-1');
-		expect(services.cancelAcquisition).not.toHaveBeenCalled();
-		poll.resolve(terminalJob());
-		await acquiring;
-		expect(owner.view().providerId).toBe('indexer');
+it('shows a new engine refusal instead of hiding it under an older acquisition result', async () => {
+	const { owner, engine } = await open();
+	engine.change((state) => {
+		state.remote.acquisition = {
+			...job,
+			settled: true,
+			terminal: true,
+			status: 'failed',
+			progress: { ...job.progress, message: 'Old download failure', terminal: true },
+		};
 	});
-
-	it('preserves selection on ordinary reopen and resets it when opening another lane', async () => {
-		const owner = makeOwner(makeServices());
-		await owner.open();
-		owner.toggleTitle('B000000001');
-		owner.close();
-		await owner.open({ lane: 'audible' });
-		expect([...owner.view().selectedTitleIds]).toEqual(['B000000001']);
-		await owner.open({ lane: 'indexer' });
-		expect(owner.view().selectedTitleIds.size).toBe(0);
-		expect(owner.view().providerId).toBe('indexer');
-	});
+	engine.respond = (intent) =>
+		intent.kind === 'remote' && intent.intent.kind === 'acquireSelected'
+			? {
+					kind: 'rejected',
+					error: {
+						category: 'validation',
+						message: 'Select Audible titles before acquiring.',
+						code: 'invalid_input',
+						detail: null,
+					},
+				}
+			: undefined;
+	await owner.runAction({ type: 'acquireSelected' });
+	expect(owner.view().statusMessage).toBe('Select Audible titles before acquiring.');
 });

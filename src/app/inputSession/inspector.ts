@@ -42,8 +42,10 @@ export function toInspectorViewFromInput(
 	},
 ): InspectorView {
 	return inspectorFromFiles(
-		view.selectedSourceFiles,
-		view.selectedSourceFiles.map((_, index) => index),
+		view.sourceFiles,
+		view.sourceFiles.flatMap((file, index) =>
+			view.selectedSourceFiles.some((selected) => selected.path === file.path) ? [index] : [],
+		),
 		view.hasFiles ? combinedSizeFromFiles(view.sourceFiles) : '--- MB',
 		companionSummaryForInputIds,
 	);

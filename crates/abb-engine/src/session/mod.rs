@@ -13,6 +13,8 @@ mod lookup;
 mod metadata_form;
 mod output;
 mod plans;
+mod preview;
+pub use preview::PreviewSnapshot;
 mod runtime;
 mod staged;
 mod state;
@@ -21,7 +23,7 @@ mod tag_cache;
 mod working_set;
 
 pub use audio::{AudioChoiceView, AudioSnapshot, TitleAudio};
-pub use audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, FaacRateControl};
+pub use audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, EncoderOption, FaacRateControl};
 pub use exports::{OutputEdits, RestartOffer};
 pub use lookup::{
     LookupApplyMode, LookupQueuePosition, LookupSnapshot, LookupSource, LookupStatus, QueueStep,
