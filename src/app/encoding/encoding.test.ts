@@ -157,4 +157,14 @@ describe('encoding owner', () => {
 		});
 		expect(app.encoding.titleView(alpha).channelsHint).toBeNull();
 	});
+	it('warns about a downmix when any selected title needs one, not only the first', async () => {
+		const app = await open();
+		const [alpha, beta] = titles(app);
+		engine.change((state) => {
+			state.audio.titles[beta!.inputId!]!.facts.downmixWarning = true;
+		});
+		expect(app.encoding.selectionView([alpha!, beta!]).channelsHint).toBe(
+			'Surround downmix omits bass effects (LFE).',
+		);
+	});
 });

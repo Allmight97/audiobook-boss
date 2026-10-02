@@ -32,6 +32,10 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 	let keyEcho = '';
 	let keyAccepted = false;
 	let localError = '';
+	// The latest draft edit; Save and Test wait for its outcome and refuse
+	// while the engine has refused what the fields show.
+	let lastEdit: Promise<unknown> = Promise.resolve();
+	let editRefused = false;
 	const changed = () => bump((value) => value + 1);
 	createEffect(
 		() => link.remote().connection.apiKeyEntered,
@@ -44,6 +48,16 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			}
 		},
 	);
+	/** Whether the engine accepted what the fields show; Save and Test act on its draft. */
+	async function draftAccepted(): Promise<boolean> {
+		await lastEdit.catch(() => undefined);
+		if (!editRefused) return true;
+		localError =
+			'The engine did not accept the connection shown. Correct it before saving or testing.';
+		changed();
+		return false;
+	}
+
 	async function send(kind: 'loadConnection' | 'saveConnection' | 'testConnection') {
 		localError = '';
 		changed();
@@ -101,8 +115,9 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 			typed = echo;
 			if (patch.apiKeyDraft !== undefined) keyEcho = patch.apiKeyDraft;
 			localError = '';
+			editRefused = false;
 			changed();
-			void link
+			lastEdit = link
 				.send({
 					kind: 'remote',
 					intent: {
@@ -113,6 +128,7 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 					},
 				})
 				.catch((error: unknown) => {
+					if (typed === echo) editRefused = true;
 					localError = toUserMessage(error);
 					changed();
 				})
@@ -131,13 +147,16 @@ export function createIndexerConnectionSettings(link: EngineLink): {
 		},
 		isSaving: () => link.remote().connection.save.kind === 'running',
 		async save() {
+			if (!(await draftAccepted())) return false;
 			return (await send('saveConnection'))?.kind === 'remoteSaved';
 		},
 		async testConnection() {
+			if (!(await draftAccepted())) return;
 			await send('testConnection');
 		},
 		reset() {
 			typed = null;
+			editRefused = false;
 			keyEcho = '';
 			localError = '';
 			changed();

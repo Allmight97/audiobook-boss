@@ -94,7 +94,10 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		selectTitles,
 		selectionView(files) {
 			const views = files.map(titleView);
-			const first = display(files[0] ? titleChoice(files[0]) : link.audio().defaults, files);
+			const shown = files[0] ? titleChoice(files[0]) : link.audio().defaults;
+			// A warning about any selected title's sources applies to the selection.
+			const downmixWarning = files.some((file) => titleChoice(file).facts.downmixWarning);
+			const first = display({ ...shown, facts: { ...shown.facts, downmixWarning } }, files);
 			const mixedFields = (Object.keys(fieldKeys) as EncodingField[]).filter((field) =>
 				views.some((view) => view[fieldKeys[field]] !== first[fieldKeys[field]]),
 			);
