@@ -3,7 +3,6 @@ import type { AudioFile, TitleAudioRequest } from '../../types/audio';
 import type { AudioChoiceView, TitlePlan } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
-import { resolveAutoResolutionHints, type AutoResolutionHints } from './hints';
 import { editFor, projectView, type EncodingField, type EncodingView } from './project';
 
 export type { EncodingField, EncodingView } from './project';
@@ -49,9 +48,6 @@ const fieldKeys = {
 	channels: 'channels',
 } as const satisfies Record<EncodingField, keyof EncodingView>;
 
-// Defaults describe future imports, so their hints name no source.
-const DEFAULT_HINTS = resolveAutoResolutionHints([]);
-
 function titleId(file: AudioFile): string {
 	return file.inputId ?? file.path;
 }
@@ -64,17 +60,25 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		return audio.titles[titleId(file)] ?? audio.defaults;
 	}
 
-	function display(view: AudioChoiceView, hints: AutoResolutionHints): EncodingView {
+	function plan(file: AudioFile): TitlePlan {
+		return link.audio().titles[titleId(file)]?.plan ?? { kind: 'pending' };
+	}
+
+	/** `titles` is empty for the defaults, which describe future imports. */
+	function display(view: AudioChoiceView, titles: readonly AudioFile[]): EncodingView {
 		return projectView({
 			choice: view.choice,
 			facts: view.facts,
 			capabilities: link.audio().capabilities,
-			hints,
+			plans: titles.length === 0 ? null : titles.map(plan),
+			multichannelInput: titles.some((title) =>
+				deps.input.sourcesFor(title).some((source) => source.isValid && (source.channels ?? 0) > 2),
+			),
 		});
 	}
 
 	function titleView(file: AudioFile): EncodingView {
-		return display(titleChoice(file), resolveAutoResolutionHints(deps.input.sourcesFor(file)));
+		return display(titleChoice(file), [file]);
 	}
 
 	function selectTitles(files: readonly AudioFile[], field: EncodingField, value: string): void {
@@ -87,9 +91,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		audioRequest(file) {
 			return file ? titleChoice(file).request : link.audio().defaults.request;
 		},
-		plan(file) {
-			return link.audio().titles[titleId(file)]?.plan ?? { kind: 'pending' };
-		},
+		plan,
 		titleView,
 		selectTitle(file, field, value) {
 			selectTitles([file], field, value);
@@ -97,12 +99,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		selectTitles,
 		selectionView(files) {
 			const views = files.map(titleView);
-			const hints = resolveAutoResolutionHints(
-				files.flatMap((file) => [...deps.input.sourcesFor(file)]),
-			);
-			const first = files[0]
-				? display(titleChoice(files[0]), hints)
-				: display(link.audio().defaults, hints);
+			const first = display(files[0] ? titleChoice(files[0]) : link.audio().defaults, files);
 			const mixedFields = (Object.keys(fieldKeys) as EncodingField[]).filter((field) =>
 				views.some((view) => view[fieldKeys[field]] !== first[fieldKeys[field]]),
 			);
@@ -112,7 +109,7 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			if (files.length === 0) return;
 			link.post({ kind: 'applyDefaultAudio', titleIds: files.map(titleId) });
 		},
-		view: () => display(link.audio().defaults, DEFAULT_HINTS),
+		view: () => display(link.audio().defaults, []),
 		select(field, value) {
 			const edit = editFor(field, value);
 			if (edit) link.post({ kind: 'setDefaultAudio', edit });

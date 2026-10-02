@@ -532,7 +532,7 @@ impl Session {
                 let resolving = ticket.clone();
                 let result = tokio::task::spawn_blocking(move || resolving.resolve())
                     .await
-                    .unwrap_or_else(|error| Err(error.to_string()));
+                    .unwrap_or_else(|error| Err(error.to_string().into()));
                 session.transition(|state| state.finish_plan(&ticket, result));
             }
             session.publish();

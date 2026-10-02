@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../runtime';
+import type { TitlePlan } from '../../types/session';
+import type { EncodingView } from './project';
 
 // The audio choice rules live in the engine (`crates/abb-engine/src/session/
 // audio_choice.rs`). These tests cover what this owner adds: the panel's
@@ -88,7 +90,48 @@ describe('encoding owner', () => {
 		expect(options.auto).toBe(false);
 	});
 
-	it('words a title from its own choice and its sources, and marks mixed fields', async () => {
+	it("words Auto from each title's engine plan, never from source facts", async () => {
+		const app = await open();
+		const [alpha, beta] = titles(app);
+		const autoLabel = (view: EncodingView, field: 'sampleRateOptions' | 'channelOptions') =>
+			view[field].find((option) => option.value === 'auto')?.label;
+		engine.change((state) => {
+			const plan = (id: string, value: TitlePlan) => {
+				state.audio.titles[id] = { ...structuredClone(state.audio.titles[id]), plan: value };
+			};
+			// The engine raised alpha's 44.1 kHz source to what its encoder accepts.
+			plan(alpha.inputId ?? '', {
+				kind: 'resolved',
+				plan: {
+					format: 'm4b',
+					handling: 'encode',
+					settings: null,
+					sampleRate: 48000,
+					channels: 2,
+					sourceCodec: 'AAC',
+					reason: null,
+				},
+			});
+			plan(beta.inputId ?? '', {
+				kind: 'failed',
+				message: 'Choose Mono or Stereo to downmix.',
+				field: 'channels',
+			});
+		});
+
+		const alphaView = app.encoding.titleView(alpha);
+		expect(autoLabel(alphaView, 'sampleRateOptions')).toBe('Auto · 48 kHz');
+		expect(autoLabel(alphaView, 'channelOptions')).toBe('Auto · Stereo');
+		expect(alphaView.channelsHint).toBeNull();
+		const betaView = app.encoding.titleView(beta);
+		expect(autoLabel(betaView, 'channelOptions')).toBe('Auto');
+		expect(betaView.channelsHint).toBe('Choose Mono or Stereo to downmix.');
+		expect(betaView.sampleRateHint).toBeNull();
+		// The defaults describe future imports, so they name no source.
+		expect(autoLabel(app.encoding.view(), 'sampleRateOptions')).toBe('Auto · Source audio');
+	});
+
+	it('marks fields that differ across selected titles', async () => {
 		const app = await open();
 		const [alpha, beta] = titles(app);
 		engine.change((state) => {
@@ -97,10 +140,7 @@ describe('encoding owner', () => {
 			state.audio.titles[id].choice.channels = 'mono';
 		});
 
-		expect(app.encoding.titleView(alpha).sampleRateHint).toBe('Auto -> 44.1 kHz');
 		expect(app.encoding.titleView(beta).channels).toBe('mono');
 		expect(app.encoding.selectionView([alpha, beta]).mixedFields).toEqual(['channels']);
-		// The defaults describe future imports, so they name no source.
-		expect(app.encoding.view().sampleRateHint).toBe('Auto -> source audio');
 	});
 });

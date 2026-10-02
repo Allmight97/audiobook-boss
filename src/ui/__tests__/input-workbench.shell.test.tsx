@@ -208,7 +208,7 @@ describe('Solid input workbench', () => {
 		expect(screen.getByTitle('Estimated output size')).toHaveTextContent('1000.0 B');
 
 		engine.seedTitleAudio(file.path, titleAudioRequest(), {
-			plan: { kind: 'failed', message: 'Sources cannot be joined' },
+			plan: { kind: 'failed', message: 'Sources cannot be joined', field: null },
 			estimate: null,
 		});
 		await waitFor(() => expect(popup).toHaveTextContent('Sources cannot be joined'));

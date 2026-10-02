@@ -248,6 +248,9 @@ export type AudioHandling = "encode" | "preserve";
 
 export type AudioIntent = "auto" | "preserve" | "encode";
 
+/**  The audio setting a title's plan failed on, when one setting is the cause. */
+export type AudioPlanField = "sampleRate" | "channels";
+
 export type AudioPreservation = {
 	canPreserve: boolean,
 };
@@ -1320,8 +1323,11 @@ export type TitleAudioRequest = {
 export type TitlePlan =
 /**  Being resolved. */
 { kind: "pending" } | { kind: "resolved"; plan: TitleAudioPlan } |
-/**  The title cannot be exported as chosen; `message` says why. */
-{ kind: "failed"; message: string } |
+/**
+ *  The title cannot be exported as chosen; `message` says why, and
+ *  `field` names the audio setting to change when one setting is the cause.
+ */
+{ kind: "failed"; message: string; field: AudioPlanField | null } |
 /**  Grouped sources disagree about their audio; the user must choose. */
 { kind: "choiceRequired" };
 

@@ -15,7 +15,7 @@ use super::audio_choice::AudioEdit;
 use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
-use super::plans::{estimate_size, PlanInput, PlanTicket, Plans};
+use super::plans::{estimate_size, PlanFailure, PlanInput, PlanTicket, Plans};
 use super::staged::StagedSources;
 use super::submission::{
     build_draft, title_label, Draft, DraftInputs, SubmissionStatus, SubmitRefusal, SubmittedTitle,
@@ -698,7 +698,7 @@ impl SessionState {
     pub(crate) fn finish_plan(
         &mut self,
         ticket: &PlanTicket,
-        result: Result<crate::audio::TitleAudioPlan, String>,
+        result: Result<crate::audio::TitleAudioPlan, PlanFailure>,
     ) {
         self.plans.finish(ticket, result);
     }

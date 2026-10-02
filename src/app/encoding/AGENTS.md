@@ -12,8 +12,7 @@
 ## Public API Strip
 
 - Import `createEncodingOwner` and owner types from `src/app/encoding`.
-- `index.ts` is the export surface. `owner.ts`, `project.ts`, and `hints.ts`
-  are private.
+- `index.ts` is the export surface. `owner.ts` and `project.ts` are private.
 
 ## What Stays Here
 
@@ -23,8 +22,10 @@
   so.
 - `editFor` turns a control's value into a typed `AudioEdit`; a value no
   control offers sends nothing. The engine decides whether the edit applies.
-- `hints.ts` words what Auto resolves to from the sources' facts. Defaults
-  describe future imports, so their hints name no source.
+- What Auto resolves to comes from each title's engine plan, never from
+  source facts; a plan failure the engine ties to sample rate or channels is
+  shown under that control. Defaults describe future imports, so they name no
+  source.
 - `selectionView` marks fields whose values differ across the selected titles.
 
 ## Testing

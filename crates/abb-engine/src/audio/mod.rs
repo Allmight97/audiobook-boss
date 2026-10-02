@@ -176,5 +176,6 @@ mod contract_tests;
 
 mod output_plan;
 pub use output_plan::{
-    resolve_title_audio, AudioIntent, AudiobookFormat, TitleAudioPlan, TitleAudioRequest,
+    resolve_title_audio, AudioIntent, AudioPlanField, AudiobookFormat, TitleAudioError,
+    TitleAudioPlan, TitleAudioRequest,
 };
