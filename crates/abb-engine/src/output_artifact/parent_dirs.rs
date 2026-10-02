@@ -11,6 +11,9 @@ pub(crate) struct OutputParentDirCleanup {
     /// directories strictly below it can be removed.
     existing_anchor: PathBuf,
     created_dirs: Vec<PathBuf>,
+    /// Each output's parent folder, in the order the outputs were given;
+    /// `None` for an output that writes nothing.
+    title_parents: Vec<Option<PathBuf>>,
     active: bool,
 }
 
@@ -19,17 +22,51 @@ impl OutputParentDirCleanup {
         Self {
             existing_anchor,
             created_dirs: Vec::new(),
+            title_parents: Vec::new(),
             active: true,
         }
     }
 
-    pub(crate) fn release(mut self) {
+    /// Keeps every folder: the run published what it planned.
+    pub(crate) fn release(&mut self) {
         self.active = false;
         self.created_dirs.clear();
     }
 
-    pub(crate) fn cleanup_now(mut self) -> Result<()> {
+    /// Removes every created folder that is empty.
+    pub(crate) fn cleanup_now(&mut self) -> Result<()> {
         self.cleanup_active()
+    }
+
+    /// Removes the empty folders created for the output at `position` alone,
+    /// after it ended without publishing. A folder another output sits in or
+    /// under stays for that output; the run's own cleanup sees it later.
+    pub(crate) fn cleanup_title(&self, position: usize) -> Result<()> {
+        let Some(Some(parent)) = self.title_parents.get(position).filter(|_| self.active) else {
+            return Ok(());
+        };
+        let shared = |dir: &Path| {
+            self.title_parents.iter().enumerate().any(|(index, other)| {
+                index != position && other.as_ref().is_some_and(|other| other.starts_with(dir))
+            })
+        };
+        let mut first_error = None;
+        for dir in self
+            .created_dirs
+            .iter()
+            .rev()
+            .filter(|dir| parent.starts_with(dir) && !shared(dir))
+        {
+            if let Err(error) = remove_created_empty_dir(&self.existing_anchor, dir) {
+                log::warn!(
+                    "output_parent_cleanup status=title_err dir={} err={}",
+                    dir.display(),
+                    error
+                );
+                first_error.get_or_insert(error);
+            }
+        }
+        first_error.map_or(Ok(()), Err)
     }
 
     fn cleanup_active(&mut self) -> Result<()> {
@@ -95,10 +132,12 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
     })?;
 
     for output in outputs {
-        if !abb_output_artifact_core::action_requires_output_write(output.action) {
-            continue;
-        }
-        if let Some(parent) = output.resolved_path.parent() {
+        let parent = output
+            .resolved_path
+            .parent()
+            .filter(|_| abb_output_artifact_core::action_requires_output_write(output.action));
+        cleanup.title_parents.push(parent.map(Path::to_path_buf));
+        if let Some(parent) = parent {
             ensure_output_parent_under_root(&output_root, parent)?;
             create_missing_dirs(parent, &mut cleanup)?;
         }

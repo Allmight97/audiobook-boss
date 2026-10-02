@@ -3,6 +3,7 @@ use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
+use crate::output_artifact::OutputParentDirCleanup;
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::progress::EmitContext;
@@ -10,6 +11,7 @@ use crate::processing::terminal_outcomes::{
     build_all_skipped_batch_result, collect_batch_results, emit_terminal_cancelled_event,
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
+use crate::processing::ProcessResultStatus;
 use crate::processing::{
     OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry, QueueEvent, QueueItem,
 };
@@ -17,6 +19,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex, PoisonError};
 
 pub(crate) async fn dispatch_title_jobs(
     host: Host,
@@ -31,6 +34,7 @@ pub(crate) async fn dispatch_title_jobs(
         file_info,
         output_parent_cleanup,
     } = execution_plan;
+    let folders = Arc::new(Mutex::new(output_parent_cleanup));
     let result = dispatch_batch_plan(
         host,
         registry,
@@ -39,12 +43,11 @@ pub(crate) async fn dispatch_title_jobs(
         plan,
         file_info,
         options,
+        &folders,
     )
     .await;
-    crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(
-        result,
-        output_parent_cleanup,
-    )
+    let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
+    crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
 }
 
 async fn dispatch_batch_plan(
@@ -55,6 +58,7 @@ async fn dispatch_batch_plan(
     plan: ResolvedProcessingPlan,
     file_info: audio::FileListInfo,
     options: ProcessingRunOptions,
+    folders: &Arc<Mutex<OutputParentDirCleanup>>,
 ) -> Result<ProcessCommandResult> {
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
@@ -119,7 +123,7 @@ async fn dispatch_batch_plan(
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: options.progress_listener.clone(),
         };
-        scheduled_jobs.push(Box::pin(run_title_job(request)));
+        scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(folders))));
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
@@ -132,8 +136,12 @@ async fn dispatch_batch_plan(
 /// Runs one title unless its cancel flag is already set. A title cancelled
 /// before its job started emits nothing else, so report it here instead of
 /// leaving its row cancelling until the batch ends. Background operations
-/// only; previews carry no flags.
-async fn run_title_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
+/// only; previews carry no flags. A title that ends without publishing
+/// removes the empty folders made only for it before it reports.
+async fn run_title_job(
+    request: ProcessingJobRequest,
+    folders: Arc<Mutex<OutputParentDirCleanup>>,
+) -> Result<ProcessResultEntry> {
     let host = request.host.clone();
     let listener = request.progress_listener.clone();
     let input_index = request.input_index;
@@ -146,6 +154,18 @@ async fn run_title_job(request: ProcessingJobRequest) -> Result<ProcessResultEnt
     } else {
         run_processing_job(request).await
     };
+    let published = outcome.as_ref().is_ok_and(|entry| {
+        matches!(
+            entry.status,
+            ProcessResultStatus::Success | ProcessResultStatus::Skipped
+        )
+    });
+    if !published {
+        let folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Err(error) = folders.cleanup_title(input_index) {
+            log::warn!("output_parent_cleanup status=title_cleanup_err input_index={input_index} err={error}");
+        }
+    }
     if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
         emit_terminal_cancelled_event(
             &host,

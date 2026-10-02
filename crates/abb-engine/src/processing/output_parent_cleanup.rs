@@ -4,7 +4,7 @@ use crate::processing::{ProcessCommandResult, ProcessResultStatus};
 
 pub(super) fn finalize_output_parent_cleanup(
     result: Result<ProcessCommandResult>,
-    cleanup: OutputParentDirCleanup,
+    cleanup: &mut OutputParentDirCleanup,
 ) -> Result<ProcessCommandResult> {
     match result {
         Ok(result) if result_releases_output_parent_cleanup(&result) => {
@@ -31,7 +31,7 @@ fn result_releases_output_parent_cleanup(result: &ProcessCommandResult) -> bool 
     })
 }
 
-fn cleanup_output_parents_after_unsuccessful_result(cleanup: OutputParentDirCleanup) {
+fn cleanup_output_parents_after_unsuccessful_result(cleanup: &mut OutputParentDirCleanup) {
     if let Err(error) = cleanup.cleanup_now() {
         log::warn!("output_parent_cleanup status=terminal_cleanup_err err={error}");
     }
@@ -77,9 +77,10 @@ mod tests {
         let temp_dir = TempDir::new().expect("temp dir");
         let parent = temp_dir.path().join("author").join("title");
         let output = output_plan(parent.join("book.m4b"));
-        let cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+        let mut cleanup =
+            ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
 
-        finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Success)), cleanup)
+        finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Success)), &mut cleanup)
             .expect("finalize cleanup");
 
         assert!(parent.exists(), "released cleanup should leave parent dirs");
@@ -90,9 +91,10 @@ mod tests {
         let temp_dir = TempDir::new().expect("temp dir");
         let parent = temp_dir.path().join("author").join("title");
         let output = output_plan(parent.join("book.m4b"));
-        let cleanup = ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
+        let mut cleanup =
+            ensure_output_parent_dirs(temp_dir.path(), [&output]).expect("parent dirs");
 
-        finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Cancelled)), cleanup)
+        finalize_output_parent_cleanup(Ok(result(ProcessResultStatus::Cancelled)), &mut cleanup)
             .expect("finalize cleanup");
 
         assert!(
