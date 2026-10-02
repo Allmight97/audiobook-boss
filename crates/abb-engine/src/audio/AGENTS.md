@@ -19,7 +19,7 @@
   `crate::audio::path_validation`, or `crate::audio::cleanup`.
 - Types: `AudioFile`, `AudioPreservation`, `DecoderSelection`, `SampleRateConfig`, `FileListInfo`,
   `SupportedAudioImportFormat`, `SupportedAudioImportMetadata`,
-  `AacDecoderAvailability`, `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
+  `EncoderSettings`, `EncoderType`, `FaacProfile`, `BitrateMode`,
   `ChannelConfig`, `EncoderAvailability`,
   `AudiobookFormat`, `AudioIntent`, `TitleAudioRequest`, `TitleAudioPlan`.
 - Functions: `resolve_title_audio`, `get_file_list_info`, `apply_chapter_plans`, `validate_input_audio_path`,
@@ -27,8 +27,7 @@
   `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
   `encoder_settings_capabilities`, `resolve_encoder_name`,
-  `detect_encoder_availability`, `detect_aac_decoder_availability`,
-  `preferred_aac_decoder_order_labels`, `execute_audio_engine`,
+  `detect_encoder_availability`, `execute_audio_engine`,
   `validate_audio_engine_inputs`.
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
@@ -52,8 +51,9 @@
   ceiling uses its combined channels and first input rate.
   Opened NMR and FAAC settings must match the request; FAAC preflight uses the
   same encoder open/readback as execution, including upstream bitrate clamps.
-- `AacDecoderAvailability::has_named_decoder` reports linked decoder presence;
-  per-file trial decoding owns initial compatibility.
+- Every build links FFmpeg's AAC decoder, and macOS builds also link `aac_at`;
+  a `processor/streams.rs` test checks the linked build. Linkage is not file
+  compatibility: per-file trial decoding selects the decoder.
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
   `crate::processing` / `processing::progress` for queue/progress event

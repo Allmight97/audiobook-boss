@@ -54,9 +54,6 @@ mod streams;
 
 pub(crate) use streams::assess_preservation;
 pub(in crate::audio) use streams::inspect_audio_decoder;
-pub use streams::{
-    detect_aac_decoder_availability, preferred_aac_decoder_order_labels, AacDecoderAvailability,
-};
 
 pub struct AudioExecutionRequest {
     context: ProcessingContext,

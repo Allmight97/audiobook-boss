@@ -31,8 +31,8 @@ commands over invoking internals directly.
   latency, or agent tokens, classify the friction as `fix` unless a safety, data,
   or contract invariant requires finishing the current command.
 - Package-select Nextest routes; broad workspace/multi-package discovery can
-  pull unrelated binaries into the target set. Binding export and
-  `bun run aac-decoder-contract:check` have explicit binary commands.
+  pull unrelated binaries into the target set. Binding export has an explicit
+  binary command.
 - Media execution: real-media workflow
   tests live in `crates/abb-engine/tests/cases/integration_media_execution_tests.rs`
   and run inside the engine's real-file suite. Covers WAV, M4B, MP3, and Opus inputs,
