@@ -63,6 +63,8 @@ pub struct RunningWork {
     pub exports: usize,
     /// Files with a Save waiting for an export to finish reading them.
     pub waiting_writes: usize,
+    /// Audible downloads in progress.
+    pub acquisitions: usize,
 }
 
 impl RunningWork {
@@ -130,6 +132,7 @@ impl Engine {
         RunningWork {
             exports: self.inner.work.unfinished_exports().len(),
             waiting_writes: self.inner.session.waiting_write_paths().len(),
+            acquisitions: self.inner.remote_source.running_acquisitions(),
         }
     }
 

@@ -187,8 +187,48 @@ fn plural(count: usize, one: &str, many: &str) -> String {
     format!("{count} {}", if count == 1 { one } else { many })
 }
 
+/// What to ask before quitting stops `running` work, as a title and message;
+/// `None` when quitting stops nothing.
+fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, String)> {
+    let exports = (running.exports > 0).then(|| {
+        let exports = plural(running.exports, "export is", "exports are");
+        if running.waiting_writes == 0 {
+            format!("{exports} still running. Quitting cancels them.")
+        } else {
+            format!(
+                "{exports} still running, and metadata changes for {} wait for them. \
+                 Quitting cancels the exports and saves those changes first.",
+                plural(running.waiting_writes, "file", "files")
+            )
+        }
+    });
+    let downloads = (running.acquisitions > 0).then(|| {
+        format!(
+            "{} still running. Quitting stops {} and discards what was downloaded.",
+            plural(
+                running.acquisitions,
+                "Audible download is",
+                "Audible downloads are"
+            ),
+            if running.acquisitions == 1 {
+                "it"
+            } else {
+                "them"
+            }
+        )
+    });
+    match (exports, downloads) {
+        (Some(exports), None) => Some(("Exports are still running", exports)),
+        (None, Some(downloads)) => Some(("Downloads are still running", downloads)),
+        (Some(exports), Some(downloads)) => {
+            Some(("Work is still running", format!("{exports} {downloads}")))
+        }
+        (None, None) => None,
+    }
+}
+
 /// Holds a quit until the engine has shut down, asking first when exports
-/// are running. Returns whether the quit must be held.
+/// or downloads are running. Returns whether the quit must be held.
 fn hold_quit(app: &tauri::AppHandle) -> bool {
     let quit = app.state::<Quit>();
     if quit.done.load(Ordering::SeqCst) {
@@ -201,24 +241,15 @@ fn hold_quit(app: &tauri::AppHandle) -> bool {
         .try_state::<abb_engine::Engine>()
         .map(|engine| engine.running_work())
         .unwrap_or_default();
-    if running.exports == 0 || quit.confirmed.load(Ordering::SeqCst) {
+    let prompt = quit_prompt(&running);
+    let Some((title, message)) = prompt.filter(|_| !quit.confirmed.load(Ordering::SeqCst)) else {
         shut_down_then_exit(app);
         return true;
-    }
-    let exports = plural(running.exports, "export is", "exports are");
-    let message = if running.waiting_writes == 0 {
-        format!("{exports} still running. Quitting cancels them.")
-    } else {
-        format!(
-            "{exports} still running, and metadata changes for {} wait for them. \
-             Quitting cancels the exports and saves those changes first.",
-            plural(running.waiting_writes, "file", "files")
-        )
     };
     let app = app.clone();
     app.dialog()
         .message(message)
-        .title("Exports are still running")
+        .title(title)
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Quit Anyway".to_string(),
             "Keep Open".to_string(),
@@ -365,7 +396,26 @@ mod tests {
 mod quit_tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use super::{settle_or_ask, SHUTDOWN_WAIT};
+    use super::{quit_prompt, settle_or_ask, SHUTDOWN_WAIT};
+
+    #[test]
+    fn quitting_asks_first_when_it_would_stop_downloads_or_exports() {
+        let running = |exports, acquisitions| abb_engine::RunningWork {
+            exports,
+            waiting_writes: 0,
+            acquisitions,
+        };
+        assert_eq!(quit_prompt(&running(0, 0)), None);
+        let (title, message) = quit_prompt(&running(0, 1)).expect("asks about the download");
+        assert_eq!(title, "Downloads are still running");
+        assert!(
+            message.starts_with("1 Audible download is still running."),
+            "{message}"
+        );
+        let (title, message) = quit_prompt(&running(2, 2)).expect("asks about both");
+        assert_eq!(title, "Work is still running");
+        assert!(message.contains("2 exports are") && message.contains("2 Audible downloads are"));
+    }
 
     #[tokio::test(start_paused = true)]
     async fn an_unsettled_shutdown_waits_until_the_user_chooses_to_quit() {

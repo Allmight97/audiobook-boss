@@ -348,7 +348,7 @@ impl RemoteAcquisitionLifecycle {
             .unwrap_or(false)
     }
 
-    fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
+    pub(super) fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
         let Ok(mut tasks) = self.acquisition_tasks.lock() else {
             log::warn!(
                 "remote_source acquisition job_id={} task_registry_store_failed=true",
@@ -380,6 +380,10 @@ impl RemoteAcquisitionLifecycle {
                 );
             }
         }
+    }
+
+    pub(super) fn running_acquisitions(&self) -> usize {
+        self.acquisition_tasks.lock().map_or(0, |tasks| tasks.len())
     }
 
     pub(super) fn abort_all_acquisition_tasks(&self) {

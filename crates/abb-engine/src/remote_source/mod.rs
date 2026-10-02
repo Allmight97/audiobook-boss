@@ -113,6 +113,11 @@ impl RemoteSourceRuntime {
         self.inner.lifecycle.abort_all_acquisition_tasks();
     }
 
+    /// Downloads `abort_acquisitions` would stop.
+    pub(crate) fn running_acquisitions(&self) -> usize {
+        self.inner.lifecycle.running_acquisitions()
+    }
+
     pub(crate) fn cleanup_abandoned_sessions(&self) -> Result<()> {
         self.inner.lifecycle.cleanup_abandoned_sessions()
     }
@@ -518,6 +523,33 @@ mod tests {
         let error = read_handoff_url(Some(link)).expect_err("symlink should fail");
 
         assert!(error.to_string().contains("must not be a symlink"));
+    }
+
+    #[tokio::test]
+    async fn a_running_download_counts_until_quitting_stops_it() {
+        let root = TempDir::new().expect("temp root");
+        let runtime = test_runtime(&root);
+        let job_id = "remote-job-1";
+        runtime
+            .inner
+            .lifecycle
+            .jobs
+            .lock()
+            .expect("jobs lock")
+            .insert(
+                job_id.to_string(),
+                acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
+            );
+        let download = tokio::spawn(std::future::pending::<()>());
+        runtime
+            .inner
+            .lifecycle
+            .store_acquisition_task(job_id, download.abort_handle());
+        assert_eq!(runtime.running_acquisitions(), 1);
+
+        runtime.abort_acquisitions();
+        assert_eq!(runtime.running_acquisitions(), 0);
+        assert!(download.await.expect_err("aborted").is_cancelled());
     }
 
     #[test]
