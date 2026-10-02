@@ -1,8 +1,8 @@
 //! Progress event emitter
 
 use super::{
-    EventStage, ProgressEvent, PROGRESS_ANALYZING_END, PROGRESS_ANALYZING_START, PROGRESS_CLEANUP,
-    PROGRESS_COMPLETE, PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START, PROGRESS_FINALIZING,
+    EventStage, ProgressEvent, PROGRESS_ANALYZING_START, PROGRESS_CLEANUP, PROGRESS_COMPLETE,
+    PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START, PROGRESS_FINALIZING,
     PROGRESS_METADATA_START,
 };
 use crate::host::{EngineEvent, Host};
@@ -60,11 +60,6 @@ impl ProgressEmitter {
         self
     }
 
-    /// Returns the job ID if set
-    pub fn job_id(&self) -> Option<&str> {
-        self.job_id.as_deref()
-    }
-
     fn terminal_event(&self, stage: EventStage, message: &str) -> ProgressEvent {
         ProgressEvent {
             operation_kind: self.operation_kind,
@@ -95,17 +90,6 @@ impl ProgressEmitter {
         self.emit_event(
             ProcessingStage::Analyzing,
             PROGRESS_ANALYZING_START,
-            message,
-            None,
-            None,
-        );
-    }
-
-    /// Emits analyzing end event
-    pub fn emit_analyzing_end(&self, message: &str) {
-        self.emit_event(
-            ProcessingStage::Analyzing,
-            PROGRESS_ANALYZING_END,
             message,
             None,
             None,
@@ -205,6 +189,7 @@ impl ProgressEmitter {
         self.emit_terminal_cancelled(message);
     }
     /// Emits custom progress event with all parameters
+    #[cfg(test)]
     pub fn emit_custom(
         &self,
         stage: ProcessingStage,

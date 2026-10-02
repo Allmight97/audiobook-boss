@@ -79,6 +79,7 @@ export class StatusPanelRuntime {
 	public async startProcessing(options?: {
 		previewSeconds?: number;
 		restart?: RestartOffer;
+		resumeReview?: boolean;
 	}): Promise<void> {
 		this.clearSingleCompletionTimeout();
 		this.clearBatchCompletionTimeout();

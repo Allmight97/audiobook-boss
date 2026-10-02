@@ -11,11 +11,9 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Outcome symbols: `MetadataOutcomeRequest`, `MetadataOutcomePlan`,
   `NamingMetadata`, `CoverArtPassthroughPolicy`, `plan_metadata_outcome`.
 - Read/write symbols: `read_metadata`, `save_metadata_intent`,
-  `finalize_artifact_metadata` (all also re-exported at the crate root for
-  external integration tests, e.g. the media-execution lane's tag round-trip
-  and artifact-finalize proofs; the lane also uses the crate-root re-exports
-  of `extract_passthrough_metadata` + `PassthroughSource` to assert chapter
-  truth on real artifacts). `finalize_artifact_metadata` is the
+  `finalize_artifact_metadata` (engine-internal; real-media proof is crate-local
+  under `src/test_cases`). Hosts read through `Engine::read_audio_metadata`
+  and change tags through session intents. `finalize_artifact_metadata` is the
   container-aware finish for a preserved merge: remux carries chapters/cover, then
   MP4-family tag truth is rewritten via mp4ameta. The FFmpeg mov muxer
   silently drops dict keys outside its known-atom table (series, series-part,

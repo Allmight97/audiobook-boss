@@ -49,7 +49,7 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
         .encoder_configurations
         .iter()
         .find(|entry| entry.encoder_type == EncoderType::Faac)
-        .unwrap();
+        .expect("fixture value");
     assert_eq!(
         faac.allowed_modes,
         [BitrateModeKind::Abr, BitrateModeKind::Vbr]
@@ -61,7 +61,7 @@ fn exposed_mode_defaults_validate_for_each_encoder() {
         .faac_profiles
         .iter()
         .find(|entry| entry.profile == abb_engine::audio::FaacProfile::HeAacV1)
-        .unwrap();
+        .expect("fixture value");
     assert_eq!(he.explicit_sample_rates, [32000, 44100, 48000]);
     for quality in &capabilities.faac_quality_presets {
         let mut settings = abb_engine::app_settings::EncoderDefaults::default().settings;

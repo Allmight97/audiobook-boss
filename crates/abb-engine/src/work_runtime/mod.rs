@@ -6,10 +6,11 @@ mod state_tests;
 mod terminal;
 mod types;
 
-pub use runtime::{InlineRunTerminal, WorkRuntime};
+pub(crate) use runtime::{InlineRunTerminal, WorkRuntime};
 pub use types::{
     ChildJobSnapshot, ChildJobStatus, OperationId, OperationListSnapshot, OperationLogEntry,
     OperationSnapshot, OperationTerminalSummary, ProgressSnapshot, ResourceLane,
-    SubmitProcessingOperationRequest, WorkOperationStatus, WorkProgressStage,
-    WorkSubmissionAccepted,
+    WorkOperationStatus, WorkProgressStage,
 };
+
+pub(crate) use types::SubmitProcessingOperationRequest;

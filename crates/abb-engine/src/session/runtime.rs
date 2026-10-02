@@ -32,7 +32,7 @@ use super::state::{GateBlock, MetadataStatus, SaveItem, SavePlan, SessionState, 
 use super::submission::{plan_verdict, Draft, PlanVerdict, SubmissionStatus, SubmitRefusal};
 use super::tag_cache::ReadTicket;
 use super::working_set::{CueChoice, InputNotice, MoveDirection, SelectionModifiers, WorkingSet};
-use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRuntime};
+use crate::app_settings::{PinnedDefaults, SettingsIntent, SettingsRun, SettingsRuntime};
 use crate::audio::{self, EncoderSettingsCapabilities};
 use crate::errors::{AppError, AppErrorEnvelope, Result};
 use crate::host::{EngineEvent, Host};
@@ -43,7 +43,7 @@ use crate::opened_audio::OpenedAudioFileQueue;
 use crate::output_artifact::CollisionPolicy;
 use crate::output_artifact::NamingPreset;
 use crate::processing::run::{
-    preflight_payload, process_payload_with_options, ProcessingRunOptions,
+    inspect_processing_plan, process_inspected_with_options, ProcessingRunOptions,
 };
 use crate::processing::title_output::UpdateReply;
 use crate::processing::SupplementalProcessingAsset;
@@ -55,9 +55,6 @@ use crate::ManagedJobRegistry;
 
 /// How many source files are read for tags at once.
 const READ_CONCURRENCY: usize = 8;
-
-/// How long template typing pauses before the template is recorded.
-const TEMPLATE_PAUSE: std::time::Duration = std::time::Duration::from_millis(400);
 
 fn remember_output(defaults: crate::app_settings::OutputDefaults) -> SettingsIntent {
     SettingsIntent::Remember {
@@ -232,6 +229,10 @@ pub enum SessionIntent {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SessionOutcome {
     Applied,
+    /// The engine could not accept or complete the request.
+    Rejected {
+        error: AppErrorEnvelope,
+    },
     /// The edits on screen were not accepted, so nothing changed. `message`
     /// is absent when a save in progress is what blocked the change.
     DraftRejected {
@@ -290,7 +291,7 @@ pub(crate) struct SessionDeps {
     /// Where audio and output defaults chosen in the session are recorded.
     pub(crate) settings: SettingsRuntime,
     /// The engine's background tasks; the session's run here.
-    pub(crate) tasks: tokio_util::task::TaskTracker,
+    pub(crate) tasks: crate::engine::EngineTasks,
     /// Where processing keeps its working files.
     pub(crate) workspace_root: PathBuf,
     /// Removes an acquisition's staged download.
@@ -337,7 +338,9 @@ struct SessionInner {
     /// Cancels the running preview's titles.
     preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
     /// Advances with every output change; a delayed record checks it.
-    output_edits: AtomicU64,
+    output_edits: Arc<AtomicU64>,
+    audio_edits: AtomicU64,
+    settings_applied: AtomicU64,
 }
 
 /// A selection change the state accepted and the reads it asked for.
@@ -346,15 +349,12 @@ struct Bound {
     reads: Vec<ReadTicket>,
 }
 
-/// An intent whose immediate effect has been applied. Await
-/// [`SessionRun::finish`] for the rest and the reply; a run that is dropped
-/// instead leaves its work undone.
-#[must_use = "an intent that began must be finished"]
+/// A disposable reply to work the engine has already accepted and started.
 pub struct SessionRun {
     session: Session,
     /// The session revision before the intent began.
     since: u64,
-    rest: Rest,
+    reply: tokio::sync::oneshot::Receiver<SessionOutcome>,
 }
 
 /// What an intent still has to do after its immediate effect.
@@ -366,10 +366,7 @@ enum Rest {
         resets: u64,
     },
     /// Record a choice in the settings, unless they were reset since `resets`.
-    Remember {
-        intent: SettingsIntent,
-        resets: u64,
-    },
+    Remember(SettingsRun),
     /// Preflight, review, then export or preview.
     Submit(Box<Draft>),
     /// Continue a reviewed submission under `policy`.
@@ -385,6 +382,11 @@ enum Rest {
     Save {
         epoch: u64,
         plan: SavePlan,
+    },
+    KeepLocation {
+        title_id: String,
+        revision: u64,
+        link: Box<ExportLink>,
     },
     CoverLoad {
         source: CoverSource,
@@ -409,37 +411,62 @@ struct ChosenResult {
     title: QueuedTitle,
     replace_cover: bool,
     mode: LookupApplyMode,
+    binding: u64,
 }
 
 impl SessionRun {
-    /// Does the intent's file or network work and returns what changed since
-    /// it began.
+    /// Waits for accepted work; dropping this wait does not cancel the work.
     pub async fn finish(self) -> SessionReply {
         let session = self.session;
-        let waited = !matches!(self.rest, Rest::Done(_));
-        // Work shutdown must wait for: what reads or writes the user's files
-        // or settings. Reads and lookups are dropped with the host.
-        let tasks = session.inner.deps.tasks.clone();
-        let outcome = match self.rest {
+        let outcome = self
+            .reply
+            .await
+            .unwrap_or_else(|error| SessionOutcome::Rejected {
+                error: AppErrorEnvelope::from(&AppError::General(format!(
+                    "Session work failed: {error}"
+                ))),
+            });
+        let update = session.lock().update_since(Some(self.since));
+        SessionReply { outcome, update }
+    }
+}
+
+impl Session {
+    async fn complete(&self, rest: Rest) -> SessionOutcome {
+        let session = self;
+        let outcome = match rest {
             Rest::Done(outcome) => outcome,
             Rest::Reads(bound) => {
                 session.complete_reads(bound).await;
                 SessionOutcome::Applied
             }
             Rest::Import { paths, resets } => session.import(paths, resets).await,
-            Rest::Remember { intent, resets } => {
-                tasks.track_future(session.remember(intent, resets)).await;
-                SessionOutcome::Applied
+            Rest::Remember(run) => {
+                let (reply, _) = run.finish().await;
+                session
+                    .inner
+                    .deps
+                    .host
+                    .emit(EngineEvent::Settings(Box::new(reply.snapshot)));
+                match reply.outcome {
+                    crate::app_settings::SettingsOutcome::Rejected { error } => {
+                        SessionOutcome::Rejected { error }
+                    }
+                    _ => SessionOutcome::Applied,
+                }
             }
-            Rest::Submit(draft) => tasks.track_future(session.submit(*draft)).await,
+            Rest::Submit(draft) => session.submit(*draft).await,
             Rest::Reviewed { mut draft, policy } => {
                 draft.payload.collision_policy = Some(policy);
-                tasks.track_future(session.submit(*draft)).await
+                session.submit(*draft).await
             }
-            Rest::Save { epoch, plan } => tasks.track_future(session.save(epoch, plan)).await,
-            Rest::Restart { draft, link } => {
-                tasks.track_future(session.restart(*draft, *link)).await
-            }
+            Rest::Save { epoch, plan } => session.save(epoch, plan).await,
+            Rest::Restart { draft, link } => session.restart(*draft, *link).await,
+            Rest::KeepLocation {
+                title_id,
+                revision,
+                link,
+            } => session.keep_location(title_id, revision, *link).await,
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
@@ -447,11 +474,8 @@ impl SessionRun {
         };
         // Other hosts, and a frontend that attached while this ran, learn
         // the result here; the caller also gets it in the reply.
-        if waited {
-            session.publish();
-        }
-        let update = session.lock().update_since(Some(self.since));
-        SessionReply { outcome, update }
+        session.publish();
+        outcome
     }
 }
 
@@ -474,7 +498,9 @@ impl Session {
                 list_unlocked: tokio::sync::Notify::new(),
                 sweeping: AtomicBool::new(false),
                 preview_cancels: Mutex::default(),
-                output_edits: AtomicU64::new(0),
+                output_edits: Arc::new(AtomicU64::new(0)),
+                audio_edits: AtomicU64::new(0),
+                settings_applied: AtomicU64::new(0),
             }),
         }
     }
@@ -612,11 +638,47 @@ impl Session {
     /// effect in order, whatever work each still has to finish.
     pub(crate) fn begin(&self, intent: SessionIntent) -> SessionRun {
         let since = self.lock().revision();
-        let rest = self.begin_rest(intent);
+        let submission = matches!(
+            &intent,
+            SessionIntent::Submit
+                | SessionIntent::Preview { .. }
+                | SessionIntent::RestartTitle { .. }
+        );
+        let reply = self
+            .inner
+            .deps
+            .tasks
+            .admit(|| {
+                let (sender, reply) = tokio::sync::oneshot::channel();
+                match self.begin_rest(intent) {
+                    Rest::Done(outcome) => {
+                        let _ = sender.send(outcome);
+                    }
+                    rest => {
+                        let session = self.clone();
+                        self.inner.deps.tasks.spawn(async move {
+                            let outcome = session.complete(rest).await;
+                            let _ = sender.send(outcome);
+                        });
+                    }
+                }
+                reply
+            })
+            .unwrap_or_else(|error| {
+                if submission {
+                    self.transition(|state| state.refuse_submission(SubmitRefusal::Closing));
+                }
+                let (sender, reply) = tokio::sync::oneshot::channel();
+                let _ = sender.send(SessionOutcome::Rejected {
+                    error: AppErrorEnvelope::from(&error),
+                });
+                reply
+            });
+        self.publish();
         SessionRun {
             session: self.clone(),
             since,
-            rest,
+            reply,
         }
     }
 
@@ -638,10 +700,38 @@ impl Session {
 
     /// Replaces the defaults and output choices after the settings changed
     /// them. Loaded titles keep their own audio choices.
-    pub(crate) fn replace_defaults(&self, defaults: &PinnedDefaults) {
+    pub(crate) fn defaults_checkpoint(&self) -> (u64, u64) {
+        let _state = self.lock();
+        (
+            self.inner.audio_edits.load(Ordering::SeqCst),
+            self.inner.output_edits.load(Ordering::SeqCst),
+        )
+    }
+
+    pub(crate) fn replace_defaults(
+        &self,
+        defaults: &PinnedDefaults,
+        checkpoint: (u64, u64),
+        revision: u64,
+        reset: bool,
+    ) {
         self.transition(|state| {
-            state.audio.replace(&defaults.encoder_defaults);
-            state.output = OutputPlan::from_defaults(&defaults.output_defaults);
+            if revision <= self.inner.settings_applied.load(Ordering::SeqCst) {
+                return;
+            }
+            self.inner
+                .settings_applied
+                .store(revision, Ordering::SeqCst);
+            if self.inner.audio_edits.load(Ordering::SeqCst) == checkpoint.0
+                && (reset || checkpoint.0 == 0)
+            {
+                state.audio.replace(&defaults.encoder_defaults);
+            }
+            if self.inner.output_edits.load(Ordering::SeqCst) == checkpoint.1
+                && (reset || checkpoint.1 == 0)
+            {
+                state.output = OutputPlan::from_defaults(&defaults.output_defaults);
+            }
         });
         self.publish();
     }
@@ -712,11 +802,30 @@ impl Session {
                 self.edit_output(|output| output.set_include_year(include_year))
             }
             I::SetNamingTemplate { template } => {
-                self.transition(|state| state.output.set_template(template));
-                self.remember_output_later();
+                let defaults = self.transition(|state| {
+                    state.output.set_template(template);
+                    self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
+                    state.output.defaults()
+                });
+                let run = self.inner.deps.settings.remember_output_after_pause(
+                    defaults,
+                    Arc::clone(&self.inner.output_edits),
+                    &self.inner.deps.tasks,
+                );
+                let host = self.inner.deps.host.clone();
+                self.inner.deps.tasks.spawn(async move {
+                    let (reply, _) = run.finish().await;
+                    host.emit(EngineEvent::Settings(Box::new(reply.snapshot)));
+                });
                 Rest::Done(SessionOutcome::Applied)
             }
-            I::SetDefaultAudio { edit } => match self.transition(|state| state.audio.edit(edit)) {
+            I::SetDefaultAudio { edit } => match self.transition(|state| {
+                let defaults = state.audio.edit(edit);
+                if defaults.is_some() {
+                    self.inner.audio_edits.fetch_add(1, Ordering::SeqCst);
+                }
+                defaults
+            }) {
                 Some(defaults) => self.remember_later(SettingsIntent::Remember {
                     encoder_defaults: Some(defaults),
                     output_defaults: None,
@@ -771,8 +880,14 @@ impl Session {
             }
             I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
             I::KeepTitleLocation { title_id, revision } => {
-                self.transition(|state| state.keep_location(&title_id, revision));
-                Rest::Done(SessionOutcome::Applied)
+                match self.lock().location_offer(&title_id, revision) {
+                    Some(link) => Rest::KeepLocation {
+                        title_id,
+                        revision,
+                        link: Box::new(link),
+                    },
+                    None => Rest::Done(SessionOutcome::Superseded),
+                }
             }
 
             I::LookupOpen => self.begin_lookup_open(),
@@ -938,9 +1053,12 @@ impl Session {
     }
 
     async fn import_acquired_files(&self, job: &AcquisitionJob) -> AcquisitionHandoff {
-        let _in_order = self.inner.imports.lock().await;
         let resets = self.inner.resets.load(Ordering::SeqCst);
+        let _in_order = self.inner.imports.lock().await;
         let removed = |reason| AcquisitionHandoff::Removed { reason };
+        if self.inner.resets.load(Ordering::SeqCst) != resets {
+            return removed(HandoffRefusal::NothingAdded);
+        }
         let paths: Vec<PathBuf> = job
             .materialized_files
             .iter()
@@ -954,9 +1072,12 @@ impl Session {
         let analyzed = match analyzed {
             Ok(analyzed) => analyzed.files,
             Err(error) => {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    return removed(HandoffRefusal::NothingAdded);
+                }
                 return removed(HandoffRefusal::ImportFailed {
                     error: AppErrorEnvelope::from(&error),
-                })
+                });
             }
         };
         let titles = staged_titles(job);
@@ -970,6 +1091,9 @@ impl Session {
                 return removed(HandoffRefusal::NothingAdded);
             }
             let attempt = self.transition(|state| {
+                if self.inner.resets.load(Ordering::SeqCst) != resets {
+                    return Some(Err(HandoffRefusal::NothingAdded));
+                }
                 if state.working_set.order_locked() {
                     return None;
                 }
@@ -984,7 +1108,11 @@ impl Session {
             Ok((bound, count)) => {
                 self.complete_reads(bound).await;
                 self.publish();
-                AcquisitionHandoff::Imported { count }
+                if self.inner.resets.load(Ordering::SeqCst) == resets {
+                    AcquisitionHandoff::Imported { count }
+                } else {
+                    removed(HandoffRefusal::NothingAdded)
+                }
             }
             Err(reason) => {
                 self.publish();
@@ -1033,9 +1161,9 @@ impl Session {
         self.publish();
         let checking = draft.clone();
         let plan = blocking(move || {
-            preflight_payload(
-                checking.payload,
-                checking.metadata,
+            inspect_processing_plan(
+                &checking.payload,
+                checking.metadata.as_ref(),
                 checking.preview_seconds,
             )
         })
@@ -1044,9 +1172,10 @@ impl Session {
             Ok(plan) => plan,
             Err(error) => return self.end_submission(&draft, failed(&error)),
         };
+        let public = plan.plan.to_public();
         // A policy applies only to collisions the user reviewed; a new one
         // that appeared meanwhile sends the submission back to review.
-        let collided: Vec<_> = plan
+        let collided: Vec<_> = public
             .outputs
             .iter()
             .filter(|output| output.collision.is_some())
@@ -1057,7 +1186,7 @@ impl Session {
                 .iter()
                 .any(|collision| !reviewed.contains(collision))
         });
-        match plan_verdict(&plan) {
+        match plan_verdict(&public) {
             PlanVerdict::Blocked(message) => {
                 self.end_submission(&draft, SubmissionStatus::Blocked { message })
             }
@@ -1066,8 +1195,11 @@ impl Session {
             }
             _ if unreviewed => self.hold_for_review(draft, collided),
             PlanVerdict::Review(_) | PlanVerdict::Proceed => {
-                self.accept(draft.approved(plan.collision_policy, plan.plan_signature))
-                    .await
+                self.accept(
+                    draft.approved(public.collision_policy, public.plan_signature),
+                    plan,
+                )
+                .await
             }
         }
     }
@@ -1094,9 +1226,13 @@ impl Session {
         SessionOutcome::Applied
     }
 
-    async fn accept(&self, draft: Draft) -> SessionOutcome {
+    async fn accept(
+        &self,
+        draft: Draft,
+        inspected: crate::processing::plan::InspectedProcessingPlan,
+    ) -> SessionOutcome {
         let deps = &self.inner.deps;
-        if let Some(seconds) = draft.preview_seconds {
+        if draft.preview_seconds.is_some() {
             let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
                 .map(|_| Arc::default())
                 .collect();
@@ -1108,13 +1244,12 @@ impl Session {
             }
             self.transition(SessionState::start_preview);
             self.publish();
-            let result = process_payload_with_options(
+            let result = process_inspected_with_options(
                 deps.host.clone(),
                 deps.jobs.clone(),
                 deps.workspace_root.clone(),
                 draft.payload.clone(),
-                draft.metadata.clone(),
-                Some(seconds),
+                inspected,
                 ProcessingRunOptions {
                     title_cancels: cancels,
                     ..ProcessingRunOptions::default()
@@ -1143,6 +1278,7 @@ impl Session {
                     let session = self.clone();
                     move |snapshot| session.export_finished(&snapshot)
                 })),
+                inspected,
             )
             .await;
         let status = match submitted {
@@ -1164,6 +1300,7 @@ impl Session {
                     title: draft.title.clone(),
                 }
             }
+            Err(_) if deps.tasks.is_closed() => closing(),
             Err(error) => failed(&error),
         };
         self.end_submission(&draft, status)
@@ -1210,52 +1347,20 @@ impl Session {
     fn edit_output(&self, change: impl FnOnce(&mut OutputPlan)) -> Rest {
         let defaults = self.transition(|state| {
             change(&mut state.output);
+            self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
             state.output.defaults()
         });
-        self.inner.output_edits.fetch_add(1, Ordering::SeqCst);
         self.remember_later(remember_output(defaults))
     }
 
-    /// Records a choice once the intent's immediate effect is done. The
-    /// reset count is read now, with the choice, so a settings reset that
-    /// lands first wins.
+    /// Reserves the choice's settings turn before another intent can begin.
     fn remember_later(&self, intent: SettingsIntent) -> Rest {
-        Rest::Remember {
-            intent,
-            resets: self.inner.deps.settings.resets(),
-        }
-    }
-
-    /// Records the output choices once template typing has paused, so a
-    /// keystroke does not write the settings file.
-    fn remember_output_later(&self) {
-        let edit = self.inner.output_edits.fetch_add(1, Ordering::SeqCst) + 1;
-        let resets = self.inner.deps.settings.resets();
-        if tokio::runtime::Handle::try_current().is_err() {
-            return;
-        }
-        let session = self.clone();
-        self.inner.deps.tasks.spawn(async move {
-            tokio::time::sleep(TEMPLATE_PAUSE).await;
-            if session.inner.output_edits.load(Ordering::SeqCst) != edit {
-                return;
-            }
-            let defaults = session.lock().output.defaults();
-            session.remember(remember_output(defaults), resets).await;
-        });
-    }
-
-    /// Records a choice in the settings and tells hosts what the settings
-    /// are now. A choice made before a reset that already applied is dropped.
-    async fn remember(&self, intent: SettingsIntent, resets: u64) {
-        let settings = &self.inner.deps.settings;
-        let Some(reply) = settings.dispatch_unless_reset(intent, resets).await else {
-            return;
-        };
-        self.inner
-            .deps
-            .host
-            .emit(EngineEvent::Settings(Box::new(reply.snapshot)));
+        Rest::Remember(
+            self.inner
+                .deps
+                .settings
+                .begin(intent, &self.inner.deps.tasks),
+        )
     }
 
     // ---- Cover ----
@@ -1303,6 +1408,44 @@ impl Session {
     }
 
     // ---- Save ----
+
+    async fn keep_location(
+        &self,
+        title_id: String,
+        revision: u64,
+        link: ExportLink,
+    ) -> SessionOutcome {
+        let published = match link.title.keep_location(revision) {
+            Ok(published) => published,
+            Err(error) => {
+                return SessionOutcome::Rejected {
+                    error: AppErrorEnvelope::from(&error),
+                }
+            }
+        };
+        if published {
+            let title = Arc::clone(&link.title);
+            if let Err(error) = blocking(move || {
+                title.apply_published();
+                Ok(())
+            })
+            .await
+            {
+                return SessionOutcome::Rejected {
+                    error: AppErrorEnvelope::from(&error),
+                };
+            }
+        }
+        self.transition(|state| state.kept_location(&title_id, revision));
+        match link.title.update_state().map(|update| update.status) {
+            Some(crate::processing::OutputUpdateStatus::Failed { message }) => {
+                SessionOutcome::Rejected {
+                    error: AppErrorEnvelope::from(&AppError::General(message)),
+                }
+            }
+            _ => SessionOutcome::Applied,
+        }
+    }
 
     fn begin_save(&self) -> Rest {
         // Source paths are canonical, so match either spelling of the root.
@@ -1390,6 +1533,7 @@ impl Session {
             }
         }
         self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
+        self.sources_released();
         SessionOutcome::Applied
     }
 
@@ -1669,27 +1813,40 @@ impl Session {
 
     /// Selects a queued title through the draft gate and waits for its tags.
     /// Returns whether the form is bound to it.
-    async fn select_title(&self, title: &QueuedTitle) -> bool {
+    async fn select_title(
+        &self,
+        title: &QueuedTitle,
+        request: u64,
+        expected_binding: u64,
+    ) -> std::result::Result<bool, SessionOutcome> {
         let bound = self.transition(|state| {
-            let index = state.working_set.index_of(&title.title_id)?;
-            if state.working_set.files()[index].path != title.path {
-                return None;
+            if state.lookup.request != request || state.binding != expected_binding {
+                return Err(SessionOutcome::Superseded);
             }
-            state.gate().ok()?;
-            state
-                .working_set
-                .select_file(index, SelectionModifiers::default());
-            Some(Bound {
-                reads: state.rebind(),
-                binding: state.binding,
-            })
-        });
+            Ok((|| {
+                let index = state.working_set.index_of(&title.title_id)?;
+                if state.working_set.files()[index].path != title.path {
+                    return None;
+                }
+                state.gate().ok()?;
+                state
+                    .working_set
+                    .select_file(index, SelectionModifiers::default());
+                Some(Bound {
+                    reads: state.rebind(),
+                    binding: state.binding,
+                })
+            })())
+        })?;
         let Some(bound) = bound else {
-            return false;
+            return Ok(false);
         };
         let binding = bound.binding;
         self.complete_reads(bound).await;
-        self.lock().binding == binding
+        if self.lock().binding != binding {
+            return Err(SessionOutcome::Superseded);
+        }
+        Ok(true)
     }
 
     fn begin_lookup_apply(&self, index: usize) -> Rest {
@@ -1705,6 +1862,7 @@ impl Session {
                 title,
                 replace_cover: state.lookup.replace_cover,
                 mode: state.lookup.apply_mode,
+                binding: state.binding,
             })
         });
         match chosen {
@@ -1722,6 +1880,7 @@ impl Session {
             title,
             replace_cover,
             mode,
+            binding,
         } = chosen;
 
         let mut cover = None;
@@ -1735,10 +1894,10 @@ impl Session {
                 }
             }
         }
-        if self.lock().lookup.request != request {
-            return SessionOutcome::Superseded;
-        }
-        let selected = self.select_title(&title).await;
+        let selected = match self.select_title(&title, request, binding).await {
+            Ok(selected) => selected,
+            Err(outcome) => return outcome,
+        };
         let metadata = lookup::result_metadata(&result);
         let applied = self.lookup_step(request, |state| {
             let applied = selected && state.apply_lookup(&title, &metadata, cover);
@@ -1778,16 +1937,19 @@ impl Session {
                 });
                 return None;
             };
-            Some((next, title))
+            Some((next, title, state.binding))
         });
         let Some(next) = next else {
             return SessionOutcome::Superseded;
         };
-        let Some((next, title)) = next else {
+        let Some((next, title, binding)) = next else {
             return SessionOutcome::Applied;
         };
 
-        let selected = self.select_title(&title).await;
+        let selected = match self.select_title(&title, request, binding).await {
+            Ok(selected) => selected,
+            Err(outcome) => return outcome,
+        };
         let moved = self.lookup_step(request, |state| {
             if !selected {
                 state.lookup.status = Some(LookupStatus::NextTitleRejected);

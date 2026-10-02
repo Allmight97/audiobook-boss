@@ -37,6 +37,7 @@ impl PassthroughMetadata {
         }
     }
 
+    #[cfg(test)]
     pub fn cover_art_only(mut self) -> Option<Self> {
         self.chapters.clear();
         self.into_option()

@@ -95,6 +95,30 @@ describe('engine link', () => {
 		expect(link.titles().files[1]).toBe(second);
 	});
 
+	it('does not replace a live frontend when a disposed link finishes registering listeners', async () => {
+		const engine = createFakeEngine();
+		let registered!: (stop: () => void) => void;
+		let stopped = false;
+		let attachments = 0;
+		engine.listenSessionUpdates = () =>
+			new Promise((resolve) => {
+				registered = resolve;
+			});
+		const attach = engine.attach.bind(engine);
+		engine.attach = () => {
+			attachments++;
+			return attach();
+		};
+		const link = linkTo(engine);
+		link.dispose();
+		registered(() => {
+			stopped = true;
+		});
+		await expect(link.ready()).rejects.toThrow('disposed');
+		expect(attachments).toBe(0);
+		expect(stopped).toBe(true);
+	});
+
 	it('reports a refused attach through the intent that needed it', async () => {
 		const engine = createFakeEngine();
 		engine.attach = async () => {

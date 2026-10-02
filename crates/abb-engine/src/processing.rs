@@ -1,15 +1,15 @@
-pub mod context;
-pub mod job_registry;
-pub mod lifecycle;
+mod context;
+mod job_registry;
+mod lifecycle;
 mod output_parent_cleanup;
 pub(crate) mod plan;
-pub mod preview_config;
-pub mod progress;
+mod preview_config;
+mod progress;
 pub(crate) mod run;
-pub mod session;
+mod session;
 mod terminal_outcomes;
 pub(crate) mod title_output;
-pub mod types;
+mod types;
 
 use serde::{Deserialize, Serialize};
 
@@ -29,20 +29,31 @@ pub enum ProcessingStage {
 }
 
 pub use abb_processing_core::{classify_run_terminal, RunTerminalClass};
-pub use context::{OutputConfig, ProcessingContext};
-pub use job_registry::{
-    AggregateJobStatus, CancellationChecker, JobId, JobRegistry, MaxConcurrentJobsCapabilities,
-};
-pub use lifecycle::{operation_kind_log_label, OperationKind, OperationResultSummary};
-pub use preview_config::PreviewConfig;
-pub use progress::{
-    converting_percentage_from_seconds, EventStage, ProgressEmitter, ProgressEvent, QueueEvent,
-    QueueItem,
-};
-pub use run::preflight_payload;
-pub use session::ProcessingSession;
-pub use title_output::{OutputUpdate, OutputUpdateStatus, TitleOutput};
+pub(crate) use context::{OutputConfig, ProcessingContext};
+pub use job_registry::MaxConcurrentJobsCapabilities;
+pub(crate) use lifecycle::operation_kind_log_label;
+pub use lifecycle::{OperationKind, OperationResultSummary};
+pub(crate) use preview_config::PreviewConfig;
+pub use progress::{EventStage, ProgressEvent, QueueEvent, QueueItem};
+pub(crate) use session::ProcessingSession;
+pub(crate) use title_output::TitleOutput;
+pub use title_output::{OutputUpdate, OutputUpdateStatus};
 pub use types::{
     AudioHandling, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,
 };
+
+pub(crate) use job_registry::{CancellationChecker, JobRegistry};
+pub(crate) use progress::{converting_percentage_from_seconds, ProgressEmitter};
+#[cfg(test)]
+pub(crate) fn preflight_payload(
+    payload: ProcessPayload,
+    metadata: Option<std::collections::HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+) -> crate::Result<ProcessingPreflightPlan> {
+    run::inspect_processing_plan(&payload, metadata.as_ref(), preview_seconds)
+        .map(|inspected| inspected.plan.to_public())
+}
+
+pub(crate) use context::processing::ProgressEventListener;
+pub(crate) use progress::{EtaEstimator, PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START};

@@ -1,21 +1,97 @@
-#[path = "cases/integration_media_execution_tests.rs"]
-mod integration_media_execution_tests;
-#[path = "cases/integration_reqwest_resolver_tests.rs"]
-mod integration_reqwest_resolver_tests;
-#[path = "cases/integration_session_tests.rs"]
-mod integration_session_tests;
-#[path = "cases/unit_audio_command_result_schema_tests.rs"]
-mod unit_audio_command_result_schema_tests;
-#[path = "cases/unit_audio_job_registry_tests.rs"]
-mod unit_audio_job_registry_tests;
+//! The developer host exercised as a separately compiled executable.
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
-#[path = "cases/unit_error_envelope_tests.rs"]
-mod unit_error_envelope_tests;
-#[path = "cases/unit_error_path_sanitization_tests.rs"]
-mod unit_error_path_sanitization_tests;
-#[path = "cases/unit_runtime_settings_capabilities_tests.rs"]
-mod unit_runtime_settings_capabilities_tests;
-#[path = "cases/unit_settings_encoder_tests.rs"]
-mod unit_settings_encoder_tests;
-#[path = "cases/unit_settings_validation_tests.rs"]
-mod unit_settings_validation_tests;
+fn book(root: &Path) -> PathBuf {
+    let path = root.join("alpha.m4b");
+    let ffmpeg = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+    let result = Command::new(ffmpeg)
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=mono",
+            "-t",
+            "0.2",
+            "-c:a",
+            "aac",
+            "-metadata",
+            "title=Alpha",
+            "-metadata",
+            "artist=Source Author",
+            "-metadata",
+            "genre=Fantasy",
+            "-f",
+            "mp4",
+        ])
+        .arg(&path)
+        .output()
+        .expect("synthesize fixture");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    path
+}
+
+fn genre(path: &Path) -> Option<String> {
+    mp4ameta::Tag::read_from_path(path)
+        .expect("read real tags")
+        .genre()
+        .map(str::to_owned)
+}
+
+#[test]
+fn the_developer_tool_imports_edits_and_saves_a_real_file() {
+    let root = tempfile::TempDir::new().expect("state root");
+    let source = book(root.path());
+    let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&source)
+        .args(["--set", "genre=Mystery", "--save", "--json", "--state-dir"])
+        .arg(root.path().join("tool-state"))
+        .output()
+        .expect("run developer host");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let session: serde_json::Value = serde_json::from_slice(&result.stdout).expect("snapshot");
+    assert_eq!(session["metadata"]["status"]["succeeded"], 1);
+    assert_eq!(genre(&source).as_deref(), Some("Mystery"));
+}
+
+#[test]
+fn the_developer_tool_exports_with_the_edited_tags() {
+    let root = tempfile::TempDir::new().expect("state root");
+    let source = book(root.path());
+    let out = root.path().join("exports");
+    let result = Command::new(env!("CARGO_BIN_EXE_abb-dev"))
+        .arg(&source)
+        .args([
+            "--set",
+            "genre=Mystery",
+            "--template",
+            "{title}",
+            "--export",
+            "--out",
+        ])
+        .arg(&out)
+        .arg("--state-dir")
+        .arg(root.path().join("tool-state"))
+        .output()
+        .expect("run developer host");
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(String::from_utf8_lossy(&result.stdout).contains("Export: Completed"));
+    assert_eq!(genre(&out.join("Alpha.m4b")).as_deref(), Some("Mystery"));
+    assert_eq!(genre(&source).as_deref(), Some("Fantasy"));
+}

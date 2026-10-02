@@ -164,7 +164,7 @@ async fn unreadable_settings_leave_runtime_defaults_and_offer_recovery() {
     std::fs::write(
         config_dir(&root).join("app-settings.json"),
         serde_json::json!({
-            "maxConcurrentJobs": { "mode": "auto" },
+            "maxConcurrentJobs": { "mode": "fixed", "value": 1 },
             "encoderDefaults": {
                 "settings": { "encoderType": "retired_encoder" },
                 "sampleRate": "auto"
@@ -198,6 +198,12 @@ async fn unreadable_settings_leave_runtime_defaults_and_offer_recovery() {
         Some("/chosen")
     );
     assert_eq!(rig.on_disk().encoder_defaults, EncoderDefaults::default());
+    assert_eq!(
+        reply.snapshot.concurrency.preference,
+        ConcurrencyPreference::Fixed(1)
+    );
+    assert_eq!(reply.snapshot.concurrency.effective, 1);
+    assert_eq!(rig.jobs.max_concurrent(), 1);
 }
 
 // ---- Acceptance and durability ----
@@ -441,22 +447,66 @@ async fn a_failed_reset_restores_concurrency_and_keeps_unsaved_choices_retryable
 }
 
 #[tokio::test]
-async fn a_choice_made_before_a_reset_does_not_come_back_after_it() {
+async fn reset_follows_earlier_template_typing_and_preserves_a_later_choice() {
     let rig = start();
-    let before = rig.settings.resets();
+    let tasks = crate::engine::EngineTasks::default();
+    let revision = Arc::new(std::sync::atomic::AtomicU64::new(1));
+    let before =
+        rig.settings
+            .remember_output_after_pause(output_in("/before-reset"), revision, &tasks);
+    let reset = rig.settings.begin(SettingsIntent::Reset, &tasks);
+    let after = rig.settings.begin(remember_output("/after-reset"), &tasks);
+    after.finish().await;
+    reset.finish().await;
+    before.finish().await;
+    assert_eq!(rig.on_disk().output_defaults, output_in("/after-reset"));
+}
 
-    rig.settings.dispatch(SettingsIntent::Reset).await;
-    let late = rig
-        .settings
-        .dispatch_unless_reset(remember_output("/before-reset"), before)
-        .await;
+#[tokio::test]
+async fn reload_merges_unsaved_choices_and_applies_the_loaded_concurrency() {
+    let root = TempDir::new().expect("root");
+    std::fs::create_dir_all(config_dir(&root)).expect("folder");
+    let file = config_dir(&root).join("app-settings.json");
+    std::fs::write(&file, "unreadable settings").expect("unreadable startup");
+    let rig = start_in(root);
+    let remembered = rig.send(remember_output("/chosen-before-reload")).await;
+    assert!(remembered.snapshot.save_error.is_some());
+    let saved = AppSettings {
+        max_concurrent_jobs: ConcurrencyPreference::Fixed(1),
+        ..Default::default()
+    };
+    std::fs::write(&file, serde_json::to_vec(&saved).expect("settings JSON"))
+        .expect("repair settings");
+    let reply = rig.send(SettingsIntent::Reload).await;
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert_eq!(
+        reply.snapshot.settings.expect("loaded").output_defaults,
+        output_in("/chosen-before-reload")
+    );
+    assert_eq!(
+        rig.on_disk().output_defaults,
+        output_in("/chosen-before-reload")
+    );
+    assert_eq!(rig.jobs.max_concurrent(), 1);
+    assert!(reply.snapshot.save_error.is_none());
+}
 
-    assert!(late.is_none(), "the reset wins");
-    let settings = rig.settings.snapshot().await.settings.expect("settings");
-    assert_eq!(settings.output_defaults.output_directory, None);
-    assert!(rig
-        .settings
-        .dispatch_unless_reset(remember_output("/after-reset"), rig.settings.resets())
-        .await
-        .is_some());
+#[tokio::test]
+async fn accepted_settings_preserve_independent_patches_without_host_reply_ordering() {
+    let rig = start();
+    let tasks = crate::engine::EngineTasks::default();
+    let output = rig.settings.begin(remember_output("/chosen"), &tasks);
+    let concurrency = rig.settings.begin(
+        SettingsIntent::SetConcurrency {
+            preference: ConcurrencyPreference::Fixed(1),
+        },
+        &tasks,
+    );
+    concurrency.finish().await;
+    output.finish().await;
+    assert_eq!(
+        rig.on_disk().max_concurrent_jobs,
+        ConcurrencyPreference::Fixed(1)
+    );
+    assert_eq!(rig.on_disk().output_defaults, output_in("/chosen"));
 }

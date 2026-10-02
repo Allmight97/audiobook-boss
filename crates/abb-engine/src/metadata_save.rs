@@ -9,41 +9,35 @@ use crate::processing::{
     ProgressEvent,
 };
 use crate::work_runtime::{InlineRunTerminal, WorkRuntime};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub type MetadataSaveSummary = OperationResultSummary;
 const METADATA_SAVE_CANCELLED_MESSAGE: &str = "Metadata save cancelled.";
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MetadataSaveRequest {
+#[derive(Debug, Clone)]
+pub(crate) struct MetadataSaveRequest {
     pub file_path: String,
     pub metadata_patch: MetadataIntentPatch,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum MetadataSaveResultStatus {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MetadataSaveResultStatus {
     Success,
     Cancelled,
     Failed,
 }
 
-/// Per-file outcome the frontend uses to clear or retain drafts. The reason
-/// for each outcome is the operation child's terminal message in Work Center.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MetadataSaveResultEntry {
+/// Per-file outcome the session uses to clear or retain accepted edits.
+/// The Work Center renders the operation child's terminal message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MetadataSaveResultEntry {
     pub input_index: usize,
     pub file_path: String,
     pub status: MetadataSaveResultStatus,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MetadataSaveBatchResult {
-    pub summary: MetadataSaveSummary,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MetadataSaveBatchResult {
+    pub summary: OperationResultSummary,
     pub results: Vec<MetadataSaveResultEntry>,
 }
 

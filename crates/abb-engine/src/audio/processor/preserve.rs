@@ -127,7 +127,7 @@ pub(super) fn copy_with_cancellation(
 }
 
 pub(super) fn emit_progress(context: &ProcessingContext, fraction: f32, message: &str) {
-    use crate::processing::progress::{PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START};
+    use crate::processing::{PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START};
     context.new_emitter().emit_converting_progress(
         PROGRESS_CONVERTING_START
             + (PROGRESS_CONVERTING_MAX - PROGRESS_CONVERTING_START) * fraction,
@@ -196,7 +196,7 @@ mod tests {
         );
         assert!(
             progress.last().expect("copy reports progress")
-                < &crate::processing::progress::PROGRESS_CONVERTING_MAX,
+                < &crate::processing::PROGRESS_CONVERTING_MAX,
             "joining must retain its own progress interval"
         );
     }

@@ -117,9 +117,21 @@ impl RemoteAcquisitionLifecycle {
                 "Select at least one remote title to acquire.".to_string(),
             ));
         }
-        if runtime.inner.tasks.is_closed() {
-            return Err(AppError::General("ABB is closing.".to_string()));
-        }
+        let tasks = runtime.inner.tasks.clone();
+        let job = tasks.admit(|| self.register_acquisition(runtime, plan))??;
+        self.publish(&job);
+        Ok(job)
+    }
+
+    fn register_acquisition(
+        &self,
+        runtime: RemoteSourceRuntime,
+        plan: super::AcquisitionPlan,
+    ) -> Result<RemoteAcquisitionJob> {
+        let mut registered = self
+            .acquisition_tasks
+            .lock()
+            .map_err(|_| AppError::General("Remote acquisition task lock failed".into()))?;
         let job_id = uuid::Uuid::new_v4().to_string();
         let job_dir = self.staging.create_job_dir(&job_id)?;
         let job = RemoteAcquisitionJob {
@@ -136,7 +148,6 @@ impl RemoteAcquisitionLifecycle {
             .lock()
             .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
             .insert(job_id, job.clone());
-        self.publish(&job);
         let spawned_job_id = job.job_id.clone();
         let tasks = runtime.inner.tasks.clone();
         let abort_handle = tasks
@@ -148,7 +159,7 @@ impl RemoteAcquisitionLifecycle {
                     .await;
             })
             .abort_handle();
-        self.store_acquisition_task(&job.job_id, abort_handle);
+        registered.insert(job.job_id.clone(), abort_handle);
         Ok(job)
     }
 
@@ -329,38 +340,6 @@ impl RemoteAcquisitionLifecycle {
                     .map(|job| job.status == types::RemoteAcquisitionStatus::Cancelled)
             })
             .unwrap_or(false)
-    }
-
-    fn job_is_active(&self, job_id: &str) -> bool {
-        self.jobs
-            .lock()
-            .ok()
-            .and_then(|jobs| {
-                jobs.get(job_id).map(|job| {
-                    matches!(
-                        job.status,
-                        types::RemoteAcquisitionStatus::Planned
-                            | types::RemoteAcquisitionStatus::Acquiring
-                            | types::RemoteAcquisitionStatus::Materialized
-                    )
-                })
-            })
-            .unwrap_or(false)
-    }
-
-    fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
-        let Ok(mut tasks) = self.acquisition_tasks.lock() else {
-            log::warn!(
-                "remote_source acquisition job_id={} task_registry_store_failed=true",
-                job_id
-            );
-            return;
-        };
-        tasks.insert(job_id.to_string(), abort_handle);
-        drop(tasks);
-        if !self.job_is_active(job_id) {
-            self.remove_acquisition_task(job_id);
-        }
     }
 
     fn remove_acquisition_task(&self, job_id: &str) {

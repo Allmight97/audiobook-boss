@@ -41,7 +41,7 @@ pub(crate) struct RemoteSourceConfig {
     /// Host-supplied helper location; `None` resolves it beside the executable.
     pub(crate) aaxclean_helper: Option<PathBuf>,
     /// The engine's background tasks; acquisitions run here.
-    pub(crate) tasks: tokio_util::task::TaskTracker,
+    pub(crate) tasks: crate::engine::EngineTasks,
 }
 
 /// Imports a finished acquisition's files into the session.
@@ -63,7 +63,7 @@ struct RemoteSourceRuntimeInner {
     lifecycle: RemoteAcquisitionLifecycle,
     pending_audible_auth: Mutex<Option<PendingAudibleAuth>>,
     indexer_adapter: ReqwestProwlarrAdapter,
-    tasks: tokio_util::task::TaskTracker,
+    tasks: crate::engine::EngineTasks,
     handoff: OnceLock<Handoff>,
     /// A connection save holds this exclusively; searches and grabs share it.
     indexer_turn: tokio::sync::RwLock<()>,
@@ -432,7 +432,7 @@ mod tests {
                 ),
                 pending_audible_auth: Mutex::new(None),
                 indexer_adapter: ReqwestProwlarrAdapter::new().expect("indexer adapter"),
-                tasks: tokio_util::task::TaskTracker::new(),
+                tasks: crate::engine::EngineTasks::default(),
                 handoff: OnceLock::new(),
                 indexer_turn: tokio::sync::RwLock::new(()),
                 sent_releases: Mutex::default(),

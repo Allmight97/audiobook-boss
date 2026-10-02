@@ -196,13 +196,14 @@ export function createRemoteSourceOwner(deps: RemoteSourceOwnerDeps): RemoteSour
 				);
 				return;
 			}
-			workflow.clearIndexerResults();
 			const saved = await indexerConnection.save();
-			if (saved)
+			if (saved) {
+				workflow.clearIndexerResults();
 				state.patch(
 					{ statusMessage: 'Indexer connection saved. Search again before grabbing.' },
 					'indexer',
 				);
+			}
 			if (saved && state.current().isOpen && state.current().providerId === 'indexer') {
 				await workflow.run({ type: 'refreshAccount' });
 			}

@@ -1167,6 +1167,8 @@ export type SessionIntent =
 
 /**  Whether an intent took effect. Details a user needs are in the snapshot. */
 export type SessionOutcome = { kind: "applied" } |
+/**  The engine could not accept or complete the request. */
+{ kind: "rejected"; error: AppErrorEnvelope } |
 /**
  *  The edits on screen were not accepted, so nothing changed. `message`
  *  is absent when a save in progress is what blocked the change.

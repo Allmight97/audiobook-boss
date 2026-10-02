@@ -202,6 +202,16 @@ impl Exports {
         true
     }
 
+    pub(crate) fn accepts_reply(&self, edit: &OutputEdit) -> bool {
+        self.links
+            .get(&edit.title_id)
+            .is_some_and(|link| Arc::ptr_eq(&link.title, &edit.title))
+            && self
+                .tickets
+                .get(&edit.title_id)
+                .is_none_or(|ticket| ticket.offer.revision <= edit.revision)
+    }
+
     /// The edit no longer moves the output.
     pub(crate) fn withdraw(&mut self, title_id: &str) {
         self.tickets.remove(title_id);
@@ -350,5 +360,27 @@ mod tests {
         assert!(exports.offers().is_empty());
         let later = exports.edits(|_| None).remove(0);
         assert!(!exports.offer(&later, from, to, directory, naming));
+    }
+
+    #[test]
+    fn an_older_reply_cannot_remove_a_newer_offer_or_a_replacement_export() {
+        let mut exports = linked();
+        let old = exports.edits(|_| None).remove(0);
+        let new = exports.edits(|_| None).remove(0);
+        exports.offer(
+            &new,
+            Path::new("/old"),
+            Path::new("/new"),
+            None,
+            OutputNamingConfig::default(),
+        );
+        assert!(!exports.accepts_reply(&old));
+        assert!(exports.accepts_reply(&new));
+        exports.link(
+            &OperationId("replacement".into()),
+            [("alpha".into(), PathBuf::from("/books/alpha.m4b"))],
+            &[output()],
+        );
+        assert!(!exports.accepts_reply(&new));
     }
 }

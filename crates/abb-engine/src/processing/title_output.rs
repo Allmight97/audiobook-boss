@@ -93,7 +93,7 @@ enum Phase {
     Pending,
     Published {
         path: PathBuf,
-        identity: FileIdentity,
+        identity: Option<FileIdentity>,
     },
     /// Ended without publishing.
     Ended,
@@ -106,6 +106,8 @@ struct State {
     update: Option<OutputUpdate>,
     /// The newest edit revision seen; an older one arriving late is ignored.
     newest: u64,
+    moving: Option<(u64, Tags, PathBuf)>,
+    kept_location: Option<PathBuf>,
 }
 
 type Writer = dyn Fn(&Path, &MetadataIntentPatch) -> Result<()> + Send + Sync;
@@ -144,6 +146,8 @@ impl TitleOutput {
                 phase: Phase::Pending,
                 update: None,
                 newest: 0,
+                moving: None,
+                kept_location: None,
             }),
             writing: Mutex::new(()),
             settled: tokio::sync::watch::channel(None).0,
@@ -182,12 +186,19 @@ impl TitleOutput {
         let reply = match &state.phase {
             Phase::Ended => UpdateReply::NoOutput,
             _ if *target == tags => UpdateReply::Unchanged,
-            Phase::Pending if location != self.plan.requested => UpdateReply::MovesOutput {
-                from: self.plan.requested.clone(),
-                to: location,
-            },
+            Phase::Pending
+                if location != self.plan.requested
+                    && state.kept_location.as_ref() != Some(&location) =>
+            {
+                state.moving = Some((revision, tags, location.clone()));
+                UpdateReply::MovesOutput {
+                    from: self.plan.requested.clone(),
+                    to: location,
+                }
+            }
             phase => {
                 let published = matches!(phase, Phase::Published { .. });
+                state.moving = None;
                 state.wanted = Some((revision, tags));
                 state.update = Some(OutputUpdate {
                     revision,
@@ -207,6 +218,38 @@ impl TitleOutput {
         Ok(reply)
     }
 
+    /// Keeps the published path while accepting the most recent tags the
+    /// chosen offer described. Later Saves at that same naming are tag edits.
+    pub(crate) fn keep_location(&self, revision: u64) -> Result<bool> {
+        let mut state = self.lock();
+        if matches!(state.phase, Phase::Ended) {
+            return Err(AppError::InvalidInput(
+                "This export ended without an output.".into(),
+            ));
+        }
+        let Some((latest, tags, location)) = state.moving.take() else {
+            return Err(AppError::InvalidInput(
+                "That location offer is no longer pending.".into(),
+            ));
+        };
+        if latest != revision || state.newest != revision {
+            state.moving = Some((latest, tags, location));
+            return Err(AppError::InvalidInput(
+                "That location offer was replaced by a newer Save.".into(),
+            ));
+        }
+        state.kept_location = Some(location);
+        let published = matches!(state.phase, Phase::Published { .. });
+        state.wanted = Some((revision, tags));
+        state.update = Some(OutputUpdate {
+            revision,
+            status: OutputUpdateStatus::Waiting,
+        });
+        drop(state);
+        self.notify();
+        Ok(published)
+    }
+
     /// Publishes the title: writes an accepted edit to `staged`, runs
     /// `commit`, which returns the published path, then writes any edit
     /// accepted meanwhile to the published file. Blocking.
@@ -220,18 +263,20 @@ impl TitleOutput {
         let _file = lock_output_file(final_path);
         self.write_wanted(staged);
         let (value, published) = commit()?;
-        match FileIdentity::of(&published) {
-            Ok(identity) => {
-                self.lock().phase = Phase::Published {
-                    path: published.clone(),
-                    identity,
-                };
-                self.write_wanted(&published);
-                self.record_identity(&published);
-            }
-            Err(error) => {
+        let identity = FileIdentity::of(&published)
+            .map_err(|error| {
                 log::warn!("title_output status=identity_unreadable err={error}");
-            }
+            })
+            .ok();
+        self.lock().phase = Phase::Published {
+            path: published.clone(),
+            identity,
+        };
+        if identity.is_some() {
+            self.write_wanted(&published);
+            self.record_identity(&published);
+        } else {
+            self.fail_wanted("The output was published, but ABB could not capture its identity. Its tags were not updated after publication.".into());
         }
         self.settled.send_replace(Some(true));
         Ok(value)
@@ -245,6 +290,10 @@ impl TitleOutput {
             _ => return,
         };
         let _file = lock_output_file(&path);
+        let Some(identity) = identity else {
+            self.fail_wanted("ABB could not capture this published output's identity; its tags cannot be safely updated.".into());
+            return;
+        };
         if FileIdentity::of(&path).ok() != Some(identity) {
             self.fail_wanted("The output changed since ABB wrote it.".to_string());
             return;
@@ -346,7 +395,7 @@ impl TitleOutput {
                 identity: recorded, ..
             } = &mut self.lock().phase
             {
-                *recorded = identity;
+                *recorded = Some(identity);
             }
         }
     }

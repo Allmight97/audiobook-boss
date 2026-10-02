@@ -13,6 +13,7 @@ impl JobRegistry {
     /// This method will block if max_concurrent jobs are already running.
     /// Returns the JobId and an owned permit that must be held for the
     /// duration of processing.
+    #[cfg(test)]
     pub async fn register_job(&self) -> Result<(JobId, OwnedSemaphorePermit)> {
         self.register_job_with_external_cancel(None).await
     }

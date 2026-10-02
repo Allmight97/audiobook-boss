@@ -23,7 +23,8 @@
 - Which titles go, their sources, audio, chapters, naming, and pending edits
   are the engine's. `submit.ts` sends intents and reads
   `output.submission`; it never builds a payload or decides a refusal.
-- A `reviewRequired` status loops through the Output dialog: the chosen policy
+- A `reviewRequired` status loops through the Output dialog, including a held
+  review received when a replacement frontend attaches: the chosen policy
   goes back as `chooseCollisionPolicy`, a cancel as `cancelCollisionReview`.
 - Each `output.restartOffers` entry is asked once in a native dialog, one at
   a time: Restart runs `restartTitle` through the same submission flow, Keep

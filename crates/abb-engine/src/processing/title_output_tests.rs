@@ -241,3 +241,59 @@ async fn a_title_ending_without_an_output_drops_its_waiting_edit() {
     );
     assert!(writes.lock().expect("writes").is_empty());
 }
+
+#[test]
+fn keeping_the_location_publishes_the_latest_tags_at_the_original_path() {
+    let folder = tempfile::TempDir::new().expect("folder");
+    let (title, writes) = title(folder.path());
+    let old = MetadataIntentPatch {
+        title: set("Beta"),
+        genre: set("Mystery"),
+        ..Default::default()
+    };
+    let latest = MetadataIntentPatch {
+        title: set("Gamma"),
+        genre: set("Horror"),
+        ..Default::default()
+    };
+    title.update(1, &old).expect("first offer");
+    title.update(2, &latest).expect("latest offer");
+    assert!(
+        title.keep_location(1).is_err(),
+        "an old offer cannot select old tags"
+    );
+    assert!(!title.keep_location(2).expect("keep pending path"));
+    let staged = folder.path().join("staged.m4b");
+    let published = publish(&title, &staged);
+    assert_eq!(published, title.plan.requested);
+    let written = writes.lock().expect("writes");
+    assert_eq!(written[0].0, staged);
+    assert_eq!(written[0].1.title, set("Gamma"));
+    assert_eq!(written[0].1.genre, set("Horror"));
+}
+
+#[tokio::test]
+async fn unreadable_publication_identity_still_settles_as_published_and_refuses_unsafe_tags() {
+    let folder = tempfile::TempDir::new().expect("folder");
+    let (title, writes) = title(folder.path());
+    let missing = folder.path().join("published-but-no-longer-readable.m4b");
+    title
+        .publish(&folder.path().join("staged.m4b"), &missing, || {
+            Ok(((), missing.clone()))
+        })
+        .expect("publication succeeded");
+    assert!(title.settled().await, "publication cannot remain pending");
+    assert!(matches!(
+        title.update(1, &genre("Mystery")).expect("accept"),
+        UpdateReply::Accepted {
+            published: true,
+            ..
+        }
+    ));
+    title.apply_published();
+    assert!(writes.lock().expect("writes").is_empty());
+    assert!(matches!(
+        title.update_state().map(|update| update.status),
+        Some(OutputUpdateStatus::Failed { .. })
+    ));
+}

@@ -127,15 +127,13 @@ pub enum SampleRateConfig {
 }
 
 // Audio Engine Deep Module Public API Strip.
-pub use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
-pub use imports::{
-    discover_audio_import_paths, supported_audio_import_metadata, SupportedAudioImportFormat,
-    SupportedAudioImportMetadata,
-};
-pub use path_validation::{validate_input_audio_path, validate_input_image_path};
-pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
+pub(crate) use file_list::{apply_chapter_plans, get_file_list_info, FileListInfo};
+pub(crate) use imports::{discover_audio_import_paths, supported_audio_import_metadata};
+pub use imports::{SupportedAudioImportFormat, SupportedAudioImportMetadata};
+pub(crate) use path_validation::{validate_input_audio_path, validate_input_image_path};
+pub(crate) use processor::{execute_audio_engine, AudioExecutionRequest};
 pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
-pub use settings::{
+pub(crate) use settings::{
     validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
 };
 
@@ -148,14 +146,14 @@ pub(crate) fn validate_preservation_source(file: &AudioFile) -> Result<()> {
     }
     Ok(())
 }
+pub(crate) use settings_capabilities::encoder_settings_capabilities;
 pub use settings_capabilities::{
-    detect_encoder_availability, encoder_settings_capabilities, EncoderAvailability,
-    EncoderConfigurationCapability, EncoderSettingsCapabilities, FaacProfileCapability,
+    EncoderAvailability, EncoderConfigurationCapability, EncoderSettingsCapabilities,
+    FaacProfileCapability,
 };
-pub(crate) use settings_encoder::DEFAULT_FAAC_QUALITY;
+pub(crate) use settings_encoder::{validate_encoder_settings, DEFAULT_FAAC_QUALITY};
 pub use settings_encoder::{
-    resolve_encoder_name, validate_encoder_settings, BitrateMode, BitrateModeKind, ChannelConfig,
-    EncoderSettings, EncoderType, FaacProfile,
+    BitrateMode, BitrateModeKind, ChannelConfig, EncoderSettings, EncoderType, FaacProfile,
 };
 
 // Crate-internal cleanup strip used by owned backend boundaries.
@@ -176,6 +174,11 @@ mod contract_tests;
 
 mod output_plan;
 pub use output_plan::{
-    resolve_title_audio, AudioIntent, AudioPlanField, AudiobookFormat, TitleAudioError,
-    TitleAudioPlan, TitleAudioRequest,
+    AudioIntent, AudioPlanField, AudiobookFormat, TitleAudioError, TitleAudioPlan,
+    TitleAudioRequest,
 };
+
+pub(crate) use output_plan::resolve_title_audio;
+
+#[cfg(test)]
+pub(crate) use settings_encoder::resolve_encoder_name;

@@ -25,9 +25,31 @@ impl OutputPlanLedger {
         policy: CollisionPolicy,
         source_paths: &[PathBuf],
     ) -> Result<ResolvedOutputPlan> {
+        let requested = derive_output_artifact_path(requested_final_path, kind)?;
+        self.resolve_requested(&requested, kind, policy, source_paths)
+    }
+
+    /// Refreshes collisions at the already-derived artifact path; a preview
+    /// suffix must not be applied for a second time during execution.
+    pub(crate) fn refresh(
+        &mut self,
+        planned: &ResolvedOutputPlan,
+        policy: CollisionPolicy,
+        source_paths: &[PathBuf],
+    ) -> Result<ResolvedOutputPlan> {
+        self.resolve_requested(&planned.requested_path, planned.kind, policy, source_paths)
+    }
+
+    fn resolve_requested(
+        &mut self,
+        requested: &Path,
+        kind: OutputKind,
+        policy: CollisionPolicy,
+        source_paths: &[PathBuf],
+    ) -> Result<ResolvedOutputPlan> {
         self.collision_cache.cache_source_paths(source_paths);
         let plan = resolve_output_plan_with_cache(
-            requested_final_path,
+            requested,
             kind,
             policy,
             &self.claimed,
@@ -57,7 +79,7 @@ pub(crate) fn resolve_output_plan(
     let mut cache = OutputCollisionCache::default();
     cache.cache_source_paths(source_paths);
     resolve_output_plan_with_cache(
-        requested_final_path,
+        &derive_output_artifact_path(requested_final_path, kind)?,
         kind,
         policy,
         claimed,
@@ -74,7 +96,7 @@ fn resolve_output_plan_with_cache(
     source_paths: &[PathBuf],
     cache: &mut OutputCollisionCache,
 ) -> Result<ResolvedOutputPlan> {
-    let requested_path = derive_output_artifact_path(requested_final_path, kind)?;
+    let requested_path = requested_final_path.to_path_buf();
     let collision = detect_output_collision(&requested_path, claimed, source_paths, cache)?;
     let hard_block = collision
         .as_ref()

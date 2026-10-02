@@ -187,6 +187,8 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 				return;
 			}
 			const started = generation;
+			imageDataUrl = null;
+			changed();
 			void link
 				.coverArt()
 				.then((bytes) => {

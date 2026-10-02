@@ -29,8 +29,9 @@ attachment.
   about 1 KB instead of the whole title list, and what lets a reply and an
   event arrive in either order.
 - An intent runs in two steps. `begin` applies its immediate effect before
-  returning, so intents begun in order take effect in order. `finish` does the
-  file or network work and may overlap later intents. A host whose transport
+  returning, so intents begun in order take effect in order. The engine
+  starts and tracks the file or network work before returning; `finish` waits
+  for its reply, and dropping that wait never cancels the accepted intent. A host whose transport
   can reorder requests must call `begin` in the order the user acted.
 - The metadata part carries `binding`, which advances whenever the form binds
   to a different selection. A host showing typing the engine has not yet
@@ -111,7 +112,9 @@ attachment.
   `Engine::shutdown` cancels the exports, review, or preview holding it back,
   so it is written before the engine stops. When it finishes, the session reports how many were written or
   failed. If its title is loaded again by then, a written edit becomes the
-  title's known tags and a failed one is pending again for Save.
+  title's known tags and a failed one is pending again for Save. A failed
+  write remains recorded until its title returns and Save retries it; it does
+  not retry repeatedly in the background.
 - **Audio choice.** The defaults new titles start from and each title's own
   choice are edited with typed `AudioEdit`s checked against the encoder
   capabilities (`audio_choice.rs`); a refused edit changes nothing. MP3 copies
@@ -154,7 +157,9 @@ attachment.
   or Save writing holds its files. Files being removed count as busy: Save
   holds them and a submission using them is refused. Every transition that
   leaves a download removable starts the one sweep (`Session::transition`);
-  no other code path removes downloads. A failed removal stays recorded and is
+  no other code path removes downloads. Successfully removed sources become
+  invalid history rows, so later batches exclude them instead of reopening a
+  deleted download. A failed removal stays recorded and is
   retried at the first change after `staged::RETRY_DELAY`; startup clears the
   rest. A download nothing was imported from is recorded the same way, so its
   removal is retried too.
@@ -178,7 +183,7 @@ attachment.
 - `staged_tests.rs`: when a staged download may be removed.
 - `exports.rs` tests: the edit an exported output carries and when an offer
   is taken.
-- `tests/cases/integration_session_tests.rs`: real files through `Engine`,
+- `src/test_cases/integration_session_tests.rs`: real files through `Engine`,
   including submit, collision review, preview, Save while a real export reads
   the source (source and output read back), a finished output retagged in
   place, restart at a new location, shutdown, and `abb-dev`.

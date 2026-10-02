@@ -11,6 +11,7 @@ use crate::processing::ProgressEvent;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[cfg(test)]
 fn default_processing_workspace_root() -> PathBuf {
     std::env::temp_dir()
         .join("audiobook-boss")
@@ -31,6 +32,7 @@ pub struct OutputConfig {
 
 impl OutputConfig {
     /// Creates a new output configuration
+    #[cfg(test)]
     pub fn new<P: Into<PathBuf>>(final_path: P) -> Self {
         Self {
             final_path: final_path.into(),
@@ -58,11 +60,6 @@ impl OutputConfig {
 
     pub fn commit_action(&self) -> PlannedOutputAction {
         self.action
-    }
-
-    /// Consumes the config and returns the final path
-    pub fn into_final_path(self) -> PathBuf {
-        self.final_path
     }
 }
 
@@ -145,6 +142,7 @@ impl ProcessingContext {
     }
 
     /// Creates a headless ProcessingContext (no UI event emission).
+    #[cfg(test)]
     pub fn new_headless(
         session: Arc<ProcessingSession>,
         encoder_settings: impl Into<Option<EncoderSettings>>,
@@ -160,6 +158,7 @@ impl ProcessingContext {
         )
     }
 
+    #[cfg(test)]
     pub fn new_headless_with_workspace_root(
         session: Arc<ProcessingSession>,
         encoder_settings: impl Into<Option<EncoderSettings>>,

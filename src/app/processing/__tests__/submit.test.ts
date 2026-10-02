@@ -64,6 +64,20 @@ describe('runSubmission', () => {
 		);
 	});
 
+	it('continues a held collision review after attaching without submitting again', async () => {
+		const panel = statusPanel();
+		const { deps, sent } = submitDeps(
+			[collision, { kind: 'submitted', operationId: 'op-1', title: 'Alpha' }],
+			'rename_new',
+		);
+		await deps.link.send({ kind: 'submit' });
+		sent.length = 0;
+		deps.link.send.mockClear();
+		await runSubmission(panel, deps, { resumeReview: true });
+		expect(sent).toEqual([{ kind: 'chooseCollisionPolicy', policy: 'rename_new' }]);
+		expect(deps.reviewCollisions).toHaveBeenCalledTimes(1);
+	});
+
 	it('asks about collisions, sends the choice, and reports the accepted export', async () => {
 		const panel = statusPanel();
 		const { deps, sent } = submitDeps(

@@ -26,9 +26,12 @@
   `validate_input_image_path`, `validate_preservation_source`, `validate_preserved_title`, `supported_audio_import_metadata`,
   `discover_audio_import_paths`, `validate_output_path`, `validate_preserved_output_path`,
   `validate_sample_rate_config`, `validate_encoder_settings`,
-  `encoder_settings_capabilities`, `resolve_encoder_name`,
-  `detect_encoder_availability`, `execute_audio_engine`,
-  `validate_audio_engine_inputs`.
+  `encoder_settings_capabilities`,
+  `detect_encoder_availability`, `execute_audio_engine`.
+  `validate_resolved_audio_inputs` stays processor-private; preflight and
+  execution validate through the resolved audio plan.
+- These functions and execution types are an engine-internal strip; hosts
+  import audio vocabulary and use `Engine` intents and snapshots.
 - Execution request type: `AudioExecutionRequest`. Its constructor accepts the
   processing context, inspected files, metadata, and cover-art policy; encoder
   settings come from that context so the request cannot carry conflicting copies.

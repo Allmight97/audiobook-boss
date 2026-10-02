@@ -1,14 +1,13 @@
 # Processing Lifecycle Boundary
 
 ## Public API Strip
-- Processing Plan: import from `crate::processing::plan`, not private helpers.
-  Functions: `resolve_preflight_plan`, `prepare_execution_plan`. Types:
-  `ExecutionProcessingPlan`, `ResolvedProcessingPlan`, `PlannedProcessingJob`.
-  Private `title_file_info` projects an inspected source set in title order.
-  Callers provide the fresh phase `FileListInfo`; planning never re-inspects
-  inputs. Execution retains that inspection, including source fingerprints.
-  Audio revalidates those identities after scheduler/permit waits; queued jobs
-  must not replace the inspected facts underneath an already-resolved audio plan.
+- Processing Plan is engine-internal at `crate::processing::plan`.
+  `InspectedProcessingPlan` carries the single source inspection and resolved
+  audio/metadata plan through review, output records, and execution.
+  `prepare_inspected_execution` refreshes collision facts at the already
+  derived output path and enforces review before creating directories.
+  Audio revalidates retained fingerprints after scheduler/permit waits.
+  `title_file_info` projects the same inspection into each title's source order.
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
   `crate::processing`, not `audio` or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
@@ -16,7 +15,8 @@
   Helpers: `ProgressEmitter` (sends progress as `EngineEvent`s through the
   host's `EventSink`), `operation_kind_log_label` (stable dev-log label parsed
   by `scripts/dev-log-analysis.ts`).
-- Export title outputs: `TitleOutput`, `OutputUpdate`, `OutputUpdateStatus`
+- Engine-internal export title outputs: `TitleOutput`; host vocabulary:
+  `OutputUpdate`, `OutputUpdateStatus`
   (`title_output.rs`).
 - Pure lifecycle/terminal summary classification that has no runtime/media
   dependency is packaged in `abb-processing-core`.
@@ -35,7 +35,8 @@
   later is written to the published file once its size and modification time
   show ABB wrote it. Text tags are diffed from the planned metadata; the cover
   follows the edit's cover intent. A failed tag write never changes the
-  title's export outcome. A title that ends unpublished has its empty
+  title's export outcome. An unreadable identity after publication still
+  settles the title as published and explicitly refuses unsafe tag updates. A title that ends unpublished has its empty
   folders removed (`output_artifact/AGENTS.md`) before it reports ended
   (`run_dispatch.rs`); a restart waits for that.
 - The cluster owns preflight planning, execution-plan preparation, runner

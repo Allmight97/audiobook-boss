@@ -21,6 +21,60 @@ use tempfile::TempDir;
 
 use super::integration_media_execution_tests::MediaLane;
 
+#[tokio::test]
+async fn shutdown_finishes_an_accepted_save_without_a_host_waiting_for_its_reply() {
+    let desk = Desk::new();
+    let source = desk
+        .audiobook(&desk.root.path().join("source.m4b"), 0.2)
+        .await;
+    desk.import(&source).await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Genre,
+        value: "Mystery".into(),
+    })
+    .await;
+    let reply = desk.engine.session_begin(SessionIntent::Save);
+    drop(reply);
+    desk.engine.shutdown().await;
+    assert_eq!(
+        read_metadata(source.to_str().expect("path"))
+            .expect("tags")
+            .genre
+            .as_deref(),
+        Some("Mystery")
+    );
+    assert!(!desk.metadata().save_in_progress);
+}
+
+#[tokio::test]
+async fn defaults_are_saved_in_acceptance_order_even_when_replies_are_awaited_backwards() {
+    let desk = Desk::new();
+    let first = desk
+        .engine
+        .session_begin(SessionIntent::SetOutputDirectory {
+            directory: "/first".into(),
+        });
+    let second = desk
+        .engine
+        .session_begin(SessionIntent::SetOutputDirectory {
+            directory: "/second".into(),
+        });
+    second.finish().await;
+    first.finish().await;
+    assert_eq!(
+        desk.engine
+            .settings_snapshot()
+            .await
+            .settings
+            .expect("settings")
+            .output_defaults
+            .output_directory
+            .as_deref(),
+        Some("/second")
+    );
+    desk.engine.shutdown().await;
+}
+
 /// One engine over its own throwaway roots, with one tagged audiobook.
 struct Desk {
     root: TempDir,
@@ -468,72 +522,6 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
 }
 
 #[tokio::test]
-async fn the_developer_tool_imports_edits_and_saves_a_real_file() {
-    let desk = Desk::new();
-    let book = desk
-        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
-        .await;
-
-    let run = std::process::Command::new(env!("CARGO_BIN_EXE_abb-dev"))
-        .arg(&book)
-        .args(["--set", "genre=Mystery", "--save", "--json"])
-        .arg("--state-dir")
-        .arg(desk.root.path().join("tool-state"))
-        .output()
-        .expect("run abb-dev");
-
-    assert!(
-        run.status.success(),
-        "abb-dev failed: {}",
-        String::from_utf8_lossy(&run.stderr)
-    );
-    let session: serde_json::Value =
-        serde_json::from_slice(&run.stdout).expect("abb-dev prints the session as JSON");
-    assert_eq!(session["titles"]["files"].as_array().map(Vec::len), Some(1));
-    assert_eq!(session["metadata"]["status"]["kind"], "saveComplete");
-    assert_eq!(session["metadata"]["status"]["succeeded"], 1);
-    assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
-}
-
-#[tokio::test]
-async fn the_developer_tool_exports_with_the_edited_tags() {
-    let desk = Desk::new();
-    let book = desk
-        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
-        .await;
-    let out = desk.root.path().join("exports");
-
-    let run = std::process::Command::new(env!("CARGO_BIN_EXE_abb-dev"))
-        .arg(&book)
-        .args([
-            "--set",
-            "genre=Mystery",
-            "--template",
-            "{title}",
-            "--export",
-        ])
-        .arg("--out")
-        .arg(&out)
-        .arg("--state-dir")
-        .arg(desk.root.path().join("tool-state"))
-        .output()
-        .expect("run abb-dev");
-
-    let stdout = String::from_utf8_lossy(&run.stdout);
-    assert!(
-        run.status.success(),
-        "abb-dev failed: {}",
-        String::from_utf8_lossy(&run.stderr)
-    );
-    assert!(stdout.contains("Export: Completed"), "{stdout}");
-    assert!(stdout.contains("genre: Mystery"), "{stdout}");
-    let exported = out.join("Alpha.m4b");
-    assert_eq!(genre_on_disk(&exported).as_deref(), Some("Mystery"));
-    // The source keeps its own tags; the edit is still pending for Save.
-    assert_eq!(genre_on_disk(&book).as_deref(), Some("Fantasy"));
-}
-
-#[tokio::test]
 async fn audio_and_output_defaults_are_saved_and_return_after_a_settings_reset() {
     let desk = Desk::new();
     desk.send(SessionIntent::SetDefaultAudio {
@@ -822,4 +810,272 @@ async fn recovering_unreadable_settings_brings_their_output_folder_into_the_sess
         .await;
 
     assert_eq!(output(&engine).directory.as_deref(), Some("/recovered"));
+}
+
+#[tokio::test]
+async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
+    use std::future::Future;
+    let desk = Desk::new();
+    let typing = desk.engine.session_begin(SessionIntent::SetNamingTemplate {
+        template: "{title}".into(),
+    });
+    typing.finish().await;
+    let mut reset = Box::pin(
+        desk.engine
+            .settings_dispatch(abb_engine::app_settings::SettingsIntent::Reset),
+    );
+    std::future::poll_fn(|cx| {
+        assert!(
+            reset.as_mut().poll(cx).is_pending(),
+            "reset waits behind earlier typing"
+        );
+        std::task::Poll::Ready(())
+    })
+    .await;
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: "/after-reset".into(),
+    })
+    .await;
+    reset.await;
+    assert_eq!(
+        desk.engine
+            .session_snapshot()
+            .output
+            .expect("output")
+            .directory
+            .as_deref(),
+        Some("/after-reset")
+    );
+    assert_eq!(
+        desk.engine
+            .settings_snapshot()
+            .await
+            .settings
+            .expect("settings")
+            .output_defaults
+            .output_directory
+            .as_deref(),
+        Some("/after-reset")
+    );
+    desk.engine.shutdown().await;
+}
+
+/// Every supported final container must accept a later Save on its published output.
+#[tokio::test]
+async fn save_updates_finished_outputs_in_every_supported_container() {
+    for format in [
+        AudiobookFormat::M4b,
+        AudiobookFormat::Mp3,
+        AudiobookFormat::M4aOpus,
+        AudiobookFormat::MkaOpus,
+    ] {
+        let desk = Desk::new();
+        let mut source = desk
+            .audiobook(&desk.root.path().join("source.m4b"), 0.2)
+            .await;
+        if format == AudiobookFormat::Mp3 {
+            let mp3 = desk.root.path().join("source.mp3");
+            let ffmpeg = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
+            let result = std::process::Command::new(ffmpeg)
+                .args(["-v", "error", "-i"])
+                .arg(&source)
+                .args(["-c:a", "libmp3lame"])
+                .arg(&mp3)
+                .output()
+                .expect("MP3 source");
+            assert!(
+                result.status.success(),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            source = mp3;
+        }
+        desk.import(&source).await;
+        let id = desk.engine.session_snapshot().titles.expect("titles").files[0]
+            .input_id
+            .clone();
+        desk.send(SessionIntent::SetTitleAudio {
+            title_ids: vec![id],
+            edit: AudioEdit::Format(format),
+        })
+        .await;
+        let output = desk.root.path().join("exports");
+        fs::create_dir_all(&output).expect("output folder");
+        desk.send(SessionIntent::SetOutputDirectory {
+            directory: output.to_string_lossy().into_owned(),
+        })
+        .await;
+        desk.send(SessionIntent::Submit).await;
+        let Some(SubmissionStatus::Submitted { operation_id, .. }) = submission(&desk) else {
+            panic!("{format:?}: {:?}", submission(&desk));
+        };
+        desk.wait_until("container export", |desk| {
+            finished(desk.export_status(&operation_id))
+        })
+        .await;
+        assert_eq!(
+            desk.export_status(&operation_id),
+            WorkOperationStatus::Completed,
+            "{format:?}"
+        );
+        let published = desk.output_of(&operation_id);
+        let before = genre_on_disk(&source);
+        let metadata = desk.edit_genre_and_save().await;
+        assert!(
+            matches!(
+                metadata.status,
+                Some(MetadataStatus::SaveComplete {
+                    outputs: OutputEdits {
+                        updated: 1,
+                        failed: 0,
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "{format:?}: {:?}",
+            metadata.status
+        );
+        assert_eq!(
+            genre_on_disk(&published).as_deref(),
+            Some("Mystery"),
+            "{format:?}"
+        );
+        assert_ne!(before.as_deref(), Some("Mystery"));
+        desk.engine.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn save_updates_a_grouped_output_without_writing_its_individual_sources() {
+    let desk = Desk::new();
+    let first = desk
+        .audiobook(&desk.root.path().join("first.m4b"), 0.2)
+        .await;
+    let second = desk
+        .audiobook(&desk.root.path().join("second.m4b"), 0.2)
+        .await;
+    desk.import(&first).await;
+    desk.import(&second).await;
+    desk.send(SessionIntent::SelectAll).await;
+    desk.send(SessionIntent::GroupSelected).await;
+    let operation = desk.export().await;
+    desk.wait_until("grouped export", |desk| {
+        finished(desk.export_status(&operation))
+    })
+    .await;
+    let metadata = desk.edit_genre_and_save().await;
+    assert!(
+        matches!(
+            metadata.status,
+            Some(MetadataStatus::SaveComplete {
+                outputs: OutputEdits {
+                    updated: 1,
+                    failed: 0,
+                    ..
+                },
+                ..
+            })
+        ),
+        "{:?}",
+        metadata.status
+    );
+    assert_eq!(
+        genre_on_disk(&desk.output_of(&operation)).as_deref(),
+        Some("Mystery")
+    );
+    for source in [&first, &second] {
+        assert_eq!(genre_on_disk(source).as_deref(), Some("Fantasy"));
+    }
+    desk.engine.shutdown().await;
+}
+
+#[tokio::test]
+async fn shutdown_closes_admission_before_an_accepted_submission_finishes_preflight() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("source.m4b"), 0.2)
+        .await;
+    desk.import(&book).await;
+    let out = desk.root.path().join("out");
+    fs::create_dir_all(&out).expect("output folder");
+    desk.send(SessionIntent::SetOutputDirectory {
+        directory: out.to_string_lossy().into_owned(),
+    })
+    .await;
+    let accepted = desk.engine.session_begin(SessionIntent::Submit);
+    // No yield between admission and shutdown: preflight has not registered
+    // its export when shutdown closes and enumerates running operations.
+    desk.engine.shutdown().await;
+    accepted.finish().await;
+    assert!(desk
+        .engine
+        .list_work_operations()
+        .expect("operations")
+        .operations
+        .is_empty());
+    assert_eq!(
+        submission(&desk),
+        Some(SubmissionStatus::Refused {
+            reason: SubmitRefusal::Closing
+        })
+    );
+    assert_eq!(fs::read_dir(&out).expect("outputs").count(), 0);
+}
+
+#[tokio::test]
+async fn keep_location_writes_the_latest_offered_tags_to_the_original_export_path() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("source.m4b"), 20.0)
+        .await;
+    desk.import(&book).await;
+    let operation = desk.export().await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Author,
+        value: "First choice".into(),
+    })
+    .await;
+    desk.send(SessionIntent::Save).await;
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Author,
+        value: "Latest choice".into(),
+    })
+    .await;
+    desk.send(SessionIntent::Save).await;
+    let offer = desk
+        .engine
+        .session_snapshot()
+        .output
+        .expect("output")
+        .restart_offers
+        .into_iter()
+        .next()
+        .expect("an unfinished export offers a move");
+    assert_eq!(
+        desk.send(SessionIntent::KeepTitleLocation {
+            title_id: offer.title_id,
+            revision: offer.revision
+        })
+        .await,
+        SessionOutcome::Applied
+    );
+    desk.wait_until("kept export", |desk| {
+        finished(desk.export_status(&operation))
+    })
+    .await;
+    let output = desk.output_of(&operation);
+    assert_eq!(output, offer.from);
+    assert_eq!(
+        read_metadata(output.to_str().expect("path"))
+            .expect("real tags")
+            .artist
+            .as_deref(),
+        Some("Latest choice")
+    );
+    assert!(
+        !Path::new(&offer.to).exists(),
+        "Keep does not move the output"
+    );
+    desk.engine.shutdown().await;
 }

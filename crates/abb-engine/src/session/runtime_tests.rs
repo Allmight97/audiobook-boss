@@ -58,6 +58,10 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_with_cover(None)
+}
+
+fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>>>) -> Rig {
     let events = Arc::new(Events::default());
     let searches = Arc::new(StdMutex::new(Vec::new()));
     let replies: Arc<StdMutex<VecDeque<tokio::sync::oneshot::Receiver<SearchReply>>>> =
@@ -80,12 +84,19 @@ fn rig() -> Rig {
         }),
         cover_from_url: Box::new({
             let cover = Arc::clone(&cover);
+            let pending = StdMutex::new(pending);
             move |_url| {
+                let pending = pending.lock().expect("cover reply").take();
                 let result = match &*cover.lock().expect("cover") {
                     Ok(bytes) => Ok(bytes.clone()),
                     Err(error) => Err(AppError::General(error.to_string())),
                 };
-                Box::pin(async move { result })
+                Box::pin(async move {
+                    match pending {
+                        Some(reply) => reply.await.expect("cover reply"),
+                        None => result,
+                    }
+                })
             }
         }),
     };
@@ -104,7 +115,7 @@ fn rig() -> Rig {
             jobs: Arc::new(JobRegistry::new(2)),
             temporary_root: PathBuf::from("/staged"),
             opened_audio: Arc::default(),
-            tasks: tokio_util::task::TaskTracker::new(),
+            tasks: crate::engine::EngineTasks::default(),
             workspace_root: std::env::temp_dir().join("abb-session-tests"),
             settings,
             remove_staged: {
@@ -1084,7 +1095,7 @@ async fn output_choices_are_recorded_and_template_typing_once_it_pauses() {
         .await;
     }
     assert_eq!(saved().await.output_naming.custom_template, None);
-    tokio::time::sleep(TEMPLATE_PAUSE * 2).await;
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     assert_eq!(
         saved().await.output_naming.custom_template.as_deref(),
         Some("{author}/{title}x")
@@ -1223,7 +1234,7 @@ impl Rig {
         tokio::time::timeout(std::time::Duration::from_secs(30), async {
             loop {
                 let removed = self.removed.lock().expect("removed").clone();
-                if !removed.is_empty() {
+                if !removed.is_empty() && !self.session.inner.sweeping.load(Ordering::SeqCst) {
                     return removed;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -1366,4 +1377,56 @@ async fn a_download_that_finishes_while_the_list_is_locked_is_imported_once_it_u
         crate::remote_source::AcquisitionHandoff::Imported { count: 1 }
     );
     assert!(rig.removed.lock().expect("removed").is_empty());
+}
+
+#[tokio::test]
+async fn reset_supersedes_an_acquired_handoff_waiting_for_an_earlier_import() {
+    use std::future::Future;
+    let rig = rig();
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    let in_order = rig.session.inner.imports.lock().await;
+    let mut handoff = Box::pin(
+        rig.session
+            .import_acquired(acquired("job-before-reset", &audio)),
+    );
+    std::future::poll_fn(|cx| {
+        assert!(handoff.as_mut().poll(cx).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
+    rig.send(SessionIntent::Reset).await;
+    drop(in_order);
+    assert_eq!(
+        handoff.await,
+        crate::remote_source::AcquisitionHandoff::Removed {
+            reason: HandoffRefusal::NothingAdded
+        }
+    );
+    assert!(rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .files
+        .is_empty());
+}
+
+#[tokio::test]
+async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title() {
+    let (cover, pending) = tokio::sync::oneshot::channel();
+    let rig = rig_with_cover(Some(pending));
+    rig.load(&["alpha", "beta"]);
+    rig.select(&[0]).await;
+    rig.answer_next_search(Ok(found(&["Found Alpha"])));
+    rig.send(SessionIntent::LookupOpen).await;
+    rig.send(SessionIntent::LookupSetReplaceCover { replace: true })
+        .await;
+    let applying = rig.session.begin(SessionIntent::LookupApply { index: 0 });
+    rig.select(&[1]).await;
+    cover.send(Ok(vec![1, 2, 3])).expect("cover reply");
+    assert_eq!(applying.finish().await.outcome, SessionOutcome::Superseded);
+    assert_eq!(rig.selected(), vec![1]);
+    assert_eq!(rig.title_shown(), "BETA");
+    assert!(rig.pending("alpha").is_none());
 }

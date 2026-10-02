@@ -1,7 +1,8 @@
 //! The engine's host-facing interface and lifetime.
 
+use std::future::Future;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::app_settings::{
     SettingsIntent, SettingsOutcome, SettingsReply, SettingsRuntime, SettingsSnapshot,
@@ -18,6 +19,52 @@ use crate::session::{
 };
 use crate::work_runtime::{OperationId, OperationListSnapshot, OperationSnapshot, WorkRuntime};
 use tokio_util::task::TaskTracker;
+
+/// Admission and shutdown share this lock: visible work is registered before
+/// shutdown closes admission and enumerates what it must cancel. Internal
+/// cleanup may still spawn while its already-tracked parent is settling.
+#[derive(Clone, Default)]
+pub(crate) struct EngineTasks {
+    tracker: TaskTracker,
+    admission: Arc<Mutex<()>>,
+}
+
+impl EngineTasks {
+    pub(crate) fn admit<T>(&self, register: impl FnOnce() -> T) -> Result<T> {
+        let _turn = self
+            .admission
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if self.is_closed() {
+            return Err(AppError::General("ABB is closing.".into()));
+        }
+        Ok(register())
+    }
+
+    pub(crate) fn close(&self) {
+        let _turn = self
+            .admission
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.tracker.close();
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.tracker.is_closed()
+    }
+
+    pub(crate) fn spawn<F>(&self, work: F) -> tokio::task::JoinHandle<F::Output>
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        self.tracker.spawn(work)
+    }
+
+    pub(crate) async fn wait(&self) {
+        self.tracker.wait().await;
+    }
+}
 
 /// What a host supplies to start the engine.
 pub struct EngineConfig {
@@ -53,7 +100,7 @@ struct EngineInner {
     opened_audio: Arc<OpenedAudioFileQueue>,
     session: Session,
     /// Every background task the engine starts; shutdown waits for them.
-    tasks: TaskTracker,
+    tasks: EngineTasks,
 }
 
 /// Work still running that quitting would stop.
@@ -79,7 +126,7 @@ impl Engine {
     pub fn start(config: EngineConfig) -> Result<Self> {
         let power = PowerManager::default();
         let host = Host::new(config.events, power.clone());
-        let tasks = TaskTracker::new();
+        let tasks = EngineTasks::default();
         audio::cleanup_abandoned_processing_workspaces(&config.cache_dir)?;
         let remote_source = RemoteSourceRuntime::new(RemoteSourceConfig {
             cache_dir: config.cache_dir.clone(),
@@ -168,30 +215,56 @@ impl Engine {
             intent,
             SettingsIntent::Recover { .. } | SettingsIntent::Reload
         );
-        let before = if reloads {
-            self.inner.settings.snapshot().await.startup_defaults
-        } else {
-            None
-        };
-        // Tracked, so shutdown waits for a settings write already under way.
-        let reply = self
-            .inner
-            .tasks
-            .track_future(self.inner.settings.dispatch(intent))
-            .await;
-        // A reset returns the session's defaults to the reset settings; loaded
-        // titles keep their own choices.
-        let applied = matches!(
-            reply.outcome,
-            SettingsOutcome::Applied | SettingsOutcome::Recovered { .. }
-        );
-        let changed = reset || (reloads && reply.snapshot.startup_defaults != before);
-        if applied && changed {
-            if let Some(defaults) = &reply.snapshot.startup_defaults {
-                self.inner.session.replace_defaults(defaults);
-            }
+        let accepted = self.inner.tasks.admit(|| {
+            let checkpoint = self.inner.session.defaults_checkpoint();
+            let run = self.inner.settings.begin(intent, &self.inner.tasks);
+            let engine = self.clone();
+            self.inner.tasks.spawn(async move {
+                let (reply, defaults_changed) = run.finish().await;
+                let applied = matches!(
+                    reply.outcome,
+                    SettingsOutcome::Applied | SettingsOutcome::Recovered { .. }
+                );
+                if applied && (reset || (reloads && defaults_changed)) {
+                    if let Some(defaults) = &reply.snapshot.startup_defaults {
+                        engine.inner.session.replace_defaults(
+                            defaults,
+                            checkpoint,
+                            reply.snapshot.revision,
+                            reset,
+                        );
+                    }
+                }
+                engine
+                    .inner
+                    .host
+                    .emit(crate::EngineEvent::Settings(Box::new(
+                        reply.snapshot.clone(),
+                    )));
+                reply
+            })
+        });
+        match accepted {
+            Ok(reply) => match reply.await {
+                Ok(reply) => reply,
+                Err(error) => {
+                    self.settings_rejected(AppError::General(format!(
+                        "Settings work failed: {error}"
+                    )))
+                    .await
+                }
+            },
+            Err(error) => self.settings_rejected(error).await,
         }
-        reply
+    }
+
+    async fn settings_rejected(&self, error: AppError) -> SettingsReply {
+        SettingsReply {
+            outcome: SettingsOutcome::Rejected {
+                error: crate::AppErrorEnvelope::from(&error),
+            },
+            snapshot: self.inner.settings.snapshot().await,
+        }
     }
 
     /// The settings in effect and whether they are saved.

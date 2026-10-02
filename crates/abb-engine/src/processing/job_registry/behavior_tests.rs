@@ -1,6 +1,4 @@
-use abb_engine::processing::job_registry::{
-    JobId, JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS,
-};
+use super::{JobId, JobRegistry, MAX_CONCURRENT_JOBS, MIN_CONCURRENT_JOBS};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 

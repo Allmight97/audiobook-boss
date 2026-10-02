@@ -48,6 +48,13 @@ pub(crate) struct ExecutionProcessingPlan {
     pub(crate) output_parent_cleanup: OutputParentDirCleanup,
 }
 
+/// The source inspection and resolved plan the user reviewed. Execution keeps
+/// these exact facts; Audio checks their fingerprints after scheduler waits.
+pub(crate) struct InspectedProcessingPlan {
+    pub(crate) plan: ResolvedProcessingPlan,
+    pub(crate) file_info: FileListInfo,
+}
+
 /// Preflight requires an existing output folder. Execution may find it missing
 /// (removed after review); the output owner recreates it only after the
 /// reviewed plan is enforced.
@@ -230,16 +237,6 @@ fn log_output_plan(phase: &str, payload: &ProcessPayload, plan: &ResolvedProcess
     }
 }
 
-pub(crate) fn resolve_preflight_plan(
-    payload: &ProcessPayload,
-    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-    file_info: &FileListInfo,
-) -> Result<ProcessingPreflightPlan> {
-    resolve_processing_plan(payload, metadata, preview_seconds, file_info)
-        .map(|plan| plan.to_public())
-}
-
 /// The preflight plan with each title's planning detail.
 pub(crate) fn resolve_processing_plan(
     payload: &ProcessPayload,
@@ -253,6 +250,7 @@ pub(crate) fn resolve_processing_plan(
     Ok(plan)
 }
 
+#[cfg(test)]
 pub(crate) fn prepare_execution_plan(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
@@ -261,6 +259,31 @@ pub(crate) fn prepare_execution_plan(
 ) -> Result<ExecutionProcessingPlan> {
     let inputs = build_processing_inputs(payload, true, preview_seconds)?;
     let plan = build_processing_plan(payload, metadata, &inputs, &file_info)?;
+    prepare_inspected_execution(payload, InspectedProcessingPlan { plan, file_info })
+}
+
+pub(crate) fn prepare_inspected_execution(
+    payload: &ProcessPayload,
+    inspected: InspectedProcessingPlan,
+) -> Result<ExecutionProcessingPlan> {
+    let InspectedProcessingPlan {
+        mut plan,
+        file_info,
+    } = inspected;
+    let inputs = build_processing_inputs(payload, true, plan.preview_seconds)?;
+    // Collision facts may change after review; refresh them without replacing
+    // the source inspection or resolving the audio and metadata a second time.
+    let sources = file_info
+        .files
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<Vec<_>>();
+    let mut ledger = OutputPlanLedger::new();
+    for job in &mut plan.jobs {
+        job.output = ledger.refresh(&job.output, plan.collision_policy, &sources)?;
+    }
+    plan.plan_signature =
+        build_plan_signature(plan.preview_seconds, plan.collision_policy, &plan.jobs);
     log_output_plan("process", payload, &plan);
     enforce_output_plan_review(
         OutputPlanReview {

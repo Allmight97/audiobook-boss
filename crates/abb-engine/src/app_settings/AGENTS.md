@@ -20,13 +20,19 @@ default the session records reaches hosts as `EngineEvent::Settings`.
 
 ## Settings Runtime
 
-- One lock is held for a whole intent, so changes apply and write in the
-  order asked and an older write never reports a newer choice as saved. Every
+- A turn is reserved synchronously when an intent is accepted, and one lock
+  is held for its whole application/write. Changes apply in acceptance order
+  even if host waits are dropped or replies are awaited backwards. Every
   reply carries the whole snapshot with a revision that advances per intent;
   a host keeps the newest.
-- A default the session records arrives after its session intent, outside
-  the settings intent order, so it is dropped if a reset applied after the
-  choice was made (`dispatch_unless_reset`).
+- Session defaults reserve the same settings turn as direct settings
+  intents. Template typing reserves its turn immediately and writes after a
+  pause only if still latest. Reset follows earlier edits; choices accepted
+  afterward remain on screen and on disk even if reset finishes later.
+- Recover and Reload merge accepted unsaved choices before exposing loaded
+  settings, apply loaded concurrency and keep-awake to runtime owners, then
+  retry their writes. The session preserves choices made while settings were
+  unavailable. Failed hydration remains retryable through Reload.
 - A remembered default stays in effect when its write fails. The unsaved part
   is kept, coalesced by field, reported as `save_error`, and written by the
   next write or `Retry`.

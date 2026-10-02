@@ -2,7 +2,8 @@
 
 ## Public API Strip
 
-- `WorkRuntime`, built with `new(tasks)` on the engine's `TaskTracker`,
+- Engine-internal `WorkRuntime`, built with `new(tasks)` on the engine's
+  `EngineTasks`,
   including:
   - `submit_processing_operation` (spawned background export, returns
     `WorkSubmissionAccepted`). Callers name the operation after its books;
@@ -31,7 +32,8 @@
     one the run never reached cannot keep an edit waiting. The child's
     `output_update` shows the latest edit's state.
 - `OperationId`
-- operation snapshot, child snapshot, progress, summary, lane, and submit request types
+- Host-visible operation/child snapshots, progress, summary, lane, and id
+  vocabulary. Submit requests and accepted title handles stay crate-internal.
 
 ## Ownership
 

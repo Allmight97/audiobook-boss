@@ -725,6 +725,8 @@ describe('remote source acquisition workflow', () => {
 		await owner.saveIndexerConnectionSettings();
 		expect(save).not.toHaveBeenCalled();
 		expect(owner.indexerConnection().saveError).toContain('Grab');
+		expect(owner.view().releases).toEqual(releases);
+		expect(owner.view().selectedReleaseKeys.size).toBe(2);
 		pendingGrab.resolve({
 			providerId: 'indexer',
 			accepted: true,

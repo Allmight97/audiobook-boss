@@ -19,7 +19,9 @@ use tokio::task::{Id, JoinSet};
 use uuid::Uuid;
 
 pub use cancel::CancellationChecker;
-pub use types::{AggregateJobStatus, JobId, MaxConcurrentJobsCapabilities};
+#[cfg(test)]
+use types::AggregateJobStatus;
+pub use types::{JobId, MaxConcurrentJobsCapabilities};
 
 pub const MIN_CONCURRENT_JOBS: usize = 1;
 pub const MAX_CONCURRENT_JOBS: usize = 8;
@@ -233,6 +235,7 @@ impl JobRegistry {
     }
 
     /// Gets aggregate progress information
+    #[cfg(test)]
     pub async fn get_aggregate_status(&self) -> AggregateJobStatus {
         // Every tracked job is admitting or active; terminal paths remove it.
         let total = self.admission().jobs.len();
@@ -240,7 +243,6 @@ impl JobRegistry {
         AggregateJobStatus {
             active_jobs: total,
             total_jobs: total,
-            max_concurrent: self.max_concurrent(),
         }
     }
 
@@ -268,3 +270,6 @@ impl JobRegistry {
         self.update_max_concurrent(Self::default_max()).await
     }
 }
+
+#[cfg(test)]
+mod behavior_tests;

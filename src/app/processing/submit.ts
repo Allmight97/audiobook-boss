@@ -113,14 +113,22 @@ async function settle(
 export async function runSubmission(
 	context: ProcessingWorkflowContext,
 	deps: SubmitDeps,
-	options?: { previewSeconds?: number; restart?: RestartOffer },
+	options?: { previewSeconds?: number; restart?: RestartOffer; resumeReview?: boolean },
 ): Promise<void> {
 	context.setBatchCompletionMessage(null);
 	const previewSeconds = options?.previewSeconds;
 	deps.setControlsEnabled(false);
 	try {
 		let status: SubmissionStatus | null;
-		if (previewSeconds != null) {
+		if (options?.resumeReview) {
+			const review = deps.link.output().submission;
+			if (review?.kind === 'reviewRequired' && review.preview) {
+				context.setProcessingState(true);
+				await context.updateArtThumbnail();
+				await context.startProgressListener();
+			}
+			status = await settle(deps, async () => undefined);
+		} else if (previewSeconds != null) {
 			context.setProcessingState(true);
 			context.updateStatus({
 				stage: 'analyzing',

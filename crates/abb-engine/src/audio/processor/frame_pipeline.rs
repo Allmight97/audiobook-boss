@@ -19,14 +19,14 @@ pub enum PreviewAction {
 }
 
 pub(crate) struct FramePipelineCtx<'a> {
-    pub(crate) context: &'a crate::processing::context::ProcessingContext,
-    pub(crate) emitter: &'a crate::processing::progress::ProgressEmitter,
+    pub(crate) context: &'a crate::processing::ProcessingContext,
+    pub(crate) emitter: &'a crate::processing::ProgressEmitter,
     pub(crate) total_duration: f64,
     pub(crate) total_files: usize,
     pub(crate) target_sample_rate: u32,
     pub(crate) running_pts: &'a mut i64,
     pub(crate) last_emit: &'a mut std::time::Instant,
-    pub(crate) eta: &'a mut crate::processing::progress::EtaEstimator,
+    pub(crate) eta: &'a mut crate::processing::EtaEstimator,
     pub(crate) current_file_index: usize,
     pub(crate) current_stream_index: usize,
     pub(crate) current_file_name: String,
@@ -47,7 +47,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
     if ctx.last_emit.elapsed() > std::time::Duration::from_millis(PROGRESS_EMIT_INTERVAL_MS) {
         *ctx.last_emit = std::time::Instant::now();
         let current_seconds = *ctx.running_pts as f64 / ctx.target_sample_rate as f64;
-        let percentage = crate::processing::progress::converting_percentage_from_seconds(
+        let percentage = crate::processing::converting_percentage_from_seconds(
             current_seconds,
             ctx.total_duration,
         ) as f64;
@@ -62,7 +62,7 @@ fn emit_progress_update(ctx: &mut FramePipelineCtx) {
             ctx.current_file_name.as_str()
         };
         ctx.emitter.emit_converting_progress(
-            percentage.min(crate::processing::progress::PROGRESS_CONVERTING_MAX as f64) as f32,
+            percentage.min(crate::processing::PROGRESS_CONVERTING_MAX as f64) as f32,
             "Converting and merging audio files...",
             Some(format!(
                 "{} ({}/{})",

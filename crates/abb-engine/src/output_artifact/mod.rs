@@ -53,7 +53,7 @@ pub(crate) fn derive_output_artifact_path(
         .map_err(Into::into)
 }
 
-pub fn build_output_path_preview(
+pub(crate) fn build_output_path_preview(
     base_dir: &Path,
     metadata: Option<&NamingMetadata>,
     naming: OutputNamingConfig,

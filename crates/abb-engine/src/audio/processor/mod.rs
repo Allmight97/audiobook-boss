@@ -95,15 +95,6 @@ impl AudioExecutionRequest {
     }
 }
 
-pub fn validate_audio_engine_inputs(
-    encoder_settings: &EncoderSettings,
-    titles: &[FileListInfo],
-    sample_rate: &crate::audio::SampleRateConfig,
-) -> Result<()> {
-    let encoder_type = resolution::resolve_linked_encoder(encoder_settings)?;
-    validate_resolved_audio_inputs(encoder_type, encoder_settings, titles, sample_rate)
-}
-
 pub(in crate::audio) fn validate_resolved_audio_inputs(
     encoder_type: crate::audio::EncoderType,
     encoder_settings: &EncoderSettings,

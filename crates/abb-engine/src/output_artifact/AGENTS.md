@@ -1,7 +1,9 @@
 # Output Artifact Boundary
 
 ## Public API Strip
-- Import from `crate::output_artifact`, not private child modules.
+- This runtime strip is engine-internal. Hosts import output vocabulary and
+  use session intents; internal callers import `crate::output_artifact`, not
+  private child modules.
 - Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`, `lock_output_file`.
 - Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `FileIdentity`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
 - Pure naming/collision/review data facts are packaged in
@@ -13,7 +15,10 @@
 - The cluster owns artifact path derivation, collision detection, review signatures, output-root and parent-dir creation after review plus cleanup of the empty dirs ABB created, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
 - Empty folders ABB created: a title that ends without publishing removes
   those made for it at once (`end_title`). No cleanup removes a folder that an
-  unfinished output of any run will write into (process-wide claims).
+  unfinished output of any run will write into (process-wide claims). The
+  same owner retains created folders across runs until the last claimant
+  ends, so cancellation of the creating run cannot strand another run's empty
+  folders. It only removes empty ABB-created paths below their existing anchor.
 - `file_lock.rs`: publication and every tag save on a published output hold
   that file's process-wide lock, so a later export replacing the file is
   never overwritten by an earlier export's tag save.

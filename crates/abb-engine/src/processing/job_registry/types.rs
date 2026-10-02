@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::errors::{AppError, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,6 +14,7 @@ impl JobId {
     }
 
     /// Parses a JobId from a string
+    #[cfg(test)]
     pub fn parse(s: &str) -> Result<Self> {
         let uuid = Uuid::parse_str(s)
             .map_err(|e| AppError::InvalidInput(format!("Invalid job ID: {e}")))?;
@@ -34,13 +36,12 @@ impl std::fmt::Display for JobId {
 
 /// Aggregate status of all jobs in the registry
 #[derive(Debug, Clone)]
+#[cfg(test)]
 pub struct AggregateJobStatus {
     /// Number of actively processing jobs
     pub active_jobs: usize,
     /// Total jobs in registry
     pub total_jobs: usize,
-    /// Maximum concurrent jobs allowed
-    pub max_concurrent: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]

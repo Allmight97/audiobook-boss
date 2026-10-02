@@ -1001,6 +1001,25 @@ fn a_waiting_write_for_a_removed_title_reaches_it_when_it_returns() {
 }
 
 #[test]
+fn a_failed_waiting_write_can_be_retried_after_its_title_returns_later() {
+    let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
+    desk.type_into(MetadataField::Genre, "Mystery");
+    desk.save_during(&HashSet::from([path("alpha")]), &[], &[]);
+    desk.change(|set| {
+        set.remove_file(0);
+    })
+    .expect("remove");
+    let taken = desk.begin_deferred(&HashSet::new());
+    desk.end_deferred(taken, &["alpha"]);
+    assert!(desk.state.waiting_write_paths().is_empty());
+    desk.import(&[("alpha", None)]);
+    desk.select(&[0]).expect("select returning title");
+    assert_eq!(desk.field(MetadataField::Genre).value, "Mystery");
+    desk.save_during(&HashSet::new(), &[], &[]);
+    assert_eq!(desk.disk[&path("alpha")].genre.as_deref(), Some("Mystery"));
+}
+
+#[test]
 fn a_save_while_a_submission_is_prepared_waits_for_its_sources() {
     let mut desk = Desk::open(&[("alpha", Some(alpha_tags()))], &[0]);
     desk.state.output.set_directory("/library".to_string());
@@ -1575,6 +1594,25 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
     desk.state
         .finish_staged_removal("job-1", true, Instant::now());
     assert!(desk.state.staged.is_empty());
+    assert!(
+        !desk.state.working_set.files()[0].is_valid,
+        "the removed download remains only as history"
+    );
+    let defaults = desk.state.audio.request();
+    let mut next = crate::audio::AudioFile::new(path("beta"));
+    next.is_valid = true;
+    desk.state
+        .working_set
+        .append_analyzed(vec![next], &defaults);
+    desk.bind();
+    let draft = desk
+        .state
+        .begin_submission(None)
+        .expect("the next batch excludes removed files");
+    assert_eq!(
+        draft.payload.input_files,
+        vec![path("beta").to_string_lossy().into_owned()]
+    );
 }
 
 #[test]

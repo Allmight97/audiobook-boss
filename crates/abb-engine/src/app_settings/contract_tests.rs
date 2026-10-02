@@ -1,8 +1,6 @@
 use super::*;
 use crate::audio::{BitrateMode, EncoderType, SampleRateConfig};
 use crate::errors::AppError;
-use std::sync::{Arc, Barrier};
-use std::thread;
 use tempfile::TempDir;
 
 #[test]
@@ -286,57 +284,6 @@ fn encoder_specific_controls_survive_settings_reload() {
             expected
         );
     }
-}
-
-#[test]
-fn serialized_updates_preserve_independent_patches() {
-    let temp = TempDir::new().expect("temp dir");
-    let config_dir = Arc::new(temp.path().to_path_buf());
-    let barrier = Arc::new(Barrier::new(2));
-
-    let concurrency_dir = Arc::clone(&config_dir);
-    let concurrency_barrier = Arc::clone(&barrier);
-    let concurrency_thread = thread::spawn(move || {
-        concurrency_barrier.wait();
-        update_app_settings(
-            &concurrency_dir,
-            AppSettingsPatch {
-                max_concurrent_jobs: Some(ConcurrencyPreference::Fixed(2)),
-                ..AppSettingsPatch::default()
-            },
-        )
-        .expect("persist concurrency patch");
-    });
-
-    let output_dir = Arc::clone(&config_dir);
-    let output_barrier = Arc::clone(&barrier);
-    let output_thread = thread::spawn(move || {
-        let mut output_defaults = AppSettings::default().output_defaults;
-        output_defaults.output_directory = Some("/tmp/abb-output".to_string());
-
-        output_barrier.wait();
-        update_app_settings(
-            &output_dir,
-            AppSettingsPatch {
-                output_defaults: Some(output_defaults),
-                ..AppSettingsPatch::default()
-            },
-        )
-        .expect("persist output patch");
-    });
-
-    concurrency_thread.join().expect("concurrency thread");
-    output_thread.join().expect("output thread");
-
-    let settings = get_app_settings(temp.path()).expect("reload serialized settings");
-    assert_eq!(
-        settings.max_concurrent_jobs,
-        ConcurrencyPreference::Fixed(2)
-    );
-    assert_eq!(
-        settings.output_defaults.output_directory.as_deref(),
-        Some("/tmp/abb-output")
-    );
 }
 
 #[test]

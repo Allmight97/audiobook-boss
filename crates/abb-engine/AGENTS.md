@@ -27,9 +27,17 @@ the same code.
   settings writes already under way, so saves waiting on them are written.
   Metadata Saves are not cancelled. `Engine::running_work` tells a host what
   quitting would stop.
-- Every background task the engine starts runs on its one `TaskTracker`
+- Every background task the engine starts runs on its one `EngineTasks` owner over a `TaskTracker`
   (`tokio_util`), never a bare `tokio::spawn`, so shutdown can wait for it.
   Short scoped tasks joined before their caller returns are the exception.
+  Admission and shutdown share one lock: registering visible work and its
+  cancellation handles must finish before shutdown enumerates work to stop.
+- An accepted intent belongs to the engine. `SessionRun::finish` and settings
+  replies only wait; dropping a host wait never drops accepted file work.
+- Hosts import intent/snapshot vocabulary from the public modules and call
+  `Engine`; metadata writers, media execution, processing contexts, and
+  `WorkRuntime` are crate-internal. Compiler-checked negative API examples
+  in `lib.rs` prevent tests from reopening those safety bypasses.
 - `abb-dev` (`src/bin/abb_dev.rs`) is the smallest host. It runs under its own
   identity and state folder; keep it from reading the app's settings or
   credentials.
@@ -44,7 +52,7 @@ the same code.
   `crate::work_runtime`.
 - The titles being prepared, their metadata drafts, lookup, Save, and
   submission belong to `crate::session`. It writes tags through `metadata_save.rs` (one WorkRuntime
-  operation per batch) and loads user-picked covers through `cover_source.rs`,
+  operation per batch, with crate-internal request/result types) and loads user-picked covers through `cover_source.rs`,
   which owns the URL and file limits.
 - Online metadata search belongs to `crate::metadata_lookup`. A provider that
   fails while others answer leaves the usable results plus typed diagnostics;
@@ -63,7 +71,7 @@ the same code.
   `crate::output_artifact`.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
-  runs `process_payload_with_options` directly with `preview_seconds`.
+  runs `process_inspected_with_options` directly with `preview_seconds`.
 
 ## Diagnostics
 
@@ -98,3 +106,10 @@ the same code.
 
 Use the nearest subsystem guidance for its public interface and traps, and
 `scripts/AGENTS.md` for checks matching the changed boundary.
+
+## Proof placement
+
+Real-file engine proofs live under `src/test_cases` so they can use private
+media boundaries without exposing them to hosts. `tests/all_tests.rs` proves
+only the separately compiled `abb-dev` host. Runtime construction helpers that
+serve those proofs compile only under `cfg(test)`.

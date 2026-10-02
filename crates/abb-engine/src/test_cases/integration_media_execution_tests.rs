@@ -23,7 +23,7 @@ use abb_engine::audio::{
     execute_audio_engine, get_file_list_info, AudioExecutionRequest, BitrateMode, ChannelConfig,
     EncoderSettings, EncoderType, SampleRateConfig,
 };
-use abb_engine::processing::job_registry::{CancellationChecker, JobRegistry};
+use abb_engine::processing::{CancellationChecker, JobRegistry};
 use abb_engine::processing::{OutputConfig, ProcessingContext, ProcessingSession};
 use abb_engine::session::{AudioEdit, CueChoice, SessionIntent, TitlePlan};
 use abb_engine::{
@@ -170,7 +170,8 @@ async fn assert_reprocessing_sample_count(settings: EncoderSettings) {
             .output()
             .expect("ffprobe sample duration");
         assert!(probe.status.success());
-        let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+        let facts: serde_json::Value =
+            serde_json::from_slice(&probe.stdout).expect("fixture value");
         let stream = &facts["streams"][0];
         assert_eq!(stream["time_base"], "1/44100");
         assert_eq!(
@@ -222,7 +223,7 @@ fn audio_duration_ts(path: &Path) -> u64 {
         .output()
         .expect("ffprobe duration_ts");
     assert!(probe.status.success());
-    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).expect("fixture value");
     facts["streams"][0]["duration_ts"]
         .as_u64()
         .expect("audio duration_ts")
@@ -293,7 +294,7 @@ fn decode_pcm_f32(path: &Path) -> Vec<f32> {
     decoded
         .stdout
         .chunks_exact(4)
-        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+        .map(|bytes| f32::from_le_bytes(bytes.try_into().expect("fixture value")))
         .collect()
 }
 
@@ -309,7 +310,7 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
         .args(["-map", "0:a:0", "-c:a", "copy", "-movflags", "+faststart"])
         .arg(&broken)
         .output()
-        .unwrap();
+        .expect("fixture value");
     assert!(remux.status.success());
     let binary = std::env::var("ABB_FFPROBE").unwrap_or_else(|_| "ffprobe".to_string());
     let probe = Command::new(binary)
@@ -324,20 +325,28 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
         ])
         .arg(&broken)
         .output()
-        .unwrap();
+        .expect("fixture value");
     assert!(probe.status.success());
-    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+    let facts: serde_json::Value = serde_json::from_slice(&probe.stdout).expect("fixture value");
     let packet = &facts["packets"][30];
-    let end = packet["pos"].as_str().unwrap().parse::<u64>().unwrap()
-        + packet["size"].as_str().unwrap().parse::<u64>().unwrap();
+    let end = packet["pos"]
+        .as_str()
+        .expect("fixture value")
+        .parse::<u64>()
+        .expect("fixture value")
+        + packet["size"]
+            .as_str()
+            .expect("fixture value")
+            .parse::<u64>()
+            .expect("fixture value");
     fs::OpenOptions::new()
         .write(true)
         .open(&broken)
-        .unwrap()
+        .expect("fixture value")
         .set_len(end)
-        .unwrap();
+        .expect("fixture value");
     let broken_lane = MediaLane::for_inputs(vec![broken]);
-    let info = get_file_list_info(&broken_lane.inputs).unwrap();
+    let info = get_file_list_info(&broken_lane.inputs).expect("fixture value");
     assert_eq!(
         info.invalid_count, 1,
         "declared packets extend past the end of this MP4"
@@ -345,7 +354,7 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
     assert!(info.files[0]
         .error
         .as_deref()
-        .unwrap()
+        .expect("fixture value")
         .contains("incomplete or truncated"));
     let request = AudioExecutionRequest::new(
         broken_lane.context(ProcessingSession::new()),
@@ -366,16 +375,16 @@ async fn truncated_audio_fails_without_publishing_a_shortened_book() {
 async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() {
     let lane = MediaLane::with_fixtures(&[0.3]);
     let output = lane.process(None).await;
-    let mut tag = mp4ameta::Tag::read_from_path(&output).unwrap();
+    let mut tag = mp4ameta::Tag::read_from_path(&output).expect("fixture value");
     tag.set_artists(["First Author".to_string(), "Second Author".to_string()]);
     tag.set_album_artists([
         "First Album Author".to_string(),
         "Second Album Author".to_string(),
     ]);
     tag.set_composers(["First Narrator".to_string(), "Second Narrator".to_string()]);
-    tag.write_to_path(&output).unwrap();
+    tag.write_to_path(&output).expect("fixture value");
 
-    let metadata = read_metadata(&output).unwrap();
+    let metadata = read_metadata(&output).expect("fixture value");
     assert_eq!(
         metadata.artist.as_deref(),
         Some("First Author;Second Author")
@@ -384,7 +393,7 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
         metadata.composer.as_deref(),
         Some("First Narrator;Second Narrator")
     );
-    let imported = get_file_list_info(&[&output]).unwrap();
+    let imported = get_file_list_info(&[&output]).expect("fixture value");
     assert_eq!(imported.files[0].tag_artist, metadata.artist);
 
     save_metadata_intent(
@@ -394,8 +403,8 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
             ..Default::default()
         },
     )
-    .unwrap();
-    let mut tag = mp4ameta::Tag::read_from_path(&output).unwrap();
+    .expect("fixture value");
+    let mut tag = mp4ameta::Tag::read_from_path(&output).expect("fixture value");
     assert_eq!(
         tag.artists().collect::<Vec<_>>(),
         ["First Author", "Second Author"]
@@ -410,15 +419,18 @@ async fn repeated_mp4_contributors_remain_visible_and_survive_unrelated_edits() 
     );
 
     tag.remove_artists();
-    tag.write_to_path(&output).unwrap();
+    tag.write_to_path(&output).expect("fixture value");
     assert_eq!(
-        read_metadata(&output).unwrap().artist.as_deref(),
+        read_metadata(&output)
+            .expect("fixture value")
+            .artist
+            .as_deref(),
         Some("First Album Author;Second Album Author")
     );
 
     let reprocess = MediaLane::for_inputs(vec![output]);
     let finalized = reprocess.process(Some(metadata)).await;
-    let reread = read_metadata(&finalized).unwrap();
+    let reread = read_metadata(&finalized).expect("fixture value");
     assert_eq!(reread.artist.as_deref(), Some("First Author;Second Author"));
     assert_eq!(
         reread.composer.as_deref(),
@@ -1037,13 +1049,29 @@ fn parse_mdhd(bytes: &[u8], start: usize, end: usize) -> (u32, u64) {
     let version = bytes[start];
     if version == 1 {
         assert!(start + 28 <= end, "mdhd v1 too small");
-        let timescale = u32::from_be_bytes(bytes[start + 20..start + 24].try_into().unwrap());
-        let duration = u64::from_be_bytes(bytes[start + 24..start + 32].try_into().unwrap());
+        let timescale = u32::from_be_bytes(
+            bytes[start + 20..start + 24]
+                .try_into()
+                .expect("fixture value"),
+        );
+        let duration = u64::from_be_bytes(
+            bytes[start + 24..start + 32]
+                .try_into()
+                .expect("fixture value"),
+        );
         (timescale, duration)
     } else {
         assert!(start + 20 <= end, "mdhd v0 too small");
-        let timescale = u32::from_be_bytes(bytes[start + 12..start + 16].try_into().unwrap());
-        let duration = u32::from_be_bytes(bytes[start + 16..start + 20].try_into().unwrap()) as u64;
+        let timescale = u32::from_be_bytes(
+            bytes[start + 12..start + 16]
+                .try_into()
+                .expect("fixture value"),
+        );
+        let duration = u32::from_be_bytes(
+            bytes[start + 16..start + 20]
+                .try_into()
+                .expect("fixture value"),
+        ) as u64;
         (timescale, duration)
     }
 }
@@ -1295,10 +1323,10 @@ fn write_chaptered_sine_mp3(path: &Path, seconds: f64, freq_hz: f64) {
 
 #[test]
 fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("fixture value");
     let path = tmp.path().join("comments.mp3");
     write_sine_mp3(&path, 0.1, 440.0);
-    let audio = fs::read(&path).unwrap();
+    let audio = fs::read(&path).expect("fixture value");
     let offset = if audio.starts_with(b"ID3") {
         10 + audio[6..10]
             .iter()
@@ -1329,9 +1357,12 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
     }
     tagged.extend(frames);
     tagged.extend_from_slice(&audio[offset..]);
-    fs::write(&path, tagged).unwrap();
+    fs::write(&path, tagged).expect("fixture value");
     assert_eq!(
-        read_metadata(&path).unwrap().comment.as_deref(),
+        read_metadata(&path)
+            .expect("fixture value")
+            .comment
+            .as_deref(),
         Some("English comment")
     );
     save_metadata_intent(
@@ -1341,9 +1372,9 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
             ..Default::default()
         },
     )
-    .unwrap();
+    .expect("fixture value");
     {
-        let input = ffmpeg_next::format::input(&path).unwrap();
+        let input = ffmpeg_next::format::input(&path).expect("fixture value");
         let tags = input.metadata();
         assert_eq!(tags.get("comment-eng"), Some("English comment"));
         assert_eq!(tags.get("comment-comment-fra"), Some("French comment"));
@@ -1355,9 +1386,12 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
             ..Default::default()
         },
     )
-    .unwrap();
+    .expect("fixture value");
     assert_eq!(
-        read_metadata(&path).unwrap().comment.as_deref(),
+        read_metadata(&path)
+            .expect("fixture value")
+            .comment
+            .as_deref(),
         Some("New comment")
     );
     save_metadata_intent(
@@ -1367,9 +1401,9 @@ fn id3_language_comments_round_trip_through_unrelated_set_and_clear_intent() {
             ..Default::default()
         },
     )
-    .unwrap();
-    assert_eq!(read_metadata(&path).unwrap().comment, None);
-    let input = ffmpeg_next::format::input(&path).unwrap();
+    .expect("fixture value");
+    assert_eq!(read_metadata(&path).expect("fixture value").comment, None);
+    let input = ffmpeg_next::format::input(&path).expect("fixture value");
     assert_eq!(
         input.metadata().get("comment-iTunNORM-eng"),
         Some("technical normalization")
@@ -1448,6 +1482,7 @@ async fn preserve_copies_supported_m4b_and_mp3_without_mutating_source_bytes() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Preserve: Sequential source/output readbacks prove preservation of audio and cover together.
 async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
     let source_lane = MediaLane::with_fixtures(&[0.8, 0.7]).with_encoder(EncoderSettings {
         bitrate_kbps: 128,
@@ -1465,7 +1500,7 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
         ..Default::default()
     };
     let info = get_file_list_info(std::slice::from_ref(&source)).expect("probe source");
-    assert!(info.files[0].bitrate.unwrap() > 72_000);
+    assert!(info.files[0].bitrate.expect("fixture value") > 72_000);
     let plan = abb_engine::audio::resolve_title_audio(
         &title_audio_request(
             abb_engine::processing::AudioHandling::Preserve,
@@ -1552,7 +1587,9 @@ async fn preserve_applies_metadata_and_cover_without_touching_source_audio() {
         Some("Preserved MP3 title")
     );
     assert_eq!(
-        read_metadata(&mp3_destination).unwrap().cover_art,
+        read_metadata(&mp3_destination)
+            .expect("fixture value")
+            .cover_art,
         Some(minimal_jpg_bytes())
     );
     assert_eq!(chapters_of(&mp3_destination), mp3_source_chapters);
@@ -1597,10 +1634,17 @@ async fn cancelled_preserve_does_not_publish_or_leave_staging_residue() {
         fs::read(&source).expect("source remains unchanged"),
         source_bytes
     );
-    assert!(!workspace.exists() || fs::read_dir(&workspace).unwrap().next().is_none());
+    assert!(
+        !workspace.exists()
+            || fs::read_dir(&workspace)
+                .expect("fixture value")
+                .next()
+                .is_none()
+    );
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Preserve: Each mixed-title case proves the planner applies constraints only to encoded audio.
 async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encoded_books() {
     use abb_engine::processing::{
         AudioHandling::{Encode, Preserve},
@@ -1610,13 +1654,13 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         MediaLane::with_fixtures(&[0.5]).with_sample_rate(SampleRateConfig::Explicit(22_050));
     let source = source_lane.process(None).await;
     let larger = MediaLane::with_fixtures(&[0.5, 0.6]);
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("fixture value");
     let output = tmp.path().join("out");
-    fs::create_dir(&output).unwrap();
+    fs::create_dir(&output).expect("fixture value");
     let mut paths = Vec::new();
     for name in ["prey1.m4b", "prey2.m4a", "prey3.m4b"] {
         let path = tmp.path().join(name);
-        fs::copy(&source, &path).unwrap();
+        fs::copy(&source, &path).expect("fixture value");
         paths.push(path.to_string_lossy().to_string());
     }
     paths.extend(
@@ -1652,13 +1696,14 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
             )
         })
         .collect();
-    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None).unwrap();
+    let plan = preflight_processing_plan(payload.clone(), Some(metadata.clone()), None)
+        .expect("fixture value");
     assert_eq!(plan.outputs.len(), 5);
     for (index, extension) in ["m4b", "m4b", "m4b", "m4b", "m4b"].iter().enumerate() {
         assert_eq!(
             std::path::Path::new(&plan.outputs[index].resolved_path)
                 .extension()
-                .unwrap(),
+                .expect("fixture value"),
             *extension
         );
         assert!(plan.outputs[index]
@@ -1672,7 +1717,7 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         .for_each(|request| request.settings = None);
     assert!(
         preflight_processing_plan(missing_settings, Some(metadata.clone()), None)
-            .unwrap_err()
+            .expect_err("fixture must reject")
             .message
             .contains("encoding settings")
     );
@@ -1691,24 +1736,25 @@ async fn mixed_preservation_preflight_applies_encoder_constraints_only_to_encode
         request.sample_rate = SampleRateConfig::Explicit(1); // irrelevant while passing through
     }
     let original_plan =
-        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), None).unwrap();
+        preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), None)
+            .expect("fixture value");
     assert!(
         preflight_processing_plan(all_preserve.clone(), Some(metadata.clone()), Some(1.0)).is_err()
     );
     let mut changed_mode = all_preserve.clone();
     changed_mode.audio_requests = vec![title_audio_request(Encode, native_encoder_settings()); 3];
-    let encode_plan =
-        preflight_processing_plan(changed_mode, Some(metadata.clone()), None).unwrap();
+    let encode_plan = preflight_processing_plan(changed_mode, Some(metadata.clone()), None)
+        .expect("fixture value");
     assert_ne!(original_plan.plan_signature, encode_plan.plan_signature);
     assert_eq!(
-        fs::read_dir(&output).unwrap().count(),
+        fs::read_dir(&output).expect("fixture value").count(),
         0,
         "preflight creates no library folders"
     );
     let mut misaligned = all_preserve;
     misaligned.audio_requests.truncate(1);
     assert!(preflight_processing_plan(misaligned, Some(metadata), None)
-        .unwrap_err()
+        .expect_err("fixture must reject")
         .message
         .contains("align"));
 }
@@ -1954,7 +2000,8 @@ fn assert_quicktime_chapter_offset(path: &Path, start_ms: u32, first_duration_ms
         let (text_timescale, _) = parse_mdhd(&bytes, mdhd.0, mdhd.1);
         let edts = find_atom(&bytes, start + 8, end, *b"edts").expect("chapter edits");
         let elst = find_atom(&bytes, edts.0, edts.1, *b"elst").expect("edit list");
-        let read_u32 = |at| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+        let read_u32 =
+            |at| u32::from_be_bytes(bytes[at..at + 4].try_into().expect("fixture value"));
         assert_eq!(
             bytes[elst.0], 0,
             "small fixture uses edit-list version zero"
@@ -2022,17 +2069,17 @@ async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
             .with_sample_rate(sample_rate);
         if source_rate != SAMPLE_RATE {
             for path in &lane.inputs {
-                let mut bytes = fs::read(path).unwrap();
+                let mut bytes = fs::read(path).expect("fixture value");
                 bytes[24..28].copy_from_slice(&source_rate.to_le_bytes());
                 bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
-                fs::write(path, bytes).unwrap();
+                fs::write(path, bytes).expect("fixture value");
             }
             let plan = abb_engine::audio::resolve_title_audio(
                 &title_audio_request(
                     abb_engine::processing::AudioHandling::Encode,
                     faac_encoder_settings(),
                 ),
-                &get_file_list_info(&lane.inputs).unwrap(),
+                &get_file_list_info(&lane.inputs).expect("fixture value"),
                 false,
             )
             .expect("FAAC HE Auto plans its required source-rate conversion");
@@ -2041,7 +2088,7 @@ async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
         let mut metadata = AudiobookMetadata::new();
         metadata.title = Some("FAAC Merge".into());
         let output = lane.process(Some(metadata)).await;
-        let probe = get_file_list_info(&[&output]).unwrap();
+        let probe = get_file_list_info(&[&output]).expect("fixture value");
         assert_eq!(probe.valid_count, 1);
         assert_eq!(probe.files[0].sample_rate, Some(expected_rate));
         assert_eq!(
@@ -2053,7 +2100,7 @@ async fn faac_he_merge_preserves_metadata_chapters_and_resampled_channels() {
             (probe.total_duration - 0.3 * f64::from(SAMPLE_RATE) / f64::from(source_rate)).abs()
                 < 0.002
         );
-        let tags = read_metadata(&output).unwrap();
+        let tags = read_metadata(&output).expect("fixture value");
         assert_eq!(tags.title.as_deref(), Some("FAAC Merge"));
         assert_eq!(probe.files[0].chapters.len(), 2);
         assert!(lane.residual_workspace_dirs().is_empty());
@@ -2070,7 +2117,7 @@ async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residu
     let lane = MediaLane::with_fixtures(&[6.0, 6.0]).with_encoder(faac_encoder_settings());
     let mut context = lane.context(ProcessingSession::new());
     context.preview = Some(abb_engine::processing::PreviewConfig::new(10.0));
-    let info = get_file_list_info(&lane.inputs).unwrap();
+    let info = get_file_list_info(&lane.inputs).expect("fixture value");
     execute_audio_engine(AudioExecutionRequest::new(
         context,
         info,
@@ -2078,8 +2125,8 @@ async fn faac_preview_omits_chapters_and_rejects_unsupported_rate_without_residu
         CoverArtPassthroughPolicy::Preserve,
     ))
     .await
-    .unwrap();
-    let probe = get_file_list_info(&[lane.output_path()]).unwrap();
+    .expect("fixture value");
+    let probe = get_file_list_info(&[lane.output_path()]).expect("fixture value");
     assert!(
         (probe.total_duration - 10.0).abs() < 0.1,
         "preview duration {}",
@@ -2122,7 +2169,7 @@ async fn faac_apple_readback_preserves_short_clip_and_final_tail() {
                 .arg(&output)
                 .arg(&decoded_path)
                 .output()
-                .unwrap();
+                .expect("fixture value");
             assert!(
                 converted.status.success(),
                 "{}",
@@ -2219,7 +2266,7 @@ async fn assert_faac_reimport(
     for &(rate, samples) in cases {
         let lane = MediaLane::with_fixtures(&[f64::from(samples) / f64::from(SAMPLE_RATE)])
             .with_encoder(input_settings.clone());
-        let mut wav = fs::read(&lane.inputs[0]).unwrap();
+        let mut wav = fs::read(&lane.inputs[0]).expect("fixture value");
         wav[24..28].copy_from_slice(&rate.to_le_bytes());
         wav[28..32].copy_from_slice(&(rate * 2).to_le_bytes());
         let mut state = 42u32;
@@ -2230,7 +2277,7 @@ async fn assert_faac_reimport(
             filtered = filtered * 0.85 + noise * 0.15;
             sample.copy_from_slice(&((filtered * 50000.0) as i16).to_le_bytes());
         }
-        fs::write(&lane.inputs[0], wav).unwrap();
+        fs::write(&lane.inputs[0], wav).expect("fixture value");
         let source = decode_pcm_f32(&lane.inputs[0]);
         let faac_output = lane.process(None).await;
         if rate == 44100 && samples == 22050 {
@@ -2252,7 +2299,8 @@ async fn assert_faac_reimport(
         } else {
             1
         };
-        let inspected = get_file_list_info(std::slice::from_ref(&second_output)).unwrap();
+        let inspected =
+            get_file_list_info(std::slice::from_ref(&second_output)).expect("fixture value");
         assert_eq!(
             inspected.files[0].channels,
             Some(expected_channels),
@@ -2300,7 +2348,7 @@ fn best_signal_lag(reference: &[f32], decoded: &[f32], radius: i32) -> i32 {
             (lag, score)
         })
         .max_by(|left, right| left.1.total_cmp(&right.1))
-        .unwrap()
+        .expect("fixture value")
         .0
 }
 
@@ -2328,28 +2376,31 @@ fn write_complete_frame_aac(path: &Path, frequency: u32) {
 }
 
 fn audio_packet_bytes(path: &Path) -> Vec<Vec<u8>> {
-    let mut input = ffmpeg_next::format::input(path).unwrap();
+    let mut input = ffmpeg_next::format::input(path).expect("fixture value");
     let index = input
         .streams()
         .best(ffmpeg_next::media::Type::Audio)
-        .unwrap()
+        .expect("fixture value")
         .index();
     input
         .packets()
         .filter(|(stream, _)| stream.index() == index)
-        .map(|(_, packet)| packet.data().unwrap().to_vec())
+        .map(|(_, packet)| packet.data().expect("fixture value").to_vec())
         .collect()
 }
 
 #[tokio::test]
 async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptered_m4b() {
     use abb_engine::processing::{AudioHandling, ProcessPayload};
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("fixture value");
     let one = tmp.path().join("first.m4a");
     let two = tmp.path().join("second.m4a");
     write_complete_frame_aac(&one, 440);
     write_complete_frame_aac(&two, 880);
-    let originals = [fs::read(&one).unwrap(), fs::read(&two).unwrap()];
+    let originals = [
+        fs::read(&one).expect("fixture value"),
+        fs::read(&two).expect("fixture value"),
+    ];
     let paths = vec![two.clone(), one.clone()];
     let expected_packets: Vec<_> = paths
         .iter()
@@ -2357,11 +2408,11 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
         .collect();
     let samples: usize = paths.iter().map(|path| decode_pcm_f32(path).len()).sum();
     let output_dir = tmp.path().join("out");
-    fs::create_dir(&output_dir).unwrap();
+    fs::create_dir(&output_dir).expect("fixture value");
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
-        "inputFiles": [one], "titleSources": {one.to_str().unwrap(): [{"path": two}, {"path": one}]},
+        "inputFiles": [one], "titleSources": {one.to_str().expect("fixture value"): [{"path": two}, {"path": one}]},
         "outputDir": output_dir, "audioRequests": [title_audio_request(AudioHandling::Preserve, native_encoder_settings())]
-    })).unwrap();
+    })).expect("fixture value");
     let metadata = std::collections::HashMap::from([(
         one.to_string_lossy().into_owned(),
         MetadataIntentPatch {
@@ -2377,11 +2428,12 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
     reversed
         .title_sources
         .as_mut()
-        .unwrap()
-        .get_mut(one.to_str().unwrap())
-        .unwrap()
+        .expect("fixture value")
+        .get_mut(one.to_str().expect("fixture value"))
+        .expect("fixture value")
         .reverse();
-    let reordered = preflight_processing_plan(reversed, Some(metadata), None).unwrap();
+    let reordered =
+        preflight_processing_plan(reversed, Some(metadata), None).expect("fixture value");
     assert_ne!(
         plan.plan_signature, reordered.plan_signature,
         "review pins source order"
@@ -2395,7 +2447,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
         OutputConfig::new(&destination),
         workspace.clone(),
     );
-    let info = get_file_list_info(&paths).unwrap();
+    let info = get_file_list_info(&paths).expect("fixture value");
     let title_metadata = AudiobookMetadata {
         title: Some("One grouped title".into()),
         cover_art: Some(minimal_jpg_bytes()),
@@ -2414,7 +2466,7 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
     .expect("packet-copy title merge");
     assert_eq!(audio_packet_bytes(&destination), expected_packets);
     assert_eq!(decode_pcm_f32(&destination).len(), samples);
-    let tags = read_metadata(&destination).unwrap();
+    let tags = read_metadata(&destination).expect("fixture value");
     assert_eq!(tags.title.as_deref(), Some("One grouped title"));
     assert_eq!(tags.cover_art, Some(minimal_jpg_bytes()));
     assert_eq!(
@@ -2424,9 +2476,15 @@ async fn preserved_title_stack_keeps_packet_order_and_writes_one_tagged_chaptere
             .collect::<Vec<_>>(),
         vec![Some("second"), Some("first")]
     );
-    assert_eq!(fs::read(&one).unwrap(), originals[0]);
-    assert_eq!(fs::read(&two).unwrap(), originals[1]);
-    assert!(!workspace.exists() || fs::read_dir(&workspace).unwrap().next().is_none());
+    assert_eq!(fs::read(&one).expect("fixture value"), originals[0]);
+    assert_eq!(fs::read(&two).expect("fixture value"), originals[1]);
+    assert!(
+        !workspace.exists()
+            || fs::read_dir(&workspace)
+                .expect("fixture value")
+                .next()
+                .is_none()
+    );
 }
 
 #[tokio::test]
@@ -2434,12 +2492,12 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
     use abb_engine::processing::AudioHandling;
     let source_lane = MediaLane::with_fixtures(&[0.2]);
     let source = source_lane.process(None).await;
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("fixture value");
     let copy = tmp.path().join("second.m4b");
-    fs::copy(&source, &copy).unwrap();
+    fs::copy(&source, &copy).expect("fixture value");
     let destination = tmp.path().join("must-not-exist.m4b");
     let workspace = tmp.path().join("workspace");
-    let info = get_file_list_info(&[source, copy]).unwrap();
+    let info = get_file_list_info(&[source, copy]).expect("fixture value");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         None,
@@ -2458,7 +2516,13 @@ async fn preserved_title_rejects_interior_priming_without_publishing() {
         "{error}"
     );
     assert!(!destination.exists());
-    assert!(!workspace.exists() || fs::read_dir(&workspace).unwrap().next().is_none());
+    assert!(
+        !workspace.exists()
+            || fs::read_dir(&workspace)
+                .expect("fixture value")
+                .next()
+                .is_none()
+    );
 }
 
 #[test]
@@ -2473,7 +2537,7 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
     fs::copy(&first, &second).expect("second MP3 source");
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
         "inputFiles": [first],
-        "titleSources": {first.to_str().unwrap(): [{"path": second}, {"path": first}]},
+        "titleSources": {first.to_str().expect("fixture value"): [{"path": second}, {"path": first}]},
         "outputDir": output_dir,
         "audioRequests": [title_audio_request(AudioHandling::Encode, native_encoder_settings())]
     }))
@@ -2503,6 +2567,7 @@ fn mp3_stack_with_trimmed_boundaries_can_encode_but_cannot_pass_through() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Preserve: Sequential packet, chapter, cover and duration readbacks prove both Opus containers.
 async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_containers() {
     use abb_engine::audio::{AudioIntent, AudiobookFormat, TitleAudioRequest};
     use abb_engine::processing::ProcessPayload;
@@ -2519,17 +2584,17 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         };
         if source_rate != SAMPLE_RATE {
             for path in &lane.inputs {
-                let bytes = fs::read(path).unwrap();
+                let bytes = fs::read(path).expect("fixture value");
                 let mut bytes = bytes;
                 bytes[24..28].copy_from_slice(&source_rate.to_le_bytes());
                 bytes[28..32].copy_from_slice(&(source_rate * 2).to_le_bytes());
-                fs::write(path, bytes).unwrap();
+                fs::write(path, bytes).expect("fixture value");
             }
         }
         let paths = lane.inputs.iter().rev().cloned().collect::<Vec<_>>();
         let anchor = lane.inputs[0].to_string_lossy().into_owned();
         let out = lane.tmp.path().join("out");
-        fs::create_dir_all(&out).unwrap();
+        fs::create_dir_all(&out).expect("fixture value");
         let request = TitleAudioRequest {
             format,
             intent: AudioIntent::Auto,
@@ -2544,7 +2609,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
             "inputFiles": [&anchor], "titleSources": {&anchor: paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
             "audioRequests": [request], "outputDir": out
-        })).unwrap();
+        })).expect("fixture value");
         let metadata = AudiobookMetadata {
             title: Some("Opus title".into()),
             artist: Some("Test Author".into()),
@@ -2556,9 +2621,12 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         assert_eq!(audio_plan.sample_rate, input_rate);
         assert_eq!(audio_plan.channels, channels);
         let destination = PathBuf::from(&plan.outputs[0].resolved_path);
-        fs::create_dir_all(destination.parent().unwrap()).unwrap();
-        assert_eq!(destination.extension().unwrap(), format.extension());
-        let info = get_file_list_info(&paths).unwrap();
+        fs::create_dir_all(destination.parent().expect("fixture value")).expect("fixture value");
+        assert_eq!(
+            destination.extension().expect("fixture value"),
+            format.extension()
+        );
+        let info = get_file_list_info(&paths).expect("fixture value");
         let duration = info.total_duration;
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
@@ -2578,11 +2646,11 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         )
         .await
         .expect("Opus title output");
-        let audio = get_file_list_info(std::slice::from_ref(&destination)).unwrap();
+        let audio = get_file_list_info(std::slice::from_ref(&destination)).expect("fixture value");
         assert!(audio.files[0]
             .codec_label
             .as_deref()
-            .unwrap()
+            .expect("fixture value")
             .to_lowercase()
             .contains("opus"));
         let decoded = decode_pcm_f32(&destination);
@@ -2620,7 +2688,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         } else {
             AudiobookFormat::M4aOpus
         };
-        let info = get_file_list_info(std::slice::from_ref(&destination)).unwrap();
+        let info = get_file_list_info(std::slice::from_ref(&destination)).expect("fixture value");
         let copy_plan = abb_engine::audio::resolve_title_audio(
             &TitleAudioRequest {
                 format: other_format,
@@ -2631,7 +2699,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             &info,
             false,
         )
-        .unwrap();
+        .expect("fixture value");
         assert_eq!(
             copy_plan.handling,
             abb_engine::processing::AudioHandling::Preserve
@@ -2657,7 +2725,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
                 })),
         )
         .await
-        .unwrap();
+        .expect("fixture value");
         assert_eq!(
             audio_packet_bytes(&copied),
             audio_packet_bytes(&destination)
@@ -2670,7 +2738,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
             decoded.len()
         );
         assert_eq!(chapters_of(&copied), chapters);
-        let copied_tags = read_metadata(&copied).unwrap();
+        let copied_tags = read_metadata(&copied).expect("fixture value");
         assert_eq!(copied_tags.title.as_deref(), Some("Retagged Opus"));
         assert_eq!(copied_tags.cover_art, Some(minimal_jpg_bytes()));
 
@@ -2687,7 +2755,9 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
         );
         assert_eq!(chapters_of(&aac_output), chapters);
         if format == AudiobookFormat::MkaOpus {
-            assert!(read_audio_cover_thumbnail(&destination).unwrap().is_some());
+            assert!(read_audio_cover_thumbnail(&destination)
+                .expect("fixture value")
+                .is_some());
             let packets = audio_packet_bytes(&destination);
             let replacement = minimal_jpg_bytes();
             save_metadata_intent(
@@ -2697,9 +2767,9 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
                     ..Default::default()
                 },
             )
-            .unwrap();
+            .expect("fixture value");
             {
-                let input = ffmpeg_next::format::input(&destination).unwrap();
+                let input = ffmpeg_next::format::input(&destination).expect("fixture value");
                 assert_eq!(
                     input
                         .streams()
@@ -2713,7 +2783,9 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
                     1
                 );
             }
-            assert!(read_audio_cover_thumbnail(&destination).unwrap().is_some());
+            assert!(read_audio_cover_thumbnail(&destination)
+                .expect("fixture value")
+                .is_some());
             save_metadata_intent(
                 &destination,
                 &MetadataIntentPatch {
@@ -2721,8 +2793,11 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
                     ..Default::default()
                 },
             )
-            .unwrap();
-            assert_eq!(read_audio_cover_thumbnail(&destination).unwrap(), None);
+            .expect("fixture value");
+            assert_eq!(
+                read_audio_cover_thumbnail(&destination).expect("fixture value"),
+                None
+            );
             assert_eq!(audio_packet_bytes(&destination), packets);
             assert_eq!(chapters_of(&destination), chapters);
         }
@@ -2732,7 +2807,7 @@ async fn opus_title_plan_writes_chapters_cover_and_truthful_audio_in_both_contai
 #[tokio::test]
 async fn opus_remux_keeps_variable_frame_timing_and_trim() {
     use abb_engine::processing::AudioHandling;
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("fixture value");
     let binary = std::env::var("ABB_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
     for (frame_ms, bitrate) in [("2.5", "64k"), ("60", "12k"), ("120", "64k")] {
         let source = tmp.path().join(format!("source-{frame_ms}.mka"));
@@ -2757,14 +2832,14 @@ async fn opus_remux_keeps_variable_frame_timing_and_trim() {
             ])
             .arg(&source)
             .output()
-            .unwrap();
+            .expect("fixture value");
         assert!(
             created.status.success(),
             "{}",
             String::from_utf8_lossy(&created.stderr)
         );
         let source_samples = decode_pcm_f32(&source).len();
-        let info = get_file_list_info(std::slice::from_ref(&source)).unwrap();
+        let info = get_file_list_info(std::slice::from_ref(&source)).expect("fixture value");
         let context = ProcessingContext::new_headless_with_workspace_root(
             Arc::new(ProcessingSession::new()),
             None,
@@ -2810,7 +2885,7 @@ fn title_audio_request(
 async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
     use abb_engine::audio::{AudioIntent, AudiobookFormat};
     use abb_engine::processing::{AudioHandling, ProcessPayload};
-    let tmp = TempDir::new().unwrap();
+    let tmp = TempDir::new().expect("fixture value");
     let paths: Vec<_> = ["last.mp3", "first.mp3"]
         .map(|name| tmp.path().join(name))
         .to_vec();
@@ -2825,14 +2900,17 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
             .args(["-c:a", "libmp3lame", "-b:a", "96k", "-write_xing", "0"])
             .arg(path)
             .status()
-            .unwrap()
+            .expect("fixture value")
             .success());
     }
     let expected_packets: Vec<_> = paths
         .iter()
         .flat_map(|path| audio_packet_bytes(path))
         .collect();
-    let original_bytes: Vec<_> = paths.iter().map(|path| fs::read(path).unwrap()).collect();
+    let original_bytes: Vec<_> = paths
+        .iter()
+        .map(|path| fs::read(path).expect("fixture value"))
+        .collect();
     let expected_samples: usize = paths.iter().map(|path| decode_pcm_f32(path).len()).sum();
     let anchor = &paths[1];
     let request = abb_engine::audio::TitleAudioRequest {
@@ -2842,14 +2920,14 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
         sample_rate: SampleRateConfig::Auto,
     };
     let payload: ProcessPayload = serde_json::from_value(serde_json::json!({
-        "inputFiles": [anchor], "titleSources": {anchor.to_str().unwrap(): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
+        "inputFiles": [anchor], "titleSources": {anchor.to_str().expect("fixture value"): paths.iter().map(|path| serde_json::json!({"path": path})).collect::<Vec<_>>()},
         "audioRequests": [request], "outputDir": tmp.path()
-    })).unwrap();
-    let plan = preflight_processing_plan(payload, None, None).unwrap();
+    })).expect("fixture value");
+    let plan = preflight_processing_plan(payload, None, None).expect("fixture value");
     assert_eq!(plan.audio_plans[0].handling, AudioHandling::Preserve);
     assert!(plan.audio_plans[0].settings.is_none());
     let destination = PathBuf::from(&plan.outputs[0].resolved_path);
-    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+    fs::create_dir_all(destination.parent().expect("fixture value")).expect("fixture value");
     let context = ProcessingContext::new_headless_with_workspace_root(
         Arc::new(ProcessingSession::new()),
         None,
@@ -2866,17 +2944,17 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
     execute_audio_engine(
         AudioExecutionRequest::new(
             context,
-            get_file_list_info(&paths).unwrap(),
+            get_file_list_info(&paths).expect("fixture value"),
             Some(metadata),
             CoverArtPassthroughPolicy::Preserve,
         )
         .with_handling(plan.audio_plans[0].handling),
     )
     .await
-    .unwrap();
+    .expect("fixture value");
     assert_eq!(audio_packet_bytes(&destination), expected_packets);
     assert_eq!(decode_pcm_f32(&destination).len(), expected_samples);
-    let metadata = read_metadata(&destination).unwrap();
+    let metadata = read_metadata(&destination).expect("fixture value");
     assert_eq!(metadata.title.as_deref(), Some("Joined MP3"));
     assert_eq!(metadata.artist.as_deref(), Some("Author"));
     assert_eq!(metadata.cover_art, Some(minimal_jpg_bytes()));
@@ -2890,7 +2968,7 @@ async fn compatible_mp3_stack_passes_through_as_one_tagged_chaptered_title() {
     );
     assert!((chapters[1].2 as f64 - expected_samples as f64 / 44.1).abs() <= 2.0);
     for (path, original) in paths.iter().zip(original_bytes) {
-        assert_eq!(fs::read(path).unwrap(), original);
+        assert_eq!(fs::read(path).expect("fixture value"), original);
     }
 }
 
@@ -2904,8 +2982,8 @@ async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() 
             ..native_encoder_settings()
         });
         let source = lane.process(None).await;
-        let info = get_file_list_info(&[&source]).unwrap();
-        let bitrate = info.files[0].bitrate.unwrap();
+        let info = get_file_list_info(&[&source]).expect("fixture value");
+        let bitrate = info.files[0].bitrate.expect("fixture value");
         assert_eq!(bitrate <= 72_000, expected == AudioHandling::Preserve);
         let mut request = title_audio_request(
             AudioHandling::Encode,
@@ -2917,30 +2995,47 @@ async fn default_audio_plan_reduces_large_aac_but_explicit_keep_never_encodes() 
             },
         );
         request.intent = AudioIntent::Auto;
-        let plan = resolve_title_audio(&request, &info, false).unwrap();
+        let plan = resolve_title_audio(&request, &info, false).expect("fixture value");
         assert_eq!(plan.handling, expected);
-        assert_eq!(plan.sample_rate, info.files[0].sample_rate.unwrap());
-        assert_eq!(u32::from(plan.channels), info.files[0].channels.unwrap());
+        assert_eq!(
+            plan.sample_rate,
+            info.files[0].sample_rate.expect("fixture value")
+        );
+        assert_eq!(
+            u32::from(plan.channels),
+            info.files[0].channels.expect("fixture value")
+        );
         if let Some(settings) = &plan.settings {
             assert_eq!(settings.encoder_type, EncoderType::NativeAac);
             assert_eq!(settings.bitrate_mode, BitrateMode::Cbr);
             assert_eq!(settings.bitrate_kbps, 65);
         }
         request.intent = AudioIntent::Encode;
-        let explicit = resolve_title_audio(&request, &info, false).unwrap();
+        let explicit = resolve_title_audio(&request, &info, false).expect("fixture value");
         assert_eq!(
-            explicit.settings.as_ref().unwrap().encoder_type,
+            explicit
+                .settings
+                .as_ref()
+                .expect("fixture value")
+                .encoder_type,
             EncoderType::Faac
         );
-        assert_eq!(explicit.settings.as_ref().unwrap().bitrate_kbps, 80);
+        assert_eq!(
+            explicit
+                .settings
+                .as_ref()
+                .expect("fixture value")
+                .bitrate_kbps,
+            80
+        );
         request.intent = AudioIntent::Preserve;
         request.settings = None;
-        let kept = resolve_title_audio(&request, &info, false).unwrap();
+        let kept = resolve_title_audio(&request, &info, false).expect("fixture value");
         assert_eq!(kept.handling, AudioHandling::Preserve);
         assert!(kept.settings.is_none());
         request.format = AudiobookFormat::Mp3;
         assert!(resolve_title_audio(&request, &info, false)
-            .unwrap_err()
+            .expect_err("fixture must reject")
             .to_string()
             .contains("MP3 source audio"));
         assert!(resolve_title_audio(&request, &info, true).is_err());

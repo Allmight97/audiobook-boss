@@ -7,10 +7,43 @@ use std::sync::{LazyLock, Mutex, PoisonError};
 /// The parent folder of every output, in every run, that has not ended yet.
 /// No cleanup removes a folder one of them will still write into, whichever
 /// run created it.
-static CLAIMED: LazyLock<Mutex<Vec<PathBuf>>> = LazyLock::new(Mutex::default);
+#[derive(Default)]
+struct DirectoryOwnership {
+    claims: Vec<PathBuf>,
+    /// Kept across runs until the final claimant ends; failed removals retry.
+    created: Vec<(PathBuf, PathBuf)>,
+}
 
-fn claims() -> std::sync::MutexGuard<'static, Vec<PathBuf>> {
-    CLAIMED.lock().unwrap_or_else(PoisonError::into_inner)
+static OWNERSHIP: LazyLock<Mutex<DirectoryOwnership>> = LazyLock::new(Mutex::default);
+
+fn ownership() -> std::sync::MutexGuard<'static, DirectoryOwnership> {
+    OWNERSHIP.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Called under the ownership lock, including filesystem removal, so a new
+/// run cannot claim a directory between its last-claim check and removal.
+fn prune_unclaimed(owned: &mut DirectoryOwnership, parents: &[PathBuf]) -> Result<()> {
+    owned
+        .created
+        .sort_by_key(|(dir, _)| std::cmp::Reverse(dir.components().count()));
+    let mut first_error = None;
+    owned.created.retain(|(dir, anchor)| {
+        if !parents.iter().any(|parent| parent.starts_with(dir))
+            || claimed_under(&owned.claims, dir)
+        {
+            return true;
+        }
+        if let Err(error) = remove_created_empty_dir(anchor, dir) {
+            log::warn!(
+                "output_parent_cleanup status=err dir={} err={error}",
+                dir.display()
+            );
+            first_error.get_or_insert(error);
+            return true;
+        }
+        false
+    });
+    first_error.map_or(Ok(()), Err)
 }
 
 fn claimed_under(claims: &[PathBuf], dir: &Path) -> bool {
@@ -27,7 +60,7 @@ pub(crate) struct OutputParentDirCleanup {
     created_dirs: Vec<PathBuf>,
     /// Each output's parent folder, in the order the outputs were given;
     /// `None` for an output that writes nothing or has ended. A `Some` is a
-    /// claim in `CLAIMED`.
+    /// claim in `OWNERSHIP`.
     title_parents: Vec<Option<PathBuf>>,
     active: bool,
 }
@@ -44,6 +77,11 @@ impl OutputParentDirCleanup {
 
     /// Keeps every folder: the run published what it planned.
     pub(crate) fn release(&mut self) {
+        let mut owned = ownership();
+        owned
+            .created
+            .retain(|(dir, _)| !self.created_dirs.contains(dir));
+        drop(owned);
         self.release_claims();
         self.active = false;
         self.created_dirs.clear();
@@ -62,29 +100,16 @@ impl OutputParentDirCleanup {
             return Ok(());
         };
         release_claim(&parent);
-        if published || !self.active {
+        if published {
+            ownership()
+                .created
+                .retain(|(dir, _)| !parent.starts_with(dir));
             return Ok(());
         }
-        // Checked and removed under the claim lock, so no run claims a folder
-        // between the check and its removal.
-        let claims = claims();
-        let mut first_error = None;
-        for dir in self
-            .created_dirs
-            .iter()
-            .rev()
-            .filter(|dir| parent.starts_with(dir) && !claimed_under(&claims, dir))
-        {
-            if let Err(error) = remove_created_empty_dir(&self.existing_anchor, dir) {
-                log::warn!(
-                    "output_parent_cleanup status=title_err dir={} err={}",
-                    dir.display(),
-                    error
-                );
-                first_error.get_or_insert(error);
-            }
+        if !self.active {
+            return Ok(());
         }
-        first_error.map_or(Ok(()), Err)
+        prune_unclaimed(&mut ownership(), &[parent])
     }
 
     fn release_claims(&mut self) {
@@ -94,51 +119,34 @@ impl OutputParentDirCleanup {
     }
 
     fn cleanup_active(&mut self) -> Result<()> {
+        let mut parents = self.created_dirs.clone();
+        parents.extend(self.title_parents.iter().flatten().cloned());
         self.release_claims();
         if !self.active {
             return Ok(());
         }
         self.active = false;
 
-        let claims = claims();
-        let mut first_error = None;
-        for dir in std::mem::take(&mut self.created_dirs).into_iter().rev() {
-            if claimed_under(&claims, &dir) {
-                continue;
-            }
-            if let Err(error) = remove_created_empty_dir(&self.existing_anchor, &dir) {
-                log::warn!(
-                    "output_parent_cleanup status=err dir={} err={}",
-                    dir.display(),
-                    error
-                );
-                if first_error.is_none() {
-                    first_error = Some(error);
-                }
-            }
-        }
-
-        match first_error {
-            Some(error) => Err(error),
-            None => Ok(()),
-        }
+        self.created_dirs.clear();
+        prune_unclaimed(&mut ownership(), &parents)
     }
 }
 
 fn release_claim(parent: &Path) {
-    let mut claims = claims();
-    if let Some(index) = claims.iter().position(|claimed| claimed == parent) {
-        claims.swap_remove(index);
+    let mut owned = ownership();
+    if let Some(index) = owned.claims.iter().position(|claimed| claimed == parent) {
+        owned.claims.swap_remove(index);
     }
 }
 
 impl Drop for OutputParentDirCleanup {
     fn drop(&mut self) {
-        self.release_claims();
-        if self.active && !self.created_dirs.is_empty() {
+        if self.active {
             if let Err(error) = self.cleanup_active() {
                 log::warn!("output_parent_cleanup status=drop_err err={error}");
             }
+        } else {
+            self.release_claims();
         }
     }
 }
@@ -159,7 +167,8 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
             ))
         })?;
     let mut cleanup = OutputParentDirCleanup::new(existing_anchor);
-    create_missing_dirs(output_root, &mut cleanup)?;
+    let mut owned = ownership();
+    create_missing_dirs(output_root, &mut cleanup, &mut owned)?;
     let output_root = output_root.canonicalize().map_err(|error| {
         AppError::FileValidation(format!(
             "Cannot validate output root '{}': {}",
@@ -175,16 +184,21 @@ pub(crate) fn ensure_output_parent_dirs<'a>(
             .filter(|_| abb_output_artifact_core::action_requires_output_write(output.action));
         cleanup.title_parents.push(parent.map(Path::to_path_buf));
         if let Some(parent) = parent {
-            claims().push(parent.to_path_buf());
+            owned.claims.push(parent.to_path_buf());
             ensure_output_parent_under_root(&output_root, parent)?;
-            create_missing_dirs(parent, &mut cleanup)?;
+            create_missing_dirs(parent, &mut cleanup, &mut owned)?;
         }
     }
 
+    drop(owned);
     Ok(cleanup)
 }
 
-fn create_missing_dirs(target: &Path, cleanup: &mut OutputParentDirCleanup) -> Result<()> {
+fn create_missing_dirs(
+    target: &Path,
+    cleanup: &mut OutputParentDirCleanup,
+    owned: &mut DirectoryOwnership,
+) -> Result<()> {
     let mut missing_dirs = Vec::new();
     let mut current = Some(target);
     while let Some(path) = current {
@@ -197,7 +211,12 @@ fn create_missing_dirs(target: &Path, cleanup: &mut OutputParentDirCleanup) -> R
 
     for dir in missing_dirs.into_iter().rev() {
         match std::fs::create_dir(&dir) {
-            Ok(()) => cleanup.created_dirs.push(dir),
+            Ok(()) => {
+                owned
+                    .created
+                    .push((dir.clone(), cleanup.existing_anchor.clone()));
+                cleanup.created_dirs.push(dir);
+            }
             Err(error) if error.kind() == ErrorKind::AlreadyExists && dir.is_dir() => {}
             Err(error) => {
                 return Err(AppError::FileValidation(format!(

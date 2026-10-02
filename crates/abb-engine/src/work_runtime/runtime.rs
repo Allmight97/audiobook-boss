@@ -6,10 +6,10 @@ use super::types::{
 };
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
-use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::run::{
-    preflight_title_outputs, process_payload_with_options, ProcessingRunOptions,
+    preflight_title_outputs, process_inspected_with_options, ProcessingRunOptions,
 };
+use crate::processing::ProgressEventListener;
 use crate::processing::TitleOutput;
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::{HashMap, HashSet};
@@ -20,17 +20,6 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 #[derive(Clone)]
 pub struct WorkRuntime {
     inner: Arc<WorkRuntimeInner>,
-}
-
-/// Preflights an export and gives each title its output record. Reads every
-/// source, so it runs on a blocking thread.
-async fn preflight_titles(
-    request: &SubmitProcessingOperationRequest,
-) -> Result<Vec<Arc<TitleOutput>>> {
-    let (payload, metadata) = (request.payload.clone(), request.metadata.clone());
-    tokio::task::spawn_blocking(move || preflight_title_outputs(&payload, metadata.as_ref()))
-        .await
-        .map_err(|error| AppError::General(format!("Export preflight failed: {error}")))?
 }
 
 /// Source paths by operation id, then title index.
@@ -46,7 +35,7 @@ struct WorkRuntimeInner {
     /// title index. An entry lives until its operation finishes.
     title_sources: Mutex<TitleSources>,
     /// Accepted exports run here; closed when the engine shuts down.
-    tasks: tokio_util::task::TaskTracker,
+    tasks: crate::engine::EngineTasks,
     /// Advances whenever an operation's state changes.
     changes: tokio::sync::watch::Sender<u64>,
     sequence: AtomicU64,
@@ -54,13 +43,13 @@ struct WorkRuntimeInner {
 
 impl Default for WorkRuntime {
     fn default() -> Self {
-        Self::new(tokio_util::task::TaskTracker::new())
+        Self::new(crate::engine::EngineTasks::default())
     }
 }
 
 impl WorkRuntime {
     /// A runtime whose exports run as `tasks`, so the engine can wait for them.
-    pub(crate) fn new(tasks: tokio_util::task::TaskTracker) -> Self {
+    pub(crate) fn new(tasks: crate::engine::EngineTasks) -> Self {
         Self {
             inner: Arc::new(WorkRuntimeInner {
                 tasks,
@@ -84,6 +73,7 @@ impl WorkRuntime {
         workspace_root: PathBuf,
         request: SubmitProcessingOperationRequest,
         on_finished: Option<OnFinished>,
+        inspected: crate::processing::plan::InspectedProcessingPlan,
     ) -> Result<WorkSubmissionAccepted> {
         if self.inner.tasks.is_closed() {
             return Err(AppError::General("ABB is closing.".to_string()));
@@ -93,8 +83,37 @@ impl WorkRuntime {
                 "Processing operations need a title naming their books.".into(),
             ));
         }
-        let titles = preflight_titles(&request).await?;
+        let titles =
+            preflight_title_outputs(&request.payload, request.metadata.as_ref(), &inspected)?;
+        let accepted = self.inner.tasks.admit(|| {
+            self.register_processing_operation(
+                host.clone(),
+                registry,
+                workspace_root,
+                request,
+                (titles, inspected),
+                on_finished,
+            )
+        })??;
+        log_work_operation(WorkOperationLogEvent::Accepted, &accepted.snapshot);
+        self.emit_snapshot(&host, &accepted.snapshot);
+        self.emit_list(&host);
+        Ok(accepted)
+    }
 
+    fn register_processing_operation(
+        &self,
+        host: Host,
+        registry: crate::ManagedJobRegistry,
+        workspace_root: PathBuf,
+        request: SubmitProcessingOperationRequest,
+        planned: (
+            Vec<Arc<TitleOutput>>,
+            crate::processing::plan::InspectedProcessingPlan,
+        ),
+        on_finished: Option<OnFinished>,
+    ) -> Result<WorkSubmissionAccepted> {
+        let (titles, inspected) = planned;
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let title = request.title.trim().to_string();
@@ -139,10 +158,6 @@ impl WorkRuntime {
             title.on_change(self.output_listener(&host, &operation_id, index));
         }
 
-        log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
-        self.emit_snapshot(&host, &snapshot);
-        self.emit_list(&host);
-
         let runtime = self.clone();
         let operation_id_for_task = operation_id.clone();
         let progress_runtime = runtime.clone();
@@ -159,13 +174,12 @@ impl WorkRuntime {
             }));
         self.inner.tasks.spawn(async move {
             runtime.mark_running_and_emit(&host, &operation_id_for_task);
-            let result = process_payload_with_options(
+            let result = process_inspected_with_options(
                 host.clone(),
                 registry,
                 workspace_root,
                 request.payload,
-                request.metadata,
-                None,
+                inspected,
                 ProcessingRunOptions {
                     operation_id: Some(operation_id_for_task.to_string()),
                     title_cancels,

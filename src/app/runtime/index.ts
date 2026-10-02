@@ -31,7 +31,9 @@ export function createAppRuntime(capabilities: RuntimeCapabilities = {}): AppRun
 			const workOperations = createWorkOperationsOwner();
 			/** Resolves once the engine's session and settings have arrived. */
 			function initialize(): Promise<void> {
-				return link.ready();
+				return link.ready().catch((error: unknown) => {
+					if (!disposed) throw error;
+				});
 			}
 			return {
 				link,

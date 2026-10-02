@@ -4,6 +4,7 @@ import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
 import type { OutputPlanOwner } from '../outputPlan';
 import { tauriClient } from '../../lib/tauri/client';
+import { toUserMessage } from '../../lib/tauri/appError';
 import type { RestartOffer } from '../../types/session';
 import { renderConcurrencyStatus } from './render';
 import { StatusPanelRuntime } from './runtime';
@@ -40,6 +41,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	const statusView = createStatusViewStore();
 	statusView.bindPublisher(publish);
 	const validTitles = () => deps.input.view().files.filter((file) => file.isValid);
+	let submitting = false;
 	const statusRuntime = new StatusPanelRuntime({
 		view: statusView,
 		validTitles,
@@ -53,6 +55,29 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			showError: (message) => statusView.showError(message),
 		},
 	});
+	async function start(options?: {
+		previewSeconds?: number;
+		restart?: RestartOffer;
+		resumeReview?: boolean;
+	}): Promise<void> {
+		if (submitting) return;
+		submitting = true;
+		try {
+			await statusRuntime.startProcessing(options);
+		} finally {
+			submitting = false;
+		}
+	}
+	// A replacement frontend continues the engine's held review. The same
+	// owner already handling a submission does not open a second dialog.
+	createEffect(
+		() => deps.link.output().submission,
+		(submission) => {
+			if (submission?.kind === 'reviewRequired' && !submitting) {
+				void start({ resumeReview: true });
+			}
+		},
+	);
 	// A Save that would move an unfinished export asks once per offer.
 	const asked = new Set<string>();
 	async function answer(offer: RestartOffer): Promise<void> {
@@ -63,9 +88,9 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			{ title: 'Restart this export?', okLabel: 'Restart', cancelLabel: 'Keep Location' },
 		);
 		if (restart) {
-			await statusRuntime.startProcessing({ restart: offer });
+			await start({ restart: offer });
 		} else {
-			deps.link.post({
+			await deps.link.send({
 				kind: 'keepTitleLocation',
 				titleId: offer.titleId,
 				revision: offer.revision,
@@ -82,7 +107,9 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 				const key = `${offer.titleId}:${offer.revision}`;
 				if (asked.has(key)) continue;
 				asked.add(key);
-				answering = answering.then(() => answer(offer)).catch(() => undefined);
+				answering = answering
+					.then(() => answer(offer))
+					.catch((error: unknown) => statusView.showError(toUserMessage(error)));
 			}
 		},
 	);
@@ -101,7 +128,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			return status;
 		},
 		start(options) {
-			return statusRuntime.startProcessing(options);
+			return start(options);
 		},
 		cancelAll() {
 			statusRuntime.requestCancelAll();

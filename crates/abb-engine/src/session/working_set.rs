@@ -167,6 +167,24 @@ impl WorkingSet {
         &self.files
     }
 
+    /// A downloaded source removed after export is no longer a valid input.
+    /// Keep its row as history while excluding it from later standalone batches.
+    pub(crate) fn sources_removed(&mut self, paths: &[PathBuf]) {
+        for file in self
+            .files
+            .iter_mut()
+            .chain(self.title_sources.values_mut().flatten())
+        {
+            if paths.contains(&file.path) {
+                file.is_valid = false;
+                file.error = Some(
+                    "Downloaded source removed after export. Acquire it again to export it.".into(),
+                );
+            }
+        }
+        self.touch();
+    }
+
     pub(crate) fn order_locked(&self) -> bool {
         self.order_locked
     }

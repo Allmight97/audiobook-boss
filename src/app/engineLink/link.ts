@@ -294,8 +294,11 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			const stop = () => {
 				for (const each of stops) each();
 			};
-			if (disposed) stop();
-			else unlisten = stop;
+			if (disposed) {
+				stop();
+				throw new Error('Engine link was disposed before attachment.');
+			}
+			unlisten = stop;
 			return capability.attach();
 		})
 		.then((attachment) => {
@@ -314,6 +317,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 			.then((client) => capability.sessionDispatch(client, sessionSequence++, intent))
 			.then((reply) => {
 				applySession(reply.update);
+				if (reply.outcome.kind === 'rejected') throw reply.outcome.error;
 				return reply.outcome;
 			});
 	}

@@ -357,7 +357,7 @@ async fn follow(
 }
 
 /// Prints each title's outcome and the tags read back from its export.
-fn print_export(operation: &OperationSnapshot) {
+async fn print_export(engine: &Engine, operation: &OperationSnapshot) {
     println!("Export: {:?}", operation.status);
     for child in &operation.children {
         println!("  {}: {:?}", child.label, child.status);
@@ -368,7 +368,7 @@ fn print_export(operation: &OperationSnapshot) {
             continue;
         };
         println!("    {path}");
-        match abb_engine::read_metadata(path) {
+        match engine.read_audio_metadata(path.clone()).await {
             Ok(tags) => {
                 for (name, value) in [
                     ("title", tags.title),
@@ -410,7 +410,7 @@ async fn produce(engine: &Engine, options: &Options) -> Result<(), String> {
         } => {
             eprintln!("Exporting {title}");
             let operation = follow(engine, &operation_id, options.cancel_title).await?;
-            print_export(&operation);
+            print_export(engine, &operation).await;
             export_verdict(&operation, options.cancel_title.is_some())
         }
         SubmissionStatus::PreviewFinished { result } => {

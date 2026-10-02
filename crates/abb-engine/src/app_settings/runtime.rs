@@ -6,7 +6,7 @@
 //! choice as saved.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
@@ -111,13 +111,33 @@ pub(crate) struct SettingsRuntime {
     inner: Arc<Inner>,
 }
 
+pub(crate) struct SettingsRun {
+    settings: SettingsRuntime,
+    reply: tokio::task::JoinHandle<(SettingsReply, bool)>,
+}
+
+impl SettingsRun {
+    pub(crate) async fn finish(self) -> (SettingsReply, bool) {
+        match self.reply.await {
+            Ok(reply) => reply,
+            Err(error) => (
+                SettingsReply {
+                    outcome: rejected(&AppError::General(format!("Settings work failed: {error}"))),
+                    snapshot: self.settings.snapshot().await,
+                },
+                false,
+            ),
+        }
+    }
+}
+
 struct Inner {
     config_dir: PathBuf,
     jobs: ManagedJobRegistry,
     power: PowerManager,
     state: tokio::sync::Mutex<State>,
-    /// Advances, under the settings turn, with every applied reset.
-    resets: std::sync::atomic::AtomicU64,
+    /// Completion of the last accepted intent, independent of host waits.
+    turn: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
 }
 
 #[derive(Default)]
@@ -132,6 +152,7 @@ struct State {
     /// The concurrency choice in effect. A launch from pinned defaults takes
     /// the pinned choice without rewriting the last-used one.
     concurrency: Option<ConcurrencyPreference>,
+    hydration_pending: bool,
 }
 
 /// The defaults a launch starts from.
@@ -156,9 +177,16 @@ impl State {
     fn load(&mut self, config_dir: &Path) {
         match get_app_settings(config_dir) {
             Ok(settings) => {
-                self.accepted = Some(settings);
+                match settings.merge(self.unsaved.clone()) {
+                    Ok(settings) => self.accepted = Some(settings),
+                    Err(error) => {
+                        self.load_error = Some(AppErrorEnvelope::from(&error));
+                        return;
+                    }
+                }
                 self.load_error = None;
                 self.recovery = None;
+                self.hydration_pending = true;
             }
             Err(error) => {
                 self.accepted = None;
@@ -208,13 +236,14 @@ impl SettingsRuntime {
         if let Some(settings) = &state.accepted {
             power.set_enabled(settings.keep_awake_while_working);
         }
+        state.hydration_pending = false;
         let runtime = Self {
             inner: Arc::new(Inner {
                 config_dir,
                 jobs: Arc::clone(&jobs),
                 power,
                 state: tokio::sync::Mutex::new(state),
-                resets: std::sync::atomic::AtomicU64::new(0),
+                turn: Mutex::default(),
             }),
         };
         (runtime, jobs, startup)
@@ -248,39 +277,105 @@ impl SettingsRuntime {
         }
     }
 
-    /// How many resets have been applied.
-    pub(crate) fn resets(&self) -> u64 {
-        self.inner.resets.load(std::sync::atomic::Ordering::SeqCst)
+    #[cfg(test)]
+    pub(crate) async fn dispatch(&self, intent: SettingsIntent) -> SettingsReply {
+        self.begin(intent, &crate::engine::EngineTasks::default())
+            .finish()
+            .await
+            .0
     }
 
-    /// Applies `intent` unless a reset was applied since `resets` was read:
-    /// a choice made before a reset must not come back after it.
-    pub(crate) async fn dispatch_unless_reset(
+    /// Reserves its turn synchronously, so async replies cannot reorder writes.
+    pub(crate) fn begin(
         &self,
         intent: SettingsIntent,
-        resets: u64,
-    ) -> Option<SettingsReply> {
-        let mut state = self.inner.state.lock().await;
-        if self.resets() != resets {
-            return None;
-        }
-        let outcome = self.apply(&mut state, intent).await;
-        state.revision += 1;
-        Some(SettingsReply {
-            outcome,
-            snapshot: self.snapshot_of(&state),
-        })
+        tasks: &crate::engine::EngineTasks,
+    ) -> SettingsRun {
+        self.enqueue(intent, None, tasks)
     }
 
-    pub(crate) async fn dispatch(&self, intent: SettingsIntent) -> SettingsReply {
+    /// Template typing owns its settings turn immediately, but writes only
+    /// once the latest edit has paused. Reset follows every earlier choice.
+    pub(crate) fn remember_output_after_pause(
+        &self,
+        output: OutputDefaults,
+        latest: Arc<std::sync::atomic::AtomicU64>,
+        tasks: &crate::engine::EngineTasks,
+    ) -> SettingsRun {
+        let revision = latest.load(std::sync::atomic::Ordering::SeqCst);
+        self.enqueue(
+            SettingsIntent::Remember {
+                encoder_defaults: None,
+                output_defaults: Some(output),
+                default_acquisition_lane: None,
+            },
+            Some((
+                latest,
+                revision,
+                tokio::time::Instant::now() + std::time::Duration::from_millis(400),
+            )),
+            tasks,
+        )
+    }
+
+    fn enqueue(
+        &self,
+        intent: SettingsIntent,
+        pause: Option<(Arc<std::sync::atomic::AtomicU64>, u64, tokio::time::Instant)>,
+        tasks: &crate::engine::EngineTasks,
+    ) -> SettingsRun {
+        let (done, next) = tokio::sync::oneshot::channel();
+        let previous = self
+            .inner
+            .turn
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .replace(next);
+        let settings = self.clone();
+        let reply = tasks.spawn(async move {
+            if let Some((_, _, deadline)) = &pause {
+                tokio::time::sleep_until(*deadline).await;
+            }
+            if let Some(previous) = previous {
+                let _ = previous.await;
+            }
+            let superseded = pause.is_some_and(|(latest, revision, _)| {
+                latest.load(std::sync::atomic::Ordering::SeqCst) != revision
+            });
+            let reply = if superseded {
+                (
+                    SettingsReply {
+                        outcome: SettingsOutcome::Applied,
+                        snapshot: settings.snapshot().await,
+                    },
+                    false,
+                )
+            } else {
+                settings.apply_ordered(intent).await
+            };
+            let _ = done.send(());
+            reply
+        });
+        SettingsRun {
+            settings: self.clone(),
+            reply,
+        }
+    }
+
+    async fn apply_ordered(&self, intent: SettingsIntent) -> (SettingsReply, bool) {
         // Held for the whole intent: changes apply and write in the order asked.
         let mut state = self.inner.state.lock().await;
+        let before = self.snapshot_of(&state).startup_defaults;
+        let pending = state.hydration_pending;
         let outcome = self.apply(&mut state, intent).await;
         state.revision += 1;
-        SettingsReply {
+        let reply = SettingsReply {
             outcome,
             snapshot: self.snapshot_of(&state),
-        }
+        };
+        let changed =
+            reply.snapshot.startup_defaults != before || (pending && !state.hydration_pending);
+        (reply, changed)
     }
 
     async fn apply(&self, state: &mut State, intent: SettingsIntent) -> SettingsOutcome {
@@ -334,7 +429,12 @@ impl SettingsRuntime {
             SettingsIntent::Reload => {
                 if state.accepted.is_none() {
                     state.load(&self.inner.config_dir);
-                    self.apply_to_runtime(state);
+                }
+                if state.hydration_pending {
+                    if let Err(error) = self.apply_loaded_runtime(state).await {
+                        return rejected(&error);
+                    }
+                    self.write_unsaved(state).await;
                 }
                 SettingsOutcome::Applied
             }
@@ -420,6 +520,25 @@ impl SettingsRuntime {
         }
     }
 
+    async fn apply_loaded_runtime(&self, state: &mut State) -> crate::errors::Result<()> {
+        let Some(settings) = &state.accepted else {
+            return Ok(());
+        };
+        let preference = state
+            .concurrency
+            .unwrap_or_else(|| startup_defaults(settings).max_concurrent_jobs);
+        let requested = preference.requested_value(JobRegistry::default_max());
+        let effective = if self.inner.jobs.max_concurrent() == requested {
+            requested
+        } else {
+            self.inner.jobs.update_max_concurrent(requested).await?
+        };
+        state.concurrency = Some(preference.accepted(effective));
+        self.apply_to_runtime(state);
+        state.hydration_pending = false;
+        Ok(())
+    }
+
     /// Asks the scheduler to accept the change before recording it. A fixed
     /// choice is recorded as the count the scheduler settled on.
     async fn set_concurrency(
@@ -500,9 +619,6 @@ impl SettingsRuntime {
                     accepted: Some(settings),
                     ..State::default()
                 };
-                self.inner
-                    .resets
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 self.apply_to_runtime(state);
                 SettingsOutcome::Applied
             }
@@ -531,10 +647,16 @@ impl SettingsRuntime {
             Ok(result) => result,
             Err(error) => return rejected(&error),
         };
-        state.accepted = Some(result.settings);
+        state.accepted = match result.settings.merge(state.unsaved.clone()) {
+            Ok(settings) => Some(settings),
+            Err(error) => return rejected(&error),
+        };
         state.load_error = None;
         state.recovery = None;
-        self.apply_to_runtime(state);
+        state.hydration_pending = true;
+        if let Err(error) = self.apply_loaded_runtime(state).await {
+            return rejected(&error);
+        }
         self.write_unsaved(state).await;
         SettingsOutcome::Recovered {
             backup_file_name: result.backup_file_name,

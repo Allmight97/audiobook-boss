@@ -15,15 +15,11 @@ use serde::Serialize;
 
 /// Progress percentage at the start of the analyzing stage.
 pub const PROGRESS_ANALYZING_START: f32 = 0.0;
-/// Progress percentage at the end of the analyzing stage.
-pub const PROGRESS_ANALYZING_END: f32 = 10.0;
 
 /// Progress percentage range for the converting stage.
 pub const PROGRESS_CONVERTING_START: f32 = 10.0;
 /// Max converting percentage to avoid reaching finalization too early.
 pub const PROGRESS_CONVERTING_MAX: f32 = 79.0;
-/// Range from converting start to nominal converting end.
-pub const PROGRESS_CONVERTING_RANGE: f32 = 70.0;
 
 /// Progress percentage for metadata writing.
 pub const PROGRESS_METADATA_START: f32 = 90.0;
@@ -36,10 +32,6 @@ pub const PROGRESS_COMPLETE: f32 = 100.0;
 
 /// Progress percentage calculation range (maps file progress to UI progress).
 pub const PROGRESS_RANGE_MULTIPLIER: f64 = 70.0;
-/// Seconds per minute for ETA formatting.
-pub const SECONDS_PER_MINUTE: f64 = 60.0;
-/// Weight for metadata writing in progress calculations.
-pub const PROGRESS_METADATA_WEIGHT: f32 = 5.0;
 
 // ============================================================================
 // Data Contract (UI boundary)

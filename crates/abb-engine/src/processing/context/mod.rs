@@ -2,5 +2,4 @@
 
 pub mod processing;
 
-pub use crate::processing::preview_config::PreviewConfig;
 pub use processing::{OutputConfig, ProcessingContext};

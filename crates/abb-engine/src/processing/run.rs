@@ -1,10 +1,10 @@
 use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
 use crate::host::Host;
 use crate::processing::plan::{
-    prepare_execution_plan, resolve_preflight_plan, resolve_processing_plan, title_file_info,
+    prepare_inspected_execution, resolve_processing_plan, title_file_info, InspectedProcessingPlan,
 };
 use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
-use crate::processing::{ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
+use crate::processing::{ProcessCommandResult, ProcessPayload};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,24 +17,30 @@ mod run_validation;
 pub(crate) use run_options::ProcessingRunOptions;
 use run_validation::inspect_and_validate_external_processing_contract;
 
-pub(crate) async fn process_payload_with_options(
+pub(crate) async fn process_inspected_with_options(
     host: Host,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
+    inspected: InspectedProcessingPlan,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
-    let result = dispatch_payload(
-        host,
-        registry,
-        workspace_root,
-        payload,
-        metadata,
-        preview_seconds,
-        options,
-    )
+    let result = async {
+        let execution = tokio::task::spawn_blocking(move || {
+            prepare_inspected_execution(&payload, inspected).map(|plan| (payload, plan))
+        })
+        .await
+        .map_err(|error| AppError::General(format!("Execution preparation failed: {error}")))??;
+        run_dispatch::dispatch_title_jobs(
+            host,
+            registry,
+            workspace_root,
+            &execution.0,
+            execution.1,
+            options,
+        )
+        .await
+    }
     .await;
     if let Some(record) = result
         .as_ref()
@@ -44,6 +50,16 @@ pub(crate) async fn process_payload_with_options(
         log::error!("{record}");
     }
     result
+}
+
+pub(crate) fn inspect_processing_plan(
+    payload: &ProcessPayload,
+    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+) -> Result<InspectedProcessingPlan> {
+    let file_info = inspect_and_validate_external_processing_contract(payload)?;
+    let plan = resolve_processing_plan(payload, metadata, preview_seconds, &file_info)?;
+    Ok(InspectedProcessingPlan { plan, file_info })
 }
 
 /// Stable dev-log diagnostic for processing requests that terminate as an
@@ -62,64 +78,30 @@ fn processing_request_rejected_record(error: &AppError) -> Option<String> {
     ))
 }
 
-async fn dispatch_payload(
-    host: Host,
-    registry: crate::ManagedJobRegistry,
-    workspace_root: PathBuf,
-    payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-    options: ProcessingRunOptions,
-) -> Result<ProcessCommandResult> {
-    let file_info = inspect_and_validate_external_processing_contract(&payload)?;
-
-    let execution_plan =
-        prepare_execution_plan(&payload, metadata.as_ref(), preview_seconds, file_info)?;
-    run_dispatch::dispatch_title_jobs(
-        host,
-        registry,
-        workspace_root,
-        &payload,
-        execution_plan,
-        options,
-    )
-    .await
-}
-
-/// The plan an export of `payload` would follow, read from its sources.
-pub fn preflight_payload(
-    payload: ProcessPayload,
-    metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    preview_seconds: Option<f64>,
-) -> Result<ProcessingPreflightPlan> {
-    let file_info = inspect_and_validate_external_processing_contract(&payload)?;
-
-    resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds, &file_info)
-}
-
 /// Preflights an export, then gives each title an output record from what
 /// the preflight read.
 pub(crate) fn preflight_title_outputs(
     payload: &ProcessPayload,
     metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    inspected: &InspectedProcessingPlan,
 ) -> Result<Vec<Arc<TitleOutput>>> {
-    let file_info = inspect_and_validate_external_processing_contract(payload)?;
-    let plan = resolve_processing_plan(payload, metadata, None, &file_info)?;
-    plan.jobs
-        .into_iter()
+    inspected
+        .plan
+        .jobs
+        .iter()
         .map(|job| {
-            let sources = title_file_info(&file_info, &job.source_paths)?.files;
+            let sources = title_file_info(&inspected.file_info, &job.source_paths)?.files;
             TitleOutput::new(TitleOutputPlan {
-                anchor: job.input_path,
+                anchor: job.input_path.clone(),
                 sources: crate::audio::passthrough_sources_from_audio_files(&sources),
-                base: job.source_metadata,
+                base: job.source_metadata.clone(),
                 accepted: metadata
                     .and_then(|map| map.get(&payload.input_files[job.input_index]))
                     .cloned(),
                 output_dir: PathBuf::from(&payload.output_dir),
                 naming: payload.output_naming.clone().unwrap_or_default(),
                 extension: job.audio_plan.format.extension().to_string(),
-                requested: job.output.requested_path,
+                requested: job.output.requested_path.clone(),
             })
         })
         .collect()
@@ -127,6 +109,15 @@ pub(crate) fn preflight_title_outputs(
 
 #[cfg(test)]
 mod tests {
+    fn preflight_payload(
+        payload: crate::processing::ProcessPayload,
+        metadata: Option<std::collections::HashMap<String, crate::metadata::MetadataIntentPatch>>,
+        preview_seconds: Option<f64>,
+    ) -> crate::Result<crate::processing::ProcessingPreflightPlan> {
+        super::inspect_processing_plan(&payload, metadata.as_ref(), preview_seconds)
+            .map(|inspected| inspected.plan.to_public())
+    }
+
     use super::run_job::{
         commit_supplemental_assets, register_job_and_validate_output,
         supplemental_assets_for_input, title_outcome, ProcessingJobLogContext,
@@ -192,7 +183,7 @@ mod tests {
             payload.output_dir = temp_dir.path().to_string_lossy().to_string();
         });
 
-        let err = super::preflight_payload(payload, None, None)
+        let err = preflight_payload(payload, None, None)
             .expect_err("symlink should be rejected before metadata projection");
 
         assert!(
@@ -211,7 +202,7 @@ mod tests {
             payload.output_dir = temp_dir.path().to_string_lossy().to_string();
         });
 
-        super::preflight_payload(payload.clone(), None, None)
+        preflight_payload(payload.clone(), None, None)
             .expect("valid source should be accepted during preflight");
 
         let original = temp_dir.path().join("source-original.wav");
@@ -274,7 +265,7 @@ mod tests {
                     .channels = channels;
                 payload.audio_requests[0].sample_rate = rate;
             });
-            let result = super::preflight_payload(payload, None, None);
+            let result = preflight_payload(payload, None, None);
             if accepted {
                 result.expect("target within resolved ceiling should pass");
             } else {
@@ -328,7 +319,7 @@ mod tests {
                 settings.bitrate_mode = BitrateMode::Cbr;
                 settings.bitrate_kbps = 300;
             });
-            let result = super::preflight_payload(payload, None, None);
+            let result = preflight_payload(payload, None, None);
             if grouped {
                 result.expect("combined stereo output permits 300 kbps");
             } else {
@@ -427,7 +418,7 @@ mod tests {
                 },
             ),
         ]);
-        let reviewed = super::preflight_payload(payload.clone(), Some(metadata.clone()), None)
+        let reviewed = preflight_payload(payload.clone(), Some(metadata.clone()), None)
             .expect("review titles");
         payload.preflight_signature = Some(reviewed.plan_signature);
         let inspected =
@@ -486,14 +477,19 @@ mod tests {
     ) -> Vec<std::path::PathBuf> {
         use crate::audio::{execute_audio_engine, AudioExecutionRequest, SampleRateConfig};
         use crate::processing::{OutputConfig, ProcessingContext, ProcessingSession};
-        let reviewed = super::preflight_payload(payload.clone(), Some(metadata.clone()), None)
+        let reviewed = preflight_payload(payload.clone(), Some(metadata.clone()), None)
             .expect("review metadata batch");
         payload.preflight_signature = Some(reviewed.plan_signature);
         let inspected =
             super::run_validation::inspect_and_validate_external_processing_contract(&payload)
                 .expect("inspect metadata batch");
-        let execution = super::prepare_execution_plan(&payload, Some(metadata), None, inspected)
-            .expect("plan metadata batch");
+        let execution = crate::processing::plan::prepare_execution_plan(
+            &payload,
+            Some(metadata),
+            None,
+            inspected,
+        )
+        .expect("plan metadata batch");
         let mut outputs = Vec::new();
         for job in execution.plan.jobs {
             let info =
@@ -742,7 +738,10 @@ mod tests {
             &registry,
             &invalid_output,
             None,
-            batch_log_context(),
+            ProcessingJobLogContext {
+                operation_id: Some("log-proof".into()),
+                ..batch_log_context()
+            },
             crate::processing::AudioHandling::Encode,
         )
         .await
@@ -758,11 +757,13 @@ mod tests {
             .clone();
         let started: Vec<&String> = records
             .iter()
-            .filter(|record| record.contains("processing_job event=started"))
+            .filter(|record| record.contains("processing_job event=started operation_id=log-proof"))
             .collect();
         let terminal: Vec<&String> = records
             .iter()
-            .filter(|record| record.contains("processing_job event=terminal"))
+            .filter(|record| {
+                record.contains("processing_job event=terminal operation_id=log-proof")
+            })
             .collect();
         assert_eq!(started.len(), 1, "records: {records:?}");
         assert_eq!(terminal.len(), 1, "records: {records:?}");

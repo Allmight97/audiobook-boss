@@ -24,7 +24,7 @@ pub(crate) fn process_input_files(
 ) -> Result<i64> {
     let mut running_pts: i64 = 0;
     let mut last_emit = std::time::Instant::now();
-    let mut eta_estimator = crate::processing::progress::EtaEstimator::new();
+    let mut eta_estimator = crate::processing::EtaEstimator::new();
     let mut preview_early_stop = false;
     let file_count = plan.input_file_paths.len();
     let mut preview_state_storage =

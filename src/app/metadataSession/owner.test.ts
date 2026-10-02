@@ -162,6 +162,16 @@ describe('metadata owner', () => {
 		expect(fetches.mock.calls.length).toBe(fetched);
 	});
 
+	it('clears the previous image when the new cover cannot be fetched', async () => {
+		const app = await open();
+		engine.seedCover([1, 2, 3]);
+		await vi.waitFor(() => expect(app.metadata.view().cover.imageDataUrl).not.toBeNull());
+		vi.spyOn(engine, 'sessionCoverArt').mockRejectedValueOnce(new Error('Cover unavailable'));
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		engine.seedCover([4, 5, 6]);
+		await vi.waitFor(() => expect(app.metadata.view().cover.imageDataUrl).toBeNull());
+	});
+
 	it('hides a cover message after a moment', async () => {
 		const app = await open();
 		vi.useFakeTimers();

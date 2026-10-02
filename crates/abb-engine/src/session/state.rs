@@ -199,6 +199,8 @@ enum DeferredPhase {
     Waiting,
     /// Taken by the deferred writer; the file is being written now.
     Writing,
+    /// Failed accepted intent survives removal, but waits for explicit Save.
+    Failed,
 }
 
 #[derive(Debug)]
@@ -639,6 +641,9 @@ impl SessionState {
         let directory = self.output.naming_directory();
         let naming = self.output.naming();
         for (edit, reply) in replies {
+            if !self.exports.accepts_reply(&edit) {
+                continue;
+            }
             match reply {
                 Ok(UpdateReply::Unchanged) => self.exports.withdraw(&edit.title_id),
                 Ok(UpdateReply::Accepted { elsewhere, .. }) => {
@@ -689,8 +694,19 @@ impl SessionState {
     }
 
     /// The user keeps a title's output where it is.
-    pub(crate) fn keep_location(&mut self, title_id: &str, revision: u64) {
+    pub(crate) fn kept_location(&mut self, title_id: &str, revision: u64) {
         self.exports.decline(title_id, revision);
+    }
+
+    pub(crate) fn location_offer(&self, title_id: &str, revision: u64) -> Option<ExportLink> {
+        self.exports
+            .offered(
+                title_id,
+                revision,
+                self.output.naming_directory().as_ref(),
+                &self.output.naming(),
+            )
+            .ok()
     }
 
     // ---- Staged downloads ----
@@ -730,7 +746,9 @@ impl SessionState {
         let paths = self.staged.paths(job_id);
         self.removing.retain(|path| !paths.contains(path));
         if removed {
+            self.working_set.sources_removed(&paths);
             self.staged.removed(job_id);
+            self.rebind();
         } else {
             self.staged.removal_failed(job_id, now);
         }
@@ -972,12 +990,13 @@ impl SessionState {
             return Vec::new();
         }
         self.tags.retain_paths(&self.working_set.source_paths());
+        self.restore_failed_writes();
 
         let selected = self.selected_titles();
         let mut key: Vec<PathBuf> = selected.iter().map(|title| title.path.clone()).collect();
         key.sort();
         let mut tickets = Vec::new();
-        if key != self.selection_key {
+        if key != self.selection_key || selected != self.bound {
             self.binding += 1;
             self.selection_key = key;
             self.bound = selected;
@@ -1501,6 +1520,7 @@ impl SessionState {
         let mut paths: Vec<PathBuf> = self
             .deferred
             .iter()
+            .filter(|write| write.phase != DeferredPhase::Failed)
             .map(|write| write.item.path.clone())
             .collect();
         paths.sort();
@@ -1516,11 +1536,26 @@ impl SessionState {
         let loaded = self.working_set.source_paths();
         let mut written_count = 0;
         for (item, written) in results {
-            self.deferred.retain(|write| {
-                write.phase != DeferredPhase::Writing
-                    || write.item.path != item.path
-                    || write.item.revision != item.revision
-            });
+            for write in &mut self.deferred {
+                if write.item.path != item.path {
+                    continue;
+                }
+                if write.phase == DeferredPhase::Writing
+                    && write.item.revision == item.revision
+                    && !written
+                {
+                    write.phase = DeferredPhase::Failed;
+                } else if write.phase == DeferredPhase::Waiting && !written {
+                    let mut patch = item.patch.clone();
+                    patch.merge(&write.item.patch);
+                    write.item.patch = patch;
+                }
+            }
+            if *written {
+                self.deferred.retain(|write| {
+                    write.item.path != item.path || write.item.revision != item.revision
+                });
+            }
             if *written {
                 self.exports.acknowledge(&item.path, &item.patch);
             }
@@ -1529,11 +1564,10 @@ impl SessionState {
             } else if *written {
                 self.tags
                     .commit_saved(&item.path, &item.patch, item.revision);
-            } else if self.tags.pending(&item.path).is_none() {
-                self.tags.stage(&item.path, &item.patch);
             }
             written_count += usize::from(*written);
         }
+        self.restore_failed_writes();
         let shown = results
             .iter()
             .any(|(item, _)| self.bound.iter().any(|title| title.path == item.path));
@@ -1546,6 +1580,22 @@ impl SessionState {
                 written: written_count,
                 failed: results.len() - written_count,
             });
+        }
+    }
+
+    fn restore_failed_writes(&mut self) {
+        let loaded = self.working_set.source_paths();
+        for write in self.deferred.iter().filter(|write| {
+            write.phase == DeferredPhase::Failed && loaded.contains(&write.item.path)
+        }) {
+            let pending = self.tags.pending(&write.item.path);
+            let mut patch = write.item.patch.clone();
+            if let Some(pending) = pending {
+                patch.merge(&pending.patch);
+            }
+            if pending.is_none_or(|pending| pending.patch != patch) {
+                self.tags.stage(&write.item.path, &patch);
+            }
         }
     }
 

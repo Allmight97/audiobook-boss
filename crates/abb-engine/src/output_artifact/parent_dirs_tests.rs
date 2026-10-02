@@ -256,7 +256,7 @@ fn no_cleanup_removes_a_folder_another_runs_output_will_write_into() {
     writing.end_title(0, false).expect("second title ends");
     created.cleanup_now().expect("no double cleanup");
     assert!(
-        folder.exists(),
-        "only the run that made a folder removes it"
+        !folder.exists(),
+        "the last claimant removes empty folders even when an earlier run created them"
     );
 }

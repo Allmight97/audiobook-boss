@@ -13,16 +13,15 @@ commands over invoking internals directly.
   Production builds retain the configured identity. Use this entrypoint for
   development; direct Cargo or upstream Tauri CLI launches bypass isolation.
   Packaged release-mode experiments need an explicit separate identifier.
-- Frontend clean-install alarm (`.github/workflows/ci.yml`) runs after relevant
-  frontend/dependency/config pushes to `main`: frozen install and typecheck.
-  It catches undeclared dependencies that a warm checkout can conceal; it is
-  not a PR gate or broad test route.
+- Frontend checks (`.github/workflows/ci.yml`) run frozen install, typecheck,
+  and Vitest on relevant PRs and pushes to `main` or `engine-prepare`.
 - Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
   `abb-*-core` crates' tests, their `clippy -D warnings`, and the crate tier
   check on PRs and `main` pushes that touch `crates/**`, workspace
   manifests/lockfile, the Rust toolchain, the tier script, or that workflow.
-  The engine and host suites, media lane, and generated-binding proof stay
-  local/release-owned through the commands below.
+  A separate macOS job runs engine lifecycle/unit tests with ABB's patched
+  bundled FFmpeg, excluding `test_cases::integration`. Real-media, developer
+  host, Tauri host, and binding proof use the local commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing
@@ -34,7 +33,7 @@ commands over invoking internals directly.
   pull unrelated binaries into the target set. Binding export has an explicit
   binary command.
 - Media execution: real-media workflow
-  tests live in `crates/abb-engine/tests/cases/integration_media_execution_tests.rs`
+  tests live in `crates/abb-engine/src/test_cases/integration_media_execution_tests.rs`
   and run inside the engine's real-file suite. Covers WAV, M4B, MP3, and Opus inputs,
   the Native AAC, Apple AAC, bundled FAAC LC/HE, and Opus encoder routes (Apple
   AAC is macOS-gated and skips elsewhere), sample-rate-converted merges, stereo
@@ -44,7 +43,7 @@ commands over invoking internals directly.
   preflight, and cancellation. All fixtures
   are synthesized at test time (WAV in Rust, MP3 via the external FFmpeg CLI, M4B from the
   engine's own output) — never commit media files. Focused command:
-  `cargo nextest run -p abb-engine --features bundled-ffmpeg --test all_tests -E 'test(media_execution)'`
+  `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(media_execution)'`
   (keep synthesized fixtures small). Do not
   add broad media gates or committed fixtures beyond this lane without a new
   owner decision.
@@ -62,15 +61,17 @@ commands over invoking internals directly.
   absent in common agent sandboxes. `abb-engine` has no GUI dependency either:
   `cargo clippy -p abb-engine --all-targets --features bundled-ffmpeg`. Use the full `cargo clippy --workspace
   --all-targets` only when the change actually spans owners or includes
-  `src-tauri` (GUI libs must be present). GitHub runs Clippy only for the core
+  `src-tauri` (GUI libs must be present). GitHub runs Clippy for the core
   crates (Rust core workflow); `src-tauri` Clippy is a local owner check. Workspace lint posture is centralized in root
   `Cargo.toml` `[workspace.lints]` (members opt in with
   `[lints] workspace = true`).
 - Rust core owner: `cargo nextest run -p abb-<owner>-core`.
 - Engine: `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`
-  (unit) or `--test all_tests` (real files). Session only:
+  (all engine proof), append `-E 'not test(test_cases::integration)'` for
+  unit-only or `-E 'test(test_cases::integration)'` for real files.
+  `--test all_tests` proves the separately compiled developer host. Session only:
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(session::)'`
-  plus `--test all_tests -E 'test(integration_session)'`.
+  plus `--lib -E 'test(integration_session)'`.
 - Host (intent ordering, window sizing, quit prompt, binding file format):
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`.
 - Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
