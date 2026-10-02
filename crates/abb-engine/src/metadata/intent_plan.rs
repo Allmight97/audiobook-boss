@@ -39,6 +39,9 @@ pub(crate) struct MetadataOutcomeRequest<'a> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataOutcomePlan {
+    /// The anchor source's own tags as read for this plan, so a later edit
+    /// can be planned again without reading the source.
+    pub(crate) source_metadata: Option<AudiobookMetadata>,
     pub(crate) effective_metadata: Option<AudiobookMetadata>,
     pub(crate) naming_metadata: Option<NamingMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
@@ -50,8 +53,21 @@ pub(crate) struct MetadataOutcomePlan {
 pub(crate) fn plan_metadata_outcome(
     request: MetadataOutcomeRequest<'_>,
 ) -> Result<MetadataOutcomePlan> {
+    let source = request
+        .input_path
+        .map(crate::metadata::read_metadata)
+        .transpose()?;
+    plan_metadata_outcome_from(source, request)
+}
+
+/// `plan_metadata_outcome` over source tags already read from
+/// `request.input_path`.
+pub(crate) fn plan_metadata_outcome_from(
+    source: Option<AudiobookMetadata>,
+    request: MetadataOutcomeRequest<'_>,
+) -> Result<MetadataOutcomePlan> {
     let effective_metadata =
-        resolve_effective_processing_metadata(request.input_path, request.intent_patch)?;
+        resolve_effective_processing_metadata(source.clone(), request.intent_patch)?;
     let naming_metadata = resolve_naming_metadata(
         effective_metadata.as_ref(),
         request.input_path,
@@ -59,6 +75,7 @@ pub(crate) fn plan_metadata_outcome(
     );
     let write_intent = processing_write_intent(request.intent_patch, effective_metadata.as_ref());
     Ok(MetadataOutcomePlan {
+        source_metadata: source,
         effective_metadata,
         naming_metadata,
         cover_art_passthrough: CoverArtPassthroughPolicy::from_intent_patch(request.intent_patch),
@@ -96,15 +113,12 @@ fn processing_write_intent(
 }
 
 fn resolve_effective_processing_metadata(
-    input_path: Option<&Path>,
+    source: Option<AudiobookMetadata>,
     patch: Option<&MetadataIntentPatch>,
 ) -> Result<Option<AudiobookMetadata>> {
-    let mut effective = match (input_path, patch) {
-        (Some(path), Some(patch)) => {
-            let source_metadata = crate::metadata::read_metadata(path)?;
-            patch.apply_to_metadata(source_metadata)?
-        }
-        (Some(path), None) => crate::metadata::read_metadata(path)?,
+    let mut effective = match (source, patch) {
+        (Some(source), Some(patch)) => patch.apply_to_metadata(source)?,
+        (Some(source), None) => source,
         (None, Some(patch)) => patch.to_processing_overlay()?,
         (None, None) => return Ok(None),
     };

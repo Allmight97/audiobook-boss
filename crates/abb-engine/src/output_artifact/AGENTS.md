@@ -12,8 +12,11 @@
 - Files: `mod.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
 - The cluster owns artifact path derivation, collision detection, review signatures, output-root and parent-dir creation after review plus cleanup of the empty dirs ABB created, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
 - Empty folders ABB created: a title that ends without publishing removes
-  those made for it alone at once (`cleanup_title`); folders another title in
-  the run writes into stay until the run's own cleanup.
+  those made for it at once (`end_title`). No cleanup removes a folder that an
+  unfinished output of any run will write into (process-wide claims).
+- `file_lock.rs`: publication and every tag save on a published output hold
+  that file's process-wide lock, so a later export replacing the file is
+  never overwritten by an earlier export's tag save.
 
 ## Edit Rules
 - Change pure output planning rules when `cargo nextest run -p abb-output-artifact-core` stays green.

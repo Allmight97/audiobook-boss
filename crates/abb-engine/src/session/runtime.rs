@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use super::audio::AudioDefaults;
 use super::audio_choice::AudioEdit;
+use super::exports::{ExportLink, OutputEdit, OutputEdits};
 use super::lookup::{
     self, LookupApplyMode, LookupSource, LookupStatus, QueueStep, QueuedTitle, RESULT_LIMIT,
 };
@@ -127,6 +128,22 @@ pub enum SessionIntent {
         policy: CollisionPolicy,
     },
     CancelCollisionReview,
+    /// Restarts an exported title at the location a Save offered
+    /// (`OutputSnapshot::restart_offers`): cancels it, removes its empty
+    /// folders, and submits it again through collision review.
+    #[serde(rename_all = "camelCase")]
+    RestartTitle {
+        title_id: String,
+        #[specta(type = specta_typescript::Number)]
+        revision: u64,
+    },
+    /// Keeps an exported title where it is; its export continues unchanged.
+    #[serde(rename_all = "camelCase")]
+    KeepTitleLocation {
+        title_id: String,
+        #[specta(type = specta_typescript::Number)]
+        revision: u64,
+    },
 
     // ---- Output ----
     /// Where exports are written; recorded in the settings.
@@ -358,6 +375,11 @@ enum Rest {
         draft: Box<Draft>,
         policy: CollisionPolicy,
     },
+    /// Stop a title's export, then submit `draft` (that title alone).
+    Restart {
+        draft: Box<Draft>,
+        link: Box<ExportLink>,
+    },
     Save {
         epoch: u64,
         plan: SavePlan,
@@ -413,6 +435,9 @@ impl SessionRun {
                 tasks.track_future(session.submit(*draft)).await
             }
             Rest::Save { epoch, plan } => tasks.track_future(session.save(epoch, plan)).await,
+            Rest::Restart { draft, link } => {
+                tasks.track_future(session.restart(*draft, *link)).await
+            }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
@@ -740,6 +765,11 @@ impl Session {
             },
             I::CancelCollisionReview => {
                 self.cancel_review();
+                Rest::Done(SessionOutcome::Applied)
+            }
+            I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
+            I::KeepTitleLocation { title_id, revision } => {
+                self.transition(|state| state.keep_location(&title_id, revision));
                 Rest::Done(SessionOutcome::Applied)
             }
 
@@ -1115,10 +1145,15 @@ impl Session {
             )
             .await;
         let status = match submitted {
-            Ok(accepted) => SubmissionStatus::Submitted {
-                operation_id: accepted.operation_id,
-                title: draft.title.clone(),
-            },
+            Ok(accepted) => {
+                self.transition(|state| {
+                    state.link_exports(&draft, &accepted.operation_id, &accepted.titles);
+                });
+                SubmissionStatus::Submitted {
+                    operation_id: accepted.operation_id,
+                    title: draft.title.clone(),
+                }
+            }
             Err(error) => failed(&error),
         };
         self.end_submission(&draft, status)
@@ -1289,6 +1324,7 @@ impl Session {
         if plan.waiting > 0 {
             self.ensure_deferred_writer();
         }
+        let outputs = self.update_outputs(plan.outputs);
 
         let mut saved = Vec::new();
         let mut status = MetadataStatus::SaveComplete {
@@ -1297,7 +1333,19 @@ impl Session {
             cancelled: 0,
             waiting: plan.waiting,
             held: plan.held,
+            outputs,
         };
+        let nothing = plan.immediate.is_empty()
+            && plan.waiting == 0
+            && plan.held == 0
+            && outputs == OutputEdits::default();
+        if nothing {
+            status = if plan.grouped {
+                MetadataStatus::GroupedEditsKept
+            } else {
+                MetadataStatus::NoPendingChanges
+            };
+        }
         let written_paths: Vec<PathBuf> = plan
             .immediate
             .iter()
@@ -1313,6 +1361,7 @@ impl Session {
                         cancelled: written.cancelled,
                         waiting: plan.waiting,
                         held: plan.held,
+                        outputs,
                     };
                     saved = plan
                         .immediate
@@ -1332,6 +1381,70 @@ impl Session {
         }
         self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
         SessionOutcome::Applied
+    }
+
+    /// Sends each exported title's edit to its output, then records restart
+    /// offers and ended links.
+    fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
+        if edits.is_empty() {
+            return OutputEdits::default();
+        }
+        let work = &self.inner.deps.work;
+        let replies = edits
+            .into_iter()
+            .map(|edit| {
+                let reply = work
+                    .update_title_output(&edit.title, edit.revision, &edit.intent)
+                    .map_err(|error| error.to_string());
+                (edit, reply)
+            })
+            .collect();
+        self.transition(|state| state.record_output_edits(replies))
+    }
+
+    fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
+        let closing = self.inner.deps.tasks.is_closed();
+        let started = self.transition(|state| {
+            if closing {
+                state.refuse_submission(SubmitRefusal::Closing);
+                return None;
+            }
+            state.begin_restart(title_id, revision)
+        });
+        match started {
+            Some((draft, link)) => Rest::Restart {
+                draft: Box::new(draft),
+                link: Box::new(link),
+            },
+            None => Rest::Done(SessionOutcome::Applied),
+        }
+    }
+
+    /// Stops the title's export, then submits it again from the session. A
+    /// title that published first keeps its output, which takes the edit.
+    async fn restart(&self, draft: Draft, link: ExportLink) -> SessionOutcome {
+        self.publish();
+        let deps = &self.inner.deps;
+        let published = deps
+            .work
+            .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
+            .await;
+        if !published {
+            return self.submit(draft).await;
+        }
+        let outcome = self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart);
+        let edit = self.transition(|state| {
+            let tags = &state.tags;
+            state
+                .exports
+                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
+                .into_iter()
+                .find(|edit| edit.title_id == draft_title_id(&draft))
+        });
+        if let Some(edit) = edit {
+            self.update_outputs(vec![edit]);
+        }
+        outcome
     }
 
     /// Writes `items` as one accepted operation. The result says, per item,
@@ -1732,6 +1845,16 @@ fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
 
 /// The time staged-download retries are measured in: tokio's clock, so a
 /// paused test runtime can move it.
+/// The title a one-title draft submits.
+fn draft_title_id(draft: &Draft) -> String {
+    draft
+        .payload
+        .input_ids
+        .as_ref()
+        .and_then(|ids| ids.first().cloned().flatten())
+        .unwrap_or_default()
+}
+
 fn now() -> std::time::Instant {
     tokio::time::Instant::now().into_std()
 }

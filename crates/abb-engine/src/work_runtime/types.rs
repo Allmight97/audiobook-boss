@@ -132,6 +132,8 @@ pub struct ChildJobSnapshot {
     /// The audiobook was published but its companion files were not; the
     /// child's sources stay retained. See `ProcessResultEntry`.
     pub supplemental_warning: Option<String>,
+    /// The latest metadata edit accepted for this title's output.
+    pub output_update: Option<crate::processing::OutputUpdate>,
 }
 
 /// Bounded per-operation activity tail rendered by the Work Center's op-card
@@ -193,11 +195,12 @@ pub struct OperationListSnapshot {
     pub operations: Vec<OperationSnapshot>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 pub struct WorkSubmissionAccepted {
     pub operation_id: OperationId,
     pub snapshot: OperationSnapshot,
+    /// Each title's output record, in title order.
+    pub(crate) titles: Vec<std::sync::Arc<crate::processing::TitleOutput>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, specta::Type)]

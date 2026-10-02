@@ -95,6 +95,8 @@ pub struct ProcessingContext {
     /// Backend operation family for lifecycle events emitted by this context
     pub operation_kind: OperationKind,
     pub(crate) progress_listener: Option<ProgressEventListener>,
+    /// The export title's output record; publication goes through it.
+    pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
 }
 
 impl std::fmt::Debug for ProcessingContext {
@@ -138,6 +140,7 @@ impl ProcessingContext {
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
+            title_output: None,
         }
     }
 
@@ -177,6 +180,7 @@ impl ProcessingContext {
             input_index: None,
             operation_kind: OperationKind::ProcessingBatch,
             progress_listener: None,
+            title_output: None,
         }
     }
 

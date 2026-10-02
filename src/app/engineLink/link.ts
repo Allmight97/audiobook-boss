@@ -122,6 +122,7 @@ function emptyOutput(): SessionOutput {
 		naming: { preset: 'absDefault', includeYear: false, customTemplate: null },
 		preview: { kind: 'noDirectory' },
 		submission: null,
+		restartOffers: [],
 	};
 }
 

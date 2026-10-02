@@ -34,20 +34,25 @@ pub(crate) async fn dispatch_title_jobs(
         file_info,
         output_parent_cleanup,
     } = execution_plan;
+    // Each title removes its own empty folders when it ends; the run cleans
+    // up the rest at the end.
     let folders = Arc::new(Mutex::new(output_parent_cleanup));
-    let result = dispatch_batch_plan(
-        host,
-        registry,
-        workspace_root,
-        payload,
+    let batch = Batch {
         plan,
         file_info,
-        options,
-        &folders,
-    )
-    .await;
+        folders: Arc::clone(&folders),
+    };
+    let result = dispatch_batch_plan(host, registry, workspace_root, payload, batch, options).await;
     let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
     crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
+}
+
+/// What a run dispatches: its titles, their inspected sources, and the
+/// folders execution created for them.
+struct Batch {
+    plan: ResolvedProcessingPlan,
+    file_info: audio::FileListInfo,
+    folders: Arc<Mutex<OutputParentDirCleanup>>,
 }
 
 async fn dispatch_batch_plan(
@@ -55,11 +60,14 @@ async fn dispatch_batch_plan(
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: &ProcessPayload,
-    plan: ResolvedProcessingPlan,
-    file_info: audio::FileListInfo,
+    batch: Batch,
     options: ProcessingRunOptions,
-    folders: &Arc<Mutex<OutputParentDirCleanup>>,
 ) -> Result<ProcessCommandResult> {
+    let Batch {
+        plan,
+        file_info,
+        folders,
+    } = batch;
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
             "No input files provided for processing".to_string(),
@@ -122,8 +130,9 @@ async fn dispatch_batch_plan(
             preview_seconds,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: options.progress_listener.clone(),
+            title_output: options.title_outputs.get(input_index).cloned(),
         };
-        scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(folders))));
+        scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(&folders))));
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
@@ -145,6 +154,7 @@ async fn run_title_job(
     let host = request.host.clone();
     let listener = request.progress_listener.clone();
     let input_index = request.input_index;
+    let title_output = request.title_output.clone();
     let cancelled = request
         .title_cancel
         .as_ref()
@@ -160,12 +170,16 @@ async fn run_title_job(
             ProcessResultStatus::Success | ProcessResultStatus::Skipped
         )
     });
-    if !published {
-        let folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Err(error) = folders.cleanup_title(input_index) {
-            log::warn!("output_parent_cleanup status=title_cleanup_err input_index={input_index} err={error}");
-        }
+    if let Some(title) = &title_output {
+        title.end();
     }
+    let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Err(error) = folders.end_title(input_index, published) {
+        log::warn!(
+            "output_parent_cleanup status=title_cleanup_err input_index={input_index} err={error}"
+        );
+    }
+    drop(folders);
     if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
         emit_terminal_cancelled_event(
             &host,

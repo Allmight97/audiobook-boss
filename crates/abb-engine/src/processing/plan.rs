@@ -27,6 +27,8 @@ pub(crate) struct PlannedProcessingJob {
     pub(crate) source_paths: Vec<PathBuf>,
     pub(crate) output: ResolvedOutputPlan,
     pub(crate) metadata: Option<crate::metadata::AudiobookMetadata>,
+    /// The anchor's own tags as read for this plan.
+    pub(crate) source_metadata: Option<crate::metadata::AudiobookMetadata>,
     pub(crate) cover_art_passthrough: CoverArtPassthroughPolicy,
     pub(crate) audio_plan: crate::audio::TitleAudioPlan,
     pub(crate) metadata_intent: Option<crate::metadata::MetadataIntentPatch>,
@@ -234,10 +236,21 @@ pub(crate) fn resolve_preflight_plan(
     preview_seconds: Option<f64>,
     file_info: &FileListInfo,
 ) -> Result<ProcessingPreflightPlan> {
+    resolve_processing_plan(payload, metadata, preview_seconds, file_info)
+        .map(|plan| plan.to_public())
+}
+
+/// The preflight plan with each title's planning detail.
+pub(crate) fn resolve_processing_plan(
+    payload: &ProcessPayload,
+    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
+    preview_seconds: Option<f64>,
+    file_info: &FileListInfo,
+) -> Result<ResolvedProcessingPlan> {
     let inputs = build_processing_inputs(payload, false, preview_seconds)?;
     let plan = build_processing_plan(payload, metadata, &inputs, file_info)?;
     log_output_plan("preflight", payload, &plan);
-    Ok(plan.to_public())
+    Ok(plan)
 }
 
 pub(crate) fn prepare_execution_plan(
@@ -325,6 +338,7 @@ fn build_title_processing_jobs(
             input_path: path,
             source_paths,
             output,
+            source_metadata: metadata_outcome.source_metadata,
             metadata: metadata_outcome.effective_metadata,
             cover_art_passthrough: metadata_outcome.cover_art_passthrough,
             audio_plan,

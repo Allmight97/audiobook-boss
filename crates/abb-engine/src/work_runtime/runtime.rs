@@ -8,13 +8,15 @@ use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::run::{
-    preflight_payload, process_payload_with_options, ProcessingRunOptions,
+    preflight_title_outputs, process_payload_with_options, ProcessingRunOptions,
 };
+use crate::processing::title_output::UpdateReply;
+use crate::processing::TitleOutput;
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 #[derive(Clone)]
 pub struct WorkRuntime {
@@ -81,11 +83,7 @@ impl WorkRuntime {
                 "Processing operations need a title naming their books.".into(),
             ));
         }
-        preflight_payload(
-            request.payload.clone(),
-            request.metadata.clone(),
-            request.preview_seconds,
-        )?;
+        let titles = preflight_title_outputs(&request.payload, request.metadata.as_ref())?;
 
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
@@ -127,6 +125,10 @@ impl WorkRuntime {
             flags.insert(operation_id.0.clone(), cancel_flags);
         }
 
+        for (index, title) in titles.iter().enumerate() {
+            title.on_change(self.output_listener(&host, &operation_id, index));
+        }
+
         log_work_operation(WorkOperationLogEvent::Accepted, &snapshot);
         self.emit_snapshot(&host, &snapshot);
         self.emit_list(&host);
@@ -136,6 +138,7 @@ impl WorkRuntime {
         let progress_runtime = runtime.clone();
         let progress_operation_id = operation_id_for_task.clone();
         let progress_host = host.clone();
+        let run_titles = titles.clone();
         let progress_listener: Option<ProgressEventListener> =
             Some(std::sync::Arc::new(move |event: &ProgressEvent| {
                 progress_runtime.apply_progress_and_emit(
@@ -157,9 +160,14 @@ impl WorkRuntime {
                     operation_id: Some(operation_id_for_task.to_string()),
                     title_cancels,
                     progress_listener,
+                    title_outputs: run_titles.clone(),
                 },
             )
             .await;
+            // A title the run never reached, or one skipped, has no output.
+            for title in &run_titles {
+                title.end();
+            }
             runtime.release_title_sources(&operation_id_for_task);
             let finished =
                 runtime.finish_processing_and_emit(&host, &operation_id_for_task, result);
@@ -172,7 +180,77 @@ impl WorkRuntime {
         Ok(WorkSubmissionAccepted {
             operation_id,
             snapshot,
+            titles,
         })
+    }
+
+    /// Publishes a title's update state in its operation's snapshot.
+    fn output_listener(
+        &self,
+        host: &Host,
+        operation_id: &OperationId,
+        index: usize,
+    ) -> Box<dyn Fn(Option<crate::processing::OutputUpdate>) + Send + Sync> {
+        let runtime: Weak<WorkRuntimeInner> = Arc::downgrade(&self.inner);
+        let host = host.clone();
+        let operation_id = operation_id.clone();
+        Box::new(move |update| {
+            let Some(inner) = runtime.upgrade() else {
+                return;
+            };
+            let runtime = WorkRuntime { inner };
+            let snapshot = lock_state(&runtime.inner.state)
+                .ok()
+                .and_then(|mut state| state.set_output_update(&operation_id, index, update));
+            if let Some(snapshot) = snapshot {
+                runtime.emit_snapshot(&host, &snapshot);
+            }
+        })
+    }
+
+    /// Accepts edit `revision` for an export title's output. An edit for a
+    /// published output is written on a blocking task.
+    pub(crate) fn update_title_output(
+        &self,
+        title: &Arc<TitleOutput>,
+        revision: u64,
+        intent: &crate::metadata::MetadataIntentPatch,
+    ) -> Result<UpdateReply> {
+        let reply = title.update(revision, intent)?;
+        if matches!(
+            reply,
+            UpdateReply::Accepted {
+                published: true,
+                ..
+            }
+        ) {
+            let title = Arc::clone(title);
+            self.inner
+                .tasks
+                .spawn_blocking(move || title.apply_published());
+        }
+        Ok(reply)
+    }
+
+    /// Cancels the title at `index` and waits until it has published or
+    /// ended without an output, its own empty folders removed. Returns
+    /// whether it published.
+    pub(crate) async fn stop_title(
+        &self,
+        host: &Host,
+        operation_id: &OperationId,
+        index: usize,
+        title: &TitleOutput,
+    ) -> bool {
+        let child = lock_state(&self.inner.state)
+            .ok()
+            .and_then(|state| state.child_job_id(operation_id, index));
+        if let Some(child) = child {
+            if let Err(error) = self.cancel_operation(host, operation_id.clone(), Some(child)) {
+                log::warn!("Failed to cancel a title for restart: {error}");
+            }
+        }
+        title.settled().await
     }
 
     /// Begin a command-driven inline metadata-save operation: register the

@@ -238,6 +238,7 @@ impl Desk {
             cancelled: 0,
             waiting: plan.waiting,
             held: plan.held,
+            outputs: Default::default(),
         };
         let epoch = self.state.epoch;
         self.state
@@ -784,6 +785,7 @@ fn a_cover_changed_while_a_save_ran_is_still_unsaved_afterward() {
             cancelled: 0,
             waiting: 0,
             held: 0,
+            outputs: Default::default(),
         },
     );
     desk.state.settle();
@@ -1603,6 +1605,7 @@ fn no_download_is_removed_while_a_save_writes() {
             cancelled: 0,
             waiting: 0,
             held: 0,
+            outputs: Default::default(),
         },
     );
     assert_eq!(

@@ -48,6 +48,8 @@ pub struct OutputSnapshot {
     pub preview: OutputPreview,
     /// How the latest submission or preview is going.
     pub submission: Option<SubmissionStatus>,
+    /// Exported titles a Save would move, each awaiting Restart or Keep.
+    pub restart_offers: Vec<super::exports::RestartOffer>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -175,6 +177,7 @@ impl OutputPlan {
             naming: self.naming(),
             preview,
             submission,
+            restart_offers: Vec::new(),
         }
     }
 }

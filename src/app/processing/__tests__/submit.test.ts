@@ -46,6 +46,19 @@ const collision: SubmissionStatus = { kind: 'reviewRequired', outputs: [], previ
 describe('runSubmission', () => {
 	beforeEach(() => openPath.mockClear());
 
+	it('restarts one title by the offer the user confirmed', async () => {
+		const panel = statusPanel();
+		const { deps, sent } = submitDeps([{ kind: 'finishedBeforeRestart' }]);
+		const restart = { titleId: 'alpha', revision: 3, from: '/a/Old.m4b', to: '/a/New.m4b' };
+
+		await runSubmission(panel, deps, { restart });
+
+		expect(sent).toEqual([{ kind: 'restartTitle', titleId: 'alpha', revision: 3 }]);
+		expect(panel.updateStatus).toHaveBeenCalledWith(
+			expect.objectContaining({ stage: 'completed' }),
+		);
+	});
+
 	it('asks about collisions, sends the choice, and reports the accepted export', async () => {
 		const panel = statusPanel();
 		const { deps, sent } = submitDeps(

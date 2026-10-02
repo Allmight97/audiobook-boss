@@ -1,5 +1,10 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
-import type { MetadataField, MetadataStatus, SessionMetadata } from '../../types/session';
+import type {
+	MetadataField,
+	MetadataStatus,
+	OutputEdits,
+	SessionMetadata,
+} from '../../types/session';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
 import { toUserMessage } from '../../lib/tauri/appError';
 import {
@@ -65,6 +70,20 @@ function waitingText(count: number, text: (files: string) => string): string {
 	return count > 0 ? ` ${text(count === 1 ? '1 file' : `${count} files`)}` : '';
 }
 
+function outputText(outputs: OutputEdits): string {
+	const titles = (count: number) => (count === 1 ? '1 export' : `${count} exports`);
+	return (
+		(outputs.updated > 0 ? ` ${titles(outputs.updated)} updated.` : '') +
+		(outputs.elsewhere > 0
+			? ` ${titles(outputs.elsewhere)} already finished keep their folder; their tags now name another.`
+			: '') +
+		(outputs.restartOffered > 0
+			? ` ${titles(outputs.restartOffered)} would move; choose whether to restart.`
+			: '') +
+		(outputs.failed > 0 ? ` ${titles(outputs.failed)} could not take the edit.` : '')
+	);
+}
+
 /** Words the engine's account of the last metadata action. */
 function statusText(status: MetadataStatus | null): string {
 	switch (status?.kind) {
@@ -91,9 +110,9 @@ function statusText(status: MetadataStatus | null): string {
 				) +
 				waitingText(
 					status.held,
-					(files) =>
-						`${files} being exported from a download was not changed; the edit is kept for a later export.`,
-				)
+					(files) => `${files} from a download was not changed; the edit goes with its exports.`,
+				) +
+				outputText(status.outputs)
 			);
 		case 'saveCancelled':
 			return 'Metadata save cancelled.';

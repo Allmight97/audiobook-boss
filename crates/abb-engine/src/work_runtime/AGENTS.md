@@ -24,12 +24,20 @@
     staged-download sweep uses it.
   - `unfinished_exports`: what shutdown cancels and `running_work` counts;
     metadata Saves are left to finish.
+  - Each accepted export title gets a `TitleOutput` (built from the
+    acceptance preflight; returned in `WorkSubmissionAccepted::titles`).
+    `update_title_output` hands it a Save's edit and writes a published
+    output on a blocking task; `stop_title` cancels one title and waits until
+    it published or ended. Every title is ended when its operation ends, so
+    one the run never reached cannot keep an edit waiting. The child's
+    `output_update` shows the latest edit's state.
 - `OperationId`
 - operation snapshot, child snapshot, progress, summary, lane, and submit request types
 
 ## Ownership
 
-- Own operation identity, immutable accepted submissions, operation snapshots,
+- Own operation identity, accepted submissions (a title's tags change only
+  through `update_title_output`), operation snapshots,
   operation and title cancellation, and Work Center event truth.
 - Cancellation: a processing operation holds one cancel flag per output title,
   and whole-operation cancel sets them all. `cancel_operation` with a

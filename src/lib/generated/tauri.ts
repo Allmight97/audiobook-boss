@@ -334,6 +334,8 @@ export type ChildJobSnapshot = {
 	 *  child's sources stay retained. See `ProcessResultEntry`.
 	 */
 	supplementalWarning: string | null,
+	/**  The latest metadata edit accepted for this title's output. */
+	outputUpdate: OutputUpdate | null,
 };
 
 export type ChildJobStatus = "queued" | "running" | "completed" | "skipped" | "cancelled" | "failed";
@@ -637,8 +639,10 @@ export type MetadataStatus =
 { kind: "groupedEditsKept" } | { kind: "saveComplete"; succeeded: number; failed: number; cancelled: number;
 /**  Local sources an export is still reading; written when it finishes. */
 waiting: number;
-/**  Temporary downloads an export is reading; never written. */
-held: number } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
+/**  Temporary downloads; never written, their edits go with exports. */
+held: number;
+/**  What the Save did to exported titles' outputs. */
+outputs: OutputEdits } | { kind: "saveCancelled" } | { kind: "saveFailed"; error: AppErrorEnvelope } |
 /**
  *  Saves that waited for an export have run. A failed write keeps its
  *  edit pending on a title still in the list, so Save retries it.
@@ -744,6 +748,20 @@ export type OutputDefaults = {
 	outputNaming: OutputNamingConfig,
 };
 
+/**  What one Save did to the outputs of titles in exports. */
+export type OutputEdits = {
+	/**  Outputs that take the edit, before or after publication. */
+	updated: number,
+	/**
+	 *  Of those, published outputs whose tags now name another folder; the
+	 *  file is not moved.
+	 */
+	elsewhere: number,
+	/**  Unpublished outputs the edit would move; see `restart_offers`. */
+	restartOffered: number,
+	failed: number,
+};
+
 export type OutputKind = "final" | "preview";
 
 export type OutputNamingConfig = {
@@ -779,7 +797,24 @@ export type OutputSnapshot = {
 	preview: OutputPreview,
 	/**  How the latest submission or preview is going. */
 	submission: SubmissionStatus | null,
+	/**  Exported titles a Save would move, each awaiting Restart or Keep. */
+	restartOffers: RestartOffer[],
 };
+
+export type OutputUpdate = {
+	/**  The session edit revision this update carries. */
+	revision: number,
+	status: OutputUpdateStatus,
+};
+
+/**  How the latest edit accepted for a title's output is going. */
+export type OutputUpdateStatus =
+/**  Accepted; written before publication or as soon as the file is free. */
+{ kind: "waiting" } | { kind: "applied" } |
+/**  The tags could not be written; the next Save tries again. */
+{ kind: "failed"; message: string } |
+/**  The title ended without an output. */
+{ kind: "notApplied" };
 
 /**  A deliberately captured snapshot of the panel-owned durable preferences. */
 export type PinnedDefaults = {
@@ -1048,6 +1083,20 @@ export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revok
 
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
 
+/**
+ *  An edit that would move a title's unpublished output. Hosts ask whether
+ *  to restart the title there (`RestartTitle`) or keep it (`KeepTitleLocation`).
+ */
+export type RestartOffer = {
+	titleId: string,
+	/**  Names this offer; a later Save replaces it with another. */
+	revision: number,
+	/**  Where the output is being written. */
+	from: string,
+	/**  Where the edit names it. */
+	to: string,
+};
+
 export type RunTerminalClass = "empty" | "success" | "skipped" | "cancelled" | "failed" | "mixed";
 
 /**  Sample rate configuration options */
@@ -1089,6 +1138,14 @@ export type SessionIntent =
 { kind: "preview"; seconds: number | null } |
 /**  Continues a submission held for review with the user's choice. */
 { kind: "chooseCollisionPolicy"; policy: CollisionPolicy } | { kind: "cancelCollisionReview" } |
+/**
+ *  Restarts an exported title at the location a Save offered
+ *  (`OutputSnapshot::restart_offers`): cancels it, removes its empty
+ *  folders, and submits it again through collision review.
+ */
+{ kind: "restartTitle"; titleId: string; revision: number } |
+/**  Keeps an exported title where it is; its export continues unchanged. */
+{ kind: "keepTitleLocation"; titleId: string; revision: number } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */
@@ -1226,7 +1283,12 @@ export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind:
 /**  The output plan cannot proceed; `message` says why. */
 { kind: "blocked"; message: string } | { kind: "failed"; error: AppErrorEnvelope } | { kind: "submitted"; operationId: OperationId; title: string } | { kind: "previewing" } | { kind: "previewFinished"; result: ProcessCommandResult } |
 /**  The user cancelled the collision review. */
-{ kind: "cancelled" };
+{ kind: "cancelled" } |
+/**
+ *  The title finished at its original location before the restart could
+ *  stop it; its tags were updated there.
+ */
+{ kind: "finishedBeforeRestart" };
 
 /**  Why the session could not be submitted. Hosts word these. */
 export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | { kind: "noOutputDirectory" } |
@@ -1245,7 +1307,12 @@ export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | {
 /**  Another submission or a preview is still running. */
 { kind: "busy" } |
 /**  A downloaded source is being removed after its export finished. */
-{ kind: "sourceRemoved" } | { kind: "closing" };
+{ kind: "sourceRemoved" } | { kind: "closing" } |
+/**
+ *  The restart offer was replaced by a later Save, or the output folder
+ *  or naming changed since it was made.
+ */
+{ kind: "restartStale" };
 
 export type SubseriesPartWarning = { kind: "invalid"; message: string } | { kind: "missingNumber" };
 

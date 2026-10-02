@@ -44,6 +44,9 @@ pub enum SubmitRefusal {
     /// A downloaded source is being removed after its export finished.
     SourceRemoved,
     Closing,
+    /// The restart offer was replaced by a later Save, or the output folder
+    /// or naming changed since it was made.
+    RestartStale,
 }
 
 /// How the latest submission or preview is going.
@@ -79,6 +82,9 @@ pub enum SubmissionStatus {
     },
     /// The user cancelled the collision review.
     Cancelled,
+    /// The title finished at its original location before the restart could
+    /// stop it; its tags were updated there.
+    FinishedBeforeRestart,
 }
 
 /// A submission being prepared: what will be sent, and the sources it holds.

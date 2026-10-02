@@ -45,6 +45,7 @@ pub(crate) struct ProcessingJobRequest {
     pub(crate) preview_seconds: Option<f64>,
     pub(crate) supplemental_assets: Vec<SupplementalProcessingAsset>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
+    pub(crate) title_output: Option<Arc<crate::processing::TitleOutput>>,
 }
 
 #[allow(clippy::too_many_lines)] // Keep registration, execution, and terminal cleanup in one lifecycle.
@@ -82,6 +83,7 @@ pub(crate) async fn run_processing_job(
         operation_kind: request.operation_kind,
         operation_id,
         progress_listener: request.progress_listener,
+        title_output: request.title_output.clone(),
         output_plan: request.output_plan.clone(),
         workspace_root: request.workspace_root,
         preview_seconds: request.preview_seconds,
@@ -327,6 +329,7 @@ struct ProcessingContextRequest {
     operation_kind: OperationKind,
     operation_id: Option<String>,
     progress_listener: Option<ProgressEventListener>,
+    title_output: Option<Arc<crate::processing::TitleOutput>>,
     output_plan: ResolvedOutputPlan,
     workspace_root: PathBuf,
     preview_seconds: Option<f64>,
@@ -348,6 +351,7 @@ fn build_processing_context(request: ProcessingContextRequest) -> (ProcessingCon
     context.input_index = request.input_index;
     context.operation_kind = request.operation_kind;
     context.progress_listener = request.progress_listener;
+    context.title_output = request.title_output;
 
     let preview_seconds_resolved = request.preview_seconds;
     if let Some(seconds) = preview_seconds_resolved {

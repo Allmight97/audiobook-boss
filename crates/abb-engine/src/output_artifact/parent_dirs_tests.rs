@@ -205,7 +205,9 @@ fn a_title_ending_unpublished_removes_only_the_empty_folders_made_for_it_alone()
     let root = temp_dir.path();
     std::fs::create_dir(root.join("existing")).expect("folder from before");
     let book = |parts: &[&str]| {
-        let path = parts.iter().fold(root.to_path_buf(), |path, part| path.join(part));
+        let path = parts
+            .iter()
+            .fold(root.to_path_buf(), |path, part| path.join(part));
         output_plan(PlannedOutputAction::Write, path.join("book.m4b"))
     };
     let alpha = book(&["author", "alpha"]);
@@ -213,15 +215,48 @@ fn a_title_ending_unpublished_removes_only_the_empty_folders_made_for_it_alone()
     let gamma = book(&["existing", "gamma"]);
     let delta = book(&["existing"]);
 
-    let cleanup =
+    let mut cleanup =
         ensure_output_parent_dirs(root, [&alpha, &beta, &gamma, &delta]).expect("parent dirs");
 
-    cleanup.cleanup_title(0).expect("alpha's folders");
+    cleanup.end_title(0, false).expect("alpha's folders");
     assert!(!root.join("author").join("alpha").exists());
-    assert!(root.join("author").join("beta").exists(), "beta's folder stays");
+    assert!(
+        root.join("author").join("beta").exists(),
+        "beta's folder stays"
+    );
     assert!(root.join("author").exists(), "shared with beta");
 
-    cleanup.cleanup_title(2).expect("gamma's folders");
+    cleanup.end_title(2, false).expect("gamma's folders");
     assert!(!root.join("existing").join("gamma").exists());
     assert!(root.join("existing").exists(), "existed before the run");
+
+    // Beta published: ending it removes nothing.
+    std::fs::write(root.join("author").join("beta").join("book.m4b"), b"").expect("beta");
+    cleanup.end_title(1, true).expect("beta ends");
+    cleanup.release();
+    assert!(root.join("author").join("beta").exists());
+}
+
+#[test]
+fn no_cleanup_removes_a_folder_another_runs_output_will_write_into() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let root = temp_dir.path();
+    let folder = root.join("author").join("title");
+    let first = output_plan(PlannedOutputAction::Write, folder.join("first.m4b"));
+    let second = output_plan(PlannedOutputAction::Write, folder.join("second.m4b"));
+
+    let mut created = ensure_output_parent_dirs(root, [&first]).expect("first run");
+    // A second run writes into the folder the first created.
+    let mut writing = ensure_output_parent_dirs(root, [&second]).expect("second run");
+
+    created.end_title(0, false).expect("first title ends");
+    created.cleanup_now().expect("first run ends");
+    assert!(folder.exists(), "the second run still writes there");
+
+    writing.end_title(0, false).expect("second title ends");
+    created.cleanup_now().expect("no double cleanup");
+    assert!(
+        folder.exists(),
+        "only the run that made a folder removes it"
+    );
 }

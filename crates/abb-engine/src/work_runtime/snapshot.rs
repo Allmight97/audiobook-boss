@@ -147,6 +147,7 @@ fn new_child(
         message: None,
         output_path: None,
         supplemental_warning: None,
+        output_update: None,
     }
 }
 

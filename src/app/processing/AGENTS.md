@@ -25,6 +25,9 @@
   `output.submission`; it never builds a payload or decides a refusal.
 - A `reviewRequired` status loops through the Output dialog: the chosen policy
   goes back as `chooseCollisionPolicy`, a cancel as `cancelCollisionReview`.
+- Each `output.restartOffers` entry is asked once in a native dialog:
+  Restart runs `restartTitle` through the same submission flow, Keep Location
+  posts `keepTitleLocation`.
 - Previews run in the engine without WorkRuntime. `processing-progress` and
   `processing-queue` are preview events with no operation id; Work Operations
   consumes WorkRuntime snapshots for exports.

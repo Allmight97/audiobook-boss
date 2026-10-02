@@ -8,6 +8,7 @@ pub mod progress;
 pub(crate) mod run;
 pub mod session;
 mod terminal_outcomes;
+pub(crate) mod title_output;
 pub mod types;
 
 use serde::{Deserialize, Serialize};
@@ -40,6 +41,7 @@ pub use progress::{
 };
 pub use run::preflight_payload;
 pub use session::ProcessingSession;
+pub use title_output::{OutputUpdate, OutputUpdateStatus, TitleOutput};
 pub use types::{
     AudioHandling, ProcessCommandResult, ProcessPayload, ProcessResultEntry, ProcessResultStatus,
     ProcessResultSummary, ProcessingPreflightPlan, SupplementalProcessingAsset, TitleSource,

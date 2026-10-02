@@ -85,6 +85,21 @@ function summaryText(operation: OperationSnapshot): string {
 	return operation.progress.message;
 }
 
+/** How a Save's edit to this title's output went, when there was one. */
+function outputUpdateText(child: ChildJobSnapshot): string | null {
+	const status = child.outputUpdate?.status;
+	switch (status?.kind) {
+		case 'waiting':
+			return 'Tag edit waiting to be written.';
+		case 'applied':
+			return 'Tags updated.';
+		case 'failed':
+			return `Tags not updated: ${status.message}`;
+		default:
+			return null;
+	}
+}
+
 export function WorkCenterView(): JSX.Element {
 	const workOperations = useAppRuntime().workOperations;
 	const view = workOperations.view;
@@ -206,7 +221,9 @@ export function WorkCenterView(): JSX.Element {
 													</div>
 													<Show
 														when={
-															child.status === 'failed' ? child.message : child.supplementalWarning
+															child.status === 'failed'
+																? child.message
+																: (child.supplementalWarning ?? outputUpdateText(child))
 														}
 													>
 														{(reason) => (

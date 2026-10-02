@@ -25,7 +25,16 @@
 ## Private Cluster
 - Files: `../processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes/`,
   `lifecycle.rs`, `context/`, `job_registry/`, `output_parent_cleanup.rs`,
-  `progress/`, `preview_config.rs`, `session.rs`, `types.rs`.
+  `progress/`, `preview_config.rs`, `session.rs`, `title_output.rs`,
+  `types.rs`.
+- `title_output.rs`: an export title's output after acceptance. An edit
+  accepted before publication is written to the staged file just before
+  publication, under the title's lock and the output file lock; one accepted
+  later is written to the published file once its size and modification time
+  show ABB wrote it. Text tags are diffed from the planned metadata; the cover
+  follows the edit's cover intent. A failed tag write never changes the
+  title's export outcome. A title that ends unpublished removes its own empty
+  folders before it reports (`run_dispatch.rs`).
 - The cluster owns preflight planning, execution-plan preparation, runner
   orchestration, processing context/session state, backend lifecycle
   vocabulary, job lifecycle, queue/progress event types, terminal result

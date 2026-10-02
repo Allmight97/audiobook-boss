@@ -86,10 +86,25 @@ attachment.
 - **Save targets.** Save covers every pending edit on a valid single-source
   title, not only the selection. A file is busy while an accepted export reads
   it (queued exports included), while a submission or preview being prepared
-  or run holds it, or while a waiting write is writing it. A busy local source waits and is written when
-  it is free; a busy temporary download (under the remote-source staging root)
-  is never written and its edit stays pending; any other file is written at
-  once and never moved. Two writes to one file never overlap.
+  or run holds it, or while a waiting write is writing it. A busy local source
+  waits and is written when it is free; a temporary download (under the
+  remote-source staging root) is never written and its edit stays pending for
+  its exports; any other file is written at once and never moved. Two writes
+  to one file never overlap.
+- **Exported titles.** A title links to its latest export's output
+  (`exports.rs`) while it stays listed. Every Save sends each linked output
+  the edit it should carry: what was written to the title's source since the
+  export was accepted plus the edit still pending, so an earlier Save is never
+  undone. The output takes it before or after publication
+  (`processing/title_output.rs`); a finished output is retagged in place and
+  never moved. An edit that would move an unpublished output is not applied:
+  the output part lists a `RestartOffer`. `RestartTitle` (naming its revision)
+  submits that title alone, holding its sources and the list from before the
+  old title is cancelled until the new export is accepted or the review is
+  abandoned; a title that published first is retagged in place instead
+  (`FinishedBeforeRestart`). `KeepTitleLocation` lets the export finish and
+  the same location is not offered again. An offer is stale once a later Save
+  replaces it or the output folder or naming changes.
 - **Waiting writes.** A waiting write outlives removal of its title.
   `Engine::shutdown` cancels the exports, review, or preview holding it back,
   so it is written before the engine stops. When it finishes, the session reports how many were written or
@@ -159,9 +174,12 @@ attachment.
   scripted network, and what a host is told along the way.
 - `submission_tests.rs`: what a submission sends and when it refuses.
 - `staged_tests.rs`: when a staged download may be removed.
+- `exports.rs` tests: the edit an exported output carries and when an offer
+  is taken.
 - `tests/cases/integration_session_tests.rs`: real files through `Engine`,
   including submit, collision review, preview, Save while a real export reads
-  the source, shutdown, and `abb-dev`.
+  the source (source and output read back), a finished output retagged in
+  place, restart at a new location, shutdown, and `abb-dev`.
 - A new sequence law is cheaper as another assertion in the property test
   than as a new example test.
 

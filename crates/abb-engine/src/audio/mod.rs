@@ -133,8 +133,8 @@ pub use imports::{
     SupportedAudioImportMetadata,
 };
 pub use path_validation::{validate_input_audio_path, validate_input_image_path};
-pub(crate) use processor::validate_preserved_title;
 pub use processor::{execute_audio_engine, validate_audio_engine_inputs, AudioExecutionRequest};
+pub(crate) use processor::{passthrough_sources_from_audio_files, validate_preserved_title};
 pub use settings::{
     validate_output_path, validate_preserved_output_path, validate_sample_rate_config,
 };

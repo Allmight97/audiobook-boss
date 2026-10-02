@@ -1,5 +1,6 @@
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
+	ask as tauriAsk,
 	open as tauriOpen,
 	type OpenDialogOptions,
 	type OpenDialogReturn,
@@ -230,6 +231,11 @@ function openDirectory(options?: DialogOptions): Promise<string | null> {
 }
 
 export const tauriClient = {
+	/** Asks a yes/no question in a native dialog; resolves `true` for the OK button. */
+	ask: (
+		message: string,
+		options: { title: string; okLabel: string; cancelLabel: string },
+	): Promise<boolean> => tauriAsk(message, { ...options, kind: 'warning' }),
 	/** Attaches this frontend and returns the whole session and settings. */
 	attachFrontend: (): Promise<CommandResult<'attach_frontend'>> => commandSpecs.attach_frontend(),
 	/**

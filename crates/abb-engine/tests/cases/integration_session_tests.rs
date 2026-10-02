@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use abb_engine::audio::{AudioIntent, AudiobookFormat, EncoderType};
 use abb_engine::session::{
-    AudioEdit, MetadataField, MetadataSnapshot, MetadataStatus, SessionIntent, SessionOutcome,
-    SubmissionStatus, SubmitRefusal,
+    AudioEdit, MetadataField, MetadataSnapshot, MetadataStatus, OutputEdits, SessionIntent,
+    SessionOutcome, SubmissionStatus, SubmitRefusal,
 };
 use abb_engine::work_runtime::WorkOperationStatus;
 use abb_engine::{read_metadata, AudiobookMetadata, Engine, EngineConfig};
@@ -150,6 +150,22 @@ impl Desk {
             .status
     }
 
+    /// The published audiobook of an export's first title.
+    fn output_of(&self, operation: &abb_engine::work_runtime::OperationId) -> PathBuf {
+        let operations = self.engine.list_work_operations().expect("operations");
+        let export = operations
+            .operations
+            .into_iter()
+            .find(|snapshot| &snapshot.operation_id == operation)
+            .expect("export is listed");
+        PathBuf::from(
+            export.children[0]
+                .output_path
+                .clone()
+                .expect("the title published"),
+        )
+    }
+
     async fn wait_until(&self, what: &str, done: impl Fn(&Self) -> bool) {
         for _ in 0..600 {
             if done(self) {
@@ -229,7 +245,8 @@ async fn save_with_no_export_running_writes_the_file_in_place() {
             failed: 0,
             cancelled: 0,
             waiting: 0,
-            held: 0
+            held: 0,
+            outputs: Default::default(),
         })
     );
     assert!(!metadata.save_in_progress && !metadata.has_pending_edits);
@@ -267,7 +284,11 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
             failed: 0,
             cancelled: 0,
             waiting: 1,
-            held: 0
+            held: 0,
+            outputs: OutputEdits {
+                updated: 1,
+                ..OutputEdits::default()
+            },
         })
     );
     assert_eq!(metadata.waiting_writes.len(), 1);
@@ -289,6 +310,11 @@ async fn save_on_a_local_source_in_flight_is_written_after_its_export_finishes()
     assert_eq!(genre_on_disk(&book).as_deref(), Some("Mystery"));
     assert!(!desk.metadata().has_pending_edits);
     assert_eq!(desk.engine.running_work().waiting_writes, 0);
+    // The export's output took the edit too.
+    assert_eq!(
+        genre_on_disk(&desk.output_of(&export)).as_deref(),
+        Some("Mystery")
+    );
 }
 
 #[tokio::test]
@@ -313,7 +339,11 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
             failed: 0,
             cancelled: 0,
             waiting: 0,
-            held: 1
+            held: 1,
+            outputs: OutputEdits {
+                updated: 1,
+                ..OutputEdits::default()
+            },
         })
     );
     assert!(metadata.waiting_writes.is_empty());
@@ -325,9 +355,117 @@ async fn save_on_a_temporary_source_in_flight_never_writes_the_download() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     assert_eq!(fs::read(&book).expect("read download"), before);
-    // The edit is kept for the title's output.
+    // The output took the edit; it stays pending for a later export.
+    assert_eq!(
+        genre_on_disk(&desk.output_of(&export)).as_deref(),
+        Some("Mystery")
+    );
     assert!(desk.metadata().has_pending_edits);
     assert_eq!(desk.shown(MetadataField::Genre), "Mystery");
+}
+
+#[tokio::test]
+async fn a_naming_edit_retags_a_finished_output_where_it_is() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 1.0)
+        .await;
+    desk.import(&book).await;
+    let export = desk.export().await;
+    desk.wait_until("the export finishes", |desk| {
+        finished(desk.export_status(&export))
+    })
+    .await;
+    let output = desk.output_of(&export);
+
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Title,
+        value: "Beta".to_string(),
+    })
+    .await;
+    desk.send(SessionIntent::Save).await;
+
+    match desk.metadata().status {
+        Some(MetadataStatus::SaveComplete { outputs, .. }) => assert_eq!(
+            outputs,
+            OutputEdits {
+                updated: 1,
+                elsewhere: 1,
+                ..OutputEdits::default()
+            }
+        ),
+        other => panic!("unexpected status {other:?}"),
+    }
+    desk.wait_until("the output is retagged", |_| {
+        read_metadata(output.to_string_lossy().as_ref())
+            .expect("read output")
+            .title
+            .as_deref()
+            == Some("Beta")
+    })
+    .await;
+    assert!(output.exists(), "a finished output is never moved");
+}
+
+#[tokio::test]
+async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
+    let desk = Desk::new();
+    let book = desk
+        .audiobook(&desk.root.path().join("library/alpha.m4b"), 30.0)
+        .await;
+    desk.import(&book).await;
+    let first = desk.export().await;
+
+    desk.send(SessionIntent::SetField {
+        field: MetadataField::Author,
+        value: "Other Author".to_string(),
+    })
+    .await;
+    desk.send(SessionIntent::Save).await;
+    let offer = desk
+        .engine
+        .session_snapshot()
+        .output
+        .expect("output part")
+        .restart_offers
+        .pop()
+        .expect("a restart is offered");
+    assert!(offer.to.contains("Other Author"), "{offer:?}");
+    let old_folder = PathBuf::from(&offer.from)
+        .parent()
+        .expect("folder")
+        .to_path_buf();
+
+    desk.send(SessionIntent::RestartTitle {
+        title_id: offer.title_id.clone(),
+        revision: offer.revision,
+    })
+    .await;
+
+    let second = match submission(&desk) {
+        Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
+        Some(SubmissionStatus::FinishedBeforeRestart) => {
+            // The first export won the race; its output kept its place.
+            return;
+        }
+        other => panic!("restart not submitted: {other:?}"),
+    };
+    assert_ne!(second, first);
+    assert_eq!(desk.export_status(&first), WorkOperationStatus::Cancelled);
+    assert!(!old_folder.exists(), "the old empty folders are gone");
+    desk.wait_until("the restarted export finishes", |desk| {
+        finished(desk.export_status(&second))
+    })
+    .await;
+    let output = desk.output_of(&second);
+    assert!(output.to_string_lossy().contains("Other Author"));
+    assert_eq!(
+        read_metadata(output.to_string_lossy().as_ref())
+            .expect("read output")
+            .artist
+            .as_deref(),
+        Some("Other Author")
+    );
 }
 
 #[tokio::test]

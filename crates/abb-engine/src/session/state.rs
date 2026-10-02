@@ -13,6 +13,7 @@ use serde::Serialize;
 
 use super::audio::{AudioDefaults, AudioSnapshot, TitleAudio};
 use super::audio_choice::AudioEdit;
+use super::exports::{ExportLink, Exports, OutputEdit, OutputEdits, RestartStale};
 use super::lookup::{LookupSnapshot, LookupState, QueuedTitle};
 use super::metadata_form::{MetadataField, MetadataForm, MetadataFormSnapshot};
 use super::output::{OutputPlan, OutputPreview, OutputSnapshot};
@@ -29,6 +30,8 @@ use crate::metadata::{
     processing_album_sort, validate_metadata_intent_patch, AudiobookMetadata, MetadataIntentPatch,
     PatchOp,
 };
+use crate::processing::title_output::UpdateReply;
+use crate::work_runtime::OperationId;
 
 /// Why the last metadata action ended the way it did. Hosts word these.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -51,8 +54,10 @@ pub enum MetadataStatus {
         cancelled: usize,
         /// Local sources an export is still reading; written when it finishes.
         waiting: usize,
-        /// Temporary downloads an export is reading; never written.
+        /// Temporary downloads; never written, their edits go with exports.
         held: usize,
+        /// What the Save did to exported titles' outputs.
+        outputs: OutputEdits,
     },
     SaveCancelled,
     SaveFailed {
@@ -181,8 +186,12 @@ pub(crate) struct SavePlan {
     pub(crate) immediate: Vec<SaveItem>,
     /// Local sources in flight; written when their exports finish reading.
     pub(crate) waiting: usize,
-    /// Temporary sources in flight; not written.
+    /// Temporary downloads; never written.
     pub(crate) held: usize,
+    /// The edit each exported title's output should carry.
+    pub(crate) outputs: Vec<OutputEdit>,
+    /// A grouped title has edits, kept for its output.
+    pub(crate) grouped: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +259,8 @@ pub(crate) struct SessionState {
     pub(crate) staged: StagedSources,
     /// Files of downloads being removed: nothing may write or submit them.
     removing: Vec<PathBuf>,
+    /// Which export output each title's Saves update.
+    pub(crate) exports: Exports,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
@@ -317,6 +328,7 @@ impl Default for SessionState {
             reserved: Vec::new(),
             staged: StagedSources::default(),
             removing: Vec::new(),
+            exports: Exports::default(),
             form,
             bound: Vec::new(),
             selection_key: Vec::new(),
@@ -346,6 +358,13 @@ impl SessionState {
 
         let listed = self.working_set.source_ids();
         self.staged.finish_unlisted(&listed);
+        let titles: HashSet<&str> = self
+            .working_set
+            .files()
+            .iter()
+            .map(|file| file.input_id.as_str())
+            .collect();
+        self.exports.retain_listed(&titles);
         let companions = self.staged.companions();
         if self.working_set.titles_changes() != self.parts.titles_changes
             || companions != self.parts.titles.companions
@@ -474,8 +493,12 @@ impl SessionState {
             (&metadata, file.path.as_path(), format)
         });
         let preview = self.output.preview(title);
-        self.output
-            .snapshot(revision, preview, self.submission.clone())
+        OutputSnapshot {
+            restart_offers: self.exports.offers(),
+            ..self
+                .output
+                .snapshot(revision, preview, self.submission.clone())
+        }
     }
 
     // ---- Submission ----
@@ -483,7 +506,16 @@ impl SessionState {
     /// Starts a submission or preview: accepts the edits on screen, builds
     /// what will be sent, reserves its sources, and locks the list.
     pub(crate) fn begin_submission(&mut self, preview_seconds: Option<f64>) -> Option<Draft> {
-        match self.prepare_submission(preview_seconds) {
+        self.begin_submission_of(preview_seconds, None)
+    }
+
+    /// `begin_submission` for one title (`only`) or every valid one.
+    fn begin_submission_of(
+        &mut self,
+        preview_seconds: Option<f64>,
+        only: Option<&str>,
+    ) -> Option<Draft> {
+        match self.prepare_submission(preview_seconds, only) {
             Ok(draft) => {
                 self.submitting = true;
                 self.reserved.extend(draft.sources.iter().cloned());
@@ -500,7 +532,11 @@ impl SessionState {
         }
     }
 
-    fn prepare_submission(&mut self, preview_seconds: Option<f64>) -> Result<Draft, SubmitRefusal> {
+    fn prepare_submission(
+        &mut self,
+        preview_seconds: Option<f64>,
+        only: Option<&str>,
+    ) -> Result<Draft, SubmitRefusal> {
         if self.submitting {
             return Err(SubmitRefusal::Busy);
         }
@@ -526,6 +562,7 @@ impl SessionState {
             .working_set
             .files()
             .iter()
+            .filter(|file| only.is_none_or(|title_id| file.input_id == title_id))
             .map(|file| SubmittedTitle {
                 anchor: file,
                 sources: self.working_set.sources_for(file),
@@ -568,6 +605,90 @@ impl SessionState {
             return Err(SubmitRefusal::SourceRemoved);
         }
         Ok(draft)
+    }
+
+    // ---- Exports ----
+
+    /// Links each title of an accepted export to its output record.
+    pub(crate) fn link_exports(
+        &mut self,
+        draft: &Draft,
+        operation_id: &OperationId,
+        outputs: &[std::sync::Arc<crate::processing::TitleOutput>],
+    ) {
+        let ids = draft.payload.input_ids.clone().unwrap_or_default();
+        let titles = draft
+            .payload
+            .input_files
+            .iter()
+            .enumerate()
+            .map(|(index, path)| {
+                let id = ids.get(index).cloned().flatten().unwrap_or_default();
+                (id, PathBuf::from(path))
+            });
+        self.exports.link(operation_id, titles, outputs);
+    }
+
+    /// Records what the outputs did with a Save's edits: restart offers for
+    /// edits that would move an unpublished output, and links that ended.
+    pub(crate) fn record_output_edits(
+        &mut self,
+        replies: Vec<(OutputEdit, Result<UpdateReply, String>)>,
+    ) -> OutputEdits {
+        let mut counts = OutputEdits::default();
+        let directory = self.output.naming_directory();
+        let naming = self.output.naming();
+        for (edit, reply) in replies {
+            match reply {
+                Ok(UpdateReply::Unchanged) => self.exports.withdraw(&edit.title_id),
+                Ok(UpdateReply::Accepted { elsewhere, .. }) => {
+                    self.exports.withdraw(&edit.title_id);
+                    counts.updated += 1;
+                    counts.elsewhere += usize::from(elsewhere);
+                }
+                Ok(UpdateReply::MovesOutput { from, to }) => {
+                    let offered =
+                        self.exports
+                            .offer(&edit, &from, &to, directory.clone(), naming.clone());
+                    counts.restart_offered += usize::from(offered);
+                }
+                Ok(UpdateReply::NoOutput) => self.exports.unlink(&edit.title_id),
+                Err(error) => {
+                    log::warn!("Output update refused: {error}");
+                    counts.failed += 1;
+                }
+            }
+        }
+        counts
+    }
+
+    /// Starts restarting a title at the location a Save offered: takes the
+    /// offer, then begins a submission of that title alone, which holds its
+    /// sources and locks the list before the old export is cancelled.
+    pub(crate) fn begin_restart(
+        &mut self,
+        title_id: &str,
+        revision: u64,
+    ) -> Option<(Draft, ExportLink)> {
+        let directory = self.output.naming_directory();
+        let naming = self.output.naming();
+        let link = match self
+            .exports
+            .take_offer(title_id, revision, directory.as_ref(), &naming)
+        {
+            Ok(link) => link,
+            Err(RestartStale::Stale) => {
+                self.refuse_submission(SubmitRefusal::RestartStale);
+                return None;
+            }
+        };
+        let draft = self.begin_submission_of(None, Some(title_id))?;
+        Some((draft, link))
+    }
+
+    /// The user keeps a title's output where it is.
+    pub(crate) fn keep_location(&mut self, title_id: &str, revision: u64) {
+        self.exports.decline(title_id, revision);
     }
 
     // ---- Staged downloads ----
@@ -1246,7 +1367,14 @@ impl SessionState {
                 })
             })
             .collect();
-        if items.is_empty() {
+        let tags = &self.tags;
+        let outputs = match self.exports.is_empty() {
+            true => Vec::new(),
+            false => self
+                .exports
+                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone())),
+        };
+        if items.is_empty() && outputs.is_empty() {
             self.status = Some(if grouped {
                 MetadataStatus::GroupedEditsKept
             } else {
@@ -1255,7 +1383,11 @@ impl SessionState {
             return None;
         }
 
-        let mut plan = SavePlan::default();
+        let mut plan = SavePlan {
+            outputs,
+            grouped,
+            ..SavePlan::default()
+        };
         for item in items {
             // A file the deferred writer is writing right now is as busy as
             // one an export is reading.
@@ -1263,7 +1395,9 @@ impl SessionState {
                 .deferred
                 .iter()
                 .any(|write| write.phase == DeferredPhase::Writing && write.item.path == item.path);
-            if in_use.contains(&item.path) && is_temporary(&item.path) {
+            // A download is only an export's input: its edit goes with the
+            // export and the file itself is never written.
+            if is_temporary(&item.path) {
                 plan.held += 1;
             } else if in_use.contains(&item.path) || being_written {
                 plan.waiting += 1;
@@ -1312,6 +1446,7 @@ impl SessionState {
         }
         let owner = self.cover_owner();
         for item in saved {
+            self.exports.acknowledge(&item.path, &item.patch);
             let cover_was_submitted = item.patch.cover_art.is_some();
             self.tags
                 .commit_saved(&item.path, &item.patch, item.revision);
@@ -1384,6 +1519,9 @@ impl SessionState {
                     || write.item.path != item.path
                     || write.item.revision != item.revision
             });
+            if *written {
+                self.exports.acknowledge(&item.path, &item.patch);
+            }
             if !loaded.contains(&item.path) {
                 // Not loaded: nothing on screen describes this file.
             } else if *written {

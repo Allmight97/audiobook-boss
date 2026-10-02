@@ -1,7 +1,7 @@
 import { pathBasename } from '../../lib/path/basename';
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
 import type { CollisionPolicy, PlannedOutput, ProcessCommandResult } from '../../types/audio';
-import type { SubmissionStatus, SubmitRefusal } from '../../types/session';
+import type { RestartOffer, SubmissionStatus, SubmitRefusal } from '../../types/session';
 import type { EngineLink } from '../engineLink';
 import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
@@ -54,6 +54,8 @@ function refusalText(reason: SubmitRefusal): string {
 			return 'A downloaded source was removed after its export. Acquire it again to export it.';
 		case 'closing':
 			return 'ABB is closing.';
+		case 'restartStale':
+			return 'That restart no longer matches the latest Save or output settings. Save again to see where the title would go.';
 	}
 }
 
@@ -104,13 +106,14 @@ async function settle(
 }
 
 /**
- * Sends the session to the engine as an export, or as a preview when
- * `previewSeconds` is given, and shows how it went in the status panel.
+ * Sends the session to the engine as an export, as a preview when
+ * `previewSeconds` is given, or as one title's restart at the location a
+ * Save offered, and shows how it went in the status panel.
  */
 export async function runSubmission(
 	context: ProcessingWorkflowContext,
 	deps: SubmitDeps,
-	options?: { previewSeconds?: number },
+	options?: { previewSeconds?: number; restart?: RestartOffer },
 ): Promise<void> {
 	context.setBatchCompletionMessage(null);
 	const previewSeconds = options?.previewSeconds;
@@ -131,7 +134,14 @@ export async function runSubmission(
 			);
 		} else {
 			await context.updateArtThumbnail();
-			status = await settle(deps, () => deps.link.send({ kind: 'submit' }));
+			const restart = options?.restart;
+			status = await settle(deps, () =>
+				deps.link.send(
+					restart
+						? { kind: 'restartTitle', titleId: restart.titleId, revision: restart.revision }
+						: { kind: 'submit' },
+				),
+			);
 		}
 		await show(context, deps, status);
 	} catch (cause) {
@@ -158,6 +168,14 @@ async function show(
 				stage: 'completed',
 				percentage: 100,
 				message: 'Submitted to Work Center.',
+			});
+			return;
+		case 'finishedBeforeRestart':
+			context.setProcessingState(false);
+			context.updateStatus({
+				stage: 'completed',
+				percentage: 100,
+				message: 'The title finished before it could restart; its tags were updated where it is.',
 			});
 			return;
 		case 'previewFinished':
