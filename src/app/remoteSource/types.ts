@@ -51,46 +51,38 @@ export type RemoteSourceView = Omit<
 	statusMessage: string;
 };
 
-export type RemoteSourcePatch = Partial<RemoteSourceState> & { statusMessage?: string };
-
+type EngineFields =
+	| 'selectedTitleIds'
+	| 'includePdfByTitleId'
+	| 'releases'
+	| 'selectedReleaseKeys'
+	| 'releaseGrabs'
+	| 'isGrabbing'
+	| 'isAcquiring'
+	| 'activeJob'
+	| 'lastJob';
+export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
+export type RemoteSourcePatch = Partial<RemoteSourceLocalState> & { statusMessage?: string };
 export function providerIdFromLane(lane: AcquisitionLane): ProviderId {
 	return lane;
 }
-
-export function createInitialAcquisitionState(): AcquisitionState {
+export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 	return {
 		isBusy: false,
 		providerId: 'audible',
 		providers: [],
 		accountState: null,
 		titles: [],
-		selectedTitleIds: new Set(),
-		includePdfByTitleId: {},
 		titleFilter: '',
 		showSupplementalPdfOnly: false,
 		hideUnavailableTitles: false,
 		handoffPath: '',
 		indexerAuthorQuery: '',
 		indexerTitleQuery: '',
-		releases: [],
 		releaseFilter: '',
 		releaseSort: 'seeders',
-		selectedReleaseKeys: new Set(),
-		releaseGrabs: {},
-		statusMessage: '',
-		activeJob: null,
-		lastJob: null,
-	};
-}
-
-export function createInitialRemoteSourceState(): RemoteSourceState {
-	const { statusMessage, ...initial } = createInitialAcquisitionState();
-	return {
-		...initial,
 		isOpen: false,
-		isGrabbing: false,
-		isAcquiring: false,
-		statusByProvider: { audible: statusMessage, indexer: '' },
+		statusByProvider: { audible: '', indexer: '' },
 	};
 }
 
@@ -112,17 +104,12 @@ export function snapshotRemoteSourceState(state: RemoteSourceState): RemoteSourc
 
 export function laneSelectionResetPatch(): Partial<AcquisitionState> {
 	return {
-		selectedTitleIds: new Set(),
-		includePdfByTitleId: {},
 		titleFilter: '',
 		showSupplementalPdfOnly: false,
 		hideUnavailableTitles: false,
 		indexerAuthorQuery: '',
 		indexerTitleQuery: '',
-		releases: [],
 		releaseFilter: '',
 		releaseSort: 'seeders',
-		selectedReleaseKeys: new Set(),
-		releaseGrabs: {},
 	};
 }

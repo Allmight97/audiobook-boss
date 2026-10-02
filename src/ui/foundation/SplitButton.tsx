@@ -3,6 +3,7 @@ import type { JSX } from '@solidjs/web';
 import { Button, type ButtonTone } from './Button';
 
 export type SplitButtonProps = {
+	readonly disabled?: boolean;
 	readonly variant?: 'default' | 'compact';
 	readonly tone?: ButtonTone;
 	readonly mainId?: string;
@@ -59,6 +60,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 		>
 			<Button
 				id={props.mainId}
+				disabled={props.disabled}
 				tone={tone()}
 				class="abb-split-main"
 				onClick={() => props.onMainClick()}
@@ -67,6 +69,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 			</Button>
 			<Button
 				id={props.caretId}
+				disabled={props.disabled}
 				tone={tone()}
 				class="abb-split-caret"
 				aria-expanded={open() ? 'true' : 'false'}
@@ -81,7 +84,7 @@ export function SplitButton(props: SplitButtonProps): JSX.Element {
 			<div
 				id={props.dropdownId}
 				class={`abb-split-dropdown${open() ? ' open' : ''}`}
-				hidden={!open()}
+				hidden={!open() || props.disabled}
 				ref={dropdown}
 			>
 				{props.children({ close })}

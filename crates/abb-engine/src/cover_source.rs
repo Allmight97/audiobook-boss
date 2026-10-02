@@ -14,6 +14,25 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use url::Host;
 
+/// Prefer a supported-looking image in a multi-file drop. An unsupported
+/// first file still goes through ingestion so the user receives its diagnostic.
+pub(crate) fn dropped_cover_path(paths: Vec<String>) -> Option<String> {
+    paths
+        .iter()
+        .find(|path| {
+            std::path::Path::new(path)
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| {
+                    crate::audio::ALLOWED_IMAGE_EXTENSIONS
+                        .iter()
+                        .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+                })
+        })
+        .cloned()
+        .or_else(|| paths.into_iter().next())
+}
+
 /// Loads a cover image from disk and returns write-ready JPEG bytes.
 pub(crate) async fn load_cover_art_file(file_path: String) -> Result<Vec<u8>> {
     tokio::task::spawn_blocking(move || {

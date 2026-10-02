@@ -15,8 +15,8 @@
 - Import `createProcessingOwner` and owner types from `src/app/processing`.
 - Workbench callers that only need the composed UI strip import
   `src/ui/statusPanel` instead.
-- `index.ts` is the export surface. Do not import `runtime.ts`, `submit.ts`,
-  `view.ts`, `domain/`, or `services/` from outside this owner.
+- `index.ts` is the export surface. Do not import private `owner.ts`, `submit.ts`, `render.ts`, or
+  `view.ts` from outside this owner.
 
 ## Hard Invariants
 
@@ -28,24 +28,27 @@
   goes back as `chooseCollisionPolicy`, a cancel as `cancelCollisionReview`.
 - Each `output.restartOffers` entry is asked once in a native dialog, one at
   a time: Restart runs `restartTitle` through the same submission flow, Keep
-  Location posts `keepTitleLocation`.
-- Previews run in the engine without WorkRuntime. `processing-progress` and
-  `processing-queue` are preview events with no operation id; Work Operations
-  consumes WorkRuntime snapshots for exports.
-- Foreground cancel settles the local render only. Operation-scoped cancel
-  lives in Work Operations.
-- Consume the backend terminal verdict (`RunTerminalClass` on
-  `ProcessCommandResult`) for preview completion. Do not re-derive terminal
-  precedence from per-job rows.
+  Location posts `keepTitleLocation`. Work Center also offers these actions
+  on the matching operation/title row so a refused restart can be retried.
+- Preview identity, progress, queue rows, cancellation, and terminal truth come
+  from `output.previewRun`. Render its operation snapshot; do not aggregate
+  progress or listen for separate processing events.
+- Cancel posts `cancelPreview` with the current run identity and optional child
+  identity. The engine stops the corresponding work; disposal does not cancel it.
+- Artwork is read by run identity after `artworkReady`. Ignore a cover reply for
+  another run or a disposed view. A finished preview opens only the path the
+  engine grants through `takePreviewOutput`; an accepted claim still opens if
+  the requesting frontend is disposed before its reply arrives.
 - Preview duration lives in `PreviewAudioControls` screen-local Solid state.
   Submit goes through Processing `start`.
 - Each Processing owner instance owns its status view store and
-  `StatusPanelRuntime`. Disposing one runtime cannot publish into another.
+  publisher. Disposing one runtime cannot publish into another.
 
 ## Testing
 
 - `submit.test.ts` covers the review loop, refusal wording, cancellation, and
-  opening a single finished preview against a stub link.
+  terminal wording against a stub link. `preview.test.tsx` covers snapshot
+  reattachment, accepted artwork, run cancellation, and the output claim.
 - `remote-source-boundary.test.ts` pins the visual Remote UI strip and proves
   production Processing does not import UI or private Remote implementation
   files.
@@ -56,5 +59,5 @@
 
 - Adding, removing, or renaming a public export.
 - Building any part of an export request here instead of in the engine.
-- Converting Status Panel into a WorkRuntime consumer.
+- Reintroducing frontend progress or terminal policy.
 - Adding a module-global status publisher.

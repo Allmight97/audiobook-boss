@@ -21,8 +21,6 @@ import type {
 	SettingsReply as GeneratedSettingsReply,
 	SettingsSnapshot as GeneratedSettingsSnapshot,
 	ProcessCommandResult as GeneratedProcessCommandResult,
-	ProgressEvent as GeneratedProgressEvent,
-	QueueEvent as GeneratedQueueEvent,
 	OperationListSnapshot as GeneratedOperationListSnapshot,
 	OperationSnapshot as GeneratedOperationSnapshot,
 } from '../generated/tauri';
@@ -30,7 +28,6 @@ import type { PlannedOutput, ProcessCommandResult } from '../../types/audio';
 import type { SettingsReply, SettingsSnapshot } from '../../types/appSettings';
 import type { AudiobookMetadata } from '../../types/metadata';
 import type { SessionReply, SessionUpdate, SubmissionStatus } from '../../types/session';
-import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import type { NullToOptionalDeep } from '../../types/ipc';
 import type { OperationListSnapshot, OperationSnapshot } from '../../types/workRuntime';
 import { normalizeAppError } from './appError';
@@ -120,7 +117,7 @@ export function normalizeMetadata(metadata: GeneratedAudiobookMetadata): Audiobo
  * is the request for MP3 pass-through.
  */
 export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionUpdate {
-	const { titles, selection, metadata, lookup, audio, output } = update;
+	const { titles, selection, metadata, lookup, audio, output, remote } = update;
 	return {
 		revision: update.revision,
 		titles: titles
@@ -131,6 +128,19 @@ export function normalizeSessionUpdate(update: GeneratedSessionUpdate): SessionU
 				}
 			: undefined,
 		selection: selection ?? undefined,
+		remote: remote
+			? {
+					...remote,
+					acquisition: remote.acquisition ? normalizeNullish(remote.acquisition) : null,
+					indexer: {
+						...remote.indexer,
+						releases: remote.indexer.releases.map((release) => ({
+							...normalizeNullish(release),
+							categories: release.categories,
+						})),
+					},
+				}
+			: undefined,
 		metadata: metadata ?? undefined,
 		lookup: lookup ? { ...lookup, results: normalizeNullish(lookup.results) } : undefined,
 		audio: audio ?? undefined,
@@ -189,14 +199,6 @@ function normalizeProcessResult(result: GeneratedProcessCommandResult): ProcessC
 			error: entry.error == null ? undefined : normalizeAppError(entry.error),
 		})),
 	};
-}
-
-export function normalizeProgressEvent(payload: GeneratedProgressEvent): ProcessingProgressEvent {
-	return normalizeNullish(payload);
-}
-
-export function normalizeQueueEvent(payload: GeneratedQueueEvent): ProcessingQueueEvent {
-	return normalizeNullish(payload);
 }
 
 export function normalizeOperationSnapshot(payload: GeneratedOperationSnapshot): OperationSnapshot {

@@ -18,6 +18,8 @@
 ## Cross-Strip Coupling
 
 - Compact variant mounts in the tags header in `src/ui/App.tsx`.
+- Submission availability follows the engine preview state through Processing,
+  including when a replacement frontend attaches to an active run.
 - Do not add a preview store or poke leftover job-control APIs.
 
 ## Boundary Changes

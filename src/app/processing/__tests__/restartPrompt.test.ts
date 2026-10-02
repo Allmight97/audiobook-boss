@@ -3,7 +3,13 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { createFakeEngine, type FakeEngine } from '../../../test/fixtures/fakeEngine';
 import { createAppRuntime, type AppRuntime } from '../../runtime';
 
-const offer = { titleId: 'alpha', revision: 3, from: '/a/Old.m4b', to: '/a/New.m4b' };
+const offer = {
+	titleId: 'alpha',
+	operationId: 'op-1',
+	revision: 3,
+	from: '/a/Old.m4b',
+	to: '/a/New.m4b',
+};
 
 describe('restart offers', () => {
 	let runtime: AppRuntime | undefined;

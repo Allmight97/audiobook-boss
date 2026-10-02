@@ -1,29 +1,14 @@
-import { toUserMessage } from '../../lib/tauri/appError';
-import { releaseKey } from './selection';
 import type { AcquisitionLane } from '../../types/appSettings';
 import type {
-	AcquisitionJob,
 	ProviderId,
 	RemoteAuthStartResponse,
 	RemoteLibraryResponse,
 	RemoteRelease,
-	RemoteReleaseGrabRequest,
-	RemoteReleaseGrabResponse,
-	RemoteReleaseSearchRequest,
-	RemoteReleaseSearchResponse,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
-import type { RemoteSourcePatch, RemoteSourceState } from './types';
-import {
-	handoffMessage,
-	isAcquisitionSettled,
-	isAcquisitionTerminal,
-	isTitleAcquirable,
-	statusFromAcquisitionJob,
-	uniqueDiagnosticMessage,
-	type AcquisitionJobWithProgress,
-} from './display';
+import type { RemoteSourcePatch } from './types';
+import { uniqueDiagnosticMessage } from './display';
 import { laneSelectionResetPatch, providerIdFromLane } from './types';
 import type { RemoteSourceStateStore } from './state';
 
@@ -38,19 +23,6 @@ export interface RemoteSourceWorkflowServices {
 	) => Promise<RemoteSourceAccountState>;
 	logout: (providerId: ProviderId) => Promise<RemoteSourceAccountState>;
 	loadLibrary: (providerId: ProviderId) => Promise<RemoteLibraryResponse>;
-	searchReleases: (request: RemoteReleaseSearchRequest) => Promise<RemoteReleaseSearchResponse>;
-	grabRelease: (request: RemoteReleaseGrabRequest) => Promise<RemoteReleaseGrabResponse>;
-	startAcquisition: (
-		providerId: ProviderId,
-		selections: ReadonlyArray<{
-			readonly titleId: string;
-			readonly includeSupplementalPdf: boolean;
-		}>,
-	) => Promise<AcquisitionJob>;
-	getAcquisitionStatus: (jobId: string) => Promise<AcquisitionJob>;
-	cancelAcquisition: (jobId: string) => Promise<AcquisitionJob>;
-	/** Every acquisition change the engine publishes. */
-	listenAcquisitions: (handler: (job: AcquisitionJob) => void) => Promise<() => void>;
 }
 
 export type RemoteSourceWorkflowAction =
@@ -69,7 +41,6 @@ export type RemoteSourceWorkflowAction =
 export type RemoteSourceWorkflow = {
 	run(action: RemoteSourceWorkflowAction): Promise<void>;
 	invalidate(): void;
-	clearIndexerResults(): void;
 };
 
 type WorkflowScope = { readonly isCurrent: () => boolean; readonly providerId: ProviderId };
@@ -79,31 +50,9 @@ export function createRemoteSourceWorkflow(deps: {
 	readonly state: RemoteSourceStateStore;
 }): RemoteSourceWorkflow {
 	let workflowGeneration = 0;
-	let acquisitionGeneration = 0;
 	let entryGeneration = 0;
-	let indexerConnectionGeneration = 0;
-	/** Acquisitions waiting for their next event; woken when their scope may have ended. */
-	const waiting = new Set<() => void>();
-
-	function wakeWaiting(): void {
-		for (const wake of [...waiting]) wake();
-	}
-
 	function invalidate(): void {
 		workflowGeneration += 1;
-		acquisitionGeneration += 1;
-		wakeWaiting();
-	}
-
-	function beginAcquisition(): number {
-		acquisitionGeneration += 1;
-		wakeWaiting();
-		return acquisitionGeneration;
-	}
-
-	function invalidateAcquisition(): void {
-		acquisitionGeneration += 1;
-		wakeWaiting();
 	}
 
 	function patchWhenCurrent(scope: WorkflowScope, patch: RemoteSourcePatch): boolean {
@@ -134,19 +83,8 @@ export function createRemoteSourceWorkflow(deps: {
 		try {
 			const library = await deps.services.loadLibrary(providerId);
 			if (!scope.isCurrent()) return;
-			const selectableTitleIds = new Set(
-				library.titles.filter((title) => isTitleAcquirable(title)).map((title) => title.titleId),
-			);
 			patchWhenCurrent(scope, {
 				titles: library.titles,
-				selectedTitleIds: new Set(
-					[...deps.state.current().selectedTitleIds].filter((titleId) =>
-						selectableTitleIds.has(titleId),
-					),
-				),
-				includePdfByTitleId: Object.fromEntries(
-					library.titles.map((title) => [title.titleId, title.supplementalPdfAvailable]),
-				),
 				statusMessage:
 					library.diagnostics.length > 0
 						? uniqueDiagnosticMessage(library.diagnostics)
@@ -156,132 +94,6 @@ export function createRemoteSourceWorkflow(deps: {
 			setAcquisitionErrorWhenCurrent(scope, cause, 'Failed to load Audible library.');
 		} finally {
 			patchWhenCurrent(scope, { isBusy: false });
-		}
-	}
-
-	/**
-	 * Follows a job's engine events until it settles. The engine imports its
-	 * files into the session; the settled job says how that went.
-	 */
-	async function followAcquisition(
-		started: AcquisitionJobWithProgress,
-		scope: WorkflowScope,
-	): Promise<AcquisitionJobWithProgress | null> {
-		let latest = started;
-		let heard = false;
-		let wake: (() => void) | null = null;
-		const unlisten = await deps.services.listenAcquisitions((job) => {
-			if (job.jobId !== started.jobId) return;
-			latest = job;
-			heard = true;
-			wake?.();
-		});
-		try {
-			// Catch up on anything published before the listener attached.
-			const current = await deps.services.getAcquisitionStatus(started.jobId);
-			if (!heard) latest = current;
-			while (scope.isCurrent()) {
-				patchWhenCurrent(scope, {
-					activeJob: latest,
-					lastJob: latest,
-					statusMessage: statusFromAcquisitionJob(latest),
-				});
-				if (isAcquisitionSettled(latest)) return latest;
-				await new Promise<void>((resolve) => {
-					wake = resolve;
-					waiting.add(resolve);
-				});
-				if (wake) waiting.delete(wake);
-			}
-			return null;
-		} finally {
-			unlisten();
-		}
-	}
-
-	function setGrabState(
-		key: string,
-		status: RemoteSourceState['releaseGrabs'][string],
-		scope: WorkflowScope,
-	): void {
-		patchWhenCurrent(scope, {
-			releaseGrabs: { ...deps.state.current().releaseGrabs, [key]: status },
-		});
-	}
-
-	async function sendRelease(release: RemoteRelease, scope: WorkflowScope): Promise<void> {
-		const key = releaseKey(release);
-		setGrabState(key, { status: 'sending', message: 'Sending to downloader via Indexer…' }, scope);
-		try {
-			const response = await deps.services.grabRelease({ release });
-			setGrabState(
-				key,
-				{
-					status: response.accepted ? 'sent' : 'error',
-					message: response.accepted
-						? response.message
-						: uniqueDiagnosticMessage(response.diagnostics) ||
-							response.message ||
-							'Indexer did not accept the grab.',
-				},
-				scope,
-			);
-		} catch (cause) {
-			setGrabState(
-				key,
-				{
-					status: 'error',
-					message: toUserMessage(cause, {
-						fallback: 'Could not confirm the handoff. Check your downloader before retrying.',
-						suppressUnknown: true,
-					}),
-				},
-				scope,
-			);
-		}
-	}
-
-	async function grabReleases(keys: ReadonlySet<string>, scope: WorkflowScope): Promise<void> {
-		const current = deps.state.current();
-		const releases = current.releases.filter(
-			(release) =>
-				keys.has(releaseKey(release)) &&
-				current.releaseGrabs[releaseKey(release)]?.status !== 'sent',
-		);
-		if (current.isBusy || current.providerId !== 'indexer' || releases.length === 0) return;
-		patchWhenCurrent(scope, {
-			isGrabbing: true,
-			statusMessage: 'Sending to downloader via Indexer…',
-			releaseGrabs: {
-				...current.releaseGrabs,
-				...Object.fromEntries(
-					releases.map((release) => [
-						releaseKey(release),
-						{ status: 'queued' as const, message: 'Waiting to send.' },
-					]),
-				),
-			},
-		});
-		try {
-			for (const release of releases) {
-				if (!scope.isCurrent()) return;
-				await sendRelease(release, scope);
-			}
-			if (!scope.isCurrent()) return;
-			const outcomes = releases.map(
-				(release) => deps.state.current().releaseGrabs[releaseKey(release)],
-			);
-			const sent = outcomes.filter((outcome) => outcome.status === 'sent').length;
-			patchWhenCurrent(scope, {
-				statusMessage:
-					outcomes.length === 1
-						? outcomes[0].message
-						: `${sent} sent to downloader; ${outcomes.length - sent} could not be confirmed. See individual results.`,
-			});
-		} finally {
-			if (scope.isCurrent()) {
-				deps.state.patch({ isGrabbing: false });
-			}
 		}
 	}
 
@@ -314,7 +126,7 @@ export function createRemoteSourceWorkflow(deps: {
 			if (
 				providerId === 'audible' &&
 				deps.state.current().accountState?.status === 'connected' &&
-				!deps.state.current().activeJob
+				!deps.state.current().isAcquiring
 			) {
 				await loadLibrary(providerId, entryScope);
 			}
@@ -384,8 +196,7 @@ export function createRemoteSourceWorkflow(deps: {
 				return;
 			}
 			case 'logout': {
-				// Logout aborts acquisition and purges titles not yet handed to Input.
-				if (deps.state.current().isAcquiring) return;
+				// The engine refuses disconnect while accepted work or handoff needs credentials.
 				const providerId = deps.state.current().providerId;
 				patchWhenCurrent(workflowScope, { isBusy: true });
 				try {
@@ -393,10 +204,6 @@ export function createRemoteSourceWorkflow(deps: {
 					patchWhenCurrent(workflowScope, {
 						accountState,
 						titles: [],
-						selectedTitleIds: new Set(),
-						includePdfByTitleId: {},
-						activeJob: null,
-						lastJob: null,
 						statusMessage: 'Audible disconnected.',
 					});
 				} catch (cause) {
@@ -410,126 +217,13 @@ export function createRemoteSourceWorkflow(deps: {
 				await loadLibrary(deps.state.current().providerId, workflowScope);
 				return;
 			}
-			case 'searchReleases': {
-				const author = deps.state.current().indexerAuthorQuery.trim();
-				const title = deps.state.current().indexerTitleQuery.trim();
-				if (!author && !title) {
-					patchWhenCurrent(workflowScope, {
-						statusMessage: 'Enter an author and/or title to search.',
-					});
-					return;
-				}
-				patchWhenCurrent(workflowScope, {
-					isBusy: true,
-					selectedReleaseKeys: new Set(),
-					releaseGrabs: {},
-					releases: [],
-					statusMessage: 'Searching Indexer releases.',
-				});
-				try {
-					const response = await deps.services.searchReleases({
-						author: author || undefined,
-						title: title || undefined,
-						query: undefined,
-					});
-					if (!workflowScope.isCurrent()) return;
-					patchWhenCurrent(workflowScope, {
-						releases: response.releases,
-						statusMessage:
-							response.diagnostics.length > 0
-								? uniqueDiagnosticMessage(response.diagnostics)
-								: `${response.releases.length} release${response.releases.length === 1 ? '' : 's'} found.`,
-					});
-				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(
-						workflowScope,
-						cause,
-						'Failed to search Indexer releases.',
-					);
-				} finally {
-					patchWhenCurrent(workflowScope, { isBusy: false });
-				}
+			case 'searchReleases':
+			case 'grabSelectedReleases':
+			case 'grabRelease':
 				return;
-			}
-			case 'grabSelectedReleases': {
-				await grabReleases(deps.state.current().selectedReleaseKeys, workflowScope);
+			case 'acquireSelected':
+			case 'cancelActiveAcquisition':
 				return;
-			}
-			case 'grabRelease': {
-				await grabReleases(new Set([releaseKey(action.release)]), workflowScope);
-				return;
-			}
-			case 'acquireSelected': {
-				if (deps.state.current().isAcquiring) return;
-				const generation = beginAcquisition();
-				const acquisitionScope: WorkflowScope = {
-					providerId: workflowScope.providerId,
-					isCurrent: () => workflowScope.isCurrent() && acquisitionGeneration === generation,
-				};
-				const current = deps.state.current();
-				if (current.selectedTitleIds.size === 0) {
-					patchWhenCurrent(acquisitionScope, {
-						statusMessage: 'Select at least one Audible title.',
-					});
-					return;
-				}
-				patchWhenCurrent(acquisitionScope, {
-					isAcquiring: true,
-					activeJob: null,
-					lastJob: null,
-					statusMessage: 'Starting Audible acquisition.',
-				});
-				try {
-					const selections = [...current.selectedTitleIds].map((titleId) => ({
-						titleId,
-						includeSupplementalPdf: current.includePdfByTitleId[titleId] ?? false,
-					}));
-					const startedJob = await deps.services.startAcquisition(current.providerId, selections);
-					if (
-						!patchWhenCurrent(acquisitionScope, {
-							activeJob: startedJob,
-							lastJob: startedJob,
-							statusMessage: statusFromAcquisitionJob(startedJob),
-						})
-					) {
-						return;
-					}
-					const settled = await followAcquisition(startedJob, acquisitionScope);
-					const message = settled ? handoffMessage(settled) : null;
-					if (message) patchWhenCurrent(acquisitionScope, { statusMessage: message });
-				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(
-						acquisitionScope,
-						cause,
-						'Failed to acquire selected Audible titles.',
-					);
-				} finally {
-					patchWhenCurrent(acquisitionScope, { isAcquiring: false });
-				}
-				return;
-			}
-			case 'cancelActiveAcquisition': {
-				const activeJob = deps.state.current().activeJob;
-				if (!activeJob || isAcquisitionTerminal(activeJob)) return;
-				try {
-					const cancelledJob = await deps.services.cancelAcquisition(activeJob.jobId);
-					if (!workflowScope.isCurrent()) return;
-					invalidateAcquisition();
-					patchWhenCurrent(workflowScope, {
-						activeJob: cancelledJob,
-						lastJob: cancelledJob,
-						statusMessage: statusFromAcquisitionJob(cancelledJob),
-						isAcquiring: false,
-					});
-				} catch (cause) {
-					setAcquisitionErrorWhenCurrent(
-						workflowScope,
-						cause,
-						'Failed to cancel Audible acquisition.',
-					);
-				}
-				return;
-			}
 			default: {
 				const _exhaustive: never = action;
 				return _exhaustive;
@@ -542,7 +236,6 @@ export function createRemoteSourceWorkflow(deps: {
 			if (deps.state.current().isGrabbing) return;
 			const generation = workflowGeneration;
 			const entry = entryGeneration;
-			const connection = indexerConnectionGeneration;
 			const providerId = deps.state.current().providerId;
 			const survivesEntry =
 				action.type === 'enterLane' ||
@@ -551,26 +244,10 @@ export function createRemoteSourceWorkflow(deps: {
 			const scope: WorkflowScope = {
 				providerId,
 				isCurrent: () =>
-					workflowGeneration === generation &&
-					(survivesEntry ||
-						(entryGeneration === entry &&
-							(providerId !== 'indexer' || indexerConnectionGeneration === connection))),
+					workflowGeneration === generation && (survivesEntry || entryGeneration === entry),
 			};
 			await runAction(action, scope);
 		},
 		invalidate,
-		clearIndexerResults() {
-			indexerConnectionGeneration += 1;
-			deps.state.patch(
-				{
-					releases: [],
-					selectedReleaseKeys: new Set(),
-					releaseGrabs: {},
-					isBusy: false,
-					statusMessage: 'Search again before grabbing releases with the saved Indexer connection.',
-				},
-				'indexer',
-			);
-		},
 	};
 }

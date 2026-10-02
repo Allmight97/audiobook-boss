@@ -276,6 +276,51 @@ pub struct AcquisitionJob {
     pub handoff: Option<AcquisitionHandoff>,
 }
 
+/// Host facts are derived from the record at the publication/read boundary.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AcquisitionSnapshot {
+    #[serde(flatten)]
+    pub job: AcquisitionJob,
+    pub terminal: bool,
+    pub settled: bool,
+}
+impl AcquisitionJob {
+    pub(crate) fn terminal(&self) -> bool {
+        self.progress.terminal
+            || matches!(
+                self.status,
+                RemoteAcquisitionStatus::Failed
+                    | RemoteAcquisitionStatus::Cancelled
+                    | RemoteAcquisitionStatus::Validated
+                    | RemoteAcquisitionStatus::ImportedToFileList
+            )
+    }
+    pub(crate) fn settled(&self) -> bool {
+        self.handoff.is_some()
+            || matches!(
+                self.status,
+                RemoteAcquisitionStatus::Failed | RemoteAcquisitionStatus::Cancelled
+            )
+            || (self.terminal() && self.materialized_files.is_empty())
+    }
+}
+impl From<AcquisitionJob> for AcquisitionSnapshot {
+    fn from(job: AcquisitionJob) -> Self {
+        Self {
+            terminal: job.terminal(),
+            settled: job.settled(),
+            job,
+        }
+    }
+}
+impl std::ops::Deref for AcquisitionSnapshot {
+    type Target = AcquisitionJob;
+    fn deref(&self) -> &Self::Target {
+        &self.job
+    }
+}
+
 /// What happened when the engine imported an acquisition's files into the
 /// session.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]

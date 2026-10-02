@@ -72,8 +72,6 @@ export type EncodingSource = {
 	readonly capabilities: EncoderSettingsCapabilities | null;
 	/** The engine's plan for each title shown; `null` for the defaults. */
 	readonly plans: readonly TitlePlan[] | null;
-	/** Whether a shown source has more than two channels. */
-	readonly multichannelInput: boolean;
 };
 
 const ENCODER_PROFILES: Record<EncoderType, string> = {
@@ -181,20 +179,7 @@ function sampleRateHint(source: EncodingSource): string | null {
 function channelsHint(source: EncodingSource): string | null {
 	const problem = planProblem(source.plans, 'channels');
 	if (problem) return problem;
-	return source.choice.channels !== 'auto' && source.multichannelInput
-		? 'Surround downmix omits bass effects (LFE).'
-		: null;
-}
-
-function encoderUnavailable(
-	capabilities: EncoderSettingsCapabilities | null,
-	encoder: EncoderType,
-): boolean {
-	const availability = capabilities?.availability;
-	if (!availability) return false;
-	if (encoder === 'aac_at') return !availability.aacAtAvailable;
-	if (encoder === 'native_aac') return !availability.nativeAacAvailable;
-	return false;
+	return source.facts.downmixWarning ? 'Surround downmix omits bass effects (LFE).' : null;
 }
 
 export function projectView(source: EncodingSource): EncodingView {
@@ -204,13 +189,11 @@ export function projectView(source: EncodingSource): EncodingView {
 	const flavorOptions: EncodingOption[] =
 		capabilities === null
 			? [{ value: 'auto', label: 'Loading…', disabled: true }]
-			: capabilities.encoderTypes
-					.filter((flavor) => (isOpus ? flavor === 'opus' : flavor !== 'opus' && flavor !== 'auto'))
-					.map((flavor) => ({
-						value: flavor,
-						label: encoderLabel(flavor),
-						disabled: encoderUnavailable(capabilities, flavor),
-					}));
+			: facts.encoderOptions.map((option) => ({
+					value: option.encoder,
+					label: encoderLabel(option.encoder),
+					disabled: !option.available,
+				}));
 	const sampleRateOptions = capabilities
 		? [
 				...(capabilities.sampleRateAuto ? ['auto'] : []),
@@ -239,7 +222,7 @@ export function projectView(source: EncodingSource): EncodingView {
 		flavor: isOpus ? 'opus' : choice.encoder,
 		effectiveFlavor: facts.effectiveEncoder,
 		flavorOptions,
-		flavorDisabled: isOpus || capabilities === null,
+		flavorDisabled: facts.encoderLocked,
 		profileDisplay: ENCODER_PROFILES[facts.effectiveEncoder],
 		qualityBitrateLabel: showQuality ? 'Quality' : 'Bitrate (kbps)',
 		native: facts.effectiveEncoder === 'native_aac',

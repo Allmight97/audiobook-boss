@@ -3,7 +3,6 @@ import type { AcquisitionJob } from '../../types/remoteSource';
 import { liveMetadataCapability } from '../../lib/tauri/capabilities/metadata';
 import { audioFile, createFakeEngine } from '../../test/fixtures/fakeEngine';
 import { createAppRuntime } from './index';
-import type { RemoteSourceWorkflowServices } from '../remoteSource/workflow';
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -15,6 +14,8 @@ function createDeferred<T>() {
 
 function runningJob(): AcquisitionJob {
 	return {
+		settled: false,
+		terminal: false,
 		jobId: 'remote-job-1',
 		providerId: 'audible',
 		status: 'acquiring',
@@ -27,24 +28,6 @@ function runningJob(): AcquisitionJob {
 		materializedFiles: [],
 		supplementalAssets: [],
 		diagnostics: [],
-	};
-}
-
-function remoteServices(status: Promise<AcquisitionJob>): RemoteSourceWorkflowServices {
-	return {
-		listProviders: vi.fn(async () => []),
-		getAccountState: vi.fn(),
-		startAuth: vi.fn(),
-		openAuthorizationUrl: vi.fn(),
-		completeAuth: vi.fn(),
-		logout: vi.fn(),
-		loadLibrary: vi.fn(),
-		searchReleases: vi.fn(),
-		grabRelease: vi.fn(),
-		startAcquisition: vi.fn(async () => runningJob()),
-		getAcquisitionStatus: vi.fn(() => status),
-		cancelAcquisition: vi.fn(),
-		listenAcquisitions: vi.fn(async () => () => undefined),
 	};
 }
 
@@ -186,49 +169,26 @@ describe('app runtime', () => {
 		expect(runtime.remoteSource.view().statusMessage).toBe('');
 	});
 
-	it('keeps late Remote Source polling from repopulating state after disposal', async () => {
-		const lateStatus = createDeferred<AcquisitionJob>();
-		const services = remoteServices(lateStatus.promise);
-		const runtime = createAppRuntime({ remoteSource: { services } });
-		const other = createAppRuntime();
-		dispose = () => other.dispose();
-		void other.remoteSource.open();
-		other.remoteSource.editSearch({ titleFilter: 'other runtime' });
-		vi.mocked(services.getAccountState).mockResolvedValue({
-			providerId: 'audible',
-			status: 'connected',
+	it('reattaches remote progress without publishing into a disposed runtime', async () => {
+		const engine = createFakeEngine();
+		engine.change((state) => {
+			state.remote.acquisition = runningJob();
 		});
-		vi.mocked(services.loadLibrary).mockResolvedValue({
-			providerId: 'audible',
-			diagnostics: [],
-			titles: [
-				{
-					providerId: 'audible',
-					titleId: 'B000000001',
-					title: 'Book',
-					authors: [],
-					narrators: [],
-					supplementalPdfAvailable: false,
-					acquired: false,
-					availability: { acquirable: true, status: 'available', label: 'Available' },
-					unsupportedReasons: [],
-				},
-			],
-		});
-		await runtime.remoteSource.open();
-		runtime.remoteSource.toggleTitle('B000000001');
-		const acquisition = runtime.remoteSource.runAction({
-			type: 'acquireSelected',
-		});
-		await vi.waitFor(() => expect(services.getAcquisitionStatus).toHaveBeenCalledTimes(1));
-
+		const runtime = createAppRuntime({ engine });
+		await runtime.initialize();
+		const before = runtime.remoteSource.view().activeJob;
 		runtime.dispose();
-		lateStatus.resolve(runningJob());
-		await acquisition;
-
-		expect(runtime.remoteSource.view().activeJob).toBeNull();
-		expect(runtime.remoteSource.view().statusMessage).toBe('');
-		expect(other.remoteSource.view().isOpen).toBe(true);
-		expect(other.remoteSource.view().titleFilter).toBe('other runtime');
+		const other = createAppRuntime({ engine });
+		dispose = () => other.dispose();
+		await other.initialize();
+		engine.change((state) => {
+			state.remote.acquisition = {
+				...runningJob(),
+				progress: { ...runningJob().progress, percentage: 75 },
+			};
+		});
+		expect(other.remoteSource.view().activeJob?.progress.percentage).toBe(75);
+		expect(runtime.remoteSource.view().activeJob).toEqual(before);
+		expect(runtime.remoteSource.view().isOpen).toBe(false);
 	});
 });

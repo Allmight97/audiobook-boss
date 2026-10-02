@@ -37,14 +37,6 @@ export const commands = {
 	completeRemoteSourceAuth: (request: RemoteAuthCompletionRequest) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("complete_remote_source_auth", { request })),
 	logoutRemoteSourceAccount: (providerId: ProviderId) => typedError<RemoteSourceAccountState, AppErrorEnvelope>(__TAURI_INVOKE("logout_remote_source_account", { providerId })),
 	loadRemoteSourceLibrary: (providerId: ProviderId) => typedError<RemoteLibraryResponse, AppErrorEnvelope>(__TAURI_INVOKE("load_remote_source_library", { providerId })),
-	startRemoteSourceAcquisition: (plan: AcquisitionPlan) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("start_remote_source_acquisition", { plan })),
-	getRemoteSourceAcquisitionStatus: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_acquisition_status", { jobId })),
-	cancelRemoteSourceAcquisition: (jobId: string) => typedError<AcquisitionJob, AppErrorEnvelope>(__TAURI_INVOKE("cancel_remote_source_acquisition", { jobId })),
-	searchRemoteSourceReleases: (request: RemoteReleaseSearchRequest) => typedError<RemoteReleaseSearchResponse, AppErrorEnvelope>(__TAURI_INVOKE("search_remote_source_releases", { request })),
-	grabRemoteSourceRelease: (request: RemoteReleaseGrabRequest) => typedError<RemoteReleaseGrabResponse, AppErrorEnvelope>(__TAURI_INVOKE("grab_remote_source_release", { request })),
-	getRemoteSourceIndexerConnection: () => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("get_remote_source_indexer_connection")),
-	updateRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnection, AppErrorEnvelope>(__TAURI_INVOKE("update_remote_source_indexer_connection", { update })),
-	testRemoteSourceIndexerConnection: (update: RemoteIndexerConnectionUpdate) => typedError<RemoteIndexerConnectionTestResult, AppErrorEnvelope>(__TAURI_INVOKE("test_remote_source_indexer_connection", { update })),
 	listWorkOperations: () => typedError<OperationListSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("list_work_operations")),
 	cancelWorkOperation: (operationId: OperationId, childJobId: string | null) => typedError<OperationSnapshot, AppErrorEnvelope>(__TAURI_INVOKE("cancel_work_operation", { operationId, childJobId })),
 	logFrontend: (entry: FrontendLogEntry) => typedError<null, AppErrorEnvelope>(__TAURI_INVOKE("log_frontend", { entry })),
@@ -52,10 +44,7 @@ export const commands = {
 
 /** Events */
 export const events = {
-	acquisitionUpdate: makeEvent<AcquisitionUpdateEvent>("acquisition-update"),
 	openedAudioFiles: makeEvent<OpenedAudioFilesEvent>("opened-audio-files"),
-	processingProgress: makeEvent<ProcessingProgressEvent_Deserialize>("processing-progress"),
-	processingQueue: makeEvent<ProcessingQueueEvent>("processing-queue"),
 	sessionUpdate: makeEvent<SessionUpdateEvent>("session-update"),
 	settingsUpdate: makeEvent<SettingsUpdateEvent>("settings-update"),
 	workOperationListSnapshot: makeEvent<WorkOperationListSnapshotEvent>("work-operation-list-snapshot"),
@@ -91,11 +80,6 @@ export type AcquisitionJob = {
 
 export type AcquisitionLane = "audible" | "indexer";
 
-export type AcquisitionPlan = {
-	providerId: ProviderId,
-	selections: AcquisitionSelection[],
-};
-
 export type AcquisitionProgress = {
 	stage: AcquisitionStage,
 	percentage: number,
@@ -108,15 +92,13 @@ export type AcquisitionProgress = {
 	terminal: boolean,
 };
 
-export type AcquisitionSelection = {
-	titleId: string,
-	includeSupplementalPdf: boolean,
-};
+/**  Host facts are derived from the record at the publication/read boundary. */
+export type AcquisitionSnapshot = {
+	terminal: boolean,
+	settled: boolean,
+} & AcquisitionJob;
 
 export type AcquisitionStage = "auth" | "library" | "license" | "download" | "decryption" | "validation" | "importHandoff" | "cleanup" | "complete" | "failed" | "cancelled";
-
-/**  A remote-source acquisition's latest state. */
-export type AcquisitionUpdateEvent = AcquisitionJob;
 
 export type AppErrorCategory = "validation" | "cancellation" | "toolchain" | "processing" | "resource" | "io" | "internal";
 
@@ -170,6 +152,9 @@ export type AudioChoiceFacts = {
 	 *  resolves to.
 	 */
 	effectiveEncoder: EncoderType,
+	encoderOptions: EncoderOption[],
+	encoderLocked: boolean,
+	downmixWarning: boolean,
 	bitrateMode: BitrateMode,
 	bitrateKbpsMin: number,
 	bitrateKbpsMax: number,
@@ -414,6 +399,11 @@ export type EncoderDefaults = {
 
 export type EncoderDefaultsScope = "lastUsed" | "pinned";
 
+export type EncoderOption = {
+	encoder: EncoderType,
+	available: boolean,
+};
+
 /**
  *  Advanced encoder settings payload
  *
@@ -459,17 +449,6 @@ export type EncoderType =
 "faac" |
 /**  Opus via bundled libopus. */
 "opus";
-
-/**
- *  Stage identifier emitted on `processing-progress` events.
- *
- *  This enum defines the wire format the frontend consumes. It is distinct
- *  from [`ProcessingStage`] (internal orchestration enum that carries data
- *  such as `Failed(String)`) because the UI only needs a simple discriminator.
- *  Serde `snake_case` serialization keeps the wire values identical to the
- *  pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
- */
-export type EventStage = "analyzing" | "converting" | "writing" | "completed" | "skipped" | "failed" | "cancelled";
 
 /**  FAAC resolves Auto once from the requested output configuration. */
 export type FaacProfile = "auto" | "aac_lc" | "he_aac_v1";
@@ -522,6 +501,25 @@ export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 export type IncompatibleEncoderDefaults = {
 	scope: EncoderDefaultsScope,
 	encoderType: string,
+};
+
+export type IndexerDraftSnapshot = {
+	baseUrl: string,
+	categoryIds: number[],
+	apiKeyConfigured: boolean,
+	apiKeyEntered: boolean,
+	save: RemoteDraftStatus,
+	test: RemoteDraftStatus,
+	testResult: RemoteIndexerConnectionTestResult | null,
+};
+
+export type IndexerWorkSnapshot = {
+	releases: RemoteRelease[],
+	selectedReleaseKeys: string[],
+	releaseGrabs: { [key in string]: ReleaseGrabSnapshot },
+	searching: boolean,
+	grabbing: boolean,
+	message: string,
 };
 
 /**  Why the last import added nothing. Hosts word these for the user. */
@@ -799,6 +797,7 @@ export type OutputSnapshot = {
 	submission: SubmissionStatus | null,
 	/**  Exported titles a Save would move, each awaiting Restart or Keep. */
 	restartOffers: RestartOffer[],
+	previewRun: PreviewSnapshot | null,
 };
 
 export type OutputUpdate = {
@@ -837,6 +836,13 @@ export type PlannedOutput = {
 
 export type PlannedOutputAction = "write" | "replace_existing" | "rename_new" | "skip_existing" | "review_required";
 
+export type PreviewSnapshot = {
+	operation: OperationSnapshot,
+	/**  A successful single preview may be claimed for opening once, across hosts. */
+	openReady: boolean,
+	artworkReady: boolean,
+};
+
 export type ProcessCommandResult = {
 	summary: OperationResultSummary,
 	/**
@@ -869,57 +875,6 @@ export type ProcessResultEntry = {
 
 export type ProcessResultStatus = "success" | "skipped" | "cancelled" | "failed";
 
-export type ProcessingProgressEvent = ProcessingProgressEvent_Serialize | ProcessingProgressEvent_Deserialize;
-
-export type ProcessingProgressEvent_Deserialize = ProgressEvent_Deserialize;
-
-export type ProcessingProgressEvent_Serialize = ProgressEvent_Serialize;
-
-export type ProcessingQueueEvent = QueueEvent;
-
-/**  Progress event structure for frontend communication */
-export type ProgressEvent = ProgressEvent_Serialize | ProgressEvent_Deserialize;
-
-/**  Progress event structure for frontend communication */
-export type ProgressEvent_Deserialize = {
-	/**  Backend operation family that emitted this event */
-	operation_kind: OperationKind,
-	/**  Current processing stage */
-	stage: EventStage,
-	/**  Progress percentage (0-100) */
-	percentage: number,
-	/**  Human-readable status message */
-	message: string,
-	/**  Currently processing file (if applicable) */
-	current_file: string | null,
-	/**  Estimated time remaining in seconds */
-	eta_seconds: number | null,
-	/**  Job identifier when this event is tied to a registered job */
-	job_id: string | null,
-	/**  Original input index when this event maps to one selected input */
-	input_index: number | null,
-};
-
-/**  Progress event structure for frontend communication */
-export type ProgressEvent_Serialize = {
-	/**  Backend operation family that emitted this event */
-	operation_kind: OperationKind,
-	/**  Current processing stage */
-	stage: EventStage,
-	/**  Progress percentage (0-100) */
-	percentage: number,
-	/**  Human-readable status message */
-	message: string,
-	/**  Currently processing file (if applicable) */
-	current_file: string | null,
-	/**  Estimated time remaining in seconds */
-	eta_seconds: number | null,
-	/**  Job identifier when this event is tied to a registered job */
-	job_id?: string | null,
-	/**  Original input index when this event maps to one selected input */
-	input_index?: number | null,
-};
-
 export type ProgressSnapshot = {
 	stage: WorkProgressStage,
 	percentage: number,
@@ -933,21 +888,15 @@ export type ProgressSnapshot = {
 
 export type ProviderId = "audible" | "indexer";
 
-/**  Batch queue snapshot for frontend communication */
-export type QueueEvent = {
-	operation_kind: OperationKind,
-	items: QueueItem[],
-	max_concurrent: number,
-};
-
-/**  Single queued item in a batch run */
-export type QueueItem = {
-	input_index: number,
-	file_path: string,
-};
-
 /**  What happened to the previous queued title before this search ran. */
 export type QueueStep = "applied" | "appliedWithoutCover" | "skipped";
+
+export type ReleaseGrabSnapshot = {
+	status: ReleaseGrabStatus,
+	message: string,
+};
+
+export type ReleaseGrabStatus = "queued" | "sending" | "sent" | "error";
 
 export type RemoteAccountStatus = "connected" | "needsAuth" | "error";
 
@@ -973,22 +922,11 @@ export type RemoteAuthStartResponse = {
 	message: string,
 };
 
-export type RemoteIndexerConnection = {
-	baseUrl: string | null,
-	categoryIds: number[],
-	apiKeyConfigured: boolean,
-};
+export type RemoteDraftStatus = { kind: "idle" } | { kind: "running" } | { kind: "succeeded" } | { kind: "failed"; error: AppErrorEnvelope };
 
 export type RemoteIndexerConnectionTestResult = {
 	ok: boolean,
 	message: string,
-};
-
-export type RemoteIndexerConnectionUpdate = {
-	baseUrl: string | null,
-	categoryIds: number[] | null,
-	apiKey: string | null,
-	clearApiKey: boolean | null,
 };
 
 export type RemoteLibraryResponse = {
@@ -1015,30 +953,7 @@ export type RemoteReleaseCategory = {
 	name: string,
 };
 
-export type RemoteReleaseGrabRequest = {
-	release: RemoteRelease,
-};
-
-export type RemoteReleaseGrabResponse = {
-	providerId: ProviderId,
-	accepted: boolean,
-	message: string,
-	diagnostics: RemoteSourceDiagnostic[],
-};
-
 export type RemoteReleaseProtocol = "usenet" | "torrent" | "unknown";
-
-export type RemoteReleaseSearchRequest = {
-	author: string | null,
-	title: string | null,
-	query: string | null,
-};
-
-export type RemoteReleaseSearchResponse = {
-	providerId: ProviderId,
-	releases: RemoteRelease[],
-	diagnostics: RemoteSourceDiagnostic[],
-};
 
 export type RemoteSourceAccountState = {
 	providerId: ProviderId,
@@ -1081,6 +996,19 @@ export type RemoteTitleAvailability = {
 
 export type RemoteTitleAvailabilityStatus = "available" | "catalogOnly" | "revoked" | "providerUnavailable";
 
+export type RemoteUiIntent = { kind: "selectLane"; lane: ProviderId } | { kind: "toggleTitle"; titleId: string } | { kind: "clearTitles" } | { kind: "togglePdf"; titleId: string } | { kind: "acquireSelected" } | { kind: "cancelAcquisition"; jobId: string } | { kind: "searchReleases"; author: string; title: string } | { kind: "selectRelease"; indexerId: number; guid: string; multi: boolean } | { kind: "grabSelected" } | { kind: "grabRelease"; indexerId: number; guid: string } | { kind: "loadConnection" } | { kind: "editConnection"; baseUrl: string | null; categoryIds: number[] | null; apiKey: string | null } | { kind: "saveConnection" } | { kind: "testConnection" };
+
+export type RemoteUiSnapshot = {
+	revision: number,
+	lane: ProviderId,
+	selectedTitleIds: string[],
+	includePdfByTitleId: { [key in string]: boolean },
+	indexer: IndexerWorkSnapshot,
+	connection: IndexerDraftSnapshot,
+	acquisition: AcquisitionSnapshot | null,
+	acquiring: boolean,
+};
+
 export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer" | "metadataWrite" | "outputCommit" | "analysis";
 
 /**
@@ -1089,6 +1017,7 @@ export type ResourceLane = "encodeCpu" | "networkDownload" | "helperMaterializer
  */
 export type RestartOffer = {
 	titleId: string,
+	operationId: OperationId,
 	/**  Names this offer; a later Save replaces it with another. */
 	revision: number,
 	/**  Where the output is being written. */
@@ -1122,7 +1051,7 @@ export type SelectionSnapshot = {
 export type SeriesPartWarning = { kind: "invalid"; message: string } | { kind: "matchesSubseriesPart" } | { kind: "missingBookNumber" };
 
 /**  Something the user asked the session to do. */
-export type SessionIntent =
+export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
 /**
  *  Discovers and analyzes audio under `paths` and adds new titles, each
  *  starting from the default audio choice.
@@ -1146,6 +1075,8 @@ export type SessionIntent =
 { kind: "restartTitle"; titleId: string; revision: number } |
 /**  Keeps an exported title where it is; its export continues unchanged. */
 { kind: "keepTitleLocation"; titleId: string; revision: number } |
+/**  Cancels the identified preview, including preparation and queued titles. */
+{ kind: "cancelPreview"; runId: string; childJobId: string | null } | { kind: "takePreviewOutput"; runId: string } | { kind: "readPreviewCover"; runId: string } |
 /**  Where exports are written; recorded in the settings. */
 { kind: "setOutputDirectory"; directory: string } | { kind: "setNamingPreset"; preset: NamingPreset } | { kind: "setIncludeYear"; includeYear: boolean } |
 /**  The custom naming template as typed; recorded once typing pauses. */
@@ -1161,19 +1092,19 @@ export type SessionIntent =
  */
 { kind: "setTitleAudio"; titleIds: string[]; edit: AudioEdit } |
 /**  Gives each named title the default audio choice. */
-{ kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
+{ kind: "applyDefaultAudio"; titleIds: string[] } | { kind: "setField"; field: MetadataField; value: string } | { kind: "setFieldAction"; field: MetadataField; action: FieldAction } | { kind: "loadCoverFromFile"; path: string } | { kind: "loadCoverFromDrop"; paths: string[] } | { kind: "loadCoverFromUrl"; url: string } | { kind: "clearCover" } |
 /**  Writes every pending edit that can be written now. */
 { kind: "save" } | { kind: "lookupOpen" } | { kind: "lookupClose" } | { kind: "lookupSearch" } | { kind: "lookupApply"; index: number } | { kind: "lookupSkip" } | { kind: "lookupSetTitleQuery"; value: string } | { kind: "lookupSetAuthorQuery"; value: string } | { kind: "lookupSetSource"; source: LookupSource } | { kind: "lookupSetApplyMode"; mode: LookupApplyMode } | { kind: "lookupSetReplaceCover"; replace: boolean };
 
 /**  Whether an intent took effect. Details a user needs are in the snapshot. */
-export type SessionOutcome = { kind: "applied" } |
+export type SessionOutcome = { kind: "applied" } | { kind: "remoteSaved" } |
 /**  The engine could not accept or complete the request. */
 { kind: "rejected"; error: AppErrorEnvelope } |
 /**
  *  The edits on screen were not accepted, so nothing changed. `message`
  *  is absent when a save in progress is what blocked the change.
  */
-{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } |
+{ kind: "draftRejected"; message: string | null } | { kind: "coverLoadFailed" } | { kind: "previewOutput"; path: string | null } | { kind: "previewCover"; bytes: number[] | null } |
 /**  A newer request or a reset replaced this one before it finished. */
 { kind: "superseded" };
 
@@ -1196,6 +1127,7 @@ export type SessionUpdate = {
 	lookup: LookupSnapshot | null,
 	audio: AudioSnapshot | null,
 	output: OutputSnapshot | null,
+	remote: RemoteUiSnapshot | null,
 };
 
 /**

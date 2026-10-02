@@ -5,7 +5,6 @@ import type { AppSettingsRecoveryPlan } from '../../types/appSettings';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
-import { tauriClient } from '../../lib/tauri/client';
 import { AppSettingsDialogView } from './AppSettingsDialogView';
 
 describe('AppSettingsDialogView', () => {
@@ -219,12 +218,15 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('lets the user enable both audiobook categories from the collapsed picker', async () => {
-		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockResolvedValue({
-			baseUrl: undefined,
-			categoryIds: [3030],
-			apiKeyConfigured: false,
-		});
-		await renderOpenDialog();
+		await renderOpenDialog((engine) =>
+			engine.change((state) => {
+				Object.assign(state.remote.connection, {
+					baseUrl: '',
+					categoryIds: [3030],
+					apiKeyConfigured: false,
+				});
+			}),
+		);
 		await vi.waitFor(() =>
 			expect(runtime!.remoteSource.indexerConnection().categoryIdsDraft).toEqual([3030]),
 		);
@@ -245,12 +247,15 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('recommends HTTPS while keeping an explicit HTTP connection usable', async () => {
-		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockResolvedValue({
-			baseUrl: 'http://saved:9696',
-			categoryIds: [3030],
-			apiKeyConfigured: true,
-		});
-		const r = await renderOpenDialog();
+		const r = await renderOpenDialog((engine) =>
+			engine.change((state) => {
+				Object.assign(state.remote.connection, {
+					baseUrl: 'http://saved:9696',
+					categoryIds: [3030],
+					apiKeyConfigured: true,
+				});
+			}),
+		);
 		const url = screen.getByLabelText('URL');
 		await vi.waitFor(() => expect(url).toHaveValue('http://saved:9696'));
 		expect(url).toHaveAttribute('placeholder', 'https://prowlarr.example.com');
@@ -281,32 +286,39 @@ describe('AppSettingsDialogView', () => {
 	});
 
 	it('keeps Indexer drafts when another Settings field changes', async () => {
-		const getConnection = vi
-			.spyOn(tauriClient, 'getRemoteSourceIndexerConnection')
-			.mockResolvedValue({
-				baseUrl: 'http://saved:9696',
-				categoryIds: [3030],
-				apiKeyConfigured: true,
-			});
-		const r = await renderOpenDialog();
+		const r = await renderOpenDialog((engine) =>
+			engine.change((state) => {
+				Object.assign(state.remote.connection, {
+					baseUrl: 'http://saved:9696',
+					categoryIds: [3030],
+					apiKeyConfigured: true,
+				});
+			}),
+		);
 		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
 		await fireEvent.input(screen.getByLabelText('URL'), { target: { value: 'http://draft:9696' } });
 		await fireEvent.input(screen.getByLabelText('API key'), { target: { value: 'draft-secret' } });
-		getConnection.mockClear();
+		engine.sessionIntents.length = 0;
 		await fireEvent.click(screen.getByTestId('app-settings-keep-awake-checkbox'));
-		expect(getConnection).not.toHaveBeenCalled();
+		expect(engine.sessionIntents).not.toContainEqual({
+			kind: 'remote',
+			intent: { kind: 'loadConnection' },
+		});
 		expect(screen.getByLabelText('URL')).toHaveValue('http://draft:9696');
 		expect(screen.getByLabelText('API key')).toHaveValue('draft-secret');
 		expect(r.remoteSource.indexerConnection().apiKeyDraft).toBe('draft-secret');
 	});
 
 	it('dispatches Test for the current connection draft without saving or clearing the password', async () => {
-		vi.spyOn(tauriClient, 'getRemoteSourceIndexerConnection').mockResolvedValue({
-			baseUrl: 'http://saved:9696',
-			categoryIds: [3030],
-			apiKeyConfigured: true,
-		});
-		const r = await renderOpenDialog();
+		const r = await renderOpenDialog((engine) =>
+			engine.change((state) => {
+				Object.assign(state.remote.connection, {
+					baseUrl: 'http://saved:9696',
+					categoryIds: [3030],
+					apiKeyConfigured: true,
+				});
+			}),
+		);
 		await vi.waitFor(() => expect(screen.getByLabelText('URL')).toHaveValue('http://saved:9696'));
 		const test = vi.spyOn(r.remoteSource, 'testIndexerConnection').mockResolvedValue();
 		const save = vi.spyOn(r.remoteSource, 'saveIndexerConnectionSettings');

@@ -5,7 +5,6 @@ use super::{
     PROGRESS_CONVERTING_MAX, PROGRESS_CONVERTING_START, PROGRESS_FINALIZING,
     PROGRESS_METADATA_START,
 };
-use crate::host::{EngineEvent, Host};
 use crate::processing::OperationKind;
 use crate::processing::ProcessingStage;
 use std::sync::Arc;
@@ -26,8 +25,6 @@ pub struct EmitContext {
 pub struct ProgressEmitter {
     /// Backend operation family this emitter reports for
     operation_kind: OperationKind,
-    /// Where foreground events go (None for background operations and tests)
-    host: Option<Host>,
     /// Optional job identifier for parallel batch processing
     job_id: Option<String>,
     /// Optional input index for batch processing
@@ -36,16 +33,10 @@ pub struct ProgressEmitter {
 }
 
 impl ProgressEmitter {
-    /// Creates a progress emitter for the given emit context.
-    ///
-    /// `host` is optional: background (WorkRuntime) operations pass `None` and
-    /// report exclusively through the progress listener (snapshots), so they do not
-    /// also emit `processing-progress` to the host. Foreground operations pass a
-    /// host and no listener.
-    pub(crate) fn with_context(host: Option<Host>, context: EmitContext) -> Self {
+    /// Progress goes to the owning engine reducer through its listener.
+    pub(crate) fn with_context(context: EmitContext) -> Self {
         Self {
             operation_kind: context.operation_kind,
-            host,
             job_id: context.job_id,
             input_index: context.input_index,
             progress_listener: None,
@@ -80,9 +71,6 @@ impl ProgressEmitter {
     fn emit_terminal_event(&self, stage: EventStage, message: &str) {
         let event = self.terminal_event(stage, message);
         self.notify_listener(&event);
-        if let Some(host) = &self.host {
-            host.emit(EngineEvent::ProcessingProgress(event.clone()));
-        }
     }
 
     /// Emits analyzing start event
@@ -227,10 +215,6 @@ impl ProgressEmitter {
         };
 
         self.notify_listener(&event);
-
-        if let Some(host) = &self.host {
-            host.emit(EngineEvent::ProcessingProgress(event.clone()));
-        }
     }
 
     fn notify_listener(&self, event: &ProgressEvent) {
@@ -248,7 +232,6 @@ mod tests {
     fn terminal_events_share_context_and_reset_progress() {
         let emitter = ProgressEmitter {
             operation_kind: OperationKind::ProcessingBatch,
-            host: None,
             job_id: Some("job-123".to_string()),
             input_index: Some(7),
             progress_listener: None,
@@ -288,14 +271,11 @@ mod tests {
         let listener: ProgressListener = Arc::new(move |event| {
             *listener_capture.lock().expect("capture progress event") = Some(event.clone());
         });
-        let emitter = ProgressEmitter::with_context(
-            None,
-            EmitContext {
-                operation_kind: OperationKind::ProcessingBatch,
-                job_id: None,
-                input_index: None,
-            },
-        )
+        let emitter = ProgressEmitter::with_context(EmitContext {
+            operation_kind: OperationKind::ProcessingBatch,
+            job_id: None,
+            input_index: None,
+        })
         .with_progress_listener(Some(listener));
 
         emitter.emit_custom(

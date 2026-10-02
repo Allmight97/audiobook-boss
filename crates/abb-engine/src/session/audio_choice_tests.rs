@@ -277,3 +277,30 @@ fn a_title_choice_is_the_defaults_with_its_own_request_on_top() {
     // Settings the title never chose come from the defaults.
     assert_eq!(title.opus_bitrate_kbps, 48);
 }
+
+#[test]
+fn encoder_choices_are_engine_facts_for_the_selected_format_and_build() {
+    let mut caps = crate::audio::encoder_settings_capabilities();
+    caps.availability.aac_at_available = false;
+    let mut choice = super::AudioChoice::default();
+    let facts = choice.facts(Some(&caps));
+    assert!(facts.encoder_options.iter().all(|option| !matches!(
+        option.encoder,
+        crate::audio::EncoderType::Opus | crate::audio::EncoderType::Auto
+    )));
+    assert!(facts
+        .encoder_options
+        .iter()
+        .any(|option| option.encoder == crate::audio::EncoderType::AacAt && !option.available));
+    choice.format = crate::audio::AudiobookFormat::MkaOpus;
+    let facts = choice.facts(Some(&caps));
+    assert!(facts.encoder_locked);
+    assert_eq!(
+        facts
+            .encoder_options
+            .iter()
+            .map(|option| option.encoder)
+            .collect::<Vec<_>>(),
+        [crate::audio::EncoderType::Opus]
+    );
+}

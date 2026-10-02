@@ -4,7 +4,6 @@ import type { JSX } from '@solidjs/web';
 import type { JobListItem } from '../../app/processing';
 import { useAppRuntime } from '../../app/runtime';
 import { Button, Progress } from '../foundation';
-import type { EventStage } from '../../types/events';
 import './statusPanelView.css';
 
 function jobPercentageText(item: JobListItem): string {
@@ -31,7 +30,7 @@ function countItems(
 	return items.filter((item) => statuses.includes(item.status)).length;
 }
 
-function activeStageLabel(stage?: EventStage): string {
+function activeStageLabel(stage?: JobListItem['stage']): string {
 	if (stage === 'writing') return 'writing';
 	if (stage === 'converting') return 'converting';
 	if (stage === 'analyzing') return 'analyzing';
@@ -57,9 +56,6 @@ export function StatusPanelView(): JSX.Element {
 	const completeCount = createMemo(() => countItems(items(), ['completed', 'skipped']));
 	const failedCount = createMemo(() => countItems(items(), ['failed']));
 	const cancelledCount = createMemo(() => countItems(items(), ['cancelled']));
-	const canCancelForeground = createMemo(() =>
-		items().some((item) => item.canCancel && item.cancelId),
-	);
 
 	return (
 		<div class="panel status-panel">
@@ -150,7 +146,7 @@ export function StatusPanelView(): JSX.Element {
 										class="job-cancel-button"
 										type="button"
 										disabled={view().cancelAllPending || !item.canCancel || !item.cancelId}
-										onClick={() => processing.cancelAll()}
+										onClick={() => item.cancelId && item.onCancel?.(item.cancelId)}
 									>
 										Cancel
 									</button>
@@ -163,13 +159,14 @@ export function StatusPanelView(): JSX.Element {
 					<Button
 						id="process-button"
 						tone="primary"
+						disabled={view().isProcessing}
 						onClick={() => void startProcessing(undefined)}
 					>
 						Start Processing
 					</Button>
 					<Button
 						id="cancel-all-button"
-						disabled={view().cancelAllPending || !view().isProcessing || !canCancelForeground()}
+						disabled={view().cancelAllPending || !view().isProcessing}
 						onClick={() => processing.cancelAll()}
 					>
 						Cancel

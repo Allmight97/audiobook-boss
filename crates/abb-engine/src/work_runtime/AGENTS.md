@@ -61,8 +61,9 @@
   List `membershipRevision` advances on insert/prune; `createdRevision` records
   each operation's insertion. Submission `sequence` remains display order.
 - Accepted background work reports through `EngineEvent::WorkOperationSnapshot`
-  and `EngineEvent::WorkOperationList`, never the direct-preview processing
-  events. Event names belong to the host (`src-tauri/src/events.rs`).
+  and `EngineEvent::WorkOperationList`. Session previews reuse the private
+  `WorkRuntimeState` reducer and publish within `SessionUpdate.output`; they
+  remain outside retained export history. Event names belong to the host (`src-tauri/src/events.rs`).
 - Terminal-operation retention: `WorkRuntimeState` keeps at most
   `TERMINAL_OPERATIONS_CAP` (20) terminal operations, pruned oldest-first by
   TERMINALIZATION order (never submission sequence — a just-finished

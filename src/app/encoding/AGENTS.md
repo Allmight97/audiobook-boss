@@ -26,6 +26,8 @@
   source facts; a plan failure the engine ties to sample rate or channels is
   shown under that control. Defaults describe future imports, so they name no
   source.
+- Encoder choices/availability, locked selection, and surround downmix warnings
+  come from engine facts, including every source in a grouped title.
 - `selectionView` marks fields whose values differ across the selected titles.
 
 ## Testing

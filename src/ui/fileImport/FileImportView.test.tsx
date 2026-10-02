@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createFakeEngine, defaultAppSettings } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
@@ -35,7 +35,7 @@ describe('FileImportView import split button', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
-		expect(runtime.remoteSource.view().providerId).toBe('indexer');
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('indexer'));
 	});
 
 	it('opens Audible from the caret when default lane is Indexer', async () => {
@@ -47,14 +47,14 @@ describe('FileImportView import split button', () => {
 		));
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Import' }));
-		expect(runtime.remoteSource.view().providerId).toBe('indexer');
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('indexer'));
 		runtime.remoteSource.close();
 		expect(runtime.remoteSource.view().isOpen).toBe(false);
 		await fireEvent.click(document.getElementById('import-split-caret') as Element);
 		await fireEvent.click(screen.getByTestId('import-lane-audible'));
 
 		expect(runtime.remoteSource.view().isOpen).toBe(true);
-		expect(runtime.remoteSource.view().providerId).toBe('audible');
+		await vi.waitFor(() => expect(runtime!.remoteSource.view().providerId).toBe('audible'));
 		expect(document.getElementById('import-split-caret')).toHaveAttribute('aria-expanded', 'false');
 	});
 });

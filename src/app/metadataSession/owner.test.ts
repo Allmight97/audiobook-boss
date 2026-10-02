@@ -140,7 +140,7 @@ describe('metadata owner', () => {
 		const app = await open();
 		const fetches = vi.spyOn(engine, 'sessionCoverArt');
 		engine.respond = (intent) => {
-			if (intent.kind !== 'loadCoverFromFile') return undefined;
+			if (intent.kind !== 'loadCoverFromDrop') return undefined;
 			engine.seedCover([1, 2, 3]);
 			return { kind: 'applied' };
 		};
@@ -148,8 +148,8 @@ describe('metadata owner', () => {
 		await app.metadata.applyCoverArtDrop(['/art/readme.txt', '/art/cover.PNG']);
 
 		expect(engine.sessionIntents).toContainEqual({
-			kind: 'loadCoverFromFile',
-			path: '/art/cover.PNG',
+			kind: 'loadCoverFromDrop',
+			paths: ['/art/readme.txt', '/art/cover.PNG'],
 		});
 		await vi.waitFor(() =>
 			expect(app.metadata.view().cover.imageDataUrl).toBe('data:image/jpeg;base64,AQID'),

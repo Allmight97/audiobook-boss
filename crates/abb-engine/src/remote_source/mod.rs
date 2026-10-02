@@ -11,6 +11,12 @@ mod scoped_output;
 mod session_lifecycle;
 mod staging;
 mod types;
+mod ui;
+pub use ui::{
+    IndexerDraftSnapshot, IndexerWorkSnapshot, ReleaseGrabSnapshot, ReleaseGrabStatus,
+    RemoteDraftStatus, RemoteUiIntent, RemoteUiSnapshot,
+};
+pub(crate) use ui::{RemoteUiResult, RemoteUiRun};
 mod vault;
 
 use materializer::AaxcleanMaterializer;
@@ -57,6 +63,8 @@ pub struct RemoteSourceRuntime {
 }
 
 struct RemoteSourceRuntimeInner {
+    ui: Arc<Mutex<ui::UiState>>,
+    ui_host: crate::host::Host,
     power: crate::power::PowerManager,
     config_dir: PathBuf,
     vault: Box<dyn SecretVault>,
@@ -73,8 +81,11 @@ struct RemoteSourceRuntimeInner {
 
 impl RemoteSourceRuntime {
     pub(crate) fn new(config: RemoteSourceConfig) -> Result<Self> {
+        let ui = Arc::new(Mutex::default());
         Ok(Self {
             inner: Arc::new(RemoteSourceRuntimeInner {
+                ui: ui.clone(),
+                ui_host: config.host.clone(),
                 power: config.power,
                 config_dir: config.config_dir,
                 vault: Box::new(KeyringSecretVault::for_app_identifier(
@@ -84,9 +95,10 @@ impl RemoteSourceRuntime {
                     RemoteSourceStaging::new(config.cache_dir),
                     AaxcleanMaterializer::new_for_helper(config.aaxclean_helper),
                     config.host,
+                    ui,
                 ),
                 pending_audible_auth: Mutex::new(None),
-                indexer_adapter: ReqwestProwlarrAdapter::new()?,
+                indexer_adapter: ReqwestProwlarrAdapter::new(),
                 tasks: config.tasks,
                 handoff: OnceLock::new(),
                 indexer_turn: tokio::sync::RwLock::new(()),
@@ -187,6 +199,15 @@ impl RemoteSourceRuntime {
     }
 
     pub fn logout(&self, provider_id: RemoteProviderId) -> Result<RemoteAccountState> {
+        // Admission and disconnect share this guard: an accepted acquisition
+        // cannot slip between the safety check and staging cleanup.
+        let mut ui = self.ui();
+        ui.disconnect_allowed(provider_id)?;
+        if self.inner.lifecycle.has_unsettled_acquisition() {
+            return Err(AppError::InvalidInput(
+                "Wait for the Audible acquisition and handoff before disconnecting.".into(),
+            ));
+        }
         self.inner.lifecycle.abort_all_acquisition_tasks();
         match provider_id {
             RemoteProviderId::Audible => AudibleProvider::logout(self.inner.vault.as_ref())?,
@@ -198,6 +219,9 @@ impl RemoteSourceRuntime {
             .lifecycle
             .cleanup_logout_sessions_without_handoff()?;
         self.inner.lifecycle.clear_jobs()?;
+        ui.disconnected(provider_id);
+        drop(ui);
+        self.publish_ui();
         *self
             .inner
             .pending_audible_auth
@@ -209,7 +233,16 @@ impl RemoteSourceRuntime {
     pub async fn load_library(&self, provider_id: RemoteProviderId) -> Result<RemoteLibrary> {
         match provider_id {
             RemoteProviderId::Audible => {
-                AudibleProvider::load_library(self.inner.vault.as_ref()).await
+                let request = self.ui().begin_library();
+                let library = AudibleProvider::load_library(self.inner.vault.as_ref()).await?;
+                if !self.ui().library_reply(request, library.titles.clone()) {
+                    return Err(AppError::InvalidInput(
+                        "The Audible library request was superseded; reopen Acquire to refresh."
+                            .into(),
+                    ));
+                }
+                self.publish_ui();
+                Ok(library)
             }
             RemoteProviderId::Indexer => Err(AppError::InvalidInput(
                 "Indexer search uses release search instead of library scan.".to_string(),
@@ -218,7 +251,7 @@ impl RemoteSourceRuntime {
     }
 
     /// Searches the indexer. A new search forgets which releases were sent.
-    pub async fn search_releases(
+    pub(crate) async fn search_releases(
         &self,
         request: types::RemoteReleaseSearchRequest,
     ) -> Result<types::RemoteReleaseSearchResponse> {
@@ -235,7 +268,7 @@ impl RemoteSourceRuntime {
 
     /// Sends a release to the downloader, once per search: a release already
     /// sent since the last search is not sent again.
-    pub async fn grab_release(
+    pub(crate) async fn grab_release(
         &self,
         request: types::RemoteReleaseGrabRequest,
     ) -> Result<types::RemoteReleaseGrabResponse> {
@@ -288,7 +321,7 @@ impl RemoteSourceRuntime {
 
     // Reading or writing the connection can wait on an OS credential prompt,
     // so both run on a blocking thread and never stall the caller's executor.
-    pub async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
+    pub(crate) async fn get_indexer_connection(&self) -> Result<types::RemoteIndexerConnection> {
         let runtime = self.clone();
         tokio::task::spawn_blocking(move || {
             IndexerProvider::get_connection(&runtime.inner.config_dir, runtime.inner.vault.as_ref())
@@ -299,7 +332,7 @@ impl RemoteSourceRuntime {
 
     /// Saves the connection. Refused while a search or grab runs; releases
     /// found with the previous connection must be searched again.
-    pub async fn update_indexer_connection(
+    pub(crate) async fn update_indexer_connection(
         &self,
         update: types::RemoteIndexerConnectionUpdate,
     ) -> Result<types::RemoteIndexerConnection> {
@@ -322,7 +355,7 @@ impl RemoteSourceRuntime {
         .map_err(|error| AppError::General(error.to_string()))?
     }
 
-    pub async fn test_indexer_connection(
+    pub(crate) async fn test_indexer_connection(
         &self,
         update: types::RemoteIndexerConnectionUpdate,
     ) -> Result<types::RemoteIndexerConnectionTestResult> {
@@ -335,7 +368,7 @@ impl RemoteSourceRuntime {
         .await
     }
 
-    pub async fn start_acquisition(
+    pub(crate) async fn start_acquisition(
         &self,
         plan: RemoteAcquisitionPlan,
     ) -> Result<RemoteAcquisitionJob> {
@@ -393,32 +426,41 @@ fn direct_response_url_from_input(path: &Path) -> Option<String> {
 pub use types::*;
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use abb_remote_source_core::{acquisition_progress, AcquisitionStage};
     use secrecy::SecretString;
+    use std::collections::HashMap;
     use tempfile::TempDir;
 
     #[derive(Default)]
-    struct TestSecretVault;
+    struct TestSecretVault(Mutex<HashMap<String, SecretString>>);
 
     impl vault::SecretVault for TestSecretVault {
-        fn get_secret(&self, _key: &str) -> Result<Option<SecretString>> {
-            Ok(None)
+        fn get_secret(&self, key: &str) -> Result<Option<SecretString>> {
+            Ok(self.0.lock().expect("test vault").get(key).cloned())
         }
 
-        fn set_secret(&self, _key: &str, _value: SecretString) -> Result<()> {
+        fn set_secret(&self, key: &str, value: SecretString) -> Result<()> {
+            self.0.lock().expect("test vault").insert(key.into(), value);
             Ok(())
         }
 
-        fn delete_secret(&self, _key: &str) -> Result<()> {
+        fn delete_secret(&self, key: &str) -> Result<()> {
+            self.0.lock().expect("test vault").remove(key);
             Ok(())
         }
     }
 
-    fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
+    pub(crate) fn test_runtime(root: &TempDir) -> RemoteSourceRuntime {
+        let ui = Arc::new(Mutex::default());
         RemoteSourceRuntime {
             inner: Arc::new(RemoteSourceRuntimeInner {
+                ui: ui.clone(),
+                ui_host: crate::host::Host::new(
+                    Arc::new(crate::DiscardEvents),
+                    crate::power::PowerManager::default(),
+                ),
                 power: crate::power::PowerManager::default(),
                 config_dir: root.path().to_path_buf(),
                 vault: Box::<TestSecretVault>::default(),
@@ -429,9 +471,10 @@ mod tests {
                         std::sync::Arc::new(crate::DiscardEvents),
                         crate::power::PowerManager::default(),
                     ),
+                    ui,
                 ),
                 pending_audible_auth: Mutex::new(None),
-                indexer_adapter: ReqwestProwlarrAdapter::new().expect("indexer adapter"),
+                indexer_adapter: ReqwestProwlarrAdapter::new(),
                 tasks: crate::engine::EngineTasks::default(),
                 handoff: OnceLock::new(),
                 indexer_turn: tokio::sync::RwLock::new(()),
@@ -819,7 +862,7 @@ mod tests {
 
         let mut materialized_job = acquisition_job(
             materialized_job_id,
-            types::RemoteAcquisitionStatus::Validated,
+            types::RemoteAcquisitionStatus::ImportedToFileList,
         );
         materialized_job
             .materialized_files
@@ -830,13 +873,14 @@ mod tests {
                 size_bytes: 5,
                 sha256: "abc123".to_string(),
             });
+        materialized_job.handoff = Some(AcquisitionHandoff::Imported { count: 1 });
         let mut jobs = runtime.inner.lifecycle.jobs.lock().expect("jobs lock");
         jobs.insert(materialized_job_id.to_string(), materialized_job);
         jobs.insert(
             unmaterialized_job_id.to_string(),
             acquisition_job(
                 unmaterialized_job_id,
-                types::RemoteAcquisitionStatus::Acquiring,
+                types::RemoteAcquisitionStatus::Failed,
             ),
         );
         drop(jobs);

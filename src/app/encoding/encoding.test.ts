@@ -143,4 +143,28 @@ describe('encoding owner', () => {
 		expect(app.encoding.titleView(beta).channels).toBe('mono');
 		expect(app.encoding.selectionView([alpha, beta]).mixedFields).toEqual(['channels']);
 	});
+	it('renders the engine downmix warning even when the anchor alone is stereo', async () => {
+		const app = await open();
+		const alpha = titles(app)[0]!;
+		engine.change((state) => {
+			state.audio.titles[alpha.inputId!]!.facts.downmixWarning = true;
+		});
+		expect(app.encoding.titleView(alpha).channelsHint).toBe(
+			'Surround downmix omits bass effects (LFE).',
+		);
+		engine.change((state) => {
+			state.audio.titles[alpha.inputId!]!.facts.downmixWarning = false;
+		});
+		expect(app.encoding.titleView(alpha).channelsHint).toBeNull();
+	});
+	it('warns about a downmix when any selected title needs one, not only the first', async () => {
+		const app = await open();
+		const [alpha, beta] = titles(app);
+		engine.change((state) => {
+			state.audio.titles[beta!.inputId!]!.facts.downmixWarning = true;
+		});
+		expect(app.encoding.selectionView([alpha!, beta!]).channelsHint).toBe(
+			'Surround downmix omits bass effects (LFE).',
+		);
+	});
 });

@@ -136,6 +136,16 @@ attachment.
   and the path the first selected (or first valid) title would get with the
   values on screen. Output choices are recorded in the settings; template
   typing is recorded once it pauses.
+- **Preview.** `output.previewRun` owns stable identity from acceptance through
+  terminal state. `CancelPreview` sets actual per-title cancellation flags even
+  during preparation/review/scheduler wait; cancellation survives a dropped host
+  reply and never grants an output for opening. Preview progress uses the same
+  WorkRuntime reducer as exports. Accepted custom cover or preserved source
+  artwork is read by run identity; bytes stay outside snapshots. Only a successful
+  single output can be claimed once through `TakePreviewOutput`, across hosts.
+- **Remote.** `SessionIntent::Remote` routes remote choices and accepted work to
+  `remote_source`. Its independently revisioned snapshot part survives frontend
+  replacement; hosts do not rebuild plans, batch policy, or connection drafts.
 - **Submission.** `Submit` and `Preview` accept the edits on screen, then
   build the export from the session: valid titles in list order with their
   ordered sources, audio requests, chapter plans, naming, and pending edits

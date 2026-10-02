@@ -152,9 +152,38 @@ export type FakeEngine = EngineCapability & {
 			lookup: SessionLookup;
 			audio: SessionAudio;
 			output: SessionOutput;
+			remote: import('../../types/session').RemoteUiSnapshot;
 		}) => void,
 	): void;
 };
+
+export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
+	return {
+		revision: 0,
+		lane: 'audible',
+		selectedTitleIds: [],
+		includePdfByTitleId: {},
+		acquisition: null,
+		acquiring: false,
+		indexer: {
+			releases: [],
+			selectedReleaseKeys: [],
+			releaseGrabs: {},
+			searching: false,
+			grabbing: false,
+			message: '',
+		},
+		connection: {
+			baseUrl: '',
+			categoryIds: [3000, 3030],
+			apiKeyConfigured: false,
+			apiKeyEntered: false,
+			save: { kind: 'idle' },
+			test: { kind: 'idle' },
+			testResult: null,
+		},
+	};
+}
 
 export function fakeOutput(): SessionOutput {
 	return {
@@ -167,6 +196,7 @@ export function fakeOutput(): SessionOutput {
 		preview: { kind: 'noDirectory' },
 		submission: null,
 		restartOffers: [],
+		previewRun: null,
 	};
 }
 
@@ -204,6 +234,13 @@ function fakeAudio(): SessionAudio {
 			},
 			facts: {
 				effectiveEncoder: 'native_aac',
+				encoderOptions: [
+					{ encoder: 'aac_at', available: true },
+					{ encoder: 'native_aac', available: true },
+					{ encoder: 'faac', available: true },
+				],
+				encoderLocked: false,
+				downmixWarning: false,
 				bitrateMode: { mode: 'cbr' },
 				bitrateKbpsMin: native?.bitrateKbpsMin ?? 1,
 				bitrateKbpsMax: native?.bitrateKbpsMax ?? 0,
@@ -320,6 +357,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			hasSearched: false,
 		} as SessionLookup,
 		audio: fakeAudio(),
+		remote: fakeRemote(),
 		output: fakeOutput(),
 	};
 
@@ -402,6 +440,7 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 		state.lookup = { ...state.lookup, revision };
 		state.audio = { ...state.audio, revision };
 		state.output = { ...state.output, revision };
+		state.remote = { ...state.remote, revision };
 		return structuredClone({ revision, ...state });
 	}
 

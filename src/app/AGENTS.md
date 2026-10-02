@@ -6,26 +6,20 @@
 Views under `src/ui/<owner>` render these owners and dispatch intent; they do
 not keep parallel business state.
 
-## Two Kinds Of Owner
+## Engine Adapters
 
-- **Engine adapters**: `inputSession`, `metadataSession`, `metadataLookup`,
-  `appSettings`, `encoding`, `outputPlan`, and submission in `processing`.
-  The engine owns their truth and rules
-  (`crates/abb-engine/src/session/AGENTS.md`,
-  `crates/abb-engine/src/app_settings/AGENTS.md`). The adapter turns engine
-  snapshots into view state, words typed statuses and notices, and sends
-  intents through `engineLink`. A new rule for titles, selection, metadata
-  edits, lookup, Save, audio choices, output naming, submission, or settings
-  goes in the engine, not here.
-- **Frontend owners**: `workOperations`, `remoteSource`, and the preview
-  progress panel in `processing`. They hold their own workflow; new product
-  rules go in the engine even here.
+- Input, metadata, lookup, settings, encoding, output, preview, remote choices,
+  and Work Center progress render Rust-owned facts. Adapters word typed statuses
+  and send intents or the owned read/cancel API; product rules go in the engine.
+- Keep frontend lifetime and presentation resources here: dialog disclosure,
+  transient typing echo, visible filter/sort, thumbnails, and account display
+  reads. They never determine accepted file work or terminal truth.
 
 ## Engine Link
 
 - `engineLink` is the one connection to the engine. It keeps the newest copy
   of each snapshot part (titles, selection, metadata, lookup, audio, output,
-  settings) by
+  remote, settings) by
   revision, and sends intents. Adapters read the link; nothing else holds a
   copy of engine state.
 - `send` resolves with the intent's outcome after its work finishes; `post`
@@ -81,7 +75,7 @@ not keep parallel business state.
   selection, removal, output echo), renders the form from seeded tags and
   typed values, and answers settings intents with a small write model. It
   copies no engine decision: grouping, ordering, Save, lookup, cover loads,
-  and audio edits are recorded only. A test that needs the
+  audio edits, and remote product rules are recorded only. A test that needs the
   engine's answer seeds it with `change`, `respond`, `answerSubmission`, or a
   `seed*` method; never add a product rule there.
 - Add App Runtime two-instance proof when isolation changes.

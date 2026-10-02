@@ -100,6 +100,13 @@ impl Default for AudioChoice {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EncoderOption {
+    pub encoder: EncoderType,
+    pub available: bool,
+}
+
 /// What the capabilities allow for one choice, for hosts to render.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -107,6 +114,9 @@ pub struct AudioChoiceFacts {
     /// The encoder that would run: Opus for Opus formats, and what Auto
     /// resolves to.
     pub effective_encoder: EncoderType,
+    pub encoder_options: Vec<EncoderOption>,
+    pub encoder_locked: bool,
+    pub downmix_warning: bool,
     pub bitrate_mode: BitrateMode,
     pub bitrate_kbps_min: u16,
     pub bitrate_kbps_max: u16,
@@ -269,11 +279,7 @@ impl AudioChoice {
                 set(&mut self.intent, intent)
             }
             AudioEdit::Encoder(encoder) => {
-                let available = caps.is_none_or(|caps| match encoder {
-                    EncoderType::AacAt => caps.availability.aac_at_available,
-                    EncoderType::NativeAac => caps.availability.native_aac_available,
-                    _ => true,
-                });
+                let available = encoder_available(encoder, caps);
                 if encoder == EncoderType::Opus || !available {
                     return EditResult::Refused;
                 }
@@ -461,6 +467,25 @@ impl AudioChoice {
         let bitrate_mode = self.bitrate_mode(caps);
         AudioChoiceFacts {
             effective_encoder: self.effective_encoder(caps),
+            encoder_options: caps.map_or_else(Vec::new, |caps| {
+                caps.encoder_types
+                    .iter()
+                    .copied()
+                    .filter(|encoder| {
+                        if is_opus(self.format) {
+                            *encoder == EncoderType::Opus
+                        } else {
+                            !matches!(encoder, EncoderType::Opus | EncoderType::Auto)
+                        }
+                    })
+                    .map(|encoder| EncoderOption {
+                        encoder,
+                        available: encoder_available(encoder, Some(caps)),
+                    })
+                    .collect()
+            }),
+            encoder_locked: is_opus(self.format) || caps.is_none(),
+            downmix_warning: false,
             bitrate_mode,
             bitrate_kbps_min: config.map_or(1, |config| config.bitrate_kbps_min),
             bitrate_kbps_max: config.map_or(0, |config| config.bitrate_kbps_max),
@@ -485,6 +510,14 @@ impl AudioChoice {
             },
         }
     }
+}
+
+fn encoder_available(encoder: EncoderType, caps: Option<&EncoderSettingsCapabilities>) -> bool {
+    caps.is_none_or(|caps| match encoder {
+        EncoderType::AacAt => caps.availability.aac_at_available,
+        EncoderType::NativeAac => caps.availability.native_aac_available,
+        _ => true,
+    })
 }
 
 fn set<T: PartialEq>(slot: &mut T, value: T) -> EditResult {

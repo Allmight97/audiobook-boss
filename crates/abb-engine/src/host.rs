@@ -7,8 +7,6 @@ use std::sync::Arc;
 
 use crate::app_settings::SettingsSnapshot;
 use crate::power::{ActiveWork, PowerManager};
-use crate::processing::{ProgressEvent, QueueEvent};
-use crate::remote_source::AcquisitionJob;
 use crate::session::SessionUpdate;
 use crate::work_runtime::{OperationListSnapshot, OperationSnapshot};
 
@@ -18,10 +16,6 @@ use crate::work_runtime::{OperationListSnapshot, OperationSnapshot};
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum EngineEvent {
-    /// Progress of a direct preview run.
-    ProcessingProgress(ProgressEvent),
-    /// The queue of a direct preview run.
-    ProcessingQueue(QueueEvent),
     /// One accepted operation changed.
     WorkOperationSnapshot(OperationSnapshot),
     /// The set of accepted operations changed.
@@ -32,9 +26,6 @@ pub enum EngineEvent {
     /// The settings changed because of something other than a settings
     /// intent, such as a default chosen in the session.
     Settings(Box<SettingsSnapshot>),
-    /// A remote-source acquisition progressed, finished, or handed its files
-    /// to the session.
-    Acquisition(Box<AcquisitionJob>),
 }
 
 /// Receives engine events. Called from engine worker threads, so an

@@ -186,6 +186,14 @@ fn validate_grab_release(release: &RemoteRelease) -> Result<()> {
     Ok(())
 }
 
+pub(in crate::remote_source) fn default_category_ids() -> Vec<u32> {
+    connection::DEFAULT_CATEGORY_IDS.to_vec()
+}
+
+pub(in crate::remote_source) fn normalize_draft_url(url: String) -> Result<String> {
+    Ok(connection::normalize_base_url(url)?.unwrap_or_default())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

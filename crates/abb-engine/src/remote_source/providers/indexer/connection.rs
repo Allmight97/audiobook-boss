@@ -234,7 +234,7 @@ fn connection_path(config_dir: &Path) -> PathBuf {
     config_dir.join(CONNECTION_FILE_NAME)
 }
 
-fn normalize_base_url(base_url: String) -> Result<Option<String>> {
+pub(in crate::remote_source) fn normalize_base_url(base_url: String) -> Result<Option<String>> {
     let trimmed = base_url.trim();
     if trimmed.is_empty() {
         return Ok(None);

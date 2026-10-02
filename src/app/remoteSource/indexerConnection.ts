@@ -1,207 +1,165 @@
-import { createSignal, type Accessor } from 'solid-js';
+import { createEffect, createSignal, type Accessor } from 'solid-js';
 import { toUserMessage } from '../../lib/tauri/appError';
-import type {
-	RemoteIndexerConnection,
-	RemoteIndexerConnectionUpdate,
-} from '../../types/remoteSource';
-
-export type IndexerConnectionSaveState = 'idle' | 'saving' | 'saved' | 'error';
-export type IndexerConnectionTestState = 'idle' | 'testing' | 'success' | 'error';
+import type { EngineLink } from '../engineLink';
 
 export type IndexerConnectionSettingsView = {
 	baseUrlDraft: string;
 	categoryIdsDraft: number[];
 	apiKeyDraft: string;
 	apiKeyConfigured: boolean;
-	saveState: IndexerConnectionSaveState;
+	saveState: 'idle' | 'saving' | 'saved' | 'error';
 	saveError: string;
-	testState: IndexerConnectionTestState;
+	testState: 'idle' | 'testing' | 'success' | 'error';
 	testMessage: string;
 };
 
-export type IndexerConnectionServices = {
-	getIndexerConnection: () => Promise<RemoteIndexerConnection>;
-	updateIndexerConnection: (
-		update: RemoteIndexerConnectionUpdate,
-	) => Promise<RemoteIndexerConnection>;
-	testIndexerConnection: (
-		update: RemoteIndexerConnectionUpdate,
-	) => Promise<{ ok: boolean; message: string }>;
-};
-
-function createInitialView(): IndexerConnectionSettingsView {
-	return {
-		baseUrlDraft: '',
-		categoryIdsDraft: [3000, 3030],
-		apiKeyDraft: '',
-		apiKeyConfigured: false,
-		saveState: 'idle',
-		saveError: '',
-		testState: 'idle',
-		testMessage: '',
-	};
-}
-
-function applyConnectionToDraft(
-	draft: IndexerConnectionSettingsView,
-	connection: RemoteIndexerConnection,
-): void {
-	draft.baseUrlDraft = connection.baseUrl ?? '';
-	draft.categoryIdsDraft = [...connection.categoryIds];
-	draft.apiKeyConfigured = connection.apiKeyConfigured;
-	draft.apiKeyDraft = '';
-}
-
-export function createIndexerConnectionSettings(deps: {
-	readonly services: () => IndexerConnectionServices;
-}): {
+/** Only unconfirmed typing and the entered key's visual echo live here. */
+export function createIndexerConnectionSettings(link: EngineLink): {
 	readonly view: Accessor<IndexerConnectionSettingsView>;
 	load(): Promise<void>;
-	patch(patch: Partial<IndexerConnectionSettingsView>): void;
+	patch(
+		patch: Partial<
+			Pick<IndexerConnectionSettingsView, 'baseUrlDraft' | 'categoryIdsDraft' | 'apiKeyDraft'>
+		>,
+	): void;
 	isSaving(): boolean;
-	save(blockedReason?: string): Promise<boolean>;
+	save(): Promise<boolean>;
 	testConnection(): Promise<void>;
 	reset(): void;
 } {
-	let snapshot = createInitialView();
 	const [revision, bump] = createSignal(0, { ownedWrite: true });
-	const view = () => {
-		revision();
-		return snapshot;
-	};
-	function setView(next: IndexerConnectionSettingsView): void {
-		snapshot = next;
-		bump((n) => n + 1);
-	}
-	let draftRevision = 0;
-	let lifetimeRevision = 0;
-	let saving = false;
-
-	function update(mutator: (draft: IndexerConnectionSettingsView) => void): void {
-		const next = { ...snapshot };
-		mutator(next);
-		setView(next);
-	}
-
-	function draftUpdate(): RemoteIndexerConnectionUpdate {
-		const current = snapshot;
-		const apiKey = current.apiKeyDraft.trim();
-		return {
-			baseUrl: current.baseUrlDraft.trim(),
-			categoryIds: [...current.categoryIdsDraft],
-			...(apiKey ? { apiKey } : {}),
-		};
-	}
-
-	return {
-		view,
-		async load() {
-			const revision = ++draftRevision;
-			try {
-				const connection = await deps.services().getIndexerConnection();
-				if (revision !== draftRevision) return;
-				update((draft) => {
-					applyConnectionToDraft(draft, connection);
-					draft.saveState = 'idle';
-					draft.saveError = '';
-					draft.testState = 'idle';
-					draft.testMessage = '';
-				});
-			} catch (cause) {
-				if (revision !== draftRevision) return;
-				update((draft) => {
-					draft.saveState = 'error';
-					draft.saveError = toUserMessage(cause, {
-						fallback: 'Failed to load Indexer connection settings.',
-					});
-				});
+	let typed: { baseUrlDraft?: string; categoryIdsDraft?: number[] } | null = null;
+	let keyEcho = '';
+	let keyAccepted = false;
+	let localError = '';
+	// The latest draft edit; Save and Test wait for its outcome and refuse
+	// while the engine has refused what the fields show.
+	let lastEdit: Promise<unknown> = Promise.resolve();
+	let editRefused = false;
+	const changed = () => bump((value) => value + 1);
+	createEffect(
+		() => link.remote().connection.apiKeyEntered,
+		(entered) => {
+			if (entered) keyAccepted = true;
+			else if (keyAccepted) {
+				keyAccepted = false;
+				keyEcho = '';
+				changed();
 			}
+		},
+	);
+	/** Whether the engine accepted what the fields show; Save and Test act on its draft. */
+	async function draftAccepted(): Promise<boolean> {
+		await lastEdit.catch(() => undefined);
+		if (!editRefused) return true;
+		localError =
+			'The engine did not accept the connection shown. Correct it before saving or testing.';
+		changed();
+		return false;
+	}
+
+	async function send(kind: 'loadConnection' | 'saveConnection' | 'testConnection') {
+		localError = '';
+		changed();
+		try {
+			return await link.send({ kind: 'remote', intent: { kind } });
+		} catch (error) {
+			localError = toUserMessage(error);
+			changed();
+			return null;
+		}
+	}
+	return {
+		view: () => {
+			revision();
+			const draft = link.remote().connection;
+			const saveError = draft.save.kind === 'failed' ? toUserMessage(draft.save.error) : localError;
+			return {
+				baseUrlDraft: typed?.baseUrlDraft ?? draft.baseUrl,
+				categoryIdsDraft: typed?.categoryIdsDraft ?? draft.categoryIds,
+				apiKeyDraft: keyEcho,
+				apiKeyConfigured: draft.apiKeyConfigured,
+				saveState: saveError
+					? 'error'
+					: draft.save.kind === 'running'
+						? 'saving'
+						: draft.save.kind === 'succeeded'
+							? 'saved'
+							: 'idle',
+				saveError,
+				testState:
+					draft.test.kind === 'running'
+						? 'testing'
+						: draft.test.kind === 'failed' || draft.testResult?.ok === false
+							? 'error'
+							: draft.test.kind === 'succeeded'
+								? 'success'
+								: 'idle',
+				testMessage:
+					draft.test.kind === 'failed'
+						? toUserMessage(draft.test.error)
+						: (draft.testResult?.message ?? ''),
+			};
+		},
+		async load() {
+			await send('loadConnection');
 		},
 		patch(patch) {
-			draftRevision += 1;
-			update((draft) => {
-				Object.assign(draft, patch);
-				draft.saveState = 'idle';
-				draft.saveError = '';
-				draft.testState = 'idle';
-				draft.testMessage = '';
-			});
+			const echo = {
+				...typed,
+				...(patch.baseUrlDraft === undefined ? {} : { baseUrlDraft: patch.baseUrlDraft }),
+				...(patch.categoryIdsDraft === undefined
+					? {}
+					: { categoryIdsDraft: patch.categoryIdsDraft }),
+			};
+			typed = echo;
+			if (patch.apiKeyDraft !== undefined) keyEcho = patch.apiKeyDraft;
+			localError = '';
+			editRefused = false;
+			changed();
+			lastEdit = link
+				.send({
+					kind: 'remote',
+					intent: {
+						kind: 'editConnection',
+						baseUrl: patch.baseUrlDraft ?? null,
+						categoryIds: patch.categoryIdsDraft ?? null,
+						apiKey: patch.apiKeyDraft ?? null,
+					},
+				})
+				.catch((error: unknown) => {
+					if (typed === echo) editRefused = true;
+					localError = toUserMessage(error);
+					changed();
+				})
+				.finally(() => {
+					if (
+						typed === echo &&
+						(echo.baseUrlDraft === undefined ||
+							echo.baseUrlDraft.trim() === link.remote().connection.baseUrl) &&
+						(echo.categoryIdsDraft === undefined ||
+							echo.categoryIdsDraft.join(',') === link.remote().connection.categoryIds.join(','))
+					) {
+						typed = null;
+						changed();
+					}
+				});
 		},
-		isSaving: () => saving,
-		async save(blockedReason) {
-			if (saving) return false;
-			if (blockedReason) {
-				update((draft) => {
-					draft.saveState = 'error';
-					draft.saveError = blockedReason;
-				});
-				return false;
-			}
-			saving = true;
-			const lifetime = lifetimeRevision;
-			const revision = ++draftRevision;
-			const connectionUpdate = draftUpdate();
-			update((draft) => {
-				draft.saveState = 'saving';
-				draft.saveError = '';
-				draft.testState = 'idle';
-				draft.testMessage = '';
-			});
-			try {
-				const connection = await deps.services().updateIndexerConnection(connectionUpdate);
-				if (lifetime !== lifetimeRevision) return false;
-				if (revision !== draftRevision) {
-					update((draft) => {
-						draft.apiKeyConfigured = connection.apiKeyConfigured;
-					});
-					return true;
-				}
-				update((draft) => {
-					applyConnectionToDraft(draft, connection);
-					draft.saveState = 'saved';
-				});
-				return true;
-			} catch (cause) {
-				if (lifetime !== lifetimeRevision) return false;
-				update((draft) => {
-					draft.saveState = 'error';
-					draft.saveError = toUserMessage(cause, {
-						fallback: 'Failed to save Indexer connection settings.',
-					});
-				});
-				return false;
-			} finally {
-				saving = false;
-			}
+		isSaving: () => link.remote().connection.save.kind === 'running',
+		async save() {
+			if (!(await draftAccepted())) return false;
+			return (await send('saveConnection'))?.kind === 'remoteSaved';
 		},
 		async testConnection() {
-			const revision = draftRevision;
-			const connectionUpdate = draftUpdate();
-			update((draft) => {
-				draft.testState = 'testing';
-				draft.testMessage = '';
-			});
-			try {
-				const result = await deps.services().testIndexerConnection(connectionUpdate);
-				if (revision !== draftRevision) return;
-				update((draft) => {
-					draft.testState = result.ok ? 'success' : 'error';
-					draft.testMessage = result.message;
-				});
-			} catch (cause) {
-				if (revision !== draftRevision) return;
-				update((draft) => {
-					draft.testState = 'error';
-					draft.testMessage = toUserMessage(cause, {
-						fallback: 'Indexer connection test failed.',
-					});
-				});
-			}
+			if (!(await draftAccepted())) return;
+			await send('testConnection');
 		},
 		reset() {
-			lifetimeRevision += 1;
-			draftRevision += 1;
-			setView(createInitialView());
+			typed = null;
+			editRefused = false;
+			keyEcho = '';
+			localError = '';
+			changed();
 		},
 	};
 }

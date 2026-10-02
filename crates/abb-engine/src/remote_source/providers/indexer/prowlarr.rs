@@ -40,11 +40,24 @@ pub(super) struct ProwlarrSystemStatusOutcome {
 }
 
 pub(in crate::remote_source) struct ReqwestProwlarrAdapter {
-    client: Client,
+    client: std::sync::Mutex<Option<Client>>,
 }
 
 impl ReqwestProwlarrAdapter {
-    pub(in crate::remote_source) fn new() -> Result<Self> {
+    pub(in crate::remote_source) fn new() -> Self {
+        Self {
+            client: std::sync::Mutex::default(),
+        }
+    }
+    // Session-only hosts must not initialize a network client they never use.
+    fn client(&self) -> Result<Client> {
+        let mut cached = self
+            .client
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(client) = &*cached {
+            return Ok(client.clone());
+        }
         let client = Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .user_agent(PROWLARR_USER_AGENT)
@@ -54,12 +67,15 @@ impl ReqwestProwlarrAdapter {
             .map_err(|error| {
                 AppError::General(format!("Failed to configure Indexer HTTP client: {error}"))
             })?;
-        Ok(Self { client })
+        *cached = Some(client.clone());
+        Ok(client)
     }
 
     #[cfg(test)]
     pub(super) fn with_client(client: Client) -> Self {
-        Self { client }
+        Self {
+            client: std::sync::Mutex::new(Some(client)),
+        }
     }
 
     pub(super) async fn search(
@@ -70,7 +86,7 @@ impl ReqwestProwlarrAdapter {
     ) -> Result<ProwlarrSearchOutcome> {
         let url = build_search_url(base_url, params)?;
         let response = self
-            .client
+            .client()?
             .get(url)
             .headers(api_key_headers(api_key))
             .send()
@@ -89,7 +105,7 @@ impl ReqwestProwlarrAdapter {
     ) -> Result<ProwlarrSystemStatusOutcome> {
         let url = join_api_path(base_url, "/api/v1/system/status")?;
         let response = self
-            .client
+            .client()?
             .get(url)
             .headers(api_key_headers(api_key))
             .send()
@@ -115,7 +131,7 @@ impl ReqwestProwlarrAdapter {
             "indexerId": indexer_id,
         });
         let response = self
-            .client
+            .client()?
             .post(url)
             .headers(api_key_headers(api_key))
             .json(&body)
@@ -586,7 +602,7 @@ mod tests {
             );
             serve_one(&destination, response.as_bytes()).await
         });
-        let adapter = ReqwestProwlarrAdapter::new().expect("production client");
+        let adapter = ReqwestProwlarrAdapter::new();
         let result = timeout(
             LOCAL_TIMEOUT,
             adapter.system_status(

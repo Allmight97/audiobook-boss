@@ -404,7 +404,7 @@ impl WorkRuntimeState {
         );
         snapshot.errors.push(message.clone());
         let summary = OperationResultSummary::all_failed(snapshot.children.len());
-        snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
+        snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message.clone()));
         for child in &mut snapshot.children {
             if !matches!(
                 child.status,
@@ -412,6 +412,11 @@ impl WorkRuntimeState {
             ) {
                 child.status = ChildJobStatus::Failed;
                 child.cancellable = false;
+                child.progress.stage = WorkProgressStage::Failed;
+                child.progress.percentage = 100.0;
+                child.progress.message = message.clone();
+                child.message = Some(message.clone());
+                child.finished_at_ms.get_or_insert(now_ms);
             }
         }
         let snapshot = snapshot.clone();
@@ -442,7 +447,7 @@ impl WorkRuntimeState {
             None,
         );
         let summary = OperationResultSummary::all_cancelled(snapshot.children.len());
-        snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message));
+        snapshot.terminal_summary = Some(operation_terminal_summary(&summary, message.clone()));
         for child in &mut snapshot.children {
             if !matches!(
                 child.status,
@@ -451,6 +456,11 @@ impl WorkRuntimeState {
                 child.status = ChildJobStatus::Cancelled;
                 child.cancellable = false;
                 child.cancel_requested = true;
+                child.progress.stage = WorkProgressStage::Cancelled;
+                child.progress.percentage = 100.0;
+                child.progress.message = message.clone();
+                child.message = Some(message.clone());
+                child.finished_at_ms.get_or_insert(now_ms);
             }
         }
         let snapshot = snapshot.clone();

@@ -8,20 +8,7 @@ export type AcquisitionJobWithProgress = AcquisitionJob & {
 export type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
 
 export function isAcquisitionTerminal(job: AcquisitionJobWithProgress): boolean {
-	return (
-		job.progress?.terminal === true ||
-		job.status === 'failed' ||
-		job.status === 'cancelled' ||
-		job.status === 'validated' ||
-		job.status === 'importedToFileList'
-	);
-}
-
-/** A job is settled once it failed, was cancelled, or its files were handed to the session. */
-export function isAcquisitionSettled(job: AcquisitionJobWithProgress): boolean {
-	if (job.handoff) return true;
-	if (job.status === 'failed' || job.status === 'cancelled') return true;
-	return isAcquisitionTerminal(job) && job.materializedFiles.length === 0;
+	return job.terminal;
 }
 
 const STAGED_FILES_REMOVED_SUFFIX = 'Staged remote files were removed.';

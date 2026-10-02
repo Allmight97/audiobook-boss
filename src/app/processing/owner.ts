@@ -1,13 +1,15 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
 import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
-import type { InputOwner } from '../inputSession';
 import type { OutputPlanOwner } from '../outputPlan';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { RestartOffer } from '../../types/session';
 import { renderConcurrencyStatus } from './render';
-import { StatusPanelRuntime } from './runtime';
+import { runSubmission } from './submit';
+import { renderPreview, renderStatus } from './render';
+import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
+import { onCleanup } from 'solid-js';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
 
 /**
@@ -17,6 +19,9 @@ import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './v
  */
 export type ProcessingOwner = {
 	readonly status: Accessor<StatusView>;
+	readonly restartOffers: Accessor<readonly RestartOffer[]>;
+	restart(offer: RestartOffer): Promise<void>;
+	keepLocation(offer: RestartOffer): Promise<void>;
 	start(options?: { previewSeconds?: number }): Promise<void>;
 	cancelAll(): void;
 	isProcessing(): boolean;
@@ -26,7 +31,6 @@ export type ProcessingOwner = {
 
 export type ProcessingOwnerDeps = {
 	readonly link: EngineLink;
-	readonly input: InputOwner;
 	readonly settings: SettingsOwner;
 	readonly output: Pick<OutputPlanOwner, 'openCollisionReview'>;
 };
@@ -40,21 +44,83 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	}
 	const statusView = createStatusViewStore();
 	statusView.bindPublisher(publish);
-	const validTitles = () => deps.input.view().files.filter((file) => file.isValid);
 	let submitting = false;
-	const statusRuntime = new StatusPanelRuntime({
-		view: statusView,
-		validTitles,
-		unlockWorkbench: () => deps.settings.setControlsEnabled(true),
-		concurrency: () => untrack(deps.settings.concurrency),
-		submit: {
-			link: deps.link,
-			reviewCollisions: (outputs) => deps.output.openCollisionReview(outputs),
-			titlePaths: () => validTitles().map((file) => file.path),
-			setControlsEnabled: (enabled) => deps.settings.setControlsEnabled(enabled),
-			showError: (message) => statusView.showError(message),
-		},
+	let disposed = false;
+	onCleanup(() => {
+		disposed = true;
+		statusView.bindPublisher(null);
 	});
+	const submit = {
+		link: deps.link,
+		reviewCollisions: (outputs: Parameters<OutputPlanOwner['openCollisionReview']>[0]) =>
+			deps.output.openCollisionReview(outputs),
+		setControlsEnabled: (enabled: boolean) => deps.settings.setControlsEnabled(enabled),
+		showError: (message: string) => statusView.showError(message),
+	};
+	const context = {
+		updateStatus: (next: Parameters<typeof renderStatus>[1]) =>
+			renderStatus(statusView, next, false),
+		setProcessingState: (active: boolean) => statusView.setIsProcessing(active),
+		handleCancellation: () => statusView.showInfo('Preview was cancelled.'),
+		resetToIdle: () => {
+			if (!deps.link.output().previewRun) statusView.reset();
+		},
+	};
+	function cancelPreview(childJobId?: string): void {
+		const preview = deps.link.output().previewRun;
+		if (preview)
+			deps.link.post({
+				kind: 'cancelPreview',
+				runId: preview.operation.operationId,
+				childJobId: childJobId ?? null,
+			});
+	}
+	let artworkKey: string | null = null;
+	let claiming: string | null = null;
+	createEffect(
+		() => deps.link.output().previewRun,
+		(preview) => {
+			renderPreview(statusView, preview, (child) => cancelPreview(child));
+			if (!preview) return;
+			const id = preview.operation.operationId;
+			const key = `${id}:${preview.artworkReady}`;
+			if (artworkKey !== key) {
+				artworkKey = key;
+				statusView.setCoverArtDataUrl(null);
+				if (preview.artworkReady) {
+					void deps.link
+						.send({ kind: 'readPreviewCover', runId: id })
+						.then((reply) => {
+							if (
+								!disposed &&
+								deps.link.output().previewRun?.operation.operationId === id &&
+								reply.kind === 'previewCover'
+							) {
+								statusView.setCoverArtDataUrl(
+									reply.bytes ? coverArtBytesToDataUrl(reply.bytes) : null,
+								);
+							}
+						})
+						.catch((error: unknown) => {
+							if (!disposed) console.warn('Preview artwork could not be read:', error);
+						});
+				}
+			}
+			if (preview.openReady && claiming !== id) {
+				claiming = id;
+				void deps.link
+					.send({ kind: 'takePreviewOutput', runId: id })
+					.then(async (reply) => {
+						if (reply.kind === 'previewOutput' && reply.path)
+							await tauriClient.openPath(reply.path);
+					})
+					.catch((error: unknown) => {
+						if (!disposed)
+							statusView.showError(`Preview could not be opened: ${toUserMessage(error)}`);
+					});
+			}
+		},
+	);
 	async function start(options?: {
 		previewSeconds?: number;
 		restart?: RestartOffer;
@@ -63,7 +129,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 		if (submitting) return;
 		submitting = true;
 		try {
-			await statusRuntime.startProcessing(options);
+			await runSubmission(context, submit, options);
 		} finally {
 			submitting = false;
 		}
@@ -123,6 +189,19 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 	);
 
 	return {
+		restartOffers: () => deps.link.output().restartOffers,
+		restart: (offer) => start({ restart: offer }),
+		async keepLocation(offer) {
+			try {
+				await deps.link.send({
+					kind: 'keepTitleLocation',
+					titleId: offer.titleId,
+					revision: offer.revision,
+				});
+			} catch (error) {
+				statusView.showError(toUserMessage(error));
+			}
+		},
 		status: () => {
 			rev();
 			return status;
@@ -131,16 +210,16 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			return start(options);
 		},
 		cancelAll() {
-			statusRuntime.requestCancelAll();
+			cancelPreview();
 		},
 		isProcessing() {
-			return statusRuntime.isCurrentlyProcessing;
+			const status = deps.link.output().previewRun?.operation.status;
+			return status === 'accepted' || status === 'running' || status === 'cancelling';
 		},
 		pushTransientStatus(message, options) {
 			statusView.pushTransient(message, options?.ttlMs);
 		},
 		reset() {
-			statusRuntime.resetToIdle();
 			statusView.reset();
 		},
 	};

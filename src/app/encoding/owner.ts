@@ -2,7 +2,6 @@ import type { Accessor } from 'solid-js';
 import type { AudioFile, TitleAudioRequest } from '../../types/audio';
 import type { AudioChoiceView, TitlePlan } from '../../types/session';
 import type { EngineLink } from '../engineLink';
-import type { InputOwner } from '../inputSession';
 import { editFor, projectView, type EncodingField, type EncodingView } from './project';
 
 export type { EncodingField, EncodingView } from './project';
@@ -32,7 +31,6 @@ export type EncodingOwner = {
 
 export type EncodingOwnerDeps = {
 	readonly link: EngineLink;
-	readonly input: Pick<InputOwner, 'sourcesFor'>;
 };
 
 const fieldKeys = {
@@ -71,9 +69,6 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 			facts: view.facts,
 			capabilities: link.audio().capabilities,
 			plans: titles.length === 0 ? null : titles.map(plan),
-			multichannelInput: titles.some((title) =>
-				deps.input.sourcesFor(title).some((source) => source.isValid && (source.channels ?? 0) > 2),
-			),
 		});
 	}
 
@@ -99,7 +94,10 @@ export function createEncodingOwner(deps: EncodingOwnerDeps): EncodingOwner {
 		selectTitles,
 		selectionView(files) {
 			const views = files.map(titleView);
-			const first = display(files[0] ? titleChoice(files[0]) : link.audio().defaults, files);
+			const shown = files[0] ? titleChoice(files[0]) : link.audio().defaults;
+			// A warning about any selected title's sources applies to the selection.
+			const downmixWarning = files.some((file) => titleChoice(file).facts.downmixWarning);
+			const first = display({ ...shown, facts: { ...shown.facts, downmixWarning } }, files);
 			const mixedFields = (Object.keys(fieldKeys) as EncodingField[]).filter((field) =>
 				views.some((view) => view[fieldKeys[field]] !== first[fieldKeys[field]]),
 			);

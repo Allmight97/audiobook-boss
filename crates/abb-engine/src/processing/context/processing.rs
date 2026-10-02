@@ -2,7 +2,6 @@
 
 use crate::audio::{EncoderSettings, SampleRateConfig};
 use crate::errors::Result;
-use crate::host::Host;
 use crate::output_artifact::{OutputKind, PlannedOutputAction, ResolvedOutputPlan};
 use crate::processing::lifecycle::OperationKind;
 use crate::processing::preview_config::PreviewConfig;
@@ -69,8 +68,6 @@ impl OutputConfig {
 /// reducing the need to pass multiple parameters through function calls.
 #[derive(Clone)]
 pub struct ProcessingContext {
-    /// Engine host link for foreground events (None in headless and test runs)
-    pub(crate) host: Option<Host>,
     /// Processing session with state management
     pub session: Arc<ProcessingSession>,
     /// Encoder settings
@@ -99,7 +96,6 @@ pub struct ProcessingContext {
 impl std::fmt::Debug for ProcessingContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProcessingContext")
-            .field("host", &self.host.is_some())
             .field("session", &self.session)
             .field("encoder_settings", &self.encoder_settings)
             .field("sample_rate", &self.sample_rate)
@@ -117,7 +113,6 @@ impl std::fmt::Debug for ProcessingContext {
 
 impl ProcessingContext {
     pub(crate) fn new_with_workspace_root(
-        host: Host,
         session: Arc<ProcessingSession>,
         encoder_settings: impl Into<Option<EncoderSettings>>,
         sample_rate: SampleRateConfig,
@@ -125,7 +120,6 @@ impl ProcessingContext {
         workspace_root: PathBuf,
     ) -> Self {
         Self {
-            host: Some(host),
             session,
             encoder_settings: encoder_settings.into(),
             sample_rate,
@@ -167,7 +161,6 @@ impl ProcessingContext {
         workspace_root: PathBuf,
     ) -> Self {
         Self {
-            host: None,
             session,
             encoder_settings: encoder_settings.into(),
             sample_rate,
@@ -196,22 +189,9 @@ impl ProcessingContext {
         self.session.is_cancelled()
     }
 
-    /// Creates a progress emitter scoped to this processing context.
-    ///
-    /// Background (WorkRuntime) operations carry a `progress_listener` and report
-    /// through snapshots; they must NOT also emit `processing-progress`/`-queue` to
-    /// the host, or every progress fact is emitted twice (the snapshot AND a
-    /// foreground event the Status Panel drops). So when a listener is present the
-    /// emitter is built hostless. Foreground operations have no listener and emit
-    /// to the host.
+    /// Sends progress to the session or WorkRuntime reducer that owns this run.
     pub fn new_emitter(&self) -> crate::processing::progress::ProgressEmitter {
-        let host = if self.progress_listener.is_some() {
-            None
-        } else {
-            self.host.clone()
-        };
         crate::processing::progress::ProgressEmitter::with_context(
-            host,
             crate::processing::progress::EmitContext {
                 operation_kind: self.operation_kind,
                 job_id: self.job_id.clone(),

@@ -25,6 +25,7 @@ pub(super) struct RemoteAcquisitionLifecycle {
     pub(super) jobs: Mutex<HashMap<String, RemoteAcquisitionJob>>,
     acquisition_tasks: Mutex<HashMap<String, AbortHandle>>,
     host: Host,
+    ui: std::sync::Arc<Mutex<super::ui::UiState>>,
     /// When each job's progress last reached hosts.
     progress_sent: Mutex<HashMap<String, Instant>>,
 }
@@ -34,6 +35,7 @@ impl RemoteAcquisitionLifecycle {
         staging: RemoteSourceStaging,
         materializer: AaxcleanMaterializer,
         host: Host,
+        ui: std::sync::Arc<Mutex<super::ui::UiState>>,
     ) -> Self {
         Self {
             staging,
@@ -41,6 +43,7 @@ impl RemoteAcquisitionLifecycle {
             jobs: Mutex::new(HashMap::new()),
             acquisition_tasks: Mutex::new(HashMap::new()),
             host,
+            ui,
             progress_sent: Mutex::new(HashMap::new()),
         }
     }
@@ -50,8 +53,26 @@ impl RemoteAcquisitionLifecycle {
         if let Ok(mut sent) = self.progress_sent.lock() {
             sent.insert(job.job_id.clone(), Instant::now());
         }
+        let snapshot = {
+            let mut ui = self
+                .ui
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            // A late terminal notification must not restore a disconnected job.
+            if !self
+                .jobs
+                .lock()
+                .is_ok_and(|jobs| jobs.contains_key(&job.job_id))
+            {
+                return;
+            }
+            ui.acquisition_changed(job.clone());
+            ui.snapshot()
+        };
         self.host
-            .emit(EngineEvent::Acquisition(Box::new(job.clone())));
+            .emit(EngineEvent::Session(crate::session::SessionUpdate::remote(
+                snapshot,
+            )));
     }
 
     fn publish_current(&self, job_id: &str) {
@@ -144,10 +165,19 @@ impl RemoteAcquisitionLifecycle {
             diagnostics: Vec::new(),
             handoff: None,
         };
-        self.jobs
-            .lock()
-            .map_err(|_| AppError::General("Remote acquisition job lock failed".to_string()))?
-            .insert(job_id, job.clone());
+        {
+            let mut jobs = self
+                .jobs
+                .lock()
+                .map_err(|_| AppError::General("Remote acquisition job lock failed".into()))?;
+            if jobs.values().any(|job| !job.settled()) {
+                self.staging.purge_session(&job_id)?;
+                return Err(AppError::InvalidInput(
+                    "An Audible acquisition is still running or handing off its files.".into(),
+                ));
+            }
+            jobs.insert(job_id, job.clone());
+        }
         let spawned_job_id = job.job_id.clone();
         let tasks = runtime.inner.tasks.clone();
         let abort_handle = tasks
@@ -361,6 +391,11 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
+    pub(super) fn has_unsettled_acquisition(&self) -> bool {
+        self.jobs
+            .lock()
+            .map_or(true, |jobs| jobs.values().any(|job| !job.settled()))
+    }
     /// Downloads still in progress, by job state: a task handle can outlive
     /// a job that failed before its handle was stored.
     pub(super) fn running_acquisitions(&self) -> usize {
@@ -401,6 +436,7 @@ impl RemoteAcquisitionLifecycle {
         }
     }
 
+    #[cfg(test)]
     fn acquisition_status(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
         self.jobs
             .lock()
@@ -446,12 +482,19 @@ impl RemoteAcquisitionLifecycle {
 }
 
 impl RemoteSourceRuntime {
-    pub fn acquisition_status(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
-        self.inner.lifecycle.acquisition_status(job_id)
+    #[cfg(test)]
+    pub(crate) fn acquisition_status(&self, job_id: &str) -> Result<super::AcquisitionSnapshot> {
+        self.inner
+            .lifecycle
+            .acquisition_status(job_id)
+            .map(Into::into)
     }
 
-    pub fn cancel_acquisition(&self, job_id: &str) -> Result<RemoteAcquisitionJob> {
-        self.inner.lifecycle.cancel_acquisition(job_id)
+    pub(crate) fn cancel_acquisition(&self, job_id: &str) -> Result<super::AcquisitionSnapshot> {
+        self.inner
+            .lifecycle
+            .cancel_acquisition(job_id)
+            .map(Into::into)
     }
 
     /// Removes a job's staged files. The session decides when.

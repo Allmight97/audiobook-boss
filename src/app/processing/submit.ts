@@ -1,19 +1,13 @@
-import { pathBasename } from '../../lib/path/basename';
 import { isCancellation, toUserMessage } from '../../lib/tauri/appError';
-import type { CollisionPolicy, PlannedOutput, ProcessCommandResult } from '../../types/audio';
+import type { CollisionPolicy, PlannedOutput } from '../../types/audio';
 import type { RestartOffer, SubmissionStatus, SubmitRefusal } from '../../types/session';
 import type { EngineLink } from '../engineLink';
-import { openGeneratedPreviewIfSingle } from './preview';
 import type { ProcessingStatus } from './state';
 
 /** What the status panel exposes to a submission. */
 export interface ProcessingWorkflowContext {
 	updateStatus: (status: ProcessingStatus) => void;
 	setProcessingState: (isProcessing: boolean) => void;
-	updateArtThumbnail: () => Promise<void>;
-	startProgressListener: () => Promise<void>;
-	setBatchCompletionMessage: (message: string | null) => void;
-	reconcileProcessResult?: (result: ProcessCommandResult) => void;
 	handleCancellation: () => void;
 	resetToIdle: () => void;
 }
@@ -22,8 +16,6 @@ export type SubmitDeps = {
 	readonly link: Pick<EngineLink, 'send' | 'output'>;
 	/** Asks the user what to do with outputs that already exist; `null` cancels. */
 	readonly reviewCollisions: (outputs: readonly PlannedOutput[]) => Promise<CollisionPolicy | null>;
-	/** The paths of the valid titles, to name failures in a preview summary. */
-	readonly titlePaths: () => string[];
 	readonly setControlsEnabled: (enabled: boolean) => void;
 	readonly showError: (message: string) => void;
 };
@@ -59,35 +51,6 @@ function refusalText(reason: SubmitRefusal): string {
 	}
 }
 
-function summarizeBatchOutcome(result: ProcessCommandResult, filePaths: string[]): string | null {
-	const { total, succeeded, skipped, cancelled, failed } = result.summary;
-	if (failed <= 0 && skipped <= 0 && cancelled <= 0) return null;
-	const failedNames = Array.from(
-		new Set(
-			result.results
-				.filter((entry) => entry.status === 'failed')
-				.map((entry) => {
-					const path = filePaths[entry.inputIndex];
-					if (path) return pathBasename(path, { fallback: 'path' });
-					const message = entry.error ? toUserMessage(entry.error, { fallback: '' }) : '';
-					return message || entry.message || 'Unknown failure';
-				}),
-		),
-	);
-	const visibleNames = failedNames.slice(0, 2);
-	const moreCount = Math.max(0, failed - visibleNames.length);
-	const failureSuffix =
-		visibleNames.length > 0
-			? ` Failed: ${visibleNames.join(', ')}${moreCount > 0 ? ` (+${moreCount} more)` : ''}`
-			: '';
-	const skippedSuffix = skipped > 0 ? ` Skipped: ${skipped}.` : '';
-	const cancelledSuffix = cancelled > 0 ? ` Cancelled: ${cancelled}.` : '';
-	if (succeeded <= 0) {
-		return `No files were processed successfully.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
-	}
-	return `Processed ${succeeded}/${total}.${skippedSuffix}${cancelledSuffix}${failureSuffix}`;
-}
-
 /** The submission's status once the engine has answered, after any collision review. */
 async function settle(
 	deps: SubmitDeps,
@@ -115,33 +78,17 @@ export async function runSubmission(
 	deps: SubmitDeps,
 	options?: { previewSeconds?: number; restart?: RestartOffer; resumeReview?: boolean },
 ): Promise<void> {
-	context.setBatchCompletionMessage(null);
 	const previewSeconds = options?.previewSeconds;
 	deps.setControlsEnabled(false);
 	try {
 		let status: SubmissionStatus | null;
 		if (options?.resumeReview) {
-			const review = deps.link.output().submission;
-			if (review?.kind === 'reviewRequired' && review.preview) {
-				context.setProcessingState(true);
-				await context.updateArtThumbnail();
-				await context.startProgressListener();
-			}
 			status = await settle(deps, async () => undefined);
 		} else if (previewSeconds != null) {
-			context.setProcessingState(true);
-			context.updateStatus({
-				stage: 'analyzing',
-				percentage: 0,
-				message: 'Starting processing...',
-			});
-			await context.updateArtThumbnail();
-			await context.startProgressListener();
 			status = await settle(deps, () =>
 				deps.link.send({ kind: 'preview', seconds: previewSeconds }),
 			);
 		} else {
-			await context.updateArtThumbnail();
 			const restart = options?.restart;
 			status = await settle(deps, () =>
 				deps.link.send(
@@ -190,9 +137,6 @@ async function show(
 			});
 			return;
 		case 'previewFinished':
-			context.reconcileProcessResult?.(status.result);
-			context.setBatchCompletionMessage(summarizeBatchOutcome(status.result, deps.titlePaths()));
-			await openGeneratedPreviewIfSingle(status.result);
 			return;
 		case 'refused':
 			context.resetToIdle();

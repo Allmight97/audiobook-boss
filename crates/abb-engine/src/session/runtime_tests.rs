@@ -5,6 +5,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Mutex as StdMutex;
+use std::time::Duration;
 
 use super::*;
 use crate::app_settings::{SettingsRuntime, SettingsSnapshot};
@@ -105,8 +106,10 @@ fn rig_with_cover(pending: Option<tokio::sync::oneshot::Receiver<Result<Vec<u8>>
     let config = tempfile::TempDir::new().expect("settings folder");
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
+    let remote = crate::remote_source::tests::test_runtime(&config);
     let session = Session::with_network(
         SessionDeps {
+            remote,
             host: Host::new(
                 Arc::clone(&events) as Arc<dyn EventSink>,
                 PowerManager::default(),
@@ -1493,4 +1496,166 @@ async fn lookup_cover_reply_cannot_pull_the_selection_back_to_an_earlier_title()
     assert_eq!(rig.selected(), vec![1]);
     assert_eq!(rig.title_shown(), "BETA");
     assert!(rig.pending("alpha").is_none());
+}
+
+#[tokio::test]
+async fn preview_cancel_stops_a_scheduler_wait_and_survives_a_dropped_host_reply() {
+    let rig = rig();
+    let lane =
+        crate::test_cases::integration_media_execution_tests::MediaLane::with_fixtures(&[0.2]);
+    let source = lane.process(None).await;
+    std::fs::create_dir_all(rig._config.path().join("previews")).expect("preview folder");
+    rig.send(SessionIntent::Import {
+        paths: vec![source.to_string_lossy().into_owned()],
+    })
+    .await;
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: rig
+            ._config
+            .path()
+            .join("previews")
+            .to_string_lossy()
+            .into_owned(),
+    })
+    .await;
+    let custom = rig._config.path().join("custom.png");
+    image::RgbImage::from_pixel(1, 1, image::Rgb([180, 20, 90]))
+        .save(&custom)
+        .expect("custom cover");
+    rig.send(SessionIntent::LoadCoverFromFile {
+        path: custom.to_string_lossy().into_owned(),
+    })
+    .await;
+    let cover = rig.session.cover_art().expect("accepted normalized cover");
+    let jobs = &rig.session.inner.deps.jobs;
+    let (first, first_permit) = jobs.register_job().await.expect("hold first slot");
+    let (second, second_permit) = jobs.register_job().await.expect("hold second slot");
+    let run = rig.session.begin(SessionIntent::Preview { seconds: 0.1 });
+    drop(run);
+    let id = output(&rig)
+        .preview_run
+        .expect("accepted preview")
+        .operation
+        .operation_id;
+    wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Running).await;
+    assert_eq!(
+        rig.send(SessionIntent::ReadPreviewCover {
+            run_id: id.to_string()
+        })
+        .await,
+        SessionOutcome::PreviewCover { bytes: Some(cover) }
+    );
+    assert_eq!(
+        rig.send(SessionIntent::CancelPreview {
+            run_id: id.to_string(),
+            child_job_id: None
+        })
+        .await,
+        SessionOutcome::Applied
+    );
+    let preview = wait_preview(&rig, crate::work_runtime::WorkOperationStatus::Cancelled).await;
+    assert!(preview.operation.cancel_requested);
+    assert!(!preview.open_ready);
+    assert!(preview
+        .operation
+        .children
+        .iter()
+        .all(|child| child.output_path.is_none()
+            && child.progress.stage == crate::work_runtime::WorkProgressStage::Cancelled));
+    assert_eq!(
+        rig.send(SessionIntent::TakePreviewOutput {
+            run_id: id.to_string()
+        })
+        .await,
+        SessionOutcome::PreviewOutput { path: None }
+    );
+    assert!(!rig.session.snapshot().titles.expect("titles").order_locked);
+    jobs.complete_job(first).await;
+    jobs.complete_job(second).await;
+    drop((first_permit, second_permit));
+}
+
+#[tokio::test]
+async fn an_unsupported_cover_drop_publishes_the_ingestion_diagnostic() {
+    let rig = rig();
+    rig.load(&["alpha"]);
+    let file = rig._config.path().join("cover.gif");
+    std::fs::write(&file, b"GIF89a").expect("unsupported image fixture");
+    assert_eq!(
+        rig.send(SessionIntent::LoadCoverFromDrop {
+            paths: vec![file.to_string_lossy().into_owned()]
+        })
+        .await,
+        SessionOutcome::CoverLoadFailed
+    );
+    assert!(matches!(
+        rig.session
+            .snapshot()
+            .metadata
+            .expect("metadata")
+            .cover
+            .notice,
+        Some(crate::session::CoverNotice::LoadFailed { .. })
+    ));
+}
+
+#[tokio::test]
+async fn an_accepted_indexer_save_finishes_when_the_host_drops_its_reply() {
+    use crate::remote_source::{RemoteDraftStatus, RemoteUiIntent};
+    let rig = rig();
+    rig.send(SessionIntent::Remote {
+        intent: RemoteUiIntent::EditConnection {
+            base_url: Some("https://proof.test".into()),
+            category_ids: None,
+            api_key: Some("proof-key".into()),
+        },
+    })
+    .await;
+    drop(rig.session.begin(SessionIntent::Remote {
+        intent: RemoteUiIntent::SaveConnection,
+    }));
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if rig.session.inner.deps.remote.ui_snapshot().connection.save
+                == RemoteDraftStatus::Succeeded
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("accepted Save finished");
+    let saved = rig
+        .session
+        .inner
+        .deps
+        .remote
+        .get_indexer_connection()
+        .await
+        .expect("persisted accepted connection");
+    assert_eq!(saved.base_url.as_deref(), Some("https://proof.test"));
+    assert!(saved.api_key_configured);
+}
+
+async fn wait_preview(
+    rig: &Rig,
+    status: crate::work_runtime::WorkOperationStatus,
+) -> super::super::preview::PreviewSnapshot {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let preview = output(rig).preview_run.expect("retained preview");
+            if preview.operation.status == status {
+                return preview;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or_else(|error| {
+        panic!(
+            "preview did not reach {status:?}: {error}; {:?}",
+            output(rig).preview_run
+        )
+    })
 }

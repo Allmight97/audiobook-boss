@@ -11,9 +11,8 @@
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
   `crate::processing`, not `audio` or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
-  `ProgressEvent`, `QueueEvent`, `QueueItem`, `JobId`, `CancellationChecker`.
-  Helpers: `ProgressEmitter` (sends progress as `EngineEvent`s through the
-  host's `EventSink`), `operation_kind_log_label` (stable dev-log label parsed
+  `ProgressEvent`, `JobId`, `CancellationChecker`.
+  Helpers: `ProgressEmitter` (passes progress to the owning engine reducer), `operation_kind_log_label` (stable dev-log label parsed
   by `scripts/dev-log-analysis.ts`).
 - Engine-internal export title outputs: `TitleOutput`; host vocabulary:
   `OutputUpdate`, `OutputUpdateStatus`
@@ -41,7 +40,7 @@
   (`run_dispatch.rs`); a restart waits for that.
 - The cluster owns preflight planning, execution-plan preparation, runner
   orchestration, processing context/session state, backend lifecycle
-  vocabulary, job lifecycle, queue/progress event types, terminal result
+  vocabulary, job lifecycle, internal progress types, terminal result
   normalization, and their behavior tests.
 
 ## Per-book Audio Handling
@@ -68,22 +67,13 @@
 
 ## Progress / Stage Evolution
 
-- A session preview reports through
-  `EngineEvent::ProcessingProgress` and `EngineEvent::ProcessingQueue`, which
-  the Tauri host emits as `processing-progress` and `processing-queue`. They
-  have no operation-id discriminator. Accepted
-  background work publishes WorkRuntime snapshot events instead; do not mix the
-  two event families. Final processing enters through WorkRuntime for operation
-  identity, snapshots, and operation and title cancellation.
-- Wire-stage authority is the Rust `EventStage` enum in `progress/mod.rs` (specta-generated into
-  `src/lib/generated/tauri.ts`); event payload is `ProgressEvent` (same file). Emitters:
-  `progress/emitter.rs` (`emit_event`, `emit_cancelled`) and
-  `run/run_dispatch.rs` (`emit_terminal_failed_event`).
-  Frontend re-exports `EventStage` and the `STAGES` helper from `src/types/events.ts`.
-- To evolve stages: update the Rust `EventStage` enum + its `From<&ProcessingStage>` impl, run
-  `bun run bindings:generate`, then adjust frontend consumers. `EventStage` is the flat wire-shaped
-  discriminator the UI consumes; the internal `ProcessingStage` carries data (e.g. `Failed(String)`)
-  and drives orchestration — keep them distinct.
+- Processing emits internal `ProgressEvent` values to its supplied listener.
+  WorkRuntime exports and session previews share the WorkRuntime state reducer;
+  hosts receive operation/session snapshots rather than a second queue stream.
+- `EventStage` in `progress/mod.rs` maps internal `ProcessingStage` into reducer
+  input. The UI consumes `WorkProgressStage` from snapshots. Evolve the owning
+  Rust types and reducers, regenerate bindings for public shape changes, and
+  update snapshot rendering/proof together.
 
 ## Edit Rules
 - Change pure processing classification/summarization when
@@ -98,7 +88,7 @@
   exposing planner internals for tests; commands live in `scripts/AGENTS.md`.
 - Keep preflight side-effect-free; execution may create and track output dirs only after review enforcement.
 - `ProcessingRunOptions.title_cancels` carries one cancel flag per output title
-  from WorkRuntime; each job's admission and `CancellationChecker` observe only
+  from WorkRuntime or the session preview; each job's admission and `CancellationChecker` observe only
   its own title's flag. Cancelled titles finish as Cancelled results while
   siblings continue.
 - Keep runner responsibilities to encoder request validation, job registration,

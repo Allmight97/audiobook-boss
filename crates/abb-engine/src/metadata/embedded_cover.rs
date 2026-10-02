@@ -104,31 +104,7 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
             return Ok(fallback);
         }
 
-        let (is_picture, frame_size, frame_flags) = if version == 2 {
-            (
-                &frame_header[..3] == b"PIC",
-                u64::from(u32::from_be_bytes([
-                    0,
-                    frame_header[3],
-                    frame_header[4],
-                    frame_header[5],
-                ])),
-                0u16,
-            )
-        } else {
-            let size = if version == 4 {
-                u64::from(syncsafe_u32(&frame_header[4..8])?)
-            } else {
-                u64::from(u32::from_be_bytes(
-                    frame_header[4..8].try_into().expect("frame size"),
-                ))
-            };
-            (
-                &frame_header[..4] == b"APIC",
-                size,
-                u16::from_be_bytes([frame_header[8], frame_header[9]]),
-            )
-        };
+        let (is_picture, frame_size, frame_flags) = id3_frame_fields(&frame_header, version)?;
         let payload_start = cursor
             .checked_add(header_len)
             .ok_or_else(|| cover_error("ID3 frame offset overflow"))?;
@@ -140,35 +116,15 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
         }
 
         if is_picture {
-            if frame_size > MAX_PICTURE_FRAME_BYTES {
-                let picture_type = read_oversized_id3_picture_type(
-                    file,
-                    payload_start,
-                    frame_size,
-                    frame_end,
-                    version,
-                    frame_flags,
-                    tag_unsynchronized,
-                )?;
-                if picture_type == Some(3) {
-                    return Err(cover_error(
-                        "ID3 front-cover frame exceeds the thumbnail input limit",
-                    ));
-                }
-                cursor = frame_end;
-                continue;
-            }
-            if id3_frame_is_compressed_or_encrypted(version, frame_flags) {
-                cursor = frame_end;
-                continue;
-            }
-            let mut payload = vec![0u8; frame_size as usize];
-            read_exact_at(file, payload_start, &mut payload, frame_end)?;
-            if tag_unsynchronized || (version == 4 && frame_flags & 0x0002 != 0) {
-                remove_id3_unsynchronization(&mut payload);
-            }
-            strip_id3_frame_prefixes(&mut payload, version, frame_flags)?;
-            if let Some((picture_type, image)) = extract_id3_picture(payload, version == 2)? {
+            if let Some((picture_type, image)) = read_id3_picture(
+                file,
+                payload_start,
+                frame_size,
+                frame_end,
+                version,
+                frame_flags,
+                tag_unsynchronized,
+            )? {
                 if picture_type == 3 {
                     return Ok(Some(image));
                 }
@@ -182,6 +138,73 @@ fn read_id3_cover(file: &mut File, start: u64, span_len: u64) -> Result<Option<V
     Err(cover_error(
         "ID3 cover scan exceeded the frame traversal limit",
     ))
+}
+
+// Container traversal and picture decoding retain the same checked span limits.
+fn id3_frame_fields(frame_header: &[u8; 10], version: u8) -> Result<(bool, u64, u16)> {
+    Ok(if version == 2 {
+        (
+            &frame_header[..3] == b"PIC",
+            u64::from(u32::from_be_bytes([
+                0,
+                frame_header[3],
+                frame_header[4],
+                frame_header[5],
+            ])),
+            0u16,
+        )
+    } else {
+        let size = if version == 4 {
+            u64::from(syncsafe_u32(&frame_header[4..8])?)
+        } else {
+            u64::from(u32::from_be_bytes(
+                frame_header[4..8].try_into().expect("frame size"),
+            ))
+        };
+        (
+            &frame_header[..4] == b"APIC",
+            size,
+            u16::from_be_bytes([frame_header[8], frame_header[9]]),
+        )
+    })
+}
+
+fn read_id3_picture(
+    file: &mut File,
+    payload_start: u64,
+    frame_size: u64,
+    frame_end: u64,
+    version: u8,
+    frame_flags: u16,
+    tag_unsynchronized: bool,
+) -> Result<Option<(u8, Vec<u8>)>> {
+    if frame_size > MAX_PICTURE_FRAME_BYTES {
+        let picture_type = read_oversized_id3_picture_type(
+            file,
+            payload_start,
+            frame_size,
+            frame_end,
+            version,
+            frame_flags,
+            tag_unsynchronized,
+        )?;
+        if picture_type == Some(3) {
+            return Err(cover_error(
+                "ID3 front-cover frame exceeds the thumbnail input limit",
+            ));
+        }
+        return Ok(None);
+    }
+    if id3_frame_is_compressed_or_encrypted(version, frame_flags) {
+        return Ok(None);
+    }
+    let mut payload = vec![0u8; frame_size as usize];
+    read_exact_at(file, payload_start, &mut payload, frame_end)?;
+    if tag_unsynchronized || (version == 4 && frame_flags & 0x0002 != 0) {
+        remove_id3_unsynchronization(&mut payload);
+    }
+    strip_id3_frame_prefixes(&mut payload, version, frame_flags)?;
+    extract_id3_picture(payload, version == 2)
 }
 
 fn skip_id3_extended_header(

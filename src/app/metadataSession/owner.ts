@@ -14,7 +14,6 @@ import {
 import type { EngineLink } from '../engineLink';
 import {
 	COVER_ART_IMAGE_EXTENSION_HINTS,
-	COVER_ART_IMAGE_EXTENSION_HINT_PATTERN,
 	COVER_MESSAGE_MS,
 	coverNoticeMessage,
 	HIDDEN_COVER_MESSAGE,
@@ -334,8 +333,17 @@ export function createMetadataOwner(deps: MetadataOwnerDeps): MetadataOwner {
 			await link.send({ kind: 'loadCoverFromUrl', url });
 		},
 		async applyCoverArtDrop(paths) {
-			const image = paths.find((path) => COVER_ART_IMAGE_EXTENSION_HINT_PATTERN.test(path));
-			return image ? loadCoverFromFile(image) : false;
+			try {
+				return (
+					(await link.send({ kind: 'loadCoverFromDrop', paths: [...paths] })).kind === 'applied'
+				);
+			} catch (error) {
+				showLocalMessage({
+					kind: 'error',
+					text: toUserMessage(error, { fallback: 'Unable to load cover art.' }),
+				});
+				return false;
+			}
 		},
 		async save() {
 			await link.send({ kind: 'save' });

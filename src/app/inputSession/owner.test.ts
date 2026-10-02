@@ -3,6 +3,7 @@ import { liveInputCapability } from '../../lib/tauri/capabilities/input';
 import { audioFile, createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import type { SessionOutcome } from '../../types/session';
 import { createAppRuntime, type AppRuntime } from '../runtime';
+import { toInspectorViewFromInput } from '.';
 
 // The titles, their order, and the selection live in the engine. These tests
 // cover what this owner adds: the intents it sends, the wording of what the
@@ -108,5 +109,20 @@ describe('input owner', () => {
 
 		expect(app.input.view().isDragOver).toBe(true);
 		expect(engine.sessionIntents).toHaveLength(sent);
+	});
+	it('shows the selected source position and counts every source in a grouped title', async () => {
+		const app = await open();
+		const files = ['/books/first.m4b', '/books/second.m4b', '/books/third.m4b'].map((path) =>
+			audioFile(path),
+		);
+		engine.loadTitles(files, [1]);
+		const inspect = () => toInspectorViewFromInput(app.input.view(), app.input.companionSummary);
+		expect(inspect().contextDetail).toBe('2 of 3');
+		engine.change((state) => {
+			state.titles.files = [files[0]!, files[2]!];
+			state.titles.titleSourcesByIdentity = { [files[0]!.inputId!]: [files[0]!, files[1]!] };
+			state.selection.selectedIndices = [0];
+		});
+		expect(inspect().contextText).toBe('2 files selected');
 	});
 });

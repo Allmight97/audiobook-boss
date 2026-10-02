@@ -2,7 +2,7 @@ use super::run_job::{run_processing_job, supplemental_assets_for_input, Processi
 use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
-use crate::host::{EngineEvent, Host};
+use crate::host::Host;
 use crate::output_artifact::OutputParentDirCleanup;
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
@@ -12,9 +12,7 @@ use crate::processing::terminal_outcomes::{
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
 use crate::processing::ProcessResultStatus;
-use crate::processing::{
-    OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry, QueueEvent, QueueItem,
-};
+use crate::processing::{OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -78,12 +76,6 @@ async fn dispatch_batch_plan(
         return Ok(result);
     }
 
-    // Foreground (preview) runs drive the Status Panel from queue events; background
-    // operations render from WorkRuntime snapshots, so they emit no queue event.
-    if options.progress_listener.is_none() {
-        emit_batch_queue_event(&host, &registry, &payload.input_files);
-    }
-
     let mut scheduled_jobs: Vec<Pin<Box<dyn Future<Output = Result<ProcessResultEntry>> + Send>>> =
         Vec::new();
     let preview_seconds = plan.preview_seconds;
@@ -92,7 +84,6 @@ async fn dispatch_batch_plan(
             no_write_skipped_result(planned_job.input_index, None, &planned_job.output)
         {
             emit_terminal_skipped_event(
-                &host,
                 options.progress_listener.as_ref(),
                 EmitContext {
                     operation_kind: OperationKind::ProcessingBatch,
@@ -141,7 +132,7 @@ async fn dispatch_batch_plan(
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
     let finalized_results =
-        finalize_batch_results(&host, payload, outcomes, options.progress_listener.as_ref())?;
+        finalize_batch_results(payload, outcomes, options.progress_listener.as_ref())?;
 
     Ok(ProcessCommandResult::new(finalized_results))
 }
@@ -155,7 +146,6 @@ async fn run_title_job(
     request: ProcessingJobRequest,
     folders: Arc<Mutex<OutputParentDirCleanup>>,
 ) -> Result<ProcessResultEntry> {
-    let host = request.host.clone();
     let listener = request.progress_listener.clone();
     let input_index = request.input_index;
     let title_output = request.title_output.clone();
@@ -187,7 +177,6 @@ async fn run_title_job(
     }
     if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
         emit_terminal_cancelled_event(
-            &host,
             listener.as_ref(),
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,
@@ -200,29 +189,7 @@ async fn run_title_job(
     outcome
 }
 
-fn emit_batch_queue_event(
-    host: &Host,
-    registry: &crate::ManagedJobRegistry,
-    input_files: &[String],
-) {
-    let queue_items: Vec<QueueItem> = input_files
-        .iter()
-        .enumerate()
-        .map(|(index, input)| QueueItem {
-            input_index: index,
-            file_path: input.clone(),
-        })
-        .collect();
-    let queue_event = QueueEvent::new(
-        OperationKind::ProcessingBatch,
-        queue_items,
-        registry.max_concurrent(),
-    );
-    host.emit(EngineEvent::ProcessingQueue(queue_event));
-}
-
 fn finalize_batch_results(
-    host: &Host,
     payload: &ProcessPayload,
     outcomes: Vec<Result<ProcessResultEntry>>,
     progress_listener: Option<&ProgressEventListener>,
@@ -234,7 +201,6 @@ fn finalize_batch_results(
     );
     for event in finalized.failure_events {
         emit_terminal_failed_event(
-            host,
             progress_listener,
             EmitContext {
                 operation_kind: OperationKind::ProcessingBatch,

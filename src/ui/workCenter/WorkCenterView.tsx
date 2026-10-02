@@ -101,7 +101,14 @@ function outputUpdateText(child: ChildJobSnapshot): string | null {
 }
 
 export function WorkCenterView(): JSX.Element {
-	const workOperations = useAppRuntime().workOperations;
+	const runtime = useAppRuntime();
+	const workOperations = runtime.workOperations;
+	const offerFor = (operation: OperationSnapshot, child: ChildJobSnapshot) =>
+		runtime.processing
+			.restartOffers()
+			.find(
+				(offer) => offer.operationId === operation.operationId && offer.titleId === child.inputId,
+			);
 	const view = workOperations.view;
 
 	return (
@@ -207,6 +214,28 @@ export function WorkCenterView(): JSX.Element {
 															>
 																Cancel
 															</button>
+														</Show>
+														<Show when={offerFor(operation, child)}>
+															{(offer) => (
+																<>
+																	<button
+																		class="work-child-action"
+																		type="button"
+																		title={`Restart at ${offer().to}`}
+																		onClick={() => void runtime.processing.restart(offer())}
+																	>
+																		Restart
+																	</button>
+																	<button
+																		class="work-child-action"
+																		type="button"
+																		title={`Keep ${offer().from} and apply the latest tags`}
+																		onClick={() => void runtime.processing.keepLocation(offer())}
+																	>
+																		Keep Location
+																	</button>
+																</>
+															)}
 														</Show>
 														<Show when={child.status === 'completed' && child.outputPath}>
 															<button

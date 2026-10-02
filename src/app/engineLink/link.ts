@@ -25,6 +25,7 @@ export type EngineLink = {
 	readonly lookup: Accessor<SessionLookup>;
 	readonly audio: Accessor<SessionAudio>;
 	readonly output: Accessor<SessionOutput>;
+	readonly remote: Accessor<import('../../types/session').RemoteUiSnapshot>;
 	readonly settings: Accessor<SettingsSnapshot>;
 	/** Sends an intent and resolves with its outcome once its work has finished. */
 	send(intent: SessionIntent): Promise<SessionOutcome>;
@@ -123,6 +124,7 @@ function emptyOutput(): SessionOutput {
 		preview: { kind: 'noDirectory' },
 		submission: null,
 		restartOffers: [],
+		previewRun: null,
 	};
 }
 
@@ -156,6 +158,9 @@ function emptyAudio(): SessionAudio {
 			},
 			facts: {
 				effectiveEncoder: 'native_aac',
+				encoderOptions: [],
+				encoderLocked: true,
+				downmixWarning: false,
 				bitrateMode: { mode: 'cbr' },
 				bitrateKbpsMin: 1,
 				bitrateKbpsMax: 0,
@@ -168,6 +173,34 @@ function emptyAudio(): SessionAudio {
 			request: { format: 'm4b', intent: 'auto', settings, sampleRate: 'auto' },
 		},
 		titles: {},
+	};
+}
+
+function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
+	return {
+		revision: UNATTACHED,
+		lane: 'audible',
+		selectedTitleIds: [],
+		includePdfByTitleId: {},
+		acquisition: null,
+		acquiring: false,
+		indexer: {
+			releases: [],
+			selectedReleaseKeys: [],
+			releaseGrabs: {},
+			searching: false,
+			grabbing: false,
+			message: '',
+		},
+		connection: {
+			baseUrl: '',
+			categoryIds: [],
+			apiKeyConfigured: false,
+			apiKeyEntered: false,
+			save: { kind: 'idle' },
+			test: { kind: 'idle' },
+			testResult: null,
+		},
 	};
 }
 
@@ -233,6 +266,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	let lookup = emptyLookup();
 	let audio = emptyAudio();
 	let output = emptyOutput();
+	let remote = emptyRemote();
 	let settings = emptySettings();
 	const part = () => createSignal(0, { ownedWrite: true });
 	const [titlesRev, bumpTitles] = part();
@@ -241,6 +275,7 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 	const [lookupRev, bumpLookup] = part();
 	const [audioRev, bumpAudio] = part();
 	const [outputRev, bumpOutput] = part();
+	const [remoteRev, bumpRemote] = part();
 	const [settingsRev, bumpSettings] = part();
 	let disposed = false;
 	let sessionSequence = 0;
@@ -261,6 +296,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		if (update.metadata && update.metadata.revision > metadata.revision) {
 			metadata = update.metadata;
 			bumpMetadata((n) => n + 1);
+		}
+		if (update.remote && update.remote.revision > remote.revision) {
+			remote = update.remote;
+			bumpRemote((n) => n + 1);
 		}
 		if (update.output && update.output.revision > output.revision) {
 			output = update.output;
@@ -338,6 +377,10 @@ export function createEngineLink(capability: EngineCapability = liveEngineCapabi
 		audio: () => {
 			audioRev();
 			return audio;
+		},
+		remote: () => {
+			remoteRev();
+			return remote;
 		},
 		output: () => {
 			outputRev();

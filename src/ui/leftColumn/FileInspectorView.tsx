@@ -1,6 +1,6 @@
 import type { JSX } from '@solidjs/web';
 
-import { toInspectorViewFromInput } from '../../app/inputSession/inspector';
+import { toInspectorViewFromInput } from '../../app/inputSession';
 import { useAppRuntime } from '../../app/runtime';
 import './leftColumn.css';
 
