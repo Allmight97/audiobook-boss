@@ -9,4 +9,7 @@ pub(crate) struct ProcessingRunOptions {
     /// the whole operation sets every flag. Direct previews pass none.
     pub(crate) title_cancels: Vec<Arc<AtomicBool>>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
+    /// One output record per title, indexed like `title_cancels`. Previews
+    /// pass none.
+    pub(crate) title_outputs: Vec<Arc<crate::processing::TitleOutput>>,
 }

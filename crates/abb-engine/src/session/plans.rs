@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::audio::{
-    apply_chapter_plans, resolve_title_audio, AudioFile, AudioIntent, BitrateMode, FileListInfo,
-    TitleAudioPlan, TitleAudioRequest,
+    apply_chapter_plans, resolve_title_audio, AudioFile, AudioIntent, AudioPlanField, BitrateMode,
+    FileListInfo, TitleAudioPlan, TitleAudioRequest,
 };
 use crate::metadata::{ChapterPlan, CueStatus};
 use crate::processing::AudioHandling;
@@ -25,9 +25,11 @@ pub enum TitlePlan {
     Resolved {
         plan: TitleAudioPlan,
     },
-    /// The title cannot be exported as chosen; `message` says why.
+    /// The title cannot be exported as chosen; `message` says why, and
+    /// `field` names the audio setting to change when one setting is the cause.
     Failed {
         message: String,
+        field: Option<AudioPlanField>,
     },
     /// Grouped sources disagree about their audio; the user must choose.
     ChoiceRequired,
@@ -87,11 +89,30 @@ pub(crate) struct PlanTicket {
 
 impl PlanTicket {
     /// Resolves the plan; reads source file facts to check chapter plans.
-    pub(crate) fn resolve(&self) -> Result<TitleAudioPlan, String> {
+    pub(crate) fn resolve(&self) -> Result<TitleAudioPlan, PlanFailure> {
         let chapter_plans = chapter_plans_for(&self.sources)?;
         let mut info = FileListInfo::from_files(self.sources.clone());
         apply_chapter_plans(&mut info, Some(&chapter_plans)).map_err(|error| error.to_string())?;
-        resolve_title_audio(&self.request, &info, false).map_err(|error| error.to_string())
+        resolve_title_audio(&self.request, &info, false).map_err(|error| PlanFailure {
+            message: error.message(),
+            field: error.field,
+        })
+    }
+}
+
+/// Why a title's plan failed.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PlanFailure {
+    pub(crate) message: String,
+    pub(crate) field: Option<AudioPlanField>,
+}
+
+impl From<String> for PlanFailure {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            field: None,
+        }
     }
 }
 
@@ -151,12 +172,16 @@ impl Plans {
     }
 
     /// Accepts a resolved plan if the title still has what it was resolved for.
-    pub(crate) fn finish(&mut self, ticket: &PlanTicket, result: Result<TitleAudioPlan, String>) {
+    pub(crate) fn finish(
+        &mut self,
+        ticket: &PlanTicket,
+        result: Result<TitleAudioPlan, PlanFailure>,
+    ) {
         if let Some((key, plan)) = self.entries.get_mut(&ticket.title_id) {
             if *key == ticket.key {
                 *plan = match result {
                     Ok(plan) => TitlePlan::Resolved { plan },
-                    Err(message) => TitlePlan::Failed { message },
+                    Err(PlanFailure { message, field }) => TitlePlan::Failed { message, field },
                 };
             }
         }

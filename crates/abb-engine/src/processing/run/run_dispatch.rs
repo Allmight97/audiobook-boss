@@ -3,6 +3,7 @@ use super::ProcessingRunOptions;
 use crate::audio;
 use crate::errors::{AppError, Result};
 use crate::host::{EngineEvent, Host};
+use crate::output_artifact::OutputParentDirCleanup;
 use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::plan::{ExecutionProcessingPlan, ResolvedProcessingPlan};
 use crate::processing::progress::EmitContext;
@@ -10,6 +11,7 @@ use crate::processing::terminal_outcomes::{
     build_all_skipped_batch_result, collect_batch_results, emit_terminal_cancelled_event,
     emit_terminal_failed_event, emit_terminal_skipped_event, no_write_skipped_result,
 };
+use crate::processing::ProcessResultStatus;
 use crate::processing::{
     OperationKind, ProcessCommandResult, ProcessPayload, ProcessResultEntry, QueueEvent, QueueItem,
 };
@@ -17,6 +19,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex, PoisonError};
 
 pub(crate) async fn dispatch_title_jobs(
     host: Host,
@@ -31,20 +34,25 @@ pub(crate) async fn dispatch_title_jobs(
         file_info,
         output_parent_cleanup,
     } = execution_plan;
-    let result = dispatch_batch_plan(
-        host,
-        registry,
-        workspace_root,
-        payload,
+    // Each title removes its own empty folders when it ends; the run cleans
+    // up the rest at the end.
+    let folders = Arc::new(Mutex::new(output_parent_cleanup));
+    let batch = Batch {
         plan,
         file_info,
-        options,
-    )
-    .await;
-    crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(
-        result,
-        output_parent_cleanup,
-    )
+        folders: Arc::clone(&folders),
+    };
+    let result = dispatch_batch_plan(host, registry, workspace_root, payload, batch, options).await;
+    let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
+    crate::processing::output_parent_cleanup::finalize_output_parent_cleanup(result, &mut folders)
+}
+
+/// What a run dispatches: its titles, their inspected sources, and the
+/// folders execution created for them.
+struct Batch {
+    plan: ResolvedProcessingPlan,
+    file_info: audio::FileListInfo,
+    folders: Arc<Mutex<OutputParentDirCleanup>>,
 }
 
 async fn dispatch_batch_plan(
@@ -52,10 +60,14 @@ async fn dispatch_batch_plan(
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
     payload: &ProcessPayload,
-    plan: ResolvedProcessingPlan,
-    file_info: audio::FileListInfo,
+    batch: Batch,
     options: ProcessingRunOptions,
 ) -> Result<ProcessCommandResult> {
+    let Batch {
+        plan,
+        file_info,
+        folders,
+    } = batch;
     if payload.input_files.is_empty() {
         return Err(AppError::InvalidInput(
             "No input files provided for processing".to_string(),
@@ -89,6 +101,10 @@ async fn dispatch_batch_plan(
                 },
                 &skipped_entry.message,
             );
+            // A skipped title never publishes; an edit for it is refused now.
+            if let Some(title) = options.title_outputs.get(planned_job.input_index) {
+                title.end();
+            }
             scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
             continue;
         }
@@ -118,8 +134,9 @@ async fn dispatch_batch_plan(
             preview_seconds,
             supplemental_assets: supplemental_assets_for_input(payload, input_index),
             progress_listener: options.progress_listener.clone(),
+            title_output: options.title_outputs.get(input_index).cloned(),
         };
-        scheduled_jobs.push(Box::pin(run_title_job(request)));
+        scheduled_jobs.push(Box::pin(run_title_job(request, Arc::clone(&folders))));
     }
 
     let outcomes = registry.scheduler().run_batch(scheduled_jobs).await;
@@ -132,11 +149,16 @@ async fn dispatch_batch_plan(
 /// Runs one title unless its cancel flag is already set. A title cancelled
 /// before its job started emits nothing else, so report it here instead of
 /// leaving its row cancelling until the batch ends. Background operations
-/// only; previews carry no flags.
-async fn run_title_job(request: ProcessingJobRequest) -> Result<ProcessResultEntry> {
+/// only; previews carry no flags. A title that ends without publishing
+/// removes the empty folders made only for it before it reports.
+async fn run_title_job(
+    request: ProcessingJobRequest,
+    folders: Arc<Mutex<OutputParentDirCleanup>>,
+) -> Result<ProcessResultEntry> {
     let host = request.host.clone();
     let listener = request.progress_listener.clone();
     let input_index = request.input_index;
+    let title_output = request.title_output.clone();
     let cancelled = request
         .title_cancel
         .as_ref()
@@ -146,6 +168,22 @@ async fn run_title_job(request: ProcessingJobRequest) -> Result<ProcessResultEnt
     } else {
         run_processing_job(request).await
     };
+    let published = outcome.as_ref().is_ok_and(|entry| {
+        matches!(
+            entry.status,
+            ProcessResultStatus::Success | ProcessResultStatus::Skipped
+        )
+    });
+    if let Some(title) = &title_output {
+        title.end();
+    }
+    let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Err(error) = folders.end_title(input_index, published) {
+        log::warn!(
+            "output_parent_cleanup status=title_cleanup_err input_index={input_index} err={error}"
+        );
+    }
+    drop(folders);
     if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
         emit_terminal_cancelled_event(
             &host,

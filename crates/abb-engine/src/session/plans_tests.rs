@@ -81,20 +81,21 @@ fn a_plan_is_resolved_again_only_when_its_request_or_sources_change() {
     let tickets = plans.refresh([input(encode, &alpha)]);
     assert_eq!(tickets.len(), 1);
     assert_eq!(plans.plan("alpha"), TitlePlan::Pending);
-    plans.finish(&tickets[0], Err("no".to_string()));
+    plans.finish(&tickets[0], Err("no".to_string().into()));
     assert!(plans.refresh([input(encode, &alpha)]).is_empty());
 
     // A changed request makes the earlier ticket stale.
     let preserve = &request(AudioIntent::Preserve, None);
     let stale = tickets[0].clone();
     let fresh = plans.refresh([input(preserve, &alpha)]);
-    plans.finish(&stale, Err("late".to_string()));
+    plans.finish(&stale, Err("late".to_string().into()));
     assert_eq!(plans.plan("alpha"), TitlePlan::Pending);
-    plans.finish(&fresh[0], Err("current".to_string()));
+    plans.finish(&fresh[0], Err("current".to_string().into()));
     assert_eq!(
         plans.plan("alpha"),
         TitlePlan::Failed {
-            message: "current".to_string()
+            message: "current".to_string(),
+            field: None,
         }
     );
     // A removed title has no plan.
@@ -151,4 +152,36 @@ fn auto_waits_for_its_plan_and_a_missing_fact_means_no_estimate() {
     let mut unknown = source("one", 100.0, 1_000.0);
     unknown.size = None;
     assert_eq!(estimate_size(&auto, &kept, &[unknown], Some(64)), None);
+}
+
+#[test]
+fn a_failure_one_audio_setting_causes_names_that_setting() {
+    let resolve = |file: &AudioFile| {
+        let encode = request(AudioIntent::Encode, Some(cbr(64)));
+        let mut plans = Plans::default();
+        let ticket = plans.refresh([input(&encode, file)]).remove(0);
+        ticket.resolve().expect_err("refused")
+    };
+    let mut surround = source("alpha", 60.0, 1.0);
+    surround.sample_rate = Some(44_100);
+    surround.channels = Some(6);
+    let failure = resolve(&surround);
+    assert_eq!(failure.field, Some(AudioPlanField::Channels));
+    assert!(failure.message.starts_with("'"), "{}", failure.message);
+
+    let mut unknown_rate = source("alpha", 60.0, 1.0);
+    unknown_rate.channels = Some(2);
+    assert_eq!(
+        resolve(&unknown_rate).field,
+        Some(AudioPlanField::SampleRate)
+    );
+
+    // A failure no single setting causes names none.
+    let mut cue = unknown_rate.clone();
+    cue.cue_source = Some(CueSource {
+        file_name: "alpha.cue".to_string(),
+        status: CueStatus::NeedsConfirmation,
+        message: String::new(),
+    });
+    assert_eq!(resolve(&cue).field, None);
 }

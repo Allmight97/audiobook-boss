@@ -348,7 +348,7 @@ impl RemoteAcquisitionLifecycle {
             .unwrap_or(false)
     }
 
-    fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
+    pub(super) fn store_acquisition_task(&self, job_id: &str, abort_handle: AbortHandle) {
         let Ok(mut tasks) = self.acquisition_tasks.lock() else {
             log::warn!(
                 "remote_source acquisition job_id={} task_registry_store_failed=true",
@@ -380,6 +380,23 @@ impl RemoteAcquisitionLifecycle {
                 );
             }
         }
+    }
+
+    /// Downloads still in progress, by job state: a task handle can outlive
+    /// a job that failed before its handle was stored.
+    pub(super) fn running_acquisitions(&self) -> usize {
+        self.jobs.lock().map_or(0, |jobs| {
+            jobs.values()
+                .filter(|job| {
+                    matches!(
+                        job.status,
+                        types::RemoteAcquisitionStatus::Planned
+                            | types::RemoteAcquisitionStatus::Acquiring
+                            | types::RemoteAcquisitionStatus::Materialized
+                    )
+                })
+                .count()
+        })
     }
 
     pub(super) fn abort_all_acquisition_tasks(&self) {

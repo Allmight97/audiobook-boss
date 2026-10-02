@@ -319,6 +319,40 @@ impl MetadataIntentPatch {
         );
     }
 
+    /// The patch that turns tags reading `from` into tags reading `to`: a set
+    /// for each field whose value changed, a clear for each that is now
+    /// absent, and nothing for a field that is the same.
+    pub fn between(from: &AudiobookMetadata, to: &AudiobookMetadata) -> Self {
+        fn op<T: Clone + PartialEq>(from: &Option<T>, to: &Option<T>) -> Option<PatchOp<T>> {
+            match (from, to) {
+                (from, to) if from == to => None,
+                (_, Some(value)) => Some(PatchOp::Set(value.clone())),
+                (_, None) => Some(PatchOp::Clear),
+            }
+        }
+        Self {
+            title: op(&from.title, &to.title),
+            artist: op(&from.artist, &to.artist),
+            album: op(&from.album, &to.album),
+            composer: op(&from.composer, &to.composer),
+            genre: op(&from.genre, &to.genre),
+            date: op(&from.date, &to.date),
+            description: op(&from.description, &to.description),
+            series: op(&from.series, &to.series),
+            series_part: op(&from.series_part, &to.series_part),
+            subseries: op(&from.subseries, &to.subseries),
+            subseries_part: op(&from.subseries_part, &to.subseries_part),
+            album_sort: op(&from.album_sort, &to.album_sort).map(|op| match op {
+                PatchOp::Set(value) => AlbumSortPatchOp::Set(value),
+                PatchOp::Clear => AlbumSortPatchOp::Clear,
+            }),
+            cover_art: op(&from.cover_art, &to.cover_art),
+            comment: op(&from.comment, &to.comment),
+            track: op(&from.track, &to.track),
+            disk: op(&from.disk, &to.disk),
+        }
+    }
+
     /// What `base` shows with this patch applied, without validating it. Used
     /// to project pending edits over known tags; `Recompute` leaves the album
     /// sort as it is because only a write resolves it.
@@ -854,6 +888,39 @@ mod tests {
         assert_eq!(pending.cover_art, Some(PatchOp::Set(vec![1, 2])));
         assert!(pending.is_actionable());
         assert!(!MetadataIntentPatch::default().is_actionable());
+    }
+
+    #[test]
+    fn between_sets_changed_fields_clears_removed_ones_and_reapplies_to_the_target() {
+        let from = AudiobookMetadata {
+            title: Some("Old".into()),
+            genre: Some("Fantasy".into()),
+            album_sort: Some("Series 1 - Old".into()),
+            cover_art: Some(vec![1]),
+            track: Some((1, None)),
+            ..Default::default()
+        };
+        let to = AudiobookMetadata {
+            title: Some("New".into()),
+            series: Some("Series".into()),
+            album_sort: Some("Series 1 - New".into()),
+            cover_art: Some(vec![2]),
+            track: Some((1, None)),
+            ..Default::default()
+        };
+
+        let patch = MetadataIntentPatch::between(&from, &to);
+        assert_eq!(patch.title, Some(PatchOp::Set("New".into())));
+        assert_eq!(patch.genre, Some(PatchOp::Clear));
+        assert_eq!(patch.series, Some(PatchOp::Set("Series".into())));
+        assert_eq!(
+            patch.album_sort,
+            Some(AlbumSortPatchOp::Set("Series 1 - New".into()))
+        );
+        assert_eq!(patch.cover_art, Some(PatchOp::Set(vec![2])));
+        assert_eq!(patch.track, None, "an unchanged field is left alone");
+        assert_eq!(patch.overlay(&from), to);
+        assert!(!MetadataIntentPatch::between(&to, &to).is_actionable());
     }
 
     #[test]

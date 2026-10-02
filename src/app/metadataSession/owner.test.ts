@@ -98,11 +98,13 @@ describe('metadata owner', () => {
 			cancelled: 0,
 			waiting: 2,
 			held: 1,
+			outputs: { updated: 2, elsewhere: 0, restartOffered: 1, failed: 0 },
 		});
 		expect(app.metadata.view().statusMessage).toBe(
 			'Metadata save complete: success=1, failed=0, cancelled=0' +
 				' 2 files will be saved when the export reading it finishes.' +
-				' 1 file being exported from a download was not changed; the edit is kept for a later export.',
+				' 1 file from a download was not changed; the edit goes with its exports.' +
+				' 2 exports updated. 1 export would move; choose whether to restart.',
 		);
 
 		engine.status({

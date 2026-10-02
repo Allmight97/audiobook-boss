@@ -21,7 +21,8 @@ the engine: `crates/abb-engine/AGENTS.md`.
 - **Event forwarding.** `events.rs` maps each `EngineEvent` to one Tauri
   event. It adds no state and drops nothing.
 - **Quit.** `lib.rs` holds every quit until `Engine::shutdown` has settled,
-  and asks first when `Engine::running_work` reports exports still running.
+  and asks first when `Engine::running_work` reports exports or Audible
+  downloads still running.
   A shutdown that has not settled after `SHUTDOWN_WAIT` asks whether to keep
   waiting; the process exits early only when the user chooses Quit Now.
 

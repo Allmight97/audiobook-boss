@@ -57,23 +57,73 @@ pub struct TitleAudioPlan {
     pub reason: Option<String>,
 }
 
+/// The audio setting a title's plan failed on, when one setting is the cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AudioPlanField {
+    SampleRate,
+    Channels,
+}
+
+/// Why a title's audio cannot be planned, and the setting to change when one
+/// setting is the cause.
+#[derive(Debug)]
+pub struct TitleAudioError {
+    pub error: AppError,
+    pub field: Option<AudioPlanField>,
+}
+
+impl TitleAudioError {
+    fn on(field: AudioPlanField) -> impl FnOnce(AppError) -> Self {
+        move |error| Self {
+            error,
+            field: Some(field),
+        }
+    }
+
+    /// The reason in the user's terms.
+    pub fn message(&self) -> String {
+        match &self.error {
+            AppError::InvalidInput(message) => message.clone(),
+            error => error.to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for TitleAudioError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+impl From<AppError> for TitleAudioError {
+    fn from(error: AppError) -> Self {
+        Self { error, field: None }
+    }
+}
+
+impl From<TitleAudioError> for AppError {
+    fn from(error: TitleAudioError) -> Self {
+        error.error
+    }
+}
+
 pub fn resolve_title_audio(
     request: &TitleAudioRequest,
     info: &FileListInfo,
     preview: bool,
-) -> Result<TitleAudioPlan> {
+) -> std::result::Result<TitleAudioPlan, TitleAudioError> {
     let first = info
         .files
         .first()
         .ok_or_else(|| AppError::InvalidInput("This title has no sources.".into()))?;
     if info.files.iter().any(|file| !file.is_valid) {
-        return Err(AppError::InvalidInput(
-            "Every title source must be valid.".into(),
-        ));
+        return Err(AppError::InvalidInput("Every title source must be valid.".into()).into());
     }
     let source_rate = first
         .sample_rate
-        .ok_or_else(|| AppError::InvalidInput("Source sample rate is unknown.".into()))?;
+        .ok_or_else(|| AppError::InvalidInput("Source sample rate is unknown.".into()))
+        .map_err(TitleAudioError::on(AudioPlanField::SampleRate))?;
     let source_codec = if info
         .files
         .iter()
@@ -91,14 +141,15 @@ pub fn resolve_title_audio(
     {
         return Err(AppError::InvalidInput(
             "Encoding previews are available with M4B or Opus output.".into(),
-        ));
+        )
+        .into());
     }
     let cue = info
         .files
         .iter()
         .any(|file| file.chapter_plan.as_ref().is_some_and(|plan| plan.from_cue));
     if cue && info.files.len() > 1 {
-        return Err(AppError::InvalidInput("Merging CUE-bearing inputs is not supported. Separate the titles or ignore CUE chapters.".into()));
+        return Err(AppError::InvalidInput("Merging CUE-bearing inputs is not supported. Separate the titles or ignore CUE chapters.".into()).into());
     }
     let mut reason = cue.then(|| "Encoding applies the accepted CUE chapters.".into());
     if !preview && request.intent != AudioIntent::Encode && !cue {
@@ -116,9 +167,10 @@ pub fn resolve_title_audio(
         }
     }
     if request.format == AudiobookFormat::Mp3 || request.intent == AudioIntent::Preserve {
-        return Err(AppError::InvalidInput(reason.unwrap_or_else(|| {
-            "Choose M4B or Opus to encode this title.".into()
-        })));
+        return Err(AppError::InvalidInput(
+            reason.unwrap_or_else(|| "Choose M4B or Opus to encode this title.".into()),
+        )
+        .into());
     }
     encoding_plan(request, info, source_rate, source_codec, reason)
 }
@@ -159,7 +211,7 @@ fn encoding_plan(
     source_rate: u32,
     source_codec: String,
     reason: Option<String>,
-) -> Result<TitleAudioPlan> {
+) -> std::result::Result<TitleAudioPlan, TitleAudioError> {
     use super::processor::resolution::{resolve_linked_encoder, resolve_output_channels};
     let mut settings = request
         .settings
@@ -171,11 +223,13 @@ fn encoding_plan(
     if request.format.is_opus() != (settings.encoder_type == EncoderType::Opus) {
         return Err(AppError::InvalidInput(
             "The encoder must match the selected output format.".into(),
-        ));
+        )
+        .into());
     }
     let encoder_type = resolve_linked_encoder(&settings)?;
     settings.resolve_encoder(encoder_type);
-    settings.channels = resolve_output_channels(settings.channels, &info.files)?;
+    settings.channels = resolve_output_channels(settings.channels, &info.files)
+        .map_err(TitleAudioError::on(AudioPlanField::Channels))?;
     let requested_rate =
         if request.intent == AudioIntent::Auto && request.format == AudiobookFormat::M4b {
             &SampleRateConfig::Auto

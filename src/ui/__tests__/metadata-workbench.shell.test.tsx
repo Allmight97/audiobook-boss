@@ -114,6 +114,7 @@ describe('metadata workbench shell', () => {
 				cancelled: 0,
 				waiting: 0,
 				held: 0,
+				outputs: { updated: 0, elsewhere: 0, restartOffered: 0, failed: 0 },
 			});
 			return { kind: 'applied' };
 		};

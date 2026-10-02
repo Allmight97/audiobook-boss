@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use super::audio::AudioDefaults;
 use super::audio_choice::AudioEdit;
+use super::exports::{ExportLink, OutputEdit, OutputEdits};
 use super::lookup::{
     self, LookupApplyMode, LookupSource, LookupStatus, QueueStep, QueuedTitle, RESULT_LIMIT,
 };
@@ -44,7 +45,9 @@ use crate::output_artifact::NamingPreset;
 use crate::processing::run::{
     preflight_payload, process_payload_with_options, ProcessingRunOptions,
 };
+use crate::processing::title_output::UpdateReply;
 use crate::processing::SupplementalProcessingAsset;
+use crate::processing::{OutputUpdate, OutputUpdateStatus};
 use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
 use crate::work_runtime::WorkRuntime;
 use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
@@ -127,6 +130,22 @@ pub enum SessionIntent {
         policy: CollisionPolicy,
     },
     CancelCollisionReview,
+    /// Restarts an exported title at the location a Save offered
+    /// (`OutputSnapshot::restart_offers`): cancels it, removes its empty
+    /// folders, and submits it again through collision review.
+    #[serde(rename_all = "camelCase")]
+    RestartTitle {
+        title_id: String,
+        #[specta(type = specta_typescript::Number)]
+        revision: u64,
+    },
+    /// Keeps an exported title where it is; its export continues unchanged.
+    #[serde(rename_all = "camelCase")]
+    KeepTitleLocation {
+        title_id: String,
+        #[specta(type = specta_typescript::Number)]
+        revision: u64,
+    },
 
     // ---- Output ----
     /// Where exports are written; recorded in the settings.
@@ -313,8 +332,8 @@ struct SessionInner {
     sources_freed: tokio::sync::Notify,
     /// Wakes acquisition handoffs waiting for the list to unlock.
     list_unlocked: tokio::sync::Notify,
-    /// One staged-download sweep runs at a time.
-    sweeping: tokio::sync::Mutex<()>,
+    /// A staged-download sweep is scheduled or running; one at a time.
+    sweeping: AtomicBool,
     /// Cancels the running preview's titles.
     preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
     /// Advances with every output change; a delayed record checks it.
@@ -357,6 +376,11 @@ enum Rest {
     Reviewed {
         draft: Box<Draft>,
         policy: CollisionPolicy,
+    },
+    /// Stop a title's export, then submit `draft` (that title alone).
+    Restart {
+        draft: Box<Draft>,
+        link: Box<ExportLink>,
     },
     Save {
         epoch: u64,
@@ -413,6 +437,9 @@ impl SessionRun {
                 tasks.track_future(session.submit(*draft)).await
             }
             Rest::Save { epoch, plan } => tasks.track_future(session.save(epoch, plan)).await,
+            Rest::Restart { draft, link } => {
+                tasks.track_future(session.restart(*draft, *link)).await
+            }
             Rest::CoverLoad { source, started } => session.load_cover(source, started).await,
             Rest::LookupSearch { request } => session.lookup_search(request, None).await,
             Rest::LookupApply { request, chosen } => session.lookup_apply(request, *chosen).await,
@@ -445,7 +472,7 @@ impl Session {
                 deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
                 list_unlocked: tokio::sync::Notify::new(),
-                sweeping: tokio::sync::Mutex::new(()),
+                sweeping: AtomicBool::new(false),
                 preview_cancels: Mutex::default(),
                 output_edits: AtomicU64::new(0),
             }),
@@ -462,62 +489,81 @@ impl Session {
     }
 
     /// Runs one atomic transition and re-derives the snapshots. Title plans
-    /// the transition made stale are resolved in the background.
+    /// the transition made stale are resolved in the background, and a
+    /// download the transition left removable is removed.
     fn transition<T>(&self, change: impl FnOnce(&mut SessionState) -> T) -> T {
-        let (value, tickets, released) = {
+        let (value, tickets, sweep) = {
             let mut state = self.lock();
             let value = change(&mut state);
             let tickets = state.take_plan_tickets();
             state.settle();
-            (value, tickets, state.take_staged_released())
+            (value, tickets, self.sweep_due(&state))
         };
         if !tickets.is_empty() {
             self.resolve_plans(tickets);
         }
-        if released {
+        if sweep {
             self.sweep_staged();
         }
         value
     }
 
-    /// Removes the downloads no title or export needs any more.
+    /// Whether a download may be removed now and no sweep is on its way.
+    /// Every change that frees a download is a transition, so this is the
+    /// one place a sweep starts.
+    fn sweep_due(&self, state: &SessionState) -> bool {
+        !state.staged.is_empty()
+            && !self.inner.sweeping.load(Ordering::SeqCst)
+            && !state
+                .removable_staged(&self.inner.deps.work.sources_held(), now())
+                .is_empty()
+    }
+
+    /// Removes the downloads no title or export needs any more, until none
+    /// is left to remove.
     fn sweep_staged(&self) {
-        if tokio::runtime::Handle::try_current().is_err() || self.lock().staged.is_empty() {
+        if tokio::runtime::Handle::try_current().is_err()
+            || self.inner.sweeping.swap(true, Ordering::SeqCst)
+        {
             return;
         }
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
-            let _one_at_a_time = session.inner.sweeping.lock().await;
-            // Read under the session lock, so no submission can reserve a
-            // file between this check and its removal.
-            let jobs = session.transition(|state| {
-                if state.staged.is_empty() {
-                    return Vec::new();
+            loop {
+                // Read under the session lock, so no submission can reserve a
+                // file between this check and its removal. The flag clears
+                // under the same lock, so a transition that frees a download
+                // afterwards starts the next sweep.
+                let jobs = session.transition(|state| {
+                    let held = session.inner.deps.work.sources_held();
+                    let jobs = state.begin_staged_removal(&held, now());
+                    if jobs.is_empty() {
+                        session.inner.sweeping.store(false, Ordering::SeqCst);
+                    }
+                    jobs
+                });
+                if jobs.is_empty() {
+                    return;
                 }
-                let held = session.inner.deps.work.sources_held();
-                state.begin_staged_removal(&held)
-            });
-            if jobs.is_empty() {
-                return;
-            }
-            for job_id in jobs {
-                let remove = Arc::clone(&session.inner.deps.remove_staged);
-                let id = job_id.clone();
-                let removed = blocking(move || remove(&id)).await;
-                if let Err(error) = &removed {
-                    log::warn!("Failed to remove staged download job_id={job_id}: {error}");
+                for job_id in jobs {
+                    let remove = Arc::clone(&session.inner.deps.remove_staged);
+                    let id = job_id.clone();
+                    let removed = blocking(move || remove(&id)).await;
+                    if let Err(error) = &removed {
+                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
+                    }
+                    session.transition(|state| {
+                        state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                    });
                 }
-                session.transition(|state| state.finish_staged_removal(&job_id, removed.is_ok()));
+                session.publish();
             }
-            session.publish();
         });
     }
 
-    /// Records which titles an export finished, then removes what is no
-    /// longer needed.
+    /// Records which titles an export finished.
     fn export_finished(&self, snapshot: &OperationSnapshot) {
         self.transition(|state| state.staged.finish_export(&snapshot.children));
-        self.sweep_staged();
     }
 
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
@@ -532,7 +578,7 @@ impl Session {
                 let resolving = ticket.clone();
                 let result = tokio::task::spawn_blocking(move || resolving.resolve())
                     .await
-                    .unwrap_or_else(|error| Err(error.to_string()));
+                    .unwrap_or_else(|error| Err(error.to_string().into()));
                 session.transition(|state| state.finish_plan(&ticket, result));
             }
             session.publish();
@@ -723,6 +769,11 @@ impl Session {
                 self.cancel_review();
                 Rest::Done(SessionOutcome::Applied)
             }
+            I::RestartTitle { title_id, revision } => self.begin_restart(&title_id, revision),
+            I::KeepTitleLocation { title_id, revision } => {
+                self.transition(|state| state.keep_location(&title_id, revision));
+                Rest::Done(SessionOutcome::Applied)
+            }
 
             I::LookupOpen => self.begin_lookup_open(),
             I::LookupClose => {
@@ -882,7 +933,6 @@ impl Session {
                 )
                 .collect();
             self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
-            self.sweep_staged();
         }
         handoff
     }
@@ -1097,10 +1147,24 @@ impl Session {
             )
             .await;
         let status = match submitted {
-            Ok(accepted) => SubmissionStatus::Submitted {
-                operation_id: accepted.operation_id,
-                title: draft.title.clone(),
-            },
+            Ok(accepted) => {
+                self.transition(|state| {
+                    state.link_exports(&draft, &accepted.operation_id, &accepted.titles);
+                });
+                let linked: Vec<String> = draft
+                    .payload
+                    .input_ids
+                    .iter()
+                    .flatten()
+                    .flatten()
+                    .cloned()
+                    .collect();
+                self.catch_up_outputs(&linked).await;
+                SubmissionStatus::Submitted {
+                    operation_id: accepted.operation_id,
+                    title: draft.title.clone(),
+                }
+            }
             Err(error) => failed(&error),
         };
         self.end_submission(&draft, status)
@@ -1129,12 +1193,10 @@ impl Session {
     }
 
     /// A submission ended and freed its sources and the list: wakes a Save
-    /// and an acquisition handoff waiting on them, and removes downloads
-    /// nothing holds now.
+    /// and an acquisition handoff waiting on them.
     fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
-        self.sweep_staged();
     }
 
     /// Ends a submission; its sources stay reserved until WorkRuntime has
@@ -1273,6 +1335,7 @@ impl Session {
         if plan.waiting > 0 {
             self.ensure_deferred_writer();
         }
+        let outputs = self.update_outputs(plan.outputs).await;
 
         let mut saved = Vec::new();
         let mut status = MetadataStatus::SaveComplete {
@@ -1281,7 +1344,19 @@ impl Session {
             cancelled: 0,
             waiting: plan.waiting,
             held: plan.held,
+            outputs,
         };
+        let nothing = plan.immediate.is_empty()
+            && plan.waiting == 0
+            && plan.held == 0
+            && outputs == OutputEdits::default();
+        if nothing {
+            status = if plan.grouped {
+                MetadataStatus::GroupedEditsKept
+            } else {
+                MetadataStatus::NoPendingChanges
+            };
+        }
         let written_paths: Vec<PathBuf> = plan
             .immediate
             .iter()
@@ -1297,6 +1372,7 @@ impl Session {
                         cancelled: written.cancelled,
                         waiting: plan.waiting,
                         held: plan.held,
+                        outputs,
                     };
                     saved = plan
                         .immediate
@@ -1315,9 +1391,109 @@ impl Session {
             }
         }
         self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
-        // A sweep waits while a Save writes.
-        self.sweep_staged();
         SessionOutcome::Applied
+    }
+
+    /// Sends each exported title's edit to its output, then records restart
+    /// offers and ended links.
+    /// A published output is written before this returns, so the Save's
+    /// status says whether it took the edit; an unpublished one takes it at
+    /// publication and reports through its export's snapshot.
+    async fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
+        if edits.is_empty() {
+            return OutputEdits::default();
+        }
+        let mut replies = Vec::with_capacity(edits.len());
+        for edit in edits {
+            let mut reply = edit
+                .title
+                .update(edit.revision, &edit.intent)
+                .map_err(|error| error.to_string());
+            if matches!(
+                reply,
+                Ok(UpdateReply::Accepted {
+                    published: true,
+                    ..
+                })
+            ) {
+                let title = Arc::clone(&edit.title);
+                let _ = blocking(move || {
+                    title.apply_published();
+                    Ok(())
+                })
+                .await;
+                if let Some(OutputUpdate {
+                    status: OutputUpdateStatus::Failed { message },
+                    ..
+                }) = edit.title.update_state()
+                {
+                    reply = Err(message);
+                }
+            }
+            replies.push((edit, reply));
+        }
+        self.transition(|state| state.record_output_edits(replies))
+    }
+
+    /// Brings outputs linked by a just-accepted export up to the session's
+    /// edits: a Save made while the submission was being prepared did not
+    /// reach the export.
+    async fn catch_up_outputs(&self, title_ids: &[String]) {
+        let edits = self.transition(|state| {
+            let tags = &state.tags;
+            state
+                .exports
+                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
+                .into_iter()
+                .filter(|edit| title_ids.contains(&edit.title_id))
+                .collect::<Vec<_>>()
+        });
+        self.update_outputs(edits).await;
+    }
+
+    fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
+        let closing = self.inner.deps.tasks.is_closed();
+        let started = self.transition(|state| {
+            if closing {
+                state.refuse_submission(SubmitRefusal::Closing);
+                return None;
+            }
+            state.begin_restart(title_id, revision)
+        });
+        match started {
+            Some((draft, link)) => Rest::Restart {
+                draft: Box::new(draft),
+                link: Box::new(link),
+            },
+            None => Rest::Done(SessionOutcome::Applied),
+        }
+    }
+
+    /// Stops the title's export, then submits it again from the session. A
+    /// title that published first keeps its output, which takes the edit.
+    async fn restart(&self, draft: Draft, link: ExportLink) -> SessionOutcome {
+        self.publish();
+        let deps = &self.inner.deps;
+        let published = deps
+            .work
+            .stop_title(&deps.host, &link.operation_id, link.index, &link.title)
+            .await;
+        if !published {
+            return self.submit(draft).await;
+        }
+        let outcome = self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart);
+        let edit = self.transition(|state| {
+            let tags = &state.tags;
+            state
+                .exports
+                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
+                .into_iter()
+                .find(|edit| edit.title_id == draft_title_id(&draft))
+        });
+        if let Some(edit) = edit {
+            self.update_outputs(vec![edit]).await;
+        }
+        outcome
     }
 
     /// Writes `items` as one accepted operation. The result says, per item,
@@ -1403,7 +1579,6 @@ impl Session {
                 })
                 .collect();
             self.transition(|state| state.finish_deferred(&results));
-            self.sweep_staged();
             self.publish();
         }
     }
@@ -1715,6 +1890,22 @@ fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
             (file.title_id.clone(), path)
         })
         .collect()
+}
+
+/// The time staged-download retries are measured in: tokio's clock, so a
+/// paused test runtime can move it.
+/// The title a one-title draft submits.
+fn draft_title_id(draft: &Draft) -> String {
+    draft
+        .payload
+        .input_ids
+        .as_ref()
+        .and_then(|ids| ids.first().cloned().flatten())
+        .unwrap_or_default()
+}
+
+fn now() -> std::time::Instant {
+    tokio::time::Instant::now().into_std()
 }
 
 async fn blocking<T: Send + 'static>(

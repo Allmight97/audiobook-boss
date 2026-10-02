@@ -41,8 +41,8 @@ pub use abb_metadata_core::{
 pub(crate) use abb_metadata_core::{AlbumSortWriteAction, MetadataWritePlan};
 pub use intent_plan::CoverArtPassthroughPolicy;
 pub(crate) use intent_plan::{
-    plan_metadata_outcome, plan_metadata_write_for_path, MetadataOutcomePlan,
-    MetadataOutcomeRequest,
+    plan_metadata_outcome, plan_metadata_outcome_from, plan_metadata_write_for_path,
+    MetadataOutcomePlan, MetadataOutcomeRequest,
 };
 
 impl From<MetadataCoreError> for AppError {

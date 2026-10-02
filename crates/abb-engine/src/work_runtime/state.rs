@@ -459,6 +459,37 @@ impl WorkRuntimeState {
         Ok(snapshot)
     }
 
+    /// Records the update state of the title at `input_index`. Returns the
+    /// snapshot when the operation is still listed.
+    pub(crate) fn set_output_update(
+        &mut self,
+        operation_id: &OperationId,
+        input_index: usize,
+        update: Option<crate::processing::OutputUpdate>,
+    ) -> Option<OperationSnapshot> {
+        let snapshot = self.snapshot_mut(operation_id).ok()?;
+        let child = snapshot
+            .children
+            .iter_mut()
+            .find(|child| child.input_index == Some(input_index))?;
+        child.output_update = update;
+        Some(snapshot.clone())
+    }
+
+    /// The child id of the title at `input_index`.
+    pub(crate) fn child_job_id(
+        &self,
+        operation_id: &OperationId,
+        input_index: usize,
+    ) -> Option<String> {
+        self.operations
+            .get(operation_id.as_str())?
+            .children
+            .iter()
+            .find(|child| child.input_index == Some(input_index))
+            .map(|child| child.child_job_id.clone())
+    }
+
     fn snapshot_mut(&mut self, operation_id: &OperationId) -> Result<&mut OperationSnapshot> {
         let snapshot = self
             .operations

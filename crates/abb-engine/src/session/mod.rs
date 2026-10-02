@@ -8,6 +8,7 @@
 
 mod audio;
 mod audio_choice;
+mod exports;
 mod lookup;
 mod metadata_form;
 mod output;
@@ -21,6 +22,7 @@ mod working_set;
 
 pub use audio::{AudioChoiceView, AudioSnapshot, TitleAudio};
 pub use audio_choice::{AudioChoice, AudioChoiceFacts, AudioEdit, FaacRateControl};
+pub use exports::{OutputEdits, RestartOffer};
 pub use lookup::{
     LookupApplyMode, LookupQueuePosition, LookupSnapshot, LookupSource, LookupStatus, QueueStep,
 };

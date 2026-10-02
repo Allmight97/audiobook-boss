@@ -1,6 +1,7 @@
 import type { ProcessingProgressEvent, ProcessingQueueEvent } from '../../types/events';
 import type { AudioFile, ProcessCommandResult } from '../../types/audio';
 import { buildQueueLabels, extractFilenameFromProgress } from './formatting';
+import type { RestartOffer } from '../../types/session';
 import { runSubmission, type SubmitDeps } from './submit';
 import {
 	renderConcurrencyStatus,
@@ -75,7 +76,10 @@ export class StatusPanelRuntime {
 		this.coverArt.reset();
 	}
 
-	public async startProcessing(options?: { previewSeconds?: number }): Promise<void> {
+	public async startProcessing(options?: {
+		previewSeconds?: number;
+		restart?: RestartOffer;
+	}): Promise<void> {
 		this.clearSingleCompletionTimeout();
 		this.clearBatchCompletionTimeout();
 

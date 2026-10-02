@@ -9,8 +9,19 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Saving metadata while an export is reading the same file no longer risks
   changing the file mid-export. A file you imported from disk is updated as
   soon as every export reading it finishes. The save shows as waiting until
-  then, and the status says when it was written or failed. An Audible or indexer download being exported is left as is;
-  its edits stay pending.
+  then, and the status says when it was written or failed. An Audible or
+  indexer download is never changed; its edits go with its exports.
+- Saving metadata for a title that is exporting, or already exported, updates
+  that export's audiobook too: its tags and cover, before or after it
+  finishes. If the edit would change where an unfinished audiobook goes, ABB
+  asks whether to restart it at the new location (removing its unfinished
+  output and the empty folders made for it) or let it finish where it is. A
+  finished audiobook is retagged where it is and never moved.
+- A cancelled or failed title removes the empty folders made for it right
+  away, without removing a folder another export is writing into.
+- Quitting while an Audible download is running asks first.
+- The encoder panel's Auto sample rate and channels show what the export will
+  actually use.
 - Quitting or closing the window while exports are running asks first.
   Quitting then cancels the exports and any running preview cleanly and saves
   any metadata changes that were waiting for them before ABB closes. If that

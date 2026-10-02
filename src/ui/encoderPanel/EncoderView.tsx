@@ -281,7 +281,7 @@ export function EncoderView(
 												)}
 											</For>
 										</select>
-										<Show when={/choose/i.test(view().sampleRateHint)}>
+										<Show when={view().sampleRateHint}>
 											<p
 												id={id('output-samplerate-effective')}
 												class="field-hint"
@@ -312,7 +312,7 @@ export function EncoderView(
 												{(option) => <option value={option.value}>{option.label}</option>}
 											</For>
 										</select>
-										<Show when={/choose|downmix/i.test(view().channelsHint)}>
+										<Show when={view().channelsHint}>
 											<p
 												id={id('output-channels-effective')}
 												class="field-hint"

@@ -55,11 +55,14 @@ fn a_download_goes_only_when_every_title_from_it_is_finished_with() {
     let free = HashSet::new();
 
     assert!(staged.finish(["alpha"]));
-    assert!(staged.removable(&free).is_empty(), "beta still needs job-1");
+    assert!(
+        staged.removable(&free, Instant::now()).is_empty(),
+        "beta still needs job-1"
+    );
 
     // Beta left the list; gamma is still listed.
     assert!(staged.finish_unlisted(&HashSet::from(["alpha", "gamma"])));
-    assert_eq!(staged.removable(&free), ["job-1"]);
+    assert_eq!(staged.removable(&free, Instant::now()), ["job-1"]);
 
     staged.removed("job-1");
     assert!(!staged.finish(["alpha"]), "a removed job is forgotten");
@@ -78,7 +81,10 @@ fn only_titles_published_with_their_companions_finish_with_their_download() {
         ("omega", ChildJobStatus::Skipped, false),
     ]));
 
-    assert_eq!(staged.removable(&HashSet::new()), ["job-1", "job-2"]);
+    assert_eq!(
+        staged.removable(&HashSet::new(), Instant::now()),
+        ["job-1", "job-2"]
+    );
 }
 
 #[test]
@@ -87,10 +93,10 @@ fn a_finished_download_waits_while_anything_reads_its_files() {
     staged.finish(["alpha", "beta"]);
 
     let reading_audio = HashSet::from([path("beta")]);
-    assert!(staged.removable(&reading_audio).is_empty());
+    assert!(staged.removable(&reading_audio, Instant::now()).is_empty());
     let reading_pdf = HashSet::from([PathBuf::from("/staged/alpha.pdf")]);
-    assert!(staged.removable(&reading_pdf).is_empty());
-    assert_eq!(staged.removable(&HashSet::new()), ["job-1"]);
+    assert!(staged.removable(&reading_pdf, Instant::now()).is_empty());
+    assert_eq!(staged.removable(&HashSet::new(), Instant::now()), ["job-1"]);
 }
 
 #[test]
@@ -106,4 +112,17 @@ fn exports_take_each_title_companions_by_input_id() {
         staged.companions(),
         BTreeMap::from([("alpha".to_string(), vec!["alpha.pdf".to_string()])])
     );
+}
+
+#[test]
+fn a_failed_removal_is_tried_again_only_after_the_retry_delay() {
+    let mut staged = staged();
+    staged.finish(["alpha", "beta"]);
+    let failed = Instant::now();
+    staged.removal_failed("job-1", failed);
+
+    let free = HashSet::new();
+    assert!(staged.removable(&free, failed).is_empty());
+    assert!(staged.removable(&free, failed + RETRY_DELAY / 2).is_empty());
+    assert_eq!(staged.removable(&free, failed + RETRY_DELAY), ["job-1"]);
 }

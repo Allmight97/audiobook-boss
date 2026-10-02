@@ -1,9 +1,13 @@
 use crate::errors::{AppError, AppErrorCategory, AppErrorEnvelope, Result};
 use crate::host::Host;
-use crate::processing::plan::{prepare_execution_plan, resolve_preflight_plan};
+use crate::processing::plan::{
+    prepare_execution_plan, resolve_preflight_plan, resolve_processing_plan, title_file_info,
+};
+use crate::processing::title_output::{TitleOutput, TitleOutputPlan};
 use crate::processing::{ProcessCommandResult, ProcessPayload, ProcessingPreflightPlan};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 mod run_dispatch;
 mod run_job;
@@ -91,6 +95,34 @@ pub fn preflight_payload(
     let file_info = inspect_and_validate_external_processing_contract(&payload)?;
 
     resolve_preflight_plan(&payload, metadata.as_ref(), preview_seconds, &file_info)
+}
+
+/// Preflights an export, then gives each title an output record from what
+/// the preflight read.
+pub(crate) fn preflight_title_outputs(
+    payload: &ProcessPayload,
+    metadata: Option<&HashMap<String, crate::metadata::MetadataIntentPatch>>,
+) -> Result<Vec<Arc<TitleOutput>>> {
+    let file_info = inspect_and_validate_external_processing_contract(payload)?;
+    let plan = resolve_processing_plan(payload, metadata, None, &file_info)?;
+    plan.jobs
+        .into_iter()
+        .map(|job| {
+            let sources = title_file_info(&file_info, &job.source_paths)?.files;
+            TitleOutput::new(TitleOutputPlan {
+                anchor: job.input_path,
+                sources: crate::audio::passthrough_sources_from_audio_files(&sources),
+                base: job.source_metadata,
+                accepted: metadata
+                    .and_then(|map| map.get(&payload.input_files[job.input_index]))
+                    .cloned(),
+                output_dir: PathBuf::from(&payload.output_dir),
+                naming: payload.output_naming.clone().unwrap_or_default(),
+                extension: job.audio_plan.format.extension().to_string(),
+                requested: job.output.requested_path,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -3,6 +3,8 @@ import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
 import type { InputOwner } from '../inputSession';
 import type { OutputPlanOwner } from '../outputPlan';
+import { tauriClient } from '../../lib/tauri/client';
+import type { RestartOffer } from '../../types/session';
 import { renderConcurrencyStatus } from './render';
 import { StatusPanelRuntime } from './runtime';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
@@ -51,6 +53,36 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			showError: (message) => statusView.showError(message),
 		},
 	});
+	// A Save that would move an unfinished export asks once per offer.
+	const asked = new Set<string>();
+	async function answer(offer: RestartOffer): Promise<void> {
+		const restart = await tauriClient.ask(
+			`This Save changes where the audiobook goes.\n\nFrom: ${offer.from}\nTo: ${offer.to}\n\n` +
+				'Restart it at the new location? Its unfinished output and any empty folders made for it are removed. ' +
+				'Keep Location lets the export finish where it is.',
+			{ title: 'Restart this export?', okLabel: 'Restart', cancelLabel: 'Keep Location' },
+		);
+		if (restart) {
+			await statusRuntime.startProcessing({ restart: offer });
+		} else {
+			deps.link.post({
+				kind: 'keepTitleLocation',
+				titleId: offer.titleId,
+				revision: offer.revision,
+			});
+		}
+	}
+	createEffect(
+		() => deps.link.output().restartOffers,
+		(offers) => {
+			for (const offer of offers) {
+				const key = `${offer.titleId}:${offer.revision}`;
+				if (asked.has(key)) continue;
+				asked.add(key);
+				void answer(offer);
+			}
+		},
+	);
 	createEffect(
 		() => deps.settings.concurrency(),
 		(concurrency) => {

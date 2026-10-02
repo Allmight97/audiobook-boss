@@ -3,6 +3,7 @@ import type {
 	AudioChoiceFacts,
 	AudioEdit,
 	FaacRateControl,
+	TitlePlan,
 } from '../../types/session';
 import type {
 	AudiobookFormat,
@@ -11,7 +12,6 @@ import type {
 	EncoderType,
 	FaacProfile,
 } from '../../types/audio';
-import type { AutoResolutionHints } from './hints';
 
 export type EncodingField =
 	| 'format'
@@ -57,11 +57,12 @@ export type EncodingView = {
 	readonly sampleRate: string;
 	readonly sampleRateOptions: ReadonlyArray<EncodingOption>;
 	readonly sampleRateDisabled: boolean;
-	readonly sampleRateHint: string;
+	/** A note under the sample rate, when the engine has one. */
+	readonly sampleRateHint: string | null;
 	readonly channels: string;
 	readonly channelOptions: ReadonlyArray<EncodingOption>;
 	readonly channelsDisabled: boolean;
-	readonly channelsHint: string;
+	readonly channelsHint: string | null;
 };
 
 /** What the panel shows for one engine choice. */
@@ -69,7 +70,10 @@ export type EncodingSource = {
 	readonly choice: AudioChoice;
 	readonly facts: AudioChoiceFacts;
 	readonly capabilities: EncoderSettingsCapabilities | null;
-	readonly hints: AutoResolutionHints;
+	/** The engine's plan for each title shown; `null` for the defaults. */
+	readonly plans: readonly TitlePlan[] | null;
+	/** Whether a shown source has more than two channels. */
+	readonly multichannelInput: boolean;
 };
 
 const ENCODER_PROFILES: Record<EncoderType, string> = {
@@ -132,29 +136,54 @@ function channelLabel(value: string): string {
 	}
 }
 
-function sampleRateText(source: EncodingSource): string {
+/**
+ * What Auto resolves to, from the engine's plans: one value when every title
+ * resolved to it, "Differs by title" when they disagree, and no detail while
+ * a plan is pending or failed. The defaults describe future imports.
+ */
+function autoLabel(
+	plans: readonly TitlePlan[] | null,
+	auto: boolean,
+	value: (plan: Extract<TitlePlan, { kind: 'resolved' }>['plan']) => string,
+): string {
+	if (plans === null) return 'Auto · Source audio';
+	if (!auto || plans.length === 0 || plans.some((plan) => plan.kind !== 'resolved')) return 'Auto';
+	const values = new Set(plans.map((plan) => (plan.kind === 'resolved' ? value(plan.plan) : '')));
+	return values.size === 1 ? `Auto · ${[...values][0]}` : 'Auto · Differs by title';
+}
+
+function kHz(sampleRate: number): string {
+	return `${sampleRate / 1000} kHz`;
+}
+
+function channelCount(channels: number): string {
+	return channels === 1 ? 'Mono' : channels === 2 ? 'Stereo' : `${channels} channels`;
+}
+
+/** The engine's reason a shown title failed on `field`. */
+function planProblem(
+	plans: readonly TitlePlan[] | null,
+	field: 'sampleRate' | 'channels',
+): string | null {
+	for (const plan of plans ?? []) {
+		if (plan.kind === 'failed' && plan.field === field) return plan.message;
+	}
+	return null;
+}
+
+function sampleRateHint(source: EncodingSource): string | null {
 	const { choice, facts, capabilities } = source;
-	if (choice.sampleRate === 'auto')
-		return opus(choice.format)
-			? 'Auto → next supported Opus input rate'
-			: source.hints.sampleRateHint;
-	if (capabilities && !facts.sampleRateSupported)
+	if (choice.sampleRate !== 'auto' && capabilities && !facts.sampleRateSupported)
 		return 'Choose a supported sample rate for this encoder.';
-	return `Using ${sampleRateLabel(String(choice.sampleRate.explicit))}.`;
+	return planProblem(source.plans, 'sampleRate');
 }
 
-function channelsText(source: EncodingSource): string {
-	const { choice, hints } = source;
-	if (choice.channels === 'auto') return hints.channelsHint;
-	const downmix = hints.hasMultichannelInput ? ' Surround downmix omits bass effects (LFE).' : '';
-	return `Using ${channelLabel(choice.channels)}.${downmix}`;
-}
-
-function autoResolutionLabel(hint: string): string {
-	const detail = hint.replace(/^Auto\s*(?:->|→)\s*/, '');
-	return detail === hint
-		? 'Auto · Choose channels'
-		: `Auto · ${detail.charAt(0).toUpperCase()}${detail.slice(1)}`;
+function channelsHint(source: EncodingSource): string | null {
+	const problem = planProblem(source.plans, 'channels');
+	if (problem) return problem;
+	return source.choice.channels !== 'auto' && source.multichannelInput
+		? 'Surround downmix omits bass effects (LFE).'
+		: null;
 }
 
 function encoderUnavailable(
@@ -190,16 +219,17 @@ export function projectView(source: EncodingSource): EncodingView {
 				value,
 				label:
 					value === 'auto'
-						? autoResolutionLabel(
-								sampleRateText({ ...source, choice: { ...choice, sampleRate: 'auto' } }),
-							)
+						? autoLabel(source.plans, choice.sampleRate === 'auto', (plan) => kHz(plan.sampleRate))
 						: sampleRateLabel(value),
 				disabled: value !== 'auto' && !facts.allowedSampleRates.includes(Number(value)),
 			}))
 		: [];
 	const channelOptions = (capabilities?.channelOptions ?? []).map((value) => ({
 		value,
-		label: value === 'auto' ? autoResolutionLabel(source.hints.channelsHint) : channelLabel(value),
+		label:
+			value === 'auto'
+				? autoLabel(source.plans, choice.channels === 'auto', (plan) => channelCount(plan.channels))
+				: channelLabel(value),
 	}));
 	const showQuality = facts.bitrateMode.mode === 'vbr';
 
@@ -246,11 +276,11 @@ export function projectView(source: EncodingSource): EncodingView {
 		sampleRate,
 		sampleRateOptions,
 		sampleRateDisabled: sampleRateOptions.length === 0,
-		sampleRateHint: sampleRateText(source),
+		sampleRateHint: sampleRateHint(source),
 		channels: choice.channels,
 		channelOptions,
 		channelsDisabled: channelOptions.length === 0,
-		channelsHint: channelsText(source),
+		channelsHint: channelsHint(source),
 	};
 }
 
