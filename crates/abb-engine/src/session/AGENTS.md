@@ -135,9 +135,11 @@ attachment.
   completed an export without a companion warning or left the list (hidden
   grouped sources count as listed), and no unfinished export, submission,
   or Save writing holds its files. Files being removed count as busy: Save
-  holds them and a submission using them is refused. A failed removal stays
-  recorded and is retried by the next sweep; startup clears the rest. A
-  download nothing was imported from is recorded the same way, so its
+  holds them and a submission using them is refused. Every transition that
+  leaves a download removable starts the one sweep (`Session::transition`);
+  no other code path removes downloads. A failed removal stays recorded and is
+  retried at the first change after `staged::RETRY_DELAY`; startup clears the
+  rest. A download nothing was imported from is recorded the same way, so its
   removal is retried too.
 - **Lookup.** A new lookup action supersedes the one in flight; a late search,
   cover, or selection result changes nothing. A result applies only to the

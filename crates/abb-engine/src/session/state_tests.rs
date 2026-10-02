@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::time::Instant;
 
 use proptest::prelude::*;
 
@@ -1506,12 +1507,15 @@ fn a_download_waits_for_the_export_and_the_submission_reading_it() {
     // Beta leaves the list while an export still reads it.
     desk.state.working_set.remove_file(1);
     desk.state.settle();
-    assert!(desk.state.take_staged_released());
     assert!(desk
         .state
-        .begin_staged_removal(&HashSet::from([path("beta")]))
+        .begin_staged_removal(&HashSet::from([path("beta")]), Instant::now())
         .is_empty());
-    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-2"]);
+    assert_eq!(
+        desk.state
+            .begin_staged_removal(&HashSet::new(), Instant::now()),
+        ["job-2"]
+    );
 
     // Alpha's export completed but it is submitted again.
     desk.state
@@ -1519,10 +1523,17 @@ fn a_download_waits_for_the_export_and_the_submission_reading_it() {
         .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
     desk.state.output.set_directory("/library".to_string());
     let draft = desk.state.begin_submission(None).expect("submission");
-    assert!(desk.state.begin_staged_removal(&HashSet::new()).is_empty());
+    assert!(desk
+        .state
+        .begin_staged_removal(&HashSet::new(), Instant::now())
+        .is_empty());
     desk.state
         .finish_submission(&draft, SubmissionStatus::Cancelled);
-    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
+    assert_eq!(
+        desk.state
+            .begin_staged_removal(&HashSet::new(), Instant::now()),
+        ["job-1"]
+    );
 }
 
 #[test]
@@ -1535,7 +1546,11 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
     desk.state
         .staged
         .finish_export(&exported(&[("alpha", ChildJobStatus::Completed, false)]));
-    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
+    assert_eq!(
+        desk.state
+            .begin_staged_removal(&HashSet::new(), Instant::now()),
+        ["job-1"]
+    );
 
     desk.type_into(MetadataField::Genre, "Mystery");
     let plan = desk
@@ -1555,7 +1570,8 @@ fn a_download_being_removed_is_neither_written_nor_submitted() {
         })
     );
 
-    desk.state.finish_staged_removal("job-1", true);
+    desk.state
+        .finish_staged_removal("job-1", true, Instant::now());
     assert!(desk.state.staged.is_empty());
 }
 
@@ -1571,7 +1587,10 @@ fn no_download_is_removed_while_a_save_writes() {
         .state
         .begin_save(&HashSet::new(), |_| false)
         .expect("save");
-    assert!(desk.state.begin_staged_removal(&HashSet::new()).is_empty());
+    assert!(desk
+        .state
+        .begin_staged_removal(&HashSet::new(), Instant::now())
+        .is_empty());
 
     let epoch = desk.state.epoch;
     desk.state.finish_save(
@@ -1586,7 +1605,11 @@ fn no_download_is_removed_while_a_save_writes() {
             held: 0,
         },
     );
-    assert_eq!(desk.state.begin_staged_removal(&HashSet::new()), ["job-1"]);
+    assert_eq!(
+        desk.state
+            .begin_staged_removal(&HashSet::new(), Instant::now()),
+        ["job-1"]
+    );
 }
 
 #[test]
@@ -1606,7 +1629,9 @@ fn a_save_still_writing_after_a_reset_keeps_its_file_busy() {
     desk.state.reset();
     desk.state.settle();
     assert!(
-        desk.state.begin_staged_removal(&HashSet::new()).is_empty(),
+        desk.state
+            .begin_staged_removal(&HashSet::new(), Instant::now())
+            .is_empty(),
         "the download is not removed under the write"
     );
     desk.import(&[("alpha", Some(alpha_tags()))]);

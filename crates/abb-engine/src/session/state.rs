@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use serde::Serialize;
 
@@ -249,8 +250,6 @@ pub(crate) struct SessionState {
     pub(crate) staged: StagedSources,
     /// Files of downloads being removed: nothing may write or submit them.
     removing: Vec<PathBuf>,
-    /// A title left the list, so a download may now be removable.
-    staged_released: bool,
     form: MetadataForm,
     bound: Vec<BoundTitle>,
     selection_key: Vec<PathBuf>,
@@ -318,7 +317,6 @@ impl Default for SessionState {
             reserved: Vec::new(),
             staged: StagedSources::default(),
             removing: Vec::new(),
-            staged_released: false,
             form,
             bound: Vec::new(),
             selection_key: Vec::new(),
@@ -347,9 +345,7 @@ impl SessionState {
         let mut changed = false;
 
         let listed = self.working_set.source_ids();
-        if self.staged.finish_unlisted(&listed) {
-            self.staged_released = true;
-        }
+        self.staged.finish_unlisted(&listed);
         let companions = self.staged.companions();
         if self.working_set.titles_changes() != self.parts.titles_changes
             || companions != self.parts.titles.companions
@@ -576,38 +572,44 @@ impl SessionState {
 
     // ---- Staged downloads ----
 
-    /// Whether a title left the list since this was last asked.
-    pub(crate) fn take_staged_released(&mut self) -> bool {
-        std::mem::take(&mut self.staged_released)
-    }
-
-    /// Picks the downloads to remove now and holds their files so nothing
-    /// writes or submits them meanwhile. `in_use` is every source of an
+    /// The downloads that may be removed now. `in_use` is every source of an
     /// unfinished export. Nothing is removed while a Save writes.
-    pub(crate) fn begin_staged_removal(&mut self, in_use: &HashSet<PathBuf>) -> Vec<String> {
+    pub(crate) fn removable_staged(&self, in_use: &HashSet<PathBuf>, now: Instant) -> Vec<String> {
         let writing = self.save_in_progress
             || !self.writing.is_empty()
             || self
                 .deferred
                 .iter()
                 .any(|write| write.phase == DeferredPhase::Writing);
-        if writing {
+        if writing || self.staged.is_empty() {
             return Vec::new();
         }
-        let busy = self.busy(in_use);
-        let jobs = self.staged.removable(&busy);
+        self.staged.removable(&self.busy(in_use), now)
+    }
+
+    /// Picks the downloads to remove now and holds their files so nothing
+    /// writes or submits them meanwhile.
+    pub(crate) fn begin_staged_removal(
+        &mut self,
+        in_use: &HashSet<PathBuf>,
+        now: Instant,
+    ) -> Vec<String> {
+        let jobs = self.removable_staged(in_use, now);
         for job_id in &jobs {
             self.removing.extend(self.staged.paths(job_id));
         }
         jobs
     }
 
-    /// Ends a removal; a failed one stays registered for the next attempt.
-    pub(crate) fn finish_staged_removal(&mut self, job_id: &str, removed: bool) {
+    /// Ends a removal; a failed one stays registered and is tried again
+    /// after `staged::RETRY_DELAY`.
+    pub(crate) fn finish_staged_removal(&mut self, job_id: &str, removed: bool, now: Instant) {
         let paths = self.staged.paths(job_id);
         self.removing.retain(|path| !paths.contains(path));
         if removed {
             self.staged.removed(job_id);
+        } else {
+            self.staged.removal_failed(job_id, now);
         }
     }
 

@@ -313,8 +313,8 @@ struct SessionInner {
     sources_freed: tokio::sync::Notify,
     /// Wakes acquisition handoffs waiting for the list to unlock.
     list_unlocked: tokio::sync::Notify,
-    /// One staged-download sweep runs at a time.
-    sweeping: tokio::sync::Mutex<()>,
+    /// A staged-download sweep is scheduled or running; one at a time.
+    sweeping: AtomicBool,
     /// Cancels the running preview's titles.
     preview_cancels: Mutex<Vec<Arc<AtomicBool>>>,
     /// Advances with every output change; a delayed record checks it.
@@ -445,7 +445,7 @@ impl Session {
                 deferred_writer_running: AtomicBool::new(false),
                 sources_freed: tokio::sync::Notify::new(),
                 list_unlocked: tokio::sync::Notify::new(),
-                sweeping: tokio::sync::Mutex::new(()),
+                sweeping: AtomicBool::new(false),
                 preview_cancels: Mutex::default(),
                 output_edits: AtomicU64::new(0),
             }),
@@ -462,62 +462,81 @@ impl Session {
     }
 
     /// Runs one atomic transition and re-derives the snapshots. Title plans
-    /// the transition made stale are resolved in the background.
+    /// the transition made stale are resolved in the background, and a
+    /// download the transition left removable is removed.
     fn transition<T>(&self, change: impl FnOnce(&mut SessionState) -> T) -> T {
-        let (value, tickets, released) = {
+        let (value, tickets, sweep) = {
             let mut state = self.lock();
             let value = change(&mut state);
             let tickets = state.take_plan_tickets();
             state.settle();
-            (value, tickets, state.take_staged_released())
+            (value, tickets, self.sweep_due(&state))
         };
         if !tickets.is_empty() {
             self.resolve_plans(tickets);
         }
-        if released {
+        if sweep {
             self.sweep_staged();
         }
         value
     }
 
-    /// Removes the downloads no title or export needs any more.
+    /// Whether a download may be removed now and no sweep is on its way.
+    /// Every change that frees a download is a transition, so this is the
+    /// one place a sweep starts.
+    fn sweep_due(&self, state: &SessionState) -> bool {
+        !state.staged.is_empty()
+            && !self.inner.sweeping.load(Ordering::SeqCst)
+            && !state
+                .removable_staged(&self.inner.deps.work.sources_held(), now())
+                .is_empty()
+    }
+
+    /// Removes the downloads no title or export needs any more, until none
+    /// is left to remove.
     fn sweep_staged(&self) {
-        if tokio::runtime::Handle::try_current().is_err() || self.lock().staged.is_empty() {
+        if tokio::runtime::Handle::try_current().is_err()
+            || self.inner.sweeping.swap(true, Ordering::SeqCst)
+        {
             return;
         }
         let session = self.clone();
         self.inner.deps.tasks.spawn(async move {
-            let _one_at_a_time = session.inner.sweeping.lock().await;
-            // Read under the session lock, so no submission can reserve a
-            // file between this check and its removal.
-            let jobs = session.transition(|state| {
-                if state.staged.is_empty() {
-                    return Vec::new();
+            loop {
+                // Read under the session lock, so no submission can reserve a
+                // file between this check and its removal. The flag clears
+                // under the same lock, so a transition that frees a download
+                // afterwards starts the next sweep.
+                let jobs = session.transition(|state| {
+                    let held = session.inner.deps.work.sources_held();
+                    let jobs = state.begin_staged_removal(&held, now());
+                    if jobs.is_empty() {
+                        session.inner.sweeping.store(false, Ordering::SeqCst);
+                    }
+                    jobs
+                });
+                if jobs.is_empty() {
+                    return;
                 }
-                let held = session.inner.deps.work.sources_held();
-                state.begin_staged_removal(&held)
-            });
-            if jobs.is_empty() {
-                return;
-            }
-            for job_id in jobs {
-                let remove = Arc::clone(&session.inner.deps.remove_staged);
-                let id = job_id.clone();
-                let removed = blocking(move || remove(&id)).await;
-                if let Err(error) = &removed {
-                    log::warn!("Failed to remove staged download job_id={job_id}: {error}");
+                for job_id in jobs {
+                    let remove = Arc::clone(&session.inner.deps.remove_staged);
+                    let id = job_id.clone();
+                    let removed = blocking(move || remove(&id)).await;
+                    if let Err(error) = &removed {
+                        log::warn!("Failed to remove staged download job_id={job_id}: {error}");
+                    }
+                    session.transition(|state| {
+                        state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                    });
                 }
-                session.transition(|state| state.finish_staged_removal(&job_id, removed.is_ok()));
+                session.publish();
             }
-            session.publish();
         });
     }
 
-    /// Records which titles an export finished, then removes what is no
-    /// longer needed.
+    /// Records which titles an export finished.
     fn export_finished(&self, snapshot: &OperationSnapshot) {
         self.transition(|state| state.staged.finish_export(&snapshot.children));
-        self.sweep_staged();
     }
 
     fn resolve_plans(&self, tickets: Vec<PlanTicket>) {
@@ -882,7 +901,6 @@ impl Session {
                 )
                 .collect();
             self.transition(|state| state.staged.register_unimported(&job.job_id, paths));
-            self.sweep_staged();
         }
         handoff
     }
@@ -1129,12 +1147,10 @@ impl Session {
     }
 
     /// A submission ended and freed its sources and the list: wakes a Save
-    /// and an acquisition handoff waiting on them, and removes downloads
-    /// nothing holds now.
+    /// and an acquisition handoff waiting on them.
     fn sources_released(&self) {
         self.inner.sources_freed.notify_one();
         self.inner.list_unlocked.notify_waiters();
-        self.sweep_staged();
     }
 
     /// Ends a submission; its sources stay reserved until WorkRuntime has
@@ -1315,8 +1331,6 @@ impl Session {
             }
         }
         self.transition(|state| state.finish_save(epoch, &written_paths, &saved, status));
-        // A sweep waits while a Save writes.
-        self.sweep_staged();
         SessionOutcome::Applied
     }
 
@@ -1403,7 +1417,6 @@ impl Session {
                 })
                 .collect();
             self.transition(|state| state.finish_deferred(&results));
-            self.sweep_staged();
             self.publish();
         }
     }
@@ -1715,6 +1728,12 @@ fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
             (file.title_id.clone(), path)
         })
         .collect()
+}
+
+/// The time staged-download retries are measured in: tokio's clock, so a
+/// paused test runtime can move it.
+fn now() -> std::time::Instant {
+    tokio::time::Instant::now().into_std()
 }
 
 async fn blocking<T: Send + 'static>(

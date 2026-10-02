@@ -6,10 +6,12 @@
 //! imported from it is finished with and no export or submission reads its
 //! files. A title is finished with when an export of it completed without a
 //! companion warning, or when it left the list. Skipped, cancelled, and
-//! failed exports keep the download for a retry.
+//! failed exports keep the download for a retry. A removal that fails is
+//! tried again once `RETRY_DELAY` has passed.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crate::processing::SupplementalProcessingAsset;
 use crate::work_runtime::{ChildJobSnapshot, ChildJobStatus};
@@ -20,10 +22,16 @@ pub(crate) struct StagedSources {
     jobs: BTreeMap<String, StagedJob>,
 }
 
+/// How long a download whose removal failed waits before the next attempt,
+/// so a lasting failure is not retried on every change to the session.
+pub(crate) const RETRY_DELAY: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Default)]
 struct StagedJob {
     /// By session input id.
     titles: BTreeMap<String, StagedTitle>,
+    /// After a failed removal, when the next attempt may start.
+    retry_at: Option<Instant>,
 }
 
 #[derive(Debug)]
@@ -151,20 +159,21 @@ impl StagedSources {
         any
     }
 
-    /// Jobs whose every title is finished with and none of whose files is
-    /// in `in_use`.
-    pub(crate) fn removable(&self, in_use: &HashSet<PathBuf>) -> Vec<String> {
+    /// Jobs whose every title is finished with, none of whose files is in
+    /// `in_use`, and whose last failed removal is `RETRY_DELAY` behind `now`.
+    pub(crate) fn removable(&self, in_use: &HashSet<PathBuf>, now: Instant) -> Vec<String> {
         self.jobs
             .iter()
             .filter(|(_, job)| {
-                job.titles.values().all(|title| {
-                    title.finished
-                        && !in_use.contains(&title.path)
-                        && !title
-                            .assets
-                            .iter()
-                            .any(|asset| in_use.contains(&asset.path))
-                })
+                job.retry_at.is_none_or(|at| now >= at)
+                    && job.titles.values().all(|title| {
+                        title.finished
+                            && !in_use.contains(&title.path)
+                            && !title
+                                .assets
+                                .iter()
+                                .any(|asset| in_use.contains(&asset.path))
+                    })
             })
             .map(|(job_id, _)| job_id.clone())
             .collect()
@@ -186,6 +195,13 @@ impl StagedSources {
     /// Forgets a job whose download was removed.
     pub(crate) fn removed(&mut self, job_id: &str) {
         self.jobs.remove(job_id);
+    }
+
+    /// Records that removing a job's download failed at `now`.
+    pub(crate) fn removal_failed(&mut self, job_id: &str, now: Instant) {
+        if let Some(job) = self.jobs.get_mut(job_id) {
+            job.retry_at = Some(now + RETRY_DELAY);
+        }
     }
 
     pub(crate) fn is_empty(&self) -> bool {

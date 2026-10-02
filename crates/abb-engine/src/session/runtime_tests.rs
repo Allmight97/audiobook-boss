@@ -51,6 +51,8 @@ struct Rig {
     cover: Arc<StdMutex<Result<Vec<u8>>>>,
     /// Acquisition jobs whose downloads the session removed.
     removed: Arc<StdMutex<Vec<String>>>,
+    /// Removals that fail before one succeeds.
+    failing_removals: Arc<std::sync::atomic::AtomicUsize>,
     /// Holds the settings the session records defaults into.
     _config: tempfile::TempDir,
 }
@@ -88,6 +90,7 @@ fn rig() -> Rig {
         }),
     };
     let removed: Arc<StdMutex<Vec<String>>> = Arc::default();
+    let failing_removals: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
     let config = tempfile::TempDir::new().expect("settings folder");
     let (settings, _, _) =
         SettingsRuntime::start(config.path().to_path_buf(), PowerManager::default());
@@ -106,8 +109,19 @@ fn rig() -> Rig {
             settings,
             remove_staged: {
                 let removed = Arc::clone(&removed);
+                let failing = Arc::clone(&failing_removals);
                 Arc::new(move |job_id| {
                     removed.lock().expect("removed").push(job_id.to_string());
+                    let fail = failing
+                        .fetch_update(
+                            std::sync::atomic::Ordering::SeqCst,
+                            std::sync::atomic::Ordering::SeqCst,
+                            |left| left.checked_sub(1),
+                        )
+                        .is_ok();
+                    if fail {
+                        return Err(AppError::General("disk busy".to_string()));
+                    }
                     Ok(())
                 })
             },
@@ -122,6 +136,7 @@ fn rig() -> Rig {
         replies,
         cover,
         removed,
+        failing_removals,
         _config: config,
     }
 }
@@ -1245,6 +1260,39 @@ async fn an_acquired_title_is_listed_with_its_companions_and_its_download_goes_w
         .expect("titles")
         .companions
         .is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_failed_removal_waits_out_the_retry_delay_before_the_next_change_retries_it() {
+    let rig = rig();
+    rig.failing_removals
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    let staging = tempfile::TempDir::new().expect("staging");
+    let audio = staged_wav(staging.path(), "book");
+    rig.session.import_acquired(acquired("job-1", &audio)).await;
+    let attempts = || rig.removed.lock().expect("removed").len();
+
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(rig.removed_jobs().await, ["job-1"]);
+    // Later changes inside the delay leave the failed download alone.
+    rig.send(SessionIntent::SetOutputDirectory {
+        directory: "/library".to_string(),
+    })
+    .await;
+    tokio::time::sleep(crate::session::staged::RETRY_DELAY / 2).await;
+    rig.send(SessionIntent::ClearAll).await;
+    assert_eq!(attempts(), 1);
+
+    tokio::time::sleep(crate::session::staged::RETRY_DELAY).await;
+    rig.send(SessionIntent::ClearAll).await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !rig.session.lock().staged.is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the change after the delay retries the removal");
+    assert_eq!(attempts(), 2);
 }
 
 #[tokio::test]
