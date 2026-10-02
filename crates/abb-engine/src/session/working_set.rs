@@ -448,6 +448,11 @@ impl WorkingSet {
 
     // ---- Order ----
 
+    /// Where the title with `title_id` is in the list now.
+    pub(crate) fn title_index(&self, title_id: &str) -> Option<usize> {
+        self.files.iter().position(|file| file.input_id == title_id)
+    }
+
     pub(crate) fn move_file(&mut self, index: usize, direction: MoveDirection) {
         if self.order_locked || index >= self.files.len() {
             return;

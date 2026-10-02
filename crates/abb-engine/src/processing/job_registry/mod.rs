@@ -45,6 +45,22 @@ struct Admission {
     jobs: HashSet<Uuid>,
     /// Semaphore limiting concurrent jobs
     semaphore: Arc<Semaphore>,
+    /// Accepted exports and previews still running (`ActiveRun`).
+    runs: usize,
+}
+
+/// Held for the whole life of an accepted export or a preview, so
+/// concurrency never changes under it, even between titles when no job is
+/// registered.
+pub(crate) struct ActiveRun {
+    registry: Arc<JobRegistry>,
+}
+
+impl Drop for ActiveRun {
+    fn drop(&mut self) {
+        let mut admission = self.registry.admission();
+        admission.runs = admission.runs.saturating_sub(1);
+    }
 }
 
 /// Internal batch scheduler facade backed by JobRegistry concurrency settings.
@@ -160,6 +176,7 @@ impl JobRegistry {
             admission: Mutex::new(Admission {
                 jobs: HashSet::new(),
                 semaphore: Arc::new(Semaphore::new(effective_max)),
+                runs: 0,
             }),
             max_concurrent: AtomicUsize::new(effective_max),
         }
@@ -223,6 +240,14 @@ impl JobRegistry {
         }
     }
 
+    /// Marks an export or preview as running until the guard drops.
+    pub(crate) fn hold_run(self: &Arc<Self>) -> ActiveRun {
+        self.admission().runs += 1;
+        ActiveRun {
+            registry: Arc::clone(self),
+        }
+    }
+
     fn admission(&self) -> MutexGuard<'_, Admission> {
         // Admission holds no invariant a panicking holder could half-apply.
         self.admission
@@ -255,7 +280,7 @@ impl JobRegistry {
     pub async fn update_max_concurrent(&self, max: usize) -> Result<usize> {
         let effective = Self::normalize_max(max);
         let mut admission = self.admission();
-        if !admission.jobs.is_empty() {
+        if !admission.jobs.is_empty() || admission.runs > 0 {
             return Err(AppError::InvalidInput(
                 "Cannot change max concurrency while jobs are active".to_string(),
             ));

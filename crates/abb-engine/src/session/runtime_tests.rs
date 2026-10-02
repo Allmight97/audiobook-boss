@@ -1659,3 +1659,28 @@ async fn wait_preview(
         )
     })
 }
+
+#[tokio::test]
+async fn moves_name_the_title_so_a_second_click_moves_the_same_title_again() {
+    let rig = rig();
+    rig.load(&["alpha", "beta", "gamma"]);
+    let up = || SessionIntent::MoveFile {
+        title_id: "gamma".to_string(),
+        direction: crate::session::MoveDirection::Up,
+    };
+
+    // Both clicks were sent before either was answered.
+    rig.send(up()).await;
+    rig.send(up()).await;
+
+    let order: Vec<String> = rig
+        .session
+        .snapshot()
+        .titles
+        .expect("titles")
+        .files
+        .into_iter()
+        .map(|file| file.input_id)
+        .collect();
+    assert_eq!(order, ["gamma", "alpha", "beta"]);
+}

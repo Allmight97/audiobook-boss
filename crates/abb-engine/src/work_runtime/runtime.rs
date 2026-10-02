@@ -114,6 +114,9 @@ impl WorkRuntime {
         on_finished: Option<OnFinished>,
     ) -> Result<WorkSubmissionAccepted> {
         let (titles, inspected) = planned;
+        // Concurrency stays fixed from acceptance until the export ends,
+        // including between titles when no job is registered.
+        let active_run = registry.hold_run();
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
         let title = request.title.trim().to_string();
@@ -173,6 +176,7 @@ impl WorkRuntime {
                 );
             }));
         self.inner.tasks.spawn(async move {
+            let _active_run = active_run;
             runtime.mark_running_and_emit(&host, &operation_id_for_task);
             let result = process_inspected_with_options(
                 host.clone(),

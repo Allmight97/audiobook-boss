@@ -85,6 +85,14 @@ function summaryText(operation: OperationSnapshot): string {
 	return operation.progress.message;
 }
 
+/** Why a title failed, or what to know about a finished one: a companion
+ * warning and the latest tag edit's outcome both show. */
+function childReason(child: ChildJobSnapshot): string | null {
+	if (child.status === 'failed') return child.message ?? null;
+	const notes = [child.supplementalWarning, outputUpdateText(child)].filter(Boolean);
+	return notes.length > 0 ? notes.join(' ') : null;
+}
+
 /** How a Save's edit to this title's output went, when there was one. */
 function outputUpdateText(child: ChildJobSnapshot): string | null {
 	const status = child.outputUpdate?.status;
@@ -248,13 +256,7 @@ export function WorkCenterView(): JSX.Element {
 															</button>
 														</Show>
 													</div>
-													<Show
-														when={
-															child.status === 'failed'
-																? child.message
-																: (child.supplementalWarning ?? outputUpdateText(child))
-														}
-													>
+													<Show when={childReason(child)}>
 														{(reason) => (
 															<div class="work-child-reason" title={reason()}>
 																{reason()}

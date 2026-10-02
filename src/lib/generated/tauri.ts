@@ -1058,7 +1058,14 @@ export type SessionIntent = { kind: "remote"; intent: RemoteUiIntent } |
  */
 { kind: "import"; paths: string[] } |
 /**  Imports the files the operating system asked ABB to open. */
-{ kind: "importOpened" } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } | { kind: "moveFile"; index: number; direction: MoveDirection } | { kind: "reorderFiles"; from: number; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } |
+{ kind: "importOpened" } | { kind: "selectFile"; index: number; modifiers: SelectionModifiers } | { kind: "selectAll" } | { kind: "clearSelection" } | { kind: "removeFile"; inputId: string } | { kind: "clearAll" } |
+/**
+ *  Moves a title one place. Named by identity, so a second click sent
+ *  before the first is answered moves the same title again.
+ */
+{ kind: "moveFile"; titleId: string; direction: MoveDirection } |
+/**  Moves a title to position `to`. */
+{ kind: "reorderFiles"; titleId: string; to: number } | { kind: "toggleSort" } | { kind: "restoreImportOrder" } | { kind: "groupSelected" } | { kind: "ungroup"; titleId: string } | { kind: "reorderSources"; titleId: string; from: number; to: number } | { kind: "chooseCue"; inputId: string; choice: CueChoice } |
 /**  Returns the session to empty. */
 { kind: "reset" } |
 /**  Exports every valid title. */

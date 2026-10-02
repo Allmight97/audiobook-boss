@@ -18,7 +18,10 @@
   tracked from the moment it waits for a permit, and `complete_job`/`fail_job`
   remove it on every terminal path. A failed, cancelled, or dropped admission
   removes itself.
-- Change concurrency via `update_max_concurrent` only when registry state is idle.
+- Change concurrency via `update_max_concurrent` only when registry state is
+  idle: no job registered and no `ActiveRun` held. WorkRuntime holds one from
+  an export's acceptance to its end, and the session for a preview, so the
+  gap between two titles never counts as idle.
 - Cancellation is title-scoped: `CancellationChecker::new` takes the title's
   cancel flag from WorkRuntime (set by title or whole-operation cancel), and
   direct previews pass none. The registry holds

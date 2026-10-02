@@ -188,11 +188,21 @@ export function createInputOwner(deps: InputOwnerDeps): InputOwner {
 		async clearAllFiles() {
 			await link.send({ kind: 'clearAll' });
 		},
+		// Positions are read from the list the user acted on; the engine is
+		// told which title, so an earlier move still in flight cannot redirect it.
 		moveFile(command) {
-			link.post({ kind: 'moveFile', index: command.index, direction: command.direction });
+			const file = link.titles().files[command.index];
+			if (!file) return;
+			link.post({
+				kind: 'moveFile',
+				titleId: fileIdentityKey(file),
+				direction: command.direction,
+			});
 		},
 		reorderFiles(command) {
-			link.post({ kind: 'reorderFiles', from: command.fromIndex, to: command.toIndex });
+			const file = link.titles().files[command.fromIndex];
+			if (!file) return;
+			link.post({ kind: 'reorderFiles', titleId: fileIdentityKey(file), to: command.toIndex });
 		},
 		toggleSort() {
 			link.post({ kind: 'toggleSort' });

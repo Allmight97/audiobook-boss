@@ -120,16 +120,20 @@ it('shows each failed file with its own reason', () => {
 	expect(screen.queryByText('Saved metadata: Feedback.m4b')).not.toBeInTheDocument();
 });
 
-it('shows a finished file whose PDF was not saved as done with the warning', () => {
+it('shows a finished file whose PDF was not saved as done, with every warning', () => {
 	const operation = completedOperation();
 	operation.children[0] = {
 		...operation.children[0]!,
 		supplementalWarning: 'Audiobook output was created, but the PDF could not be committed.',
+		outputUpdate: { revision: 2, status: { kind: 'failed', message: 'Disk full.' } },
 	};
 	showOperation(operation);
 	expect(screen.getByText('Done in 00:18')).toBeVisible();
+	// A failed tag edit shows alongside the companion warning, not hidden by it.
 	expect(
-		screen.getByText('Audiobook output was created, but the PDF could not be committed.'),
+		screen.getByText(
+			'Audiobook output was created, but the PDF could not be committed. Tags not updated: Disk full.',
+		),
 	).toBeVisible();
 });
 

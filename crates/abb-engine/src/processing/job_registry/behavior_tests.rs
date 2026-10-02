@@ -326,3 +326,16 @@ async fn test_scheduler_preserves_index_for_panicking_tasks() {
     assert_eq!(outcomes[2].as_ref().expect("index 2 should succeed"), &2);
     assert_eq!(outcomes[3].as_ref().expect("index 3 should succeed"), &3);
 }
+
+#[tokio::test]
+async fn concurrency_cannot_change_while_a_run_is_held_even_between_its_jobs() {
+    let registry = Arc::new(JobRegistry::new(2));
+    let run = registry.hold_run();
+
+    // No job is registered, yet the export is still running.
+    assert!(registry.update_max_concurrent(1).await.is_err());
+    assert!(registry.reset_to_auto().await.is_err());
+
+    drop(run);
+    assert_eq!(registry.update_max_concurrent(1).await.expect("idle"), 1);
+}

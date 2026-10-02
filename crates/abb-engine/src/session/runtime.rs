@@ -90,12 +90,17 @@ pub enum SessionIntent {
         input_id: String,
     },
     ClearAll,
+    /// Moves a title one place. Named by identity, so a second click sent
+    /// before the first is answered moves the same title again.
+    #[serde(rename_all = "camelCase")]
     MoveFile {
-        index: usize,
+        title_id: String,
         direction: MoveDirection,
     },
+    /// Moves a title to position `to`.
+    #[serde(rename_all = "camelCase")]
     ReorderFiles {
-        from: usize,
+        title_id: String,
         to: usize,
     },
     ToggleSort,
@@ -850,10 +855,19 @@ impl Session {
             I::Ungroup { title_id } => self.change_selection(|set| {
                 set.ungroup(&title_id);
             }),
-            I::MoveFile { index, direction } => {
-                self.edit_titles(|set| set.move_file(index, direction))
-            }
-            I::ReorderFiles { from, to } => self.edit_titles(|set| set.reorder_files(from, to)),
+            I::MoveFile {
+                title_id,
+                direction,
+            } => self.edit_titles(|set| {
+                if let Some(index) = set.title_index(&title_id) {
+                    set.move_file(index, direction);
+                }
+            }),
+            I::ReorderFiles { title_id, to } => self.edit_titles(|set| {
+                if let Some(from) = set.title_index(&title_id) {
+                    set.reorder_files(from, to);
+                }
+            }),
             I::ToggleSort => self.edit_titles(WorkingSet::toggle_sort),
             I::RestoreImportOrder => self.edit_titles(WorkingSet::restore_import_order),
             I::ReorderSources { title_id, from, to } => {
@@ -1437,6 +1451,8 @@ impl Session {
         inspected: crate::processing::plan::InspectedProcessingPlan,
     ) -> SessionOutcome {
         let deps = &self.inner.deps;
+        // Concurrency stays fixed while the preview runs.
+        let _active_run = deps.jobs.hold_run();
         let cancels: Vec<Arc<AtomicBool>> = (0..draft.payload.input_files.len())
             .map(|_| Arc::default())
             .collect();
