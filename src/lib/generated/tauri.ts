@@ -121,10 +121,6 @@ export type AppSettings = {
 	defaultAcquisitionLane?: AcquisitionLane,
 };
 
-export type AppSettingsRecoveryPlan = {
-	incompatibleEncoders: IncompatibleEncoderDefaults[],
-};
-
 export type AudioChoice = {
 	format: AudiobookFormat,
 	intent: AudioIntent,
@@ -397,8 +393,6 @@ export type EncoderDefaults = {
 	sampleRate: SampleRateConfig,
 };
 
-export type EncoderDefaultsScope = "lastUsed" | "pinned";
-
 export type EncoderOption = {
 	encoder: EncoderType,
 	available: boolean,
@@ -498,11 +492,6 @@ export type HandoffRefusal = { kind: "importFailed"; error: AppErrorEnvelope } |
 /**  The files were already listed, or a reset dropped the import. */
 { kind: "nothingAdded" };
 
-export type IncompatibleEncoderDefaults = {
-	scope: EncoderDefaultsScope,
-	encoderType: string,
-};
-
 export type IndexerDraftSnapshot = {
 	baseUrl: string,
 	categoryIds: number[],
@@ -511,6 +500,11 @@ export type IndexerDraftSnapshot = {
 	save: RemoteDraftStatus,
 	test: RemoteDraftStatus,
 	testResult: RemoteIndexerConnectionTestResult | null,
+	/**
+	 *  Why the last edit was refused. The draft keeps the values it accepted
+	 *  before; Save and Test refuse until an edit is accepted.
+	 */
+	draftError: AppErrorEnvelope | null,
 };
 
 export type IndexerWorkSnapshot = {
@@ -1158,16 +1152,12 @@ export type SettingsIntent =
 { kind: "retry" } |
 /**  Returns every setting to its default. Refused while exports run. */
 { kind: "reset" } |
-/**  Applies a reviewed recovery of settings this version cannot read. */
-{ kind: "recover"; expected: AppSettingsRecoveryPlan } |
 /**  Reads the saved settings again after a failed load. */
 { kind: "reload" };
 
 export type SettingsOutcome = { kind: "applied" } |
 /**  Nothing changed. */
-{ kind: "rejected"; error: AppErrorEnvelope } |
-/**  The saved settings were recovered; the original file is in `backup_file_name`. */
-{ kind: "recovered"; backupFileName: string };
+{ kind: "rejected"; error: AppErrorEnvelope };
 
 export type SettingsReply = {
 	outcome: SettingsOutcome,
@@ -1180,8 +1170,6 @@ export type SettingsSnapshot = {
 	settings: AppSettings | null,
 	/**  Why the saved file could not be read. */
 	loadError: AppErrorEnvelope | null,
-	/**  A recovery the user may apply to make the saved file readable. */
-	recovery: AppSettingsRecoveryPlan | null,
 	/**  Why accepted changes are not on disk yet. Absent when all are saved. */
 	saveError: AppErrorEnvelope | null,
 	concurrency: ConcurrencySnapshot,

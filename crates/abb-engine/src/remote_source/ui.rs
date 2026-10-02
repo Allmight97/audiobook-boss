@@ -85,6 +85,9 @@ pub struct IndexerDraftSnapshot {
     pub save: RemoteDraftStatus,
     pub test: RemoteDraftStatus,
     pub test_result: Option<RemoteIndexerConnectionTestResult>,
+    /// Why the last edit was refused. The draft keeps the values it accepted
+    /// before; Save and Test refuse until an edit is accepted.
+    pub draft_error: Option<AppErrorEnvelope>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
@@ -134,6 +137,10 @@ pub(super) struct UiState {
     connection_loading: bool,
     connection_loaded: bool,
     connection_saving: bool,
+    /// Fields edited since the saved connection began loading; the load
+    /// fills in only the others.
+    url_edited: bool,
+    categories_edited: bool,
     test_request: u64,
     search_request: u64,
     save_request: u64,
@@ -156,6 +163,7 @@ impl Default for UiState {
                     category_ids: super::providers::indexer::default_category_ids(),
                     api_key_configured: false,
                     api_key_entered: false,
+                    draft_error: None,
                     save: RemoteDraftStatus::Idle,
                     test: RemoteDraftStatus::Idle,
                     test_result: None,
@@ -166,6 +174,8 @@ impl Default for UiState {
             edit_revision: 0,
             connection_loading: false,
             connection_loaded: false,
+            url_edited: false,
+            categories_edited: false,
             connection_saving: false,
             test_request: 0,
             search_request: 0,
@@ -308,6 +318,7 @@ impl UiState {
                     return Ok(UiAction::Done);
                 }
                 self.connection_loading = true;
+                (self.url_edited, self.categories_edited) = (false, false);
                 return Ok(UiAction::Load {
                     revision: self.edit_revision,
                     request: self.save_request,
@@ -322,6 +333,7 @@ impl UiState {
             }
             RemoteUiIntent::SaveConnection => return self.save_connection(),
             RemoteUiIntent::TestConnection => {
+                self.ensure_draft_usable()?;
                 self.test_request += 1;
                 self.snapshot.connection.test = RemoteDraftStatus::Running;
                 self.snapshot.connection.test_result = None;
@@ -407,7 +419,23 @@ impl UiState {
                 .collect(),
         }))
     }
+    /// Save and Test act on the draft only once the fields show what it holds.
+    fn ensure_draft_usable(&self) -> Result<()> {
+        if self.connection_loading {
+            return Err(AppError::InvalidInput(
+                "Wait for the saved Indexer connection to load.".into(),
+            ));
+        }
+        if self.snapshot.connection.draft_error.is_some() {
+            return Err(AppError::InvalidInput(
+                "Correct the Indexer connection details before saving or testing.".into(),
+            ));
+        }
+        Ok(())
+    }
+
     fn save_connection(&mut self) -> Result<UiAction> {
+        self.ensure_draft_usable()?;
         if self.connection_saving
             || self.snapshot.indexer.searching
             || self.snapshot.indexer.grabbing
@@ -435,9 +463,20 @@ impl UiState {
         category_ids: Option<Vec<u32>>,
         api_key: Option<String>,
     ) -> Result<()> {
-        let url = base_url
+        let url = match base_url
             .map(super::providers::indexer::normalize_draft_url)
-            .transpose()?;
+            .transpose()
+        {
+            Ok(url) => url,
+            Err(error) => {
+                self.snapshot.connection.draft_error = Some(AppErrorEnvelope::from(&error));
+                self.changed();
+                return Err(error);
+            }
+        };
+        self.snapshot.connection.draft_error = None;
+        self.url_edited |= url.is_some();
+        self.categories_edited |= category_ids.is_some();
         self.edit_revision += 1;
         if let Some(url) = url {
             self.snapshot.connection.base_url = url;
@@ -484,6 +523,15 @@ impl UiState {
                 self.snapshot.connection.api_key_configured = connection.api_key_configured;
                 if self.edit_revision == revision {
                     self.apply_connection(connection);
+                } else {
+                    // Fields typed while it loaded stay; the rest come from disk.
+                    if !self.url_edited {
+                        self.snapshot.connection.base_url =
+                            connection.base_url.clone().unwrap_or_default();
+                    }
+                    if !self.categories_edited {
+                        self.snapshot.connection.category_ids = connection.category_ids.clone();
+                    }
                 }
             }
             Err(error) => {
@@ -747,12 +795,15 @@ impl RemoteSourceRuntime {
             );
             self.ui().changed();
             self.publish_ui();
+            // Shutdown stops a batch before its next release is sent.
             let result = match &turn {
                 Ok(_) => {
-                    self.grab_release(RemoteReleaseGrabRequest {
-                        release: release.clone(),
-                    })
-                    .await
+                    self.inner
+                        .tasks
+                        .until_closing(self.grab_release(RemoteReleaseGrabRequest {
+                            release: release.clone(),
+                        }))
+                        .await
                 }
                 Err(error) => Err(AppError::InvalidInput(error.to_string())),
             };
@@ -820,8 +871,11 @@ impl RemoteUiRun {
         let runtime = self.runtime;
         let result = match self.action? {
             UiAction::Done => Ok(RemoteUiResult::Applied),
+            // Indexer reads have nothing to save: shutdown drops them rather
+            // than waiting out a slow server.
             UiAction::Load { request, revision } => {
-                let result = runtime.get_indexer_connection().await;
+                let tasks = runtime.inner.tasks.clone();
+                let result = tasks.until_closing(runtime.get_indexer_connection()).await;
                 runtime.ui().loaded(request, revision, &result);
                 result.map(|_| RemoteUiResult::Applied)
             }
@@ -835,12 +889,16 @@ impl RemoteUiRun {
                 revision,
                 update,
             } => {
-                let result = runtime.test_indexer_connection(update).await;
+                let tasks = runtime.inner.tasks.clone();
+                let result = tasks
+                    .until_closing(runtime.test_indexer_connection(update))
+                    .await;
                 runtime.ui().tested(request, revision, &result);
                 result.map(|_| RemoteUiResult::Applied)
             }
             UiAction::Search { request, query } => {
-                let result = runtime.search_releases(query).await;
+                let tasks = runtime.inner.tasks.clone();
+                let result = tasks.until_closing(runtime.search_releases(query)).await;
                 runtime.ui().searched(request, &result);
                 result.map(|_| RemoteUiResult::Applied)
             }

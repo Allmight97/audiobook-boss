@@ -789,50 +789,6 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
 }
 
 #[tokio::test]
-async fn recovering_unreadable_settings_brings_their_output_folder_into_the_session() {
-    let root = TempDir::new().expect("engine root");
-    let config = root.path().join("config");
-    fs::create_dir_all(&config).expect("config folder");
-    fs::write(
-        config.join("app-settings.json"),
-        serde_json::json!({
-            "maxConcurrentJobs": { "mode": "auto" },
-            "encoderDefaults": {
-                "settings": { "encoderType": "retired_encoder" },
-                "sampleRate": "auto"
-            },
-            "outputDefaults": {
-                "outputDirectory": "/recovered",
-                "outputNaming": { "preset": "absDefault", "includeYear": false }
-            }
-        })
-        .to_string(),
-    )
-    .expect("write unreadable settings");
-    let engine = Engine::start(EngineConfig {
-        cache_dir: root.path().join("cache"),
-        config_dir: config,
-        app_identifier: "com.audiobook-boss.test".to_string(),
-        events: Arc::new(abb_engine::DiscardEvents),
-        aaxclean_helper: None,
-    })
-    .expect("start headless engine");
-    let output = |engine: &Engine| engine.session_snapshot().output.expect("output part");
-    assert_eq!(output(&engine).directory, None);
-
-    let plan = engine
-        .settings_snapshot()
-        .await
-        .recovery
-        .expect("recovery is offered");
-    engine
-        .settings_dispatch(abb_engine::app_settings::SettingsIntent::Recover { expected: plan })
-        .await;
-
-    assert_eq!(output(&engine).directory.as_deref(), Some("/recovered"));
-}
-
-#[tokio::test]
 async fn a_choice_made_while_reset_is_waiting_stays_on_screen_and_on_disk() {
     use std::future::Future;
     let desk = Desk::new();

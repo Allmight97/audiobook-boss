@@ -766,17 +766,22 @@ impl SessionState {
     }
 
     /// Ends a removal; a failed one stays registered and is tried again
-    /// after `staged::RETRY_DELAY`.
-    pub(crate) fn finish_staged_removal(&mut self, job_id: &str, removed: bool, now: Instant) {
+    /// after `staged::RETRY_DELAY`. Returns the reads the form now needs.
+    pub(crate) fn finish_staged_removal(
+        &mut self,
+        job_id: &str,
+        removed: bool,
+        now: Instant,
+    ) -> Vec<ReadTicket> {
         let paths = self.staged.paths(job_id);
         self.removing.retain(|path| !paths.contains(path));
-        if removed {
-            self.working_set.sources_removed(&paths);
-            self.staged.removed(job_id);
-            self.rebind();
-        } else {
+        if !removed {
             self.staged.removal_failed(job_id, now);
+            return Vec::new();
         }
+        self.working_set.sources_removed(&paths);
+        self.staged.removed(job_id);
+        self.rebind()
     }
 
     /// Holds a submission for the user's collision choice.

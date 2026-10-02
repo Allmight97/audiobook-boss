@@ -1,10 +1,10 @@
 name: frontend checks
 
-# Frozen installs, typechecking and frontend behavior on both integration and main.
+# Frozen installs, typechecking and frontend behavior on main and its PRs.
 
 on:
   push:
-    branches: [main, engine-prepare]
+    branches: [main]
     paths:
       - .github/workflows/ci.yml
       - src/**

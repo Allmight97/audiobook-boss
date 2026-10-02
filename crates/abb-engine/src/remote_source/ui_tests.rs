@@ -260,7 +260,7 @@ fn disconnect_and_new_library_requests_expire_older_choices() {
 }
 
 #[test]
-fn old_connection_load_and_test_replies_cannot_replace_a_new_save_or_test() {
+fn a_save_waits_for_the_load_and_old_test_replies_cannot_replace_a_new_test() {
     let mut ui = UiState::default();
     let UiAction::Load { request, revision } = ui
         .begin(RemoteUiIntent::LoadConnection)
@@ -269,6 +269,9 @@ fn old_connection_load_and_test_replies_cannot_replace_a_new_save_or_test() {
         panic!("load")
     };
     ui.begin(edit(Some("key"))).expect("fixture step succeeded");
+    // Nothing is saved while the stored connection is still loading.
+    assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
+    ui.loaded(request, revision, &Ok(configured()));
     let UiAction::Save {
         revision: save_revision,
         ..
@@ -279,9 +282,6 @@ fn old_connection_load_and_test_replies_cannot_replace_a_new_save_or_test() {
         panic!("save")
     };
     ui.saved(save_revision, &Ok(configured()));
-    let mut obsolete = configured();
-    obsolete.api_key_configured = false;
-    ui.loaded(request, revision, &Ok(obsolete));
     assert!(ui.snapshot.connection.api_key_configured);
     let UiAction::Test {
         request: first,
@@ -488,4 +488,112 @@ fn serve_grab_batch(listener: tokio::net::TcpListener) -> tokio::task::JoinHandl
         }
         ids
     })
+}
+
+#[tokio::test]
+async fn shutdown_drops_an_indexer_search_waiting_on_a_silent_server() {
+    let root = tempfile::TempDir::new().expect("temp dir");
+    let runtime = super::super::tests::test_runtime(&root);
+    // Accepts connections and never answers.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener");
+    let address = listener.local_addr().expect("address");
+    let _silent = tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((stream, _)) = listener.accept().await {
+            held.push(stream);
+        }
+    });
+    for intent in [
+        RemoteUiIntent::EditConnection {
+            base_url: Some(format!("http://{address}")),
+            category_ids: None,
+            api_key: Some("local-proof-key".into()),
+        },
+        RemoteUiIntent::SaveConnection,
+        RemoteUiIntent::SelectLane {
+            lane: ProviderId::Indexer,
+        },
+    ] {
+        runtime.ui_begin(intent).finish().await.expect("setup step");
+    }
+    let search = tokio::spawn(
+        runtime
+            .ui_begin(RemoteUiIntent::SearchReleases {
+                author: "Author".into(),
+                title: "Title".into(),
+            })
+            .finish(),
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    runtime.inner.tasks.close();
+
+    let ended = tokio::time::timeout(std::time::Duration::from_secs(2), search)
+        .await
+        .expect("the search ends at shutdown, not after the server's timeout")
+        .expect("search task");
+    assert!(ended.is_err());
+}
+
+#[test]
+fn save_and_test_refuse_a_refused_draft_and_a_draft_still_loading() {
+    let mut ui = UiState::default();
+    let refused = ui.begin(RemoteUiIntent::EditConnection {
+        base_url: Some("not a url ::".into()),
+        category_ids: None,
+        api_key: None,
+    });
+    assert!(refused.is_err());
+    assert!(ui.snapshot().connection.draft_error.is_some());
+    assert!(ui.begin(RemoteUiIntent::SaveConnection).is_err());
+    assert!(ui.begin(RemoteUiIntent::TestConnection).is_err());
+
+    // An accepted edit clears it.
+    ui.begin(RemoteUiIntent::EditConnection {
+        base_url: Some("https://indexer.test".into()),
+        category_ids: None,
+        api_key: None,
+    })
+    .expect("accepted edit");
+    assert!(ui.snapshot().connection.draft_error.is_none());
+
+    // While the saved connection loads, nothing is saved or tested.
+    let mut loading = UiState::default();
+    loading
+        .begin(RemoteUiIntent::LoadConnection)
+        .expect("load starts");
+    assert!(loading.begin(RemoteUiIntent::SaveConnection).is_err());
+}
+
+#[test]
+fn a_connection_that_loads_after_typing_keeps_the_typed_fields_and_fills_the_rest() {
+    let mut ui = UiState::default();
+    let Ok(UiAction::Load { request, revision }) = ui.begin(RemoteUiIntent::LoadConnection) else {
+        panic!("load starts");
+    };
+    // Only categories were typed while the keychain read was pending.
+    ui.begin(RemoteUiIntent::EditConnection {
+        base_url: None,
+        category_ids: Some(vec![3000]),
+        api_key: None,
+    })
+    .expect("edit");
+
+    ui.loaded(request, revision, &Ok(configured()));
+
+    let connection = ui.snapshot().connection;
+    assert_eq!(connection.category_ids, [3000]);
+    assert_eq!(
+        connection.base_url,
+        configured().base_url.unwrap_or_default()
+    );
+}
+
+#[test]
+fn release_keys_keep_the_format_the_frontend_builds() {
+    // `src/app/remoteSource/selection.ts` builds the same key with
+    // `JSON.stringify([indexerId, guid])` to look rows up.
+    assert_eq!(release_key(8, "same-guid"), r#"[8,"same-guid"]"#);
 }

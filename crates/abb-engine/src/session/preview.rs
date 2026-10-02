@@ -3,7 +3,7 @@
 use super::submission::{Draft, SubmissionStatus};
 use crate::processing::{ProcessResultStatus, ProgressEvent};
 use crate::work_runtime::{
-    new_processing_snapshot, OperationId, OperationSnapshot, WorkRuntimeState,
+    new_processing_snapshot, now_ms, OperationId, OperationSnapshot, WorkRuntimeState,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -146,21 +146,12 @@ impl Preview {
                     .state
                     .complete_from_process_result(id, result, now_ms())
                     .expect("registered preview");
-                let paths: Vec<_> = result
-                    .results
-                    .iter()
-                    .filter(|entry| entry.status == ProcessResultStatus::Success)
-                    .filter_map(|entry| entry.output_path.clone())
-                    .collect();
-                if !operation.cancel_requested
-                    && !operation
+                let cancelled = operation.cancel_requested
+                    || operation
                         .children
                         .iter()
-                        .any(|child| child.cancel_requested)
-                    && paths.len() == 1
-                {
-                    self.open_path = paths.into_iter().next();
-                }
+                        .any(|child| child.cancel_requested);
+                self.open_path = output_to_open(result, cancelled);
             }
             SubmissionStatus::Cancelled => {
                 self.state
@@ -198,10 +189,65 @@ impl Preview {
     }
 }
 
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .min(i64::MAX as u128) as i64
+/// The preview that opens by itself: the one output a run nobody cancelled
+/// produced. Several outputs, or none, open nothing.
+fn output_to_open(
+    result: &crate::processing::ProcessCommandResult,
+    cancelled: bool,
+) -> Option<String> {
+    let mut paths = result
+        .results
+        .iter()
+        .filter(|entry| entry.status == ProcessResultStatus::Success)
+        .filter_map(|entry| entry.output_path.clone());
+    match (cancelled, paths.next(), paths.next()) {
+        (false, Some(path), None) => Some(path),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::output_to_open;
+    use crate::processing::{ProcessCommandResult, ProcessResultEntry, ProcessResultStatus};
+
+    fn result(entries: &[(ProcessResultStatus, &str)]) -> ProcessCommandResult {
+        ProcessCommandResult::new(
+            entries
+                .iter()
+                .enumerate()
+                .map(|(input_index, (status, path))| ProcessResultEntry {
+                    input_index,
+                    status: *status,
+                    message: String::new(),
+                    error: None,
+                    output_path: (!path.is_empty()).then(|| path.to_string()),
+                    preview_actual_seconds: None,
+                    supplemental_warning: None,
+                    job_id: None,
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn only_the_single_output_of_an_uncancelled_preview_opens() {
+        use ProcessResultStatus::{Failed, Success};
+        let one = result(&[(Success, "/p/a.m4b")]);
+        assert_eq!(output_to_open(&one, false).as_deref(), Some("/p/a.m4b"));
+        assert_eq!(
+            output_to_open(&one, true),
+            None,
+            "a cancelled run opens nothing"
+        );
+        let two = result(&[(Success, "/p/a.m4b"), (Success, "/p/b.m4b")]);
+        assert_eq!(
+            output_to_open(&two, false),
+            None,
+            "several outputs open nothing"
+        );
+        let partly = result(&[(Success, "/p/a.m4b"), (Failed, "")]);
+        assert_eq!(output_to_open(&partly, false).as_deref(), Some("/p/a.m4b"));
+        assert_eq!(output_to_open(&result(&[(Failed, "")]), false), None);
+    }
 }

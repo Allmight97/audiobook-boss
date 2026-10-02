@@ -1,7 +1,6 @@
 import type {
 	AcquisitionLane as GeneratedAcquisitionLane,
 	AppSettings as GeneratedAppSettings,
-	AppSettingsRecoveryPlan as GeneratedAppSettingsRecoveryPlan,
 	ConcurrencyPreference as GeneratedConcurrencyPreference,
 	EncoderDefaults as GeneratedEncoderDefaults,
 	OutputDefaults as GeneratedOutputDefaults,
@@ -15,7 +14,6 @@ import type { NullToOptionalDeep } from './ipc';
 
 export type ConcurrencyPreference = GeneratedConcurrencyPreference;
 export type AcquisitionLane = GeneratedAcquisitionLane;
-export type AppSettingsRecoveryPlan = GeneratedAppSettingsRecoveryPlan;
 export type StartupBehavior = GeneratedStartupBehavior;
 export type EncoderDefaults = Omit<NullToOptionalDeep<GeneratedEncoderDefaults>, 'settings'> & {
 	settings: EncoderSettings;

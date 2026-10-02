@@ -59,8 +59,8 @@
   compatibility: per-file trial decoding selects the decoder.
 - Crate-internal helper: `CleanupGuard`.
 - Audio does not own lifecycle event names or progress math. Use
-  `crate::processing` / `processing::progress` for queue/progress event
-  vocabulary, and `crate::work_runtime` for accepted-operation identity.
+  `crate::processing` / `processing::progress` for internal progress values,
+  and `crate::work_runtime` for accepted-operation identity.
 
 ## Private Cluster
 

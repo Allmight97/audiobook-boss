@@ -11,11 +11,9 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   `SettingsSnapshot`, `ConcurrencySnapshot`.
 - Setting types: `AppSettings`, `AppSettingsPatch`, `AcquisitionLane`,
   `EncoderDefaults`, `OutputDefaults`, `ConcurrencyPreference`,
-  `StartupBehavior`, `PinnedDefaults`, `AppSettingsRecoveryPlan`,
-  `AppSettingsRecoveryResult`, `EncoderDefaultsScope`,
-  `IncompatibleEncoderDefaults`.
-- `SettingsRuntime` is engine-internal. Load, save, reset, and recovery
-  functions are private to this module so every write goes through the
+  `StartupBehavior`, `PinnedDefaults`.
+- `SettingsRuntime` is engine-internal. Load, save, and reset functions are
+  private to this module so every write goes through the
   runtime.
 
 ## Settings Runtime
@@ -29,8 +27,7 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   intents. Template typing reserves its turn immediately and writes after a
   pause only if still latest. Reset follows earlier edits; choices accepted
   afterward remain on screen and on disk even if reset finishes later.
-- Recover and Reload merge accepted unsaved choices before exposing loaded
-  settings, apply loaded concurrency and keep-awake to runtime owners, then
+- Reload merges accepted unsaved choices before exposing loaded settings, apply loaded concurrency and keep-awake to runtime owners, then
   retry their writes. The session preserves choices made while settings were
   unavailable. Failed hydration remains retryable through Reload.
 - A remembered default stays in effect when its write fails. The unsaved part
@@ -44,9 +41,10 @@ default the session records reaches hosts as `EngineEvent::Settings`.
   chose to start from pinned defaults).
 - Reset is refused while exports run. A failed reset restores the previous
   concurrency.
-- Settings that fail to load leave runtime defaults in effect and report
-  `load_error` with any recovery plan. Accepted changes made meanwhile are
-  written after a successful `Recover`.
+- The file holds only the current settings shape; there are no migrations of
+  older formats. A file that fails to load or validate leaves runtime defaults
+  in effect and reports `load_error`; Reset restores a working file. Saves are
+  synced before they replace the file, so a crash never leaves it torn.
 - `keep_awake_while_working` defaults on, including for settings written
   before the preference existed. Applying it updates `PowerManager`; opting
   out releases an active hold.

@@ -20,6 +20,16 @@ import {
 	type RemoteSourceWorkflowServices,
 } from './workflow';
 
+/** What the Acquire view asks for: an engine intent, or one of the workflow's
+ * own account and library reads. */
+export type RemoteSourceAction =
+	| Exclude<RemoteSourceWorkflowAction, { type: 'enterLane' | 'refreshAccount' }>
+	| { readonly type: 'searchReleases' }
+	| { readonly type: 'grabSelectedReleases' }
+	| { readonly type: 'grabRelease'; readonly release: Pick<RemoteRelease, 'guid' | 'indexerId'> }
+	| { readonly type: 'acquireSelected' }
+	| { readonly type: 'cancelActiveAcquisition' };
+
 export type RemoteSourceOwner = {
 	readonly view: Accessor<RemoteSourceView>;
 	readonly indexerConnection: Accessor<IndexerConnectionSettingsView>;
@@ -48,9 +58,7 @@ export type RemoteSourceOwner = {
 		release: Pick<RemoteRelease, 'guid' | 'indexerId'>,
 		options?: { multi: boolean },
 	): void;
-	runAction(
-		action: Exclude<RemoteSourceWorkflowAction, { type: 'enterLane' | 'refreshAccount' }>,
-	): Promise<void>;
+	runAction(action: RemoteSourceAction): Promise<void>;
 	coverPreview(coverUrl: string | null | undefined): CoverArtPreviewState;
 	scheduleCoverPreviews(coverUrls: ReadonlyArray<string | null | undefined>): void;
 	cancelCoverPreviews(): void;

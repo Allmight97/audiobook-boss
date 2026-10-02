@@ -10,7 +10,7 @@ when an imported download goes).
 Allowed external entrypoints:
 
 - Provider-neutral command types re-exported from `mod.rs`.
-- Host account/auth/library display reads through `Engine::remote_source()`.
+- Host account display reads plus auth and logout through `Engine::remote_source()`.
 - `RemoteUiIntent` and `RemoteUiSnapshot`, including their named connection,
   Indexer-work, and per-release status vocabulary, through the session boundary. Connection
   mutation, selection, Search/Grab, and acquisition start/cancel stay engine-internal.
@@ -60,9 +60,6 @@ or infer provider-private Audible internals.
   connection JSON never contains a key. Save persists changed JSON before
   changing that URL's key, and reports partial persistence if the vault fails.
   A failed save must never pair one server with another server's key.
-- A connection save and a search or grab refuse each other while either
-  runs. A release accepted since the last search, or the last save, is not
-  sent again; the grab answers "Already sent".
 - Connection Test accepts a draft without persisting it. An omitted draft key
   resolves only from that draft URL's vault slot; a new URL requires its own key.
 
@@ -97,7 +94,9 @@ fields are presence hints, not direct-download facts.
   pruning titles that cannot be acquired. A Grab batch captures its releases,
   sends sequentially, and keeps per-release failures for explicit retry. Its
   connection lease spans gaps between requests; Save and lane replacement are
-  refused until it finishes. Already-sent rows are skipped on retry.
+  refused until it finishes, and a connection Save and a search refuse each
+  other the same way. A release sent since the last search or Save is not sent
+  again (the grab answers "Already sent").
 - Connection readback cannot erase newer typing or a newer Save. Old Test/Search
   results cannot replace newer requests or changed lanes. API keys remain private;
   snapshots report only configured/entered facts. Initialize the HTTP client on

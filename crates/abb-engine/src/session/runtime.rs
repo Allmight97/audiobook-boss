@@ -652,9 +652,15 @@ impl Session {
                     if let Err(error) = &removed {
                         log::warn!("Failed to remove staged download job_id={job_id}: {error}");
                     }
-                    session.transition(|state| {
-                        state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                    let bound = session.transition(|state| {
+                        let reads = state.finish_staged_removal(&job_id, removed.is_ok(), now());
+                        Bound {
+                            reads,
+                            binding: state.binding,
+                        }
                     });
+                    // A removed download that was selected rebinds the form.
+                    session.complete_reads(bound).await;
                 }
                 session.publish();
             }
@@ -925,6 +931,9 @@ impl Session {
             }
             I::Reset => {
                 self.inner.resets.fetch_add(1, Ordering::SeqCst);
+                // Files the OS opened while the list was locked go with the
+                // titles, like an import still running.
+                let _ = self.inner.deps.opened_audio.take_paths();
                 self.transition(SessionState::reset);
                 // A review the reset dropped frees its sources.
                 self.sources_released();
@@ -1482,6 +1491,7 @@ impl Session {
         });
         self.publish();
         let result = process_inspected_with_options(
+            &_active_run,
             deps.host.clone(),
             deps.jobs.clone(),
             deps.workspace_root.clone(),

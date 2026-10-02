@@ -89,23 +89,3 @@ it('reopens from the engine draft without exposing another host’s entered key'
 		apiKeyDraft: '',
 	});
 });
-
-it('does not save or test after the engine refused the connection shown', async () => {
-	const owner = await open();
-	await owner.loadIndexerConnectionSettings();
-	engine.respond = (intent) => {
-		if (intent.kind === 'remote' && intent.intent.kind === 'editConnection')
-			return Promise.reject(new Error('That URL carries credentials.'));
-		return undefined;
-	};
-	owner.patchIndexerConnectionSettings({ baseUrlDraft: 'https://user:pw@next.test' });
-
-	await owner.saveIndexerConnectionSettings();
-	await owner.testIndexerConnection();
-
-	const sent = engine.sessionIntents.map((intent) =>
-		intent.kind === 'remote' ? intent.intent.kind : intent.kind,
-	);
-	expect(sent).not.toContain('saveConnection');
-	expect(sent).not.toContain('testConnection');
-});

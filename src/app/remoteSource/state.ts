@@ -60,7 +60,6 @@ export function createRemoteSourceStateStore(
 				(state.providerId === 'indexer' &&
 					(remote.indexer.searching || remote.connection.save.kind === 'running')),
 			activeJob: job,
-			lastJob: job,
 			isAcquiring: remote.acquiring || (job !== null && !job.settled),
 			statusByProvider: {
 				...state.statusByProvider,

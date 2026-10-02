@@ -14,14 +14,17 @@ commands over invoking internals directly.
   development; direct Cargo or upstream Tauri CLI launches bypass isolation.
   Packaged release-mode experiments need an explicit separate identifier.
 - Frontend checks (`.github/workflows/ci.yml`) run frozen install, typecheck,
-  and Vitest on relevant PRs and pushes to `main` or `engine-prepare`.
+  and Vitest on relevant PRs and pushes to `main`.
 - Rust core workflow (`.github/workflows/rust-core.yml`) runs the six
   `abb-*-core` crates' tests, their `clippy -D warnings`, and the crate tier
-  check on PRs and `main` pushes that touch `crates/**`, workspace
-  manifests/lockfile, the Rust toolchain, the tier script, or that workflow.
-  A separate macOS job runs engine lifecycle/unit tests with ABB's patched
-  bundled FFmpeg, excluding `test_cases::integration`. Real-media, developer
-  host, Tauri host, and binding proof use the local commands below.
+  check on PRs and `main` pushes that touch `crates/**`, `vendor/**`,
+  workspace manifests/lockfile, the Rust toolchain, the tier script, or that
+  workflow. A separate macOS job runs the engine tests with ABB's patched
+  bundled FFmpeg, including the session's Save golden paths, and the engine's
+  doctests (the host-API examples); it skips the real-media lane
+  (`test_cases::integration_media`) and the every-container Save test, which
+  needs the `ffmpeg` command-line tool. Those, the developer host, the Tauri
+  host, and binding proof use the local commands below.
 - Run native verification commands for the touched owner or explicit risk
   surface. Keep expensive build/test routes sequential to avoid competing for
   shared targets. Report failures with the command, exit code, and failing
@@ -69,7 +72,9 @@ commands over invoking internals directly.
 - Engine: `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib`
   (all engine proof), append `-E 'not test(test_cases::integration)'` for
   unit-only or `-E 'test(test_cases::integration)'` for real files.
-  `--test all_tests` proves the separately compiled developer host. Session only:
+  `--test all_tests` proves the separately compiled developer host. The
+  host-API examples run only as doctests:
+  `cargo test -p abb-engine --features bundled-ffmpeg --doc`. Session only:
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(session::)'`
   plus `--lib -E 'test(integration_session)'`.
 - Host (intent ordering, window sizing, quit prompt, binding file format):

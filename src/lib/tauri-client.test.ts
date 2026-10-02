@@ -25,7 +25,6 @@ describe('tauriClient', () => {
 				revision: 3,
 				settings: null,
 				loadError: null,
-				recovery: null,
 				saveError: null,
 				concurrency: {
 					preference: { mode: 'auto' },

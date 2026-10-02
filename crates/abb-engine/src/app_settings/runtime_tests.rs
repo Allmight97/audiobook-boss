@@ -158,7 +158,7 @@ async fn a_launch_applies_the_saved_concurrency_without_rewriting_it() {
 }
 
 #[tokio::test]
-async fn unreadable_settings_leave_runtime_defaults_and_offer_recovery() {
+async fn unreadable_settings_leave_runtime_defaults_until_reset() {
     let root = TempDir::new().expect("temp dir");
     std::fs::create_dir_all(config_dir(&root)).expect("config dir");
     std::fs::write(
@@ -179,31 +179,16 @@ async fn unreadable_settings_leave_runtime_defaults_and_offer_recovery() {
     let snapshot = rig.settings.snapshot().await;
     assert!(snapshot.settings.is_none() && snapshot.startup_defaults.is_none());
     assert!(snapshot.load_error.is_some());
-    let plan = snapshot.recovery.expect("recovery is offered");
 
     // A choice made while the file is unreadable stays in effect and unsaved.
     let reply = rig.send(remember_output("/chosen")).await;
     assert_eq!(reply.outcome, SettingsOutcome::Applied);
     assert!(reply.snapshot.save_error.is_some());
 
-    let reply = rig.send(SettingsIntent::Recover { expected: plan }).await;
-    let SettingsOutcome::Recovered { backup_file_name } = reply.outcome else {
-        panic!("recovery applies: {:?}", reply.outcome);
-    };
-    assert!(config_dir(&rig.root).join(backup_file_name).exists());
-    assert!(reply.snapshot.load_error.is_none() && reply.snapshot.save_error.is_none());
-    // The session's choice was saved on top of the recovered file.
-    assert_eq!(
-        rig.on_disk().output_defaults.output_directory.as_deref(),
-        Some("/chosen")
-    );
-    assert_eq!(rig.on_disk().encoder_defaults, EncoderDefaults::default());
-    assert_eq!(
-        reply.snapshot.concurrency.preference,
-        ConcurrencyPreference::Fixed(1)
-    );
-    assert_eq!(reply.snapshot.concurrency.effective, 1);
-    assert_eq!(rig.jobs.max_concurrent(), 1);
+    let reply = rig.send(SettingsIntent::Reset).await;
+    assert_eq!(reply.outcome, SettingsOutcome::Applied);
+    assert!(reply.snapshot.load_error.is_none());
+    assert_eq!(reply.snapshot.settings, Some(AppSettings::default()));
 }
 
 // ---- Acceptance and durability ----

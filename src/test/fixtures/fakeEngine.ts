@@ -112,10 +112,8 @@ export type FakeEngine = EngineCapability & {
 	settingsWriteError?: Rejection;
 	/** Refuses the next concurrency change, as running jobs would. */
 	concurrencyError?: Rejection;
-	/** Refuses recovery, as an unwritable backup would. */
-	recoverError?: Rejection;
-	/** Makes the saved settings unreadable until recovered. */
-	breakSettings(recovery?: SettingsSnapshot['recovery']): void;
+	/** Makes the saved settings unreadable until reset. */
+	breakSettings(): void;
 	/** Records settings the way the engine does after a session edit, and announces them. */
 	recordSettings(patch: Partial<AppSettings>): void;
 	/**
@@ -181,6 +179,7 @@ export function fakeRemote(): import('../../types/session').RemoteUiSnapshot {
 			save: { kind: 'idle' },
 			test: { kind: 'idle' },
 			testResult: null,
+			draftError: null,
 		},
 	};
 }
@@ -374,7 +373,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 	let unsaved: Partial<AppSettings> = {};
 	let saveError: SettingsSnapshot['saveError'];
 	let loadError: SettingsSnapshot['loadError'];
-	let recovery: SettingsSnapshot['recovery'];
 	let concurrency = initialSettings.maxConcurrentJobs;
 
 	const engine = {} as FakeEngine;
@@ -634,7 +632,6 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			revision: settingsRevision,
 			settings,
 			loadError,
-			recovery,
 			saveError,
 			concurrency: {
 				preference: concurrency,
@@ -716,16 +713,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 				unsaved = {};
 				saveError = undefined;
 				loadError = undefined;
-				recovery = undefined;
 				concurrency = { mode: 'auto' };
 				return { kind: 'applied' };
-			case 'recover':
-				if (engine.recoverError) return rejection(engine.recoverError);
-				settingsValue = defaultAppSettings();
-				loadError = undefined;
-				recovery = undefined;
-				write({}, false);
-				return { kind: 'recovered', backupFileName: 'app-settings.before-recovery.json' };
 			case 'reload':
 				return { kind: 'applied' };
 		}
@@ -814,9 +803,8 @@ export function createFakeEngine(initialSettings: AppSettings = defaultAppSettin
 			const snapshot = settingsSnapshot();
 			for (const listener of settingsListeners) listener(snapshot);
 		},
-		breakSettings(plan: SettingsSnapshot['recovery']) {
+		breakSettings() {
 			settingsValue = undefined;
-			recovery = plan;
 			loadError = {
 				code: 'invalid_input',
 				category: 'validation',

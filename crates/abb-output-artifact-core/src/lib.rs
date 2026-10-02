@@ -260,11 +260,17 @@ fn sanitize_component_with_commas(input: &str, replace_commas: bool) -> String {
     if replace_commas {
         value = value.replace(',', " - ");
     }
-    value
+    let value = value
         .replace(['/', '\\', '*', '?', '"', '<', '>', '|'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
-        .join(" ")
+        .join(" ");
+    // A tag of only dots ("." or "..") would name the current or parent
+    // folder instead of one of its own.
+    if !value.is_empty() && value.chars().all(|c| c == '.') {
+        return "_".to_string();
+    }
+    value
 }
 
 fn is_prefixed_subseries(value: &str) -> bool {
@@ -657,6 +663,31 @@ mod tests {
             Path::new(
                 "/out/Frank Herbert/Dune Saga/Part 1 - Discovery/Book 1 - Dune/Book 1 - Dune.m4b"
             )
+        );
+    }
+
+    #[test]
+    fn default_naming_never_turns_a_dots_only_tag_into_a_folder_step() {
+        let metadata = NamingMetadata::from_metadata(&AudiobookMetadata {
+            title: Some(".".to_string()),
+            artist: Some("..".to_string()),
+            series: Some("..".to_string()),
+            ..Default::default()
+        });
+        let path = build_output_path_preview(
+            Path::new("/out"),
+            Some(&metadata),
+            OutputNamingConfig::default(),
+            None,
+        )
+        .expect("path");
+        assert!(path.starts_with("/out"));
+        assert!(
+            path.components().all(|part| !matches!(
+                part,
+                std::path::Component::ParentDir | std::path::Component::CurDir
+            )),
+            "{path:?}"
         );
     }
 

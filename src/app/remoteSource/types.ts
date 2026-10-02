@@ -1,12 +1,11 @@
-import type { AcquisitionLane } from '../../types/appSettings';
 import type {
+	AcquisitionJob,
 	ProviderId,
 	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 	RemoteTitle,
 } from '../../types/remoteSource';
-import type { AcquisitionJobWithProgress } from './display';
 
 export type ReleaseGrabState = {
 	status: 'queued' | 'sending' | 'sent' | 'error';
@@ -33,8 +32,7 @@ export type AcquisitionState = {
 	selectedReleaseKeys: Set<string>;
 	releaseGrabs: Record<string, ReleaseGrabState>;
 	statusMessage: string;
-	activeJob: AcquisitionJobWithProgress | null;
-	lastJob: AcquisitionJobWithProgress | null;
+	activeJob: AcquisitionJob | null;
 };
 
 export type RemoteSourceState = Omit<AcquisitionState, 'statusMessage'> & {
@@ -59,13 +57,9 @@ type EngineFields =
 	| 'releaseGrabs'
 	| 'isGrabbing'
 	| 'isAcquiring'
-	| 'activeJob'
-	| 'lastJob';
+	| 'activeJob';
 export type RemoteSourceLocalState = Omit<RemoteSourceState, EngineFields>;
 export type RemoteSourcePatch = Partial<RemoteSourceLocalState> & { statusMessage?: string };
-export function providerIdFromLane(lane: AcquisitionLane): ProviderId {
-	return lane;
-}
 export function createInitialRemoteSourceState(): RemoteSourceLocalState {
 	return {
 		isBusy: false,

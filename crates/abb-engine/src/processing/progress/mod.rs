@@ -37,13 +37,9 @@ pub const PROGRESS_RANGE_MULTIPLIER: f64 = 70.0;
 // Data Contract (UI boundary)
 // ============================================================================
 
-/// Stage identifier emitted on `processing-progress` events.
-///
-/// This enum defines the wire format the frontend consumes. It is distinct
-/// from [`ProcessingStage`] (internal orchestration enum that carries data
-/// such as `Failed(String)`) because the UI only needs a simple discriminator.
-/// Serde `snake_case` serialization keeps the wire values identical to the
-/// pre-enum string protocol (`"analyzing"`, `"converting"`, ...).
+/// The stage a progress event reports, as a plain discriminator. Distinct from
+/// [`ProcessingStage`], the internal orchestration enum that carries data
+/// such as `Failed(String)`. WorkRuntime folds these into operation snapshots.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum EventStage {

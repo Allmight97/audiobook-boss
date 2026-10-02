@@ -135,7 +135,7 @@ impl ProcessingContext {
         }
     }
 
-    /// Creates a headless ProcessingContext (no UI event emission).
+    /// A context for tests, writing under the system temp folder.
     #[cfg(test)]
     pub fn new_headless(
         session: Arc<ProcessingSession>,
@@ -160,20 +160,13 @@ impl ProcessingContext {
         output: OutputConfig,
         workspace_root: PathBuf,
     ) -> Self {
-        Self {
+        Self::new_with_workspace_root(
             session,
-            encoder_settings: encoder_settings.into(),
+            encoder_settings,
             sample_rate,
             output,
             workspace_root,
-            preview: None,
-            job_id: None,
-            operation_id: None,
-            input_index: None,
-            operation_kind: OperationKind::ProcessingBatch,
-            progress_listener: None,
-            title_output: None,
-        }
+        )
     }
 
     pub(crate) fn required_encoder_settings(&self) -> Result<&EncoderSettings> {

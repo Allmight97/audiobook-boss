@@ -1,7 +1,8 @@
 use super::{
-    check_cover_redirect, cover_status_message, is_supported_image_content_type,
-    read_bounded_image, url_origin_for_log, validate_cover_art_url, BogonFilteringResolver,
-    COVER_ART_MAX_FILE_BYTES, COVER_ART_MAX_REDIRECTS,
+    check_cover_redirect, cover_status_message, dropped_cover_path,
+    is_supported_image_content_type, read_bounded_image, url_origin_for_log,
+    validate_cover_art_url, BogonFilteringResolver, COVER_ART_MAX_FILE_BYTES,
+    COVER_ART_MAX_REDIRECTS,
 };
 use reqwest::dns::Name;
 use reqwest::dns::Resolve;
@@ -95,4 +96,19 @@ async fn resolver_rejects_localhost() {
     let name: Name = "localhost".parse().expect("valid DNS name");
     let result = resolver.resolve(name).await;
     assert!(result.is_err());
+}
+
+#[test]
+fn a_multi_file_drop_picks_the_first_supported_image_whatever_its_case() {
+    let paths = |names: &[&str]| names.iter().map(|name| name.to_string()).collect();
+    assert_eq!(
+        dropped_cover_path(paths(&["/art/readme.txt", "/art/cover.PNG"])).as_deref(),
+        Some("/art/cover.PNG")
+    );
+    // With nothing supported, the first goes on so the user hears why.
+    assert_eq!(
+        dropped_cover_path(paths(&["/art/notes.txt", "/art/other.doc"])).as_deref(),
+        Some("/art/notes.txt")
+    );
+    assert_eq!(dropped_cover_path(Vec::new()), None);
 }

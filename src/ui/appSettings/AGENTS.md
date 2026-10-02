@@ -13,7 +13,7 @@
 ## View Interactions And Proof
 
 - Settings owns its scrolling body; all sections and the bottom actions remain
-  reachable. Opening Settings starts at recovery when offered, otherwise Audio defaults. Audio defaults apply to future imports; existing
+  reachable. Opening Settings starts at Audio defaults. Audio defaults apply to future imports; existing
   titles change only through their explicit Apply App Settings action.
 
 - Indexer connection fields dispatch Remote Source intents. Its API key input
@@ -22,10 +22,7 @@
   Escape dismisses it before dismissing Settings.
 - Reset requires the existing second activation. Reset controls remain
   disabled while a dialog save is pending.
-- Full reset remains reachable when settings cannot load or targeted recovery
-  is unavailable.
-- Targeted recovery shows the backend's affected encoder scopes and explains
-  the defaults reset and backup before its explicit activation. Keep recovery
-  errors with that action.
+- Settings that cannot load show as the dialog's error, and the confirmed
+  full reset stays reachable.
 - `AppSettingsDialogView.test.tsx` owns dialog interactions and visible automatic
   save failure/retry. `runtime-api-contract.test.ts` pins this UI export strip.

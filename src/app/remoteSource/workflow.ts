@@ -3,13 +3,12 @@ import type {
 	ProviderId,
 	RemoteAuthStartResponse,
 	RemoteLibraryResponse,
-	RemoteRelease,
 	RemoteSourceAccountState,
 	RemoteSourceProviderCapabilities,
 } from '../../types/remoteSource';
 import type { RemoteSourcePatch } from './types';
 import { uniqueDiagnosticMessage } from './display';
-import { laneSelectionResetPatch, providerIdFromLane } from './types';
+import { laneSelectionResetPatch } from './types';
 import type { RemoteSourceStateStore } from './state';
 
 export interface RemoteSourceWorkflowServices {
@@ -31,12 +30,7 @@ export type RemoteSourceWorkflowAction =
 	| { readonly type: 'startAuth' }
 	| { readonly type: 'completeAuth' }
 	| { readonly type: 'logout' }
-	| { readonly type: 'loadLibrary' }
-	| { readonly type: 'searchReleases' }
-	| { readonly type: 'grabSelectedReleases' }
-	| { readonly type: 'grabRelease'; readonly release: Pick<RemoteRelease, 'guid' | 'indexerId'> }
-	| { readonly type: 'acquireSelected' }
-	| { readonly type: 'cancelActiveAcquisition' };
+	| { readonly type: 'loadLibrary' };
 
 export type RemoteSourceWorkflow = {
 	run(action: RemoteSourceWorkflowAction): Promise<void>;
@@ -99,7 +93,7 @@ export function createRemoteSourceWorkflow(deps: {
 
 	async function enterLane(lane: AcquisitionLane, scope: WorkflowScope): Promise<void> {
 		const current = deps.state.current();
-		const providerId = providerIdFromLane(lane);
+		const providerId = lane;
 		if (current.providerId === providerId && current.isBusy) return;
 		if (providerId !== current.providerId) {
 			deps.state.patch({
@@ -217,13 +211,6 @@ export function createRemoteSourceWorkflow(deps: {
 				await loadLibrary(deps.state.current().providerId, workflowScope);
 				return;
 			}
-			case 'searchReleases':
-			case 'grabSelectedReleases':
-			case 'grabRelease':
-				return;
-			case 'acquireSelected':
-			case 'cancelActiveAcquisition':
-				return;
 			default: {
 				const _exhaustive: never = action;
 				return _exhaustive;
@@ -233,14 +220,10 @@ export function createRemoteSourceWorkflow(deps: {
 
 	return {
 		async run(action) {
-			if (deps.state.current().isGrabbing) return;
 			const generation = workflowGeneration;
 			const entry = entryGeneration;
 			const providerId = deps.state.current().providerId;
-			const survivesEntry =
-				action.type === 'enterLane' ||
-				action.type === 'acquireSelected' ||
-				action.type === 'cancelActiveAcquisition';
+			const survivesEntry = action.type === 'enterLane';
 			const scope: WorkflowScope = {
 				providerId,
 				isCurrent: () =>

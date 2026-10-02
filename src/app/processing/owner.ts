@@ -1,15 +1,13 @@
-import { createEffect, createSignal, untrack, type Accessor } from 'solid-js';
+import { createEffect, createSignal, onCleanup, untrack, type Accessor } from 'solid-js';
 import type { SettingsOwner } from '../appSettings';
 import type { EngineLink } from '../engineLink';
 import type { OutputPlanOwner } from '../outputPlan';
 import { tauriClient } from '../../lib/tauri/client';
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { RestartOffer } from '../../types/session';
-import { renderConcurrencyStatus } from './render';
 import { runSubmission } from './submit';
-import { renderPreview, renderStatus } from './render';
+import { renderConcurrencyStatus, renderPreview, renderStatus } from './render';
 import { coverArtBytesToDataUrl } from '../../lib/media/coverArtDataUrl';
-import { onCleanup } from 'solid-js';
 import { createStatusViewStore, DEFAULT_STATUS_VIEW, type StatusView } from './view';
 
 /**

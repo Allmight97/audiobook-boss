@@ -38,8 +38,8 @@ pub(crate) fn validate_processing_inputs(
         )?;
     }
 
+    // The output folder was checked writable when the job registered.
     crate::audio::settings::validate_sample_rate_config(&context.sample_rate)?;
-    crate::audio::settings::validate_output_path(context.output.final_path())?;
     Ok(())
 }
 

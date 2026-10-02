@@ -255,44 +255,6 @@ export function AppSettingsDialogView(): JSX.Element {
 			</Dialog.Header>
 			<Dialog.Body class="app-settings-body">
 				<SettingsPersistenceNotice />
-				<Show when={state().recovery}>
-					<section
-						class="app-settings-section app-settings-recovery"
-						aria-label="Recover saved encoder defaults"
-					>
-						<h4 class="app-settings-section-title">Recover saved encoder defaults</h4>
-						<p>This version cannot use these saved encoders:</p>
-						<ul>
-							{state().recovery?.incompatibleEncoders.map((entry) => (
-								<li>
-									{entry.scope === 'pinned' ? 'Pinned defaults' : 'Last-used defaults'}:{' '}
-									<code>{entry.encoderType}</code>
-								</li>
-							))}
-						</ul>
-						<p>
-							Reset the affected encoder settings to Auto defaults. Output folders and other
-							preferences will be preserved. ABB will back up the original settings file first.
-						</p>
-						<Button
-							disabled={state().saveState === 'saving' || state().loading}
-							onClick={() => void settings.recoverEncoderDefaults()}
-						>
-							{state().saveState === 'saving' ? 'Recovering…' : 'Back up and recover defaults'}
-						</Button>
-						<Show when={state().saveError}>
-							<p class="app-settings-status app-settings-status-error" role="alert">
-								{state().saveError}
-							</p>
-						</Show>
-					</section>
-				</Show>
-				<Show when={state().recoveryBackup}>
-					<p class="app-settings-status app-settings-recovery" role="status">
-						Saved defaults recovered. Your current session choices still apply. Backup saved beside
-						the settings file: <code>{state().recoveryBackup}</code>
-					</p>
-				</Show>
 				<Show when={!state().loading} fallback={<p class="muted-text">Loading settings…</p>}>
 					<section
 						class="app-settings-section"
@@ -593,7 +555,7 @@ export function AppSettingsDialogView(): JSX.Element {
 								</Button>
 							</Show>
 						</div>
-						<Show when={state().saveState === 'error' && !state().recovery}>
+						<Show when={state().saveState === 'error'}>
 							<p
 								class="app-settings-status app-settings-status-error"
 								data-testid="app-settings-error"

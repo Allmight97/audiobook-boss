@@ -179,6 +179,7 @@ impl WorkRuntime {
             let _active_run = active_run;
             runtime.mark_running_and_emit(&host, &operation_id_for_task);
             let result = process_inspected_with_options(
+                &_active_run,
                 host.clone(),
                 registry,
                 workspace_root,
@@ -694,7 +695,8 @@ fn terminalize_aborted_run(
     }
 }
 
-fn now_ms() -> i64 {
+/// Wall-clock milliseconds for operation snapshots.
+pub(crate) fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

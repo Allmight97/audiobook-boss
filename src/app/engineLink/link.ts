@@ -200,6 +200,7 @@ function emptyRemote(): import('../../types/session').RemoteUiSnapshot {
 			save: { kind: 'idle' },
 			test: { kind: 'idle' },
 			testResult: null,
+			draftError: null,
 		},
 	};
 }

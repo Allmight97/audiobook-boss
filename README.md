@@ -117,12 +117,12 @@ Index of common commands; `package.json` holds the shortcuts.
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
 - Dependency hygiene: `bun run audit`.
-- CI: GitHub runs Pages for `site/**`, a path-narrowed frontend clean-install
-  alarm (frozen install, typecheck) after relevant `main` pushes, and the Rust
-  core crates' tests, Clippy, and the crate tier check on PRs and `main` pushes
-  that touch those crates or their workspace/toolchain configuration. The
-  engine and host suites, media lane, and generated-binding checks stay
-  local or release-owned; a passing PR check list does not mean those ran.
+- CI: GitHub runs Pages for `site/**`; frontend typecheck and Vitest on
+  relevant PRs and `main` pushes; and, for Rust changes, the core crates'
+  tests and Clippy, the crate tier check, and the engine tests on macOS
+  (Save golden paths and host-API examples included). The real-media lane,
+  the every-container Save test, the Tauri host suite, and the generated-binding
+  check stay local; a passing PR check list does not mean those ran.
 - Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`

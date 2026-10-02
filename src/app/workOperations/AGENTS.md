@@ -25,8 +25,8 @@
   (`work-operation-snapshot`, `work-operation-list-snapshot`). The
   `OperationSnapshot` is the sole progress source for accepted background
   operations.
-- Do not subscribe to `processing-progress` or apply client-authored progress
-  overlays for background work.
+- WorkRuntime snapshots are the only progress source; do not apply
+  client-authored progress overlays.
 - Terminal operation status is backend-canonical through
   `abb_processing_core::classify_run_terminal`. Do not recalculate success,
   mixed, failed, skipped, or cancelled outcomes.
@@ -51,5 +51,4 @@
 ## Boundary Changes
 
 - Adding, removing, or renaming a public export.
-- Reintroducing `processing-progress` overlay consumption for background
-  operations.
+- Adding a progress source beside WorkRuntime snapshots.

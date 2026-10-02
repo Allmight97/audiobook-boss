@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    get_app_settings, get_app_settings_recovery, recover_app_settings, reset_app_settings,
-    update_app_settings, AcquisitionLane, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan,
-    ConcurrencyPreference, EncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
+    get_app_settings, reset_app_settings, update_app_settings, AcquisitionLane, AppSettings,
+    AppSettingsPatch, ConcurrencyPreference, EncoderDefaults, OutputDefaults, PinnedDefaults,
+    StartupBehavior,
 };
 use crate::errors::{AppError, AppErrorEnvelope};
 use crate::power::PowerManager;
@@ -48,10 +48,6 @@ pub enum SettingsIntent {
     Retry,
     /// Returns every setting to its default. Refused while exports run.
     Reset,
-    /// Applies a reviewed recovery of settings this version cannot read.
-    Recover {
-        expected: AppSettingsRecoveryPlan,
-    },
     /// Reads the saved settings again after a failed load.
     Reload,
 }
@@ -63,11 +59,6 @@ pub enum SettingsOutcome {
     /// Nothing changed.
     Rejected {
         error: AppErrorEnvelope,
-    },
-    /// The saved settings were recovered; the original file is in `backup_file_name`.
-    #[serde(rename_all = "camelCase")]
-    Recovered {
-        backup_file_name: String,
     },
 }
 
@@ -88,8 +79,6 @@ pub struct SettingsSnapshot {
     pub settings: Option<AppSettings>,
     /// Why the saved file could not be read.
     pub load_error: Option<AppErrorEnvelope>,
-    /// A recovery the user may apply to make the saved file readable.
-    pub recovery: Option<AppSettingsRecoveryPlan>,
     /// Why accepted changes are not on disk yet. Absent when all are saved.
     pub save_error: Option<AppErrorEnvelope>,
     pub concurrency: ConcurrencySnapshot,
@@ -145,7 +134,6 @@ struct State {
     revision: u64,
     accepted: Option<AppSettings>,
     load_error: Option<AppErrorEnvelope>,
-    recovery: Option<AppSettingsRecoveryPlan>,
     /// Accepted changes not yet on disk.
     unsaved: AppSettingsPatch,
     save_error: Option<AppErrorEnvelope>,
@@ -185,16 +173,11 @@ impl State {
                     }
                 }
                 self.load_error = None;
-                self.recovery = None;
                 self.hydration_pending = true;
             }
             Err(error) => {
                 self.accepted = None;
                 self.load_error = Some(AppErrorEnvelope::from(&error));
-                self.recovery = get_app_settings_recovery(config_dir).unwrap_or_else(|error| {
-                    log::warn!("Settings recovery check failed: {error}");
-                    None
-                });
             }
         }
     }
@@ -258,7 +241,6 @@ impl SettingsRuntime {
             revision: state.revision,
             settings: state.accepted.clone(),
             load_error: state.load_error.clone(),
-            recovery: state.recovery.clone(),
             save_error: state.save_error.clone(),
             concurrency: ConcurrencySnapshot {
                 preference: state.concurrency.unwrap_or(ConcurrencyPreference::Auto),
@@ -425,7 +407,6 @@ impl SettingsRuntime {
                 SettingsOutcome::Applied
             }
             SettingsIntent::Reset => self.reset(state).await,
-            SettingsIntent::Recover { expected } => self.recover(state, expected).await,
             SettingsIntent::Reload => {
                 if state.accepted.is_none() {
                     state.load(&self.inner.config_dir);
@@ -482,7 +463,6 @@ impl SettingsRuntime {
                 state.unsaved = AppSettingsPatch::default();
                 state.save_error = None;
                 state.load_error = None;
-                state.recovery = None;
                 self.apply_to_runtime(state);
             }
             Err(error) => state.save_error = Some(AppErrorEnvelope::from(&error)),
@@ -503,7 +483,6 @@ impl SettingsRuntime {
                 state.unsaved = AppSettingsPatch::default();
                 state.save_error = None;
                 state.load_error = None;
-                state.recovery = None;
                 self.apply_to_runtime(state);
                 SettingsOutcome::Applied
             }
@@ -630,36 +609,6 @@ impl SettingsRuntime {
                 }
                 rejected(&error)
             }
-        }
-    }
-
-    /// Applies the reviewed recovery, then saves what the session had
-    /// accepted while the file was unreadable.
-    async fn recover(
-        &self,
-        state: &mut State,
-        expected: AppSettingsRecoveryPlan,
-    ) -> SettingsOutcome {
-        let result = match self
-            .on_disk(move |dir| recover_app_settings(dir, expected))
-            .await
-        {
-            Ok(result) => result,
-            Err(error) => return rejected(&error),
-        };
-        state.accepted = match result.settings.merge(state.unsaved.clone()) {
-            Ok(settings) => Some(settings),
-            Err(error) => return rejected(&error),
-        };
-        state.load_error = None;
-        state.recovery = None;
-        state.hydration_pending = true;
-        if let Err(error) = self.apply_loaded_runtime(state).await {
-            return rejected(&error);
-        }
-        self.write_unsaved(state).await;
-        SettingsOutcome::Recovered {
-            backup_file_name: result.backup_file_name,
         }
     }
 }

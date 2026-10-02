@@ -13,8 +13,6 @@ carries one request to the engine and returns its answer.
   in the engine, not a new command.
 - Add a separate command only for a read that is not part of a snapshot (for
   example cover bytes) or for an owner that does not take intents yet.
-- Indexer Settings reads/writes can wait on an OS credential prompt; run them
-  off the UI thread so Settings remains usable while Keychain is waiting.
 - Register command and event changes in `src-tauri/src/ipc_contract.rs` and keep
   generated TypeScript bindings in sync.
 

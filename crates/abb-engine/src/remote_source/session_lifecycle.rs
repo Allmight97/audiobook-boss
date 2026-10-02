@@ -253,7 +253,11 @@ impl RemoteAcquisitionLifecycle {
                     job_id
                 );
             }
-            Err(error) => self.mark_job_failed(&job_id, plan.provider_id, error.to_string()),
+            Err(error) => {
+                // A failed download has nothing to import; its staging goes now.
+                self.cleanup_cancelled_job_session(&job_id);
+                self.mark_job_failed(&job_id, plan.provider_id, error.to_string());
+            }
         }
     }
 

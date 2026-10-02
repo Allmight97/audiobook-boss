@@ -2,7 +2,6 @@ import { createSignal, type Accessor } from 'solid-js';
 import type {
 	AcquisitionLane,
 	AppSettings,
-	AppSettingsRecoveryPlan,
 	ConcurrencyPreference,
 	SettingsIntent,
 	SettingsOutcome,
@@ -39,8 +38,6 @@ export type AppSettingsDialogState = {
 	powerSaveError: string;
 	startupSaveState: SettingsSaveState;
 	startupSaveError: string;
-	recovery: AppSettingsRecoveryPlan | null;
-	recoveryBackup: string;
 };
 
 /**
@@ -64,7 +61,6 @@ export type SettingsOwner = {
 	saveCurrentSettingsAsPinnedDefaults(): Promise<void>;
 	setStartupBehavior(behavior: StartupBehavior): Promise<void>;
 	resetAllAppSettings(): Promise<void>;
-	recoverEncoderDefaults(): Promise<void>;
 	reset(): void;
 };
 
@@ -73,7 +69,7 @@ export type SettingsOwnerDeps = {
 };
 
 /** The dialog's own progress: which control is saving and how it ended. */
-type DialogProgress = Omit<AppSettingsDialogState, 'settings' | 'recovery'>;
+type DialogProgress = Omit<AppSettingsDialogState, 'settings'>;
 type ProgressKey = 'save' | 'powerSave' | 'startupSave';
 
 function idleDialog(): DialogProgress {
@@ -86,7 +82,6 @@ function idleDialog(): DialogProgress {
 		powerSaveError: '',
 		startupSaveState: 'idle',
 		startupSaveError: '',
-		recoveryBackup: '',
 	};
 }
 
@@ -207,13 +202,10 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			return {
 				...dialog,
 				settings: snapshot.settings ?? null,
-				recovery: snapshot.recovery ?? null,
-				// Unreadable settings are the dialog's error unless a recovery is offered.
+				// Unreadable settings are the dialog's error; Reset restores defaults.
 				saveState: unreadable && dialog.saveState === 'idle' ? 'error' : dialog.saveState,
 				saveError:
-					unreadable && !snapshot.recovery && !dialog.saveError
-						? describe(snapshot.loadError)
-						: dialog.saveError,
+					unreadable && !dialog.saveError ? describe(snapshot.loadError) : dialog.saveError,
 			};
 		},
 		async setConcurrencySelection(value) {
@@ -259,23 +251,6 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 			if (!(await runDialogAction('save', { kind: 'reset' })) || started !== generation) return;
 			concurrencyError = '';
 			changed();
-		},
-		async recoverEncoderDefaults() {
-			const expected = link.settings().recovery;
-			if (!expected || dialog.saveState === 'saving') return;
-			const started = generation;
-			updateDialog(started, { saveState: 'saving', saveError: '' });
-			const outcome = await send({ kind: 'recover', expected });
-			const error = failure(outcome);
-			if (error !== null) {
-				updateDialog(started, { saveState: 'error', saveError: error });
-				return;
-			}
-			updateDialog(started, {
-				saveState: 'saved',
-				recoveryBackup:
-					'kind' in outcome && outcome.kind === 'recovered' ? outcome.backupFileName : '',
-			});
 		},
 		reset() {
 			generation += 1;

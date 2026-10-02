@@ -24,7 +24,7 @@ attachment.
   and when the engine changes something on its own. A host that attached
   while an intent was running learns its result from the event.
 - A `SessionUpdate` carries only the parts that changed (titles, selection,
-  metadata, lookup, audio, output). Each part carries the revision of its own last change; a
+  metadata, lookup, audio, output, remote). Each part carries the revision of its own last change; a
   host keeps the newest copy of each part. This is what makes a keystroke cost
   about 1 KB instead of the whole title list, and what lets a reply and an
   event arrive in either order.
@@ -46,7 +46,7 @@ attachment.
 
 - `state.rs` and the modules it uses (`working_set`, `tag_cache`,
   `metadata_form`, `lookup`, `audio_choice`, `audio`, `plans`, `output`,
-  `submission`, `staged`, `exports`) hold every rule and do no I/O; the one exception is
+  `submission`, `staged`, `exports`, `preview`) hold every rule and do no I/O; the one exception is
   `PlanTicket::resolve`, which reads sources and runs on a blocking thread.
   Each method is one atomic transition. Work that needs a file or the network
   leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns

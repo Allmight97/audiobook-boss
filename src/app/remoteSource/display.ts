@@ -1,20 +1,12 @@
 import { toUserMessage } from '../../lib/tauri/appError';
 import type { AcquisitionJob, AcquisitionProgress, RemoteTitle } from '../../types/remoteSource';
 
-export type AcquisitionJobWithProgress = AcquisitionJob & {
-	progress?: AcquisitionProgress;
-};
-
 export type RemoteSourceDiagnostic = AcquisitionJob['diagnostics'][number];
-
-export function isAcquisitionTerminal(job: AcquisitionJobWithProgress): boolean {
-	return job.terminal;
-}
 
 const STAGED_FILES_REMOVED_SUFFIX = 'Staged remote files were removed.';
 
 /** Words how a settled job's files reached the session; `null` when it never got that far. */
-export function handoffMessage(job: AcquisitionJobWithProgress): string | null {
+export function handoffMessage(job: AcquisitionJob): string | null {
 	const handoff = job.handoff;
 	if (!handoff) {
 		if (job.status === 'failed' || job.status === 'cancelled') return null;
@@ -47,14 +39,14 @@ export function uniqueDiagnosticMessage(diagnostics: RemoteSourceDiagnostic[]): 
 	return uniqueMessages.join(' ');
 }
 
-export function statusFromAcquisitionJob(job: AcquisitionJobWithProgress): string {
+export function statusFromAcquisitionJob(job: AcquisitionJob): string {
 	const diagnostics = uniqueDiagnosticMessage(job.diagnostics);
 	if (job.progress?.terminal && diagnostics) return diagnostics;
 	if (job.progress?.message) return job.progress.message;
 	return diagnostics || 'Audible acquisition is running.';
 }
 
-export function progressPercent(job: AcquisitionJobWithProgress): number {
+export function progressPercent(job: AcquisitionJob): number {
 	return Math.max(0, Math.min(100, job.progress?.percentage ?? 0));
 }
 

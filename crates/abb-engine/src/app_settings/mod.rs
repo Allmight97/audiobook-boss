@@ -11,9 +11,8 @@ pub use runtime::{
 };
 pub(crate) use runtime::{SettingsRun, SettingsRuntime};
 pub use types::{
-    AcquisitionLane, AppSettings, AppSettingsPatch, AppSettingsRecoveryPlan,
-    AppSettingsRecoveryResult, ConcurrencyPreference, EncoderDefaults, EncoderDefaultsScope,
-    IncompatibleEncoderDefaults, OutputDefaults, PinnedDefaults, StartupBehavior,
+    AcquisitionLane, AppSettings, AppSettingsPatch, ConcurrencyPreference, EncoderDefaults,
+    OutputDefaults, PinnedDefaults, StartupBehavior,
 };
 
 fn get_app_settings(config_dir: &Path) -> Result<AppSettings> {
@@ -30,17 +29,6 @@ fn update_app_settings(config_dir: &Path, patch: AppSettingsPatch) -> Result<App
 fn reset_app_settings(config_dir: &Path) -> Result<AppSettings> {
     storage::reset(config_dir)?;
     Ok(AppSettings::default())
-}
-
-fn get_app_settings_recovery(config_dir: &Path) -> Result<Option<AppSettingsRecoveryPlan>> {
-    storage::recovery_plan(config_dir)
-}
-
-fn recover_app_settings(
-    config_dir: &Path,
-    expected: AppSettingsRecoveryPlan,
-) -> Result<AppSettingsRecoveryResult> {
-    storage::recover(config_dir, expected)
 }
 
 #[cfg(test)]

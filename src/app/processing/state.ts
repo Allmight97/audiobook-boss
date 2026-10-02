@@ -25,14 +25,6 @@ export type ProcessingStatus =
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'skipped' | 'failed' | 'cancelled';
 
-export function createInitialStatus(): ProcessingStatus {
-	return {
-		stage: 'idle',
-		percentage: 0,
-		message: 'Ready to process audiobook',
-	};
-}
-
 export function isActiveEventStage(stage: ProcessingStatus['stage']): stage is ActiveEventStage {
 	return stage === 'analyzing' || stage === 'converting' || stage === 'writing';
 }

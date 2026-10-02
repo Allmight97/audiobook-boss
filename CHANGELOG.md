@@ -13,10 +13,11 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   download is never changed; its edits go with its exports.
 - Saving metadata for a title that is exporting, or already exported, updates
   that export's audiobook too: its tags and cover, before or after it
-  finishes. If the edit would change where an unfinished audiobook goes, ABB
-  asks whether to restart it at the new location (removing its unfinished
-  output and the empty folders made for it) or let it finish where it is. A
-  finished audiobook is retagged where it is and never moved.
+  finishes. If the edit would change where an unfinished audiobook goes, the
+  title's row in Work Center offers Restart (at the new location, removing its
+  unfinished output and the empty folders made for it) or Keep Location (it
+  finishes where it is, with the new tags). A refused restart can be tried
+  again. A finished audiobook is retagged where it is and never moved.
 - A cancelled or failed title removes the empty folders made for it right
   away, without removing a folder another export is writing into.
 - The encoder panel's Auto sample rate and channels show what the export will
@@ -40,6 +41,22 @@ All notable changes to AudioBook Boss™ will be documented in this file.
 - Saving metadata while a preview is running, or while an export is waiting
   for you to resolve existing files, waits for it the same way and then
   writes, instead of refusing the save.
+- A preview shows while it is being prepared, reviewed, queued, and run;
+  Cancel stops the actual preview; and reopening the window returns to a
+  preview still running.
+- The status-panel thumbnail shows the cover the export will use, including a
+  custom one.
+- Dropping a file that is not a supported image onto the cover explains why it
+  was not used.
+- The inspector shows the selected title's real position and source count.
+- Grabbing several indexer releases sends them in order, keeps each one's
+  outcome, and Retry resends only the ones that failed.
+- Moving titles up or down by clicking twice quickly moves the title you
+  clicked, not whichever title the first move put in its place.
+- Titles tagged with only dots ("." or "..") no longer misplace their folder.
+- Quitting while an indexer search or grab waits on a slow server no longer
+  hangs.
+- The bundled FAAC encoder is the formal FAAC 2.2 release.
 
 ### Removed
 
@@ -48,8 +65,8 @@ All notable changes to AudioBook Boss™ will be documented in this file.
   Settings section for the custom FFmpeg path, Recheck FDK, and Homebrew setup.
   Encoding uses the bundled encoders: Native AAC, Apple AAC, FAAC, and Opus.
   Auto always resolves to Native AAC. v1.13.2 is the last version with FDK.
-  If FDK was your saved encoder, App Settings offers to reset your encoder
-  defaults.
+  Settings saved with FDK-era encoder choices no longer load; reset App
+  Settings once to start from the current defaults.
 
 ## [1.13.2] - 2026-09-28
 

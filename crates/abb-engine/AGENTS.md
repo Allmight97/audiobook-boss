@@ -93,7 +93,8 @@ the same code.
 - Validate input audio paths where they enter the engine with
   `crate::audio::validate_input_audio_path()`. Paths the engine hands back are
   canonical; compare paths in that spelling.
-- Use `JobRegistry` for active-job tracking and cancellation.
+- Use `JobRegistry` for active-job tracking. Cancellation is per title:
+  WorkRuntime's flags for an export, the session's for a preview.
 - Run CPU-bound encoding and heavy synchronous work through
   `tokio::task::spawn_blocking` or an equivalent blocking-safe path.
 - Keep long-running progress and terminal outcomes observable through the

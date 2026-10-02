@@ -6,9 +6,9 @@
 - Source of truth for permit discipline, scheduling behavior, and reconfiguration safety.
 - Source of truth for max-concurrent-job capability facts exposed to settings
   controls.
-- Accepted-operation identity lives in `work_runtime`. Progress/queue event
-  vocabulary and shared terminal summaries live in the parent `processing`
-  public API; this directory owns active-job state.
+- Accepted-operation identity lives in `work_runtime`. Internal progress
+  values and shared terminal summaries live in the parent `processing` public
+  API; this directory owns active-job state.
 
 ## Preferred Path
 
@@ -23,16 +23,15 @@
   an export's acceptance to its end, and the session for a preview, so the
   gap between two titles never counts as idle.
 - Cancellation is title-scoped: `CancellationChecker::new` takes the title's
-  cancel flag from WorkRuntime (set by title or whole-operation cancel), and
-  direct previews pass none. The registry holds
-  no per-job or registry-wide cancel state.
+  cancel flag, from WorkRuntime for an export and from the session for a
+  preview. The registry holds no per-job or registry-wide cancel state.
 
 ## Hard Invariants
 
 - `register_job` records the job and acquires its permit before execution.
 - Scheduler preserves deterministic ordering while continuing to issue queued work after per-task errors.
 - Terminal job paths always release/remove tracked job state.
-- Queue snapshot items must always become terminal outcomes (success or failed) so UI state never hangs on missing indices.
+- Every scheduled index produces a terminal result (success or failed), so no title is left without an outcome.
 - Concurrency reconfiguration is idle-only to prevent dangling permits and inconsistent UI job counts.
   Admission and reconfiguration share one lock: admission records the job and
   clones the semaphore together, and reconfiguration checks for tracked jobs

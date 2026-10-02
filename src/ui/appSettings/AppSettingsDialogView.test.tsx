@@ -1,7 +1,6 @@
 import { flush } from 'solid-js';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettingsRecoveryPlan } from '../../types/appSettings';
 import { createFakeEngine, type FakeEngine } from '../../test/fixtures/fakeEngine';
 import { AppRuntimeProvider, createAppRuntime, type AppRuntime } from '../../app/runtime';
 
@@ -37,53 +36,13 @@ describe('AppSettingsDialogView', () => {
 		return engine.settingsIntents.filter((intent) => intent.kind === kind).length;
 	}
 
-	it('offers targeted recovery after inspection and reports its backup only after success', async () => {
-		const plan: AppSettingsRecoveryPlan = {
-			incompatibleEncoders: [{ scope: 'pinned', encoderType: 'future_encoder' }],
-		};
-		await renderOpenDialog((engine) => engine.breakSettings(plan));
-		expect(screen.getByRole('listitem')).toHaveTextContent('Pinned defaults: future_encoder');
-		expect(
-			screen.getByText(/Output folders and other preferences will be preserved/),
-		).toBeInTheDocument();
-		expect(sent('recover')).toBe(0);
-		await fireEvent.click(screen.getByRole('button', { name: 'Back up and recover defaults' }));
-		await vi.waitFor(() =>
-			expect(engine.settingsIntents).toContainEqual({ kind: 'recover', expected: plan }),
-		);
-		await vi.waitFor(() =>
-			expect(screen.getByText(/Saved defaults recovered/)).toBeInTheDocument(),
-		);
-		expect(
-			screen.queryByRole('button', { name: 'Back up and recover defaults' }),
-		).not.toBeInTheDocument();
-		expect(screen.getByText('app-settings.before-recovery.json')).toBeInTheDocument();
-	});
-
-	it('keeps the confirmed full reset reachable when targeted recovery is unavailable', async () => {
+	it('shows unreadable settings as an error and keeps the confirmed reset reachable', async () => {
 		await renderOpenDialog((engine) => engine.breakSettings());
-		expect(
-			screen.queryByRole('button', { name: 'Back up and recover defaults' }),
-		).not.toBeInTheDocument();
+		expect(screen.getByTestId('app-settings-error')).toBeInTheDocument();
 		await fireEvent.click(screen.getByTestId('app-settings-reset'));
 		expect(sent('reset')).toBe(0);
 		await fireEvent.click(screen.getByTestId('app-settings-reset-confirm'));
 		await vi.waitFor(() => expect(sent('reset')).toBe(1));
-	});
-
-	it('keeps recovery retryable when the backup cannot be saved', async () => {
-		await renderOpenDialog((engine) => {
-			engine.breakSettings({
-				incompatibleEncoders: [{ scope: 'pinned', encoderType: 'future_encoder' }],
-			});
-			engine.recoverError = { message: 'Cannot write settings backup' };
-		});
-		await fireEvent.click(screen.getByRole('button', { name: 'Back up and recover defaults' }));
-		await vi.waitFor(() =>
-			expect(screen.getByText('Cannot write settings backup')).toBeInTheDocument(),
-		);
-		expect(screen.getByRole('button', { name: 'Back up and recover defaults' })).toBeEnabled();
-		expect(screen.queryByText(/Saved defaults recovered/)).not.toBeInTheDocument();
 	});
 
 	it('requires a second activation before resetting all settings', async () => {

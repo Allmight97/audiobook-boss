@@ -39,7 +39,3 @@ export function coverNoticeMessage(notice: CoverNotice | null): CoverArtMessage 
 }
 
 export const COVER_ART_IMAGE_EXTENSION_HINTS = ['jpg', 'jpeg', 'png', 'webp'] as const;
-export const COVER_ART_IMAGE_EXTENSION_HINT_PATTERN = new RegExp(
-	`\\.(${COVER_ART_IMAGE_EXTENSION_HINTS.join('|')})$`,
-	'i',
-);

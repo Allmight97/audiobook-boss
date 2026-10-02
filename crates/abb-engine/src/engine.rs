@@ -27,6 +27,9 @@ use tokio_util::task::TaskTracker;
 pub(crate) struct EngineTasks {
     tracker: TaskTracker,
     admission: Arc<Mutex<()>>,
+    /// Fires when shutdown begins, for work that has nothing to save and is
+    /// dropped rather than waited for.
+    closing: tokio_util::sync::CancellationToken,
 }
 
 impl EngineTasks {
@@ -47,6 +50,18 @@ impl EngineTasks {
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
         self.tracker.close();
+        self.closing.cancel();
+    }
+
+    /// Runs `work` unless shutdown begins first; then it is dropped.
+    pub(crate) async fn until_closing<T>(
+        &self,
+        work: impl Future<Output = Result<T>>,
+    ) -> Result<T> {
+        tokio::select! {
+            result = work => result,
+            () = self.closing.cancelled() => Err(AppError::General("ABB is closing.".into())),
+        }
     }
 
     pub(crate) fn is_closed(&self) -> bool {
@@ -210,22 +225,16 @@ impl Engine {
     /// Applies one intent to the settings and returns the settings in effect.
     pub async fn settings_dispatch(&self, intent: SettingsIntent) -> SettingsReply {
         let reset = matches!(intent, SettingsIntent::Reset);
-        // Recovering or reloading an unreadable file can bring in the
-        // defaults the session started without.
-        let reloads = matches!(
-            intent,
-            SettingsIntent::Recover { .. } | SettingsIntent::Reload
-        );
+        // Reloading a file that could not be read can bring in the defaults
+        // the session started without.
+        let reloads = matches!(intent, SettingsIntent::Reload);
         let accepted = self.inner.tasks.admit(|| {
             let checkpoint = self.inner.session.defaults_checkpoint();
             let run = self.inner.settings.begin(intent, &self.inner.tasks);
             let engine = self.clone();
             self.inner.tasks.spawn(async move {
                 let (reply, defaults_changed) = run.finish().await;
-                let applied = matches!(
-                    reply.outcome,
-                    SettingsOutcome::Applied | SettingsOutcome::Recovered { .. }
-                );
+                let applied = reply.outcome == SettingsOutcome::Applied;
                 if applied && (reset || (reloads && defaults_changed)) {
                     if let Some(defaults) = &reply.snapshot.startup_defaults {
                         engine.inner.session.replace_defaults(

@@ -139,8 +139,7 @@ async fn dispatch_batch_plan(
 
 /// Runs one title unless its cancel flag is already set. A title cancelled
 /// before its job started emits nothing else, so report it here instead of
-/// leaving its row cancelling until the batch ends. Background operations
-/// only; previews carry no flags. A title that ends without publishing
+/// leaving its row cancelling until the batch ends. A title that ends without publishing
 /// removes the empty folders made only for it before it reports.
 async fn run_title_job(
     request: ProcessingJobRequest,

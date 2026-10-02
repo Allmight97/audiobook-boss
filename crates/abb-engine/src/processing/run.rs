@@ -17,7 +17,10 @@ mod run_validation;
 pub(crate) use run_options::ProcessingRunOptions;
 use run_validation::inspect_and_validate_external_processing_contract;
 
+/// Runs an inspected plan. `_run` is the caller's hold on the job registry,
+/// required so concurrency cannot change under the run.
 pub(crate) async fn process_inspected_with_options(
+    _run: &crate::processing::job_registry::ActiveRun,
     host: Host,
     registry: crate::ManagedJobRegistry,
     workspace_root: PathBuf,
@@ -134,7 +137,7 @@ mod tests {
         EncoderSettings {
             encoder_type: EncoderType::Auto,
             bitrate_kbps: 64,
-            bitrate_mode: BitrateMode::Vbr(3),
+            bitrate_mode: BitrateMode::Cbr,
             channels: ChannelConfig::Auto,
             native_aac_speed: 0,
             faac_profile: crate::audio::FaacProfile::Auto,
