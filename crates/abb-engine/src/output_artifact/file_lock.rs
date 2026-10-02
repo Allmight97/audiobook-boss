@@ -47,14 +47,20 @@ impl Drop for OutputFileLock {
 
 /// One spelling per file: the canonical folder plus the file name, so two
 /// exports naming the same file through different folder spellings share a
-/// lock.
+/// lock. macOS and Windows disks usually ignore case, so there the key does
+/// too; two files differing only in case then merely wait for each other.
 fn lock_key(path: &Path) -> PathBuf {
-    match (
+    let key = match (
         path.parent().and_then(|parent| parent.canonicalize().ok()),
         path.file_name(),
     ) {
         (Some(parent), Some(name)) => parent.join(name),
         _ => path.to_path_buf(),
+    };
+    if cfg!(any(target_os = "macos", target_os = "windows")) {
+        PathBuf::from(key.to_string_lossy().to_lowercase())
+    } else {
+        key
     }
 }
 
@@ -91,7 +97,11 @@ mod tests {
         let second = std::thread::spawn({
             let entered = Arc::clone(&entered);
             // Another spelling of the same file shares the lock.
-            let path = folder.path().join(".").join("book.m4b");
+            let path = folder.path().join(".").join(if cfg!(target_os = "macos") {
+                "Book.m4b"
+            } else {
+                "book.m4b"
+            });
             move || {
                 let _held = lock_output_file(&path);
                 entered.store(true, Ordering::SeqCst);

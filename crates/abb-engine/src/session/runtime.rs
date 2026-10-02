@@ -45,7 +45,9 @@ use crate::output_artifact::NamingPreset;
 use crate::processing::run::{
     preflight_payload, process_payload_with_options, ProcessingRunOptions,
 };
+use crate::processing::title_output::UpdateReply;
 use crate::processing::SupplementalProcessingAsset;
+use crate::processing::{OutputUpdate, OutputUpdateStatus};
 use crate::remote_source::{AcquisitionHandoff, AcquisitionJob, Handoff, HandoffRefusal};
 use crate::work_runtime::WorkRuntime;
 use crate::work_runtime::{OperationSnapshot, SubmitProcessingOperationRequest};
@@ -1149,6 +1151,15 @@ impl Session {
                 self.transition(|state| {
                     state.link_exports(&draft, &accepted.operation_id, &accepted.titles);
                 });
+                let linked: Vec<String> = draft
+                    .payload
+                    .input_ids
+                    .iter()
+                    .flatten()
+                    .flatten()
+                    .cloned()
+                    .collect();
+                self.catch_up_outputs(&linked).await;
                 SubmissionStatus::Submitted {
                     operation_id: accepted.operation_id,
                     title: draft.title.clone(),
@@ -1324,7 +1335,7 @@ impl Session {
         if plan.waiting > 0 {
             self.ensure_deferred_writer();
         }
-        let outputs = self.update_outputs(plan.outputs);
+        let outputs = self.update_outputs(plan.outputs).await;
 
         let mut saved = Vec::new();
         let mut status = MetadataStatus::SaveComplete {
@@ -1385,21 +1396,59 @@ impl Session {
 
     /// Sends each exported title's edit to its output, then records restart
     /// offers and ended links.
-    fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
+    /// A published output is written before this returns, so the Save's
+    /// status says whether it took the edit; an unpublished one takes it at
+    /// publication and reports through its export's snapshot.
+    async fn update_outputs(&self, edits: Vec<OutputEdit>) -> OutputEdits {
         if edits.is_empty() {
             return OutputEdits::default();
         }
-        let work = &self.inner.deps.work;
-        let replies = edits
-            .into_iter()
-            .map(|edit| {
-                let reply = work
-                    .update_title_output(&edit.title, edit.revision, &edit.intent)
-                    .map_err(|error| error.to_string());
-                (edit, reply)
-            })
-            .collect();
+        let mut replies = Vec::with_capacity(edits.len());
+        for edit in edits {
+            let mut reply = edit
+                .title
+                .update(edit.revision, &edit.intent)
+                .map_err(|error| error.to_string());
+            if matches!(
+                reply,
+                Ok(UpdateReply::Accepted {
+                    published: true,
+                    ..
+                })
+            ) {
+                let title = Arc::clone(&edit.title);
+                let _ = blocking(move || {
+                    title.apply_published();
+                    Ok(())
+                })
+                .await;
+                if let Some(OutputUpdate {
+                    status: OutputUpdateStatus::Failed { message },
+                    ..
+                }) = edit.title.update_state()
+                {
+                    reply = Err(message);
+                }
+            }
+            replies.push((edit, reply));
+        }
         self.transition(|state| state.record_output_edits(replies))
+    }
+
+    /// Brings outputs linked by a just-accepted export up to the session's
+    /// edits: a Save made while the submission was being prepared did not
+    /// reach the export.
+    async fn catch_up_outputs(&self, title_ids: &[String]) {
+        let edits = self.transition(|state| {
+            let tags = &state.tags;
+            state
+                .exports
+                .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
+                .into_iter()
+                .filter(|edit| title_ids.contains(&edit.title_id))
+                .collect::<Vec<_>>()
+        });
+        self.update_outputs(edits).await;
     }
 
     fn begin_restart(&self, title_id: &str, revision: u64) -> Rest {
@@ -1442,7 +1491,7 @@ impl Session {
                 .find(|edit| edit.title_id == draft_title_id(&draft))
         });
         if let Some(edit) = edit {
-            self.update_outputs(vec![edit]);
+            self.update_outputs(vec![edit]).await;
         }
         outcome
     }

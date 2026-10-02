@@ -13,8 +13,8 @@ fn claims() -> std::sync::MutexGuard<'static, Vec<PathBuf>> {
     CLAIMED.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-fn claimed_under(dir: &Path) -> bool {
-    claims().iter().any(|parent| parent.starts_with(dir))
+fn claimed_under(claims: &[PathBuf], dir: &Path) -> bool {
+    claims.iter().any(|parent| parent.starts_with(dir))
 }
 
 /// Owns every directory execution created for its outputs, including a missing
@@ -65,12 +65,15 @@ impl OutputParentDirCleanup {
         if published || !self.active {
             return Ok(());
         }
+        // Checked and removed under the claim lock, so no run claims a folder
+        // between the check and its removal.
+        let claims = claims();
         let mut first_error = None;
         for dir in self
             .created_dirs
             .iter()
             .rev()
-            .filter(|dir| parent.starts_with(dir) && !claimed_under(dir))
+            .filter(|dir| parent.starts_with(dir) && !claimed_under(&claims, dir))
         {
             if let Err(error) = remove_created_empty_dir(&self.existing_anchor, dir) {
                 log::warn!(
@@ -97,9 +100,10 @@ impl OutputParentDirCleanup {
         }
         self.active = false;
 
+        let claims = claims();
         let mut first_error = None;
         for dir in std::mem::take(&mut self.created_dirs).into_iter().rev() {
-            if claimed_under(&dir) {
+            if claimed_under(&claims, &dir) {
                 continue;
             }
             if let Err(error) = remove_created_empty_dir(&self.existing_anchor, &dir) {

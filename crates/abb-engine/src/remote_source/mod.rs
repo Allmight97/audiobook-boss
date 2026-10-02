@@ -526,7 +526,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_running_download_counts_until_quitting_stops_it() {
+    async fn a_download_counts_as_running_until_its_job_ends() {
         let root = TempDir::new().expect("temp root");
         let runtime = test_runtime(&root);
         let job_id = "remote-job-1";
@@ -540,16 +540,15 @@ mod tests {
                 job_id.to_string(),
                 acquisition_job(job_id, types::RemoteAcquisitionStatus::Acquiring),
             );
-        let download = tokio::spawn(std::future::pending::<()>());
-        runtime
-            .inner
-            .lifecycle
-            .store_acquisition_task(job_id, download.abort_handle());
         assert_eq!(runtime.running_acquisitions(), 1);
 
-        runtime.abort_acquisitions();
+        // A job that ended counts no longer, whatever task handle remains.
+        runtime.inner.lifecycle.mark_job_failed(
+            job_id,
+            RemoteProviderId::Audible,
+            "failed at once".to_string(),
+        );
         assert_eq!(runtime.running_acquisitions(), 0);
-        assert!(download.await.expect_err("aborted").is_cancelled());
     }
 
     #[test]

@@ -662,8 +662,8 @@ impl SessionState {
         counts
     }
 
-    /// Starts restarting a title at the location a Save offered: takes the
-    /// offer, then begins a submission of that title alone, which holds its
+    /// Starts restarting a title at the location a Save offered: begins a
+    /// submission of that title alone, which holds its
     /// sources and locks the list before the old export is cancelled.
     pub(crate) fn begin_restart(
         &mut self,
@@ -674,7 +674,7 @@ impl SessionState {
         let naming = self.output.naming();
         let link = match self
             .exports
-            .take_offer(title_id, revision, directory.as_ref(), &naming)
+            .offered(title_id, revision, directory.as_ref(), &naming)
         {
             Ok(link) => link,
             Err(RestartStale::Stale) => {
@@ -682,7 +682,9 @@ impl SessionState {
                 return None;
             }
         };
+        // A refused submission leaves the offer for another try.
         let draft = self.begin_submission_of(None, Some(title_id))?;
+        self.exports.consume_offer(title_id);
         Some((draft, link))
     }
 

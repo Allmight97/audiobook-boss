@@ -26,9 +26,8 @@
     metadata Saves are left to finish.
   - Each accepted export title gets a `TitleOutput` (built from the
     acceptance preflight; returned in `WorkSubmissionAccepted::titles`).
-    `update_title_output` hands it a Save's edit and writes a published
-    output on a blocking task; `stop_title` cancels one title and waits until
-    it published or ended. Every title is ended when its operation ends, so
+    The session hands it Save's edits; `stop_title` cancels one title and
+    waits until it published or ended. Every title is ended when its operation ends, so
     one the run never reached cannot keep an edit waiting. The child's
     `output_update` shows the latest edit's state.
 - `OperationId`

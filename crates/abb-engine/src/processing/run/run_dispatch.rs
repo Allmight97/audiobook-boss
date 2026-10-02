@@ -101,6 +101,10 @@ async fn dispatch_batch_plan(
                 },
                 &skipped_entry.message,
             );
+            // A skipped title never publishes; an edit for it is refused now.
+            if let Some(title) = options.title_outputs.get(planned_job.input_index) {
+                title.end();
+            }
             scheduled_jobs.push(Box::pin(async move { Ok(skipped_entry) }));
             continue;
         }

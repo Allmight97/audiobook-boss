@@ -205,10 +205,11 @@ impl Exports {
         self.tickets.remove(title_id);
     }
 
-    /// Takes the offer to restart `title_id`, if it is still the one the
-    /// user saw and the output settings are the ones it was made under.
-    pub(crate) fn take_offer(
-        &mut self,
+    /// The export to restart for `title_id`'s offer, if it is still the one
+    /// the user saw and the output settings are the ones it was made under.
+    /// The offer stays until `consume_offer`.
+    pub(crate) fn offered(
+        &self,
         title_id: &str,
         revision: u64,
         directory: Option<&String>,
@@ -220,9 +221,11 @@ impl Exports {
                 && ticket.naming == *naming
         });
         let link = self.links.get(title_id).filter(|_| current).cloned();
-        let link = link.ok_or(RestartStale::Stale)?;
+        link.ok_or(RestartStale::Stale)
+    }
+
+    pub(crate) fn consume_offer(&mut self, title_id: &str) {
         self.tickets.remove(title_id);
-        Ok(link)
     }
 
     /// The user keeps the output where it is.
@@ -321,10 +324,10 @@ mod tests {
         assert!(exports.offer(&edit, from, to, directory.clone(), naming.clone()));
 
         assert!(exports
-            .take_offer("alpha", edit.revision + 1, directory.as_ref(), &naming)
+            .offered("alpha", edit.revision + 1, directory.as_ref(), &naming)
             .is_err());
         assert!(exports
-            .take_offer(
+            .offered(
                 "alpha",
                 edit.revision,
                 Some(&"/elsewhere".to_string()),
@@ -332,6 +335,9 @@ mod tests {
             )
             .is_err());
 
+        assert!(exports
+            .offered("alpha", edit.revision, directory.as_ref(), &naming)
+            .is_ok());
         assert!(exports.decline("alpha", edit.revision));
         assert!(exports.offers().is_empty());
         let later = exports.edits(|_| None).remove(0);

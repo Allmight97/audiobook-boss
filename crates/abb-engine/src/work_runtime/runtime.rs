@@ -10,7 +10,6 @@ use crate::processing::context::processing::ProgressEventListener;
 use crate::processing::run::{
     preflight_title_outputs, process_payload_with_options, ProcessingRunOptions,
 };
-use crate::processing::title_output::UpdateReply;
 use crate::processing::TitleOutput;
 use crate::processing::{OperationResultSummary, ProcessResultStatus, ProgressEvent};
 use std::collections::{HashMap, HashSet};
@@ -206,30 +205,6 @@ impl WorkRuntime {
                 runtime.emit_snapshot(&host, &snapshot);
             }
         })
-    }
-
-    /// Accepts edit `revision` for an export title's output. An edit for a
-    /// published output is written on a blocking task.
-    pub(crate) fn update_title_output(
-        &self,
-        title: &Arc<TitleOutput>,
-        revision: u64,
-        intent: &crate::metadata::MetadataIntentPatch,
-    ) -> Result<UpdateReply> {
-        let reply = title.update(revision, intent)?;
-        if matches!(
-            reply,
-            UpdateReply::Accepted {
-                published: true,
-                ..
-            }
-        ) {
-            let title = Arc::clone(title);
-            self.inner
-                .tasks
-                .spawn_blocking(move || title.apply_published());
-        }
-        Ok(reply)
     }
 
     /// Cancels the title at `index` and waits until it has published or
