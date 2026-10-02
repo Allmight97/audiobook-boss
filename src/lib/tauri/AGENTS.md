@@ -47,5 +47,7 @@
 
 ## Boundary Changes
 - Adding, removing, or renaming a public export, `tauriClient` method, command name, event name, or generated overlap type.
-- Sending clear intent through sentinel frontend values instead of explicit patch ops.
+- Sending Blank through a sentinel value instead of the explicit blank field action.
+- A `tauriClient` method that calls a plugin API needs that permission in
+  `src-tauri/capabilities/default.json`; jsdom mocks cannot catch a missing one.
 - Bypassing `tauriClient` with generated invokers or raw Tauri invoke/listen calls.

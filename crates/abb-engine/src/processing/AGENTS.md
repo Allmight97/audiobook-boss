@@ -10,17 +10,19 @@
   Audio revalidates those identities after scheduler/permit waits; queued jobs
   must not replace the inspected facts underneath an already-resolved audio plan.
 - Backend Lifecycle: import shared lifecycle vocabulary and event helpers from
-  `crate::processing`, not `audio`, `commands`, or Status Panel internals.
+  `crate::processing`, not `audio` or Status Panel internals.
   Types: `OperationKind`, `OperationResultSummary`, `EventStage`,
   `ProgressEvent`, `QueueEvent`, `QueueItem`, `JobId`, `CancellationChecker`.
   Helpers: `ProgressEmitter` (sends progress as `EngineEvent`s through the
   host's `EventSink`), `operation_kind_log_label` (stable dev-log label parsed
   by `scripts/dev-log-analysis.ts`).
+- Export title outputs: `TitleOutput`, `OutputUpdate`, `OutputUpdateStatus`
+  (`title_output.rs`).
 - Pure lifecycle/terminal summary classification that has no runtime/media
   dependency is packaged in `abb-processing-core`.
 - Processing may consume `crate::output_artifact` types in payloads and plans;
-  it does not re-export output-artifact ownership. Command layers import
-  output-owned types from `crate::output_artifact` directly.
+  it does not re-export output-artifact ownership. Hosts and other callers
+  import output-owned types from `crate::output_artifact` directly.
 
 ## Private Cluster
 - Files: `../processing.rs`, `plan.rs`, `run.rs`, `terminal_outcomes/`,
@@ -33,8 +35,9 @@
   later is written to the published file once its size and modification time
   show ABB wrote it. Text tags are diffed from the planned metadata; the cover
   follows the edit's cover intent. A failed tag write never changes the
-  title's export outcome. A title that ends unpublished removes its own empty
-  folders before it reports (`run_dispatch.rs`).
+  title's export outcome. A title that ends unpublished has its empty
+  folders removed (`output_artifact/AGENTS.md`) before it reports ended
+  (`run_dispatch.rs`); a restart waits for that.
 - The cluster owns preflight planning, execution-plan preparation, runner
   orchestration, processing context/session state, backend lifecycle
   vocabulary, job lifecycle, queue/progress event types, terminal result

@@ -208,7 +208,6 @@ pub struct WorkSubmissionAccepted {
 pub struct SubmitProcessingOperationRequest {
     pub payload: ProcessPayload,
     pub metadata: Option<HashMap<String, crate::metadata::MetadataIntentPatch>>,
-    pub preview_seconds: Option<f64>,
     /// Names the submitted books so concurrent operations stay distinguishable.
     pub title: String,
 }

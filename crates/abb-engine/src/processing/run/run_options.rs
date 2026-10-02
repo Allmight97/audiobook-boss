@@ -6,7 +6,7 @@ use std::sync::Arc;
 pub(crate) struct ProcessingRunOptions {
     pub(crate) operation_id: Option<String>,
     /// One cancel flag per output title, indexed by input index. Cancelling
-    /// the whole operation sets every flag. Direct previews pass none.
+    /// the whole operation sets every flag.
     pub(crate) title_cancels: Vec<Arc<AtomicBool>>,
     pub(crate) progress_listener: Option<ProgressEventListener>,
     /// One output record per title, indexed like `title_cancels`. Previews

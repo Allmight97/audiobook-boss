@@ -35,8 +35,9 @@
 
 ## Ownership
 
-- Own operation identity, accepted submissions (a title's tags change only
-  through `update_title_output`), operation snapshots,
+- Own operation identity, accepted submissions (after acceptance a title's
+  tags change only through its `TitleOutput::update`, which the session
+  calls), operation snapshots,
   operation and title cancellation, and Work Center event truth.
 - Cancellation: a processing operation holds one cancel flag per output title,
   and whole-operation cancel sets them all. `cancel_operation` with a

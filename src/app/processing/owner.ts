@@ -72,6 +72,9 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 			});
 		}
 	}
+	// One restart runs through review at a time; the next offer is asked
+	// once it settles, so two confirmations never compete for submission.
+	let answering: Promise<void> = Promise.resolve();
 	createEffect(
 		() => deps.link.output().restartOffers,
 		(offers) => {
@@ -79,7 +82,7 @@ export function createProcessingOwner(deps: ProcessingOwnerDeps): ProcessingOwne
 				const key = `${offer.titleId}:${offer.revision}`;
 				if (asked.has(key)) continue;
 				asked.add(key);
-				void answer(offer);
+				answering = answering.then(() => answer(offer)).catch(() => undefined);
 			}
 		},
 	);

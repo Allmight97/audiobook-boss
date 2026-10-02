@@ -83,8 +83,10 @@ pub enum SubmissionStatus {
     /// The user cancelled the collision review.
     Cancelled,
     /// The title finished at its original location before the restart could
-    /// stop it; its tags were updated there.
-    FinishedBeforeRestart,
+    /// stop it; `outputs` says whether its tags took the edit there.
+    FinishedBeforeRestart {
+        outputs: super::exports::OutputEdits,
+    },
 }
 
 /// A submission being prepared: what will be sent, and the sources it holds.

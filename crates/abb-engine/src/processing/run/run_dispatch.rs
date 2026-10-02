@@ -174,9 +174,6 @@ async fn run_title_job(
             ProcessResultStatus::Success | ProcessResultStatus::Skipped
         )
     });
-    if let Some(title) = &title_output {
-        title.end();
-    }
     let mut folders = folders.lock().unwrap_or_else(PoisonError::into_inner);
     if let Err(error) = folders.end_title(input_index, published) {
         log::warn!(
@@ -184,6 +181,10 @@ async fn run_title_job(
         );
     }
     drop(folders);
+    // Ended after its folders are gone: a restart waits for this.
+    if let Some(title) = &title_output {
+        title.end();
+    }
     if listener.is_some() && matches!(outcome, Err(AppError::Cancellation(_))) {
         emit_terminal_cancelled_event(
             &host,

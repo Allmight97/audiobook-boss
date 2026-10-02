@@ -112,6 +112,19 @@ fn an_edit_accepted_before_publication_is_written_to_the_staged_file() {
 }
 
 #[test]
+fn an_older_edit_arriving_after_a_newer_one_is_ignored() {
+    let folder = tempfile::TempDir::new().expect("folder");
+    let (title, writes) = title(folder.path());
+    title.update(2, &genre("Horror")).expect("newer");
+    assert_eq!(
+        title.update(1, &genre("Mystery")).expect("older"),
+        UpdateReply::Unchanged
+    );
+    publish(&title, &folder.path().join("staged.m4b"));
+    assert_eq!(writes.lock().expect("writes")[0].1, genre("Horror"));
+}
+
+#[test]
 fn an_edit_accepted_during_publication_reaches_the_published_file() {
     let folder = tempfile::TempDir::new().expect("folder");
     let (title, writes) = title(folder.path());

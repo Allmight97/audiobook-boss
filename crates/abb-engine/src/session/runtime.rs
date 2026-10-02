@@ -1137,7 +1137,6 @@ impl Session {
                 SubmitProcessingOperationRequest {
                     payload: draft.payload.clone(),
                     metadata: draft.metadata.clone(),
-                    preview_seconds: None,
                     title: draft.title.clone(),
                 },
                 Some(Box::new({
@@ -1481,19 +1480,17 @@ impl Session {
         if !published {
             return self.submit(draft).await;
         }
-        let outcome = self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart);
-        let edit = self.transition(|state| {
+        let edits = self.transition(|state| {
             let tags = &state.tags;
             state
                 .exports
                 .edits(|path| tags.pending(path).map(|pending| pending.patch.clone()))
                 .into_iter()
-                .find(|edit| edit.title_id == draft_title_id(&draft))
+                .filter(|edit| edit.title_id == draft_title_id(&draft))
+                .collect()
         });
-        if let Some(edit) = edit {
-            self.update_outputs(vec![edit]).await;
-        }
-        outcome
+        let outputs = self.update_outputs(edits).await;
+        self.end_submission(&draft, SubmissionStatus::FinishedBeforeRestart { outputs })
     }
 
     /// Writes `items` as one accepted operation. The result says, per item,
@@ -1892,8 +1889,6 @@ fn staged_titles(job: &AcquisitionJob) -> Vec<(String, PathBuf)> {
         .collect()
 }
 
-/// The time staged-download retries are measured in: tokio's clock, so a
-/// paused test runtime can move it.
 /// The title a one-title draft submits.
 fn draft_title_id(draft: &Draft) -> String {
     draft
@@ -1904,6 +1899,8 @@ fn draft_title_id(draft: &Draft) -> String {
         .unwrap_or_default()
 }
 
+/// The time staged-download retries are measured in: tokio's clock, so a
+/// paused test runtime can move it.
 fn now() -> std::time::Instant {
     tokio::time::Instant::now().into_std()
 }

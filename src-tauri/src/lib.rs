@@ -190,6 +190,14 @@ fn plural(count: usize, one: &str, many: &str) -> String {
 /// What to ask before quitting stops `running` work, as a title and message;
 /// `None` when quitting stops nothing.
 fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, String)> {
+    // Saves waiting only behind a review or preview are written while
+    // shutting down; the prompt says so before an early Quit Now can drop them.
+    let waiting = (running.exports == 0 && running.waiting_writes > 0).then(|| {
+        format!(
+            "Metadata changes for {} wait to be saved. Quitting saves them first.",
+            plural(running.waiting_writes, "file", "files")
+        )
+    });
     let exports = (running.exports > 0).then(|| {
         let exports = plural(running.exports, "export is", "exports are");
         if running.waiting_writes == 0 {
@@ -217,11 +225,12 @@ fn quit_prompt(running: &abb_engine::RunningWork) -> Option<(&'static str, Strin
             }
         )
     });
-    match (exports, downloads) {
-        (Some(exports), None) => Some(("Exports are still running", exports)),
+    match (exports.or(waiting), downloads) {
+        (Some(work), None) if running.exports > 0 => Some(("Exports are still running", work)),
+        (Some(work), None) => Some(("Saves are still waiting", work)),
         (None, Some(downloads)) => Some(("Downloads are still running", downloads)),
-        (Some(exports), Some(downloads)) => {
-            Some(("Work is still running", format!("{exports} {downloads}")))
+        (Some(work), Some(downloads)) => {
+            Some(("Work is still running", format!("{work} {downloads}")))
         }
         (None, None) => None,
     }
@@ -415,6 +424,14 @@ mod quit_tests {
         let (title, message) = quit_prompt(&running(2, 2)).expect("asks about both");
         assert_eq!(title, "Work is still running");
         assert!(message.contains("2 exports are") && message.contains("2 Audible downloads are"));
+        let waiting = abb_engine::RunningWork {
+            exports: 0,
+            waiting_writes: 1,
+            acquisitions: 0,
+        };
+        let (title, message) = quit_prompt(&waiting).expect("asks about the waiting save");
+        assert_eq!(title, "Saves are still waiting");
+        assert!(message.contains("1 file"), "{message}");
     }
 
     #[tokio::test(start_paused = true)]

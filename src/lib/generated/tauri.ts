@@ -1286,9 +1286,9 @@ export type SubmissionStatus = { kind: "preparing"; preview: boolean } | { kind:
 { kind: "cancelled" } |
 /**
  *  The title finished at its original location before the restart could
- *  stop it; its tags were updated there.
+ *  stop it; `outputs` says whether its tags took the edit there.
  */
-{ kind: "finishedBeforeRestart" };
+{ kind: "finishedBeforeRestart"; outputs: OutputEdits };
 
 /**  Why the session could not be submitted. Hosts word these. */
 export type SubmitRefusal = { kind: "noTitles" } | { kind: "noValidTitles" } | { kind: "noOutputDirectory" } |

@@ -22,6 +22,17 @@ pub struct WorkRuntime {
     inner: Arc<WorkRuntimeInner>,
 }
 
+/// Preflights an export and gives each title its output record. Reads every
+/// source, so it runs on a blocking thread.
+async fn preflight_titles(
+    request: &SubmitProcessingOperationRequest,
+) -> Result<Vec<Arc<TitleOutput>>> {
+    let (payload, metadata) = (request.payload.clone(), request.metadata.clone());
+    tokio::task::spawn_blocking(move || preflight_title_outputs(&payload, metadata.as_ref()))
+        .await
+        .map_err(|error| AppError::General(format!("Export preflight failed: {error}")))?
+}
+
 /// Source paths by operation id, then title index.
 type TitleSources = HashMap<String, Vec<Vec<PathBuf>>>;
 
@@ -82,7 +93,7 @@ impl WorkRuntime {
                 "Processing operations need a title naming their books.".into(),
             ));
         }
-        let titles = preflight_title_outputs(&request.payload, request.metadata.as_ref())?;
+        let titles = preflight_titles(&request).await?;
 
         let operation_id = OperationId::new();
         let sequence = self.inner.sequence.fetch_add(1, Ordering::SeqCst);
@@ -154,7 +165,7 @@ impl WorkRuntime {
                 workspace_root,
                 request.payload,
                 request.metadata,
-                request.preview_seconds,
+                None,
                 ProcessingRunOptions {
                     operation_id: Some(operation_id_for_task.to_string()),
                     title_cancels,
@@ -208,8 +219,10 @@ impl WorkRuntime {
     }
 
     /// Cancels the title at `index` and waits until it has published or
-    /// ended without an output, its own empty folders removed. Returns
-    /// whether it published.
+    /// ended without an output, its own empty folders removed. A title still
+    /// queued ends at once: it cannot publish with its cancel flag set, so
+    /// a restart need not wait for the titles ahead of it. Returns whether
+    /// it published.
     pub(crate) async fn stop_title(
         &self,
         host: &Host,
@@ -221,8 +234,17 @@ impl WorkRuntime {
             .ok()
             .and_then(|state| state.child_job_id(operation_id, index));
         if let Some(child) = child {
-            if let Err(error) = self.cancel_operation(host, operation_id.clone(), Some(child)) {
-                log::warn!("Failed to cancel a title for restart: {error}");
+            match self.cancel_operation(host, operation_id.clone(), Some(child.clone())) {
+                Ok(snapshot) => {
+                    let queued = snapshot.children.iter().any(|candidate| {
+                        candidate.child_job_id == child
+                            && candidate.status == super::ChildJobStatus::Queued
+                    });
+                    if queued {
+                        title.end();
+                    }
+                }
+                Err(error) => log::warn!("Failed to cancel a title for restart: {error}"),
             }
         }
         title.settled().await

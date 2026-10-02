@@ -91,7 +91,7 @@ pub(crate) fn save_metadata_with_plan(
 }
 
 /// Finalizes a freshly produced artifact's metadata in one container-aware
-/// External-adapter artifact finalize: a remux pass carries chapters and cover
+/// pass, as a preserved merge needs: a remux pass carries chapters and cover
 /// art, then MP4-family tag truth is rewritten through the mp4ameta adapter
 /// chosen by actual container classification. The FFmpeg mov muxer silently
 /// drops dictionary keys outside its known-atom table (series, series-part, the

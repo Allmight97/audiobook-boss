@@ -48,7 +48,12 @@ describe('runSubmission', () => {
 
 	it('restarts one title by the offer the user confirmed', async () => {
 		const panel = statusPanel();
-		const { deps, sent } = submitDeps([{ kind: 'finishedBeforeRestart' }]);
+		const { deps, sent } = submitDeps([
+			{
+				kind: 'finishedBeforeRestart',
+				outputs: { updated: 1, elsewhere: 1, restartOffered: 0, failed: 0 },
+			},
+		]);
 		const restart = { titleId: 'alpha', revision: 3, from: '/a/Old.m4b', to: '/a/New.m4b' };
 
 		await runSubmission(panel, deps, { restart });

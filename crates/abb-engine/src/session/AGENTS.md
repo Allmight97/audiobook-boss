@@ -45,14 +45,16 @@ attachment.
 
 - `state.rs` and the modules it uses (`working_set`, `tag_cache`,
   `metadata_form`, `lookup`, `audio_choice`, `audio`, `plans`, `output`,
-  `submission`, `staged`) hold every rule and do no I/O; the one exception is
+  `submission`, `staged`, `exports`) hold every rule and do no I/O; the one exception is
   `PlanTicket::resolve`, which reads sources and runs on a blocking thread.
   Each method is one atomic transition. Work that needs a file or the network
   leaves as data (a `ReadTicket`, a `SavePlan`, a `PlanTicket`) and returns
   as a completion the state accepts or drops.
 - `runtime.rs` performs that work. It never holds the state lock across an
   await, and it calls `settle` after every transition so snapshots are
-  re-derived.
+  re-derived. It may read WorkRuntime (`sources_in_use`, `sources_held`)
+  under the state lock; WorkRuntime and `TitleOutput` callbacks never take
+  the session lock, which keeps that order deadlock-free.
 - A new rule belongs in the state modules with a test in `state_tests.rs`. Put
   it in `runtime.rs` only when it is about ordering between an intent and its
   I/O.

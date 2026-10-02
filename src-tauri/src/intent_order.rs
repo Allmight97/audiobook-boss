@@ -4,6 +4,7 @@
 //! request runs as its own task. The frontend numbers its intents; an intent
 //! waits here until every earlier one has taken its turn.
 
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 use tokio::sync::watch;
@@ -13,12 +14,16 @@ use tokio::sync::watch;
 /// intent after it.
 const MISSING_INTENT_WAIT: Duration = Duration::from_secs(2);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Position {
     /// Identifies the attached frontend; a reload attaches a new one.
     client: u64,
     /// The sequence number whose turn it is.
     next: u64,
+    /// An intent holds its turn.
+    running: bool,
+    /// Intents that arrived and wait for their turn.
+    waiting: BTreeSet<u64>,
 }
 
 pub struct IntentOrder {
@@ -28,7 +33,7 @@ pub struct IntentOrder {
 impl Default for IntentOrder {
     fn default() -> Self {
         Self {
-            position: watch::channel(Position { client: 0, next: 0 }).0,
+            position: watch::channel(Position::default()).0,
         }
     }
 }
@@ -56,6 +61,7 @@ impl Drop for Turn<'_> {
             let current = position.client == self.client && position.next == self.sequence;
             if current {
                 position.next += 1;
+                position.running = false;
             }
             current
         });
@@ -66,43 +72,76 @@ impl IntentOrder {
     /// A frontend started: its intents count from zero, and intents still
     /// arriving from an earlier frontend are refused.
     pub fn attach(&self, client: u64) {
-        self.position.send_replace(Position { client, next: 0 });
+        self.position.send_replace(Position {
+            client,
+            ..Position::default()
+        });
     }
 
-    /// Waits until it is `sequence`'s turn.
+    /// Waits until it is `sequence`'s turn. When the intent whose turn it is
+    /// has not arrived after `MISSING_INTENT_WAIT`, the earliest intent that
+    /// did arrive goes next; one still running is always waited for.
     pub async fn turn(&self, client: u64, sequence: u64) -> Result<Turn<'_>, Refused> {
-        let mut positions = self.position.subscribe();
-        let arrived = tokio::time::timeout(
-            MISSING_INTENT_WAIT,
-            positions.wait_for(|position| position.client != client || position.next >= sequence),
-        )
-        .await;
-        let position = match arrived {
-            Ok(Ok(position)) => *position,
-            Ok(Err(_)) => return Err(Refused::Replaced),
-            Err(_) => {
-                log::warn!("Intent {sequence} ran without an earlier intent that never arrived");
-                self.position.send_if_modified(|position| {
-                    let behind = position.client == client && position.next < sequence;
-                    if behind {
-                        position.next = sequence;
-                    }
-                    behind
-                });
-                *self.position.borrow()
+        self.position.send_if_modified(|position| {
+            position.client == client && position.waiting.insert(sequence)
+        });
+        let outcome = self.wait_for_turn(client, sequence).await;
+        self.position.send_if_modified(|position| {
+            let mine = position.client == client;
+            if mine {
+                position.waiting.remove(&sequence);
+                if outcome.is_ok() {
+                    position.running = true;
+                }
             }
-        };
+            false
+        });
+        outcome.map(|()| Turn {
+            order: self,
+            client,
+            sequence,
+        })
+    }
+
+    async fn wait_for_turn(&self, client: u64, sequence: u64) -> Result<(), Refused> {
+        let mut positions = self.position.subscribe();
+        loop {
+            let arrived = tokio::time::timeout(
+                MISSING_INTENT_WAIT,
+                positions.wait_for(|position| {
+                    position.client != client || (position.next >= sequence && !position.running)
+                }),
+            )
+            .await;
+            match arrived {
+                Ok(Ok(_)) => break,
+                Ok(Err(_)) => return Err(Refused::Replaced),
+                Err(_) => {
+                    // Skip only an intent that never arrived.
+                    self.position.send_if_modified(|position| {
+                        let earliest = position.waiting.first().copied();
+                        let skip = position.client == client
+                            && !position.running
+                            && earliest.is_some_and(|earliest| earliest > position.next);
+                        if let (true, Some(earliest)) = (skip, earliest) {
+                            log::warn!(
+                                "Intent {earliest} ran without an earlier intent that never arrived"
+                            );
+                            position.next = earliest;
+                        }
+                        skip
+                    });
+                }
+            }
+        }
+        let position = self.position.borrow();
         if position.client != client {
             return Err(Refused::Replaced);
         }
         if position.next > sequence {
             return Err(Refused::Late);
         }
-        Ok(Turn {
-            order: self,
-            client,
-            sequence,
-        })
+        Ok(())
     }
 }
 
@@ -149,6 +188,32 @@ mod tests {
 
         // Intent 0 finally arrives; running it now would undo 1 and 2.
         assert_eq!(order.turn(1, 0).await.err(), Some(super::Refused::Late));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_waiting_or_running_intent_is_never_skipped() {
+        let order = Arc::new(IntentOrder::default());
+        order.attach(1);
+        // Intent 0 runs for longer than the missing-intent wait.
+        let first = order.turn(1, 0).await.expect("intent 0");
+        let ran = Arc::new(Mutex::new(Vec::new()));
+        let later = [2, 1].map(|sequence| {
+            let order = Arc::clone(&order);
+            let ran = Arc::clone(&ran);
+            tokio::spawn(async move {
+                let turn = order.turn(1, sequence).await.expect("its turn");
+                ran.lock().expect("ran").push(sequence);
+                drop(turn);
+            })
+        });
+        tokio::time::sleep(super::MISSING_INTENT_WAIT * 3).await;
+        assert!(ran.lock().expect("ran").is_empty(), "intent 0 still runs");
+
+        drop(first);
+        for intent in later {
+            intent.await.expect("intent ran");
+        }
+        assert_eq!(*ran.lock().expect("ran"), [1, 2]);
     }
 
     #[tokio::test]

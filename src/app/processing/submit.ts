@@ -175,7 +175,10 @@ async function show(
 			context.updateStatus({
 				stage: 'completed',
 				percentage: 100,
-				message: 'The title finished before it could restart; its tags were updated where it is.',
+				message:
+					status.outputs.failed > 0
+						? 'The title finished before it could restart, and its tags could not be updated there. Save again to retry.'
+						: 'The title finished before it could restart; its tags were updated where it is.',
 			});
 			return;
 		case 'previewFinished':

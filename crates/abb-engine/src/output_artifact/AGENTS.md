@@ -2,14 +2,14 @@
 
 ## Public API Strip
 - Import from `crate::output_artifact`, not private child modules.
-- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`.
-- Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
+- Functions: `build_output_path_preview`, `derive_output_artifact_path`, `enforce_output_plan_review`, `ensure_output_parent_dirs`, `commit_output_artifact`, `finalized_output_success`, `commit_supplemental_output_assets_for_output`, `lock_output_file`.
+- Types: `OutputCommitRequest`, `OutputParentDirCleanup`, `FileIdentity`, `SupplementalOutputAssetsCommitRequest`, `OutputPlanLedger`, `OutputPlanReview`, `OutputKind`, `CollisionPolicy`, `NamingPreset`, `OutputNamingConfig`, `PlannedOutput`, `PlannedOutputAction`, `OutputReviewRequirement`, `OutputCollisionInfo`, `OutputCollisionKind`, `ResolvedOutputPlan`.
 - Pure naming/collision/review data facts are packaged in
   `abb-output-artifact-core`; `crates/abb-engine/src/output_artifact` owns runtime file
   I/O and final commit behavior.
 
 ## Private Cluster
-- Files: `mod.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
+- Files: `mod.rs`, `collision.rs`, `commit.rs`, `commit_tests.rs`, `file_lock.rs`, `parent_dirs.rs`, `parent_dirs_tests.rs`, `plan.rs`, `review.rs`, `supplemental.rs`, `types.rs`, `contract_tests.rs`.
 - The cluster owns artifact path derivation, collision detection, review signatures, output-root and parent-dir creation after review plus cleanup of the empty dirs ABB created, final artifact commit behavior, destination-adjacent replacement temps, and final-sidecar Supplemental PDF commit behavior.
 - Empty folders ABB created: a title that ends without publishing removes
   those made for it at once (`end_title`). No cleanup removes a folder that an

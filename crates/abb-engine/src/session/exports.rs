@@ -171,6 +171,14 @@ impl Exports {
         directory: Option<String>,
         naming: OutputNamingConfig,
     ) -> bool {
+        // A reply from an older Save that arrived late changes nothing.
+        let older = self
+            .tickets
+            .get(&edit.title_id)
+            .is_some_and(|ticket| ticket.offer.revision > edit.revision);
+        if older {
+            return false;
+        }
         if self
             .declined
             .get(&edit.title_id)

@@ -78,9 +78,9 @@ nearest Processing and WorkRuntime guidance owns the exact event rules.
 | UI Foundation | `src/ui/foundation` | Shared Solid primitives, semantic tokens, document/WebView base, and theme. |
 | Tauri runtime boundary | `src/lib/tauri` | Frontend command/event/plugin adaptation, payload normalization, and error presentation. |
 | Tauri host | `src-tauri` | Commands, intent ordering, event forwarding, window, quit handling (engine shutdown). Command registration lives in `src-tauri/src/ipc_contract.rs`. |
-| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, Save targets, audio choices and title plans, output naming, path preview, size estimates, submission and collision review, and imported downloads. |
+| Working session | `crates/abb-engine/src/session` | Titles and sources, selection, metadata edits and known tags, lookup, cover, Save targets, audio choices and title plans, output naming, path preview, size estimates, submission and collision review, exported-title links and restart offers, and imported downloads. |
 | Processing | `crates/abb-engine/src/processing` | Preflight/execution plans, runner coordination, lifecycle vocabulary, direct progress, and terminal classification. |
-| WorkRuntime | `crates/abb-engine/src/work_runtime` | Accepted operation identity, immutable inputs, snapshots, retention, and operation cancellation. |
+| WorkRuntime | `crates/abb-engine/src/work_runtime` | Accepted operation identity, each title's output record, snapshots, retention, and operation cancellation. |
 | Active-work power | `crates/abb-engine/src/power.rs` | One macOS idle-sleep hold across active work scopes, with immediate preference changes and release after the last scope ends. |
 | Audio Engine | `crates/abb-engine/src/audio` | Import facts, inspection, encoder selection, media execution, staging, cleanup, and integrity facts. |
 | Metadata Outcome | `crates/abb-engine/src/metadata` | Intent validation/normalization, effective metadata, write plans, and container-aware finalization. |
@@ -103,7 +103,7 @@ generated invokers, provider payloads, or filesystem mechanisms.
 | Frontend workflow truth | One App Runtime owner | Read through its view/accessor and change through semantic intent. Never mirror it in another writable store. |
 | Workflow transient state | Private workflow owner | Plain async; publish outcomes through the owner. |
 | Capability truth | Owning Rust runtime | UI renders accepted facts; it does not reproduce backend rule tables. |
-| Accepted operation | WorkRuntime until retention/purge | Stable identity, immutable accepted inputs, backend snapshots, operation and title cancellation. |
+| Accepted operation | WorkRuntime until retention/purge | Stable identity, accepted inputs that change only through a title's output record (tags and cover), backend snapshots, operation and title cancellation. |
 | Settings in effect | Engine settings runtime + JSON store | Runtime owner accepts behavior before it is recorded; a failed write keeps the setting in effect and retryable. |
 | Waiting metadata write | Engine session until the export reading the file finishes | Survives removal of its title; shutdown cancels the export and writes it. |
 | Artifact truth | Metadata, Audio, Output, and final disk readback | Success follows commit/finalization and any load-bearing verification. |
@@ -132,7 +132,7 @@ mismatch instead of blending the sources.
 - UI renders backend terminal truth; it does not invent final status.
 - Metadata `set`, `clear`, and absent (keep source) intent stay distinct from the session's field edits through Save and processing.
 - Input, output, and artifact paths remain validated at their owning ingress, plan, or commit seam.
-- Accepted WorkRuntime submissions keep stable identity and immutable accepted inputs.
+- Accepted WorkRuntime submissions keep stable identity; after acceptance only a title's tags and cover change, through its `TitleOutput` (`crates/abb-engine/src/session/AGENTS.md`, Exported titles).
 - External-provider partial failure remains typed and explicit at the owning engine module.
 - Generated bindings are regenerated, never hand-edited.
 - Session truth has one owner (the engine for the working session); module globals and view stores do not become a second copy.

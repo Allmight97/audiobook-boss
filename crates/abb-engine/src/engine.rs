@@ -173,7 +173,12 @@ impl Engine {
         } else {
             None
         };
-        let reply = self.inner.settings.dispatch(intent).await;
+        // Tracked, so shutdown waits for a settings write already under way.
+        let reply = self
+            .inner
+            .tasks
+            .track_future(self.inner.settings.dispatch(intent))
+            .await;
         // A reset returns the session's defaults to the reset settings; loaded
         // titles keep their own choices.
         let applied = matches!(

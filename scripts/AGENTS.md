@@ -71,7 +71,7 @@ commands over invoking internals directly.
   (unit) or `--test all_tests` (real files). Session only:
   `cargo nextest run -p abb-engine --features bundled-ffmpeg --lib -E 'test(session::)'`
   plus `--test all_tests -E 'test(integration_session)'`.
-- Host (intent ordering, window sizing, binding file format):
+- Host (intent ordering, window sizing, quit prompt, binding file format):
   `cargo nextest run -p audiobook-boss --features bundled-ffmpeg`.
 - Crate dependency tiers: `bun run check:rust-tiers` when a manifest or crate
   dependency changes.
@@ -170,6 +170,8 @@ commands over invoking internals directly.
   `.github/workflows/ci.yml` `bun-version` and
   `scripts/setup-codex-agent-env.sh` to that same field. Setup must install
   that version or exit; do not warn-and-continue.
+- Vite scripts use the standard Vite CLI; change that only with a validated
+  tooling decision.
 
 ## Dependencies
 

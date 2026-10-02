@@ -16,7 +16,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
   and artifact-finalize proofs; the lane also uses the crate-root re-exports
   of `extract_passthrough_metadata` + `PassthroughSource` to assert chapter
   truth on real artifacts). `finalize_artifact_metadata` is the
-  container-aware external-adapter handoff: remux carries chapters/cover, then
+  container-aware finish for a preserved merge: remux carries chapters/cover, then
   MP4-family tag truth is rewritten via mp4ameta. The FFmpeg mov muxer
   silently drops dict keys outside its known-atom table (series, series-part,
   freeform mirrors, sort_album), so MP4-family tag truth must not depend on a
@@ -28,7 +28,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 - Crate-local container support: `remux_preserved_audio_container` changes the
   container of a staged copy and verifies chapters through this boundary.
 - Crate-local artifact finish: `finish_artifact_tags` is the one last step
-  after any mux or remux (native, external adapter, preserve): MP4-family tag
+  after any mux or remux (native or preserve): MP4-family tag
   rewrite, then accepted-chapter verification. Its pre-write callback lets
   Audio report progress; Audio does not ask which container strategy applies.
 - Remux owns its sibling `.abb_meta_*` output from creation until it replaces
@@ -108,7 +108,7 @@ For ABS/Plex/Apple tag-mapping, series-tag strategy, and folder conventions, use
 
 ## Boundary Changes
 - Adding, removing, or renaming any Public API Strip symbol.
-- Making clear intent partial, lossy, or dependent on sentinel frontend values.
+- Making clear intent partial, lossy, or dependent on a sentinel value instead of the explicit blank field action.
 - Moving publication-date or series/subseries sequence validation out of the
   metadata boundary.
 - Changing canonical/mirrored/compatibility tag precedence, provider-degradation

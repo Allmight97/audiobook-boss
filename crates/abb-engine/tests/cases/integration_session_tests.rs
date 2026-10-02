@@ -444,9 +444,8 @@ async fn restarting_a_title_moves_its_unfinished_export_to_the_new_location() {
 
     let second = match submission(&desk) {
         Some(SubmissionStatus::Submitted { operation_id, .. }) => operation_id,
-        Some(SubmissionStatus::FinishedBeforeRestart) => {
-            // The first export won the race; its output kept its place.
-            return;
+        Some(SubmissionStatus::FinishedBeforeRestart { .. }) => {
+            panic!("the export finished before the restart could stop it: lengthen the source")
         }
         other => panic!("restart not submitted: {other:?}"),
     };

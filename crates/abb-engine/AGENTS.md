@@ -63,7 +63,7 @@ the same code.
   `crate::output_artifact`.
 - Exports and previews start from the session (`Submit`, `Preview`). An
   export enters WorkRuntime through `submit_processing_operation`; a preview
-  runs `process_payload` directly with `preview_seconds`.
+  runs `process_payload_with_options` directly with `preview_seconds`.
 
 ## Diagnostics
 

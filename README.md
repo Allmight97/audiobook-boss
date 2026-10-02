@@ -70,8 +70,7 @@ closure, and low-battery sleep remain controlled by macOS.
 
 ## Development
 
-Run targeted validation from the script guide for the owner or risk surface you
-touched. There is no default broad review command.
+Run the checks in the script guide for what you changed.
 
 ### Install a local build
 
@@ -91,16 +90,10 @@ recipient Mac.
 
 ## Script Guide
 
-Human index for common commands. `package.json` owns shortcuts and
-`scripts/AGENTS.md` owns the exact fresh-agent verification command menu. ABB
-currently uses direct native commands, not a custom verification runner or a
-default broad review route.
+Index of common commands; `package.json` holds the shortcuts.
 
 - Core dev: `bun run app:dev:log` (bundled FFmpeg). `bun run build` is the
   frontend production bundle only.
-- Verification is owner-scoped. Run the smallest native command that proves the
-  touched owner, then escalate only when the change crosses owners or a safety,
-  data, or contract invariant requires it.
 - Frontend checks: `bun run typecheck`,
   `bun run test -- <test files>`, plus `bun run fmt:check` / `bun run lint:check`
   when formatting or lint is in scope.
@@ -123,17 +116,14 @@ default broad review route.
 - IPC/boundary checks: `bun run bindings:check:local` and
   `bun run bindings:check:runtime-boundary`. Use `bun run bindings:check` when
   release-critical drift confidence is required.
-- Dependency hygiene: `bun run audit`
-  It is not part of the normal review path.
+- Dependency hygiene: `bun run audit`.
 - CI: GitHub runs Pages for `site/**`, a path-narrowed frontend clean-install
   alarm (frozen install, typecheck) after relevant `main` pushes, and the Rust
   core crates' tests, Clippy, and the crate tier check on PRs and `main` pushes
   that touch those crates or their workspace/toolchain configuration. The
   engine and host suites, media lane, and generated-binding checks stay
   local or release-owned; a passing PR check list does not mean those ran.
-- Tooling policy: Bun is the package manager/script runner/test runner.
-  Keep Vite scripts on the standard Vite CLI unless a validated tooling
-  decision changes that.
+- Bun is the package manager, script runner, and test runner.
 - IPC bindings: `bun run bindings:generate`, `bun run bindings:check`, `bun run bindings:sync`
 - Build timing: use direct Cargo timing commands such as `cargo build --timings`
   when investigating compile cost.
@@ -144,7 +134,7 @@ default broad review route.
   native repo-local `.app`; `bun run app:build:dmg` builds a portable,
   noninteractive public DMG and rebuilds the AAXClean helper from current source.
   `bun scripts/resolve-release-dmg.ts --version <version>` resolves the artifact;
-  `gh release verify-asset` proves the uploaded file matches that local DMG.
+  download the uploaded asset and compare its `shasum -a 256` with the local DMG.
 
 ## Project Operation
 

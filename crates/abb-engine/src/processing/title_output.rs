@@ -104,6 +104,8 @@ struct State {
     wanted: Option<(u64, Tags)>,
     phase: Phase,
     update: Option<OutputUpdate>,
+    /// The newest edit revision seen; an older one arriving late is ignored.
+    newest: u64,
 }
 
 type Writer = dyn Fn(&Path, &MetadataIntentPatch) -> Result<()> + Send + Sync;
@@ -141,6 +143,7 @@ impl TitleOutput {
                 wanted: None,
                 phase: Phase::Pending,
                 update: None,
+                newest: 0,
             }),
             writing: Mutex::new(()),
             settled: tokio::sync::watch::channel(None).0,
@@ -167,6 +170,11 @@ impl TitleOutput {
     ) -> Result<UpdateReply> {
         let (tags, location) = self.plan.tags(Some(intent))?;
         let mut state = self.lock();
+        // Saves read their edits in order but may reach here out of order.
+        if revision < state.newest {
+            return Ok(UpdateReply::Unchanged);
+        }
+        state.newest = revision;
         let target = state
             .wanted
             .as_ref()
